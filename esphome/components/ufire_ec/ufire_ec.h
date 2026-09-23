@@ -24,7 +24,7 @@ static const uint8_t COMMAND_CALIBRATE_PROBE = 20;
 static const uint8_t COMMAND_MEASURE_TEMP = 40;
 static const uint8_t COMMAND_MEASURE_EC = 80;
 
-class UFireECComponent : public PollingComponent, public i2c::I2CDevice {
+class UFireECComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;
@@ -58,7 +58,7 @@ class UFireECComponent : public PollingComponent, public i2c::I2CDevice {
   float temperature_coefficient_{0.0};
 };
 
-template<typename... Ts> class UFireECCalibrateProbeAction : public Action<Ts...> {
+template<typename... Ts> class UFireECCalibrateProbeAction final : public Action<Ts...> {
  public:
   UFireECCalibrateProbeAction(UFireECComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, solution)
@@ -72,7 +72,7 @@ template<typename... Ts> class UFireECCalibrateProbeAction : public Action<Ts...
   UFireECComponent *parent_;
 };
 
-template<typename... Ts> class UFireECResetAction : public Action<Ts...> {
+template<typename... Ts> class UFireECResetAction final : public Action<Ts...> {
  public:
   UFireECResetAction(UFireECComponent *parent) : parent_(parent) {}
 

@@ -1,12 +1,12 @@
 esphome:
   on_boot:
     - sensor.template.publish:
-        id: template_sens
+        id: template_template_sens
         state: 42.0
 
     # Templated
     - sensor.template.publish:
-        id: template_sens
+        id: template_template_sens
         state: !lambda "return 42.0;"
 
     - water_heater.template.publish:
@@ -25,37 +25,62 @@ esphome:
         away: !lambda "return true;"
         is_on: !lambda "return false;"
 
+    - climate.template.publish:
+        id: template_climate
+        current_temperature: 21.0
+        mode: HEAT
+        fan_mode: AUTO
+        swing_mode: "OFF"
+        preset: NONE
+        target_temperature: 22.0
+
+    # Templated
+    - climate.template.publish:
+        id: template_climate
+        current_temperature: !lambda "return 21.5f;"
+        mode: !lambda "return climate::CLIMATE_MODE_COOL;"
+        target_temperature: !lambda "return 23.0f;"
+
+    - climate.template.publish:
+        id: template_climate_custom_modes
+        custom_fan_mode: "turbo"
+        custom_preset: "eco_plus"
+    - climate.template.publish:
+        id: template_climate_custom_modes
+        custom_fan_mode: !lambda return std::string("turbo");
+        custom_preset: !lambda return std::string("eco_plus");
+
     # Test C++ API: set_template() with stateless lambda (no captures)
     # NOTE: set_template() is not intended to be a public API, but we test it to ensure it doesn't break.
     - lambda: |-
-        id(template_sens).set_template([]() -> std::optional<float> {
+        id(template_template_sens).set_template([]() -> std::optional<float> {
           return 123.0f;
         });
     # Test that esphome::optional alias still works for backward compatibility
     - lambda: |-
-        id(template_sens).set_template([]() -> esphome::optional<float> {
+        id(template_template_sens).set_template([]() -> esphome::optional<float> {
           return 42.0f;
         });
 
     - datetime.date.set:
-        id: test_date
+        id: template_test_date
         date:
           year: 2021
           month: 1
           day: 1
     - datetime.date.set:
-        id: test_date
+        id: template_test_date
         date: !lambda "return {.day_of_month = 1, .month = 1, .year = 2021};"
     - datetime.date.set:
-        id: test_date
+        id: template_test_date
         date: "2021-01-01"
 
 binary_sensor:
   - platform: template
-    id: some_binary_sensor
+    id: template_some_binary_sensor
     name: "Garage Door Open"
     lambda: |-
-      if (id(template_sens).state > 30) {
+      if (id(template_template_sens).state > 30) {
         // Garage Door is open.
         return true;
       } else {
@@ -78,7 +103,7 @@ binary_sensor:
     name: "Garage Door Closed"
     condition:
       sensor.in_range:
-        id: template_sens
+        id: template_template_sens
         below: 30.0
     filters:
       - invert:
@@ -106,9 +131,9 @@ binary_sensor:
 sensor:
   - platform: template
     name: "Template Sensor"
-    id: template_sens
+    id: template_template_sens
     lambda: |-
-      if (id(some_binary_sensor).state) {
+      if (id(template_some_binary_sensor).state) {
         return 42.0;
       }
       return 0.0;
@@ -230,14 +255,20 @@ switch:
     id: test_switch
     name: "Template Switch"
     lambda: |-
-      if (id(some_binary_sensor).state) {
+      if (id(template_some_binary_sensor).state) {
         return true;
       }
       return false;
     turn_on_action:
       - logger.log: "turn_on_action"
+      - switch.template.publish:
+          id: test_switch
+          state: true
     turn_off_action:
       - logger.log: "turn_off_action"
+      - switch.template.publish:
+          id: test_switch
+          state: !lambda return false;
 
 button:
   - platform: template
@@ -249,7 +280,7 @@ cover:
   - platform: template
     name: "Template Cover"
     lambda: |-
-      if (id(some_binary_sensor).state) {
+      if (id(template_some_binary_sensor).state) {
         return COVER_OPEN;
       }
       return COVER_CLOSED;
@@ -264,7 +295,7 @@ cover:
     name: "Template Cover with Triggers"
     id: template_cover_with_triggers
     lambda: |-
-      if (id(some_binary_sensor).state) {
+      if (id(template_some_binary_sensor).state) {
         return COVER_OPEN;
       }
       return COVER_CLOSED;
@@ -298,7 +329,7 @@ cover:
             logger.log: Cover is closed
   # Exercise cover.control / cover.template.publish action variants so they
   # get build coverage in CI (and so memory-impact analysis on PRs that
-  # touch ControlAction / CoverPublishAction sees real instances).
+  # touch these actions sees real instances).
   - platform: template
     name: "Template Cover Actions"
     id: template_cover_actions
@@ -346,6 +377,10 @@ cover:
       - cover.control:
           id: template_cover_actions
           stop: true
+      - cover.open: template_cover_actions
+      - cover.close: template_cover_actions
+      - cover.stop: template_cover_actions
+      - cover.toggle: template_cover_actions
       # CONF_STATE alias for position
       - cover.control:
           id: template_cover_actions
@@ -442,7 +477,7 @@ lock:
   - platform: template
     name: "Template Lock"
     lambda: |-
-      if (id(some_binary_sensor).state) {
+      if (id(template_some_binary_sensor).state) {
         return LOCK_STATE_LOCKED;
       }
       return LOCK_STATE_UNLOCKED;
@@ -458,7 +493,7 @@ valve:
     id: template_valve
     name: "Template Valve"
     lambda: |-
-      if (id(some_binary_sensor).state) {
+      if (id(template_some_binary_sensor).state) {
         return VALVE_OPEN;
       }
       return VALVE_CLOSED;
@@ -472,7 +507,7 @@ valve:
     stop_action:
       - logger.log: stop_action
       # Exercise valve.control with various field combinations so the
-      # ControlAction codegen paths get build coverage.
+      # valve.control codegen paths get build coverage.
       - valve.control:
           id: template_valve
           stop: true
@@ -513,6 +548,98 @@ alarm_control_panel:
     codes:
       - "1234"
 
+climate:
+  - platform: template
+    id: template_climate
+    name: "Template Climate"
+    optimistic: true
+    sensor: template_template_sens
+    supports_action: true
+    supports_current_humidity: true
+    restore_mode: NO_RESTORE
+    initial_state:
+      mode: HEAT
+      target_temperature: 21.0
+      fan_mode: LOW
+    supported_modes:
+      - "OFF"
+      - HEAT
+      - COOL
+    supported_fan_modes:
+      - AUTO
+      - LOW
+      - HIGH
+    supported_swing_modes:
+      - "OFF"
+      - VERTICAL
+    supported_presets:
+      - NONE
+      - ECO
+    visual:
+      min_temperature: 16.0
+      max_temperature: 30.0
+      temperature_step: 0.5
+    set_mode_action:
+      - logger.log:
+          format: "set_mode_action %d"
+          args: ["(int) x"]
+    set_target_temperature_action:
+      - logger.log:
+          format: "set_target_temperature_action %.1f"
+          args: ["x"]
+    set_target_humidity_action:
+      - logger.log:
+          format: "set_target_humidity_action %.1f"
+          args: ["x"]
+    set_fan_mode_action:
+      - logger.log:
+          format: "set_fan_mode_action %d"
+          args: ["(int) x"]
+    set_swing_mode_action:
+      - logger.log:
+          format: "set_swing_mode_action %d"
+          args: ["(int) x"]
+    set_preset_action:
+      - logger.log:
+          format: "set_preset_action %d"
+          args: ["(int) x"]
+    on_control:
+      - logger.log: "on_control fired"
+    on_state:
+      - logger.log: "on_state fired"
+
+  - platform: template
+    id: template_climate_custom_modes
+    name: "Template Climate Custom Modes"
+    optimistic: true
+    sensor: template_template_sens
+    supported_modes:
+      - "OFF"
+      - HEAT
+    custom_fan_modes:
+      - turbo
+      - silent
+      - eco
+    custom_presets:
+      - eco_plus
+      - power_save
+      - max
+    set_custom_fan_mode_action:
+      - logger.log:
+          format: "set_custom_fan_mode_action %s"
+          args: ["x.c_str()"]
+    set_custom_preset_action:
+      - logger.log:
+          format: "set_custom_preset_action %s"
+          args: ["x.c_str()"]
+    initial_state:
+      custom_fan_mode: eco
+      custom_preset: max
+    visual:
+      min_temperature: 16.0
+      max_temperature: 30.0
+      temperature_step: 0.5
+
 water_heater:
   - platform: template
     id: template_water_heater
@@ -537,7 +664,7 @@ water_heater:
 datetime:
   - platform: template
     name: Date
-    id: test_date
+    id: template_test_date
     type: date
     initial_value: "2000-1-2"
     set_action:
@@ -551,7 +678,7 @@ datetime:
             - x.day_of_month
   - platform: template
     name: Time
-    id: test_time
+    id: template_test_time
     type: time
     initial_value: "12:34:56am"
     set_action:
@@ -565,7 +692,7 @@ datetime:
             - x.second
   - platform: template
     name: DateTime
-    id: test_datetime
+    id: template_test_datetime
     type: datetime
     initial_value: "2000-1-2 12:34:56"
     set_action:

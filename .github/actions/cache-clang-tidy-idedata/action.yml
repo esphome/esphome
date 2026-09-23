@@ -1,0 +1,50 @@
+name: Cache clang-tidy idedata
+description: >
+  Cache the clang-tidy idedata and the headers it references under .temp
+  (headers only, about 30MB per env). Run after restore-python and cache-esp-idf.
+inputs:
+  environment:
+    description: 'clang-tidy environment (e.g. esp32-idf-tidy).'
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Compute cache key
+      id: key
+      shell: bash
+      run: |
+        . venv/bin/activate
+        [ -n "${{ inputs.environment }}" ] || { echo "::error::cache-clang-tidy-idedata: 'environment' input is empty"; exit 1; }
+        hash=$(python -c 'import sys; sys.path.insert(0, "script"); from clang_tidy_hash import idedata_cache_hash; print(idedata_cache_hash("${{ inputs.environment }}"))')
+        pyver=$(python -c 'import platform; print(platform.python_version())')
+        # Generating idedata is what installs ESP-IDF; never skip it over a missing
+        # install. This also skips the save, so a dev run that installs ESP-IDF
+        # warms the idedata cache on the next run.
+        if [ -d ~/.esphome-idf/frameworks ]; then
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "ESP-IDF install missing, not using the clang-tidy idedata cache"
+          echo "skip=true" >> "$GITHUB_OUTPUT"
+        fi
+        echo "key=${{ runner.os }}-tidy-idedata-${{ inputs.environment }}-$hash-py$pyver" >> "$GITHUB_OUTPUT"
+        {
+          echo "path<<EOF"
+          printf '%s\n' '.temp/idedata-*.json' '.temp/idedata-*.hash'
+          printf '.temp/**/*.%s\n' h hpp hh hxx inc inl ipp tpp
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+    # Mirror cache-esp-idf: write on dev, restore-only on PRs. The post-step
+    # save only runs when the job succeeded, so a failed generation is never saved.
+    # Extend the extension list if a component ships extensionless headers.
+    - name: Cache clang-tidy idedata (write on dev)
+      if: (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write')) && steps.key.outputs.skip != 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.key.outputs.path }}
+        key: ${{ steps.key.outputs.key }}
+    - name: Cache clang-tidy idedata (restore-only off dev)
+      if: github.ref != 'refs/heads/dev' && !contains(github.event.pull_request.labels.*.name, 'ci-cache-write') && steps.key.outputs.skip != 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.key.outputs.path }}
+        key: ${{ steps.key.outputs.key }}

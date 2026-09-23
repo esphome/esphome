@@ -21,7 +21,7 @@ inline constexpr uint8_t TLC59208F_MODE2_WDT_35MS = (3 << 0);
 
 class TLC59208FOutput;
 
-class TLC59208FChannel : public output::FloatOutput, public Parented<TLC59208FOutput> {
+class TLC59208FChannel final : public output::FloatOutput, public Parented<TLC59208FOutput> {
  public:
   void set_channel(uint8_t channel) { channel_ = channel; }
 
@@ -34,7 +34,7 @@ class TLC59208FChannel : public output::FloatOutput, public Parented<TLC59208FOu
 };
 
 /// TLC59208F float output component.
-class TLC59208FOutput : public Component, public i2c::I2CDevice {
+class TLC59208FOutput final : public Component, public i2c::I2CDevice {
  public:
   TLC59208FOutput(uint8_t mode = TLC59208F_MODE2_OCH) : mode_(mode) {}
 

@@ -14,7 +14,7 @@
 
 namespace esphome::prometheus {
 
-class PrometheusHandler : public AsyncWebHandler, public Component {
+class PrometheusHandler final : public AsyncWebHandler, public Component {
  public:
   PrometheusHandler(web_server_base::WebServerBase *base) : base_(base) {}
 

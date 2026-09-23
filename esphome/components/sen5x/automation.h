@@ -6,7 +6,7 @@
 
 namespace esphome::sen5x {
 
-template<typename... Ts> class StartFanAction : public Action<Ts...> {
+template<typename... Ts> class StartFanAction final : public Action<Ts...> {
  public:
   explicit StartFanAction(SEN5XComponent *sen5x) : sen5x_(sen5x) {}
 

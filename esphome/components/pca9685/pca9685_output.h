@@ -24,7 +24,7 @@ inline constexpr uint8_t PCA9685_MODE_OUTNE_LOW = 0x01;
 
 class PCA9685Output;
 
-class PCA9685Channel : public output::FloatOutput {
+class PCA9685Channel final : public output::FloatOutput {
  public:
   void set_channel(uint8_t channel) { channel_ = channel; }
   void set_parent(PCA9685Output *parent) { parent_ = parent; }
@@ -39,7 +39,7 @@ class PCA9685Channel : public output::FloatOutput {
 };
 
 /// PCA9685 float output component.
-class PCA9685Output : public Component, public i2c::I2CDevice {
+class PCA9685Output final : public Component, public i2c::I2CDevice {
  public:
   PCA9685Output(uint8_t mode = PCA9685_MODE_OUTPUT_ONACK | PCA9685_MODE_OUTPUT_TOTEM_POLE) : mode_(mode) {}
 

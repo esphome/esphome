@@ -313,9 +313,10 @@ FileDecoderState AudioDecoder::decode_mp3_() {
       this->output_transfer_buffer_->increase_buffer_length(
           this->audio_stream_info_.value().frames_to_bytes(samples_decoded));
     }
-  } else if (result == micro_mp3::MP3_STREAM_INFO_READY) {
-    // First successful header parse: capture stream info and resize the output buffer to fit one full frame.
-    // microMP3 always outputs 16-bit PCM.
+  } else if (result == micro_mp3::MP3_STREAM_INFO_READY || result == micro_mp3::MP3_STREAM_INFO_CHANGED) {
+    // Header parsed: capture stream info and resize the output buffer to fit one full frame.
+    // microMP3 always outputs 16-bit PCM. MP3_STREAM_INFO_CHANGED is handled identically: despite its
+    // negative value it is documented as recoverable, so it must not reach the catch-all below.
     this->audio_stream_info_ =
         audio::AudioStreamInfo(16, this->mp3_decoder_->get_channels(), this->mp3_decoder_->get_sample_rate());
     this->free_buffer_required_ =
@@ -326,14 +327,8 @@ FileDecoderState AudioDecoder::decode_mp3_() {
   } else if (result == micro_mp3::MP3_NEED_MORE_DATA) {
     return FileDecoderState::MORE_TO_PROCESS;
   } else if (result == micro_mp3::MP3_OUTPUT_BUFFER_TOO_SMALL) {
-    // Reallocate to decode the frame on the next call
-    if (this->mp3_decoder_->get_channels() > 0) {
-      this->free_buffer_required_ =
-          this->mp3_decoder_->get_samples_per_frame() * this->mp3_decoder_->get_channels() * sizeof(int16_t);
-    } else {
-      // Fallback to worst-case size if channel info isn't available
-      this->free_buffer_required_ = this->mp3_decoder_->get_min_output_buffer_bytes();
-    }
+    // Fallback to worst-case size
+    this->free_buffer_required_ = this->mp3_decoder_->get_min_output_buffer_bytes();
     if (!this->output_transfer_buffer_->reallocate(this->free_buffer_required_)) {
       return FileDecoderState::FAILED;
     }

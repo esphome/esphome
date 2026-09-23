@@ -24,10 +24,15 @@ class HttpContainerIDF : public HttpContainer {
  protected:
   friend class HttpRequestIDF;
   esp_http_client_handle_t client_;
+  // Owned copy (not a reference): must outlive perform() for the response-header event handler
+  std::vector<std::string> collect_headers_;
 };
 
-class HttpRequestIDF : public HttpRequestComponent {
+class HttpRequestIDF final : public HttpRequestComponent {
  public:
+  // User provided, not "= default": `new(p) HttpRequestIDF()` would zero-fill .bss that is already zero.
+  HttpRequestIDF() {}
+
   void dump_config() override;
 
   void set_buffer_size_rx(uint16_t buffer_size_rx) { this->buffer_size_rx_ = buffer_size_rx; }
@@ -36,7 +41,7 @@ class HttpRequestIDF : public HttpRequestComponent {
   void set_ca_certificate(const char *ca_certificate) { this->ca_certificate_ = ca_certificate; }
 
  protected:
-  std::shared_ptr<HttpContainer> perform(const std::string &url, const std::string &method, const std::string &body,
+  std::shared_ptr<HttpContainer> perform(const char *url, const char *method, const std::string &body,
                                          const std::vector<Header> &request_headers,
                                          const std::vector<std::string> &lower_case_collect_headers) override;
   // if zero ESP-IDF will use DEFAULT_HTTP_BUF_SIZE

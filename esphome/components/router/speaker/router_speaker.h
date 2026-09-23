@@ -13,7 +13,7 @@
 
 namespace esphome::router {
 
-class Router : public Component, public speaker::Speaker {
+class Router final : public Component, public speaker::Speaker {
  public:
   float get_setup_priority() const override { return setup_priority::DATA; }
 
@@ -59,6 +59,9 @@ class Router : public Component, public speaker::Speaker {
   // frames_in_pipeline_.
   std::atomic<uint32_t> frames_in_pipeline_{0};
 
+  // Set when entering STATE_STARTING; used to time out a start the output never acts on
+  uint32_t state_start_ms_{0};
+
   bool cached_pause_{false};
 
   void apply_cached_state_to_active_();
@@ -77,7 +80,7 @@ class Router : public Component, public speaker::Speaker {
   std::atomic<int8_t> active_output_idx_{0};
 };
 
-template<typename... Ts> class SwitchOutputAction : public Action<Ts...> {
+template<typename... Ts> class SwitchOutputAction final : public Action<Ts...> {
  public:
   explicit SwitchOutputAction(Router *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(speaker::Speaker *, target)

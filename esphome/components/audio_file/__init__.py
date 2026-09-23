@@ -113,7 +113,9 @@ def read_audio_file_and_type(file_config: ConfigType) -> tuple[bytes, MockObj]:
     media_file_type = audio.AUDIO_FILE_TYPE_ENUM["NONE"]
     if file_type == "wav":
         media_file_type = audio.AUDIO_FILE_TYPE_ENUM["WAV"]
-    elif file_type in ("mp3", "mpeg", "mpga"):
+    elif file_type in ("mp1", "mp2", "mp3", "mpeg", "mpga"):
+        # With puremagic >=2.0 this can cause some MP3 (Layer III) files to be labeled as "mp1"/"mp2".
+        # Treat those labels as MP3 so we still pick the MP3 decoder.
         media_file_type = audio.AUDIO_FILE_TYPE_ENUM["MP3"]
     elif file_type == "flac":
         media_file_type = audio.AUDIO_FILE_TYPE_ENUM["FLAC"]

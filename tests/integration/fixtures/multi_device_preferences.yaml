@@ -109,7 +109,7 @@ select:
     set_action:
       - lambda: |-
           ESP_LOGI("test", "Device A Mode set to %s", x.c_str());
-          id(mode_device_a).state = x;
+          id(mode_device_a).publish_state(x);
 
   - platform: template
     name: Mode
@@ -124,7 +124,7 @@ select:
     set_action:
       - lambda: |-
           ESP_LOGI("test", "Device B Mode set to %s", x.c_str());
-          id(mode_device_b).state = x;
+          id(mode_device_b).publish_state(x);
 
   - platform: template
     name: Mode
@@ -138,7 +138,7 @@ select:
     set_action:
       - lambda: |-
           ESP_LOGI("test", "Main Mode set to %s", x.c_str());
-          id(mode_main).state = x;
+          id(mode_main).publish_state(x);
 
 # Button to trigger preference logging test
 button:
@@ -153,9 +153,9 @@ button:
           ESP_LOGI("test", "Device A Setpoint: %.1f", id(setpoint_device_a).state);
           ESP_LOGI("test", "Device B Setpoint: %.1f", id(setpoint_device_b).state);
           ESP_LOGI("test", "Main Setpoint: %.1f", id(setpoint_main).state);
-          ESP_LOGI("test", "Device A Mode: %s", id(mode_device_a).state.c_str());
-          ESP_LOGI("test", "Device B Mode: %s", id(mode_device_b).state.c_str());
-          ESP_LOGI("test", "Main Mode: %s", id(mode_main).state.c_str());
+          ESP_LOGI("test", "Device A Mode: %s", id(mode_device_a).current_option().c_str());
+          ESP_LOGI("test", "Device B Mode: %s", id(mode_device_b).current_option().c_str());
+          ESP_LOGI("test", "Main Mode: %s", id(mode_main).current_option().c_str());
           // Log preference hashes for entities that actually store preferences
           ESP_LOGI("test", "Device A Switch Pref Hash: %u", id(light_device_a).get_preference_hash());
           ESP_LOGI("test", "Device B Switch Pref Hash: %u", id(light_device_b).get_preference_hash());

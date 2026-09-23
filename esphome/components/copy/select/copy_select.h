@@ -5,7 +5,7 @@
 
 namespace esphome::copy {
 
-class CopySelect : public select::Select, public Component {
+class CopySelect final : public select::Select, public Component {
  public:
   void set_source(select::Select *source) { source_ = source; }
   void setup() override;
