@@ -949,23 +949,16 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         raise EsphomeError(f"Invalid flash mode {flash_mode!r}")
     flash_ld_name = _flash_ld_name(board)
 
-    generate_ld_scripts(paths, config, flash_ld_name)
-
     sdk = framework / "tools" / "sdk"
     core_dir = framework / "cores" / "esp8266"
     variant_dir = framework / "variants" / board_build["variant"]
     src_dir = CORE.relative_src_path()
 
-    libraries = resolve_libraries(
-        framework,
-        pio_platform="espressif8266",
-        board_mcu="esp8266",
-        cache_key="arduino8266",
-    )
-
     if not src_dir.is_dir():
         # Generated project state, not install state: clean-all would not help
         raise EsphomeError(f"Generated source directory {src_dir} is missing")
+    # Completeness checks run before generate_ld_scripts spawns gcc so a
+    # half-extracted install names the missing path, not a gcc error.
     # A missing install directory would otherwise surface as a wall of
     # include errors; failing here names the path instead.
     include_dirs = [
@@ -991,6 +984,15 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             raise EsphomeError(
                 f"{_INCOMPLETE_INSTALL}: missing {required_file}; {_CLEAN_HINT}"
             )
+
+    generate_ld_scripts(paths, config, flash_ld_name)
+
+    libraries = resolve_libraries(
+        framework,
+        pio_platform="espressif8266",
+        board_mcu="esp8266",
+        cache_key="arduino8266",
+    )
     for lib in libraries:
         include_dirs += lib.include_dirs
 

@@ -1820,6 +1820,8 @@ def test_write_project_rejects_spaced_ldscript_override(tmp_path: Path) -> None:
     CORE.platformio_options = {"board_build.ldscript": "my script.ld"}
     paths = _make_framework(tmp_path)
     _set_flags()
+    # The completeness checks run first; give them a src dir to pass
+    CORE.relative_src_path().mkdir(parents=True, exist_ok=True)
     with pytest.raises(EsphomeError, match="Invalid flash linker script name"):
         arduino8266.write_project(paths, None)
 
