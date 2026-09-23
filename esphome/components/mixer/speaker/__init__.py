@@ -155,7 +155,7 @@ async def to_code(config: ConfigType) -> None:
         {
             cv.GenerateID(): cv.use_id(SourceSpeaker),
             cv.Required(CONF_DECIBEL_REDUCTION): cv.templatable(
-                cv.int_range(min=0, max=51)
+                cv.int_range(min=0, max=255)
             ),
             cv.Optional(CONF_DURATION, default="0.0s"): cv.templatable(
                 cv.positive_time_period_milliseconds
