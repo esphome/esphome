@@ -24,7 +24,8 @@ void WiFiTWT::dump_config() {
   static constexpr const char *const SETUP_CMD_NAMES[] = {"request", "suggest", "demand"};
   const char *cmd_str = this->setup_cmd_ < 3 ? SETUP_CMD_NAMES[this->setup_cmd_] : "unknown";
   ESP_LOGCONFIG(TAG, "  Setup Cmd: %s", cmd_str);
-  ESP_LOGCONFIG(TAG, "  Flow Type: %s", this->flow_type_ == 0 ? "announced" : "unannounced");
+  ESP_LOGCONFIG(TAG, "  Flow Type: %s",
+                this->flow_type_ == 0 ? LOG_STR_LITERAL("announced") : LOG_STR_LITERAL("unannounced"));
   if (this->active_flow_id_ != UINT8_MAX) {
     ESP_LOGCONFIG(TAG, "  Active Flow ID: %u", this->active_flow_id_.load());
   } else {
@@ -141,9 +142,8 @@ void WiFiTWT::on_ota_global_state(ota::OTAState state, float progress, uint8_t e
     // A completed OTA reboots into the new firmware momentarily (see esphome/ota), which
     // applies its own wifi_twt config from a clean boot — nothing to resume here.
     this->twt_active_before_ota_ = false;
-  } else if (state == ota::OTA_ABORT) {
-    // Execution continues on the current firmware, so resume regardless of auto_setup_ —
-    // twt_active_before_ota_ already proves a session was active before the failed OTA.
+  } else if (state == ota::OTA_ABORT || state == ota::OTA_ERROR) {
+    // The native OTA backend reports a failed update as OTA_ERROR, never OTA_ABORT.
     if (this->twt_active_before_ota_) {
       this->twt_active_before_ota_ = false;
       if (!this->disabled_)
@@ -154,13 +154,5 @@ void WiFiTWT::on_ota_global_state(ota::OTAState state, float progress, uint8_t e
 #endif
 
 }  // namespace esphome::wifi_twt
-
-#ifndef USE_ESP32
-// Stub for platforms where no implementation exists; Python validation prevents this path.
-void esphome::wifi_twt::WiFiTWT::setup() {
-  ESP_LOGE("wifi_twt", "wifi_twt: no implementation for this platform");
-  this->mark_failed();
-}
-#endif
 
 #endif  // USE_WIFI_TWT

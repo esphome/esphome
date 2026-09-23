@@ -12,6 +12,7 @@ import esphome.final_validate as fv
 from .const import (
     CONF_AUTO_SETUP,
     CONF_FLOW_TYPE,
+    CONF_KEEP_ALIVE,
     CONF_ON_TWT_START,
     CONF_ON_TWT_STOP,
     CONF_ON_TWT_WAKEUP,
@@ -93,9 +94,9 @@ def _validate_native_api_conflict(config):
     if "api" in full_config and config[CONF_WAKE_INTERVAL].total_milliseconds > 60000:
         raise cv.Invalid(
             "api is configured alongside wifi_twt with wake_interval > 60 s. "
-            "The native API sends a keepalive ping every 60 s and disconnects at 150 s; "
-            "the device must wake within each 60 s window to respond. "
-            "Use MQTT or coap_server instead, or reduce wake_interval to ≤ 60 s."
+            "Home Assistant pings the device every 20 s and disconnects if no reply arrives "
+            "within 90 s; a long wake_interval can delay the device's "
+            "reply past that limit. Use MQTT or reduce wake_interval to ≤ 60 s."
         )
     return config
 
@@ -114,6 +115,7 @@ CONFIG_SCHEMA = cv.All(
                 "announced", "unannounced", lower=True
             ),
             cv.Optional(CONF_AUTO_SETUP, default=True): cv.boolean,
+            cv.Optional(CONF_KEEP_ALIVE, default=False): cv.boolean,
             cv.Optional(CONF_ON_TWT_START): automation.validate_automation({}),
             cv.Optional(CONF_ON_TWT_STOP): automation.validate_automation({}),
             cv.Optional(CONF_ON_TWT_WAKEUP): automation.validate_automation({}),
@@ -141,6 +143,7 @@ async def to_code(config):
     cg.add(var.set_setup_cmd(SETUP_CMDS[config[CONF_SETUP_CMD]]))
     cg.add(var.set_flow_type(0 if config[CONF_FLOW_TYPE] == "announced" else 1))
     cg.add(var.set_auto_setup(config[CONF_AUTO_SETUP]))
+    cg.add(var.set_keep_alive(config[CONF_KEEP_ALIVE]))
 
     for conf in config.get(CONF_ON_TWT_START, []):
         await automation.build_callback_automation(

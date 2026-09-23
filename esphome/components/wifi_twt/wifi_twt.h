@@ -52,6 +52,7 @@ class WiFiTWT : public Component,
   void set_setup_cmd(uint8_t cmd) { this->setup_cmd_ = cmd; }
   void set_flow_type(uint8_t flow_type) { this->flow_type_ = flow_type; }
   void set_auto_setup(bool auto_setup) { this->auto_setup_ = auto_setup; }
+  void set_keep_alive(bool keep_alive) { this->keep_alive_ = keep_alive; }
 
   bool is_active() const { return this->active_flow_id_.load() != UINT8_MAX; }
 
@@ -67,6 +68,7 @@ class WiFiTWT : public Component,
   uint8_t setup_cmd_{0};  // ordinals match wifi_twt_setup_cmds_t: REQUEST=0, SUGGEST=1, DEMAND=2
   uint8_t flow_type_{0};  // 0=announced, 1=unannounced
   bool auto_setup_{true};
+  bool keep_alive_{false};
 
   // Set on disconnect only if TWT was active, so on_ip_state renegotiates on reconnect even
   // when auto_setup_ is false, without reviving a session that was stopped manually.
@@ -75,6 +77,10 @@ class WiFiTWT : public Component,
   // Set when esp_wifi_sta_itwt_setup() is called, cleared on success or failure.
   // Guards against duplicate calls before the async event fires.
   bool setup_pending_{false};
+
+  // False past setup() when enable_on_boot: false defers esp_wifi_init().
+  bool driver_ready_{false};
+  bool init_twt_driver_();
 
   // Consecutive setup-rejection count; drives retry backoff in twt_setup_failed(), capped at
   // 5 (where the delay itself hits its ceiling) so retries keep going without growing forever.

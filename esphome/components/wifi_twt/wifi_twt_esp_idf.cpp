@@ -89,12 +89,20 @@ void WiFiTWT::setup() {
   ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
 
+  // With enable_on_boot: false, esp_wifi_init() has not run yet and these calls would fail;
+  // start_twt() calls init_twt_driver_() lazily instead, once WiFi is actually up.
+  if (!wifi::global_wifi_component->is_disabled() && !this->init_twt_driver_()) {
+    this->mark_failed();
+  }
+}
+
+bool WiFiTWT::init_twt_driver_() {
   wifi_twt_config_t twt_cfg = {};
   twt_cfg.post_wakeup_event = !this->wakeup_callback_.empty();
+  twt_cfg.twt_enable_keep_alive = this->keep_alive_;
   if (esp_wifi_sta_twt_config(&twt_cfg) != ESP_OK) {
     ESP_LOGE(TAG, "Failed to configure TWT post-wakeup event");
-    this->mark_failed();
-    return;
+    return false;
   }
 
   auto register_handler = [&](int32_t event_id, esp_event_handler_instance_t *handle, const char *name) -> bool {
@@ -119,8 +127,10 @@ void WiFiTWT::setup() {
     unregister_handler(this->itwt_teardown_handle_, WIFI_EVENT_ITWT_TEARDOWN);
     unregister_handler(this->twt_wakeup_handle_, WIFI_EVENT_TWT_WAKEUP);
     unregister_handler(this->itwt_probe_handle_, WIFI_EVENT_ITWT_PROBE);
-    this->mark_failed();
+    return false;
   }
+  this->driver_ready_ = true;
+  return true;
 }
 
 void WiFiTWT::on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
@@ -139,6 +149,10 @@ void WiFiTWT::on_ip_state(const network::IPAddresses &ips, const network::IPAddr
 void WiFiTWT::start_twt() {
   if (this->is_failed()) {
     ESP_LOGD(TAG, "component failed during setup, skipping start_twt");
+    return;
+  }
+  if (!this->driver_ready_ && !this->init_twt_driver_()) {
+    this->mark_failed();
     return;
   }
   if (this->disabled_) {
