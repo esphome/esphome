@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
@@ -127,51 +126,6 @@ class APC1Component : public uart::UARTDevice, public Component {
   sensor::Sensor *rs3_sensor_{nullptr};
 
   sensor::Sensor *error_code_sensor_{nullptr};
-};
-
-template<typename... Ts> class SetActiveModeAction : public Action<Ts...> {
- public:
-  explicit SetActiveModeAction(APC1Component *parent) : parent_(parent) {}
-  void play(const Ts &...) override { this->parent_->set_active_mode(); }
-
- protected:
-  APC1Component *parent_;
-};
-
-template<typename... Ts> class SetPassiveModeAction : public Action<Ts...> {
- public:
-  explicit SetPassiveModeAction(APC1Component *parent) : parent_(parent) {}
-  void play(const Ts &...) override { this->parent_->set_passive_mode(); }
-
- protected:
-  APC1Component *parent_;
-};
-
-template<typename... Ts> class RequestMeasurementAction : public Action<Ts...> {
- public:
-  explicit RequestMeasurementAction(APC1Component *parent) : parent_(parent) {}
-  void play(const Ts &...) override { this->parent_->request_measurement(); }
-
- protected:
-  APC1Component *parent_;
-};
-
-template<typename... Ts> class SetIdleModeAction : public Action<Ts...> {
- public:
-  explicit SetIdleModeAction(APC1Component *parent) : parent_(parent) {}
-  void play(const Ts &...) override { this->parent_->set_idle_mode(); }
-
- protected:
-  APC1Component *parent_;
-};
-
-template<typename... Ts> class SetMeasurementModeAction : public Action<Ts...> {
- public:
-  explicit SetMeasurementModeAction(APC1Component *parent) : parent_(parent) {}
-  void play(const Ts &...) override { this->parent_->set_measurement_mode(); }
-
- protected:
-  APC1Component *parent_;
 };
 
 }  // namespace esphome::apc1

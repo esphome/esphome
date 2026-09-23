@@ -46,8 +46,6 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ademuri"]
@@ -64,11 +62,6 @@ CONF_ERROR_CODE = "error_code"
 apc1_ns = cg.esphome_ns.namespace("apc1")
 APC1Component = apc1_ns.class_("APC1Component", uart.UARTDevice, cg.Component)
 
-SetActiveModeAction = apc1_ns.class_("SetActiveModeAction", automation.Action)
-SetPassiveModeAction = apc1_ns.class_("SetPassiveModeAction", automation.Action)
-RequestMeasurementAction = apc1_ns.class_("RequestMeasurementAction", automation.Action)
-SetIdleModeAction = apc1_ns.class_("SetIdleModeAction", automation.Action)
-SetMeasurementModeAction = apc1_ns.class_("SetMeasurementModeAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -294,41 +287,13 @@ APC1_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "apc1.set_active_mode",
-    SetActiveModeAction,
-    APC1_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "apc1.set_passive_mode",
-    SetPassiveModeAction,
-    APC1_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "apc1.request_measurement",
-    RequestMeasurementAction,
-    APC1_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "apc1.set_idle_mode",
-    SetIdleModeAction,
-    APC1_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "apc1.set_measurement_mode",
-    SetMeasurementModeAction,
-    APC1_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def apc1_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+for _name, _call in (
+    ("apc1.set_active_mode", "set_active_mode()"),
+    ("apc1.set_passive_mode", "set_passive_mode()"),
+    ("apc1.request_measurement", "request_measurement()"),
+    ("apc1.set_idle_mode", "set_idle_mode()"),
+    ("apc1.set_measurement_mode", "set_measurement_mode()"),
+):
+    automation.register_apply_action(
+        _name, APC1_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
