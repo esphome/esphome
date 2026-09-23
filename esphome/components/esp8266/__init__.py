@@ -316,11 +316,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 def native_toolchain_module():
-    """The native build backend for the resolved toolchain, if any.
-
-    ``__main__`` dispatches from its own toolchain-keyed table; this helper
-    serves the component's internal callers.
-    """
+    """The native build backend for the resolved toolchain, if any."""
     if not CORE.using_toolchain_arduino:
         return None
     from esphome.arduino8266 import toolchain

@@ -36,11 +36,8 @@ IDEDATA_BEST_EFFORT_ERRORS = (
 
 
 def warn_if_idedata_missing(get_idedata: Callable[[], dict | None]) -> None:
-    """Run an idedata generator, downgrading any failure to a warning.
-
-    Shared by the native backends: the firmware already built, so a missing
-    or broken idedata must not fail a successful build.
-    """
+    """Run an idedata generator, downgrading any failure to a warning:
+    the firmware already built."""
     try:
         if get_idedata() is None:
             _LOGGER.warning("No idedata was generated for this build")
