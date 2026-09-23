@@ -116,9 +116,4 @@ class Rtttl final : public Component {
 #endif
 };
 
-template<typename... Ts> class IsPlayingCondition final : public Condition<Ts...>, public Parented<Rtttl> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->is_playing(); }
-};
-
 }  // namespace esphome::rtttl
