@@ -6,13 +6,6 @@
 
 namespace esphome::update {
 
-template<typename... Ts> class PerformAction final : public Action<Ts...>, public Parented<UpdateEntity> {
-  TEMPLATABLE_VALUE(bool, force)
-
- public:
-  void play(const Ts &...x) override { this->parent_->perform(this->force_.value(x...)); }
-};
-
 template<typename... Ts> class CheckAction final : public Action<Ts...>, public Parented<UpdateEntity> {
  public:
   void play(const Ts &...x) override { this->parent_->check(); }

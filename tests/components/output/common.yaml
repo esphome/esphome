@@ -6,6 +6,9 @@ esphome:
       - output.set_level:
           id: output_light_output_1
           level: 50%
+      - output.set_level:
+          id: output_light_output_1
+          level: !lambda return 0.25f;
       - output.set_min_power:
           id: output_light_output_1
           min_power: 20%
