@@ -7,7 +7,7 @@ namespace esphome::endstop {
 
 // Inheritance: EndstopValve -> EndstopActuatorBase (Component), Valve (ActuatorBase, IActuator)
 // No shared ancestors. No diamond inheritance.
-class EndstopValve : public EndstopActuatorBase, public valve::Valve {
+class EndstopValve final : public EndstopActuatorBase, public valve::Valve {
  public:
   EndstopValve() { this->set_actuator(this); }
   valve::ValveTraits get_traits() override;
