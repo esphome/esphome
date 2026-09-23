@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from esphome import automation, core
-from esphome.automation import LambdaAction, StatelessLambdaAction, maybe_simple_id
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components.const import (
     BYTE_ORDER_BIG,
@@ -28,7 +28,7 @@ from esphome.const import (
     CONF_WIDTH,
     SCHEDULER_DONT_RUN,
 )
-from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
@@ -384,33 +384,9 @@ async def display_page_show_previous_to_code(config, action_id, template_arg, ar
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
-    "display.sleep",
-    LambdaAction,
-    DISPLAY_SLEEP_WAKEUP_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def display_sleep_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    text = str(cg.statement(paren.sleep()))
-    lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
-    return automation.new_lambda_pvariable(
-        action_id, lambda_, StatelessLambdaAction, template_arg
-    )
-
-
-@automation.register_action(
-    "display.wakeup",
-    LambdaAction,
-    DISPLAY_SLEEP_WAKEUP_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def display_wakeup_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    text = str(cg.statement(paren.wakeup()))
-    lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
-    return automation.new_lambda_pvariable(
-        action_id, lambda_, StatelessLambdaAction, template_arg
+for _name, _call in (("display.sleep", "sleep()"), ("display.wakeup", "wakeup()")):
+    automation.register_apply_action(
+        _name, DISPLAY_SLEEP_WAKEUP_ACTION_SCHEMA, automation.ApplyCall(_call)
     )
 
 

@@ -1,3 +1,10 @@
+esphome:
+  on_boot:
+    then:
+      - display.sleep: sleep_display
+      - display.wakeup:
+          id: sleep_display
+
 display:
   - platform: mipi_spi
     spi_16: true
@@ -42,3 +49,13 @@ display:
     reset_pin:
       allow_other_uses: true
       number: ${reset_pin}
+
+  - platform: mipi_spi
+    id: sleep_display
+    model: ILI9341
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
