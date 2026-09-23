@@ -9,9 +9,8 @@ remote_transmitter:
   carrier_duty_percent: 50%
 
 climate:
-  - platform: gree
-    id: test_gree
-    name: GREE
-    model: YAN
+  - platform: coolix
+    id: test_coolix
+    name: Coolix
     supports_heat: false
     supports_cool: false
