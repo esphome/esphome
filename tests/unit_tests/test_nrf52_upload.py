@@ -13,9 +13,9 @@ from esphome.components.zephyr.const import (
     KEY_EXTRA_BUILD_FILES,
     KEY_KCONFIG,
     KEY_OVERLAY,
+    KEY_OVERLAY_BUILDER,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
-    KEY_USER,
     KEY_ZEPHYR,
 )
 import esphome.config_validation as cv
@@ -53,9 +53,9 @@ def _setup_nrf52_core(
         KEY_BOOTLOADER: bootloader,
         KEY_PRJ_CONF: {},
         KEY_OVERLAY: {"": ""},
+        KEY_OVERLAY_BUILDER: [],
         KEY_EXTRA_BUILD_FILES: {},
         KEY_PM_STATIC: [],
-        KEY_USER: {},
         KEY_KCONFIG: "",
     }
 

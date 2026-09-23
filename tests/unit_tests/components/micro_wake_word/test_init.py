@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_URL,
 )
+from esphome.external_files import RemoteFile
 
 
 @pytest.fixture
@@ -114,12 +115,16 @@ def test_download_http_models_batches_manifests_then_models(
     assert mock_download_content_many.call_count == 2
     manifest_items = list(mock_download_content_many.call_args_list[0].args[0])
     assert manifest_items == [
-        (f"https://example.com/models/{name}.json", paths[name] / "manifest.json")
+        RemoteFile(
+            f"https://example.com/models/{name}.json", paths[name] / "manifest.json"
+        )
         for name in names
     ]
     model_items = list(mock_download_content_many.call_args_list[1].args[0])
     assert model_items == [
-        (f"https://example.com/models/{name}.tflite", paths[name] / f"{name}.tflite")
+        RemoteFile(
+            f"https://example.com/models/{name}.tflite", paths[name] / f"{name}.tflite"
+        )
         for name in names
     ]
 

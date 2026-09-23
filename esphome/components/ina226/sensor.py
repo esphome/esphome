@@ -1,5 +1,7 @@
 """INA226 sensor component for ESPHome."""
 
+from typing import Any
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
@@ -22,6 +24,7 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -119,7 +122,7 @@ def validate_alert_config(config):
     return config
 
 
-def validate_adc_time(value):
+def validate_adc_time(value: Any) -> int:
     value = cv.positive_time_period_microseconds(value).total_microseconds
     return cv.enum(ADC_TIMES, int=True)(value)
 
@@ -194,7 +197,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
