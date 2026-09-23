@@ -432,6 +432,7 @@ async def to_code(config: ConfigType) -> None:
     # disable it to prevent extra current consumption.
     zephyr_add_prj_conf("USB_DEVICE_STACK", False, False)
 
+
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
 async def _dfu_to_code(dfu_config):
     cg.add_define("USE_NRF52_DFU")

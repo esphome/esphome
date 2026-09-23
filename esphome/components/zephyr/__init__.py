@@ -176,7 +176,9 @@ def zephyr_to_code(config: ConfigType) -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _cdc_acm_to_code(config: ConfigType) -> None:
-    need_cdc_cb = zephyr_data()[KEY_PRJ_CONF][""].get("CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", (False,))[0]
+    need_cdc_cb = zephyr_data()[KEY_PRJ_CONF][""].get(
+        "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", (False,)
+    )[0]
     if need_cdc_cb:
         var = cg.new_Pvariable(config[CONF_CDC_ACM])
         await cg.register_component(var, {})
