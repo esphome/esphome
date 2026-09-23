@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -42,9 +43,6 @@ text_sensor_ns = cg.esphome_ns.namespace("text_sensor")
 TextSensor = text_sensor_ns.class_("TextSensor", cg.EntityBase)
 TextSensorPtr = TextSensor.operator("ptr")
 
-TextSensorPublishAction = text_sensor_ns.class_(
-    "TextSensorPublishAction", automation.Action
-)
 TextSensorStateCondition = text_sensor_ns.class_(
     "TextSensorStateCondition", automation.Condition
 )
@@ -147,7 +145,9 @@ _TEXT_SENSOR_SCHEMA = (
             cv.Optional(
                 CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
             ): validate_device_class,
-            cv.Optional(CONF_FILTERS): validate_filters,
+            cv.Optional(
+                CONF_FILTERS, visibility=cv.Visibility.ADVANCED
+            ): validate_filters,
             cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation({}),
         }
@@ -256,3 +256,8 @@ async def text_sensor_state_to_code(config, condition_id, template_arg, args):
     templ = await cg.templatable(config[CONF_STATE], args, cg.std_string)
     cg.add(var.set_state(templ))
     return var
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"filter.cpp": "USE_TEXT_SENSOR_FILTER"}
+)

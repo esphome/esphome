@@ -37,6 +37,16 @@ binary_sensor:
             format: "New state is %s"
             args: ['x.has_value() ? ONOFF(x) : "Unknown"']
         - binary_sensor.invalidate_state: binary_sensor_some_binary_sensor
+        - binary_sensor.template.publish:
+            id: publish_target
+            state: true
+        - binary_sensor.template.publish:
+            id: publish_target
+            state: !lambda "return x.value_or(false);"
+
+  - platform: template
+    id: publish_target
+    name: "Publish Target"
 
   # Test autorepeat with default configuration (no timings)
   - platform: template
@@ -136,3 +146,19 @@ binary_sensor:
         invalid_cooldown: 2s
         then:
           - logger.log: "Click with custom cooldown"
+
+  # Test on_click and on_double_click (compiles match_interval via
+  # USE_BINARY_SENSOR_CLICK_TRIGGER)
+  - platform: template
+    id: click_triggers
+    name: "Click Triggers"
+    on_click:
+      min_length: 50ms
+      max_length: 350ms
+      then:
+        - logger.log: "Clicked"
+    on_double_click:
+      min_length: 50ms
+      max_length: 350ms
+      then:
+        - logger.log: "Double clicked"

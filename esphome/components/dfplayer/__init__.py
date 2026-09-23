@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
@@ -16,6 +18,7 @@ DFPlayerIsPlayingCondition = dfplayer_ns.class_(
 
 MULTI_CONF = True
 CONF_FOLDER = "folder"
+CONF_ENABLE = "enable"
 CONF_EQ_PRESET = "eq_preset"
 CONF_ON_FINISHED_PLAYBACK = "on_finished_playback"
 
@@ -60,7 +63,12 @@ CONFIG_SCHEMA = cv.All(
     ).extend(uart.UART_DEVICE_SCHEMA)
 )
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "dfplayer", baud_rate=9600, require_tx=True
+    "dfplayer",
+    baud_rate=9600,
+    require_tx=True,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
 )
 
 
@@ -368,6 +376,32 @@ async def dfplayer_random_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
+
+
+def _default_enable(value: Any) -> Any:
+    """Fill in ``enable: true`` for a bare action or a mapping that only picks the player.
+
+    Done before ``maybe_simple_value`` so neither form is wrapped as the ``enable`` value.
+    """
+    if value is None or isinstance(value, dict):
+        return {CONF_ENABLE: True, **(value or {})}
+    return value
+
+
+automation.register_apply_action(
+    "dfplayer.set_current_track_repeat",
+    cv.All(
+        _default_enable,
+        cv.maybe_simple_value(
+            {
+                cv.GenerateID(): cv.use_id(DFPlayer),
+                cv.Optional(CONF_ENABLE, default=True): cv.templatable(cv.boolean),
+            },
+            key=CONF_ENABLE,
+        ),
+    ),
+    automation.ApplyField(CONF_ENABLE, "set_current_track_repeat", cg.bool_),
+)
 
 
 @automation.register_condition(

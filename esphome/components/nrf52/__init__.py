@@ -125,10 +125,8 @@ def set_core_data(config: ConfigType) -> ConfigType:
     return config
 
 
-def _resolve_toolchain(config: ConfigType) -> ConfigType:
-    if CORE.toolchain is None:
-        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.SDK_NRF)
-    return config
+_TOOLCHAINS = (Toolchain.PLATFORMIO, Toolchain.SDK_NRF)
+_resolve_toolchain = cv.resolve_toolchain("nRF52", _TOOLCHAINS, Toolchain.SDK_NRF)
 
 
 def set_framework(config: ConfigType) -> ConfigType:
@@ -170,10 +168,7 @@ BOOTLOADERS = [
 ]
 
 
-def _validate_toolchain(value) -> Toolchain:
-    return Toolchain(
-        cv.one_of(Toolchain.PLATFORMIO, Toolchain.SDK_NRF, lower=True)(value)
-    )
+_validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
 
 
 def _detect_bootloader(config: ConfigType) -> ConfigType:
@@ -433,6 +428,10 @@ async def to_code(config: ConfigType) -> None:
         )
     zephyr_add_prj_conf("REBOOT", True)
 
+    # some boards enable USB by default.
+    # disable it to prevent extra current consumption.
+    zephyr_add_prj_conf("USB_DEVICE_STACK", False, False)
+
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
 async def _dfu_to_code(dfu_config):
@@ -441,6 +440,10 @@ async def _dfu_to_code(dfu_config):
     if CONF_RESET_PIN in dfu_config:
         pin = await cg.gpio_pin_expression(dfu_config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(pin))
+
+    # DFU uses cdc rate callback to enter bootloader which was disabled explicitly to save power.
+    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
+    zephyr_add_prj_conf("USB_CDC_ACM", True)
     zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
     await cg.register_component(var, dfu_config)
 
@@ -473,6 +476,9 @@ def copy_files() -> None:
 
 def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     """Get the download types for the firmware."""
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     types = []
     UF2_PATH = "zephyr/zephyr.uf2"
     DFU_PATH = "firmware.zip"
