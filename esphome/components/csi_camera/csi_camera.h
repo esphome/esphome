@@ -5,7 +5,6 @@
 #include "esphome/components/camera_video/camera_source.h"
 #include "esphome/components/esp_ldo/esp_ldo.h"
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "i2c_sccb_adapter.h"
@@ -159,16 +158,6 @@ class CsiCamera final : public Component, public i2c::I2CDevice, public camera_v
   bool isp_enabled_{false};
   std::atomic<uint32_t> dropped_frames_{0};
   std::atomic<uint32_t> delivered_frames_{0};
-};
-
-template<typename... Ts> class CsiCameraSetNightModeAction final : public Action<Ts...> {
- public:
-  explicit CsiCameraSetNightModeAction(CsiCamera *camera) : camera_(camera) {}
-  TEMPLATABLE_VALUE(bool, night_mode)
-  void play(Ts... x) override { this->camera_->set_night_mode(this->night_mode_.value(x...)); }
-
- protected:
-  CsiCamera *camera_;
 };
 
 }  // namespace esphome::csi_camera

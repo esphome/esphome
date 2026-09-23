@@ -34,3 +34,6 @@ interval:
       - csi_camera.set_night_mode:
           id: csi_cam
           night_mode: true
+      - csi_camera.set_night_mode:
+          id: csi_cam
+          night_mode: !lambda return false;

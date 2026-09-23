@@ -16,8 +16,7 @@ from esphome.const import (
     CONF_POWER_SUPPLY,
     CONF_WIDTH,
 )
-from esphome.core import ID
-from esphome.types import ConfigType, TemplateArgsType
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["camera_video", "esp_ldo"]
 DEPENDENCIES = ["esp32", "i2c", "psram"]
@@ -29,9 +28,6 @@ CsiCamera = csi_camera_ns.class_(
 )
 CsiRawFormat = csi_camera_ns.enum("CsiRawFormat", is_class=True)
 CsiBayerOrder = csi_camera_ns.enum("CsiBayerOrder", is_class=True)
-CsiCameraSetNightModeAction = csi_camera_ns.class_(
-    "CsiCameraSetNightModeAction", automation.Action
-)
 
 CONF_FRAME_BUFFER_COUNT = "frame_buffer_count"
 CONF_POWER_DOWN_PIN = "power_down_pin"
@@ -247,9 +243,8 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_night_mode(night_mode))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "csi_camera.set_night_mode",
-    CsiCameraSetNightModeAction,
     cv.maybe_simple_value(
         {
             cv.Required(CONF_ID): cv.use_id(CsiCamera),
@@ -257,16 +252,5 @@ async def to_code(config: ConfigType) -> None:
         },
         key=CONF_NIGHT_MODE,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_NIGHT_MODE, "set_night_mode", cg.bool_),
 )
-async def csi_camera_set_night_mode_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> cg.MockObj:
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-    template_ = await cg.templatable(config[CONF_NIGHT_MODE], args, bool)
-    cg.add(var.set_night_mode(template_))
-    return var
