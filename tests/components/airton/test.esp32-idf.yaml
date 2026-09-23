@@ -1,5 +1,15 @@
+esphome:
+  on_boot:
+    then:
+      - climate_ir.airton.display_on: airton_climate
+      - climate_ir.airton.display_off:
+          id: airton_climate
+      - climate_ir.airton.sleep_on: airton_climate
+      - climate_ir.airton.sleep_off: airton_climate
+
 climate:
   - platform: airton
+    id: airton_climate
     name: Airton Climate
     transmitter_id: irblaster
     receiver_id: recvr

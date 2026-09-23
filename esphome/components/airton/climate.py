@@ -2,7 +2,6 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate_ir
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 
 AUTO_LOAD = ["climate_ir"]
 
@@ -32,47 +31,21 @@ CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(AirtonClimate).extend
     }
 )
 
-DisplayOnAction = airton_ns.class_("DisplayOnAction", automation.Action)
-DisplayOffAction = airton_ns.class_("DisplayOffAction", automation.Action)
-SleepOnAction = airton_ns.class_("SleepOnAction", automation.Action)
-SleepOffAction = airton_ns.class_("SleepOffAction", automation.Action)
-
 AIRTON_ACTION_SCHEMA = automation.maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(AirtonClimate),
     }
 )
 
-
-@automation.register_action(
-    "climate_ir.airton.display_on",
-    DisplayOnAction,
-    AIRTON_ACTION_SCHEMA,
-    synchronous=False,
-)
-@automation.register_action(
-    "climate_ir.airton.display_off",
-    DisplayOffAction,
-    AIRTON_ACTION_SCHEMA,
-    synchronous=False,
-)
-async def display_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "climate_ir.airton.sleep_on", SleepOnAction, AIRTON_ACTION_SCHEMA, synchronous=False
-)
-@automation.register_action(
-    "climate_ir.airton.sleep_off",
-    SleepOffAction,
-    AIRTON_ACTION_SCHEMA,
-    synchronous=False,
-)
-async def sleep_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+for _name, _call in (
+    ("climate_ir.airton.display_on", "set_display_state(true, true)"),
+    ("climate_ir.airton.display_off", "set_display_state(false, true)"),
+    ("climate_ir.airton.sleep_on", "set_sleep_mode_state(true, true)"),
+    ("climate_ir.airton.sleep_off", "set_sleep_mode_state(false, true)"),
+):
+    automation.register_apply_action(
+        _name, AIRTON_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 
 async def to_code(config):
