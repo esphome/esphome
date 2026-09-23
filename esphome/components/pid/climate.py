@@ -3,7 +3,7 @@ import esphome.codegen as cg
 from esphome.components import climate, output, sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_HUMIDITY_SENSOR, CONF_ID, CONF_SENSOR
-from esphome.core import ID
+from esphome.core import ID, Lambda
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
@@ -45,6 +45,14 @@ def _validate_thresholds(config: ConfigType) -> ConfigType:
             f"{CONF_THRESHOLD_LOW} must not be greater than {CONF_THRESHOLD_HIGH}"
         )
     return config
+
+
+def _validate_threshold_action(config: ConfigType) -> ConfigType:
+    threshold_low = config[CONF_THRESHOLD_LOW]
+    threshold_high = config[CONF_THRESHOLD_HIGH]
+    if isinstance(threshold_low, Lambda) or isinstance(threshold_high, Lambda):
+        return config
+    return _validate_thresholds(config)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -218,11 +226,14 @@ automation.register_apply_action(
 automation.register_apply_action(
     "climate.pid.set_deadband_threshold_parameters",
     automation.maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(PIDClimate),
-            cv.Required(CONF_THRESHOLD_HIGH): cv.templatable(cv.temperature_delta),
-            cv.Required(CONF_THRESHOLD_LOW): cv.templatable(cv.temperature_delta),
-        }
+        cv.All(
+            {
+                cv.Required(CONF_ID): cv.use_id(PIDClimate),
+                cv.Required(CONF_THRESHOLD_HIGH): cv.templatable(cv.temperature_delta),
+                cv.Required(CONF_THRESHOLD_LOW): cv.templatable(cv.temperature_delta),
+            },
+            _validate_threshold_action,
+        )
     ),
     automation.ApplyCall(
         "set_deadband_thresholds({}, {})",
