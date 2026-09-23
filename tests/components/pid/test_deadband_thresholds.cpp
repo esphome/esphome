@@ -26,4 +26,16 @@ TEST(PIDClimateDeadbandThresholds, ValidThresholdsChangeController) {
   EXPECT_FLOAT_EQ(climate.get_threshold_high(), 0.5f);
 }
 
+TEST(PIDClimateDeadbandThresholds, EqualThresholdsDisableDeadband) {
+  PIDClimate climate;
+  climate.set_threshold_low(-1.0f);
+  climate.set_threshold_high(1.0f);
+
+  EXPECT_TRUE(climate.set_deadband_thresholds(0.0f, 0.0f));
+
+  EXPECT_FLOAT_EQ(climate.get_threshold_low(), 0.0f);
+  EXPECT_FLOAT_EQ(climate.get_threshold_high(), 0.0f);
+  EXPECT_FALSE(climate.in_deadband());
+}
+
 }  // namespace esphome::pid

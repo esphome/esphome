@@ -37,6 +37,16 @@ CONF_KP_MULTIPLIER = "kp_multiplier"
 CONF_KI_MULTIPLIER = "ki_multiplier"
 CONF_KD_MULTIPLIER = "kd_multiplier"
 
+
+def _validate_thresholds(config: ConfigType) -> ConfigType:
+    # Same rule as PIDClimate::set_deadband_thresholds; an equal pair disables the deadband.
+    if config[CONF_THRESHOLD_LOW] > config[CONF_THRESHOLD_HIGH]:
+        raise cv.Invalid(
+            f"{CONF_THRESHOLD_LOW} must not be greater than {CONF_THRESHOLD_HIGH}"
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     climate.climate_schema(PIDClimate).extend(
         {
@@ -45,7 +55,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE): cv.temperature,
             cv.Optional(CONF_COOL_OUTPUT): cv.use_id(output.FloatOutput),
             cv.Optional(CONF_HEAT_OUTPUT): cv.use_id(output.FloatOutput),
-            cv.Optional(CONF_DEADBAND_PARAMETERS): cv.Schema(
+            cv.Optional(CONF_DEADBAND_PARAMETERS): cv.All(
                 {
                     cv.Required(CONF_THRESHOLD_HIGH): cv.temperature_delta,
                     cv.Required(CONF_THRESHOLD_LOW): cv.temperature_delta,
@@ -55,7 +65,8 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(
                         CONF_DEADBAND_OUTPUT_AVERAGING_SAMPLES, default=1
                     ): cv.positive_not_null_int,
-                }
+                },
+                _validate_thresholds,
             ),
             cv.Required(CONF_CONTROL_PARAMETERS): cv.Schema(
                 {
