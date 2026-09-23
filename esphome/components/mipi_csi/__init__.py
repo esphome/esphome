@@ -1,3 +1,5 @@
+import re
+
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import esp32, i2c
@@ -35,12 +37,11 @@ from .const import (
     CONF_VERTICAL_FLIP,
 )
 from .sensors import SENSOR_FORMATS
-from .validate import final_validate, validate_resolution
 
-CODEOWNERS = ["@horstexplorer"]
+CODEOWNERS = ["@Horstexplorer"]
 
-DEPENDENCIES = ["esp32", "i2c"]
-AUTO_LOAD = ["camera", "psram"]
+DEPENDENCIES = ["esp32", "i2c", "psram"]
+AUTO_LOAD = ["camera"]
 MULTI_CONF = False
 
 mipi_csi_ns = cg.esphome_ns.namespace("mipi_csi")
@@ -64,6 +65,18 @@ PIXEL_FORMATS = {
     "GRAYSCALE": PixelFormat.PIXEL_FORMAT_GRAYSCALE,
 }
 
+_RESOLUTION_PATTERN = re.compile(r"^\s*(\d+)\s*[xX]\s*(\d+)\s*$")
+
+
+def validate_resolution(value: str) -> tuple[int, int]:
+    """Parses a `WIDTHxHEIGHT` resolution into a pair of pixel counts."""
+    value = cv.string(value)
+    match = _RESOLUTION_PATTERN.match(value)
+    if match is None:
+        raise cv.Invalid(f"Resolution must be written as WIDTHxHEIGHT, got '{value}'")
+    return int(match.group(1)), int(match.group(2))
+
+
 CONFIG_SCHEMA = cv.All(
     cv.ENTITY_BASE_SCHEMA.extend(
         {
@@ -75,17 +88,17 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_JPEG_QUALITY, default=40): cv.int_range(min=10, max=100),
             cv.Optional(CONF_FRAMERATE, default="10 fps"): cv.All(
-                cv.framerate, cv.Range(min=1, max=30)
+                cv.framerate, cv.Range(min=1, max=60)
             ),
             cv.Optional(CONF_IDLE_FRAMERATE, default="0.1 fps"): cv.All(
                 cv.framerate, cv.Range(min=0, max=1)
             ),
             cv.Optional(CONF_FRAME_BUFFER_COUNT, default=2): cv.int_range(min=1, max=3),
-            cv.Optional(CONF_INIT_LDO): cv.boolean,
+            cv.Optional(CONF_INIT_LDO, default=True): cv.boolean,
             cv.Optional(CONF_HORIZONTAL_FLIP, default=False): cv.boolean,
             cv.Optional(CONF_VERTICAL_FLIP, default=False): cv.boolean,
             cv.GenerateID(CONF_I2C_ID): cv.use_id(i2c.InternalI2CBus),
-            cv.Optional(CONF_SCCB_FREQUENCY, default="100kHz"): cv.All(
+            cv.Required(CONF_SCCB_FREQUENCY): cv.All(
                 cv.frequency, cv.Range(min=10000, max=1000000)
             ),
             cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
@@ -130,8 +143,6 @@ SETTERS = {
     CONF_RESET_PIN: "set_reset_pin",
     CONF_POWER_PIN: "set_power_pin",
 }
-
-FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def to_code(config: ConfigType) -> None:

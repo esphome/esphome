@@ -1,0 +1,9 @@
+dependencies:
+  idf:
+    version: '>=5.5.0'
+  espressif/esp_video:
+    version: "^2.5.0"
+  espressif/esp_cam_sensor:
+    version: "^2.6.0"
+  espressif/esp_ipa:
+    version: "^2.4.0"
