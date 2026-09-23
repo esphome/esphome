@@ -163,8 +163,8 @@ class ResponseMonitor {
  protected:
   bool field_matches_(const ResponseField &field, const std::vector<uint8_t> &payload, uint8_t *out,
                       uint8_t &out_len) const;
-  static uint32_t decode_int_(const uint8_t *bytes, uint8_t length, bool big_endian);
-  static uint8_t decode_text_(const uint8_t *bytes, uint8_t length, char *out);
+  static uint32_t decode_int(const uint8_t *bytes, uint8_t length, bool big_endian);
+  static uint8_t decode_text(const uint8_t *bytes, uint8_t length, char *out);
   bool eval_alt_(const SignatureAlt &alt, const uint8_t *old_bytes, const uint8_t *new_bytes, uint8_t len,
                  bool big_endian) const;
   // Evaluates whether a changed_gated alt's gate currently matches (using the live ambient

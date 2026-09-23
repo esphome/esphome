@@ -83,7 +83,7 @@ void ResponseMonitor::add_changed_gated_alt(uint8_t entry_index, uint8_t field_i
   alt.gate_value = gate_value;
 }
 
-uint32_t ResponseMonitor::decode_int_(const uint8_t *bytes, uint8_t length, bool big_endian) {
+uint32_t ResponseMonitor::decode_int(const uint8_t *bytes, uint8_t length, bool big_endian) {
   // Numeric signature modes (masked_int, changed, changed_gated's gate) only ever address
   // fields carrying a command-sized value (<= 4 bytes, matching MAX_COMMAND_VALUES' element
   // width); a field declared longer than that (e.g. a display-text field) is only ever
@@ -100,7 +100,7 @@ uint32_t ResponseMonitor::decode_int_(const uint8_t *bytes, uint8_t length, bool
   return v;
 }
 
-uint8_t ResponseMonitor::decode_text_(const uint8_t *bytes, uint8_t length, char *out) {
+uint8_t ResponseMonitor::decode_text(const uint8_t *bytes, uint8_t length, char *out) {
   // Mirrors the ASCII-decode convention already used by this component's example on_frame
   // lambdas: strip the display's blink/inverse flag (bit 7) and drop non-printable bytes
   // (including the trailing NUL/pad). Trailing space padding is additionally trimmed here so
@@ -143,7 +143,7 @@ bool ResponseMonitor::eval_alt_(const SignatureAlt &alt, const uint8_t *old_byte
                                 uint8_t len, bool big_endian) const {
   switch (alt.type) {
     case SIGNATURE_TYPE_MASKED_INT: {
-      const uint32_t v = decode_int_(new_bytes, len, big_endian) & alt.mask;
+      const uint32_t v = decode_int(new_bytes, len, big_endian) & alt.mask;
       for (uint32_t target : alt.int_values) {
         if (v == (target & alt.mask))
           return true;
@@ -152,7 +152,7 @@ bool ResponseMonitor::eval_alt_(const SignatureAlt &alt, const uint8_t *old_byte
     }
     case SIGNATURE_TYPE_TEXT_ENUM: {
       char text[MAX_TEXT_ENUM_LEN + 1];
-      decode_text_(new_bytes, len, text);
+      decode_text(new_bytes, len, text);
       for (const auto &target : alt.text_values) {
         if (std::strcmp(text, target.data()) == 0)
           return true;
@@ -162,13 +162,13 @@ bool ResponseMonitor::eval_alt_(const SignatureAlt &alt, const uint8_t *old_byte
     case SIGNATURE_TYPE_CHANGED:
     case SIGNATURE_TYPE_CHANGED_GATED: {
       // Fields over 4 bytes (e.g. a 01 03/04 0A display-text field) can't be answered by
-      // decode_int_'s 4-byte-truncated int compare -- fall back to a full-length byte
+      // decode_int's 4-byte-truncated int compare -- fall back to a full-length byte
       // compare instead. mask: is only meaningful for a <=4-byte command-sized value (and is
       // rejected at config-validate time for longer fields), so it plays no role here.
       if (len > 4)
         return std::memcmp(old_bytes, new_bytes, len) != 0;
-      const uint32_t old_v = decode_int_(old_bytes, len, big_endian) & alt.mask;
-      const uint32_t new_v = decode_int_(new_bytes, len, big_endian) & alt.mask;
+      const uint32_t old_v = decode_int(old_bytes, len, big_endian) & alt.mask;
+      const uint32_t new_v = decode_int(new_bytes, len, big_endian) & alt.mask;
       return old_v != new_v;
     }
     default:
@@ -182,7 +182,7 @@ bool ResponseMonitor::gate_active_(const SignatureAlt &alt) const {
   if (alt.gate_field_index >= this->ambient_valid_.size() || !this->ambient_valid_[alt.gate_field_index])
     return false;  // gate field never observed yet — treat as "precondition not met", not a match
   const ResponseField &gate_field = this->fields_[alt.gate_field_index];
-  const uint32_t v = decode_int_(this->ambient_[alt.gate_field_index].data(), gate_field.length, gate_field.big_endian);
+  const uint32_t v = decode_int(this->ambient_[alt.gate_field_index].data(), gate_field.length, gate_field.big_endian);
   return (v & alt.gate_mask) == (alt.gate_value & alt.gate_mask);
 }
 
@@ -212,7 +212,7 @@ void ResponseMonitor::resolve_entry_(uint8_t entry_index, ResponseMonitorStat st
 }
 
 void ResponseMonitor::on_trigger_sent(const std::vector<uint8_t> &payload, uint32_t now) {
-  for (uint8_t idx = 0; idx < this->entries_.size(); idx++) {
+  for (size_t idx = 0; idx < this->entries_.size(); idx++) {
     ResponseMonitorEntry &entry = this->entries_[idx];
     if (entry.trigger.empty() || payload.size() < entry.trigger.size())
       continue;
@@ -255,7 +255,7 @@ void ResponseMonitor::on_frame_received(const std::vector<uint8_t> &payload, uin
     const ResponseField &field = this->fields_[i];
     const uint8_t *old_bytes = this->ambient_valid_[i] ? this->ambient_[i].data() : new_bytes;
 
-    for (uint8_t entry_idx = 0; entry_idx < this->entries_.size(); entry_idx++) {
+    for (size_t entry_idx = 0; entry_idx < this->entries_.size(); entry_idx++) {
       ResponseMonitorEntry &entry = this->entries_[entry_idx];
       for (size_t j = 0; j < entry.signature.size(); j++) {
         const SignatureAlt &alt = entry.signature[j];
@@ -295,7 +295,7 @@ void ResponseMonitor::on_frame_received(const std::vector<uint8_t> &payload, uin
 }
 
 void ResponseMonitor::process_timeouts(uint32_t now) {
-  for (uint8_t idx = 0; idx < this->entries_.size(); idx++) {
+  for (size_t idx = 0; idx < this->entries_.size(); idx++) {
     ResponseMonitorEntry &entry = this->entries_[idx];
     if (!entry.pending)
       continue;

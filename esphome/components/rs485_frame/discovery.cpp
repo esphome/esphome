@@ -438,7 +438,8 @@ void RS485FrameDiscovery::report_() {
         if (hyp.width == 2 && hyp.algo != ALGO_SUM16) {
           // For non-sum16 2-byte CRCs (currently only ALGO_MODBUS), show endianness separately.
           ESP_LOGI(TAG, "  CRC match: %s %s %s (%s) - %" PRIu32 "/%" PRIu32 " frames", algo_name(hyp.algo), cover,
-                   hyp.big_endian ? "big-endian" : "little-endian", view_name[v], this->crc_matches_[v][h], samples);
+                   hyp.big_endian ? LOG_STR_LITERAL("big-endian") : LOG_STR_LITERAL("little-endian"), view_name[v],
+                   this->crc_matches_[v][h], samples);
         } else if (hyp.width == 2) {
           // ALGO_SUM16: endianness is encoded in the name (sum16_big_endian / sum16_little_endian).
           ESP_LOGI(TAG, "  CRC match: %s %s (%s) - %" PRIu32 "/%" PRIu32 " frames", algo_name(hyp.algo, hyp.big_endian),
@@ -535,8 +536,9 @@ void RS485FrameDiscovery::set_baud_sweep(uart::UARTComponent *uart, const std::v
     this->sweep_results_.resize(this->sweep_total_());
 #else
   this->sweeping_ = false;
-  if (uart != nullptr && !bauds.empty())
+  if (uart != nullptr && !bauds.empty()) {
     ESP_LOGW(TAG, "discovery baud_sweep is not supported on this platform (no runtime UART reconfiguration); ignoring");
+  }
 #endif
 }
 
@@ -575,7 +577,8 @@ void RS485FrameDiscovery::record_sweep_result_() {
   ESP_LOGI(TAG,
            "Baud sweep result: %" PRIu32 " baud %u data bits -> framing confidence %" PRIu32 "%%, %s, %" PRIu32
            " frames",
-           r.baud, r.data_bits, r.confidence, r.crc_matched ? "CRC matched" : "no CRC match", r.frames);
+           r.baud, r.data_bits, r.confidence,
+           r.crc_matched ? LOG_STR_LITERAL("CRC matched") : LOG_STR_LITERAL("no CRC match"), r.frames);
 }
 
 void RS485FrameDiscovery::finish_sweep_(uint32_t now) {
@@ -607,7 +610,8 @@ void RS485FrameDiscovery::finish_sweep_(uint32_t now) {
   ESP_LOGI(TAG,
            "Baud sweep complete: locked to %" PRIu32 " baud, %u data bits (framing confidence %" PRIu32
            "%%, %s). Continuing discovery at these settings.",
-           win.baud, win.data_bits, win.confidence, win.crc_matched ? "CRC matched" : "no CRC match");
+           win.baud, win.data_bits, win.confidence,
+           win.crc_matched ? LOG_STR_LITERAL("CRC matched") : LOG_STR_LITERAL("no CRC match"));
   this->reset_analyzer_();
   this->sweeping_ = false;
   this->sweep_done_ = true;

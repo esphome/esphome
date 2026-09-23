@@ -46,7 +46,7 @@ void FrameTrace::record(const uint8_t *data, size_t len, bool is_tx, bool valid,
 }
 
 void FrameTrace::dump() const {
-  if (!this->initialized_ || this->entries_.size() == 0) {
+  if (!this->initialized_ || this->entries_.empty()) {
     ESP_LOGI(TAG, "Frame trace: (empty)");
     return;
   }
@@ -61,11 +61,14 @@ void FrameTrace::dump() const {
     const FrameTraceEntry &e = this->entries_[(oldest + k) % n];
     format_hex_to(this->hex_buf_.get(), format_hex_size(this->capture_bytes_), e.bytes.get(), e.captured_len);
     if (e.captured_len < e.total_len) {
-      ESP_LOGI(TAG, "  [%" PRIu32 "ms] %s %s len=%u (truncated to %u): %s", e.timestamp_ms, e.is_tx ? "TX" : "RX",
-               e.valid ? "valid  " : "INVALID", e.total_len, e.captured_len, this->hex_buf_.get());
+      ESP_LOGI(TAG, "  [%" PRIu32 "ms] %s %s len=%u (truncated to %u): %s", e.timestamp_ms,
+               e.is_tx ? LOG_STR_LITERAL("TX") : LOG_STR_LITERAL("RX"),
+               e.valid ? LOG_STR_LITERAL("valid  ") : LOG_STR_LITERAL("INVALID"), e.total_len, e.captured_len,
+               this->hex_buf_.get());
     } else {
-      ESP_LOGI(TAG, "  [%" PRIu32 "ms] %s %s len=%u: %s", e.timestamp_ms, e.is_tx ? "TX" : "RX",
-               e.valid ? "valid  " : "INVALID", e.total_len, this->hex_buf_.get());
+      ESP_LOGI(TAG, "  [%" PRIu32 "ms] %s %s len=%u: %s", e.timestamp_ms,
+               e.is_tx ? LOG_STR_LITERAL("TX") : LOG_STR_LITERAL("RX"),
+               e.valid ? LOG_STR_LITERAL("valid  ") : LOG_STR_LITERAL("INVALID"), e.total_len, this->hex_buf_.get());
     }
   }
 }

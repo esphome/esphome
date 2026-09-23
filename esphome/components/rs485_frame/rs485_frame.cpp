@@ -190,7 +190,8 @@ void RS485FrameHub::dump_config() {
                 "  Max frame length: %" PRIu32 ", frame timeout: %" PRIu32 "ms\n"
                 "  Sniffer only: %s, dump frames: %s",
                 this->dle_, this->stx_, this->etx_, esc_desc_ptr, crc_type_str(this->crc_type_),
-                this->tx_crc_variant_ == CRC_HEADER_INCLUSIVE ? "header_inclusive" : "payload_only",
+                this->tx_crc_variant_ == CRC_HEADER_INCLUSIVE ? LOG_STR_LITERAL("header_inclusive")
+                                                              : LOG_STR_LITERAL("payload_only"),
                 YESNO(this->accept_header_crc_), YESNO(this->accept_payload_crc_),
                 tx_gate_mode_str(this->tx_gate_mode_), gate_hex, this->tx_gate_delay_, this->tx_idle_gap_,
                 this->tx_fixed_interval_, queue_policy_str(this->queue_policy_), this->max_queue_size_,
@@ -198,18 +199,22 @@ void RS485FrameHub::dump_config() {
                 YESNO(this->dump_frames_));
   if (this->has_command_format_) {
     ESP_LOGCONFIG(TAG, "  Command format: preamble=%zu bytes, element_bytes=%u, endian=%s, postamble=%zu bytes",
-                  this->cmd_preamble_.size(), this->cmd_value_element_bytes_, this->cmd_big_endian_ ? "big" : "little",
+                  this->cmd_preamble_.size(), this->cmd_value_element_bytes_,
+                  this->cmd_big_endian_ ? LOG_STR_LITERAL("big") : LOG_STR_LITERAL("little"),
                   this->cmd_postamble_.size());
-    if (this->has_idle_command_)
+    if (this->has_idle_command_) {
       ESP_LOGCONFIG(TAG, "  Idle command: 0x%08" PRIx32, this->idle_command_);
+    }
   }
 #ifdef USE_RS485_FRAME_DISCOVERY
-  if (this->discovery_ != nullptr)
+  if (this->discovery_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Discovery: ENABLED (framing/CRC/TX bypassed; passively analyzing raw traffic)");
+  }
 #endif
 #ifdef USE_RS485_FRAME_FRAME_TRACE
-  if (this->frame_trace_ != nullptr)
+  if (this->frame_trace_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Frame trace: ENABLED");
+  }
 #endif
 }
 
