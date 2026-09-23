@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 from ctypes.util import find_library
-from functools import partial
 import json
 import logging
 import os
@@ -24,16 +23,17 @@ from esphome.framework_helpers import (
     create_venv,
     download_and_extract,
     download_from_mirrors,
-    download_with_resume,
     failure_reason,
     get_python_env_executable_path,
     get_system_python_path,
+    resume_fetch_job,
     rmdir,
     run_batch_downloads,
     run_command,
     run_command_ok,
     str_to_lst_of_str,
     tool_version_runs,
+    warn_prefetch_failures,
 )
 from esphome.helpers import write_file_if_changed
 
@@ -686,18 +686,6 @@ def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
     )
 
 
-def _download_tool(
-    dist_path: Path, entry: dict, tracker: Callable[[int], None]
-) -> None:
-    download_with_resume(
-        entry["url"],
-        dist_path / entry["dest"],
-        sha256=entry["sha256"],
-        size=entry["size"],
-        progress=tracker,
-    )
-
-
 def _prefetch_idf_tool_archives(
     framework_path: Path,
     targets_str: str,
@@ -775,15 +763,17 @@ def _prefetch_idf_tool_archives(
                 (
                     entry["name"],
                     entry["size"],
-                    partial(_download_tool, dist_path, entry),
+                    resume_fetch_job(
+                        entry["url"],
+                        dist_path / entry["dest"],
+                        sha256=entry["sha256"],
+                        size=entry["size"],
+                    ),
                 )
                 for entry in entries
             ],
         )
-        for name, e in failures:
-            # failure_reason: a message-less exception must not log blank
-            _LOGGER.warning("Could not prefetch %s: %s", name, failure_reason(e))
-            _LOGGER.debug("Prefetch failure detail", exc_info=e)
+        warn_prefetch_failures(failures)
         if len(failures) == len(entries):
             # A systematic fault, not one flaky mirror: the resume
             # workaround (#17703) is off for this whole install
@@ -1063,15 +1053,28 @@ def _check_esp_idf_python_env_install(
             constraint_file_path,
         )
 
-        cmd_pip_install = [
-            str(env_python_path),
-            "-m",
-            "pip",
-            "install",
-            "--upgrade",
-            "--constraint",
-            constraint_file_path,
-        ]
+        # uv (much faster than pip) when available, e.g. in the docker image
+        if uv_path := shutil.which("uv"):
+            cmd_pip_install = [
+                uv_path,
+                "pip",
+                "install",
+                "--python",
+                str(env_python_path),
+                "--upgrade",
+                "--constraint",
+                str(constraint_file_path),
+            ]
+        else:
+            cmd_pip_install = [
+                str(env_python_path),
+                "-m",
+                "pip",
+                "install",
+                "--upgrade",
+                "--constraint",
+                str(constraint_file_path),
+            ]
 
         _LOGGER.info("Installing ESP-IDF %s Python dependencies ...", version)
         cmd = cmd_pip_install + [
@@ -1145,6 +1148,8 @@ def check_esp_idf_install(
     env = {}
     env["IDF_TOOLS_PATH"] = str(get_idf_tools_path())
     env["IDF_PATH"] = ""
+    # uv defaults to 3 HTTP retries; match the pioarduino penv's bump to 10
+    env["UV_HTTP_RETRIES"] = os.environ.get("UV_HTTP_RETRIES", "10")
 
     # An explicit ESPHOME_IDF_DEFAULT_TARGETS wins over the caller's
     # per-variant request (builder-image pre-warm); otherwise the caller's

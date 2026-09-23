@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID
 
 from .. import (
+    RANGE_REUSE,
     ModbusItemBaseSchema,
     SensorItem,
     add_modbus_base_properties,
@@ -12,14 +13,14 @@ from .. import (
     modbus_controller_ns,
     validate_custom_pdu_item,
     validate_modbus_register,
+    validate_range_reuse_migration,
 )
 from ..const import (
-    CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_RAW_ENCODE,
-    CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
     CONF_RESPONSE_SIZE,
+    CONF_REUSE_PREVIOUS_RANGE,
 )
 
 DEPENDENCIES = ["modbus_controller"]
@@ -47,32 +48,27 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ModbusTextSensor),
             cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
-            cv.Optional(CONF_REGISTER_COUNT, default=0): cv.positive_int,
-            cv.Optional(CONF_RESPONSE_SIZE, default=2): cv.positive_int,
+            cv.Optional(CONF_RESPONSE_SIZE, default=2): cv.int_range(min=1, max=250),
             cv.Optional(CONF_RAW_ENCODE, default="ANSI"): cv.enum(RAW_ENCODING),
         }
     ),
     validate_modbus_register,
+    validate_range_reuse_migration,
 )
 
 FINAL_VALIDATE_SCHEMA = validate_custom_pdu_item
 
 
 async def to_code(config):
-    byte_offset, reg_count = modbus_calc_properties(config)
-    response_size = config[CONF_RESPONSE_SIZE]
-    reg_count = config[CONF_REGISTER_COUNT]
-    if reg_count == 0:
-        reg_count = response_size // 2
+    byte_offset = modbus_calc_properties(config)
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_REGISTER_TYPE],
         config[CONF_ADDRESS],
         byte_offset,
-        reg_count,
         config[CONF_RESPONSE_SIZE],
         config[CONF_RAW_ENCODE],
-        config[CONF_FORCE_NEW_RANGE],
+        RANGE_REUSE[config[CONF_REUSE_PREVIOUS_RANGE]],
     )
 
     await cg.register_component(var, config)

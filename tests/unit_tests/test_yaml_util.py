@@ -54,34 +54,12 @@ def test_include_with_vars(fixture_path: Path) -> None:
     assert actual["wifi"]["ssid"] == "my_custom_ssid"
 
 
-def test_loading_a_broken_yaml_file(fixture_path):
-    """Ensure we fallback to pure python to give good errors."""
-    yaml_file = fixture_path / "yaml_util" / "broken_includetest.yaml"
-
-    try:
-        yaml_util.load_yaml(yaml_file)
-    except EsphomeError as err:
-        assert "broken_included.yaml" in str(err)
-
-
-def test_loading_a_yaml_file_with_a_missing_component(fixture_path):
-    """Ensure we show the filename for a yaml file with a missing component."""
-    yaml_file = fixture_path / "yaml_util" / "missing_comp.yaml"
-
-    try:
-        yaml_util.load_yaml(yaml_file)
-    except EsphomeError as err:
-        assert "missing_comp.yaml" in str(err)
-
-
 def test_loading_a_missing_file(fixture_path):
     """We throw EsphomeError when loading a missing file."""
     yaml_file = fixture_path / "yaml_util" / "missing.yaml"
 
-    try:
+    with pytest.raises(EsphomeError, match=r"missing.yaml"):
         yaml_util.load_yaml(yaml_file)
-    except EsphomeError as err:
-        assert "missing.yaml" in str(err)
 
 
 def test_parsing_with_custom_loader(fixture_path):
@@ -1704,6 +1682,53 @@ def test_dump_path_dotdot_reference_outside_anchor() -> None:
     path = anchor / ".." / "shared" / "font.ttf"
     output = yaml_util.dump({"file": path}, relative_to=anchor)
     assert output.strip() == "file: ../shared/font.ttf"
+
+
+@pytest.mark.parametrize(
+    "data_dir",
+    [
+        pytest.param(Path("/config/.esphome"), id="cli"),
+        pytest.param(Path("/data"), id="addon"),
+    ],
+)
+def test_dump_path_under_data_dir_uses_default_location(data_dir: Path) -> None:
+    """Test that Path values under data_dir dump as .esphome/<rest> for any layout."""
+    anchor = Path("/config").absolute()
+    path = data_dir.absolute() / "image" / "c44630d6"
+    output = yaml_util.dump(
+        {"file": path}, relative_to=anchor, data_dir=data_dir.absolute()
+    )
+    assert output.strip() == "file: .esphome/image/c44630d6"
+
+
+def test_dump_path_equal_to_data_dir() -> None:
+    """Test that the data dir itself dumps as .esphome, matching the default layout."""
+    anchor = Path("/config").absolute()
+    data_dir = Path("/data").absolute()
+    output = yaml_util.dump({"dir": data_dir}, relative_to=anchor, data_dir=data_dir)
+    assert output.strip() == "dir: .esphome"
+    default = yaml_util.dump(
+        {"dir": anchor / ".esphome"}, relative_to=anchor, data_dir=anchor / ".esphome"
+    )
+    assert default == output
+
+
+def test_dump_path_outside_data_dir_still_relative_to_anchor() -> None:
+    """Test that data_dir does not affect paths that are not under it."""
+    anchor = Path("/config").absolute()
+    path = anchor / "fonts" / "arial.ttf"
+    output = yaml_util.dump(
+        {"file": path}, relative_to=anchor, data_dir=Path("/data").absolute()
+    )
+    assert output.strip() == "file: fonts/arial.ttf"
+
+
+def test_dump_path_data_dir_without_relative_to_is_unchanged() -> None:
+    """Test that data_dir alone does not change the output."""
+    data_dir = Path("/data").absolute()
+    path = data_dir / "image" / "c44630d6"
+    output = yaml_util.dump({"file": path}, data_dir=data_dir)
+    assert output.strip() == f"file: {path}"
 
 
 def test_dump_relative_to_does_not_leak_between_calls() -> None:

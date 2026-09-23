@@ -1,6 +1,7 @@
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import i2c, key_provider
+from esphome.components.const import CONF_KEYS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -19,7 +20,6 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CONF_KEYPAD = "keypad"
-CONF_KEYS = "keys"
 CONF_KEY_ROWS = "key_rows"
 CONF_KEY_COLUMNS = "key_columns"
 CONF_SLEEP_TIME = "sleep_time"
