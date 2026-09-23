@@ -3,7 +3,7 @@
 #include <chrono>
 #include <thread>
 
-#include "esphome/components/hoermann_hcp/automation.h"
+#include "esphome/components/hoermann_hcp/hoermann_hcp.h"
 
 #include "common.h"
 
@@ -669,10 +669,8 @@ TEST(HoermannHcpPause, AnnouncementKeepsTheTravelTarget) {
 TEST(HoermannHcpAction, VentActionSendsTheVentCommand) {
   HoermannHcp door;
   connect_controller(door);
-  VentAction<> action;
-  action.set_parent(&door);
 
-  action.play();
+  door.vent_door();
 
   auto [value, value_2] = poll_command(door);
   EXPECT_EQ(value, 0x0100);
@@ -682,10 +680,8 @@ TEST(HoermannHcpAction, VentActionSendsTheVentCommand) {
 TEST(HoermannHcpAction, HalfOpenActionSendsTheHalfOpenCommand) {
   HoermannHcp door;
   connect_controller(door);
-  HalfOpenAction<> action;
-  action.set_parent(&door);
 
-  action.play();
+  door.half_open_door();
 
   auto [value, value_2] = poll_command(door);
   EXPECT_EQ(value, 0x0100);

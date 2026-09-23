@@ -3,6 +3,8 @@ esphome:
   on_boot:
     then:
       - hoermann_hcp.announce_pause: hoermann_hcp_hub
+      - hoermann_hcp.vent: hoermann_hcp_hub
+      - hoermann_hcp.half_open: hoermann_hcp_hub
 
 hoermann_hcp:
   id: hoermann_hcp_hub

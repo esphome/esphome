@@ -3,8 +3,6 @@ import esphome.codegen as cg
 from esphome.components import modbus
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@zweckj"]
@@ -16,15 +14,6 @@ CONF_HOERMANN_HCP_ID = "hoermann_hcp_id"
 hoermann_hcp_ns = cg.esphome_ns.namespace("hoermann_hcp")
 HoermannHcp = hoermann_hcp_ns.class_(
     "HoermannHcp", cg.PollingComponent, modbus.ModbusServerDevice
-)
-AnnouncePauseAction = hoermann_hcp_ns.class_(
-    "AnnouncePauseAction", automation.Action, cg.Parented.template(HoermannHcp)
-)
-VentAction = hoermann_hcp_ns.class_(
-    "VentAction", automation.Action, cg.Parented.template(HoermannHcp)
-)
-HalfOpenAction = hoermann_hcp_ns.class_(
-    "HalfOpenAction", automation.Action, cg.Parented.template(HoermannHcp)
 )
 
 # The Hoermann UAP module answers on Modbus server address 2.
@@ -44,27 +33,14 @@ HUB_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "hoermann_hcp.announce_pause",
-    AnnouncePauseAction,
-    HUB_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "hoermann_hcp.vent", VentAction, HUB_ACTION_SCHEMA, synchronous=True
-)
-@automation.register_action(
-    "hoermann_hcp.half_open", HalfOpenAction, HUB_ACTION_SCHEMA, synchronous=True
-)
-async def hub_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
+for _name, _call in (
+    ("hoermann_hcp.announce_pause", "announce_pause()"),
+    ("hoermann_hcp.vent", "vent_door()"),
+    ("hoermann_hcp.half_open", "half_open_door()"),
+):
+    automation.register_apply_action(
+        _name, HUB_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 
 async def to_code(config: ConfigType) -> None:
