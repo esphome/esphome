@@ -77,7 +77,7 @@ static constexpr uint8_t GREE_PRESET_SLEEP = 0x01;
 static constexpr uint8_t GREE_PRESET_SLEEP_BIT = 0x80;
 
 // Model codes
-enum Model { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG };
+enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG };
 
 class GreeClimate final : public climate_ir::ClimateIR {
  public:

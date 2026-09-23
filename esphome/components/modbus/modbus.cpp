@@ -861,7 +861,7 @@ void ModbusClientHub::send_next_frame_() {
   }
 
   cmd->sent();
-  if (cmd->frame.address() == BROADCAST_ADDRESS) {
+  if (cmd->fire_and_forget()) {
     // A broadcast (address 0) is never answered (Modbus 4.1), so it is fire-and-forget: on_sent above
     // reports the transmission, and the entry then retires with no terminal callback instead of
     // occupying the waiting slot until the send-wait timeout expires. The turnaround delay already
@@ -1103,17 +1103,30 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
     return false;
   }
 
-  if (address == BROADCAST_ADDRESS && !helpers::is_function_code_broadcastable(pdu[0])) {
-    ESP_LOGW(TAG, "Broadcast refused for function 0x%X: a broadcast (address 0) is never answered", pdu[0]);
-    return false;
-  }
-
   // Normalize the caller's options in place (the param is a by-value copy) so everything stored or
   // merged below carries effective options, never the raw request.
   // continuous is ignored for every mutating code (re-writing a value forever is never intended).
   if (options.continuous && helpers::is_function_code_write(pdu[0])) {
     ESP_LOGW(TAG, "continuous is ignored for a mutating function (0x%X, address %" PRIu8 ")", pdu[0], address);
     options.continuous = false;
+  }
+  if (address != BROADCAST_ADDRESS) {
+    options.allow_broadcast_read = false;
+    options.expect_broadcast_write_response = false;
+  } else {
+    const bool broadcastable = helpers::is_function_code_broadcastable(pdu[0]);
+    if (options.allow_broadcast_read && broadcastable) {
+      ESP_LOGV(TAG, "allow_broadcast_read is ignored for function 0x%X: it is broadcastable", pdu[0]);
+      options.allow_broadcast_read = false;
+    }
+    if (options.expect_broadcast_write_response && !broadcastable) {
+      ESP_LOGV(TAG, "expect_broadcast_write_response is ignored for function 0x%X: it is not broadcastable", pdu[0]);
+      options.expect_broadcast_write_response = false;
+    }
+    if (!broadcastable && !options.allow_broadcast_read) {
+      ESP_LOGW(TAG, "Broadcast refused for function 0x%X: a broadcast (address 0) is never answered", pdu[0]);
+      return false;
+    }
   }
 
   // A duplicate of a live entry with the same owner is not queued twice; it resolves against that
@@ -1155,6 +1168,7 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 ", request absorbed (pending %" PRIu8 ")", address,
                item.pending);
     }
+    item.options.expect_broadcast_write_response |= options.expect_broadcast_write_response;
     return true;
   }
 
