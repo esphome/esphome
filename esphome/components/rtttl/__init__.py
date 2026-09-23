@@ -6,8 +6,6 @@ from esphome.components.output import FloatOutput
 from esphome.components.speaker import Speaker
 import esphome.config_validation as cv
 from esphome.const import CONF_GAIN, CONF_ID, CONF_OUTPUT, CONF_PLATFORM, CONF_SPEAKER
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -20,8 +18,6 @@ CONF_ON_FINISHED_PLAYBACK = "on_finished_playback"
 rtttl_ns = cg.esphome_ns.namespace("rtttl")
 
 Rtttl = rtttl_ns.class_("Rtttl", cg.Component)
-PlayAction = rtttl_ns.class_("PlayAction", automation.Action)
-StopAction = rtttl_ns.class_("StopAction", automation.Action)
 IsPlayingCondition = rtttl_ns.class_("IsPlayingCondition", automation.Condition)
 
 MULTI_CONF = True
@@ -101,9 +97,8 @@ async def to_code(config: ConfigType) -> None:
         await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "rtttl.play",
-    PlayAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(CONF_ID): cv.use_id(Rtttl),
@@ -111,43 +106,21 @@ async def to_code(config: ConfigType) -> None:
         },
         key=CONF_RTTTL,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_RTTTL, "play", cg.std_string),
 )
-async def rtttl_play_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_RTTTL], args, cg.std_string)
-    cg.add(var.set_value(template_))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "rtttl.stop",
-    StopAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(Rtttl),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("stop()"),
 )
-async def rtttl_stop_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_condition(
+automation.register_parented_condition(
     "rtttl.is_playing",
     IsPlayingCondition,
     cv.Schema(
@@ -156,12 +129,3 @@ async def rtttl_stop_to_code(
         }
     ),
 )
-async def rtttl_is_playing_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
