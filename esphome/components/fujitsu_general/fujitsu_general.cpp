@@ -233,56 +233,50 @@ uint8_t FujitsuGeneralClimate::checksum_state_(uint8_t const *message) {
 
 uint8_t FujitsuGeneralClimate::checksum_util_(uint8_t const *message) { return 255 - message[5]; }
 
+// These decoders use if chains rather than switches: on ESP8266 the compiler turns a dense switch
+// into a lookup table in .rodata, which lives in RAM there.
 climate::ClimateMode decode_mode(uint8_t mode_field, climate::ClimateMode current_mode) {
-  switch (mode_field & FUJITSU_GENERAL_MODE_MASK) {
-    case FUJITSU_GENERAL_MODE_COOL:
-      return climate::CLIMATE_MODE_COOL;
-    case FUJITSU_GENERAL_MODE_HEAT:
-      return climate::CLIMATE_MODE_HEAT;
-    case FUJITSU_GENERAL_MODE_DRY:
-      return climate::CLIMATE_MODE_DRY;
-    case FUJITSU_GENERAL_MODE_FAN:
-      return climate::CLIMATE_MODE_FAN_ONLY;
-    case FUJITSU_GENERAL_MODE_AUTO:
-      return climate::CLIMATE_MODE_HEAT_COOL;
-    default:
-      // A state frame means the unit is on, so never keep OFF.
-      ESP_LOGW(TAG, "Received unassigned mode %X, keeping the current mode", mode_field & FUJITSU_GENERAL_MODE_MASK);
-      return current_mode == climate::CLIMATE_MODE_OFF ? climate::CLIMATE_MODE_HEAT_COOL : current_mode;
-  }
+  const uint8_t mode = mode_field & FUJITSU_GENERAL_MODE_MASK;
+  if (mode == FUJITSU_GENERAL_MODE_COOL)
+    return climate::CLIMATE_MODE_COOL;
+  if (mode == FUJITSU_GENERAL_MODE_HEAT)
+    return climate::CLIMATE_MODE_HEAT;
+  if (mode == FUJITSU_GENERAL_MODE_DRY)
+    return climate::CLIMATE_MODE_DRY;
+  if (mode == FUJITSU_GENERAL_MODE_FAN)
+    return climate::CLIMATE_MODE_FAN_ONLY;
+  if (mode == FUJITSU_GENERAL_MODE_AUTO)
+    return climate::CLIMATE_MODE_HEAT_COOL;
+  // A state frame means the unit is on, so never keep OFF.
+  ESP_LOGW(TAG, "Received unassigned mode %X, keeping the current mode", mode);
+  return current_mode == climate::CLIMATE_MODE_OFF ? climate::CLIMATE_MODE_HEAT_COOL : current_mode;
 }
 
 optional<climate::ClimateFanMode> decode_fan_mode(uint8_t fan_field, optional<climate::ClimateFanMode> current_mode) {
-  switch (fan_field & FUJITSU_GENERAL_FAN_MASK) {
-    case FUJITSU_GENERAL_FAN_HIGH:
-      return climate::CLIMATE_FAN_HIGH;
-    case FUJITSU_GENERAL_FAN_MEDIUM:
-      return climate::CLIMATE_FAN_MEDIUM;
-    case FUJITSU_GENERAL_FAN_LOW:
-      return climate::CLIMATE_FAN_LOW;
-    case FUJITSU_GENERAL_FAN_SILENT:
-      return climate::CLIMATE_FAN_QUIET;
-    case FUJITSU_GENERAL_FAN_AUTO:
-      return climate::CLIMATE_FAN_AUTO;
-    default:
-      ESP_LOGW(TAG, "Received unassigned fan speed %X, keeping the current fan mode",
-               fan_field & FUJITSU_GENERAL_FAN_MASK);
-      return current_mode;
-  }
+  const uint8_t fan = fan_field & FUJITSU_GENERAL_FAN_MASK;
+  if (fan == FUJITSU_GENERAL_FAN_HIGH)
+    return climate::CLIMATE_FAN_HIGH;
+  if (fan == FUJITSU_GENERAL_FAN_MEDIUM)
+    return climate::CLIMATE_FAN_MEDIUM;
+  if (fan == FUJITSU_GENERAL_FAN_LOW)
+    return climate::CLIMATE_FAN_LOW;
+  if (fan == FUJITSU_GENERAL_FAN_SILENT)
+    return climate::CLIMATE_FAN_QUIET;
+  if (fan == FUJITSU_GENERAL_FAN_AUTO)
+    return climate::CLIMATE_FAN_AUTO;
+  ESP_LOGW(TAG, "Received unassigned fan speed %X, keeping the current fan mode", fan);
+  return current_mode;
 }
 
 climate::ClimateSwingMode decode_swing_mode(uint8_t swing_field) {
-  switch (swing_field & FUJITSU_GENERAL_SWING_MASK) {
-    case FUJITSU_GENERAL_SWING_VERTICAL:
-      return climate::CLIMATE_SWING_VERTICAL;
-    case FUJITSU_GENERAL_SWING_HORIZONTAL:
-      return climate::CLIMATE_SWING_HORIZONTAL;
-    case FUJITSU_GENERAL_SWING_BOTH:
-      return climate::CLIMATE_SWING_BOTH;
-    case FUJITSU_GENERAL_SWING_NONE:
-    default:
-      return climate::CLIMATE_SWING_OFF;
-  }
+  const uint8_t swing = swing_field & FUJITSU_GENERAL_SWING_MASK;
+  if (swing == FUJITSU_GENERAL_SWING_VERTICAL)
+    return climate::CLIMATE_SWING_VERTICAL;
+  if (swing == FUJITSU_GENERAL_SWING_HORIZONTAL)
+    return climate::CLIMATE_SWING_HORIZONTAL;
+  if (swing == FUJITSU_GENERAL_SWING_BOTH)
+    return climate::CLIMATE_SWING_BOTH;
+  return climate::CLIMATE_SWING_OFF;
 }
 
 bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
