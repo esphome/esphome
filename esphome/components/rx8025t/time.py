@@ -11,9 +11,6 @@ rx8025t_ns = cg.esphome_ns.namespace("rx8025t")
 RX8025TComponent = rx8025t_ns.class_(
     "RX8025TComponent", time.RealTimeClock, i2c.I2CDevice
 )
-WriteAction = rx8025t_ns.class_("WriteAction", automation.Action)
-ReadAction = rx8025t_ns.class_("ReadAction", automation.Action)
-
 CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(RX8025TComponent),
@@ -21,36 +18,19 @@ CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
 ).extend(i2c.i2c_device_schema(0x32))
 
 
-@automation.register_action(
-    "rx8025t.write_time",
-    WriteAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(RX8025TComponent),
-        }
-    ),
-    synchronous=True,
-)
-async def rx8025t_write_time_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
-    "rx8025t.read_time",
-    ReadAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(RX8025TComponent),
-        }
-    ),
-    synchronous=True,
-)
-async def rx8025t_read_time_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
+for _name, _call in (
+    ("rx8025t.write_time", "write_time()"),
+    ("rx8025t.read_time", "read_time()"),
+):
+    automation.register_apply_action(
+        _name,
+        automation.maybe_simple_id(
+            {
+                cv.GenerateID(): cv.use_id(RX8025TComponent),
+            }
+        ),
+        automation.ApplyCall(_call),
+    )
 
 
 async def to_code(config):

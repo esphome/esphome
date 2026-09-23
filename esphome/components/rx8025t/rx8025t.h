@@ -109,14 +109,4 @@ class RX8025TComponent : public time::RealTimeClock, public i2c::I2CDevice {
   } rx8025t_;
 };
 
-template<typename... Ts> class WriteAction : public Action<Ts...>, public Parented<RX8025TComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->write_time(); }
-};
-
-template<typename... Ts> class ReadAction : public Action<Ts...>, public Parented<RX8025TComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->read_time(); }
-};
-
 }  // namespace esphome::rx8025t
