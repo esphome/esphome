@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
@@ -9,8 +8,6 @@
 #include <span>
 
 namespace esphome::pzem6l24 {
-
-template<typename... Ts> class ResetEnergyAction;
 
 // Options for the reset_energy action
 enum ResetPhase : uint8_t {
@@ -25,7 +22,7 @@ enum ResetPhase : uint8_t {
 static constexpr uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
 
 // The energy reset command as it goes on the wire: function code 0x42, a reserved byte and the phase
-// selector. The hub prepends the device address and appends the CRC. Split out from reset_energy_() so
+// selector. The hub prepends the device address and appends the CRC. Split out from reset_energy() so
 // the byte order can be pinned by a test - a wrong phase byte irreversibly zeroes the wrong counters.
 constexpr std::array<uint8_t, 3> build_reset_pdu(ResetPhase phase) {
   return {PZEM_CMD_RESET_ENERGY, 0x00, static_cast<uint8_t>(phase)};
@@ -102,6 +99,9 @@ class PZEM6L24 final : public PollingComponent, public modbus::ModbusClientDevic
     this->total_apparent_energy_ = total_apparent_energy;
   }
 
+  // Queues the energy reset command for the selected phase(s); the pzem6l24.reset_energy action calls this.
+  void reset_energy(ResetPhase phase_option);
+
   void update() override;
 
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
@@ -115,8 +115,6 @@ class PZEM6L24 final : public PollingComponent, public modbus::ModbusClientDevic
   void dump_config() override;
 
  protected:
-  template<typename... Ts> friend class ResetEnergyAction;
-
   void publish_values_(std::span<const uint8_t> data);
   void publish_(const uint8_t *data);
   void read_failed_();
@@ -177,21 +175,6 @@ class PZEM6L24 final : public PollingComponent, public modbus::ModbusClientDevic
   sensor::Sensor *total_active_energy_{nullptr};
   sensor::Sensor *total_reactive_energy_{nullptr};
   sensor::Sensor *total_apparent_energy_{nullptr};
-
-  void reset_energy_(ResetPhase phase_option);
-};
-
-template<typename... Ts> class ResetEnergyAction final : public Action<Ts...> {
- public:
-  explicit ResetEnergyAction(PZEM6L24 *parent) : parent_(parent) {}
-
-  void set_phase(ResetPhase phase) { this->phase_ = phase; }
-
-  void play(const Ts &...x) override { this->parent_->reset_energy_(this->phase_); }
-
- protected:
-  PZEM6L24 *parent_;
-  ResetPhase phase_{RESET_PHASE_ALL};
 };
 
 }  // namespace esphome::pzem6l24

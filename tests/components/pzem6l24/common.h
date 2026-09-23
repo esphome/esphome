@@ -16,7 +16,7 @@ static constexpr int FAILURES_BEFORE_BLANKING = 3;
 
 // The request PDU update() puts on the wire: read 64 input registers from 0x0000.
 static constexpr uint8_t READ_REQUEST_PDU[] = {0x04, 0x00, 0x00, 0x00, REGISTER_COUNT};
-// The request PDU reset_energy_() puts on the wire: function 0x42, reserved byte, phase selector.
+// The request PDU reset_energy() puts on the wire: function 0x42, reserved byte, phase selector.
 static constexpr uint8_t RESET_REQUEST_PDU[] = {0x42, 0x00, 0x0F};
 
 // Builds the 128-byte register payload the meter returns, writing each quantity in the

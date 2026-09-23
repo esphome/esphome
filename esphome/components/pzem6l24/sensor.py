@@ -37,7 +37,6 @@ pzem6l24_ns = cg.esphome_ns.namespace("pzem6l24")
 PZEM6L24 = pzem6l24_ns.class_(
     "PZEM6L24", cg.PollingComponent, modbus.ModbusClientDevice
 )
-ResetEnergyAction = pzem6l24_ns.class_("ResetEnergyAction", automation.Action)
 
 ResetPhase = pzem6l24_ns.enum("ResetPhase")
 RESET_PHASE_OPTIONS = {
@@ -202,9 +201,8 @@ CONFIG_SCHEMA = (
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "pzem6l24.reset_energy",
-    ResetEnergyAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(PZEM6L24),
@@ -213,13 +211,8 @@ CONFIG_SCHEMA = (
             ),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_PHASE, "reset_energy", ResetPhase),
 )
-async def reset_energy_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    cg.add(var.set_phase(config[CONF_PHASE]))
-    return var
 
 
 def _final_validate(config: ConfigType) -> ConfigType:

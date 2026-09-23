@@ -388,7 +388,7 @@ void PZEM6L24::read_finished_() {
   }
 }
 
-void PZEM6L24::reset_energy_(ResetPhase phase_option) {
+void PZEM6L24::reset_energy(ResetPhase phase_option) {
   const auto pdu = build_reset_pdu(phase_option);
   // A refused request gets no callback, so the failed button press would otherwise leave no trace.
   if (!this->queue_pdu(pdu)) {
