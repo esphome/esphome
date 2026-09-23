@@ -35,9 +35,7 @@ const uint8_t FUJITSU_GENERAL_POWER_OFF = 0x00;
 const uint8_t FUJITSU_GENERAL_POWER_ON = 0x01;
 
 // Mode
-// The mode occupies only the low three bits of this nibble, see the frame documentation in the
-// header. The fourth bit belongs to the clean feature, which doubles as 10 degree heat on the
-// ARRAH2E and ARREW4E remotes.
+// Bit 3 is the clean flag, which is also 10 degree heat on the ARRAH2E and ARREW4E remotes.
 constexpr uint8_t FUJITSU_GENERAL_MODE_MASK = 0b0111;
 constexpr uint8_t FUJITSU_GENERAL_CLEAN_BIT = 0b1000;
 const uint8_t FUJITSU_GENERAL_MODE_AUTO = 0x00;
@@ -54,8 +52,6 @@ const uint8_t FUJITSU_GENERAL_SWING_HORIZONTAL = 0x02;
 const uint8_t FUJITSU_GENERAL_SWING_BOTH = 0x03;
 
 // Fan
-// Like the mode, the fan speed occupies only the low three bits of its nibble. The fourth bit is
-// not assigned by the protocol.
 constexpr uint8_t FUJITSU_GENERAL_FAN_MASK = 0b0111;
 const uint8_t FUJITSU_GENERAL_FAN_AUTO = 0x00;
 const uint8_t FUJITSU_GENERAL_FAN_HIGH = 0x01;
@@ -250,10 +246,7 @@ climate::ClimateMode decode_mode(uint8_t mode_field, climate::ClimateMode curren
     case FUJITSU_GENERAL_MODE_AUTO:
       return climate::CLIMATE_MODE_HEAT_COOL;
     default:
-      // The protocol does not assign these values, so there is nothing to report. Keeping the
-      // current mode claims less than inventing one. A state frame does describe a running unit
-      // though, so off is not an answer this can give: reporting it would publish a unit that is
-      // running as off, and make the next transmission a power off command.
+      // A state frame means the unit is on, so never keep OFF.
       ESP_LOGW(TAG, "Received unassigned mode %X, keeping the current mode", mode_field & FUJITSU_GENERAL_MODE_MASK);
       return current_mode == climate::CLIMATE_MODE_OFF ? climate::CLIMATE_MODE_HEAT_COOL : current_mode;
   }
@@ -288,8 +281,6 @@ climate::ClimateSwingMode decode_swing_mode(uint8_t swing_field) {
       return climate::CLIMATE_SWING_BOTH;
     case FUJITSU_GENERAL_SWING_NONE:
     default:
-      // The mask leaves two bits and the protocol assigns all four of their values, so unlike the
-      // mode and the fan speed there is no unassigned value to report here.
       return climate::CLIMATE_SWING_OFF;
   }
 }
