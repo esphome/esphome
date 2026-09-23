@@ -319,6 +319,32 @@ def test_encryption_with_captive_portal_does_not_warn(
         fv.full_config.reset(token)
 
 
+@pytest.mark.parametrize("extra", [{}, {"prometheus": {}}])
+def test_encryption_with_web_server_ota_disabled_does_not_warn(
+    caplog: pytest.LogCaptureFixture, extra: dict[str, Any]
+) -> None:
+    """web_server `ota: false` only serves /update while the captive portal is
+    active, on every listener, so there is no plaintext endpoint to warn about."""
+    full_conf = {
+        "web_server": {CONF_OTA: False},
+        **extra,
+        CONF_OTA: [
+            _make_ota_config(port=3232, **{CONF_ENCRYPTION: {CONF_KEY: OTHER_KEY}}),
+            {CONF_PLATFORM: "web_server", CONF_ID: ID("ota_ws", is_manual=False)},
+        ],
+    }
+    token = fv.full_config.set(full_conf)
+    try:
+        with caplog.at_level(logging.WARNING):
+            ota_esphome_final_validate({})
+        assert not any(
+            "OTA encryption does not cover" in record.message
+            for record in caplog.records
+        )
+    finally:
+        fv.full_config.reset(token)
+
+
 def test_password_with_api_key_warns(caplog: pytest.LogCaptureFixture) -> None:
     """A static api key makes the device offer encryption and the CLI take
     it, so the password is dead weight; the config validates with a warning."""
@@ -450,43 +476,36 @@ def test_static_encryption_key() -> None:
     ("yaml_name", "defines_present", "defines_absent"),
     [
         # An api key alone compiles the transport in without requiring it;
-        # the device uses the api server's key, not a copy
+        # the ota keeps its own pointer to the key so safe mode, which never
+        # constructs the api server, can still use it
         (
             "api_key_offer",
-            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_FROM_API"},
+            {"USE_OTA_ENCRYPTION"},
             {"USE_OTA_ENCRYPTION_REQUIRED", "USE_OTA_ENCRYPTION_PROVISIONED"},
         ),
         # A password still guards plaintext uploads on an offering device
         (
             "api_key_offer_password",
-            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_FROM_API", "USE_OTA_PASSWORD"},
+            {"USE_OTA_ENCRYPTION", "USE_OTA_PASSWORD"},
             {"USE_OTA_ENCRYPTION_REQUIRED", "USE_OTA_ENCRYPTION_PROVISIONED"},
         ),
         # The ota encryption block is what makes the device refuse plaintext
         (
             "encryption_required",
-            {
-                "USE_OTA_ENCRYPTION",
-                "USE_OTA_ENCRYPTION_REQUIRED",
-                "USE_OTA_ENCRYPTION_FROM_API",
-            },
+            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_REQUIRED"},
             {"USE_OTA_ENCRYPTION_PROVISIONED"},
         ),
         # Without api encryption the ota key is the device's own
         (
             "own_key",
             {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_REQUIRED"},
-            {"USE_OTA_ENCRYPTION_FROM_API", "USE_OTA_ENCRYPTION_PROVISIONED"},
+            {"USE_OTA_ENCRYPTION_PROVISIONED"},
         ),
         # A key provisioned at runtime lives in the api server; the device
         # offers with it once provisioned and never requires it
         (
             "runtime_api_key",
-            {
-                "USE_OTA_ENCRYPTION",
-                "USE_OTA_ENCRYPTION_FROM_API",
-                "USE_OTA_ENCRYPTION_PROVISIONED",
-            },
+            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_PROVISIONED"},
             {"USE_OTA_ENCRYPTION_REQUIRED"},
         ),
         # No api encryption at all keeps the noise glue out of the build
@@ -496,7 +515,6 @@ def test_static_encryption_key() -> None:
             {
                 "USE_OTA_ENCRYPTION",
                 "USE_OTA_ENCRYPTION_REQUIRED",
-                "USE_OTA_ENCRYPTION_FROM_API",
                 "USE_OTA_ENCRYPTION_PROVISIONED",
             },
         ),
@@ -515,8 +533,10 @@ def test_encryption_offer_codegen(
     assert defines_present <= defines
     assert not (defines_absent & defines)
     encrypted = "USE_OTA_ENCRYPTION" in defines_present
-    own_key = encrypted and "USE_OTA_ENCRYPTION_FROM_API" not in defines_present
+    own_key = encrypted and "USE_OTA_ENCRYPTION_PROVISIONED" not in defines_present
     assert ("esphome_esphomeotacomponent_id->set_noise_psk(" in main_cpp) is own_key
+    # The api shares the ota's array instead of emitting the same key twice
+    assert main_cpp.count("_psk[] PROGMEM") == (1 if own_key else 0)
     assert ("set_auth_password(" in main_cpp) is ("USE_OTA_PASSWORD" in defines_present)
     # The noise transport source compiles only when the define is set
     assert FILTER_SOURCE_FILES() == ([] if encrypted else ["ota_esphome_noise.cpp"])

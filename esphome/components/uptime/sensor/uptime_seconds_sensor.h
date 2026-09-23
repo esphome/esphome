@@ -7,6 +7,8 @@ namespace esphome::uptime {
 
 class UptimeSecondsSensor final : public sensor::Sensor, public PollingComponent {
  public:
+  // User provided, not "= default": `new(p) UptimeSecondsSensor()` would zero-fill .bss that is already zero.
+  UptimeSecondsSensor() {}
   void update() override;
   void dump_config() override;
 

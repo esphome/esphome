@@ -37,6 +37,9 @@ enum class PendingAck : uint8_t {
 
 class BluetoothConnection final : public ble_device_base::GattClientListener {
  public:
+  // User provided, not "= default": `new(p) BluetoothConnection()` would zero-fill .bss that is already zero.
+  BluetoothConnection() {}
+
   /// Wire the platform backend. Called from codegen before setup.
   void set_backend(ble_device_base::BLEGattConnection *backend) {
     this->backend_ = backend;
