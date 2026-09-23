@@ -22,7 +22,6 @@ void ModbusSensor::parse_and_publish(std::span<const uint8_t> data) {
     }
   }
   ESP_LOGD(TAG, "Sensor new state: %.02f", result);
-  // this->sensor_->raw_state = result;
   this->publish_state(result);
 }
 
