@@ -257,8 +257,14 @@ switch:
       return false;
     turn_on_action:
       - logger.log: "turn_on_action"
+      - switch.template.publish:
+          id: test_switch
+          state: true
     turn_off_action:
       - logger.log: "turn_off_action"
+      - switch.template.publish:
+          id: test_switch
+          state: !lambda return false;
 
 button:
   - platform: template
