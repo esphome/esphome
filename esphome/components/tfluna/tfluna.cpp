@@ -86,7 +86,7 @@ void TFLuna::setup() {
   // buf[4..5] = temperature (LE), buf[6..7] = timestamp (LE)
   uint16_t distance = encode_uint16(buf[1], buf[0]);
   uint16_t signal_strength = encode_uint16(buf[3], buf[2]);
-  uint16_t temperature_raw = encode_uint16(buf[5], buf[4]);
+  int16_t temperature_raw = encode_uint16(buf[5], buf[4]);
   uint16_t timestamp = encode_uint16(buf[7], buf[6]);
 
   if (timestamp == previous_timestamp_) {
