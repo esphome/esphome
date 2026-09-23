@@ -33,10 +33,6 @@ SETUP_CMDS = {
 
 wifi_twt_ns = cg.esphome_ns.namespace("wifi_twt")
 WiFiTWT = wifi_twt_ns.class_("WiFiTWT", cg.Component)
-WiFiTWTStartAction = wifi_twt_ns.class_("WiFiTWTStartAction", automation.Action)
-WiFiTWTStopAction = wifi_twt_ns.class_("WiFiTWTStopAction", automation.Action)
-WiFiTWTDisableAction = wifi_twt_ns.class_("WiFiTWTDisableAction", automation.Action)
-WiFiTWTEnableAction = wifi_twt_ns.class_("WiFiTWTEnableAction", automation.Action)
 
 
 def _validate(config):
@@ -196,79 +192,39 @@ START_ACTION_SCHEMA = cv.All(
 )
 
 
-@automation.register_action(
+def _setup_cmd_const(config, value):
+    return str(SETUP_CMDS[value])
+
+
+def _flow_type_const(config, value):
+    return str(_FLOW_TYPE_VALUES[value])
+
+
+# start_twt() must follow the setters: it reads the staged values.
+automation.register_apply_action(
     "wifi_twt.start",
-    WiFiTWTStartAction,
     START_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_WAKE_INTERVAL, "set_wake_interval_ms", cg.uint32),
+    automation.ApplyField(CONF_WAKE_DURATION, "set_wake_duration_ms", cg.uint32),
+    automation.ApplyField(
+        CONF_SETUP_CMD, "set_setup_cmd", cg.uint8, const_fn=_setup_cmd_const
+    ),
+    automation.ApplyField(
+        CONF_FLOW_TYPE, "set_flow_type", cg.uint8, const_fn=_flow_type_const
+    ),
+    automation.ApplyCall("start_twt()"),
 )
-async def wifi_twt_start_action_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-    if CONF_WAKE_INTERVAL in config:
-        templ = await cg.templatable(
-            config[CONF_WAKE_INTERVAL],
-            args,
-            cg.uint32,
-            to_exp=lambda v: v.total_milliseconds,
-        )
-        cg.add(var.set_wake_interval_ms(templ))
-    if CONF_WAKE_DURATION in config:
-        templ = await cg.templatable(
-            config[CONF_WAKE_DURATION],
-            args,
-            cg.uint32,
-            to_exp=lambda v: v.total_milliseconds,
-        )
-        cg.add(var.set_wake_duration_ms(templ))
-    if CONF_SETUP_CMD in config:
-        templ = await cg.templatable(
-            config[CONF_SETUP_CMD], args, cg.uint8, to_exp=SETUP_CMDS
-        )
-        cg.add(var.set_setup_cmd(templ))
-    if CONF_FLOW_TYPE in config:
-        templ = await cg.templatable(
-            config[CONF_FLOW_TYPE], args, cg.uint8, to_exp=_FLOW_TYPE_VALUES
-        )
-        cg.add(var.set_flow_type(templ))
-    return var
 
 
 _SIMPLE_ACTION_SCHEMA = automation.maybe_simple_id(
     {cv.GenerateID(): cv.use_id(WiFiTWT)}
 )
 
-
-async def _simple_action_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
-
-
-@automation.register_action(
-    "wifi_twt.stop",
-    WiFiTWTStopAction,
-    _SIMPLE_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def wifi_twt_stop_action_to_code(config, action_id, template_arg, args):
-    return await _simple_action_to_code(config, action_id, template_arg, args)
-
-
-@automation.register_action(
-    "wifi_twt.disable",
-    WiFiTWTDisableAction,
-    _SIMPLE_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def wifi_twt_disable_action_to_code(config, action_id, template_arg, args):
-    return await _simple_action_to_code(config, action_id, template_arg, args)
-
-
-@automation.register_action(
-    "wifi_twt.enable",
-    WiFiTWTEnableAction,
-    _SIMPLE_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def wifi_twt_enable_action_to_code(config, action_id, template_arg, args):
-    return await _simple_action_to_code(config, action_id, template_arg, args)
+for _name, _method in (
+    ("wifi_twt.stop", "stop_twt()"),
+    ("wifi_twt.disable", "disable_twt()"),
+    ("wifi_twt.enable", "enable_twt()"),
+):
+    automation.register_apply_action(
+        _name, _SIMPLE_ACTION_SCHEMA, automation.ApplyCall(_method)
+    )

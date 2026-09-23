@@ -20,6 +20,8 @@ wifi:
         id: my_twt
         wake_interval: !lambda return 45000;
         wake_duration: !lambda return 8;
+        setup_cmd: !lambda return 1;
+        flow_type: !lambda return 0;
 
 wifi_twt:
   id: my_twt
