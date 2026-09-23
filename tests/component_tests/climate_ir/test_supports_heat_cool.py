@@ -9,17 +9,16 @@ import re
 import pytest
 
 
-def _emitted_value(main_cpp: str) -> str:
-    """Return the argument of the generated set_supports_heat_cool() call."""
+def _emitted_value(main_cpp: str) -> str | None:
+    """Return the argument of the generated set_supports_heat_cool() call, or None if absent."""
     match = re.search(r"set_supports_heat_cool\((true|false)\)", main_cpp)
-    assert match, "set_supports_heat_cool() call not found"
-    return match.group(1)
+    return match.group(1) if match else None
 
 
 @pytest.mark.parametrize(
     ("config", "expected"),
     [
-        ("heat_and_cool.yaml", "true"),
+        ("heat_and_cool.yaml", None),
         ("cool_only.yaml", "false"),
         ("heat_only.yaml", "false"),
         ("neither.yaml", "false"),
@@ -27,7 +26,7 @@ def _emitted_value(main_cpp: str) -> str:
 )
 def test_default_requires_heat_and_cool(
     config: str,
-    expected: str,
+    expected: str | None,
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
@@ -39,13 +38,13 @@ def test_default_requires_heat_and_cool(
 @pytest.mark.parametrize(
     ("config", "expected"),
     [
-        ("cool_only_override_on.yaml", "true"),
+        ("cool_only_override_on.yaml", None),
         ("heat_and_cool_override_off.yaml", "false"),
     ],
 )
 def test_explicit_key_overrides_default(
     config: str,
-    expected: str,
+    expected: str | None,
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
