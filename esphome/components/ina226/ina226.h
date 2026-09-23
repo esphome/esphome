@@ -96,14 +96,4 @@ class INA226Component final : public PollingComponent, public i2c::I2CDevice {
   int32_t twos_complement_(int32_t val, uint8_t bits);
 };
 
-template<typename... Ts> class ClearAlertAction : public Action<Ts...> {
- public:
-  ClearAlertAction(INA226Component *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override { this->parent_->clear_alert_flag(); }
-
- protected:
-  INA226Component *parent_;
-};
-
 }  // namespace esphome::ina226

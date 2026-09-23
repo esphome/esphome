@@ -1,6 +1,7 @@
 sensor:
   # Basic INA226 without alert function
   - platform: ina226
+    id: ina226_basic
     i2c_id: i2c_bus
     address: 0x40
     shunt_resistance: 0.1 ohm
@@ -27,6 +28,9 @@ sensor:
     shunt_resistance: 0.1 ohm
     current:
       name: INA226 Shunt Over Current
+      on_value:
+        then:
+          - ina226.clear_alert: ina226_basic
     max_current: 3.2A
     update_interval: 15s
     alert:

@@ -42,11 +42,6 @@ INA226Component = ina226_ns.class_(
     "INA226Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-ClearAlertAction = ina226_ns.class_(
-    "ClearAlertAction",
-    automation.Action,
-)
-
 AlertFunction = ina226_ns.enum("AlertFunction")
 ALERT_FUNCTIONS = {
     "none": AlertFunction.ALERT_FUNCTION_NONE,
@@ -251,13 +246,8 @@ CLEAR_ALERT_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "ina226.clear_alert",
-    ClearAlertAction,
     CLEAR_ALERT_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("clear_alert_flag()"),
 )
-async def ina226_clear_alert_to_code(config, action_id, template_arg, args) -> None:
-    """Service code generation entry point."""
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
