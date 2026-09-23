@@ -265,182 +265,200 @@ void OpenTherm42Hub::loop() {
 }
 
 void OpenTherm42Hub::build_schedule_() {
-  // STATUS and CONTROL_SETPOINT are always essential -- §5.2 requires sending them regardless of
-  // whether any entity is configured for their bits.
-  this->essential_requests_.push_back(RequestKind::STATUS);
-  this->essential_requests_.push_back(RequestKind::CONTROL_SETPOINT);
+  // STATUS and CONTROL_SETPOINT are handled entirely by reserved_ now (see its declaration comment
+  // in hub.h) -- §5.2 requires sending them regardless of whether any entity is configured for
+  // their bits, which reserved_'s fixed 2-entry array already guarantees unconditionally, so
+  // neither needs (or should) also appear in scheduled_.
   if (this->control_setpoint_2_number_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::CONTROL_SETPOINT_2);
+    this->schedule_(RequestKind::CONTROL_SETPOINT_2);
   }
   if (this->ventilation_status_write_.any_configured() || this->ventilation_status_read_.any_configured()) {
-    this->essential_requests_.push_back(RequestKind::VENTILATION_STATUS);
+    this->schedule_(RequestKind::VENTILATION_STATUS);
   }
   if (this->control_setpoint_ventilation_number_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::CONTROL_SETPOINT_VENTILATION);
+    this->schedule_(RequestKind::CONTROL_SETPOINT_VENTILATION);
   }
 
   if (this->fault_flags_read_.any_configured() || this->oem_fault_code_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::FAULT_FLAGS);
+    this->schedule_(RequestKind::FAULT_FLAGS);
   }
   if (this->ventilation_fault_flags_read_.any_configured() || this->oem_fault_code_ventilation_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::VENTILATION_FAULT_FLAGS);
+    this->schedule_(RequestKind::VENTILATION_FAULT_FLAGS);
   }
-  // The select is an active control input (like the Class 1 setpoints below), so it's essential;
-  // read-only consumers alone only need informational polling -- see build_next_request_()/
+  // The select is an active control input (like the Class 1 setpoints below); read-only consumers
+  // alone still get the same single scheduled_ entry either way -- see build_next_request_()/
   // handle_response_() for how the select's HB and the sensors' LB stay independent.
-  if (this->master_solar_storage_status_solar_mode_select_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::SOLAR_STORAGE_STATUS);
-  } else if (this->solar_storage_fault_indication_binary_sensor_ != nullptr ||
-             this->solar_storage_mode_and_status_solar_mode_text_sensor_ != nullptr ||
-             this->solar_storage_mode_and_status_solar_status_text_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::SOLAR_STORAGE_STATUS);
+  if (this->master_solar_storage_status_solar_mode_select_ != nullptr ||
+      this->solar_storage_fault_indication_binary_sensor_ != nullptr ||
+      this->solar_storage_mode_and_status_solar_mode_text_sensor_ != nullptr ||
+      this->solar_storage_mode_and_status_solar_status_text_sensor_ != nullptr) {
+    this->schedule_(RequestKind::SOLAR_STORAGE_STATUS);
   }
+  // These three are 1:1 but bespoke (not dispatched through SIMPLE_SENSORS -- see
+  // handle_response_()/build_next_request_()), so their update_interval is stored separately by
+  // set_..._update_interval() at wiring time and consumed here, same reasoning as
+  // date_time_read_interval_ms_ (below, for DAY_TIME_READ) and set_number_update_interval().
   if (this->oem_fault_code_solar_storage_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::SOLAR_STORAGE_FAULT_FLAGS);
+    this->scheduled_.push_back(
+        {RequestKind::SOLAR_STORAGE_FAULT_FLAGS, this->oem_fault_code_solar_storage_interval_ms_});
   }
   if (this->oem_diagnostic_code_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::OEM_DIAGNOSTIC_CODE);
+    this->scheduled_.push_back({RequestKind::OEM_DIAGNOSTIC_CODE, this->oem_diagnostic_code_interval_ms_});
   }
   if (this->oem_diagnostic_code_ventilation_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION);
+    this->scheduled_.push_back(
+        {RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION, this->oem_diagnostic_code_ventilation_interval_ms_});
   }
 
   if (this->configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_ != nullptr ||
       this->configuration_information_configuration_ventilation_heat_recovery_bypass_text_sensor_ != nullptr ||
       this->configuration_information_configuration_ventilation_heat_recovery_speed_control_text_sensor_ != nullptr ||
       this->member_id_code_ventilation_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::VENTILATION_CONFIGURATION);
+    this->schedule_(RequestKind::VENTILATION_CONFIGURATION);
   }
   if (this->configuration_information_solar_storage_configuration_system_type_text_sensor_ != nullptr ||
       this->solar_storage_member_id_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::SOLAR_STORAGE_CONFIGURATION);
+    this->schedule_(RequestKind::SOLAR_STORAGE_CONFIGURATION);
   }
   if (this->opentherm_version_boiler_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::OPENTHERM_VERSION_BOILER);
+    this->schedule_(RequestKind::OPENTHERM_VERSION_BOILER);
   }
   if (this->boiler_product_type_sensor_ != nullptr || this->boiler_product_version_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::PRODUCT_VERSION_BOILER);
+    this->schedule_(RequestKind::PRODUCT_VERSION_BOILER);
   }
   if (this->opentherm_version_ventilation_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::OPENTHERM_VERSION_VENTILATION);
+    this->schedule_(RequestKind::OPENTHERM_VERSION_VENTILATION);
   }
   if (this->ventilation_product_type_sensor_ != nullptr || this->ventilation_product_version_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::PRODUCT_VERSION_VENTILATION);
+    this->schedule_(RequestKind::PRODUCT_VERSION_VENTILATION);
   }
   if (this->solar_storage_product_type_sensor_ != nullptr || this->solar_storage_product_version_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE);
+    this->schedule_(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE);
   }
 
-  // §5.3.4 Class 4: write-only numbers -- essential, like the Class 1 setpoints, since they represent
-  // this master's active control input. ROOM_TEMPERATURE (ID 24) and TRCH2 (ID 37) are deliberately
-  // absent here -- like the sensor-feed ids below, they only join essential_requests_ once
+  // §5.3.4 Class 4: write-only numbers. ROOM_TEMPERATURE (ID 24) and TRCH2 (ID 37) are deliberately
+  // absent here -- like the sensor-feed ids below, they only join scheduled_ once
   // set_sensor_feed_write_value() has a real value, see hub.h's RequestKind comment.
   if (this->room_setpoint_number_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::ROOM_SETPOINT);
+    this->schedule_(RequestKind::ROOM_SETPOINT);
   }
   if (this->room_setpoint_ch2_number_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::ROOM_SETPOINT_CH2);
+    this->schedule_(RequestKind::ROOM_SETPOINT_CH2);
   }
   if (this->time_id_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::DAY_TIME);
-    this->essential_requests_.push_back(RequestKind::DATE);
-    this->essential_requests_.push_back(RequestKind::YEAR);
+    this->schedule_(RequestKind::DAY_TIME);
+    this->schedule_(RequestKind::DATE);
+    this->schedule_(RequestKind::YEAR);
   }
   // IDs 20/21/22 (read side): independent of time_id_ -- see hub.h's RequestKind::DAY_TIME_READ
-  // comment. All three feed the same date_time_text_sensor_, so they're scheduled together.
+  // comment. All three feed the same date_time_text_sensor_ and fire together as one burst (see
+  // build_next_request_()'s date_time_read_pending_ handling) -- DAY_TIME_READ is scheduled_'s sole
+  // representative for the group; DATE_READ/YEAR_READ never get their own entry.
   if (this->date_time_text_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::DAY_TIME_READ);
-    this->informational_requests_.push_back(RequestKind::DATE_READ);
-    this->informational_requests_.push_back(RequestKind::YEAR_READ);
+    this->scheduled_.push_back({RequestKind::DAY_TIME_READ, this->date_time_read_interval_ms_});
   }
   // IDs 27/38/78/79: the READ side is unconditional whenever the number is configured -- see hub.h's
-  // RequestKind comment. The WRITE side only joins the essential rotation once a real value has been
-  // commanded (see set_sensor_feed_write_value()), so it's deliberately absent here.
+  // RequestKind comment. The WRITE side only joins scheduled_ once a real value has been commanded
+  // (see set_sensor_feed_write_value()), so it's deliberately absent here.
   if (this->outside_temperature_number_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::OUTSIDE_TEMPERATURE_READ);
+    this->schedule_(RequestKind::OUTSIDE_TEMPERATURE_READ);
   }
   if (this->relative_humidity_number_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::RELATIVE_HUMIDITY_READ);
+    this->schedule_(RequestKind::RELATIVE_HUMIDITY_READ);
   }
   if (this->relative_humidity_exhaust_air_number_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ);
+    this->schedule_(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ);
   }
   if (this->co2_level_number_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::CO2_LEVEL_READ);
+    this->schedule_(RequestKind::CO2_LEVEL_READ);
   }
   if (this->boiler_fan_speed_setpoint_sensor_ != nullptr || this->boiler_fan_speed_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::BOILER_FAN_SPEED);
+    this->schedule_(RequestKind::BOILER_FAN_SPEED);
   }
-  // Every plain read-only sensor: informational if its entity is configured.
+  // Every plain read-only sensor: scheduled if its entity is configured, at whatever interval
+  // set_simple_sensor_update_interval() staged for its id (see pending_simple_sensor_intervals_'s
+  // declaration comment), falling back to the placeholder if none was staged (config-schema always
+  // supplies one via a default, so this fallback is only reached if some marker were ever added to
+  // SIMPLE_SENSORS without a matching update_interval schema field in a platform's config).
   for (auto const &info : SIMPLE_SENSORS) {
-    if (this->*(info.member) != nullptr) {
-      this->informational_requests_.push_back(info.kind);
+    if (this->*(info.member) == nullptr) {
+      continue;
     }
+    uint32_t interval_ms = SCHEDULE_INTERVAL_MS_PLACEHOLDER;
+    for (auto const &pending : this->pending_simple_sensor_intervals_) {
+      if (pending.first == info.id) {
+        interval_ms = pending.second;
+        break;
+      }
+    }
+    this->scheduled_.push_back({info.kind, interval_ms});
   }
+  this->pending_simple_sensor_intervals_.clear();
+  this->pending_simple_sensor_intervals_.shrink_to_fit();
 
   // §5.3.5 Class 5.
   if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_ != nullptr ||
       this->pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint_text_sensor_ != nullptr ||
       this->pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint_text_sensor_ != nullptr ||
       this->pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint_text_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::REMOTE_PARAMETER_FLAGS);
+    this->schedule_(RequestKind::REMOTE_PARAMETER_FLAGS);
   }
   if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_ !=
           nullptr ||
       this->pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_ !=
           nullptr) {
-    this->informational_requests_.push_back(RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION);
+    this->schedule_(RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION);
   }
   if (this->dhwsetp_upper_bound_sensor_ != nullptr || this->dhwsetp_lower_bound_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::DHWSETP_BOUNDS);
+    this->schedule_(RequestKind::DHWSETP_BOUNDS);
   }
   if (this->max_chsetp_upper_bound_sensor_ != nullptr || this->max_chsetp_lower_bound_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::MAX_CHSETP_BOUNDS);
+    this->schedule_(RequestKind::MAX_CHSETP_BOUNDS);
   }
   if (this->dhw_setpoint_number_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::DHW_SETPOINT);
-    this->informational_requests_.push_back(RequestKind::DHW_SETPOINT_READ);
+    this->schedule_(RequestKind::DHW_SETPOINT);
+    this->schedule_(RequestKind::DHW_SETPOINT_READ);
   }
   if (this->max_ch_water_setpoint_number_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::MAX_CH_WATER_SETPOINT);
-    this->informational_requests_.push_back(RequestKind::MAX_CH_WATER_SETPOINT_READ);
+    this->schedule_(RequestKind::MAX_CH_WATER_SETPOINT);
+    this->schedule_(RequestKind::MAX_CH_WATER_SETPOINT_READ);
   }
   if (this->nominal_ventilation_value_number_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::NOMINAL_VENTILATION_VALUE);
-    this->informational_requests_.push_back(RequestKind::NOMINAL_VENTILATION_VALUE_READ);
+    this->schedule_(RequestKind::NOMINAL_VENTILATION_VALUE);
+    this->schedule_(RequestKind::NOMINAL_VENTILATION_VALUE_READ);
   }
 
-  // §5.3.6 Class 6: one informational slot round-robins through every configured TSP for periodic
+  // §5.3.6 Class 6: one scheduled_ entry round-robins through every configured TSP for periodic
   // reads; on-demand writes (see write_tsp()) are serviced ahead of this rotation.
   if (!this->tsp_slots_.empty()) {
-    this->informational_requests_.push_back(RequestKind::TSP);
+    this->schedule_(RequestKind::TSP);
   }
 
   // §5.3.7 Class 7: same round-robin, for fault-history-buffer entries (purely read-only).
   if (!this->fhb_slots_.empty()) {
-    this->informational_requests_.push_back(RequestKind::FHB);
+    this->schedule_(RequestKind::FHB);
   }
 
   // §5.3.8 Class 8.
   if (this->cooling_control_signal_number_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::COOLING_CONTROL_SIGNAL);
+    this->schedule_(RequestKind::COOLING_CONTROL_SIGNAL);
   }
   if (this->max_rel_mod_level_setting_number_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::MAX_REL_MOD_LEVEL_SETTING);
+    this->schedule_(RequestKind::MAX_REL_MOD_LEVEL_SETTING);
   }
   if (this->maximum_boiler_capacity_sensor_ != nullptr || this->minimum_modulation_level_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL);
+    this->schedule_(RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL);
   }
   if (this->remote_override_operating_mode_dhw_select_ != nullptr ||
       this->remote_override_operating_mode_heating_hc1_select_ != nullptr ||
       this->remote_override_operating_mode_heating_hc2_select_ != nullptr ||
       this->manual_dhw_push2_switch_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES);
-    this->informational_requests_.push_back(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ);
+    this->schedule_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES);
+    this->schedule_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ);
   }
   if (this->remote_override_room_setpoint_function_manual_change_priority_text_sensor_ != nullptr ||
       this->remote_override_room_setpoint_function_program_change_priority_text_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION);
+    this->schedule_(RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION);
   }
 }
 
@@ -499,34 +517,78 @@ Frame OpenTherm42Hub::build_next_request_() {
     this->log_outgoing_frame_(frame);
     return frame;
   }
+  if (this->date_time_read_pending_) {
+    // Steps through DAY_TIME_READ (0)/DATE_READ (1)/YEAR_READ (2) one conversation at a time -- see
+    // Tier 2's due-time scan below for how this gets kicked off.
+    Frame frame = this->build_date_time_read_step_(this->date_time_read_step_);
+    this->date_time_read_step_++;
+    if (this->date_time_read_step_ >= 3) {
+      this->date_time_read_pending_ = false;
+    }
+    return frame;
+  }
+  // Tier 3: an ASAP-dirty reserved entry (CONTROL_SETPOINT commanded via control()) always jumps
+  // ahead of everything else below, including Tier 1's own due-time check -- the whole point of
+  // "ASAP" is not waiting for the next due turn.
+  for (auto &entry : this->reserved_) {
+    if (entry.dirty) {
+      entry.dirty = false;
+      entry.next_due_ms = millis() + entry.interval_ms;
+      return this->build_reserved_request_(entry.kind);
+    }
+  }
+  // Tier 1: §5.2's mandatory heartbeat, checked ahead of Tiers 0/2 every single call so it's never
+  // diluted by how many other entities are configured -- see ReservedEntry's declaration comment.
+  for (auto &entry : this->reserved_) {
+    if (static_cast<int32_t>(millis() - entry.next_due_ms) >= 0) {
+      entry.next_due_ms = millis() + entry.interval_ms;
+      return this->build_reserved_request_(entry.kind);
+    }
+  }
+  // Tier 0: background-retried startup one-shots, never blocking Tier 1/3 above.
+  for (auto &item : this->startup_items_) {
+    if (item.done || !this->startup_item_actionable_(item.kind)) {
+      continue;
+    }
+    // Signed cast: wraparound-safe "now >= next_due_ms" even once millis() wraps past ~49 days.
+    if (static_cast<int32_t>(millis() - item.next_due_ms) >= 0) {
+      return this->build_startup_item_request_(item.kind);
+    }
+  }
 
+  // Tier 2: due-time scan over every remaining periodic id -- whichever configured entry is most
+  // overdue wins, so a slow-changing counter and a fast-changing sensor no longer share one
+  // undifferentiated cadence (see ScheduledEntry's declaration comment).
+  ScheduledEntry *most_overdue = nullptr;
+  int32_t most_overdue_by = 0;
+  for (auto &entry : this->scheduled_) {
+    int32_t const overdue_by = static_cast<int32_t>(millis() - entry.next_due_ms);
+    if (overdue_by >= 0 && (most_overdue == nullptr || overdue_by > most_overdue_by)) {
+      most_overdue = &entry;
+      most_overdue_by = overdue_by;
+    }
+  }
+  if (most_overdue == nullptr) {
+    // Nothing else is due yet (including an empty scheduled_, e.g. nothing configured beyond the
+    // reserved STATUS/CONTROL_SETPOINT tier above) -- rather than leave the bus idle, resend
+    // STATUS: always a safe, spec-legitimate thing to send regardless of its own next_due_ms.
+    return this->build_reserved_request_(RequestKind::STATUS);
+  }
+  most_overdue->next_due_ms = millis() + most_overdue->interval_ms;
+  RequestKind kind = most_overdue->kind;
+  if (kind == RequestKind::DAY_TIME_READ) {
+    // DAY_TIME_READ/DATE_READ/YEAR_READ all feed one shared date_time_text_sensor_ and are fired
+    // together as a coherent 3-step burst -- DAY_TIME_READ is scheduled_'s sole representative for
+    // the group (see build_schedule_()); DATE_READ/YEAR_READ follow via this same intercept shape
+    // on the next two calls, ahead of everything below, exactly like time_sync_pending_ above.
+    this->date_time_read_pending_ = true;
+    this->date_time_read_step_ = 1;
+    return this->build_date_time_read_step_(0);
+  }
   Frame frame{};
-  RequestKind kind;
-  if (this->next_is_informational_ && !this->informational_requests_.empty()) {
-    kind = this->informational_requests_[this->informational_index_];
-    this->informational_index_ = (this->informational_index_ + 1) % this->informational_requests_.size();
-  } else {
-    kind = this->essential_requests_[this->essential_index_];
-    this->essential_index_ = (this->essential_index_ + 1) % this->essential_requests_.size();
-  }
-  if (!this->informational_requests_.empty()) {
-    // Alternate essential/informational so a long informational list can never starve the essentials
-    // (which include the §5.2 mandatory heartbeat) beyond §4.3.1's 1.15 s MCI.
-    this->next_is_informational_ = !this->next_is_informational_;
-  }
   this->pending_request_kind_ = kind;
 
   switch (kind) {
-    case RequestKind::STATUS:
-      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
-      frame.id = 0;
-      frame.value_hb = this->master_status_write_.pack();
-      break;
-    case RequestKind::CONTROL_SETPOINT:
-      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
-      frame.id = 1;
-      frame.set_value_f88(this->control_setpoint_write_value_);
-      break;
     case RequestKind::CONTROL_SETPOINT_2:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 8;
@@ -627,18 +689,9 @@ Frame OpenTherm42Hub::build_next_request_() {
       this->build_time_sync_frame_(2, frame);
       break;
 
-    case RequestKind::DAY_TIME_READ:
-      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
-      frame.id = 20;
-      break;
-    case RequestKind::DATE_READ:
-      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
-      frame.id = 21;
-      break;
-    case RequestKind::YEAR_READ:
-      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
-      frame.id = 22;
-      break;
+      // DAY_TIME_READ/DATE_READ/YEAR_READ are never reached here -- they're built by
+      // build_date_time_read_step_() via the date_time_read_pending_ burst intercept instead (see
+      // build_next_request_()'s Tier 2 due-time scan and hub.h's ScheduledEntry-adjacent comment).
 
     case RequestKind::OUTSIDE_TEMPERATURE:
       // Only ever scheduled once set_sensor_feed_write_value() has a real value -- see hub.h's
@@ -842,46 +895,138 @@ void OpenTherm42Hub::set_sensor_feed_write_value(uint8_t id, float value) {
     default:
       return;
   }
-  if (std::isnan(*write_value)) {
-    this->essential_requests_.push_back(kind);
-  }
+  bool const first_value = std::isnan(*write_value);
   *write_value = value;
+  if (first_value) {
+    this->schedule_(kind);
+  }
+  // Tier 3: jump the queue rather than wait for this id's own due time -- see ScheduledEntry's
+  // declaration comment. Always finds an entry: either just scheduled above, or scheduled already
+  // by an earlier call.
+  this->find_scheduled_(kind)->dirty = true;
+}
+
+void OpenTherm42Hub::set_sensor_feed_update_interval(uint8_t id, uint32_t interval_ms) {
+  RequestKind kind;
+  switch (id) {
+    case 27:
+      kind = RequestKind::OUTSIDE_TEMPERATURE_READ;
+      break;
+    case 38:
+      kind = RequestKind::RELATIVE_HUMIDITY_READ;
+      break;
+    case 78:
+      kind = RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ;
+      break;
+    case 79:
+      kind = RequestKind::CO2_LEVEL_READ;
+      break;
+    default:
+      return;  // 24/37 (ROOM_TEMPERATURE/TRCH2): no read side, no interval concept -- unreachable,
+               // OpenTherm42SensorFeedNumber never calls this for them (see its set_update_interval())
+  }
+  if (ScheduledEntry *entry = this->find_scheduled_(kind); entry != nullptr) {
+    entry->interval_ms = interval_ms;
+  }
 }
 
 void OpenTherm42Hub::set_write_value(uint8_t id, float value) {
+  float *write_value;
+  RequestKind kind;
   switch (id) {
     case 1:
       this->control_setpoint_write_value_ = value;
+      // Tier 3: jump the queue rather than wait for the reserved tier's own due time -- see
+      // ReservedEntry's declaration comment.
+      this->find_reserved_(RequestKind::CONTROL_SETPOINT)->dirty = true;
       return;
     case 8:
-      this->control_setpoint_2_write_value_ = value;
-      return;
+      write_value = &this->control_setpoint_2_write_value_;
+      kind = RequestKind::CONTROL_SETPOINT_2;
+      break;
     case 71:
-      this->control_setpoint_ventilation_write_value_ = value;
-      return;
+      write_value = &this->control_setpoint_ventilation_write_value_;
+      kind = RequestKind::CONTROL_SETPOINT_VENTILATION;
+      break;
     case 16:
-      this->room_setpoint_write_value_ = value;
-      return;
+      write_value = &this->room_setpoint_write_value_;
+      kind = RequestKind::ROOM_SETPOINT;
+      break;
     case 23:
-      this->room_setpoint_ch2_write_value_ = value;
-      return;
+      write_value = &this->room_setpoint_ch2_write_value_;
+      kind = RequestKind::ROOM_SETPOINT_CH2;
+      break;
     case 56:
-      this->dhw_setpoint_write_value_ = value;
-      return;
+      write_value = &this->dhw_setpoint_write_value_;
+      kind = RequestKind::DHW_SETPOINT;
+      break;
     case 57:
-      this->max_ch_water_setpoint_write_value_ = value;
-      return;
+      write_value = &this->max_ch_water_setpoint_write_value_;
+      kind = RequestKind::MAX_CH_WATER_SETPOINT;
+      break;
     case 87:
-      this->nominal_ventilation_value_write_value_ = value;
-      return;
+      write_value = &this->nominal_ventilation_value_write_value_;
+      kind = RequestKind::NOMINAL_VENTILATION_VALUE;
+      break;
     case 7:
-      this->cooling_control_signal_write_value_ = value;
-      return;
+      write_value = &this->cooling_control_signal_write_value_;
+      kind = RequestKind::COOLING_CONTROL_SIGNAL;
+      break;
     case 14:
-      this->max_rel_mod_level_setting_write_value_ = value;
-      return;
+      write_value = &this->max_rel_mod_level_setting_write_value_;
+      kind = RequestKind::MAX_REL_MOD_LEVEL_SETTING;
+      break;
     default:
       return;
+  }
+  *write_value = value;
+  // Tier 3: jump the queue rather than wait for this id's own due time -- see ScheduledEntry's
+  // declaration comment. nullptr-safe: only reachable once the matching entity's control()/setup()
+  // has run, which requires build_schedule_() to already have scheduled this kind.
+  if (ScheduledEntry *entry = this->find_scheduled_(kind); entry != nullptr) {
+    entry->dirty = true;
+  }
+}
+
+void OpenTherm42Hub::set_number_update_interval(uint8_t id, uint32_t interval_ms) {
+  if (id == 1) {
+    this->find_reserved_(RequestKind::CONTROL_SETPOINT)->interval_ms = interval_ms;
+    return;
+  }
+  RequestKind kind;
+  switch (id) {
+    case 8:
+      kind = RequestKind::CONTROL_SETPOINT_2;
+      break;
+    case 71:
+      kind = RequestKind::CONTROL_SETPOINT_VENTILATION;
+      break;
+    case 16:
+      kind = RequestKind::ROOM_SETPOINT;
+      break;
+    case 23:
+      kind = RequestKind::ROOM_SETPOINT_CH2;
+      break;
+    case 56:
+      kind = RequestKind::DHW_SETPOINT_READ;
+      break;
+    case 57:
+      kind = RequestKind::MAX_CH_WATER_SETPOINT_READ;
+      break;
+    case 87:
+      kind = RequestKind::NOMINAL_VENTILATION_VALUE_READ;
+      break;
+    case 7:
+      kind = RequestKind::COOLING_CONTROL_SIGNAL;
+      break;
+    case 14:
+      kind = RequestKind::MAX_REL_MOD_LEVEL_SETTING;
+      break;
+    default:
+      return;
+  }
+  if (ScheduledEntry *entry = this->find_scheduled_(kind); entry != nullptr) {
+    entry->interval_ms = interval_ms;
   }
 }
 
@@ -893,8 +1038,17 @@ Frame OpenTherm42Hub::build_startup_request_() {
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
       frame.id = 3;
       return frame;
-    case StartupPhase::MASTER_CONFIG:
-      this->pending_request_kind_ = RequestKind::MASTER_CONFIG;
+    case StartupPhase::DONE:
+      break;  // guarded by the caller, unreachable here
+  }
+  return frame;
+}
+
+Frame OpenTherm42Hub::build_startup_item_request_(RequestKind kind) {
+  Frame frame{};
+  this->pending_request_kind_ = kind;
+  switch (kind) {
+    case RequestKind::MASTER_CONFIG:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 2;
       // bit 0 Smart Power: always 0 (not implemented). §3.4.2 defines Smart Power as a physical-layer
@@ -906,41 +1060,48 @@ Frame OpenTherm42Hub::build_startup_request_() {
       // idle current expecting power this interface was never designed to deliver.
       frame.value_hb = 0;
       frame.value_lb = this->controller_member_id_code_;
-      return frame;
-    case StartupPhase::MASTER_OPENTHERM_VERSION:
-      this->pending_request_kind_ = RequestKind::MASTER_OPENTHERM_VERSION;
+      break;
+    case RequestKind::MASTER_OPENTHERM_VERSION:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 124;
       frame.set_value_f88(CONTROLLER_OPENTHERM_VERSION);
-      return frame;
-    case StartupPhase::MASTER_PRODUCT_VERSION:
-      this->pending_request_kind_ = RequestKind::MASTER_PRODUCT_VERSION;
+      break;
+    case RequestKind::MASTER_PRODUCT_VERSION:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 126;
       frame.value_hb = this->controller_product_type_;
       frame.value_lb = this->controller_product_version_;
-      return frame;
-    case StartupPhase::BRAND:
-      this->pending_request_kind_ = RequestKind::BRAND;
+      break;
+    case RequestKind::BRAND:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
       frame.id = 93;
       frame.value_hb = this->brand_.next_index;
-      return frame;
-    case StartupPhase::BRAND_VERSION:
-      this->pending_request_kind_ = RequestKind::BRAND_VERSION;
+      break;
+    case RequestKind::BRAND_VERSION:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
       frame.id = 94;
       frame.value_hb = this->brand_version_.next_index;
-      return frame;
-    case StartupPhase::BRAND_SERIAL_NUMBER:
-      this->pending_request_kind_ = RequestKind::BRAND_SERIAL_NUMBER;
+      break;
+    case RequestKind::BRAND_SERIAL_NUMBER:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
       frame.id = 95;
       frame.value_hb = this->brand_serial_number_.next_index;
-      return frame;
-    case StartupPhase::DONE:
-      break;  // guarded by the caller, unreachable here
+      break;
+    default:
+      break;  // unreachable -- only called with one of the 6 kinds above
   }
+  this->log_outgoing_frame_(frame);
+  return frame;
+}
+
+Frame OpenTherm42Hub::build_date_time_read_step_(uint8_t step) {
+  static constexpr uint8_t DATA_IDS[] = {20, 21, 22};
+  static constexpr RequestKind KINDS[] = {RequestKind::DAY_TIME_READ, RequestKind::DATE_READ, RequestKind::YEAR_READ};
+  this->pending_request_kind_ = KINDS[step];
+  Frame frame{};
+  frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+  frame.id = DATA_IDS[step];
+  this->log_outgoing_frame_(frame);
   return frame;
 }
 
@@ -976,47 +1137,104 @@ void OpenTherm42Hub::build_time_sync_frame_(uint8_t step, Frame &frame) {
   }
 }
 
-bool OpenTherm42Hub::startup_phase_actionable_(StartupPhase phase) const {
-  switch (phase) {
-    case StartupPhase::BRAND:
+ReservedEntry *OpenTherm42Hub::find_reserved_(RequestKind kind) {
+  for (auto &entry : this->reserved_) {
+    if (entry.kind == kind) {
+      return &entry;
+    }
+  }
+  return nullptr;  // unreachable -- only ever called with STATUS/CONTROL_SETPOINT
+}
+
+void OpenTherm42Hub::schedule_(RequestKind kind) {
+  this->scheduled_.push_back({kind, SCHEDULE_INTERVAL_MS_PLACEHOLDER});
+}
+
+ScheduledEntry *OpenTherm42Hub::find_scheduled_(RequestKind kind) {
+  for (auto &entry : this->scheduled_) {
+    if (entry.kind == kind) {
+      return &entry;
+    }
+  }
+  return nullptr;
+}
+
+Frame OpenTherm42Hub::build_reserved_request_(RequestKind kind) {
+  Frame frame{};
+  this->pending_request_kind_ = kind;
+  switch (kind) {
+    case RequestKind::STATUS:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 0;
+      frame.value_hb = this->master_status_write_.pack();
+      break;
+    case RequestKind::CONTROL_SETPOINT:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 1;
+      frame.set_value_f88(this->control_setpoint_write_value_);
+      break;
+    default:
+      break;  // unreachable -- only called with STATUS/CONTROL_SETPOINT
+  }
+  this->log_outgoing_frame_(frame);
+  return frame;
+}
+
+bool OpenTherm42Hub::startup_item_actionable_(RequestKind kind) const {
+  switch (kind) {
+    case RequestKind::BRAND:
       return this->brand_.sensor != nullptr;
-    case StartupPhase::BRAND_VERSION:
+    case RequestKind::BRAND_VERSION:
       return this->brand_version_.sensor != nullptr;
-    case StartupPhase::BRAND_SERIAL_NUMBER:
+    case RequestKind::BRAND_SERIAL_NUMBER:
       return this->brand_serial_number_.sensor != nullptr;
     default:
       return true;
   }
 }
 
-void OpenTherm42Hub::advance_startup_phase_() {
-  do {
-    switch (this->startup_phase_) {
-      case StartupPhase::BOILER_CONFIG:
-        this->startup_phase_ = StartupPhase::MASTER_CONFIG;
-        break;
-      case StartupPhase::MASTER_CONFIG:
-        this->startup_phase_ = StartupPhase::MASTER_OPENTHERM_VERSION;
-        break;
-      case StartupPhase::MASTER_OPENTHERM_VERSION:
-        this->startup_phase_ = StartupPhase::MASTER_PRODUCT_VERSION;
-        break;
-      case StartupPhase::MASTER_PRODUCT_VERSION:
-        this->startup_phase_ = StartupPhase::BRAND;
-        break;
-      case StartupPhase::BRAND:
-        this->startup_phase_ = StartupPhase::BRAND_VERSION;
-        break;
-      case StartupPhase::BRAND_VERSION:
-        this->startup_phase_ = StartupPhase::BRAND_SERIAL_NUMBER;
-        break;
-      case StartupPhase::BRAND_SERIAL_NUMBER:
-        this->startup_phase_ = StartupPhase::DONE;
-        break;
-      case StartupPhase::DONE:
-        return;
+void OpenTherm42Hub::finish_startup_item_(RequestKind kind, bool success, bool definitely_unsupported) {
+  for (auto &item : this->startup_items_) {
+    if (item.kind != kind) {
+      continue;
     }
-  } while (!this->startup_phase_actionable_(this->startup_phase_));
+    if (success || definitely_unsupported) {
+      item.done = true;
+      return;
+    }
+    item.attempts = std::min<uint8_t>(item.attempts + 1, TIER0_FAST_RETRY_ATTEMPTS + 1);
+    uint32_t const interval =
+        item.attempts <= TIER0_FAST_RETRY_ATTEMPTS ? TIER0_FAST_RETRY_INTERVAL_MS : TIER0_SLOW_RETRY_INTERVAL_MS;
+    item.next_due_ms = millis() + interval;
+    return;
+  }
+}
+
+void OpenTherm42Hub::check_update_interval_feasibility_(RequestKind kind, uint32_t now, uint32_t previous_success_ms) {
+  if (previous_success_ms == 0) {
+    return;  // first-ever success for this kind -- no prior baseline to measure a gap against
+  }
+  uint32_t interval_ms = 0;
+  if (const ReservedEntry *entry = this->find_reserved_(kind); entry != nullptr) {
+    interval_ms = entry->interval_ms;
+  } else if (const ScheduledEntry *entry = this->find_scheduled_(kind); entry != nullptr) {
+    interval_ms = entry->interval_ms;
+  } else {
+    return;  // Tier 0/on-demand kind -- no configured cadence to fall short of
+  }
+  uint32_t const elapsed = now - previous_success_ms;  // unsigned subtraction: wraparound-safe
+  if (elapsed <= 2 * interval_ms) {
+    return;
+  }
+  uint32_t const last_warn = this->last_warn_ms_[static_cast<size_t>(kind)];
+  if (last_warn != 0 && (now - last_warn) < INFEASIBILITY_WARN_COOLDOWN_MS) {
+    return;
+  }
+  this->last_warn_ms_[static_cast<size_t>(kind)] = now;
+  char kind_desc[80];
+  this->describe_request_kind_(kind, kind_desc, sizeof(kind_desc));
+  ESP_LOGW(TAG, "%s (update_interval=%ums) took %ums to be serviced -- update_interval may not be achievable",
+           kind_desc, interval_ms, elapsed);
 }
 
 void OpenTherm42Hub::handle_response_(const Frame &frame) {
@@ -1031,7 +1249,10 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
   // See should_invalidate_now_(): every kind's most recent success is tracked unconditionally, whether
   // or not this specific case's switch below actually wanted this particular ack type.
   if (type == MessageType::READ_ACK || type == MessageType::WRITE_ACK) {
-    this->last_success_ms_[static_cast<size_t>(this->pending_request_kind_)] = millis();
+    uint32_t const now = millis();
+    uint32_t const previous_success_ms = this->last_success_ms_[static_cast<size_t>(this->pending_request_kind_)];
+    this->last_success_ms_[static_cast<size_t>(this->pending_request_kind_)] = now;
+    this->check_update_interval_feasibility_(this->pending_request_kind_, now, previous_success_ms);
   }
   switch (this->pending_request_kind_) {
     case RequestKind::BOILER_CONFIG:
@@ -1078,7 +1299,7 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (this->boiler_member_id_code_sensor_ != nullptr) {
         this->boiler_member_id_code_sensor_->publish_state(frame.value_lb);
       }
-      this->advance_startup_phase_();
+      this->startup_phase_ = StartupPhase::DONE;
       return;
 
     case RequestKind::STATUS:
@@ -1295,28 +1516,34 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       }
       return;
 
-    case RequestKind::MASTER_CONFIG:
-      if (type != MessageType::WRITE_ACK) {
+    case RequestKind::MASTER_CONFIG: {
+      bool const success = type == MessageType::WRITE_ACK;
+      if (!success) {
         ESP_LOGE(TAG, "Master configuration (id=2) write was rejected (message type %s)", message_type_to_string(type));
       }
-      this->advance_startup_phase_();
+      this->finish_startup_item_(RequestKind::MASTER_CONFIG, success, type == MessageType::UNKNOWN_DATA_ID);
       return;
+    }
 
-    case RequestKind::MASTER_OPENTHERM_VERSION:
-      if (type != MessageType::WRITE_ACK) {
+    case RequestKind::MASTER_OPENTHERM_VERSION: {
+      bool const success = type == MessageType::WRITE_ACK;
+      if (!success) {
         ESP_LOGE(TAG, "OpenTherm version Master (id=124) write was rejected (message type %s)",
                  message_type_to_string(type));
       }
-      this->advance_startup_phase_();
+      this->finish_startup_item_(RequestKind::MASTER_OPENTHERM_VERSION, success, type == MessageType::UNKNOWN_DATA_ID);
       return;
+    }
 
-    case RequestKind::MASTER_PRODUCT_VERSION:
-      if (type != MessageType::WRITE_ACK) {
+    case RequestKind::MASTER_PRODUCT_VERSION: {
+      bool const success = type == MessageType::WRITE_ACK;
+      if (!success) {
         ESP_LOGE(TAG, "Master product version number and type (id=126) write was rejected (message type %s)",
                  message_type_to_string(type));
       }
-      this->advance_startup_phase_();
+      this->finish_startup_item_(RequestKind::MASTER_PRODUCT_VERSION, success, type == MessageType::UNKNOWN_DATA_ID);
       return;
+    }
 
     case RequestKind::VENTILATION_CONFIGURATION:
       if (type != MessageType::READ_ACK) {
@@ -1425,15 +1652,16 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       return;
 
     case RequestKind::BRAND:
-      this->handle_brand_response_(frame, this->brand_, "Brand (id=93)");
+      this->handle_brand_response_(frame, this->brand_, RequestKind::BRAND, "Brand (id=93)");
       return;
 
     case RequestKind::BRAND_VERSION:
-      this->handle_brand_response_(frame, this->brand_version_, "Brand version (id=94)");
+      this->handle_brand_response_(frame, this->brand_version_, RequestKind::BRAND_VERSION, "Brand version (id=94)");
       return;
 
     case RequestKind::BRAND_SERIAL_NUMBER:
-      this->handle_brand_response_(frame, this->brand_serial_number_, "Brand serial number (id=95)");
+      this->handle_brand_response_(frame, this->brand_serial_number_, RequestKind::BRAND_SERIAL_NUMBER,
+                                   "Brand serial number (id=95)");
       return;
 
     case RequestKind::REMOTE_REQUEST:
@@ -2109,7 +2337,8 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
   }
 }
 
-void OpenTherm42Hub::handle_brand_response_(const Frame &frame, BrandRead &brand, const char *log_name) {
+void OpenTherm42Hub::handle_brand_response_(const Frame &frame, BrandRead &brand, RequestKind kind,
+                                            const char *log_name) {
   if (brand.sensor == nullptr) {
     return;  // only scheduled when configured; defensive in case that invariant is ever broken
   }
@@ -2117,7 +2346,7 @@ void OpenTherm42Hub::handle_brand_response_(const Frame &frame, BrandRead &brand
   if (type != MessageType::READ_ACK) {
     ESP_LOGE(TAG, "%s read was rejected (message type %s)", log_name, message_type_to_string(type));
     invalidate_entity(brand.sensor);
-    this->advance_startup_phase_();
+    this->finish_startup_item_(kind, false, type == MessageType::UNKNOWN_DATA_ID);
     return;
   }
   // §5.3.2: the response's HB is the total character count (not an index) -- e.g. HB=0x06 means "6
@@ -2130,8 +2359,11 @@ void OpenTherm42Hub::handle_brand_response_(const Frame &frame, BrandRead &brand
   if (brand.next_index >= total_len) {
     brand.buffer[brand.next_index] = '\0';
     brand.sensor->publish_state(brand.buffer.data(), brand.next_index);
-    this->advance_startup_phase_();
+    this->finish_startup_item_(kind, true, false);
+    return;
   }
+  // Else: mid-string, more characters left -- leave this item's StartupItemState untouched (no
+  // backoff applied) so it's picked again immediately next turn to fetch the next character.
 }
 
 void OpenTherm42Hub::publish_time_synchronized_() {
@@ -2221,30 +2453,30 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
     case RequestKind::MASTER_CONFIG:
     case RequestKind::MASTER_OPENTHERM_VERSION:
     case RequestKind::MASTER_PRODUCT_VERSION:
-      // Write-only startup kinds, attempted once -- a raw datalink error (as opposed to a rejected
-      // ack, handled in handle_response_()) must still advance past them so startup can finish.
-      this->advance_startup_phase_();
+      // Write-only startup kinds -- a raw datalink error (as opposed to a rejected ack, handled in
+      // handle_response_()) is never "definitely unsupported", so it always backs off and retries.
+      this->finish_startup_item_(kind, false, false);
       return;
 
     case RequestKind::BRAND:
       if (this->brand_.sensor != nullptr) {
         invalidate_entity(this->brand_.sensor);
       }
-      this->advance_startup_phase_();
+      this->finish_startup_item_(RequestKind::BRAND, false, false);
       return;
 
     case RequestKind::BRAND_VERSION:
       if (this->brand_version_.sensor != nullptr) {
         invalidate_entity(this->brand_version_.sensor);
       }
-      this->advance_startup_phase_();
+      this->finish_startup_item_(RequestKind::BRAND_VERSION, false, false);
       return;
 
     case RequestKind::BRAND_SERIAL_NUMBER:
       if (this->brand_serial_number_.sensor != nullptr) {
         invalidate_entity(this->brand_serial_number_.sensor);
       }
-      this->advance_startup_phase_();
+      this->finish_startup_item_(RequestKind::BRAND_SERIAL_NUMBER, false, false);
       return;
 
     case RequestKind::STATUS:

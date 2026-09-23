@@ -29,6 +29,82 @@ CONF_IN_PIN = "in_pin"
 CONF_OUT_PIN = "out_pin"
 CONF_MAX_DATA_INVALID = "max_data_invalid"
 
+# §5.2's mandatory heartbeat (id=0): unconditionally required, since STATUS is unconditionally
+# scheduled regardless of which, if any, of its switch/binary_sensor bits are configured -- see
+# hub.h's ReservedEntry. Named after the exact marker prefix its read-side binary_sensors use
+# (control_and_status_information_boiler_status_*) -- its write-side switches use a different
+# prefix (master_status_*) for the same id, so there's no single natural shared name; the read
+# side was chosen since "update interval" is conceptually about how often the boiler's own
+# reported data gets refreshed.
+CONF_CONTROL_AND_STATUS_INFORMATION_BOILER_STATUS_UPDATE_INTERVAL = (
+    "control_and_status_information_boiler_status_update_interval"
+)
+
+# Every id below drives more than one entity from a single conversation, so its update_interval
+# lives here at the hub level rather than on any one entity -- see hub.h's ScheduledEntry and the
+# PR that introduced these for the full catalog/naming rationale. Each is cv.Optional (no default:
+# presence alone signals the group is active) and required only if any of that group's entities is
+# configured, enforced per-platform by validate_requires_hub_option() below.
+CONF_CONTROL_AND_STATUS_INFORMATION_STATUS_VENTILATION_HEAT_RECOVERY_UPDATE_INTERVAL = (
+    "control_and_status_information_status_ventilation_heat_recovery_update_interval"
+)
+CONF_CONTROL_AND_STATUS_INFORMATION_APPLICATION_SPECIFIC_FAULT_FLAGS_UPDATE_INTERVAL = (
+    "control_and_status_information_application_specific_fault_flags_update_interval"
+)
+CONF_CONTROL_AND_STATUS_INFORMATION_APPLICATION_SPECIFIC_FAULT_FLAGS_VENTILATION_HEAT_RECOVERY_UPDATE_INTERVAL = "control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_update_interval"
+CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_UPDATE_INTERVAL = (
+    "control_and_status_information_solar_storage_mode_and_status_update_interval"
+)
+CONF_CONFIGURATION_INFORMATION_CONFIGURATION_VENTILATION_HEAT_RECOVERY_UPDATE_INTERVAL = "configuration_information_configuration_ventilation_heat_recovery_update_interval"
+CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_CONFIGURATION_UPDATE_INTERVAL = (
+    "configuration_information_solar_storage_configuration_update_interval"
+)
+CONF_CONFIGURATION_INFORMATION_BOILER_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_INTERVAL = "configuration_information_boiler_product_version_number_and_type_update_interval"
+CONF_CONFIGURATION_INFORMATION_VENTILATION_HEAT_RECOVERY_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_INTERVAL = "configuration_information_ventilation_heat_recovery_product_version_number_and_type_update_interval"
+CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_INTERVAL = "configuration_information_solar_storage_product_version_number_and_type_update_interval"
+CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_FAN_SPEED_UPDATE_INTERVAL = (
+    "sensor_and_informational_data_boiler_fan_speed_update_interval"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_FLAGS_UPDATE_INTERVAL = (
+    "pre_defined_remote_boiler_parameters_flags_update_interval"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_VENTILATION_HEAT_RECOVERY_FLAGS_UPDATE_INTERVAL = "pre_defined_remote_boiler_parameters_ventilation_heat_recovery_flags_update_interval"
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_UPDATE_INTERVAL = (
+    "pre_defined_remote_boiler_parameters_dhwsetp_update_interval"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_UPDATE_INTERVAL = (
+    "pre_defined_remote_boiler_parameters_max_chsetp_update_interval"
+)
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MAX_CAPACITY_MIN_MOD_LEVEL_UPDATE_INTERVAL = (
+    "control_of_special_applications_max_capacity_min_mod_level_update_interval"
+)
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_UPDATE_INTERVAL = (
+    "control_of_special_applications_remote_override_operating_mode_update_interval"
+)
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_UPDATE_INTERVAL = "control_of_special_applications_remote_override_room_setpoint_function_update_interval"
+
+# One hub option per 1:N group, used both to build CONFIG_SCHEMA below and by to_code() to only
+# emit the matching setter call when the option is actually present.
+GROUP_UPDATE_INTERVAL_OPTIONS = (
+    CONF_CONTROL_AND_STATUS_INFORMATION_STATUS_VENTILATION_HEAT_RECOVERY_UPDATE_INTERVAL,
+    CONF_CONTROL_AND_STATUS_INFORMATION_APPLICATION_SPECIFIC_FAULT_FLAGS_UPDATE_INTERVAL,
+    CONF_CONTROL_AND_STATUS_INFORMATION_APPLICATION_SPECIFIC_FAULT_FLAGS_VENTILATION_HEAT_RECOVERY_UPDATE_INTERVAL,
+    CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_UPDATE_INTERVAL,
+    CONF_CONFIGURATION_INFORMATION_CONFIGURATION_VENTILATION_HEAT_RECOVERY_UPDATE_INTERVAL,
+    CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_CONFIGURATION_UPDATE_INTERVAL,
+    CONF_CONFIGURATION_INFORMATION_BOILER_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_INTERVAL,
+    CONF_CONFIGURATION_INFORMATION_VENTILATION_HEAT_RECOVERY_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_INTERVAL,
+    CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_INTERVAL,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_FAN_SPEED_UPDATE_INTERVAL,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_FLAGS_UPDATE_INTERVAL,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_VENTILATION_HEAT_RECOVERY_FLAGS_UPDATE_INTERVAL,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_UPDATE_INTERVAL,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_UPDATE_INTERVAL,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MAX_CAPACITY_MIN_MOD_LEVEL_UPDATE_INTERVAL,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_UPDATE_INTERVAL,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_UPDATE_INTERVAL,
+)
+
 # §5.3.2 Class 2: this master's own identity, written to the boiler once at startup (IDs 2 LB/126).
 # Kept as static hub-level config rather than entities -- unlike the boiler's status/measurements,
 # this doesn't change at runtime, so there's nothing for Home Assistant to show or control.
@@ -49,9 +125,9 @@ def validate_requires_time_id(marker: str):
     hub's time_id is not.
     """
 
-    def _validate(config: ConfigType) -> None:
+    def _validate(config: ConfigType) -> ConfigType:
         if marker not in config:
-            return
+            return config
         full_config = fv.full_config.get()
         hub_path = full_config.get_path_for_id(config[CONF_OPENTHERM42_ID])[:-1]
         hub_config = full_config.get_config_for_path(hub_path)
@@ -60,6 +136,31 @@ def validate_requires_time_id(marker: str):
                 f"'{marker}' requires the opentherm42 hub to have 'time_id' set",
                 path=[marker],
             )
+        return config
+
+    return _validate
+
+
+def validate_requires_hub_option(markers: list[str], hub_option: str, group_label: str):
+    """FINAL_VALIDATE_SCHEMA factory for a group of entities that share one conversation (see
+    hub.h's ScheduledEntry): fails config validation, rather than silently using a placeholder
+    interval, if any of `markers` is configured but the opentherm42 hub's `hub_option` isn't set.
+    Only needs to check the markers that live in the calling platform file -- if a sibling platform
+    (e.g. binary_sensor for a group also configured via switch) has a triggering marker instead,
+    that platform's own validate_requires_hub_option() call independently enforces the same rule.
+    """
+
+    def _validate(config: ConfigType) -> ConfigType:
+        if not any(marker in config for marker in markers):
+            return config
+        full_config = fv.full_config.get()
+        hub_path = full_config.get_path_for_id(config[CONF_OPENTHERM42_ID])[:-1]
+        hub_config = full_config.get_config_for_path(hub_path)
+        if hub_option not in hub_config:
+            raise cv.Invalid(
+                f"'{hub_option}' on the opentherm42 hub is required when {group_label} is configured",
+            )
+        return config
 
     return _validate
 
@@ -91,6 +192,18 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_MAX_DATA_INVALID, default="0s"
             ): cv.positive_time_period_milliseconds,
+            # §5.2's mandatory heartbeat -- see the constant's own comment above. Range-capped so a
+            # user can't accidentally violate §4.3.1's 1.15 s MCI ceiling.
+            cv.Required(
+                CONF_CONTROL_AND_STATUS_INFORMATION_BOILER_STATUS_UPDATE_INTERVAL
+            ): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=cv.TimePeriod(milliseconds=1150)),
+            ),
+            **{
+                cv.Optional(option): cv.positive_time_period_milliseconds
+                for option in GROUP_UPDATE_INTERVAL_OPTIONS
+            },
         }
     ).extend(cv.COMPONENT_SCHEMA),
     # datalink.cpp only implements a hardware-timer backend for ESP32 (gptimer) and ESP8266 (Arduino
@@ -118,6 +231,16 @@ async def to_code(config: dict) -> None:
         cg.add(var.set_time_id(time_var))
 
     cg.add(var.set_max_data_invalid(config[CONF_MAX_DATA_INVALID]))
+
+    cg.add(
+        getattr(
+            var,
+            f"set_{CONF_CONTROL_AND_STATUS_INFORMATION_BOILER_STATUS_UPDATE_INTERVAL}",
+        )(config[CONF_CONTROL_AND_STATUS_INFORMATION_BOILER_STATUS_UPDATE_INTERVAL])
+    )
+    for option in GROUP_UPDATE_INTERVAL_OPTIONS:
+        if (interval := config.get(option)) is not None:
+            cg.add(getattr(var, f"set_{option}")(interval))
 
     if CORE.is_esp32:
         # §4.3/§3.3.2 bit-timing (datalink.h) needs a hardware timer for microsecond-accurate sampling.

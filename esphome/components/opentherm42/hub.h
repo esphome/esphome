@@ -2,6 +2,7 @@
 
 #include <array>
 #include <memory>
+#include <utility>
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -252,19 +253,63 @@ struct SimpleSensorInfo {
   const char *log_name;
 };
 
-// The order startup-only conversations happen in, before the main essential/informational rotation
-// begins. BOILER_CONFIG is retried indefinitely (§5.2.1: mandatory for the boiler to support); every
-// other phase is attempted once (or, for the BRAND* phases, until that one string is fully read or
-// rejected) and then skipped forever after, successful or not -- see advance_startup_phase_().
+// BOILER_CONFIG is the one hard startup gate: retried indefinitely (§5.2.1: mandatory for the
+// boiler to support), nothing else is sent until it succeeds. Every other startup-only
+// conversation (MASTER_CONFIG/MASTER_OPENTHERM_VERSION/MASTER_PRODUCT_VERSION/BRAND*) used to be
+// a linear pipeline of further phases here too, each attempted once and abandoned on any failure --
+// that pipeline no longer exists. Those six are now backed by StartupItemState below instead:
+// ordinary backed-off background retries serviced once BOILER_CONFIG succeeds, never blocking the
+// mandatory heartbeat (STATUS/CONTROL_SETPOINT) or anything else behind them, and never giving up
+// permanently except on the protocol's one genuinely definitive "not supported" signal
+// (UNKNOWN_DATA_ID) -- see finish_startup_item_()'s declaration comment.
 enum class StartupPhase : uint8_t {
   BOILER_CONFIG,
-  MASTER_CONFIG,
-  MASTER_OPENTHERM_VERSION,
-  MASTER_PRODUCT_VERSION,
-  BRAND,
-  BRAND_VERSION,
-  BRAND_SERIAL_NUMBER,
   DONE,
+};
+
+// §5.2.1's startup-only ids other than BOILER_CONFIG: MASTER_CONFIG, MASTER_OPENTHERM_VERSION,
+// MASTER_PRODUCT_VERSION (static one-shot writes, no entity) and BRAND/BRAND_VERSION/
+// BRAND_SERIAL_NUMBER (one string read a character at a time via BrandRead below, only scheduled
+// if a text_sensor is configured -- see startup_item_actionable_()). Retried forever with backoff
+// on DATA_INVALID or a raw comm timeout (per §4.4.1-4.4.3, DATA-INVALID only means "recognised but
+// not available/valid right now" -- deliberately ambiguous, transient or permanent, no way to tell
+// from the wire, so there's no legitimate signal to give up on); UNKNOWN_DATA_ID ("not recognised/
+// supported at all") is the only signal that stops retries for good -- see finish_startup_item_().
+struct StartupItemState {
+  RequestKind kind;
+  uint8_t attempts{0};
+  uint32_t next_due_ms{0};  // 0 => due immediately, so every item is attempted once right away
+  bool done{false};
+};
+
+// §5.2's two mandatory ids (STATUS id=0, CONTROL_SETPOINT id=1): a reserved tier checked ahead of
+// every other conversation, so neither is ever diluted by how many other entities a user
+// configures -- see build_next_request_()'s ordering. `dirty` is only ever set for
+// CONTROL_SETPOINT (by its number's control(), via set_write_value()); STATUS has no single
+// "control()" of its own (its write side is several independent switches, read directly via
+// FlagWriteBits::pack() at send time, same as every other master-status byte) so its entry's
+// `dirty` simply never gets set and it's serviced purely by `interval_ms`.
+struct ReservedEntry {
+  RequestKind kind;
+  uint32_t interval_ms{0};
+  uint32_t next_due_ms{0};  // 0 => due immediately, sent once right away at boot
+  bool dirty{false};
+};
+
+// Every other periodic id (Tier 2): one entry per RequestKind (or, for the few ids driving several
+// entities from one conversation, one entry for the whole group), scanned for the most-overdue one
+// every build_next_request_() call once Tiers 0/1/3 have nothing to do -- see its scan in
+// build_next_request_() and schedule_()/find_scheduled_(). `dirty` is set by control()-driven
+// write ids (via set_write_value()/set_sensor_feed_write_value()) for the same ASAP-jump-the-queue
+// reason as ReservedEntry's -- purely read-only ids never set it. Populated once from
+// build_schedule_(), except the sensor-feed write ids (ROOM_TEMPERATURE/TRCH2 and the write halves
+// of 27/38/78/79), which are only appended the first time a real value arrives (see
+// set_sensor_feed_write_value()), same as the old essential_requests_ this replaces.
+struct ScheduledEntry {
+  RequestKind kind;
+  uint32_t interval_ms{0};
+  uint32_t next_due_ms{0};  // 0 => due immediately, sent once right away at boot
+  bool dirty{false};
 };
 
 // §5.3.2 Class 2, IDs 93/94/95: a brand-identification string, assembled one ASCII character per
@@ -351,6 +396,80 @@ class OpenTherm42Hub : public Component {
   // unreliable, neither of which this grace period is meant to paper over. See should_invalidate_now_().
   void set_max_data_invalid(uint32_t max_data_invalid_ms) { this->max_data_invalid_ms_ = max_data_invalid_ms; }
 
+  // §5.2's mandatory heartbeat (id=0) -- unconditionally required in config (see
+  // opentherm42/__init__.py), since STATUS is unconditionally scheduled regardless of which, if
+  // any, of its 15 switch/binary_sensor bits are configured -- see ReservedEntry's declaration
+  // comment and build_schedule_(). Range-capped at config-validation time to stay under §4.3.1's
+  // 1.15 s MCI ceiling.
+  void set_control_and_status_information_boiler_status_update_interval(uint32_t interval_ms) {
+    this->find_reserved_(RequestKind::STATUS)->interval_ms = interval_ms;
+  }
+  // Every id below is a Tier 2 group spanning more than one entity (see hub.h's scheduling-redesign
+  // notes and the catalog in the PR this introduced them) -- each hub option is only present in
+  // config, and thus only ever set here, when at least one of that group's entities is configured
+  // (enforced by validate_requires_hub_option() in opentherm42/__init__.py), so scheduled_ is
+  // guaranteed to already have the matching entry from build_schedule_() by the time this runs
+  // (entity wiring and hub option setters both run before any component's setup() -- see
+  // find_reserved_()'s declaration comment for the same reasoning applied to STATUS above).
+  void set_control_and_status_information_status_ventilation_heat_recovery_update_interval(uint32_t interval_ms) {
+    this->find_scheduled_(RequestKind::VENTILATION_STATUS)->interval_ms = interval_ms;
+  }
+  void set_control_and_status_information_application_specific_fault_flags_update_interval(uint32_t interval_ms) {
+    this->find_scheduled_(RequestKind::FAULT_FLAGS)->interval_ms = interval_ms;
+  }
+  void set_control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_update_interval(
+      uint32_t interval_ms) {
+    this->find_scheduled_(RequestKind::VENTILATION_FAULT_FLAGS)->interval_ms = interval_ms;
+  }
+  void set_control_and_status_information_solar_storage_mode_and_status_update_interval(uint32_t interval_ms) {
+    this->find_scheduled_(RequestKind::SOLAR_STORAGE_STATUS)->interval_ms = interval_ms;
+  }
+  void set_configuration_information_configuration_ventilation_heat_recovery_update_interval(uint32_t interval_ms) {
+    this->find_scheduled_(RequestKind::VENTILATION_CONFIGURATION)->interval_ms = interval_ms;
+  }
+  void set_configuration_information_solar_storage_configuration_update_interval(uint32_t interval_ms) {
+    this->find_scheduled_(RequestKind::SOLAR_STORAGE_CONFIGURATION)->interval_ms = interval_ms;
+  }
+  void set_configuration_information_boiler_product_version_number_and_type_update_interval(uint32_t interval_ms) {
+    this->find_scheduled_(RequestKind::PRODUCT_VERSION_BOILER)->interval_ms = interval_ms;
+  }
+  void set_configuration_information_ventilation_heat_recovery_product_version_number_and_type_update_interval(
+      uint32_t interval_ms) {
+    this->find_scheduled_(RequestKind::PRODUCT_VERSION_VENTILATION)->interval_ms = interval_ms;
+  }
+  void set_configuration_information_solar_storage_product_version_number_and_type_update_interval(
+      uint32_t interval_ms) {
+    this->find_scheduled_(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE)->interval_ms = interval_ms;
+  }
+  void set_sensor_and_informational_data_boiler_fan_speed_update_interval(uint32_t interval_ms) {
+    this->find_scheduled_(RequestKind::BOILER_FAN_SPEED)->interval_ms = interval_ms;
+  }
+  void set_pre_defined_remote_boiler_parameters_flags_update_interval(uint32_t interval_ms) {
+    this->find_scheduled_(RequestKind::REMOTE_PARAMETER_FLAGS)->interval_ms = interval_ms;
+  }
+  void set_pre_defined_remote_boiler_parameters_ventilation_heat_recovery_flags_update_interval(uint32_t interval_ms) {
+    this->find_scheduled_(RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION)->interval_ms = interval_ms;
+  }
+  void set_pre_defined_remote_boiler_parameters_dhwsetp_update_interval(uint32_t interval_ms) {
+    this->find_scheduled_(RequestKind::DHWSETP_BOUNDS)->interval_ms = interval_ms;
+  }
+  void set_pre_defined_remote_boiler_parameters_max_chsetp_update_interval(uint32_t interval_ms) {
+    this->find_scheduled_(RequestKind::MAX_CHSETP_BOUNDS)->interval_ms = interval_ms;
+  }
+  void set_control_of_special_applications_max_capacity_min_mod_level_update_interval(uint32_t interval_ms) {
+    this->find_scheduled_(RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL)->interval_ms = interval_ms;
+  }
+  // Covers both halves of the write/read pair (see ScheduledEntry's declaration comment) -- one
+  // interval for the whole logical group, same as every other entry here.
+  void set_control_of_special_applications_remote_override_operating_mode_update_interval(uint32_t interval_ms) {
+    this->find_scheduled_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES)->interval_ms = interval_ms;
+    this->find_scheduled_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ)->interval_ms = interval_ms;
+  }
+  void set_control_of_special_applications_remote_override_room_setpoint_function_update_interval(
+      uint32_t interval_ms) {
+    this->find_scheduled_(RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION)->interval_ms = interval_ms;
+  }
+
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void setup() override;
@@ -389,12 +508,21 @@ class OpenTherm42Hub : public Component {
                   control_setpoint_ventilation_number_)
   // Called by every OpenTherm42Number's control()/setup() (every write-capable number except ids
   // 24/27/37/38/78/79 -- see set_sensor_feed_write_value() for those) to push the value that
-  // build_next_request_() should send next for that data-id. Unlike set_sensor_feed_write_value(),
-  // there's no scheduling side effect: every id handled here is already unconditionally in
-  // essential_requests_ from build_schedule_() (each one always has a real value by the time
-  // build_next_request_() can run, thanks to initial_value/flash restore -- see OpenTherm42Number's
-  // class comment), so this just stores the value.
+  // build_next_request_() should send next for that data-id, and mark its ScheduledEntry (or, for
+  // id=1, reserved_'s CONTROL_SETPOINT entry) dirty so it's sent immediately (Tier 3) rather than
+  // waiting for its own due time. Unlike set_sensor_feed_write_value(), every id handled here is
+  // already unconditionally scheduled from build_schedule_() (each one always has a real value by
+  // the time build_next_request_() can run, thanks to initial_value/flash restore -- see
+  // OpenTherm42Number's class comment), so there's no dynamic scheduling to do here, just dirtying.
   void set_write_value(uint8_t id, float value);
+  // Called from OpenTherm42Number::setup() (every id set_write_value() handles) once hub_ is
+  // guaranteed to have already run build_schedule_() -- see set_sensor_feed_update_interval()'s
+  // declaration comment for why this can't happen at wiring time instead. id=1 (CONTROL_SETPOINT)
+  // updates reserved_'s entry; the three R/W pairs (56/57/87) update their READ side's scheduled_
+  // entry, not the write side's -- an update_interval is conceptually about how often the boiler's
+  // own answer gets refreshed, and the write side is otherwise driven by Tier 3's dirty bit on
+  // every control() plus its own steady-state cadence as a fallback, same as everything else.
+  void set_number_update_interval(uint8_t id, uint32_t interval_ms);
 
   // §5.3.1 Class 1, ID 0 LB: Boiler status.
   OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_fault_indication, boiler_status_read_, 0)
@@ -474,11 +602,36 @@ class OpenTherm42Hub : public Component {
 
   // §5.3.1 Class 1, ID 102 LB: OEM fault code Solar Storage (HB is entirely reserved -- no entity).
   OT42_SET_SENSOR(control_and_status_information_oem_fault_code_solar_storage, oem_fault_code_solar_storage_sensor_)
+  // 1:1 but bespoke (not dispatched through SIMPLE_SENSORS -- see build_next_request_()/
+  // handle_response_()'s SOLAR_STORAGE_FAULT_FLAGS/OEM_DIAGNOSTIC_CODE(_VENTILATION) cases), so
+  // these can't reuse set_simple_sensor_update_interval()'s generic id-keyed dispatch. Called at
+  // wiring time (sensor.new_sensor() doesn't go through cg.register_component()) -- stored here and
+  // consumed once by build_schedule_(), same reasoning as
+  // set_sensor_and_informational_data_date_time_update_interval()'s declaration comment.
+  void set_control_and_status_information_oem_fault_code_solar_storage_update_interval(uint32_t interval_ms) {
+    this->oem_fault_code_solar_storage_interval_ms_ = interval_ms;
+  }
 
   // §5.3.1 Class 1, IDs 115/73: OEM diagnostic codes.
   OT42_SET_SENSOR(control_and_status_information_oem_diagnostic_code, oem_diagnostic_code_sensor_)
   OT42_SET_SENSOR(control_and_status_information_oem_diagnostic_code_ventilation_heat_recovery,
                   oem_diagnostic_code_ventilation_sensor_)
+  // See set_control_and_status_information_oem_fault_code_solar_storage_update_interval() above.
+  void set_control_and_status_information_oem_diagnostic_code_update_interval(uint32_t interval_ms) {
+    this->oem_diagnostic_code_interval_ms_ = interval_ms;
+  }
+  void set_control_and_status_information_oem_diagnostic_code_ventilation_heat_recovery_update_interval(
+      uint32_t interval_ms) {
+    this->oem_diagnostic_code_ventilation_interval_ms_ = interval_ms;
+  }
+  // Generic counterpart for every id dispatched through the SIMPLE_SENSORS table (see
+  // find_simple_sensor_by_id_()) -- one shared setter instead of ~44 individually-named ones, since
+  // they all funnel into the exact same id-keyed lookup mechanism already. Called at wiring time
+  // (sensor.new_sensor() doesn't go through cg.register_component()) -- staged here and consumed
+  // once by build_schedule_()'s SIMPLE_SENSORS loop, same reasoning as the bespoke setters above.
+  void set_simple_sensor_update_interval(uint8_t id, uint32_t interval_ms) {
+    this->pending_simple_sensor_intervals_.push_back({id, interval_ms});
+  }
 
   // §5.3.2 Class 2, ID 3 HB: Boiler configuration; LB: Boiler MemberID code. Each HB bit is a small
   // 2-state named enum, so a text_sensor showing the spec's own wording rather than a bare on/off --
@@ -573,6 +726,18 @@ class OpenTherm42Hub : public Component {
   // §5.3.4 Class 4, IDs 20/21/22 (read side): independent of time_id -- see
   // RequestKind::DAY_TIME_READ's comment above.
   OT42_SET_PLAIN_TEXT_SENSOR(sensor_and_informational_data_date_time, date_time_text_sensor_)
+  // Governs the 3-step DAY_TIME_READ/DATE_READ/YEAR_READ burst's cadence -- DAY_TIME_READ is
+  // scheduled_'s sole representative for the group, see build_schedule_(). Called explicitly from
+  // Python at wiring time (text_sensor.new_text_sensor() doesn't go through cg.register_component(),
+  // so there's no auto-wired set_update_interval() on the entity itself to defer this call to its
+  // own setup(), unlike OpenTherm42Number/OpenTherm42SensorFeedNumber -- see those classes' own
+  // set_update_interval()). Wiring happens before ANY component's setup(), including this hub's own,
+  // so build_schedule_() hasn't populated scheduled_ yet when this runs -- stored here and consumed
+  // by build_schedule_() itself when it creates the DAY_TIME_READ entry, rather than looked up
+  // immediately.
+  void set_sensor_and_informational_data_date_time_update_interval(uint32_t interval_ms) {
+    this->date_time_read_interval_ms_ = interval_ms;
+  }
 
   // §5.3.4 Class 4: write-only numbers.
   OT42_SET_NUMBER(sensor_and_informational_data_room_setpoint, room_setpoint_number_)
@@ -595,6 +760,13 @@ class OpenTherm42Hub : public Component {
   // rotation, since before that there's nothing legitimate to send -- see that class's comment for why
   // these ids get no config-time default. Later calls just update the value.
   void set_sensor_feed_write_value(uint8_t id, float value);
+  // Called from OpenTherm42SensorFeedNumber::setup() (ids 27/38/78/79 only -- 24/37 have no
+  // READ-DATA counterpart, so update_interval isn't exposed in their config at all, see that
+  // class's set_update_interval()) once hub_ is guaranteed to have already run build_schedule_()
+  // (setup_priority::HARDWARE above beats every entity's default setup_priority::DATA). Updates the
+  // READ side's scheduled_ entry -- that's the conversation an interval actually governs here, per
+  // the same reasoning as set_number_update_interval() below.
+  void set_sensor_feed_update_interval(uint8_t id, uint32_t interval_ms);
 
   // §5.3.4 Class 4, ID 35: HB Boiler fan speed Setpoint, LB Boiler fan speed.
   OT42_SET_SENSOR(sensor_and_informational_data_boiler_fan_speed_setpoint, boiler_fan_speed_setpoint_sensor_)
@@ -765,17 +937,56 @@ class OpenTherm42Hub : public Component {
   // controller_product_version_ below, there's no legitimate reason for it to differ from the
   // version this component actually speaks.
   static constexpr float CONTROLLER_OPENTHERM_VERSION = 4.2f;
+  // StartupItemState backoff: fast for the first TIER0_FAST_RETRY_ATTEMPTS attempts (catches
+  // ordinary early-boot flakiness quickly), then a fixed slow cadence forever -- see
+  // finish_startup_item_()'s declaration comment.
+  static constexpr uint32_t TIER0_FAST_RETRY_INTERVAL_MS = 2000;
+  static constexpr uint8_t TIER0_FAST_RETRY_ATTEMPTS = 10;
+  static constexpr uint32_t TIER0_SLOW_RETRY_INTERVAL_MS = 60000;
+  // TODO(scheduler step 5): replace with per-id update_interval config (status_update_interval,
+  // CONTROL_SETPOINT's own update_interval, and every other id's, per class -- see const.py) once
+  // that config surface exists -- shared placeholder for now, for both reserved_ and scheduled_, so
+  // the due-time scheduling mechanism can be exercised before the config schema work lands. Kept
+  // comfortably under §4.3.1's 1.15 s MCI ceiling.
+  static constexpr uint32_t SCHEDULE_INTERVAL_MS_PLACEHOLDER = 1000;
+  // Rate limit for check_update_interval_feasibility_()'s warning log -- per-kind, so one
+  // chronically overdue id doesn't suppress warnings for others, but also doesn't spam the log
+  // every time it's (still) overdue.
+  static constexpr uint32_t INFEASIBILITY_WARN_COOLDOWN_MS = 300000;
 
-  // Populates essential_requests_/informational_requests_ from whichever entities got configured --
-  // called once from setup().
+  // Populates reserved_/scheduled_ from whichever entities got configured -- called once from
+  // setup().
   void build_schedule_();
-  // Builds the next request to send: startup_phase_ conversations first (see StartupPhase), then
-  // alternating between the essential list (things the master must keep refreshing: the mandatory ids
-  // plus any active setpoint) and the informational list (optional reads, round-robined one at a time)
-  // so a long informational list can never starve the essentials.
+  // Builds the next request to send: the BOILER_CONFIG startup gate first (see StartupPhase), then
+  // the one-off pending_ intercepts, then whichever due StartupItemState is due (see
+  // startup_item_actionable_()/finish_startup_item_()), then alternating between the essential list
+  // (things the master must keep refreshing: the mandatory ids plus any active setpoint) and the
+  // informational list (optional reads, round-robined one at a time) so a long informational list
+  // can never starve the essentials.
   Frame build_next_request_();
-  // The startup_phase_-specific half of build_next_request_().
+  // The startup_phase_-specific half of build_next_request_() -- BOILER_CONFIG only.
   Frame build_startup_request_();
+  // Builds one of the six StartupItemState conversations' frame -- shared by every retry, first
+  // attempt or backed-off, since there's no meaningful difference in frame construction between them.
+  Frame build_startup_item_request_(RequestKind kind);
+  // Builds the STATUS or CONTROL_SETPOINT frame -- shared by Tier 3's dirty-triggered ASAP send and
+  // Tier 1's ordinary due-time send, since both are the exact same frame either way.
+  Frame build_reserved_request_(RequestKind kind);
+  // Linear scan over reserved_ (2 entries) for the given kind -- small enough that a linear scan is
+  // simpler and cheaper than indexing by a hardcoded position. Returns nullptr for any kind that
+  // isn't STATUS/CONTROL_SETPOINT (e.g. from check_update_interval_feasibility_()'s lookup across
+  // every kind).
+  ReservedEntry *find_reserved_(RequestKind kind);
+  // Appends a new Tier 2 entry with the placeholder interval -- see ScheduledEntry's declaration
+  // comment and SCHEDULE_INTERVAL_MS_PLACEHOLDER.
+  void schedule_(RequestKind kind);
+  // Linear scan over scheduled_ for the given kind -- returns nullptr if not (yet) scheduled (only
+  // possible for the sensor-feed write ids before their first real value arrives).
+  ScheduledEntry *find_scheduled_(RequestKind kind);
+  // Builds the DAY_TIME_READ (0)/DATE_READ (1)/YEAR_READ (2) READ_DATA frame for the given burst
+  // step -- shared by Tier 2's due-time scan (which kicks off the burst) and the
+  // date_time_read_pending_ intercept (which continues it).
+  Frame build_date_time_read_step_(uint8_t step);
   // Fills in a Day-of-week/Time (step 0), Date (step 1), or Year (step 2) WRITE_DATA frame's id and
   // value from time_id_ -- shared by the essential rotation and push_time_sync()'s on-demand burst.
   void build_time_sync_frame_(uint8_t step, Frame &frame);
@@ -788,14 +999,30 @@ class OpenTherm42Hub : public Component {
   // response (DAY_TIME_READ/DATE_READ/YEAR_READ), success or failure. No-op if the sensor isn't
   // configured.
   void publish_date_time_text_();
-  // Moves startup_phase_ to the next phase, skipping any BRAND* phase with no text_sensor configured.
-  void advance_startup_phase_();
-  bool startup_phase_actionable_(StartupPhase phase) const;
+  // Whether a StartupItemState kind has anything to actually send -- true unconditionally for the
+  // three static-write kinds, gated on the matching text_sensor being configured for the three
+  // BRAND* kinds (mirrors the old startup_phase_actionable_()'s BRAND* cases).
+  bool startup_item_actionable_(RequestKind kind) const;
+  // Records the outcome of a StartupItemState attempt: `success` (or UNKNOWN_DATA_ID, the
+  // protocol's one definitive "not supported" signal) marks it done forever; anything else backs
+  // off (fast for the first TIER0_FAST_RETRY_ATTEMPTS attempts, then a fixed slow cadence) and
+  // leaves it eligible for another attempt. Not called at all for a mid-progress BRAND* partial
+  // character read (see handle_brand_response_()) -- that's neither a completion nor a rejection,
+  // so the item simply stays due for its next character immediately, no backoff applied.
+  void finish_startup_item_(RequestKind kind, bool success, bool definitely_unsupported);
+  // Reactive update_interval-infeasibility check: called from handle_response_()'s unconditional
+  // last_success_ms_ update, with `previous_success_ms` being that array's value from just before
+  // it was overwritten with `now`. Looks up kind's configured interval_ms (reserved_ or scheduled_;
+  // silently returns for any kind with no configured cadence -- Tier 0/on-demand kinds). If the gap
+  // since the previous success is more than 2x that interval, logs a per-kind rate-limited warning
+  // (see INFEASIBILITY_WARN_COOLDOWN_MS) -- a reactive signal that the configured update_interval
+  // isn't actually achievable given real comm conditions, rather than an unreliable static estimate.
+  void check_update_interval_feasibility_(RequestKind kind, uint32_t now, uint32_t previous_success_ms);
   // Interprets a received frame according to which request it answers; logs and discards it if the
   // boiler replied with a message type that isn't legal for that data-id.
   void handle_response_(const Frame &frame);
   // Shared by the BRAND/BRAND_VERSION/BRAND_SERIAL_NUMBER cases in handle_response_().
-  void handle_brand_response_(const Frame &frame, BrandRead &brand, const char *log_name);
+  void handle_brand_response_(const Frame &frame, BrandRead &brand, RequestKind kind, const char *log_name);
   // On a failed conversation, every read-only entity that conversation would have updated must show
   // unknown rather than keep stale data.
   void invalidate_response_(RequestKind kind);
@@ -835,6 +1062,18 @@ class OpenTherm42Hub : public Component {
   uint32_t last_conversation_end_ms_{0};
   RequestKind pending_request_kind_{RequestKind::BOILER_CONFIG};
   StartupPhase startup_phase_{StartupPhase::BOILER_CONFIG};
+  std::array<StartupItemState, 6> startup_items_{{
+      {RequestKind::MASTER_CONFIG},
+      {RequestKind::MASTER_OPENTHERM_VERSION},
+      {RequestKind::MASTER_PRODUCT_VERSION},
+      {RequestKind::BRAND},
+      {RequestKind::BRAND_VERSION},
+      {RequestKind::BRAND_SERIAL_NUMBER},
+  }};
+  std::array<ReservedEntry, 2> reserved_{{
+      {RequestKind::STATUS, SCHEDULE_INTERVAL_MS_PLACEHOLDER},
+      {RequestKind::CONTROL_SETPOINT, SCHEDULE_INTERVAL_MS_PLACEHOLDER},
+  }};
 
   // See set_max_data_invalid()'s declaration comment. 0 disables the grace period (default).
   uint32_t max_data_invalid_ms_{0};
@@ -844,15 +1083,33 @@ class OpenTherm42Hub : public Component {
   // should_invalidate_now_() always invalidates right away, which is correct: with no prior success
   // there's no stale-but-plausibly-still-valid state worth protecting.
   std::array<uint32_t, static_cast<size_t>(RequestKind::REQUEST_KIND_COUNT)> last_success_ms_{};
+  // millis() timestamp of the last update_interval-infeasibility warning for each RequestKind --
+  // see check_update_interval_feasibility_(). 0 means never warned.
+  std::array<uint32_t, static_cast<size_t>(RequestKind::REQUEST_KIND_COUNT)> last_warn_ms_{};
 
-  // Populated once at setup() from the configured entities; sized small (Class 1 alone has at most 5
-  // essential and 6 informational kinds) so std::vector's one-time setup-time growth never touches the
-  // heap again afterward.
-  std::vector<RequestKind> essential_requests_;
-  std::vector<RequestKind> informational_requests_;
-  size_t essential_index_{0};
-  size_t informational_index_{0};
-  bool next_is_informational_{false};
+  // Tier 2 -- see ScheduledEntry's declaration comment. Populated once at setup() (plus the rare
+  // sensor-feed write ids' one-time dynamic append), so std::vector's growth never touches the heap
+  // again afterward in the common case.
+  std::vector<ScheduledEntry> scheduled_;
+  // Set when Tier 2's due-time scan picks the DAY_TIME_READ representative entry -- steps through
+  // DAY_TIME_READ (0)/DATE_READ (1)/YEAR_READ (2) one at a time via build_date_time_read_step_(),
+  // ahead of everything below Tier 3, so the shared date_time_text_sensor_ refreshes as one
+  // coherent unit rather than field-by-field -- see build_next_request_().
+  bool date_time_read_pending_{false};
+  uint8_t date_time_read_step_{0};
+  // Set at wiring time by set_sensor_and_informational_data_date_time_update_interval(), consumed
+  // once by build_schedule_() when it creates the DAY_TIME_READ entry -- see that setter's
+  // declaration comment for why this can't just update scheduled_ directly.
+  uint32_t date_time_read_interval_ms_{SCHEDULE_INTERVAL_MS_PLACEHOLDER};
+  // Same wiring-time-staged-then-consumed pattern as date_time_read_interval_ms_ above, for the
+  // three bespoke (non-SIMPLE_SENSORS) 1:1 sensors -- see their set_..._update_interval() comments.
+  uint32_t oem_fault_code_solar_storage_interval_ms_{SCHEDULE_INTERVAL_MS_PLACEHOLDER};
+  uint32_t oem_diagnostic_code_interval_ms_{SCHEDULE_INTERVAL_MS_PLACEHOLDER};
+  uint32_t oem_diagnostic_code_ventilation_interval_ms_{SCHEDULE_INTERVAL_MS_PLACEHOLDER};
+  // Staged by set_simple_sensor_update_interval() at wiring time, consumed once by
+  // build_schedule_()'s SIMPLE_SENSORS loop, then cleared -- only needed transiently during
+  // setup(), so shrink_to_fit() afterward gives the memory back rather than holding it forever.
+  std::vector<std::pair<uint8_t, uint32_t>> pending_simple_sensor_intervals_;
 
   // Raw values from the §5.2 mandatory conversations -- exposed as real entities once Class 2
   // (Commit 5) lands.
@@ -970,8 +1227,8 @@ class OpenTherm42Hub : public Component {
   number::Number *co2_level_number_{nullptr};
   // §5.3.4 Class 4, IDs 24/37 and IDs 27/38/78/79 (write side): the value most recently commanded via
   // OpenTherm42SensorFeedNumber::control(), routed through set_sensor_feed_write_value(). NAN means
-  // "never commanded" -- which also means the id's WRITE RequestKind isn't in essential_requests_ yet
-  // (see that method). Kept on the hub rather than the entity so hub.h doesn't need to know
+  // "never commanded" -- which also means the id's WRITE RequestKind isn't in scheduled_ yet (see
+  // that method). Kept on the hub rather than the entity so hub.h doesn't need to know
   // OpenTherm42SensorFeedNumber's concrete type -- same reasoning as tsp_write_value_ below.
   float room_temperature_write_value_{NAN};
   float trch2_write_value_{NAN};

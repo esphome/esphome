@@ -1,9 +1,18 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.const import CONF_UPDATE_INTERVAL, ENTITY_CATEGORY_DIAGNOSTIC
 
-from .. import OpenTherm42Hub
+from .. import (
+    CONF_CONFIGURATION_INFORMATION_CONFIGURATION_VENTILATION_HEAT_RECOVERY_UPDATE_INTERVAL,
+    CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_CONFIGURATION_UPDATE_INTERVAL,
+    CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_UPDATE_INTERVAL,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_UPDATE_INTERVAL,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_FLAGS_UPDATE_INTERVAL,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_VENTILATION_HEAT_RECOVERY_FLAGS_UPDATE_INTERVAL,
+    OpenTherm42Hub,
+    validate_requires_hub_option,
+)
 from ..const import (
     CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_CH2_PRESENT,
     CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_CONTROL_TYPE,
@@ -173,6 +182,10 @@ TYPES: dict[str, cv.Schema] = {
     # something watched day-to-day, so DIAGNOSTIC -- same reasoning as time_synchronized.
     CONF_SENSOR_AND_INFORMATIONAL_DATA_DATE_TIME: text_sensor.text_sensor_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ).extend(
+        {
+            cv.Required(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+        }
     ),
 }
 
@@ -184,9 +197,63 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
+FINAL_VALIDATE_SCHEMA = cv.All(
+    validate_requires_hub_option(
+        [
+            CONF_CONFIGURATION_INFORMATION_CONFIGURATION_VENTILATION_HEAT_RECOVERY_SYSTEM_TYPE,
+            CONF_CONFIGURATION_INFORMATION_CONFIGURATION_VENTILATION_HEAT_RECOVERY_BYPASS,
+            CONF_CONFIGURATION_INFORMATION_CONFIGURATION_VENTILATION_HEAT_RECOVERY_SPEED_CONTROL,
+        ],
+        CONF_CONFIGURATION_INFORMATION_CONFIGURATION_VENTILATION_HEAT_RECOVERY_UPDATE_INTERVAL,
+        "any of id=74's ventilation/heat-recovery configuration text_sensors",
+    ),
+    validate_requires_hub_option(
+        [CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_CONFIGURATION_SYSTEM_TYPE],
+        CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_CONFIGURATION_UPDATE_INTERVAL,
+        "the solar storage configuration system type text_sensor",
+    ),
+    validate_requires_hub_option(
+        [
+            CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_SOLAR_MODE,
+            CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_SOLAR_STATUS,
+        ],
+        CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_UPDATE_INTERVAL,
+        "either solar storage mode/status text_sensor",
+    ),
+    validate_requires_hub_option(
+        [
+            CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_DHW_SETPOINT,
+            CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_MAX_CHSETPOINT,
+            CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_READ_WRITE_FLAGS_DHW_SETPOINT,
+            CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_READ_WRITE_FLAGS_MAX_CHSETPOINT,
+        ],
+        CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_FLAGS_UPDATE_INTERVAL,
+        "any of id=6's remote-parameter flag text_sensors",
+    ),
+    validate_requires_hub_option(
+        [
+            CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_VENTILATION_HEAT_RECOVERY_NOMINAL_VENTILATION_VALUE,
+            CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_READ_WRITE_FLAGS_VENTILATION_HEAT_RECOVERY_NOMINAL_VENTILATION_VALUE,
+        ],
+        CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_VENTILATION_HEAT_RECOVERY_FLAGS_UPDATE_INTERVAL,
+        "either of id=86's remote-parameter flag text_sensors",
+    ),
+    validate_requires_hub_option(
+        [
+            CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_MANUAL_CHANGE_PRIORITY,
+            CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_PROGRAM_CHANGE_PRIORITY,
+        ],
+        CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_UPDATE_INTERVAL,
+        "either id=100 remote override room setpoint function text_sensor",
+    ),
+)
+
+
 async def to_code(config: dict) -> None:
     hub = await cg.get_variable(config[CONF_OPENTHERM42_ID])
     for marker in TYPES:
         if (marker_config := config.get(marker)) is not None:
             var = await text_sensor.new_text_sensor(marker_config)
             cg.add(getattr(hub, f"set_{marker}_text_sensor")(var))
+            if (interval := marker_config.get(CONF_UPDATE_INTERVAL)) is not None:
+                cg.add(getattr(hub, f"set_{marker}_update_interval")(interval))

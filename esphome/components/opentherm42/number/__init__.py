@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_INDEX,
     CONF_INITIAL_VALUE,
+    CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
@@ -66,6 +67,11 @@ def _number_schema(
             cv.Required(CONF_INITIAL_VALUE): cv.float_range(
                 min=min_value, max=max_value
             ),
+            # For the three R/W pairs (ids 56/57/87), this governs the READ side's cadence, not the
+            # write side's -- see hub.h's set_number_update_interval(). Required, not defaulted: the
+            # achievable cadence for any one id depends on how many other ids are also active, so
+            # there's no default that's safe to guess on the user's behalf.
+            cv.Required(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
         }
     )
 
@@ -194,12 +200,18 @@ SENSOR_FEED_TYPES: dict[str, tuple[cv.Schema, dict, int]] = {
         37,
     ),
     # §5.3.4 Class 4, ID 27: Outside temperature (degrees C, -40..127). A sensor-value feed, so CONFIG.
+    # update_interval governs the READ side (id has a READ-DATA counterpart, unlike 24/37 above) --
+    # see hub.h's set_sensor_feed_update_interval().
     CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE: (
         number.number_schema(
             OpenTherm42SensorFeedNumber,
             unit_of_measurement="°C",
             device_class=DEVICE_CLASS_TEMPERATURE,
             entity_category=ENTITY_CATEGORY_CONFIG,
+        ).extend(
+            {
+                cv.Required(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+            }
         ),
         {"min_value": -40, "max_value": 127, "step": 0.1},
         27,
@@ -211,6 +223,10 @@ SENSOR_FEED_TYPES: dict[str, tuple[cv.Schema, dict, int]] = {
             unit_of_measurement="%",
             device_class=DEVICE_CLASS_HUMIDITY,
             entity_category=ENTITY_CATEGORY_CONFIG,
+        ).extend(
+            {
+                cv.Required(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+            }
         ),
         {"min_value": 0, "max_value": 100, "step": 1},
         38,
@@ -222,6 +238,10 @@ SENSOR_FEED_TYPES: dict[str, tuple[cv.Schema, dict, int]] = {
             unit_of_measurement="%",
             device_class=DEVICE_CLASS_HUMIDITY,
             entity_category=ENTITY_CATEGORY_CONFIG,
+        ).extend(
+            {
+                cv.Required(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+            }
         ),
         {"min_value": 0, "max_value": 100, "step": 1},
         78,
@@ -233,6 +253,10 @@ SENSOR_FEED_TYPES: dict[str, tuple[cv.Schema, dict, int]] = {
             unit_of_measurement="ppm",
             device_class=DEVICE_CLASS_CARBON_DIOXIDE,
             entity_category=ENTITY_CATEGORY_CONFIG,
+        ).extend(
+            {
+                cv.Required(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+            }
         ),
         {"min_value": 0, "max_value": 2000, "step": 1},
         79,
@@ -264,7 +288,14 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_OPENTHERM42_ID): cv.use_id(OpenTherm42Hub),
         **{
-            cv.Optional(marker): schema.extend(cv.COMPONENT_SCHEMA)
+            # §5.2.1: CONTROL_SETPOINT (id=1) is one of the spec's two mandatory ids -- unlike every
+            # other number here, it's not optional to configure at all, matching hub.h's reserved_
+            # tier which always schedules it regardless (see ReservedEntry's declaration comment).
+            (
+                cv.Required(marker)
+                if marker == CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT
+                else cv.Optional(marker)
+            ): schema.extend(cv.COMPONENT_SCHEMA)
             for marker, (schema, _traits, _id) in TYPES.items()
         },
         **{

@@ -24,6 +24,28 @@ opentherm42:
   # §4.4.1: tolerate a DATA_INVALID for up to 5s before actually invalidating an entity, since real
   # hardware has been observed answering DATA_INVALID transiently for a second or two.
   max_data_invalid: 5s
+  # §5.2's mandatory heartbeat (id=0) -- unconditionally required, see hub.h's ReservedEntry.
+  control_and_status_information_boiler_status_update_interval: 1s
+  # Every option below is required only because this test config exercises every entity in every
+  # one of these groups -- see hub.h's ScheduledEntry and opentherm42/__init__.py's
+  # validate_requires_hub_option().
+  control_and_status_information_status_ventilation_heat_recovery_update_interval: 5s
+  control_and_status_information_application_specific_fault_flags_update_interval: 5s
+  control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_update_interval: 5s
+  control_and_status_information_solar_storage_mode_and_status_update_interval: 5s
+  configuration_information_configuration_ventilation_heat_recovery_update_interval: 60s
+  configuration_information_solar_storage_configuration_update_interval: 60s
+  configuration_information_boiler_product_version_number_and_type_update_interval: 60s
+  configuration_information_ventilation_heat_recovery_product_version_number_and_type_update_interval: 60s
+  configuration_information_solar_storage_product_version_number_and_type_update_interval: 60s
+  sensor_and_informational_data_boiler_fan_speed_update_interval: 5s
+  pre_defined_remote_boiler_parameters_flags_update_interval: 60s
+  pre_defined_remote_boiler_parameters_ventilation_heat_recovery_flags_update_interval: 60s
+  pre_defined_remote_boiler_parameters_dhwsetp_update_interval: 60s
+  pre_defined_remote_boiler_parameters_max_chsetp_update_interval: 60s
+  control_of_special_applications_max_capacity_min_mod_level_update_interval: 30s
+  control_of_special_applications_remote_override_operating_mode_update_interval: 5s
+  control_of_special_applications_remote_override_room_setpoint_function_update_interval: 60s
 
 switch:
   - platform: opentherm42
@@ -83,24 +105,29 @@ number:
     control_and_status_information_control_setpoint:
       name: "Control and Status Information: Control Setpoint"
       initial_value: 40.0
+      update_interval: 1s
     # §5.3.1 Class 1, ID 8: Control Setpoint 2 (TsetCH2), setpoint for the 2nd CH circuit (degrees C, 0..100).
     control_and_status_information_control_setpoint_2_tsetch2:
       name: "Control and Status Information: Control Setpoint 2 (TsetCH2)"
       initial_value: 40.0
+      update_interval: 1s
     # §5.3.1 Class 1, ID 71 LB: Control Setpoint ventilation/heat-recovery. Relative ventilation
     # position (0-100%): 0% is the minimum set ventilation, 100% is the maximum set ventilation.
     control_and_status_information_control_setpoint_ventilation_heat_recovery:
       name: "Control and Status Information: Control Setpoint ventilation-heat-recovery"
       initial_value: 0
+      update_interval: 1s
     # §5.3.4 Class 4, ID 16: Room Setpoint -- current room temperature setpoint (degrees C, -40..127).
     sensor_and_informational_data_room_setpoint:
       name: "Sensor and Informational Data: Room Setpoint"
       initial_value: 20.0
+      update_interval: 1s
     # §5.3.4 Class 4, ID 23: Room Setpoint CH2 -- current room setpoint for the 2nd CH circuit
     # (degrees C, -40..127).
     sensor_and_informational_data_room_setpoint_ch2:
       name: "Sensor and Informational Data: Room Setpoint CH2"
       initial_value: 20.0
+      update_interval: 1s
     # §5.3.4 Class 4, ID 24: Room temperature -- this master's own sensed room temperature
     # (degrees C, -40..127), pushed to the boiler. No initial_value -- see
     # OpenTherm42SensorFeedNumber's class comment.
@@ -114,29 +141,36 @@ number:
     # initial_value -- see OpenTherm42SensorFeedNumber's class comment.
     sensor_and_informational_data_outside_temperature:
       name: "Sensor and Informational Data: Outside temperature"
+      update_interval: 30s
     # §5.3.4 Class 4, ID 38: Relative Humidity (0..100%), provided by this master.
     sensor_and_informational_data_relative_humidity:
       name: "Sensor and Informational Data: Relative Humidity"
+      update_interval: 30s
     # §5.3.4 Class 4, ID 78 LB: Relative humidity exhaust air (0..100%), provided by this master.
     sensor_and_informational_data_relative_humidity_exhaust_air:
       name: "Sensor and Informational Data: Relative humidity exhaust air"
+      update_interval: 30s
     # §5.3.4 Class 4, ID 79: CO2 level exhaust air (0..2000 ppm), provided by this master.
     sensor_and_informational_data_co2_level:
       name: "Sensor and Informational Data: CO2 level"
+      update_interval: 30s
     # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature setpoint (degrees C, 0..127).
     # A single number entity serves both directions -- see hub.h's RequestKind comment.
     pre_defined_remote_boiler_parameters_dhw_setpoint:
       name: "Pre-Defined Remote Boiler Parameters: DHW Setpoint"
       initial_value: 60.0
+      update_interval: 1s
     # §5.3.5 Class 5, ID 57: max CH water Setpoint -- maximum allowable CH water Setpoint (degrees C, 0..127).
     pre_defined_remote_boiler_parameters_max_ch_water_setpoint:
       name: "Pre-Defined Remote Boiler Parameters: max CH water Setpoint"
       initial_value: 80.0
+      update_interval: 1s
     # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value -- nominal relative value for ventilation
     # (0-100%), i.e. the value for the mid position in case of a 3-speed ventilation system.
     pre_defined_remote_boiler_parameters_nominal_ventilation_value:
       name: "Pre-Defined Remote Boiler Parameters: Nominal ventilation value"
       initial_value: 50
+      update_interval: 1s
     # §5.3.6 Class 6, IDs 11/89/106: TSP values are opaque and manufacturer-specific, so unlike every
     # other option here there's no spec-provided name/description -- name and index come from whatever
     # the boiler's own documentation says slot N means.
@@ -153,11 +187,13 @@ number:
     control_of_special_applications_cooling_control_signal:
       name: "Control of Special Applications: Cooling control signal"
       initial_value: 0
+      update_interval: 1s
     # §5.3.8.2 Class 8, ID 14: Maximum relative modulation level setting, for sequencer and
     # off-low&pump control applications (0..100%).
     control_of_special_applications_maximum_relative_modulation_level_setting:
       name: "Control of Special Applications: Maximum relative modulation level setting"
       initial_value: 100
+      update_interval: 1s
 
 binary_sensor:
   - platform: opentherm42
@@ -423,6 +459,7 @@ text_sensor:
     # independent of time_id above (that's the write side).
     sensor_and_informational_data_date_time:
       name: "Sensor and Informational Data: Date and time"
+      update_interval: 60s
 
 select:
   - platform: opentherm42
@@ -453,18 +490,22 @@ sensor:
     # §5.3.1 Class 1, ID 102 LB: OEM fault code Solar Storage (0..255). HB is entirely reserved.
     control_and_status_information_oem_fault_code_solar_storage:
       name: "Control and Status Information: OEM fault code Solar Storage"
+      update_interval: 60s
     # §5.3.1 Class 1, ID 115: OEM diagnostic code (0..65535) -- an OEM-specific diagnostic/service code.
     control_and_status_information_oem_diagnostic_code:
       name: "Control and Status Information: OEM diagnostic code"
+      update_interval: 60s
     # §5.3.1 Class 1, ID 73: OEM diagnostic code ventilation/heat-recovery (0..65535).
     control_and_status_information_oem_diagnostic_code_ventilation_heat_recovery:
       name: "Control and Status Information: OEM diagnostic code ventilation-heat-recovery"
+      update_interval: 60s
     # §5.3.2 Class 2, ID 3 LB: Boiler MemberID code (0..255) -- identifies the boiler's manufacturer.
     configuration_information_boiler_member_id_code:
       name: "Configuration Information: Boiler MemberID code"
     # §5.3.2 Class 2, ID 125: OpenTherm protocol version implemented by the boiler.
     configuration_information_opentherm_version_boiler:
       name: "Configuration Information: OpenTherm version Boiler"
+      update_interval: 60s
     # §5.3.2 Class 2, ID 127 HB: Boiler product version number and type: product type (0..255).
     configuration_information_boiler_product_version_number_and_type_product_type:
       name: "Configuration Information: Boiler product version number and type: Product type"
@@ -477,6 +518,7 @@ sensor:
     # §5.3.2 Class 2, ID 75: OpenTherm protocol version implemented by the ventilation/heat-recovery system.
     configuration_information_opentherm_version_ventilation_heat_recovery:
       name: "Configuration Information: OpenTherm version ventilation-heat-recovery"
+      update_interval: 60s
     # §5.3.2 Class 2, ID 76 HB: Ventilation/heat-recovery product version number and type: product type.
     configuration_information_ventilation_heat_recovery_product_version_number_and_type_product_type:
       name: "Configuration Information: Ventilation-heat-recovery product version number and type: Product type"
@@ -500,39 +542,51 @@ sensor:
     # 100% = maximum modulation level.
     sensor_and_informational_data_relative_modulation_level:
       name: "Sensor and Informational Data: Relative Modulation Level"
+      update_interval: 10s
     # §5.3.4 Class 4, ID 18: CH water pressure -- water pressure of the boiler CH circuit (bar, 0..5).
     sensor_and_informational_data_ch_water_pressure:
       name: "Sensor and Informational Data: CH water pressure"
+      update_interval: 30s
     # §5.3.4 Class 4, ID 19: DHW flow rate -- water flow rate through the DHW circuit (l/min, 0..16).
     sensor_and_informational_data_dhw_flow_rate:
       name: "Sensor and Informational Data: DHW flow rate"
+      update_interval: 10s
     # §5.3.4 Class 4, ID 25: Boiler water temp. -- flow water temperature from the boiler (degrees C).
     sensor_and_informational_data_boiler_water_temperature:
       name: "Sensor and Informational Data: Boiler water temp."
+      update_interval: 10s
     # §5.3.4 Class 4, ID 26: DHW temperature -- domestic hot water temperature (degrees C).
     sensor_and_informational_data_dhw_temperature:
       name: "Sensor and Informational Data: DHW temperature"
+      update_interval: 10s
     # §5.3.4 Class 4, ID 28: Return water temperature to the boiler (degrees C).
     sensor_and_informational_data_return_water_temperature:
       name: "Sensor and Informational Data: Return water temperature"
+      update_interval: 30s
     # §5.3.4 Class 4, ID 29: Solar storage temperature (degrees C).
     sensor_and_informational_data_solar_storage_temperature:
       name: "Sensor and Informational Data: Solar storage temperature"
+      update_interval: 30s
     # §5.3.4 Class 4, ID 30: Solar collector temperature (degrees C, -40..250).
     sensor_and_informational_data_solar_collector_temperature:
       name: "Sensor and Informational Data: Solar collector temperature"
+      update_interval: 30s
     # §5.3.4 Class 4, ID 31: Flow temperature CH2 -- flow water temperature of the 2nd CH circuit (degrees C).
     sensor_and_informational_data_flow_temperature_ch2:
       name: "Sensor and Informational Data: Flow temperature CH2"
+      update_interval: 10s
     # §5.3.4 Class 4, ID 32: DHW2 temperature -- domestic hot water temperature 2 (degrees C).
     sensor_and_informational_data_dhw2_temperature:
       name: "Sensor and Informational Data: DHW2 temperature"
+      update_interval: 10s
     # §5.3.4 Class 4, ID 33: Exhaust temperature (degrees C, -40..500).
     sensor_and_informational_data_exhaust_temperature:
       name: "Sensor and Informational Data: Exhaust temperature"
+      update_interval: 10s
     # §5.3.4 Class 4, ID 34: Boiler heat exchanger temperature (degrees C).
     sensor_and_informational_data_boiler_heat_exchanger_temperature:
       name: "Sensor and Informational Data: Boiler heat exchanger temperature"
+      update_interval: 10s
     # §5.3.4 Class 4, ID 35 HB: Actual boiler fan speed Setpoint in Hz (RPM/60), 0..255.
     sensor_and_informational_data_boiler_fan_speed_setpoint:
       name: "Sensor and Informational Data: Boiler fan speed Setpoint"
@@ -542,75 +596,99 @@ sensor:
     # §5.3.4 Class 4, ID 36: Flame current -- electrical current through the burner flame (uA, 0..127).
     sensor_and_informational_data_flame_current:
       name: "Sensor and Informational Data: Flame current"
+      update_interval: 10s
     # §5.3.4 Class 4, ID 77 LB: Relative ventilation (0-100%). 0% is minimum set value, 100% is maximum.
     sensor_and_informational_data_relative_ventilation:
       name: "Sensor and Informational Data: Relative ventilation"
+      update_interval: 10s
     # §5.3.4 Class 4, ID 80: Supply inlet temperature (degrees C).
     sensor_and_informational_data_supply_inlet_temperature:
       name: "Sensor and Informational Data: Supply inlet temperature"
+      update_interval: 10s
     # §5.3.4 Class 4, ID 81: Supply outlet temperature (degrees C).
     sensor_and_informational_data_supply_outlet_temperature:
       name: "Sensor and Informational Data: Supply outlet temperature"
+      update_interval: 10s
     # §5.3.4 Class 4, ID 82: Exhaust inlet temperature (degrees C).
     sensor_and_informational_data_exhaust_inlet_temperature:
       name: "Sensor and Informational Data: Exhaust inlet temperature"
+      update_interval: 10s
     # §5.3.4 Class 4, ID 83: Exhaust outlet temperature (degrees C).
     sensor_and_informational_data_exhaust_outlet_temperature:
       name: "Sensor and Informational Data: Exhaust outlet temperature"
+      update_interval: 10s
     # §5.3.4 Class 4, ID 84: Actual exhaust fan speed (rpm, 0..6000).
     sensor_and_informational_data_actual_exhaust_fan_speed:
       name: "Sensor and Informational Data: Actual exhaust fan speed"
+      update_interval: 10s
     # §5.3.4 Class 4, ID 85: Actual inlet fan speed (rpm, 0..6000).
     sensor_and_informational_data_actual_inlet_fan_speed:
       name: "Sensor and Informational Data: Actual inlet fan speed"
+      update_interval: 10s
     # §5.3.4 Class 4, ID 96: Number of hours the boiler is in Cooling Mode.
     sensor_and_informational_data_cooling_operation_hours:
       name: "Sensor and Informational Data: Cooling Operation hours"
+      update_interval: 5min
     # §5.3.4 Class 4, ID 97: Number of Power Cycles of the boiler (wake-up after Reset).
     sensor_and_informational_data_power_cycles:
       name: "Sensor and Informational Data: Power Cycles"
+      update_interval: 5min
     # §5.3.4 Class 4, ID 109: Number of starts of the electricity producer.
     sensor_and_informational_data_electricity_producer_starts:
       name: "Sensor and Informational Data: Electricity producer starts"
+      update_interval: 5min
     # §5.3.4 Class 4, ID 110: Number of hours the electricity producer is in operation.
     sensor_and_informational_data_electricity_producer_hours:
       name: "Sensor and Informational Data: Electricity producer hours"
+      update_interval: 5min
     # §5.3.4 Class 4, ID 111: Current electricity production (W).
     sensor_and_informational_data_electricity_production:
       name: "Sensor and Informational Data: Electricity production"
+      update_interval: 10s
     # §5.3.4 Class 4, ID 112: Cumulative Electricity production (kWh).
     sensor_and_informational_data_cumulative_electricity_production:
       name: "Sensor and Informational Data: Cumulative Electricity production"
+      update_interval: 5min
     # §5.3.4 Class 4, ID 113: Number of un-successful burner starts.
     sensor_and_informational_data_number_of_unsuccessful_burner_starts:
       name: "Sensor and Informational Data: Number of un-successful burner starts"
+      update_interval: 5min
     # §5.3.4 Class 4, ID 114: Number of times the flame signal was too low.
     sensor_and_informational_data_number_of_times_flame_signal_too_low:
       name: "Sensor and Informational Data: Number of times flame signal was too low"
+      update_interval: 5min
     # §5.3.4 Class 4, ID 116: Successful Burner starts.
     sensor_and_informational_data_successful_burner_starts:
       name: "Sensor and Informational Data: Successful Burner starts"
+      update_interval: 5min
     # §5.3.4 Class 4, ID 117: Number of starts of the CH pump.
     sensor_and_informational_data_ch_pump_starts:
       name: "Sensor and Informational Data: CH pump starts"
+      update_interval: 5min
     # §5.3.4 Class 4, ID 118: Number of starts of the DHW pump/valve.
     sensor_and_informational_data_dhw_pump_valve_starts:
       name: "Sensor and Informational Data: DHW pump-valve starts"
+      update_interval: 5min
     # §5.3.4 Class 4, ID 119: Number of starts of the burner in DHW mode.
     sensor_and_informational_data_dhw_burner_starts:
       name: "Sensor and Informational Data: DHW burner starts"
+      update_interval: 5min
     # §5.3.4 Class 4, ID 120: Number of hours the burner is in operation (i.e. flame on).
     sensor_and_informational_data_burner_operation_hours:
       name: "Sensor and Informational Data: Burner operation hours"
+      update_interval: 5min
     # §5.3.4 Class 4, ID 121: Number of hours the CH pump has been running.
     sensor_and_informational_data_ch_pump_operation_hours:
       name: "Sensor and Informational Data: CH pump operation hours"
+      update_interval: 5min
     # §5.3.4 Class 4, ID 122: Number of hours the DHW pump has been running or the DHW valve has been open.
     sensor_and_informational_data_dhw_pump_valve_operation_hours:
       name: "Sensor and Informational Data: DHW pump-valve operation hours"
+      update_interval: 5min
     # §5.3.4 Class 4, ID 123: Number of hours the burner is in operation during DHW mode.
     sensor_and_informational_data_dhw_burner_operation_hours:
       name: "Sensor and Informational Data: DHW burner operation hours"
+      update_interval: 5min
     # §5.3.5 Class 5, ID 48 HB: DHWsetp upp-bound -- upper bound for adjustment of DHW setp (degrees C).
     pre_defined_remote_boiler_parameters_dhwsetp_upper_bound:
       name: "Pre-Defined Remote Boiler Parameters: DHWsetp upp-bound"
@@ -626,21 +704,27 @@ sensor:
     # §5.3.6 Class 6, ID 10 HB: Number of transparent-boiler-parameter's supported by the boiler.
     transparent_boiler_parameters_number_of_tsps:
       name: "Transparent Boiler Parameters: Number of TSP's"
+      update_interval: 5min
     # §5.3.6 Class 6, ID 88 HB: Number of TSPs supported by the ventilation/heat-recovery system.
     transparent_boiler_parameters_number_of_tsps_ventilation_heat_recovery:
       name: "Transparent Boiler Parameters: Number of TSP's ventilation-heat-recovery"
+      update_interval: 5min
     # §5.3.6 Class 6, ID 105 HB: Number of TSPs supported by the Solar Storage.
     transparent_boiler_parameters_number_of_tsps_solar_storage:
       name: "Transparent Boiler Parameters: Number of TSP's Solar Storage"
+      update_interval: 5min
     # §5.3.7 Class 7, ID 12 HB: Size of the fault history buffer supported by the boiler.
     fault_history_data_size_of_fault_buffer:
       name: "Fault History Data: Size of Fault Buffer"
+      update_interval: 5min
     # §5.3.7 Class 7, ID 90 HB: Size of the fault history buffer for the ventilation/heat-recovery system.
     fault_history_data_size_of_fault_buffer_ventilation_heat_recovery:
       name: "Fault History Data: Size of Fault Buffer ventilation-heat-recovery"
+      update_interval: 5min
     # §5.3.7 Class 7, ID 107 HB: Size of the fault history buffer for the Solar Storage.
     fault_history_data_size_of_fault_buffer_solar_storage:
       name: "Fault History Data: Size of Fault Buffer Solar Storage"
+      update_interval: 5min
     # §5.3.7 Class 7, IDs 13/91/108: fault history entries are opaque and manufacturer-specific, so
     # unlike every other option here there's no spec-provided name/description -- name and index come
     # from whatever the boiler's own documentation says entry N means.
@@ -664,6 +748,8 @@ sensor:
     # 0 = No override, 1..30 = Remote override room Setpoint.
     control_of_special_applications_remote_override_room_setpoint:
       name: "Control of Special Applications: Remote Override Room Setpoint"
+      update_interval: 10s
     # §5.3.8.3 Class 8, ID 39: Remote Override Room Setpoint 2 (degrees C, 0..30), same encoding.
     control_of_special_applications_remote_override_room_setpoint_2:
       name: "Control of Special Applications: Remote Override Room Setpoint 2"
+      update_interval: 10s

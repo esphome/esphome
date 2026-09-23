@@ -3,7 +3,13 @@ from esphome.components import select
 import esphome.config_validation as cv
 from esphome.const import CONF_INITIAL_OPTION
 
-from .. import OpenTherm42Hub, opentherm42_ns
+from .. import (
+    CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_UPDATE_INTERVAL,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_UPDATE_INTERVAL,
+    OpenTherm42Hub,
+    opentherm42_ns,
+    validate_requires_hub_option,
+)
 from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_MASTER_SOLAR_STORAGE_STATUS_SOLAR_MODE,
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_DHW,
@@ -98,6 +104,20 @@ CONFIG_SCHEMA = cv.Schema(
             for marker, _options in REMOTE_OVERRIDE_MODE_SELECTS
         },
     }
+)
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    validate_requires_hub_option(
+        [CONF_CONTROL_AND_STATUS_INFORMATION_MASTER_SOLAR_STORAGE_STATUS_SOLAR_MODE],
+        CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_UPDATE_INTERVAL,
+        "the solar storage solar mode select",
+    ),
+    validate_requires_hub_option(
+        [marker for marker, _options in REMOTE_OVERRIDE_MODE_SELECTS],
+        CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_UPDATE_INTERVAL,
+        "any of id=99's Operating Mode selects",
+    ),
 )
 
 

@@ -38,6 +38,10 @@ class OpenTherm42Number : public number::Number, public Component {
   OpenTherm42Number(OpenTherm42Hub *hub, uint8_t id) : hub_(hub), id_(id) {}
 
   void set_initial_value(float initial_value) { this->initial_value_ = initial_value; }
+  // Pushed to the hub from setup(), once hub_ is guaranteed to have already run its own setup()
+  // (build_schedule_()) -- see set_update_interval()'s call in setup() and hub.h's
+  // set_number_update_interval() for why this can't be pushed here directly, at wiring time.
+  void set_update_interval(uint32_t update_interval_ms) { this->update_interval_ms_ = update_interval_ms; }
 
   void setup() override;
   void dump_config() override;
@@ -48,6 +52,7 @@ class OpenTherm42Number : public number::Number, public Component {
   OpenTherm42Hub *hub_;
   uint8_t id_;
   float initial_value_{0};
+  uint32_t update_interval_ms_{0};
   ESPPreferenceObject pref_;
 };
 
