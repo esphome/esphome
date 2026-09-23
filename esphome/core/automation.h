@@ -317,13 +317,8 @@ template<typename... X> class TemplatableValue<std::string, X...> {
       case STATIC_STRING:
         return std::string(this->static_str_);
 #ifdef USE_ESP8266
-      case FLASH_STRING: {
-        // PROGMEM pointer — must use _P functions to access on ESP8266
-        size_t len = strlen_P(this->static_str_);
-        std::string result(len, '\0');
-        memcpy_P(result.data(), this->static_str_, len);
-        return result;
-      }
+      case FLASH_STRING:
+        return progmem_string(reinterpret_cast<ProgmemStr>(this->static_str_));
 #endif
       case NONE:
       default:
