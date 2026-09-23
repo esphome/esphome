@@ -87,10 +87,6 @@ COVER_OPERATIONS = {
 validate_cover_operation = cv.enum(COVER_OPERATIONS, upper=True)
 
 # Actions
-OpenAction = cover_ns.class_("OpenAction", automation.Action)
-CloseAction = cover_ns.class_("CloseAction", automation.Action)
-StopAction = cover_ns.class_("StopAction", automation.Action)
-ToggleAction = cover_ns.class_("ToggleAction", automation.Action)
 CoverIsOpenCondition = cover_ns.class_("CoverIsOpenCondition", Condition)
 CoverIsClosedCondition = cover_ns.class_("CoverIsClosedCondition", Condition)
 CoverOpenedTrigger = cover_ns.class_(
@@ -251,56 +247,15 @@ COVER_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "cover.open", OpenAction, COVER_ACTION_SCHEMA, synchronous=True
-)
-async def cover_open_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "cover.close", CloseAction, COVER_ACTION_SCHEMA, synchronous=True
-)
-async def cover_close_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "cover.stop", StopAction, COVER_ACTION_SCHEMA, synchronous=True
-)
-async def cover_stop_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "cover.toggle", ToggleAction, COVER_ACTION_SCHEMA, synchronous=True
-)
-async def cover_toggle_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+for _name, _command in (
+    ("cover.open", "set_command_open()"),
+    ("cover.close", "set_command_close()"),
+    ("cover.stop", "set_command_stop()"),
+    ("cover.toggle", "set_command_toggle()"),
+):
+    automation.register_apply_action(
+        _name, COVER_ACTION_SCHEMA, automation.ApplyCall(_command), call="make_call"
+    )
 
 
 COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
