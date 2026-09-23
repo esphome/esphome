@@ -20,7 +20,7 @@ from esphome.const import (
     CONF_TYPE_ID,
     CONF_UPDATE_INTERVAL,
 )
-from esphome.core import ID, EsphomeError, Lambda
+from esphome.core import CORE, ID, EsphomeError, Lambda
 from esphome.cpp_generator import (
     FlashStringLiteral,
     LambdaExpression,
@@ -216,8 +216,10 @@ ApplyAction = cg.esphome_ns.class_("ApplyAction", Action)
 
 
 def flash_string(config: ConfigType, value: str) -> str:
-    """Default renderer for ``std::string`` constants; keeps the literal in flash on ESP8266."""
-    return f"progmem_string({FlashStringLiteral(value)})"
+    """Default renderer for ``std::string`` constants; copies the literal out of flash on ESP8266."""
+    if CORE.is_esp8266:
+        return f"progmem_string({FlashStringLiteral(value)})"
+    return str(cg.safe_exp(value))
 
 
 @dataclass(frozen=True)
@@ -248,7 +250,16 @@ class ApplyCall:
 
 @dataclass(frozen=True)
 class ApplyField:
-    """One config key forwarded as ``target(value)``, or as statement ``target`` when it has ``{}``."""
+    """One config key forwarded as ``target(value)``, or as statement ``target`` when it has ``{}``.
+
+    Double a literal brace in a template. A target with ``{parent}`` is emitted as written
+    instead of on the receiver, e.g. ``"if ({}) {parent}->reset()"``. ``conf_key`` may be a path
+    into nested sections. ``type_`` may be a C++ type string using ``{parent}`` when the type is
+    only known per instance. ``const_fn(config, value)`` renders a constant's argument text when
+    ``cg.safe_exp`` is not the right spelling (unit conversion belongs in the validator); a
+    lambda bypasses it, so the target must also take a plain ``type_``. An absent key emits
+    nothing.
+    """
 
     conf_key: str | tuple[str, ...]
     target: str
@@ -363,7 +374,10 @@ def register_apply_action(
                     exprs.append(flash_string(config, value))
                 else:
                     exprs.append(str(cg.safe_exp(value)))
-            statements.append(f"{receiver}{target.format(*exprs)};")
+            if "{parent}" in target:
+                statements.append(f"{target.format(*exprs, parent=parent)};")
+            else:
+                statements.append(f"{receiver}{target.format(*exprs)};")
         if call:
             statements = [
                 f"auto apply_call = {parent}->{call}();",

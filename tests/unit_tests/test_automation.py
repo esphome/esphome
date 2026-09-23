@@ -29,7 +29,7 @@ from esphome.automation import (
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from esphome.core import ID, EsphomeError, Lambda
+from esphome.core import CORE, ID, KEY_CORE, KEY_TARGET_PLATFORM, EsphomeError, Lambda
 from esphome.cpp_generator import MockObj, RawExpression
 from esphome.util import Registry, RegistryEntry
 
@@ -608,8 +608,10 @@ async def _run_apply_action(
     config: dict[str, object],
     args: list[tuple[object, str]] | None = None,
     call: str | None = None,
+    platform: str = "esp32",
 ) -> RegistryEntry:
     """Register an apply action and run its builder with the given config."""
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
     actions, _ = registries
     register_apply_action("my.apply", None, *fields, call=call)
     entry = actions["my.apply"]
@@ -655,7 +657,7 @@ async def test_apply_constants(
     lines = [
         f"::{PARENT_OBJ}->set_kp(0.0f);",
         f"::{PARENT_OBJ}->set_on(false);",
-        f'::{PARENT_OBJ}->play(progmem_string(ESPHOME_F("a:b")));',
+        f'::{PARENT_OBJ}->play("a:b");',
         f"::{PARENT_OBJ}->position = 0.5f;",
         f"::{PARENT_OBJ}->publish_state();",
     ]
@@ -788,3 +790,25 @@ def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> Non
         register_apply_action(
             "my.bad2", nested, ApplyField(("v", "dri"), "set_dir", cg.int_)
         )
+
+
+@pytest.mark.asyncio
+async def test_apply_string_constant_stays_in_flash_on_esp8266(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    fields = (ApplyField("song", "play", cg.std_string),)
+    await _run_apply_action(registries, fields, {"song": "a:b"}, platform="esp8266")
+    assert f'::{PARENT_OBJ}->play(progmem_string(ESPHOME_F("a:b")));' in _apply_lambda(
+        mock_cg
+    )
+
+
+@pytest.mark.asyncio
+async def test_apply_field_raw_statement_with_parent(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    fields = (ApplyField("reset", "if ({}) {parent}->reset()", cg.bool_),)
+    await _run_apply_action(registries, fields, {"reset": True}, call="make_call")
+    text = _apply_lambda(mock_cg)
+    assert f"if (true) ::{PARENT_OBJ}->reset();" in text
+    assert "apply_call.if" not in text
