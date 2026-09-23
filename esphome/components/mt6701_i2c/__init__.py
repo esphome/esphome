@@ -18,7 +18,6 @@ mt6701_i2c_ns = cg.esphome_ns.namespace("mt6701_i2c")
 MT6701I2CComponent = mt6701_i2c_ns.class_(
     "MT6701I2CComponent", MT6701Component, i2c.I2CDevice
 )
-SaveEEPROMAction = mt6701_i2c_ns.class_("SaveEEPROMAction", automation.Action)
 
 CONF_ZERO_OFFSET = "zero_offset"
 CONF_OUTPUT_MODE = "output_mode"
@@ -202,9 +201,8 @@ MT6701_SAVE_EEPROM_ACTION_SCHEMA = automation.maybe_simple_id(
     }
 )
 
-automation.register_simple_action(
+automation.register_apply_action(
     "mt6701_i2c.save_eeprom",
-    SaveEEPROMAction,
     MT6701_SAVE_EEPROM_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("save_eeprom()"),
 )

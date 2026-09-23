@@ -2,7 +2,6 @@
 
 #include "esphome/components/mt6701/mt6701.h"
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::mt6701_i2c {
@@ -80,15 +79,6 @@ class MT6701I2CComponent final : public mt6701::MT6701Component, public i2c::I2C
   optional<uint8_t> pwm_polarity_;
   optional<uint16_t> analog_start_;
   optional<uint16_t> analog_stop_;
-};
-
-template<typename... Ts> class SaveEEPROMAction final : public Action<Ts...> {
- public:
-  explicit SaveEEPROMAction(MT6701I2CComponent *parent) : parent_(parent) {}
-  void play(const Ts &...x) override { this->parent_->save_eeprom(); }
-
- protected:
-  MT6701I2CComponent *parent_;
 };
 
 }  // namespace esphome::mt6701_i2c
