@@ -60,3 +60,6 @@ button:
       - pylontech.set_cell_polling:
           id: pylontech1
           enabled: true
+      - pylontech.set_cell_polling:
+          id: pylontech1
+          enabled: !lambda return false;

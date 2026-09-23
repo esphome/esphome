@@ -22,7 +22,6 @@ PylontechComponent = pylontech_ns.class_(
     "PylontechComponent", cg.PollingComponent, uart.UARTDevice
 )
 PylontechBattery = pylontech_ns.class_("PylontechBattery")
-SetCellPollingAction = pylontech_ns.class_("SetCellPollingAction", automation.Action)
 
 CV_NUM_BATTERIES = cv.int_range(1, 16)
 
@@ -53,24 +52,16 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "pylontech.set_cell_polling",
-    SetCellPollingAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(PylontechComponent),
             cv.Required(CONF_ENABLED): cv.templatable(cv.boolean),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_ENABLED, "set_cell_polling_enabled", cg.bool_),
 )
-async def set_cell_polling_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-
-    template_ = await cg.templatable(config[CONF_ENABLED], args, cg.bool_)
-    cg.add(var.set_enable(template_))
-    return var
 
 
 async def to_code(config: ConfigType) -> None:

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/defines.h"
 #include "esphome/components/uart/uart.h"
 #include <vector>
@@ -83,16 +82,6 @@ class PylontechComponent final : public PollingComponent, public uart::UARTDevic
   int current_bat_index_ = 0;
   bool send_next_bat_ = false;
   bool cell_polling_enabled_ = false;
-};
-
-template<typename... Ts> class SetCellPollingAction : public Action<Ts...>, public Parented<PylontechComponent> {
- public:
-  TEMPLATABLE_VALUE(bool, enable);
-
-  void play(const Ts &...x) {
-    bool enable = this->enable_.value(x...);
-    this->parent_->set_cell_polling_enabled(enable);
-  }
 };
 
 }  // namespace esphome::pylontech
