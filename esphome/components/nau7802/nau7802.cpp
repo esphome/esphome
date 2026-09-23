@@ -1,4 +1,5 @@
 #include "nau7802.h"
+#include <cmath>
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
@@ -76,7 +77,7 @@ void NAU7802Sensor::setup() {
     return;
   }
 
-  uint32_t gcal = (uint32_t) (round(this->gain_calibration_ * (1 << GCAL1_FRACTIONAL)));
+  uint32_t gcal = (uint32_t) (std::round(this->gain_calibration_ * (1 << GCAL1_FRACTIONAL)));
   this->write_value_(OCAL1_B2_REG, 3, this->offset_calibration_);
   this->write_value_(GCAL1_B3_REG, 4, gcal);
 

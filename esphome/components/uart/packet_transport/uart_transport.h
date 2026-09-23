@@ -20,7 +20,7 @@ static const uint16_t MAX_PACKET_SIZE = 508;
 static const uint8_t FLAG_BYTE = 0x7E;
 static const uint8_t CONTROL_BYTE = 0x7D;
 
-class UARTTransport : public packet_transport::PacketTransport, public UARTDevice {
+class UARTTransport final : public packet_transport::PacketTransport, public UARTDevice {
  public:
   void loop() override;
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }

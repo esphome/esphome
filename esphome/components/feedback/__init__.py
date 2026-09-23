@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_STOP_ACTION,
     CONF_UPDATE_INTERVAL,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ianchi"]
 DEPENDENCIES = ["actuator"]
@@ -35,7 +36,7 @@ feedback_ns = cg.esphome_ns.namespace("feedback")
 FeedbackActuatorBase = feedback_ns.class_("FeedbackActuatorBase", cg.Component)
 
 
-def validate_infer_endstop(config):
+def validate_infer_endstop(config: ConfigType) -> ConfigType:
     if config[CONF_INFER_ENDSTOP_FROM_MOVEMENT] is True:
         if config[CONF_HAS_BUILT_IN_ENDSTOP] is False:
             raise cv.Invalid(
@@ -105,14 +106,14 @@ async def apply_feedback_actuator_config(var, config):
     )
     cg.add(var.set_open_duration(config[CONF_OPEN_DURATION]))
     if CONF_OPEN_ENDSTOP in config:
-        bin = await cg.get_variable(config[CONF_OPEN_ENDSTOP])
-        cg.add(var.set_open_endstop(bin))
+        open_endstop = await cg.get_variable(config[CONF_OPEN_ENDSTOP])
+        cg.add(var.set_open_endstop(open_endstop))
     if CONF_OPEN_SENSOR in config:
-        bin = await cg.get_variable(config[CONF_OPEN_SENSOR])
-        cg.add(var.set_open_sensor(bin))
+        open_sensor = await cg.get_variable(config[CONF_OPEN_SENSOR])
+        cg.add(var.set_open_sensor(open_sensor))
     if CONF_OPEN_OBSTACLE_SENSOR in config:
-        bin = await cg.get_variable(config[CONF_OPEN_OBSTACLE_SENSOR])
-        cg.add(var.set_open_obstacle_sensor(bin))
+        open_obstacle = await cg.get_variable(config[CONF_OPEN_OBSTACLE_SENSOR])
+        cg.add(var.set_open_obstacle_sensor(open_obstacle))
 
     # CLOSE
     await automation.build_automation(
@@ -120,14 +121,14 @@ async def apply_feedback_actuator_config(var, config):
     )
     cg.add(var.set_close_duration(config[CONF_CLOSE_DURATION]))
     if CONF_CLOSE_ENDSTOP in config:
-        bin = await cg.get_variable(config[CONF_CLOSE_ENDSTOP])
-        cg.add(var.set_close_endstop(bin))
+        close_endstop = await cg.get_variable(config[CONF_CLOSE_ENDSTOP])
+        cg.add(var.set_close_endstop(close_endstop))
     if CONF_CLOSE_SENSOR in config:
-        bin = await cg.get_variable(config[CONF_CLOSE_SENSOR])
-        cg.add(var.set_close_sensor(bin))
+        close_sensor = await cg.get_variable(config[CONF_CLOSE_SENSOR])
+        cg.add(var.set_close_sensor(close_sensor))
     if CONF_CLOSE_OBSTACLE_SENSOR in config:
-        bin = await cg.get_variable(config[CONF_CLOSE_OBSTACLE_SENSOR])
-        cg.add(var.set_close_obstacle_sensor(bin))
+        close_obstacle = await cg.get_variable(config[CONF_CLOSE_OBSTACLE_SENSOR])
+        cg.add(var.set_close_obstacle_sensor(close_obstacle))
 
     # OTHER
     if CONF_MAX_DURATION in config:

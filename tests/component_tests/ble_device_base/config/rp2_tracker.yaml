@@ -1,0 +1,7 @@
+esphome:
+  name: slotcount-rp2-tracker
+
+rp2:
+  board: rpipicow
+
+rp2_ble_tracker:

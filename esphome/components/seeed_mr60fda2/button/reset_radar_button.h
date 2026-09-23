@@ -5,7 +5,7 @@
 
 namespace esphome::seeed_mr60fda2 {
 
-class ResetRadarButton : public button::Button, public Parented<MR60FDA2Component> {
+class ResetRadarButton final : public button::Button, public Parented<MR60FDA2Component> {
  public:
   ResetRadarButton() = default;
 

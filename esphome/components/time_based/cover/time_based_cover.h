@@ -6,7 +6,7 @@
 
 namespace esphome::time_based {
 
-class TimeBasedCover : public cover::Cover, public Component {
+class TimeBasedCover final : public cover::Cover, public Component {
  public:
   void setup() override;
   void loop() override;

@@ -14,7 +14,7 @@ enum HX711Gain : uint8_t {
   HX711_GAIN_64 = 3,
 };
 
-class HX711Sensor : public sensor::Sensor, public PollingComponent {
+class HX711Sensor final : public sensor::Sensor, public PollingComponent {
  public:
   void set_dout_pin(GPIOPin *dout_pin) { dout_pin_ = dout_pin; }
   void set_sck_pin(GPIOPin *sck_pin) { sck_pin_ = sck_pin; }

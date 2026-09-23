@@ -8,7 +8,7 @@
 
 namespace esphome::tuya {
 
-class TuyaSelect : public select::Select, public Component {
+class TuyaSelect final : public select::Select, public Component {
  public:
   void setup() override;
   void dump_config() override;

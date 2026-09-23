@@ -7,12 +7,15 @@
 #include "esphome/core/log.h"
 
 #include <esp_ota_ops.h>
-#include <esp_task_wdt.h>
+#include <sdkconfig.h>
 #include <spi_flash_mmap.h>
+#ifdef USE_OTA_DOWNGRADE_PROTECTION
+#include <esp_app_desc.h>
+#endif
 
 namespace esphome::ota {
 
-static const char *const TAG = "ota.idf";
+static const char *const TAG = "ota";
 
 std::unique_ptr<IDFOTABackend> make_ota_backend() { return make_unique<IDFOTABackend>(); }
 
@@ -57,16 +60,38 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
     return OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION;
   }
 
-  watchdog::WatchdogManager watchdog(15000);
-  esp_err_t err = esp_ota_begin(this->partition_, image_size, &this->update_handle_);
+  // Both lazy-erase paths below replace esp_ota_begin()'s blocking full erase.
+  // Size check replaces the one that erase performed (0 = unknown size,
+  // e.g. web_server uploads).
+  if (image_size != 0 && image_size > this->partition_->size) {
+    return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
+  }
+  this->written_ = 0;
+  esp_err_t err;
+#ifdef USE_OTA_BLOCK_ERASE_AHEAD
+  this->erased_end_ = 0;
+  // Unlike esp_ota_begin(), esp_ota_resume() does not reject a running app in
+  // ESP_OTA_IMG_PENDING_VERIFY; that state is unreachable here because the app
+  // was marked valid at boot (esp32/hal.cpp) or just above under USE_OTA_ROLLBACK.
+  // erase_size 0 (!= OTA_WITH_SEQUENTIAL_WRITES) means no erase; erase_ahead_() handles it
+  err = esp_ota_resume(this->partition_, 0, 0, &this->update_handle_);
+#if defined(CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+  // esp_ota_begin() does this on IDF 5.5+; esp_ota_resume() does not. Prevents
+  // booting a half-written slot after a crash mid-OTA. Not available on the
+  // 5.3.3/5.4.2 backports, whose esp_ota_begin() did not invalidate either.
+  if (err == ESP_OK) {
+    esp_ota_invalidate_inactive_ota_data_slot();
+  }
+#endif
+#else
+  err = esp_ota_begin(this->partition_, OTA_WITH_SEQUENTIAL_WRITES, &this->update_handle_);
+#endif
 
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ota_begin failed (err=0x%X)", err);
+    ESP_LOGE(TAG, "OTA begin failed (err=0x%X)", err);
     esp_ota_abort(this->update_handle_);
     this->update_handle_ = 0;
-    if (err == ESP_ERR_INVALID_SIZE) {
-      return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
-    } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
+    if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
       return OTA_RESPONSE_ERROR_WRITING_FLASH;
     } else if (err == ESP_ERR_OTA_PARTITION_CONFLICT) {
       // This error appears with 1 factory and 1 ota partition
@@ -107,19 +132,56 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
   }
 #endif
+  // Overflow can only happen on unknown-size uploads (web_server); known
+  // sizes were rejected in begin().
+  if (this->written_ + len > this->partition_->size) {
+    return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
+  }
+#ifdef USE_OTA_BLOCK_ERASE_AHEAD
+  OTAResponseTypes erase_result = this->erase_ahead_(len);
+  if (erase_result != OTA_RESPONSE_OK) {
+    return erase_result;
+  }
+#endif
   esp_err_t err = esp_ota_write(this->update_handle_, data, len);
   this->md5_.add(data, len);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_write failed (err=0x%X)", err);
     if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
       return OTA_RESPONSE_ERROR_MAGIC;
+    } else if (err == ESP_ERR_INVALID_SIZE) {
+      // Sequential-writes fallback: IDF's lazy erase reports overflow here
+      return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
     } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
       return OTA_RESPONSE_ERROR_WRITING_FLASH;
     }
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
+  this->written_ += len;
   return OTA_RESPONSE_OK;
 }
+
+#ifdef USE_OTA_BLOCK_ERASE_AHEAD
+OTAResponseTypes IDFOTABackend::erase_ahead_(size_t len) {
+  const size_t end = this->written_ + len;
+  if (this->erased_end_ >= end) {
+    return OTA_RESPONSE_OK;
+  }
+  // Round up to a block boundary, clamped to the partition end; IDF splits the
+  // range into 64 KiB block erases where aligned, sector erases elsewhere.
+  const size_t erase_to = next_erase_end(end, this->partition_->size);
+  // A block erase is one uninterruptible flash op (typically ~150 ms, seconds
+  // on aged flash) and the transfer loop may not have fed the WDT for ~1s.
+  watchdog::WatchdogManager watchdog(15000);
+  esp_err_t err = esp_partition_erase_range(this->partition_, this->erased_end_, erase_to - this->erased_end_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_partition_erase_range failed (err=0x%X)", err);
+    return err == ESP_ERR_INVALID_SIZE ? OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE : OTA_RESPONSE_ERROR_WRITING_FLASH;
+  }
+  this->erased_end_ = erase_to;
+  return OTA_RESPONSE_OK;
+}
+#endif
 
 OTAResponseTypes IDFOTABackend::end() {
   if (this->md5_set_) {
@@ -130,6 +192,9 @@ OTAResponseTypes IDFOTABackend::end() {
     }
   }
 #ifdef USE_OTA_PARTITIONS
+  // A partition-table update carries an MD5 (checked by IDF), not a Secure Boot
+  // signature, and only re-points boot at an already-installed app -- so it is
+  // intentionally not run through the signature verifier below.
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
     return this->update_partition_table();
   }
@@ -148,6 +213,33 @@ OTAResponseTypes IDFOTABackend::end() {
   }
 #endif
   if (err == ESP_OK) {
+#ifdef USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
+    // IDF's built-in on-update check is disabled for this scheme (it only
+    // matches the incoming image's first signature block against the running
+    // app's first). Verify here against every key the running app trusts, so
+    // rotation and backup keys are accepted. Leaving the boot partition
+    // unchanged means a rejected image never boots.
+    if (!this->verify_signed_image_(this->partition_)) {
+      return OTA_RESPONSE_ERROR_SIGNATURE_INVALID;
+    }
+#endif
+#ifdef USE_OTA_DOWNGRADE_PROTECTION
+    // The image is written and (when signing is enabled) signature-verified by
+    // esp_ota_end(), so its embedded project version can be trusted. Reject the
+    // update if it is older than the running version by leaving the boot
+    // partition unchanged -- the staged image simply never boots.
+    esp_app_desc_t incoming;
+    esp_err_t desc_err = esp_ota_get_partition_description(this->partition_, &incoming);
+    if (desc_err != ESP_OK) {
+      // Couldn't read the staged image's version, so the comparison is skipped.
+      // Warn so the bypassed check is observable rather than silent.
+      ESP_LOGW(TAG, "Downgrade protection: could not read image version (err=0x%X); allowing update", desc_err);
+    } else if (version_is_older(incoming.version, ESPHOME_PROJECT_VERSION)) {
+      ESP_LOGE(TAG, "Rejecting downgrade: image version '%s' is older than running version '%s'", incoming.version,
+               ESPHOME_PROJECT_VERSION);
+      return OTA_RESPONSE_ERROR_VERSION_DOWNGRADE;
+    }
+#endif
     err = esp_ota_set_boot_partition(this->partition_);
     if (err == ESP_OK) {
       return OTA_RESPONSE_OK;
@@ -182,6 +274,10 @@ void IDFOTABackend::abort() {
   // or not an update is in flight.
   esp_ota_abort(this->update_handle_);
   this->update_handle_ = 0;
+  this->written_ = 0;
+#ifdef USE_OTA_BLOCK_ERASE_AHEAD
+  this->erased_end_ = 0;
+#endif
 }
 
 }  // namespace esphome::ota

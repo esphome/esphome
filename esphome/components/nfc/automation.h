@@ -7,7 +7,7 @@
 
 namespace esphome::nfc {
 
-class NfcOnTagTrigger : public Trigger<std::string, NfcTag> {
+class NfcOnTagTrigger final : public Trigger<std::string, NfcTag> {
  public:
   void process(const std::unique_ptr<NfcTag> &tag);
 };

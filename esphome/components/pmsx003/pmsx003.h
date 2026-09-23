@@ -29,7 +29,7 @@ enum class State : uint8_t {
   WAITING,
 };
 
-class PMSX003Component : public uart::UARTDevice, public Component {
+class PMSX003Component final : public uart::UARTDevice, public Component {
  public:
   PMSX003Component() = default;
   void setup() override;

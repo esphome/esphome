@@ -7,7 +7,7 @@ namespace esphome::feedback {
 
 // Inheritance: FeedbackCover -> FeedbackActuatorBase (Component), Cover (ActuatorBase, IActuator)
 // No shared ancestors. No diamond inheritance.
-class FeedbackCover : public FeedbackActuatorBase, public cover::Cover {
+class FeedbackCover final : public FeedbackActuatorBase, public cover::Cover {
  public:
   FeedbackCover() { this->set_actuator(this); }
   cover::CoverTraits get_traits() override;

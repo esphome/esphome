@@ -16,7 +16,7 @@ def define_has_component(component_type: str, keys: list[str]) -> None:
     cg.add_define(
         f"OPENTHERM_{component_type.upper()}_LIST(F, sep)",
         cg.RawExpression(
-            " sep ".join(map(lambda key: f"F({key}_{component_type.lower()})", keys))
+            " sep ".join(f"F({key}_{component_type.lower()})" for key in keys)
         ),
     )
     for key in keys:
@@ -30,12 +30,8 @@ def define_has_settings(keys: list[str], schemas: dict[str, SettingSchema]) -> N
         "OPENTHERM_SETTING_LIST(F, sep)",
         cg.RawExpression(
             " sep ".join(
-                map(
-                    lambda key: (
-                        f"F({schemas[key].backing_type}, {key}_setting, {schemas[key].default_value})"
-                    ),
-                    keys,
-                )
+                f"F({schemas[key].backing_type}, {key}_setting, {schemas[key].default_value})"
+                for key in keys
             )
         ),
     )
