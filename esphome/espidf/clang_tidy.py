@@ -66,6 +66,7 @@ def _settings_for(environment: str) -> _Settings:
         ARDUINO_FRAMEWORK_VERSION_LOOKUP,
         ARDUINO_IDF_VERSION_LOOKUP,
         ESP_IDF_FRAMEWORK_VERSION_LOOKUP,
+        arduino_component_ref,
     )
 
     parts = environment.split("-")
@@ -99,7 +100,7 @@ def _settings_for(environment: str) -> _Settings:
                 "USE_ARDUINO",
                 "USE_ESP32_FRAMEWORK_ARDUINO",
             ),
-            framework_deps=_arduino_framework_deps(str(fw_version)),
+            framework_deps=_arduino_framework_deps(arduino_component_ref(fw_version)),
         )
     return _Settings(
         idf_target=idf_target,

@@ -882,6 +882,15 @@ def add_extra_build_file(filename: str, path: Path) -> bool:
     return False
 
 
+def arduino_component_ref(ver: cv.Version) -> str:
+    """The espressif/arduino-esp32 registry version for an Arduino release.
+
+    The registry lowercases prerelease tags (4.0.0-rc1) while the GitHub
+    release tag, which the PlatformIO toolchain downloads, keeps 4.0.0-RC1.
+    """
+    return str(ver).lower()
+
+
 def _format_framework_arduino_version(ver: cv.Version) -> str:
     # 3.3.6+ changed filename from esp32-{ver}.zip to esp32-core-{ver}.tar.xz
     if ver >= cv.Version(3, 3, 6):
@@ -936,9 +945,7 @@ ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
     "dev": cv.Version(3, 3, 11),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
-    cv.Version(
-        4, 0, 0, "RC1"
-    ): "https://github.com/swoboda1337/platform-espressif32.git#prep_IDF6",
+    cv.Version(4, 0, 0, "RC1"): cv.Version(61, 4, 0, "RC1"),
     cv.Version(3, 3, 11): cv.Version(55, 3, 311),
     cv.Version(3, 3, 10): cv.Version(55, 3, 39),
     cv.Version(3, 3, 9): cv.Version(55, 3, 39),
@@ -992,14 +999,7 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
 }
 
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
-    # Fork with the IDF 6.0.2 bootloader linker script fix, switch back to
-    # pioarduino once https://github.com/pioarduino/platform-espressif32 takes it
-    cv.Version(
-        6, 1, 0
-    ): "https://github.com/swoboda1337/platform-espressif32.git#prep_IDF6",
-    cv.Version(
-        6, 0, 2
-    ): "https://github.com/swoboda1337/platform-espressif32.git#prep_IDF6",
+    cv.Version(6, 1, 0): cv.Version(61, 4, 0, "RC1"),
     cv.Version(
         6, 0, 1
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
@@ -1027,7 +1027,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": "https://github.com/swoboda1337/platform-espressif32.git#prep_IDF6",
+    "recommended": cv.Version(61, 4, 0, "RC1"),
     "latest": cv.Version(55, 3, 311),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
@@ -3515,11 +3515,9 @@ def _write_idf_component_yml():
                 rmtree(stub_path)
 
         if CORE.using_toolchain_esp_idf:
-            # The registry lowercases prerelease tags (4.0.0-rc1) while the
-            # GitHub release keeps them as tagged (4.0.0-RC1).
             add_idf_component(
                 name=ARDUINO_ESP32_COMPONENT_NAME,
-                ref=str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]).lower(),
+                ref=arduino_component_ref(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             )
 
     if CORE.using_toolchain_esp_idf:
