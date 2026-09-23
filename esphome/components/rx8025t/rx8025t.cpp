@@ -6,10 +6,10 @@
 
 namespace esphome::rx8025t {
 
-static const uint8_t RX8025T_REG_SEC = 0x00;
-static const uint8_t RX8025T_REG_FLAG = 0x0E;
-static const uint8_t RX8025T_FLAG_VDET = 0x01;
-static const uint8_t RX8025T_FLAG_VLF = 0x02;
+static constexpr uint8_t RX8025T_REG_SEC = 0x00;
+static constexpr uint8_t RX8025T_REG_FLAG = 0x0E;
+static constexpr uint8_t RX8025T_FLAG_VDET = 0x01;
+static constexpr uint8_t RX8025T_FLAG_VLF = 0x02;
 
 static const char *const TAG = "rx8025t";
 
