@@ -10,6 +10,7 @@ from esphome.const import (
     ICON_RESTART,
     ICON_RESTART_ALERT,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_TFLUNA_ID, TFLunaComponent, tfluna_ns
 
@@ -35,7 +36,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     tfluna_component = await cg.get_variable(config[CONF_TFLUNA_ID])
     if factory_reset_config := config.get(CONF_FACTORY_RESET):
         b = await button.new_button(factory_reset_config)

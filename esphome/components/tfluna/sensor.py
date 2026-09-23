@@ -19,6 +19,7 @@ from esphome.const import (
     UNIT_CENTIMETER,
     UNIT_MILLISECOND,
 )
+from esphome.types import ConfigType
 
 from . import CONF_TFLUNA_ID, CONF_TIMESTAMP, TFLunaComponent
 
@@ -58,7 +59,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     tfluna_component = await cg.get_variable(config[CONF_TFLUNA_ID])
     if distance_config := config.get(CONF_DISTANCE):
         sens = await sensor.new_sensor(distance_config)
