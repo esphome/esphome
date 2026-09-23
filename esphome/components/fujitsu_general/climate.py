@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import climate_ir
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["climate_ir"]
 
@@ -11,5 +12,5 @@ FujitsuGeneralClimate = fujitsu_general_ns.class_(
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(FujitsuGeneralClimate)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     await climate_ir.new_climate_ir(config)

@@ -1,0 +1,15 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ssid: test
+  password: testtest
+
+api:
+  port: 6054
+  reboot_timeout: 0s
+  batch_delay: 0ms

@@ -54,7 +54,7 @@ class HttpRequestArduino final : public HttpRequestComponent {
 #endif
 
  protected:
-  std::shared_ptr<HttpContainer> perform(const std::string &url, const std::string &method, const std::string &body,
+  std::shared_ptr<HttpContainer> perform(const char *url, const char *method, const std::string &body,
                                          const std::vector<Header> &request_headers,
                                          const std::vector<std::string> &lower_case_collect_headers) override;
 #ifdef USE_ESP8266

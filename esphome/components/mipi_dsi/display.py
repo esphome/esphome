@@ -53,6 +53,7 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 from . import mipi_dsi_ns, models
 from .models import DsiDriverChip
@@ -85,7 +86,7 @@ COLOR_DEPTHS = {
 }
 
 
-def model_schema(config):
+def model_schema(config: ConfigType) -> cv.All:
     model = MODELS[config[CONF_MODEL].upper()]
     transform = model.transform_schema()
     # CUSTOM model will need to provide a custom init sequence
@@ -148,7 +149,7 @@ def model_schema(config):
 
 
 @model_schema_extractor(MODELS, model_schema)
-def _config_schema(config):
+def _config_schema(config: ConfigType) -> ConfigType:
     config = cv.Schema(
         {
             cv.Required(CONF_MODEL): cv.one_of(*MODELS, upper=True),
@@ -175,7 +176,7 @@ def _config_schema(config):
     return config
 
 
-def _final_validate(config) -> None:
+def _final_validate(config: ConfigType) -> None:
     global_config = full_config.get()
 
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
@@ -189,7 +190,7 @@ CONFIG_SCHEMA = _config_schema
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     model = MODELS[config[CONF_MODEL].upper()]
     color_depth = COLOR_DEPTHS[get_color_depth(config)]
     pixel_mode = int(config[CONF_PIXEL_MODE].removesuffix("bit"))
