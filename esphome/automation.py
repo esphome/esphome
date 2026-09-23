@@ -332,7 +332,8 @@ def register_apply_action(
         template_arg: cg.TemplateArguments,
         args: TemplateArgsType,
     ) -> MockObj:
-        parent = await cg.get_variable(config[CONF_ID])
+        # Global-scope qualified so a trigger arg named like the id cannot shadow it.
+        parent = f"::{await cg.get_variable(config[CONF_ID])}"
         # Must match ApplyAction::ApplyFn exactly for the function pointer conversion.
         lambda_args = [
             (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), arg)

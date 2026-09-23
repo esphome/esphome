@@ -653,11 +653,11 @@ async def test_apply_constants(
     await _run_apply_action(registries, fields, config)
     text = _apply_lambda(mock_cg)
     lines = [
-        f"{PARENT_OBJ}->set_kp(0.0f);",
-        f"{PARENT_OBJ}->set_on(false);",
-        f'{PARENT_OBJ}->play(progmem_string(ESPHOME_F("a:b")));',
-        f"{PARENT_OBJ}->position = 0.5f;",
-        f"{PARENT_OBJ}->publish_state();",
+        f"::{PARENT_OBJ}->set_kp(0.0f);",
+        f"::{PARENT_OBJ}->set_on(false);",
+        f'::{PARENT_OBJ}->play(progmem_string(ESPHOME_F("a:b")));',
+        f"::{PARENT_OBJ}->position = 0.5f;",
+        f"::{PARENT_OBJ}->publish_state();",
     ]
     positions = [text.index(line) for line in lines]
     assert positions == sorted(positions)
@@ -680,11 +680,13 @@ async def test_apply_lambdas(
     await _run_apply_action(registries, fields, config, args=[(cg.int32, "x")])
     text = _apply_lambda(mock_cg)
     assert text.startswith("[](const std::remove_cvref_t<int32_t> & x) -> void {")
-    assert f"{PARENT_OBJ}->set_kp(static_cast<float>(x * 2));" in text
+    # The parent is global-scope qualified, so an arg named like the id cannot shadow it.
+    assert f"::{PARENT_OBJ}->set_kp(" in text
+    assert f"::{PARENT_OBJ}->set_kp(static_cast<float>(x * 2));" in text
     # Outer apply lambda and inner field lambda spell the trigger arg identically.
     assert text.count("const std::remove_cvref_t<int32_t> & x") == 2
     assert (
-        f"{PARENT_OBJ}->set_ki([](const std::remove_cvref_t<int32_t> & x) -> float {{"
+        f"::{PARENT_OBJ}->set_ki([](const std::remove_cvref_t<int32_t> & x) -> float {{"
         in text
     )
     assert "}(x));" in text
@@ -699,7 +701,7 @@ async def test_apply_call_keys(
         ApplyCall("set_range({}, {})", (("low", cg.float_), ("high", cg.float_))),
     )
     await _run_apply_action(registries, fields, {"low": 1.0, "high": 2.0})
-    assert f"{PARENT_OBJ}->set_range(1.0f, 2.0f);" in _apply_lambda(mock_cg)
+    assert f"::{PARENT_OBJ}->set_range(1.0f, 2.0f);" in _apply_lambda(mock_cg)
 
     mock_cg.new_pvariable.reset_mock()
     await _run_apply_action(registries, fields, {})
@@ -717,7 +719,7 @@ async def test_apply_action_call_shape(
     await _run_apply_action(registries, fields, {"brightness": 0.5}, call="make_call")
     text = _apply_lambda(mock_cg)
     lines = [
-        f"auto apply_call = {PARENT_OBJ}->make_call();",
+        f"auto apply_call = ::{PARENT_OBJ}->make_call();",
         "apply_call.set_brightness(0.5f);",
         "apply_call.perform();",
     ]
@@ -746,10 +748,10 @@ async def test_apply_field_nested_key_const_fn_and_type_string(
     }
     await _run_apply_action(registries, fields, config)
     text = _apply_lambda(mock_cg)
-    assert f"{PARENT_OBJ}->set_direction(3);" in text
-    assert f'{PARENT_OBJ}->set_name("abc", 3);' in text
+    assert f"::{PARENT_OBJ}->set_direction(3);" in text
+    assert f'::{PARENT_OBJ}->set_name("abc", 3);' in text
     assert (
-        f"{PARENT_OBJ}->value() = static_cast<decltype({PARENT_OBJ}->value())>(42);"
+        f"::{PARENT_OBJ}->value() = static_cast<decltype(::{PARENT_OBJ}->value())>(42);"
         in text
     )
 
