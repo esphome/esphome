@@ -10,8 +10,8 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_USE_FAHRENHEIT,
 )
-from esphome.core import ID, Lambda
-from esphome.cpp_generator import LambdaExpression, MockObj
+from esphome.core import ID
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@crnjan"]
@@ -32,7 +32,6 @@ MitsubishiCN105Component = mitsubishi_ns.class_(
 )
 
 VaneState = mitsubishi_ns.struct("VaneState")
-VaneCall = mitsubishi_ns.class_("VaneCall")
 VerticalVaneMode = mitsubishi_ns.enum("VerticalVaneMode")
 
 # The insertion order must match VALUES in
@@ -59,10 +58,6 @@ ClearRemoteTemperatureAction = mitsubishi_ns.class_(
     cg.Parented.template(MitsubishiCN105Component),
 )
 
-VaneControlAction = mitsubishi_ns.class_(
-    "VaneControlAction",
-    automation.Action,
-)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -117,8 +112,9 @@ async def to_code(config: ConfigType) -> None:
         )
     )
     cg.add(var.set_use_fahrenheit(config[CONF_USE_FAHRENHEIT]))
+    # User lambdas may use unqualified enum names.
+    cg.add_global(mitsubishi_ns.using)
     if on_state := config.get(CONF_VANE, {}).get(CONF_ON_STATE):
-        cg.add_global(mitsubishi_ns.using)
         for conf in on_state:
             await automation.build_callback_automation(
                 var,
@@ -183,14 +179,6 @@ async def clear_temperature_action_to_code(
     return var
 
 
-VANE_CONTROL_FIELDS = (
-    (
-        (CONF_VERTICAL, CONF_DIRECTION),
-        "vertical.set_direction",
-        VerticalVaneMode,
-    ),
-)
-
 VANE_CONTROL_ACTION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(MitsubishiCN105Component),
@@ -205,46 +193,11 @@ VANE_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     f"{DOMAIN}.vane.control",
-    VaneControlAction,
     VANE_CONTROL_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(
+        (CONF_VERTICAL, CONF_DIRECTION), "vertical.set_direction", VerticalVaneMode
+    ),
+    call="make_vane_call",
 )
-async def vane_control_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    cg.add_global(mitsubishi_ns.using)
-    parent = await cg.get_variable(config[CONF_ID])
-    normalized_args = [
-        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), name)
-        for t, name in args
-    ]
-    forwarded_args = ", ".join(name for _, name in args)
-    body_lines: list[str] = []
-
-    for path, setter, type_ in VANE_CONTROL_FIELDS:
-        if (section := config.get(path[0])) is None:
-            continue
-        if (value := section.get(path[1])) is None:
-            continue
-        if isinstance(value, Lambda):
-            inner = await cg.process_lambda(
-                value,
-                normalized_args,
-                return_type=type_,
-            )
-            body_lines.append(f"call.{setter}(({inner})({forwarded_args}));")
-        else:
-            body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
-
-    apply_lambda = LambdaExpression(
-        ["\n".join(body_lines)],
-        [(VaneCall.operator("ref"), "call"), *normalized_args],
-        capture="",
-        return_type=cg.void,
-    )
-    return cg.new_Pvariable(action_id, template_arg, parent, apply_lambda)
