@@ -1,12 +1,19 @@
 """Completion callbacks during a blocking speaker write must remain accounted."""
 
 from pathlib import Path
+import shutil
 import subprocess
+import sys
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_completion_during_partial_write(tmp_path: Path) -> None:
+    compiler = shutil.which("g++") or shutil.which("clang++")
+    if compiler is None:
+        pytest.skip("A C++20 host compiler is required")
     source = (
         ROOT / "esphome/components/speaker_source/speaker_source_media_player.cpp"
     ).read_text()
@@ -79,15 +86,15 @@ int main() {
     )
     cpp = tmp_path / "completion.cpp"
     cpp.write_text(code)
-    binary = tmp_path / "completion"
+    binary = tmp_path / ("completion.exe" if sys.platform == "win32" else "completion")
     subprocess.run(
-        ["g++", "-std=c++20", str(cpp), "-o", str(binary)],
+        [compiler, "-std=c++20", str(cpp), "-o", str(binary)],
         check=True,
         capture_output=True,
         text=True,
     )
     subprocess.run(
-        ["bash", "-c", 'ulimit -c 0; exec "$1"', "bash", str(binary)],
+        [str(binary)],
         check=True,
         capture_output=True,
         text=True,
