@@ -3,6 +3,7 @@
 #include <utility>
 #include <numbers>
 #include "display_color_utils.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -772,10 +773,12 @@ Rect Display::get_clipping() const {
 
 void Display::clear_clipping_() { this->clipping_rectangle_.clear(); }
 
+void Display::feed_wdt_pixel_slow_() { App.feed_wdt(); }
+
 bool Display::clip(int x, int y) {
   if (x < 0 || x >= this->get_width() || y < 0 || y >= this->get_height())
     return false;
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return false;
   return true;
 }

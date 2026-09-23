@@ -614,7 +614,7 @@ class MipiSpiBuffer
 
   // Draw a pixel at the given coordinates.
   void draw_pixel_at(int x, int y, Color color) override {
-    if (!this->get_clipping().inside(x, y))
+    if (this->is_point_clipped(x, y))
       return;
     if constexpr (not HAS_HARDWARE_ROTATION) {
       if (this->rotation_ == display::DISPLAY_ROTATION_180_DEGREES) {

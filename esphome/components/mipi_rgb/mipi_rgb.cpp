@@ -275,7 +275,7 @@ bool MipiRgb::check_buffer_() {
 }
 
 void MipiRgb::draw_pixel_at(int x, int y, Color color) {
-  if (!this->get_clipping().inside(x, y) || this->is_failed())
+  if (this->is_point_clipped(x, y) || this->is_failed())
     return;
 
   switch (this->rotation_) {
