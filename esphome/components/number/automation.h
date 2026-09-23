@@ -13,40 +13,6 @@ class NumberStateTrigger final : public Trigger<float> {
   }
 };
 
-template<typename... Ts> class NumberSetAction final : public Action<Ts...> {
- public:
-  NumberSetAction(Number *number) : number_(number) {}
-  TEMPLATABLE_VALUE(float, value)
-
-  void play(const Ts &...x) override {
-    auto call = this->number_->make_call();
-    call.set_value(this->value_.value(x...));
-    call.perform();
-  }
-
- protected:
-  Number *number_;
-};
-
-template<typename... Ts> class NumberOperationAction final : public Action<Ts...> {
- public:
-  explicit NumberOperationAction(Number *number) : number_(number) {}
-  TEMPLATABLE_VALUE(NumberOperation, operation)
-  TEMPLATABLE_VALUE(bool, cycle)
-
-  void play(const Ts &...x) override {
-    auto call = this->number_->make_call();
-    call.with_operation(this->operation_.value(x...));
-    if (this->cycle_.has_value()) {
-      call.with_cycle(this->cycle_.value(x...));
-    }
-    call.perform();
-  }
-
- protected:
-  Number *number_;
-};
-
 class ValueRangeTrigger final : public Trigger<float>, public Component {
  public:
   explicit ValueRangeTrigger(Number *parent) : parent_(parent) {}

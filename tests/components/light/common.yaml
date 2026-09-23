@@ -77,6 +77,16 @@ esphome:
       - light.control:
           id: test_monochromatic_light
           state: on
+      # flash_length and a turn_off with its own transition
+      - light.turn_on:
+          id: test_rgb_light
+          flash_length: 750ms
+      - light.turn_on:
+          id: test_rgb_light
+          flash_length: !lambda return 250;
+      - light.turn_off:
+          id: test_rgb_light
+          transition_length: 300ms
       # Test static effect name resolution at codegen time
       - light.turn_on:
           id: test_monochromatic_light
