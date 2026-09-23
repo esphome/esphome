@@ -351,8 +351,13 @@ async def _render_values(
     config: ConfigType,
     parent: str,
     lambda_args: TemplateArgsType,
+    flash_strings: bool = True,
 ) -> list[str]:
-    """Render the argument text of one statement; every key must be present."""
+    """Render the argument text of one statement; every key must be present.
+
+    ``flash_strings`` picks the ESP8266 ``progmem_string`` spelling for ``std::string`` constants;
+    a comparison that runs on every check wants the plain literal instead.
+    """
     values = [_config_lookup(config, key) for key, _, _ in members]
     if any(value is None for value in values):
         keys = [key for key, _, _ in members]
@@ -366,7 +371,7 @@ async def _render_values(
             exprs.append(str(call_lambda(inner)))
         elif const_fn is not None:
             exprs.append(const_fn(config, value))
-        elif type_ is cg.std_string:
+        elif type_ is cg.std_string and flash_strings:
             exprs.append(flash_string(config, value))
         else:
             exprs.append(str(cg.safe_exp(value)))
@@ -435,6 +440,7 @@ def register_apply_condition(
     ``check`` is applied to the parent: ``"is_playing()"`` becomes ``parent->is_playing()``; an
     ``ApplyCall`` such as ``ApplyCall("state == {}", ((CONF_STATE, cg.bool_),))`` compares
     against config values, all of which must be present. Write ``== false`` to negate.
+    ``std::string`` constants stay plain literals on every platform so a check never allocates.
     Generates one stateless function for ``ApplyCondition<Ts...>``.
     """
     call = check if isinstance(check, ApplyCall) else ApplyCall(check)
@@ -451,7 +457,7 @@ def register_apply_condition(
         parent = await _apply_parent(config)
         lambda_args = _apply_lambda_args(args)
         exprs = await _render_values(
-            name, call.target, members, config, parent, lambda_args
+            name, call.target, members, config, parent, lambda_args, flash_strings=False
         )
         check_lambda = LambdaExpression(
             [f"return {parent}->{call.target.format(*exprs)};"],

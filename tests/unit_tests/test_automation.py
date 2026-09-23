@@ -867,21 +867,14 @@ async def test_apply_condition_compares_config_value(
 
 
 @pytest.mark.asyncio
-async def test_apply_condition_string_constant_is_flash_string_on_esp8266(
-    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+@pytest.mark.parametrize("platform", ["esp32", "esp8266"])
+async def test_apply_condition_string_constant_is_a_plain_literal(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen, platform: str
 ) -> None:
-    check = ApplyCall("current_option() == {}", (("option", cg.std_string),))
-    await _run_apply_condition(registries, check, {"option": "two"})
-    assert f'return ::{PARENT_OBJ}->current_option() == "two";' in _apply_lambda(
-        mock_cg
-    )
-
-    mock_cg.new_pvariable.reset_mock()
-    await _run_apply_condition(registries, check, {"option": "two"}, platform="esp8266")
-    assert (
-        f'return ::{PARENT_OBJ}->current_option() == progmem_string(ESPHOME_F("two"));'
-        in _apply_lambda(mock_cg)
-    )
+    """A progmem_string copy would allocate on every check, so ESP8266 gets the literal too."""
+    check = ApplyCall("state == {}", (("state", cg.std_string),))
+    await _run_apply_condition(registries, check, {"state": "two"}, platform=platform)
+    assert f'return ::{PARENT_OBJ}->state == "two";' in _apply_lambda(mock_cg)
 
 
 def test_apply_condition_registration_checks(
