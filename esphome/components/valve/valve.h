@@ -36,19 +36,26 @@ class ValveCall : public actuator::ActuatorCallBase {
  public:
   ValveCall(Valve *parent);
 
-  // Covariant wrappers — return ValveCall& for fluent chaining compatibility
+  /// Set the command as a string, "STOP", "OPEN", "CLOSE", "TOGGLE".
   ValveCall &set_command(const char *command);
+  /// Set the command to open the valve.
   ValveCall &set_command_open();
+  /// Set the command to close the valve.
   ValveCall &set_command_close();
+  /// Set the command to stop the valve.
   ValveCall &set_command_stop();
+  /// Set the command to toggle the valve.
   ValveCall &set_command_toggle();
+  /// Set the call to a certain target position.
   ValveCall &set_position(float position);
+  /// Set whether this valve call should stop the valve.
   ValveCall &set_stop(bool stop);
 
+  /// Perform the valve call.
   void perform();
 
  private:
-  void validate() override;
+  void validate();
 };
 
 /// Struct used to store the restored state of a valve
@@ -103,7 +110,11 @@ class Valve : public actuator::ActuatorBase, public actuator::IActuator {
 
   virtual ValveTraits get_traits() = 0;
 
-  // IActuator implementation
+ protected:
+  friend ValveCall;
+
+  // IActuator implementation. Protected so these raw state accessors are only reachable through an
+  // IActuator pointer, not as Valve methods (use make_call() to move the valve).
   float get_position() const override { return this->position; }
   void set_position(float p) override { this->position = p; }
   actuator::ActuatorOperation get_operation() const override { return this->current_operation; }
@@ -111,9 +122,6 @@ class Valve : public actuator::ActuatorBase, public actuator::IActuator {
   void do_publish_state(bool save) override { this->publish_state(save); }
   optional<float> do_restore_state() override;
   const char *get_entity_name() const override { return this->get_name().c_str(); }
-
- protected:
-  friend ValveCall;
 
   virtual void control(const ValveCall &call) = 0;
 

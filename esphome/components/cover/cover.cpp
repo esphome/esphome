@@ -25,9 +25,11 @@ Cover::Cover() { this->position = COVER_OPEN; }
 // CoverCall
 //
 
-// Covariant wrapper for set_command (the only one with non-trivial base) — others are inline in cover.h
+// The other covariant wrappers are inline in cover.h
 CoverCall &CoverCall::set_command(const char *command) {
-  actuator::ActuatorCallBase::set_command(command);
+  if (!this->set_command_(command)) {
+    ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
+  }
   return *this;
 }
 
