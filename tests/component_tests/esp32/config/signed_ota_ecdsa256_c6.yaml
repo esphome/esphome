@@ -1,0 +1,10 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32c6
+  framework:
+    type: esp-idf
+    advanced:
+      signed_ota_verification:
+        signing_scheme: ecdsa256
