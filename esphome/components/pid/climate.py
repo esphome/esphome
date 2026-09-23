@@ -239,8 +239,11 @@ async def set_control_parameters(
     synchronous=True,
 )
 async def set_deadband_control_parameters_multipliers(
-    config, action_id, template_arg, args
-):
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 

@@ -42,23 +42,19 @@ sensor:
   - platform: pid
     id: pid_kp_multiplier
     climate_id: pid_climate
-    type: KP_DEADBAND_MULTIPLIER
   - platform: pid
     id: pid_ki_multiplier
     climate_id: pid_climate
-    type: KI_DEADBAND_MULTIPLIER
   - platform: pid
     id: pid_kd_multiplier
     climate_id: pid_climate
-    type: KD_DEADBAND_MULTIPLIER
   - platform: pid
     id: pid_threshold_high
     climate_id: pid_climate
-    type: DEADBAND_THRESHOLD_HIGH
   - platform: pid
     id: pid_threshold_low
     climate_id: pid_climate
-    type: DEADBAND_THRESHOLD_LOW
+    type: DEADBAND_THRESHOLD_LOW # Allows specifying type
 
 climate:
   - platform: pid
