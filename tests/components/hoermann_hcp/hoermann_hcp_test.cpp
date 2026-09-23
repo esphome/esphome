@@ -673,6 +673,27 @@ TEST(HoermannHcpPause, GivingUpDoesNotLeaveThePauseStanding) {
   EXPECT_EQ(poll_command(door).first, 0x0210);  // commands are delivered again
 }
 
+// The caller answers one more frame after the steps are over, so reporting that the settle is finished must
+// leave the pause standing. Ending it here would answer that last frame with the ordinary state, taking the
+// announcement back as the last thing said before the device goes quiet.
+TEST(HoermannHcpPause, TheSettleEndsWithThePauseStillStanding) {
+  TestableHoermannHcp door;
+  door.set_address(0x02);
+  door.pause_quiet_ms_ = 0;
+  connect_controller(door);
+  door.pause_state_ = PauseState::PAUSE_STATE_SETTLING;
+  door.pause_started_at_ = millis();
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(2));
+  ASSERT_TRUE(door.advance_pause_());
+  EXPECT_EQ(door.pause_state_, PauseState::PAUSE_STATE_SETTLING);
+
+  RegisterValues response;
+  door.on_read_holding_registers(STATE_REG, 8, response);
+  ASSERT_EQ(response.size(), 8u);
+  EXPECT_EQ(response[1], RESPONSE_PAUSE);
+}
+
 // A position the door was told to travel to survives the announcement: without a restart the door still has to
 // be stopped where it was asked to stop.
 TEST(HoermannHcpPause, AnnouncementKeepsTheTravelTarget) {

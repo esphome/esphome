@@ -73,8 +73,10 @@ class TestableHoermannHcp : public HoermannHcp {
   using HoermannHcp::is_light_toggle_pending_;
   using HoermannHcp::light_toggle_released_at_;
   using HoermannHcp::light_toggles_in_flight_;
+  using HoermannHcp::advance_pause_;
   using HoermannHcp::announcing_;
   using HoermannHcp::pause_ack_timeout_ms_;
+  using HoermannHcp::pause_started_at_;
   using HoermannHcp::pause_confirmed_;
   using HoermannHcp::pause_quiet_ms_;
   using HoermannHcp::pause_settle_ms_;

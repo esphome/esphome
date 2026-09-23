@@ -302,10 +302,8 @@ bool HoermannHcp::advance_pause_() {
     case PauseState::PAUSE_STATE_IDLE:
       // Nobody to tell: nothing has ever arrived, or nothing recently enough for anyone to still be
       // listening. A restart must not pay for that.
-      if (this->last_response_ == 0 || now - this->last_response_ > this->connection_timeout_ms_) {
-        this->end_pause_();
+      if (this->last_response_ == 0 || now - this->last_response_ > this->connection_timeout_ms_)
         return true;
-      }
       // A key press already shown to the controller has to be released first. Dropping it here would leave
       // the controller holding a key that is never let go.
       if (this->command_written_at_ != 0)
@@ -328,14 +326,11 @@ bool HoermannHcp::advance_pause_() {
       return false;
 
     case PauseState::PAUSE_STATE_SETTLING:
-      // A gap in what the controller sends us, so the last exchange is finished rather than cut short.
-      // Only frames addressed to us, so it is a courtesy rather than a guarantee, and it gives up.
-      if (now - this->last_response_ > this->pause_quiet_ms_ ||
-          now - this->pause_started_at_ >= this->pause_settle_ms_) {
-        this->end_pause_();
-        return true;
-      }
-      return false;
+      // A gap in what the controller sends us, so the last exchange is finished rather than cut short. It
+      // gives up on the clock, since the controller keeps broadcasting whether or not it is done with us.
+      // The pause is not ended here: announce_pause() has one more bus pass to make first.
+      return now - this->last_response_ > this->pause_quiet_ms_ ||
+             now - this->pause_started_at_ >= this->pause_settle_ms_;
 
     default:
       return true;
@@ -353,20 +348,23 @@ bool HoermannHcp::announce_pause() {
   this->pause_confirmed_ = false;
   this->pause_state_ = PauseState::PAUSE_STATE_IDLE;
   const uint32_t started = millis();
-  while (!this->advance_pause_() && millis() - started < this->pause_total_timeout_ms_) {
+  bool settled = false;
+  while (!(settled = this->advance_pause_()) && millis() - started < this->pause_total_timeout_ms_) {
     App.feed_wdt();
     // The loop cannot turn the hub from here, so the bus is served by hand for as long as this takes.
     this->service_bus_();
     delay(1);
   }
-  // Out of time with the announcement unfinished. It must not be left standing: the pause replaces the
-  // answer that carries key presses, so the door would stop taking commands until the next restart.
-  if (this->pause_state_ != PauseState::PAUSE_STATE_DONE) {
+  if (!settled) {
     ESP_LOGW(TAG, "Gave up announcing the pause, going quiet without it");
-    this->end_pause_();
   }
-  // One more pass, so a reply the last one parked still reaches the wire.
+  // One more pass, with the pause still standing: it lets a reply the last one parked reach the wire, and a
+  // poll caught here is answered with the pause rather than with the ordinary state, which would take the
+  // announcement back as the last thing said before going quiet.
   this->service_bus_();
+  // Ended however it went. Left standing, the pause replaces the answer that carries key presses, so a
+  // restart that never happens would leave the door taking no commands.
+  this->end_pause_();
   this->announcing_ = false;
   return this->pause_confirmed_;
 }

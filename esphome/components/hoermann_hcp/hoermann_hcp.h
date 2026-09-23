@@ -120,7 +120,8 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   /** Moves the announcement along one step and reports whether anything is left to say.
    *
    * Decides everything from the clock so it can be called repeatedly, which is what lets the restart path
-   * and the ota trigger share the same steps and makes them testable without a bus.
+   * and the ota trigger share the same steps and makes them testable without a bus. Saying there is nothing
+   * left does not end the announcement; end_pause_() does, once the caller has served the bus one last time.
    */
   bool advance_pause_();
   // Drops a command the controller has not been shown yet. Unlike drop_command_ it keeps the travel target:
