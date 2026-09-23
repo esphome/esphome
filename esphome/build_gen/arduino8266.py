@@ -913,6 +913,92 @@ def _common_parent(paths: list[Path]) -> Path:
     return Path(os.path.commonpath([str(p.parent) for p in paths]))
 
 
+class _FlagSets(NamedTuple):
+    cflags: list[str]
+    cxxflags: list[str]
+    asflags: list[str]
+
+
+def _check_install(framework: Path, src_dir: Path, include_dirs: list[Path]) -> None:
+    """Fail by naming the missing path before any tool runs."""
+    if not src_dir.is_dir():
+        # Generated project state, not install state: clean-all would not help
+        raise EsphomeError(f"Generated source directory {src_dir} is missing")
+    # A missing install directory would otherwise surface as a wall of
+    # include errors; failing here names the path instead
+    for required in include_dirs[1:]:
+        if not required.is_dir():
+            raise EsphomeError(
+                f"{_INCOMPLETE_INSTALL}: missing {required}; {_CLEAN_HINT}"
+            )
+    # The elf2bin edge runs after the full compile and link; a
+    # half-extracted package must fail here, not an hour of wall-clock later
+    for required_file in (
+        framework / "tools" / "elf2bin.py",
+        framework / "bootloaders" / "eboot" / "eboot.elf",
+    ):
+        if not required_file.is_file():
+            raise EsphomeError(
+                f"{_INCOMPLETE_INSTALL}: missing {required_file}; {_CLEAN_HINT}"
+            )
+
+
+def _resolve_flag_sets(
+    config: _BuildConfig,
+    defines: list[str],
+    includes: list[str],
+    project_compile_flags: list[str],
+    build_tokens: list[str],
+    unflags: set[str],
+) -> _FlagSets:
+    """The c/cxx/as flag sets with ``build_unflags`` applied."""
+    common = _CCFLAGS + defines + includes + project_compile_flags
+    cflags = _CFLAGS + common
+    cpp_standard = CORE.cpp_standard or "gnu++17"
+    cxxflags = (
+        ["-fno-rtti", f"-std={cpp_standard}"]
+        + ["-fexceptions" if config.exceptions else "-fno-exceptions"]
+        + common
+        + [_shell_token(f) for f in get_project_cxx_compile_flags()]
+    )
+    # PlatformIO's ASPPCOM passes only -D/-I user flags to assembly; match
+    # it (tokens arrive shell-quoted, hence the lstrip)
+    asflags = (
+        _ASFLAGS
+        + defines
+        + includes
+        + [f for f in project_compile_flags if f.lstrip("\"'").startswith(("-D", "-I"))]
+    )
+    # build_unflags applies to the framework flag sets too, as under
+    # PlatformIO; matching is whole-token, so an unflag that hits nothing
+    # anywhere must be visible
+    flag_universe = set(build_tokens)
+    for flags in (cflags, cxxflags, asflags, _LINKFLAGS):
+        flag_universe.update(flags)
+    if unmatched := sorted(unflags - flag_universe):
+        _LOGGER.warning(
+            "build_unflags entries matched no build flag: %s", ", ".join(unmatched)
+        )
+    # _LINKFLAGS stores -u and its operand as two tokens; unflagging the
+    # bare -u would strip all seven and leave the operands as ld "input
+    # files" with an error pointing nowhere near build_unflags
+    if plain := sorted(
+        u
+        for u in unflags
+        if u in _PLAIN_LINKER_OPERAND_FLAGS or u.startswith(_PLAIN_LINKER_PREFIXES)
+    ):
+        raise EsphomeError(
+            f"build_unflags cannot remove plain linker flag(s) "
+            f"{', '.join(plain)}; unflag the full -Wl, form or the symbol"
+        )
+    return _FlagSets(
+        *(
+            [f for f in flags if f not in unflags]
+            for flags in (cflags, cxxflags, asflags)
+        )
+    )
+
+
 def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     """Write the ninja build for the current configuration.
 
@@ -954,13 +1040,6 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     variant_dir = framework / "variants" / board_build["variant"]
     src_dir = CORE.relative_src_path()
 
-    if not src_dir.is_dir():
-        # Generated project state, not install state: clean-all would not help
-        raise EsphomeError(f"Generated source directory {src_dir} is missing")
-    # Completeness checks run before generate_ld_scripts spawns gcc so a
-    # half-extracted install names the missing path, not a gcc error.
-    # A missing install directory would otherwise surface as a wall of
-    # include errors; failing here names the path instead.
     include_dirs = [
         src_dir,
         sdk / "include",
@@ -969,21 +1048,9 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         sdk / "lwip2" / "include",
         variant_dir,
     ]
-    for required in include_dirs[1:]:
-        if not required.is_dir():
-            raise EsphomeError(
-                f"{_INCOMPLETE_INSTALL}: missing {required}; {_CLEAN_HINT}"
-            )
-    # The elf2bin edge runs after the full compile and link; a
-    # half-extracted package must fail here, not an hour of wall-clock later
-    for required_file in (
-        framework / "tools" / "elf2bin.py",
-        framework / "bootloaders" / "eboot" / "eboot.elf",
-    ):
-        if not required_file.is_file():
-            raise EsphomeError(
-                f"{_INCOMPLETE_INSTALL}: missing {required_file}; {_CLEAN_HINT}"
-            )
+    # Completeness checks run before generate_ld_scripts spawns gcc so a
+    # half-extracted install names the missing path, not a gcc error
+    _check_install(framework, src_dir, include_dirs)
 
     generate_ld_scripts(paths, config, flash_ld_name)
 
@@ -1002,55 +1069,13 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         project_lib_dirs,
         project_libs,
     ) = _project_flags(unflags, build_tokens)
-    defines = _defines_flags(config, flash_mode, board, board_build["defines"])
-    includes = [f"-I{_q(d)}" for d in include_dirs]
-
-    common = _CCFLAGS + defines + includes + project_compile_flags
-    cflags = _CFLAGS + common
-    cpp_standard = CORE.cpp_standard or "gnu++17"
-    cxxflags = (
-        ["-fno-rtti", f"-std={cpp_standard}"]
-        + ["-fexceptions" if config.exceptions else "-fno-exceptions"]
-        + common
-        + [_shell_token(f) for f in get_project_cxx_compile_flags()]
-    )
-    # PlatformIO's ASPPCOM passes only -D/-I user flags to assembly; match
-    # it (tokens arrive shell-quoted, hence the lstrip)
-    asflags = (
-        _ASFLAGS
-        + defines
-        + includes
-        + [f for f in project_compile_flags if f.lstrip("\"'").startswith(("-D", "-I"))]
-    )
-
-    # build_unflags applies to the framework flag sets too (compile and link),
-    # as under PlatformIO (a silently ignored ``build_unflags: -Os`` would
-    # diverge between the toolchains).
-    # Matching is whole-token, so an unflag that hits nothing in the user
-    # flags or any framework set (a typo, or -DUSE_FOO against -DUSE_FOO=1)
-    # must be visible: the user believes the flag is gone while it still
-    # drives the compile line and the knob selection
-    flag_universe = set(build_tokens)
-    for flags in (cflags, cxxflags, asflags, _LINKFLAGS):
-        flag_universe.update(flags)
-    if unmatched := sorted(unflags - flag_universe):
-        _LOGGER.warning(
-            "build_unflags entries matched no build flag: %s", ", ".join(unmatched)
-        )
-    # _LINKFLAGS stores -u and its operand as two tokens; unflagging the
-    # bare -u would strip all seven and leave the operands as ld "input
-    # files" with an error pointing nowhere near build_unflags
-    if plain := sorted(
-        u
-        for u in unflags
-        if u in _PLAIN_LINKER_OPERAND_FLAGS or u.startswith(_PLAIN_LINKER_PREFIXES)
-    ):
-        raise EsphomeError(
-            f"build_unflags cannot remove plain linker flag(s) "
-            f"{', '.join(plain)}; unflag the full -Wl, form or the symbol"
-        )
-    cflags, cxxflags, asflags = (
-        [f for f in flags if f not in unflags] for flags in (cflags, cxxflags, asflags)
+    flag_sets = _resolve_flag_sets(
+        config,
+        _defines_flags(config, flash_mode, board, board_build["defines"]),
+        [f"-I{_q(d)}" for d in include_dirs],
+        project_compile_flags,
+        build_tokens,
+        unflags,
     )
     link_flags = _filter_link_flags(unflags)
     if esp8266_data[KEY_SCANF_FLOAT]:
@@ -1138,9 +1163,9 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         "  command = $python $buildtool copy $in $out",
         "  description = COPY $out",
         "",
-        f"cflags = {' '.join(cflags)}",
-        f"cxxflags = {' '.join(cxxflags)}",
-        f"asflags = {' '.join(asflags)}",
+        f"cflags = {' '.join(flag_sets.cflags)}",
+        f"cxxflags = {' '.join(flag_sets.cxxflags)}",
+        f"asflags = {' '.join(flag_sets.asflags)}",
         f"linkflags = {' '.join(link_flags)}",
         f"libdirflags = {' '.join(f'-L{_q(d)}' for d in lib_dirs)}",
         f"libflags = {' '.join(_shell_token(f'-l{lib}') for lib in system_libs)}",
