@@ -13,8 +13,6 @@ CODEOWNERS = ["@tomaszduda23"]
 
 usb_hid_keyboard_ns = cg.esphome_ns.namespace("usb_hid_keyboard")
 USBHIDKeyboard = usb_hid_keyboard_ns.class_("USBHIDKeyboard", cg.Component)
-KeyPressAction = usb_hid_keyboard_ns.class_("KeyPressAction", automation.Action)
-KeyReleaseAction = usb_hid_keyboard_ns.class_("KeyReleaseAction", automation.Action)
 
 # Standard USB HID keyboard usage IDs (USB HID Usage Tables 1.12, Section 10)
 KEY_CODES: dict[str, int] = {
@@ -209,23 +207,19 @@ KEY_RELEASE_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "usb_hid_keyboard.press", KeyPressAction, KEY_PRESS_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "usb_hid_keyboard.press",
+    KEY_PRESS_SCHEMA,
+    automation.ApplyCall(
+        "press_key({}, {})", ((CONF_MODIFIER, cg.uint8), (CONF_KEYCODE, cg.uint8))
+    ),
 )
-async def key_press_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    cg.add(var.set_keycode(config[CONF_KEYCODE]))
-    cg.add(var.set_modifier(config[CONF_MODIFIER]))
-    return var
 
-
-@automation.register_action(
-    "usb_hid_keyboard.release", KeyReleaseAction, KEY_RELEASE_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "usb_hid_keyboard.release",
+    KEY_RELEASE_SCHEMA,
+    automation.ApplyCall("release_all()"),
 )
-async def key_release_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 async def to_code(config):

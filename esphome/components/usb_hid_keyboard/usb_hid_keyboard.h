@@ -1,7 +1,6 @@
 #pragma once
 #ifdef USE_ZEPHYR
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include <atomic>
 #include <zephyr/usb/class/usb_hid.h>
@@ -36,31 +35,6 @@ class USBHIDKeyboard : public Component {
 
   const struct device *hid_dev_{nullptr};
   std::atomic<bool> ep_ready_{false};
-};
-
-template<typename... Ts> class KeyPressAction : public Action<Ts...> {
- public:
-  explicit KeyPressAction(USBHIDKeyboard *parent) : parent_(parent) {}
-
-  void set_keycode(uint8_t keycode) { this->keycode_ = keycode; }
-  void set_modifier(uint8_t modifier) { this->modifier_ = modifier; }
-
-  void play(const Ts &...x) override { this->parent_->press_key(this->modifier_, this->keycode_); }
-
- protected:
-  USBHIDKeyboard *parent_;
-  uint8_t keycode_{0};
-  uint8_t modifier_{0};
-};
-
-template<typename... Ts> class KeyReleaseAction : public Action<Ts...> {
- public:
-  explicit KeyReleaseAction(USBHIDKeyboard *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override { this->parent_->release_all(); }
-
- protected:
-  USBHIDKeyboard *parent_;
 };
 
 extern USBHIDKeyboard *global_usb_hid_keyboard;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
