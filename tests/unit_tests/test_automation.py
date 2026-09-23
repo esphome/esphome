@@ -10,9 +10,9 @@ import pytest
 from esphome.automation import (
     ApplyAction,
     ApplyCall,
+    ApplyCondition,
     ApplyField,
     CallbackAutomation,
-    StatelessLambdaCondition,
     TriggerForwarder,
     TriggerOnFalseForwarder,
     TriggerOnTrueForwarder,
@@ -604,6 +604,20 @@ def test_shared_builders_keep_synchronous_flag(
     assert actions["my.parented"].synchronous is synchronous
 
 
+async def _run_entry(
+    entry: RegistryEntry,
+    config: dict[str, object],
+    args: list[tuple[object, str]] | None,
+    platform: str,
+) -> RegistryEntry:
+    """Run a registered builder with the given config, trigger args and platform."""
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
+    args = args or []
+    template_arg = cg.TemplateArguments(*(t for t, _ in args))
+    await entry.fun({CONF_ID: PARENT_ID, **config}, ID("obj_1"), template_arg, args)
+    return entry
+
+
 async def _run_apply_action(
     registries: tuple[Registry, Registry],
     fields: tuple[ApplyField | ApplyCall, ...],
@@ -613,14 +627,21 @@ async def _run_apply_action(
     platform: str = "esp32",
 ) -> RegistryEntry:
     """Register an apply action and run its builder with the given config."""
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
     actions, _ = registries
     register_apply_action("my.apply", None, *fields, call=call)
-    entry = actions["my.apply"]
-    args = args or []
-    template_arg = cg.TemplateArguments(*(t for t, _ in args))
-    await entry.fun({CONF_ID: PARENT_ID, **config}, ID("obj_1"), template_arg, args)
-    return entry
+    return await _run_entry(actions["my.apply"], config, args, platform)
+
+
+async def _run_apply_condition(
+    registries: tuple[Registry, Registry],
+    check: str | ApplyCall,
+    config: dict[str, object],
+    args: list[tuple[object, str]] | None = None,
+) -> RegistryEntry:
+    """Register an apply condition and run its builder with the given config."""
+    _, conditions = registries
+    register_apply_condition("my.check", None, check)
+    return await _run_entry(conditions["my.check"], config, args, "esp32")
 
 
 def _apply_lambda(mock_cg: MockCodegen) -> str:
@@ -809,31 +830,12 @@ async def test_apply_string_constant_stays_in_flash_on_esp8266(
     )
 
 
-async def _run_apply_condition(
-    registries: tuple[Registry, Registry],
-    expr: str,
-    config: dict[str, object],
-    args: list[tuple[object, str]] | None = None,
-    fields: tuple[tuple[object, ...], ...] = (),
-    platform: str = "esp32",
-) -> RegistryEntry:
-    """Register an apply condition and run its builder with the given config."""
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
-    _, conditions = registries
-    register_apply_condition("my.check", None, expr, fields)
-    entry = conditions["my.check"]
-    args = args or []
-    template_arg = cg.TemplateArguments(*(t for t, _ in args))
-    await entry.fun({CONF_ID: PARENT_ID, **config}, ID("obj_1"), template_arg, args)
-    return entry
-
-
 @pytest.mark.asyncio
 async def test_register_apply_condition_predicate(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
     entry = await _run_apply_condition(registries, "is_playing()", {})
-    assert entry.type_id is StatelessLambdaCondition
+    assert entry.type_id is ApplyCondition
     condition_id, template_arg, check = mock_cg.new_pvariable.call_args.args
     assert condition_id == ID("obj_1")
     assert str(template_arg) == "<>"
@@ -841,71 +843,26 @@ async def test_register_apply_condition_predicate(
 
 
 @pytest.mark.asyncio
-async def test_apply_condition_takes_trigger_args_by_value(
+async def test_apply_condition_takes_trigger_args_by_const_ref(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
     await _run_apply_condition(registries, "is_running()", {}, args=[(cg.int32, "x")])
     text = _apply_lambda(mock_cg)
-    assert text.startswith("[](int32_t x) -> bool {")
+    assert text.startswith("[](const std::remove_cvref_t<int32_t> & x) -> bool {")
     assert f"return ::{PARENT_OBJ}->is_running();" in text
 
 
 @pytest.mark.asyncio
-async def test_apply_condition_compares_constant_and_lambda(
+async def test_apply_condition_compares_config_value(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
-    fields = (("state", cg.bool_),)
-    await _run_apply_condition(
-        registries, "state == {}", {"state": True}, fields=fields
-    )
+    check = ApplyCall("state == {}", (("state", cg.bool_),))
+    await _run_apply_condition(registries, check, {"state": True})
     assert f"return ::{PARENT_OBJ}->state == true;" in _apply_lambda(mock_cg)
 
     mock_cg.new_pvariable.reset_mock()
-    await _run_apply_condition(
-        registries,
-        "state == {}",
-        {"state": Lambda("return x > 1;")},
-        args=[(cg.int32, "x")],
-        fields=fields,
-    )
-    assert (
-        f"return ::{PARENT_OBJ}->state == static_cast<bool>(x > 1);"
-        in _apply_lambda(mock_cg)
-    )
-
-
-@pytest.mark.asyncio
-async def test_apply_condition_string_constant(
-    registries: tuple[Registry, Registry], mock_cg: MockCodegen
-) -> None:
-    fields = (("option", cg.std_string),)
-    await _run_apply_condition(
-        registries, "current_option() == {}", {"option": "a"}, fields=fields
-    )
-    assert f'return ::{PARENT_OBJ}->current_option() == "a";' in _apply_lambda(mock_cg)
-
-    mock_cg.new_pvariable.reset_mock()
-    await _run_apply_condition(
-        registries,
-        "current_option() == {}",
-        {"option": "a"},
-        fields=fields,
-        platform="esp8266",
-    )
-    assert (
-        f'return ::{PARENT_OBJ}->current_option() == progmem_string(ESPHOME_F("a"));'
-        in _apply_lambda(mock_cg)
-    )
-
-
-@pytest.mark.asyncio
-async def test_apply_condition_requires_its_keys(
-    registries: tuple[Registry, Registry], mock_cg: MockCodegen
-) -> None:
-    with pytest.raises(EsphomeError, match="needs"):
-        await _run_apply_condition(
-            registries, "state == {}", {}, fields=(("state", cg.bool_),)
-        )
+    with pytest.raises(EsphomeError, match="needs all of"):
+        await _run_apply_condition(registries, check, {})
 
 
 def test_apply_condition_registration_checks(
@@ -914,8 +871,10 @@ def test_apply_condition_registration_checks(
     schema = cv.Schema(
         {cv.Required(CONF_ID): cv.string, cv.Optional("state"): cv.boolean}
     )
-    register_apply_condition("my.ok", schema, "state == {}", (("state", cg.bool_),))
+    register_apply_condition(
+        "my.ok", schema, ApplyCall("state == {}", (("state", cg.bool_),))
+    )
     with pytest.raises(ValueError, match="'mode' is not in the schema"):
-        register_apply_condition("my.bad", schema, "mode == {}", (("mode", cg.bool_),))
-    with pytest.raises(ValueError, match="only bare"):
-        register_apply_condition("my.bad2", schema, "{parent}->state", ())
+        register_apply_condition(
+            "my.bad", schema, ApplyCall("mode == {}", (("mode", cg.bool_),))
+        )

@@ -285,13 +285,12 @@ COVER_CONDITION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-for _name, _position in (
-    ("cover.is_open", "COVER_OPEN"),
-    ("cover.is_closed", "COVER_CLOSED"),
-):
-    automation.register_apply_condition(
-        _name, COVER_CONDITION_SCHEMA, f"position == cover::{_position}"
-    )
+automation.register_apply_condition(
+    "cover.is_open", COVER_CONDITION_SCHEMA, f"position == {COVER_OPEN}"
+)
+automation.register_apply_condition(
+    "cover.is_closed", COVER_CONDITION_SCHEMA, f"position == {COVER_CLOSED}"
+)
 
 
 @coroutine_with_priority(CoroPriority.CORE)
