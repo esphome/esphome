@@ -6,14 +6,14 @@
 
 namespace esphome::text {
 
-class TextStateTrigger : public Trigger<std::string> {
+class TextStateTrigger final : public Trigger<std::string> {
  public:
   explicit TextStateTrigger(Text *parent) {
     parent->add_on_state_callback([this](const std::string &value) { this->trigger(value); });
   }
 };
 
-template<typename... Ts> class TextSetAction : public Action<Ts...> {
+template<typename... Ts> class TextSetAction final : public Action<Ts...> {
  public:
   explicit TextSetAction(Text *text) : text_(text) {}
   TEMPLATABLE_VALUE(std::string, value)

@@ -3,11 +3,18 @@ from dataclasses import dataclass
 from esphome import automation, core
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components.const import KEY_METADATA
+from esphome.components.const import (
+    BYTE_ORDER_BIG,
+    CONF_BYTE_ORDER,
+    CONF_DRAW_ROUNDING,
+    KEY_METADATA,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
+    CONF_DIMENSIONS,
     CONF_FROM,
+    CONF_HEIGHT,
     CONF_ID,
     CONF_LAMBDA,
     CONF_PAGE_ID,
@@ -16,10 +23,11 @@ from esphome.const import (
     CONF_TO,
     CONF_TRIGGER_ID,
     CONF_UPDATE_INTERVAL,
+    CONF_WIDTH,
     SCHEDULER_DONT_RUN,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import MockObj
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.final_validate import full_config
 
 DOMAIN = "display"
 IS_PLATFORM_COMPONENT = True
@@ -159,29 +167,97 @@ async def setup_display_core_(var, config):
 class DisplayMetaData:
     width: int = 0
     height: int = 0
-    has_writer: bool = False
     has_hardware_rotation: bool = False
+    byte_order: str = BYTE_ORDER_BIG
+    has_writer: bool = False
+    rotation: int = 0
+    draw_rounding: int = 0
+
+
+def _get_metadata_list() -> list[tuple]:
+    """Get the raw metadata list. Each entry is (id, DisplayMetaData)."""
+    return CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_METADATA, [])
 
 
 def get_all_display_metadata() -> dict[str, DisplayMetaData]:
-    """Get all display metadata."""
-    return CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_METADATA, {})
+    """Get all display metadata as a dict keyed by resolved ID strings.
+
+    Must not be called before IDs have been finalised.
+    """
+    entries = _get_metadata_list()
+    assert all(id_.id is not None for id_, _ in entries), (
+        "get_all_display_metadata called before display IDs have been resolved"
+    )
+    return {id_.id: meta for id_, meta in entries}
 
 
-def get_display_metadata(display_id: str) -> DisplayMetaData | None:
-    """Get display metadata by ID for use by other components."""
-    return get_all_display_metadata().get(display_id, DisplayMetaData())
+def get_display_metadata(display_id: ID) -> DisplayMetaData:
+    """Get display metadata by ID object
+
+    Must not be called before IDs have been finalised.
+    """
+    for id_, meta in _get_metadata_list():
+        if id_ is display_id:
+            return meta
+        assert id_.id is not None, (
+            "get_display_metadata called before display IDs have been resolved"
+        )
+        if id_.id == display_id.id:
+            return meta
+    # No metadata found, display driver may not yet support it.
+    # Read the raw config to populate the returned data
+    global_config = full_config.get()
+    path = global_config.get_path_for_id(display_id)[:-1]
+    disp_config = global_config.get_config_for_path(path)
+    dimensions = disp_config.get(CONF_DIMENSIONS, (0, 0))
+    if isinstance(dimensions, dict):
+        dimensions = (dimensions.get(CONF_WIDTH, 0), dimensions.get(CONF_HEIGHT, 0))
+    elif not isinstance(dimensions, tuple) or len(dimensions) != 2:
+        dimensions = (0, 0)
+
+    meta = DisplayMetaData(
+        width=dimensions[0],
+        height=dimensions[1],
+        has_hardware_rotation=False,
+        byte_order=disp_config.get(CONF_BYTE_ORDER, cv.UNDEFINED),
+        has_writer=disp_config.get(CONF_AUTO_CLEAR_ENABLED) is True
+        or disp_config.get(CONF_PAGES) is not None
+        or disp_config.get(CONF_LAMBDA) is not None
+        or disp_config.get(CONF_SHOW_TEST_CARD) is True,
+        rotation=disp_config.get(CONF_ROTATION, 0),
+        draw_rounding=disp_config.get(CONF_DRAW_ROUNDING, 0),
+    )
+    _get_metadata_list().append((display_id, meta))
+    return meta
 
 
 def add_metadata(
-    id: str | MockObj,
+    id: ID,
     width: int,
     height: int,
-    has_writer: bool,
     has_hardware_rotation: bool = False,
+    byte_order: str = BYTE_ORDER_BIG,
+    has_writer: bool = False,
+    rotation: int = 0,
+    draw_rounding: int = 0,
 ):
-    get_all_display_metadata()[str(id)] = DisplayMetaData(
-        width, height, has_writer, has_hardware_rotation
+    entries = _get_metadata_list()
+    assert not any(existing_id is id for existing_id, _ in entries), (
+        f"Duplicate display metadata for ID {id}"
+    )
+    entries.append(
+        (
+            id,
+            DisplayMetaData(
+                width=width,
+                height=height,
+                has_hardware_rotation=has_hardware_rotation,
+                byte_order=byte_order,
+                has_writer=has_writer,
+                rotation=rotation,
+                draw_rounding=draw_rounding,
+            ),
+        )
     )
 
 

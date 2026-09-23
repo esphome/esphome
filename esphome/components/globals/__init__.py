@@ -8,7 +8,8 @@ from esphome.const import (
     CONF_TYPE,
     CONF_VALUE,
 )
-from esphome.core import CoroPriority, coroutine_with_priority
+from esphome.core import ID, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -62,7 +63,7 @@ CONFIG_SCHEMA = _globals_schema
 
 # Run with low priority so that namespaces are registered first
 @coroutine_with_priority(CoroPriority.LATE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     type_ = cg.RawExpression(config[CONF_TYPE])
     restore = config[CONF_RESTORE_VALUE]
 
@@ -104,7 +105,12 @@ async def to_code(config):
     ),
     synchronous=True,
 )
-async def globals_set_to_code(config, action_id, template_arg, args):
+async def globals_set_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
     template_arg = cg.TemplateArguments(full_id.type, *template_arg)
     var = cg.new_Pvariable(action_id, template_arg, paren)

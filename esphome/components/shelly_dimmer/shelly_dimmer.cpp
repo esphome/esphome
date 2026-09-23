@@ -207,7 +207,7 @@ bool ShellyDimmer::upgrade_firmware_() {
 
 uint16_t ShellyDimmer::convert_brightness_(float brightness) {
   // Special case for zero as only zero means turn off completely.
-  if (brightness == 0.0) {
+  if (brightness == 0.0f) {
     return 0;
   }
 

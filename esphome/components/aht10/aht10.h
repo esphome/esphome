@@ -10,7 +10,7 @@ namespace esphome::aht10 {
 
 enum AHT10Variant { AHT10, AHT20 };
 
-class AHT10Component : public PollingComponent, public i2c::I2CDevice {
+class AHT10Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;

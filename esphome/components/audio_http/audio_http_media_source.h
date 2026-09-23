@@ -23,7 +23,9 @@ namespace esphome::audio_http {
 //   - micro_decoder::DecoderListener: the underlying decoder calls back *into* us with decoded
 //     audio and state changes (we call decoder_->set_listener(this) in setup()).
 // The two set_listener() methods live on different base classes and serve opposite directions.
-class AudioHTTPMediaSource : public Component, public media_source::MediaSource, public micro_decoder::DecoderListener {
+class AudioHTTPMediaSource final : public Component,
+                                   public media_source::MediaSource,
+                                   public micro_decoder::DecoderListener {
  public:
   void setup() override;
   void loop() override;
@@ -31,6 +33,7 @@ class AudioHTTPMediaSource : public Component, public media_source::MediaSource,
 
   void set_buffer_size(size_t buffer_size) { this->buffer_size_ = buffer_size; }
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->decoder_task_stack_in_psram_ = task_stack_in_psram; }
+  void set_persistent_ring_buffer(bool persistent) { this->persistent_ring_buffer_ = persistent; }
 
   // MediaSource interface implementation
   bool play_uri(const std::string &uri) override;
@@ -52,6 +55,7 @@ class AudioHTTPMediaSource : public Component, public media_source::MediaSource,
   // on_audio_write(). Must be atomic to avoid a data race.
   std::atomic<bool> pause_{false};
   bool decoder_task_stack_in_psram_{false};
+  bool persistent_ring_buffer_{false};
 };
 
 }  // namespace esphome::audio_http

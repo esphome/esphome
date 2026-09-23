@@ -16,6 +16,8 @@
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 
+#include <gain.h>  // esp-audio-libs
+
 namespace esphome::i2s_audio {
 
 // Shared constants used by both standard and SPDIF speaker implementations
@@ -34,9 +36,7 @@ enum SpeakerEventGroupBits : uint32_t {
 
   ERR_ESP_NO_MEM = (1 << 19),
 
-  ERR_DROPPED_EVENT = (1 << 20),    // ISR overflowed the event queue, dropping a completion event
-  ERR_PARTIAL_WRITE = (1 << 21),    // i2s_channel_write returned fewer bytes than requested
-  ERR_LOCKSTEP_DESYNC = (1 << 22),  // i2s_event_queue_ and write_records_queue_ fell out of sync
+  ERR_DROPPED_EVENT = (1 << 20),  // ISR overflowed the event queue, dropping a completion event
 
   ALL_BITS = 0x00FFFFFF,  // All valid FreeRTOS event group bits
 };
@@ -77,19 +77,23 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   bool has_buffered_data() const override;
 
-  /// @brief Sets the volume of the speaker. Uses the speaker's configured audio dac component. If unavailble, it is
-  /// implemented as a software volume control. Overrides the default setter to convert the floating point volume to a
-  /// Q15 fixed-point factor.
+  /// @brief Sets the volume of the speaker. Uses the speaker's configured audio dac component. If unavailable, it is
+  /// implemented as a software volume control. Overrides the default setter to convert the volume to a dB target for
+  /// the gain ramp.
   /// @param volume between 0.0 and 1.0
   void set_volume(float volume) override;
 
-  /// @brief Mutes or unmute the speaker. Uses the speaker's configured audio dac component. If unavailble, it is
-  /// implemented as a software volume control. Overrides the default setter to convert the floating point volume to a
-  /// Q15 fixed-point factor.
+  /// @brief Mutes or unmutes the speaker. Uses the speaker's configured audio dac component. If unavailable, it is
+  /// implemented as a software volume control. Overrides the default setter to post the mute state to the gain ramp.
   /// @param mute_state true for muting, false for unmuting
   void set_mute_state(bool mute_state) override;
 
  protected:
+  /// @brief Posts the ramp target derived from the current volume and mute state. No-op when an audio dac owns
+  /// volume. Main loop only.
+  /// @param rate_samples Samples the ramp takes per dB of change; 0 adopts the target at once
+  void post_software_gain_(uint32_t rate_samples);
+
   /// @brief FreeRTOS task entry point. Casts params to I2SAudioSpeakerBase and calls run_speaker_task_().
   /// @param params I2SAudioSpeakerBase component pointer
   static void speaker_task(void *params);
@@ -128,13 +132,30 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   /// @brief Called in loop() when the task has stopped. Override for mode-specific cleanup.
   virtual void on_task_stopped() {}
 
-  /// @brief Apply software volume control using Q15 fixed-point scaling.
+  /// @brief Rebuilds the lockstep queues in place: disables the channel, credits every in-flight real frame as
+  /// played now, empties both queues, preloads silence through ``preload`` and re-enables the channel. Speaker
+  /// task only.
+  /// @param extra_frames Real frames the caller consumed that never reached a write record
+  /// @param preload Callable returning true once every DMA descriptor holds silence with a matching record
+  /// @return false if the preload or the channel enable failed; the caller should restart the task
+  template<typename F> bool resync_lockstep_(uint32_t extra_frames, F &&preload) {
+    this->drain_lockstep_(extra_frames);
+    return preload() && (i2s_channel_enable(this->tx_handle_) == ESP_OK);
+  }
+
+  /// @brief Disables the channel, credits ``extra_frames`` plus every real frame still recorded as in flight,
+  /// and empties both lockstep queues.
+  void drain_lockstep_(uint32_t extra_frames);
+
+  /// @brief Apply software volume control by running the samples through the gain ramp. Called from the
+  /// speaker task only.
   /// @param data Pointer to audio sample data (modified in place)
   /// @param bytes_read Number of bytes of audio data
   void apply_software_volume_(uint8_t *data, size_t bytes_read);
 
   /// @brief Swap adjacent 16-bit mono samples for ESP32 (non-variant) hardware quirk.
-  /// Only applies when running on original ESP32 with 16-bit mono audio.
+  /// Only applies when running on original ESP32 with 16-bit mono output. Operates on the data that is
+  /// handed to the I2S peripheral, so the check uses the output (post-narrowing) stream info.
   /// @param data Pointer to audio sample data (modified in place)
   /// @param bytes_read Number of bytes of audio data
   void swap_esp32_mono_samples_(uint8_t *data, size_t bytes_read);
@@ -154,9 +175,15 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   bool pause_state_{false};
 
-  int32_t q31_volume_factor_{INT32_MAX};
+  // Smooths software gain changes. The main loop posts targets, the speaker task processes;
+  // GainRamp's mailbox makes that safe. The main loop is the only poster.
+  esp_audio_libs::gain::GainRamp gain_ramp_;
 
-  audio::AudioStreamInfo current_stream_info_;  // The currently loaded driver's stream info
+  audio::AudioStreamInfo current_stream_info_;  // Format of the audio in the ring buffer (the I2S input)
+  // Format actually clocked out of the I2S peripheral. Same channel count and sample rate as
+  // current_stream_info_, but the bits per sample may be narrower when the incoming stream is wider than
+  // the speaker's configured slot bit width. Set by start_i2s_driver before the speaker task starts.
+  audio::AudioStreamInfo output_stream_info_;
 
   gpio_num_t dout_pin_;
   i2s_chan_handle_t tx_handle_{nullptr};

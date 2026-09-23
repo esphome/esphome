@@ -758,6 +758,13 @@ class Display : public PollingComponent {
 
   bool is_clipping() const { return !this->clipping_rectangle_.empty(); }
 
+  /// Whether (x, y) falls outside the active clipping rectangle. Tests the
+  /// stack top in place: get_clipping() is out of line and returns the Rect
+  /// by value, which per pixel drawing cannot afford.
+  bool ESPHOME_ALWAYS_INLINE is_point_clipped(int x, int y) const {
+    return this->is_clipping() && !this->clipping_rectangle_.back().inside(x, y);
+  }
+
   /** Check if pixel is within region of display.
    */
   bool clip(int x, int y);
@@ -773,6 +780,17 @@ class Display : public PollingComponent {
 
   void do_update_();
   void clear_clipping_();
+
+  /// Watchdog feed for per pixel loops. App.feed_wdt() is already rate
+  /// limited, but every call reads the clock; only every 256th pixel makes
+  /// that call, so the real feeds are unchanged and a pixel costs a counter.
+  /// At 20 us per pixel on the slowest e-paper path that is about 5 ms
+  /// between clock reads.
+  void ESPHOME_ALWAYS_INLINE feed_wdt_per_pixel_() {
+    if (++this->wdt_pixel_counter_ == 0)
+      this->feed_wdt_pixel_slow_();
+  }
+  void feed_wdt_pixel_slow_();
 
   virtual int get_height_internal() = 0;
   virtual int get_width_internal() = 0;
@@ -793,18 +811,19 @@ class Display : public PollingComponent {
   std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
   bool auto_clear_enabled_{true};
   std::vector<Rect> clipping_rectangle_;
+  uint8_t wdt_pixel_counter_{0};
   bool show_test_card_{false};
 };
 
-class DisplayPage {
+class DisplayPage final {
  public:
   DisplayPage(display_writer_t writer);
   void show();
   void show_next();
   void show_prev();
-  void set_parent(Display *parent);
-  void set_prev(DisplayPage *prev);
-  void set_next(DisplayPage *next);
+  void set_parent(Display *parent) { this->parent_ = parent; }
+  void set_prev(DisplayPage *prev) { this->prev_ = prev; }
+  void set_next(DisplayPage *next) { this->next_ = next; }
   const display_writer_t &get_writer() const;
 
  protected:
@@ -814,7 +833,10 @@ class DisplayPage {
   DisplayPage *next_{nullptr};
 };
 
-template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
+inline void Display::show_next_page() { this->page_->show_next(); }
+inline void Display::show_prev_page() { this->page_->show_prev(); }
+
+template<typename... Ts> class DisplayPageShowAction final : public Action<Ts...> {
  public:
   TEMPLATABLE_VALUE(DisplayPage *, page)
 
@@ -826,7 +848,7 @@ template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
   }
 };
 
-template<typename... Ts> class DisplayPageShowNextAction : public Action<Ts...> {
+template<typename... Ts> class DisplayPageShowNextAction final : public Action<Ts...> {
  public:
   DisplayPageShowNextAction(Display *buffer) : buffer_(buffer) {}
 
@@ -835,7 +857,7 @@ template<typename... Ts> class DisplayPageShowNextAction : public Action<Ts...> 
   Display *buffer_;
 };
 
-template<typename... Ts> class DisplayPageShowPrevAction : public Action<Ts...> {
+template<typename... Ts> class DisplayPageShowPrevAction final : public Action<Ts...> {
  public:
   DisplayPageShowPrevAction(Display *buffer) : buffer_(buffer) {}
 
@@ -844,7 +866,7 @@ template<typename... Ts> class DisplayPageShowPrevAction : public Action<Ts...> 
   Display *buffer_;
 };
 
-template<typename... Ts> class DisplayIsDisplayingPageCondition : public Condition<Ts...> {
+template<typename... Ts> class DisplayIsDisplayingPageCondition final : public Condition<Ts...> {
  public:
   DisplayIsDisplayingPageCondition(Display *parent) : parent_(parent) {}
 
@@ -856,7 +878,7 @@ template<typename... Ts> class DisplayIsDisplayingPageCondition : public Conditi
   DisplayPage *page_;
 };
 
-class DisplayOnPageChangeTrigger : public Trigger<DisplayPage *, DisplayPage *> {
+class DisplayOnPageChangeTrigger final : public Trigger<DisplayPage *, DisplayPage *> {
  public:
   explicit DisplayOnPageChangeTrigger(Display *parent) { parent->add_on_page_change_trigger(this); }
   void process(DisplayPage *from, DisplayPage *to);

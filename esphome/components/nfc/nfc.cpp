@@ -15,17 +15,6 @@ char *format_bytes_to(char *buffer, std::span<const uint8_t> bytes) {
   return format_hex_pretty_to(buffer, FORMAT_BYTES_BUFFER_SIZE, bytes.data(), bytes.size(), ' ');
 }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-// Deprecated wrappers intentionally use heap-allocating version for backward compatibility
-std::string format_uid(std::span<const uint8_t> uid) {
-  return format_hex_pretty(uid.data(), uid.size(), '-', false);  // NOLINT
-}
-std::string format_bytes(std::span<const uint8_t> bytes) {
-  return format_hex_pretty(bytes.data(), bytes.size(), ' ', false);  // NOLINT
-}
-#pragma GCC diagnostic pop
-
 uint8_t guess_tag_type(uint8_t uid_length) {
   if (uid_length == 4) {
     return TAG_TYPE_MIFARE_CLASSIC;

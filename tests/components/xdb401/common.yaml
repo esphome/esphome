@@ -1,0 +1,10 @@
+sensor:
+  - platform: xdb401
+    update_interval: 1s
+    i2c_id: i2c_bus
+
+    temperature:
+      name: water temperature
+
+    pressure:
+      name: water pressure

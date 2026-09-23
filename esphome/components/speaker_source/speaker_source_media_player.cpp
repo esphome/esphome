@@ -809,8 +809,11 @@ void SpeakerSourceMediaPlayer::set_mute_state_(bool mute_state, bool publish) {
 }
 
 void SpeakerSourceMediaPlayer::set_volume_(float volume, bool publish) {
-  // Remap the volume to fit within the configured limits
-  float bounded_volume = remap<float, float>(volume, 0.0f, 1.0f, this->volume_min_, this->volume_max_);
+  // Remap the volume to fit within the configured limits. An effectively zero volume is passed through as zero so
+  // the speaker silences it, otherwise volume_min would make it audible.
+  float bounded_volume = (volume < speaker::SILENT_VOLUME_THRESHOLD)
+                             ? 0.0f
+                             : remap<float, float>(volume, 0.0f, 1.0f, this->volume_min_, this->volume_max_);
 
   for (auto &ps : this->pipelines_) {
     if (ps.is_configured()) {
@@ -829,15 +832,6 @@ void SpeakerSourceMediaPlayer::set_volume_(float volume, bool publish) {
     }
   }
 
-  // Turn on the mute state if the volume is effectively zero, off otherwise.
-  // Pass publish=false to avoid saving twice.
-  if (volume < 0.001) {
-    this->set_mute_state_(true, false);
-  } else {
-    this->set_mute_state_(false, false);
-  }
-
-  // Save after mute mutation so the restored state has the correct is_muted_ value
   if (publish) {
     this->save_volume_restore_state_();
   }

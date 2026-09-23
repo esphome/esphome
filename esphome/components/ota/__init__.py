@@ -1,6 +1,9 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    filter_source_files_from_platform,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
@@ -12,6 +15,8 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 OTA_STATE_LISTENER_KEY = "ota_state_listener"
 
@@ -49,7 +54,7 @@ OTAStateChangeTrigger = ota_ns.class_(
 )
 
 
-def _ota_final_validate(config):
+def _ota_final_validate(config: ConfigType) -> None:
     if len(config) < 1:
         raise cv.Invalid(
             f"At least one platform must be specified for '{CONF_OTA}'; add '{CONF_PLATFORM}: {CONF_ESPHOME}' for original OTA functionality"
@@ -95,15 +100,15 @@ BASE_OTA_SCHEMA = cv.Schema(
 
 
 @coroutine_with_priority(CoroPriority.OTA_UPDATES)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_OTA")
     CORE.add_job(final_step)
 
-    if CORE.is_rp2040 and CORE.using_arduino:
+    if CORE.is_rp2 and CORE.using_arduino:
         cg.add_library("Updater", None)
 
 
-async def ota_to_code(var, config):
+async def ota_to_code(var: MockObj, config: ConfigType) -> None:
     await cg.past_safe_mode()
     use_state_callback = False
     for conf in config.get(CONF_ON_STATE_CHANGE, []):
@@ -145,20 +150,20 @@ def request_ota_state_listeners() -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def final_step():
+async def final_step() -> None:
     """Final code generation step to configure optional OTA features."""
     if CORE.data.get(OTA_STATE_LISTENER_KEY, False):
         cg.add_define("USE_OTA_STATE_LISTENER")
 
 
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_filter_backend_source_files = filter_source_files_from_platform(
     {
         "ota_backend_esp_idf.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
         "ota_backend_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
-        "ota_backend_arduino_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "ota_backend_arduino_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
         "ota_backend_arduino_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
@@ -167,3 +172,19 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "ota_backend_host.cpp": {PlatformFramework.HOST_NATIVE},
     }
 )
+
+
+# USE_OTA_SIGNED_VERIFICATION_MULTI_KEY is set only on ESP32/IDF;
+# USE_OTA_PARTITIONS is set by the esphome OTA platform when
+# allow_partition_access is enabled.
+_filter_define_source_files = filter_source_files_from_defines(
+    {
+        "ota_signature_esp_idf.cpp": "USE_OTA_SIGNED_VERIFICATION_MULTI_KEY",
+        "ota_bootloader_esp_idf.cpp": "USE_OTA_PARTITIONS",
+        "ota_partitions_esp_idf.cpp": "USE_OTA_PARTITIONS",
+    }
+)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    return _filter_backend_source_files() + _filter_define_source_files()

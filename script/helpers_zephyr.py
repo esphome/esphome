@@ -1,59 +1,32 @@
+"""Load clang-tidy idedata for the nrf52/Zephyr environment.
+
+The compile commands come from a configure-only build of a minimal Zephyr
+project using the native sdk-nrf toolchain (see
+``esphome.components.nrf52.clang_tidy``); this module extracts the include
+paths, defines and compiler flags clang-tidy needs from them.
+"""
+
 import json
+import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 
 
 def load_idedata(environment, temp_folder, platformio_ini):
-    build_environment = environment.replace("-tidy", "")
-    build_dir = Path(temp_folder) / f"build-{build_environment}"
-    Path(build_dir).mkdir(exist_ok=True)
-    Path(build_dir / "platformio.ini").write_text(
-        Path(platformio_ini).read_text(encoding="utf-8"), encoding="utf-8"
-    )
-    esphome_dir = Path(build_dir / "esphome")
-    esphome_dir.mkdir(exist_ok=True)
-    Path(esphome_dir / "main.cpp").write_text(
-        """
-#include <zephyr/kernel.h>
-int main() { return 0;}
-extern "C" void zboss_signal_handler() {};
-""",
-        encoding="utf-8",
-    )
-    zephyr_dir = Path(build_dir / "zephyr")
-    zephyr_dir.mkdir(exist_ok=True)
-    Path(zephyr_dir / "prj.conf").write_text(
-        """
-CONFIG_NEWLIB_LIBC=y
-CONFIG_BT=y
-CONFIG_ADC=y
-#mcumgr begin
-CONFIG_NET_BUF=y
-CONFIG_ZCBOR=y
-CONFIG_MCUMGR=y
-CONFIG_MCUMGR_GRP_IMG=y
-CONFIG_IMG_MANAGER=y
-CONFIG_STREAM_FLASH=y
-CONFIG_FLASH_MAP=y
-CONFIG_FLASH=y
-CONFIG_IMG_ERASE_PROGRESSIVELY=y
-CONFIG_BOOTLOADER_MCUBOOT=y
-CONFIG_MCUMGR_MGMT_NOTIFICATION_HOOKS=y
-CONFIG_MCUMGR_GRP_IMG_STATUS_HOOKS=y
-CONFIG_MCUMGR_GRP_IMG_UPLOAD_CHECK_HOOK=y
-CONFIG_MCUMGR_TRANSPORT_UART=y
-#mcumgr end
-#zigbee begin
-CONFIG_ZIGBEE=y
-CONFIG_CRYPTO=y
-CONFIG_NVS=y
-CONFIG_SETTINGS=y
-#zigbee end
-""",
-        encoding="utf-8",
-    )
-    subprocess.run(["pio", "run", "-e", build_environment, "-d", build_dir], check=True)
+    if explicit := os.environ.get("ESPHOME_ZEPHYR_COMPILE_COMMANDS"):
+        compile_commands_path = Path(explicit)
+    else:
+        from esphome.components.nrf52.clang_tidy import generate_compile_commands
+
+        work_dir = (Path(temp_folder) / f"zephyr-{environment}").resolve()
+        compile_commands_path = generate_compile_commands(
+            work_dir, Path(platformio_ini)
+        )
+
+    if not compile_commands_path.is_file():
+        raise RuntimeError(f"compile_commands.json not found: {compile_commands_path}")
 
     def extract_include_paths(command):
         include_paths = []
@@ -62,7 +35,7 @@ CONFIG_SETTINGS=y
             split_strings = re.split(
                 r"\s*-\s*(?:I|isystem)", list(filter(lambda x: x, match))[0]
             )
-            include_paths.append(split_strings[1])
+            include_paths.append(split_strings[1].strip())
         return include_paths
 
     def extract_defines(command):
@@ -73,15 +46,6 @@ CONFIG_SETTINGS=y
             for match in define_pattern.findall(command)
             if not any(match.startswith(prefix) for prefix in ignore_prefixes)
         ]
-
-    def find_cxx_path(commands):
-        for entry in commands:
-            command = entry["command"]
-            cxx_path = command.split()[0]
-            if not cxx_path.endswith("++"):
-                continue
-            return cxx_path
-        return None
 
     def get_builtin_include_paths(compiler):
         result = subprocess.run(
@@ -105,47 +69,48 @@ CONFIG_SETTINGS=y
         return include_paths
 
     def extract_cxx_flags(command):
-        # Extracts CXXFLAGS from the command string, excluding includes and defines.
+        # Extracts CXXFLAGS from the command string, excluding includes and
+        # defines. Anchored per token: a substring match would extract a bogus
+        # "-format-zero-length" from -Wno-format-zero-length.
         flag_pattern = re.compile(
-            r"(-O[0-3s]|-g|-std=[^\s]+|-Wall|-Wextra|-Werror|--[^\s]+|-f[^\s]+|-m[^\s]+|-imacros\s*[^\s]+)"
+            r"^(-O[0-3s]|-g|-std=.+|-Wall|-Wextra|-Werror|--.+|-f.+|-m.+|-imacros.+)$"
         )
-        return [
-            match.replace("-imacros ", "-imacros")
-            for match in flag_pattern.findall(command)
-        ]
+        flags = []
+        tokens = shlex.split(command)
+        for i, token in enumerate(tokens):
+            if token == "-imacros" and i + 1 < len(tokens):
+                flags.append(f"-imacros{tokens[i + 1]}")
+            elif flag_pattern.match(token):
+                flags.append(token)
+        return flags
 
     def transform_to_idedata_format(compile_commands):
-        cxx_path = find_cxx_path(compile_commands)
-        idedata = {
+        # Use only the tidy app TU (main.cpp): as the app target, its compile
+        # command already carries the full Zephyr include set. Unioning every
+        # TU instead would drag in per-library internal include dirs (e.g. the
+        # Zephyr POSIX shim, whose signal.h redefines newlib's sigset_t) that
+        # no ESPHome source compiles against.
+        entry = next(
+            (e for e in compile_commands if e["file"].endswith("main.cpp")), None
+        )
+        if entry is None:
+            raise RuntimeError("tidy main.cpp not found in compile_commands.json")
+        command = entry["command"]
+        # Find the compiler by name: the command may be prefixed with a
+        # launcher (Zephyr auto-enables ccache when present).
+        cxx_path = next((t for t in shlex.split(command) if t.endswith("++")), None)
+        if cxx_path is None:
+            raise RuntimeError(f"no C++ compiler in compile command: {command}")
+
+        return {
             "includes": {
                 "toolchain": get_builtin_include_paths(cxx_path),
-                "build": set(),
+                "build": extract_include_paths(command),
             },
-            "defines": set(),
+            "defines": extract_defines(command),
             "cxx_path": cxx_path,
-            "cxx_flags": set(),
+            "cxx_flags": extract_cxx_flags(command),
         }
 
-        for entry in compile_commands:
-            command = entry["command"]
-            exec = command.split()[0]
-            if exec != cxx_path:
-                continue
-
-            idedata["includes"]["build"].update(extract_include_paths(command))
-            idedata["defines"].update(extract_defines(command))
-            idedata["cxx_flags"].update(extract_cxx_flags(command))
-
-        # Convert sets to lists for JSON serialization
-        idedata["includes"]["build"] = list(idedata["includes"]["build"])
-        idedata["defines"] = list(idedata["defines"])
-        idedata["cxx_flags"] = list(idedata["cxx_flags"])
-
-        return idedata
-
-    compile_commands = json.loads(
-        Path(
-            build_dir / ".pio" / "build" / build_environment / "compile_commands.json"
-        ).read_text(encoding="utf-8")
-    )
+    compile_commands = json.loads(compile_commands_path.read_text(encoding="utf-8"))
     return transform_to_idedata_format(compile_commands)

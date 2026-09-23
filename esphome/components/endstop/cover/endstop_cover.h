@@ -7,7 +7,7 @@ namespace esphome::endstop {
 
 // Inheritance: EndstopCover -> EndstopActuatorBase (Component), Cover (ActuatorBase, IActuator)
 // No shared ancestors. No diamond inheritance.
-class EndstopCover : public EndstopActuatorBase, public cover::Cover {
+class EndstopCover final : public EndstopActuatorBase, public cover::Cover {
  public:
   EndstopCover() { this->set_actuator(this); }
   cover::CoverTraits get_traits() override;

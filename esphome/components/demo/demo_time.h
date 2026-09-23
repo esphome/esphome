@@ -9,7 +9,7 @@
 
 namespace esphome::demo {
 
-class DemoTime : public datetime::TimeEntity, public Component {
+class DemoTime final : public datetime::TimeEntity, public Component {
  public:
   void setup() override {
     this->hour_ = 3;
