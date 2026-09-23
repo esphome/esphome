@@ -98,7 +98,8 @@ void TFLuna::setup() {
     this->timestamp_sensor_->publish_state(timestamp);
   }
   if (this->distance_sensor_ != nullptr) {
-    this->distance_sensor_->publish_state(distance);
+    // distance is unreliable when strength is below 100 or saturated at 0xFFFF
+    this->distance_sensor_->publish_state(signal_strength < 100 || signal_strength == 0xFFFF ? NAN : distance);
   }
 
   if (this->temperature_sensor_ != nullptr) {
