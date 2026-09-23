@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
@@ -51,8 +53,6 @@ PauseAction = dfplayer_ns.class_("PauseAction", automation.Action)
 StopAction = dfplayer_ns.class_("StopAction", automation.Action)
 RandomAction = dfplayer_ns.class_("RandomAction", automation.Action)
 SetDeviceAction = dfplayer_ns.class_("SetDeviceAction", automation.Action)
-EnableLoopAction = dfplayer_ns.class_("EnableLoopAction", automation.Action)
-DisableLoopAction = dfplayer_ns.class_("DisableLoopAction", automation.Action)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -378,12 +378,19 @@ async def dfplayer_random_to_code(config, action_id, template_arg, args):
     return var
 
 
+def _bare_means_enable(value: Any) -> Any:
+    """A bare ``dfplayer.set_current_track_repeat`` arrives as an empty dict and turns repeat on."""
+    return True if value is None or value == {} else value
+
+
 automation.register_apply_action(
     "dfplayer.set_current_track_repeat",
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(DFPlayer),
-            cv.Required(CONF_ENABLE): cv.templatable(cv.boolean),
+            cv.Optional(CONF_ENABLE, default=True): cv.All(
+                _bare_means_enable, cv.templatable(cv.boolean)
+            ),
         },
         key=CONF_ENABLE,
     ),

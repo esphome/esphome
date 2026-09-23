@@ -25,6 +25,7 @@ esphome:
       - dfplayer.volume_up
       - dfplayer.volume_down
       - dfplayer.sleep
+      - dfplayer.set_current_track_repeat
       - dfplayer.set_current_track_repeat: true
       - dfplayer.set_current_track_repeat:
           enable: false
