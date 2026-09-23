@@ -270,11 +270,12 @@ def _config_lookup(config: ConfigType, key: str | tuple[str, ...]) -> Any:
 
 
 def _dict_schema(schema: Any) -> Any:
-    """The dict-backed cv.Schema inside cv.All, cv.Any and maybe_* wrappers, or None."""
+    """The dict-backed cv.Schema inside cv.All and maybe_* wrappers, or None; cv.Any is not inspected."""
     if isinstance(getattr(schema, "schema", None), dict):
         return schema
-    inner = getattr(schema, "validators", None)  # cv.All / cv.Any
-    if inner is None:
+    if isinstance(schema, cv.All):
+        inner = schema.validators
+    else:
         inner = (
             getattr(schema, "inner_schema", None),
         )  # maybe_conf / maybe_simple_value
@@ -289,7 +290,7 @@ def _check_key_in_schema(
 ) -> None:
     """Reject a key path the schema does not have; a typo would otherwise be a silent no-op.
 
-    Only dict-backed schemas, also inside cv.All, cv.Any and maybe_* wrappers, can be checked.
+    Only dict-backed schemas, also inside cv.All and maybe_* wrappers, can be checked.
     """
     for part in (conf_key,) if isinstance(conf_key, str) else conf_key:
         if (schema := _dict_schema(schema)) is None:
@@ -312,7 +313,7 @@ def register_apply_action(
 
     Generates one stateless function for ``ApplyAction<Ts...>``: parent and constants are baked
     in, lambdas are called inline with the trigger args. With ``call`` every statement targets
-    ``auto call = parent->call()`` and ``call.perform()`` is appended.
+    the call object ``auto apply_call = parent->call()``, and ``apply_call.perform()`` is appended.
     """
     statements_spec = [
         (
@@ -337,7 +338,7 @@ def register_apply_action(
             (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), arg)
             for t, arg in args
         ]
-        receiver = "call." if call else f"{parent}->"
+        receiver = "apply_call." if call else f"{parent}->"
         statements: list[str] = []
         for target, members in statements_spec:
             values = [_config_lookup(config, key) for key, _, _ in members]
@@ -364,9 +365,9 @@ def register_apply_action(
             statements.append(f"{receiver}{target.format(*exprs)};")
         if call:
             statements = [
-                f"auto call = {parent}->{call}();",
+                f"auto apply_call = {parent}->{call}();",
                 *statements,
-                "call.perform();",
+                "apply_call.perform();",
             ]
         apply_lambda = LambdaExpression(
             ["\n".join(statements)], lambda_args, capture="", return_type=cg.void

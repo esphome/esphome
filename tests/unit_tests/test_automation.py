@@ -717,9 +717,9 @@ async def test_apply_action_call_shape(
     await _run_apply_action(registries, fields, {"brightness": 0.5}, call="make_call")
     text = _apply_lambda(mock_cg)
     lines = [
-        f"auto call = {PARENT_OBJ}->make_call();",
-        "call.set_brightness(0.5f);",
-        "call.perform();",
+        f"auto apply_call = {PARENT_OBJ}->make_call();",
+        "apply_call.set_brightness(0.5f);",
+        "apply_call.perform();",
     ]
     positions = [text.index(line) for line in lines]
     assert positions == sorted(positions)
@@ -767,6 +767,8 @@ def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> Non
     register_apply_action("my.ok", schema, ApplyField("kp", "set_kp", cg.float_))
     with pytest.raises(ValueError, match="'kd' is not in the schema"):
         register_apply_action("my.bad", schema, ApplyField("kd", "set_kd", cg.float_))
+    either = cv.Any(schema, cv.Schema({cv.Optional("kd"): cv.float_}))
+    register_apply_action("my.any", either, ApplyField("kd", "set_kd", cg.float_))
     for wrapped in (
         maybe_simple_id(schema),
         cv.All(schema),
