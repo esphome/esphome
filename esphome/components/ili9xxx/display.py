@@ -31,6 +31,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, HexInt
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
 
@@ -91,7 +92,7 @@ CONF_INVERT_DISPLAY = "invert_display"
 CONF_PIXEL_MODE = "pixel_mode"
 
 
-def cmd(c, *args):
+def cmd(c: int, *args: int) -> list[int]:
     """
     Create a command sequence
     :param c: The command (8 bit)
@@ -101,7 +102,7 @@ def cmd(c, *args):
     return [c, len(args)] + list(args)
 
 
-def map_sequence(value):
+def map_sequence(value: list[int]) -> list[int]:
     """
     An initialisation sequence is a literal array of data bytes.
     The format is a repeated sequence of [CMD, <data>]
@@ -111,7 +112,7 @@ def map_sequence(value):
     return cmd(*value)
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     if (
         config.get(CONF_COLOR_PALETTE) == "IMAGE_ADAPTIVE"
         and CONF_COLOR_PALETTE_IMAGES not in config
@@ -196,7 +197,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def final_validate(config):
+def final_validate(config: ConfigType) -> None:
     global_config = full_config.get()
     # Ideally would calculate buffer size here, but that info is not available on the Python side
     needs_buffer = (
@@ -218,7 +219,7 @@ def final_validate(config):
 FINAL_VALIDATE_SCHEMA = final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     LOGGER.warning(
         "The 'ili9xxx' component is deprecated, it is recommended to use 'mipi_spi' instead."
     )
@@ -278,7 +279,7 @@ async def to_code(config):
         cg.add(var.set_buffer_color_mode(ILI9XXXColorMode.BITS_8_INDEXED))
         from PIL import Image
 
-        def load_image(filename):
+        def load_image(filename: str) -> Image.Image:
             path = CORE.relative_config_path(filename)
             try:
                 return Image.open(path)

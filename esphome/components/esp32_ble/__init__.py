@@ -22,6 +22,7 @@ from esphome.components.esp32 import (
     request_bluetooth,
 )
 from esphome.components.esp32.const import VARIANT_ESP32C2
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENABLE_ON_BOOT,
@@ -31,7 +32,8 @@ from esphome.const import (
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
 )
-from esphome.core import CORE, TimePeriod
+from esphome.core import CORE, ID, TimePeriod
+from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -383,7 +385,7 @@ def _validate_key_sizes(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _validate_key_sizes)
 
 
-def validate_variant(_):
+def validate_variant(_: ConfigType) -> None:
     variant = get_esp32_variant()
     if variant in NO_BLUETOOTH_VARIANTS:
         raise cv.Invalid(f"{variant} does not support Bluetooth")
@@ -443,7 +445,7 @@ def validate_connection_slots(max_connections: int) -> None:
     )
 
 
-def final_validation(config) -> None:
+def final_validation(config: ConfigType) -> None:
     validate_variant(config)
     if (name := config.get(CONF_NAME)) is not None:
         full_config = fv.full_config.get()
@@ -518,7 +520,7 @@ def final_validation(config) -> None:
 FINAL_VALIDATE_SCHEMA = final_validation
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_io_capability(config[CONF_IO_CAPABILITY]))
@@ -605,19 +607,41 @@ async def to_code(config):
 
 
 @automation.register_condition("ble.enabled", BLEEnabledCondition, cv.Schema({}))
-async def ble_enabled_to_code(config, condition_id, template_arg, args):
+async def ble_enabled_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     return cg.new_Pvariable(condition_id, template_arg)
 
 
 @automation.register_action(
     "ble.enable", BLEEnableAction, cv.Schema({}), synchronous=True
 )
-async def ble_enable_to_code(config, action_id, template_arg, args):
+async def ble_enable_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     return cg.new_Pvariable(action_id, template_arg)
 
 
 @automation.register_action(
     "ble.disable", BLEDisableAction, cv.Schema({}), synchronous=True
 )
-async def ble_disable_to_code(config, action_id, template_arg, args):
+async def ble_disable_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     return cg.new_Pvariable(action_id, template_arg)
+
+
+# ble_advertising.cpp is fully #ifdef'd on USE_ESP32_BLE_ADVERTISING, set
+# when advertising is enabled here or by esp32_ble_server / esp32_ble_beacon.
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"ble_advertising.cpp": "USE_ESP32_BLE_ADVERTISING"}
+)

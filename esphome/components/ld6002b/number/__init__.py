@@ -136,7 +136,7 @@ def final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
 
     for key, number_type, setter, min_value, max_value, step in (

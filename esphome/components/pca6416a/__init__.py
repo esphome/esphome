@@ -12,6 +12,8 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLUP,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@Mat931"]
 DEPENDENCIES = ["i2c"]
@@ -37,7 +39,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -45,7 +47,7 @@ async def to_code(config):
         cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
 
 
-def validate_mode(value):
+def validate_mode(value: ConfigType) -> ConfigType:
     if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
         raise cv.Invalid("Mode must be either input or output")
     if value[CONF_INPUT] and value[CONF_OUTPUT]:
@@ -74,7 +76,7 @@ PCA6416A_PIN_SCHEMA = cv.All(
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_PCA6416A, PCA6416A_PIN_SCHEMA)
-async def pca6416a_pin_to_code(config):
+async def pca6416a_pin_to_code(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_PCA6416A])
 

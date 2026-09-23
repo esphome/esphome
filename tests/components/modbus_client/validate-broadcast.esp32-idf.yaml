@@ -1,0 +1,36 @@
+# Config-only: actions that address the broadcast address (0) and wait for a reply, for a device that
+# answers it. Never compiled, so the extra action objects do not inflate the memory-impact baseline.
+packages:
+  modbus: !include ../../test_build_components/common/modbus/esp32-idf.yaml
+
+button:
+  - platform: template
+    name: Broadcast probe
+    on_press:
+      - modbus_client.read_holding_registers:
+          address: 0
+          allow_broadcast_read: true
+          start_address: 0x10
+          count: 1
+          on_response:
+            then:
+              - lambda: 'ESP_LOGI("modbus_client.test", "broadcast read first=%u", values[0]);'
+      - modbus_client.write_single_register:
+          address: 0
+          expect_broadcast_write_response: true
+          start_address: 0x0102
+          value: 42
+          on_response:
+            then:
+              - logger.log: "broadcast write acked"
+      - modbus_client.read_write_multiple_registers:
+          address: 0
+          allow_broadcast_read: true
+          read_address: 0x10
+          read_count: 1
+          write_address: 0x20
+          values: [1]
+      - modbus_client.send:
+          address: 0
+          expect_broadcast_write_response: true
+          pdu: [0x41, 0x01]
