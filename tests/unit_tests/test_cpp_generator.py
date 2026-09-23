@@ -251,6 +251,15 @@ class TestCallLambda:
         assert isinstance(result, cg.StaticCastExpression)
         assert str(result) == "static_cast<bool>(foo + 1)"
 
+    def test_call_lambda__return_with_trailing_statements_is_called(self) -> None:
+        """Only a lone return statement reduces; a longer body is called as is."""
+        lamb = cg.LambdaExpression(("return 1;\nfoo();",), (), "", ct.int_)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert str(result).endswith("}()")
+
     def test_call_lambda__return_expression_with_class_return_type_no_cast(self):
         """A class return type is not cast, since static_cast doesn't apply
         to arbitrary class types."""
