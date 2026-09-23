@@ -11,6 +11,7 @@ static const char *const TAG = "hoermann_hcp";
 static constexpr uint16_t COMMAND_REG = 0x9C41;    // Commands written by the bus controller
 static constexpr uint16_t STATE_REG = 0x9CB9;      // Internal state read back by the bus controller
 static constexpr uint16_t BROADCAST_REG = 0x9D31;  // Door status broadcast by the bus controller
+
 static constexpr float CLOSE_POSITION_THRESHOLD = 0.05f;
 static constexpr float OPEN_POSITION_THRESHOLD = 0.95f;
 // Only the parity of the outstanding toggles says where the lamp is heading, so the count must not run away.
@@ -60,6 +61,51 @@ static bool is_moving(DoorState state) {
   }
 }
 
+#ifdef USE_TEXT_SENSOR
+// The command byte of a status poll. Only its answer can carry a request.
+static constexpr uint8_t STATUS_COMMAND = 0x03;
+// A status answer with this code in the low byte of its second register asks the bus controller for a value,
+// named in the high byte of the third.
+static constexpr uint8_t ANSWER_REQUEST = 0x22;
+static constexpr uint8_t REQUEST_SERIAL = 0x05;
+static constexpr uint8_t REQUEST_FIRMWARE = 0x06;
+// A request is taken out of the answer after one poll. It is asked this many times, this far apart.
+static constexpr uint8_t IDENTITY_MAX_ATTEMPTS = 3;
+static constexpr uint32_t IDENTITY_RETRY_MS = 30000;
+// The value comes back as a payload transfer: this command in the low byte of the first command register, a sub
+// code in the high byte of the second, the payload from the third on.
+static constexpr uint8_t TRANSFER_COMMAND = 0x04;
+static constexpr uint8_t TRANSFER_SUB_SERIAL = 0x0C;
+static constexpr uint8_t TRANSFER_SUB_FIRMWARE = 0x0D;
+static constexpr uint8_t TRANSFER_ACK = 0xFD;
+static constexpr size_t TRANSFER_PAYLOAD_REG = 2;
+// Marks the first half of the serial number in the counter byte, and is not part of the count.
+static constexpr uint8_t COUNTER_FIRST_HALF = 0x80;
+static constexpr size_t SERIAL_FIRST_HALF_REGS = 7;
+static constexpr size_t SERIAL_SECOND_HALF_REGS = 6;
+static constexpr size_t FIRMWARE_REGS = 6;
+
+// Registers hold two payload bytes each, high byte first.
+static void copy_payload(const modbus::RegisterValues &registers, size_t count, char *out) {
+  for (size_t i = 0; i < count; i++) {
+    const uint16_t value = registers[TRANSFER_PAYLOAD_REG + i];
+    out[2 * i] = static_cast<char>(value >> 8);
+    out[2 * i + 1] = static_cast<char>(value);
+  }
+}
+
+// Ends the text at the first byte that is not printable, since the padding behind it varies, and cuts trailing
+// spaces. Works in place.
+static void terminate_text(char *text, size_t len) {
+  size_t at = 0;
+  while (at < len && text[at] >= 0x20 && text[at] <= 0x7E)
+    at++;
+  while (at > 0 && text[at - 1] == ' ')
+    at--;
+  text[at] = '\0';
+}
+#endif
+
 void HoermannHcp::update() {
   const uint32_t now = millis();
   // Time out the connection flag if the bus controller stopped polling.
@@ -91,6 +137,9 @@ void HoermannHcp::update() {
     ESP_LOGW(TAG, "Door did not report the lamp changing, giving up on the toggle");
     this->forget_light_toggles_();
   }
+#ifdef USE_TEXT_SENSOR
+  this->publish_identity_();
+#endif
   if (this->changed_) {
     this->changed_ = false;
     this->state_callback_.call();
@@ -102,6 +151,10 @@ void HoermannHcp::dump_config() {
                 "Hoermann HCP bridge:\n"
                 "  Modbus server address: 0x%02X",
                 this->get_address());
+#ifdef USE_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "Serial Number", this->serial_number_text_sensor_);
+  LOG_TEXT_SENSOR("  ", "Firmware Version", this->version_text_sensor_);
+#endif
 }
 
 modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
@@ -112,6 +165,14 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
   }
 
   this->record_response_();
+
+#ifdef USE_TEXT_SENSOR
+  // The payload transfer the write half of this frame took is answered instead of the usual block.
+  if (this->transfer_answer_pending_) {
+    this->push_transfer_answer_(registers, number_of_registers);
+    return {};
+  }
+#endif
 
   // 0x17 read half: STATE_REG is read back right after COMMAND_REG was written, so echo the stored message
   // counter (high byte) and command (low byte). The read length identifies which internal block is requested.
@@ -125,6 +186,9 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
       registers.push_back(static_cast<uint16_t>(0x0001 | command));
       this->push_command_registers_(registers);
       push_zeros(registers, 4);
+#ifdef USE_TEXT_SENSOR
+      this->add_identity_request_(registers, command);
+#endif
       break;
     case 2:
       // Empty command request.
@@ -156,6 +220,10 @@ modbus::ResponseStatus HoermannHcp::on_write_registers(uint16_t start_address,
     // command byte back from STATE_REG. The hub always runs the write before the read within one request.
     this->record_response_();
     this->command_reg_value_ = registers[0];
+#ifdef USE_TEXT_SENSOR
+    this->transfer_answer_pending_ = false;
+    this->take_identity_transfer_(registers);
+#endif
     return {};
   }
 
@@ -216,6 +284,122 @@ void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
   registers.push_back(command->released_value);
   registers.push_back(command->released_value_2);
 }
+
+#ifdef USE_TEXT_SENSOR
+void HoermannHcp::add_identity_request_(modbus::RegisterValues &registers, uint16_t command) {
+  if (static_cast<uint8_t>(this->command_reg_value_) != STATUS_COMMAND)
+    return;
+  // Only asked for when something shows the values, and like Hoermann's own bus accessory not before one
+  // ordinary answer has gone out.
+  if (!this->identity_started_) {
+    if (this->serial_number_text_sensor_ != nullptr || this->version_text_sensor_ != nullptr) {
+      this->identity_started_ = true;
+      this->arm_identity_request_(REQUEST_SERIAL);
+    }
+    return;
+  }
+  // A request travels in the registers a key press would, so it only goes out while none is on its way.
+  if (this->next_command_ != nullptr || registers[2] != 0 || registers[3] != 0 ||
+      !this->take_identity_request_(millis()))
+    return;
+  registers[1] = static_cast<uint16_t>(ANSWER_REQUEST | command);
+  registers[2] = static_cast<uint16_t>(this->identity_request_ << 8);
+}
+
+void HoermannHcp::arm_identity_request_(uint8_t request) {
+  this->identity_request_ = request;
+  this->identity_attempts_ = 0;
+  this->serial_first_half_seen_ = false;
+}
+
+bool HoermannHcp::take_identity_request_(uint32_t now) {
+  if (this->identity_request_ == 0)
+    return false;
+  if (this->identity_attempts_ != 0 && now - this->identity_asked_at_ <= IDENTITY_RETRY_MS)
+    return false;
+  if (this->identity_attempts_ >= IDENTITY_MAX_ATTEMPTS) {
+    this->identity_unanswered_ = this->identity_request_;
+    this->identity_request_ = 0;
+    // The firmware version does not depend on the serial number, so it is still asked for. A first half left
+    // behind must not be published as the serial number.
+    if (this->identity_unanswered_ == REQUEST_SERIAL) {
+      this->serial_number_[0] = '\0';
+      this->arm_identity_request_(REQUEST_FIRMWARE);
+    }
+    return false;
+  }
+  this->identity_attempts_++;
+  this->identity_asked_at_ = now;
+  return true;
+}
+
+void HoermannHcp::take_identity_transfer_(const modbus::RegisterValues &registers) {
+  // Without a request ever made, a transfer is none of this device's business.
+  if (!this->identity_started_ || registers.size() < TRANSFER_PAYLOAD_REG ||
+      static_cast<uint8_t>(registers[0]) != TRANSFER_COMMAND)
+    return;
+  const uint8_t counter = static_cast<uint8_t>(registers[0] >> 8);
+  const uint8_t sub_code = static_cast<uint8_t>(registers[1] >> 8);
+  if (sub_code != TRANSFER_SUB_SERIAL && sub_code != TRANSFER_SUB_FIRMWARE)
+    return;
+  // Acknowledged whether kept or not, as Hoermann's own bus accessory does, including a repeat of one already kept:
+  // answered as a status poll instead, it could carry a key press. What was not kept is asked for again.
+  this->transfer_answer_counter_ = counter & ~COUNTER_FIRST_HALF;
+  this->transfer_answer_pending_ = true;
+
+  const size_t payload_regs = registers.size() - TRANSFER_PAYLOAD_REG;
+  if (sub_code == TRANSFER_SUB_FIRMWARE) {
+    if (this->identity_request_ == REQUEST_FIRMWARE && payload_regs >= FIRMWARE_REGS) {
+      copy_payload(registers, FIRMWARE_REGS, this->firmware_version_);
+      terminate_text(this->firmware_version_, 2 * FIRMWARE_REGS);
+      this->identity_request_ = 0;
+    }
+    return;
+  }
+  if (this->identity_request_ != REQUEST_SERIAL)
+    return;
+  if ((counter & COUNTER_FIRST_HALF) != 0) {
+    if (payload_regs >= SERIAL_FIRST_HALF_REGS) {
+      copy_payload(registers, SERIAL_FIRST_HALF_REGS, this->serial_number_);
+      this->serial_first_half_seen_ = true;
+    }
+    return;
+  }
+  if (!this->serial_first_half_seen_ || payload_regs < SERIAL_SECOND_HALF_REGS)
+    return;
+  copy_payload(registers, SERIAL_SECOND_HALF_REGS, this->serial_number_ + 2 * SERIAL_FIRST_HALF_REGS);
+  terminate_text(this->serial_number_, 2 * (SERIAL_FIRST_HALF_REGS + SERIAL_SECOND_HALF_REGS));
+  this->arm_identity_request_(REQUEST_FIRMWARE);
+}
+
+void HoermannHcp::push_transfer_answer_(modbus::RegisterValues &registers, uint16_t number_of_registers) {
+  this->transfer_answer_pending_ = false;
+  const uint16_t answer[] = {static_cast<uint16_t>(this->transfer_answer_counter_ << 8),
+                             static_cast<uint16_t>((TRANSFER_COMMAND << 8) | TRANSFER_ACK)};
+  for (uint16_t i = 0; i < number_of_registers; i++)
+    registers.push_back(i < 2 ? answer[i] : 0x0000);
+}
+
+void HoermannHcp::publish_identity_() {
+  // Each buffer is cleared once published, so a filter that drops the value cannot make it go out again on every
+  // update. The serial number is only whole once the firmware version is being asked for.
+  if (this->serial_number_text_sensor_ != nullptr && this->identity_request_ != REQUEST_SERIAL &&
+      this->serial_number_[0] != '\0') {
+    this->serial_number_text_sensor_->publish_state(this->serial_number_);
+    this->serial_number_[0] = '\0';
+  }
+  if (this->version_text_sensor_ != nullptr && this->firmware_version_[0] != '\0') {
+    this->version_text_sensor_->publish_state(this->firmware_version_);
+    this->firmware_version_[0] = '\0';
+  }
+  if (this->identity_unanswered_ != 0) {
+    ESP_LOGW(TAG, "Bus controller did not send the motor's %s",
+             this->identity_unanswered_ == REQUEST_SERIAL ? LOG_STR_LITERAL("serial number")
+                                                          : LOG_STR_LITERAL("firmware version"));
+    this->identity_unanswered_ = 0;
+  }
+}
+#endif
 
 void HoermannHcp::on_position_reg_(uint16_t value) {
   // Low byte: current position.

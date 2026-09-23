@@ -35,11 +35,18 @@ inline void connect_controller(HoermannHcp &door) {
   door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000}));
 }
 
-// Runs one command poll (write 2 / read 8) and returns both key-press registers.
-inline std::pair<uint16_t, uint16_t> poll_command(HoermannHcp &door) {
-  door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000}));
+// Runs one status poll (write 2 / read 8) and returns the whole answer. The bus controller writes its counter
+// with command 0x03 here; most tests do not care and pass zero.
+inline RegisterValues status_answer(HoermannHcp &door, uint16_t command_reg = 0x0000) {
+  door.on_write_registers(COMMAND_REG, make_registers({command_reg, 0x0000}));
   RegisterValues response;
   door.on_read_holding_registers(STATE_REG, 8, response);
+  return response;
+}
+
+// Runs one command poll (write 2 / read 8) and returns both key-press registers.
+inline std::pair<uint16_t, uint16_t> poll_command(HoermannHcp &door) {
+  const RegisterValues response = status_answer(door);
   EXPECT_EQ(response.size(), 8u);
   if (response.size() != 8u)
     return {0xFFFF, 0xFFFF};
@@ -59,7 +66,12 @@ class TestableHoermannHcp : public HoermannHcp {
   TestableHoermannHcp() { this->key_press_delay_ms_ = 0; }
 
   using HoermannHcp::connection_timeout_ms_;
+#ifdef USE_TEXT_SENSOR
+  using HoermannHcp::identity_asked_at_;
+  using HoermannHcp::identity_request_;
+#endif
   using HoermannHcp::is_light_toggle_pending_;
+  using HoermannHcp::key_press_delay_ms_;
   using HoermannHcp::light_toggle_released_at_;
   using HoermannHcp::light_toggles_in_flight_;
   using HoermannHcp::set_valid_;

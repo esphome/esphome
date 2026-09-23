@@ -4,7 +4,11 @@
 
 #include "esphome/components/modbus/modbus.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 namespace esphome::hoermann_hcp {
 
@@ -35,6 +39,12 @@ struct HoermannHcpCommand {
 };
 
 class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
+#ifdef USE_TEXT_SENSOR
+  // The motor is asked for these only when one of them is configured.
+  SUB_TEXT_SENSOR(serial_number)
+  SUB_TEXT_SENSOR(version)
+#endif
+
  public:
   void update() override;
   void dump_config() override;
@@ -95,6 +105,19 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   void on_position_reg_(uint16_t value);
   void on_state_reg_(uint16_t value);
   void on_light_reg_(uint16_t value);
+#ifdef USE_TEXT_SENSOR
+  // Puts a due request for the serial number or firmware version into a status answer.
+  void add_identity_request_(modbus::RegisterValues &registers, uint16_t command);
+  void arm_identity_request_(uint8_t request);
+  // True when the request should go out now, counting it as an attempt. Gives up after the last one.
+  bool take_identity_request_(uint32_t now);
+  // The motor hands a requested value over as a payload transfer into the command block.
+  void take_identity_transfer_(const modbus::RegisterValues &registers);
+  // The acknowledgement of the transfer taken by the write half of the same frame.
+  void push_transfer_answer_(modbus::RegisterValues &registers, uint16_t number_of_registers);
+  // Runs from update(): the values arrive while the bus controller waits for an answer.
+  void publish_identity_();
+#endif
 
   void set_valid_(bool valid);
   void set_door_state_(DoorState state);
@@ -146,6 +169,21 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool light_on_{false};
   bool light_seen_{false};
   bool short_broadcast_logged_{false};
+
+#ifdef USE_TEXT_SENSOR
+  uint32_t identity_asked_at_{0};
+  // What the motor is being asked for, 0 while nothing is outstanding.
+  uint8_t identity_request_{0};
+  uint8_t identity_attempts_{0};
+  // The request given up on, for update() to report.
+  uint8_t identity_unanswered_{0};
+  uint8_t transfer_answer_counter_{0};
+  bool identity_started_{false};
+  bool serial_first_half_seen_{false};
+  bool transfer_answer_pending_{false};
+  char serial_number_[27]{};
+  char firmware_version_[13]{};
+#endif
 };
 
 }  // namespace esphome::hoermann_hcp
