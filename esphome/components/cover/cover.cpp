@@ -25,16 +25,18 @@ Cover::Cover() { this->position = COVER_OPEN; }
 // CoverCall
 //
 
-// Covariant wrapper for set_command (the only one with non-trivial base) — others are inline in cover.h
+// The other covariant wrappers are inline in cover.h
 CoverCall &CoverCall::set_command(const char *command) {
-  actuator::ActuatorCallBase::set_command(command);
+  if (!this->set_command_(command)) {
+    ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
+  }
   return *this;
 }
 
 void CoverCall::perform() {
   ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   auto traits = static_cast<Cover *>(this->parent_)->get_traits();
-  this->CoverCall::validate();
+  this->validate_();
   if (this->stop_) {
     ESP_LOGV(TAG, "  Command: STOP");
   }
@@ -54,7 +56,7 @@ void CoverCall::perform() {
   static_cast<Cover *>(this->parent_)->control(*this);
 }
 
-void CoverCall::validate() {
+void CoverCall::validate_() {
   auto traits = static_cast<Cover *>(this->parent_)->get_traits();
   const char *name = this->parent_->get_name().c_str();
 

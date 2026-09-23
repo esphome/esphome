@@ -50,7 +50,6 @@ IS_PLATFORM_COMPONENT = True
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["actuator"]
-DEPENDENCIES = ["actuator"]
 DEVICE_CLASSES = [
     DEVICE_CLASS_AWNING,
     DEVICE_CLASS_BLIND,
@@ -72,7 +71,6 @@ actuator_ns = cg.esphome_ns.namespace("actuator")
 ActuatorBase = actuator_ns.class_("ActuatorBase", cg.EntityBase)
 
 Cover = cover_ns.class_("Cover", ActuatorBase, actuator_ns.class_("IActuator"))
-CoverCall = cover_ns.class_("CoverCall", actuator_ns.class_("ActuatorCallBase"))
 
 COVER_OPEN = cover_ns.COVER_OPEN
 COVER_CLOSED = cover_ns.COVER_CLOSED
@@ -86,9 +84,9 @@ validate_cover_state = cv.enum(COVER_STATES, upper=True)
 CoverOperation = cover_ns.enum("CoverOperation")
 
 COVER_OPERATIONS = {
-    "IDLE": cover_ns.COVER_OPERATION_IDLE,
-    "OPENING": cover_ns.COVER_OPERATION_OPENING,
-    "CLOSING": cover_ns.COVER_OPERATION_CLOSING,
+    "IDLE": CoverOperation.COVER_OPERATION_IDLE,
+    "OPENING": CoverOperation.COVER_OPERATION_OPENING,
+    "CLOSING": CoverOperation.COVER_OPERATION_CLOSING,
 }
 validate_cover_operation = cv.enum(COVER_OPERATIONS, upper=True)
 

@@ -10,15 +10,15 @@ namespace esphome::actuator {
 static constexpr float ACTUATOR_OPEN = 1.0f;
 static constexpr float ACTUATOR_CLOSED = 0.0f;
 
+/// Enum encoding the current operation of an actuator.
 enum ActuatorOperation : uint8_t {
+  /// The actuator is currently idle (not moving)
   ACTUATOR_OPERATION_IDLE = 0,
+  /// The actuator is currently opening.
   ACTUATOR_OPERATION_OPENING,
+  /// The actuator is currently closing.
   ACTUATOR_OPERATION_CLOSING,
 };
-
-struct ActuatorRestoreState {
-  float position;
-} __attribute__((packed));
 
 const LogString *actuator_operation_to_str(ActuatorOperation op);
 
@@ -29,7 +29,6 @@ class ActuatorCallBase {
  public:
   explicit ActuatorCallBase(ActuatorBase *parent) : parent_(parent) {}
 
-  ActuatorCallBase &set_command(const char *command);
   ActuatorCallBase &set_command_open() {
     this->position_ = ACTUATOR_OPEN;
     return *this;
@@ -60,22 +59,30 @@ class ActuatorCallBase {
   const optional<bool> &get_toggle() const { return this->toggle_; }
 
  protected:
+  /// Apply a command given as a string ("OPEN", "CLOSE", "STOP", "TOGGLE"). Returns false if not recognized.
+  bool set_command_(const char *command);
+
   ActuatorBase *parent_;
   bool stop_{false};
   optional<float> position_{};
   optional<bool> toggle_{};
-
- private:
-  virtual void validate();
 };
 
 // Inheritance: ActuatorBase -> EntityBase
 class ActuatorBase : public EntityBase {
  public:
+  /** The position of the actuator from 0.0 (fully closed) to 1.0 (fully open).
+   *
+   * For binary actuators this is always equal to 0.0 or 1.0 (see also ACTUATOR_OPEN and
+   * ACTUATOR_CLOSED constants).
+   */
   float position{ACTUATOR_CLOSED};
+  /// The current operation of the actuator (idle, opening, closing).
   ActuatorOperation current_operation{ACTUATOR_OPERATION_IDLE};
 
+  /// Helper method to check if the actuator is fully open. Equivalent to comparing .position against 1.0
   bool is_fully_open() const;
+  /// Helper method to check if the actuator is fully closed. Equivalent to comparing .position against 0.0
   bool is_fully_closed() const;
 
   template<typename F> void add_on_state_callback(F &&f) { this->state_callback_.add(std::forward<F>(f)); }

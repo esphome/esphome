@@ -34,7 +34,6 @@ IS_PLATFORM_COMPONENT = True
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["actuator"]
-DEPENDENCIES = ["actuator"]
 
 DEVICE_CLASSES = [
     DEVICE_CLASS_EMPTY,
@@ -47,7 +46,6 @@ actuator_ns = cg.esphome_ns.namespace("actuator")
 ActuatorBase = actuator_ns.class_("ActuatorBase", cg.EntityBase)
 
 Valve = valve_ns.class_("Valve", ActuatorBase, actuator_ns.class_("IActuator"))
-ValveCall = valve_ns.class_("ValveCall", actuator_ns.class_("ActuatorCallBase"))
 
 VALVE_OPEN = valve_ns.VALVE_OPEN
 VALVE_CLOSED = valve_ns.VALVE_CLOSED
@@ -61,9 +59,9 @@ validate_valve_state = cv.enum(VALVE_STATES, upper=True)
 ValveOperation = valve_ns.enum("ValveOperation")
 
 VALVE_OPERATIONS = {
-    "IDLE": valve_ns.VALVE_OPERATION_IDLE,
-    "OPENING": valve_ns.VALVE_OPERATION_OPENING,
-    "CLOSING": valve_ns.VALVE_OPERATION_CLOSING,
+    "IDLE": ValveOperation.VALVE_OPERATION_IDLE,
+    "OPENING": ValveOperation.VALVE_OPERATION_OPENING,
+    "CLOSING": ValveOperation.VALVE_OPERATION_CLOSING,
 }
 validate_valve_operation = cv.enum(VALVE_OPERATIONS, upper=True)
 
