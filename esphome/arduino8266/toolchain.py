@@ -29,10 +29,8 @@ _MAX_RAM_SIZE = 81920
 def _warn_ignored_platformio_options() -> None:
     """Warn for component-added platformio options the native build drops.
 
-    The consumed set is exported by core/config.py next to the routing that
-    stores these options, so the two cannot drift; YAML upload_speed never
-    reaches CORE.platformio_options here.
-    """
+    The consumed set lives next to the routing in core/config.py so the
+    two cannot drift."""
     from esphome.core.config import NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS
 
     consumed = NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS
@@ -84,24 +82,20 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
 
     _warn_ignored_platformio_options()
     paths = framework.check_and_install(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
-    # Resolved once per build: the resolution probes PATH and spawns the
-    # runnability check, and three consumers need the same answer
+    # Resolved once: the probe is not free and three consumers need it
     ccache = resolve_ccache_path()
     ninja_changed = build_gen.write_project(paths, ccache)
 
     build_dir = get_build_dir()
     env = framework.get_build_env(paths.toolchain, ccache)
 
-    # Regenerate the compile DB before the build (a pure function of
-    # build.ninja); skip only when it is at least as fresh as build.ninja
-    # (an interrupted previous run may have rewritten the manifest without
-    # regenerating the DB).
+    # Regenerate the compile DB when it is older than build.ninja.
+    # Freshness rides a stamp: the DB is written via write_file_if_changed
+    # (mtime feeds get_idedata's cache), so identical content would
+    # otherwise stay "stale" forever
     compdb = build_dir / "compile_commands.json"
     compdb_stamp = build_dir / ".compile_commands.stamp"
     ninja_file = build_dir / "build.ninja"
-    # Freshness rides a stamp: the DB itself is written through
-    # write_file_if_changed (its mtime feeds get_idedata's cache), so a
-    # regeneration with identical content would stay "stale" forever
     if (
         ninja_changed
         or not compdb.is_file()
@@ -116,16 +110,14 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
         cmd.append("-v")
     if jobs := config[CONF_ESPHOME].get(CONF_COMPILE_PROCESS_LIMIT):
         cmd += ["-j", str(jobs)]
-    # Explicit targets, not the default statement: a generator defect that
-    # drops them fails loudly with "unknown target" instead of a green
-    # no-op run that leaves stale artifacts in place
+    # Explicit targets: a generator defect that drops them fails loudly
+    # instead of a green no-op run leaving stale artifacts in place
     targets = ["firmware.factory.bin", "firmware.ota.bin"]
     cmd += targets
 
-    # A dry-run probe keeps a no-op rebuild quiet: ninja would only print
-    # "no work to do". A freshly rewritten manifest all but guarantees work,
-    # so skip the probe (and its full stat pass) on that path. cwd instead
-    # of -C also drops the "Entering directory" banner on real builds.
+    # The dry-run probe keeps a no-op rebuild quiet; a rewritten manifest
+    # all but guarantees work, so skip it then. cwd (not -C) drops the
+    # "Entering directory" banner.
     skip_build = False
     if not ninja_changed:
         probe = subprocess.run(
@@ -138,9 +130,8 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
             close_fds=False,
         )
         if probe.stderr.strip():
-            # A load-time diagnostic (e.g. "multiple rules generate X")
-            # flags a generator bug; the skip branch would otherwise
-            # swallow it forever
+            # A load-time diagnostic flags a generator bug; the skip branch
+            # would otherwise swallow it forever
             _LOGGER.warning("ninja: %s", probe.stderr.strip())
         if probe.returncode != 0:
             # An unknown target here is the defective-manifest case; fall
@@ -157,9 +148,8 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
         if rc != 0:
             return rc
 
-    # ninja already refused a manifest missing the explicit targets above;
-    # existence covers the remaining hole (a rule that ran but wrote
-    # elsewhere). The factory/ota copies are what upload and OTA consume.
+    # ninja already refused missing targets; existence covers a rule that
+    # ran but wrote elsewhere
     build_dir_artifacts = (
         get_elf_path(),
         build_dir / "firmware.bin",
@@ -172,8 +162,7 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
             return 1
 
     if not _print_size_summary(build_dir, paths):
-        # The cause was already warned; name the consequence so a build
-        # contributing no RAM/Flash metric is visible to CI harnesses
+        # Cause already warned; name the consequence for CI harnesses
         _LOGGER.warning("Firmware size summary unavailable for this build")
     from esphome.build_helpers.idedata import warn_if_idedata_missing
 
@@ -230,8 +219,7 @@ def _parse_app_size(build_dir: Path, paths: framework.InstalledPaths) -> int | N
     try:
         ld_text = ld_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as err:
-        # UnicodeDecodeError: a truncated/corrupt script must degrade to
-        # the same warning, never abort an already-linked build
+        # A corrupt script degrades the same way, never aborts the build
         _LOGGER.warning("Cannot read linker script for the Flash summary: %s", err)
         return None
     app_size = segment_length(ld_text, "irom0_0_seg")
@@ -288,9 +276,8 @@ def _print_size_summary(build_dir: Path, paths: framework.InstalledPaths) -> boo
             ", ".join(sorted(missing)),
         )
         return False
-    # Resolve the flash budget before printing anything: a RAM line without
-    # its Flash line would let CI's memory-impact extraction sum the two
-    # metrics over different build counts (_parse_app_size already warned).
+    # Resolve the flash budget before printing: a RAM line without its
+    # Flash line would skew CI's memory-impact extraction
     app_size = _parse_app_size(build_dir, paths)
     if not app_size:
         return False
@@ -314,8 +301,7 @@ def get_idedata(ccache: str | None = _CCACHE_UNRESOLVED) -> dict | None:
     from esphome.build_helpers.idedata import load_or_build_idedata
 
     if ccache is _CCACHE_UNRESOLVED:
-        # Deliberately uncached: env/PATH can change between builds in a
-        # long-lived host process
+        # Uncached: env/PATH can change between builds in a host process
         ccache = resolve_ccache_path()
     return load_or_build_idedata(
         get_build_dir() / "compile_commands.json",

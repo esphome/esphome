@@ -1076,17 +1076,15 @@ def test_components(
         pattern_components[pattern] = set(found)
         all_tests.update(found)
 
-    # The flag's contract is "no test matched fails": a fully blank pattern
-    # list would otherwise slide into the reference-baseline fallback and
-    # exit green while building nothing a caller asked for
+    # A blank pattern list would slide into the reference-baseline
+    # fallback and exit green while building nothing
     if fail_on_no_tests and not any(component_patterns):
         print("No components requested (blank component list)")
         return 1
 
     if fail_on_no_tests and not all_tests:
-        # Nothing matched at all: fail before the synthetic baseline build,
-        # which would spend a compile reporting success on nothing. Partial
-        # matches defer to the per-pattern accounting after the summary.
+        # Nothing matched: fail before the synthetic baseline spends a
+        # compile reporting success on nothing
         print(f"No components found matching: {component_patterns}")
         return 1
 
@@ -1195,13 +1193,10 @@ def test_components(
 
     silent: list[str] = []
     if fail_on_no_tests:
-        # A green run that built nothing for a requested pattern (renamed
-        # fixture, missing base file, version-suffix mismatch, a wildcard
-        # matching no component) must not pass CI. Per pattern: an
-        # all-or-nothing check would let one silent pattern hide behind the
-        # others. Opt-in: some legs (the esp32-ard smoke subset)
-        # legitimately match nothing. Failing is deferred past the summary
-        # so a real failure's reproduce commands still print.
+        # A green run that built nothing for a requested pattern must not
+        # pass CI. Per pattern so one silent pattern cannot hide behind
+        # the others; opt-in because some legs legitimately match nothing;
+        # deferred past the summary so reproduce commands still print.
         built = {c for r in test_results for c in r.components}
         # A pattern is silent when it matched no fixture, or when none of
         # its matched components produced a build (wildcards included)
