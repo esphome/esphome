@@ -1961,10 +1961,8 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     return run_multiple_configs(files, build_command)
 
 
-# Native build backend per (target platform, toolchain). Keyed here rather
-# than through a platform hook so the serial upload/logs fast path never
-# imports the platform component package (see the esp32 variant comment in
-# upload_using_esptool); the platform half comes from CORE.data the same way.
+# Native build backend per (target platform, toolchain); keyed here so
+# the serial upload/logs fast path never imports the platform package
 _NATIVE_TOOLCHAIN_MODULES = {
     ("esp32", Toolchain.ESP_IDF): "esphome.espidf.toolchain",
     ("esp8266", Toolchain.ARDUINO): "esphome.arduino8266.toolchain",
@@ -2059,9 +2057,8 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
         readelf = native_toolchain.get_readelf_path()
         for tool in (objdump, readelf):
             if not tool.is_file():
-                # The analyzer would silently fall back to host binutils,
-                # which cannot read the target ELF. clean-all is heavy for
-                # ESP-IDF, so suggest a recompile first.
+                # The analyzer would silently fall back to host
+                # binutils, which cannot read the target ELF
                 _LOGGER.error(
                     "%s is missing; the toolchain install may be incomplete "
                     "(recompile, or run 'esphome clean-all' if it persists)",
