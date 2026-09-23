@@ -160,7 +160,7 @@ def test_border_router_rcp_codegen(
     assert sdkconfig["CONFIG_VFS_SUPPORT_DIR"] is True
     assert "CONFIG_ESP_COEX_SW_COEXIST_ENABLE" not in sdkconfig
     assert any(define.name == "USE_OPENTHREAD_RCP_UART" for define in CORE.defines)
-    assert "OpenThreadComponent(460800, 18, 17," in cpp_main
+    assert "OpenThreadComponent(460800, 18, 17, nullptr)" in cpp_main
 
 
 @pytest.mark.parametrize(

@@ -18,7 +18,6 @@ openthread:
     rcp:
       rx_pin: GPIO18
       tx_pin: GPIO17
-      reset_pin: GPIO16
   network_name: TestNetwork
   channel: 15
   network_key: 0x00112233445566778899AABBCCDDEEFF

@@ -135,10 +135,10 @@ void OpenThreadComponent::ot_main() {
   };
 
 #ifdef USE_OPENTHREAD_RCP_UART
-  esp_openthread_register_rcp_failure_handler(OpenThreadComponent::rcp_failure_handler);
-  esp_openthread_set_coprocessor_reset_failure_callback(OpenThreadComponent::rcp_failure_handler);
   if (this->rcp_reset_pin_ != nullptr) {
     this->rcp_reset_pin_->setup();
+    esp_openthread_register_rcp_failure_handler(OpenThreadComponent::rcp_failure_handler);
+    esp_openthread_set_coprocessor_reset_failure_callback(OpenThreadComponent::rcp_failure_handler);
     this->reset_rcp_(false);
   }
 #endif
@@ -314,8 +314,7 @@ void OpenThreadComponent::reset_rcp_(bool recovery_attempt) {
     ESP_LOGW(TAG, "RCP failure detected, reset attempt %u of %u", attempt, MAX_RESET_ATTEMPTS);
   }
   if (this->rcp_reset_pin_ == nullptr) {
-    ESP_LOGE(TAG, "RCP failure detected but no reset pin is configured");
-    this->mark_task_failed_();
+    ESP_LOGW(TAG, "RCP reset requested but no reset pin is configured");
     return;
   }
   this->rcp_reset_pin_->digital_write(true);
