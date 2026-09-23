@@ -6,7 +6,7 @@
 
 namespace esphome::opentherm {
 
-class OpenthermOutput : public output::FloatOutput, public Component, public OpenthermInput {
+class OpenthermOutput final : public output::FloatOutput, public Component, public OpenthermInput {
  protected:
   bool has_state_ = false;
   const char *id_ = nullptr;
@@ -14,7 +14,7 @@ class OpenthermOutput : public output::FloatOutput, public Component, public Ope
   float min_value_, max_value_;
 
  public:
-  float state;
+  float state{0.0f};
 
   void set_id(const char *id) { this->id_ = id; }
 

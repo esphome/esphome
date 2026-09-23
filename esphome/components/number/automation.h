@@ -6,14 +6,14 @@
 
 namespace esphome::number {
 
-class NumberStateTrigger : public Trigger<float> {
+class NumberStateTrigger final : public Trigger<float> {
  public:
   explicit NumberStateTrigger(Number *parent) {
     parent->add_on_state_callback([this](float value) { this->trigger(value); });
   }
 };
 
-template<typename... Ts> class NumberSetAction : public Action<Ts...> {
+template<typename... Ts> class NumberSetAction final : public Action<Ts...> {
  public:
   NumberSetAction(Number *number) : number_(number) {}
   TEMPLATABLE_VALUE(float, value)
@@ -28,7 +28,7 @@ template<typename... Ts> class NumberSetAction : public Action<Ts...> {
   Number *number_;
 };
 
-template<typename... Ts> class NumberOperationAction : public Action<Ts...> {
+template<typename... Ts> class NumberOperationAction final : public Action<Ts...> {
  public:
   explicit NumberOperationAction(Number *number) : number_(number) {}
   TEMPLATABLE_VALUE(NumberOperation, operation)
@@ -47,7 +47,7 @@ template<typename... Ts> class NumberOperationAction : public Action<Ts...> {
   Number *number_;
 };
 
-class ValueRangeTrigger : public Trigger<float>, public Component {
+class ValueRangeTrigger final : public Trigger<float>, public Component {
  public:
   explicit ValueRangeTrigger(Number *parent) : parent_(parent) {}
 
@@ -67,7 +67,7 @@ class ValueRangeTrigger : public Trigger<float>, public Component {
   TemplatableFn<float, float> max_{[](float) -> float { return NAN; }};
 };
 
-template<typename... Ts> class NumberInRangeCondition : public Condition<Ts...> {
+template<typename... Ts> class NumberInRangeCondition final : public Condition<Ts...> {
  public:
   NumberInRangeCondition(Number *parent) : parent_(parent) {}
 

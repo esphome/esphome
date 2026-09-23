@@ -1,17 +1,18 @@
-i2s_audio:
-  i2s_lrclk_pin: GPIO18
-  i2s_bclk_pin: GPIO19
+psram:
+  mode: quad
 
 microphone:
   - platform: i2s_audio
     id: echo_microphone
-    i2s_din_pin: GPIO17
+    i2s_audio_id: i2s_audio_bus
+    i2s_din_pin: ${mic_din_pin}
     adc_type: external
     pdm: true
     bits_per_sample: 16bit
 
 micro_wake_word:
   microphone: echo_microphone
+  task_stack_in_psram: true
   on_wake_word_detected:
     - logger.log: "Wake word detected"
     - micro_wake_word.stop:

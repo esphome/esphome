@@ -1,15 +1,15 @@
 binary_sensor:
   - platform: template
-    id: bin1
+    id: cover_test_bin
     lambda: |-
       return millis() > 10000;
 
 cover:
   - platform: template
     name: "Template Cover"
-    id: template_cover
+    id: cover_test_cover
     lambda: |-
-      if (id(bin1).state) {
+      if (id(cover_test_bin).state) {
         return COVER_OPEN;
       }
       return COVER_CLOSED;

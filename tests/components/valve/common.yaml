@@ -1,15 +1,15 @@
 binary_sensor:
   - platform: template
-    id: bin1
+    id: valve_test_bin
     lambda: |-
       return millis() > 10000;
 
 valve:
   - platform: template
     name: "Template Valve"
-    id: template_valve
+    id: valve_test_valve
     lambda: |-
-      if (id(bin1).state) {
+      if (id(valve_test_bin).state) {
         return VALVE_OPEN;
       }
       return VALVE_CLOSED;

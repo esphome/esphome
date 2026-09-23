@@ -8,7 +8,7 @@
 
 namespace esphome::pn532_i2c {
 
-class PN532I2C : public pn532::PN532, public i2c::I2CDevice {
+class PN532I2C final : public pn532::PN532, public i2c::I2CDevice {
  public:
   void dump_config() override;
 

@@ -1,0 +1,18 @@
+# Exercises the controller scan API from a lambda: scan start with
+# interval/window in 0.625 ms BLE units and the active flag, stop, and the
+# adapter MAC accessor.
+esphome:
+  on_boot:
+    then:
+      - lambda: |-
+          uint8_t mac[6];
+          id(ble).get_mac_msb_first(mac);
+          if (id(ble).scan_start(160, 48, false)) {
+            id(ble).scan_stop();
+          }
+          if (id(ble).scan_start(160, 48, true)) {
+            id(ble).scan_stop();
+          }
+
+rp2040_ble:
+  id: ble

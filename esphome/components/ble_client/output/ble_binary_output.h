@@ -11,7 +11,7 @@ namespace esphome::ble_client {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
-class BLEBinaryOutput : public output::BinaryOutput, public BLEClientNode, public Component {
+class BLEBinaryOutput final : public output::BinaryOutput, public BLEClientNode, public Component {
  public:
   void dump_config() override;
   void loop() override {}

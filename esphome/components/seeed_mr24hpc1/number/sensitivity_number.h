@@ -5,7 +5,7 @@
 
 namespace esphome::seeed_mr24hpc1 {
 
-class SensitivityNumber : public number::Number, public Parented<MR24HPC1Component> {
+class SensitivityNumber final : public number::Number, public Parented<MR24HPC1Component> {
  public:
   SensitivityNumber() = default;
 

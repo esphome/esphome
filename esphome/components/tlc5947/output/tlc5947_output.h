@@ -8,7 +8,7 @@
 
 namespace esphome::tlc5947 {
 
-class TLC5947Channel : public output::FloatOutput, public Parented<TLC5947> {
+class TLC5947Channel final : public output::FloatOutput, public Parented<TLC5947> {
  public:
   void set_channel(uint16_t channel) { this->channel_ = channel; }
 

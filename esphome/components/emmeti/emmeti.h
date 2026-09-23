@@ -60,7 +60,7 @@ struct EmmetiState {
   uint8_t checksum = 0;
 };
 
-class EmmetiClimate : public climate_ir::ClimateIR {
+class EmmetiClimate final : public climate_ir::ClimateIR {
  public:
   EmmetiClimate()
       : climate_ir::ClimateIR(EMMETI_TEMP_MIN, EMMETI_TEMP_MAX, 1.0f, true, true,

@@ -6,9 +6,9 @@
 namespace esphome::bmp581_spi {
 
 // BMP581 is technically compatible with SPI Mode0 and Mode3. Default to Mode3.
-class BMP581SPIComponent : public esphome::bmp581_base::BMP581Component,
-                           public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
-                                                 spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_200KHZ> {
+class BMP581SPIComponent final : public esphome::bmp581_base::BMP581Component,
+                                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
+                                                       spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_200KHZ> {
  public:
   void setup() override;
   bool bmp_read_byte(uint8_t a_register, uint8_t *data) override;

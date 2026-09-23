@@ -20,6 +20,10 @@ TYPE_HA_ADDON = "ha-addon"
 TYPE_LINT = "lint"
 TYPES = [TYPE_DOCKER, TYPE_HA_ADDON, TYPE_LINT]
 
+REGISTRY_GHCR = "ghcr"
+REGISTRY_DOCKERHUB = "dockerhub"
+REGISTRIES = [REGISTRY_GHCR, REGISTRY_DOCKERHUB]
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -35,6 +39,12 @@ parser.add_argument(
     "--build-type", choices=TYPES, required=True, help="The type of build to run"
 )
 parser.add_argument(
+    "--registry",
+    choices=REGISTRIES,
+    action="append",
+    help="Restrict to specific registries (default: all). May be passed multiple times.",
+)
+parser.add_argument(
     "--dry-run", action="store_true", help="Don't run any commands, just print them"
 )
 subparsers = parser.add_subparsers(
@@ -44,6 +54,11 @@ build_parser = subparsers.add_parser("build", help="Build the image")
 build_parser.add_argument("--push", help="Also push the images", action="store_true")
 build_parser.add_argument(
     "--load", help="Load the docker image locally", action="store_true"
+)
+build_parser.add_argument(
+    "--no-cache-to",
+    help="Don't write the build cache (avoids polluting the shared cache)",
+    action="store_true",
 )
 manifest_parser = subparsers.add_parser(
     "manifest", help="Create a manifest from already pushed images"
@@ -95,11 +110,14 @@ def main():
                 print("Command failed")
                 sys.exit(1)
 
+    registries = args.registry or REGISTRIES
+
     # detect channel from tag
     match = re.match(r"^(\d+\.\d+)(?:\.\d+)?(b\d+)?$", args.tag)
     major_minor_version = None
     if match is None:
-        channel = CHANNEL_DEV
+        # Custom tag (e.g. a branch name) -- push only the tag itself
+        channel = None
     elif match.group(2) is None:
         major_minor_version = match.group(1)
         channel = CHANNEL_RELEASE
@@ -128,11 +146,18 @@ def main():
             CHANNEL_DEV: "cache-dev",
             CHANNEL_BETA: "cache-beta",
             CHANNEL_RELEASE: "cache-latest",
-        }[channel]
-        cache_img = f"ghcr.io/{params.build_to}:{cache_tag}"
+        }.get(channel, "cache-dev")
+        # Cache images live alongside the pushed images; prefer GHCR when it is
+        # one of the selected registries, otherwise fall back to Docker Hub so a
+        # registry-restricted build doesn't need GHCR auth.
+        cache_prefix = "ghcr.io/" if REGISTRY_GHCR in registries else ""
+        cache_img = f"{cache_prefix}{params.build_to}:{cache_tag}"
 
-        imgs = [f"{params.build_to}:{tag}" for tag in tags_to_push]
-        imgs += [f"ghcr.io/{params.build_to}:{tag}" for tag in tags_to_push]
+        imgs = []
+        if REGISTRY_DOCKERHUB in registries:
+            imgs += [f"{params.build_to}:{tag}" for tag in tags_to_push]
+        if REGISTRY_GHCR in registries:
+            imgs += [f"ghcr.io/{params.build_to}:{tag}" for tag in tags_to_push]
 
         # 3. build
         cmd = [
@@ -155,7 +180,9 @@ def main():
         for img in imgs:
             cmd += ["--tag", img]
         if args.push:
-            cmd += ["--push", "--cache-to", f"type=registry,ref={cache_img},mode=max"]
+            cmd += ["--push"]
+            if not args.no_cache_to:
+                cmd += ["--cache-to", f"type=registry,ref={cache_img},mode=max"]
         if args.load:
             cmd += ["--load"]
 
@@ -163,20 +190,22 @@ def main():
     elif args.command == "manifest":
         manifest = DockerParams.for_type_arch(args.build_type, ARCH_AMD64).manifest_to
 
-        targets = [f"{manifest}:{tag}" for tag in tags_to_push]
-        targets += [f"ghcr.io/{manifest}:{tag}" for tag in tags_to_push]
-        # 1. Create manifests
+        targets = []
+        if REGISTRY_DOCKERHUB in registries:
+            targets += [f"{manifest}:{tag}" for tag in tags_to_push]
+        if REGISTRY_GHCR in registries:
+            targets += [f"ghcr.io/{manifest}:{tag}" for tag in tags_to_push]
+        # Use buildx imagetools (not `docker manifest`) so the per-arch sources,
+        # which buildx pushes as single-platform manifest lists, are combined
+        # and pushed correctly in one step.
         for target in targets:
-            cmd = ["docker", "manifest", "create", target]
+            cmd = ["docker", "buildx", "imagetools", "create", "--tag", target]
             for arch in ARCHS:
                 src = f"{DockerParams.for_type_arch(args.build_type, arch).build_to}:{args.tag}"
                 if target.startswith("ghcr.io"):
                     src = f"ghcr.io/{src}"
                 cmd.append(src)
             run_command(*cmd)
-        # 2. Push manifests
-        for target in targets:
-            run_command("docker", "manifest", "push", target)
 
 
 if __name__ == "__main__":

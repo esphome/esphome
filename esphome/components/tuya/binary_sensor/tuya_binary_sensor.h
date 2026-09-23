@@ -6,7 +6,7 @@
 
 namespace esphome::tuya {
 
-class TuyaBinarySensor : public binary_sensor::BinarySensor, public Component {
+class TuyaBinarySensor final : public binary_sensor::BinarySensor, public Component {
  public:
   void setup() override;
   void dump_config() override;
