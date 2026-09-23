@@ -240,6 +240,10 @@ class ApplyCall:
                 f"apply target {self.target!r} has {self.target.count('{}')} "
                 f"placeholder(s) for {len(self.args)} config key(s)"
             )
+        if any(len(arg) not in (2, 3) for arg in self.args):
+            raise ValueError(
+                f"apply target {self.target!r}: each arg is (conf_key, type_[, const_fn])"
+            )
 
 
 @dataclass(frozen=True)
@@ -283,7 +287,10 @@ def _dict_schema(schema: Any) -> Any:
 def _check_key_in_schema(
     name: str, schema: Any, conf_key: str | tuple[str, ...]
 ) -> None:
-    """Reject a key path the schema does not have; a typo would otherwise be a silent no-op."""
+    """Reject a key path the schema does not have; a typo would otherwise be a silent no-op.
+
+    Only dict-backed schemas, also inside cv.All, cv.Any and maybe_* wrappers, can be checked.
+    """
     for part in (conf_key,) if isinstance(conf_key, str) else conf_key:
         if (schema := _dict_schema(schema)) is None:
             return
@@ -308,7 +315,10 @@ def register_apply_action(
     ``auto call = parent->call()`` and ``call.perform()`` is appended.
     """
     statements_spec = [
-        (c.target, [(*arg, None)[:3] for arg in c.args])
+        (
+            c.target,
+            [(arg[0], arg[1], arg[2] if len(arg) == 3 else None) for arg in c.args],
+        )
         for c in (f if isinstance(f, ApplyCall) else f.call() for f in fields)
     ]
     for _, members in statements_spec:

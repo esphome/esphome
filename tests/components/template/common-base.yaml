@@ -493,7 +493,7 @@ valve:
     stop_action:
       - logger.log: stop_action
       # Exercise valve.control with various field combinations so the
-      # cover.control codegen paths get build coverage.
+      # valve.control codegen paths get build coverage.
       - valve.control:
           id: template_valve
           stop: true
