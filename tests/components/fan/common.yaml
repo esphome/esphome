@@ -67,7 +67,7 @@ binary_sensor:
       return false;
 
 # Exercise fan.turn_on with various field combinations so the
-# TurnOnAction codegen paths get build coverage.
+# register_apply_action codegen paths get build coverage.
 button:
   - platform: template
     name: "Fan Speed Only"
