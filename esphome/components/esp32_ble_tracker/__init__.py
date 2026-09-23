@@ -39,8 +39,7 @@ from esphome.const import (
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
 )
-from esphome.core import CORE, ID, CoroPriority, TimePeriod, coroutine_with_priority
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 from esphome.enum import StrEnum
 from esphome.types import ConfigType
 
@@ -116,12 +115,6 @@ BLEEndOfScanTrigger = esp32_ble_tracker_ns.class_(
     "BLEEndOfScanTrigger", automation.Trigger.template()
 )
 # Actions
-ESP32BLEStartScanAction = esp32_ble_tracker_ns.class_(
-    "ESP32BLEStartScanAction", automation.Action
-)
-ESP32BLEStopScanAction = esp32_ble_tracker_ns.class_(
-    "ESP32BLEStopScanAction", automation.Action
-)
 
 
 def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
@@ -469,23 +462,12 @@ ESP32_BLE_START_SCAN_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "esp32_ble_tracker.start_scan",
-    ESP32BLEStartScanAction,
     ESP32_BLE_START_SCAN_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_CONTINUOUS, "set_scan_continuous", cg.bool_),
+    automation.ApplyCall("start_scan_if_idle()"),
 )
-async def esp32_ble_tracker_start_scan_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_CONTINUOUS], args, cg.bool_)
-    cg.add(var.set_continuous(template_))
-    return var
 
 
 ESP32_BLE_STOP_SCAN_ACTION_SCHEMA = automation.maybe_simple_id(
@@ -497,21 +479,11 @@ ESP32_BLE_STOP_SCAN_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "esp32_ble_tracker.stop_scan",
-    ESP32BLEStopScanAction,
     ESP32_BLE_STOP_SCAN_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("stop_scan()"),
 )
-async def esp32_ble_tracker_stop_scan_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 async def register_ble_device(
