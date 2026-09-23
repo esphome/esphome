@@ -5,11 +5,6 @@
 
 namespace esphome::tas2780 {
 
-template<typename... Ts> class ResetAction : public Action<Ts...>, public Parented<TAS2780> {
- public:
-  void play(const Ts &...x) override { this->parent_->reset(); }
-};
-
 template<typename... Ts> class ActivateAction : public Action<Ts...>, public Parented<TAS2780> {
  public:
   TEMPLATABLE_VALUE(uint8_t, power_mode)
@@ -50,11 +45,6 @@ template<typename... Ts> class UpdateConfigAction : public Action<Ts...>, public
       this->parent_->set_volume(this->parent_->volume());
     }
   }
-};
-
-template<typename... Ts> class DeactivateAction : public Action<Ts...>, public Parented<TAS2780> {
- public:
-  void play(const Ts &...x) override { this->parent_->deactivate(); }
 };
 
 }  // namespace esphome::tas2780

@@ -4,6 +4,9 @@ from esphome.components import i2c
 from esphome.components.audio_dac import AudioDac
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID, CONF_POWER_MODE
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -17,10 +20,6 @@ CHANNELS = {
     "right": ChannelSelect.RIGHT_CHANNEL,
 }
 
-ResetAction = tas2780_ns.class_(
-    "ResetAction", automation.Action, cg.Parented.template(TAS2780)
-)
-
 ActivateAction = tas2780_ns.class_(
     "ActivateAction", automation.Action, cg.Parented.template(TAS2780)
 )
@@ -29,16 +28,12 @@ UpdateConfigAction = tas2780_ns.class_(
     "UpdateConfigAction", automation.Action, cg.Parented.template(TAS2780)
 )
 
-DeactivateAction = tas2780_ns.class_(
-    "DeactivateAction", automation.Action, cg.Parented.template(TAS2780)
-)
-
 CONF_VOL_RANGE_MIN = "vol_range_min"
 CONF_VOL_RANGE_MAX = "vol_range_max"
 CONF_AMP_LEVEL = "amp_level"
 
 
-def _validate_vol_range(config):
+def _validate_vol_range(config: ConfigType) -> ConfigType:
     if config[CONF_VOL_RANGE_MIN] >= config[CONF_VOL_RANGE_MAX]:
         raise cv.Invalid(f"{CONF_VOL_RANGE_MIN} must be less than {CONF_VOL_RANGE_MAX}")
     return config
@@ -70,40 +65,38 @@ TAS2780_BASE_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(TAS2780)})
 TAS2780_ACTIVATE_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(TAS2780),
-        cv.Optional(CONF_POWER_MODE, default=2): cv.templatable(
-            cv.int_range(min=0, max=3)
-        ),
+        cv.Optional(CONF_POWER_MODE): cv.templatable(cv.int_range(min=0, max=3)),
     }
 )
 
 
-@automation.register_action(
-    "tas2780.deactivate", DeactivateAction, TAS2780_BASE_ACTION_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "tas2780.deactivate",
+    TAS2780_BASE_ACTION_SCHEMA,
+    automation.ApplyCall("deactivate()"),
 )
-async def tas2780_deactivate_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
-
-@automation.register_action(
-    "tas2780.reset", ResetAction, TAS2780_BASE_ACTION_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "tas2780.reset",
+    TAS2780_BASE_ACTION_SCHEMA,
+    automation.ApplyCall("reset()"),
 )
-async def tas2780_reset_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 @automation.register_action(
     "tas2780.activate", ActivateAction, TAS2780_ACTIVATE_ACTION_SCHEMA, synchronous=True
 )
-async def tas2780_activate_to_code(config, action_id, template_arg, args):
+async def tas2780_activate_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    power_mode = config.get(CONF_POWER_MODE)
-    template = await cg.templatable(power_mode, args, cg.uint8)
-    cg.add(var.set_power_mode(template))
+    if (power_mode := config.get(CONF_POWER_MODE)) is not None:
+        template = await cg.templatable(power_mode, args, cg.uint8)
+        cg.add(var.set_power_mode(template))
     return var
 
 
@@ -128,7 +121,12 @@ TAS2780_UPDATE_CONFIG_SCHEMA = cv.Schema(
     TAS2780_UPDATE_CONFIG_SCHEMA,
     synchronous=True,
 )
-async def tas2780_update_config_to_code(config, action_id, template_arg, args):
+async def tas2780_update_config_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     if (val := config.get(CONF_VOL_RANGE_MIN)) is not None:
@@ -146,7 +144,7 @@ async def tas2780_update_config_to_code(config, action_id, template_arg, args):
     return var
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

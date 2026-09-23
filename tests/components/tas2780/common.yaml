@@ -13,10 +13,9 @@ esphome:
   on_boot:
     - tas2780.activate:
         id: tas2780_amp
-        power_mode: 2
     - tas2780.activate:
         id: tas2780_amp
-        power_mode: 2
+        power_mode: 1
     - tas2780.update_config:
         id: tas2780_amp
         amp_level: 10

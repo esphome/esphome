@@ -42,7 +42,8 @@ class TAS2780 : public audio_dac::AudioDac, public PollingComponent, public i2c:
   bool write_mode_ctrl_(uint8_t mode);
   bool write_mute_();
   bool write_volume_();
-  void log_error_states_();
+  bool log_error_states_();
+  void clear_latches_();
 
   float volume_{0};
   float vol_range_min_{0.3f};

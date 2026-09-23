@@ -276,10 +276,6 @@ void TAS2780::setup() {
   this->init_();
   if (this->is_failed())
     return;
-  if (!this->write_volume_()) {
-    this->mark_failed();
-    return;
-  }
   this->write_mode_ctrl_(TAS2780_MODE_CTRL_MODE_SFTW_SHTDWN);
 }
 
@@ -371,6 +367,12 @@ void TAS2780::init_() {
   this->reg(TAS2780_INT_CLK_CFG) = (int_clk_cfg & ~TAS2780_INT_CLK_CFG_MODE_MASK) | TAS2780_INT_CLK_CFG_MODE_LIVE;
 
   this->apply_amp_and_channel_config();
+
+  // Software reset sets DVC back to 0 dB (full volume)
+  if (!this->write_volume_()) {
+    ESP_LOGE(TAG, "Failed to write volume");
+    this->mark_failed();
+  }
 }
 
 void TAS2780::activate() { this->activate(this->power_mode_); }
@@ -381,11 +383,7 @@ void TAS2780::activate(uint8_t power_mode) {
     return;
   }
   ESP_LOGD(TAG, "Activating (PWR_MODE:%d)", power_mode);
-  // clear interrupt latches without disturbing other INT_CLK_CFG bits
-  uint8_t int_clk_cfg;
-  if (this->read_byte(TAS2780_INT_CLK_CFG, &int_clk_cfg)) {
-    this->reg(TAS2780_INT_CLK_CFG) = int_clk_cfg | TAS2780_INT_CLK_CFG_CLR_LATCH;
-  }
+  this->clear_latches_();
   if (power_mode != this->power_mode_) {
     this->power_mode_ = power_mode;
     this->init_();
@@ -427,10 +425,19 @@ void TAS2780::set_power_mode_(uint8_t power_mode) {
                                (POWER_MODES[power_mode][1] << TAS2780_DC_BLK0_VBAT1S_MODE_SHIFT);
 }
 
-void TAS2780::log_error_states_() {
+void TAS2780::clear_latches_() {
+  // Clear interrupt latches without disturbing other INT_CLK_CFG bits
+  uint8_t int_clk_cfg;
+  if (this->read_byte(TAS2780_INT_CLK_CFG, &int_clk_cfg)) {
+    this->reg(TAS2780_INT_CLK_CFG) = int_clk_cfg | TAS2780_INT_CLK_CFG_CLR_LATCH;
+  }
+}
+
+// Returns true if any latched interrupt flag is set
+bool TAS2780::log_error_states_() {
   uint8_t latched_its;
   if (!this->read_byte(TAS2780_INT_LTCH0, &latched_its))
-    return;
+    return false;
 
   if (latched_its & TAS2780_INT_LTCH0_IR_OT) {
     ESP_LOGE(TAG, "Over temperature error");
@@ -459,7 +466,7 @@ void TAS2780::log_error_states_() {
 
   uint8_t latched1_its;
   if (!this->read_byte(TAS2780_INT_LTCH1, &latched1_its))
-    return;
+    return latched_its != 0;
 
   if (latched1_its & TAS2780_INT_LTCH1_IR_VBATLIM) {
     ESP_LOGE(TAG, "Gain Limiter interrupt");
@@ -476,7 +483,7 @@ void TAS2780::log_error_states_() {
 
   uint8_t latched1_0_its;
   if (!this->read_byte(TAS2780_INT_LTCH1_0, &latched1_0_its))
-    return;
+    return (latched_its | latched1_its) != 0;
 
   if (latched1_0_its & TAS2780_INT_LTCH1_0_IR_VBAT1S_UVLO) {
     ESP_LOGE(TAG, "VBAT1S Under Voltage");
@@ -487,7 +494,7 @@ void TAS2780::log_error_states_() {
 
   uint8_t latched2_its;
   if (!this->read_byte(TAS2780_INT_LTCH2, &latched2_its))
-    return;
+    return (latched_its | latched1_its | latched1_0_its) != 0;
 
   if (latched2_its & TAS2780_INT_LTCH2_IR_PUVLO) {
     ESP_LOGE(TAG, "PVDD UVLO");
@@ -501,19 +508,24 @@ void TAS2780::log_error_states_() {
   if (latched2_its & TAS2780_INT_LTCH2_IR_LDO_UV) {
     ESP_LOGE(TAG, "Internal VBAT1S LDO Under Voltage");
   }
+  return (latched_its | latched1_its | latched1_0_its | latched2_its) != 0;
 }
 
-void TAS2780::update() { this->log_error_states_(); }
+void TAS2780::update() {
+  // Latches hold until cleared; without this the same events are logged on every update
+  if (this->log_error_states_())
+    this->clear_latches_();
+}
 
 void TAS2780::dump_config() {
   ESP_LOGCONFIG(TAG, "Audio Amplifier:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  const char *channel_str = "Mono Downmix";
+  const char *channel_str = LOG_STR_LITERAL("Mono Downmix");
   if (this->selected_channel_ == LEFT_CHANNEL) {
-    channel_str = "Left";
+    channel_str = LOG_STR_LITERAL("Left");
   } else if (this->selected_channel_ == RIGHT_CHANNEL) {
-    channel_str = "Right";
+    channel_str = LOG_STR_LITERAL("Right");
   }
   ESP_LOGCONFIG(TAG,
                 "  Power Mode: %u\n"
