@@ -15,6 +15,8 @@ TFLunaComponent = tfluna_ns.class_("TFLuna", cg.PollingComponent, i2c.I2CDevice)
 CONF_TFLUNA_ID = "tfluna_id"
 CONF_TIMESTAMP = "timestamp"
 
+FACTORY_DEFAULT_ADDRESS = 0x10
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -22,7 +24,7 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("1s"))
-    .extend(i2c.i2c_device_schema(0x10))
+    .extend(i2c.i2c_device_schema(FACTORY_DEFAULT_ADDRESS))
 )
 
 

@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADDRESS,
     CONF_FACTORY_RESET,
     CONF_RESTART,
     DEVICE_CLASS_RESTART,
@@ -10,9 +11,10 @@ from esphome.const import (
     ICON_RESTART,
     ICON_RESTART_ALERT,
 )
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import CONF_TFLUNA_ID, TFLunaComponent, tfluna_ns
+from .. import CONF_TFLUNA_ID, FACTORY_DEFAULT_ADDRESS, TFLunaComponent, tfluna_ns
 
 DEPENDENCIES = ["tfluna"]
 
@@ -34,6 +36,28 @@ CONFIG_SCHEMA = {
         icon=ICON_RESTART,
     ),
 }
+
+
+def _validate_factory_default_address(config: ConfigType) -> ConfigType:
+    if config.get(CONF_ADDRESS) != FACTORY_DEFAULT_ADDRESS:
+        raise cv.Invalid(
+            f"'{CONF_FACTORY_RESET}' requires the TF-Luna to use its factory default "
+            f"I2C address 0x{FACTORY_DEFAULT_ADDRESS:02X}, as a factory reset "
+            "restores that address",
+            path=[CONF_ADDRESS],
+        )
+    return config
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    if CONF_FACTORY_RESET in config:
+        fv.id_declaration_match_schema(_validate_factory_default_address)(
+            config[CONF_TFLUNA_ID]
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
