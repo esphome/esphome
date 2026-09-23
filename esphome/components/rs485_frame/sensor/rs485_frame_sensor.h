@@ -9,7 +9,14 @@ namespace esphome::rs485_frame {
 /// Diagnostic sensor that publishes a hub state value (frames received, CRC failures,
 /// queue depth, etc.) on change only. User payload decoding is done via on_frame: +
 /// globals: + template sensors; this platform is only for hub diagnostics.
-class RS485FrameSensor : public sensor::Sensor, public Component {
+///
+/// A PollingComponent rather than a plain loop()-driven Component: some decodes (notably
+/// frames_received and last_keepalive_ms) change on nearly every RX frame, and publishing
+/// on every main-loop pass where the value differs floods the API connection and the HA
+/// recorder even though the change-filter is doing its job. update() keeps the same
+/// publish-only-on-change behavior, now run once per update_interval: instead of once per
+/// loop iteration.
+class RS485FrameSensor : public sensor::Sensor, public PollingComponent {
  public:
   void set_parent(RS485FrameHub *parent) { this->parent_ = parent; }
   void set_decode(SensorDecode decode) { this->decode_ = decode; }
@@ -23,7 +30,7 @@ class RS485FrameSensor : public sensor::Sensor, public Component {
   }
 #endif
 
-  void loop() override {
+  void update() override {
     if (this->parent_ == nullptr)
       return;
     float value = 0.0f;
@@ -59,14 +66,13 @@ class RS485FrameSensor : public sensor::Sensor, public Component {
       }
     }
     // Publish only on change: sensor::Sensor::publish_state does not deduplicate
-    // internally, so we gate here to avoid per-loop API/log traffic when idle.
+    // internally, so we gate here to avoid API/log traffic on every poll when idle.
     if (!this->has_published_ || value != this->last_value_) {
       this->publish_state(value);
       this->last_value_ = value;
       this->has_published_ = true;
     }
   }
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   RS485FrameHub *parent_{nullptr};

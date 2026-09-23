@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_NAME,
     CONF_STATE_CLASS,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_DURATION,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
@@ -89,6 +90,15 @@ for _decode in RESPONSE_MONITOR_DECODES:
         CONF_UNIT_OF_MEASUREMENT: "occurrences",
     }
 
+# Per-decode default update_interval:. frames_received and last_keepalive_ms change on
+# nearly every RX frame (10-100/s on a live bus), so they poll coarsely; everything else
+# only changes on rare error/edge conditions, so it polls tightly enough that a real
+# occurrence still surfaces promptly. Users may still override with an explicit
+# update_interval:.
+_HIGH_RATE_DECODES = {"frames_received", "last_keepalive_ms"}
+for _decode, _defaults in _DECODE_DEFAULTS.items():
+    _defaults[CONF_UPDATE_INTERVAL] = "60s" if _decode in _HIGH_RATE_DECODES else "1s"
+
 
 # Defaults must be passed through the same validators sensor.sensor_schema uses so the
 # state_class string becomes a StateClass enum (and device_class / unit are validated
@@ -98,6 +108,7 @@ _DEFAULT_VALIDATORS = {
     CONF_STATE_CLASS: validate_state_class,
     CONF_DEVICE_CLASS: validate_device_class,
     CONF_UNIT_OF_MEASUREMENT: validate_unit_of_measurement,
+    CONF_UPDATE_INTERVAL: cv.update_interval,
 }
 
 
@@ -127,7 +138,10 @@ def _validate_monitor_id(config):
 
 # entity_category is uniform across all decodes (these are all hub diagnostics, not user
 # state) and stays on the schema-level default. state_class / unit_of_measurement /
-# device_class are decode-specific and handled by _apply_decode_defaults.
+# device_class / update_interval are decode-specific and handled by
+# _apply_decode_defaults. update_interval has no fixed schema-level default (unlike a
+# plain cv.polling_component_schema()) for the same reason: the right cadence depends on
+# the decode, so it is left out here and filled in per-decode below.
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         RS485FrameSensor,
@@ -143,6 +157,7 @@ CONFIG_SCHEMA = cv.All(
             # Cross-checked against the referenced hub's own response_monitor: list in
             # FINAL_VALIDATE_SCHEMA, the same way button/__init__.py walks to its hub.
             cv.Optional(CONF_MONITOR_ID): cv.string,
+            cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
         }
     ),
     _apply_decode_defaults,
