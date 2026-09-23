@@ -45,6 +45,10 @@ esphome:
         id: template_climate_custom_modes
         custom_fan_mode: "turbo"
         custom_preset: "eco_plus"
+    - climate.template.publish:
+        id: template_climate_custom_modes
+        custom_fan_mode: !lambda return std::string("turbo");
+        custom_preset: !lambda return std::string("eco_plus");
 
     # Test C++ API: set_template() with stateless lambda (no captures)
     # NOTE: set_template() is not intended to be a public API, but we test it to ensure it doesn't break.
