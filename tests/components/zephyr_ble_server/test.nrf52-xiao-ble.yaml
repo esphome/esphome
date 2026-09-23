@@ -9,3 +9,5 @@ zephyr_ble_server:
           accept: True
       - ble_server.numeric_comparison_reply:
           accept: !lambda "return true;"
+      - ble_server.stop_advertising:
+      - ble_server.start_advertising:

@@ -64,23 +64,5 @@ template<typename... Ts> class BLENumericComparisonReplyAction final : public Ac
   BLEServer *parent_;
 };
 
-template<typename... Ts> class BLEStartAdvertisingAction : public Action<Ts...> {
- public:
-  explicit BLEStartAdvertisingAction(BLEServer *parent) : parent_(parent) {}
-  void play(const Ts &...x) override { this->parent_->set_advertising_enabled(true); }
-
- protected:
-  BLEServer *parent_;
-};
-
-template<typename... Ts> class BLEStopAdvertisingAction : public Action<Ts...> {
- public:
-  explicit BLEStopAdvertisingAction(BLEServer *parent) : parent_(parent) {}
-  void play(const Ts &...x) override { this->parent_->set_advertising_enabled(false); }
-
- protected:
-  BLEServer *parent_;
-};
-
 }  // namespace esphome::zephyr_ble_server
 #endif

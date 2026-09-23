@@ -219,39 +219,19 @@ async def numeric_comparison_reply_to_code(
 # ble_policy calls these off the hub link: stop advertising while hub-linked, start it
 # again for a bounded operator "wake" window. stop_advertising also drops an active
 # central (disconnect-on-stop), except during an OTA.
-BLEStartAdvertisingAction = zephyr_ble_server_ns.class_(
-    "BLEStartAdvertisingAction", automation.Action
-)
-BLEStopAdvertisingAction = zephyr_ble_server_ns.class_(
-    "BLEStopAdvertisingAction", automation.Action
-)
-
 BLE_ADVERTISING_ACTION_SCHEMA = automation.maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(BLEServer),
     }
 )
 
-
-# synchronous=True: play() calls set_advertising_enabled() and returns before
-# play_next_() runs (no deferral to a callback/timer/loop), like numeric_comparison_reply.
-@automation.register_action(
+automation.register_apply_action(
     "ble_server.start_advertising",
-    BLEStartAdvertisingAction,
     BLE_ADVERTISING_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("set_advertising_enabled(true)"),
 )
-async def start_advertising_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
-
-
-@automation.register_action(
+automation.register_apply_action(
     "ble_server.stop_advertising",
-    BLEStopAdvertisingAction,
     BLE_ADVERTISING_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("set_advertising_enabled(false)"),
 )
-async def stop_advertising_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
