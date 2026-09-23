@@ -514,6 +514,8 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
+    # Must run before the platform's builder scripts are loaded; see the script.
+    cg.add_platformio_option("extra_scripts", ["pre:scons_dont_inherit.py"])
     cg.add_platformio_option("extra_scripts", ["pre:ccache.py", *pch_extra_scripts()])
     # IRAM_ATTR is a no-op on BK72xx (SDK masks FIQ+IRQ around flash ops).
     # On other families, patch_linker.py routes .sram.text into the right
@@ -618,6 +620,10 @@ def copy_files() -> None:
     copy_file_if_changed(
         patch_linker_file,
         CORE.relative_build_path("patch_linker.py"),
+    )
+    copy_file_if_changed(
+        script_dir / "scons_dont_inherit.py.script",
+        CORE.relative_build_path("scons_dont_inherit.py"),
     )
     copy_ccache_script()
     copy_pch_script()
