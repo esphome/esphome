@@ -11,7 +11,7 @@ const uint8_t MITSUBISHI_TEMP_MIN = 16;  // Celsius
 const uint8_t MITSUBISHI_TEMP_MAX = 31;  // Celsius
 
 // Fan mode
-enum SetFanMode {
+enum SetFanMode : uint8_t {
   MITSUBISHI_FAN_3L = 0,  // 3 levels + auto
   MITSUBISHI_FAN_4L,      // 4 levels + auto
   MITSUBISHI_FAN_Q4L,     // Quiet + 4 levels + auto
@@ -19,7 +19,7 @@ enum SetFanMode {
 };
 
 // Enum to represent horizontal directios
-enum HorizontalDirection {
+enum HorizontalDirection : uint8_t {
   HORIZONTAL_DIRECTION_LEFT = 0x10,
   HORIZONTAL_DIRECTION_MIDDLE_LEFT = 0x20,
   HORIZONTAL_DIRECTION_MIDDLE = 0x30,
@@ -29,7 +29,7 @@ enum HorizontalDirection {
 };
 
 // Enum to represent vertical directions
-enum VerticalDirection {
+enum VerticalDirection : uint8_t {
   VERTICAL_DIRECTION_AUTO = 0x00,
   VERTICAL_DIRECTION_UP = 0x08,
   VERTICAL_DIRECTION_MIDDLE_UP = 0x10,
@@ -38,7 +38,7 @@ enum VerticalDirection {
   VERTICAL_DIRECTION_DOWN = 0x28,
 };
 
-class MitsubishiClimate : public climate_ir::ClimateIR {
+class MitsubishiClimate final : public climate_ir::ClimateIR {
  public:
   MitsubishiClimate()
       : climate_ir::ClimateIR(MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, true, true,

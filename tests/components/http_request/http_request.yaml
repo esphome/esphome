@@ -59,6 +59,24 @@ esphome:
                   id: test_regression_light
                   brightness: 100%
                   effect: "None"
+      - http_request.get:
+          url: https://esphome.io
+          capture_response: true
+          on_response:
+            then:
+              # Regression test: http_request.post with json: (dict variant) inside
+              # on_response of a capture_response: true request puts std::string&
+              # (body) into the nested action's Ts..., which exposes a
+              # const-correctness bug in HttpRequestSendAction::play() where
+              # encode_json_ receives const copies of non-const reference args.
+              - http_request.post:
+                  url: https://esphome.io
+                  json:
+                    status: "ok"
+              # Same with json: lambda variant, exercises json_func_ path
+              - http_request.post:
+                  url: https://esphome.io
+                  json: !lambda "root[\"status\"] = \"ok\";"
 
 http_request:
   useragent: esphome/tagreader

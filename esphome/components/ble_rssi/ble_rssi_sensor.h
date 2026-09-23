@@ -1,14 +1,16 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/sensor/sensor.h"
 
-#ifdef USE_ESP32
-
+// No platform #ifdef: ble_device_base provides the BLE types on every platform,
+// and this component is only compiled when configured — which requires a BLE
+// hub — so it builds on any platform with a BLEHub tracker without a per-chip
+// guard.
 namespace esphome::ble_rssi {
 
-class BLERSSISensor final : public sensor::Sensor, public esp32_ble_tracker::ESPBTDeviceListener, public Component {
+class BLERSSISensor final : public sensor::Sensor, public ble_device_base::ESPBTDeviceListener, public Component {
  public:
   void set_address(uint64_t address) {
     this->match_by_ = MATCH_BY_MAC_ADDRESS;
@@ -20,19 +22,19 @@ class BLERSSISensor final : public sensor::Sensor, public esp32_ble_tracker::ESP
   }
   void set_service_uuid16(uint16_t uuid) {
     this->match_by_ = MATCH_BY_SERVICE_UUID;
-    this->uuid_ = esp32_ble_tracker::ESPBTUUID::from_uint16(uuid);
+    this->uuid_ = ble_device_base::ESPBTUUID::from_uint16(uuid);
   }
   void set_service_uuid32(uint32_t uuid) {
     this->match_by_ = MATCH_BY_SERVICE_UUID;
-    this->uuid_ = esp32_ble_tracker::ESPBTUUID::from_uint32(uuid);
+    this->uuid_ = ble_device_base::ESPBTUUID::from_uint32(uuid);
   }
   void set_service_uuid128(uint8_t *uuid) {
     this->match_by_ = MATCH_BY_SERVICE_UUID;
-    this->uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw(uuid);
+    this->uuid_ = ble_device_base::ESPBTUUID::from_raw(uuid);
   }
   void set_ibeacon_uuid(uint8_t *uuid) {
     this->match_by_ = MATCH_BY_IBEACON_UUID;
-    this->ibeacon_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw(uuid);
+    this->ibeacon_uuid_ = ble_device_base::ESPBTUUID::from_raw(uuid);
   }
   void set_ibeacon_major(uint16_t major) {
     this->check_ibeacon_major_ = true;
@@ -47,7 +49,7 @@ class BLERSSISensor final : public sensor::Sensor, public esp32_ble_tracker::ESP
       this->publish_state(NAN);
     this->found_ = false;
   }
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override {
     switch (this->match_by_) {
       case MATCH_BY_MAC_ADDRESS:
         if (device.address_uint64() == this->address_) {
@@ -109,9 +111,9 @@ class BLERSSISensor final : public sensor::Sensor, public esp32_ble_tracker::ESP
   uint64_t address_;
   uint8_t *irk_;
 
-  esp32_ble_tracker::ESPBTUUID uuid_;
+  ble_device_base::ESPBTUUID uuid_;
 
-  esp32_ble_tracker::ESPBTUUID ibeacon_uuid_;
+  ble_device_base::ESPBTUUID ibeacon_uuid_;
   uint16_t ibeacon_major_;
   uint16_t ibeacon_minor_;
 
@@ -120,5 +122,3 @@ class BLERSSISensor final : public sensor::Sensor, public esp32_ble_tracker::ESP
 };
 
 }  // namespace esphome::ble_rssi
-
-#endif

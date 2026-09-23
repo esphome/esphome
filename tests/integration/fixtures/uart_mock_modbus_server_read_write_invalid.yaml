@@ -1,0 +1,81 @@
+esphome:
+  name: uart-mock-modbus-srv-rw-inv
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_dev
+    baud_rate: 9600
+    rx_full_threshold: 120
+    rx_timeout: 2
+    auto_start: false
+    debug:
+    injections:
+      # Malformed FC 0x17 Read/Write Multiple Registers, otherwise well formed (valid CRC): write
+      # quantity 2 but byte count 2 (2 registers need 4 bytes), i.e. byte count != 2x write quantity.
+      # The hub must reject it (ILLEGAL_DATA_VALUE) before touching any register.
+      - delay: 100ms
+        inject_rx:
+          [0x01, 0x17, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x02, 0x02, 0x12, 0x34, 0x09, 0x89]
+      # A valid FC 0x03 read of reg 0x0A injected afterwards. Its read_lambda fires the "probe"
+      # sensor, which (because injections run in order) signals the malformed frame was processed.
+      - delay: 100ms
+        inject_rx: [0x01, 0x03, 0x00, 0x0A, 0x00, 0x01, 0xA4, 0x08]
+
+modbus:
+  uart_id: virtual_uart_dev
+  role: server
+
+modbus_server:
+  - address: 1
+    registers:
+      # The malformed request's write half spans 0x01-0x02. Both are registered so modbus_server's
+      # address pre-flight cannot reject the frame on its own: if the hub wrongly accepted it, these
+      # write_lambdas would fire the "write_seen" sensor.
+      - address: 0x01
+        value_type: U_WORD
+        read_lambda: return 0;
+        write_lambda: |-
+          id(write_seen).publish_state(1);
+          return true;
+      - address: 0x02
+        value_type: U_WORD
+        read_lambda: return 0;
+        write_lambda: |-
+          id(write_seen).publish_state(1);
+          return true;
+      # Processing probe: a valid read of this register fires after the malformed frame.
+      - address: 0x0A
+        value_type: U_WORD
+        read_lambda: |-
+          id(probe).publish_state(1);
+          return 1;
+
+sensor:
+  - platform: template
+    name: "write_seen"
+    id: write_seen
+  - platform: template
+    name: "probe"
+    id: probe
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: "id(virtual_uart_dev).start_scenario();"

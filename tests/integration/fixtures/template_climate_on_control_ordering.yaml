@@ -1,0 +1,26 @@
+esphome:
+  name: tmpl-clim-oc-order
+host:
+api:
+logger:
+
+# on_control fires with the full ClimateCall (arg `x`) from the base Climate component's
+# ClimateCall::perform(), before validate_()/control() run -- so when the lambda action below
+# runs, the entity's own .mode is still the OLD value, even though x.get_mode() already reports
+# the NEW requested value. on_state fires afterward, once control() has applied it.
+climate:
+  - platform: template
+    id: test_climate
+    name: Test On Control Ordering
+    optimistic: true
+    supported_modes:
+      - "OFF"
+      - HEAT
+    on_control:
+      - lambda: |-
+          ESP_LOGD("test", "on_control requested_mode=%d current_mode_before_apply=%d",
+                   x.get_mode().has_value() ? (int) *x.get_mode() : -1,
+                   (int) id(test_climate).mode);
+    on_state:
+      - lambda: |-
+          ESP_LOGD("test", "on_state mode=%d", (int) x.mode);

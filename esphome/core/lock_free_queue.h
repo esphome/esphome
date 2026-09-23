@@ -1,5 +1,7 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
 #include <atomic>
 #include <cstddef>
 
@@ -14,7 +16,9 @@
  * blocking each other.
  *
  * This is a Single-Producer Single-Consumer (SPSC) lock-free ring buffer.
- * Available on platforms with FreeRTOS support (ESP32, LibreTiny).
+ * Available on multi-threaded platforms (ESP32, LibreTiny) where another task
+ * produces or consumes, and on single-threaded platforms (RP2) where the
+ * producer runs in interrupt context.
  *
  * Common use cases:
  * - BLE events: BLE task produces, main loop consumes
@@ -25,6 +29,64 @@
  */
 
 namespace esphome {
+
+namespace lockfree_internal {
+#if defined(ESPHOME_THREAD_MULTI_NO_ATOMICS) || defined(ESPHOME_THREAD_SINGLE)
+// Platforms where std::atomic RMW operations are unavailable or unnecessary:
+//  - ESPHOME_THREAD_MULTI_NO_ATOMICS: cores lacking atomic read-modify-write
+//    instructions (currently the ARMv5TE BK72xx SoCs — no LDREX/STREX, no
+//    libatomic; other LibreTiny chips such as LN882x/RTL87xx are ARMv7-M and
+//    keep std::atomic).
+//  - ESPHOME_THREAD_SINGLE: every platform on this model (ESP8266, RP2,
+//    nRF52) runs everything on one core (the chip may have more — RP2 is
+//    dual-core, but ESPHome and its interrupt producers stay on core 0), so
+//    the only possible concurrency is same-core interrupt preemption (on RP2
+//    the BTstack packet handler runs in the CYW43 async-context low-priority
+//    IRQ on the core that initialized it, core 0). Using plain accesses here
+//    also avoids __atomic_* library calls on RP2040 (Cortex-M0+, no
+//    LDREX/STREX).
+// For this queue's SPSC contract RMW atomics are not needed: aligned 8/16-bit
+// loads and stores are single instructions on these cores, so torn reads
+// cannot occur, and on a single in-order core a compiler barrier supplies all
+// the acquire/release ordering the algorithm requires. Each index has exactly
+// one writer (head_: consumer, tail_: producer). The dropped counter's
+// increment/exchange pair is not atomic here — a concurrent reset can lose
+// counts — which is acceptable for a diagnostic drop counter.
+#define ESPHOME_LFQ_COMPILER_BARRIER() __asm__ __volatile__("" ::: "memory")
+template<typename T> class PlainAtomic {
+ public:
+  PlainAtomic() = default;
+  constexpr PlainAtomic(T value) : value_(value) {}
+  T load(std::memory_order order = std::memory_order_seq_cst) const {
+    T value = value_;
+    if (order != std::memory_order_relaxed)
+      ESPHOME_LFQ_COMPILER_BARRIER();  // acquire: later reads may not hoist above this load
+    return value;
+  }
+  void store(T value, std::memory_order order = std::memory_order_seq_cst) {
+    if (order != std::memory_order_relaxed)
+      ESPHOME_LFQ_COMPILER_BARRIER();  // release: earlier writes may not sink below this store
+    value_ = value;
+  }
+  T fetch_add(T amount, std::memory_order /*order*/ = std::memory_order_seq_cst) {
+    T value = value_;
+    value_ = value + amount;
+    return value;
+  }
+  T exchange(T desired, std::memory_order /*order*/ = std::memory_order_seq_cst) {
+    T value = value_;
+    value_ = desired;
+    return value;
+  }
+
+ private:
+  volatile T value_{0};
+};
+template<typename T> using AtomicIndex = PlainAtomic<T>;
+#else
+template<typename T> using AtomicIndex = std::atomic<T>;
+#endif
+}  // namespace lockfree_internal
 
 // Base lock-free queue without task notification
 template<class T, uint8_t SIZE> class LockFreeQueue {
@@ -126,13 +188,13 @@ template<class T, uint8_t SIZE> class LockFreeQueue {
  protected:
   T *buffer_[SIZE]{};
   // Atomic: written by producer (push/increment), read+reset by consumer (get_and_reset)
-  std::atomic<uint16_t> dropped_count_;  // 65535 max - more than enough for drop tracking
+  lockfree_internal::AtomicIndex<uint16_t> dropped_count_;  // 65535 max - more than enough for drop tracking
   // Atomic: written by consumer (pop), read by producer (push) to check if full
   // Using uint8_t limits queue size to 255 elements but saves memory and ensures
   // atomic operations are efficient on all platforms
-  std::atomic<uint8_t> head_;
+  lockfree_internal::AtomicIndex<uint8_t> head_;
   // Atomic: written by producer (push), read by consumer (pop) to check if empty
-  std::atomic<uint8_t> tail_;
+  lockfree_internal::AtomicIndex<uint8_t> tail_;
 };
 
 #ifdef USE_ESP32
