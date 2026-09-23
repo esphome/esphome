@@ -53,6 +53,9 @@ class RS485FrameSensor : public sensor::Sensor, public Component {
         case SENSOR_DECODE_QUEUE_DEPTH:
           value = static_cast<float>(this->parent_->get_queue_depth());
           break;
+        case SENSOR_DECODE_DISCARDED_FRAMES:
+          value = static_cast<float>(this->parent_->get_discarded_frames());
+          break;
       }
     }
     // Publish only on change: sensor::Sensor::publish_state does not deduplicate

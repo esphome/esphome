@@ -56,6 +56,10 @@ enum SensorDecode {
   SENSOR_DECODE_COMMAND_DROPS,      ///< Commands dropped (queue full or sniffer mode).
   SENSOR_DECODE_LAST_KEEPALIVE_MS,  ///< Interval (ms) between the last two gate frames.
   SENSOR_DECODE_QUEUE_DEPTH,        ///< Current TX queue depth.
+  // A discarded frame never reached validate_frame_() at all (it was abandoned mid-receive),
+  // so it is not a CRC/structural failure -- kept as its own counter rather than folded into
+  // crc_failures.
+  SENSOR_DECODE_DISCARDED_FRAMES,  ///< RX frames abandoned mid-receive (overflow or intra-frame timeout).
 };
 
 /// Which bytes are included in the CRC calculation.
@@ -260,7 +264,10 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   }
 
   bool queue_command_value(uint32_t command) { return this->queue_command_values(&command, 1); }
-  // Queue one or more values encoded back-to-back using this hub's command_format.
+  // Queue one or more values encoded back-to-back using this hub's command_format. Fails
+  // (bumps command_drops_, returns false) if the hub has no command_format: -- without one
+  // there is no configured preamble/endian/postamble, and silently falling back to a 4-byte
+  // big-endian encoding would put the wrong bytes on the wire.
   bool queue_command_values(const uint32_t *commands, size_t count);
   // Queue values using this hub's preamble/endian/postamble but a per-call element byte width.
   // Used by buttons with a top-level value_element_bytes: override (not a full command_format).
@@ -277,6 +284,7 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   uint32_t get_crc_failures() const { return this->crc_failures_; }
   uint32_t get_commands_sent() const { return this->commands_sent_; }
   uint32_t get_command_drops() const { return this->command_drops_; }
+  uint32_t get_discarded_frames() const { return this->discarded_frames_; }
   uint32_t get_last_keepalive_ms() const { return this->last_keepalive_ms_; }
   uint32_t get_queue_depth() const { return this->tx_queue_count_ + (this->tx_start_pending_ ? 1 : 0); }
   const char *get_last_frame_type() const { return this->last_frame_type_; }
@@ -284,6 +292,9 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
  protected:
   void read_uart_(uint32_t now);
   void process_raw_frame_(uint32_t now);
+  // Counts + frame_traces a frame abandoned mid-receive (never reaches validate_frame_()).
+  // Called with raw_frame_ still intact; the caller clears it afterwards.
+  void record_discard_(uint32_t now);
   bool validate_frame_();
   uint16_t calculate_crc_(const std::vector<uint8_t> &payload, bool include_header) const;
   size_t crc_length_() const;
@@ -419,6 +430,9 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   uint32_t crc_failures_{0};
   uint32_t commands_sent_{0};
   uint32_t command_drops_{0};
+  // Frames abandoned mid-receive (max_frame_length overflow or intra-frame timeout) -- these
+  // never reach validate_frame_(), so they are not counted in crc_failures_.
+  uint32_t discarded_frames_{0};
   // Fixed buffer: 4 hex chars for a 2-byte frame type prefix + null terminator. Built-in
   // last_frame_type diagnostic publishes the first two bytes of the payload as hex; longer
   // frame_type prefixes still match correctly but the diagnostic only shows the first two.

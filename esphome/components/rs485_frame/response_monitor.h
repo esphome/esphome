@@ -76,6 +76,10 @@ struct SignatureAlt {
   uint8_t gate_field_index{0};
   uint32_t gate_mask{0xFFFFFFFF};
   uint32_t gate_value{0};
+  // Set the first time gate_active_() finds the gate field never observed at all (distinct
+  // from "observed but doesn't currently hold") -- gates the one-time warning log, since that
+  // condition otherwise never resolves and would log every single trigger forever.
+  bool gate_unobserved_logged{false};
 };
 
 /// One `response_monitor:` entry: a trigger matched against outgoing TX payloads (the same
@@ -170,8 +174,10 @@ class ResponseMonitor {
   // Evaluates whether a changed_gated alt's gate currently matches (using the live ambient
   // value of its gate field); non-gated alts are always active. Shared by on_trigger_sent
   // (arm time) and on_frame_received's orphan path (which has no arm time of its own, so it
-  // uses "now" as a stand-in for "trigger time").
-  bool gate_active_(const SignatureAlt &alt) const;
+  // uses "now" as a stand-in for "trigger time"). Takes a mutable alt (not const) because it
+  // latches gate_unobserved_logged the first time the gate field turns out to have never been
+  // observed at all.
+  bool gate_active_(SignatureAlt &alt) const;
   // entry_index (rather than a ResponseMonitorEntry& as before on_confirmed_/on_failed_
   // callbacks existed) so this can fire the index-aligned callback for SUCCESS/FAIL/TIMEOUT.
   void resolve_entry_(uint8_t entry_index, ResponseMonitorStat stat);

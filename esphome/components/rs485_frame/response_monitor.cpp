@@ -2,10 +2,14 @@
 
 #ifdef USE_RS485_FRAME_RESPONSE_MONITOR
 
+#include "esphome/core/log.h"
+
 #include <algorithm>
 #include <cstring>
 
 namespace esphome::rs485_frame {
+
+static const char *const TAG = "rs485_frame.response_monitor";
 
 void ResponseMonitor::add_field(const std::vector<uint8_t> &frame_type, const std::vector<uint8_t> &frame_type_mask,
                                 uint8_t offset, uint8_t length, bool big_endian) {
@@ -176,11 +180,22 @@ bool ResponseMonitor::eval_alt_(const SignatureAlt &alt, const uint8_t *old_byte
   }
 }
 
-bool ResponseMonitor::gate_active_(const SignatureAlt &alt) const {
+bool ResponseMonitor::gate_active_(SignatureAlt &alt) const {
   if (!alt.has_gate)
     return true;
-  if (alt.gate_field_index >= this->ambient_valid_.size() || !this->ambient_valid_[alt.gate_field_index])
+  if (alt.gate_field_index >= this->ambient_valid_.size() || !this->ambient_valid_[alt.gate_field_index]) {
+    // Gate field never observed at all -- distinct from "observed but doesn't currently
+    // hold" (the common, expected case). Left unobserved forever, this alt resolves
+    // NOT_APPLICABLE on every trigger indefinitely, indistinguishable from a gate that just
+    // isn't holding right now -- log it once so a misconfigured/never-seen gate field is
+    // diagnosable instead of silently masquerading as normal gating.
+    if (!alt.gate_unobserved_logged) {
+      ESP_LOGW(TAG, "changed_gated field %u: gate field %u has never been observed; treating gate as not held",
+               alt.field_index, alt.gate_field_index);
+      alt.gate_unobserved_logged = true;
+    }
     return false;  // gate field never observed yet — treat as "precondition not met", not a match
+  }
   const ResponseField &gate_field = this->fields_[alt.gate_field_index];
   const uint32_t v = decode_int(this->ambient_[alt.gate_field_index].data(), gate_field.length, gate_field.big_endian);
   return (v & alt.gate_mask) == (alt.gate_value & alt.gate_mask);
@@ -229,7 +244,7 @@ void ResponseMonitor::on_trigger_sent(const std::vector<uint8_t> &payload, uint3
 
     entry.alt_active.clear();
     bool any_active = false;
-    for (const auto &alt : entry.signature) {
+    for (auto &alt : entry.signature) {
       const bool active = this->gate_active_(alt);
       entry.alt_active.push_back(active);
       any_active = any_active || active;
@@ -258,7 +273,7 @@ void ResponseMonitor::on_frame_received(const std::vector<uint8_t> &payload, uin
     for (size_t entry_idx = 0; entry_idx < this->entries_.size(); entry_idx++) {
       ResponseMonitorEntry &entry = this->entries_[entry_idx];
       for (size_t j = 0; j < entry.signature.size(); j++) {
-        const SignatureAlt &alt = entry.signature[j];
+        SignatureAlt &alt = entry.signature[j];
         if (alt.field_index != i)
           continue;
 

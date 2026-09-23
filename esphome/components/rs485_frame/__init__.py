@@ -151,6 +151,10 @@ SENSOR_DECODES = {
     "command_drops": SensorDecode.SENSOR_DECODE_COMMAND_DROPS,
     "last_keepalive_ms": SensorDecode.SENSOR_DECODE_LAST_KEEPALIVE_MS,
     "queue_depth": SensorDecode.SENSOR_DECODE_QUEUE_DEPTH,
+    # Frames abandoned mid-receive (max_frame_length overflow or intra-frame timeout) --
+    # kept separate from crc_failures because these never reach CRC/structural validation
+    # at all.
+    "discarded_frames": SensorDecode.SENSOR_DECODE_DISCARDED_FRAMES,
 }
 
 

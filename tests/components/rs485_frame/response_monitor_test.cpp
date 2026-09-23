@@ -70,6 +70,13 @@ class ResponseMonitorProbe : public ResponseMonitor {
     payload.insert(payload.end(), text.begin(), text.end());
     this->on_frame_received(payload, now);
   }
+
+  // Exposes the per-alt "gate field never observed, warned once" latch so tests can prove the
+  // log-once behavior without scraping ESP_LOGW output (this component's tests read structured
+  // state instead, per the convention already used by SnifferStatsProbe/FrameTraceProbe).
+  bool gate_unobserved_logged(uint8_t entry_index, uint8_t alt_index) const {
+    return this->entries_[entry_index].signature[alt_index].gate_unobserved_logged;
+  }
 };
 
 }  // namespace
@@ -473,6 +480,57 @@ TEST(ResponseMonitorTest, CallbacksAreIsolatedPerEntry) {
 
   EXPECT_EQ(confirmed_a, 1);
   EXPECT_EQ(confirmed_b, 0);
+}
+
+// Review finding 8: a changed_gated alt whose gate field has NEVER been observed resolves
+// NOT_APPLICABLE exactly like a gate that has been observed but doesn't currently hold --
+// gate_active_ must distinguish the two internally (via the one-time warning latch) even
+// though both produce the same NOT_APPLICABLE outcome from the caller's point of view.
+TEST(ResponseMonitorTest, ChangedGatedWarnsOnceWhenGateFieldNeverObserved) {
+  ResponseMonitorProbe rm;
+  rm.setup_changed_field();                               // field 0: the watched value
+  rm.add_field({0x01, 0x09}, {0xFF, 0xFF}, 2, 4, false);  // field 1: the gate flag -- never fed
+  uint8_t entry = rm.add_entry({0xDD}, 200);
+  rm.add_changed_gated_alt(entry, /*field_index=*/0, /*mask=*/0x40, /*gate_field_index=*/1,
+                           /*gate_mask=*/0x01, /*gate_value=*/0x01);
+  rm.feed_led_mask(0x00000000, /*now=*/0);  // field 0 baseline; field 1 (the gate) is never fed
+  // The baseline feed above already evaluates this alt's gate once (on_frame_received's orphan
+  // check runs gate_active_ for every alt whose field just arrived, trigger or not), so the
+  // latch is already set before the first on_trigger_sent -- that's correct, not a double-log:
+  // the warning fires the moment the gate turns out unobserved, however that's discovered.
+  EXPECT_TRUE(rm.gate_unobserved_logged(entry, 0));
+
+  rm.on_trigger_sent({0xDD}, /*now=*/10);  // gate field never observed -- NOT_APPLICABLE, warn once
+
+  EXPECT_EQ(rm.get_stat(entry, RESPONSE_MONITOR_STAT_NOT_APPLICABLE), 1u);
+  EXPECT_TRUE(rm.gate_unobserved_logged(entry, 0));
+
+  rm.on_trigger_sent({0xDD}, /*now=*/300);  // second occurrence, still never observed
+
+  EXPECT_EQ(rm.get_stat(entry, RESPONSE_MONITOR_STAT_NOT_APPLICABLE), 2u);
+  EXPECT_TRUE(rm.gate_unobserved_logged(entry, 0))
+      << "latch stays set -- the warning is logged once, not on every occurrence";
+}
+
+// Contrast case: a gate field that HAS been observed (but doesn't currently hold) must NOT set
+// the unobserved-warning latch -- the two conditions are distinct and only one is diagnosable
+// as "never observed at all".
+TEST(ResponseMonitorTest, ChangedGatedDoesNotWarnWhenGateFieldWasObservedButDoesNotHold) {
+  ResponseMonitorProbe rm;
+  rm.setup_changed_field();                               // field 0: the watched value
+  rm.add_field({0x01, 0x09}, {0xFF, 0xFF}, 2, 4, false);  // field 1: the gate flag
+  uint8_t entry = rm.add_entry({0xDD}, 200);
+  rm.add_changed_gated_alt(entry, /*field_index=*/0, /*mask=*/0x40, /*gate_field_index=*/1,
+                           /*gate_mask=*/0x01, /*gate_value=*/0x01);
+
+  std::vector<uint8_t> gate_payload = {0x01, 0x09, 0x00, 0x00, 0x00, 0x00};  // observed, but 0 != gate_value
+  rm.on_frame_received(gate_payload, /*now=*/0);
+  rm.feed_led_mask(0x00000000, /*now=*/0);
+
+  rm.on_trigger_sent({0xDD}, /*now=*/10);
+
+  EXPECT_EQ(rm.get_stat(entry, RESPONSE_MONITOR_STAT_NOT_APPLICABLE), 1u);
+  EXPECT_FALSE(rm.gate_unobserved_logged(entry, 0));
 }
 
 }  // namespace esphome::rs485_frame::testing

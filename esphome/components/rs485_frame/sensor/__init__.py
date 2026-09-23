@@ -60,6 +60,10 @@ _DECODE_DEFAULTS = {
         CONF_STATE_CLASS: STATE_CLASS_TOTAL_INCREASING,
         CONF_UNIT_OF_MEASUREMENT: "frames",
     },
+    "discarded_frames": {
+        CONF_STATE_CLASS: STATE_CLASS_TOTAL_INCREASING,
+        CONF_UNIT_OF_MEASUREMENT: "frames",
+    },
     "commands_sent": {
         CONF_STATE_CLASS: STATE_CLASS_TOTAL_INCREASING,
         CONF_UNIT_OF_MEASUREMENT: "commands",

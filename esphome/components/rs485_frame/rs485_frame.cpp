@@ -128,6 +128,7 @@ void RS485FrameHub::loop() {
   // permanently stall reception until the next valid frame terminator arrived.
   if (this->in_frame_ && this->in_frame_timeout_ms_ > 0 && now - this->last_rx_time_ >= this->in_frame_timeout_ms_) {
     ESP_LOGW(TAG, "Intra-frame timeout — resetting receive state");
+    this->record_discard_(now);
     this->in_frame_ = false;
     this->after_dle_ = false;
     this->raw_frame_.clear();
@@ -223,6 +224,15 @@ bool RS485FrameHub::queue_command_values(const uint32_t *commands, size_t count)
     this->command_drops_++;
     return false;
   }
+  // Without a command_format:, there is no configured preamble/element width/endianness/
+  // postamble to encode against -- cmd_value_element_bytes_/cmd_big_endian_ would silently
+  // fall back to their bare-field defaults (4-byte big-endian, no preamble or postamble)
+  // instead of reflecting what the bus actually expects.
+  if (!this->has_command_format_) {
+    ESP_LOGW(TAG, "queue_command_value(s) called with no command_format: configured; dropping");
+    this->command_drops_++;
+    return false;
+  }
   this->build_key_payload_(commands, count, this->cmd_value_element_bytes_, this->tx_payload_buf_);
   // A command_format whose encoded payload exceeds max_frame_length_ would overflow the
   // pre-reserved TX buffers in build_frame_. Drop rather than reallocate after setup().
@@ -267,6 +277,18 @@ bool RS485FrameHub::enqueue_frame_() {
   return true;
 }
 
+// A frame abandoned mid-receive (max_frame_length overflow or intra-frame timeout) never
+// reaches process_raw_frame_'s validate_frame_() call, so it would otherwise be invisible to
+// both crc_failures_ and frame_trace -- this is the shared tap point for both discard sites in
+// read_uart_()/loop(). Called with raw_frame_ still intact; the caller clears it afterwards.
+void RS485FrameHub::record_discard_(uint32_t now) {
+  this->discarded_frames_++;
+#ifdef USE_RS485_FRAME_FRAME_TRACE
+  if (this->frame_trace_ != nullptr)
+    this->frame_trace_->record(this->raw_frame_.data(), this->raw_frame_.size(), /*is_tx=*/false, /*valid=*/false, now);
+#endif
+}
+
 void RS485FrameHub::read_uart_(uint32_t now) {
   uint8_t byte;
   while (this->available() && this->read_byte(&byte)) {
@@ -287,6 +309,7 @@ void RS485FrameHub::read_uart_(uint32_t now) {
 
     if (this->raw_frame_.size() >= this->max_frame_length_) {
       ESP_LOGW(TAG, "Frame exceeded max_frame_length");
+      this->record_discard_(now);
       this->in_frame_ = false;
       this->after_dle_ = false;
       this->raw_frame_.clear();
