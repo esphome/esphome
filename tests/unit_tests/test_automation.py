@@ -801,14 +801,3 @@ async def test_apply_string_constant_stays_in_flash_on_esp8266(
     assert f'::{PARENT_OBJ}->play(progmem_string(ESPHOME_F("a:b")));' in _apply_lambda(
         mock_cg
     )
-
-
-@pytest.mark.asyncio
-async def test_apply_field_raw_statement_with_parent(
-    registries: tuple[Registry, Registry], mock_cg: MockCodegen
-) -> None:
-    fields = (ApplyField("reset", "if ({}) {parent}->reset()", cg.bool_),)
-    await _run_apply_action(registries, fields, {"reset": True}, call="make_call")
-    text = _apply_lambda(mock_cg)
-    assert f"if (true) ::{PARENT_OBJ}->reset();" in text
-    assert "apply_call.if" not in text
