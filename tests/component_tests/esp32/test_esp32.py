@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from esphome.components.esp32 import (
+    ESP32_FLASH_CHIPS,
     KEY_FATFS_REQUIRED,
     KEY_MBEDTLS_TLS_EXTRAS_REQUIRED,
     KEY_MBEDTLS_TLS_SERVER_REQUIRED,
@@ -251,6 +252,41 @@ def test_esp32_rejects_unsupported_cli_toolchain(
             },
             r"value must be at most 5 .* @ data\['framework'\]\['advanced'\]\['nvs_encryption'\]\['key_id'\]",
             id="nvs_encryption_key_id_out_of_range",
+        ),
+        pytest.param(
+            {
+                "variant": "esp32",
+                "board": "esp32dev",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"flash_chip": "mxic_opi"},
+                },
+            },
+            r"'flash_chip: mxic_opi' is only supported on ESP32S3 @ data\['framework'\]\['advanced'\]\['flash_chip'\]",
+            id="flash_chip_mxic_opi_only_on_s3",
+        ),
+        pytest.param(
+            {
+                "variant": "esp32s3",
+                "flash_mode": "opi",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"flash_chip": "gd"},
+                },
+            },
+            r"'flash_chip: gd' does not match 'flash_mode: opi'; octal flash uses mxic_opi @ data\['framework'\]\['advanced'\]\['flash_chip'\]",
+            id="flash_chip_must_match_opi_mode",
+        ),
+        pytest.param(
+            {
+                "variant": "esp32s3",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"flash_chip": "mxic_opi"},
+                },
+            },
+            r"'flash_chip: mxic_opi' requires 'flash_mode: opi' @ data\['framework'\]\['advanced'\]\['flash_chip'\]",
+            id="flash_chip_mxic_opi_requires_opi_mode",
         ),
         pytest.param(
             {
@@ -717,6 +753,43 @@ def test_flash_mode_sets_sdkconfig_and_pio_option(
     assert sdkconfig.get("CONFIG_ESPTOOLPY_OCT_FLASH") is False
     assert CORE.platformio_options.get("board_build.flash_mode") == "qio"
     assert CORE.platformio_options.get("board_build.f_flash") == "80000000L"
+
+
+@pytest.mark.parametrize(
+    ("config_file", "enabled"),
+    [
+        pytest.param("flash_chip_gd.yaml", "CONFIG_SPI_FLASH_SUPPORT_GD_CHIP", id="gd"),
+        pytest.param("flash_chip_generic.yaml", None, id="generic"),
+        pytest.param(
+            "flash_chip_mxic_opi_s3.yaml",
+            "CONFIG_SPI_FLASH_SUPPORT_MXIC_OPI_CHIP",
+            id="mxic_opi_s3",
+        ),
+    ],
+)
+def test_flash_chip_keeps_one_vendor_driver(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    enabled: str | None,
+) -> None:
+    """flash_chip enables only the chosen vendor driver."""
+    generate_main(component_config_path(config_file))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    vendors = {
+        k: v for k, v in sdkconfig.items() if k.startswith("CONFIG_SPI_FLASH_SUPPORT_")
+    }
+    assert vendors == {flag: flag == enabled for flag in ESP32_FLASH_CHIPS.values()}
+
+
+def test_flash_chip_unset_keeps_idf_defaults(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Without flash_chip every vendor driver stays at its ESP-IDF default."""
+    generate_main(component_config_path("flash_mode_default.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert not any(key.startswith("CONFIG_SPI_FLASH_SUPPORT_") for key in sdkconfig)
 
 
 def test_flash_mode_opi_enables_octal_flash(
@@ -1384,7 +1457,7 @@ def test_esp32_s31_gpio_validation(
     pin = {CONF_NUMBER: 36, CONF_MODE: input_mode}
     with caplog.at_level("WARNING"):
         validate_supports(pin)
-    assert "GPIO36 is a strapping PIN" in caplog.text
+    assert "GPIO36 is a strapping pin" in caplog.text
 
 
 _TLS_SERVER_OPTIONS = (
@@ -1415,7 +1488,7 @@ def test_mbedtls_tls_trim_sdkconfig(
     assert {sdkconfig.get(name) for name in MBEDTLS_TLS_EXTRA_OPTIONS} == {extras}
 
 
-_OPENTHREAD_EXTRAS = {"CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC"}
+_CCM_ECDSA_EXTRAS = {"CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC"}
 
 
 def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
@@ -1427,7 +1500,19 @@ def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
     for name in MBEDTLS_TLS_EXTRA_OPTIONS:
-        assert sdkconfig.get(name) is (None if name in _OPENTHREAD_EXTRAS else False)
+        assert sdkconfig.get(name) is (None if name in _CCM_ECDSA_EXTRAS else False)
+
+
+def test_mbedtls_tls_zigbee_keeps_only_what_it_uses(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The Zigbee config keeps CCM and deterministic ECDSA; the rest is trimmed."""
+    generate_main(component_config_path("tls_zigbee_c6.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (True, False)
+    for name in MBEDTLS_TLS_EXTRA_OPTIONS:
+        assert sdkconfig.get(name) is (None if name in _CCM_ECDSA_EXTRAS else False)
 
 
 def test_mbedtls_tls_user_sdkconfig_wins(
@@ -1456,7 +1541,16 @@ def test_mbedtls_tls_openthread_requires_server_and_extras(
     """The OpenThread hooks mark the DTLS server and CCM/deterministic ECDSA as required."""
     generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
     assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_SERVER_REQUIRED] is True
-    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _OPENTHREAD_EXTRAS
+    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _CCM_ECDSA_EXTRAS
+
+
+def test_mbedtls_tls_zigbee_requires_extras(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The Zigbee hooks mark the CCM/deterministic ECDSA as required."""
+    generate_main(component_config_path("tls_zigbee_c6.yaml"))
+    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _CCM_ECDSA_EXTRAS
 
 
 _VASPRINTF_STUB_FLAGS = {"-Wl,--wrap=vasprintf", "-Wl,--undefined=__wrap_vasprintf"}
