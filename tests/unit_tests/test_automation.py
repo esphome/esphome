@@ -637,11 +637,12 @@ async def _run_apply_condition(
     check: str | ApplyCall,
     config: dict[str, object],
     args: list[tuple[object, str]] | None = None,
+    platform: str = "esp32",
 ) -> RegistryEntry:
     """Register an apply condition and run its builder with the given config."""
     _, conditions = registries
     register_apply_condition("my.check", None, check)
-    return await _run_entry(conditions["my.check"], config, args, "esp32")
+    return await _run_entry(conditions["my.check"], config, args, platform)
 
 
 def _apply_lambda(mock_cg: MockCodegen) -> str:
@@ -863,6 +864,24 @@ async def test_apply_condition_compares_config_value(
     mock_cg.new_pvariable.reset_mock()
     with pytest.raises(EsphomeError, match="needs all of"):
         await _run_apply_condition(registries, check, {})
+
+
+@pytest.mark.asyncio
+async def test_apply_condition_string_constant_is_flash_string_on_esp8266(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    check = ApplyCall("current_option() == {}", (("option", cg.std_string),))
+    await _run_apply_condition(registries, check, {"option": "two"})
+    assert f'return ::{PARENT_OBJ}->current_option() == "two";' in _apply_lambda(
+        mock_cg
+    )
+
+    mock_cg.new_pvariable.reset_mock()
+    await _run_apply_condition(registries, check, {"option": "two"}, platform="esp8266")
+    assert (
+        f'return ::{PARENT_OBJ}->current_option() == progmem_string(ESPHOME_F("two"));'
+        in _apply_lambda(mock_cg)
+    )
 
 
 def test_apply_condition_registration_checks(
