@@ -469,7 +469,7 @@ async def to_code(config: ConfigType) -> None:
         reset_pin = (
             await cg.gpio_pin_expression(rcp[CONF_RESET_PIN])
             if CONF_RESET_PIN in rcp
-            else None
+            else cg.nullptr
         )
         ot = cg.new_Pvariable(
             config[CONF_ID],
