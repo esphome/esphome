@@ -11,15 +11,19 @@ using remote_base::RawTimings;
 using remote_base::RemoteReceiveData;
 using remote_base::RemoteTransmitData;
 
-static optional<GreeState> decode_signal(const RawTimings &raw) {
-  return GreeProtocol(GREE_YX1FF).decode(RemoteReceiveData(raw, 25, remote_base::TOLERANCE_MODE_PERCENTAGE));
+static optional<GreeState> decode_signal(Model model, const RawTimings &raw) {
+  return GreeProtocol(model).decode(RemoteReceiveData(raw, 25, remote_base::TOLERANCE_MODE_PERCENTAGE));
 }
 
-static RawTimings encode_signal(const GreeState &state) {
+static optional<GreeState> decode_signal(const RawTimings &raw) { return decode_signal(GREE_YX1FF, raw); }
+
+static RawTimings encode_signal(Model model, const GreeState &state) {
   RemoteTransmitData data;
-  GreeProtocol(GREE_YX1FF).encode(&data, state);
+  GreeProtocol(model).encode(&data, state);
   return data.get_data();
 }
+
+static RawTimings encode_signal(const GreeState &state) { return encode_signal(GREE_YX1FF, state); }
 
 static GreeClimateData decode_climate_state(Model model, const GreeState &state) {
   auto decoded = GreeClimateCodec::decode(model, state);
@@ -308,6 +312,83 @@ TEST(GreeClimateCodec, OtherModelsTransmitStateRegression) {
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YAG, source), (GreeState{0x69, 0x06, 0x60, 0x50, 0x01, 0x40, 0x00, 0xD0}));
 }
 
+TEST(GreeClimateCodec, LegacyModelsClimateStateRoundTrip) {
+  struct LegacyCase {
+    Model model;
+    GreeClimateData source;
+  };
+
+  const std::array<LegacyCase, 8> cases{{
+      {GREE_GENERIC,
+       {climate::CLIMATE_MODE_COOL, 22, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_SWING_OFF,
+        climate::CLIMATE_PRESET_NONE}},
+      {GREE_YAN,
+       {climate::CLIMATE_MODE_HEAT, 24, climate::CLIMATE_FAN_LOW, climate::CLIMATE_SWING_VERTICAL,
+        climate::CLIMATE_PRESET_NONE, GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT | GREE_XFAN_BIT}},
+      {GREE_YAA,
+       {climate::CLIMATE_MODE_COOL, 21, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_SWING_VERTICAL,
+        climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT | GREE_XFAN_BIT}},
+      {GREE_YAC,
+       {climate::CLIMATE_MODE_COOL, 23, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_SWING_HORIZONTAL,
+        climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT}},
+      {GREE_YAC,
+       {climate::CLIMATE_MODE_HEAT, 25, climate::CLIMATE_FAN_AUTO, climate::CLIMATE_SWING_BOTH,
+        climate::CLIMATE_PRESET_NONE, GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT}},
+      {GREE_YAC1FB9,
+       {climate::CLIMATE_MODE_DRY, 20, climate::CLIMATE_FAN_LOW, climate::CLIMATE_SWING_VERTICAL,
+        climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT}},
+      {GREE_YAG,
+       {climate::CLIMATE_MODE_FAN_ONLY, 22, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_SWING_HORIZONTAL,
+        climate::CLIMATE_PRESET_NONE}},
+      {GREE_YAG,
+       {climate::CLIMATE_MODE_COOL, 19, climate::CLIMATE_FAN_LOW, climate::CLIMATE_SWING_BOTH,
+        climate::CLIMATE_PRESET_NONE}},
+  }};
+
+  for (const auto &test : cases) {
+    const GreeState state = GreeClimateCodec::encode(test.model, test.source);
+    const auto decoded = decode_climate_state(test.model, state);
+
+    EXPECT_EQ(decoded.mode, test.source.mode);
+    EXPECT_EQ(decoded.target_temperature, test.source.target_temperature);
+    EXPECT_EQ(decoded.fan_mode, test.source.fan_mode);
+    EXPECT_EQ(decoded.swing_mode, test.source.swing_mode);
+    EXPECT_EQ(decoded.feature_bits, test.source.feature_bits);
+  }
+}
+
+TEST(GreeYAA, DecodeAcceptsOemTimerAndAuxiliaryFields) {
+  GreeClimateData source{climate::CLIMATE_MODE_COOL, 22, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_SWING_VERTICAL,
+                         climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT | GREE_XFAN_BIT};
+  GreeState state = GreeClimateCodec::encode(GREE_YAA, source);
+
+  // Keep the standard mode/fan/temp/feature fields but populate fields that vary between OEM remotes.
+  state[1] |= 0xB0;  // Timer enabled, half-hour flag, and timer tens.
+  state[2] = (state[2] & 0xF0) | 0x08;
+  state[3] = 0x5C;  // Fahrenheit/extra-degree flags plus the usual upper nibble.
+  state[4] = GREE_VDIR_SWING_UP;
+  state[5] = 0x66;  // Display temperature, I-Feel, fixed bits, and WiFi.
+  state[6] = 0xA5;
+  state[7] = GreeProtocol::calculate_checksum(state);
+
+  const auto decoded = decode_climate_state(GREE_YAA, state);
+  EXPECT_EQ(decoded.mode, source.mode);
+  EXPECT_EQ(decoded.target_temperature, source.target_temperature);
+  EXPECT_EQ(decoded.fan_mode, source.fan_mode);
+  EXPECT_EQ(decoded.swing_mode, source.swing_mode);
+  EXPECT_EQ(decoded.feature_bits, source.feature_bits);
+}
+
+TEST(GreeProtocol, YAC1FB9SignalRoundTrip) {
+  const GreeClimateData source{climate::CLIMATE_MODE_COOL, 22, climate::CLIMATE_FAN_MEDIUM,
+                               climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT};
+  const GreeState expected = GreeClimateCodec::encode(GREE_YAC1FB9, source);
+  auto decoded = decode_signal(GREE_YAC1FB9, encode_signal(GREE_YAC1FB9, expected));
+
+  ASSERT_TRUE(decoded.has_value());
+  EXPECT_EQ(decoded.value_or(GreeState{}), expected);
+}
+
 TEST(GreeYX1FF, ClimateStateRoundTrip) {
   constexpr std::array<climate::ClimateMode, 6> modes{
       climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_HEAT_COOL, climate::CLIMATE_MODE_COOL,
@@ -507,6 +588,30 @@ class TestFeatureSwitch : public switch_::Switch {
  protected:
   void write_state(bool state) override { this->publish_state(state); }
 };
+
+TEST(GreeYAA, ReceivePublishesStateAndFeatureBitsWithoutRetransmitting) {
+  const GreeClimateData source{climate::CLIMATE_MODE_COOL, 22, climate::CLIMATE_FAN_HIGH,
+                               climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT};
+  const GreeState state = GreeClimateCodec::encode(GREE_YAA, source);
+  CountingRemoteTransmitter transmitter;
+  GreeClimate device;
+  device.set_model(GREE_YAA);
+  device.set_transmitter(&transmitter);
+  TestFeatureSwitch light;
+  device.register_feature_switch(GreeFeature::GREE_FEATURE_LIGHT, &light);
+
+  remote_base::RemoteReceiverListener *listener = &device;
+  ASSERT_TRUE(listener->on_receive(
+      RemoteReceiveData(encode_signal(GREE_YAA, state), 25, remote_base::TOLERANCE_MODE_PERCENTAGE)));
+  EXPECT_EQ(transmitter.send_count, 0U);
+  EXPECT_EQ(device.mode, source.mode);
+  EXPECT_FLOAT_EQ(device.target_temperature, source.target_temperature);
+  ASSERT_TRUE(device.fan_mode.has_value());
+  EXPECT_EQ(device.fan_mode.value_or(climate::CLIMATE_FAN_ON), source.fan_mode);
+  EXPECT_EQ(device.swing_mode, source.swing_mode);
+  EXPECT_TRUE(device.get_feature_state(GreeFeature::GREE_FEATURE_LIGHT));
+  EXPECT_TRUE(light.state);
+}
 
 TEST(GreeYX1FF, ReceivePublishesWithoutRetransmitting) {
   const GreeState state{0x79, 0x06, 0x70, 0x50, 0x11, 0x20, 0x00, 0xC0};

@@ -223,9 +223,9 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
 }
 
 optional<GreeClimateData> GreeClimateCodec::decode(Model model, const GreeState &state) {
-  if (model != GREE_YB1FA && model != GREE_YX1FF)
-    return {};
-  return GreeClimateCodec::decode_model_a(model, state);
+  if (model == GREE_YB1FA || model == GREE_YX1FF)
+    return GreeClimateCodec::decode_model_a(model, state);
+  return GreeClimateCodec::decode_legacy(model, state);
 }
 
 uint8_t GreeClimateCodec::encode_operation_mode(climate::ClimateMode mode) {
@@ -303,6 +303,102 @@ uint8_t GreeClimateCodec::encode_vertical_swing(climate::ClimateSwingMode swing_
     default:
       return GREE_VDIR_MANUAL;
   }
+}
+
+optional<GreeClimateData> GreeClimateCodec::decode_legacy(Model model, const GreeState &state) {
+  if (!GreeProtocol::valid_checksum(state))
+    return {};
+
+  const uint8_t mode = state[0] & GREE_MODE_MASK;
+  const bool power = state[0] & GREE_POWER_MASK;
+  const uint8_t fan = state[0] & GREE_FAN_MASK;
+  const uint8_t temperature = state[1] & GREE_TEMP_MASK;
+
+  // Legacy GREE-branded remotes have several model and OEM variants. Decode the fields that are stable across the
+  // protocol, but do not require the transmitter-side fixed bytes: physical Tadiran/Tosot/GREE remotes may populate
+  // timer, display-temperature, I-Feel, WiFi, vane-position, or otherwise unused fields differently.
+  if (mode > GREE_MODE_HEAT || temperature > GREE_TEMP_MAX - GREE_TEMP_MIN)
+    return {};
+
+  const uint8_t vertical = state[4] & 0x0F;
+  const uint8_t horizontal = (state[4] >> 4) & 0x07;
+  bool swing_vertical = false;
+  bool swing_horizontal = false;
+
+  switch (model) {
+    case GREE_YAG:
+      // YAG uses byte 0 bit 6 as a general swing-active flag, so use the actual vane fields to distinguish axes.
+      swing_vertical = is_valid_vertical_swing(true, vertical);
+      swing_horizontal = horizontal == GREE_HDIR_SWING;
+      break;
+    case GREE_YAC:
+      swing_vertical = (state[0] & GREE_SWING_AUTO_MASK) || is_valid_vertical_swing(true, vertical);
+      swing_horizontal = horizontal == GREE_HDIR_SWING;
+      break;
+    case GREE_GENERIC:
+    case GREE_YAN:
+    case GREE_YAA:
+    case GREE_YAC1FB9:
+    default:
+      // ESPHome's YAN transmitter stores automatic vertical swing in byte 4, while YAA/YAC1FB9 use bit 6.
+      // Accept either representation so branded remotes using the standard GREE layout are handled as well.
+      swing_vertical = (state[0] & GREE_SWING_AUTO_MASK) || is_valid_vertical_swing(true, vertical);
+      break;
+  }
+
+  GreeClimateData data{
+      .mode = climate::CLIMATE_MODE_OFF,
+      .target_temperature = static_cast<uint8_t>(GREE_TEMP_MIN + temperature),
+      .fan_mode = climate::CLIMATE_FAN_AUTO,
+      .swing_mode = climate::CLIMATE_SWING_OFF,
+      .preset = climate::CLIMATE_PRESET_NONE,
+      .feature_bits = static_cast<uint8_t>(state[2] & supported_feature_mask(model)),
+  };
+
+  if (swing_vertical && swing_horizontal) {
+    data.swing_mode = climate::CLIMATE_SWING_BOTH;
+  } else if (swing_vertical) {
+    data.swing_mode = climate::CLIMATE_SWING_VERTICAL;
+  } else if (swing_horizontal) {
+    data.swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+  }
+
+  if (power) {
+    switch (mode) {
+      case GREE_MODE_AUTO:
+        data.mode = climate::CLIMATE_MODE_HEAT_COOL;
+        break;
+      case GREE_MODE_COOL:
+        data.mode = climate::CLIMATE_MODE_COOL;
+        break;
+      case GREE_MODE_DRY:
+        data.mode = climate::CLIMATE_MODE_DRY;
+        break;
+      case GREE_MODE_FAN:
+        data.mode = climate::CLIMATE_MODE_FAN_ONLY;
+        break;
+      case GREE_MODE_HEAT:
+        data.mode = climate::CLIMATE_MODE_HEAT;
+        break;
+    }
+  }
+
+  switch (fan) {
+    case GREE_FAN_1:
+      data.fan_mode = climate::CLIMATE_FAN_LOW;
+      break;
+    case GREE_FAN_2:
+      data.fan_mode = climate::CLIMATE_FAN_MEDIUM;
+      break;
+    case GREE_FAN_3:
+      data.fan_mode = climate::CLIMATE_FAN_HIGH;
+      break;
+    case GREE_FAN_AUTO:
+      data.fan_mode = climate::CLIMATE_FAN_AUTO;
+      break;
+  }
+
+  return data;
 }
 
 optional<GreeClimateData> GreeClimateCodec::decode_model_a(Model model, const GreeState &state) {

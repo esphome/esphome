@@ -149,6 +149,7 @@ class GreeClimateCodec {
   static uint8_t encode_fan_mode(Model model, climate::ClimateFanMode fan_mode);
   static uint8_t encode_horizontal_swing(climate::ClimateSwingMode swing_mode);
   static uint8_t encode_vertical_swing(climate::ClimateSwingMode swing_mode);
+  static optional<GreeClimateData> decode_legacy(Model model, const GreeState &state);
   static optional<GreeClimateData> decode_model_a(Model model, const GreeState &state);
 };
 
