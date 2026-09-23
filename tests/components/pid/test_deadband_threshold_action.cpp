@@ -73,4 +73,19 @@ TEST(PIDSetDeadbandControlParametersMultipliersAction, ChangesAllMultipliers) {
   EXPECT_FLOAT_EQ(climate.get_kd_multiplier(), 0.3f);
 }
 
+TEST(PIDSetDeadbandControlParametersMultipliersAction, KeepsOptionalMultipliersWhenOmitted) {
+  PIDClimate climate;
+  climate.set_kp_multiplier(0.4f);
+  climate.set_ki_multiplier(0.5f);
+  climate.set_kd_multiplier(0.6f);
+
+  PIDSetDeadbandControlParametersMultipliersAction<> action(&climate);
+  action.set_kp_multiplier([]() -> float { return 0.1f; });
+  action.play();
+
+  EXPECT_FLOAT_EQ(climate.get_kp_multiplier(), 0.1f);
+  EXPECT_FLOAT_EQ(climate.get_ki_multiplier(), 0.5f);
+  EXPECT_FLOAT_EQ(climate.get_kd_multiplier(), 0.6f);
+}
+
 }  // namespace esphome::pid

@@ -170,20 +170,33 @@ template<typename... Ts> class PIDSetDeadbandControlParametersMultipliersAction 
 
   void play(const Ts &...x) {
     auto kp_multiplier = this->kp_multiplier_.value(x...);
-    auto ki_multiplier = this->ki_multiplier_.value(x...);
-    auto kd_multiplier = this->kd_multiplier_.value(x...);
 
     this->parent_->set_kp_multiplier(kp_multiplier);
-    this->parent_->set_ki_multiplier(ki_multiplier);
-    this->parent_->set_kd_multiplier(kd_multiplier);
+    if (this->ki_multiplier_set_)
+      this->parent_->set_ki_multiplier(this->ki_multiplier_.value(x...));
+    if (this->kd_multiplier_set_)
+      this->parent_->set_kd_multiplier(this->kd_multiplier_.value(x...));
   }
 
  protected:
   TEMPLATABLE_VALUE(float, kp_multiplier)
-  TEMPLATABLE_VALUE(float, ki_multiplier)
-  TEMPLATABLE_VALUE(float, kd_multiplier)
+  TemplatableStorage<float, Ts...> ki_multiplier_{};
+  TemplatableStorage<float, Ts...> kd_multiplier_{};
+
+  bool ki_multiplier_set_{false};
+  bool kd_multiplier_set_{false};
 
   PIDClimate *parent_;
+
+ public:
+  template<typename V> void set_ki_multiplier(V value) {
+    this->ki_multiplier_ = value;
+    this->ki_multiplier_set_ = true;
+  }
+  template<typename V> void set_kd_multiplier(V value) {
+    this->kd_multiplier_ = value;
+    this->kd_multiplier_set_ = true;
+  }
 };
 
 template<typename... Ts> class PIDSetDeadbandThresholdParametersAction final : public Action<Ts...> {

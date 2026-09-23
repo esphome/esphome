@@ -231,9 +231,11 @@ async def set_control_parameters(
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(PIDClimate),
+            # kp_multiplier is required for compatibility with the original action API;
+            # ki_multiplier and kd_multiplier are optional overrides.
             cv.Required(CONF_KP_MULTIPLIER): cv.templatable(cv.float_),
-            cv.Optional(CONF_KI_MULTIPLIER, default=0.0): cv.templatable(cv.float_),
-            cv.Optional(CONF_KD_MULTIPLIER, default=0.0): cv.templatable(cv.float_),
+            cv.Optional(CONF_KI_MULTIPLIER): cv.templatable(cv.float_),
+            cv.Optional(CONF_KD_MULTIPLIER): cv.templatable(cv.float_),
         }
     ),
     synchronous=True,
@@ -252,15 +254,13 @@ async def set_deadband_control_parameters_multipliers(
     )
     cg.add(var.set_kp_multiplier(kp_multiplier_template_))
 
-    ki_multiplier_template_ = await cg.templatable(
-        config[CONF_KI_MULTIPLIER], args, float
-    )
-    cg.add(var.set_ki_multiplier(ki_multiplier_template_))
+    if (ki_multiplier := config.get(CONF_KI_MULTIPLIER)) is not None:
+        ki_multiplier_template_ = await cg.templatable(ki_multiplier, args, float)
+        cg.add(var.set_ki_multiplier(ki_multiplier_template_))
 
-    kd_multiplier_template_ = await cg.templatable(
-        config[CONF_KD_MULTIPLIER], args, float
-    )
-    cg.add(var.set_kd_multiplier(kd_multiplier_template_))
+    if (kd_multiplier := config.get(CONF_KD_MULTIPLIER)) is not None:
+        kd_multiplier_template_ = await cg.templatable(kd_multiplier, args, float)
+        cg.add(var.set_kd_multiplier(kd_multiplier_template_))
 
     return var
 
