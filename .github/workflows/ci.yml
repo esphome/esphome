@@ -49,7 +49,7 @@ jobs:
         # detects the activated venv via ``VIRTUAL_ENV`` so downstream jobs
         # that ``. venv/bin/activate`` see an identical layout.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can
@@ -244,11 +244,20 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Read prek version from requirements_test.txt
+        id: prek
+        # requirements_test.txt is the only place the version is pinned, so a
+        # Dependabot bump there is picked up here without a second edit.
+        run: |
+          if ! version=$(sed -nE 's/^prek==([^[:space:]#]+).*/\1/p' requirements_test.txt) || [ -z "$version" ]; then
+            echo "::error::No prek== pin found in requirements_test.txt."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Run prek
         uses: j178/prek-action@4e14d07f9231acabce116ccfca13b13dd9755ece # v3.0.0
         with:
-          # Keep in sync with requirements_test.txt.
-          prek-version: "0.4.11"
+          prek-version: ${{ steps.prek.outputs.version }}
           # This job only runs on pull requests, so nothing ever populates
           # the cache on dev. Every run would miss and then write a per-pull
           # request copy, which is what the old seed-cache job existed to
@@ -312,7 +321,7 @@ jobs:
           . venv/bin/activate
           pytest -vv --cov-report=xml --tb=native --durations=30 -n auto tests --ignore=tests/integration/
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
       - name: Save Python virtual environment cache
         if: github.ref == 'refs/heads/dev'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -341,7 +350,7 @@ jobs:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Report empty upload to Codecov
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           run_command: empty-upload
           force: true
@@ -404,7 +413,7 @@ jobs:
       - name: Set up uv
         # Only needed on cache miss to populate the venv.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can
@@ -1265,7 +1274,7 @@ jobs:
         # install step (order-of-magnitude faster on cold boots,
         # with its own wheel cache). actions/setup-python still
         # provides the interpreter.
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can

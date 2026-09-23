@@ -416,6 +416,9 @@ def test_perform_ota_no_auth(
         "Update took 14.00 seconds (prepare 2.00, upload 5.00, commit 7.00)"
         in caplog.text
     )
+    # The data phase timeout must outlast the device's 105 s data timeout
+    mock_socket.settimeout.assert_any_call(espota2.DATA_PHASE_TIMEOUT)
+    assert espota2.DATA_PHASE_TIMEOUT > 105.0
 
 
 @pytest.mark.usefixtures("mock_time")

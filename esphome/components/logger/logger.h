@@ -352,10 +352,10 @@ class Logger final : public Component {
   // Group smaller types together at the end
   uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_ZEPHYR)
-  UARTSelection uart_{UART_SELECTION_UART0};
+  UARTSelection uart_{UART_SELECTION_UART0};  // Must match cpp_default_uart in __init__.py
 #endif
 #ifdef USE_LIBRETINY
-  UARTSelection uart_{UART_SELECTION_DEFAULT};
+  UARTSelection uart_{UART_SELECTION_DEFAULT};  // Must match cpp_default_uart in __init__.py
 #endif
 #if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   bool main_task_recursion_guard_{false};
