@@ -7,7 +7,7 @@ namespace esphome::time_based {
 
 // Inheritance: TimeBasedValve -> TimeBasedActuatorBase (Component), Valve (ActuatorBase, IActuator)
 // No shared ancestors. No diamond inheritance.
-class TimeBasedValve : public TimeBasedActuatorBase, public valve::Valve {
+class TimeBasedValve final : public TimeBasedActuatorBase, public valve::Valve {
  public:
   TimeBasedValve() { this->set_actuator(this); }
   valve::ValveTraits get_traits() override;
