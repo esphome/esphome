@@ -334,6 +334,10 @@ class ModbusPeerHub : public Modbus {
   /// A broadcast (address 0), which is never answered.
   virtual void process_broadcast_frame(std::span<const uint8_t> pdu) = 0;
 
+  /// Called before each buffered frame is parsed. A server uses it to drop a reply it deferred,
+  /// since the client has plainly moved on; a sniffer never sends and has nothing to drop.
+  virtual void on_frame_pending_() {}
+
   /// Server address whose reply is expected next; 0 means none. Armed by a request this hub does
   /// not serve, which is what lets it follow someone else's exchange.
   uint8_t expecting_peer_response_{0};
@@ -352,6 +356,7 @@ class ModbusServerHub : public ModbusPeerHub {
   void process_modbus_client_frame(uint8_t address, std::span<const uint8_t> pdu) override;
   // Dispatches a broadcast (address 0) write to every registered device; broadcasts are never answered.
   void process_broadcast_frame(std::span<const uint8_t> pdu) override;
+  void on_frame_pending_() override;
   // Parses a WRITE_SINGLE_REGISTER / WRITE_MULTIPLE_REGISTERS PDU into start_address and the address order register
   // values, validating the register count and address range. Shared by unicast and broadcast writes.
   ResponseStatus parse_write_single_(std::span<const uint8_t> data, uint16_t &start_address, RegisterValues &registers);

@@ -203,12 +203,7 @@ void ModbusClientHub::parse_modbus_frames() {
 
 void ModbusPeerHub::parse_modbus_frames() {
   while (!this->rx_buffer_.empty()) {
-    if (this->deferred_payload_len_ != 0) {
-      // Another frame arrived before the deferred reply went out, so the client has moved on.
-      this->cancel_timeout("deferred_send");
-      ESP_LOGD(TAG, "Dropped deferred reply to %" PRIu8 ": a new frame arrived first", this->deferred_payload_[0]);
-      this->deferred_payload_len_ = 0;
-    }
+    this->on_frame_pending_();
     size_t size = this->rx_buffer_.size();
     ESP_LOGVV(TAG, "Parsing frames buffer size = %" PRIu32, size);
     bool retry_as_client = false;
@@ -609,6 +604,15 @@ bool ModbusServerHub::build_or_reject_read_response_(uint8_t address, uint8_t fu
     response_buffer[response_len++] = register_bytes[1];
   }
   return true;
+}
+
+void ModbusServerHub::on_frame_pending_() {
+  if (this->deferred_payload_len_ == 0)
+    return;
+  // Another frame arrived before the deferred reply went out, so the client has moved on.
+  this->cancel_timeout("deferred_send");
+  ESP_LOGD(TAG, "Dropped deferred reply to %" PRIu8 ": a new frame arrived first", this->deferred_payload_[0]);
+  this->deferred_payload_len_ = 0;
 }
 
 void ModbusServerHub::process_modbus_client_frame(uint8_t address, std::span<const uint8_t> pdu) {
