@@ -1,5 +1,6 @@
 #include "pzem6l24.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <cmath>
@@ -8,23 +9,6 @@
 namespace esphome::pzem6l24 {
 
 static const char *const TAG = "pzem6l24";
-
-// Number of input registers to read (0x0000 – 0x003F inclusive)
-static const uint8_t PZEM_REGISTER_COUNT = 64;  // 64 × 16-bit registers = 128 bytes
-// Payload size of the register read response
-static const size_t PZEM_PAYLOAD_SIZE = PZEM_REGISTER_COUNT * 2;
-
-// Consecutive failed polls tolerated before the readings are blanked. On a shared RS-485 bus an
-// occasional collision or timeout is routine, and taking all 35 entities to unavailable for a whole
-// update interval over one of them is worse than briefly holding readings that are one poll old. Every
-// failure is still logged as it happens; only the blanking waits, and a real outage reaches it in three
-// polls.
-static const uint8_t MAX_CONSECUTIVE_READ_FAILURES = 3;
-
-// Consecutive polls the hub may refuse before the refusal is reported and the read accounting is reset.
-// A refusal is harmless when it means this poll was absorbed into a read already in flight, but
-// queue_pdu() does not say why it refused, so that reading of it is only trusted this far.
-static const uint8_t MAX_UNQUEUED_POLLS = 3;
 
 // -----------------------------------------------------------------------
 // Register map (input registers, starting address 0x0000):
@@ -115,21 +99,26 @@ enum RegType : uint8_t {
   REG_I32,  // two registers, signed, low word first
 };
 
-// One decodable quantity: where it lives in the payload, how to read it and which sensor it feeds. The
-// table of these is kept in flash (see SENSORS below), so entries are copied one at a time to the stack
-// as they are decoded - which is what makes trivial copyability a requirement rather than a detail.
+// Scale factor of a quantity; the table has only these two, so a byte replaces a float per entry.
+enum Scale : uint8_t {
+  SCALE_DECI,   // ×0.1
+  SCALE_CENTI,  // ×0.01
+};
+
+// One decodable quantity: where it lives in the payload, how to read it and which sensor it feeds.
+// Copied out of flash with memcpy, so it must stay trivially copyable.
 struct SensorEntry {
   sensor::Sensor *PZEM6L24::*member;
   uint8_t offset;
   RegType type;
-  float scale;
+  Scale scale;
 };
 static_assert(std::is_trivially_copyable_v<SensorEntry>, "SENSORS is copied out of flash with memcpy");
 
-// True for the periodic register read issued by update(). Every other reply routed to this device -
-// notably the acknowledgement of the 0x42 reset command - carries no measurement payload.
+// True for the periodic register read issued by update(); the only other request is the 0x42 reset.
 static bool is_register_read(std::span<const uint8_t> request_pdu) {
-  return !request_pdu.empty() && request_pdu[0] == static_cast<uint8_t>(modbus::FunctionCode::READ_INPUT_REGISTERS);
+  return modbus::helpers::pdu_function_code(request_pdu) ==
+         static_cast<uint8_t>(modbus::FunctionCode::READ_INPUT_REGISTERS);
 }
 
 void PZEM6L24::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
@@ -137,47 +126,8 @@ void PZEM6L24::on_response(std::span<const uint8_t> request_pdu, std::span<const
     return;
   }
   this->read_finished_();
-  this->publish_values_(modbus::helpers::server_pdu_payload(response_pdu));
-}
-
-void PZEM6L24::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
-  if (!is_register_read(request_pdu)) {
-    // The only other request this device sends is the energy reset; the counters were left as they were.
-    ESP_LOGW(TAG, "PZEM-6L24 rejected the energy reset with exception 0x%02X", static_cast<uint8_t>(exception_code));
-    return;
-  }
-  this->read_finished_();
-  ESP_LOGW(TAG, "PZEM-6L24 returned exception 0x%02X to the register read", static_cast<uint8_t>(exception_code));
-  this->read_failed_();
-}
-
-bool PZEM6L24::on_no_response(std::span<const uint8_t> request_pdu) {
-  if (is_register_read(request_pdu)) {
-    this->read_finished_();
-    ESP_LOGW(TAG, "PZEM-6L24 did not respond to the register read");
-    this->read_failed_();
-  } else {
-    ESP_LOGW(TAG, "PZEM-6L24 did not acknowledge the energy reset; the counters may not have been cleared");
-  }
-  return false;  // no retry; the next update() polls again.
-}
-
-// An accepted request that was dropped before it reached the wire (clear_tx_queue_for_address()).
-void PZEM6L24::on_not_sent(std::span<const uint8_t> request_pdu) {
-  if (is_register_read(request_pdu)) {
-    this->read_finished_();
-    ESP_LOGW(TAG, "Register read was dropped before it was sent");
-    this->read_failed_();
-  } else {
-    ESP_LOGW(TAG, "Energy reset was dropped before it was sent; the counters were not cleared");
-  }
-}
-
-// Decodes a register read response and publishes it. The size is validated here, in the one place that
-// knows what the offsets below need: anything but exactly PZEM_PAYLOAD_SIZE bytes is not a payload this
-// map can decode - too short would read past the end, too long did not come from the frame layout the
-// map was written for - and every wrong size, including a degenerate empty one, is reported.
-void PZEM6L24::publish_values_(std::span<const uint8_t> data) {
+  const auto data = modbus::helpers::server_pdu_payload(response_pdu);
+  // Anything but exactly PZEM_PAYLOAD_SIZE bytes cannot be decoded by the table.
   if (data.size() != PZEM_PAYLOAD_SIZE) {
     ESP_LOGW(TAG, "Invalid data size for PZEM-6L24: expected %zu bytes, got %zu", PZEM_PAYLOAD_SIZE, data.size());
     this->read_failed_();
@@ -187,82 +137,87 @@ void PZEM6L24::publish_values_(std::span<const uint8_t> data) {
   this->publish_(data.data());
 }
 
-// The single publish path: `data` points at PZEM_PAYLOAD_SIZE validated bytes, or is nullptr to blank
-// every sensor. Both walk the same table, so a sensor cannot be published in one case and forgotten in
-// the other.
+void PZEM6L24::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode) {
+  this->request_failed_(request_pdu);
+}
+
+bool PZEM6L24::on_no_response(std::span<const uint8_t> request_pdu) {
+  this->request_failed_(request_pdu);
+  return false;  // no retry; the next update() polls again.
+}
+
+void PZEM6L24::on_not_sent(std::span<const uint8_t> request_pdu) { this->request_failed_(request_pdu); }
+
+// A register read that produced no measurements counts toward blanking; a failed energy reset does
+// not, but the user is told. The hub has already logged the cause.
+void PZEM6L24::request_failed_(std::span<const uint8_t> request_pdu) {
+  if (is_register_read(request_pdu)) {
+    this->read_finished_();
+    this->read_failed_();
+  } else {
+    ESP_LOGW(TAG, "Energy reset failed; the counters were not cleared");
+  }
+}
+
+// `data` points at PZEM_PAYLOAD_SIZE validated bytes, or is nullptr to blank every sensor; both walk
+// the same table.
 void PZEM6L24::publish_(const uint8_t *data) {
   const bool available = data != nullptr;
 
-  // Helper: decode a little-endian 16-bit value at byte offset i.
-  auto get_u16 = [&](size_t i) -> uint16_t { return (uint16_t(data[i + 1]) << 8) | uint16_t(data[i]); };
-
-  // Helper: decode a little-endian unsigned 32-bit value at byte offset i
-  // (low word at i, high word at i+2).
-  auto get_u32 = [&](size_t i) -> uint32_t {
-    return (uint32_t(data[i + 3]) << 24) | (uint32_t(data[i + 2]) << 16) | (uint32_t(data[i + 1]) << 8) |
-           uint32_t(data[i]);
-  };
-
-  // Helper: decode a little-endian signed 32-bit value at byte offset i.
-  auto get_i32 = [&](size_t i) -> int32_t { return static_cast<int32_t>(get_u32(i)); };
-
-  // Byte offset, width and scaling for every quantity, in register-map order. All three phases share the
-  // same grid frequency, so phase A's register is reported as the representative value.
+  // Byte offset, width and scale for every quantity, in register-map order. All three phases share the
+  // same grid frequency, so phase A's register is reported.
   //
-  // PROGMEM keeps the table in flash on ESP8266, where .rodata is DRAM: at ~12 bytes per entry it would
-  // otherwise cost ~420 bytes of permanently resident RAM on a chip with ~40 kB of heap, paid whether
-  // the user configures one sensor or all thirty-five. The price is one 12-byte stack copy per sensor
-  // per poll. PROGMEM is a no-op on every other platform, where progmem_memcpy() is a plain memcpy.
-  // Same reason there is no name column: 35 string literals would be another ~700 bytes of DRAM, and
-  // dump_config() already names every sensor from flash via LOG_SENSOR's PSTR.
-  static const SensorEntry SENSORS[] PROGMEM = {
+  // PROGMEM: on ESP8266 .rodata is DRAM, so the table would otherwise cost ~280 bytes of RAM; the price
+  // is one 8-byte copy per sensor per poll. No name column for the same reason; dump_config() names
+  // every sensor from flash.
+  static constexpr SensorEntry SENSORS[] PROGMEM = {
       // Voltages (×0.1 V)
-      {&PZEM6L24::voltage_a_, 0, REG_U16, 0.1f},
-      {&PZEM6L24::voltage_b_, 2, REG_U16, 0.1f},
-      {&PZEM6L24::voltage_c_, 4, REG_U16, 0.1f},
+      {&PZEM6L24::voltage_a_, 0, REG_U16, SCALE_DECI},
+      {&PZEM6L24::voltage_b_, 2, REG_U16, SCALE_DECI},
+      {&PZEM6L24::voltage_c_, 4, REG_U16, SCALE_DECI},
       // Currents (×0.01 A)
-      {&PZEM6L24::current_a_, 6, REG_U16, 0.01f},
-      {&PZEM6L24::current_b_, 8, REG_U16, 0.01f},
-      {&PZEM6L24::current_c_, 10, REG_U16, 0.01f},
+      {&PZEM6L24::current_a_, 6, REG_U16, SCALE_CENTI},
+      {&PZEM6L24::current_b_, 8, REG_U16, SCALE_CENTI},
+      {&PZEM6L24::current_c_, 10, REG_U16, SCALE_CENTI},
       // Frequency (×0.01 Hz)
-      {&PZEM6L24::frequency_, 12, REG_U16, 0.01f},
+      {&PZEM6L24::frequency_, 12, REG_U16, SCALE_CENTI},
       // Active powers (×0.1 W, signed)
-      {&PZEM6L24::active_power_a_, 28, REG_I32, 0.1f},
-      {&PZEM6L24::active_power_b_, 32, REG_I32, 0.1f},
-      {&PZEM6L24::active_power_c_, 36, REG_I32, 0.1f},
-      {&PZEM6L24::total_active_power_, 64, REG_I32, 0.1f},
+      {&PZEM6L24::active_power_a_, 28, REG_I32, SCALE_DECI},
+      {&PZEM6L24::active_power_b_, 32, REG_I32, SCALE_DECI},
+      {&PZEM6L24::active_power_c_, 36, REG_I32, SCALE_DECI},
+      {&PZEM6L24::total_active_power_, 64, REG_I32, SCALE_DECI},
       // Reactive powers (×0.1 var, signed)
-      {&PZEM6L24::reactive_power_a_, 40, REG_I32, 0.1f},
-      {&PZEM6L24::reactive_power_b_, 44, REG_I32, 0.1f},
-      {&PZEM6L24::reactive_power_c_, 48, REG_I32, 0.1f},
-      {&PZEM6L24::total_reactive_power_, 68, REG_I32, 0.1f},
+      {&PZEM6L24::reactive_power_a_, 40, REG_I32, SCALE_DECI},
+      {&PZEM6L24::reactive_power_b_, 44, REG_I32, SCALE_DECI},
+      {&PZEM6L24::reactive_power_c_, 48, REG_I32, SCALE_DECI},
+      {&PZEM6L24::total_reactive_power_, 68, REG_I32, SCALE_DECI},
       // Apparent powers (×0.1 VA, signed)
-      {&PZEM6L24::apparent_power_a_, 52, REG_I32, 0.1f},
-      {&PZEM6L24::apparent_power_b_, 56, REG_I32, 0.1f},
-      {&PZEM6L24::apparent_power_c_, 60, REG_I32, 0.1f},
-      {&PZEM6L24::total_apparent_power_, 72, REG_I32, 0.1f},
+      {&PZEM6L24::apparent_power_a_, 52, REG_I32, SCALE_DECI},
+      {&PZEM6L24::apparent_power_b_, 56, REG_I32, SCALE_DECI},
+      {&PZEM6L24::apparent_power_c_, 60, REG_I32, SCALE_DECI},
+      {&PZEM6L24::total_apparent_power_, 72, REG_I32, SCALE_DECI},
       // Power factors (×0.01), packed two per register:
       //   register 0x0026 (bytes 76/77): lo-byte = phase B, hi-byte = phase A
       //   register 0x0027 (bytes 78/79): lo-byte = combined, hi-byte = phase C
-      {&PZEM6L24::power_factor_a_, 77, REG_U8, 0.01f},
-      {&PZEM6L24::power_factor_b_, 76, REG_U8, 0.01f},
-      {&PZEM6L24::power_factor_c_, 79, REG_U8, 0.01f},
-      {&PZEM6L24::total_power_factor_, 78, REG_U8, 0.01f},
+      {&PZEM6L24::power_factor_a_, 77, REG_U8, SCALE_CENTI},
+      {&PZEM6L24::power_factor_b_, 76, REG_U8, SCALE_CENTI},
+      {&PZEM6L24::power_factor_c_, 79, REG_U8, SCALE_CENTI},
+      {&PZEM6L24::total_power_factor_, 78, REG_U8, SCALE_CENTI},
       // Active energies (×0.1 kWh, unsigned)
-      {&PZEM6L24::active_energy_a_, 80, REG_U32, 0.1f},
-      {&PZEM6L24::active_energy_b_, 84, REG_U32, 0.1f},
-      {&PZEM6L24::active_energy_c_, 88, REG_U32, 0.1f},
-      {&PZEM6L24::total_active_energy_, 116, REG_U32, 0.1f},
+      {&PZEM6L24::active_energy_a_, 80, REG_U32, SCALE_DECI},
+      {&PZEM6L24::active_energy_b_, 84, REG_U32, SCALE_DECI},
+      {&PZEM6L24::active_energy_c_, 88, REG_U32, SCALE_DECI},
+      {&PZEM6L24::total_active_energy_, 116, REG_U32, SCALE_DECI},
       // Reactive energies (×0.1 kvarh, unsigned)
-      {&PZEM6L24::reactive_energy_a_, 92, REG_U32, 0.1f},
-      {&PZEM6L24::reactive_energy_b_, 96, REG_U32, 0.1f},
-      {&PZEM6L24::reactive_energy_c_, 100, REG_U32, 0.1f},
-      {&PZEM6L24::total_reactive_energy_, 120, REG_U32, 0.1f},
+      {&PZEM6L24::reactive_energy_a_, 92, REG_U32, SCALE_DECI},
+      {&PZEM6L24::reactive_energy_b_, 96, REG_U32, SCALE_DECI},
+      {&PZEM6L24::reactive_energy_c_, 100, REG_U32, SCALE_DECI},
+      {&PZEM6L24::total_reactive_energy_, 120, REG_U32, SCALE_DECI},
       // Apparent energies (×0.1 kVAh, unsigned)
-      {&PZEM6L24::apparent_energy_a_, 104, REG_U32, 0.1f},
-      {&PZEM6L24::apparent_energy_b_, 108, REG_U32, 0.1f},
-      {&PZEM6L24::apparent_energy_c_, 112, REG_U32, 0.1f},
-      {&PZEM6L24::total_apparent_energy_, 124, REG_U32, 0.1f},
+      {&PZEM6L24::apparent_energy_a_, 104, REG_U32, SCALE_DECI},
+      {&PZEM6L24::apparent_energy_b_, 108, REG_U32, SCALE_DECI},
+      {&PZEM6L24::apparent_energy_c_, 112, REG_U32, SCALE_DECI},
+      {&PZEM6L24::total_apparent_energy_, 124, REG_U32, SCALE_DECI},
   };
 
   for (const SensorEntry &flash_entry : SENSORS) {
@@ -275,52 +230,36 @@ void PZEM6L24::publish_(const uint8_t *data) {
       sens->publish_state(NAN);
       continue;
     }
-    // No default: every RegType is handled, so a width added later fails to compile rather than
-    // decoding as something plausible but wrong.
+    // No default: an added RegType must fail to compile. The wire is little-endian, hence the reversed
+    // byte arguments.
+    const size_t o = entry.offset;
     float raw = 0.0f;
     switch (entry.type) {
       case REG_U8:
-        raw = data[entry.offset];
+        raw = data[o];
         break;
       case REG_U16:
-        raw = get_u16(entry.offset);
+        raw = encode_uint16(data[o + 1], data[o]);
         break;
       case REG_U32:
-        raw = get_u32(entry.offset);
+        raw = encode_uint32(data[o + 3], data[o + 2], data[o + 1], data[o]);
         break;
       case REG_I32:
-        raw = get_i32(entry.offset);
+        raw = static_cast<int32_t>(encode_uint32(data[o + 3], data[o + 2], data[o + 1], data[o]));
         break;
     }
-    sens->publish_state(raw * entry.scale);
+    sens->publish_state(raw * (entry.scale == SCALE_CENTI ? 0.01f : 0.1f));
   }
 }
 
 void PZEM6L24::update() {
   if (this->read_input_registers(0x0000, PZEM_REGISTER_COUNT)) {
     this->reads_outstanding_++;
-    this->unqueued_polls_ = 0;
-    return;
+  } else if (this->reads_outstanding_ == 0) {
+    // Refused with nothing in flight: no callback is coming, and the hub has logged why. A refusal
+    // while a read is outstanding is a duplicate of it, which still resolves in that read's callback.
+    this->read_failed_();
   }
-
-  // queue_pdu() refused, and it does not say why. This poll may have been absorbed as an over-cap
-  // duplicate of a read already in flight, which still resolves in its own terminal and needs no
-  // reporting - blanking there would flap every entity to unavailable while the meter answers fine. But
-  // the hub also refuses for reasons that will not clear on their own (a full transmit queue), and a read
-  // counted as outstanding whose terminal never arrives - a device teardown that retires frames silently
-  // - would otherwise hold this branch open forever. So the harmless reading is only trusted while a read
-  // is outstanding AND only for a few polls; past that the refusal is reported and the accounting starts
-  // over, so failure reporting cannot be disabled indefinitely.
-  this->unqueued_polls_++;
-  if (this->reads_outstanding_ > 0 && this->unqueued_polls_ < MAX_UNQUEUED_POLLS) {
-    ESP_LOGD(TAG, "Register read merged into one already in flight; the bus is running behind");
-    return;
-  }
-
-  ESP_LOGW(TAG, "Register read was not queued");
-  this->unqueued_polls_ = 0;
-  this->reads_outstanding_ = 0;  // whatever was owed is not arriving; do not keep waiting on it
-  this->read_failed_();
 }
 
 void PZEM6L24::dump_config() {
@@ -366,10 +305,7 @@ void PZEM6L24::dump_config() {
   LOG_SENSOR("  ", "Total Apparent Energy", this->total_apparent_energy_);
 }
 
-// A poll produced no usable measurements; the caller has already logged why. The readings are held for
-// a couple more polls before being blanked, so one bad poll on a busy bus does not take every entity to
-// unavailable. Once blanked they stay blanked - the counter stops at the threshold - until a poll
-// succeeds and resets it.
+// Blank after MAX_CONSECUTIVE_READ_FAILURES; stays blanked until a poll succeeds.
 void PZEM6L24::read_failed_() {
   if (this->consecutive_failures_ >= MAX_CONSECUTIVE_READ_FAILURES) {
     return;
@@ -390,9 +326,9 @@ void PZEM6L24::read_finished_() {
 
 void PZEM6L24::reset_energy(ResetPhase phase_option) {
   const auto pdu = build_reset_pdu(phase_option);
-  // A refused request gets no callback, so the failed button press would otherwise leave no trace.
+  // A refused request gets no callback, so report it here.
   if (!this->queue_pdu(pdu)) {
-    ESP_LOGW(TAG, "Energy reset was not queued; the counters were not cleared");
+    this->request_failed_(pdu);
   }
 }
 

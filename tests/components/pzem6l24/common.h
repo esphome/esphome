@@ -7,17 +7,10 @@
 
 namespace esphome::pzem6l24::testing {
 
-// Sizes of the frames exchanged with the meter, mirrored from pzem6l24.cpp.
-static constexpr uint8_t REGISTER_COUNT = 64;
-static constexpr size_t PAYLOAD_SIZE = REGISTER_COUNT * 2;
-
-// Mirrored from pzem6l24.cpp: consecutive failed polls before the readings are blanked.
-static constexpr int FAILURES_BEFORE_BLANKING = 3;
-
 // The request PDU update() puts on the wire: read 64 input registers from 0x0000.
-static constexpr uint8_t READ_REQUEST_PDU[] = {0x04, 0x00, 0x00, 0x00, REGISTER_COUNT};
-// The request PDU reset_energy() puts on the wire: function 0x42, reserved byte, phase selector.
-static constexpr uint8_t RESET_REQUEST_PDU[] = {0x42, 0x00, 0x0F};
+static constexpr uint8_t READ_REQUEST_PDU[] = {0x04, 0x00, 0x00, 0x00, PZEM_REGISTER_COUNT};
+// The request PDU reset_energy() puts on the wire for every phase.
+static constexpr auto RESET_REQUEST_PDU = build_reset_pdu(RESET_PHASE_ALL);
 
 // Builds the 128-byte register payload the meter returns, writing each quantity in the
 // little-endian byte order documented in pzem6l24.cpp's register map.
@@ -41,13 +34,13 @@ class PayloadBuilder {
 
   // Wraps the payload in a read-input-registers response PDU: function code, byte count, data.
   std::vector<uint8_t> response_pdu() const {
-    std::vector<uint8_t> pdu{0x04, static_cast<uint8_t>(PAYLOAD_SIZE)};
+    std::vector<uint8_t> pdu{0x04, static_cast<uint8_t>(PZEM_PAYLOAD_SIZE)};
     pdu.insert(pdu.end(), this->data_.begin(), this->data_.end());
     return pdu;
   }
 
  protected:
-  std::array<uint8_t, PAYLOAD_SIZE> data_{};
+  std::array<uint8_t, PZEM_PAYLOAD_SIZE> data_{};
 };
 
 }  // namespace esphome::pzem6l24::testing

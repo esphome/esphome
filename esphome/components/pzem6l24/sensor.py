@@ -58,142 +58,103 @@ CONF_TOTAL_APPARENT_ENERGY = "total_apparent_energy"
 CONF_PHASE = "phase"
 
 
-def _voltage_schema():
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_VOLT,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_VOLTAGE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
-
-
-def _current_schema():
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_AMPERE,
-        accuracy_decimals=2,
-        device_class=DEVICE_CLASS_CURRENT,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
-
-
-def _active_power_schema():
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_WATT,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_POWER,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
-
-
-def _reactive_power_schema():
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_REACTIVE_POWER,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
-
-
-def _apparent_power_schema():
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_VOLT_AMPS,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_APPARENT_POWER,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
-
-
-def _power_factor_schema():
-    return sensor.sensor_schema(
-        accuracy_decimals=2,
-        device_class=DEVICE_CLASS_POWER_FACTOR,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
-
-
-def _active_energy_schema():
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_KILOWATT_HOURS,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_ENERGY,
-        state_class=STATE_CLASS_TOTAL_INCREASING,
-    )
-
-
-def _reactive_energy_schema():
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_REACTIVE_ENERGY,
-        state_class=STATE_CLASS_TOTAL_INCREASING,
-    )
-
-
-def _apparent_energy_schema():
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_KILOVOLT_AMPS_HOURS,
-        accuracy_decimals=1,
-        state_class=STATE_CLASS_TOTAL_INCREASING,
-    )
-
-
-def _frequency_schema():
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_HERTZ,
-        icon=ICON_CURRENT_AC,
-        accuracy_decimals=2,
-        device_class=DEVICE_CLASS_FREQUENCY,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
-
-
-_PHASES = ("a", "b", "c")
-
-# Quantities measured once per phase: (base name, schema factory). The config key is
-# "<base name>_<phase>" and the setter is "set_<base name>_sensor_<phase>".
-_PHASE_QUANTITIES = (
-    ("voltage", _voltage_schema),
-    ("current", _current_schema),
-    ("active_power", _active_power_schema),
-    ("reactive_power", _reactive_power_schema),
-    ("apparent_power", _apparent_power_schema),
-    ("power_factor", _power_factor_schema),
-    ("active_energy", _active_energy_schema),
-    ("reactive_energy", _reactive_energy_schema),
-    ("apparent_energy", _apparent_energy_schema),
+_VOLTAGE_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_VOLT,
+    accuracy_decimals=1,
+    device_class=DEVICE_CLASS_VOLTAGE,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+_CURRENT_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_AMPERE,
+    accuracy_decimals=2,
+    device_class=DEVICE_CLASS_CURRENT,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+_ACTIVE_POWER_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_WATT,
+    accuracy_decimals=1,
+    device_class=DEVICE_CLASS_POWER,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+_REACTIVE_POWER_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
+    accuracy_decimals=1,
+    device_class=DEVICE_CLASS_REACTIVE_POWER,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+_APPARENT_POWER_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_VOLT_AMPS,
+    accuracy_decimals=1,
+    device_class=DEVICE_CLASS_APPARENT_POWER,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+_POWER_FACTOR_SCHEMA = sensor.sensor_schema(
+    accuracy_decimals=2,
+    device_class=DEVICE_CLASS_POWER_FACTOR,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+_ACTIVE_ENERGY_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_KILOWATT_HOURS,
+    accuracy_decimals=1,
+    device_class=DEVICE_CLASS_ENERGY,
+    state_class=STATE_CLASS_TOTAL_INCREASING,
+)
+_REACTIVE_ENERGY_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
+    accuracy_decimals=1,
+    device_class=DEVICE_CLASS_REACTIVE_ENERGY,
+    state_class=STATE_CLASS_TOTAL_INCREASING,
+)
+_APPARENT_ENERGY_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_KILOVOLT_AMPS_HOURS,
+    accuracy_decimals=1,
+    state_class=STATE_CLASS_TOTAL_INCREASING,
+)
+_FREQUENCY_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_HERTZ,
+    icon=ICON_CURRENT_AC,
+    accuracy_decimals=2,
+    device_class=DEVICE_CLASS_FREQUENCY,
+    state_class=STATE_CLASS_MEASUREMENT,
 )
 
-# Quantities the device reports once for the whole meter: (config key, schema factory).
-# The setter is "set_<config key>_sensor".
-_COMBINED_QUANTITIES = (
-    (CONF_FREQUENCY, _frequency_schema),
-    (CONF_TOTAL_ACTIVE_POWER, _active_power_schema),
-    (CONF_TOTAL_REACTIVE_POWER, _reactive_power_schema),
-    (CONF_TOTAL_APPARENT_POWER, _apparent_power_schema),
-    (CONF_TOTAL_POWER_FACTOR, _power_factor_schema),
-    (CONF_TOTAL_ACTIVE_ENERGY, _active_energy_schema),
-    (CONF_TOTAL_REACTIVE_ENERGY, _reactive_energy_schema),
-    (CONF_TOTAL_APPARENT_ENERGY, _apparent_energy_schema),
-)
+# Quantities measured once per phase; the config key is "<name>_<phase>".
+_PHASE_QUANTITIES = {
+    "voltage": _VOLTAGE_SCHEMA,
+    "current": _CURRENT_SCHEMA,
+    "active_power": _ACTIVE_POWER_SCHEMA,
+    "reactive_power": _REACTIVE_POWER_SCHEMA,
+    "apparent_power": _APPARENT_POWER_SCHEMA,
+    "power_factor": _POWER_FACTOR_SCHEMA,
+    "active_energy": _ACTIVE_ENERGY_SCHEMA,
+    "reactive_energy": _REACTIVE_ENERGY_SCHEMA,
+    "apparent_energy": _APPARENT_ENERGY_SCHEMA,
+}
 
-# The single source of truth for every sensor: (config key, schema, setter name).
-_SENSORS = [
-    *(
-        (f"{name}_{phase}", schema_fn(), f"set_{name}_sensor_{phase}")
-        for name, schema_fn in _PHASE_QUANTITIES
-        for phase in _PHASES
-    ),
-    *(
-        (key, schema_fn(), f"set_{key}_sensor")
-        for key, schema_fn in _COMBINED_QUANTITIES
-    ),
-]
+# Quantities the meter reports once, keyed by config key.
+_COMBINED_QUANTITIES = {
+    CONF_FREQUENCY: _FREQUENCY_SCHEMA,
+    CONF_TOTAL_ACTIVE_POWER: _ACTIVE_POWER_SCHEMA,
+    CONF_TOTAL_REACTIVE_POWER: _REACTIVE_POWER_SCHEMA,
+    CONF_TOTAL_APPARENT_POWER: _APPARENT_POWER_SCHEMA,
+    CONF_TOTAL_POWER_FACTOR: _POWER_FACTOR_SCHEMA,
+    CONF_TOTAL_ACTIVE_ENERGY: _ACTIVE_ENERGY_SCHEMA,
+    CONF_TOTAL_REACTIVE_ENERGY: _REACTIVE_ENERGY_SCHEMA,
+    CONF_TOTAL_APPARENT_ENERGY: _APPARENT_ENERGY_SCHEMA,
+}
+
+# Every sensor by config key; the C++ setter is "set_<key>_sensor".
+_SENSORS = {
+    f"{name}_{phase}": schema
+    for name, schema in _PHASE_QUANTITIES.items()
+    for phase in "abc"
+} | _COMBINED_QUANTITIES
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PZEM6L24),
-            **{cv.Optional(key): schema for key, schema, _ in _SENSORS},
+            **{cv.Optional(key): schema for key, schema in _SENSORS.items()},
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -215,19 +176,15 @@ automation.register_apply_action(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    return modbus.final_validate_modbus_device("pzem6l24", role="client")(config)
+FINAL_VALIDATE_SCHEMA = modbus.final_validate_modbus_device("pzem6l24", role="client")
 
 
-FINAL_VALIDATE_SCHEMA = _final_validate
-
-
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await modbus.register_modbus_client_device(var, config)
 
-    for key, _, setter in _SENSORS:
+    for key in _SENSORS:
         if (conf := config.get(key)) is not None:
             sens = await sensor.new_sensor(conf)
-            cg.add(getattr(var, setter)(sens))
+            cg.add(getattr(var, f"set_{key}_sensor")(sens))
