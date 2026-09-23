@@ -11,7 +11,7 @@
 
 #include <array>
 #include <cstdint>
-#include <string>
+#include <initializer_list>
 #include <vector>
 
 namespace esphome::rs485_frame {
@@ -23,6 +23,11 @@ namespace esphome::rs485_frame {
 // button command (preamble + up to MAX_COMMAND_VALUES 4-byte values + postamble = worst
 // case 8 + 32 + 8 = 48 bytes), not just a 2-byte frame_type. Bump alongside the matching
 // Python schema caps in __init__.py if these are ever raised.
+//
+// These are validation limits, not reservations: the field, entry, signature, trigger and
+// text-value tables are all FixedVectors sized from the counts codegen passes in, so a build
+// only pays for what its YAML declares. Only the small per-field prefix/mask buffers and the
+// per-alt int values stay inline at their cap.
 static constexpr size_t MAX_RESPONSE_FIELD_PREFIX_LEN = 16;
 static constexpr size_t MAX_RESPONSE_FIELD_LEN = 40;
 static constexpr size_t MAX_RESPONSE_FIELDS = 16;
@@ -62,6 +67,12 @@ struct ResponseField {
   uint8_t offset{0};
   uint8_t length{0};
   bool big_endian{true};
+  // Continuously-refreshed ambient snapshot of this field's bytes, used by `changed`/
+  // `changed_gated`. Updated on every matching RX regardless of whether any entry is
+  // currently pending -- the same bookkeeping a changed_from_ambient filter would need,
+  // generalized from a single sensor to an arbitrary byte range.
+  std::array<uint8_t, MAX_RESPONSE_FIELD_LEN> ambient{};
+  bool ambient_valid{false};
 };
 
 /// One alternate within a response_monitor entry's `signature:` list.
@@ -70,7 +81,9 @@ struct SignatureAlt {
   SignatureType type{SIGNATURE_TYPE_CHANGED};
   uint32_t mask{0xFFFFFFFF};                                 ///< masked_int / changed / changed_gated
   StaticVector<uint32_t, MAX_MASKED_INT_VALUES> int_values;  ///< masked_int
-  StaticVector<StaticVector<char, MAX_TEXT_ENUM_LEN + 1>, MAX_TEXT_ENUM_VALUES> text_values;  ///< text_enum
+  // text_enum targets. Points at the string literals codegen emits (static storage duration),
+  // so each value costs one pointer instead of a MAX_TEXT_ENUM_LEN buffer.
+  FixedVector<const char *> text_values;
   // changed_gated only:
   bool has_gate{false};
   uint8_t gate_field_index{0};
@@ -86,18 +99,18 @@ struct SignatureAlt {
 /// prefix match RS485FrameHub already uses for tx.gate.frame_type), a timeout window, and an
 /// ordered signature (first alternate to evaluate true within the window wins).
 struct ResponseMonitorEntry {
-  StaticVector<uint8_t, MAX_RESPONSE_TRIGGER_LEN> trigger;
+  FixedVector<uint8_t> trigger;
   uint32_t window_ms{0};
-  StaticVector<SignatureAlt, MAX_SIGNATURE_ALTS> signature;
+  FixedVector<SignatureAlt> signature;  ///< Sized to the entry's declared alt count by add_entry.
 
   // --- Runtime pending state, mutated only by ResponseMonitor ---
   bool pending{false};
   uint32_t deadline{0};
   bool saw_any_match{false};  ///< At least one RX matched this entry's addressed field(s) since arming.
-  // Per-alt "is this alt active this arm cycle" — changed_gated's gate is evaluated once, at
-  // arm time, against the field's live ambient value ("reads a specific masked value at
-  // trigger time"). Index-aligned with `signature`.
-  StaticVector<bool, MAX_SIGNATURE_ALTS> alt_active;
+  // Per-alt "is this alt active this arm cycle" bitmask (bit j = signature[j]) — changed_gated's
+  // gate is evaluated once, at arm time, against the field's live ambient value ("reads a
+  // specific masked value at trigger time"). MAX_SIGNATURE_ALTS fits in 8 bits.
+  uint8_t alt_active{0};
 
   uint32_t success_count{0};
   uint32_t fail_count{0};
@@ -112,21 +125,30 @@ struct ResponseMonitorEntry {
 /// on_failed: automation callbacks. An optional retry consumer hooking on_failed: is a later,
 /// separate addition — not implemented here.
 class ResponseMonitor {
+  static_assert(MAX_SIGNATURE_ALTS <= 8, "ResponseMonitorEntry::alt_active is an 8-bit mask");
+
  public:
+  // Sizes the field and entry tables to exactly what the YAML declared. Called once from
+  // to_code (via RS485FrameHub::enable_response_monitor) before any add_field/add_entry;
+  // add_* calls beyond these counts are dropped.
+  void init(size_t field_count, size_t entry_count);
+
   // Declares one response_fields: entry. Called once per field from to_code, in YAML
   // declaration order — that order IS the field's index (field: names are resolved to
   // indices in Python; see add_*_alt's field_index argument).
   void add_field(const std::vector<uint8_t> &frame_type, const std::vector<uint8_t> &frame_type_mask, uint8_t offset,
                  uint8_t length, bool big_endian);
 
-  // Declares one response_monitor: entry (trigger + window). Returns its index for
-  // subsequent add_*_alt calls. trigger is the fully-resolved on-wire trigger bytes
-  // (button_id: resolved in Python at compile time, or the literal frame_type: prefix).
-  uint8_t add_entry(const std::vector<uint8_t> &trigger, uint32_t window_ms);
+  // Declares one response_monitor: entry (trigger + window) with room for alt_count
+  // signature alternates. Returns its index for subsequent add_*_alt calls. trigger is the
+  // fully-resolved on-wire trigger bytes (button_id: resolved in Python at compile time, or
+  // the literal frame_type: prefix).
+  uint8_t add_entry(const std::vector<uint8_t> &trigger, uint32_t window_ms, uint8_t alt_count);
 
   // Appends one signature alternate to entry_index's signature: list, in YAML order.
   void add_masked_int_alt(uint8_t entry_index, uint8_t field_index, uint32_t mask, const std::vector<uint32_t> &values);
-  void add_text_enum_alt(uint8_t entry_index, uint8_t field_index, const std::vector<std::string> &values);
+  // values must outlive the monitor (codegen passes string literals).
+  void add_text_enum_alt(uint8_t entry_index, uint8_t field_index, std::initializer_list<const char *> values);
   void add_changed_alt(uint8_t entry_index, uint8_t field_index, uint32_t mask);
   void add_changed_gated_alt(uint8_t entry_index, uint8_t field_index, uint32_t mask, uint8_t gate_field_index,
                              uint32_t gate_mask, uint32_t gate_value);
@@ -171,6 +193,9 @@ class ResponseMonitor {
   static uint8_t decode_text(const uint8_t *bytes, uint8_t length, char *out);
   bool eval_alt_(const SignatureAlt &alt, const uint8_t *old_bytes, const uint8_t *new_bytes, uint8_t len,
                  bool big_endian) const;
+  // Appends a new alt to entry_index's signature, or returns nullptr when the index is out of
+  // range or the entry already holds the alt_count it was declared with.
+  SignatureAlt *next_alt_(uint8_t entry_index);
   // Evaluates whether a changed_gated alt's gate currently matches (using the live ambient
   // value of its gate field); non-gated alts are always active. Shared by on_trigger_sent
   // (arm time) and on_frame_received's orphan path (which has no arm time of its own, so it
@@ -182,20 +207,12 @@ class ResponseMonitor {
   // callbacks existed) so this can fire the index-aligned callback for SUCCESS/FAIL/TIMEOUT.
   void resolve_entry_(uint8_t entry_index, ResponseMonitorStat stat);
 
-  StaticVector<ResponseField, MAX_RESPONSE_FIELDS> fields_;
-  StaticVector<ResponseMonitorEntry, MAX_RESPONSE_MONITOR_ENTRIES> entries_;
-  // Index-aligned with entries_ (grown in lockstep by add_entry, mirroring ambient_/
-  // ambient_valid_'s alignment with fields_). LazyCallbackManager costs 4 bytes per entry
-  // slot even when on_confirmed:/on_failed: are never declared for that entry.
-  StaticVector<LazyCallbackManager<void()>, MAX_RESPONSE_MONITOR_ENTRIES> on_confirmed_callbacks_;
-  StaticVector<LazyCallbackManager<void()>, MAX_RESPONSE_MONITOR_ENTRIES> on_failed_callbacks_;
-
-  // One continuously-refreshed ambient snapshot per declared field (index-aligned with
-  // fields_), used by `changed`/`changed_gated`. Updated on every matching RX regardless of
-  // whether any entry is currently pending — the same bookkeeping a changed_from_ambient
-  // filter would need, generalized from a single sensor to an arbitrary byte range.
-  StaticVector<std::array<uint8_t, MAX_RESPONSE_FIELD_LEN>, MAX_RESPONSE_FIELDS> ambient_;
-  StaticVector<bool, MAX_RESPONSE_FIELDS> ambient_valid_;
+  FixedVector<ResponseField> fields_;
+  FixedVector<ResponseMonitorEntry> entries_;
+  // Index-aligned with entries_ (grown in lockstep by add_entry). LazyCallbackManager costs
+  // one pointer per entry even when on_confirmed:/on_failed: are never declared for it.
+  FixedVector<LazyCallbackManager<void()>> on_confirmed_callbacks_;
+  FixedVector<LazyCallbackManager<void()>> on_failed_callbacks_;
 };
 
 }  // namespace esphome::rs485_frame

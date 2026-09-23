@@ -22,6 +22,27 @@ namespace {
 // repeating the same four add_field/add_entry/add_changed_alt calls in every test body.
 class ResponseMonitorProbe : public ResponseMonitor {
  public:
+  // Codegen passes the exact declared counts; scenario tests declare at most a few fields and
+  // entries, so reserve a small fixed headroom instead of counting per test.
+  ResponseMonitorProbe() { this->init(/*field_count=*/4, /*entry_count=*/4); }
+
+  // Same: default each entry to room for the maximum number of alts. The storage-sizing test
+  // below passes an explicit count instead.
+  uint8_t add_entry(const std::vector<uint8_t> &trigger, uint32_t window_ms, uint8_t alt_count = MAX_SIGNATURE_ALTS) {
+    return ResponseMonitor::add_entry(trigger, window_ms, alt_count);
+  }
+
+  size_t field_capacity() const { return this->fields_.capacity(); }
+  size_t field_count() const { return this->fields_.size(); }
+  size_t entry_capacity() const { return this->entries_.capacity(); }
+  size_t entry_count() const { return this->entries_.size(); }
+  size_t alt_capacity(uint8_t entry_index) const { return this->entries_[entry_index].signature.capacity(); }
+  size_t alt_count(uint8_t entry_index) const { return this->entries_[entry_index].signature.size(); }
+  size_t trigger_capacity(uint8_t entry_index) const { return this->entries_[entry_index].trigger.capacity(); }
+  size_t text_value_capacity(uint8_t entry_index, uint8_t alt_index) const {
+    return this->entries_[entry_index].signature[alt_index].text_values.capacity();
+  }
+
   // field 0: [0x01, 0x02] carrier, 4-byte little-endian value at payload[2..5] -- an AquaLogic
   // LED-mask-shaped carrier, representative of a real response_fields: entry.
   void setup_changed_field() {
@@ -531,6 +552,44 @@ TEST(ResponseMonitorTest, ChangedGatedDoesNotWarnWhenGateFieldWasObservedButDoes
 
   EXPECT_EQ(rm.get_stat(entry, RESPONSE_MONITOR_STAT_NOT_APPLICABLE), 1u);
   EXPECT_FALSE(rm.gate_unobserved_logged(entry, 0));
+}
+
+// Upstream review: the monitor used to hold every table inline at its schema cap
+// (16 fields x 16 entries x 4 alts x 8 text values), so enable_response_monitor() allocated
+// ~27 KB whatever the YAML declared -- a real risk on ESP8266. The object itself must now be
+// a handful of pointers; everything else is sized from the counts codegen passes in.
+TEST(ResponseMonitorTest, FootprintDoesNotReserveSchemaCapsInline) {
+  // Bounds hold on a 64-bit host, where each FixedVector is 24 bytes; on a 32-bit MCU the
+  // objects are smaller still.
+  EXPECT_LE(sizeof(ResponseMonitor), 128u);
+  EXPECT_LE(sizeof(ResponseMonitorEntry), 96u);
+  EXPECT_LE(sizeof(SignatureAlt), 96u);
+}
+
+// Every table is sized to exactly what was declared, and anything added past a declared count
+// is dropped rather than written out of bounds.
+TEST(ResponseMonitorTest, StorageIsSizedFromDeclaredCounts) {
+  ResponseMonitorProbe rm;
+  rm.init(/*field_count=*/1, /*entry_count=*/1);
+  EXPECT_EQ(rm.field_capacity(), 1u);
+  EXPECT_EQ(rm.entry_capacity(), 1u);
+
+  rm.setup_changed_field();
+  rm.setup_changed_field();  // one more than declared: dropped
+  EXPECT_EQ(rm.field_count(), 1u);
+
+  uint8_t entry = rm.add_entry(/*trigger=*/{0xAA, 0x01, 0x02}, 200, /*alt_count=*/1);
+  EXPECT_EQ(rm.trigger_capacity(entry), 3u);
+  EXPECT_EQ(rm.alt_capacity(entry), 1u);
+  rm.add_text_enum_alt(entry, /*field_index=*/0, {"On", "Off", "Auto"});
+  EXPECT_EQ(rm.text_value_capacity(entry, 0), 3u);
+  rm.add_changed_alt(entry, /*field_index=*/0, /*mask=*/0x40);  // past the declared alt count
+  EXPECT_EQ(rm.alt_count(entry), 1u);
+
+  EXPECT_EQ(rm.add_entry({0xBB}, 200, 1), UINT8_MAX);  // past the declared entry count
+  EXPECT_EQ(rm.entry_count(), 1u);
+  rm.add_changed_alt(UINT8_MAX, /*field_index=*/0, /*mask=*/0x40);  // ignored, not a crash
+  EXPECT_EQ(rm.get_stat(UINT8_MAX, RESPONSE_MONITOR_STAT_SUCCESS), 0u);
 }
 
 }  // namespace esphome::rs485_frame::testing

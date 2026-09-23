@@ -11,80 +11,101 @@ namespace esphome::rs485_frame {
 
 static const char *const TAG = "rs485_frame.response_monitor";
 
+void ResponseMonitor::init(size_t field_count, size_t entry_count) {
+  this->fields_.init(field_count);
+  this->entries_.init(entry_count);
+  this->on_confirmed_callbacks_.init(entry_count);
+  this->on_failed_callbacks_.init(entry_count);
+}
+
 void ResponseMonitor::add_field(const std::vector<uint8_t> &frame_type, const std::vector<uint8_t> &frame_type_mask,
                                 uint8_t offset, uint8_t length, bool big_endian) {
-  ResponseField &field = this->fields_.emplace_next();
+  if (this->fields_.full()) {
+    ESP_LOGE(TAG, "response_fields: more fields added than declared (%zu)", this->fields_.capacity());
+    return;
+  }
+  ResponseField &field = this->fields_.emplace_back();
   field.frame_type.assign(frame_type.begin(), frame_type.end());
   field.frame_type_mask.assign(frame_type_mask.begin(), frame_type_mask.end());
   field.offset = offset;
   field.length = length;
   field.big_endian = big_endian;
-  // ambient_/ambient_valid_ are index-aligned with fields_; grow them in lockstep so
-  // on_frame_received can index by field position without a separate size check.
-  this->ambient_.emplace_next();
-  this->ambient_valid_.push_back(false);
 }
 
-uint8_t ResponseMonitor::add_entry(const std::vector<uint8_t> &trigger, uint32_t window_ms) {
-  ResponseMonitorEntry &entry = this->entries_.emplace_next();
-  entry.trigger.assign(trigger.begin(), trigger.end());
+uint8_t ResponseMonitor::add_entry(const std::vector<uint8_t> &trigger, uint32_t window_ms, uint8_t alt_count) {
+  if (this->entries_.full()) {
+    ESP_LOGE(TAG, "response_monitor: more entries added than declared (%zu)", this->entries_.capacity());
+    return UINT8_MAX;  // every add_*_alt/get_stat/callback call range-checks the index
+  }
+  ResponseMonitorEntry &entry = this->entries_.emplace_back();
+  entry.trigger.init(trigger.size());
+  for (uint8_t b : trigger)
+    entry.trigger.push_back(b);
   entry.window_ms = window_ms;
-  // Keep the callback vectors index-aligned with entries_ (mirrors ambient_/ambient_valid_'s
-  // alignment with fields_ in add_field).
-  this->on_confirmed_callbacks_.emplace_next();
-  this->on_failed_callbacks_.emplace_next();
+  entry.signature.init(std::min<size_t>(alt_count, MAX_SIGNATURE_ALTS));
+  // Keep the callback vectors index-aligned with entries_.
+  this->on_confirmed_callbacks_.emplace_back();
+  this->on_failed_callbacks_.emplace_back();
   return static_cast<uint8_t>(this->entries_.size() - 1);
+}
+
+SignatureAlt *ResponseMonitor::next_alt_(uint8_t entry_index) {
+  if (entry_index >= this->entries_.size())
+    return nullptr;
+  FixedVector<SignatureAlt> &signature = this->entries_[entry_index].signature;
+  if (signature.full()) {
+    ESP_LOGE(TAG, "response_monitor entry %u: more signature alts added than declared (%zu)", entry_index,
+             signature.capacity());
+    return nullptr;
+  }
+  return &signature.emplace_back();
 }
 
 void ResponseMonitor::add_masked_int_alt(uint8_t entry_index, uint8_t field_index, uint32_t mask,
                                          const std::vector<uint32_t> &values) {
-  if (entry_index >= this->entries_.size())
+  SignatureAlt *alt = this->next_alt_(entry_index);
+  if (alt == nullptr)
     return;
-  SignatureAlt &alt = this->entries_[entry_index].signature.emplace_next();
-  alt.field_index = field_index;
-  alt.type = SIGNATURE_TYPE_MASKED_INT;
-  alt.mask = mask;
+  alt->field_index = field_index;
+  alt->type = SIGNATURE_TYPE_MASKED_INT;
+  alt->mask = mask;
   for (uint32_t v : values)
-    alt.int_values.push_back(v);
+    alt->int_values.push_back(v);
 }
 
 void ResponseMonitor::add_text_enum_alt(uint8_t entry_index, uint8_t field_index,
-                                        const std::vector<std::string> &values) {
-  if (entry_index >= this->entries_.size())
+                                        std::initializer_list<const char *> values) {
+  SignatureAlt *alt = this->next_alt_(entry_index);
+  if (alt == nullptr)
     return;
-  SignatureAlt &alt = this->entries_[entry_index].signature.emplace_next();
-  alt.field_index = field_index;
-  alt.type = SIGNATURE_TYPE_TEXT_ENUM;
-  for (const auto &v : values) {
-    StaticVector<char, MAX_TEXT_ENUM_LEN + 1> &target = alt.text_values.emplace_next();
-    size_t n = std::min(v.size(), MAX_TEXT_ENUM_LEN);
-    for (size_t i = 0; i < n; i++)
-      target.push_back(v[i]);
-    target.push_back('\0');
-  }
+  alt->field_index = field_index;
+  alt->type = SIGNATURE_TYPE_TEXT_ENUM;
+  alt->text_values.init(values.size());
+  for (const char *v : values)
+    alt->text_values.push_back(v);
 }
 
 void ResponseMonitor::add_changed_alt(uint8_t entry_index, uint8_t field_index, uint32_t mask) {
-  if (entry_index >= this->entries_.size())
+  SignatureAlt *alt = this->next_alt_(entry_index);
+  if (alt == nullptr)
     return;
-  SignatureAlt &alt = this->entries_[entry_index].signature.emplace_next();
-  alt.field_index = field_index;
-  alt.type = SIGNATURE_TYPE_CHANGED;
-  alt.mask = mask;
+  alt->field_index = field_index;
+  alt->type = SIGNATURE_TYPE_CHANGED;
+  alt->mask = mask;
 }
 
 void ResponseMonitor::add_changed_gated_alt(uint8_t entry_index, uint8_t field_index, uint32_t mask,
                                             uint8_t gate_field_index, uint32_t gate_mask, uint32_t gate_value) {
-  if (entry_index >= this->entries_.size())
+  SignatureAlt *alt = this->next_alt_(entry_index);
+  if (alt == nullptr)
     return;
-  SignatureAlt &alt = this->entries_[entry_index].signature.emplace_next();
-  alt.field_index = field_index;
-  alt.type = SIGNATURE_TYPE_CHANGED_GATED;
-  alt.mask = mask;
-  alt.has_gate = true;
-  alt.gate_field_index = gate_field_index;
-  alt.gate_mask = gate_mask;
-  alt.gate_value = gate_value;
+  alt->field_index = field_index;
+  alt->type = SIGNATURE_TYPE_CHANGED_GATED;
+  alt->mask = mask;
+  alt->has_gate = true;
+  alt->gate_field_index = gate_field_index;
+  alt->gate_mask = gate_mask;
+  alt->gate_value = gate_value;
 }
 
 uint32_t ResponseMonitor::decode_int(const uint8_t *bytes, uint8_t length, bool big_endian) {
@@ -157,8 +178,8 @@ bool ResponseMonitor::eval_alt_(const SignatureAlt &alt, const uint8_t *old_byte
     case SIGNATURE_TYPE_TEXT_ENUM: {
       char text[MAX_TEXT_ENUM_LEN + 1];
       decode_text(new_bytes, len, text);
-      for (const auto &target : alt.text_values) {
-        if (std::strcmp(text, target.data()) == 0)
+      for (const char *target : alt.text_values) {
+        if (std::strcmp(text, target) == 0)
           return true;
       }
       return false;
@@ -183,7 +204,7 @@ bool ResponseMonitor::eval_alt_(const SignatureAlt &alt, const uint8_t *old_byte
 bool ResponseMonitor::gate_active_(SignatureAlt &alt) const {
   if (!alt.has_gate)
     return true;
-  if (alt.gate_field_index >= this->ambient_valid_.size() || !this->ambient_valid_[alt.gate_field_index]) {
+  if (alt.gate_field_index >= this->fields_.size() || !this->fields_[alt.gate_field_index].ambient_valid) {
     // Gate field never observed at all -- distinct from "observed but doesn't currently
     // hold" (the common, expected case). Left unobserved forever, this alt resolves
     // NOT_APPLICABLE on every trigger indefinitely, indistinguishable from a gate that just
@@ -197,7 +218,7 @@ bool ResponseMonitor::gate_active_(SignatureAlt &alt) const {
     return false;  // gate field never observed yet — treat as "precondition not met", not a match
   }
   const ResponseField &gate_field = this->fields_[alt.gate_field_index];
-  const uint32_t v = decode_int(this->ambient_[alt.gate_field_index].data(), gate_field.length, gate_field.big_endian);
+  const uint32_t v = decode_int(gate_field.ambient.data(), gate_field.length, gate_field.big_endian);
   return (v & alt.gate_mask) == (alt.gate_value & alt.gate_mask);
 }
 
@@ -242,14 +263,12 @@ void ResponseMonitor::on_trigger_sent(const std::vector<uint8_t> &payload, uint3
       this->resolve_entry_(idx, entry.saw_any_match ? RESPONSE_MONITOR_STAT_FAIL : RESPONSE_MONITOR_STAT_TIMEOUT);
     }
 
-    entry.alt_active.clear();
-    bool any_active = false;
-    for (auto &alt : entry.signature) {
-      const bool active = this->gate_active_(alt);
-      entry.alt_active.push_back(active);
-      any_active = any_active || active;
+    entry.alt_active = 0;
+    for (size_t j = 0; j < entry.signature.size(); j++) {
+      if (this->gate_active_(entry.signature[j]))
+        entry.alt_active |= static_cast<uint8_t>(1U << j);
     }
-    if (!any_active) {
+    if (entry.alt_active == 0) {
       // Every alt is a changed_gated whose gate does not currently hold — this occurrence is
       // "not applicable", not a failure, and the window is not armed at all.
       this->resolve_entry_(idx, RESPONSE_MONITOR_STAT_NOT_APPLICABLE);
@@ -267,8 +286,8 @@ void ResponseMonitor::on_frame_received(const std::vector<uint8_t> &payload, uin
     uint8_t len = 0;
     if (!this->field_matches_(this->fields_[i], payload, new_bytes, len))
       continue;
-    const ResponseField &field = this->fields_[i];
-    const uint8_t *old_bytes = this->ambient_valid_[i] ? this->ambient_[i].data() : new_bytes;
+    ResponseField &field = this->fields_[i];
+    const uint8_t *old_bytes = field.ambient_valid ? field.ambient.data() : new_bytes;
 
     for (size_t entry_idx = 0; entry_idx < this->entries_.size(); entry_idx++) {
       ResponseMonitorEntry &entry = this->entries_[entry_idx];
@@ -281,8 +300,7 @@ void ResponseMonitor::on_frame_received(const std::vector<uint8_t> &payload, uin
           // Only an ACTIVE alt's field arriving counts as "the addressed field was seen" --
           // an inactive (gated-off) alt sharing this field_index is irrelevant this arm
           // cycle, and must not suppress a genuine TIMEOUT in favor of a misleading FAIL.
-          const bool active = j < entry.alt_active.size() ? entry.alt_active[j] : true;
-          if (!active)
+          if ((entry.alt_active & (1U << j)) == 0)
             continue;
           entry.saw_any_match = true;
           if (this->eval_alt_(alt, old_bytes, new_bytes, len, field.big_endian)) {
@@ -303,8 +321,8 @@ void ResponseMonitor::on_frame_received(const std::vector<uint8_t> &payload, uin
 
     // Refresh the ambient snapshot AFTER evaluation so `changed` compared against the
     // pre-update value, not the value this same RX just delivered.
-    std::copy(new_bytes, new_bytes + len, this->ambient_[i].begin());
-    this->ambient_valid_[i] = true;
+    std::copy(new_bytes, new_bytes + len, field.ambient.begin());
+    field.ambient_valid = true;
   }
   (void) now;
 }

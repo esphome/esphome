@@ -1227,7 +1227,14 @@ async def to_code(config):
         # Gates the ResponseMonitor field, includes, and the TX/RX hooks out of builds that
         # don't use it. Production builds (without the define) pay no cost at all.
         cg.add_define("USE_RS485_FRAME_RESPONSE_MONITOR")
-        cg.add(var.enable_response_monitor())
+        # Pass the declared counts so the C++ side sizes its tables to this config instead
+        # of reserving the schema caps (MAX_RESPONSE_FIELDS x MAX_RESPONSE_MONITOR_ENTRIES...).
+        cg.add(
+            var.enable_response_monitor(
+                len(config.get(CONF_RESPONSE_FIELDS, {})),
+                len(config.get(CONF_RESPONSE_MONITOR, [])),
+            )
+        )
 
         # response_fields: is an ordered YAML mapping (Python dicts preserve insertion order);
         # that order IS each field's runtime index — field_index below is a plain position
@@ -1257,10 +1264,12 @@ async def to_code(config):
             )
             # add_response_monitor_entry's runtime return value is this same entry_index —
             # entries are added in this exact order, so the Python-side enumerate() index and
-            # the C++-side StaticVector position always agree; no need for the call's return.
+            # the C++-side FixedVector position always agree; no need for the call's return.
             cg.add(
                 var.add_response_monitor_entry(
-                    trigger_bytes, entry[CONF_WINDOW].total_milliseconds
+                    trigger_bytes,
+                    entry[CONF_WINDOW].total_milliseconds,
+                    len(entry[CONF_SIGNATURE]),
                 )
             )
             for alt in entry[CONF_SIGNATURE]:

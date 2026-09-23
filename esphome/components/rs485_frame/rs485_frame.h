@@ -209,21 +209,25 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
 
 #ifdef USE_RS485_FRAME_RESPONSE_MONITOR
   // Owns the response_fields:/response_monitor: matcher. Called once from to_code when
-  // either block is present in YAML, before any of the add_response_* calls below.
-  void enable_response_monitor() { this->response_monitor_ = std::make_unique<ResponseMonitor>(); }
+  // either block is present in YAML, before any of the add_response_* calls below, with the
+  // declared field/entry counts so the matcher allocates only what the config uses.
+  void enable_response_monitor(size_t field_count, size_t entry_count) {
+    this->response_monitor_ = std::make_unique<ResponseMonitor>();
+    this->response_monitor_->init(field_count, entry_count);
+  }
   void add_response_field(const std::vector<uint8_t> &frame_type, const std::vector<uint8_t> &frame_type_mask,
                           uint8_t offset, uint8_t length, bool big_endian) {
     this->response_monitor_->add_field(frame_type, frame_type_mask, offset, length, big_endian);
   }
-  uint8_t add_response_monitor_entry(const std::vector<uint8_t> &trigger, uint32_t window_ms) {
-    return this->response_monitor_->add_entry(trigger, window_ms);
+  uint8_t add_response_monitor_entry(const std::vector<uint8_t> &trigger, uint32_t window_ms, uint8_t alt_count) {
+    return this->response_monitor_->add_entry(trigger, window_ms, alt_count);
   }
   void add_response_monitor_masked_int_alt(uint8_t entry_index, uint8_t field_index, uint32_t mask,
                                            const std::vector<uint32_t> &values) {
     this->response_monitor_->add_masked_int_alt(entry_index, field_index, mask, values);
   }
   void add_response_monitor_text_enum_alt(uint8_t entry_index, uint8_t field_index,
-                                          const std::vector<std::string> &values) {
+                                          std::initializer_list<const char *> values) {
     this->response_monitor_->add_text_enum_alt(entry_index, field_index, values);
   }
   void add_response_monitor_changed_alt(uint8_t entry_index, uint8_t field_index, uint32_t mask) {
