@@ -20,7 +20,7 @@ class TAS2780 : public audio_dac::AudioDac, public PollingComponent, public i2c:
   void activate();
   void activate(uint8_t power_mode);
   void deactivate();
-  void apply_amp_and_channel_config();
+  bool apply_amp_and_channel_config();
 
   bool set_mute_off() override;
   bool set_mute_on() override;
@@ -37,8 +37,9 @@ class TAS2780 : public audio_dac::AudioDac, public PollingComponent, public i2c:
 
  protected:
   bool select_page_(uint8_t page);
-  void init_();
-  void set_power_mode_(uint8_t power_mode);
+  bool init_();
+  bool reinit_();
+  bool set_power_mode_(uint8_t power_mode);
   bool write_mode_ctrl_(uint8_t mode);
   bool write_mute_();
   bool write_volume_();
