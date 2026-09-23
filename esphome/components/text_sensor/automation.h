@@ -34,15 +34,4 @@ template<typename... Ts> class TextSensorStateCondition final : public Condition
   TextSensor *parent_;
 };
 
-template<typename... Ts> class TextSensorPublishAction final : public Action<Ts...> {
- public:
-  TextSensorPublishAction(TextSensor *sensor) : sensor_(sensor) {}
-  TEMPLATABLE_VALUE(std::string, state)
-
-  void play(const Ts &...x) override { this->sensor_->publish_state(this->state_.value(x...)); }
-
- protected:
-  TextSensor *sensor_;
-};
-
 }  // namespace esphome::text_sensor
