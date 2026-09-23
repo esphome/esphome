@@ -1212,7 +1212,13 @@ def call_lambda(lamb: LambdaExpression) -> Expression:
     assert lamb.return_type is not None, "Lambda must have a return type to be called"
     expr = lamb.content.strip()
     # A lone `return <expr>;` reduces to the expression; anything longer is called as is.
-    if re.match(r"^return\b", expr) and expr.endswith(";") and expr.count(";") == 1:
+    # A braced return such as `return {};` needs the lambda's return type, so it is called.
+    if (
+        re.match(r"^return\b", expr)
+        and expr.endswith(";")
+        and expr.count(";") == 1
+        and not expr[6:].lstrip().startswith("{")
+    ):
         expr = RawExpression(expr[6:-1].strip())
         # Don't cast if the return type is a class
         if isinstance(lamb.return_type, MockObjClass):
