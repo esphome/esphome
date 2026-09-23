@@ -116,22 +116,6 @@ class Rtttl final : public Component {
 #endif
 };
 
-template<typename... Ts> class PlayAction final : public Action<Ts...> {
- public:
-  PlayAction(Rtttl *rtttl) : rtttl_(rtttl) {}
-  TEMPLATABLE_VALUE(std::string, value)
-
-  void play(const Ts &...x) override { this->rtttl_->play(this->value_.value(x...)); }
-
- protected:
-  Rtttl *rtttl_;
-};
-
-template<typename... Ts> class StopAction final : public Action<Ts...>, public Parented<Rtttl> {
- public:
-  void play(const Ts &...x) override { this->parent_->stop(); }
-};
-
 template<typename... Ts> class IsPlayingCondition final : public Condition<Ts...>, public Parented<Rtttl> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_playing(); }
