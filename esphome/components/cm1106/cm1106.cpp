@@ -156,8 +156,6 @@ bool CM1106Component::cm1106_write_command_(const uint8_t *command, size_t comma
 void CM1106Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CM1106:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
-  this->check_uart_settings(9600);
-
   if (this->abc_boot_logic_ != CM1106_ABC_NONE) {
     ESP_LOGCONFIG(TAG, "  Automatic baseline calibration on boot: %s",
                   ONOFF(this->abc_boot_logic_ == CM1106_ABC_ENABLED));

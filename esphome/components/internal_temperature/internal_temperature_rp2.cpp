@@ -16,7 +16,7 @@
 
 namespace esphome::internal_temperature {
 
-static const char *const TAG = "internal_temperature.rp2";
+static const char *const TAG = "internal_temperature";
 
 // The on-die temperature sensor sits on the last ADC channel: input 4 on RP2040
 // and RP2350A, but input 8 on RP2350B, which has eight external channels rather
