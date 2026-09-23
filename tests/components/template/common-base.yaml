@@ -377,6 +377,10 @@ cover:
       - cover.control:
           id: template_cover_actions
           stop: true
+      - cover.open: template_cover_actions
+      - cover.close: template_cover_actions
+      - cover.stop: template_cover_actions
+      - cover.toggle: template_cover_actions
       # CONF_STATE alias for position
       - cover.control:
           id: template_cover_actions
