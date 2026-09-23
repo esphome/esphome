@@ -17,6 +17,7 @@ from esphome.automation import (
     TriggerOnTrueForwarder,
     build_callback_automations,
     has_non_synchronous_actions,
+    maybe_simple_id,
     register_apply_action,
     register_bare_action,
     register_bare_condition,
@@ -764,6 +765,15 @@ def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> Non
     register_apply_action("my.ok", schema, ApplyField("kp", "set_kp", cg.float_))
     with pytest.raises(ValueError, match="'kd' is not in the schema"):
         register_apply_action("my.bad", schema, ApplyField("kd", "set_kd", cg.float_))
+    for wrapped in (
+        maybe_simple_id(schema),
+        cv.All(schema),
+        cv.maybe_simple_value(schema, key="kp"),
+    ):
+        with pytest.raises(ValueError, match="'kd' is not in the schema"):
+            register_apply_action(
+                "my.bad", wrapped, ApplyField("kd", "set_kd", cg.float_)
+            )
     nested = cv.Schema({cv.Optional("v"): cv.Schema({cv.Optional("dir"): cv.int_})})
     register_apply_action(
         "my.nested", nested, ApplyField(("v", "dir"), "set_dir", cg.int_)

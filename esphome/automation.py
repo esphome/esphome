@@ -61,6 +61,7 @@ def maybe_conf(conf, *validators):
         with cv.remove_prepend_path([conf]):
             return validator({conf: value})
 
+    validate.inner_schema = validator
     return validate
 
 
@@ -264,12 +265,27 @@ def _config_lookup(config: ConfigType, key: str | tuple[str, ...]) -> Any:
     return config
 
 
+def _dict_schema(schema: Any) -> Any:
+    """The dict-backed cv.Schema inside cv.All, cv.Any and maybe_* wrappers, or None."""
+    if isinstance(getattr(schema, "schema", None), dict):
+        return schema
+    inner = getattr(schema, "validators", None)  # cv.All / cv.Any
+    if inner is None:
+        inner = (
+            getattr(schema, "inner_schema", None),
+        )  # maybe_conf / maybe_simple_value
+    for candidate in inner:
+        if candidate is not None and (found := _dict_schema(candidate)) is not None:
+            return found
+    return None
+
+
 def _check_key_in_schema(
     name: str, schema: Any, conf_key: str | tuple[str, ...]
 ) -> None:
-    """Reject a key path a plain cv.Schema does not have; a typo would otherwise be a silent no-op."""
+    """Reject a key path the schema does not have; a typo would otherwise be a silent no-op."""
     for part in (conf_key,) if isinstance(conf_key, str) else conf_key:
-        if not isinstance(getattr(schema, "schema", None), dict):
+        if (schema := _dict_schema(schema)) is None:
             return
         markers = {
             getattr(marker, "schema", marker): marker for marker in schema.schema
