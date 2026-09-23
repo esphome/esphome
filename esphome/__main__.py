@@ -463,16 +463,40 @@ def has_api() -> bool:
     return CONF_API in CORE.config
 
 
+# OTA platforms whose upload is handled by the target platform's own
+# ``upload_program`` function rather than by the generic ESP upload paths
+# (native API or web_server).
+#
+# Note: has_ota() is used specifically for *network* OTA target discovery.
+_PLATFORM_OTA_PLATFORMS = frozenset({"zephyr_mcumgr"})
+
+
+def has_platform_ota() -> bool:
+    """Check if a platform-specific *network* OTA platform is configured."""
+    if CONF_OTA not in CORE.config:
+        return False
+    for ota_item in CORE.config[CONF_OTA]:
+        platform = ota_item.get(CONF_PLATFORM)
+        if platform not in _PLATFORM_OTA_PLATFORMS:
+            continue
+        # zephyr_mcumgr supports BLE/UART (non-network) and UDP (network) transports.
+        if platform == "zephyr_mcumgr" and not ota_item.get("transport", {}).get("udp"):
+            continue
+        return True
+    return False
+
+
 def has_ota() -> bool:
     """Check if any network OTA upload is available.
 
-    True if the config exposes either ``platform: esphome`` (native API
-    OTA) or ``platform: web_server`` (HTTP OTA). Both reach the device
-    over the same network stack, so the OTA discovery path treats them
-    interchangeably; ``upload_program`` picks the actual transport based
-    on ``--ota-platform`` and what's configured.
+    True if the config exposes ``platform: esphome`` (native API OTA),
+    ``platform: web_server`` (HTTP OTA), or a platform-managed OTA
+    platform such as ``zephyr_mcumgr``.  Non-ESP platforms (nRF52, …)
+    reach the device through their own ``upload_program`` entry-point
+    so the OTA discovery path only needs to know that a network OTA
+    *path* exists; the actual transport is chosen inside that function.
     """
-    return has_native_ota() or has_web_server_ota()
+    return has_native_ota() or has_web_server_ota() or has_platform_ota()
 
 
 def has_native_ota() -> bool:
