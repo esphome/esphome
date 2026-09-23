@@ -602,6 +602,13 @@ bool RS485FrameHub::queue_command_values_with_element_bytes(const uint32_t *comm
     this->command_drops_++;
     return false;
   }
+  // Only the element width is overridden here; preamble/endian/postamble still come from the
+  // hub's command_format:, so the same guard as queue_command_values() applies.
+  if (!this->has_command_format_) {
+    ESP_LOGW(TAG, "queue_command_values_with_element_bytes called with no command_format: configured; dropping");
+    this->command_drops_++;
+    return false;
+  }
   this->build_key_payload_(commands, count, element_bytes, this->tx_payload_buf_);
   if (this->tx_payload_buf_.size() > this->max_frame_length_) {
     ESP_LOGW(TAG, "Command payload (%zu) exceeds max_frame_length (%" PRIu32 "); dropping",

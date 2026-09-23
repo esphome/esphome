@@ -7,7 +7,7 @@
 // builds this component's library object with none of those optional macros defined, matching
 // production builds where no hub in the synthesized test config requests those blocks) -- so
 // frame_trace's own recording behavior is covered by frame_trace_test.cpp, and this file covers
-// only the discard counter and the command_format guard that call into it.
+// only the discard counter and the command_format guards that call into it.
 
 #include <gtest/gtest.h>
 
@@ -62,6 +62,32 @@ TEST(RS485FrameHubTest, QueueCommandValuesSucceedsWithCommandFormat) {
 
   EXPECT_TRUE(hub.queue_command_value(0x01));
   EXPECT_EQ(hub.command_drops_for_test(), 0u);
+}
+
+// queue_command_values_with_element_bytes() (a button's value_element_bytes: override) takes the
+// preamble/endian/postamble from the hub's command_format: exactly like queue_command_values(),
+// so it needs the same guard: with no command_format: it must drop the command rather than
+// encode against the bare-field defaults.
+TEST(RS485FrameHubTest, QueueCommandValuesWithElementBytesFailsWithoutCommandFormat) {
+  RS485FrameHubProbe hub;
+  hub.prepare_queue_for_test();
+  const uint32_t value = 0x01;
+
+  EXPECT_FALSE(hub.queue_command_values_with_element_bytes(&value, 1, /*element_bytes=*/1));
+  EXPECT_EQ(hub.command_drops_for_test(), 1u);
+  EXPECT_EQ(hub.queue_depth_for_test(), 0u);
+}
+
+TEST(RS485FrameHubTest, QueueCommandValuesWithElementBytesSucceedsWithCommandFormat) {
+  RS485FrameHubProbe hub;
+  hub.set_command_format(/*preamble=*/{0x00, 0x83, 0x01}, /*value_element_bytes=*/4, /*big_endian=*/true,
+                         /*postamble=*/{0x00});
+  hub.prepare_queue_for_test();
+  const uint32_t value = 0x01;
+
+  EXPECT_TRUE(hub.queue_command_values_with_element_bytes(&value, 1, /*element_bytes=*/1));
+  EXPECT_EQ(hub.command_drops_for_test(), 0u);
+  EXPECT_EQ(hub.queue_depth_for_test(), 1u);
 }
 
 // Review finding 10: a frame abandoned mid-receive (max_frame_length overflow or intra-frame

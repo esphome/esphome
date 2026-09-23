@@ -241,10 +241,12 @@ text_sensor:
     id: display_text
     name: "Display Text"
 
-  # Diagnostic: most recent validated frame type as 4-hex string.
+  # Diagnostic: most recent validated frame type as 4-hex string. Polled (default 60s);
+  # the explicit update_interval: exercises the override.
   - platform: rs485_frame
     rs485_frame_id: rs485_frame_hub
     name: "Last Frame Type"
+    update_interval: 30s
 
 sensor:
   # Diagnostic counters. The rs485_frame sensor platform gates its own publishes to

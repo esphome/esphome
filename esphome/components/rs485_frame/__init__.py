@@ -22,7 +22,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
 )
-from esphome.core import ID as CoreID, HexInt
+from esphome.core import HexInt
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -48,6 +48,12 @@ RS485FrameTrigger = rs485_frame_ns.class_(
         cg.std_vector.template(cg.uint8).operator("const").operator("ref")
     ),
 )
+
+# The button platform's C++ class, declared here too so response_monitor's button_id: can be
+# a typed reference (the id's type check then rejects another platform's button, e.g. a core
+# restart button). button/__init__.py declares the same class with its button.Button base;
+# cv.use_id compares types by C++ name, so the two declarations match.
+RS485FrameButton = rs485_frame_ns.class_("RS485FrameButton")
 
 SensorDecode = rs485_frame_ns.enum("SensorDecode")
 CrcVariant = rs485_frame_ns.enum("CrcVariant")
@@ -546,18 +552,6 @@ def _validate_response_fields(value):
     return value
 
 
-def _validate_button_id(value):
-    # Deliberately untyped (unlike cv.use_id(SomeType)): this component's own button
-    # sub-platform package is named "button", so `from esphome.components import button`
-    # at module scope here resolves to this file's own .button subpackage rather than the
-    # core button component under this loader's import scheme — importing the core button
-    # component to type-check against is unsafe from this file.
-    # cv.use_id's "type" argument is metadata only (see config_validation.py's use_id()); the
-    # actual cross-reference is by id name, resolved and checked in FINAL_VALIDATE_SCHEMA.
-    cv.check_not_templatable(value)
-    return CoreID(cv.validate_id_name(value), is_declaration=False, type=None)
-
-
 # response_monitor trigger.frame_type: (unlike on_frame's, which allows an empty list as
 # documented match-all shorthand) has no match-all use case -- a trigger that matches
 # every RX frame has no well-defined "confirmation window start", so it would never
@@ -570,7 +564,7 @@ _validate_trigger_frame_type = cv.All(
 def _validate_trigger(value):
     value = cv.Schema(
         {
-            cv.Optional(CONF_BUTTON_ID): _validate_button_id,
+            cv.Optional(CONF_BUTTON_ID): cv.use_id(RS485FrameButton),
             cv.Optional(CONF_BUTTON_NAME): cv.string_strict,
             cv.Optional(CONF_FRAME_TYPE): _validate_trigger_frame_type,
         }
@@ -976,12 +970,11 @@ def _final_validate_response_monitor(config):
             continue
         if button_id is not None:
             button_path = full_config.get_path_for_id(button_id)[:-1]
-            # button_path[0] is the top-level YAML domain key the id was declared under (e.g.
-            # "button", "sensor", "number") — button_id: must point at an actual button: entry,
-            # not merely any entity that happens to share this hub's rs485_frame_id (a sensor,
-            # number, or text_sensor config has no CONF_FRAME_TYPE/CONF_PAYLOAD/CONF_VALUE for
-            # _resolve_button_trigger to read, which would otherwise raise an unhandled KeyError
-            # instead of this clean cv.Invalid).
+            # The typed cv.use_id already guarantees an rs485_frame button; this re-checks the
+            # declaring domain (button_path[0]) defensively and adds what the type cannot: the
+            # button must belong to this hub, not another rs485_frame hub. A non-button config
+            # has no CONF_FRAME_TYPE/CONF_PAYLOAD/CONF_VALUE for _resolve_button_trigger to read,
+            # which would otherwise raise an unhandled KeyError instead of this clean cv.Invalid.
             button_config = full_config.get_config_for_path(button_path)
             if (
                 button_path[0] != CONF_BUTTON

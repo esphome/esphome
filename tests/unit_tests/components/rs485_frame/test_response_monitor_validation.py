@@ -272,3 +272,24 @@ def test_button_resolving_to_empty_trigger_raises_clean_invalid(
     )
     assert all(isinstance(err, vol.Invalid) for err in result.errors)
     assert any("empty" in str(err) for err in result.errors)
+
+
+def test_button_id_referencing_a_non_rs485_frame_button_raises_type_error(
+    fixture_path: Path,
+) -> None:
+    """button_id: is a typed reference to an rs485_frame button. Pointing it at another
+    platform's button (here a core restart button) must be rejected by the id's type
+    check, naming the expected rs485_frame button class."""
+    CORE.config_path = fixture_path / "dummy.yaml"
+    raw_config = yaml_util.load_yaml(
+        fixture_path / "rs485_frame_response_monitor_foreign_button_id.yaml"
+    )
+
+    result = esphome_config.validate_config(raw_config, {})
+
+    assert result.errors, "expected a validation error for a non-rs485_frame button_id:"
+    assert all(isinstance(err, vol.Invalid) for err in result.errors)
+    assert any(
+        "reboot_button" in str(err) and "RS485FrameButton" in str(err)
+        for err in result.errors
+    ), [str(err) for err in result.errors]

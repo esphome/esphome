@@ -74,3 +74,20 @@ def test_explicit_update_interval_is_not_overridden_by_the_decode_default(
     assert not result.errors, f"expected no validation errors, got: {result.errors}"
     conf = _sensor_by_name(result, "Frames Received Custom")
     assert conf["update_interval"].total_milliseconds == 5_000
+
+
+def test_text_sensor_defaults_to_sixty_second_update_interval(
+    fixture_path: Path,
+) -> None:
+    """The last-frame-type text_sensor changes on nearly every frame on a live bus, like
+    frames_received -- it must default to the same coarse 60s poll interval."""
+    CORE.config_path = fixture_path / "dummy.yaml"
+    raw_config = yaml_util.load_yaml(
+        fixture_path / "rs485_frame_sensor_update_interval_defaults.yaml"
+    )
+
+    result = esphome_config.validate_config(raw_config, {})
+
+    assert not result.errors, f"expected no validation errors, got: {result.errors}"
+    (conf,) = (c for c in result["text_sensor"] if c["name"] == "Last Frame Type")
+    assert conf["update_interval"].total_milliseconds == 60_000

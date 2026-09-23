@@ -26,8 +26,10 @@ namespace esphome::rs485_frame {
 //
 // These are validation limits, not reservations: the field, entry, signature, trigger and
 // text-value tables are all FixedVectors sized from the counts codegen passes in, so a build
-// only pays for what its YAML declares. Only the small per-field prefix/mask buffers and the
-// per-alt int values stay inline at their cap.
+// only pays for what its YAML declares. What stays inline at its cap: each field's
+// prefix/mask buffers (MAX_RESPONSE_FIELD_PREFIX_LEN bytes each) and its ambient snapshot
+// (MAX_RESPONSE_FIELD_LEN bytes, regardless of the field's declared length), plus each
+// alt's int values (MAX_MASKED_INT_VALUES).
 static constexpr size_t MAX_RESPONSE_FIELD_PREFIX_LEN = 16;
 static constexpr size_t MAX_RESPONSE_FIELD_LEN = 40;
 static constexpr size_t MAX_RESPONSE_FIELDS = 16;

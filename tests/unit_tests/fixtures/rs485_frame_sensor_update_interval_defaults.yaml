@@ -44,3 +44,10 @@ sensor:
     name: "Frames Received Custom"
     decode: frames_received
     update_interval: 5s
+
+text_sensor:
+  # Last frame type changes on nearly every frame on a live bus: must default to the same
+  # coarse poll interval as the high-rate sensor decodes.
+  - platform: rs485_frame
+    rs485_frame_id: hub
+    name: "Last Frame Type"

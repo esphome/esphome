@@ -139,7 +139,6 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_framing(uint8_t dle, uint8_t stx, uint8_t etx, uint8_t escape_marker);
   void set_accept_header_crc(bool accept) { this->accept_header_crc_ = accept; }
@@ -275,6 +274,7 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   bool queue_command_values(const uint32_t *commands, size_t count);
   // Queue values using this hub's preamble/endian/postamble but a per-call element byte width.
   // Used by buttons with a top-level value_element_bytes: override (not a full command_format).
+  // Fails the same way as queue_command_values() if the hub has no command_format:.
   bool queue_command_values_with_element_bytes(const uint32_t *commands, size_t count, uint8_t element_bytes);
   // preamble/postamble are taken as pointer/length pairs, not std::vector<uint8_t>, so a
   // caller backed by a StaticVector (the button's per-button command_format override) can pass
