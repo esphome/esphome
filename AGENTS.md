@@ -443,6 +443,20 @@ file does, and it is the authority when they disagree. The most useful starting 
 
         Use `synchronous=True` for actions that run to completion inside `play()` without deferring. Use `synchronous=False` if the action may suspend/defer execution (e.g. `delay`, `wait_until`, `script.wait`) or store trigger arguments for later use.
 
+        **Actions that only forward templatable values to their parent need no C++ class.** Register them
+        with `register_apply_action`; do not write a `TEMPLATABLE_VALUE` class or a builder for this shape.
+        ```python
+        automation.register_apply_action(
+            "my_component.set_gains",
+            schema,
+            automation.ApplyField(CONF_KP, "set_kp", cg.float_),
+            automation.ApplyField(CONF_KI, "set_ki", cg.float_),
+        )
+        ```
+        The `ApplyField`, `ApplyCall` and `register_apply_action` docstrings in `esphome/automation.py` cover
+        the rest; `cover.control` and `cover.template.publish` are in-tree examples. `TEMPLATABLE_VALUE` with
+        `cg.templatable` stays for actions whose `play()` has real logic beyond forwarding values.
+
     *   **Conditions:**
         ```cpp
         template<typename... Ts> class MyCondition : public Condition<Ts...> {

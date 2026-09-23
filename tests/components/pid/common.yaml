@@ -19,8 +19,8 @@ esphome:
           kd_multiplier: 0.0
       - climate.pid.set_deadband_threshold_parameters:
           id: pid_climate
-          threshold_high: 0°C
-          threshold_low: 0.0
+          threshold_high: 0.5°C
+          threshold_low: !lambda return -0.5f;
       - climate.pid.reset_integral_term: pid_climate
 
 output:
@@ -42,19 +42,23 @@ sensor:
   - platform: pid
     id: pid_kp_multiplier
     climate_id: pid_climate
+    type: KP_DEADBAND_MULTIPLIER
   - platform: pid
     id: pid_ki_multiplier
     climate_id: pid_climate
+    type: KI_DEADBAND_MULTIPLIER
   - platform: pid
     id: pid_kd_multiplier
     climate_id: pid_climate
+    type: KD_DEADBAND_MULTIPLIER
   - platform: pid
     id: pid_threshold_high
     climate_id: pid_climate
+    type: DEADBAND_THRESHOLD_HIGH
   - platform: pid
     id: pid_threshold_low
     climate_id: pid_climate
-    type: DEADBAND_THRESHOLD_LOW # Allows specifying type
+    type: DEADBAND_THRESHOLD_LOW
 
 climate:
   - platform: pid

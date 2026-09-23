@@ -10,18 +10,6 @@ from esphome.types import ConfigType
 pid_ns = cg.esphome_ns.namespace("pid")
 PIDClimate = pid_ns.class_("PIDClimate", climate.Climate, cg.Component)
 PIDAutotuneAction = pid_ns.class_("PIDAutotuneAction", automation.Action)
-PIDResetIntegralTermAction = pid_ns.class_(
-    "PIDResetIntegralTermAction", automation.Action
-)
-PIDSetControlParametersAction = pid_ns.class_(
-    "PIDSetControlParametersAction", automation.Action
-)
-PIDSetDeadbandControlParametersMultipliersAction = pid_ns.class_(
-    "PIDSetDeadbandControlParametersMultipliersAction", automation.Action
-)
-PIDSetDeadbandThresholdParametersAction = pid_ns.class_(
-    "PIDSetDeadbandThresholdParametersAction", automation.Action
-)
 
 CONF_DEFAULT_TARGET_TEMPERATURE = "default_target_temperature"
 
@@ -49,6 +37,16 @@ CONF_KP_MULTIPLIER = "kp_multiplier"
 CONF_KI_MULTIPLIER = "ki_multiplier"
 CONF_KD_MULTIPLIER = "kd_multiplier"
 
+
+def _validate_thresholds(config: ConfigType) -> ConfigType:
+    # Same rule as PIDClimate::set_deadband_thresholds; equal is allowed since 0/0 is the default.
+    if config[CONF_THRESHOLD_LOW] > config[CONF_THRESHOLD_HIGH]:
+        raise cv.Invalid(
+            f"{CONF_THRESHOLD_LOW} must not be greater than {CONF_THRESHOLD_HIGH}"
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     climate.climate_schema(PIDClimate).extend(
         {
@@ -57,7 +55,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE): cv.temperature,
             cv.Optional(CONF_COOL_OUTPUT): cv.use_id(output.FloatOutput),
             cv.Optional(CONF_HEAT_OUTPUT): cv.use_id(output.FloatOutput),
-            cv.Optional(CONF_DEADBAND_PARAMETERS): cv.Schema(
+            cv.Optional(CONF_DEADBAND_PARAMETERS): cv.All(
                 {
                     cv.Required(CONF_THRESHOLD_HIGH): cv.temperature_delta,
                     cv.Required(CONF_THRESHOLD_LOW): cv.temperature_delta,
@@ -67,7 +65,8 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(
                         CONF_DEADBAND_OUTPUT_AVERAGING_SAMPLES, default=1
                     ): cv.positive_not_null_int,
-                }
+                },
+                _validate_thresholds,
             ),
             cv.Required(CONF_CONTROL_PARAMETERS): cv.Schema(
                 {
@@ -140,24 +139,15 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_default_target_temperature(config[CONF_DEFAULT_TARGET_TEMPERATURE]))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "climate.pid.reset_integral_term",
-    PIDResetIntegralTermAction,
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(PIDClimate),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("reset_integral_term()"),
 )
-async def pid_reset_integral_term(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -191,9 +181,8 @@ async def esp8266_set_frequency_to_code(
     return var
 
 
-@automation.register_action(
+automation.register_apply_action(
     "climate.pid.set_control_parameters",
-    PIDSetControlParametersAction,
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(PIDClimate),
@@ -202,32 +191,14 @@ async def esp8266_set_frequency_to_code(
             cv.Optional(CONF_KD, default=0.0): cv.templatable(cv.float_),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_KP, "set_kp", cg.float_),
+    automation.ApplyField(CONF_KI, "set_ki", cg.float_),
+    automation.ApplyField(CONF_KD, "set_kd", cg.float_),
 )
-async def set_control_parameters(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-
-    kp_template_ = await cg.templatable(config[CONF_KP], args, cg.float_)
-    cg.add(var.set_kp(kp_template_))
-
-    ki_template_ = await cg.templatable(config[CONF_KI], args, cg.float_)
-    cg.add(var.set_ki(ki_template_))
-
-    kd_template_ = await cg.templatable(config[CONF_KD], args, cg.float_)
-    cg.add(var.set_kd(kd_template_))
-
-    return var
 
 
-@automation.register_action(
+automation.register_apply_action(
     "climate.pid.set_deadband_control_parameters_multipliers",
-    PIDSetDeadbandControlParametersMultipliersAction,
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(PIDClimate),
@@ -238,36 +209,14 @@ async def set_control_parameters(
             cv.Optional(CONF_KD_MULTIPLIER): cv.templatable(cv.float_),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_KP_MULTIPLIER, "set_kp_multiplier", cg.float_),
+    automation.ApplyField(CONF_KI_MULTIPLIER, "set_ki_multiplier", cg.float_),
+    automation.ApplyField(CONF_KD_MULTIPLIER, "set_kd_multiplier", cg.float_),
 )
-async def set_deadband_control_parameters_multipliers(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-
-    kp_multiplier_template_ = await cg.templatable(
-        config[CONF_KP_MULTIPLIER], args, float
-    )
-    cg.add(var.set_kp_multiplier(kp_multiplier_template_))
-
-    if (ki_multiplier := config.get(CONF_KI_MULTIPLIER)) is not None:
-        ki_multiplier_template_ = await cg.templatable(ki_multiplier, args, float)
-        cg.add(var.set_ki_multiplier(ki_multiplier_template_))
-
-    if (kd_multiplier := config.get(CONF_KD_MULTIPLIER)) is not None:
-        kd_multiplier_template_ = await cg.templatable(kd_multiplier, args, float)
-        cg.add(var.set_kd_multiplier(kd_multiplier_template_))
-
-    return var
 
 
-@automation.register_action(
+automation.register_apply_action(
     "climate.pid.set_deadband_threshold_parameters",
-    PIDSetDeadbandThresholdParametersAction,
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(PIDClimate),
@@ -275,20 +224,8 @@ async def set_deadband_control_parameters_multipliers(
             cv.Required(CONF_THRESHOLD_LOW): cv.templatable(cv.temperature_delta),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "set_deadband_thresholds({}, {})",
+        ((CONF_THRESHOLD_LOW, cg.float_), (CONF_THRESHOLD_HIGH, cg.float_)),
+    ),
 )
-async def set_deadband_threshold_parameters(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-
-    threshold_high_template_ = await cg.templatable(
-        config[CONF_THRESHOLD_HIGH], args, float
-    )
-    cg.add(var.set_threshold_high(threshold_high_template_))
-
-    threshold_low_template_ = await cg.templatable(
-        config[CONF_THRESHOLD_LOW], args, float
-    )
-    cg.add(var.set_threshold_low(threshold_low_template_))
-
-    return var

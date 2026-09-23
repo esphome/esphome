@@ -29,9 +29,6 @@ RUN \
     && platformio settings set check_platformio_interval 1000000 \
     && mkdir -p /piolibs
 
-COPY script/platformio_install_deps.py platformio.ini /
-RUN /platformio_install_deps.py /platformio.ini --libraries
-
 ARG BUILD_VERSION
 
 LABEL \
