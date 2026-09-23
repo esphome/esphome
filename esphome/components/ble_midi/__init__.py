@@ -60,13 +60,6 @@ MessageTrigger = ble_midi_ns.class_(
     "MessageTrigger", automation.Trigger.template(cg.std_vector.template(cg.uint8))
 )
 
-NoteOnAction = ble_midi_ns.class_("NoteOnAction", automation.Action)
-NoteOffAction = ble_midi_ns.class_("NoteOffAction", automation.Action)
-ControlChangeAction = ble_midi_ns.class_("ControlChangeAction", automation.Action)
-ProgramChangeAction = ble_midi_ns.class_("ProgramChangeAction", automation.Action)
-PitchBendAction = ble_midi_ns.class_("PitchBendAction", automation.Action)
-SysexAction = ble_midi_ns.class_("SysexAction", automation.Action)
-RawAction = ble_midi_ns.class_("RawAction", automation.Action)
 BLEMidiConnectedCondition = ble_midi_ns.class_(
     "BLEMidiConnectedCondition", automation.Condition
 )
@@ -166,16 +159,6 @@ def _action_schema(keys: dict) -> cv.Schema:
     )
 
 
-async def _build_action(config, action_id, template_arg, args, keys):
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, parent)
-    for key, type_ in {**keys, CONF_CHANNEL: cg.uint8}.items():
-        template_ = await cg.templatable(config[key], args, type_)
-        cg.add(getattr(var, f"set_{key}")(template_))
-    return var
-
-
 NOTE_ACTION_SCHEMA = _action_schema(
     {
         cv.Required(CONF_NOTE): cv.templatable(midi_data_byte),
@@ -183,124 +166,75 @@ NOTE_ACTION_SCHEMA = _action_schema(
     }
 )
 
+_CHANNEL = (CONF_CHANNEL, cg.uint8)
+_NOTE_ARGS = ((CONF_NOTE, cg.uint8), (CONF_VELOCITY, cg.uint8), _CHANNEL)
+_BYTES = cg.std_vector.template(cg.uint8)
 
-@automation.register_action(
-    "ble_midi.send_note_on", NoteOnAction, NOTE_ACTION_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "ble_midi.send_note_on",
+    NOTE_ACTION_SCHEMA,
+    automation.ApplyCall("send_note_on({}, {}, {})", _NOTE_ARGS),
 )
-async def send_note_on_to_code(config, action_id, template_arg, args):
-    return await _build_action(
-        config,
-        action_id,
-        template_arg,
-        args,
-        {CONF_NOTE: cg.uint8, CONF_VELOCITY: cg.uint8},
-    )
 
-
-@automation.register_action(
-    "ble_midi.send_note_off", NoteOffAction, NOTE_ACTION_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "ble_midi.send_note_off",
+    NOTE_ACTION_SCHEMA,
+    automation.ApplyCall("send_note_off({}, {}, {})", _NOTE_ARGS),
 )
-async def send_note_off_to_code(config, action_id, template_arg, args):
-    return await _build_action(
-        config,
-        action_id,
-        template_arg,
-        args,
-        {CONF_NOTE: cg.uint8, CONF_VELOCITY: cg.uint8},
-    )
 
-
-@automation.register_action(
+automation.register_apply_action(
     "ble_midi.send_control_change",
-    ControlChangeAction,
     _action_schema(
         {
             cv.Required(CONF_CONTROL_NUMBER): cv.templatable(midi_data_byte),
             cv.Required(CONF_VALUE): cv.templatable(midi_data_byte),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "send_control_change({}, {}, {})",
+        ((CONF_CONTROL_NUMBER, cg.uint8), (CONF_VALUE, cg.uint8), _CHANNEL),
+    ),
 )
-async def send_control_change_to_code(config, action_id, template_arg, args):
-    return await _build_action(
-        config,
-        action_id,
-        template_arg,
-        args,
-        {CONF_CONTROL_NUMBER: cg.uint8, CONF_VALUE: cg.uint8},
-    )
 
-
-@automation.register_action(
+automation.register_apply_action(
     "ble_midi.send_program_change",
-    ProgramChangeAction,
     _action_schema({cv.Required(CONF_PROGRAM): cv.templatable(midi_data_byte)}),
-    synchronous=True,
+    automation.ApplyCall(
+        "send_program_change({}, {})", ((CONF_PROGRAM, cg.uint8), _CHANNEL)
+    ),
 )
-async def send_program_change_to_code(config, action_id, template_arg, args):
-    return await _build_action(
-        config, action_id, template_arg, args, {CONF_PROGRAM: cg.uint8}
-    )
 
-
-@automation.register_action(
+automation.register_apply_action(
     "ble_midi.send_pitch_bend",
-    PitchBendAction,
     _action_schema(
         {
             cv.Required(CONF_VALUE): cv.templatable(cv.int_range(min=-8192, max=8191)),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("send_pitch_bend({}, {})", ((CONF_VALUE, cg.int16), _CHANNEL)),
 )
-async def send_pitch_bend_to_code(config, action_id, template_arg, args):
-    return await _build_action(
-        config, action_id, template_arg, args, {CONF_VALUE: cg.int16}
-    )
 
-
-@automation.register_action(
+automation.register_apply_action(
     "ble_midi.send_sysex",
-    SysexAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(BLEMidi),
             cv.Required(CONF_PAYLOAD): cv.templatable(cv.ensure_list(cv.hex_uint8_t)),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_PAYLOAD, "send_sysex", _BYTES),
 )
-async def send_sysex_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, parent)
-    payload = await cg.templatable(
-        config[CONF_PAYLOAD], args, cg.std_vector.template(cg.uint8)
-    )
-    cg.add(var.set_payload(payload))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "ble_midi.send_raw",
-    RawAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(BLEMidi),
             cv.Required(CONF_DATA): cv.templatable(cv.ensure_list(cv.hex_uint8_t)),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_DATA, "send_raw", _BYTES),
 )
-async def send_raw_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, parent)
-    data = await cg.templatable(
-        config[CONF_DATA], args, cg.std_vector.template(cg.uint8)
-    )
-    cg.add(var.set_data(data))
-    return var
 
 
 @automation.register_condition(
