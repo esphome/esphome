@@ -276,8 +276,12 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   // Queue values using this hub's preamble/endian/postamble but a per-call element byte width.
   // Used by buttons with a top-level value_element_bytes: override (not a full command_format).
   bool queue_command_values_with_element_bytes(const uint32_t *commands, size_t count, uint8_t element_bytes);
-  bool queue_command_with_format(const uint32_t *commands, size_t count, const std::vector<uint8_t> &preamble,
-                                 uint8_t value_element_bytes, bool big_endian, const std::vector<uint8_t> &postamble);
+  // preamble/postamble are taken as pointer/length pairs, not std::vector<uint8_t>, so a
+  // caller backed by a StaticVector (the button's per-button command_format override) can pass
+  // its own storage straight through with no per-call heap allocation.
+  bool queue_command_with_format(const uint32_t *commands, size_t count, const uint8_t *preamble, size_t preamble_len,
+                                 uint8_t value_element_bytes, bool big_endian, const uint8_t *postamble,
+                                 size_t postamble_len);
   bool queue_raw_frame(const std::vector<uint8_t> &payload);
   // Assemble frame_type + payload into a pre-reserved buffer and queue it. Used by the
   // send_frame action and the raw-form button so neither allocates a per-call vector.

@@ -560,17 +560,22 @@ void RS485FrameHub::build_frame_(const std::vector<uint8_t> &payload, std::vecto
   out.push_back(this->etx_);
 }
 
-void RS485FrameHub::build_key_payload_(const uint32_t *commands, size_t count, uint8_t element_bytes,
-                                       std::vector<uint8_t> &out) const {
+namespace {
+
+// Shared by build_key_payload_ (hub's own command_format) and queue_command_with_format (a
+// button's per-button command_format override): preamble bytes, then one or more value fields
+// each element_bytes (1, 2, or 4) serialised big- or little-endian back-to-back, then postamble
+// bytes. Preamble/postamble are pointer/length pairs rather than std::vector<uint8_t> so a
+// caller backed by a StaticVector can pass its own storage through with no allocation.
+void encode_command_payload(const uint32_t *commands, size_t count, uint8_t element_bytes, bool big_endian,
+                            const uint8_t *preamble, size_t preamble_len, const uint8_t *postamble,
+                            size_t postamble_len, std::vector<uint8_t> &out) {
   out.clear();
-  // Preamble bytes (e.g. frame sub-type header for Hayward / Jandy protocols).
-  for (uint8_t b : this->cmd_preamble_)
-    out.push_back(b);
-  // One or more value fields, each element_bytes (1, 2, or 4) serialised big- or
-  // little-endian, written back-to-back.
+  for (size_t i = 0; i < preamble_len; i++)
+    out.push_back(preamble[i]);
   for (size_t i = 0; i < count; i++) {
     uint32_t command = commands[i];
-    if (this->cmd_big_endian_) {
+    if (big_endian) {
       for (int byte = static_cast<int>(element_bytes) - 1; byte >= 0; byte--)
         out.push_back((command >> (byte * 8)) & 0xFF);
     } else {
@@ -578,9 +583,16 @@ void RS485FrameHub::build_key_payload_(const uint32_t *commands, size_t count, u
         out.push_back((command >> (byte * 8)) & 0xFF);
     }
   }
-  // Postamble bytes (e.g. the trailing 0x00 pad in the Hayward wireless format).
-  for (uint8_t b : this->cmd_postamble_)
-    out.push_back(b);
+  for (size_t i = 0; i < postamble_len; i++)
+    out.push_back(postamble[i]);
+}
+
+}  // namespace
+
+void RS485FrameHub::build_key_payload_(const uint32_t *commands, size_t count, uint8_t element_bytes,
+                                       std::vector<uint8_t> &out) const {
+  encode_command_payload(commands, count, element_bytes, this->cmd_big_endian_, this->cmd_preamble_.data(),
+                         this->cmd_preamble_.size(), this->cmd_postamble_.data(), this->cmd_postamble_.size(), out);
 }
 
 bool RS485FrameHub::queue_command_values_with_element_bytes(const uint32_t *commands, size_t count,
@@ -749,29 +761,16 @@ void RS485FrameHub::send_next_idle_(uint32_t now) {
   // Idle keepalives are not counted in commands_sent_ — that counter tracks only real HA commands.
 }
 
-bool RS485FrameHub::queue_command_with_format(const uint32_t *commands, size_t count,
-                                              const std::vector<uint8_t> &preamble, uint8_t value_element_bytes,
-                                              bool big_endian, const std::vector<uint8_t> &postamble) {
+bool RS485FrameHub::queue_command_with_format(const uint32_t *commands, size_t count, const uint8_t *preamble,
+                                              size_t preamble_len, uint8_t value_element_bytes, bool big_endian,
+                                              const uint8_t *postamble, size_t postamble_len) {
   if (this->sniffer_only_) {
     ESP_LOGW(TAG, "Ignoring command because sniffer_only is enabled");
     this->command_drops_++;
     return false;
   }
-  this->tx_payload_buf_.clear();
-  for (uint8_t b : preamble)
-    this->tx_payload_buf_.push_back(b);
-  for (size_t i = 0; i < count; i++) {
-    uint32_t command = commands[i];
-    if (big_endian) {
-      for (int byte = static_cast<int>(value_element_bytes) - 1; byte >= 0; byte--)
-        this->tx_payload_buf_.push_back((command >> (byte * 8)) & 0xFF);
-    } else {
-      for (uint8_t byte = 0; byte < value_element_bytes; byte++)
-        this->tx_payload_buf_.push_back((command >> (byte * 8)) & 0xFF);
-    }
-  }
-  for (uint8_t b : postamble)
-    this->tx_payload_buf_.push_back(b);
+  encode_command_payload(commands, count, value_element_bytes, big_endian, preamble, preamble_len, postamble,
+                         postamble_len, this->tx_payload_buf_);
   // Mirrors the overflow guard in queue_command_values(): a button's own command_format
   // override is independent of the hub's, so this checks against max_frame_length_ rather
   // than assuming the reserved capacity (sized for the schema's worst case) is exceeded.

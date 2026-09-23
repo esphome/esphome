@@ -37,6 +37,7 @@ class RS485FrameHubProbe : public RS485FrameHub {
   uint32_t command_drops_for_test() const { return this->command_drops_; }
   uint32_t discarded_frames_for_test() const { return this->discarded_frames_; }
   void record_discard_for_test(uint32_t now) { this->record_discard_(now); }
+  size_t queue_depth_for_test() const { return this->queue_size_(); }
 };
 
 }  // namespace
@@ -74,6 +75,28 @@ TEST(RS485FrameHubTest, RecordDiscardIncrementsDiscardedFramesCounter) {
   hub.record_discard_for_test(/*now=*/2000);
 
   EXPECT_EQ(hub.discarded_frames_for_test(), 2u);
+}
+
+// esphbot review: the per-button command_format override (mode 3) used to force
+// queue_command_with_format() to take its preamble/postamble as std::vector<uint8_t>
+// references, so the button had to heap-allocate two vectors from its StaticVector members on
+// every press just to satisfy the call. Pointer/length pairs let the button hand over its
+// StaticVector's own storage directly -- this mirrors that call shape and shares the same
+// encoder as build_key_payload_ (queue_command_values' path), so it also cross-checks that the
+// two paths agree on the wire format for identical preamble/value/postamble input.
+TEST(RS485FrameHubTest, QueueCommandWithFormatAcceptsPointerLengthPreambleAndPostamble) {
+  RS485FrameHubProbe hub;
+  hub.prepare_queue_for_test();
+
+  StaticVector<uint8_t, 8> preamble{0x00, 0x83, 0x01};
+  StaticVector<uint8_t, 8> postamble{0x00};
+  const uint32_t value = 0x01;
+
+  EXPECT_TRUE(hub.queue_command_with_format(&value, 1, preamble.data(), preamble.size(),
+                                            /*value_element_bytes=*/1, /*big_endian=*/true, postamble.data(),
+                                            postamble.size()));
+  EXPECT_EQ(hub.command_drops_for_test(), 0u);
+  EXPECT_EQ(hub.queue_depth_for_test(), 1u);
 }
 
 }  // namespace esphome::rs485_frame::testing
