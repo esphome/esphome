@@ -2,13 +2,6 @@
 
 #include "esphome/core/application.h"
 
-#ifdef USE_BUTTON
-#include "button/rs485_frame_button.h"
-#endif
-#ifdef USE_NUMBER
-#include "number/rs485_frame_number.h"
-#endif
-
 #include <algorithm>
 #include <cinttypes>
 
@@ -819,41 +812,5 @@ void RS485FrameHub::update_last_frame_type_() {
   size_t len = std::min(this->rx_payload_.size(), size_t(2));
   format_hex_to(this->last_frame_type_, this->rx_payload_.data(), len);
 }
-
-#ifdef USE_BUTTON
-void RS485FrameButton::press_action() {
-  if (this->raw_mode_) {
-    this->parent_->queue_raw_frame(this->raw_frame_);
-  } else if (this->has_cmd_format_) {
-    std::vector<uint8_t> preamble(this->cmd_preamble_.begin(), this->cmd_preamble_.end());
-    std::vector<uint8_t> postamble(this->cmd_postamble_.begin(), this->cmd_postamble_.end());
-    this->parent_->queue_command_with_format(this->command_values_.data(), this->command_values_.size(), preamble,
-                                             this->cmd_value_element_bytes_, this->cmd_big_endian_, postamble);
-  } else if (this->has_value_element_bytes_override_) {
-    this->parent_->queue_command_values_with_element_bytes(this->command_values_.data(), this->command_values_.size(),
-                                                           this->value_element_bytes_override_);
-  } else {
-    this->parent_->queue_command_values(this->command_values_.data(), this->command_values_.size());
-  }
-}
-#endif  // USE_BUTTON
-
-#ifdef USE_NUMBER
-// control() is a user-initiated path (a slider/number set from HA or an automation), not a
-// hot loop, so the std::vector the lambda returns is an acceptable per-action allocation —
-// the same trade-off the templatable send_frame action makes. The platform exists so a
-// number entity can map a scalar to an encoded frame (e.g. pump speed -> command bytes)
-// without the user writing a button per value; queue_raw_frame still enforces the length
-// bound and no-heap-after-setup on the actual TX buffers.
-void RS485FrameNumber::control(float value) {
-  if (this->lambda_ == nullptr)
-    return;
-  auto payload = this->lambda_(value);
-  if (!payload.has_value())
-    return;
-  if (this->parent_->queue_raw_frame(payload.value()))
-    this->publish_state(value);
-}
-#endif  // USE_NUMBER
 
 }  // namespace esphome::rs485_frame
