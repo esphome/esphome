@@ -53,20 +53,6 @@ const uint8_t MITSUBISHI_BYTE04 = 0x00;
 const uint8_t MITSUBISHI_BYTE13 = 0x00;
 const uint8_t MITSUBISHI_BYTE16 = 0x00;
 
-climate::ClimateTraits MitsubishiClimate::traits() {
-  auto traits = climate_ir::ClimateIR::traits();
-
-  // Default to only 3 levels in ESPHome even if most unit supports 4. The 3rd level is not used.
-  traits.set_supported_fan_modes(
-      {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH});
-  if (this->fan_mode_ == MITSUBISHI_FAN_Q4L)
-    traits.add_supported_fan_mode(climate::CLIMATE_FAN_QUIET);
-  if (/*this->fan_mode_ == MITSUBISHI_FAN_5L ||*/ this->fan_mode_ >= MITSUBISHI_FAN_4L)
-    traits.add_supported_fan_mode(climate::CLIMATE_FAN_MIDDLE);  // Shouldn't be used for this but it helps
-
-  return traits;
-}
-
 void MitsubishiClimate::transmit_state() {
   // Byte 0-4: Constant: 0x23, 0xCB, 0x26, 0x01, 0x00
   // Byte 5: On=0x20, Off: 0x00
