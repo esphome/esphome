@@ -203,7 +203,7 @@ void ModbusClientHub::parse_modbus_frames() {
 
 void ModbusPeerHub::parse_modbus_frames() {
   while (!this->rx_buffer_.empty()) {
-    this->on_frame_pending_();
+    this->on_frame_pending();
     size_t size = this->rx_buffer_.size();
     ESP_LOGVV(TAG, "Parsing frames buffer size = %" PRIu32, size);
     bool retry_as_client = false;
@@ -606,7 +606,7 @@ bool ModbusServerHub::build_or_reject_read_response_(uint8_t address, uint8_t fu
   return true;
 }
 
-void ModbusServerHub::on_frame_pending_() {
+void ModbusServerHub::on_frame_pending() {
   if (this->deferred_payload_len_ == 0)
     return;
   // Another frame arrived before the deferred reply went out, so the client has moved on.
