@@ -4,6 +4,11 @@ packages:
 psram:
   mode: octal
 
+esphome:
+  on_boot:
+    then:
+      - epaper_spi.full_update_next: epaper_partial
+
 display:
   - platform: epaper_spi
     spi_id: spi_bus
@@ -88,6 +93,7 @@ display:
     busy_pin: 37
     enable_pin: 39
   - platform: epaper_spi
+    id: epaper_partial
     model: seeed-ee04-mono-4.26
     full_update_every: 10
     # Override pins to avoid conflict with other display configs
