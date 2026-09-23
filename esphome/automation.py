@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 import logging
+import string
 from typing import Any
 
 import esphome.codegen as cg
@@ -237,9 +238,16 @@ class ApplyCall:
     args: tuple[tuple[Any, ...], ...] = ()
 
     def __post_init__(self) -> None:
-        if self.target.count("{}") != len(self.args):
+        fields = [
+            f for _, f, _, _ in string.Formatter().parse(self.target) if f is not None
+        ]
+        if any(fields):
             raise ValueError(
-                f"apply target {self.target!r} has {self.target.count('{}')} "
+                f"apply target {self.target!r}: only bare {{}} placeholders"
+            )
+        if len(fields) != len(self.args):
+            raise ValueError(
+                f"apply target {self.target!r} has {len(fields)} "
                 f"placeholder(s) for {len(self.args)} config key(s)"
             )
         if any(len(arg) not in (2, 3) for arg in self.args):
@@ -252,11 +260,11 @@ class ApplyCall:
 class ApplyField:
     """One config key forwarded as ``target(value)``, or as statement ``target`` when it has ``{}``.
 
-    Double a literal brace in a template. ``conf_key`` may be a path into nested sections. ``type_`` may be a C++ type string using ``{parent}`` when the type is
-    only known per instance. ``const_fn(config, value)`` renders a constant's argument text when
-    ``cg.safe_exp`` is not the right spelling (unit conversion belongs in the validator); a
-    lambda bypasses it, so the target must also take a plain ``type_``. An absent key emits
-    nothing.
+    Double a literal brace in a template. ``conf_key`` may be a path into nested sections.
+    ``type_`` may be a C++ type string using ``{parent}`` when the type is only known per
+    instance. ``const_fn(config, value)`` renders a constant's argument text when ``cg.safe_exp``
+    is not the right spelling (unit conversion belongs in the validator); a lambda bypasses it,
+    so the target must also take a plain ``type_``. An absent key emits nothing.
     """
 
     conf_key: str | tuple[str, ...]

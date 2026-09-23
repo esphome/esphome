@@ -765,6 +765,9 @@ async def test_apply_field_nested_key_const_fn_and_type_string(
 def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> None:
     with pytest.raises(ValueError, match="2 placeholder"):
         ApplyCall("set_range({}, {})", (("low", cg.float_),))
+    with pytest.raises(ValueError, match="only bare"):
+        ApplyCall("if ({}) {parent}->reset()", (("reset", cg.bool_),))
+    ApplyCall("set_flags({{{}}})", (("flags", cg.int_),))
     with pytest.raises(ValueError, match="each arg is"):
         ApplyCall("set_kp({})", (("kp", cg.float_, None, "extra"),))
     schema = cv.Schema({cv.Required(CONF_ID): cv.string, cv.Optional("kp"): cv.float_})
