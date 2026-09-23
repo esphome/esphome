@@ -74,3 +74,10 @@ def test_populate_dependency_config_populates_defaults() -> None:
         register_platform_fn=lambda domain: None,
     )
     assert config["ok"] == {"default": 1}
+
+
+def test_with_platform_domains_adds_domain_of_each_platform() -> None:
+    """A ``domain.platform`` entry also brings in its domain component."""
+    assert build_helpers.with_platform_domains(
+        ["hoermann_hcp", "cover.hoermann_hcp", "light.hoermann_hcp"]
+    ) == {"hoermann_hcp", "cover.hoermann_hcp", "light.hoermann_hcp", "cover", "light"}
