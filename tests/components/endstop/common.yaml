@@ -40,10 +40,10 @@ valve:
     id: endstop_valve_test
     name: Endstop Valve
     stop_action:
-      - switch.turn_on: template_switch1
-    open_endstop: bin1
+      - switch.turn_on: endstop_template_switch1
+    open_endstop: endstop_bin1
     open_action:
-      - switch.turn_on: template_switch1
+      - switch.turn_on: endstop_template_switch1
     open_duration: 5min
     close_endstop: bin2
     close_action:
