@@ -1,0 +1,17 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: "test_ssid"
+  eap:
+    identity: "user@example.org"
+    username: "user"
+    password: "secret"
+
+http_request:
+  verify_ssl: true

@@ -28,9 +28,6 @@ class MideaData {
   bool is_valid() const { return this->data_[OFFSET_CS] == this->calc_cs_(); }
   void finalize() { this->data_[OFFSET_CS] = this->calc_cs_(); }
   bool is_compliment(const MideaData &rhs) const;
-  /// @deprecated Allocates heap memory. Use to_str() instead. Removed in 2026.7.0.
-  ESPDEPRECATED("Allocates heap memory. Use to_str() instead. Removed in 2026.7.0.", "2026.1.0")
-  std::string to_string() const { return format_hex_pretty(this->data_.data(), this->data_.size()); }  // NOLINT
   /// Buffer size for to_str(): 6 bytes = "AA.BB.CC.DD.EE.FF\0"
   static constexpr size_t TO_STR_BUFFER_SIZE = format_hex_pretty_size(6);
   /// Format to buffer, returns pointer to buffer
@@ -70,9 +67,9 @@ class MideaData {
 
 class MideaProtocol : public RemoteProtocol<MideaData> {
  public:
-  void encode(RemoteTransmitData *dst, const MideaData &src) override;
-  optional<MideaData> decode(RemoteReceiveData src) override;
-  void dump(const MideaData &data) override;
+  void encode(RemoteTransmitData *dst, const MideaData &src);
+  optional<MideaData> decode(RemoteReceiveData src);
+  void dump(const MideaData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Midea)

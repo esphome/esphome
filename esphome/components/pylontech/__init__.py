@@ -6,6 +6,7 @@ from esphome.components import uart
 from esphome.components.const import CONF_ENABLED
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,6 +44,14 @@ CONFIG_SCHEMA = cv.All(
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "pylontech",
+    baud_rate=115200,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
+)
+
 
 @automation.register_action(
     "pylontech.set_cell_polling",
@@ -64,7 +73,7 @@ async def set_cell_polling_to_code(config, action_id, template_arg, args):
     return var
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

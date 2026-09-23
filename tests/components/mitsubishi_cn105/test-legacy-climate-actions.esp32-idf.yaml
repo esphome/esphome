@@ -1,0 +1,16 @@
+packages:
+  uart_9600_even: !include ../../test_build_components/common/uart_9600_even/esp32-idf.yaml
+
+climate:
+  - platform: mitsubishi_cn105
+    id: ac
+    name: "AC Test"
+
+esphome:
+  on_boot:
+    then:
+      - climate.mitsubishi_cn105.set_remote_temperature:
+          id: ac
+          temperature: 22.0
+      - climate.mitsubishi_cn105.clear_remote_temperature:
+          id: ac

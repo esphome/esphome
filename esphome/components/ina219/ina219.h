@@ -8,7 +8,7 @@
 
 namespace esphome::ina219 {
 
-class INA219Component : public PollingComponent, public i2c::I2CDevice {
+class INA219Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

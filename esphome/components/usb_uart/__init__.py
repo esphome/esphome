@@ -18,6 +18,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.cpp_types import Component
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
@@ -43,39 +44,86 @@ UART_STOP_BITS_OPTIONS = {
 }
 
 DEFAULT_BAUD_RATE = 9600
+CONF_CLAIM_COMM_INTERFACE = "claim_comm_interface"
 
 
 class Type:
-    def __init__(self, name, vid, pid, cls, max_channels=1, baud_rate_required=True):
+    def __init__(
+        self,
+        name: str,
+        vid: int,
+        pid: int,
+        cls: str | None,
+        max_channels: int = 1,
+        baud_rate_required: bool = True,
+        max_baud: int = 1_000_000,
+        has_comm_interface: bool = False,
+    ) -> None:
         self.name = name
         cls = cls or name
         self.vid = vid
         self.pid = pid
         self.cls = usb_uart_ns.class_(f"USBUartType{cls}", USBUartComponent)
-        self.max_channels = max_channels
+        self._max_channels = max_channels
         self.baud_rate_required = baud_rate_required
+        self.max_baud = max_baud
+        # True for types that claim the CDC comm (interrupt) interface; only these
+        # accept the claim_comm_interface option.
+        self.has_comm_interface = has_comm_interface
+
+    @property
+    def max_channels(self) -> int:
+        return (
+            3
+            if (
+                CORE.is_esp32
+                and get_esp32_variant() != VARIANT_ESP32P4
+                and self._max_channels > 3
+            )
+            else self._max_channels
+        )
 
 
 uart_types = (
-    Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
-    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3),
-    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4),
-    Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
-    Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
-    Type("FT232", 0x0403, 0x6001, "FT23XX", 1),
-    Type("FT2232", 0x0403, 0x6010, "FT23XX", 2),
-    Type("FT4232", 0x0403, 0x6011, "FT23XX", 4),
-    Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
+    Type(
+        "CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False, has_comm_interface=True
+    ),
+    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4, max_baud=2_000_000),
+    Type("CH340", 0x1A86, 0x7523, "CH34X", 1, max_baud=2_000_000),
+    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3, max_baud=2_000_000),
+    Type(
+        "ESP_JTAG",
+        0x303A,
+        0x1001,
+        "CdcAcm",
+        1,
+        baud_rate_required=False,
+        has_comm_interface=True,
+    ),
+    Type("FT232", 0x0403, 0x6001, "FT23XX", 1, max_baud=3_000_000),
+    Type("FT2232", 0x0403, 0x6010, "FT23XX", 2, max_baud=12_000_000),
+    Type("FT4232", 0x0403, 0x6011, "FT23XX", 4, max_baud=12_000_000),
+    Type("PL2303", 0x067B, 0x2303, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GB", 0x067B, 0x23B3, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GC", 0x067B, 0x23A3, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GE", 0x067B, 0x23E3, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GL", 0x067B, 0x23D3, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GS", 0x067B, 0x23F3, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GT", 0x067B, 0x23C3, "PL2303", 1, max_baud=6_000_000),
+    Type(
+        "STM32_VCP",
+        0x0483,
+        0x5740,
+        "CdcAcm",
+        1,
+        baud_rate_required=False,
+        has_comm_interface=True,
+    ),
 )
 
 
-def channel_schema(channels, baud_rate_required):
-    # For now S3 is restricted to 3 channels since each needs 2 endpoints, plus the control endpoint, and
-    # there are only a total of 8 endpoints available.
-    # This will need updating when the 8 channel devices that multiplex over an endpoint are added.
-    if CORE.is_esp32 and get_esp32_variant() != VARIANT_ESP32P4 and channels > 3:
-        channels = 3
-    return cv.Schema(
+def channel_schema(type_: "Type") -> cv.Schema:
+    schema = cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
                 cv.ensure_list(
@@ -87,11 +135,11 @@ def channel_schema(channels, baud_rate_required):
                             ),
                             (
                                 cv.Required(CONF_BAUD_RATE)
-                                if baud_rate_required
+                                if type_.baud_rate_required
                                 else cv.Optional(
                                     CONF_BAUD_RATE, default=DEFAULT_BAUD_RATE
                                 )
-                            ): cv.int_range(min=300, max=1000000),
+                            ): cv.int_range(min=300, max=type_.max_baud),
                             cv.Optional(CONF_STOP_BITS, default="1"): cv.enum(
                                 UART_STOP_BITS_OPTIONS, upper=True
                             ),
@@ -110,17 +158,37 @@ def channel_schema(channels, baud_rate_required):
                         }
                     )
                 ),
-                cv.Length(max=channels),
-            )
+                cv.Length(
+                    max=type_.max_channels,
+                    msg=f"Device type {type_.name} supports a maximum of {type_.max_channels} channels",
+                ),
+            ),
         }
     )
+    if type_.has_comm_interface:
+        # The comm (interrupt) interface pins a host hardware channel per device;
+        # disable to save one on channel-poor hosts (some devices may need it
+        # claimed before enabling data flow).
+        schema = schema.extend(
+            {cv.Optional(CONF_CLAIM_COMM_INTERFACE, default=True): cv.boolean}
+        )
+    else:
+        schema = schema.extend(
+            {
+                cv.Optional(CONF_CLAIM_COMM_INTERFACE): cv.invalid(
+                    f"'{CONF_CLAIM_COMM_INTERFACE}' is only supported on device types "
+                    f"that claim the CDC comm interface; {type_.name} never claims it"
+                )
+            }
+        )
+    return schema
 
 
 CONFIG_SCHEMA = cv.ensure_list(
     cv.typed_schema(
         {
             it.name: usb_device_schema(it.cls, it.vid, it.pid).extend(
-                channel_schema(it.max_channels, it.baud_rate_required)
+                channel_schema(it)
             )
             for it in uart_types
         },
@@ -129,7 +197,7 @@ CONFIG_SCHEMA = cv.ensure_list(
 )
 
 
-async def to_code(config):
+async def to_code(config: list[ConfigType]) -> None:
     # The output chunk pool/queue are compile-time-sized templates shared by all
     # USBUartChannel instances, so use the largest buffer_size across every channel
     # of every device. Add one extra slot because LockFreeQueue<T,N> is a ring
@@ -144,6 +212,9 @@ async def to_code(config):
 
     for device in config:
         var = await register_usb_client(device)
+        # The C++ default is true; only emit the override
+        if not device.get(CONF_CLAIM_COMM_INTERFACE, True):
+            cg.add(var.set_claim_comm_interface(False))
         for index, channel in enumerate(device[CONF_CHANNELS]):
             chvar = cg.new_Pvariable(channel[CONF_ID], index, channel[CONF_BUFFER_SIZE])
             await cg.register_parented(chvar, var)

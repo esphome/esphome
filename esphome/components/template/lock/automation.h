@@ -6,7 +6,7 @@
 
 namespace esphome::template_ {
 
-template<typename... Ts> class TemplateLockPublishAction : public Action<Ts...>, public Parented<TemplateLock> {
+template<typename... Ts> class TemplateLockPublishAction final : public Action<Ts...>, public Parented<TemplateLock> {
  public:
   TEMPLATABLE_VALUE(lock::LockState, state)
 

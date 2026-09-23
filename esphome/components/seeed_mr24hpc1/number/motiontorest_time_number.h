@@ -5,7 +5,7 @@
 
 namespace esphome::seeed_mr24hpc1 {
 
-class MotionToRestTimeNumber : public number::Number, public Parented<MR24HPC1Component> {
+class MotionToRestTimeNumber final : public number::Number, public Parented<MR24HPC1Component> {
  public:
   MotionToRestTimeNumber() = default;
 

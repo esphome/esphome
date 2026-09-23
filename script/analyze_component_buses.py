@@ -39,14 +39,20 @@ from helpers import BASE_BUS_COMPONENTS, is_validate_only_file
 from esphome import yaml_util
 from esphome.config_helpers import Extend, Remove
 
-# Path to common bus configs
-COMMON_BUS_PATH = Path("tests/test_build_components/common")
+# Path to common bus configs (resolved relative to this file, not the CWD)
+COMMON_BUS_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "tests"
+    / "test_build_components"
+    / "common"
+)
 
 # Package dependencies - maps packages to the packages they include
 # When a component uses a package on the left, it automatically gets
 # the packages on the right as well
 PACKAGE_DEPENDENCIES = {
     "modbus": ["uart"],  # modbus packages include uart packages
+    "modbus_server": ["uart"],  # modbus_server packages include uart packages
     # Add more package dependencies here as needed
 }
 
@@ -75,6 +81,7 @@ ISOLATED_SIGNATURE_PREFIX = "isolated_"
 # NOTE: This should be kept in sync with both test_build_components and split_components_for_ci.py
 ISOLATED_COMPONENTS = {
     "animation": "Has display lambda in common.yaml that requires existing display platform - breaks when merged without display",
+    "cdc_acm_uart": "Depends on tinyusb which conflicts with usb_host",
     "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
     "ethernet": "Defines ethernet: which conflicts with wifi: used by most components",
     "ethernet_info": "Related to ethernet component which conflicts with wifi",
@@ -85,10 +92,12 @@ ISOLATED_COMPONENTS = {
     "openthread_info": "Conflicts with wifi: used by most components",
     "matrix_keypad": "Needs isolation due to keypad",
     "microphone": "Defines PDM microphone requiring I2S port 0 - conflicts with micro_wake_word PDM mic when merged",
+    "mipi_rgb": "RGB display occupies many GPIOs (including ones used by the shared i2c bus) that conflict when merged with other bus components",
     "modbus_controller": "Defines multiple modbus buses for testing client/server functionality - conflicts with package modbus bus",
     "neopixelbus": "RMT type conflict with ESP32 Arduino/ESP-IDF headers (enum vs struct rmt_channel_t)",
     "packages": "cannot merge packages",
     "tinyusb": "Conflicts with usb_host component - cannot be used together",
+    "uart_mux": "Depends on tinyusb which conflicts with usb_host",
     "usb_cdc_acm": "Depends on tinyusb which conflicts with usb_host",
 }
 

@@ -24,7 +24,7 @@ enum MCP23016GPIORegisters {
   MCP23016_IOCON1 = 0x0B,
 };
 
-class MCP23016 : public Component, public i2c::I2CDevice, public gpio_expander::CachedGpioExpander<uint16_t, 16> {
+class MCP23016 final : public Component, public i2c::I2CDevice, public gpio_expander::CachedGpioExpander<uint16_t, 16> {
  public:
   MCP23016() = default;
 
@@ -56,7 +56,7 @@ class MCP23016 : public Component, public i2c::I2CDevice, public gpio_expander::
   InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
-class MCP23016GPIOPin : public GPIOPin {
+class MCP23016GPIOPin final : public GPIOPin {
  public:
   void setup() override;
   void pin_mode(gpio::Flags flags) override;

@@ -80,7 +80,7 @@ enum {
   MPL3115A2_CTRL_REG1_OS128 = 0x38,
 };
 
-class MPL3115A2Component : public PollingComponent, public i2c::I2CDevice {
+class MPL3115A2Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
   void set_altitude(sensor::Sensor *altitude) { altitude_ = altitude; }

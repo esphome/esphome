@@ -34,7 +34,7 @@ esphome:
 
 switch:
   - platform: template
-    id: switch1
+    id: sprinkler_switch1
     optimistic: true
   - platform: template
     id: switch2
@@ -52,17 +52,17 @@ sprinkler:
     valves:
       - valve_switch: Yard Valve 0
         enable_switch: Enable Yard Valve 0
-        pump_switch_id: switch1
+        pump_switch_id: sprinkler_switch1
         run_duration: 10s
         valve_switch_id: switch2
       - valve_switch: Yard Valve 1
         enable_switch: Enable Yard Valve 1
-        pump_switch_id: switch1
+        pump_switch_id: sprinkler_switch1
         run_duration: 10s
         valve_switch_id: switch2
       - valve_switch: Yard Valve 2
         enable_switch: Enable Yard Valve 2
-        pump_switch_id: switch1
+        pump_switch_id: sprinkler_switch1
         run_duration: 10s
         valve_switch_id: switch2
   - id: garden_sprinkler_ctrlr
@@ -73,11 +73,11 @@ sprinkler:
     valves:
       - valve_switch: Garden Valve 0
         enable_switch: Enable Garden Valve 0
-        pump_switch_id: switch1
+        pump_switch_id: sprinkler_switch1
         run_duration: 10s
         valve_switch_id: switch2
       - valve_switch: Garden Valve 1
         enable_switch: Enable Garden Valve 1
-        pump_switch_id: switch1
+        pump_switch_id: sprinkler_switch1
         run_duration: 10s
         valve_switch_id: switch2

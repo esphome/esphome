@@ -42,11 +42,11 @@ struct VolumeRestoreState {
   bool is_muted;
 };
 
-class SpeakerMediaPlayer : public Component,
-                           public media_player::MediaPlayer
+class SpeakerMediaPlayer final : public Component,
+                                 public media_player::MediaPlayer
 #ifdef USE_OTA_STATE_LISTENER
     ,
-                           public ota::OTAGlobalStateListener
+                                 public ota::OTAGlobalStateListener
 #endif
 {
  public:

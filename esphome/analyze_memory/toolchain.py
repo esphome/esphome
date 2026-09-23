@@ -23,6 +23,78 @@ TOOLCHAIN_PREFIXES = [
 ]
 
 
+def find_elf_path(build_path: Path) -> Path | None:
+    """Locate the firmware ELF inside an ESPHome build directory.
+
+    The layout depends on the toolchain that produced the build, so try each
+    known one in turn.
+
+    Args:
+        build_path: Path to an ESPHome build directory
+
+    Returns:
+        Path to the ELF file, or None if no known layout matches
+    """
+    name = build_path.name
+    for candidate in (
+        # Native ESP-IDF: idf.py writes build/<name>.elf, which ESPHome copies
+        # to build/firmware.elf (see espidf.toolchain.create_elf_copy)
+        build_path / "build" / "firmware.elf",
+        # PlatformIO
+        build_path / "firmware.elf",
+        build_path / ".pioenvs" / name / "firmware.elf",
+        # LibreTiny uses raw_firmware.elf
+        build_path / "raw_firmware.elf",
+        build_path / ".pioenvs" / name / "raw_firmware.elf",
+        # Zephyr (nRF52); the SDK nests the artifacts one level deeper from 2.9.2
+        build_path / ".pioenvs" / name / "zephyr" / "zephyr" / "zephyr.elf",
+        build_path / ".pioenvs" / name / "zephyr" / "zephyr.elf",
+    ):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def idedata_candidates(build_path: Path) -> list[Path]:
+    """Return the idedata locations searched for a build directory, in order.
+
+    Exposed so a caller reporting "not found" can name the paths it tried
+    without keeping its own copy of the list.
+
+    Args:
+        build_path: Path to an ESPHome build directory
+
+    Returns:
+        The candidate idedata JSON paths, most specific first
+    """
+    name = build_path.name
+    return [
+        # In .pioenvs for test builds
+        build_path / ".pioenvs" / name / "idedata.json",
+        # Both toolchains cache it in the data dir, which holds this build dir:
+        # <data_dir>/idedata/<name>.json next to <data_dir>/build/<name>
+        build_path.parent.parent / "idedata" / f"{name}.json",
+        # Regular builds, invoked from the config dir or from anywhere
+        Path.cwd() / ".esphome" / "idedata" / f"{name}.json",
+        Path.home() / ".esphome" / "idedata" / f"{name}.json",
+    ]
+
+
+def find_idedata_path(build_path: Path) -> Path | None:
+    """Locate the idedata JSON belonging to an ESPHome build directory.
+
+    Args:
+        build_path: Path to an ESPHome build directory
+
+    Returns:
+        Path to the idedata JSON, or None if it was not found
+    """
+    for candidate in idedata_candidates(build_path):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def _find_in_platformio_packages(tool_name: str) -> str | None:
     """Search for a tool in PlatformIO package directories.
 

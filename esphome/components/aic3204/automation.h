@@ -6,7 +6,7 @@
 
 namespace esphome::aic3204 {
 
-template<typename... Ts> class SetAutoMuteAction : public Action<Ts...> {
+template<typename... Ts> class SetAutoMuteAction final : public Action<Ts...> {
  public:
   explicit SetAutoMuteAction(AIC3204 *aic3204) : aic3204_(aic3204) {}
 
