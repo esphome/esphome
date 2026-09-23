@@ -330,9 +330,9 @@ def _check_key_in_schema(
         schema = schema.schema[markers[part]]
 
 
-async def _apply_parent(config: ConfigType) -> str:
+async def _apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
     # Global-scope qualified so a trigger arg named like the id cannot shadow it.
-    return f"::{await cg.get_variable(config[CONF_ID])}"
+    return f"::{await cg.get_variable(config[id_key])}"
 
 
 def _apply_lambda_args(args: TemplateArgsType) -> TemplateArgsType:
@@ -387,12 +387,14 @@ def register_apply_action(
     schema: cv.Schema,
     *fields: ApplyField | ApplyCall,
     call: str | None = None,
+    id_key: str = CONF_ID,
 ) -> None:
     """Register an action that only forwards config values to its parent, with no C++ class.
 
     Generates one stateless function for ``ApplyAction<Ts...>``: parent and constants are baked
     in, lambdas are called inline with the trigger args. With ``call`` every statement targets
     the call object ``auto apply_call = parent->call()``, and ``apply_call.perform()`` is appended.
+    ``id_key`` names the schema key holding the parent id when it is not ``CONF_ID``.
     """
     # An action stores the value, so a std::string constant stays in flash on ESP8266.
     statements_spec = [
@@ -415,7 +417,7 @@ def register_apply_action(
         template_arg: cg.TemplateArguments,
         args: TemplateArgsType,
     ) -> MockObj:
-        parent = await _apply_parent(config)
+        parent = await _apply_parent(config, id_key)
         lambda_args = _apply_lambda_args(args)
         receiver = "apply_call." if call else f"{parent}->"
         statements: list[str] = []

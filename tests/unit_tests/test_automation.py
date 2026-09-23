@@ -663,6 +663,30 @@ async def test_register_apply_action_entry(
 
 
 @pytest.mark.asyncio
+async def test_apply_custom_id_key(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """id_key reads the parent from a schema key other than CONF_ID."""
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    actions, _ = registries
+    register_apply_action(
+        "my.apply",
+        None,
+        ApplyField("value", "digital_write", cg.bool_),
+        id_key="transmitter_id",
+    )
+    entry = actions["my.apply"]
+    await entry.fun(
+        {"transmitter_id": PARENT_ID, "value": True},
+        ID("obj_1"),
+        cg.TemplateArguments(),
+        [],
+    )
+    mock_cg.get_variable.assert_awaited_once_with(PARENT_ID)
+    assert f"::{PARENT_OBJ}->digital_write(true);" in _apply_lambda(mock_cg)
+
+
+@pytest.mark.asyncio
 async def test_apply_constants(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
