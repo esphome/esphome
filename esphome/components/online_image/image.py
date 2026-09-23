@@ -14,8 +14,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_URL,
 )
-from esphome.core import ID, Lambda
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import Lambda
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["runtime_image"]
@@ -29,14 +28,6 @@ online_image_ns = cg.esphome_ns.namespace("online_image")
 
 OnlineImage = online_image_ns.class_(
     "OnlineImage", cg.PollingComponent, runtime_image.RuntimeImage
-)
-
-# Actions
-SetUrlAction = online_image_ns.class_(
-    "OnlineImageSetUrlAction", automation.Action, cg.Parented.template(OnlineImage)
-)
-ReleaseImageAction = online_image_ns.class_(
-    "OnlineImageReleaseAction", automation.Action, cg.Parented.template(OnlineImage)
 )
 
 ONLINE_IMAGE_SCHEMA = (
@@ -90,31 +81,18 @@ RELEASE_IMAGE_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "online_image.set_url", SetUrlAction, SET_URL_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "online_image.set_url",
+    SET_URL_SCHEMA,
+    automation.ApplyField(CONF_URL, "set_url", cg.std_string),
+    automation.ApplyField(CONF_UPDATE, "update_if", cg.bool_),
 )
-@automation.register_action(
-    "online_image.release",
-    ReleaseImageAction,
-    RELEASE_IMAGE_SCHEMA,
-    synchronous=True,
-)
-async def online_image_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    if CONF_URL in config:
-        template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
-        cg.add(var.set_url(template_))
-    if CONF_UPDATE in config:
-        template_ = await cg.templatable(config[CONF_UPDATE], args, cg.bool_)
-        cg.add(var.set_update(template_))
-    return var
+automation.register_apply_action(
+    "online_image.release",
+    RELEASE_IMAGE_SCHEMA,
+    automation.ApplyCall("release()"),
+)
 
 
 _CALLBACK_AUTOMATIONS = (
