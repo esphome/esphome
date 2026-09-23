@@ -56,6 +56,17 @@ static FormatMapping get_format_mapping(PixelFormat format) {
   }
 }
 
+/// Holds the four characters of a fourcc code plus a terminator, for logging.
+using FourccName = char[5];
+
+static void format_fourcc(uint32_t fourcc, FourccName out) {
+  out[0] = static_cast<char>(fourcc & 0xFF);
+  out[1] = static_cast<char>((fourcc >> 8) & 0xFF);
+  out[2] = static_cast<char>((fourcc >> 16) & 0xFF);
+  out[3] = static_cast<char>((fourcc >> 24) & 0xFF);
+  out[4] = '\0';
+}
+
 /* ---------------- MipiCsiCamera: setup ---------------- */
 
 void MipiCsiCamera::setup() {
@@ -67,8 +78,20 @@ void MipiCsiCamera::setup() {
 
   this->update_interval_ = 1000 / this->framerate_;
   this->result_queue_ = xQueueCreate(1, sizeof(size_t));
-  xTaskCreatePinnedToCore(&MipiCsiCamera::capture_task, "mipi_csi", CAPTURE_TASK_STACK_SIZE, this,
-                          CAPTURE_TASK_PRIORITY, nullptr, CAPTURE_TASK_CORE);
+  if (this->result_queue_ == nullptr) {
+    ESP_LOGE(TAG, "Not enough memory for the frame queue");
+    this->mark_failed();
+    return;
+  }
+
+  if (xTaskCreatePinnedToCore(&MipiCsiCamera::capture_task, "mipi_csi", CAPTURE_TASK_STACK_SIZE, this,
+                              CAPTURE_TASK_PRIORITY, nullptr, CAPTURE_TASK_CORE) != pdPASS) {
+    ESP_LOGE(TAG, "Not enough memory to start the capture task");
+    vQueueDelete(this->result_queue_);
+    this->result_queue_ = nullptr;
+    this->mark_failed();
+    return;
+  }
 }
 
 bool MipiCsiCamera::start_external_clock_() {
@@ -262,13 +285,13 @@ bool MipiCsiCamera::configure_device_() {
   this->apply_control_(V4L2_CID_HFLIP, this->horizontal_flip_, "horizontal flip");
   this->apply_control_(V4L2_CID_VFLIP, this->vertical_flip_, "vertical flip");
 
-  if (!this->read_back_format_(mapping.bytes_per_pixel))
+  if (!this->read_back_format_(mapping.fourcc, mapping.bytes_per_pixel, mapping.name))
     return false;
 
   return this->encoder_.init(this->width_, this->height_, mapping.jpeg_input, mapping.sub_sample, this->jpeg_quality_);
 }
 
-bool MipiCsiCamera::read_back_format_(uint8_t bytes_per_pixel) {
+bool MipiCsiCamera::read_back_format_(uint32_t expected_fourcc, uint8_t bytes_per_pixel, const char *name) {
   v4l2_format actual{};
   actual.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   if (ioctl(this->fd_, VIDIOC_G_FMT, &actual) != 0) {
@@ -280,10 +303,20 @@ bool MipiCsiCamera::read_back_format_(uint8_t bytes_per_pixel) {
   // be set up for what actually comes out, not for what was requested. Only the geometry and the
   // pixel format are meaningful here: esp_video hands back the very struct it was given, so its
   // bytesperline and sizeimage fields stay at whatever the caller left them.
-  const uint32_t fourcc = actual.fmt.pix.pixelformat;
-  ESP_LOGD(TAG, "Capture format: %" PRIu32 "x%" PRIu32 " '%c%c%c%c'", actual.fmt.pix.width, actual.fmt.pix.height,
-           static_cast<char>(fourcc & 0xFF), static_cast<char>((fourcc >> 8) & 0xFF),
-           static_cast<char>((fourcc >> 16) & 0xFF), static_cast<char>((fourcc >> 24) & 0xFF));
+  FourccName fourcc_name;
+  format_fourcc(actual.fmt.pix.pixelformat, fourcc_name);
+  ESP_LOGD(TAG, "Capture format: %" PRIu32 "x%" PRIu32 " '%s'", actual.fmt.pix.width, actual.fmt.pix.height,
+           fourcc_name);
+
+  // A different pixel format means every byte of the frame would be read with the wrong layout, so
+  // the encoder would turn out a corrupted picture rather than a wrong-looking one.
+  if (actual.fmt.pix.pixelformat != expected_fourcc) {
+    FourccName expected_name;
+    format_fourcc(expected_fourcc, expected_name);
+    ESP_LOGE(TAG, "The camera delivers '%s' instead of the configured %s ('%s'); pick another 'pixel_format'",
+             fourcc_name, name, expected_name);
+    return false;
+  }
 
   this->width_ = actual.fmt.pix.width;
   this->height_ = actual.fmt.pix.height;
@@ -410,10 +443,10 @@ void MipiCsiCamera::capture_task(void *param) {
       // short frame.
       const FrameBuffer &mapped = self->buffers_[buffer.index];
       size_t length = self->encoder_.encode(mapped.data, mapped.length);
-      if (length > 0) {
-        xQueueSend(self->result_queue_, &length, portMAX_DELAY);
-        App.wake_loop_threadsafe();
-      }
+      // Reported even when encoding failed: a length of zero tells the main loop that the request
+      // it recorded was not served, so that a still image request is not silently dropped.
+      xQueueSend(self->result_queue_, &length, portMAX_DELAY);
+      App.wake_loop_threadsafe();
       // Cleared last, so that an unset flag always means the result is already on the queue.
       self->frame_wanted_.store(false);
     }
@@ -437,6 +470,14 @@ void MipiCsiCamera::loop() {
   if (!this->current_image_) {
     size_t length;
     if (xQueueReceive(this->result_queue_, &length, 0) == pdTRUE) {
+      if (length == 0) {
+        // Encoding failed. Hand the one-shot requests back so the clients waiting for a still image
+        // are served by the next frame instead of waiting forever. Streams ask again on their own.
+        this->single_requesters_ |= static_cast<uint8_t>(this->pending_requesters_ & ~this->stream_requesters_.load());
+        this->pending_requesters_ = 0;
+        this->last_update_ = now;
+        return;
+      }
       this->current_image_ =
           std::make_shared<MipiCsiImage>(this->encoder_.get_output_buffer(), length, this->pending_requesters_);
       this->pending_requesters_ = 0;
