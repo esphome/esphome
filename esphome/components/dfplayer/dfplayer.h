@@ -157,16 +157,6 @@ template<typename... Ts> class SetEqAction final : public Action<Ts...>, public 
   }
 };
 
-template<typename... Ts> class SetCurrentTrackRepeatAction : public Action<Ts...>, public Parented<DFPlayer> {
- public:
-  TEMPLATABLE_VALUE(bool, enable)
-
-  void play(const Ts &...x) override {
-    auto enable = this->enable_.value(x...);
-    this->parent_->set_current_track_repeat(enable);
-  }
-};
-
 DFPLAYER_SIMPLE_ACTION(SleepAction, sleep)
 DFPLAYER_SIMPLE_ACTION(ResetAction, reset)
 DFPLAYER_SIMPLE_ACTION(StartAction, start)

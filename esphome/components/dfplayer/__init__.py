@@ -51,9 +51,6 @@ PauseAction = dfplayer_ns.class_("PauseAction", automation.Action)
 StopAction = dfplayer_ns.class_("StopAction", automation.Action)
 RandomAction = dfplayer_ns.class_("RandomAction", automation.Action)
 SetDeviceAction = dfplayer_ns.class_("SetDeviceAction", automation.Action)
-SetCurrentTrackRepeatAction = dfplayer_ns.class_(
-    "SetCurrentTrackRepeatAction", automation.Action
-)
 EnableLoopAction = dfplayer_ns.class_("EnableLoopAction", automation.Action)
 DisableLoopAction = dfplayer_ns.class_("DisableLoopAction", automation.Action)
 
@@ -381,9 +378,8 @@ async def dfplayer_random_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
+automation.register_apply_action(
     "dfplayer.set_current_track_repeat",
-    SetCurrentTrackRepeatAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(DFPlayer),
@@ -391,15 +387,8 @@ async def dfplayer_random_to_code(config, action_id, template_arg, args):
         },
         key=CONF_ENABLE,
     ),
+    automation.ApplyField(CONF_ENABLE, "set_current_track_repeat", cg.bool_),
 )
-async def dfplayer_set_current_track_repeat_to_code(
-    config, action_id, template_arg, args
-):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_ENABLE], args, bool)
-    cg.add(var.set_enable(template_))
-    return var
 
 
 @automation.register_condition(
