@@ -12,9 +12,7 @@ on:
       - ".github/workflows/ci-docker.yml"
       - "requirements*.txt"
       - "pyproject.toml"
-      - "platformio.ini"
       - "esphome/idf_component.yml"
-      - "script/platformio_install_deps.py"
       # Core, build pipeline, toolchain, and target-platform changes can change
       # how a toolchain is set up or built, so re-run the per-toolchain compile
       # smoke test when they change.
