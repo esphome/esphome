@@ -46,8 +46,6 @@ RS485FrameTrigger = rs485_frame_ns.class_(
         cg.std_vector.template(cg.uint8).operator("const").operator("ref")
     ),
 )
-SendFrameAction = rs485_frame_ns.class_("SendFrameAction", automation.Action)
-DumpFrameTraceAction = rs485_frame_ns.class_("DumpFrameTraceAction", automation.Action)
 
 SensorDecode = rs485_frame_ns.enum("SensorDecode")
 CrcVariant = rs485_frame_ns.enum("CrcVariant")
@@ -1285,21 +1283,17 @@ SEND_FRAME_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
-    "rs485_frame.send_frame", SendFrameAction, SEND_FRAME_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "rs485_frame.send_frame",
+    SEND_FRAME_SCHEMA,
+    automation.ApplyCall(
+        "queue_raw_frame({}, {})",
+        (
+            (CONF_FRAME_TYPE, cg.std_vector.template(cg.uint8)),
+            (CONF_PAYLOAD, cg.std_vector.template(cg.uint8)),
+        ),
+    ),
 )
-async def send_frame_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    frame_type = await cg.templatable(
-        config[CONF_FRAME_TYPE], args, cg.std_vector.template(cg.uint8)
-    )
-    cg.add(var.set_frame_type(frame_type))
-    payload = await cg.templatable(
-        config[CONF_PAYLOAD], args, cg.std_vector.template(cg.uint8)
-    )
-    cg.add(var.set_payload(payload))
-    return var
 
 
 # rs485_frame.dump_frame_trace: log the hub's frame_trace ring buffer (recent RX/TX frames,
@@ -1314,13 +1308,8 @@ DUMP_FRAME_TRACE_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "rs485_frame.dump_frame_trace",
-    DumpFrameTraceAction,
     DUMP_FRAME_TRACE_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("dump_frame_trace()"),
 )
-async def dump_frame_trace_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

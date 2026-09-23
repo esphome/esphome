@@ -249,7 +249,7 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   }
 #endif
   // Logs the frame_trace ring buffer (rs485_frame.dump_frame_trace action). Declared
-  // unconditionally so DumpFrameTraceAction always has a method to call; a no-op when
+  // unconditionally so the action always has a method to call; a no-op when
   // frame_trace: was never configured (frame_trace_ is nullptr, or the feature is compiled
   // out entirely).
   void dump_frame_trace() {
