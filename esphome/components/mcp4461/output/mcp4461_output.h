@@ -5,10 +5,9 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace mcp4461 {
+namespace esphome::mcp4461 {
 
-class Mcp4461Wiper : public output::FloatOutput, public Parented<Mcp4461Component> {
+class Mcp4461Wiper final : public output::FloatOutput, public Parented<Mcp4461Component> {
  public:
   Mcp4461Wiper(Mcp4461Component *parent, Mcp4461WiperIdx wiper) : parent_(parent), wiper_(wiper) {}
   /// @brief Set level of wiper
@@ -45,5 +44,4 @@ class Mcp4461Wiper : public output::FloatOutput, public Parented<Mcp4461Componen
   float state_;
 };
 
-}  // namespace mcp4461
-}  // namespace esphome
+}  // namespace esphome::mcp4461

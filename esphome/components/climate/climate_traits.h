@@ -81,63 +81,6 @@ class ClimateTraits {
   bool has_feature_flags(uint32_t feature_flags) const { return this->feature_flags_ & feature_flags; }
   void set_feature_flags(uint32_t feature_flags) { this->feature_flags_ = feature_flags; }
 
-  ESPDEPRECATED("This method is deprecated, use get_feature_flags() instead", "2025.11.0")
-  bool get_supports_current_temperature() const {
-    return this->has_feature_flags(CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
-  }
-  ESPDEPRECATED("This method is deprecated, use add_feature_flags() instead", "2025.11.0")
-  void set_supports_current_temperature(bool supports_current_temperature) {
-    if (supports_current_temperature) {
-      this->add_feature_flags(CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
-    } else {
-      this->clear_feature_flags(CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
-    }
-  }
-  ESPDEPRECATED("This method is deprecated, use get_feature_flags() instead", "2025.11.0")
-  bool get_supports_current_humidity() const { return this->has_feature_flags(CLIMATE_SUPPORTS_CURRENT_HUMIDITY); }
-  ESPDEPRECATED("This method is deprecated, use add_feature_flags() instead", "2025.11.0")
-  void set_supports_current_humidity(bool supports_current_humidity) {
-    if (supports_current_humidity) {
-      this->add_feature_flags(CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
-    } else {
-      this->clear_feature_flags(CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
-    }
-  }
-  ESPDEPRECATED("This method is deprecated, use get_feature_flags() instead", "2025.11.0")
-  bool get_supports_two_point_target_temperature() const {
-    return this->has_feature_flags(CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE);
-  }
-  ESPDEPRECATED("This method is deprecated, use add_feature_flags() instead", "2025.11.0")
-  void set_supports_two_point_target_temperature(bool supports_two_point_target_temperature) {
-    if (supports_two_point_target_temperature)
-    // Use CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE to mimic previous behavior
-    {
-      this->add_feature_flags(CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE);
-    } else {
-      this->clear_feature_flags(CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE);
-    }
-  }
-  ESPDEPRECATED("This method is deprecated, use get_feature_flags() instead", "2025.11.0")
-  bool get_supports_target_humidity() const { return this->has_feature_flags(CLIMATE_SUPPORTS_TARGET_HUMIDITY); }
-  ESPDEPRECATED("This method is deprecated, use add_feature_flags() instead", "2025.11.0")
-  void set_supports_target_humidity(bool supports_target_humidity) {
-    if (supports_target_humidity) {
-      this->add_feature_flags(CLIMATE_SUPPORTS_TARGET_HUMIDITY);
-    } else {
-      this->clear_feature_flags(CLIMATE_SUPPORTS_TARGET_HUMIDITY);
-    }
-  }
-  ESPDEPRECATED("This method is deprecated, use get_feature_flags() instead", "2025.11.0")
-  bool get_supports_action() const { return this->has_feature_flags(CLIMATE_SUPPORTS_ACTION); }
-  ESPDEPRECATED("This method is deprecated, use add_feature_flags() instead", "2025.11.0")
-  void set_supports_action(bool supports_action) {
-    if (supports_action) {
-      this->add_feature_flags(CLIMATE_SUPPORTS_ACTION);
-    } else {
-      this->clear_feature_flags(CLIMATE_SUPPORTS_ACTION);
-    }
-  }
-
   void set_supported_modes(ClimateModeMask modes) { this->supported_modes_ = modes; }
   void add_supported_mode(ClimateMode mode) { this->supported_modes_.insert(mode); }
   bool supports_mode(ClimateMode mode) const { return this->supported_modes_.count(mode); }

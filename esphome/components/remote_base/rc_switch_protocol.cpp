@@ -1,8 +1,7 @@
 #include "rc_switch_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.rc_switch";
 
@@ -267,5 +266,4 @@ bool RCSwitchDumper::dump(RemoteReceiveData src) {
   return false;
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

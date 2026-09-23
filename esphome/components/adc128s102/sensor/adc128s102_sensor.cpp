@@ -2,8 +2,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace adc128s102 {
+namespace esphome::adc128s102 {
 
 static const char *const TAG = "adc128s102.sensor";
 
@@ -18,5 +17,4 @@ void ADC128S102Sensor::dump_config() {
 float ADC128S102Sensor::sample() { return this->parent_->read_data(this->channel_); }
 void ADC128S102Sensor::update() { this->publish_state(this->sample()); }
 
-}  // namespace adc128s102
-}  // namespace esphome
+}  // namespace esphome::adc128s102

@@ -30,15 +30,8 @@ class Select : public EntityBase {
  public:
   SelectTraits traits;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  /// @deprecated Use current_option() instead. This member will be removed in ESPHome 2026.7.0.
-  ESPDEPRECATED("Use current_option() instead of .state. Will be removed in 2026.7.0", "2026.1.0")
-  std::string state{};
-
   Select() = default;
   ~Select() = default;
-#pragma GCC diagnostic pop
 
   void publish_state(const std::string &state);
   void publish_state(const char *state);

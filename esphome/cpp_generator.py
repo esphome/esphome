@@ -434,6 +434,25 @@ class LineComment(Statement):
         return "\n".join(parts)
 
 
+class ComponentMarker(Statement):
+    """Chunking-boundary sentinel. ``cpp_main_section`` wraps the
+    statements between two markers in an IIFE to shorten temporary
+    lifetimes and bound peak setup-time stack. Emits no C++ output.
+
+    Grouping is best-effort: ``flush_tasks`` can interleave coroutines
+    on ``await``, so a component's later statements may land in another
+    component's chunk. Safe because every statement either placement-
+    news into static storage or mutates a file-scope global."""
+
+    __slots__ = ("name",)
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def __str__(self):
+        return f"// component-marker: {self.name}"
+
+
 class ProgmemAssignmentExpression(AssignmentExpression):
     __slots__ = ()
 
@@ -458,7 +477,13 @@ def progmem_array(id_, rhs) -> "MockObj":
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
     assignment = ProgmemAssignmentExpression(id_.type, id_, rhs)
-    CORE.add(assignment)
+    # Emit at file scope, not inside setup(). setup() is split into
+    # per-component IIFE lambdas; a function-local static declared in one
+    # lambda is not visible to statements in sibling lambdas that
+    # reference the same shared table (e.g. two lights sharing a gamma
+    # lookup). File-scope static constexpr is semantically identical for
+    # read-only lookup tables.
+    CORE.add_global(assignment)
     CORE.register_variable(id_, obj)
     return obj
 
@@ -467,7 +492,7 @@ def static_const_array(id_, rhs) -> "MockObj":
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
     assignment = StaticConstAssignmentExpression(id_.type, id_, rhs)
-    CORE.add(assignment)
+    CORE.add_global(assignment)
     CORE.register_variable(id_, obj)
     return obj
 
@@ -606,33 +631,43 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     if isinstance(rhs, MockObj) and rhs.is_new_expr:
         # For 'new' allocations, use placement new into static storage
         # to avoid heap fragmentation on embedded devices.
-        the_type = id_.type
+        #
+        # Storage must be sized and aligned for the actual instantiated class,
+        # which may be a subclass of id_.type (e.g. `cv.declare_id(BaseClass)`
+        # combined with `SubClass.new()` — used by ili9xxx, waveshare_epaper,
+        # etc. to select a model-specific constructor). Using id_.type would
+        # run the base-class default constructor instead, silently losing any
+        # subclass initialization. Template args live on the CallExpression
+        # and are re-emitted below.
+        call_expr = rhs.base
+        assert isinstance(call_expr, CallExpression), (
+            f"Expected CallExpression for placement new, got {type(call_expr)}"
+        )
+        actual_type = rhs.new_type if rhs.new_type is not None else id_.type
+        if call_expr.template_args is not None:
+            actual_type = f"{actual_type}{call_expr.template_args}"
+        pointer_type = id_.type
         # Extract component namespace from type for memory analysis attribution
-        component_ns = _extract_component_ns(str(the_type))
+        component_ns = _extract_component_ns(str(actual_type))
         storage_name = f"{component_ns}__{id_.id}__pstorage"
 
         # Declare aligned byte array for the object storage
         CORE.add_global(
             RawStatement(
-                f"alignas({the_type}) static unsigned char {storage_name}[sizeof({the_type})];"
+                f"alignas({actual_type}) static unsigned char {storage_name}[sizeof({actual_type})];"
             )
         )
+        # Pointer declaration uses id_.type to preserve the declared base-class
+        # pointer type for downstream callers (polymorphism through base ptr).
         CORE.add_global(
             AssignmentExpression(
-                f"static {the_type}",
+                f"static {pointer_type}",
                 "*const ",
                 id_,
-                MockObj(f"reinterpret_cast<{the_type} *>({storage_name})"),
+                MockObj(f"reinterpret_cast<{pointer_type} *>({storage_name})"),
             )
         )
-        # Extract args from the CallExpression and rebuild as placement new.
-        # Template args are already encoded in the_type (e.g. GlobalsComponent<int>),
-        # so we only pass the constructor args, not template_args.
-        call_expr = rhs.base
-        assert isinstance(call_expr, CallExpression), (
-            f"Expected CallExpression for placement new, got {type(call_expr)}"
-        )
-        placement_new = CallExpression(f"new({id_.id}) {the_type}", *call_expr.args)
+        placement_new = CallExpression(f"new({id_.id}) {actual_type}", *call_expr.args)
         CORE.add(ExpressionStatement(placement_new))
     else:
         decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
@@ -689,21 +724,23 @@ def add_build_flag(build_flag: str):
     CORE.add_build_flag(build_flag)
 
 
+def add_cxx_build_flag(build_flag: str) -> None:
+    """Add a global build flag that applies to C++ compiles only.
+
+    Use for flags GCC rejects or warns about when passed on C compiles
+    (e.g. ``-Wno-volatile``).
+    """
+    CORE.add_cxx_build_flag(build_flag)
+
+
 def add_build_unflag(build_unflag: str) -> None:
     """Add a global build unflag to the compiler flags."""
     CORE.add_build_unflag(build_unflag)
 
 
 def set_cpp_standard(standard: str) -> None:
-    """Set C++ standard with compiler flag `-std={standard}`."""
-    CORE.add_build_unflag("-std=gnu++11")
-    CORE.add_build_unflag("-std=gnu++14")
-    CORE.add_build_unflag("-std=gnu++17")
-    CORE.add_build_unflag("-std=gnu++23")
-    CORE.add_build_unflag("-std=gnu++2a")
-    CORE.add_build_unflag("-std=gnu++2b")
-    CORE.add_build_unflag("-std=gnu++2c")
-    CORE.add_build_flag(f"-std={standard}")
+    """Set the C++ language standard for the build (e.g. ``gnu++20``)."""
+    CORE.cpp_standard = standard
 
 
 def add_define(name: str, value: SafeExpType = None):
@@ -869,17 +906,21 @@ class MockObj(Expression):
     Mostly consists of magic methods that allow ESPHome's codegen syntax.
     """
 
-    __slots__ = ("base", "op", "is_new_expr")
+    __slots__ = ("base", "op", "is_new_expr", "new_type")
 
-    def __init__(self, base, op=".", is_new_expr=False) -> None:
+    def __init__(self, base, op=".", is_new_expr=False, new_type=None) -> None:
         self.base = base
         self.op = op
         self.is_new_expr = is_new_expr
+        # For `is_new_expr=True` objects, `new_type` holds the class name being
+        # constructed (e.g. "ili9xxx::ILI9XXXST7789V"). Needed by Pvariable so
+        # placement new uses the actual subclass rather than id_.type.
+        self.new_type = new_type
 
     def __getattr__(self, attr: str) -> "MockObj":
         # prevent python dunder methods being replaced by mock objects
         if attr.startswith("__"):
-            raise AttributeError()
+            raise AttributeError
         next_op = "."
         if attr.startswith("P") and self.op not in ["::", ""]:
             attr = attr[1:]
@@ -889,7 +930,9 @@ class MockObj(Expression):
 
     def __call__(self, *args: SafeExpType) -> "MockObj":
         call = CallExpression(self.base, *args)
-        return MockObj(call, self.op, is_new_expr=self.is_new_expr)
+        return MockObj(
+            call, self.op, is_new_expr=self.is_new_expr, new_type=self.new_type
+        )
 
     def __str__(self):
         return str(self.base)
@@ -903,7 +946,7 @@ class MockObj(Expression):
 
     @property
     def new(self) -> "MockObj":
-        return MockObj(f"new {self.base}", "->", is_new_expr=True)
+        return MockObj(f"new {self.base}", "->", is_new_expr=True, new_type=self.base)
 
     def template(self, *args: SafeExpType) -> "MockObj":
         """Apply template parameters to this object."""
@@ -1061,43 +1104,45 @@ class MockObj(Expression):
         op = BinOpExpression(other, "|", self)
         return MockObj(op)
 
-    def __iadd__(self, other: SafeExpType) -> "MockObj":
+    # MockObj operator overloads build a new C++ expression rather than mutating self,
+    # so the PYI034 "augmented assignment returns self" assumption does not apply.
+    def __iadd__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "+=", other)
         return MockObj(op)
 
-    def __isub__(self, other: SafeExpType) -> "MockObj":
+    def __isub__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "-=", other)
         return MockObj(op)
 
-    def __imul__(self, other: SafeExpType) -> "MockObj":
+    def __imul__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "*=", other)
         return MockObj(op)
 
-    def __itruediv__(self, other: SafeExpType) -> "MockObj":
+    def __itruediv__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "/=", other)
         return MockObj(op)
 
-    def __imod__(self, other: SafeExpType) -> "MockObj":
+    def __imod__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "%=", other)
         return MockObj(op)
 
-    def __ilshift__(self, other: SafeExpType) -> "MockObj":
+    def __ilshift__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "<<=", other)
         return MockObj(op)
 
-    def __irshift__(self, other: SafeExpType) -> "MockObj":
+    def __irshift__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, ">>=", other)
         return MockObj(op)
 
-    def __iand__(self, other: SafeExpType) -> "MockObj":
+    def __iand__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "&=", other)
         return MockObj(op)
 
-    def __ixor__(self, other: SafeExpType) -> "MockObj":
+    def __ixor__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "^=", other)
         return MockObj(op)
 
-    def __ior__(self, other: SafeExpType) -> "MockObj":
+    def __ior__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "|=", other)
         return MockObj(op)
 

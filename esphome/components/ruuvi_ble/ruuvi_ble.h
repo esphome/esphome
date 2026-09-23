@@ -5,8 +5,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ruuvi_ble {
+namespace esphome::ruuvi_ble {
 
 struct RuuviParseResult {
   optional<float> humidity;
@@ -26,12 +25,11 @@ bool parse_ruuvi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data_
 
 optional<RuuviParseResult> parse_ruuvi(const esp32_ble_tracker::ESPBTDevice &device);
 
-class RuuviListener : public esp32_ble_tracker::ESPBTDeviceListener {
+class RuuviListener final : public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
 };
 
-}  // namespace ruuvi_ble
-}  // namespace esphome
+}  // namespace esphome::ruuvi_ble
 
 #endif

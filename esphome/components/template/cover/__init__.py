@@ -19,6 +19,9 @@ from esphome.const import (
     CONF_TILT_ACTION,
     CONF_TILT_LAMBDA,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType, TemplateArgsType
 
 from .. import template_ns
 
@@ -110,6 +113,16 @@ async def to_code(config):
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
 
+# CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
+# one is present and both map to the position field.
+_COVER_PUBLISH_FIELDS: tuple[cover.ApplyField, ...] = (
+    cover.ApplyField(CONF_STATE, "position", cg.float_),
+    cover.ApplyField(CONF_POSITION, "position", cg.float_),
+    cover.ApplyField(CONF_TILT, "tilt", cg.float_),
+    cover.ApplyField(CONF_CURRENT_OPERATION, "current_operation", cover.CoverOperation),
+)
+
+
 @automation.register_action(
     "cover.template.publish",
     cover.CoverPublishAction,
@@ -126,21 +139,20 @@ async def to_code(config):
     ),
     synchronous=True,
 )
-async def cover_template_publish_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_STATE in config:
-        template_ = await cg.templatable(config[CONF_STATE], args, cg.float_)
-        cg.add(var.set_position(template_))
-    if CONF_POSITION in config:
-        template_ = await cg.templatable(config[CONF_POSITION], args, cg.float_)
-        cg.add(var.set_position(template_))
-    if CONF_TILT in config:
-        template_ = await cg.templatable(config[CONF_TILT], args, cg.float_)
-        cg.add(var.set_tilt(template_))
-    if CONF_CURRENT_OPERATION in config:
-        template_ = await cg.templatable(
-            config[CONF_CURRENT_OPERATION], args, cover.CoverOperation
-        )
-        cg.add(var.set_current_operation(template_))
-    return var
+async def cover_template_publish_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    # Mutates Cover fields directly (no CoverCall) since publish is a state
+    # push, not a control request.
+    return await cover.build_apply_lambda_action(
+        config=config,
+        action_id=action_id,
+        template_arg=template_arg,
+        args=args,
+        fields=_COVER_PUBLISH_FIELDS,
+        prefix_args=[(cover.Cover.operator("ptr"), "cover")],
+        statement_fn=lambda field, expr: f"cover->{field} = {expr};",
+    )

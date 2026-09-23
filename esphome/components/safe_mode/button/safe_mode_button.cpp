@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace safe_mode {
+namespace esphome::safe_mode {
 
 static const char *const TAG = "safe_mode.button";
 
@@ -23,5 +22,4 @@ void SafeModeButton::press_action() {
 
 void SafeModeButton::dump_config() { LOG_BUTTON("", "Safe Mode Button", this); }
 
-}  // namespace safe_mode
-}  // namespace esphome
+}  // namespace esphome::safe_mode

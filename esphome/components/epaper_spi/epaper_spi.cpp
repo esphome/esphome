@@ -38,6 +38,10 @@ bool EPaperBase::init_buffer_(size_t buffer_length) {
 }
 
 void EPaperBase::setup_pins_() const {
+  for (auto *pin : this->enable_pins_) {
+    pin->setup();
+    pin->digital_write(true);
+  }
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
 

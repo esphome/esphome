@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace safe_mode {
+namespace esphome::safe_mode {
 
 static const char *const TAG = "safe_mode.switch";
 
@@ -28,5 +27,4 @@ void SafeModeSwitch::write_state(bool state) {
 
 void SafeModeSwitch::dump_config() { LOG_SWITCH("", "Safe Mode Switch", this); }
 
-}  // namespace safe_mode
-}  // namespace esphome
+}  // namespace esphome::safe_mode

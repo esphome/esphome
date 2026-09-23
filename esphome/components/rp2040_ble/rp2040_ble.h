@@ -11,14 +11,14 @@
 namespace esphome::rp2040_ble {
 
 enum class BLEComponentState : uint8_t {
-  OFF = 0,
+  STATE_OFF = 0,
   ENABLING,
   ACTIVE,
   DISABLING,
   DISABLED,
 };
 
-class RP2040BLE : public Component {
+class RP2040BLE final : public Component {
  public:
   void setup() override;
   void loop() override;
@@ -32,12 +32,12 @@ class RP2040BLE : public Component {
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
 
  protected:
-  static void packet_handler_(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size);
+  static void packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size);
 
   btstack_packet_callback_registration_t hci_event_callback_registration_{};
   btstack_packet_callback_registration_t sm_event_callback_registration_{};
 
-  BLEComponentState state_{BLEComponentState::OFF};
+  BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{true};
   bool btstack_initialized_{false};
   bool active_logged_{false};

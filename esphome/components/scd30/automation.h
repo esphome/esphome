@@ -4,10 +4,10 @@
 #include "esphome/core/automation.h"
 #include "scd30.h"
 
-namespace esphome {
-namespace scd30 {
+namespace esphome::scd30 {
 
-template<typename... Ts> class ForceRecalibrationWithReference : public Action<Ts...>, public Parented<SCD30Component> {
+template<typename... Ts>
+class ForceRecalibrationWithReference final : public Action<Ts...>, public Parented<SCD30Component> {
  public:
   void play(const Ts &...x) override {
     if (this->value_.has_value()) {
@@ -19,5 +19,4 @@ template<typename... Ts> class ForceRecalibrationWithReference : public Action<T
   TEMPLATABLE_VALUE(uint16_t, value)
 };
 
-}  // namespace scd30
-}  // namespace esphome
+}  // namespace esphome::scd30

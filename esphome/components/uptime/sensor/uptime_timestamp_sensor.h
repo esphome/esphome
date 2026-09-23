@@ -10,7 +10,7 @@
 
 namespace esphome::uptime {
 
-class UptimeTimestampSensor : public sensor::Sensor, public Component {
+class UptimeTimestampSensor final : public sensor::Sensor, public Component {
  public:
   void setup() override;
   void dump_config() override;

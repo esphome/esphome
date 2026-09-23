@@ -9,8 +9,8 @@ on:
     types: [labeled]
 
 permissions:
-  issues: write
-  contents: read
+  issues: write   # issues.createComment to mention component codeowners on the newly labelled issue
+  contents: read  # repos.getContent to fetch CODEOWNERS from the default branch
 
 jobs:
   notify-codeowners:

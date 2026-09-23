@@ -4,7 +4,7 @@
 
 namespace esphome::spa06_i2c {
 
-class SPA06I2CComponent : public spa06_base::SPA06Component, public i2c::I2CDevice {
+class SPA06I2CComponent final : public spa06_base::SPA06Component, public i2c::I2CDevice {
  public:
   bool spa_read_byte(uint8_t a_register, uint8_t *data) override { return read_byte(a_register, data); }
   bool spa_write_byte(uint8_t a_register, uint8_t data) override { return write_byte(a_register, data); }

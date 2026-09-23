@@ -201,7 +201,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_IDF,
         },
         "adc_sensor_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
-        "adc_sensor_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "adc_sensor_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
         "adc_sensor_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,

@@ -1,8 +1,7 @@
 #include "gpio_switch.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace gpio {
+namespace esphome::gpio {
 
 static const char *const TAG = "switch.gpio";
 #ifdef USE_GPIO_SWITCH_INTERLOCK
@@ -79,5 +78,4 @@ void GPIOSwitch::write_state(bool state) {
 void GPIOSwitch::set_interlock(const std::initializer_list<Switch *> &interlock) { this->interlock_ = interlock; }
 #endif
 
-}  // namespace gpio
-}  // namespace esphome
+}  // namespace esphome::gpio

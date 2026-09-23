@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-namespace esphome {
-namespace update {
+namespace esphome::update {
 
 static const char *const TAG = "update";
 
@@ -49,5 +48,4 @@ void UpdateEntity::publish_state() {
 #endif
 }
 
-}  // namespace update
-}  // namespace esphome
+}  // namespace esphome::update

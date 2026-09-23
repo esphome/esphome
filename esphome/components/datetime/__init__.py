@@ -22,7 +22,11 @@ from esphome.const import (
     CONF_YEAR,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@rfdarter", "@jesserockz"]
@@ -160,7 +164,7 @@ async def register_datetime(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     entity_type = config[CONF_TYPE].lower()
-    cg.add(getattr(cg.App, f"register_{entity_type}")(var))
+    queue_entity_register(entity_type, config)
     CORE.register_platform_component(entity_type, var)
     await setup_datetime_core_(var, config)
 

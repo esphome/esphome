@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct SamsungData {
   uint64_t data;
@@ -35,5 +34,4 @@ template<typename... Ts> class SamsungAction : public RemoteTransmitterActionBas
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

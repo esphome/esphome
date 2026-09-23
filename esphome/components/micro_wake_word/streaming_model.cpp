@@ -7,8 +7,7 @@
 
 static const char *const TAG = "micro_wake_word";
 
-namespace esphome {
-namespace micro_wake_word {
+namespace esphome::micro_wake_word {
 
 void WakeWordModel::log_model_config() {
   ESP_LOGCONFIG(TAG,
@@ -387,7 +386,6 @@ bool StreamingModel::register_streaming_ops_(tflite::MicroMutableOpResolver<20> 
   return true;
 }
 
-}  // namespace micro_wake_word
-}  // namespace esphome
+}  // namespace esphome::micro_wake_word
 
 #endif

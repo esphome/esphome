@@ -6,14 +6,7 @@ from esphome.components.text_sensor import (
 import esphome.config_validation as cv
 
 from ..defines import CONF_WIDGET
-from ..lvcode import (
-    API_EVENT,
-    EVENT_ARG,
-    UPDATE_EVENT,
-    LambdaContext,
-    LvContext,
-    lvgl_static,
-)
+from ..lvcode import EVENT_ARG, UPDATE_EVENT, LambdaContext, LvContext, lvgl_static
 from ..types import LV_EVENT, LvText
 from ..widgets import get_widgets, wait_for_widgets
 
@@ -37,7 +30,6 @@ async def to_code(config):
                 widget.obj,
                 await pressed_ctx.get_lambda(),
                 LV_EVENT.VALUE_CHANGED,
-                API_EVENT,
                 UPDATE_EVENT,
             )
         )

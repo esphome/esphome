@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-namespace esphome {
-namespace fan {
+namespace esphome::fan {
 
 static const char *const TAG = "fan";
 
@@ -345,5 +344,4 @@ void Fan::dump_traits_(const char *tag, const char *prefix) {
   }
 }
 
-}  // namespace fan
-}  // namespace esphome
+}  // namespace esphome::fan

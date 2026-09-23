@@ -44,7 +44,7 @@ class BLEClientNode {
   uint64_t address_;
 };
 
-class BLEClient : public BLEClientBase {
+class BLEClient final : public BLEClientBase {
  public:
   void setup() override;
   void dump_config() override;

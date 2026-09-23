@@ -32,7 +32,7 @@ struct AllowedIP {
 };
 
 /// Main Wireguard component class.
-class Wireguard : public PollingComponent {
+class Wireguard final : public PollingComponent {
  public:
   void setup() override;
   void loop() override;
@@ -165,25 +165,26 @@ static constexpr size_t MASK_KEY_BUFFER_SIZE = 12;
 void mask_key_to(char *buffer, size_t len, const char *key);
 
 /// Condition to check if remote peer is online.
-template<typename... Ts> class WireguardPeerOnlineCondition : public Condition<Ts...>, public Parented<Wireguard> {
+template<typename... Ts>
+class WireguardPeerOnlineCondition final : public Condition<Ts...>, public Parented<Wireguard> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_peer_up(); }
 };
 
 /// Condition to check if Wireguard component is enabled.
-template<typename... Ts> class WireguardEnabledCondition : public Condition<Ts...>, public Parented<Wireguard> {
+template<typename... Ts> class WireguardEnabledCondition final : public Condition<Ts...>, public Parented<Wireguard> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_enabled(); }
 };
 
 /// Action to enable Wireguard component.
-template<typename... Ts> class WireguardEnableAction : public Action<Ts...>, public Parented<Wireguard> {
+template<typename... Ts> class WireguardEnableAction final : public Action<Ts...>, public Parented<Wireguard> {
  public:
   void play(const Ts &...x) override { this->parent_->enable(); }
 };
 
 /// Action to disable Wireguard component.
-template<typename... Ts> class WireguardDisableAction : public Action<Ts...>, public Parented<Wireguard> {
+template<typename... Ts> class WireguardDisableAction final : public Action<Ts...>, public Parented<Wireguard> {
  public:
   void play(const Ts &...x) override { this->parent_->disable(); }
 };

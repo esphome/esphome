@@ -17,7 +17,7 @@ struct ParseResult {
 
 using DeviceParser = optional<ParseResult> (*)(const uint8_t *data, std::size_t data_size);
 
-class ThermoProBLE : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class ThermoProBLE final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { this->address_ = address; };
 

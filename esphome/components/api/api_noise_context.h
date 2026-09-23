@@ -10,13 +10,20 @@ using psk_t = std::array<uint8_t, 32>;
 
 class APINoiseContext {
  public:
+  // The all-zeros PSK is reserved: it marks the device as unprovisioned and
+  // doubles as the well-known provisioning PSK that unprovisioned devices
+  // accept for Noise handshakes (passive-sniffing protection only, no
+  // authentication). It is never a valid real key.
+  static bool is_all_zeros(const psk_t &psk) {
+    uint8_t acc = 0;
+    for (uint8_t b : psk) {
+      acc |= b;
+    }
+    return acc == 0;
+  }
   void set_psk(psk_t psk) {
     this->psk_ = psk;
-    bool has_psk = false;
-    for (auto i : psk) {
-      has_psk |= i;
-    }
-    this->has_psk_ = has_psk;
+    this->has_psk_ = !is_all_zeros(psk);
   }
   const psk_t &get_psk() const { return this->psk_; }
   bool has_psk() const { return this->has_psk_; }

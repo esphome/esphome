@@ -1,0 +1,4 @@
+packages:
+  uart_2400_even: !include ../../test_build_components/common/uart_2400_even/esp32-idf.yaml
+
+<<: !include common.yaml

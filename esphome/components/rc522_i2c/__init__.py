@@ -16,7 +16,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(RC522I2C),
         }
-    ).extend(i2c.i2c_device_schema(0x2C))
+    ).extend(i2c.i2c_device_schema(0x28))
 )
 
 

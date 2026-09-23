@@ -9,8 +9,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace mopeka_std_check {
+namespace esphome::mopeka_std_check {
 
 enum SensorType {
   STANDARD = 0x02,
@@ -43,7 +42,7 @@ struct mopeka_std_package {  // NOLINT(readability-identifier-naming,altera-stru
   mopeka_std_values val[3];
 } __attribute__((packed));
 
-class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class MopekaStdCheck final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
 
@@ -74,7 +73,6 @@ class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
   int8_t parse_temperature_(const mopeka_std_package *message);
 };
 
-}  // namespace mopeka_std_check
-}  // namespace esphome
+}  // namespace esphome::mopeka_std_check
 
 #endif

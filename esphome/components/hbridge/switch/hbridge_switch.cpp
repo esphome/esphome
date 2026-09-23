@@ -3,8 +3,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace hbridge {
+namespace esphome::hbridge {
 
 static const char *const TAG = "switch.hbridge";
 
@@ -89,5 +88,4 @@ void HBridgeSwitch::timer_fn_() {
   this->timer_running_ = false;
 }
 
-}  // namespace hbridge
-}  // namespace esphome
+}  // namespace esphome::hbridge

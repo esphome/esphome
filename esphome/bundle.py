@@ -7,7 +7,7 @@ and compiled directly: ``esphome compile my_device.esphomebundle.tar.gz``
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 import io
 import json
@@ -31,6 +31,8 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 
 _LOGGER = logging.getLogger(__name__)
+
+DOMAIN = "bundle"
 
 BUNDLE_EXTENSION = ".esphomebundle.tar.gz"
 MANIFEST_FILENAME = "manifest.json"
@@ -98,11 +100,13 @@ _KNOWN_FILE_EXTENSIONS = frozenset(
 )
 
 
-# Matches !secret references in YAML text.  This is intentionally a simple
-# regex scan rather than a YAML parse — it may match inside comments or
-# multi-line strings, which is the conservative direction (include more
-# secrets rather than fewer).
-_SECRET_RE = re.compile(r"!secret\s+(\S+)")
+# Matches !secret references in YAML text.  An optional surrounding
+# quote pair around the key is allowed and ignored: YAML treats
+# ``!secret 'foo'`` and ``!secret foo`` as the same key.  This is
+# intentionally a simple regex scan rather than a YAML parse — it may
+# match inside comments or multi-line strings, which is the conservative
+# direction (include more secrets rather than fewer).
+_SECRET_RE = re.compile(r"""!secret\s+['"]?([^\s'"]+)""")
 
 
 def _find_used_secret_keys(yaml_files: list[Path]) -> set[str]:
@@ -116,6 +120,32 @@ def _find_used_secret_keys(yaml_files: list[Path]) -> set[str]:
         for match in _SECRET_RE.finditer(text):
             keys.add(match.group(1))
     return keys
+
+
+@dataclass
+class BundleData:
+    """Files components asked to include, keyed under DOMAIN in CORE.data."""
+
+    extra_files: list[Path] = field(default_factory=list)
+
+
+def _get_data() -> BundleData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = BundleData()
+    return CORE.data[DOMAIN]
+
+
+def add_bundle_file(path: Path) -> None:
+    """Register a file that a bundle must include.
+
+    Bundle discovery walks the validated config, so it only finds files the config
+    names. Components call this during validation for files it cannot see, such as a
+    file that is referenced from inside another file.
+
+    A relative path is taken as relative to the config directory. Files outside the
+    config directory are skipped when the bundle is built.
+    """
+    _get_data().extra_files.append(CORE.relative_config_path(path))
 
 
 @dataclass
@@ -151,8 +181,8 @@ class ConfigBundleCreator:
 
     def __init__(self, config: dict[str, Any]) -> None:
         self._config = config
-        self._config_dir = CORE.config_dir
-        self._config_path = CORE.config_path
+        self._config_dir = Path(CORE.config_dir).resolve()
+        self._config_path = Path(CORE.config_path).resolve()
         self._files: list[BundleFile] = []
         self._seen_paths: set[Path] = set()
         self._secrets_paths: set[Path] = set()
@@ -258,27 +288,20 @@ class ConfigBundleCreator:
     def _discover_yaml_includes(self) -> None:
         """Discover YAML files loaded during config parsing.
 
-        We track files by wrapping _load_yaml_internal. The config has already
-        been loaded at this point (bundle is a POST_CONFIG_ACTION), so we
-        re-load just to discover the file list.
-
-        Secrets files are tracked separately so we can filter them to
-        only include the keys this config actually references.
+        Delegates to :func:`yaml_util.discover_user_yaml_files`, which does a
+        fresh re-parse and force-loads every deferred ``IncludeFile`` so that
+        *all* potentially-reachable includes are captured (even branches not
+        selected by local substitutions). Bundles are meant to be compiled on
+        another system where command-line substitution overrides may choose a
+        different branch — e.g. ``!include network/${eth_model}/config.yaml``
+        must ship every candidate so the remote build can pick any one.
         """
-        with yaml_util.track_yaml_loads() as loaded_files:
-            try:
-                yaml_util.load_yaml(self._config_path)
-            except EsphomeError:
-                _LOGGER.debug(
-                    "Bundle: re-loading YAML for include discovery failed, "
-                    "proceeding with partial file list"
-                )
-
-        for fpath in loaded_files:
-            if fpath == self._config_path.resolve():
+        discovered = yaml_util.discover_user_yaml_files(self._config_path)
+        self._secrets_paths.update(discovered.secrets)
+        config_resolved = self._config_path.resolve()
+        for fpath in discovered.files:
+            if fpath == config_resolved:
                 continue  # Already added as config
-            if fpath.name in const.SECRETS_FILES:
-                self._secrets_paths.add(fpath)
             self._add_file(fpath)
 
     def _discover_component_files(self) -> None:
@@ -291,12 +314,17 @@ class ConfigBundleCreator:
         with known file extensions are also resolved and checked.
 
         Core ESPHome concepts that use relative paths or directories
-        are handled explicitly.
+        are handled explicitly. Files the config does not name at all are
+        registered by their component with add_bundle_file().
         """
         config = self._config
 
         # Generic walk: find all file paths in the validated config
         self._walk_config_for_files(config)
+
+        # Files registered by components during validation
+        for extra_file in _get_data().extra_files:
+            self._add_file(extra_file)
 
         # --- Core ESPHome concepts needing explicit handling ---
 
@@ -417,7 +445,7 @@ class ConfigBundleCreator:
     @staticmethod
     def _add_to_tar(tar: tarfile.TarFile, bf: BundleFile) -> None:
         """Add a BundleFile to the tar archive with deterministic metadata."""
-        with open(bf.source, "rb") as f:
+        with bf.source.open("rb") as f:
             _add_bytes_to_tar(tar, bf.path, f.read())
 
 

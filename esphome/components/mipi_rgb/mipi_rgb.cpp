@@ -8,8 +8,7 @@
 #include <esp_lcd_panel_rgb.h>
 #include <span>
 
-namespace esphome {
-namespace mipi_rgb {
+namespace esphome::mipi_rgb {
 
 static const uint8_t DELAY_FLAG = 0xFF;
 
@@ -400,6 +399,5 @@ void MipiRgb::dump_config() {
   this->dump_pins_(3, 8, "Red", 0);
 }
 
-}  // namespace mipi_rgb
-}  // namespace esphome
+}  // namespace esphome::mipi_rgb
 #endif  // defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)

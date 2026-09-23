@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace lcd_pcf8574 {
+namespace esphome::lcd_pcf8574 {
 
 static const char *const TAG = "lcd_pcf8574";
 
@@ -56,5 +55,4 @@ void PCF8574LCDDisplay::no_backlight() {
   this->write_bytes(this->backlight_value_, nullptr, 0);
 }
 
-}  // namespace lcd_pcf8574
-}  // namespace esphome
+}  // namespace esphome::lcd_pcf8574

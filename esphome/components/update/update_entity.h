@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 
-namespace esphome {
-namespace update {
+namespace esphome::update {
 
 struct UpdateInfo {
   std::string latest_version;
@@ -58,5 +57,4 @@ class UpdateEntity : public EntityBase {
   std::unique_ptr<Trigger<const UpdateInfo &>> update_available_trigger_{nullptr};
 };
 
-}  // namespace update
-}  // namespace esphome
+}  // namespace esphome::update

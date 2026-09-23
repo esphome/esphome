@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import esp32_ble
-from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components.esp32 import request_bluetooth
 from esphome.components.esp32_ble import CONF_BLE_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TX_POWER, CONF_TYPE, CONF_UUID
@@ -86,5 +86,4 @@ async def to_code(config):
 
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
 
-    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
-    add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+    request_bluetooth(ble_42=True)

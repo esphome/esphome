@@ -5,8 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace gpio {
+namespace esphome::gpio {
 
 // Store class for ISR data and configuration (no vtables, ISR-safe)
 class GPIOBinarySensorStore {
@@ -64,5 +63,4 @@ class GPIOBinarySensor final : public binary_sensor::BinarySensor, public Compon
   GPIOBinarySensorStore store_;
 };
 
-}  // namespace gpio
-}  // namespace esphome
+}  // namespace esphome::gpio

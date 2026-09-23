@@ -90,10 +90,6 @@ class WaterHeaterCall {
   float get_target_temperature() const { return this->target_temperature_; }
   float get_target_temperature_low() const { return this->target_temperature_low_; }
   float get_target_temperature_high() const { return this->target_temperature_high_; }
-  /// Get state flags value
-  ESPDEPRECATED("get_state() is deprecated, use get_away() and get_on() instead. (Removed in 2026.8.0)", "2026.2.0")
-  uint32_t get_state() const { return this->state_; }
-
   optional<bool> get_away() const {
     if (this->state_mask_ & WATER_HEATER_STATE_AWAY) {
       return (this->state_ & WATER_HEATER_STATE_AWAY) != 0;

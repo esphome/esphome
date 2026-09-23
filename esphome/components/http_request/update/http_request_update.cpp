@@ -6,8 +6,7 @@
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 // The update function runs in a task only on ESP32s.
 #ifdef USE_ESP32
@@ -258,5 +257,4 @@ void HttpRequestUpdate::perform(bool force) {
   this->defer([this]() { this->ota_parent_->flash(); });
 }
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request

@@ -93,7 +93,9 @@ async def to_code(config):
 
     cg.add(var.set_gain(config[CONF_GAIN]))
 
-    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+    if config.get(CONF_ON_FINISHED_PLAYBACK):
+        cg.add_define("USE_RTTTL_FINISHED_PLAYBACK_CALLBACK")
+        await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 @automation.register_action(

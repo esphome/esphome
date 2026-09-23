@@ -4,8 +4,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace airthings_ble {
+namespace esphome::airthings_ble {
 
 static const char *const TAG = "airthings_ble";
 
@@ -29,7 +28,6 @@ bool AirthingsListener::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
   return false;
 }
 
-}  // namespace airthings_ble
-}  // namespace esphome
+}  // namespace esphome::airthings_ble
 
 #endif

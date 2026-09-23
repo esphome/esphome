@@ -104,7 +104,7 @@ ESPBTUUID ESPBTUUID::as_128bit() const {
   } else {
     uuid32 = this->uuid_.uuid.uuid16;
   }
-  for (uint8_t i = 0; i < this->uuid_.len; i++) {
+  for (uint16_t i = 0; i < this->uuid_.len; i++) {
     data[12 + i] = ((uuid32 >> i * 8) & 0xFF);
   }
   return ESPBTUUID::from_raw(data);
@@ -181,12 +181,6 @@ const char *ESPBTUUID::to_str(std::span<char, UUID_STR_LEN> output) const {
       return output.data();
   }
 }
-std::string ESPBTUUID::to_string() const {
-  char buf[UUID_STR_LEN];
-  this->to_str(buf);
-  return std::string(buf);
-}
-
 }  // namespace esphome::esp32_ble
 
 #endif  // USE_ESP32_BLE_UUID

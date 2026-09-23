@@ -7,8 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pn7160 {
+namespace esphome::pn7160 {
 
 static const char *const TAG = "pn7160";
 
@@ -1186,5 +1185,4 @@ uint8_t PN7160::wait_for_irq_(uint16_t timeout, bool pin_state) {
   return nfc::STATUS_FAILED;
 }
 
-}  // namespace pn7160
-}  // namespace esphome
+}  // namespace esphome::pn7160

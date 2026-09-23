@@ -35,6 +35,9 @@ module.exports = {
   ],
 
   DOCS_PR_PATTERNS: [
+    /https:\/\/github\.com\/esphome\/esphome\.io\/pull\/\d+/,
+    /esphome\/esphome\.io#\d+/,
+    // Keep matching the old esphome-docs name during the transition period
     /https:\/\/github\.com\/esphome\/esphome-docs\/pull\/\d+/,
     /esphome\/esphome-docs#\d+/
   ]

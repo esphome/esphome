@@ -83,7 +83,7 @@ def angle_to_position(value, min=-360, max=360):
         value = angle(min=min, max=max)(value)
         return (RESOLUTION + round(value * ANGLE_TO_POSITION)) % RESOLUTION
     except cv.Invalid as e:
-        raise cv.Invalid(f"When using angle, {e.error_message}")
+        raise cv.Invalid(f"When using angle, {e.error_message}") from e
 
 
 def percent_to_position(value):
@@ -100,7 +100,7 @@ def position(min=-MAX_POSITION, max=MAX_POSITION):
         if isinstance(value, str) and value.endswith("%"):
             value = percent_to_position(value)
 
-        if isinstance(value, str) and (value.endswith("°") or value.endswith("deg")):
+        if isinstance(value, str) and value.endswith(("°", "deg")):
             return angle_to_position(
                 value,
                 min=round(min * POSITION_TO_ANGLE),
@@ -164,7 +164,7 @@ def has_valid_range_config():
         except cv.Invalid as e:
             raise cv.Invalid(
                 f"The range between start and end position is invalid. It was was {range} but {e.error_message}"
-            )
+            ) from e
 
     return validator
 

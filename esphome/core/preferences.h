@@ -9,8 +9,8 @@
 #include "esphome/components/esp32/preferences.h"
 #elif defined(USE_ESP8266)
 #include "esphome/components/esp8266/preferences.h"
-#elif defined(USE_RP2040)
-#include "esphome/components/rp2040/preferences.h"
+#elif defined(USE_RP2)
+#include "esphome/components/rp2/preferences.h"
 #elif defined(USE_LIBRETINY)
 #include "esphome/components/libretiny/preferences.h"
 #elif defined(USE_HOST)

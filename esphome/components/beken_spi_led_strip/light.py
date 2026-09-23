@@ -62,6 +62,7 @@ CONF_IS_WRGB = "is_wrgb"
 SUPPORTED_PINS = {
     libretiny.const.FAMILY_BK7231N: [16],
     libretiny.const.FAMILY_BK7231T: [16],
+    libretiny.const.FAMILY_BK7238: [16],
     libretiny.const.FAMILY_BK7251: [16],
 }
 

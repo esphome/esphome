@@ -2,8 +2,7 @@
 
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct PioneerData {
   uint16_t rc_code_1;
@@ -34,5 +33,4 @@ template<typename... Ts> class PioneerAction : public RemoteTransmitterActionBas
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

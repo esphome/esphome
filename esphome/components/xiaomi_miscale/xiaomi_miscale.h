@@ -8,8 +8,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_miscale {
+namespace esphome::xiaomi_miscale {
 
 struct ParseResult {
   int version;
@@ -17,7 +16,7 @@ struct ParseResult {
   optional<float> impedance;
 };
 
-class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiMiscale final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
 
@@ -40,7 +39,6 @@ class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceLis
   bool report_results_(const optional<ParseResult> &result, const char *address);
 };
 
-}  // namespace xiaomi_miscale
-}  // namespace esphome
+}  // namespace esphome::xiaomi_miscale
 
 #endif

@@ -69,7 +69,7 @@ ENCRYPTION_SCHEMA = {
     cv.Optional(CONF_ENCRYPTION): cv.maybe_simple_value(
         cv.Schema(
             {
-                cv.Required(CONF_KEY): cv.string,
+                cv.Required(CONF_KEY): cv.sensitive(cv.string),
             }
         ),
         key=CONF_KEY,

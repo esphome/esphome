@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/gpio.h"
 
-namespace esphome {
-namespace gt911 {
+namespace esphome::gt911 {
 
 static const char *const TAG = "gt911.touchscreen";
 
@@ -157,5 +156,4 @@ void GT911Touchscreen::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
-}  // namespace gt911
-}  // namespace esphome
+}  // namespace esphome::gt911

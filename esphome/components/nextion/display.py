@@ -1,8 +1,17 @@
+import logging
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import display, esp32, uart
 import esphome.config_validation as cv
-from esphome.const import CONF_BRIGHTNESS, CONF_ID, CONF_LAMBDA, CONF_ON_TOUCH
+from esphome.const import (
+    CONF_BRIGHTNESS,
+    CONF_ID,
+    CONF_LAMBDA,
+    CONF_ON_TOUCH,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+)
 from esphome.core import CORE, TimePeriod
 
 from . import (  # noqa: F401  pylint: disable=unused-import
@@ -39,6 +48,8 @@ from .base_component import (
     CONF_WAKE_UP_PAGE,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 CODEOWNERS = ["@senexcrenshaw", "@edwardtfn"]
 DEPENDENCIES = ["uart"]
 
@@ -53,6 +64,15 @@ def AUTO_LOAD() -> list[str]:
 NextionSetBrightnessAction = nextion_ns.class_(
     "NextionSetBrightnessAction", automation.Action
 )
+
+
+def _deprecated_dump_device_info(value):
+    _LOGGER.warning(
+        "'dump_device_info' is deprecated and will be removed in ESPHome 2026.11.0. "
+        "Device info is now always logged at connection time. "
+        "Please remove this option from your configuration."
+    )
+    return value
 
 
 def _validate_tft_upload(config):
@@ -81,7 +101,10 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=TimePeriod(milliseconds=255)),
             ),
-            cv.Optional(CONF_DUMP_DEVICE_INFO, default=False): cv.boolean,
+            # Deprecated — device info is now always logged. Remove before 2026.11.0.
+            cv.Optional(CONF_DUMP_DEVICE_INFO): cv.All(
+                cv.boolean, _deprecated_dump_device_info
+            ),
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
             cv.Optional(CONF_MAX_QUEUE_AGE, default="8000ms"): cv.All(
                 cv.positive_time_period_milliseconds,
@@ -119,7 +142,17 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_TFT_URL): cv.url,
+            # TFT upload needs an HTTP client and runtime UART reconfiguration,
+            # neither of which is implemented for the RP2 or host platforms.
+            cv.Optional(CONF_TFT_URL): cv.All(
+                cv.url,
+                cv.only_on(
+                    [
+                        PLATFORM_ESP32,
+                        PLATFORM_ESP8266,
+                    ]
+                ),
+            ),
             cv.Optional(CONF_TOUCH_SLEEP_TIMEOUT): cv.Any(
                 0, cv.int_range(min=3, max=65535)
             ),
@@ -276,9 +309,6 @@ async def to_code(config):
         cg.add(var.set_start_up_page(config[CONF_START_UP_PAGE]))
 
     cg.add(var.set_auto_wake_on_touch(config[CONF_AUTO_WAKE_ON_TOUCH]))
-
-    if config[CONF_DUMP_DEVICE_INFO]:
-        cg.add_define("USE_NEXTION_CONFIG_DUMP_DEVICE_INFO")
 
     if config[CONF_EXIT_REPARSE_ON_START]:
         cg.add_define("USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START")

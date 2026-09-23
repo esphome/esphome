@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace kuntze {
+namespace esphome::kuntze {
 
 static const char *const TAG = "kuntze";
 
@@ -97,5 +96,4 @@ void Kuntze::dump_config() {
   LOG_SENSOR("", "OCI", this->oci_sensor_);
 }
 
-}  // namespace kuntze
-}  // namespace esphome
+}  // namespace esphome::kuntze

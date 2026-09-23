@@ -5,8 +5,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 std::vector<uint16_t> encode_pronto(const std::string &str);
 
@@ -51,5 +50,4 @@ template<typename... Ts> class ProntoAction : public RemoteTransmitterActionBase
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

@@ -41,6 +41,7 @@ static inline bool is_return_addr(uint32_t addr) {
   // Use memcpy for alignment safety — RISC-V C extension means code addresses
   // are only 2-byte aligned, so addr-4 may not be 4-byte aligned.
   uint32_t inst;
+  // NOLINTNEXTLINE(performance-no-int-to-ptr) - reading code memory at a raw address is the point
   memcpy(&inst, (const void *) (addr - 4), sizeof(inst));
   // RISC-V instruction encoding: bits [6:0] = opcode, bits [11:7] = rd
   uint32_t opcode = inst & 0x7f;  // Extract 7-bit opcode
@@ -51,6 +52,7 @@ static inline bool is_return_addr(uint32_t addr) {
   // Check for 2-byte compressed c.jalr before this address (C extension).
   // c.jalr saves to ra implicitly: funct4=1001, rs1!=0, rs2=0, op=10
   if (addr >= 2) {
+    // NOLINTNEXTLINE(performance-no-int-to-ptr) - reading code memory at a raw address is the point
     uint16_t c_inst = *(uint16_t *) (addr - 2);
     if ((c_inst & 0xf07f) == 0x9002 && (c_inst & 0x0f80) != 0)
       return true;
@@ -101,6 +103,7 @@ static uint8_t IRAM_ATTR capture_riscv_backtrace(RvExcFrame *frame, uint32_t *ou
     out[count++] = frame->ra;
   }
   *reg_count = count;
+  // NOLINTNEXTLINE(performance-no-int-to-ptr) - walking the raw stack by address is the point
   auto *scan_start = (uint32_t *) frame->sp;
   for (uint32_t i = 0; i < 64 && count < max; i++) {
     uint32_t val = scan_start[i];
@@ -354,6 +357,8 @@ void crash_handler_log() {
 #if SOC_CPU_CORES_NUM > 1
   append_addrs_to_hint(hint, sizeof(hint), pos, s_raw_crash_data.other_backtrace,
                        s_raw_crash_data.other_backtrace_count, s_raw_crash_data.other_reg_frame_count);
+#else
+  (void) pos;  // There is no second-core append on single-core targets, so pos would otherwise be unread.
 #endif
   ESP_LOGE(TAG, "%s", hint);
 }

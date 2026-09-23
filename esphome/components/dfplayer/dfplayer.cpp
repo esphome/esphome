@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace dfplayer {
+namespace esphome::dfplayer {
 
 static const char *const TAG = "dfplayer";
 
@@ -283,5 +282,4 @@ void DFPlayer::dump_config() {
   this->check_uart_settings(9600);
 }
 
-}  // namespace dfplayer
-}  // namespace esphome
+}  // namespace esphome::dfplayer

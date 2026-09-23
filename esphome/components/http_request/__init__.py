@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32
@@ -63,7 +65,7 @@ CONF_JSON = "json"
 
 def validate_url(value):
     value = cv.url(value)
-    if value.startswith("http://") or value.startswith("https://"):
+    if value.startswith(("http://", "https://")):
         return value
     raise cv.Invalid("URL must start with 'http://' or 'https://'")
 
@@ -71,7 +73,7 @@ def validate_url(value):
 def validate_ssl_verification(config):
     error_message = ""
 
-    if CORE.is_rp2040 and config[CONF_VERIFY_SSL]:
+    if CORE.is_rp2 and config[CONF_VERIFY_SSL]:
         error_message = "ESPHome does not support certificate verification on RP2040"
 
     if (
@@ -94,7 +96,7 @@ def _declare_request_class(value):
         return cv.declare_id(HttpRequestHost)(value)
     if CORE.is_esp32:
         return cv.declare_id(HttpRequestIDF)(value)
-    if CORE.is_esp8266 or CORE.is_rp2040:
+    if CORE.is_esp8266 or CORE.is_rp2:
         return cv.declare_id(HttpRequestArduino)(value)
     return NotImplementedError
 
@@ -116,7 +118,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VERIFY_SSL, default=True): cv.boolean,
             cv.Optional(CONF_WATCHDOG_TIMEOUT): cv.All(
-                cv.Any(cv.only_on_esp32, cv.only_on_rp2040),
+                cv.Any(cv.only_on_esp32, cv.only_on_rp2),
                 cv.positive_not_null_time_period,
                 cv.positive_time_period_milliseconds,
             ),
@@ -142,7 +144,7 @@ CONFIG_SCHEMA = cv.All(
         esp8266_arduino=cv.Version(2, 5, 1),
         esp32_arduino=cv.Version(0, 0, 0),
         esp_idf=cv.Version(0, 0, 0),
-        rp2040_arduino=cv.Version(0, 0, 0),
+        rp2_arduino=cv.Version(0, 0, 0),
         host=cv.Version(0, 0, 0),
     ),
     validate_ssl_verification,
@@ -174,7 +176,7 @@ async def to_code(config):
 
         if config.get(CONF_VERIFY_SSL):
             if ca_cert_path := config.get(CONF_CA_CERTIFICATE_PATH):
-                with open(ca_cert_path, encoding="utf-8") as f:
+                with Path(ca_cert_path).open(encoding="utf-8") as f:
                     ca_cert_content = f.read()
                 cg.add(var.set_ca_certificate(ca_cert_content))
             else:
@@ -202,7 +204,7 @@ async def to_code(config):
         )
     if CORE.is_esp8266:
         cg.add_library("ESP8266HTTPClient", None)
-    if CORE.is_rp2040 and CORE.using_arduino:
+    if CORE.is_rp2 and CORE.using_arduino:
         cg.add_library("HTTPClient", None)
     if CORE.is_host:
         if IS_MACOS:
@@ -366,7 +368,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "http_request_host.cpp": {PlatformFramework.HOST_NATIVE},
         "http_request_arduino.cpp": {
             PlatformFramework.ESP8266_ARDUINO,
-            PlatformFramework.RP2040_ARDUINO,
+            PlatformFramework.RP2_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,

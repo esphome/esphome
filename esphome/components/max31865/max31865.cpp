@@ -4,8 +4,7 @@
 #include <cmath>
 #include <cinttypes>
 
-namespace esphome {
-namespace max31865 {
+namespace esphome::max31865 {
 
 static const char *const TAG = "max31865";
 
@@ -226,5 +225,4 @@ float MAX31865Sensor::calc_temperature_(float rtd_ratio) {
   return neg_temp;
 }
 
-}  // namespace max31865
-}  // namespace esphome
+}  // namespace esphome::max31865

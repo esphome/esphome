@@ -1,8 +1,7 @@
 #include "tcl112.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tcl112 {
+namespace esphome::tcl112 {
 
 static const char *const TAG = "tcl112.climate";
 
@@ -240,5 +239,4 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }
 
-}  // namespace tcl112
-}  // namespace esphome
+}  // namespace esphome::tcl112

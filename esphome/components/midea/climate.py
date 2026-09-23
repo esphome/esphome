@@ -25,6 +25,8 @@ from esphome.const import (
     ICON_POWER,
     ICON_THERMOMETER,
     ICON_WATER_PERCENT,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
@@ -152,6 +154,12 @@ CONFIG_SCHEMA = cv.All(
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+        ]
+    ),
 )
 
 # Actions
@@ -258,6 +266,11 @@ async def power_off_to_code(var, config, args):
 )
 async def power_inv_to_code(var, config, args):
     pass
+
+
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "midea", baud_rate=9600, require_rx=True, require_tx=True
+)
 
 
 async def to_code(config):

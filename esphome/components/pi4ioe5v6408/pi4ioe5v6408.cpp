@@ -1,8 +1,7 @@
 #include "pi4ioe5v6408.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pi4ioe5v6408 {
+namespace esphome::pi4ioe5v6408 {
 
 static const uint8_t PI4IOE5V6408_REGISTER_DEVICE_ID = 0x01;
 static const uint8_t PI4IOE5V6408_REGISTER_IO_DIR = 0x03;
@@ -82,7 +81,10 @@ void PI4IOE5V6408Component::pin_mode(uint8_t pin, gpio::Flags flags) {
 
 void PI4IOE5V6408Component::loop() {
   this->reset_pin_cache_();
-  if (this->interrupt_pin_ != nullptr) {
+  // Only disable the loop once INT has actually gone HIGH. Input transitions that straddle the
+  // I2C read leave INT asserted without re-firing a falling edge, which would strand us with
+  // stale state forever; keep looping until the line is released so we self-heal.
+  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
     this->disable_loop();
   }
 }
@@ -201,5 +203,4 @@ size_t PI4IOE5V6408GPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "%u via PI4IOE5V6408", this->pin_);
 }
 
-}  // namespace pi4ioe5v6408
-}  // namespace esphome
+}  // namespace esphome::pi4ioe5v6408

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import socket
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from aioesphomeapi.core import ResolveAPIError, ResolveTimeoutAPIError
 from aioesphomeapi.host_resolver import AddrInfo, IPv4Sockaddr, IPv6Sockaddr
@@ -115,24 +115,21 @@ def test_async_resolver_generic_exception() -> None:
 
 
 def test_async_resolver_thread_timeout() -> None:
-    """Test timeout when thread doesn't complete in time."""
-    # Mock the start method to prevent actual thread execution
-    with (
-        patch.object(AsyncResolver, "start"),
-        patch("esphome.resolver.hr.async_resolve_host"),
-    ):
-        resolver = AsyncResolver(["test.local"], 6053)
-        # Override event.wait to simulate timeout (return False = timeout occurred)
-        with (
-            patch.object(resolver.event, "wait", return_value=False),
-            pytest.raises(
-                EsphomeError, match=re.escape("Timeout resolving IP address")
-            ),
-        ):
-            resolver.resolve()
+    """Test timeout when the runner thread doesn't complete in time."""
+    # Patch AsyncThreadRunner inside esphome.resolver so we never actually
+    # start a thread and can control the wait return value directly.
+    fake_runner = MagicMock()
+    fake_runner.start = MagicMock()
+    fake_runner.event.wait.return_value = False  # simulate timeout
 
-        # Verify thread start was called
-        resolver.start.assert_called_once()
+    with (
+        patch("esphome.resolver.AsyncThreadRunner", return_value=fake_runner),
+        patch("esphome.resolver.hr.async_resolve_host"),
+        pytest.raises(EsphomeError, match=re.escape("Timeout resolving IP address")),
+    ):
+        AsyncResolver(["test.local"], 6053).resolve()
+
+    fake_runner.start.assert_called_once()
 
 
 def test_async_resolver_ip_addresses(mock_addr_info_ipv4: AddrInfo) -> None:

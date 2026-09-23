@@ -6,10 +6,9 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace b_parasite {
+namespace esphome::b_parasite {
 
-class BParasite : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class BParasite final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
   void set_bindkey(const std::string &bindkey);
@@ -35,7 +34,6 @@ class BParasite : public Component, public esp32_ble_tracker::ESPBTDeviceListene
   sensor::Sensor *illuminance_{nullptr};
 };
 
-}  // namespace b_parasite
-}  // namespace esphome
+}  // namespace esphome::b_parasite
 
 #endif  // USE_ESP32

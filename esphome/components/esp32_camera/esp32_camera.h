@@ -15,8 +15,7 @@
 #include "esphome/components/i2c/i2c_bus.h"
 #endif  // USE_I2C
 
-namespace esphome {
-namespace esp32_camera {
+namespace esphome::esp32_camera {
 
 class ESP32Camera;
 
@@ -120,7 +119,7 @@ class ESP32CameraImageReader : public camera::CameraImageReader {
 };
 
 /* ---------------- ESP32Camera class ---------------- */
-class ESP32Camera : public camera::Camera {
+class ESP32Camera final : public camera::Camera {
  public:
   ESP32Camera();
 
@@ -236,7 +235,7 @@ class ESP32Camera : public camera::Camera {
   RAMAllocator<camera_fb_t> fb_allocator_{RAMAllocator<camera_fb_t>::ALLOC_INTERNAL};
 };
 
-class ESP32CameraImageTrigger : public Trigger<CameraImageData>, public camera::CameraListener {
+class ESP32CameraImageTrigger final : public Trigger<CameraImageData>, public camera::CameraListener {
  public:
   explicit ESP32CameraImageTrigger(ESP32Camera *parent) { parent->add_listener(this); }
   void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override {
@@ -247,19 +246,18 @@ class ESP32CameraImageTrigger : public Trigger<CameraImageData>, public camera::
   }
 };
 
-class ESP32CameraStreamStartTrigger : public Trigger<>, public camera::CameraListener {
+class ESP32CameraStreamStartTrigger final : public Trigger<>, public camera::CameraListener {
  public:
   explicit ESP32CameraStreamStartTrigger(ESP32Camera *parent) { parent->add_listener(this); }
   void on_stream_start() override { this->trigger(); }
 };
 
-class ESP32CameraStreamStopTrigger : public Trigger<>, public camera::CameraListener {
+class ESP32CameraStreamStopTrigger final : public Trigger<>, public camera::CameraListener {
  public:
   explicit ESP32CameraStreamStopTrigger(ESP32Camera *parent) { parent->add_listener(this); }
   void on_stream_stop() override { this->trigger(); }
 };
 
-}  // namespace esp32_camera
-}  // namespace esphome
+}  // namespace esphome::esp32_camera
 
 #endif

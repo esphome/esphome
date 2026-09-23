@@ -6,8 +6,7 @@
 #include "esphome/components/lvgl/lvgl_proxy.h"
 #endif  // USE_LVGL
 
-namespace esphome {
-namespace image {
+namespace esphome::image {
 
 enum ImageType {
   IMAGE_TYPE_BINARY = 0,
@@ -61,5 +60,4 @@ class Image : public display::BaseImage {
 #endif
 };
 
-}  // namespace image
-}  // namespace esphome
+}  // namespace esphome::image

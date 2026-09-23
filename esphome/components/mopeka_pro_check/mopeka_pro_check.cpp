@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace mopeka_pro_check {
+namespace esphome::mopeka_pro_check {
 
 static const char *const TAG = "mopeka_pro_check";
 static const uint8_t MANUFACTURER_DATA_LENGTH = 10;
@@ -154,7 +153,6 @@ SensorReadQuality MopekaProCheck::parse_read_quality_(const std::vector<uint8_t>
   return static_cast<SensorReadQuality>(message[4] >> 6);
 }
 
-}  // namespace mopeka_pro_check
-}  // namespace esphome
+}  // namespace esphome::mopeka_pro_check
 
 #endif

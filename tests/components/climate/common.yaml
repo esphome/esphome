@@ -29,3 +29,74 @@ climate:
     heat_action:
       - switch.turn_on: climate_heater_switch
       - switch.turn_off: climate_cooler_switch
+  # Thermostat-based climate so climate.control: action variants get build
+  # coverage (bang_bang doesn't support fan modes, presets, etc.). Climate
+  # has no template platform, so thermostat is the right vehicle.
+  - platform: thermostat
+    id: climate_test_thermostat
+    name: Test Thermostat
+    sensor: climate_temperature_sensor
+    min_idle_time: 30s
+    min_heating_off_time: 300s
+    min_heating_run_time: 300s
+    min_cooling_off_time: 300s
+    min_cooling_run_time: 300s
+    heat_action:
+      - logger.log: heating
+    idle_action:
+      - logger.log: idle
+    cool_action:
+      - logger.log: cooling
+    auto_mode:
+      - logger.log: auto
+    heat_cool_mode:
+      - logger.log: heat_cool
+    preset:
+      - name: Default
+        default_target_temperature_low: 18°C
+        default_target_temperature_high: 22°C
+
+button:
+  # Exercise the climate.control: action so ControlAction templates get
+  # build coverage. Various field combinations are tested.
+  - platform: template
+    name: "Climate Control Mode"
+    on_press:
+      - climate.control:
+          id: climate_test_thermostat
+          mode: HEAT
+  - platform: template
+    name: "Climate Control Mode And Temps"
+    on_press:
+      - climate.control:
+          id: climate_test_thermostat
+          mode: HEAT_COOL
+          target_temperature_low: 19.0°C
+          target_temperature_high: 23.0°C
+  - platform: template
+    name: "Climate Control Lambda Temp"
+    on_press:
+      - climate.control:
+          id: climate_test_thermostat
+          target_temperature_high: !lambda "return 21.5;"
+  - platform: template
+    name: "Climate Control Off"
+    on_press:
+      - climate.control:
+          id: climate_test_thermostat
+          mode: "OFF"
+
+# Exercise climate.control inside a trigger with non-empty Ts (number on_value
+# passes float).
+number:
+  - platform: template
+    id: climate_target_temp_number
+    optimistic: true
+    min_value: 16
+    max_value: 28
+    step: 0.5
+    on_value:
+      then:
+        - climate.control:
+            id: climate_test_thermostat
+            target_temperature_high: !lambda "return x;"

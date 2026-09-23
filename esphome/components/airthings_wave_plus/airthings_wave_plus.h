@@ -4,8 +4,7 @@
 
 #include "esphome/components/airthings_wave_base/airthings_wave_base.h"
 
-namespace esphome {
-namespace airthings_wave_plus {
+namespace esphome::airthings_wave_plus {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -20,7 +19,7 @@ static const char *const CHARACTERISTIC_UUID_WAVE_RADON_GEN2 = "b42e4dcc-ade7-11
 static const char *const ACCESS_CONTROL_POINT_CHARACTERISTIC_UUID_WAVE_RADON_GEN2 =
     "b42e50d8-ade7-11e4-89d3-123b93f75cba";
 
-class AirthingsWavePlus : public airthings_wave_base::AirthingsWaveBase {
+class AirthingsWavePlus final : public airthings_wave_base::AirthingsWaveBase {
  public:
   void setup() override;
 
@@ -58,7 +57,6 @@ class AirthingsWavePlus : public airthings_wave_base::AirthingsWaveBase {
   };
 };
 
-}  // namespace airthings_wave_plus
-}  // namespace esphome
+}  // namespace esphome::airthings_wave_plus
 
 #endif  // USE_ESP32

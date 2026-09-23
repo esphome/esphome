@@ -9,12 +9,11 @@
 #include <cstdint>
 #include <vector>
 
-namespace esphome {
-namespace microphone {
+namespace esphome::microphone {
 
 static const int32_t MAX_GAIN_FACTOR = 64;
 
-class MicrophoneSource {
+class MicrophoneSource final {
   /*
    * @brief Helper class that handles converting raw microphone data to a requested format.
    * Components requesting microphone audio should register a callback through this class instead of registering a
@@ -89,5 +88,4 @@ class MicrophoneSource {
   bool passive_;  // Only pass audio if ``mic_`` is already running
 };
 
-}  // namespace microphone
-}  // namespace esphome
+}  // namespace esphome::microphone

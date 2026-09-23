@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace bedjet {
+namespace esphome::bedjet {
 
 using namespace esphome::fan;
 
@@ -109,7 +108,6 @@ void BedJetFan::reset_state_() {
   this->state = false;
   this->publish_state();
 }
-}  // namespace bedjet
-}  // namespace esphome
+}  // namespace esphome::bedjet
 
 #endif

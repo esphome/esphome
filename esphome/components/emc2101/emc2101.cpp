@@ -5,8 +5,7 @@
 #include "esphome/core/log.h"
 #include "emc2101.h"
 
-namespace esphome {
-namespace emc2101 {
+namespace esphome::emc2101 {
 
 static const char *const TAG = "EMC2101";
 
@@ -146,9 +145,9 @@ float Emc2101Component::get_external_temperature() {
     return NAN;
   }
 
-  // join msb and lsb (5 least significant bits are not used)
-  uint16_t raw = (msb << 8 | lsb) >> 5;
-  return raw * 0.125;
+  // join msb and lsb (5 least significant bits are not used); msb is signed, so read as int16_t
+  int16_t raw = static_cast<int16_t>((msb << 8) | lsb) >> 5;
+  return raw * 0.125f;
 }
 
 float Emc2101Component::get_speed() {
@@ -165,5 +164,4 @@ float Emc2101Component::get_speed() {
   return tach == 0xFFFF ? 0.0f : 5400000.0f / tach;
 }
 
-}  // namespace emc2101
-}  // namespace esphome
+}  // namespace esphome::emc2101

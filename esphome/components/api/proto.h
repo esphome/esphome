@@ -342,6 +342,32 @@ class ProtoEncode {
     }
     encode_varint_raw_loop(pos PROTO_ENCODE_DEBUG_ARG, value);
   }
+  /// Encode a 48-bit MAC address (stored in a uint64) as varint.
+  /// Real MAC addresses occupy the full 48 bits (OUI in upper 24), so the
+  /// fast path -- any non-zero bit in the top 6 of 48 -- emits exactly 7 bytes
+  /// with no per-byte branch. Falls back to the general loop otherwise.
+  /// Caller must guarantee value fits in 48 bits (checked in debug builds).
+  static inline void ESPHOME_ALWAYS_INLINE encode_varint_raw_48bit(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
+                                                                   uint64_t value) {
+#ifdef ESPHOME_DEBUG_API
+    assert(value < (1ULL << (MAC_ADDRESS_SIZE * 8)) && "encode_varint_raw_48bit: value exceeds 48 bits");
+#endif
+    // 7-byte varint holds 49 bits (7 * 7), so a 48-bit value needs all 7 bytes
+    // whenever bit 42 or higher is set (i.e. value >= 1 << (48 - 6)).
+    if (value >= (1ULL << (MAC_ADDRESS_SIZE * 8 - 6))) [[likely]] {
+      PROTO_ENCODE_CHECK_BOUNDS(pos, 7);
+      pos[0] = static_cast<uint8_t>(value | 0x80);
+      pos[1] = static_cast<uint8_t>((value >> 7) | 0x80);
+      pos[2] = static_cast<uint8_t>((value >> 14) | 0x80);
+      pos[3] = static_cast<uint8_t>((value >> 21) | 0x80);
+      pos[4] = static_cast<uint8_t>((value >> 28) | 0x80);
+      pos[5] = static_cast<uint8_t>((value >> 35) | 0x80);
+      pos[6] = static_cast<uint8_t>(value >> 42);
+      pos += 7;
+      return;
+    }
+    encode_varint_raw_64(pos PROTO_ENCODE_DEBUG_ARG, value);
+  }
   static inline void ESPHOME_ALWAYS_INLINE encode_field_raw(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
                                                             uint32_t field_id, uint32_t type) {
     encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, (field_id << 3) | type);
@@ -398,6 +424,7 @@ class ProtoEncode {
     if (len == 0 && !force)
       return;
     encode_field_raw(pos PROTO_ENCODE_DEBUG_ARG, field_id, 2);  // type 2: Length-delimited string
+    // NOLINTNEXTLINE(readability-inconsistent-ifelse-braces) -- false positive on [[likely]] attribute
     if (len < VARINT_MAX_1_BYTE) [[likely]] {
       PROTO_ENCODE_CHECK_BOUNDS(pos, 1 + len);
       *pos++ = static_cast<uint8_t>(len);
@@ -816,6 +843,14 @@ class ProtoSize {
   }
   static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_uint64_force(uint32_t field_id_size, uint64_t value) {
     return field_id_size + varint(value);
+  }
+  /// 48-bit MAC address variant: matches encode_varint_raw_48bit's fast path.
+  /// When any of the top 6 of 48 bits is set the encoded varint is 7 bytes;
+  /// otherwise fall back to the general size calculation.
+  /// Caller must guarantee value fits in 48 bits (encoder asserts in debug).
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_uint64_48bit_force(uint32_t field_id_size,
+                                                                                 uint64_t value) {
+    return field_id_size + (value >= (1ULL << (MAC_ADDRESS_SIZE * 8 - 6)) ? 7 : varint(value));
   }
   static constexpr uint32_t calc_length(uint32_t field_id_size, size_t len) {
     return len ? field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len) : 0;

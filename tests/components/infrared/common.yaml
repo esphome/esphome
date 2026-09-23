@@ -23,7 +23,7 @@ infrared:
 
   # Infrared receiver
   - platform: ir_rf_proxy
-    id: ir_rx
+    id: infrared_ir_rx
     name: "IR Receiver"
     remote_receiver_id: ir_receiver
 

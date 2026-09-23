@@ -3,8 +3,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace preferences {
+namespace esphome::preferences {
 
 class IntervalSyncer final : public Component {
  public:
@@ -25,5 +24,4 @@ class IntervalSyncer final : public Component {
 #endif
 };
 
-}  // namespace preferences
-}  // namespace esphome
+}  // namespace esphome::preferences

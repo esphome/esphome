@@ -7,10 +7,9 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace mopeka_ble {
+namespace esphome::mopeka_ble {
 
-class MopekaListener : public esp32_ble_tracker::ESPBTDeviceListener {
+class MopekaListener final : public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
   void set_show_sensors_without_sync(bool show_sensors_without_sync) {
@@ -21,7 +20,6 @@ class MopekaListener : public esp32_ble_tracker::ESPBTDeviceListener {
   bool show_sensors_without_sync_;
 };
 
-}  // namespace mopeka_ble
-}  // namespace esphome
+}  // namespace esphome::mopeka_ble
 
 #endif

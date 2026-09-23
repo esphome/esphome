@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace fingerprint_grow {
+namespace esphome::fingerprint_grow {
 
 static const char *const TAG = "fingerprint_grow";
 
@@ -207,6 +206,7 @@ uint8_t FingerprintGrowComponent::save_fingerprint_() {
       break;
     case ENROLL_MISMATCH:
       ESP_LOGE(TAG, "Scans do not match");
+      [[fallthrough]];
     default:
       return this->data_[0];
   }
@@ -581,5 +581,4 @@ void FingerprintGrowComponent::dump_config() {
   }
 }
 
-}  // namespace fingerprint_grow
-}  // namespace esphome
+}  // namespace esphome::fingerprint_grow

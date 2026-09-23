@@ -2,8 +2,7 @@
 
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct CanalSatData {
   uint8_t device : 7;
@@ -74,5 +73,4 @@ template<typename... Ts> class CanalSatLDAction : public RemoteTransmitterAction
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

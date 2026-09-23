@@ -41,7 +41,7 @@ enum SerialProxyLineStateFlag : uint32_t {
 /// Maximum bytes to read from UART in a single loop iteration
 inline constexpr size_t SERIAL_PROXY_MAX_READ_SIZE = 256;
 
-class SerialProxy : public uart::UARTDevice, public Component {
+class SerialProxy final : public uart::UARTDevice, public Component {
  public:
   void setup() override;
   void loop() override;

@@ -89,6 +89,17 @@ APIError APIPlaintextFrameHelper::try_read_frame_() {
     // If this was the first read, validate the indicator byte
     if (rx_header_buf_pos_ == 0 && received > 0) {
       if (rx_header_buf_[0] != 0x00) {
+#ifdef USE_API_NOISE
+        // Dual build (encryption supported but no key set): a 0x01 first byte
+        // is a Noise client hello. Hand the connection off to a Noise helper
+        // running the all-zeros provisioning PSK so the encryption key can be
+        // set without crossing the wire in plaintext. Preserve the bytes we
+        // already consumed; they are the start of the Noise 3-byte header.
+        if (rx_header_buf_[0] == 0x01) {
+          rx_header_buf_pos_ = static_cast<uint8_t>(received);
+          return APIError::PROTOCOL_SWITCH_TO_NOISE;
+        }
+#endif
         state_ = State::FAILED;
         HELPER_LOG("Bad indicator byte %u", rx_header_buf_[0]);
         return APIError::BAD_INDICATOR;

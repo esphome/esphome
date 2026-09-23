@@ -21,7 +21,7 @@ from esphome.const import (
     UNIT_VOLT,
 )
 
-CODEOWNERS = ["@ncareau", "@jeromelaban", "@kpfleming"]
+CODEOWNERS = ["@ncareau", "@jeromelaban"]
 
 DEPENDENCIES = ["ble_client"]
 

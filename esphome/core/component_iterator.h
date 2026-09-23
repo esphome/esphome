@@ -21,6 +21,11 @@ namespace infrared {
 class Infrared;
 }  // namespace infrared
 #endif
+#ifdef USE_RADIO_FREQUENCY
+namespace radio_frequency {
+class RadioFrequency;
+}  // namespace radio_frequency
+#endif
 
 class ComponentIterator {
  public:
@@ -28,80 +33,21 @@ class ComponentIterator {
   void advance();
   bool completed() const { return this->state_ == IteratorState::NONE; }
   virtual bool on_begin();
-#ifdef USE_BINARY_SENSOR
-  virtual bool on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) = 0;
-#endif
-#ifdef USE_COVER
-  virtual bool on_cover(cover::Cover *cover) = 0;
-#endif
-#ifdef USE_FAN
-  virtual bool on_fan(fan::Fan *fan) = 0;
-#endif
-#ifdef USE_LIGHT
-  virtual bool on_light(light::LightState *light) = 0;
-#endif
-#ifdef USE_SENSOR
-  virtual bool on_sensor(sensor::Sensor *sensor) = 0;
-#endif
-#ifdef USE_SWITCH
-  virtual bool on_switch(switch_::Switch *a_switch) = 0;
-#endif
-#ifdef USE_BUTTON
-  virtual bool on_button(button::Button *button) = 0;
-#endif
-#ifdef USE_TEXT_SENSOR
-  virtual bool on_text_sensor(text_sensor::TextSensor *text_sensor) = 0;
-#endif
+// Pure virtual entity callbacks (generated from entity_types.h)
+// NOLINTBEGIN(bugprone-macro-parentheses)
+#define ENTITY_TYPE_(type, singular, plural, count, upper) virtual bool on_##singular(type *obj) = 0;
+#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
+  ENTITY_TYPE_(type, singular, plural, count, upper)
+#include "esphome/core/entity_types.h"
+#undef ENTITY_TYPE_
+#undef ENTITY_CONTROLLER_TYPE_
+// NOLINTEND(bugprone-macro-parentheses)
+// Non-entity and non-pure-virtual callbacks (have default implementations)
 #ifdef USE_API_USER_DEFINED_ACTIONS
   virtual bool on_service(api::UserServiceDescriptor *service);
 #endif
 #ifdef USE_CAMERA
   virtual bool on_camera(camera::Camera *camera);
-#endif
-#ifdef USE_CLIMATE
-  virtual bool on_climate(climate::Climate *climate) = 0;
-#endif
-#ifdef USE_NUMBER
-  virtual bool on_number(number::Number *number) = 0;
-#endif
-#ifdef USE_DATETIME_DATE
-  virtual bool on_date(datetime::DateEntity *date) = 0;
-#endif
-#ifdef USE_DATETIME_TIME
-  virtual bool on_time(datetime::TimeEntity *time) = 0;
-#endif
-#ifdef USE_DATETIME_DATETIME
-  virtual bool on_datetime(datetime::DateTimeEntity *datetime) = 0;
-#endif
-#ifdef USE_TEXT
-  virtual bool on_text(text::Text *text) = 0;
-#endif
-#ifdef USE_SELECT
-  virtual bool on_select(select::Select *select) = 0;
-#endif
-#ifdef USE_LOCK
-  virtual bool on_lock(lock::Lock *a_lock) = 0;
-#endif
-#ifdef USE_VALVE
-  virtual bool on_valve(valve::Valve *valve) = 0;
-#endif
-#ifdef USE_MEDIA_PLAYER
-  virtual bool on_media_player(media_player::MediaPlayer *media_player);
-#endif
-#ifdef USE_ALARM_CONTROL_PANEL
-  virtual bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) = 0;
-#endif
-#ifdef USE_WATER_HEATER
-  virtual bool on_water_heater(water_heater::WaterHeater *water_heater) = 0;
-#endif
-#ifdef USE_INFRARED
-  virtual bool on_infrared(infrared::Infrared *infrared) = 0;
-#endif
-#ifdef USE_EVENT
-  virtual bool on_event(event::Event *event) = 0;
-#endif
-#ifdef USE_UPDATE
-  virtual bool on_update(update::UpdateEntity *update) = 0;
 #endif
   virtual bool on_end();
 
@@ -111,80 +57,19 @@ class ComponentIterator {
   enum class IteratorState : uint8_t {
     NONE = 0,
     BEGIN,
-#ifdef USE_BINARY_SENSOR
-    BINARY_SENSOR,
-#endif
-#ifdef USE_COVER
-    COVER,
-#endif
-#ifdef USE_FAN
-    FAN,
-#endif
-#ifdef USE_LIGHT
-    LIGHT,
-#endif
-#ifdef USE_SENSOR
-    SENSOR,
-#endif
-#ifdef USE_SWITCH
-    SWITCH,
-#endif
-#ifdef USE_BUTTON
-    BUTTON,
-#endif
-#ifdef USE_TEXT_SENSOR
-    TEXT_SENSOR,
-#endif
+// Entity iterator states (generated from entity_types.h)
+// NOLINTBEGIN(bugprone-macro-parentheses)
+#define ENTITY_TYPE_(type, singular, plural, count, upper) upper,
+#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) upper,
+#include "esphome/core/entity_types.h"
+#undef ENTITY_TYPE_
+#undef ENTITY_CONTROLLER_TYPE_
+// NOLINTEND(bugprone-macro-parentheses)
 #ifdef USE_API_USER_DEFINED_ACTIONS
     SERVICE,
 #endif
 #ifdef USE_CAMERA
     CAMERA,
-#endif
-#ifdef USE_CLIMATE
-    CLIMATE,
-#endif
-#ifdef USE_NUMBER
-    NUMBER,
-#endif
-#ifdef USE_DATETIME_DATE
-    DATETIME_DATE,
-#endif
-#ifdef USE_DATETIME_TIME
-    DATETIME_TIME,
-#endif
-#ifdef USE_DATETIME_DATETIME
-    DATETIME_DATETIME,
-#endif
-#ifdef USE_TEXT
-    TEXT,
-#endif
-#ifdef USE_SELECT
-    SELECT,
-#endif
-#ifdef USE_LOCK
-    LOCK,
-#endif
-#ifdef USE_VALVE
-    VALVE,
-#endif
-#ifdef USE_MEDIA_PLAYER
-    MEDIA_PLAYER,
-#endif
-#ifdef USE_ALARM_CONTROL_PANEL
-    ALARM_CONTROL_PANEL,
-#endif
-#ifdef USE_WATER_HEATER
-    WATER_HEATER,
-#endif
-#ifdef USE_INFRARED
-    INFRARED,
-#endif
-#ifdef USE_EVENT
-    EVENT,
-#endif
-#ifdef USE_UPDATE
-    UPDATE,
 #endif
     MAX,
   };

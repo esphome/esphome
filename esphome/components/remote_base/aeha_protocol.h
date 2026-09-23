@@ -4,8 +4,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct AEHAData {
   uint16_t address;
@@ -42,5 +41,4 @@ template<typename... Ts> class AEHAAction : public RemoteTransmitterActionBase<T
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

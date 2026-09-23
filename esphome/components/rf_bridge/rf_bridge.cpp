@@ -5,8 +5,7 @@
 #include <cinttypes>
 #include <cstring>
 
-namespace esphome {
-namespace rf_bridge {
+namespace esphome::rf_bridge {
 
 static const char *const TAG = "rf_bridge";
 
@@ -196,10 +195,7 @@ void RFBridgeComponent::learn() {
   this->flush();
 }
 
-void RFBridgeComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "RF_Bridge:");
-  this->check_uart_settings(19200);
-}
+void RFBridgeComponent::dump_config() { ESP_LOGCONFIG(TAG, "RF_Bridge:"); }
 
 void RFBridgeComponent::start_advanced_sniffing() {
   ESP_LOGI(TAG, "Advanced Sniffing on");
@@ -243,5 +239,4 @@ void RFBridgeComponent::beep(uint16_t ms) {
   this->flush();
 }
 
-}  // namespace rf_bridge
-}  // namespace esphome
+}  // namespace esphome::rf_bridge

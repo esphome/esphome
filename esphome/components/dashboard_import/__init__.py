@@ -77,7 +77,7 @@ async def to_code(config):
     url = config[CONF_PACKAGE_IMPORT_URL]
     if config[CONF_IMPORT_FULL_CONFIG]:
         url += "?full_config"
-    cg.add(dashboard_import_ns.set_package_import_url(url))
+    cg.add(dashboard_import_ns.set_package_import_url(cg.FlashStringLiteral(url)))
 
 
 def import_config(
@@ -89,6 +89,16 @@ def import_config(
     network: str = CONF_WIFI,
     encryption: bool = False,
 ) -> None:
+    """Materialise a dashboard-imported device's YAML on disk.
+
+    Used by:
+    - device-builder (esphome/device-builder) — called from the
+      ``devices/import`` WS handler to seed the YAML for an adopted
+      factory firmware. Coordinate before changing the kwargs or the
+      generated YAML's top-level keys; both consumers depend on the
+      output shape (``esphome.name`` / ``packages:`` import url) to
+      route subsequent compile + flash operations.
+    """
     p = Path(path)
 
     if p.exists():

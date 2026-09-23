@@ -140,6 +140,12 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void log_gattc_warning_(const char *operation, esp_err_t err);
   void log_connection_params_(const char *param_type);
   void handle_connection_result_(esp_err_t ret);
+  /// Hook called once a connection has been fully torn down (after release_services() and
+  /// set_idle_()), from both the CLOSE_EVT handler and the DISCONNECTING safety timeout.
+  /// Subclasses with extra per-connection accounting (e.g. bluetooth_proxy slot state)
+  /// override this to release that state. `reason` is the controller reason code, or
+  /// ESP_GATT_CONN_TIMEOUT for the safety-timeout path.
+  virtual void on_disconnect_complete(esp_err_t reason) {}
   /// Transition to IDLE and reset conn_id — call when the connection is fully dead.
   void set_idle_() {
     this->set_state(espbt::ClientState::IDLE);
@@ -149,6 +155,10 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void set_disconnecting_() {
     this->disconnecting_started_ = millis();
     this->set_state(espbt::ClientState::DISCONNECTING);
+    // BluetoothConnection::loop() disables the component loop after service discovery
+    // completes, so the DISCONNECTING timeout check in loop() would never run if CLOSE_EVT
+    // gets lost. Re-enable the loop so the 10s safety timeout can force IDLE.
+    this->enable_loop();
   }
   // Compact error logging helpers to reduce flash usage
   void log_error_(const char *message);

@@ -23,7 +23,7 @@ class HostPreferences final : public PreferencesMixin<HostPreferences> {
       return false;
     this->setup_();
     std::vector vec(data, data + len);
-    this->data[key] = vec;
+    this->data_[key] = vec;
     return true;
   }
 
@@ -31,8 +31,8 @@ class HostPreferences final : public PreferencesMixin<HostPreferences> {
     if (len > 255)
       return false;
     this->setup_();
-    auto it = this->data.find(key);
-    if (it == this->data.end())
+    auto it = this->data_.find(key);
+    if (it == this->data_.end())
       return false;
     const auto &vec = it->second;
     if (vec.size() != len)
@@ -45,7 +45,7 @@ class HostPreferences final : public PreferencesMixin<HostPreferences> {
   void setup_();
   bool setup_complete_{};
   std::string filename_{};
-  std::map<uint32_t, std::vector<uint8_t>> data{};
+  std::map<uint32_t, std::vector<uint8_t>> data_{};
 };
 
 void setup_preferences();

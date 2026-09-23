@@ -1,7 +1,7 @@
 binary_sensor:
   - platform: template
     trigger_on_initial_state: true
-    id: some_binary_sensor
+    id: binary_sensor_some_binary_sensor
     name: "Random binary"
     lambda: return (random_uint32() & 1) == 0;
     filters:
@@ -21,7 +21,7 @@ binary_sensor:
             time_off: 100ms
             time_on: 400ms
       - lambda: |-
-          if (id(some_binary_sensor).state) {
+          if (id(binary_sensor_some_binary_sensor).state) {
             return x;
           }
           return {};
@@ -36,7 +36,7 @@ binary_sensor:
         - logger.log:
             format: "New state is %s"
             args: ['x.has_value() ? ONOFF(x) : "Unknown"']
-        - binary_sensor.invalidate_state: some_binary_sensor
+        - binary_sensor.invalidate_state: binary_sensor_some_binary_sensor
 
   # Test autorepeat with default configuration (no timings)
   - platform: template

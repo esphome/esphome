@@ -8,12 +8,11 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_cgpr1 {
+namespace esphome::xiaomi_cgpr1 {
 
-class XiaomiCGPR1 : public Component,
-                    public binary_sensor::BinarySensorInitiallyOff,
-                    public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiCGPR1 final : public Component,
+                          public binary_sensor::BinarySensorInitiallyOff,
+                          public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; }
   void set_bindkey(const char *bindkey);
@@ -33,7 +32,6 @@ class XiaomiCGPR1 : public Component,
   sensor::Sensor *illuminance_{nullptr};
 };
 
-}  // namespace xiaomi_cgpr1
-}  // namespace esphome
+}  // namespace esphome::xiaomi_cgpr1
 
 #endif

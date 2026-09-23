@@ -87,7 +87,7 @@ enum BLEComponentState : uint8_t {
   BLE_COMPONENT_STATE_ACTIVE,
 };
 
-class ESP32BLE : public Component {
+class ESP32BLE final : public Component {
  public:
   void set_io_capability(IoCapability io_capability) { this->io_cap_ = (esp_ble_io_cap_t) io_capability; }
 
@@ -236,12 +236,12 @@ class ESP32BLE : public Component {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32BLE *global_ble;
 
-template<typename... Ts> class BLEEnabledCondition : public Condition<Ts...> {
+template<typename... Ts> class BLEEnabledCondition final : public Condition<Ts...> {
  public:
   bool check(const Ts &...x) override { return global_ble != nullptr && global_ble->is_active(); }
 };
 
-template<typename... Ts> class BLEEnableAction : public Action<Ts...> {
+template<typename... Ts> class BLEEnableAction final : public Action<Ts...> {
  public:
   void play(const Ts &...x) override {
     if (global_ble != nullptr)
@@ -249,7 +249,7 @@ template<typename... Ts> class BLEEnableAction : public Action<Ts...> {
   }
 };
 
-template<typename... Ts> class BLEDisableAction : public Action<Ts...> {
+template<typename... Ts> class BLEDisableAction final : public Action<Ts...> {
  public:
   void play(const Ts &...x) override {
     if (global_ble != nullptr)

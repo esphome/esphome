@@ -322,6 +322,49 @@ async def test_light_calls(
         assert state.state is True
         assert state.brightness == pytest.approx(0.75)
 
+        # Test 31: Setting brightness to 0 without an explicit state implicitly turns
+        # the light off; turning it back on (without an explicit brightness) then
+        # restores full brightness so the light is visible again.
+        client.light_command(key=rgbcw_light.key, state=True, brightness=0.5)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+        assert state.brightness == pytest.approx(0.5)
+
+        # Brightness 0 with no explicit state -> implicit turn-off
+        client.light_command(key=rgbcw_light.key, brightness=0.0)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is False
+        assert state.brightness == pytest.approx(0.0)
+        # Turning on without an explicit brightness restores it to full brightness
+        client.light_command(key=rgbcw_light.key, state=True)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+        assert state.brightness == pytest.approx(1.0)
+
+        # Test 31b: An explicit turn-on with brightness 0 still resets to full
+        # brightness - a turn-on must never leave the light on-but-invisible. This
+        # is the same path the restore logic exercises (set_state(true) +
+        # set_brightness(0) from a persisted brightness=0 turn-off).
+        client.light_command(key=rgbcw_light.key, state=True, brightness=0.0)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+        assert state.brightness == pytest.approx(1.0)
+
+        # Test 32: Turning a light on when it already has nonzero brightness leaves
+        # the brightness unchanged (the reset only happens when brightness is 0).
+        client.light_command(key=rgbcw_light.key, state=True, brightness=0.4)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.brightness == pytest.approx(0.4)
+
+        client.light_command(key=rgbcw_light.key, state=False)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is False
+
+        client.light_command(key=rgbcw_light.key, state=True)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+        assert state.brightness == pytest.approx(0.4)
+
         # Final cleanup - turn all lights off
         for light in lights:
             client.light_command(

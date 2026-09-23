@@ -7,10 +7,9 @@
 #include "esphome/components/select/select.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
-class ModbusSelect : public Component, public select::Select, public SensorItem {
+class ModbusSelect final : public Component, public select::Select, public SensorItem {
  public:
   ModbusSelect(SensorValueType sensor_value_type, uint16_t start_address, uint8_t register_count, uint16_t skip_updates,
                bool force_new_range, std::vector<int64_t> mapping) {
@@ -49,5 +48,4 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
   optional<write_transform_func_t> write_transform_func_{nullopt};
 };
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

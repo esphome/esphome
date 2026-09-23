@@ -1,4 +1,3 @@
-import logging
 from typing import Any
 
 from esphome import automation, pins
@@ -26,8 +25,6 @@ from esphome.helpers import add_class_to_obj
 from esphome.types import ConfigType
 
 from . import boards, hub75_ns
-
-_LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@stuartparmenter"]
@@ -133,29 +130,10 @@ SCAN_WIRINGS = {
     "SCAN_1_8_64PX_HIGH": Hub75ScanWiring.SCAN_1_8_64PX_HIGH,
 }
 
-# Deprecated scan wiring names - mapped to new names
-DEPRECATED_SCAN_WIRINGS = {
-    "FOUR_SCAN_16PX_HIGH": "SCAN_1_4_16PX_HIGH",
-    "FOUR_SCAN_32PX_HIGH": "SCAN_1_8_32PX_HIGH",
-    "FOUR_SCAN_64PX_HIGH": "SCAN_1_8_64PX_HIGH",
-}
-
 
 def _validate_scan_wiring(value):
-    """Validate scan_wiring with deprecation warnings for old names."""
+    """Validate scan_wiring against the allowed names."""
     value = cv.string(value).upper().replace(" ", "_")
-
-    # Check if using deprecated name
-    # Remove deprecated names in 2026.7.0
-    if value in DEPRECATED_SCAN_WIRINGS:
-        new_name = DEPRECATED_SCAN_WIRINGS[value]
-        _LOGGER.warning(
-            "Scan wiring '%s' is deprecated and will be removed in ESPHome 2026.7.0. "
-            "Please use '%s' instead.",
-            value,
-            new_name,
-        )
-        value = new_name
 
     # Validate against allowed values
     if value not in SCAN_WIRINGS:

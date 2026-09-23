@@ -31,13 +31,14 @@ void CronTrigger::check_time_() {
     return;
 
   if (this->last_check_.has_value()) {
-    if (*this->last_check_ > time && this->last_check_->timestamp - time.timestamp > MAX_TIMESTAMP_DRIFT) {
+    auto &last_check = *this->last_check_;
+    if (last_check > time && last_check.timestamp - time.timestamp > MAX_TIMESTAMP_DRIFT) {
       // We went back in time (a lot), probably caused by time synchronization
       ESP_LOGW(TAG, "Time has jumped back!");
-    } else if (*this->last_check_ >= time) {
+    } else if (last_check >= time) {
       // already handled this one
       return;
-    } else if (time > *this->last_check_ && time.timestamp - this->last_check_->timestamp > MAX_TIMESTAMP_DRIFT) {
+    } else if (time > last_check && time.timestamp - last_check.timestamp > MAX_TIMESTAMP_DRIFT) {
       // We went ahead in time (a lot), probably caused by time synchronization
       ESP_LOGW(TAG, "Time has jumped ahead!");
       this->last_check_ = time;
@@ -45,11 +46,11 @@ void CronTrigger::check_time_() {
     }
 
     while (true) {
-      this->last_check_->increment_second();
-      if (*this->last_check_ >= time)
+      last_check.increment_second();
+      if (last_check >= time)
         break;
 
-      if (this->matches(*this->last_check_))
+      if (this->matches(last_check))
         this->trigger();
     }
   }

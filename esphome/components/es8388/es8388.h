@@ -11,8 +11,7 @@
 
 #include "es8388_const.h"
 
-namespace esphome {
-namespace es8388 {
+namespace esphome::es8388 {
 
 enum DacOutputLine : uint8_t {
   DAC_OUTPUT_LINE1,
@@ -26,7 +25,7 @@ enum AdcInputMicLine : uint8_t {
   ADC_INPUT_MIC_DIFFERENCE,
 };
 
-class ES8388 : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
+class ES8388 final : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
 #ifdef USE_SELECT
   SUB_SELECT(dac_output)
   SUB_SELECT(adc_input_mic)
@@ -76,5 +75,4 @@ class ES8388 : public audio_dac::AudioDac, public Component, public i2c::I2CDevi
   bool set_mute_state_(bool mute_state);
 };
 
-}  // namespace es8388
-}  // namespace esphome
+}  // namespace esphome::es8388

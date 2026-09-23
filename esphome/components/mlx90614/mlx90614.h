@@ -4,10 +4,9 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace mlx90614 {
+namespace esphome::mlx90614 {
 
-class MLX90614Component : public PollingComponent, public i2c::I2CDevice {
+class MLX90614Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -28,5 +27,4 @@ class MLX90614Component : public PollingComponent, public i2c::I2CDevice {
 
   float emissivity_{NAN};
 };
-}  // namespace mlx90614
-}  // namespace esphome
+}  // namespace esphome::mlx90614

@@ -1,6 +1,6 @@
 light:
   - platform: rp2040_pio_led_strip
-    id: led_strip
+    id: rp2040_pio_led_strip_led_strip
     pin: 4
     num_leds: 60
     pio: 0

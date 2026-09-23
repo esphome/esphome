@@ -22,6 +22,36 @@ lvgl:
     displays: sdl0
     rotation: 180
     top_layer:
+    widgets:
+      - obj:
+          id: anim_box
+          x: 0
+          y: 0
+          width: 40
+          height: 40
+          bg_color: 0xFF0000
+    animations:
+      - id: anim_slide
+        duration: 1s
+        start_delay: 100ms
+        auto_start: true
+        loop: true
+        timing:
+          - round_trip
+          - type: ease_in_out
+            weight: 3
+        on_start:
+          - logger.log: anim started
+        on_stop:
+          - logger.log: anim stopped
+        widgets:
+          - id: anim_box
+            x:
+              from: 0
+              to: !lambda "return 100;"
+            opa:
+              from: 50%
+              to: 100%
 
   - id: lvgl_1
     displays: sdl1
@@ -42,7 +72,14 @@ lvgl:
             - label:
                 text: Click ME
           on_click:
-            logger.log: Clicked
+            then:
+              - logger.log: Clicked
+              - lvgl.animation.stop:
+                  id: anim_slide
+                  lvgl_id: lvgl_0
+              - lvgl.animation.start:
+                  id: anim_slide
+                  lvgl_id: lvgl_0
 
 font:
   - file: "gfonts://Roboto"

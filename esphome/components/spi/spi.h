@@ -13,11 +13,11 @@
 
 using SPIInterface = spi_host_device_t;
 
-#elif defined(USE_ARDUINO)
+#elif defined(USE_ARDUINO) && !defined(USE_LIBRETINY)
 
 #include <SPI.h>
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 using SPIInterface = SPIClassRP2040 *;
 #else
 using SPIInterface = SPIClass *;
@@ -334,7 +334,7 @@ class SPIBus {
 
 class SPIClient;
 
-class SPIComponent : public Component {
+class SPIComponent final : public Component {
  public:
   SPIDelegate *register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                GPIOPin *cs_pin, bool release_device, bool write_only);
@@ -451,7 +451,7 @@ class SPIDevice : public SPIClient {
 
   uint8_t read_byte() { return this->delegate_->transfer(0); }
 
-  void read_array(uint8_t *data, size_t length) { return this->delegate_->read_array(data, length); }
+  void read_array(uint8_t *data, size_t length) { this->delegate_->read_array(data, length); }
 
   /**
    * Write a single data item, up to 32 bits.

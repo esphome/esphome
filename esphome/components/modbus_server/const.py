@@ -1,0 +1,8 @@
+CONF_REGISTER_LAST_ADDRESS = "register_last_address"
+CONF_REGISTER_VALUE = "register_value"
+CONF_VALUE_TYPE = "value_type"
+CONF_COURTESY_RESPONSE = "courtesy_response"
+CONF_READ_LAMBDA = "read_lambda"
+CONF_WRITE_LAMBDA = "write_lambda"
+CONF_REGISTERS = "registers"
+CONF_ALLOW_PARTIAL_READ = "allow_partial_read"

@@ -4,10 +4,10 @@
 #include "esphome/core/automation.h"
 #include "scd4x.h"
 
-namespace esphome {
-namespace scd4x {
+namespace esphome::scd4x {
 
-template<typename... Ts> class PerformForcedCalibrationAction : public Action<Ts...>, public Parented<SCD4XComponent> {
+template<typename... Ts>
+class PerformForcedCalibrationAction final : public Action<Ts...>, public Parented<SCD4XComponent> {
  public:
   void play(const Ts &...x) override {
     if (this->value_.has_value()) {
@@ -19,10 +19,9 @@ template<typename... Ts> class PerformForcedCalibrationAction : public Action<Ts
   TEMPLATABLE_VALUE(uint16_t, value)
 };
 
-template<typename... Ts> class FactoryResetAction : public Action<Ts...>, public Parented<SCD4XComponent> {
+template<typename... Ts> class FactoryResetAction final : public Action<Ts...>, public Parented<SCD4XComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->factory_reset(); }
 };
 
-}  // namespace scd4x
-}  // namespace esphome
+}  // namespace esphome::scd4x

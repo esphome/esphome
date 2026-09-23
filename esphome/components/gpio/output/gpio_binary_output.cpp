@@ -1,8 +1,7 @@
 #include "gpio_binary_output.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace gpio {
+namespace esphome::gpio {
 
 static const char *const TAG = "gpio.output";
 
@@ -12,5 +11,4 @@ void GPIOBinaryOutput::dump_config() {
   LOG_BINARY_OUTPUT(this);
 }
 
-}  // namespace gpio
-}  // namespace esphome
+}  // namespace esphome::gpio

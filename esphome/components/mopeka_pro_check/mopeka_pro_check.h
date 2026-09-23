@@ -9,8 +9,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace mopeka_pro_check {
+namespace esphome::mopeka_pro_check {
 
 enum SensorType {
   STANDARD_BOTTOM_UP = 0x03,
@@ -28,7 +27,7 @@ enum SensorType {
 // measurement may be inaccurate.
 enum SensorReadQuality { QUALITY_HIGH = 0x3, QUALITY_MED = 0x2, QUALITY_LOW = 0x1, QUALITY_ZERO = 0x0 };
 
-class MopekaProCheck : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class MopekaProCheck final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
 
@@ -65,7 +64,6 @@ class MopekaProCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
   SensorReadQuality parse_read_quality_(const std::vector<uint8_t> &message);
 };
 
-}  // namespace mopeka_pro_check
-}  // namespace esphome
+}  // namespace esphome::mopeka_pro_check
 
 #endif

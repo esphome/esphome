@@ -197,11 +197,11 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CODING_RATE, default="CR_4_5"): cv.enum(CODING_RATE),
             cv.Optional(CONF_CRC_ENABLE, default=False): cv.boolean,
             cv.Optional(CONF_DEVIATION, default="5kHz"): cv.All(
-                cv.frequency, cv.float_range(min=0, max=100000)
+                cv.frequency, cv.int_range(min=0, max=100000)
             ),
             cv.Optional(CONF_DIO0_PIN): pins.internal_gpio_input_pin_schema,
             cv.Required(CONF_FREQUENCY): cv.All(
-                cv.frequency, cv.float_range(min=137.0e6, max=1020.0e6)
+                cv.frequency, cv.int_range(min=int(137e6), max=int(1020e6))
             ),
             cv.Required(CONF_MODULATION): cv.enum(MOD),
             cv.Optional(CONF_ON_PACKET): automation.validate_automation(single=True),

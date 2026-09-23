@@ -1,0 +1,15 @@
+<<: !include common.yaml
+
+text_sensor:
+  - platform: sendspin
+    name: "Title"
+    type: title
+  - platform: sendspin
+    name: "Artist"
+    type: artist
+  - platform: sendspin
+    name: "Album"
+    type: album
+  - platform: sendspin
+    name: "Album Artist"
+    type: album_artist

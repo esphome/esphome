@@ -88,6 +88,11 @@ enum class APIError : uint16_t {
   HANDSHAKESTATE_SPLIT_FAILED = 1020,
   BAD_HANDSHAKE_ERROR_BYTE = 1021,
 #endif
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
+  // Not an error: an unprovisioned device received a Noise client hello on a
+  // plaintext connection; the caller must hand the socket off to a Noise helper.
+  PROTOCOL_SWITCH_TO_NOISE = 1023,
+#endif
 };
 
 const LogString *api_error_to_logstr(APIError err);
@@ -200,6 +205,12 @@ class APIFrameHelper {
   // or track that they stopped early and retry without this check.
   // See Socket::ready() for details.
   bool is_socket_ready() const { return socket_ != nullptr && socket_->ready(); }
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
+  // Move the socket out of this helper so a replacement helper can take it
+  // over (plaintext to Noise handoff on unprovisioned devices). The drained
+  // helper must be destroyed right after.
+  std::unique_ptr<socket::Socket> release_socket_for_switch() { return std::move(this->socket_); }
+#endif
   // Release excess memory from internal buffers after initial sync
   void release_buffers() {
     // rx_buf_: Safe to clear only if no partial read in progress.

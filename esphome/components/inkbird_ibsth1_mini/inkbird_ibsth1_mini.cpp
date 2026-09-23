@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace inkbird_ibsth1_mini {
+namespace esphome::inkbird_ibsth1_mini {
 
 static const char *const TAG = "inkbird_ibsth1_mini";
 
@@ -41,12 +40,12 @@ bool InkbirdIbstH1Mini::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
     ESP_LOGVV(TAG, "parse_device(): service_data is expected to be empty");
     return false;
   }
-  auto mnf_datas = device.get_manufacturer_datas();
+  const auto &mnf_datas = device.get_manufacturer_datas();
   if (mnf_datas.size() != 1) {
     ESP_LOGVV(TAG, "parse_device(): manufacturer_datas is expected to have a single element");
     return false;
   }
-  auto mnf_data = mnf_datas[0];
+  const auto &mnf_data = mnf_datas[0];
   if (mnf_data.uuid.get_uuid().len != ESP_UUID_LEN_16) {
     ESP_LOGVV(TAG, "parse_device(): manufacturer data element is expected to have uuid of length 16");
     return false;
@@ -104,7 +103,6 @@ bool InkbirdIbstH1Mini::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
   return true;
 }
 
-}  // namespace inkbird_ibsth1_mini
-}  // namespace esphome
+}  // namespace esphome::inkbird_ibsth1_mini
 
 #endif

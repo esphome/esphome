@@ -48,9 +48,13 @@ from esphome.const import (
     CONF_VISUAL,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
-from esphome.cpp_generator import MockObjClass
+from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_entity,
+)
+from esphome.cpp_generator import LambdaExpression, MockObjClass
 
 IS_PLATFORM_COMPONENT = True
 
@@ -442,7 +446,7 @@ async def setup_climate_core_(var, config):
 async def register_climate(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_climate(var))
+    queue_entity_register("climate", config)
     CORE.register_platform_component("climate", var)
     await setup_climate_core_(var, config)
 
@@ -483,38 +487,65 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 async def climate_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if (mode := config.get(CONF_MODE)) is not None:
-        template_ = await cg.templatable(mode, args, ClimateMode)
-        cg.add(var.set_mode(template_))
-    if (target_temp := config.get(CONF_TARGET_TEMPERATURE)) is not None:
-        template_ = await cg.templatable(target_temp, args, cg.float_)
-        cg.add(var.set_target_temperature(template_))
-    if (target_temp_low := config.get(CONF_TARGET_TEMPERATURE_LOW)) is not None:
-        template_ = await cg.templatable(target_temp_low, args, cg.float_)
-        cg.add(var.set_target_temperature_low(template_))
-    if (target_temp_high := config.get(CONF_TARGET_TEMPERATURE_HIGH)) is not None:
-        template_ = await cg.templatable(target_temp_high, args, cg.float_)
-        cg.add(var.set_target_temperature_high(template_))
-    if (target_humidity := config.get(CONF_TARGET_HUMIDITY)) is not None:
-        template_ = await cg.templatable(target_humidity, args, cg.float_)
-        cg.add(var.set_target_humidity(template_))
-    if (fan_mode := config.get(CONF_FAN_MODE)) is not None:
-        template_ = await cg.templatable(fan_mode, args, ClimateFanMode)
-        cg.add(var.set_fan_mode(template_))
-    if (custom_fan_mode := config.get(CONF_CUSTOM_FAN_MODE)) is not None:
-        template_ = await cg.templatable(custom_fan_mode, args, cg.std_string)
-        cg.add(var.set_custom_fan_mode(template_))
-    if (preset := config.get(CONF_PRESET)) is not None:
-        template_ = await cg.templatable(preset, args, ClimatePreset)
-        cg.add(var.set_preset(template_))
-    if (custom_preset := config.get(CONF_CUSTOM_PRESET)) is not None:
-        template_ = await cg.templatable(custom_preset, args, cg.std_string)
-        cg.add(var.set_custom_preset(template_))
-    if (swing_mode := config.get(CONF_SWING_MODE)) is not None:
-        template_ = await cg.templatable(swing_mode, args, ClimateSwingMode)
-        cg.add(var.set_swing_mode(template_))
-    return var
+
+    # All configured fields are folded into a single stateless lambda whose
+    # constants live in flash; the action stores only a function pointer.
+    # For custom_fan_mode/custom_preset the static-string path emits the
+    # (const char *, size_t) overload of set_fan_mode/set_preset to avoid
+    # constructing a std::string and calling runtime strlen.
+    FIELDS = (
+        (CONF_MODE, "set_mode", ClimateMode),
+        (CONF_TARGET_TEMPERATURE, "set_target_temperature", cg.float_),
+        (CONF_TARGET_TEMPERATURE_LOW, "set_target_temperature_low", cg.float_),
+        (CONF_TARGET_TEMPERATURE_HIGH, "set_target_temperature_high", cg.float_),
+        (CONF_TARGET_HUMIDITY, "set_target_humidity", cg.float_),
+        (CONF_FAN_MODE, "set_fan_mode", ClimateFanMode),
+        (CONF_CUSTOM_FAN_MODE, "set_fan_mode", cg.std_string),
+        (CONF_PRESET, "set_preset", ClimatePreset),
+        (CONF_CUSTOM_PRESET, "set_preset", cg.std_string),
+        (CONF_SWING_MODE, "set_swing_mode", ClimateSwingMode),
+    )
+
+    # Normalize trigger args to `const std::remove_cvref_t<T> &` so the
+    # apply lambda and any inner field lambdas (generated below via
+    # `process_lambda`) share one parameter spelling that's well-formed for
+    # any T (value, ref, or const-ref). Matches ControlAction::ApplyFn.
+    normalized_args = [
+        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), n)
+        for t, n in args
+    ]
+
+    fwd_args = ", ".join(name for _, name in args)
+    body_lines: list[str] = []
+
+    for conf_key, setter, type_ in FIELDS:
+        if (value := config.get(conf_key)) is None:
+            continue
+        if isinstance(value, Lambda):
+            inner = await cg.process_lambda(value, normalized_args, return_type=type_)
+            body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
+        elif type_ is cg.std_string:
+            # Static custom strings: emit a flash literal and pass the
+            # UTF-8 byte length to skip the runtime strlen inside
+            # set_fan_mode/set_preset.
+            literal = cg.safe_exp(value)
+            body_lines.append(
+                f"call.{setter}({literal}, {len(value.encode('utf-8'))});"
+            )
+        else:
+            body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
+
+    apply_args = [
+        (ClimateCall.operator("ref"), "call"),
+        *normalized_args,
+    ]
+    apply_lambda = LambdaExpression(
+        ["\n".join(body_lines)],
+        apply_args,
+        capture="",
+        return_type=cg.void,
+    )
+    return cg.new_Pvariable(action_id, template_arg, paren, apply_lambda)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

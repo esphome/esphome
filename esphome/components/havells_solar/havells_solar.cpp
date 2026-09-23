@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace havells_solar {
+namespace esphome::havells_solar {
 
 static const char *const TAG = "havells_solar";
 
@@ -164,5 +163,4 @@ void HavellsSolar::dump_config() {
   LOG_SENSOR("  ", "DCI Of T", this->dci_of_t_sensor_);
 }
 
-}  // namespace havells_solar
-}  // namespace esphome
+}  // namespace esphome::havells_solar

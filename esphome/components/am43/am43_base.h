@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace am43 {
+namespace esphome::am43 {
 
 static const uint16_t AM43_SERVICE_UUID = 0xFE50;
 static const uint16_t AM43_CHARACTERISTIC_UUID = 0xFE51;
@@ -74,5 +73,4 @@ class Am43Decoder {
   bool has_pin_response_;
 };
 
-}  // namespace am43
-}  // namespace esphome
+}  // namespace esphome::am43

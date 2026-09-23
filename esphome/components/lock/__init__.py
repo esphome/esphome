@@ -13,7 +13,11 @@ from esphome.const import (
     CONF_WEB_SERVER,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@esphome/core"]
@@ -35,9 +39,11 @@ LockStateForwarder = lock_ns.class_("LockStateForwarder")
 LockState = lock_ns.enum("LockState")
 
 LOCK_STATES = {
+    "OPEN": LockState.LOCK_STATE_OPEN,
     "LOCKED": LockState.LOCK_STATE_LOCKED,
     "UNLOCKED": LockState.LOCK_STATE_UNLOCKED,
     "JAMMED": LockState.LOCK_STATE_JAMMED,
+    "OPENING": LockState.LOCK_STATE_OPENING,
     "LOCKING": LockState.LOCK_STATE_LOCKING,
     "UNLOCKING": LockState.LOCK_STATE_UNLOCKING,
 }
@@ -110,7 +116,7 @@ async def _setup_lock_core(var, config):
 async def register_lock(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_lock(var))
+    queue_entity_register("lock", config)
     CORE.register_platform_component("lock", var)
     await _setup_lock_core(var, config)
 

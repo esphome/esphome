@@ -7,8 +7,7 @@
 
 #include "esphome/components/xxtea/xxtea.h"
 
-namespace esphome {
-namespace packet_transport {
+namespace esphome::packet_transport {
 
 // Maximum bytes to log in hex output (168 * 3 = 504, under TX buffer size of 512)
 static constexpr size_t PACKET_MAX_LOG_BYTES = 168;
@@ -609,5 +608,4 @@ void PacketTransport::send_ping_pong_request_() {
   this->resend_ping_key_ = false;
   ESP_LOGV(TAG, "Sent new ping request %08X", (unsigned) this->ping_key_);
 }
-}  // namespace packet_transport
-}  // namespace esphome
+}  // namespace esphome::packet_transport

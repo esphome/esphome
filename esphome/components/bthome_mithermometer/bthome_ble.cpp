@@ -17,8 +17,7 @@
 #include "mbedtls/ccm.h"
 #endif
 
-namespace esphome {
-namespace bthome_mithermometer {
+namespace esphome::bthome_mithermometer {
 
 static const char *const TAG = "bthome_mithermometer";
 static constexpr size_t BTHOME_BINDKEY_SIZE = 16;
@@ -223,6 +222,7 @@ bool BTHomeMiThermometer::decrypt_bthome_payload_(const std::vector<uint8_t> &da
   }
 
   size_t plaintext_length;
+  // NOLINTNEXTLINE(readability-suspicious-call-argument) - similarly named size args are not swapped
   psa_status_t status = psa_aead_decrypt(key_id, PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, BTHOME_MIC_SIZE),
                                          nonce.data(), nonce.size(), nullptr, 0, ct_with_tag, ct_with_tag_size,
                                          payload.data(), ciphertext_size, &plaintext_length);
@@ -434,7 +434,6 @@ bool BTHomeMiThermometer::handle_service_data_(const esp32_ble_tracker::ServiceD
   return reported;
 }
 
-}  // namespace bthome_mithermometer
-}  // namespace esphome
+}  // namespace esphome::bthome_mithermometer
 
 #endif

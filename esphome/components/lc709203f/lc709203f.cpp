@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace lc709203f {
+namespace esphome::lc709203f {
 
 static const char *const TAG = "lc709203f.sensor";
 
@@ -279,5 +278,4 @@ void Lc709203f::set_thermistor_b_constant(uint16_t b_constant) { this->b_constan
 
 void Lc709203f::set_pack_voltage(LC709203FBatteryVoltage pack_voltage) { this->pack_voltage_ = pack_voltage; }
 
-}  // namespace lc709203f
-}  // namespace esphome
+}  // namespace esphome::lc709203f

@@ -6,10 +6,9 @@
 
 #include <vector>
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
-class ModbusSensor : public Component, public sensor::Sensor, public SensorItem {
+class ModbusSensor final : public Component, public sensor::Sensor, public SensorItem {
  public:
   ModbusSensor(ModbusRegisterType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
                SensorValueType value_type, int register_count, uint16_t skip_updates, bool force_new_range) {
@@ -33,5 +32,4 @@ class ModbusSensor : public Component, public sensor::Sensor, public SensorItem 
   optional<transform_func_t> transform_func_{nullopt};
 };
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

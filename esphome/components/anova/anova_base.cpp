@@ -2,12 +2,13 @@
 #include <cstdio>
 #include <cstring>
 
-namespace esphome {
-namespace anova {
+#include "esphome/core/alloc_helpers.h"
 
-float ftoc(float f) { return (f - 32.0) * (5.0f / 9.0f); }
+namespace esphome::anova {
 
-float ctof(float c) { return (c * 9.0f / 5.0f) + 32.0; }
+float ftoc(float f) { return (f - 32.0f) * (5.0f / 9.0f); }
+
+float ctof(float c) { return (c * 9.0f / 5.0f) + 32.0f; }
 
 AnovaPacket *AnovaCodec::clean_packet_() {
   this->packet_.length = strlen((char *) this->packet_.data);
@@ -105,14 +106,14 @@ void AnovaCodec::decode(const uint8_t *data, uint16_t length) {
     }
     case READ_TARGET_TEMPERATURE:
     case SET_TARGET_TEMPERATURE: {
-      this->target_temp_ = parse_number<float>(str_until(buf, '\r')).value_or(0.0f);
+      this->target_temp_ = parse_number<float>(str_until(buf, '\r')).value_or(0.0f);  // NOLINT
       if (this->fahrenheit_)
         this->target_temp_ = ftoc(this->target_temp_);
       this->has_target_temp_ = true;
       break;
     }
     case READ_CURRENT_TEMPERATURE: {
-      this->current_temp_ = parse_number<float>(str_until(buf, '\r')).value_or(0.0f);
+      this->current_temp_ = parse_number<float>(str_until(buf, '\r')).value_or(0.0f);  // NOLINT
       if (this->fahrenheit_)
         this->current_temp_ = ftoc(this->current_temp_);
       this->has_current_temp_ = true;
@@ -130,5 +131,4 @@ void AnovaCodec::decode(const uint8_t *data, uint16_t length) {
   }
 }
 
-}  // namespace anova
-}  // namespace esphome
+}  // namespace esphome::anova

@@ -5,10 +5,9 @@
 
 #include "esphome/components/gp8403/gp8403.h"
 
-namespace esphome {
-namespace gp8403 {
+namespace esphome::gp8403 {
 
-class GP8403Output : public Component, public output::FloatOutput, public Parented<GP8403Component> {
+class GP8403Output final : public Component, public output::FloatOutput, public Parented<GP8403Component> {
  public:
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA - 1; }
@@ -19,5 +18,4 @@ class GP8403Output : public Component, public output::FloatOutput, public Parent
   uint8_t channel_;
 };
 
-}  // namespace gp8403
-}  // namespace esphome
+}  // namespace esphome::gp8403

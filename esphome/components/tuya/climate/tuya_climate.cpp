@@ -1,8 +1,7 @@
 #include "tuya_climate.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 static const char *const TAG = "tuya.climate";
 
@@ -514,14 +513,14 @@ void TuyaClimate::compute_state_() {
   } else {
     // Fallback to active state calc based on temp and hysteresis
     const float temp_diff = this->target_temperature - this->current_temperature;
-    if (std::abs(temp_diff) > this->hysteresis_) {
-      if (this->supports_heat_ && temp_diff > 0) {
-        target_action = climate::CLIMATE_ACTION_HEATING;
-        this->mode = climate::CLIMATE_MODE_HEAT;
-      } else if (this->supports_cool_ && temp_diff < 0) {
-        target_action = climate::CLIMATE_ACTION_COOLING;
-        this->mode = climate::CLIMATE_MODE_COOL;
-      }
+    if ((this->supports_heat_ && temp_diff >= this->hysteresis_) ||
+        (this->action == climate::CLIMATE_ACTION_HEATING && temp_diff > 0)) {
+      target_action = climate::CLIMATE_ACTION_HEATING;
+      this->mode = climate::CLIMATE_MODE_HEAT;
+    } else if ((this->supports_cool_ && temp_diff <= -this->hysteresis_) ||
+               (this->action == climate::CLIMATE_ACTION_COOLING && temp_diff < 0)) {
+      target_action = climate::CLIMATE_ACTION_COOLING;
+      this->mode = climate::CLIMATE_MODE_COOL;
     }
   }
 
@@ -533,5 +532,4 @@ void TuyaClimate::switch_to_action_(climate::ClimateAction action) {
   this->action = action;
 }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

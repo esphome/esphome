@@ -8,10 +8,9 @@
 #include "esphome/core/preferences.h"
 #include "esphome/components/lvgl/lvgl_esphome.h"
 
-namespace esphome {
-namespace lvgl {
+namespace esphome::lvgl {
 
-class LVGLSelect : public select::Select, public Component {
+class LVGLSelect final : public select::Select, public Component {
  public:
   LVGLSelect(LvSelectable *widget, lv_anim_enable_t anim, bool restore)
       : widget_(widget), anim_(anim), restore_(restore) {}
@@ -71,5 +70,4 @@ class LVGLSelect : public select::Select, public Component {
   ESPPreferenceObject pref_{};
 };
 
-}  // namespace lvgl
-}  // namespace esphome
+}  // namespace esphome::lvgl

@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace key_collector {
+namespace esphome::key_collector {
 
 static const char *const TAG = "key_collector";
 
@@ -102,5 +101,4 @@ void KeyCollector::send_key(uint8_t key) {
   this->progress_callbacks_.call(this->result_, this->start_key_);
 }
 
-}  // namespace key_collector
-}  // namespace esphome
+}  // namespace esphome::key_collector

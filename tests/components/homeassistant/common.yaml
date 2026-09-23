@@ -93,12 +93,12 @@ text_sensor:
 event:
   - platform: template
     name: Test Event
-    id: test_event
+    id: homeassistant_test_event
     event_types:
       - test_event_type
     on_event:
       - homeassistant.event:
-          event: esphome.test_event
+          event: esphome.homeassistant_test_event
           data:
             event_name: !lambda |-
               return event_type;

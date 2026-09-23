@@ -5,8 +5,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct DraytonData {
   uint16_t address;
@@ -42,5 +41,4 @@ template<typename... Ts> class DraytonAction : public RemoteTransmitterActionBas
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

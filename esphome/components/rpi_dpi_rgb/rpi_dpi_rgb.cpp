@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include <driver/gpio.h>
 
-namespace esphome {
-namespace rpi_dpi_rgb {
+namespace esphome::rpi_dpi_rgb {
 
 void RpiDpiRgb::setup() {
   this->reset_display_();
@@ -55,8 +54,9 @@ void RpiDpiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uin
   // if color mapping is required, pass the buck.
   // note that endianness is not considered here - it is assumed to match!
   if (bitness != display::COLOR_BITNESS_565) {
-    return display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                            x_pad);
+    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
+                                     x_pad);
+    return;
   }
   x_start += this->offset_x_;
   y_start += this->offset_y_;
@@ -160,7 +160,6 @@ void RpiDpiRgb::reset_display_() const {
   }
 }
 
-}  // namespace rpi_dpi_rgb
-}  // namespace esphome
+}  // namespace esphome::rpi_dpi_rgb
 
 #endif  // USE_ESP32_VARIANT_ESP32S3

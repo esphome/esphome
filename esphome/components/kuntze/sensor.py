@@ -15,13 +15,14 @@ from esphome.const import (
     UNIT_EMPTY,
     UNIT_PH,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb"]
 
 AUTO_LOAD = ["modbus"]
 
 kuntze_ns = cg.esphome_ns.namespace("kuntze")
-Kuntze = kuntze_ns.class_("Kuntze", cg.PollingComponent, modbus.ModbusDevice)
+Kuntze = kuntze_ns.class_("Kuntze", cg.PollingComponent, modbus.ModbusClientDevice)
 
 CONF_DIS1 = "dis1"
 CONF_DIS2 = "dis2"
@@ -88,10 +89,17 @@ CONFIG_SCHEMA = (
 )
 
 
+def _final_validate(config: ConfigType) -> ConfigType:
+    return modbus.final_validate_modbus_device("kuntze", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await modbus.register_modbus_device(var, config)
+    await modbus.register_modbus_client_device(var, config)
 
     if CONF_PH in config:
         conf = config[CONF_PH]

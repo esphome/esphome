@@ -4,10 +4,9 @@
 #include "esphome/components/rc522/rc522.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace rc522_i2c {
+namespace esphome::rc522_i2c {
 
-class RC522I2C : public rc522::RC522, public i2c::I2CDevice {
+class RC522I2C final : public rc522::RC522, public i2c::I2CDevice {
  public:
   void dump_config() override;
 
@@ -38,5 +37,4 @@ class RC522I2C : public rc522::RC522, public i2c::I2CDevice {
                           ) override;
 };
 
-}  // namespace rc522_i2c
-}  // namespace esphome
+}  // namespace esphome::rc522_i2c

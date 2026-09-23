@@ -7,10 +7,9 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_cgg1 {
+namespace esphome::xiaomi_cgg1 {
 
-class XiaomiCGG1 : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiCGG1 final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; }
   void set_bindkey(const char *bindkey);
@@ -30,7 +29,6 @@ class XiaomiCGG1 : public Component, public esp32_ble_tracker::ESPBTDeviceListen
   sensor::Sensor *battery_level_{nullptr};
 };
 
-}  // namespace xiaomi_cgg1
-}  // namespace esphome
+}  // namespace esphome::xiaomi_cgg1
 
 #endif

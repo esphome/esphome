@@ -40,7 +40,7 @@ class LD2420Listener {
   virtual void on_fw_version(std::string &fw){};
 };
 
-class LD2420Component : public Component, public uart::UARTDevice {
+class LD2420Component final : public Component, public uart::UARTDevice {
  public:
   struct CmdFrameT {
     uint32_t header{0};

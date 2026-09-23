@@ -6,7 +6,11 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32_ble, ota
-from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components.esp32 import (
+    add_idf_sdkconfig_option,
+    request_bluetooth,
+    request_software_coexistence,
+)
 from esphome.components.esp32_ble import (
     IDF_MAX_CONNECTIONS,
     BTLoggers,
@@ -315,9 +319,9 @@ async def to_code(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+    request_bluetooth()
     if config.get(CONF_SOFTWARE_COEXISTENCE):
-        add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", True)
+        request_software_coexistence()
     # https://github.com/espressif/esp-idf/issues/4101
     # https://github.com/espressif/esp-idf/issues/2503
     # Match arduino CONFIG_BTU_TASK_STACK_SIZE

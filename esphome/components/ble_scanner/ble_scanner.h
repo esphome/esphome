@@ -10,10 +10,11 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ble_scanner {
+namespace esphome::ble_scanner {
 
-class BLEScanner : public text_sensor::TextSensor, public esp32_ble_tracker::ESPBTDeviceListener, public Component {
+class BLEScanner final : public text_sensor::TextSensor,
+                         public esp32_ble_tracker::ESPBTDeviceListener,
+                         public Component {
  public:
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
     char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -43,7 +44,6 @@ class BLEScanner : public text_sensor::TextSensor, public esp32_ble_tracker::ESP
   void dump_config() override;
 };
 
-}  // namespace ble_scanner
-}  // namespace esphome
+}  // namespace esphome::ble_scanner
 
 #endif

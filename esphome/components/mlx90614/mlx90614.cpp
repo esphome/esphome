@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mlx90614 {
+namespace esphome::mlx90614 {
 
 static const uint8_t MLX90614_RAW_IR_1 = 0x04;
 static const uint8_t MLX90614_RAW_IR_2 = 0x05;
@@ -101,5 +100,4 @@ void MLX90614Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace mlx90614
-}  // namespace esphome
+}  // namespace esphome::mlx90614

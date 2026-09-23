@@ -24,8 +24,7 @@
     } \
   }
 
-namespace esphome {
-namespace pylontech {
+namespace esphome::pylontech {
 
 static const char *const TAG = "pylontech";
 static const int MAX_DATA_LENGTH_BYTES = 256;
@@ -198,8 +197,7 @@ void PylontechComponent::process_line_(std::string &buffer) {
   }
 }
 
-}  // namespace pylontech
-}  // namespace esphome
+}  // namespace esphome::pylontech
 
 #undef PARSE_INT
 #undef PARSE_STR
