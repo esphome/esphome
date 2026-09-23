@@ -669,9 +669,8 @@ ESP8266_NATIVE_TEST_COMPONENTS = frozenset(
     }
 )
 
-# Infrastructure whose changes always trigger the native ESP8266 compile
-# test. esphome/build_helpers/ holds the idedata and size-summary helpers
-# the backend shares with the native ESP-IDF build.
+# Infrastructure whose changes always trigger the native ESP8266
+# compile test
 ESP8266_NATIVE_TRIGGER_PATH_PREFIXES = (
     "esphome/arduino8266/",
     "esphome/arduino/",
