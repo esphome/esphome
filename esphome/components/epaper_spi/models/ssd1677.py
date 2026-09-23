@@ -1,11 +1,28 @@
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import CONF_DATA_RATE
 
 from . import EpaperModel
 
+# A component-local constant (esphome/const.py is frozen); it8951/display.py also defines this.
+CONF_GRAYSCALE = "grayscale"
+
 
 class SSD1677(EpaperModel):
-    def __init__(self, name, class_name="EPaperMono", data_rate="20MHz", **defaults):
+    def __init__(
+        self,
+        name,
+        class_name="EPaperMono",
+        data_rate="20MHz",
+        supports_grayscale=False,
+        **defaults,
+    ):
         defaults[CONF_DATA_RATE] = data_rate
+        # Persisted through defaults (like data_rate above) rather than kept only as an instance
+        # attribute, so a future .extend() off a grayscale-capable instance carries the flag
+        # forward instead of silently reverting to the constructor default of False.
+        defaults["supports_grayscale"] = supports_grayscale
+        self.supports_grayscale = supports_grayscale
         super().__init__(name, class_name, **defaults)
 
     # fmt: off
@@ -18,6 +35,18 @@ class SSD1677(EpaperModel):
             (0x3C, 0x01),    # Set border waveform
             (0x11, 3),      # Set transform
         )
+
+    def get_config_options(self) -> dict:
+        if not self.supports_grayscale:
+            return {}
+        # Default false: this option is additive, existing 1bpp configs must keep rendering
+        # exactly as before if they don't opt in.
+        return {cv.Optional(CONF_GRAYSCALE, default=False): cv.boolean}
+
+    async def to_code(self, var, config: dict) -> dict:
+        if self.supports_grayscale:
+            cg.add(var.set_grayscale(config[CONF_GRAYSCALE]))
+        return config
 
 
 ssd1677 = SSD1677("ssd1677")
@@ -52,8 +81,13 @@ ssd1677.extend(
     mirror_x=True,
 )
 
+# Grayscale (4-level, factory OTP waveform) is only offered here: the register values it relies on
+# are confirmed against Seeed's own driver and the stock reTerminal Sticky firmware specifically,
+# and are not verified for any other SSD1677 board's glass.
 ssd1677.extend(
     "seeed-reterminal-sticky",
+    class_name="EPaperSSD1677",
+    supports_grayscale=True,
     width=800,
     height=480,
     mirror_x=True,
