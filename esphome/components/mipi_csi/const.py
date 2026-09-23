@@ -1,8 +1,4 @@
-"""Configuration keys used by the `mipi_csi` component.
-
-These live apart from `__init__.py` so that `validate.py` can use them without importing the
-component back into itself.
-"""
+"""Configuration keys used by the `mipi_csi` component."""
 
 CONF_EXTERNAL_CLOCK = "external_clock"
 CONF_FRAME_BUFFER_COUNT = "frame_buffer_count"
