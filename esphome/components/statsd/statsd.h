@@ -27,7 +27,7 @@
 
 namespace esphome::statsd {
 
-class StatsdComponent : public PollingComponent {
+class StatsdComponent final : public PollingComponent {
  public:
   ~StatsdComponent();
 

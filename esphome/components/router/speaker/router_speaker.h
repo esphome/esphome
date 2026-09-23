@@ -59,6 +59,9 @@ class Router final : public Component, public speaker::Speaker {
   // frames_in_pipeline_.
   std::atomic<uint32_t> frames_in_pipeline_{0};
 
+  // Set when entering STATE_STARTING; used to time out a start the output never acts on
+  uint32_t state_start_ms_{0};
+
   bool cached_pause_{false};
 
   void apply_cached_state_to_active_();

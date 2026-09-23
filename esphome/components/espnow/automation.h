@@ -119,7 +119,7 @@ template<typename... Ts> class SetChannelAction final : public Action<Ts...>, pu
   }
 };
 
-class OnReceiveTrigger final : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
+class OnReceiveTrigger final : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint16_t>,
                                public ESPNowReceivedPacketHandler {
  public:
   explicit OnReceiveTrigger(std::array<uint8_t, ESP_NOW_ETH_ALEN> address) : has_address_(true) {
@@ -128,7 +128,7 @@ class OnReceiveTrigger final : public Trigger<const ESPNowRecvInfo &, const uint
 
   explicit OnReceiveTrigger() {}
 
-  bool on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override {
+  bool on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) override {
     bool match = !this->has_address_ || (memcmp(this->address_, info.src_addr, ESP_NOW_ETH_ALEN) == 0);
     if (!match)
       return false;
@@ -141,15 +141,15 @@ class OnReceiveTrigger final : public Trigger<const ESPNowRecvInfo &, const uint
   bool has_address_{false};
   uint8_t address_[ESP_NOW_ETH_ALEN]{};
 };
-class OnUnknownPeerTrigger final : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
+class OnUnknownPeerTrigger final : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint16_t>,
                                    public ESPNowUnknownPeerHandler {
  public:
-  bool on_unknown_peer(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override {
+  bool on_unknown_peer(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) override {
     this->trigger(info, data, size);
     return false;  // Return false to continue processing other internal handlers
   }
 };
-class OnBroadcastTrigger final : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
+class OnBroadcastTrigger final : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint16_t>,
                                  public ESPNowBroadcastHandler {
  public:
   explicit OnBroadcastTrigger(std::array<uint8_t, ESP_NOW_ETH_ALEN> address) : has_address_(true) {
@@ -157,7 +157,7 @@ class OnBroadcastTrigger final : public Trigger<const ESPNowRecvInfo &, const ui
   }
   explicit OnBroadcastTrigger() {}
 
-  bool on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override {
+  bool on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) override {
     bool match = !this->has_address_ || (memcmp(this->address_, info.src_addr, ESP_NOW_ETH_ALEN) == 0);
     if (!match)
       return false;

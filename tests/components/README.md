@@ -28,6 +28,7 @@ create an `__init__.py` in your component's test directory and define `override_
 ```python
 from tests.testing_helpers import ComponentManifestOverride
 
+
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     # Re-enable the component's own to_code (needed when the component must
     # emit C++ setup code that the test binary depends on at link time).
@@ -38,6 +39,7 @@ Or supply a lightweight stub instead of the real `to_code`:
 
 ```python
 from tests.testing_helpers import ComponentManifestOverride
+
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code_testing(config):
@@ -53,6 +55,7 @@ e.g. `tests/components/my_sensor/sensor/__init__.py`):
 
 ```python
 from tests.testing_helpers import ComponentManifestOverride
+
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     manifest.enable_codegen()

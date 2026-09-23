@@ -15,6 +15,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     only_on_variant,
 )
 from esphome.config_helpers import filter_source_files_from_platform
@@ -35,7 +36,7 @@ from esphome.const import (
     KEY_VARIANT,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -54,7 +55,7 @@ SPIMode = spi_ns.enum("SPIMode")
 PLATFORM_SPI_CLOCKS = {
     PLATFORM_ESP8266: 40e6,
     PLATFORM_ESP32: 80e6,
-    PLATFORM_RP2040: 62.5e6,
+    PLATFORM_RP2: 62.5e6,
 }
 
 MAX_DATA_RATE_ERROR = 0.05  # Max allowable actual data rate difference from requested
@@ -83,7 +84,7 @@ def _render_hz(value: float) -> str:
     return formatted + unit
 
 
-def _frequency_validator(value):
+def _frequency_validator(value: Any) -> float:
     platform = get_target_platform()
     frequency = PLATFORM_SPI_CLOCKS[platform]
     value = cv.frequency(value)
@@ -126,6 +127,7 @@ CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
 CONF_INTERFACE_INDEX = "interface_index"
 CONF_RELEASE_DEVICE = "release_device"
+CONF_PSRAM_DMA = "psram_dma"
 TYPE_SINGLE = "single"
 TYPE_QUAD = "quad"
 TYPE_OCTAL = "octal"
@@ -135,6 +137,29 @@ TYPE_CLASS = {
     TYPE_QUAD: QuadSPIComponent,
     TYPE_OCTAL: OctalSPIComponent,
 }
+
+
+def _validate_psram_dma(value: Any) -> bool:
+    value = cv.boolean(value)
+    if not value:
+        return value
+    return cv.All(
+        cv.only_on_esp32,
+        cv.only_with_framework("esp-idf"),
+        only_on_variant(
+            supported=[
+                VARIANT_ESP32C5,
+                VARIANT_ESP32C61,
+                VARIANT_ESP32P4,
+                VARIANT_ESP32S31,
+                VARIANT_ESP32S3,
+            ],
+            msg_prefix="PSRAM DMA",
+        ),
+        cv.require_framework_version(esp_idf=cv.Version(5, 5, 3)),
+        cv.requires_component("psram"),
+    )(value)
+
 
 # RP2040 SPI pin assignments are complicated;
 # refer to GPIO function select table in https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
@@ -153,17 +178,17 @@ RP_SPI_PINSETS = [
 ]
 
 
-def get_target_platform():
+def get_target_platform() -> str:
     return CORE.data[KEY_CORE][KEY_TARGET_PLATFORM]
 
 
-def get_target_variant():
+def get_target_variant() -> str:
     return CORE.data[KEY_ESP32].get(KEY_VARIANT, "")
 
 
 # Get a list of available hardware interfaces based on target and variant.
 # The returned value is a list of lists of names
-def get_hw_interface_list():
+def get_hw_interface_list() -> list[list[str]]:
     target_platform = get_target_platform()
     if target_platform == PLATFORM_ESP8266:
         return [["spi", "hspi"]]
@@ -179,7 +204,7 @@ def get_hw_interface_list():
         ]:
             return [["spi", "spi2"]]
         return [["spi", "spi2"], ["spi3"]]
-    if target_platform == PLATFORM_RP2040:
+    if target_platform == PLATFORM_RP2:
         return [["spi"], ["spi1"]]
     return []
 
@@ -196,7 +221,7 @@ def one_of_interface_validator(additional_values: list[str] | None = None) -> An
     if additional_values is None:
         additional_values = []
 
-    def validator(value: str) -> str:
+    def validator(value: Any) -> str:
         return cv.one_of(
             *sum(get_hw_interface_list(), additional_values),
             lower=True,
@@ -206,7 +231,7 @@ def one_of_interface_validator(additional_values: list[str] | None = None) -> An
 
 
 # Given an SPI name, return the index of it in the available list
-def get_spi_index(name):
+def get_spi_index(name: str) -> int:
     for i, ilist in enumerate(get_hw_interface_list()):
         if name in ilist:
             return i
@@ -218,7 +243,7 @@ def get_spi_index(name):
 # \param spi the config data for the spi instance
 # \param index the selected hw interface number, -1 if not yet known
 # TODO verify that the pins are internal
-def validate_hw_pins(spi, index=-1):
+def validate_hw_pins(spi: ConfigType, index: int = -1) -> bool:
     clk_pin = spi[CONF_CLK_PIN]
     if clk_pin[CONF_INVERTED]:
         return False
@@ -247,7 +272,7 @@ def validate_hw_pins(spi, index=-1):
     if target_platform == PLATFORM_ESP32:
         return clk_pin_no >= 0
 
-    if target_platform == PLATFORM_RP2040:
+    if target_platform == PLATFORM_RP2:
         if index == -1:
             matches = list(
                 filter(lambda s: clk_pin_no in s[CONF_CLK_PIN], RP_SPI_PINSETS)
@@ -265,7 +290,7 @@ def validate_hw_pins(spi, index=-1):
     return False
 
 
-def get_hw_spi(config, available):
+def get_hw_spi(config: ConfigType, available: list[int]) -> int | None:
     """Get an available hardware spi interface suitable for this config"""
     matching = list(filter(lambda idx: validate_hw_pins(config, idx), available))
     if len(matching) != 0:
@@ -273,7 +298,7 @@ def get_hw_spi(config, available):
     return None
 
 
-def validate_spi_config(config):
+def validate_spi_config(config: list[ConfigType]) -> list[ConfigType]:
     available = list(range(len(get_hw_interface_list())))
     for spi in config:
         interface = spi[CONF_INTERFACE]
@@ -317,13 +342,13 @@ def validate_spi_config(config):
 
 
 # Given an SPI index, convert to a string that represents the C++ object for it.
-def get_spi_interface(index):
+def get_spi_interface(index: int) -> str:
     platform = get_target_platform()
     if platform == PLATFORM_ESP32:
         # ESP32 uses ESP-IDF SPI driver for both Arduino and IDF frameworks
         return ["SPI2_HOST", "SPI3_HOST"][index]
     # Arduino code follows
-    if platform == PLATFORM_RP2040:
+    if platform == PLATFORM_RP2:
         return ["&SPI", "&SPI1"][index]
     if index == 0:
         return "&SPI"
@@ -349,11 +374,11 @@ SPI_SINGLE_SCHEMA = cv.All(
         }
     ),
     cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2]),
 )
 
 
-def spi_mode_schema(mode):
+def spi_mode_schema(mode: str) -> cv.Schema:
     if mode == TYPE_SINGLE:
         return SPI_SINGLE_SCHEMA
     pin_count = 4 if mode == TYPE_QUAD else 8
@@ -400,7 +425,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 @coroutine_with_priority(CoroPriority.BUS)
-async def to_code(configs):
+async def to_code(configs: list[ConfigType]) -> None:
     cg.add_define("USE_SPI")
     cg.add_global(spi_ns.using)
     if CORE.using_arduino and not CORE.is_esp32:
@@ -427,11 +452,11 @@ async def to_code(configs):
 
 
 def spi_device_schema(
-    cs_pin_required=True,
-    default_data_rate=cv.UNDEFINED,
-    default_mode=cv.UNDEFINED,
-    mode=TYPE_SINGLE,
-):
+    cs_pin_required: bool = True,
+    default_data_rate: Any = cv.UNDEFINED,
+    default_mode: Any = cv.UNDEFINED,
+    mode: str = TYPE_SINGLE,
+) -> cv.Schema:
     """Create a schema for an SPI device.
     :param cs_pin_required: If true, make the CS_PIN required in the config.
     :param default_data_rate: Optional data_rate to use as default
@@ -450,13 +475,14 @@ def spi_device_schema(
                 SPI_MODE_OPTIONS, upper=True
             ),
             cv.Optional(CONF_RELEASE_DEVICE): cv.All(cv.boolean, cv.only_on_esp32),
+            cv.Optional(CONF_PSRAM_DMA): _validate_psram_dma,
             cs_pin_option(CONF_CS_PIN): pins.gpio_output_pin_schema,
         }
     )
 
 
 async def register_spi_device(
-    var: cg.Pvariable, config: ConfigType, write_only: bool = False
+    var: cg.MockObj, config: ConfigType, write_only: bool = False
 ) -> None:
     parent = await cg.get_variable(config[CONF_SPI_ID])
     cg.add(var.set_spi_parent(parent))
@@ -471,9 +497,14 @@ async def register_spi_device(
         cg.add(var.set_mode(spi_mode))
     if release_device := config.get(CONF_RELEASE_DEVICE):
         cg.add(var.set_release_device(release_device))
+    if psram_dma := config.get(CONF_PSRAM_DMA):
+        cg.add_define("USE_SPI_PSRAM_DMA")
+        cg.add(var.set_psram_dma(psram_dma))
 
 
-def final_validate_device_schema(name: str, *, require_mosi: bool, require_miso: bool):
+def final_validate_device_schema(
+    name: str, *, require_mosi: bool, require_miso: bool
+) -> cv.Schema:
     hub_schema = {}
     if require_miso:
         hub_schema[
@@ -496,11 +527,41 @@ def final_validate_device_schema(name: str, *, require_mosi: bool, require_miso:
     )
 
 
+def _walk_config(value: Any, path: tuple[Any, ...] = ()):
+    if isinstance(value, dict):
+        yield value, path
+        for key, child in value.items():
+            yield from _walk_config(child, (*path, key))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from _walk_config(child, (*path, index))
+
+
+def _final_validate(config: Any) -> Any:
+    buses = config if isinstance(config, list) else [config]
+    software_bus_ids = {
+        bus[CONF_ID] for bus in buses if CONF_INTERFACE_INDEX not in bus
+    }
+    if not software_bus_ids:
+        return config
+    for candidate, path in _walk_config(fv.full_config.get()):
+        if (
+            candidate.get(CONF_PSRAM_DMA)
+            and candidate.get(CONF_SPI_ID) in software_bus_ids
+        ):
+            with cv.prepend_path([cv.ROOT_CONFIG_PATH, *path, CONF_PSRAM_DMA]):
+                raise cv.Invalid("psram_dma requires a hardware SPI interface")
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
         "spi_arduino.cpp": {
             PlatformFramework.ESP8266_ARDUINO,
-            PlatformFramework.RP2040_ARDUINO,
+            PlatformFramework.RP2_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,

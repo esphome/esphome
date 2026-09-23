@@ -88,6 +88,38 @@ def show_disk_space_if_ci(esphome_command: str) -> None:
     sys.stdout.flush()
 
 
+def start_log_group(title: str) -> None:
+    """Begin a collapsible log group in the GitHub Actions log viewer.
+
+    Everything printed until the matching :func:`end_log_group` is folded away
+    by default, so the full ``esphome config``/``compile`` dump for one
+    configuration no longer pushes the pass/fail result thousands of lines down
+    the log. Outside CI this is a no-op so local runs stay plain.
+
+    Args:
+        title: Text shown on the (collapsed) group header line.
+    """
+    if not os.environ.get("GITHUB_ACTIONS"):
+        return
+    # Flush so the marker is ordered correctly relative to the child process
+    # output that follows (the subprocess writes straight to our stdout).
+    sys.stdout.flush()
+    print(f"::group::{title}")
+    sys.stdout.flush()
+
+
+def end_log_group() -> None:
+    """Close the collapsible log group opened by :func:`start_log_group`.
+
+    Outside CI this is a no-op.
+    """
+    if not os.environ.get("GITHUB_ACTIONS"):
+        return
+    sys.stdout.flush()
+    print("::endgroup::")
+    sys.stdout.flush()
+
+
 def find_component_tests(
     components_dir: Path,
     component_pattern: str = "*",
@@ -335,7 +367,7 @@ def run_esphome_test(
     output_file = build_dir / f"{component}.{test_name}.{platform_with_version}.yaml"
 
     # Copy base file and substitute component test file reference
-    base_content = base_file.read_text()
+    base_content = base_file.read_text(encoding="utf-8")
     # Get relative path from build dir to test file
     repo_root = Path(__file__).parent.parent
     component_test_ref = f"../../{test_file.relative_to(repo_root / 'tests')}"
@@ -383,54 +415,48 @@ def run_esphome_test(
     # Build command string for display/logging
     cmd_str = " ".join(cmd)
 
-    # Run command
-    print(f"> [{component}] [{test_name}] [{platform_with_version}]")
+    # Run command inside a collapsible CI log group so the full esphome output
+    # for this configuration can be folded away by default.
+    group_title = f"[{component}] [{test_name}] [{platform_with_version}]"
+    start_log_group(group_title)
+    print(f"> {group_title}")
     if use_testing_mode:
         print("  (using --testing-mode)")
 
     start_time = time.time()
     test_id = f"{component}.{test_name}.{platform_with_version}"
 
+    # Always close the group, even if the subprocess or disk-space reporting
+    # raises, so later output is never folded into the wrong CI log section.
     try:
         result = subprocess.run(cmd, check=False)
-        success = result.returncode == 0
-        duration = time.time() - start_time
-
         # Show disk space after build in CI during compile
         show_disk_space_if_ci(esphome_command)
+    finally:
+        end_log_group()
 
-        if not success and not continue_on_fail:
-            # Print command immediately for failed tests
-            print(f"\n{'=' * 80}")
-            print("FAILED - Command to reproduce:")
-            print(f"{'=' * 80}")
-            print(cmd_str)
-            print()
-            raise subprocess.CalledProcessError(result.returncode, cmd)
+    success = result.returncode == 0
+    duration = time.time() - start_time
 
-        return TestResult(
-            test_id=test_id,
-            components=[component],
-            platform=platform_with_version,
-            success=success,
-            duration=duration,
-            command=cmd_str,
-            test_type=esphome_command,
-        )
-    except subprocess.CalledProcessError:
-        duration = time.time() - start_time
-        # Re-raise if we're not continuing on fail
-        if not continue_on_fail:
-            raise
-        return TestResult(
-            test_id=test_id,
-            components=[component],
-            platform=platform_with_version,
-            success=False,
-            duration=duration,
-            command=cmd_str,
-            test_type=esphome_command,
-        )
+    if not success and not continue_on_fail:
+        # Print command immediately for failed tests. The group is already
+        # closed, so the failure and reproduce command stay visible.
+        print(f"\n{'=' * 80}")
+        print("FAILED - Command to reproduce:")
+        print(f"{'=' * 80}")
+        print(cmd_str)
+        print()
+        raise subprocess.CalledProcessError(result.returncode, cmd)
+
+    return TestResult(
+        test_id=test_id,
+        components=[component],
+        platform=platform_with_version,
+        success=success,
+        duration=duration,
+        command=cmd_str,
+        test_type=esphome_command,
+    )
 
 
 def run_grouped_test(
@@ -498,7 +524,7 @@ def run_grouped_test(
 
     # Create test file that includes merged config
     output_file = build_dir / f"test_{group_name}.{platform_with_version}.yaml"
-    base_content = base_file.read_text()
+    base_content = base_file.read_text(encoding="utf-8")
     merged_ref = merged_config_file.name
     output_content = base_content.replace("$component_test_file", merged_ref)
     output_file.write_text(output_content)
@@ -534,54 +560,48 @@ def run_grouped_test(
     # Build command string for display/logging
     cmd_str = " ".join(cmd)
 
-    # Run command
+    # Run command inside a collapsible CI log group so the full esphome output
+    # for this grouped configuration can be folded away by default.
     components_str = ", ".join(components)
-    print(f"> [GROUPED: {components_str}] [{platform_with_version}]")
+    group_title = f"[GROUPED: {components_str}] [{platform_with_version}]"
+    start_log_group(group_title)
+    print(f"> {group_title}")
     print("  (using --testing-mode)")
 
     start_time = time.time()
     test_id = f"GROUPED[{','.join(components)}].{platform_with_version}"
 
+    # Always close the group, even if the subprocess or disk-space reporting
+    # raises, so later output is never folded into the wrong CI log section.
     try:
         result = subprocess.run(cmd, check=False)
-        success = result.returncode == 0
-        duration = time.time() - start_time
-
         # Show disk space after build in CI during compile
         show_disk_space_if_ci(esphome_command)
+    finally:
+        end_log_group()
 
-        if not success and not continue_on_fail:
-            # Print command immediately for failed tests
-            print(f"\n{'=' * 80}")
-            print("FAILED - Command to reproduce:")
-            print(f"{'=' * 80}")
-            print(cmd_str)
-            print()
-            raise subprocess.CalledProcessError(result.returncode, cmd)
+    success = result.returncode == 0
+    duration = time.time() - start_time
 
-        return TestResult(
-            test_id=test_id,
-            components=components,
-            platform=platform_with_version,
-            success=success,
-            duration=duration,
-            command=cmd_str,
-            test_type=esphome_command,
-        )
-    except subprocess.CalledProcessError:
-        duration = time.time() - start_time
-        # Re-raise if we're not continuing on fail
-        if not continue_on_fail:
-            raise
-        return TestResult(
-            test_id=test_id,
-            components=components,
-            platform=platform_with_version,
-            success=False,
-            duration=duration,
-            command=cmd_str,
-            test_type=esphome_command,
-        )
+    if not success and not continue_on_fail:
+        # Print command immediately for failed tests. The group is already
+        # closed, so the failure and reproduce command stay visible.
+        print(f"\n{'=' * 80}")
+        print("FAILED - Command to reproduce:")
+        print(f"{'=' * 80}")
+        print(cmd_str)
+        print()
+        raise subprocess.CalledProcessError(result.returncode, cmd)
+
+    return TestResult(
+        test_id=test_id,
+        components=components,
+        platform=platform_with_version,
+        success=success,
+        duration=duration,
+        command=cmd_str,
+        test_type=esphome_command,
+    )
 
 
 def run_grouped_component_tests(

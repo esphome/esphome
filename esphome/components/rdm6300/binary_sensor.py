@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor, rdm6300
 import esphome.config_validation as cv
 from esphome.const import CONF_UID
+from esphome.types import ConfigType
 
 from . import rdm6300_ns
 
@@ -20,7 +21,7 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(RDM6300BinarySensor).extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
 
     hub = await cg.get_variable(config[CONF_RDM6300_ID])

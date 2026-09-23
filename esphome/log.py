@@ -1,5 +1,7 @@
 from enum import Enum
 import logging
+import sys
+from typing import TextIO
 
 from esphome.core import CORE
 
@@ -72,13 +74,30 @@ class ESPHomeLogFormatter(logging.Formatter):
         return message
 
 
+def _is_tty(stream: TextIO | None) -> bool:
+    # A stream can be missing, closed, or not a real file object; colorama
+    # tolerates all three, so treat them like a redirect and let its own
+    # handling apply.
+    if stream is None or getattr(stream, "closed", True):
+        return False
+    return hasattr(stream, "isatty") and stream.isatty()
+
+
 def setup_log(
     log_level: int = logging.INFO,
     include_timestamp: bool = False,
 ) -> None:
-    import colorama
+    # colorama translates ANSI escapes for old Windows consoles and strips
+    # them from redirected output. POSIX terminals render ANSI natively, and
+    # dashboard runs escape their color codes before printing, so both would
+    # use colorama as a plain passthrough; skip the import there (it pulls
+    # in ctypes, ~3ms on every CLI invocation).
+    if sys.platform == "win32" or not (
+        CORE.dashboard or (_is_tty(sys.stdout) and _is_tty(sys.stderr))
+    ):
+        import colorama
 
-    colorama.init()
+        colorama.init()
 
     # Setup logging - will map log level from string to constant
     logging.basicConfig(level=log_level)
