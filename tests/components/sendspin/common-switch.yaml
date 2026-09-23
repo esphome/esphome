@@ -1,0 +1,6 @@
+packages:
+  sendspin: !include common.yaml
+
+switch:
+  - platform: sendspin
+    name: "Sendspin Enabled"

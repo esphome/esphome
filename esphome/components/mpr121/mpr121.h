@@ -57,7 +57,7 @@ class MPR121Channel {
   virtual void process(uint16_t data) = 0;
 };
 
-class MPR121Component : public Component, public i2c::I2CDevice {
+class MPR121Component final : public Component, public i2c::I2CDevice {
  public:
   void register_channel(MPR121Channel *channel) { this->channels_.push_back(channel); }
   void set_touch_debounce(uint8_t debounce);
@@ -102,7 +102,7 @@ class MPR121Component : public Component, public i2c::I2CDevice {
 };
 
 /// Helper class to expose a MPR121 pin as an internal input GPIO pin.
-class MPR121GPIOPin : public GPIOPin {
+class MPR121GPIOPin final : public GPIOPin {
  public:
   void setup() override;
   void pin_mode(gpio::Flags flags) override;

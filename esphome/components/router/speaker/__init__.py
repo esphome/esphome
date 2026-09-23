@@ -63,7 +63,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     # Validate every configured output speaker can accept the router's format.
     # Switching to an output that can't reproduce the format the producer is
     # already sending would otherwise fail silently at runtime.
@@ -76,7 +76,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
             channels=config[CONF_NUM_CHANNELS],
             sample_rate=config[CONF_SAMPLE_RATE],
         )(proxy)
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

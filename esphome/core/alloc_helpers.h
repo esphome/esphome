@@ -94,14 +94,6 @@ std::string format_hex_pretty(const std::string &data, char separator = '.', boo
 /// @warning Allocates heap memory. Use format_bin_to() with a stack buffer instead.
 std::string format_bin(const uint8_t *data, size_t length);
 
-// --- Value formatting helpers (allocating) ---
-
-/// Format a float value with accuracy decimals to a string.
-/// @deprecated Allocates heap memory. Use value_accuracy_to_buf() instead. Removed in 2026.7.0.
-__attribute__((deprecated("Allocates heap memory. Use value_accuracy_to_buf() instead. Removed in 2026.7.0.")))
-std::string
-value_accuracy_to_string(float value, int8_t accuracy_decimals);
-
 // --- Base64 helpers (allocating) ---
 
 /// Encode a byte buffer to base64 string.

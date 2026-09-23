@@ -1,0 +1,22 @@
+esphome:
+  name: scheduler-blocking-warning
+  on_boot:
+    then:
+      - script.execute: blocking_script
+
+host:
+api:
+logger:
+  level: DEBUG
+
+# The busy-block runs in the second delay's continuation; the warning must name the script. Two
+# delays verify the source survives chained delays (the scheduler republishes it each continuation).
+script:
+  - id: blocking_script
+    then:
+      - delay: 10ms
+      - delay: 10ms
+      - lambda: |-
+          const uint32_t start = millis();
+          while (millis() - start < 80) {
+          }

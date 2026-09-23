@@ -7,7 +7,7 @@
 
 namespace esphome::mcp23008 {
 
-class MCP23008 : public mcp23x08_base::MCP23X08Base, public i2c::I2CDevice {
+class MCP23008 final : public mcp23x08_base::MCP23X08Base, public i2c::I2CDevice {
  public:
   MCP23008() = default;
 

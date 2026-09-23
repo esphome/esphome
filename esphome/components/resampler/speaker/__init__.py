@@ -1,3 +1,5 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import audio, psram, speaker
 import esphome.config_validation as cv
@@ -13,6 +15,7 @@ from esphome.const import (
     PLATFORM_ESP32,
 )
 from esphome.core.entity_helpers import inherit_property_from
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@kahrendt"]
@@ -24,8 +27,10 @@ ResamplerSpeaker = resampler_ns.class_(
 
 CONF_TAPS = "taps"
 
+PASSTHROUGH = "passthrough"
 
-def _set_stream_limits(config):
+
+def _set_stream_limits(config: ConfigType) -> ConfigType:
     audio.set_stream_limits(
         min_bits_per_sample=16,
         max_bits_per_sample=32,
@@ -34,21 +39,28 @@ def _set_stream_limits(config):
     return config
 
 
-def _validate_audio_compatibility(config):
-    inherit_property_from(CONF_BITS_PER_SAMPLE, CONF_OUTPUT_SPEAKER)(config)
+def _validate_audio_compatibility(config: ConfigType) -> None:
     inherit_property_from(CONF_NUM_CHANNELS, CONF_OUTPUT_SPEAKER)(config)
     inherit_property_from(CONF_SAMPLE_RATE, CONF_OUTPUT_SPEAKER)(config)
+
+    # In passthrough mode the output bits per sample is determined at runtime from the input stream, so there is
+    # nothing to inherit or validate against the output speaker.
+    passthrough = config.get(CONF_BITS_PER_SAMPLE) == PASSTHROUGH
+    if not passthrough:
+        inherit_property_from(CONF_BITS_PER_SAMPLE, CONF_OUTPUT_SPEAKER)(config)
 
     audio.final_validate_audio_schema(
         "source_speaker",
         audio_device=CONF_OUTPUT_SPEAKER,
-        bits_per_sample=config.get(CONF_BITS_PER_SAMPLE),
+        bits_per_sample=cv.UNDEFINED
+        if passthrough
+        else config.get(CONF_BITS_PER_SAMPLE),
         channels=config.get(CONF_NUM_CHANNELS),
         sample_rate=config.get(CONF_SAMPLE_RATE),
     )(config)
 
 
-def _validate_taps(taps):
+def _validate_taps(taps: Any) -> int:
     value = cv.int_range(min=16, max=128)(taps)
     if value % 4 != 0:
         raise cv.Invalid("Number of taps must be divisible by 4")
@@ -60,6 +72,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ResamplerSpeaker),
             cv.Required(CONF_OUTPUT_SPEAKER): cv.use_id(speaker.Speaker),
+            cv.Optional(CONF_BITS_PER_SAMPLE, default=PASSTHROUGH): cv.Any(
+                cv.one_of(PASSTHROUGH, lower=True), cv.int_range(8, 32)
+            ),
             cv.Optional(
                 CONF_BUFFER_DURATION, default="100ms"
             ): cv.positive_time_period_milliseconds,
@@ -76,7 +91,7 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = _validate_audio_compatibility
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await speaker.register_speaker(var, config)
@@ -90,7 +105,10 @@ async def to_code(config):
         cg.add(var.set_task_stack_in_psram(True))
         psram.request_external_task_stack()
 
-    cg.add(var.set_target_bits_per_sample(config[CONF_BITS_PER_SAMPLE]))
+    if config[CONF_BITS_PER_SAMPLE] == PASSTHROUGH:
+        cg.add(var.set_passthrough_bits_per_sample(True))
+    else:
+        cg.add(var.set_target_bits_per_sample(config[CONF_BITS_PER_SAMPLE]))
     cg.add(var.set_target_sample_rate(config[CONF_SAMPLE_RATE]))
 
     cg.add(var.set_filters(config[CONF_FILTERS]))

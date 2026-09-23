@@ -2,7 +2,6 @@ from esphome import automation
 from esphome.automation import Condition, maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
-import esphome.components.actuator as actuator_component
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -73,7 +72,6 @@ OpenAction = valve_ns.class_("OpenAction", automation.Action)
 CloseAction = valve_ns.class_("CloseAction", automation.Action)
 StopAction = valve_ns.class_("StopAction", automation.Action)
 ToggleAction = valve_ns.class_("ToggleAction", automation.Action)
-ControlAction = valve_ns.class_("ControlAction", automation.Action)
 ValvePublishAction = valve_ns.class_("ValvePublishAction", automation.Action)
 ValveIsOpenCondition = valve_ns.class_("ValveIsOpenCondition", Condition)
 ValveIsClosedCondition = valve_ns.class_("ValveIsClosedCondition", Condition)
@@ -93,7 +91,9 @@ _VALVE_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(Valve),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTValveComponent),
-            cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): cv.one_of(*DEVICE_CLASSES, lower=True),
             cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.subscribe_topic
             ),
@@ -232,26 +232,14 @@ VALVE_CONTROL_ACTION_SCHEMA = cv.Schema(
 
 # CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
 # one is present and both dispatch to set_position.
-_VALVE_CONTROL_FIELDS: tuple[actuator_component.ApplyField, ...] = (
-    actuator_component.ApplyField(CONF_STOP, "set_stop", cg.bool_),
-    actuator_component.ApplyField(CONF_STATE, "set_position", cg.float_),
-    actuator_component.ApplyField(CONF_POSITION, "set_position", cg.float_),
+automation.register_apply_action(
+    "valve.control",
+    VALVE_CONTROL_ACTION_SCHEMA,
+    automation.ApplyField(CONF_STOP, "set_stop", cg.bool_),
+    automation.ApplyField(CONF_STATE, "set_position", cg.float_),
+    automation.ApplyField(CONF_POSITION, "set_position", cg.float_),
+    call="make_call",
 )
-
-
-@automation.register_action(
-    "valve.control", ControlAction, VALVE_CONTROL_ACTION_SCHEMA, synchronous=True
-)
-async def valve_control_to_code(config, action_id, template_arg, args):
-    return await actuator_component.build_apply_lambda_action(
-        config=config,
-        action_id=action_id,
-        template_arg=template_arg,
-        args=args,
-        fields=_VALVE_CONTROL_FIELDS,
-        prefix_args=[(ValveCall.operator("ref"), "call")],
-        statement_fn=lambda setter, expr: f"call.{setter}({expr});",
-    )
 
 
 @coroutine_with_priority(CoroPriority.CORE)

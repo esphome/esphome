@@ -36,7 +36,7 @@ class I2SAudioIn : public I2SAudioBase {};
 
 class I2SAudioOut : public I2SAudioBase {};
 
-class I2SAudioComponent : public Component {
+class I2SAudioComponent final : public Component {
  public:
   i2s_std_gpio_config_t get_pin_config() const {
     return {.mclk = (gpio_num_t) this->mclk_pin_,

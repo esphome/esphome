@@ -11,7 +11,7 @@
 
 namespace esphome::pid {
 
-class PIDClimate : public climate::Climate, public Component {
+class PIDClimate final : public climate::Climate, public Component {
  public:
   PIDClimate() = default;
   void setup() override;
@@ -26,6 +26,7 @@ class PIDClimate : public climate::Climate, public Component {
   void set_kd(float kd) { controller_.kd_ = kd; }
   void set_min_integral(float min_integral) { controller_.min_integral_ = min_integral; }
   void set_max_integral(float max_integral) { controller_.max_integral_ = max_integral; }
+  bool set_deadband_thresholds(float threshold_low, float threshold_high);
   void set_output_samples(int in) { controller_.output_samples_ = in; }
   void set_derivative_samples(int in) {
     controller_.derivative_samples_ = in;
@@ -108,7 +109,7 @@ class PIDClimate : public climate::Climate, public Component {
   bool do_publish_ = false;
 };
 
-template<typename... Ts> class PIDAutotuneAction : public Action<Ts...> {
+template<typename... Ts> class PIDAutotuneAction final : public Action<Ts...> {
  public:
   PIDAutotuneAction(PIDClimate *parent) : parent_(parent) {}
 
@@ -128,38 +129,6 @@ template<typename... Ts> class PIDAutotuneAction : public Action<Ts...> {
   float noiseband_;
   float positive_output_;
   float negative_output_;
-  PIDClimate *parent_;
-};
-
-template<typename... Ts> class PIDResetIntegralTermAction : public Action<Ts...> {
- public:
-  PIDResetIntegralTermAction(PIDClimate *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) { this->parent_->reset_integral_term(); }
-
- protected:
-  PIDClimate *parent_;
-};
-
-template<typename... Ts> class PIDSetControlParametersAction : public Action<Ts...> {
- public:
-  PIDSetControlParametersAction(PIDClimate *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) {
-    auto kp = this->kp_.value(x...);
-    auto ki = this->ki_.value(x...);
-    auto kd = this->kd_.value(x...);
-
-    this->parent_->set_kp(kp);
-    this->parent_->set_ki(ki);
-    this->parent_->set_kd(kd);
-  }
-
- protected:
-  TEMPLATABLE_VALUE(float, kp)
-  TEMPLATABLE_VALUE(float, ki)
-  TEMPLATABLE_VALUE(float, kd)
-
   PIDClimate *parent_;
 };
 

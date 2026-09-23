@@ -7,8 +7,8 @@
 
 namespace esphome::fujitsu_general {
 
-const uint8_t FUJITSU_GENERAL_TEMP_MIN = 16;  // Celsius // TODO 16 for heating, 18 for cooling, unsupported in ESPH
-const uint8_t FUJITSU_GENERAL_TEMP_MAX = 30;  // Celsius
+constexpr uint8_t FUJITSU_GENERAL_TEMP_MIN = 16;  // Celsius // TODO 16 for heating, 18 for cooling, unsupported in ESPH
+constexpr uint8_t FUJITSU_GENERAL_TEMP_MAX = 30;  // Celsius
 
 // clang-format off
 /**
@@ -43,10 +43,37 @@ const uint8_t FUJITSU_GENERAL_TEMP_MAX = 30;  // Celsius
  * heat 30 swing vert  00101000 11000110 00000000 00001000  00001000 01111111 10010000 00001100  00000111 00100000 00101000 00000000  00000000 00000000 00000100 00011101
  * heat 30 noswing     00101000 11000110 00000000 00001000  00001000 01111111 10010000 00001100  00000111 00100000 00100000 00000000  00000000 00000000 00000100 00010011
  * ```
+ *
+ * The column markers show which bits varied in these captures, not field widths.
  */
 // clang-format on
 
-class FujitsuGeneralClimate : public climate_ir::ClimateIR {
+// Bits are reversed within each byte, so an odd nibble index is the low half of its byte.
+constexpr uint8_t get_nibble(const uint8_t *message, uint8_t nibble) {
+  return (message[nibble / 2] >> ((nibble % 2) ? 0 : 4)) & 0b00001111;
+}
+
+/// Write a nibble into a zero-initialised frame.
+constexpr void set_nibble(uint8_t *message, uint8_t nibble, uint8_t value) {
+  message[nibble / 2] |= (value & 0b00001111) << ((nibble % 2) ? 0 : 4);
+}
+
+// Nibble indices of the state frame fields.
+constexpr uint8_t FUJITSU_GENERAL_TEMPERATURE_NIBBLE = 16;
+constexpr uint8_t FUJITSU_GENERAL_POWER_ON_NIBBLE = 17;
+constexpr uint8_t FUJITSU_GENERAL_MODE_NIBBLE = 19;
+constexpr uint8_t FUJITSU_GENERAL_SWING_NIBBLE = 20;
+constexpr uint8_t FUJITSU_GENERAL_FAN_NIBBLE = 21;
+
+/// Unassigned values keep the current mode, except that OFF becomes HEAT_COOL.
+climate::ClimateMode decode_mode(uint8_t mode_field, climate::ClimateMode current_mode);
+
+/// Unassigned values keep the current fan mode.
+optional<climate::ClimateFanMode> decode_fan_mode(uint8_t fan_field, optional<climate::ClimateFanMode> current_mode);
+
+climate::ClimateSwingMode decode_swing_mode(uint8_t swing_field);
+
+class FujitsuGeneralClimate final : public climate_ir::ClimateIR {
  public:
   FujitsuGeneralClimate()
       : ClimateIR(FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX, 1.0f, true, true,

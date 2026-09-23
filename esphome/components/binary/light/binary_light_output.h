@@ -6,7 +6,7 @@
 
 namespace esphome::binary {
 
-class BinaryLightOutput : public light::LightOutput {
+class BinaryLightOutput final : public light::LightOutput {
  public:
   void set_output(output::BinaryOutput *output) { output_ = output; }
   light::LightTraits get_traits() override {
@@ -17,11 +17,7 @@ class BinaryLightOutput : public light::LightOutput {
   void write_state(light::LightState *state) override {
     bool binary;
     state->current_values_as_binary(&binary);
-    if (binary) {
-      this->output_->turn_on();
-    } else {
-      this->output_->turn_off();
-    }
+    this->output_->set_state(binary);
   }
 
  protected:

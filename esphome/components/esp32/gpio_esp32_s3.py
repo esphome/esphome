@@ -2,8 +2,15 @@ import logging
 from typing import Any
 
 import esphome.config_validation as cv
-from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER
-from esphome.pins import check_strapping_pin
+from esphome.const import (
+    CONF_DISABLED,
+    CONF_INPUT,
+    CONF_MODE,
+    CONF_NUMBER,
+    PLATFORM_ESP32,
+)
+from esphome.pins import PIN_SCHEMA_REGISTRY, check_strapping_pin
+from esphome.types import ConfigType
 
 _ESP32S3_SPI_PSRAM_PINS = {
     26: "SPICS1",
@@ -38,11 +45,9 @@ def esp32_s3_validate_gpio_pin(value: int) -> int:
         raise cv.Invalid(
             f"This pin cannot be used on ESP32-S3s and is already used by the SPI/PSRAM interface(function: {_ESP32S3_SPI_PSRAM_PINS[value]})"
         )
-    if value in _ESP32S3R8_PSRAM_PINS:
-        _LOGGER.warning(
-            "GPIO%d is used by the PSRAM interface on ESP32-S3R8 / ESP32-S3R8V and should be avoided on these models",
-            value,
-        )
+    # GPIO33-37 (_ESP32S3R8_PSRAM_PINS) are only taken by the PSRAM interface in
+    # octal mode -- whether that applies isn't known here, so the warning is
+    # deferred to final_validate_pins() in gpio.py once the PSRAM mode is resolved.
 
     if value in (22, 23, 24, 25):
         # These pins are not exposed in GPIO mux (reason unknown)
@@ -71,3 +76,29 @@ def esp32_s3_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
 
     check_strapping_pin(value, _ESP32S3_STRAPPING_PINS, _LOGGER)
     return value
+
+
+def esp32_s3_final_validate_pins(full_config: ConfigType) -> None:
+    """Warn about GPIO33-37 usage, but only when octal PSRAM (which uses them) is set.
+
+    These pins are only taken by the PSRAM interface in octal mode (ESP32-S3R8 /
+    S3R8V); on quad-PSRAM variants -- or when the psram block is disabled, so the
+    octal interface is never configured -- they are free. The per-pin validator
+    can't know the PSRAM mode, so the check is deferred here, where
+    PIN_SCHEMA_REGISTRY.pins_used already lists every used pin.
+    """
+    # Imported locally to avoid circular import issues
+    from esphome.components.psram import DOMAIN as PSRAM_DOMAIN, TYPE_OCTAL
+
+    psram_config = full_config.get(PSRAM_DOMAIN, {})
+    if psram_config.get(CONF_DISABLED) or psram_config.get(CONF_MODE) != TYPE_OCTAL:
+        return
+    for number in sorted(
+        number
+        for key, _client_id, number in PIN_SCHEMA_REGISTRY.pins_used
+        if key == PLATFORM_ESP32 and number in _ESP32S3R8_PSRAM_PINS
+    ):
+        _LOGGER.warning(
+            "GPIO%d is used by the PSRAM interface in octal mode and should be avoided",
+            number,
+        )

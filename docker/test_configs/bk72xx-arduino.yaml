@@ -1,0 +1,19 @@
+esphome:
+  name: docker-test-bk72xx-arduino
+
+bk72xx:
+  board: generic-bk7231n-qfn32-tuya
+
+logger:
+
+wifi:
+  ssid: MySSID
+  password: password1
+  ap:
+
+# mqtt and captive_portal together pull in AsyncTCP and ESPAsyncWebServer;
+# a stray ESP32 AsyncTCP copy on the library search path breaks this build
+captive_portal:
+
+mqtt:
+  broker: 192.168.178.84

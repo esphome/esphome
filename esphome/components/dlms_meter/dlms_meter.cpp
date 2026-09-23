@@ -1,516 +1,236 @@
 #include "dlms_meter.h"
+#include "esphome/core/log.h"
 
-#include <cinttypes>
-
-#if defined(USE_ESP8266_FRAMEWORK_ARDUINO)
-#include <bearssl/bearssl.h>
-#elif defined(USE_ESP32)
-#include <esp_idf_version.h>
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-#include <psa/crypto.h>
-#else
-#include "mbedtls/esp_config.h"
-#include "mbedtls/gcm.h"
-#endif
-#endif
+#include <cstdio>
 
 namespace esphome::dlms_meter {
 
-static constexpr const char *TAG = "dlms_meter";
+static const char *const TAG = "dlms_meter";
+static void log_callback(dlms_parser::LogLevel level, const char *fmt, va_list args) {
+  std::array<char, 256> buf;
+  vsnprintf(buf.data(), buf.size(), fmt, args);
+  switch (level) {
+    case dlms_parser::LogLevel::ERROR:
+      ESP_LOGE(TAG, "%s", buf.data());
+      break;
+    case dlms_parser::LogLevel::WARNING:
+      ESP_LOGW(TAG, "%s", buf.data());
+      break;
+    case dlms_parser::LogLevel::INFO:
+      ESP_LOGI(TAG, "%s", buf.data());
+      break;
+    case dlms_parser::LogLevel::VERBOSE:
+      ESP_LOGV(TAG, "%s", buf.data());
+      break;
+    case dlms_parser::LogLevel::VERY_VERBOSE:
+      ESP_LOGVV(TAG, "%s", buf.data());
+      break;
+    case dlms_parser::LogLevel::DEBUG:
+      ESP_LOGD(TAG, "%s", buf.data());
+      break;
+  }
+}
+
+DlmsMeterComponent::DlmsMeterComponent(uint32_t receive_timeout_ms, bool skip_crc_check,
+                                       std::optional<std::array<uint8_t, 16>> decryption_key,
+                                       std::optional<std::array<uint8_t, 16>> authentication_key,
+                                       std::vector<CustomPattern> custom_patterns)
+    : receive_timeout_ms_(receive_timeout_ms),
+      skip_crc_check_(skip_crc_check),
+      custom_patterns_(std::move(custom_patterns)),
+      parser_(&decryptor_) {
+  dlms_parser::Logger::set_log_function(log_callback);
+
+  if (decryption_key.has_value()) {
+#ifdef DLMS_METER_NO_CRYPTO
+    ESP_LOGE(TAG, "Decryption is not supported on this platform (no compatible crypto library found)");
+#else
+    auto opt_key = dlms_parser::Aes128GcmDecryptionKey::from_bytes(decryption_key.value());
+    if (opt_key) {
+      this->parser_.set_decryption_key(*opt_key);
+    } else {
+      ESP_LOGE(TAG, "Failed to set decryption key: invalid key format");
+    }
+#endif
+  }
+
+  if (authentication_key.has_value()) {
+#ifdef DLMS_METER_NO_CRYPTO
+    ESP_LOGE(TAG, "Authentication is not supported on this platform (no compatible crypto library found)");
+#else
+    auto opt_key = dlms_parser::Aes128GcmAuthenticationKey::from_bytes(authentication_key.value());
+    if (opt_key) {
+      this->parser_.set_authentication_key(*opt_key);
+    } else {
+      ESP_LOGE(TAG, "Failed to set authentication key: invalid key format");
+    }
+#endif
+  }
+
+  this->parser_.set_skip_crc_check(this->skip_crc_check_);
+
+  this->parser_.load_default_patterns();
+  for (const auto &pattern : this->custom_patterns_) {
+    if (pattern.default_obis.has_value() && pattern.name.has_value()) {
+      this->parser_.register_pattern(pattern.name->c_str(), pattern.pattern.c_str(), pattern.priority,
+                                     pattern.default_obis.value());
+    } else if (pattern.name.has_value()) {
+      this->parser_.register_pattern(pattern.name->c_str(), pattern.pattern.c_str(), pattern.priority);
+    } else {
+      this->parser_.register_pattern(pattern.pattern.c_str());
+    }
+  }
+}
+
+void DlmsMeterComponent::setup() { this->flush_rx_buffer_(); }
 
 void DlmsMeterComponent::dump_config() {
-  const char *provider_name = this->provider_ == PROVIDER_NETZNOE ? "Netz NOE" : "Generic";
-  ESP_LOGCONFIG(TAG,
-                "DLMS Meter:\n"
-                "  Provider: %s\n"
-                "  Read Timeout: %" PRIu32 " ms",
-                provider_name, this->read_timeout_);
-#define DLMS_METER_LOG_SENSOR(s) LOG_SENSOR("  ", #s, this->s##_sensor_);
-  DLMS_METER_SENSOR_LIST(DLMS_METER_LOG_SENSOR, )
-#define DLMS_METER_LOG_TEXT_SENSOR(s) LOG_TEXT_SENSOR("  ", #s, this->s##_text_sensor_);
-  DLMS_METER_TEXT_SENSOR_LIST(DLMS_METER_LOG_TEXT_SENSOR, )
+  ESP_LOGCONFIG(TAG, "DLMS Meter:");
+  ESP_LOGCONFIG(TAG, "  Receive Timeout: %u ms", this->receive_timeout_ms_);
+  ESP_LOGCONFIG(TAG, "  Skip CRC Check: %s", YESNO(this->skip_crc_check_));
+
+  for (const auto &pattern : this->custom_patterns_) {
+    if (pattern.default_obis.has_value() && pattern.name.has_value()) {
+      const auto &obis = pattern.default_obis.value();
+      ESP_LOGCONFIG(TAG, "  Custom Pattern: '%s' (name: %s, priority: %d, default_obis: %d.%d.%d.%d.%d.%d)",
+                    pattern.pattern.c_str(), pattern.name->c_str(), pattern.priority, obis[0], obis[1], obis[2],
+                    obis[3], obis[4], obis[5]);
+    } else if (pattern.name.has_value()) {
+      ESP_LOGCONFIG(TAG, "  Custom Pattern: '%s' (name: %s, priority: %d)", pattern.pattern.c_str(),
+                    pattern.name->c_str(), pattern.priority);
+    } else {
+      ESP_LOGCONFIG(TAG, "  Custom Pattern: '%s'", pattern.pattern.c_str());
+    }
+  }
+
+#ifdef USE_SENSOR
+  for (const auto &entry : this->sensors_) {
+    LOG_SENSOR("  ", "Numeric Sensor (OBIS)", entry.sensor);
+    ESP_LOGCONFIG(TAG, "    OBIS: %s", entry.obis_code.c_str());
+  }
+#endif
+#ifdef USE_TEXT_SENSOR
+  for (const auto &entry : this->text_sensors_) {
+    LOG_TEXT_SENSOR("  ", "Text Sensor (OBIS)", entry.sensor);
+    ESP_LOGCONFIG(TAG, "    OBIS: %s", entry.obis_code.c_str());
+  }
+#endif
+#ifdef USE_BINARY_SENSOR
+  for (const auto &entry : this->binary_sensors_) {
+    LOG_BINARY_SENSOR("  ", "Binary Sensor (OBIS)", entry.sensor);
+    ESP_LOGCONFIG(TAG, "    OBIS: %s", entry.obis_code.c_str());
+  }
+#endif
 }
 
 void DlmsMeterComponent::loop() {
-  // Read while data is available, netznoe uses two frames so allow 2x max frame length
-  size_t avail = this->available();
-  if (avail > 0) {
-    size_t remaining = MBUS_MAX_FRAME_LENGTH * 2 - this->receive_buffer_.size();
-    if (remaining == 0) {
-      ESP_LOGW(TAG, "Receive buffer full, dropping remaining bytes");
-    } else {
-      // Read all available bytes in batches to reduce UART call overhead.
-      // Cap reads to remaining buffer capacity.
-      if (avail > remaining) {
-        avail = remaining;
-      }
-      uint8_t buf[64];
-      while (avail > 0) {
-        size_t to_read = std::min(avail, sizeof(buf));
-        if (!this->read_array(buf, to_read)) {
-          break;
-        }
-        avail -= to_read;
-        this->receive_buffer_.insert(this->receive_buffer_.end(), buf, buf + to_read);
-        this->last_read_ = millis();
-      }
-    }
-  }
-
-  if (!this->receive_buffer_.empty() && millis() - this->last_read_ > this->read_timeout_) {
-    this->mbus_payload_.clear();
-    if (!this->parse_mbus_(this->mbus_payload_))
-      return;
-
-    uint16_t message_length;
-    uint8_t systitle_length;
-    uint16_t header_offset;
-    if (!this->parse_dlms_(this->mbus_payload_, message_length, systitle_length, header_offset))
-      return;
-
-    if (message_length < DECODER_START_OFFSET || message_length > MAX_MESSAGE_LENGTH) {
-      ESP_LOGE(TAG, "DLMS: Message length invalid: %u", message_length);
-      this->receive_buffer_.clear();
-      return;
-    }
-
-    // Decrypt in place and then decode the OBIS codes
-    if (!this->decrypt_(this->mbus_payload_, message_length, systitle_length, header_offset))
-      return;
-    this->decode_obis_(&this->mbus_payload_[header_offset + DLMS_PAYLOAD_OFFSET], message_length);
+  this->read_rx_buffer_();
+  if (this->bytes_accumulated_ > 0 &&
+      App.get_loop_component_start_time() - this->last_rx_char_time_ > this->receive_timeout_ms_) {
+    this->process_frame_();
   }
 }
 
-bool DlmsMeterComponent::parse_mbus_(std::vector<uint8_t> &mbus_payload) {
-  ESP_LOGV(TAG, "Parsing M-Bus frames");
-  uint16_t frame_offset = 0;  // Offset is used if the M-Bus message is split into multiple frames
-
-  while (frame_offset < this->receive_buffer_.size()) {
-    // Ensure enough bytes remain for the minimal intro header before accessing indices
-    if (this->receive_buffer_.size() - frame_offset < MBUS_HEADER_INTRO_LENGTH) {
-      ESP_LOGE(TAG, "MBUS: Not enough data for frame header (need %d, have %d)", MBUS_HEADER_INTRO_LENGTH,
-               (this->receive_buffer_.size() - frame_offset));
-      this->receive_buffer_.clear();
-      return false;
-    }
-
-    // Check start bytes
-    if (this->receive_buffer_[frame_offset + MBUS_START1_OFFSET] != START_BYTE_LONG_FRAME ||
-        this->receive_buffer_[frame_offset + MBUS_START2_OFFSET] != START_BYTE_LONG_FRAME) {
-      ESP_LOGE(TAG, "MBUS: Start bytes do not match");
-      this->receive_buffer_.clear();
-      return false;
-    }
-
-    // Both length bytes must be identical
-    if (this->receive_buffer_[frame_offset + MBUS_LENGTH1_OFFSET] !=
-        this->receive_buffer_[frame_offset + MBUS_LENGTH2_OFFSET]) {
-      ESP_LOGE(TAG, "MBUS: Length bytes do not match");
-      this->receive_buffer_.clear();
-      return false;
-    }
-
-    uint8_t frame_length = this->receive_buffer_[frame_offset + MBUS_LENGTH1_OFFSET];  // Get length of this frame
-
-    // Check if received data is enough for the given frame length
-    if (this->receive_buffer_.size() - frame_offset <
-        frame_length + 3) {  // length field inside packet does not account for second start- + checksum- + stop- byte
-      ESP_LOGE(TAG, "MBUS: Frame too big for received data");
-      this->receive_buffer_.clear();
-      return false;
-    }
-
-    // Ensure we have full frame (header + payload + checksum + stop byte) before accessing stop byte
-    size_t required_total =
-        frame_length + MBUS_HEADER_INTRO_LENGTH + MBUS_FOOTER_LENGTH;  // payload + header + 2 footer bytes
-    if (this->receive_buffer_.size() - frame_offset < required_total) {
-      ESP_LOGE(TAG, "MBUS: Incomplete frame (need %d, have %d)", (unsigned int) required_total,
-               this->receive_buffer_.size() - frame_offset);
-      this->receive_buffer_.clear();
-      return false;
-    }
-
-    if (this->receive_buffer_[frame_offset + frame_length + MBUS_HEADER_INTRO_LENGTH + MBUS_FOOTER_LENGTH - 1] !=
-        STOP_BYTE) {
-      ESP_LOGE(TAG, "MBUS: Invalid stop byte");
-      this->receive_buffer_.clear();
-      return false;
-    }
-
-    // Verify checksum: sum of all bytes starting at MBUS_HEADER_INTRO_LENGTH, take last byte
-    uint8_t checksum = 0;  // use uint8_t so only the 8 least significant bits are stored
-    for (uint16_t i = 0; i < frame_length; i++) {
-      checksum += this->receive_buffer_[frame_offset + MBUS_HEADER_INTRO_LENGTH + i];
-    }
-    if (checksum != this->receive_buffer_[frame_offset + frame_length + MBUS_HEADER_INTRO_LENGTH]) {
-      ESP_LOGE(TAG, "MBUS: Invalid checksum: %x != %x", checksum,
-               this->receive_buffer_[frame_offset + frame_length + MBUS_HEADER_INTRO_LENGTH]);
-      this->receive_buffer_.clear();
-      return false;
-    }
-
-    mbus_payload.insert(mbus_payload.end(), &this->receive_buffer_[frame_offset + MBUS_FULL_HEADER_LENGTH],
-                        &this->receive_buffer_[frame_offset + MBUS_HEADER_INTRO_LENGTH + frame_length]);
-
-    frame_offset += MBUS_HEADER_INTRO_LENGTH + frame_length + MBUS_FOOTER_LENGTH;
+void DlmsMeterComponent::flush_rx_buffer_() {
+  while (this->available()) {
+    this->read();
   }
-  return true;
 }
 
-bool DlmsMeterComponent::parse_dlms_(const std::vector<uint8_t> &mbus_payload, uint16_t &message_length,
-                                     uint8_t &systitle_length, uint16_t &header_offset) {
-  ESP_LOGV(TAG, "Parsing DLMS header");
-  if (mbus_payload.size() < DLMS_HEADER_LENGTH + DLMS_HEADER_EXT_OFFSET) {
-    ESP_LOGE(TAG, "DLMS: Payload too short");
-    this->receive_buffer_.clear();
-    return false;
+void DlmsMeterComponent::read_rx_buffer_() {
+  int available = this->available();
+  if (available == 0)
+    return;
+
+  if (this->bytes_accumulated_ + available > this->rx_buffer_.size()) {
+    ESP_LOGW(TAG, "RX Buffer overflow. Frame too large! Dropping frame.");
+    this->bytes_accumulated_ = 0;
+
+    this->flush_rx_buffer_();
+    return;
   }
 
-  if (mbus_payload[DLMS_CIPHER_OFFSET] != GLO_CIPHERING) {  // Only general-glo-ciphering is supported (0xDB)
-    ESP_LOGE(TAG, "DLMS: Unsupported cipher");
-    this->receive_buffer_.clear();
-    return false;
+  bool success = this->read_array(this->rx_buffer_.data() + this->bytes_accumulated_, available);
+  if (!success) {
+    ESP_LOGW(TAG, "UART read failed. Dropping frame.");
+    this->bytes_accumulated_ = 0;
+    this->flush_rx_buffer_();
+    return;
   }
 
-  systitle_length = mbus_payload[DLMS_SYST_OFFSET];
+  this->bytes_accumulated_ += available;
 
-  if (systitle_length != 0x08) {  // Only system titles with length of 8 are supported
-    ESP_LOGE(TAG, "DLMS: Unsupported system title length");
-    this->receive_buffer_.clear();
-    return false;
-  }
-
-  message_length = mbus_payload[DLMS_LENGTH_OFFSET];
-  header_offset = 0;
-
-  if (this->provider_ == PROVIDER_NETZNOE) {
-    // for some reason EVN seems to set the standard "length" field to 0x81 and then the actual length is in the next
-    // byte. Check some bytes to see if received data still matches expectation
-    if (message_length == NETZ_NOE_MAGIC_BYTE &&
-        mbus_payload[DLMS_LENGTH_OFFSET + 1] == NETZ_NOE_EXPECTED_MESSAGE_LENGTH &&
-        mbus_payload[DLMS_LENGTH_OFFSET + 2] == NETZ_NOE_EXPECTED_SECURITY_CONTROL_BYTE) {
-      message_length = mbus_payload[DLMS_LENGTH_OFFSET + 1];
-      header_offset = 1;
-    } else {
-      ESP_LOGE(TAG, "Wrong Length - Security Control Byte sequence detected for provider EVN");
-    }
-  } else {
-    if (message_length == TWO_BYTE_LENGTH) {
-      message_length = encode_uint16(mbus_payload[DLMS_LENGTH_OFFSET + 1], mbus_payload[DLMS_LENGTH_OFFSET + 2]);
-      header_offset = DLMS_HEADER_EXT_OFFSET;
-    }
-  }
-  if (message_length < DLMS_LENGTH_CORRECTION) {
-    ESP_LOGE(TAG, "DLMS: Message length too short: %u", message_length);
-    this->receive_buffer_.clear();
-    return false;
-  }
-  message_length -= DLMS_LENGTH_CORRECTION;  // Correct message length due to part of header being included in length
-
-  if (mbus_payload.size() - DLMS_HEADER_LENGTH - header_offset != message_length) {
-    ESP_LOGV(TAG, "DLMS: Length mismatch - payload=%d, header=%d, offset=%d, message=%d", mbus_payload.size(),
-             DLMS_HEADER_LENGTH, header_offset, message_length);
-    ESP_LOGE(TAG, "DLMS: Message has invalid length");
-    this->receive_buffer_.clear();
-    return false;
-  }
-
-  if (mbus_payload[header_offset + DLMS_SECBYTE_OFFSET] != 0x21 &&
-      mbus_payload[header_offset + DLMS_SECBYTE_OFFSET] !=
-          0x20) {  // Only certain security suite is supported (0x21 || 0x20)
-    ESP_LOGE(TAG, "DLMS: Unsupported security control byte");
-    this->receive_buffer_.clear();
-    return false;
-  }
-
-  return true;
+  this->last_rx_char_time_ = App.get_loop_component_start_time();
 }
 
-bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t message_length, uint8_t systitle_length,
-                                  uint16_t header_offset) {
-  ESP_LOGV(TAG, "Decrypting payload");
-  uint8_t iv[12];  // Reserve space for the IV, always 12 bytes
-  // Copy system title to IV (System title is before length; no header offset needed!)
-  // Add 1 to the offset in order to skip the system title length byte
-  memcpy(&iv[0], &mbus_payload[DLMS_SYST_OFFSET + 1], systitle_length);
-  memcpy(&iv[8], &mbus_payload[header_offset + DLMS_FRAMECOUNTER_OFFSET],
-         DLMS_FRAMECOUNTER_LENGTH);  // Copy frame counter to IV
+void DlmsMeterComponent::process_frame_() {
+  ESP_LOGV(TAG, "Processing frame of size: %zu bytes", this->bytes_accumulated_);
 
-  uint8_t *payload_ptr = &mbus_payload[header_offset + DLMS_PAYLOAD_OFFSET];
+  auto callback = [this](const char *obis_code, float float_val, const char *str_val, bool is_numeric) {
+    this->on_data_(obis_code, float_val, str_val, is_numeric);
+  };
 
-#if defined(USE_ESP8266_FRAMEWORK_ARDUINO)
-  br_gcm_context gcm_ctx;
-  br_aes_ct_ctr_keys bc;
-  br_aes_ct_ctr_init(&bc, this->decryption_key_.data(), this->decryption_key_.size());
-  br_gcm_init(&gcm_ctx, &bc.vtable, br_ghash_ctmul32);
-  br_gcm_reset(&gcm_ctx, iv, sizeof(iv));
-  br_gcm_flip(&gcm_ctx);
-  br_gcm_run(&gcm_ctx, 0, payload_ptr, message_length);
-#elif defined(USE_ESP32)
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-  // PSA Crypto multipart AEAD (no tag verification, matching legacy behavior)
-  psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
-  psa_set_key_type(&attributes, PSA_KEY_TYPE_AES);
-  psa_set_key_bits(&attributes, this->decryption_key_.size() * 8);
-  psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_DECRYPT);
-  psa_set_key_algorithm(&attributes, PSA_ALG_GCM);
+  this->parser_.parse({this->rx_buffer_.data(), this->bytes_accumulated_}, callback);
 
-  mbedtls_svc_key_id_t key_id;
-  bool decrypt_failed = true;
-  if (psa_import_key(&attributes, this->decryption_key_.data(), this->decryption_key_.size(), &key_id) == PSA_SUCCESS) {
-    psa_aead_operation_t op = PSA_AEAD_OPERATION_INIT;
-    if (psa_aead_decrypt_setup(&op, key_id, PSA_ALG_GCM) == PSA_SUCCESS &&
-        psa_aead_set_nonce(&op, iv, sizeof(iv)) == PSA_SUCCESS) {
-      size_t outlen = 0;
-      if (psa_aead_update(&op, payload_ptr, message_length, payload_ptr, message_length, &outlen) == PSA_SUCCESS &&
-          outlen == message_length) {
-        decrypt_failed = false;
+  this->bytes_accumulated_ = 0;
+}
+
+void DlmsMeterComponent::on_data_(const char *obis_code, float float_val, const char *str_val, bool is_numeric) {
+  int updated_count = 0;
+
+#ifdef USE_SENSOR
+  if (is_numeric) {
+    for (auto &item : this->sensors_) {
+      if (item.obis_code == obis_code) {
+        item.sensor->publish_state(float_val);
+        updated_count++;
       }
     }
-    psa_aead_abort(&op);
-    psa_destroy_key(key_id);
-  }
-  if (decrypt_failed) {
-    ESP_LOGE(TAG, "Decryption failed");
-    this->receive_buffer_.clear();
-    return false;
-  }
-#else
-  size_t outlen = 0;
-  mbedtls_gcm_context gcm_ctx;
-  mbedtls_gcm_init(&gcm_ctx);
-  mbedtls_gcm_setkey(&gcm_ctx, MBEDTLS_CIPHER_ID_AES, this->decryption_key_.data(), this->decryption_key_.size() * 8);
-  mbedtls_gcm_starts(&gcm_ctx, MBEDTLS_GCM_DECRYPT, iv, sizeof(iv));
-  auto ret = mbedtls_gcm_update(&gcm_ctx, payload_ptr, message_length, payload_ptr, message_length, &outlen);
-  mbedtls_gcm_free(&gcm_ctx);
-  if (ret != 0) {
-    ESP_LOGE(TAG, "Decryption failed with error: %d", ret);
-    this->receive_buffer_.clear();
-    return false;
   }
 #endif
-#else
-#error "Invalid Platform"
+
+#ifdef USE_TEXT_SENSOR
+  if (!is_numeric && str_val != nullptr) {
+    for (auto &item : this->text_sensors_) {
+      if (item.obis_code == obis_code) {
+        item.sensor->publish_state(str_val);
+        updated_count++;
+      }
+    }
+  }
 #endif
 
-  if (payload_ptr[0] != DATA_NOTIFICATION || payload_ptr[5] != TIMESTAMP_DATETIME) {
-    ESP_LOGE(TAG, "OBIS: Packet was decrypted but data is invalid");
-    this->receive_buffer_.clear();
-    return false;
-  }
-  ESP_LOGV(TAG, "Decrypted payload: %d bytes", message_length);
-  return true;
-}
-
-void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_length) {
-  ESP_LOGV(TAG, "Decoding payload");
-  MeterData data{};
-  uint16_t current_position = DECODER_START_OFFSET;
-  bool power_factor_found = false;
-
-  while (current_position + OBIS_CODE_OFFSET <= message_length) {
-    if (plaintext[current_position + OBIS_TYPE_OFFSET] != DataType::OCTET_STRING) {
-      ESP_LOGE(TAG, "OBIS: Unsupported OBIS header type: %x", plaintext[current_position + OBIS_TYPE_OFFSET]);
-      this->receive_buffer_.clear();
-      return;
-    }
-
-    uint8_t obis_code_length = plaintext[current_position + OBIS_LENGTH_OFFSET];
-    if (obis_code_length != OBIS_CODE_LENGTH_STANDARD && obis_code_length != OBIS_CODE_LENGTH_EXTENDED) {
-      ESP_LOGE(TAG, "OBIS: Unsupported OBIS header length: %x", obis_code_length);
-      this->receive_buffer_.clear();
-      return;
-    }
-    if (current_position + OBIS_CODE_OFFSET + obis_code_length > message_length) {
-      ESP_LOGE(TAG, "OBIS: Buffer too short for OBIS code");
-      this->receive_buffer_.clear();
-      return;
-    }
-
-    uint8_t *obis_code = &plaintext[current_position + OBIS_CODE_OFFSET];
-    uint8_t obis_medium = obis_code[OBIS_A];
-    uint16_t obis_cd = encode_uint16(obis_code[OBIS_C], obis_code[OBIS_D]);
-
-    bool timestamp_found = false;
-    bool meter_number_found = false;
-    if (this->provider_ == PROVIDER_NETZNOE) {
-      // Do not advance Position when reading the Timestamp at DECODER_START_OFFSET
-      if ((obis_code_length == OBIS_CODE_LENGTH_EXTENDED) && (current_position == DECODER_START_OFFSET)) {
-        timestamp_found = true;
-      } else if (power_factor_found) {
-        meter_number_found = true;
-        power_factor_found = false;
-      } else {
-        current_position += obis_code_length + OBIS_CODE_OFFSET;  // Advance past code and position
-      }
-    } else {
-      current_position += obis_code_length + OBIS_CODE_OFFSET;  // Advance past code, position and type
-    }
-    if (!timestamp_found && !meter_number_found && obis_medium != Medium::ELECTRICITY &&
-        obis_medium != Medium::ABSTRACT) {
-      ESP_LOGE(TAG, "OBIS: Unsupported OBIS medium: %x", obis_medium);
-      this->receive_buffer_.clear();
-      return;
-    }
-
-    if (current_position >= message_length) {
-      ESP_LOGE(TAG, "OBIS: Buffer too short for data type");
-      this->receive_buffer_.clear();
-      return;
-    }
-
-    float value = 0.0f;
-    uint8_t value_size = 0;
-    uint8_t data_type = plaintext[current_position];
-    current_position++;
-
-    switch (data_type) {
-      case DataType::DOUBLE_LONG_UNSIGNED: {
-        value_size = 4;
-        if (current_position + value_size > message_length) {
-          ESP_LOGE(TAG, "OBIS: Buffer too short for DOUBLE_LONG_UNSIGNED");
-          this->receive_buffer_.clear();
-          return;
-        }
-        value = encode_uint32(plaintext[current_position + 0], plaintext[current_position + 1],
-                              plaintext[current_position + 2], plaintext[current_position + 3]);
-        current_position += value_size;
-        break;
-      }
-      case DataType::LONG_UNSIGNED: {
-        value_size = 2;
-        if (current_position + value_size > message_length) {
-          ESP_LOGE(TAG, "OBIS: Buffer too short for LONG_UNSIGNED");
-          this->receive_buffer_.clear();
-          return;
-        }
-        value = encode_uint16(plaintext[current_position + 0], plaintext[current_position + 1]);
-        current_position += value_size;
-        break;
-      }
-      case DataType::OCTET_STRING: {
-        uint8_t data_length = plaintext[current_position];
-        current_position++;  // Advance past string length
-        if (current_position + data_length > message_length) {
-          ESP_LOGE(TAG, "OBIS: Buffer too short for OCTET_STRING");
-          this->receive_buffer_.clear();
-          return;
-        }
-        // Handle timestamp (normal OBIS code or NETZNOE special case)
-        if (obis_cd == OBIS_TIMESTAMP || timestamp_found) {
-          if (data_length < 8) {
-            ESP_LOGE(TAG, "OBIS: Timestamp data too short: %u", data_length);
-            this->receive_buffer_.clear();
-            return;
-          }
-          uint16_t year = encode_uint16(plaintext[current_position + 0], plaintext[current_position + 1]);
-          uint8_t month = plaintext[current_position + 2];
-          uint8_t day = plaintext[current_position + 3];
-          uint8_t hour = plaintext[current_position + 5];
-          uint8_t minute = plaintext[current_position + 6];
-          uint8_t second = plaintext[current_position + 7];
-          if (year > 9999 || month > 12 || day > 31 || hour > 23 || minute > 59 || second > 59) {
-            ESP_LOGE(TAG, "Invalid timestamp values: %04u-%02u-%02uT%02u:%02u:%02uZ", year, month, day, hour, minute,
-                     second);
-            this->receive_buffer_.clear();
-            return;
-          }
-          snprintf(data.timestamp, sizeof(data.timestamp), "%04u-%02u-%02uT%02u:%02u:%02uZ", year, month, day, hour,
-                   minute, second);
-        } else if (meter_number_found) {
-          snprintf(data.meternumber, sizeof(data.meternumber), "%.*s", data_length, &plaintext[current_position]);
-        }
-        current_position += data_length;
-        break;
-      }
-      default:
-        ESP_LOGE(TAG, "OBIS: Unsupported OBIS data type: %x", data_type);
-        this->receive_buffer_.clear();
-        return;
-    }
-
-    // Skip break after data
-    if (this->provider_ == PROVIDER_NETZNOE) {
-      // Don't skip the break on the first timestamp, as there's none
-      if (!timestamp_found) {
-        current_position += 2;
-      }
-    } else {
-      current_position += 2;
-    }
-
-    // Check for additional data (scaler-unit structure)
-    if (current_position < message_length && plaintext[current_position] == DataType::INTEGER) {
-      // Apply scaler: real_value = raw_value × 10^scaler
-      if (current_position + 1 < message_length) {
-        int8_t scaler = static_cast<int8_t>(plaintext[current_position + 1]);
-        if (scaler != 0) {
-          value *= pow10_int(scaler);
-        }
-      }
-
-      // on EVN Meters there is no additional break
-      if (this->provider_ == PROVIDER_NETZNOE) {
-        current_position += 4;
-      } else {
-        current_position += 6;
-      }
-    }
-
-    // Handle numeric values (LONG_UNSIGNED and DOUBLE_LONG_UNSIGNED)
-    if (value_size > 0) {
-      switch (obis_cd) {
-        case OBIS_VOLTAGE_L1:
-          data.voltage_l1 = value;
-          break;
-        case OBIS_VOLTAGE_L2:
-          data.voltage_l2 = value;
-          break;
-        case OBIS_VOLTAGE_L3:
-          data.voltage_l3 = value;
-          break;
-        case OBIS_CURRENT_L1:
-          data.current_l1 = value;
-          break;
-        case OBIS_CURRENT_L2:
-          data.current_l2 = value;
-          break;
-        case OBIS_CURRENT_L3:
-          data.current_l3 = value;
-          break;
-        case OBIS_ACTIVE_POWER_PLUS:
-          data.active_power_plus = value;
-          break;
-        case OBIS_ACTIVE_POWER_MINUS:
-          data.active_power_minus = value;
-          break;
-        case OBIS_ACTIVE_ENERGY_PLUS:
-          data.active_energy_plus = value;
-          break;
-        case OBIS_ACTIVE_ENERGY_MINUS:
-          data.active_energy_minus = value;
-          break;
-        case OBIS_REACTIVE_ENERGY_PLUS:
-          data.reactive_energy_plus = value;
-          break;
-        case OBIS_REACTIVE_ENERGY_MINUS:
-          data.reactive_energy_minus = value;
-          break;
-        case OBIS_POWER_FACTOR:
-          data.power_factor = value;
-          power_factor_found = true;
-          break;
-        default:
-          ESP_LOGW(TAG, "Unsupported OBIS code 0x%04X", obis_cd);
+#ifdef USE_BINARY_SENSOR
+  if (is_numeric) {
+    bool state = float_val != 0.0f;
+    for (auto &item : this->binary_sensors_) {
+      if (item.obis_code == obis_code) {
+        item.sensor->publish_state(state);
+        updated_count++;
       }
     }
   }
+#endif
 
-  this->receive_buffer_.clear();
-
-  ESP_LOGI(TAG, "Received valid data");
-  this->publish_sensors(data);
-  this->status_clear_warning();
+  if (updated_count == 0) {
+    ESP_LOGV(TAG, "Received OBIS %s, but no sensors are registered for it.", obis_code);
+  }
 }
+
+#ifdef USE_SENSOR
+void DlmsMeterComponent::register_sensor(const std::string &obis_code, sensor::Sensor *sensor) {
+  this->sensors_.push_back({obis_code, sensor});
+}
+#endif
+#ifdef USE_TEXT_SENSOR
+void DlmsMeterComponent::register_text_sensor(const std::string &obis_code, text_sensor::TextSensor *sensor) {
+  this->text_sensors_.push_back({obis_code, sensor});
+}
+#endif
+#ifdef USE_BINARY_SENSOR
+void DlmsMeterComponent::register_binary_sensor(const std::string &obis_code, binary_sensor::BinarySensor *sensor) {
+  this->binary_sensors_.push_back({obis_code, sensor});
+}
+#endif
 
 }  // namespace esphome::dlms_meter

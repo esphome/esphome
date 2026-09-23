@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_STOP_ACTION,
     CONF_UPDATE_INTERVAL,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ianchi"]
 DEPENDENCIES = ["actuator"]
@@ -35,7 +36,7 @@ feedback_ns = cg.esphome_ns.namespace("feedback")
 FeedbackActuatorBase = feedback_ns.class_("FeedbackActuatorBase", cg.Component)
 
 
-def validate_infer_endstop(config):
+def validate_infer_endstop(config: ConfigType) -> ConfigType:
     if config[CONF_INFER_ENDSTOP_FROM_MOVEMENT] is True:
         if config[CONF_HAS_BUILT_IN_ENDSTOP] is False:
             raise cv.Invalid(
