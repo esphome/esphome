@@ -137,7 +137,7 @@ class MipiCsiCamera final : public camera::Camera {
   /// Applies a V4L2 user control, logging a warning if the sensor does not support it.
   void apply_control_(uint32_t id, int32_t value, const char *name);
   /// Reads back the format the driver settled on, which the JPEG encoder has to match exactly.
-  bool read_back_format_(uint8_t bytes_per_pixel);
+  bool read_back_format_(uint32_t expected_fourcc, uint8_t bytes_per_pixel, const char *name);
   bool has_requested_image_() const { return this->single_requesters_ != 0 || this->stream_requesters_ != 0; }
 
   static void capture_task(void *param);

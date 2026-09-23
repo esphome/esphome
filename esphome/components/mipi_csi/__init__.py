@@ -74,7 +74,15 @@ def validate_resolution(value: str) -> tuple[int, int]:
     match = _RESOLUTION_PATTERN.match(value)
     if match is None:
         raise cv.Invalid(f"Resolution must be written as WIDTHxHEIGHT, got '{value}'")
-    return int(match.group(1)), int(match.group(2))
+    width, height = int(match.group(1)), int(match.group(2))
+    # A zero is what tells the component to keep the sensor's own resolution, and anything above
+    # 65535 does not fit the size the component stores, so neither may reach it from here.
+    for dimension, name in ((width, "Width"), (height, "Height")):
+        if not 1 <= dimension <= 65535:
+            raise cv.Invalid(
+                f"{name} must be between 1 and 65535, got {dimension} in '{value}'"
+            )
+    return width, height
 
 
 CONFIG_SCHEMA = cv.All(
