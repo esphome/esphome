@@ -50,18 +50,13 @@ from esphome.const import (
     CONF_VISUAL,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import (
-    LambdaExpression,
-    MockObj,
-    MockObjClass,
-    TemplateArgsType,
-)
+from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType, SafeExpType
 
 IS_PLATFORM_COMPONENT = True
@@ -169,7 +164,6 @@ def visual_temperature_step(value: Any) -> ConfigType:
 
 
 # Actions
-ControlAction = climate_ns.class_("ControlAction", automation.Action)
 StateTrigger = climate_ns.class_(
     "StateTrigger", automation.Trigger.template(Climate.operator("ref"))
 )
@@ -500,78 +494,41 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+def _literal_with_length(config: ConfigType, value: str) -> str:
+    # The (const char *, size_t) overload compares bytes in place, so it needs a plain
+    # literal rather than the default PROGMEM rendering on ESP8266, and skips a strlen.
+    return f"{cg.safe_exp(value)}, {len(value.encode('utf-8'))}"
+
+
+automation.register_apply_action(
     "climate.control",
-    ControlAction,
     CLIMATE_CONTROL_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_MODE, "set_mode", ClimateMode),
+    automation.ApplyField(CONF_TARGET_TEMPERATURE, "set_target_temperature", cg.float_),
+    automation.ApplyField(
+        CONF_TARGET_TEMPERATURE_LOW, "set_target_temperature_low", cg.float_
+    ),
+    automation.ApplyField(
+        CONF_TARGET_TEMPERATURE_HIGH, "set_target_temperature_high", cg.float_
+    ),
+    automation.ApplyField(CONF_TARGET_HUMIDITY, "set_target_humidity", cg.float_),
+    automation.ApplyField(CONF_FAN_MODE, "set_fan_mode", ClimateFanMode),
+    automation.ApplyField(
+        CONF_CUSTOM_FAN_MODE,
+        "set_fan_mode",
+        cg.std_string,
+        const_fn=_literal_with_length,
+    ),
+    automation.ApplyField(CONF_PRESET, "set_preset", ClimatePreset),
+    automation.ApplyField(
+        CONF_CUSTOM_PRESET,
+        "set_preset",
+        cg.std_string,
+        const_fn=_literal_with_length,
+    ),
+    automation.ApplyField(CONF_SWING_MODE, "set_swing_mode", ClimateSwingMode),
+    call="make_call",
 )
-async def climate_control_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-
-    # All configured fields are folded into a single stateless lambda whose
-    # constants live in flash; the action stores only a function pointer.
-    # For custom_fan_mode/custom_preset the static-string path emits the
-    # (const char *, size_t) overload of set_fan_mode/set_preset to avoid
-    # constructing a std::string and calling runtime strlen.
-    FIELDS = (
-        (CONF_MODE, "set_mode", ClimateMode),
-        (CONF_TARGET_TEMPERATURE, "set_target_temperature", cg.float_),
-        (CONF_TARGET_TEMPERATURE_LOW, "set_target_temperature_low", cg.float_),
-        (CONF_TARGET_TEMPERATURE_HIGH, "set_target_temperature_high", cg.float_),
-        (CONF_TARGET_HUMIDITY, "set_target_humidity", cg.float_),
-        (CONF_FAN_MODE, "set_fan_mode", ClimateFanMode),
-        (CONF_CUSTOM_FAN_MODE, "set_fan_mode", cg.std_string),
-        (CONF_PRESET, "set_preset", ClimatePreset),
-        (CONF_CUSTOM_PRESET, "set_preset", cg.std_string),
-        (CONF_SWING_MODE, "set_swing_mode", ClimateSwingMode),
-    )
-
-    # Normalize trigger args to `const std::remove_cvref_t<T> &` so the
-    # apply lambda and any inner field lambdas (generated below via
-    # `process_lambda`) share one parameter spelling that's well-formed for
-    # any T (value, ref, or const-ref). Matches ControlAction::ApplyFn.
-    normalized_args = [
-        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), n)
-        for t, n in args
-    ]
-
-    fwd_args = ", ".join(name for _, name in args)
-    body_lines: list[str] = []
-
-    for conf_key, setter, type_ in FIELDS:
-        if (value := config.get(conf_key)) is None:
-            continue
-        if isinstance(value, Lambda):
-            inner = await cg.process_lambda(value, normalized_args, return_type=type_)
-            body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
-        elif type_ is cg.std_string:
-            # Static custom strings: emit a flash literal and pass the
-            # UTF-8 byte length to skip the runtime strlen inside
-            # set_fan_mode/set_preset.
-            literal = cg.safe_exp(value)
-            body_lines.append(
-                f"call.{setter}({literal}, {len(value.encode('utf-8'))});"
-            )
-        else:
-            body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
-
-    apply_args = [
-        (ClimateCall.operator("ref"), "call"),
-        *normalized_args,
-    ]
-    apply_lambda = LambdaExpression(
-        ["\n".join(body_lines)],
-        apply_args,
-        capture="",
-        return_type=cg.void,
-    )
-    return cg.new_Pvariable(action_id, template_arg, paren, apply_lambda)
 
 
 @coroutine_with_priority(CoroPriority.CORE)
