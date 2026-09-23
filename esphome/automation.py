@@ -355,10 +355,8 @@ async def _render_values(
 ) -> list[str]:
     """Render the argument text of one statement; every key must be present.
 
-    With ``compare`` the values sit beside an operator instead of inside a call: an inlined
-    lambda is parenthesized so a ternary body binds as a whole, and a ``std::string`` constant
-    stays a plain literal instead of the ESP8266 ``progmem_string`` copy, which would allocate
-    on every check.
+    ``compare``: values sit beside an operator, so lambdas are parenthesized and string
+    constants stay plain literals (no per-check ``progmem_string`` copy).
     """
     values = [_config_lookup(config, key) for key, _, _ in members]
     if any(value is None for value in values):
@@ -443,10 +441,8 @@ def register_apply_condition(
     ``check`` is applied to the parent: ``"is_playing()"`` becomes ``parent->is_playing()``; an
     ``ApplyCall`` such as ``ApplyCall("state == {}", ((CONF_STATE, cg.bool_),))`` compares
     against config values, all of which must be present. Write ``== false`` to negate.
-    ``std::string`` constants stay plain literals on every platform so a check never allocates,
-    which means a compared member must be a ``std::string`` or ``StringRef``, not a ``const char *``;
-    a single-statement string lambda is inlined into the comparison with no copy, a longer body
-    returns ``std::string`` by value. Generates one stateless function for ``ApplyCondition<Ts...>``.
+    String constants are plain literals, so compare a ``std::string`` or ``StringRef`` member.
+    Generates one stateless function for ``ApplyCondition<Ts...>``.
     """
     call = check if isinstance(check, ApplyCall) else ApplyCall(check)
     members = call.members
