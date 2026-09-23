@@ -169,17 +169,4 @@ class EquithermClimate : public climate::Climate, public Component {
   CallbackManager<void()> on_heating_stop_callback_;
 };
 
-template<typename... Ts> class EquithermForceRecalculateAction : public Action<Ts...> {
- public:
-  EquithermForceRecalculateAction(EquithermClimate *parent) : parent_(parent) {}
-
-  void set_update_pid(bool update_pid) { update_pid_ = update_pid; }
-
-  void play(const Ts &...x) override { this->parent_->force_recalculate(this->update_pid_); }
-
- protected:
-  EquithermClimate *parent_;
-  bool update_pid_{true};
-};
-
 }  // namespace esphome::equitherm

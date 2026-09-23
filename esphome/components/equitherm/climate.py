@@ -53,9 +53,6 @@ equitherm_ns = cg.esphome_ns.namespace("equitherm")
 EquithermClimate = equitherm_ns.class_(
     "EquithermClimate", climate.Climate, cg.Component
 )
-EquithermForceRecalculateAction = equitherm_ns.class_(
-    "EquithermForceRecalculateAction", automation.Action
-)
 
 CONTROL_PARAMETERS_SCHEMA = cv.Schema(
     {
@@ -223,15 +220,8 @@ EQUITHERM_FORCE_RECALCULATE_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "climate.equitherm.force_recalculate",
-    EquithermForceRecalculateAction,
     EQUITHERM_FORCE_RECALCULATE_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_UPDATE_PID, "force_recalculate", cg.bool_),
 )
-async def equitherm_force_recalculate_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    update_pid_template_ = await cg.templatable(config[CONF_UPDATE_PID], args, bool)
-    cg.add(var.set_update_pid(update_pid_template_))
-    return var

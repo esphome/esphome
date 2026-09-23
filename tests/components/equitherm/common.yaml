@@ -56,3 +56,8 @@ api:
         - climate.equitherm.force_recalculate:
             id: heating_controller
             update_pid: false
+    - action: test_force_recalculate_lambda
+      then:
+        - climate.equitherm.force_recalculate:
+            id: heating_controller
+            update_pid: !lambda 'return true;'
