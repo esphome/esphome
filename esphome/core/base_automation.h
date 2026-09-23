@@ -11,6 +11,7 @@
 
 #include <array>
 #include <list>
+#include <type_traits>
 #include <vector>
 
 namespace esphome {
@@ -250,6 +251,20 @@ template<typename... Ts> class StatelessLambdaAction : public Action<Ts...> {
 
  protected:
   void (*f_)(Ts...);
+};
+
+/// Runs one codegen-generated function that has the parent and every field baked in, so the
+/// action holds one pointer. Args pass by const reference so a std::string arg is never copied;
+/// StatelessLambdaAction keeps by-value parameters because user `lambda:` code owns them.
+template<typename... Ts> class ApplyAction final : public Action<Ts...> {
+ public:
+  using ApplyFn = void (*)(const std::remove_cvref_t<Ts> &...);
+  explicit ApplyAction(ApplyFn apply) : apply_(apply) {}
+
+  void play(const Ts &...x) override { this->apply_(x...); }
+
+ protected:
+  ApplyFn apply_;
 };
 
 /// Simple continuation action that calls play_next_ on a parent action.

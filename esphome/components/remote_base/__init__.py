@@ -1149,7 +1149,7 @@ def gobox_dumper(var, config):
 
 @register_action("gobox", GoboxAction, GOBOX_SCHEMA)
 async def gobox_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_CODE], args, cg.int_)
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint64)
     cg.add(var.set_code(template_))
 
 
