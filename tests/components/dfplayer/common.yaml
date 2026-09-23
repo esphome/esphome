@@ -31,8 +31,11 @@ esphome:
           enable: false
       - dfplayer.set_current_track_repeat:
           enable: !lambda return true;
+      - dfplayer.set_current_track_repeat:
+          id: dfplayer_test
 
 dfplayer:
+  id: dfplayer_test
   on_finished_playback:
     then:
       if:

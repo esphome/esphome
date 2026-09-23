@@ -378,21 +378,27 @@ async def dfplayer_random_to_code(config, action_id, template_arg, args):
     return var
 
 
-def _bare_means_enable(value: Any) -> Any:
-    """A bare ``dfplayer.set_current_track_repeat`` arrives as an empty dict and turns repeat on."""
-    return True if value is None or value == {} else value
+def _default_enable(value: Any) -> Any:
+    """Fill in ``enable: true`` for a bare action or a mapping that only picks the player.
+
+    Done before ``maybe_simple_value`` so neither form is wrapped as the ``enable`` value.
+    """
+    if value is None or isinstance(value, dict):
+        return {CONF_ENABLE: True, **(value or {})}
+    return value
 
 
 automation.register_apply_action(
     "dfplayer.set_current_track_repeat",
-    cv.maybe_simple_value(
-        {
-            cv.GenerateID(): cv.use_id(DFPlayer),
-            cv.Optional(CONF_ENABLE, default=True): cv.All(
-                _bare_means_enable, cv.templatable(cv.boolean)
-            ),
-        },
-        key=CONF_ENABLE,
+    cv.All(
+        _default_enable,
+        cv.maybe_simple_value(
+            {
+                cv.GenerateID(): cv.use_id(DFPlayer),
+                cv.Optional(CONF_ENABLE, default=True): cv.templatable(cv.boolean),
+            },
+            key=CONF_ENABLE,
+        ),
     ),
     automation.ApplyField(CONF_ENABLE, "set_current_track_repeat", cg.bool_),
 )
