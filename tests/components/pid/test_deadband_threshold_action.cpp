@@ -36,6 +36,23 @@ TEST(PIDSetDeadbandThresholdParametersAction, ValidThresholdsChangeController) {
   EXPECT_FLOAT_EQ(climate.get_threshold_high(), 0.5f);
 }
 
+TEST(PIDSetDeadbandThresholdParametersAction, EqualThresholdsDisableDeadband) {
+  PIDClimate climate;
+  climate.set_threshold_low(-1.0f);
+  climate.set_threshold_high(1.0f);
+  EXPECT_FLOAT_EQ(climate.get_threshold_low(), -1.0f);
+  EXPECT_FLOAT_EQ(climate.get_threshold_high(), 1.0f);
+
+  PIDSetDeadbandThresholdParametersAction<> action(&climate);
+  action.set_threshold_low([]() -> float { return 0.0f; });
+  action.set_threshold_high([]() -> float { return 0.0f; });
+  action.play();
+
+  EXPECT_FLOAT_EQ(climate.get_threshold_low(), 0.0f);
+  EXPECT_FLOAT_EQ(climate.get_threshold_high(), 0.0f);
+  EXPECT_FALSE(climate.in_deadband());
+}
+
 TEST(PIDSetDeadbandControlParametersMultipliersAction, ChangesAllMultipliers) {
   PIDClimate climate;
   climate.set_kp_multiplier(0.4f);

@@ -6,8 +6,8 @@ namespace esphome::pid {
 static const char *const TAG = "pid.climate";
 
 bool PIDClimate::set_deadband_thresholds(float threshold_low, float threshold_high) {
-  if (threshold_low >= threshold_high) {
-    ESP_LOGW(TAG, "Deadband threshold low %.2f must be less than high %.2f", threshold_low, threshold_high);
+  if (threshold_low > threshold_high) {
+    ESP_LOGW(TAG, "Deadband threshold low %.2f must not be greater than high %.2f", threshold_low, threshold_high);
     return false;
   }
 
