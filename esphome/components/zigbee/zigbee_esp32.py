@@ -10,6 +10,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     add_partition,
     include_builtin_idf_component,
+    require_mbedtls_tls_extras,
     require_vfs_select,
 )
 import esphome.config_validation as cv
@@ -333,6 +334,12 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
     add_idf_component(
         name="espressif/esp-zigbee-lib",
         ref="2.0.4",
+    )
+
+    # Zigbee's crypto platform uses AES-CCM and deterministic ECDSA directly.
+    # Keep the esp32 component from trimming them out of mbedTLS.
+    require_mbedtls_tls_extras(
+        ("CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC")
     )
 
     if CONF_WIFI in CORE.config:

@@ -428,6 +428,10 @@ async def to_code(config: ConfigType) -> None:
         )
     zephyr_add_prj_conf("REBOOT", True)
 
+    # some boards enable USB by default.
+    # disable it to prevent extra current consumption.
+    zephyr_add_prj_conf("USB_DEVICE_STACK", False, False)
+
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
 async def _dfu_to_code(dfu_config):
@@ -436,6 +440,10 @@ async def _dfu_to_code(dfu_config):
     if CONF_RESET_PIN in dfu_config:
         pin = await cg.gpio_pin_expression(dfu_config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(pin))
+
+    # DFU uses cdc rate callback to enter bootloader which was disabled explicitly to save power.
+    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
+    zephyr_add_prj_conf("USB_CDC_ACM", True)
     zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
     await cg.register_component(var, dfu_config)
 
