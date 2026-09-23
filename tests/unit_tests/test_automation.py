@@ -888,15 +888,20 @@ async def test_apply_condition_string_lambda_paths(
         registries, check, {"state": Lambda("return x;")}, args=args
     )
     text = _apply_lambda(mock_cg)
-    assert f"return ::{PARENT_OBJ}->state == x;" in text
+    assert f"return ::{PARENT_OBJ}->state == (x);" in text
     assert "-> std::string {" not in text
+
+    mock_cg.new_pvariable.reset_mock()
+    ternary = Lambda('return x.empty() ? "e" : x;')
+    await _run_apply_condition(registries, check, {"state": ternary}, args=args)
+    assert '->state == (x.empty() ? "e" : x);' in _apply_lambda(mock_cg)
 
     mock_cg.new_pvariable.reset_mock()
     body = Lambda('if (x.empty()) return "e";\nreturn x;')
     await _run_apply_condition(registries, check, {"state": body}, args=args)
     text = _apply_lambda(mock_cg)
     assert "-> std::string {" in text
-    assert "}(x);" in text
+    assert "}(x));" in text
 
     mock_cg.new_pvariable.reset_mock()
     await _run_apply_action(

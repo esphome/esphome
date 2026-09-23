@@ -351,12 +351,14 @@ async def _render_values(
     config: ConfigType,
     parent: str,
     lambda_args: TemplateArgsType,
-    flash_strings: bool = True,
+    compare: bool = False,
 ) -> list[str]:
     """Render the argument text of one statement; every key must be present.
 
-    ``flash_strings`` picks the ESP8266 ``progmem_string`` spelling for ``std::string`` constants;
-    a comparison that runs on every check wants the plain literal instead.
+    With ``compare`` the values sit beside an operator instead of inside a call: an inlined
+    lambda is parenthesized so a ternary body binds as a whole, and a ``std::string`` constant
+    stays a plain literal instead of the ESP8266 ``progmem_string`` copy, which would allocate
+    on every check.
     """
     values = [_config_lookup(config, key) for key, _, _ in members]
     if any(value is None for value in values):
@@ -368,10 +370,11 @@ async def _render_values(
             if isinstance(type_, str):
                 type_ = cg.RawExpression(type_.format(parent=parent))
             inner = await cg.process_lambda(value, lambda_args, return_type=type_)
-            exprs.append(str(call_lambda(inner)))
+            expr = str(call_lambda(inner))
+            exprs.append(f"({expr})" if compare else expr)
         elif const_fn is not None:
             exprs.append(const_fn(config, value))
-        elif type_ is cg.std_string and flash_strings:
+        elif type_ is cg.std_string and not compare:
             exprs.append(flash_string(config, value))
         else:
             exprs.append(str(cg.safe_exp(value)))
@@ -440,7 +443,8 @@ def register_apply_condition(
     ``check`` is applied to the parent: ``"is_playing()"`` becomes ``parent->is_playing()``; an
     ``ApplyCall`` such as ``ApplyCall("state == {}", ((CONF_STATE, cg.bool_),))`` compares
     against config values, all of which must be present. Write ``== false`` to negate.
-    ``std::string`` constants stay plain literals on every platform so a check never allocates;
+    ``std::string`` constants stay plain literals on every platform so a check never allocates,
+    which means a compared member must be a ``std::string`` or ``StringRef``, not a ``const char *``;
     a single-statement string lambda is inlined into the comparison with no copy, a longer body
     returns ``std::string`` by value. Generates one stateless function for ``ApplyCondition<Ts...>``.
     """
@@ -458,7 +462,7 @@ def register_apply_condition(
         parent = await _apply_parent(config)
         lambda_args = _apply_lambda_args(args)
         exprs = await _render_values(
-            name, call.target, members, config, parent, lambda_args, flash_strings=False
+            name, call.target, members, config, parent, lambda_args, compare=True
         )
         check_lambda = LambdaExpression(
             [f"return {parent}->{call.target.format(*exprs)};"],
