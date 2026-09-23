@@ -1,8 +1,6 @@
 #include "xiaomi_miscale.h"
-#include "esphome/components/esp32_ble/ble_uuid.h"
+#include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/core/log.h"
-
-#ifdef USE_ESP32
 
 namespace esphome::xiaomi_miscale {
 
@@ -14,7 +12,7 @@ void XiaomiMiscale::dump_config() {
   LOG_SENSOR("  ", "Impedance", this->impedance_);
 }
 
-bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiMiscale::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -56,14 +54,14 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   return success;
 }
 
-optional<ParseResult> XiaomiMiscale::parse_header_(const esp32_ble_tracker::ServiceData &service_data) {
+optional<ParseResult> XiaomiMiscale::parse_header_(const ble_device_base::ServiceData &service_data) {
   ParseResult result;
-  if (service_data.uuid == esp32_ble_tracker::ESPBTUUID::from_uint16(0x181D) && service_data.data.size() == 10) {
+  if (service_data.uuid == ble_device_base::ESPBTUUID::from_uint16(0x181D) && service_data.data.size() == 10) {
     result.version = 1;
-  } else if (service_data.uuid == esp32_ble_tracker::ESPBTUUID::from_uint16(0x181B) && service_data.data.size() == 13) {
+  } else if (service_data.uuid == ble_device_base::ESPBTUUID::from_uint16(0x181B) && service_data.data.size() == 13) {
     result.version = 2;
   } else {
-    char uuid_buf[esp32_ble::UUID_STR_LEN];
+    char uuid_buf[ble_device_base::UUID_STR_LEN];
     ESP_LOGVV(TAG,
               "parse_header(): Couldn't identify scale version or data size was not correct. UUID: %s, data_size: %d",
               service_data.uuid.to_str(uuid_buf), service_data.data.size());
@@ -167,5 +165,3 @@ bool XiaomiMiscale::report_results_(const optional<ParseResult> &result, const c
 }
 
 }  // namespace esphome::xiaomi_miscale
-
-#endif

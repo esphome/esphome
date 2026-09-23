@@ -118,6 +118,9 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     }
 #endif
 #endif
+#ifdef USE_OTA_SIGNED_VERIFICATION
+    txt_count++;  // ota_signed
+#endif
 #ifdef ESPHOME_PROJECT_NAME
     txt_count += 2;  // project_name and project_version
 #endif
@@ -186,6 +189,13 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 #endif
 #endif
 
+#ifdef USE_OTA_SIGNED_VERIFICATION
+    // Signals that an unsigned OTA image is rejected; serial flash is unaffected.
+    MDNS_STATIC_CONST_CHAR(TXT_OTA_SIGNED, "ota_signed");
+    MDNS_STATIC_CONST_CHAR(VALUE_TRUE, "1");
+    txt_records.push_back({MDNS_STR(TXT_OTA_SIGNED), MDNS_STR(VALUE_TRUE)});
+#endif
+
 #ifdef ESPHOME_PROJECT_NAME
     MDNS_STATIC_CONST_CHAR(TXT_PROJECT_NAME, "project_name");
     MDNS_STATIC_CONST_CHAR(TXT_PROJECT_VERSION, "project_version");
@@ -221,6 +231,10 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   sendspin_service.proto = MDNS_STR(SERVICE_TCP);
   sendspin_service.port = []() -> uint16_t { return USE_SENDSPIN_PORT; };
   sendspin_service.txt_records = {{MDNS_STR(TXT_SENDSPIN_PATH), MDNS_STR(VALUE_SENDSPIN_PATH)}};
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  // Starts disabled; the sendspin hub enables it once its server is running
+  sendspin_service.enabled = false;
+#endif
 #endif
 
 #ifdef USE_WEBSERVER

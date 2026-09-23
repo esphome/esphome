@@ -70,6 +70,7 @@ async function isStackedPr(github, context) {
 async function detectMergeBranch(github, context) {
   const labels = new Set();
   const baseRef = context.payload.pull_request.base.ref;
+  const defaultBranch = context.payload.repository.default_branch;
 
   if (baseRef === 'release') {
     labels.add('merging-to-release');
@@ -78,7 +79,7 @@ async function detectMergeBranch(github, context) {
   } else if (await isStackedPr(github, context)) {
     // GitHub manages the merge order for a stack, so these are not blocked.
     labels.add('stacked-pr');
-  } else if (baseRef !== 'dev') {
+  } else if (baseRef !== defaultBranch) {
     // A chain built by hand: it must not merge until its base branch does.
     labels.add('chained-pr');
   }

@@ -1,0 +1,5 @@
+esphome:
+  name: preftest
+
+esp32:
+  board: esp32dev
