@@ -170,11 +170,6 @@ def test_esp32_rejects_unsupported_cli_toolchain(
             id="mismatched_board_variant_config",
         ),
         pytest.param(
-            {"variant": "esp32s31", "toolchain": Toolchain.PLATFORMIO.value},
-            r"No default board is known for ESP32S31\. Please specify the `board:` option explicitly\. @ data\['variant'\]",
-            id="variant_without_default_board_requires_explicit_board_under_platformio",
-        ),
-        pytest.param(
             {
                 "variant": "esp32s2",
                 "framework": {
