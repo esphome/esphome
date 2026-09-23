@@ -95,9 +95,7 @@ BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id(
 
 
 def _enable_power_scaling(config: ConfigType) -> ConfigType:
-    # set_min_power/set_max_power only exist with the define; nothing else turns it on
-    # when no output entry configures min_power/max_power. Record the fact here and
-    # emit the define from to_code, so validation adds no codegen state.
+    # set_min_power/set_max_power only exist with the define; to_code emits it from this fact.
     _get_data().power_scaling = True
     return config
 
