@@ -798,6 +798,13 @@ def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> Non
     register_apply_action("my.ok", schema, ApplyField("kp", "set_kp", cg.float_))
     with pytest.raises(ValueError, match="'kd' is not in the schema"):
         register_apply_action("my.bad", schema, ApplyField("kd", "set_kd", cg.float_))
+    register_apply_condition(
+        "my.is", schema, ApplyCall("kp == {}", (("kp", cg.float_),))
+    )
+    with pytest.raises(ValueError, match="'kd' is not in the schema"):
+        register_apply_condition(
+            "my.bad_is", schema, ApplyCall("kd == {}", (("kd", cg.float_),))
+        )
     either = cv.Any(schema, cv.Schema({cv.Optional("kd"): cv.float_}))
     register_apply_action("my.any", either, ApplyField("kd", "set_kd", cg.float_))
     for wrapped in (
@@ -835,22 +842,16 @@ async def test_apply_string_constant_stays_in_flash_on_esp8266(
 async def test_register_apply_condition_predicate(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
-    entry = await _run_apply_condition(registries, "is_playing()", {})
+    entry = await _run_apply_condition(
+        registries, "is_playing()", {}, args=[(cg.int32, "x")]
+    )
     assert entry.type_id is ApplyCondition
     condition_id, template_arg, check = mock_cg.new_pvariable.call_args.args
     assert condition_id == ID("obj_1")
-    assert str(template_arg) == "<>"
-    assert f"return ::{PARENT_OBJ}->is_playing();" in str(check)
-
-
-@pytest.mark.asyncio
-async def test_apply_condition_takes_trigger_args_by_const_ref(
-    registries: tuple[Registry, Registry], mock_cg: MockCodegen
-) -> None:
-    await _run_apply_condition(registries, "is_running()", {}, args=[(cg.int32, "x")])
-    text = _apply_lambda(mock_cg)
+    assert str(template_arg) == "<int32_t>"
+    text = str(check)
     assert text.startswith("[](const std::remove_cvref_t<int32_t> & x) -> bool {")
-    assert f"return ::{PARENT_OBJ}->is_running();" in text
+    assert f"return ::{PARENT_OBJ}->is_playing();" in text
 
 
 @pytest.mark.asyncio
@@ -861,7 +862,6 @@ async def test_apply_condition_compares_config_value(
     await _run_apply_condition(registries, check, {"state": True})
     assert f"return ::{PARENT_OBJ}->state == true;" in _apply_lambda(mock_cg)
 
-    mock_cg.new_pvariable.reset_mock()
     with pytest.raises(EsphomeError, match="needs all of"):
         await _run_apply_condition(registries, check, {})
 
@@ -871,58 +871,32 @@ async def test_apply_condition_compares_config_value(
 async def test_apply_condition_string_constant_is_a_plain_literal(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen, platform: str
 ) -> None:
-    """A progmem_string copy would allocate on every check, so ESP8266 gets the literal too."""
     check = ApplyCall("state == {}", (("state", cg.std_string),))
     await _run_apply_condition(registries, check, {"state": "two"}, platform=platform)
     assert f'return ::{PARENT_OBJ}->state == "two";' in _apply_lambda(mock_cg)
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("body", "expected", "called"),
+    [
+        ("return x;", "->state == (x);", False),
+        ('return x.empty() ? "e" : x;', '->state == (x.empty() ? "e" : x);', False),
+        ('if (x.empty()) return "e";\nreturn x;', "}(x);", True),
+    ],
+)
 async def test_apply_condition_string_lambda_paths(
-    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+    registries: tuple[Registry, Registry],
+    mock_cg: MockCodegen,
+    body: str,
+    expected: str,
+    called: bool,
 ) -> None:
     """A single return is inlined with no copy; a longer body is a called std::string lambda."""
     check = ApplyCall("state == {}", (("state", cg.std_string),))
-    args = [(cg.std_string, "x")]
     await _run_apply_condition(
-        registries, check, {"state": Lambda("return x;")}, args=args
+        registries, check, {"state": Lambda(body)}, args=[(cg.std_string, "x")]
     )
     text = _apply_lambda(mock_cg)
-    assert f"return ::{PARENT_OBJ}->state == (x);" in text
-    assert "-> std::string {" not in text
-
-    mock_cg.new_pvariable.reset_mock()
-    ternary = Lambda('return x.empty() ? "e" : x;')
-    await _run_apply_condition(registries, check, {"state": ternary}, args=args)
-    assert '->state == (x.empty() ? "e" : x);' in _apply_lambda(mock_cg)
-
-    mock_cg.new_pvariable.reset_mock()
-    body = Lambda('if (x.empty()) return "e";\nreturn x;')
-    await _run_apply_condition(registries, check, {"state": body}, args=args)
-    text = _apply_lambda(mock_cg)
-    assert "-> std::string {" in text
-    assert "}(x));" in text
-
-    mock_cg.new_pvariable.reset_mock()
-    await _run_apply_action(
-        registries,
-        (ApplyField("state", "set_state", cg.std_string),),
-        {"state": body},
-        args=args,
-    )
-    assert "-> std::string {" in _apply_lambda(mock_cg)
-
-
-def test_apply_condition_registration_checks(
-    registries: tuple[Registry, Registry],
-) -> None:
-    schema = cv.Schema(
-        {cv.Required(CONF_ID): cv.string, cv.Optional("state"): cv.boolean}
-    )
-    register_apply_condition(
-        "my.ok", schema, ApplyCall("state == {}", (("state", cg.bool_),))
-    )
-    with pytest.raises(ValueError, match="'mode' is not in the schema"):
-        register_apply_condition(
-            "my.bad", schema, ApplyCall("mode == {}", (("mode", cg.bool_),))
-        )
+    assert expected in text
+    assert ("-> std::string {" in text) is called

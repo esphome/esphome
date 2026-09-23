@@ -348,6 +348,7 @@ async def _render_values(
     name: str,
     target: str,
     members: list[tuple[Any, Any, Any]],
+    values: list[Any],
     config: ConfigType,
     parent: str,
     lambda_args: TemplateArgsType,
@@ -355,10 +356,9 @@ async def _render_values(
 ) -> list[str]:
     """Render the argument text of one statement; every key must be present.
 
-    ``compare``: values sit beside an operator, so lambdas are parenthesized and string
-    constants stay plain literals (no per-check ``progmem_string`` copy).
+    ``compare``: an inlined lambda expression is parenthesized so it binds as a whole
+    beside an operator.
     """
-    values = [_config_lookup(config, key) for key, _, _ in members]
     if any(value is None for value in values):
         keys = [key for key, _, _ in members]
         raise EsphomeError(f"{name}: {target!r} needs all of {keys}")
@@ -368,15 +368,18 @@ async def _render_values(
             if isinstance(type_, str):
                 type_ = cg.RawExpression(type_.format(parent=parent))
             inner = await cg.process_lambda(value, lambda_args, return_type=type_)
-            expr = str(call_lambda(inner))
-            exprs.append(f"({expr})" if compare else expr)
+            expr = call_lambda(inner)
+            bare = compare and isinstance(expr, cg.RawExpression)
+            exprs.append(f"({expr})" if bare else str(expr))
         elif const_fn is not None:
             exprs.append(const_fn(config, value))
-        elif type_ is cg.std_string and not compare:
-            exprs.append(flash_string(config, value))
         else:
             exprs.append(str(cg.safe_exp(value)))
     return exprs
+
+
+def _apply_values(config: ConfigType, members: list[tuple[Any, Any, Any]]) -> list[Any]:
+    return [_config_lookup(config, key) for key, _, _ in members]
 
 
 def register_apply_action(
@@ -391,8 +394,15 @@ def register_apply_action(
     in, lambdas are called inline with the trigger args. With ``call`` every statement targets
     the call object ``auto apply_call = parent->call()``, and ``apply_call.perform()`` is appended.
     """
+    # An action stores the value, so a std::string constant stays in flash on ESP8266.
     statements_spec = [
-        (c.target, c.members)
+        (
+            c.target,
+            [
+                (key, t, fn or (flash_string if t is cg.std_string else None))
+                for key, t, fn in c.members
+            ],
+        )
         for c in (f if isinstance(f, ApplyCall) else f.call() for f in fields)
     ]
     for _, members in statements_spec:
@@ -410,13 +420,11 @@ def register_apply_action(
         receiver = "apply_call." if call else f"{parent}->"
         statements: list[str] = []
         for target, members in statements_spec:
-            # A statement with keys is skipped when none of them is set.
-            if members and all(
-                _config_lookup(config, key) is None for key, _, _ in members
-            ):
+            values = _apply_values(config, members)
+            if members and all(value is None for value in values):
                 continue
             exprs = await _render_values(
-                name, target, members, config, parent, lambda_args
+                name, target, members, values, config, parent, lambda_args
             )
             statements.append(f"{receiver}{target.format(*exprs)};")
         if call:
@@ -458,7 +466,14 @@ def register_apply_condition(
         parent = await _apply_parent(config)
         lambda_args = _apply_lambda_args(args)
         exprs = await _render_values(
-            name, call.target, members, config, parent, lambda_args, compare=True
+            name,
+            call.target,
+            members,
+            _apply_values(config, members),
+            config,
+            parent,
+            lambda_args,
+            compare=True,
         )
         check_lambda = LambdaExpression(
             [f"return {parent}->{call.target.format(*exprs)};"],
