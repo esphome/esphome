@@ -58,16 +58,16 @@ constexpr uint8_t get_nibble(const uint8_t *message, uint8_t nibble) {
 }
 
 /// Write a nibble into a zero-initialised frame.
-inline void set_nibble(uint8_t *message, uint8_t nibble, uint8_t value) {
+constexpr void set_nibble(uint8_t *message, uint8_t nibble, uint8_t value) {
   message[nibble / 2] |= (value & 0b00001111) << ((nibble % 2) ? 0 : 4);
 }
 
 // Where each field of a state frame lives, as nibble indices into the frame above.
-const uint8_t FUJITSU_GENERAL_TEMPERATURE_NIBBLE = 16;
-const uint8_t FUJITSU_GENERAL_POWER_ON_NIBBLE = 17;
-const uint8_t FUJITSU_GENERAL_MODE_NIBBLE = 19;
-const uint8_t FUJITSU_GENERAL_SWING_NIBBLE = 20;
-const uint8_t FUJITSU_GENERAL_FAN_NIBBLE = 21;
+constexpr uint8_t FUJITSU_GENERAL_TEMPERATURE_NIBBLE = 16;
+constexpr uint8_t FUJITSU_GENERAL_POWER_ON_NIBBLE = 17;
+constexpr uint8_t FUJITSU_GENERAL_MODE_NIBBLE = 19;
+constexpr uint8_t FUJITSU_GENERAL_SWING_NIBBLE = 20;
+constexpr uint8_t FUJITSU_GENERAL_FAN_NIBBLE = 21;
 
 /// Turn the mode field of a received frame into a climate mode.
 ///

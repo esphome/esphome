@@ -38,8 +38,8 @@ const uint8_t FUJITSU_GENERAL_POWER_ON = 0x01;
 // The mode occupies only the low three bits of this nibble, see the frame documentation in the
 // header. The fourth bit belongs to the clean feature, which doubles as 10 degree heat on the
 // ARRAH2E and ARREW4E remotes.
-const uint8_t FUJITSU_GENERAL_MODE_MASK = 0b0111;
-const uint8_t FUJITSU_GENERAL_CLEAN_BIT = 0b1000;
+constexpr uint8_t FUJITSU_GENERAL_MODE_MASK = 0b0111;
+constexpr uint8_t FUJITSU_GENERAL_CLEAN_BIT = 0b1000;
 const uint8_t FUJITSU_GENERAL_MODE_AUTO = 0x00;
 const uint8_t FUJITSU_GENERAL_MODE_COOL = 0x01;
 const uint8_t FUJITSU_GENERAL_MODE_DRY = 0x02;
@@ -47,7 +47,7 @@ const uint8_t FUJITSU_GENERAL_MODE_FAN = 0x03;
 const uint8_t FUJITSU_GENERAL_MODE_HEAT = 0x04;
 
 // Swing
-const uint8_t FUJITSU_GENERAL_SWING_MASK = 0b0011;
+constexpr uint8_t FUJITSU_GENERAL_SWING_MASK = 0b0011;
 const uint8_t FUJITSU_GENERAL_SWING_NONE = 0x00;
 const uint8_t FUJITSU_GENERAL_SWING_VERTICAL = 0x01;
 const uint8_t FUJITSU_GENERAL_SWING_HORIZONTAL = 0x02;
@@ -56,7 +56,7 @@ const uint8_t FUJITSU_GENERAL_SWING_BOTH = 0x03;
 // Fan
 // Like the mode, the fan speed occupies only the low three bits of its nibble. The fourth bit is
 // not assigned by the protocol.
-const uint8_t FUJITSU_GENERAL_FAN_MASK = 0b0111;
+constexpr uint8_t FUJITSU_GENERAL_FAN_MASK = 0b0111;
 const uint8_t FUJITSU_GENERAL_FAN_AUTO = 0x00;
 const uint8_t FUJITSU_GENERAL_FAN_HIGH = 0x01;
 const uint8_t FUJITSU_GENERAL_FAN_MEDIUM = 0x02;
