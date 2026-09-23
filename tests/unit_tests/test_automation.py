@@ -609,12 +609,13 @@ async def _run_entry(
     config: dict[str, object],
     args: list[tuple[object, str]] | None,
     platform: str,
+    id_key: str = CONF_ID,
 ) -> RegistryEntry:
     """Run a registered builder with the given config, trigger args and platform."""
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
     args = args or []
     template_arg = cg.TemplateArguments(*(t for t, _ in args))
-    await entry.fun({CONF_ID: PARENT_ID, **config}, ID("obj_1"), template_arg, args)
+    await entry.fun({id_key: PARENT_ID, **config}, ID("obj_1"), template_arg, args)
     return entry
 
 
@@ -625,11 +626,12 @@ async def _run_apply_action(
     args: list[tuple[object, str]] | None = None,
     call: str | None = None,
     platform: str = "esp32",
+    id_key: str = CONF_ID,
 ) -> RegistryEntry:
     """Register an apply action and run its builder with the given config."""
     actions, _ = registries
-    register_apply_action("my.apply", None, *fields, call=call)
-    return await _run_entry(actions["my.apply"], config, args, platform)
+    register_apply_action("my.apply", None, *fields, call=call, id_key=id_key)
+    return await _run_entry(actions["my.apply"], config, args, platform, id_key)
 
 
 async def _run_apply_condition(
@@ -638,11 +640,12 @@ async def _run_apply_condition(
     config: dict[str, object],
     args: list[tuple[object, str]] | None = None,
     platform: str = "esp32",
+    id_key: str = CONF_ID,
 ) -> RegistryEntry:
     """Register an apply condition and run its builder with the given config."""
     _, conditions = registries
-    register_apply_condition("my.check", None, check)
-    return await _run_entry(conditions["my.check"], config, args, platform)
+    register_apply_condition("my.check", None, check, id_key=id_key)
+    return await _run_entry(conditions["my.check"], config, args, platform, id_key)
 
 
 def _apply_lambda(mock_cg: MockCodegen) -> str:
@@ -666,24 +669,11 @@ async def test_register_apply_action_entry(
 async def test_apply_custom_id_key(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
-    """id_key reads the parent from a schema key other than CONF_ID."""
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
-    actions, _ = registries
-    register_apply_action(
-        "my.apply",
-        None,
-        ApplyField("value", "digital_write", cg.bool_),
-        id_key="transmitter_id",
-    )
-    entry = actions["my.apply"]
-    await entry.fun(
-        {"transmitter_id": PARENT_ID, "value": True},
-        ID("obj_1"),
-        cg.TemplateArguments(),
-        [],
-    )
+    await _run_apply_action(registries, (), {}, id_key="transmitter_id")
     mock_cg.get_variable.assert_awaited_once_with(PARENT_ID)
-    assert f"::{PARENT_OBJ}->digital_write(true);" in _apply_lambda(mock_cg)
+    mock_cg.get_variable.reset_mock()
+    await _run_apply_condition(registries, "is_on()", {}, id_key="transmitter_id")
+    mock_cg.get_variable.assert_awaited_once_with(PARENT_ID)
 
 
 @pytest.mark.asyncio
@@ -829,6 +819,10 @@ def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> Non
         register_apply_condition(
             "my.bad_is", schema, ApplyCall("kd == {}", (("kd", cg.float_),))
         )
+    with pytest.raises(ValueError, match="'parent_id' is not in the schema"):
+        register_apply_action("my.bad_id", schema, id_key="parent_id")
+    with pytest.raises(ValueError, match="'parent_id' is not in the schema"):
+        register_apply_condition("my.bad_is_id", schema, "is_on()", id_key="parent_id")
     either = cv.Any(schema, cv.Schema({cv.Optional("kd"): cv.float_}))
     register_apply_action("my.any", either, ApplyField("kd", "set_kd", cg.float_))
     for wrapped in (
@@ -841,7 +835,12 @@ def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> Non
             register_apply_action(
                 "my.bad", wrapped, ApplyField("kd", "set_kd", cg.float_)
             )
-    nested = cv.Schema({cv.Optional("v"): cv.Schema({cv.Optional("dir"): cv.int_})})
+    nested = cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.string,
+            cv.Optional("v"): cv.Schema({cv.Optional("dir"): cv.int_}),
+        }
+    )
     register_apply_action(
         "my.nested", nested, ApplyField(("v", "dir"), "set_dir", cg.int_)
     )

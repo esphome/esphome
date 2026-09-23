@@ -391,10 +391,10 @@ def register_apply_action(
 ) -> None:
     """Register an action that only forwards config values to its parent, with no C++ class.
 
-    Generates one stateless function for ``ApplyAction<Ts...>``: parent and constants are baked
-    in, lambdas are called inline with the trigger args. With ``call`` every statement targets
-    the call object ``auto apply_call = parent->call()``, and ``apply_call.perform()`` is appended.
-    ``id_key`` names the schema key holding the parent id when it is not ``CONF_ID``.
+    Generates one stateless function for ``ApplyAction<Ts...>``: the parent (read from
+    ``id_key``) and constants are baked in, lambdas are called inline with the trigger args.
+    With ``call`` every statement targets the call object ``auto apply_call = parent->call()``,
+    and ``apply_call.perform()`` is appended.
     """
     # An action stores the value, so a std::string constant stays in flash on ESP8266.
     statements_spec = [
@@ -407,6 +407,7 @@ def register_apply_action(
         )
         for c in (f if isinstance(f, ApplyCall) else f.call() for f in fields)
     ]
+    _check_key_in_schema(name, schema, id_key)
     for _, members in statements_spec:
         for conf_key, _, _ in members:
             _check_key_in_schema(name, schema, conf_key)
@@ -444,7 +445,7 @@ def register_apply_action(
 
 
 def register_apply_condition(
-    name: str, schema: cv.Schema, check: str | ApplyCall
+    name: str, schema: cv.Schema, check: str | ApplyCall, id_key: str = CONF_ID
 ) -> None:
     """Register a condition that is one expression on its parent, with no C++ class.
 
@@ -456,6 +457,7 @@ def register_apply_condition(
     """
     call = check if isinstance(check, ApplyCall) else ApplyCall(check)
     members = call.members
+    _check_key_in_schema(name, schema, id_key)
     for conf_key, _, _ in members:
         _check_key_in_schema(name, schema, conf_key)
 
@@ -465,7 +467,7 @@ def register_apply_condition(
         template_arg: cg.TemplateArguments,
         args: TemplateArgsType,
     ) -> MockObj:
-        parent = await _apply_parent(config)
+        parent = await _apply_parent(config, id_key)
         lambda_args = _apply_lambda_args(args)
         exprs = await _render_values(
             name,
