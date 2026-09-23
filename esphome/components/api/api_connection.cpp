@@ -364,7 +364,10 @@ void APIConnection::check_keepalive_(uint32_t now) {
     ESP_LOGVV(TAG, "Sending keepalive PING");
     PingRequest req;
     this->flags_.sent_ping = this->send_message(req);
-    if (!this->flags_.sent_ping) {
+    if (this->flags_.sent_ping) {
+      // Quiet for a keepalive period and the ping is on its way: a one-off stall's storage can go
+      this->helper_->release_overflow_buffer();
+    } else {
       // If we can't send the ping request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
       ESP_LOGW(TAG, "Buffer full, ping queued");
@@ -717,12 +720,7 @@ uint16_t APIConnection::try_send_switch_info(EntityBase *entity, APIConnection *
 }
 void APIConnection::on_switch_command_request(const SwitchCommandRequest &msg) {
   ENTITY_COMMAND_GET(switch_::Switch, a_switch, switch)
-
-  if (msg.state) {
-    a_switch->turn_on();
-  } else {
-    a_switch->turn_off();
-  }
+  a_switch->control(msg.state);
 }
 #endif
 
@@ -1661,6 +1659,7 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
       break;
     case enums::SERIAL_PROXY_REQUEST_TYPE_CONFIGURE:
     case enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS:
+    case enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODE:
       // Response-only discriminators; never valid in a request
       ESP_LOGW(TAG, "Response-only serial proxy request type: %" PRIu32, static_cast<uint32_t>(msg.type));
       status = enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT;
@@ -1671,6 +1670,19 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
       break;
   }
   send_serial_proxy_ack(this, msg.instance, msg.type, status);
+}
+
+void APIConnection::on_serial_proxy_set_mode_request(const SerialProxySetModeRequest &msg) {
+  auto &proxies = App.get_serial_proxies();
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
+    send_serial_proxy_ack(this, msg.instance, enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODE,
+                          enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT);
+    return;
+  }
+  serial_proxy::SerialProxyResult result = proxies[msg.instance]->set_mode_from_client(this, msg.mode);
+  send_serial_proxy_ack(this, msg.instance, enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODE,
+                        serial_proxy_result_to_status(result));
 }
 
 void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) {
@@ -1799,7 +1811,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 16;
+  resp.api_version_minor = 17;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());
@@ -2161,7 +2173,10 @@ void APIConnection::on_homeassistant_action_response(const HomeassistantActionRe
 bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptionSetKeyRequest &msg) {
   NoiseEncryptionSetKeyResponse resp;
   resp.success = false;
-
+#ifdef USE_API_NOISE_PSK_FROM_YAML
+  // A yaml key cannot be changed at runtime, so no decode or save path is built
+  ESP_LOGW(TAG, "Key set in YAML");
+#else
 #ifdef USE_PROVISIONING
   // Refuse to set a key once the provisioning window has closed (defense in depth;
   // such connections are already rejected at hello).
@@ -2196,6 +2211,7 @@ bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptio
     }
 #endif
   }
+#endif  // USE_API_NOISE_PSK_FROM_YAML
 
   return this->send_message(resp);
 }
@@ -2391,8 +2407,9 @@ void APIConnection::process_batch_() {
     } else if (payload_size == 0) {
       // payload_size == 0 with remove set means encoding hit OOM and the
       // connection is being dropped; warn only for a genuinely oversized message
-      if (!this->flags_.remove)
+      if (!this->flags_.remove) {
         ESP_LOGW(TAG, "Message too large to send: type=%u", item.message_type);
+      }
       this->clear_batch_();
     }
     return;

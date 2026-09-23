@@ -111,6 +111,7 @@ CONF_ENGINEERING_SAMPLE = "engineering_sample"
 CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
+CONF_FLASH_CHIP = "flash_chip"
 CONF_KEY_ID = "key_id"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
 CONF_NVS_ENCRYPTION = "nvs_encryption"
@@ -182,6 +183,20 @@ SIGNED_OTA_V1_ECDSA_VARIANTS = {
     VARIANT_ESP32,
 }
 
+# Variants that support execution from PSRAM
+PSRAM_XIP_VARIANTS = {
+    VARIANT_ESP32S3,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S31,
+}
+
+# Variants whose ROM exports a full-format vsnprintf but no vasprintf
+# (esp32c6.rom.newlib-normal.ld). There, the newlib printf engine is only
+# linked because esp_http_client calls vasprintf; see vasprintf_stubs.cpp.
+# The other variants either export both (classic ESP32, nano-format only) or
+# neither, so the engine is already in the image and the wrap saves nothing.
+ROM_VSNPRINTF_WITHOUT_VASPRINTF_VARIANTS = {VARIANT_ESP32C6}
+
 # NVS encryption (HMAC peripheral scheme) is only available on variants that
 # expose the HMAC peripheral (SOC_HMAC_SUPPORTED in soc_caps.h). The original
 # ESP32 and ESP32-C2 do not have it. New variants with an HMAC peripheral
@@ -246,8 +261,8 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_https_server",  # HTTPS server - ESPHome has its own web server
     "esp_lcd",  # LCD controller drivers - only needed by display component
     "esp_local_ctrl",  # Local control over HTTPS/BLE - ESPHome has native API
-    "esp_phy",  # RF PHY - esp_wifi/bt/ieee802154 pull it back when they are in the build
-    "esp_wifi",  # WiFi stack - re-included by request_wifi(), espnow; bt pulls it back for BLE builds
+    "esp_phy",  # RF PHY - re-included by internal_temperature on the original ESP32; esp_wifi/bt/ieee802154 pull it back
+    "esp_wifi",  # WiFi stack - re-included by request_wifi(), espnow, esp32_hosted; bt pulls it back for BLE builds
     "espcoredump",  # Core dump support - ESPHome has its own debug component
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
     "ieee802154",  # 802.15.4 radio - IDF openthread and the Zigbee libs pull it back
@@ -449,6 +464,20 @@ ESP32_CHIP_REVISIONS = {
     "3.0": "CONFIG_ESP32_REV_MIN_3",
     "3.1": "CONFIG_ESP32_REV_MIN_3_1",
 }
+
+# Flash vendor drivers ESP-IDF can link; each costs IRAM plus a 124 B table in DRAM
+# and only the one matching the flash ID is ever used
+ESP32_FLASH_CHIPS = {
+    "gd": "CONFIG_SPI_FLASH_SUPPORT_GD_CHIP",
+    "issi": "CONFIG_SPI_FLASH_SUPPORT_ISSI_CHIP",
+    "mxic": "CONFIG_SPI_FLASH_SUPPORT_MXIC_CHIP",
+    "winbond": "CONFIG_SPI_FLASH_SUPPORT_WINBOND_CHIP",
+    "boya": "CONFIG_SPI_FLASH_SUPPORT_BOYA_CHIP",
+    "th": "CONFIG_SPI_FLASH_SUPPORT_TH_CHIP",
+    "mxic_opi": "CONFIG_SPI_FLASH_SUPPORT_MXIC_OPI_CHIP",
+}
+FLASH_CHIP_GENERIC = "generic"
+FLASH_CHIP_OPI = "mxic_opi"  # the octal driver, ESP32-S3 only
 
 # Socket limit configuration for ESP-IDF
 # ESP-IDF CONFIG_LWIP_MAX_SOCKETS has range 1-253, default 10
@@ -1505,6 +1534,13 @@ def final_validate(config) -> None:
                 path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_MINIMUM_CHIP_REVISION],
             )
         )
+    if config[CONF_VARIANT] != VARIANT_ESP32S3 and config.get(CONF_FLASH_MODE) == "opi":
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_FLASH_MODE}: opi' is only supported on {VARIANT_ESP32S3}",
+                path=[CONF_FLASH_MODE],
+            )
+        )
     if config[CONF_VARIANT] != VARIANT_ESP32 and advanced[CONF_SRAM1_AS_IRAM]:
         errs.append(
             cv.Invalid(
@@ -1512,6 +1548,25 @@ def final_validate(config) -> None:
                 path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_SRAM1_AS_IRAM],
             )
         )
+    if (flash_chip := advanced.get(CONF_FLASH_CHIP)) is not None:
+        opi = flash_chip == FLASH_CHIP_OPI
+        if opi and config[CONF_VARIANT] != VARIANT_ESP32S3:
+            errs.append(
+                cv.Invalid(
+                    f"'{CONF_FLASH_CHIP}: {flash_chip}' is only supported on {VARIANT_ESP32S3}",
+                    path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_FLASH_CHIP],
+                )
+            )
+        elif opi != (config.get(CONF_FLASH_MODE) == "opi"):
+            errs.append(
+                cv.Invalid(
+                    f"'{CONF_FLASH_CHIP}: {flash_chip}' requires '{CONF_FLASH_MODE}: opi'"
+                    if opi
+                    else f"'{CONF_FLASH_CHIP}: {flash_chip}' does not match "
+                    f"'{CONF_FLASH_MODE}: opi'; octal flash uses {FLASH_CHIP_OPI}",
+                    path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_FLASH_CHIP],
+                )
+            )
     if (
         config[CONF_VARIANT] != VARIANT_ESP32P4
         and config.get(CONF_ENGINEERING_SAMPLE) is not None
@@ -1523,7 +1578,7 @@ def final_validate(config) -> None:
             )
         )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        if config[CONF_VARIANT] not in {VARIANT_ESP32S3, VARIANT_ESP32P4}:
+        if config[CONF_VARIANT] not in PSRAM_XIP_VARIANTS:
             errs.append(
                 cv.Invalid(
                     f"'{CONF_EXECUTE_FROM_PSRAM}' is not available on this esp32 variant",
@@ -1725,6 +1780,8 @@ CONF_DISABLE_USB_SERIAL_JTAG_SECONDARY = "disable_usb_serial_jtag_secondary"
 CONF_DISABLE_DEV_NULL_VFS = "disable_dev_null_vfs"
 CONF_DISABLE_MBEDTLS_PEER_CERT = "disable_mbedtls_peer_cert"
 CONF_DISABLE_MBEDTLS_PKCS7 = "disable_mbedtls_pkcs7"
+CONF_DISABLE_MBEDTLS_TLS_SERVER = "disable_mbedtls_tls_server"
+CONF_DISABLE_MBEDTLS_TLS_EXTRAS = "disable_mbedtls_tls_extras"
 CONF_DISABLE_REGI2C_IN_IRAM = "disable_regi2c_in_iram"
 CONF_DISABLE_FATFS = "disable_fatfs"
 CONF_ADC_ONESHOT_IN_IRAM = "adc_oneshot_in_iram"
@@ -1739,6 +1796,8 @@ KEY_VFS_TERMIOS_REQUIRED = "vfs_termios_required"
 KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED = "usb_serial_jtag_secondary_required"
 KEY_MBEDTLS_PEER_CERT_REQUIRED = "mbedtls_peer_cert_required"
 KEY_MBEDTLS_PKCS7_REQUIRED = "mbedtls_pkcs7_required"
+KEY_MBEDTLS_TLS_SERVER_REQUIRED = "mbedtls_tls_server_required"
+KEY_MBEDTLS_TLS_EXTRAS_REQUIRED = "mbedtls_tls_extras_required"
 KEY_FATFS_REQUIRED = "fatfs_required"
 KEY_MBEDTLS_SHA512_REQUIRED = "mbedtls_sha512_required"
 KEY_ADC_ONESHOT_IRAM_REQUIRED = "adc_oneshot_iram_required"
@@ -1821,6 +1880,30 @@ def require_mbedtls_pkcs7() -> None:
     This prevents CONFIG_MBEDTLS_PKCS7_C from being disabled.
     """
     CORE.data[KEY_ESP32][KEY_MBEDTLS_PKCS7_REQUIRED] = True
+
+
+def require_mbedtls_tls_server() -> None:
+    """Mark that the mbedTLS server-side TLS/DTLS handshake is required.
+
+    Call this from components that accept TLS connections (OpenThread's DTLS
+    commissioner does). This prevents CONFIG_MBEDTLS_TLS_CLIENT_ONLY from
+    being selected.
+    """
+    CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_SERVER_REQUIRED] = True
+
+
+def require_mbedtls_tls_extras(options: Iterable[str] | None = None) -> None:
+    """Mark TLS features disabled by ``disable_mbedtls_tls_extras`` as required.
+
+    ``options`` names the entries of ``MBEDTLS_TLS_EXTRA_OPTIONS`` to keep;
+    omit it to keep all of them. Call this from components that need AES-CCM,
+    deterministic ECDSA signing, static RSA/ECDH key exchange, TLS
+    renegotiation or session tickets, or that run a TLS client against
+    servers ESPHome cannot vet (wpa_supplicant's EAP client). A user-supplied
+    sdkconfig_options value is never overridden either.
+    """
+    required = CORE.data[KEY_ESP32].setdefault(KEY_MBEDTLS_TLS_EXTRAS_REQUIRED, set())
+    required.update(MBEDTLS_TLS_EXTRA_OPTIONS if options is None else options)
 
 
 def require_mbedtls_sha512() -> None:
@@ -1922,6 +2005,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                     *ESP32_CHIP_REVISIONS, string=True
                 ),
                 cv.Optional(CONF_SRAM1_AS_IRAM, default=False): cv.boolean,
+                cv.Optional(CONF_FLASH_CHIP): cv.one_of(
+                    FLASH_CHIP_GENERIC, *ESP32_FLASH_CHIPS, lower=True
+                ),
                 # DHCP server is needed for WiFi AP mode. When WiFi component is used,
                 # it will handle disabling DHCP server when AP is not configured.
                 # Default to false (disabled) when WiFi is not used.
@@ -1980,6 +2066,8 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_DEV_NULL_VFS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_MBEDTLS_PEER_CERT, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_MBEDTLS_PKCS7, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_MBEDTLS_TLS_SERVER, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_MBEDTLS_TLS_EXTRAS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_REGI2C_IN_IRAM, default=True): cv.boolean,
                 cv.Optional(CONF_ADC_ONESHOT_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_DISABLE_FATFS, default=True): cv.boolean,
@@ -2295,6 +2383,69 @@ async def _reconcile_certificate_bundle_sdkconfig() -> None:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN", True)
 
 
+# TLS features an HTTPS/MQTT client talking to a modern server never
+# negotiates. Static RSA and static ECDH key exchange have no forward secrecy
+# and are gone in TLS 1.3, renegotiation is deprecated, esp-tls never enables
+# session tickets, AES-CCM ciphersuites are not offered by web servers, and
+# deterministic ECDSA only matters when signing with a private key. Together
+# they cost ~10 KB of flash whenever TLS is linked (http_request, mqtt).
+# wpa_supplicant's EAP client is a second TLS client that talks to RADIUS
+# servers ESPHome cannot vet, and a failed EAP handshake leaves the device
+# off the network, so the wifi component re-enables all of these when eap is
+# configured.
+# The EC public key parsing extras stay enabled: they decide whether a peer
+# certificate with a compressed point or explicit curve parameters parses,
+# which no component can know ahead of time.
+MBEDTLS_TLS_EXTRA_OPTIONS = (
+    "CONFIG_MBEDTLS_KEY_EXCHANGE_RSA",
+    "CONFIG_MBEDTLS_KEY_EXCHANGE_ECDH_ECDSA",
+    "CONFIG_MBEDTLS_KEY_EXCHANGE_ECDH_RSA",
+    "CONFIG_MBEDTLS_SSL_RENEGOTIATION",
+    "CONFIG_MBEDTLS_CLIENT_SSL_SESSION_TICKETS",
+    "CONFIG_MBEDTLS_SERVER_SSL_SESSION_TICKETS",
+    "CONFIG_MBEDTLS_CCM_C",
+    "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC",
+)
+
+# Members of the mbedTLS "TLS Protocol Role" Kconfig choice. Setting one
+# member is only valid when the user has not already chosen another.
+MBEDTLS_TLS_ROLE_OPTIONS = (
+    "CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT",
+    "CONFIG_MBEDTLS_TLS_SERVER_ONLY",
+    "CONFIG_MBEDTLS_TLS_CLIENT_ONLY",
+    "CONFIG_MBEDTLS_TLS_DISABLED",
+)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _reconcile_mbedtls_tls_sdkconfig(
+    disable_tls_server: bool, disable_tls_extras: bool
+) -> None:
+    """Trim mbedTLS to what a TLS client needs unless a component asked otherwise.
+
+    Runs at FINAL priority so every require_mbedtls_tls_server() and
+    require_mbedtls_tls_extras() call has happened. Only the server-side
+    handshake (~7 KB) is a separate option; nothing in ESPHome accepts TLS
+    connections, but OpenThread's DTLS commissioner does. A user-supplied
+    sdkconfig_options value always wins; for the TLS role choice, any member
+    the user set leaves the whole choice alone so the pair cannot conflict.
+    """
+    data = CORE.data[KEY_ESP32]
+    sdkconfig = data[KEY_SDKCONFIG_OPTIONS]
+    if (
+        disable_tls_server
+        and not data.get(KEY_MBEDTLS_TLS_SERVER_REQUIRED, False)
+        and not any(option in sdkconfig for option in MBEDTLS_TLS_ROLE_OPTIONS)
+    ):
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_TLS_CLIENT_ONLY", True)
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT", False)
+    if disable_tls_extras:
+        required = data.get(KEY_MBEDTLS_TLS_EXTRAS_REQUIRED, set())
+        for option in MBEDTLS_TLS_EXTRA_OPTIONS:
+            if option not in required:
+                set_idf_sdkconfig_default(option, False)
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _reconcile_network_sdkconfig() -> None:
     """Reconcile WiFi/Ethernet/Bluetooth/coexistence sdkconfig flags.
@@ -2502,6 +2653,13 @@ async def to_code(config):
     # NVS finds stored preferences by key, so preference key migration is possible
     cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.add_build_flag("-Wl,-z,noexecstack")
+    # assert(), HAL_ASSERT and ESP_ERROR_CHECK bake __FILE__ into rodata, and
+    # IDF's noflash placement puts the flash driver's copies in DRAM. The
+    # basename keeps the panic output useful at a fraction of the size.
+    # __FILE_NAME__ is a GCC 12 builtin; IDF 5.0 still ships GCC 11.2.
+    if idf_version() >= cv.Version(5, 1, 0):
+        cg.add_build_flag("-D__FILE__=__FILE_NAME__")
+        cg.add_build_flag("-Wno-builtin-macro-redefined")
     # Deferred so KEY_COMPONENTS is fully populated -- see the coroutine.
     CORE.add_job(_finalize_arduino_aware_flags)
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
@@ -2559,6 +2717,17 @@ async def to_code(config):
         else:
             for symbol in ("vprintf", "printf", "fprintf", "vfprintf"):
                 cg.add_build_flag(f"-Wl,--wrap={symbol}")
+            # esp_http_client calls vasprintf, which on the ESP32-C6 is the only
+            # reference to newlib's full printf engine (~20 KB: _svfprintf_r,
+            # _dtoa_r and their helpers); every other caller resolves to the
+            # ROM. See vasprintf_stubs.cpp. The --undefined flag is needed
+            # because libsrc.a is scanned before the IDF libraries that
+            # reference the symbol, so the stub would otherwise never be pulled
+            # from the archive.
+            if variant in ROM_VSNPRINTF_WITHOUT_VASPRINTF_VARIANTS:
+                cg.add_define("USE_ESP32_VASPRINTF_STUB")
+                cg.add_build_flag("-Wl,--wrap=vasprintf")
+                cg.add_build_flag("-Wl,--undefined=__wrap_vasprintf")
     else:
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
@@ -2607,6 +2776,8 @@ async def to_code(config):
         add_idf_sdkconfig_option(
             f"CONFIG_ESPTOOLPY_FLASHMODE_{flash_mode.upper()}", True
         )
+        # the opi mode choice only exists once octal flash is enabled
+        add_idf_sdkconfig_option("CONFIG_ESPTOOLPY_OCT_FLASH", flash_mode == "opi")
     if flash_frequency := config.get(CONF_FLASH_FREQUENCY):
         add_idf_sdkconfig_option(
             f"CONFIG_ESPTOOLPY_FLASHFREQ_{flash_frequency[:-3]}M", True
@@ -2621,6 +2792,11 @@ async def to_code(config):
             config.get(CONF_ENGINEERING_SAMPLE, False),
         )
 
+    # ESP32-C2 defaults to the ROM's newlib "nano" printf, which does not
+    # understand %zu or %lld and crashes on any %s that follows one.
+    if variant == VARIANT_ESP32C2:
+        add_idf_sdkconfig_option("CONFIG_LIBC_NEWLIB_NANO_FORMAT", False)
+
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
     # and for PSRAM users saves significant IRAM by keeping C library functions in ROM.
@@ -2630,6 +2806,11 @@ async def to_code(config):
             for rev, flag in ESP32_CHIP_REVISIONS.items():
                 add_idf_sdkconfig_option(flag, rev == min_rev)
             cg.add_define("USE_ESP32_MIN_CHIP_REVISION_SET")
+
+    # Keep only the flash vendor driver the board needs; the boot log names it
+    if (flash_chip := conf[CONF_ADVANCED].get(CONF_FLASH_CHIP)) is not None:
+        for chip, flag in ESP32_FLASH_CHIPS.items():
+            add_idf_sdkconfig_option(flag, chip == flash_chip)
 
     # Use SRAM1 region as IRAM on ESP32 (original) variant
     # This provides an additional 40KB of IRAM by using SRAM1 memory that was previously
@@ -2727,13 +2908,7 @@ async def to_code(config):
     _configure_lwip_max_sockets(conf)
 
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        if variant == VARIANT_ESP32S3:
-            add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
-            add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
-        elif variant == VARIANT_ESP32P4:
-            add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
-        else:
-            raise ValueError("Unhandled ESP32 variant")
+        add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
 
     # Apply LWIP core locking for better socket performance
     # This is already enabled by default in Arduino framework, where it provides
@@ -2989,6 +3164,13 @@ async def to_code(config):
 
     # FINAL priority: runs after every require_certificate_bundle() call
     CORE.add_job(_reconcile_certificate_bundle_sdkconfig)
+
+    # FINAL priority: runs after every require_mbedtls_tls_*() call
+    CORE.add_job(
+        _reconcile_mbedtls_tls_sdkconfig,
+        advanced[CONF_DISABLE_MBEDTLS_TLS_SERVER],
+        advanced[CONF_DISABLE_MBEDTLS_TLS_EXTRAS],
+    )
 
     # FINAL: require_*() calls can come from to_code at or below this priority, so an
     # inline read would be iteration-order-dependent; reconcile once after every job ran.
@@ -3249,7 +3431,13 @@ def _write_sdkconfig():
     if write_file_if_changed(internal_path, contents):
         # internal changed, update real one
         write_file_if_changed(sdk_path, contents)
-        clean_build(clear_pio_cache=False)
+        if not CORE.using_toolchain_esp_idf:
+            # PIO's dependency tracking under-declares sdkconfig inputs
+            # (ldgen, linker scripts); without a clean the image can be
+            # unbootable (esphome#15336). The esp-idf toolchain tracks
+            # sdkconfig via IDF's cmake and has_outdated_files(), so a
+            # reconfigure suffices there; everything else fails safe.
+            clean_build(clear_pio_cache=False)
 
 
 def _write_idf_component_yml():

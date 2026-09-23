@@ -56,6 +56,15 @@ void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, ui
   this->flags_.entity_category = (entity_fields >> ENTITY_FIELD_ENTITY_CATEGORY_SHIFT) & 0x3;
 }
 
+void EntityBase::set_internal(bool internal) {
+  // Remove the after-setup path in 2027.3.0 and ignore the call instead.
+  if (App.is_setup_complete()) {
+    ESP_LOGE(TAG, "'%s': set_internal() after setup is undefined behavior, stops working in 2027.3.0",
+             this->get_name().c_str());
+  }
+  this->flags_.internal = internal;
+}
+
 // Weak default lookup functions — overridden by generated code in main.cpp
 __attribute__((weak)) const char *entity_device_class_lookup(uint8_t) { return ""; }
 __attribute__((weak)) const char *entity_uom_lookup(uint8_t) { return ""; }
