@@ -460,6 +460,17 @@ void OpenTherm42Hub::build_schedule_() {
       this->remote_override_room_setpoint_function_program_change_priority_text_sensor_ != nullptr) {
     this->schedule_(RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION);
   }
+
+  // Every Tier 2 hub-level group option staged its interval at wiring time (see
+  // pending_group_intervals_'s declaration comment) since scheduled_ didn't exist yet back then --
+  // apply them now that every schedule_() call above has run.
+  for (auto const &pending : this->pending_group_intervals_) {
+    if (ScheduledEntry *entry = this->find_scheduled_(pending.first); entry != nullptr) {
+      entry->interval_ms = pending.second;
+    }
+  }
+  this->pending_group_intervals_.clear();
+  this->pending_group_intervals_.shrink_to_fit();
 }
 
 Frame OpenTherm42Hub::build_next_request_() {

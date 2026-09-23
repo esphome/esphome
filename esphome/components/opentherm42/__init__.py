@@ -82,6 +82,18 @@ CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_UPDATE_INTER
     "control_of_special_applications_remote_override_operating_mode_update_interval"
 )
 CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_UPDATE_INTERVAL = "control_of_special_applications_remote_override_room_setpoint_function_update_interval"
+# §5.3.6 Class 6, IDs 11/89/106: all three TSP families round-robin through one shared
+# conversation (see hub.h's tsp_slots_) -- this governs how fast that rotation advances as a
+# whole, not any individual slot's own refresh rate. On-demand writes always jump the queue ahead
+# of it regardless.
+CONF_TRANSPARENT_BOILER_PARAMETERS_UPDATE_INTERVAL = (
+    "transparent_boiler_parameters_update_interval"
+)
+# §5.3.7 Class 7, IDs 13/91/108: same shared-rotation reasoning as TSP above, for the (purely
+# read-only) fault-history-buffer entries.
+CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_UPDATE_INTERVAL = (
+    "fault_history_data_fault_buffer_update_interval"
+)
 
 # One hub option per 1:N group, used both to build CONFIG_SCHEMA below and by to_code() to only
 # emit the matching setter call when the option is actually present.
@@ -103,6 +115,8 @@ GROUP_UPDATE_INTERVAL_OPTIONS = (
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MAX_CAPACITY_MIN_MOD_LEVEL_UPDATE_INTERVAL,
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_UPDATE_INTERVAL,
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_UPDATE_INTERVAL,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_UPDATE_INTERVAL,
+    CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_UPDATE_INTERVAL,
 )
 
 # §5.3.2 Class 2: this master's own identity, written to the boiler once at startup (IDs 2 LB/126).
@@ -148,10 +162,14 @@ def validate_requires_hub_option(markers: list[str], hub_option: str, group_labe
     Only needs to check the markers that live in the calling platform file -- if a sibling platform
     (e.g. binary_sensor for a group also configured via switch) has a triggering marker instead,
     that platform's own validate_requires_hub_option() call independently enforces the same rule.
+
+    Checks truthiness, not mere key presence: TSP/FHB's family markers are `cv.Optional(...,
+    default=[])`, so the key is always present in the validated config even when the user configured
+    no slots at all -- an empty list must count as "not configured", same as a genuinely absent key.
     """
 
     def _validate(config: ConfigType) -> ConfigType:
-        if not any(marker in config for marker in markers):
+        if not any(config.get(marker) for marker in markers):
             return config
         full_config = fv.full_config.get()
         hub_path = full_config.get_path_for_id(config[CONF_OPENTHERM42_ID])[:-1]

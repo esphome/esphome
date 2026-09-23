@@ -400,74 +400,88 @@ class OpenTherm42Hub : public Component {
   // opentherm42/__init__.py), since STATUS is unconditionally scheduled regardless of which, if
   // any, of its 15 switch/binary_sensor bits are configured -- see ReservedEntry's declaration
   // comment and build_schedule_(). Range-capped at config-validation time to stay under §4.3.1's
-  // 1.15 s MCI ceiling.
+  // 1.15 s MCI ceiling. reserved_ is a std::array initialized at object-construction time (see its
+  // member declaration below), so it already exists by the time this runs, unlike scheduled_ below.
   void set_control_and_status_information_boiler_status_update_interval(uint32_t interval_ms) {
     this->find_reserved_(RequestKind::STATUS)->interval_ms = interval_ms;
   }
   // Every id below is a Tier 2 group spanning more than one entity (see hub.h's scheduling-redesign
-  // notes and the catalog in the PR this introduced them) -- each hub option is only present in
-  // config, and thus only ever set here, when at least one of that group's entities is configured
-  // (enforced by validate_requires_hub_option() in opentherm42/__init__.py), so scheduled_ is
-  // guaranteed to already have the matching entry from build_schedule_() by the time this runs
-  // (entity wiring and hub option setters both run before any component's setup() -- see
-  // find_reserved_()'s declaration comment for the same reasoning applied to STATUS above).
+  // notes and the catalog in the PR this introduced them). Unlike reserved_ above, scheduled_ is a
+  // std::vector populated by build_schedule_(), which only runs from this hub's own setup() -- and
+  // every hub option setter, like every other cg.add()'d statement, runs at wiring time, strictly
+  // before any component's setup() (including this hub's). So the matching scheduled_ entry does
+  // not exist yet when these run -- stage the value in pending_group_intervals_ instead, and let
+  // build_schedule_() apply it once scheduled_ is actually populated (same pattern already used
+  // below for pending_simple_sensor_intervals_ and the OEM/date-time staging fields).
   void set_control_and_status_information_status_ventilation_heat_recovery_update_interval(uint32_t interval_ms) {
-    this->find_scheduled_(RequestKind::VENTILATION_STATUS)->interval_ms = interval_ms;
+    this->pending_group_intervals_.push_back({RequestKind::VENTILATION_STATUS, interval_ms});
   }
   void set_control_and_status_information_application_specific_fault_flags_update_interval(uint32_t interval_ms) {
-    this->find_scheduled_(RequestKind::FAULT_FLAGS)->interval_ms = interval_ms;
+    this->pending_group_intervals_.push_back({RequestKind::FAULT_FLAGS, interval_ms});
   }
   void set_control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_update_interval(
       uint32_t interval_ms) {
-    this->find_scheduled_(RequestKind::VENTILATION_FAULT_FLAGS)->interval_ms = interval_ms;
+    this->pending_group_intervals_.push_back({RequestKind::VENTILATION_FAULT_FLAGS, interval_ms});
   }
   void set_control_and_status_information_solar_storage_mode_and_status_update_interval(uint32_t interval_ms) {
-    this->find_scheduled_(RequestKind::SOLAR_STORAGE_STATUS)->interval_ms = interval_ms;
+    this->pending_group_intervals_.push_back({RequestKind::SOLAR_STORAGE_STATUS, interval_ms});
   }
   void set_configuration_information_configuration_ventilation_heat_recovery_update_interval(uint32_t interval_ms) {
-    this->find_scheduled_(RequestKind::VENTILATION_CONFIGURATION)->interval_ms = interval_ms;
+    this->pending_group_intervals_.push_back({RequestKind::VENTILATION_CONFIGURATION, interval_ms});
   }
   void set_configuration_information_solar_storage_configuration_update_interval(uint32_t interval_ms) {
-    this->find_scheduled_(RequestKind::SOLAR_STORAGE_CONFIGURATION)->interval_ms = interval_ms;
+    this->pending_group_intervals_.push_back({RequestKind::SOLAR_STORAGE_CONFIGURATION, interval_ms});
   }
   void set_configuration_information_boiler_product_version_number_and_type_update_interval(uint32_t interval_ms) {
-    this->find_scheduled_(RequestKind::PRODUCT_VERSION_BOILER)->interval_ms = interval_ms;
+    this->pending_group_intervals_.push_back({RequestKind::PRODUCT_VERSION_BOILER, interval_ms});
   }
   void set_configuration_information_ventilation_heat_recovery_product_version_number_and_type_update_interval(
       uint32_t interval_ms) {
-    this->find_scheduled_(RequestKind::PRODUCT_VERSION_VENTILATION)->interval_ms = interval_ms;
+    this->pending_group_intervals_.push_back({RequestKind::PRODUCT_VERSION_VENTILATION, interval_ms});
   }
   void set_configuration_information_solar_storage_product_version_number_and_type_update_interval(
       uint32_t interval_ms) {
-    this->find_scheduled_(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE)->interval_ms = interval_ms;
+    this->pending_group_intervals_.push_back({RequestKind::PRODUCT_VERSION_SOLAR_STORAGE, interval_ms});
   }
   void set_sensor_and_informational_data_boiler_fan_speed_update_interval(uint32_t interval_ms) {
-    this->find_scheduled_(RequestKind::BOILER_FAN_SPEED)->interval_ms = interval_ms;
+    this->pending_group_intervals_.push_back({RequestKind::BOILER_FAN_SPEED, interval_ms});
   }
   void set_pre_defined_remote_boiler_parameters_flags_update_interval(uint32_t interval_ms) {
-    this->find_scheduled_(RequestKind::REMOTE_PARAMETER_FLAGS)->interval_ms = interval_ms;
+    this->pending_group_intervals_.push_back({RequestKind::REMOTE_PARAMETER_FLAGS, interval_ms});
   }
   void set_pre_defined_remote_boiler_parameters_ventilation_heat_recovery_flags_update_interval(uint32_t interval_ms) {
-    this->find_scheduled_(RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION)->interval_ms = interval_ms;
+    this->pending_group_intervals_.push_back({RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION, interval_ms});
   }
   void set_pre_defined_remote_boiler_parameters_dhwsetp_update_interval(uint32_t interval_ms) {
-    this->find_scheduled_(RequestKind::DHWSETP_BOUNDS)->interval_ms = interval_ms;
+    this->pending_group_intervals_.push_back({RequestKind::DHWSETP_BOUNDS, interval_ms});
   }
   void set_pre_defined_remote_boiler_parameters_max_chsetp_update_interval(uint32_t interval_ms) {
-    this->find_scheduled_(RequestKind::MAX_CHSETP_BOUNDS)->interval_ms = interval_ms;
+    this->pending_group_intervals_.push_back({RequestKind::MAX_CHSETP_BOUNDS, interval_ms});
   }
   void set_control_of_special_applications_max_capacity_min_mod_level_update_interval(uint32_t interval_ms) {
-    this->find_scheduled_(RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL)->interval_ms = interval_ms;
+    this->pending_group_intervals_.push_back({RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL, interval_ms});
   }
   // Covers both halves of the write/read pair (see ScheduledEntry's declaration comment) -- one
   // interval for the whole logical group, same as every other entry here.
   void set_control_of_special_applications_remote_override_operating_mode_update_interval(uint32_t interval_ms) {
-    this->find_scheduled_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES)->interval_ms = interval_ms;
-    this->find_scheduled_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ)->interval_ms = interval_ms;
+    this->pending_group_intervals_.push_back({RequestKind::REMOTE_OVERRIDE_OPERATING_MODES, interval_ms});
+    this->pending_group_intervals_.push_back({RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ, interval_ms});
   }
   void set_control_of_special_applications_remote_override_room_setpoint_function_update_interval(
       uint32_t interval_ms) {
-    this->find_scheduled_(RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION)->interval_ms = interval_ms;
+    this->pending_group_intervals_.push_back({RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION, interval_ms});
+  }
+  // §5.3.6 Class 6, IDs 11/89/106: TSP slots from all three families (see tsp_slots_) round-robin
+  // through one shared RequestKind::TSP conversation -- one interval governs how fast that rotation
+  // advances as a whole, not any individual slot's own refresh rate. On-demand writes (see
+  // write_tsp()) already jump the queue ahead of this rotation regardless of this interval.
+  void set_transparent_boiler_parameters_update_interval(uint32_t interval_ms) {
+    this->pending_group_intervals_.push_back({RequestKind::TSP, interval_ms});
+  }
+  // §5.3.7 Class 7, IDs 13/91/108: same shared-rotation reasoning as TSP above, for the (purely
+  // read-only) fault-history-buffer entries.
+  void set_fault_history_data_fault_buffer_update_interval(uint32_t interval_ms) {
+    this->pending_group_intervals_.push_back({RequestKind::FHB, interval_ms});
   }
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
@@ -1110,6 +1124,11 @@ class OpenTherm42Hub : public Component {
   // build_schedule_()'s SIMPLE_SENSORS loop, then cleared -- only needed transiently during
   // setup(), so shrink_to_fit() afterward gives the memory back rather than holding it forever.
   std::vector<std::pair<uint8_t, uint32_t>> pending_simple_sensor_intervals_;
+  // Staged by every Tier 2 hub-level group's set_..._update_interval() at wiring time (see their
+  // declaration comments above for why scheduled_ isn't populated yet when those run), consumed
+  // once by build_schedule_() after scheduled_ is built, then cleared the same way as
+  // pending_simple_sensor_intervals_ above.
+  std::vector<std::pair<RequestKind, uint32_t>> pending_group_intervals_;
 
   // Raw values from the §5.2 mandatory conversations -- exposed as real entities once Class 2
   // (Commit 5) lands.

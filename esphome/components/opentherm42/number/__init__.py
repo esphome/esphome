@@ -11,7 +11,12 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
 )
 
-from .. import OpenTherm42Hub, opentherm42_ns
+from .. import (
+    CONF_TRANSPARENT_BOILER_PARAMETERS_UPDATE_INTERVAL,
+    OpenTherm42Hub,
+    opentherm42_ns,
+    validate_requires_hub_option,
+)
 from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT,
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_2_TSETCH2,
@@ -307,6 +312,13 @@ CONFIG_SCHEMA = cv.Schema(
             for marker in TSP_FAMILY_DATA_IDS
         },
     }
+)
+
+
+FINAL_VALIDATE_SCHEMA = validate_requires_hub_option(
+    list(TSP_FAMILY_DATA_IDS),
+    CONF_TRANSPARENT_BOILER_PARAMETERS_UPDATE_INTERVAL,
+    "any transparent-boiler-parameter (TSP) slot",
 )
 
 

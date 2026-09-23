@@ -46,6 +46,8 @@ opentherm42:
   control_of_special_applications_max_capacity_min_mod_level_update_interval: 30s
   control_of_special_applications_remote_override_operating_mode_update_interval: 5s
   control_of_special_applications_remote_override_room_setpoint_function_update_interval: 60s
+  transparent_boiler_parameters_update_interval: 60s
+  fault_history_data_fault_buffer_update_interval: 5min
 
 switch:
   - platform: opentherm42
