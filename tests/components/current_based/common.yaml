@@ -31,7 +31,7 @@ sensor:
 
 switch:
   - platform: template
-    id: template_switch1
+    id: current_based_template_switch1
     optimistic: true
   - platform: template
     id: template_switch2
@@ -46,7 +46,7 @@ cover:
     open_obstacle_current_threshold: 0.8
     open_duration: 12s
     open_action:
-      - switch.turn_on: template_switch1
+      - switch.turn_on: current_based_template_switch1
     close_sensor: ade7953_current_b
     close_moving_current_threshold: 0.5
     close_obstacle_current_threshold: 0.8
@@ -54,7 +54,7 @@ cover:
     close_action:
       - switch.turn_on: template_switch2
     stop_action:
-      - switch.turn_off: template_switch1
+      - switch.turn_off: current_based_template_switch1
       - switch.turn_off: template_switch2
     obstacle_rollback: 30%
     start_sensing_delay: 0.8s

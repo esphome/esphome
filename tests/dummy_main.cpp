@@ -29,6 +29,7 @@ void setup() {
 
   auto *ota = new esphome::ESPHomeOTAComponent();  // NOLINT
   ota->set_port(8266);
+  App.register_component_(ota);
 
   App.setup();
 }

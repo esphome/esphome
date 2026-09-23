@@ -5,7 +5,7 @@
 
 namespace esphome::copy {
 
-class CopyTextSensor : public text_sensor::TextSensor, public Component {
+class CopyTextSensor final : public text_sensor::TextSensor, public Component {
  public:
   void set_source(text_sensor::TextSensor *source) { source_ = source; }
   void setup() override;

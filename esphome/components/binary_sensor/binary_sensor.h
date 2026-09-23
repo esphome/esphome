@@ -32,7 +32,8 @@ void log_binary_sensor(const char *tag, const char *prefix, const char *type, Bi
  */
 class BinarySensor : public StatefulEntityBase<bool> {
  public:
-  explicit BinarySensor() = default;
+  // User provided, not "= default": `new(p) BinarySensor()` would zero-fill .bss that is already zero.
+  explicit BinarySensor() {}
 
   const bool &get_state() const override { return this->state; }
   void set_trigger_on_initial_state(bool value) { this->trigger_on_initial_state_ = value; }

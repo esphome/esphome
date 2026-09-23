@@ -6,7 +6,7 @@
 
 namespace esphome::ina3221 {
 
-class INA3221Component : public PollingComponent, public i2c::I2CDevice {
+class INA3221Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

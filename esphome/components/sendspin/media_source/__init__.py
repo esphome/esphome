@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import media_source
+from esphome.components import media_source, psram
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -13,13 +13,17 @@ from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 from .. import (
+    CODEC_OPUS,
+    CODECS,
+    CONF_CODECS,
     CONF_DECODE_MEMORY,
     CONF_FIXED_DELAY,
     CONF_INITIAL_STATIC_DELAY,
     CONF_SENDSPIN_ID,
+    DEFAULT_CODECS,
     MEMORY_LOCATIONS,
+    OPUS_SAMPLE_RATE,
     SendspinHub,
-    _validate_task_stack_in_psram,
     register_player_config,
     request_controller_support,
     sendspin_ns,
@@ -50,10 +54,32 @@ DisableStaticDelayAdjustmentAction = sendspin_ns.class_(
 )
 
 
+def _resolve_codecs(config: ConfigType) -> ConfigType:
+    """Validate the codec preference list, filling in the default when it is not set."""
+    sample_rate = config[CONF_SAMPLE_RATE]
+    if (codecs := config.get(CONF_CODECS)) is None:
+        config[CONF_CODECS] = [
+            codec
+            for codec in DEFAULT_CODECS
+            if codec != CODEC_OPUS or sample_rate == OPUS_SAMPLE_RATE
+        ]
+        return config
+
+    if len(set(codecs)) != len(codecs):
+        raise cv.Invalid("Each codec may only be listed once", path=[CONF_CODECS])
+    if CODEC_OPUS in codecs and sample_rate != OPUS_SAMPLE_RATE:
+        raise cv.Invalid(
+            f"Codec '{CODEC_OPUS}' requires a {CONF_SAMPLE_RATE} of {OPUS_SAMPLE_RATE}",
+            path=[CONF_CODECS],
+        )
+    return config
+
+
 def _register(config: ConfigType) -> ConfigType:
     request_controller_support()
     register_player_config(
         {
+            CONF_CODECS: config[CONF_CODECS],
             CONF_SAMPLE_RATE: config[CONF_SAMPLE_RATE],
             CONF_BUFFER_SIZE: config[CONF_BUFFER_SIZE],
             CONF_INITIAL_STATIC_DELAY: config[CONF_INITIAL_STATIC_DELAY],
@@ -71,7 +97,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(
         {
             cv.GenerateID(CONF_SENDSPIN_ID): cv.use_id(SendspinHub),
-            cv.Optional(CONF_TASK_STACK_IN_PSRAM): _validate_task_stack_in_psram,
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
             cv.Optional(CONF_BUFFER_SIZE, default=1000000): cv.int_range(min=25000),
             cv.Optional(CONF_INITIAL_STATIC_DELAY, default="0ms"): cv.All(
                 cv.positive_time_period_milliseconds,
@@ -86,9 +112,13 @@ CONFIG_SCHEMA = cv.All(
                 min=16000, max=96000
             ),
             cv.Optional(CONF_DECODE_MEMORY): cv.one_of(*MEMORY_LOCATIONS, lower=True),
+            cv.Optional(CONF_CODECS): cv.All(
+                cv.ensure_list(cv.enum(CODECS, lower=True)), cv.Length(min=1)
+            ),
         }
     ),
     cv.only_on_esp32,
+    _resolve_codecs,
     _register,
 )
 

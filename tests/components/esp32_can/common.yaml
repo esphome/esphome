@@ -13,7 +13,7 @@ esphome:
 
 canbus:
   - platform: esp32_can
-    id: esp32_internal_can
+    id: esp32_can_esp32_internal_can
     rx_pin: ${rx_pin}
     tx_pin: ${tx_pin}
     can_id: 4

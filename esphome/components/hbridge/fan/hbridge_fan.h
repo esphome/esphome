@@ -12,7 +12,7 @@ enum DecayMode {
   DECAY_MODE_FAST = 1,
 };
 
-class HBridgeFan : public Component, public fan::Fan {
+class HBridgeFan final : public Component, public fan::Fan {
  public:
   HBridgeFan(int speed_count, DecayMode decay_mode) : speed_count_(speed_count), decay_mode_(decay_mode) {}
 
@@ -46,7 +46,7 @@ class HBridgeFan : public Component, public fan::Fan {
   void set_hbridge_levels_(float a_level, float b_level, float enable);
 };
 
-template<typename... Ts> class BrakeAction : public Action<Ts...> {
+template<typename... Ts> class BrakeAction final : public Action<Ts...> {
  public:
   explicit BrakeAction(HBridgeFan *parent) : parent_(parent) {}
 
