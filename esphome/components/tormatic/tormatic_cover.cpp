@@ -36,8 +36,6 @@ cover::CoverTraits Tormatic::get_traits() {
 
 void Tormatic::dump_config() {
   LOG_COVER("", "Tormatic Cover", this);
-  this->check_uart_settings(9600, 1, uart::UART_CONFIG_PARITY_NONE, 8);
-
   ESP_LOGCONFIG(TAG,
                 "  Open Duration: %.1fs\n"
                 "  Close Duration: %.1fs",
@@ -345,7 +343,7 @@ optional<GateStatus> Tormatic::read_status_response_() {
       // Interpret the response based on what was requested.
       if (this->pending_status_type_ == LIGHT) {
         bool light_on = static_cast<uint8_t>(reply.trailer);
-        ESP_LOGI(TAG, "**Light** status: %s (raw=0x%02X)", light_on ? "On" : "Off",
+        ESP_LOGI(TAG, "**Light** status: %s (raw=0x%02X)", light_on ? LOG_STR_LITERAL("On") : LOG_STR_LITERAL("Off"),
                  static_cast<uint8_t>(reply.trailer));
         // if (light_on != this->current_light_state_) {
         //   this->current_light_state_ = light_on;

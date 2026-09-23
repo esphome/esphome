@@ -1,8 +1,6 @@
 #include "xiaomi_jqjcy01ym.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
 namespace esphome::xiaomi_jqjcy01ym {
 
 static const char *const TAG = "xiaomi_jqjcy01ym";
@@ -15,7 +13,7 @@ void XiaomiJQJCY01YM::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
-bool XiaomiJQJCY01YM::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiJQJCY01YM::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -58,5 +56,3 @@ bool XiaomiJQJCY01YM::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
 }
 
 }  // namespace esphome::xiaomi_jqjcy01ym
-
-#endif

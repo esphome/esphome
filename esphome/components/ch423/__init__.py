@@ -14,6 +14,8 @@ from esphome.const import (
     CONF_OUTPUT,
 )
 from esphome.core import CORE
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@dwmw2"]
 DEPENDENCIES = ["i2c"]
@@ -36,7 +38,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     # Can't use register_i2c_device because there is no CONF_ADDRESS
@@ -45,7 +47,7 @@ async def to_code(config):
 
 
 # This is used as a final validation step so that modes have been fully transformed.
-def pin_mode_check(pin_config, _):
+def pin_mode_check(pin_config: ConfigType, _: ConfigType) -> None:
     if pin_config[CONF_MODE][CONF_INPUT] and pin_config[CONF_NUMBER] >= 8:
         raise cv.Invalid("CH423 only supports input on pins 0-7")
     if pin_config[CONF_MODE][CONF_OPEN_DRAIN] and pin_config[CONF_NUMBER] < 8:
@@ -90,7 +92,7 @@ CH423_PIN_SCHEMA = pins.gpio_base_schema(
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_CH423, CH423_PIN_SCHEMA, pin_mode_check)
-async def ch423_pin_to_code(config):
+async def ch423_pin_to_code(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_CH423])
 

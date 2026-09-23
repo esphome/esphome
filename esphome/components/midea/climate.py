@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import climate, remote_transmitter, sensor, uart
+from esphome.components import climate, remote_base, remote_transmitter, sensor, uart
 from esphome.components.climate import ClimateMode, ClimatePreset, ClimateSwingMode
 from esphome.components.remote_base import CONF_TRANSMITTER_ID
 import esphome.config_validation as cv
@@ -25,6 +25,8 @@ from esphome.const import (
     ICON_POWER,
     ICON_THERMOMETER,
     ICON_WATER_PERCENT,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
@@ -151,7 +153,12 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
-    cv.only_with_arduino,
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+        ]
+    ),
 )
 
 # Actions
@@ -273,6 +280,7 @@ async def to_code(config):
     cg.add(var.set_response_timeout(config[CONF_TIMEOUT].total_milliseconds))
     cg.add(var.set_request_attempts(config[CONF_NUM_ATTEMPTS]))
     if CONF_TRANSMITTER_ID in config:
+        remote_base.request_protocol("midea")  # ir_transmitter.h uses it from C++
         cg.add_define("USE_REMOTE_TRANSMITTER")
         transmitter_ = await cg.get_variable(config[CONF_TRANSMITTER_ID])
         cg.add(var.set_transmitter(transmitter_))
@@ -297,7 +305,14 @@ async def to_code(config):
     if CONF_HUMIDITY_SETPOINT in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
         cg.add(var.set_humidity_setpoint_sensor(sens))
-    # MideaUART library requires WiFi (WiFi auto-enables Network via dependency mapping)
-    if CORE.is_esp32:
+    # MideaUART uses the Arduino WiFi API for the network-notify frame
+    # (WiFi auto-enables Network via dependency mapping). On ESP-IDF the
+    # library talks to esp_wifi directly, so no library entry is needed.
+    if CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("WiFi", None)
-    cg.add_library("dudanov/MideaUART", "1.1.9")
+    # Using the repository until a release containing ESP-IDF support is published
+    cg.add_library(
+        name="MideaUART",
+        version=None,
+        repository="https://github.com/dudanov/MideaUART.git#eeea6c3e9b4474f067054592b435be1c4e466815",
+    )

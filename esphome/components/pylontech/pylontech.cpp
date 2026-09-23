@@ -33,7 +33,6 @@ static const uint8_t ASCII_LF = 0x0A;
 PylontechComponent::PylontechComponent() {}
 
 void PylontechComponent::dump_config() {
-  this->check_uart_settings(115200, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
   ESP_LOGCONFIG(TAG, "pylontech:");
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Connection with pylontech failed!");
@@ -137,7 +136,8 @@ void PylontechComponent::process_line_(std::string &buffer) {
     } else if (strcmp(token_buf, "Power") == 0) {
       // header line i.e. "Power Volt   Curr" and so on
       this->has_tlow_id_ = buffer.find("Tlow.Id") != std::string::npos;
-      ESP_LOGD(TAG, "header line %s Tlow.Id: %s", this->has_tlow_id_ ? "with" : "without",
+      ESP_LOGD(TAG, "header line %s Tlow.Id: %s",
+               this->has_tlow_id_ ? LOG_STR_LITERAL("with") : LOG_STR_LITERAL("without"),
                buffer.substr(0, buffer.size() - 2).c_str());
       return;
     } else {
