@@ -1226,6 +1226,7 @@ class CoreFinalValidateStep(ConfigValidationStep):
         with result.catch_error([CONF_ESPHOME]):
             if CONF_ESPHOME in result:
                 core_config.validate_ids_and_references(result[CONF_ESPHOME])
+                core_config.validate_loop_interval(result[CONF_ESPHOME])
         fv.full_config.reset(token)
 
 

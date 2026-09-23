@@ -208,9 +208,6 @@ class Application {
    * Each component can request a high frequency loop execution by using the HighFrequencyLoopRequester
    * helper in helpers.h
    *
-   * Note: This method is not called by ESPHome core code. It is only used by lambda functions
-   * in YAML configurations or by external components.
-   *
    * @param loop_interval The interval in milliseconds to run the core loop at. Defaults to 16 milliseconds.
    */
   void set_loop_interval(uint32_t loop_interval) {
@@ -232,6 +229,7 @@ class Application {
   ///   - ESP8266 soft WDT (~1.6 s):           ~16x  <-- 100 ms feed (see USE_ESP8266 below)
   ///   - ESP8266 HW WDT (~6 s):               ~60x
   ///   - BK72xx HW WDT (10 s):                ~5x   <-- platform override below
+  /// Important: if these are modified align validate_loop_interval in config.py
 #ifdef USE_BK72XX
   // BDK busy-waits 200us per WDT reload (sctrl_dpll_delay200us). LibreTiny
   // sets HW WDT to 10s; 2000ms keeps ~5x margin. See wdt_ctrl WCMD_RELOAD_PERIOD:
@@ -775,8 +773,8 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   }
 #endif
 
-  // Compute sleep: bounded by time-until-next-component-phase and the
-  // scheduler's next deadline. When a scheduler timer fires it re-enters
+  // Compute sleep: bounded by time-until-next-component-phase if there are
+  // components with loop enabled and the scheduler's next deadline. When a scheduler timer fires it re-enters
   // loop(), Phase A services it, and the component phase stays gated by
   // loop_interval_. When a background producer calls wake_loop_threadsafe()
   // it sets the wake_request flag and wakes select() / the task notification;
@@ -795,16 +793,46 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   uint32_t delay_time = 0;
   if (!HighFrequencyLoopRequester::is_high_frequency()) {
     const uint32_t elapsed_since_phase = now - this->last_loop_;
-    const uint32_t until_phase =
+#ifdef ESPHOME_SUSPEND_LOOP
+    const bool has_loop_work =
+        this->looping_components_active_end_ > 0 || this->dump_config_at_ < this->components_.size();
+    uint32_t until_phase = std::numeric_limits<uint32_t>::max();
+    if (has_loop_work) {
+      until_phase = (elapsed_since_phase >= this->loop_interval_) ? 0 : (this->loop_interval_ - elapsed_since_phase);
+    }
+#else
+    uint32_t until_phase =
         (elapsed_since_phase >= this->loop_interval_) ? 0 : (this->loop_interval_ - elapsed_since_phase);
+#endif
     const uint32_t until_sched = this->scheduler.next_schedule_in(now).value_or(until_phase);
     delay_time = std::min(until_phase, until_sched);
   }
   // All platforms route loop yields through the platform wake primitive.
   // On host this drains the loopback wake socket via select(); on FreeRTOS
   // targets it uses task notifications; on ESP8266/RP2040 it uses esp_delay/WFE.
-  esphome::internal::wakeable_delay(delay_time);
+  // Cap the sleep so the WDT feed and status-LED dispatch rate limits still get
+  // exercised even when loop_interval is raised or the scheduler and component
+  // phases are gated out for a long sleep. Waking every 2*WDT_FEED_INTERVAL_MS
+  // clears the feed rate limit on every wake, so the WDT is fed at least that
+  // often -- well inside every platform's timeout.
+#if defined(USE_ESP8266)
+  // SDK os_timer_arm() accepts at most 0x68D7A3 ms without system_timer_reinit();
+  // the SDK feeds both watchdogs while the cont task is suspended, so no WDT cap needed.
+  uint32_t max_sleep = 0x68D7A3;
+#elif defined(USE_HOST)
+  // arch_feed_wdt() is a no-op on host and ESPHOME_SUSPEND_LOOP is rejected by
+  // the config validator, so delay_time is already bounded by loop_interval_.
+  uint32_t max_sleep = std::numeric_limits<uint32_t>::max();
+#else
+  uint32_t max_sleep = WDT_FEED_INTERVAL_MS * 2;
+#endif
+#ifdef USE_STATUS_LED
+  if ((this->app_state_ & STATUS_LED_MASK) != 0) {
+    max_sleep = std::min(max_sleep, STATUS_LED_DISPATCH_INTERVAL_MS);
+  }
+#endif
 
+  esphome::internal::wakeable_delay(std::min(delay_time, max_sleep));
   if (this->dump_config_at_ < this->components_.size()) {
     this->process_dump_config_();
   }
