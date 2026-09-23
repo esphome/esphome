@@ -2,7 +2,6 @@
 
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/cover/cover.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
 #include "tormatic_protocol.h"
@@ -71,15 +70,6 @@ class Tormatic final : public cover::Cover, public uart::UARTDevice, public Poll
   optional<float> target_position_{};
 
   LazyCallbackManager<void(bool)> light_state_callback_;
-};
-
-template<typename... Ts> class VentilateAction : public Action<Ts...> {
- public:
-  explicit VentilateAction(Tormatic *parent) : parent_(parent) {}
-  void play(Ts... x) override { this->parent_->ventilate(); }
-
- protected:
-  Tormatic *parent_;
 };
 
 }  // namespace esphome::tormatic
