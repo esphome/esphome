@@ -127,9 +127,8 @@ def _validate_native_toolchain(config: ConfigType) -> ConfigType:
             "'toolchain: arduino' requires framework version "
             f"{MIN_FRAMEWORK_VERSION} or newer"
         )
-    # platform_version is a PlatformIO concept; drop it (as esp32's native
-    # toolchain does), warning when a custom pin is discarded. The floor
-    # above guarantees the schema-derived default is the ARDUINO_4 spec.
+    # platform_version is a PlatformIO concept; drop it, warning when a
+    # custom pin is discarded
     if (
         conf.pop(CONF_PLATFORM_VERSION, _ARDUINO_4_PLATFORM_SPEC)
         != _ARDUINO_4_PLATFORM_SPEC
@@ -442,9 +441,8 @@ async def to_code(config: ConfigType) -> None:
 
     # Force-include inline std::__throw_* overrides so GCC dead-strips the unused
     # libstdc++ error message strings (e.g. "basic_string::_M_create") from DRAM.
-    # See throw_stubs.h for details. Must be prepended before <string>, so this
-    # uses build_src_flags with -include. Unconditional: the native build
-    # generator reads the same option, keeping one source of truth.
+    # See throw_stubs.h. Unconditional: the native build generator reads
+    # the same option, keeping one source of truth.
     cg.add_platformio_option(
         "build_src_flags", "-include esphome/components/esp8266/throw_stubs.h"
     )
@@ -651,8 +649,7 @@ def _decode_pc(config: ConfigType, addr: str, *, bulk: bool = False) -> None:
     try:
         translation = subprocess.check_output(command, close_fds=False).decode().strip()
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
-        # Warn, not debug: a failing addr2line must be visible. The warning
-        # is rate-limited across a dump, so mark every undecoded address
+        # Warn (rate-limited across a dump); mark undecoded addresses
         # inline or the rest read as merely unmappable
         if not _warn_decode_problem(
             "addr2line-failed", "Could not decode crash address %s (%s)", addr, err
