@@ -5,7 +5,7 @@
 
 namespace esphome::seeed_mr24hpc1 {
 
-class ExistenceThresholdNumber : public number::Number, public Parented<MR24HPC1Component> {
+class ExistenceThresholdNumber final : public number::Number, public Parented<MR24HPC1Component> {
  public:
   ExistenceThresholdNumber() = default;
 

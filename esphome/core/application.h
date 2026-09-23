@@ -67,7 +67,7 @@ static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for qu
 class Application {
  public:
 #ifdef ESPHOME_NAME_ADD_MAC_SUFFIX
-  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
+  // Runs after Logger::pre_setup() (emitted at EARLY_INIT priority), so the app name is not set yet there.
   /// Pre-setup with MAC suffix: overwrites placeholder in mutable static buffers with actual MAC.
   void pre_setup(char *name, size_t name_len, char *friendly_name, size_t friendly_name_len) {
     arch_init();
@@ -87,7 +87,7 @@ class Application {
     this->friendly_name_ = StringRef(friendly_name, friendly_name_len);
   }
 #else
-  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
+  // Runs after Logger::pre_setup() (emitted at EARLY_INIT priority), so the app name is not set yet there.
   /// Pre-setup without MAC suffix: StringRef points directly at const string literals in flash.
   void pre_setup(const char *name, size_t name_len, const char *friendly_name, size_t friendly_name_len) {
     arch_init();
@@ -193,15 +193,6 @@ class Application {
   /// Copy the build time string into the provided buffer
   /// Buffer must be BUILD_TIME_STR_SIZE bytes (compile-time enforced)
   void get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer);
-
-  /// Get the build time as a string (deprecated, use get_build_time_string() instead)
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use get_build_time_string() instead. Removed in 2026.7.0", "2026.1.0")
-  std::string get_compilation_time() {
-    char buf[BUILD_TIME_STR_SIZE];
-    this->get_build_time_string(buf);
-    return std::string(buf);
-  }
 
   /// Get the cached time in milliseconds from when the current component started its loop execution
   inline uint32_t IRAM_ATTR HOT get_loop_component_start_time() const { return this->loop_component_start_time_; }
@@ -537,7 +528,7 @@ class Application {
 
   // 1-byte members (grouped together to minimize padding)
   uint8_t app_state_{0};
-  bool name_add_mac_suffix_;
+  bool name_add_mac_suffix_{false};
   bool in_loop_{false};
   volatile bool has_pending_enable_loop_requests_{false};
 
@@ -621,6 +612,8 @@ class LoopBlockingGuard {
     uint32_t blocking_time = curr_time - App.get_loop_component_start_time();
     if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
       warn_blocking(blocking_time);
+      // Exclude synchronous warning-log time from the next operation.
+      curr_time = MillisInternal::get();
     }
 #endif
     return curr_time;

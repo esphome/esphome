@@ -11,10 +11,10 @@
 
 namespace esphome::zephyr_ble_server {
 
-class BLEServer : public Component
+class BLEServer final : public Component
 #ifdef USE_OTA_STATE_LISTENER
     ,
-                  public ota::OTAGlobalStateListener
+                        public ota::OTAGlobalStateListener
 #endif
 {
  public:
@@ -52,7 +52,7 @@ class BLEServer : public Component
   bool ota_in_progress_{false};
 };
 
-template<typename... Ts> class BLENumericComparisonReplyAction : public Action<Ts...> {
+template<typename... Ts> class BLENumericComparisonReplyAction final : public Action<Ts...> {
  public:
   explicit BLENumericComparisonReplyAction(BLEServer *parent) : parent_(parent) {}
 

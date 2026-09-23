@@ -13,7 +13,7 @@ namespace esphome::ledc {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern uint8_t next_ledc_channel;
 
-class LEDCOutput : public output::FloatOutput, public Component {
+class LEDCOutput final : public output::FloatOutput, public Component {
  public:
   explicit LEDCOutput(InternalGPIOPin *pin) : pin_(pin) { this->channel_ = next_ledc_channel++; }
 
@@ -43,7 +43,7 @@ class LEDCOutput : public output::FloatOutput, public Component {
   bool initialized_ = false;
 };
 
-template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
+template<typename... Ts> class SetFrequencyAction final : public Action<Ts...> {
  public:
   SetFrequencyAction(LEDCOutput *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, frequency);

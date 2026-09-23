@@ -7,9 +7,9 @@
 
 namespace esphome::m5stack_8angle {
 
-class M5Stack8AngleSwitchBinarySensor : public binary_sensor::BinarySensor,
-                                        public PollingComponent,
-                                        public Parented<M5Stack8AngleComponent> {
+class M5Stack8AngleSwitchBinarySensor final : public binary_sensor::BinarySensor,
+                                              public PollingComponent,
+                                              public Parented<M5Stack8AngleComponent> {
  public:
   void update() override;
 };

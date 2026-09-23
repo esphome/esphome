@@ -38,7 +38,7 @@ struct DACInputData {
 class MCP4728Channel;
 
 /// MCP4728 float output component.
-class MCP4728Component : public Component, public i2c::I2CDevice {
+class MCP4728Component final : public Component, public i2c::I2CDevice {
  public:
   MCP4728Component(bool store_in_eeprom) : store_in_eeprom_(store_in_eeprom) {}
 

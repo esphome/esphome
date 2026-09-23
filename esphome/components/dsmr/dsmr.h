@@ -65,7 +65,7 @@ using MyData = dsmr_parser::ParsedData<DSMR_TEXT_SENSOR_LIST(DSMR_IDENTITY, DSMR
 using MyData = dsmr_parser::ParsedData<DSMR_SENSOR_LIST(DSMR_IDENTITY, DSMR_COMMA)>;
 #endif
 
-class Dsmr : public Component, public uart::UARTDevice {
+class Dsmr final : public Component, public uart::UARTDevice {
  public:
   Dsmr(uart::UARTComponent *uart, bool crc_check, size_t max_telegram_length, uint32_t request_interval,
        uint32_t receive_timeout, GPIOPin *request_pin, const char *decryption_key)

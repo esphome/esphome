@@ -19,7 +19,7 @@ enum class T6615Command : uint8_t {
   SET_ELEVATION,
 };
 
-class T6615Component : public PollingComponent, public uart::UARTDevice {
+class T6615Component final : public PollingComponent, public uart::UARTDevice {
  public:
   void loop() override;
   void update() override;

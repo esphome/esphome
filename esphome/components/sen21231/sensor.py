@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import ICON_MOTION_SENSOR
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@shreyaskarnik"]
 DEPENDENCIES = ["i2c"]
@@ -18,7 +19,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

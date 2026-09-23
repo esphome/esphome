@@ -2,6 +2,8 @@ import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 from . import DAC7678Output, dac7678_ns
 
@@ -19,7 +21,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> MockObj:
     paren = await cg.get_variable(config[CONF_DAC7678_ID])
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_channel(config[CONF_CHANNEL]))

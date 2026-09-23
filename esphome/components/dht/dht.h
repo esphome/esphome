@@ -18,7 +18,7 @@ enum DHTModel : uint8_t {
 };
 
 /// Component for reading temperature/humidity measurements from DHT11/DHT22 sensors.
-class DHT : public PollingComponent {
+class DHT final : public PollingComponent {
  public:
   /** Manually select the DHT model.
    *

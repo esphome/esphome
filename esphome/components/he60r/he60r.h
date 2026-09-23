@@ -7,7 +7,7 @@
 
 namespace esphome::he60r {
 
-class HE60rCover : public cover::Cover, public Component, public uart::UARTDevice {
+class HE60rCover final : public cover::Cover, public Component, public uart::UARTDevice {
  public:
   void setup() override;
   void loop() override;
