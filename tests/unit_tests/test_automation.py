@@ -877,6 +877,37 @@ async def test_apply_condition_string_constant_is_a_plain_literal(
     assert f'return ::{PARENT_OBJ}->state == "two";' in _apply_lambda(mock_cg)
 
 
+@pytest.mark.asyncio
+async def test_apply_condition_string_lambda_paths(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """A single return is inlined with no copy; a longer body is a called std::string lambda."""
+    check = ApplyCall("state == {}", (("state", cg.std_string),))
+    args = [(cg.std_string, "x")]
+    await _run_apply_condition(
+        registries, check, {"state": Lambda("return x;")}, args=args
+    )
+    text = _apply_lambda(mock_cg)
+    assert f"return ::{PARENT_OBJ}->state == x;" in text
+    assert "-> std::string {" not in text
+
+    mock_cg.new_pvariable.reset_mock()
+    body = Lambda('if (x.empty()) return "e";\nreturn x;')
+    await _run_apply_condition(registries, check, {"state": body}, args=args)
+    text = _apply_lambda(mock_cg)
+    assert "-> std::string {" in text
+    assert "}(x);" in text
+
+    mock_cg.new_pvariable.reset_mock()
+    await _run_apply_action(
+        registries,
+        (ApplyField("state", "set_state", cg.std_string),),
+        {"state": body},
+        args=args,
+    )
+    assert "-> std::string {" in _apply_lambda(mock_cg)
+
+
 def test_apply_condition_registration_checks(
     registries: tuple[Registry, Registry],
 ) -> None:

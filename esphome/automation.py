@@ -440,8 +440,9 @@ def register_apply_condition(
     ``check`` is applied to the parent: ``"is_playing()"`` becomes ``parent->is_playing()``; an
     ``ApplyCall`` such as ``ApplyCall("state == {}", ((CONF_STATE, cg.bool_),))`` compares
     against config values, all of which must be present. Write ``== false`` to negate.
-    ``std::string`` constants stay plain literals on every platform so a check never allocates.
-    Generates one stateless function for ``ApplyCondition<Ts...>``.
+    ``std::string`` constants stay plain literals on every platform so a check never allocates;
+    a single-statement string lambda is inlined into the comparison with no copy, a longer body
+    returns ``std::string`` by value. Generates one stateless function for ``ApplyCondition<Ts...>``.
     """
     call = check if isinstance(check, ApplyCall) else ApplyCall(check)
     members = call.members
