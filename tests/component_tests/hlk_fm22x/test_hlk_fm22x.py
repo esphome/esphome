@@ -77,13 +77,16 @@ def test_direction_validator() -> None:
 
 
 def test_name_validator() -> None:
-    """Names must fit the module's 32 byte field with room for the terminator."""
+    """Names are printable ASCII and fit the module's 32 byte field with room for the terminator."""
     assert hlk_fm22x.validate_name("a" * 31) == "a" * 31
+    assert hlk_fm22x.validate_name("Jonny D") == "Jonny D"
     with pytest.raises(cv.Invalid):
         hlk_fm22x.validate_name("a" * 32)
-    # Multi byte characters count by their encoded size
+    # A match reply is trimmed to printable ASCII, so other characters would come back mangled
     with pytest.raises(cv.Invalid):
-        hlk_fm22x.validate_name("\u00e9" * 16)
+        hlk_fm22x.validate_name("Jos\u00e9")
+    with pytest.raises(cv.Invalid):
+        hlk_fm22x.validate_name("tab\there")
 
 
 def test_timeout_schema() -> None:

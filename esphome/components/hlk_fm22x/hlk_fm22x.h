@@ -225,8 +225,10 @@ class HlkFm22xComponent final : public Component, public uart::UARTDevice {
   void publish_text_(text_sensor::TextSensor *text_sensor, const uint8_t *data, size_t length);
   void check_timeouts_();
   void finish_failed_(HlkFm22xCommand command, uint8_t error);
+  void report_failed_(HlkFm22xCommand command, uint8_t error);
   void start_read_out_();
   void continue_read_out_();
+  HlkFm22xCommand read_out_command_(uint8_t stage) const;
   void refresh_face_count_();
   void set_enrolling_(bool enrolling);
   void set_scanning_(bool scanning);

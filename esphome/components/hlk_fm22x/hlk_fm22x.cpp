@@ -1,4 +1,5 @@
 #include "hlk_fm22x.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include <algorithm>
@@ -44,14 +45,8 @@ static constexpr uint8_t READ_OUT_STAGE_DONE = 4;
 static constexpr int16_t FACE_ID_INCOMPLETE = -1;
 static constexpr int16_t FACE_STATE_IDLE = -1;
 
-/// Length of the leading run of printable ASCII in a fixed width text field.
-///
-/// The module pads these fields to a fixed width and is not consistent about what it pads
-/// with: names come back NUL padded, but the serial number is padded with arbitrary bytes
-/// (0xFF and friends). Those bytes are not valid UTF-8, and publishing them produces a
-/// state string that clients such as Home Assistant refuse to decode, so stop at the first
-/// byte that cannot be part of a plain text string.
-static size_t printable_length(const char *text, size_t max_length) {
+/// Number of leading bytes that are printable ASCII (0x20 to 0x7E).
+static size_t printable_ascii_length(const char *text, size_t max_length) {
   size_t length = 0;
   while (length < max_length) {
     const auto c = static_cast<unsigned char>(text[length]);
@@ -60,6 +55,19 @@ static size_t printable_length(const char *text, size_t max_length) {
     }
     length++;
   }
+  return length;
+}
+
+/// Length of the text in a fixed width field sent by the module, without padding or trailing spaces.
+///
+/// The module pads these fields to a fixed width and is not consistent about what it pads
+/// with: names come back NUL padded, but the serial number is padded with arbitrary bytes
+/// (0xFF and friends). Those bytes are not valid UTF-8, and publishing them produces a
+/// state string that clients such as Home Assistant refuse to decode, so stop at the first
+/// byte that cannot be part of a plain text string. Names are restricted to printable ASCII
+/// when they are enrolled, so nothing of them is lost here.
+static size_t printable_length(const char *text, size_t max_length) {
+  size_t length = printable_ascii_length(text, max_length);
   while (length > 0 && text[length - 1] == ' ') {
     length--;
   }
@@ -206,15 +214,17 @@ void HlkFm22xComponent::setup() {
 }
 
 void HlkFm22xComponent::loop() {
-  this->check_timeouts_();
+  // Read first so a frame that is already waiting in the UART buffer is never discarded as stale
   this->read_frames_();
+  this->check_timeouts_();
   this->send_next_command_();
 }
 
 void HlkFm22xComponent::enroll_face(const std::string &name, HlkFm22xFaceDirection direction, bool admin,
                                     uint8_t timeout_s, bool allow_duplicate) {
-  if (name.length() > MAX_NAME_LENGTH) {
-    ESP_LOGE(TAG, "enroll_face(): name too long '%s' (max %u bytes)", name.c_str(), (unsigned) MAX_NAME_LENGTH);
+  // Templated names skip the configuration validator, so the same limits are enforced here
+  if (name.length() > MAX_NAME_LENGTH || printable_ascii_length(name.c_str(), name.length()) != name.length()) {
+    ESP_LOGE(TAG, "enroll_face(): name must be at most %u printable ASCII characters", (unsigned) MAX_NAME_LENGTH);
     this->enrollment_failed_callback_.call(HlkFm22xResult::FAILED4_INVALIDPARAM);
     return;
   }
@@ -232,17 +242,21 @@ void HlkFm22xComponent::enroll_face(const std::string &name, HlkFm22xFaceDirecti
   std::copy(name.begin(), name.end(), data + ENROLL_NAME_OFFSET);
   data[ENROLL_DIRECTION_OFFSET] = (uint8_t) direction;
 
+  bool queued;
   if (!allow_duplicate) {
     // Only the integrated enroll command can refuse a face that is already enrolled
     data[ENROLL_ITG_TYPE_OFFSET] = single_frame ? ENROLL_TYPE_SINGLE : ENROLL_TYPE_INTERACTIVE;
     data[ENROLL_ITG_DUPLICATE_OFFSET] = 0;
     data[ENROLL_ITG_TIMEOUT_OFFSET] = timeout_s;
-    this->enqueue_(HlkFm22xCommand::ENROLL_ITG, data, ENROLL_ITG_SIZE, reply_timeout_s);
-    return;
+    queued = this->enqueue_(HlkFm22xCommand::ENROLL_ITG, data, ENROLL_ITG_SIZE, reply_timeout_s);
+  } else {
+    data[ENROLL_TIMEOUT_OFFSET] = timeout_s;
+    queued = this->enqueue_(single_frame ? HlkFm22xCommand::ENROLL_SINGLE : HlkFm22xCommand::ENROLL, data, ENROLL_SIZE,
+                            reply_timeout_s);
   }
-  data[ENROLL_TIMEOUT_OFFSET] = timeout_s;
-  this->enqueue_(single_frame ? HlkFm22xCommand::ENROLL_SINGLE : HlkFm22xCommand::ENROLL, data, ENROLL_SIZE,
-                 reply_timeout_s);
+  if (!queued) {
+    this->enrollment_failed_callback_.call(HlkFm22xResult::FAILED4_NOMEMORY);
+  }
 }
 
 void HlkFm22xComponent::scan_face(uint8_t timeout_s) {
@@ -251,7 +265,9 @@ void HlkFm22xComponent::scan_face(uint8_t timeout_s) {
   }
   ESP_LOGI(TAG, "Scanning for a face, timeout %us", timeout_s);
   const uint8_t data[] = {0, timeout_s};  // the first byte asks the module not to power down afterwards
-  this->enqueue_(HlkFm22xCommand::VERIFY, data, sizeof(data), timeout_s + ALGORITHM_TIMEOUT_MARGIN_S);
+  if (!this->enqueue_(HlkFm22xCommand::VERIFY, data, sizeof(data), timeout_s + ALGORITHM_TIMEOUT_MARGIN_S)) {
+    this->face_scan_invalid_callback_.call(HlkFm22xResult::FAILED4_NOMEMORY);
+  }
 }
 
 void HlkFm22xComponent::cancel() {
@@ -320,13 +336,21 @@ void HlkFm22xComponent::enqueue_face_id_command_(HlkFm22xCommand command, int16_
 
 void HlkFm22xComponent::drop_queued_(bool (*predicate)(HlkFm22xCommand)) {
   // The ring buffer has no erase: take every entry out once and put back the ones that stay
+  HlkFm22xCommand dropped[HLK_FM22X_COMMAND_QUEUE_SIZE]{};
+  size_t dropped_count = 0;
   const size_t count = this->queue_.size();
   for (size_t i = 0; i < count; i++) {
     const QueuedCommand queued = this->queue_.front();
     this->queue_.pop();
-    if (!predicate(queued.command)) {
+    if (predicate(queued.command)) {
+      dropped[dropped_count++] = queued.command;
+    } else {
       this->queue_.push(queued);
     }
+  }
+  // Reported once the queue is back in order, in case a handler queues a new command
+  for (size_t i = 0; i < dropped_count; i++) {
+    this->report_failed_(dropped[i], HlkFm22xResult::ABORTED);
   }
 }
 
@@ -337,7 +361,7 @@ void HlkFm22xComponent::send_next_command_() {
   const QueuedCommand &queued = this->queue_.front();
   this->write_frame_(queued.command, queued.data, queued.size);
   this->pending_command_ = queued.command;
-  this->pending_sent_ms_ = millis();
+  this->pending_sent_ms_ = App.get_loop_component_start_time();
   this->pending_timeout_ms_ = queued.timeout_s * 1000UL;
   if (queued.command == HlkFm22xCommand::VERIFY) {
     this->set_scanning_(true);
@@ -369,7 +393,7 @@ void HlkFm22xComponent::interrupt_with_(HlkFm22xCommand command) {
   this->hold_interrupted_(this->pending_command_);
   this->write_frame_(command, nullptr, 0);
   this->pending_command_ = command;
-  this->pending_sent_ms_ = millis();
+  this->pending_sent_ms_ = App.get_loop_component_start_time();
   this->pending_timeout_ms_ = COMMAND_TIMEOUT_S * 1000UL;
 }
 
@@ -397,7 +421,7 @@ void HlkFm22xComponent::read_frames_() {
   if (available == 0) {
     return;
   }
-  this->recv_last_byte_ms_ = millis();
+  this->recv_last_byte_ms_ = App.get_loop_component_start_time();
   uint8_t buffer[32];
   while (available > 0) {
     const size_t to_read = std::min(available, sizeof(buffer));
@@ -505,26 +529,33 @@ void HlkFm22xComponent::handle_note_(const uint8_t *data, size_t length) {
       this->face_info_callback_.call(info[0], info[1], info[2], info[3], info[4], info[5], info[6], info[7]);
       break;
     }
-    case HlkFm22xNoteType::NOTE_READY:
+    case HlkFm22xNoteType::NOTE_READY: {
       ESP_LOGI(TAG, "Module ready");
-      if (this->pending_command_ != HlkFm22xCommand::NONE) {
-        if (is_scan_or_enroll(this->pending_command_)) {
-          // The module may still answer the scan or enrollment it was running; give it a moment
-          this->hold_interrupted_(this->pending_command_);
-          this->interrupted_deadline_ms_ = millis() + INTERRUPT_GRACE_MS;
-          this->interrupted_deadline_set_ = true;
-        }
-        // Whatever else was sent before the module (re)started will not be answered
-        this->pending_command_ = HlkFm22xCommand::NONE;
+      // Whatever was sent before the module (re)started will not be answered
+      const HlkFm22xCommand lost = this->pending_command_;
+      this->pending_command_ = HlkFm22xCommand::NONE;
+      if (is_scan_or_enroll(lost)) {
+        // The module may still answer the scan or enrollment it was running; give it a moment
+        this->hold_interrupted_(lost);
+        this->interrupted_deadline_ms_ = App.get_loop_component_start_time() + INTERRUPT_GRACE_MS;
+        this->interrupted_deadline_set_ = true;
+      } else if (lost != HlkFm22xCommand::NONE && lost != HlkFm22xCommand::RESET && !is_read_out(lost)) {
+        // The read-out repeats below and a reset has done its job either way; anything else is worth knowing
+        ESP_LOGW(TAG, "Module restarted, command 0x%02X was not answered", lost);
       }
       this->retry_scheduled_ = false;
-      if (this->read_out_done_) {
-        // Version, serial number and stored faces do not change on a restart; only the status is worth a look
-        this->enqueue_(HlkFm22xCommand::GET_STATUS);
-      } else {
+      if (!this->read_out_done_) {
         this->start_read_out_();
+        break;
+      }
+      // Version, serial number and stored faces do not change on a restart, so only the status is worth a
+      // look, unless a delete was cut short and the face count may be off
+      this->enqueue_(HlkFm22xCommand::GET_STATUS);
+      if (lost == HlkFm22xCommand::DELETE_FACE || lost == HlkFm22xCommand::DELETE_ALL_FACES) {
+        this->refresh_face_count_();
       }
       break;
+    }
     case HlkFm22xNoteType::NOTE_UNKNOWN_ERROR:
       ESP_LOGE(TAG, "Module reported an unknown error");
       break;
@@ -627,7 +658,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
       ESP_LOGD(TAG, "Module reset");
       if (this->interrupted_command_ != HlkFm22xCommand::NONE) {
         // The interrupted scan or enrollment gets a short grace period to report that it was aborted
-        this->interrupted_deadline_ms_ = millis() + INTERRUPT_GRACE_MS;
+        this->interrupted_deadline_ms_ = App.get_loop_component_start_time() + INTERRUPT_GRACE_MS;
         this->interrupted_deadline_set_ = true;
       }
       this->enqueue_(HlkFm22xCommand::GET_STATUS);
@@ -731,7 +762,7 @@ void HlkFm22xComponent::publish_text_(text_sensor::TextSensor *text_sensor, cons
 }
 
 void HlkFm22xComponent::check_timeouts_() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (this->recv_state_ != RecvState::RECV_STATE_SYNC_1 && now - this->recv_last_byte_ms_ > FRAME_TIMEOUT_MS) {
     ESP_LOGW(TAG, "Incomplete frame discarded");
     this->recv_state_ = RecvState::RECV_STATE_SYNC_1;
@@ -765,30 +796,32 @@ void HlkFm22xComponent::check_timeouts_() {
     this->clear_interrupted_(true);
   }
 
-  if (this->retry_scheduled_ && (int32_t) (now - this->retry_at_ms_) >= 0) {
+  // The retry waits for other commands to finish rather than being used up while they run
+  if (this->retry_scheduled_ && this->pending_command_ == HlkFm22xCommand::NONE && this->queue_.empty() &&
+      (int32_t) (now - this->retry_at_ms_) >= 0) {
     this->retry_scheduled_ = false;
-    if (this->pending_command_ == HlkFm22xCommand::NONE && this->queue_.empty()) {
-      this->start_read_out_();
-    }
+    this->start_read_out_();
   }
 }
 
 void HlkFm22xComponent::finish_failed_(HlkFm22xCommand command, uint8_t error) {
-  switch (command) {
-    case HlkFm22xCommand::VERIFY:
-      this->set_scanning_(false);
-      this->publish_face_state_(FACE_STATE_IDLE);
-      this->face_scan_invalid_callback_.call(error);
-      break;
-    case HlkFm22xCommand::ENROLL:
-    case HlkFm22xCommand::ENROLL_SINGLE:
-    case HlkFm22xCommand::ENROLL_ITG:
-      this->set_enrolling_(false);
-      this->publish_face_state_(FACE_STATE_IDLE);
-      this->enrollment_failed_callback_.call(error);
-      break;
-    default:
-      break;
+  if (!is_scan_or_enroll(command)) {
+    return;
+  }
+  if (command == HlkFm22xCommand::VERIFY) {
+    this->set_scanning_(false);
+  } else {
+    this->set_enrolling_(false);
+  }
+  this->publish_face_state_(FACE_STATE_IDLE);
+  this->report_failed_(command, error);
+}
+
+void HlkFm22xComponent::report_failed_(HlkFm22xCommand command, uint8_t error) {
+  if (command == HlkFm22xCommand::VERIFY) {
+    this->face_scan_invalid_callback_.call(error);
+  } else if (is_scan_or_enroll(command)) {
+    this->enrollment_failed_callback_.call(error);
   }
 }
 
@@ -802,34 +835,33 @@ void HlkFm22xComponent::start_read_out_() {
 void HlkFm22xComponent::continue_read_out_() {
   // Read status, version, serial number and face count one after the other, skipping what nobody asked for
   while (this->read_out_stage_ < READ_OUT_STAGE_DONE) {
-    const uint8_t stage = this->read_out_stage_++;
-    switch (stage) {
-      case 0:
-        this->enqueue_(HlkFm22xCommand::GET_STATUS);
-        return;
-      case 1:
-        if (this->version_text_sensor_ != nullptr) {
-          this->enqueue_(HlkFm22xCommand::GET_VERSION);
-          return;
-        }
-        break;
-      case 2:
-        if (this->serial_number_text_sensor_ != nullptr) {
-          this->enqueue_(HlkFm22xCommand::GET_SERIAL_NUMBER);
-          return;
-        }
-        break;
-      case 3:
-        if (this->face_count_sensor_ != nullptr) {
-          this->enqueue_(HlkFm22xCommand::GET_ALL_FACE_IDS);
-          return;
-        }
-        break;
-      default:
-        break;
+    const HlkFm22xCommand command = this->read_out_command_(this->read_out_stage_++);
+    if (command == HlkFm22xCommand::NONE) {
+      continue;
     }
+    if (!this->enqueue_(command)) {
+      // No room right now; the read-out starts over once the queue has drained
+      this->retry_at_ms_ = App.get_loop_component_start_time();
+      this->retry_scheduled_ = true;
+    }
+    return;
   }
   this->read_out_done_ = true;
+}
+
+HlkFm22xCommand HlkFm22xComponent::read_out_command_(uint8_t stage) const {
+  switch (stage) {
+    case 0:
+      return HlkFm22xCommand::GET_STATUS;
+    case 1:
+      return this->version_text_sensor_ != nullptr ? HlkFm22xCommand::GET_VERSION : HlkFm22xCommand::NONE;
+    case 2:
+      return this->serial_number_text_sensor_ != nullptr ? HlkFm22xCommand::GET_SERIAL_NUMBER : HlkFm22xCommand::NONE;
+    case 3:
+      return this->face_count_sensor_ != nullptr ? HlkFm22xCommand::GET_ALL_FACE_IDS : HlkFm22xCommand::NONE;
+    default:
+      return HlkFm22xCommand::NONE;
+  }
 }
 
 void HlkFm22xComponent::refresh_face_count_() {

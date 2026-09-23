@@ -80,8 +80,11 @@ def validate_direction(value: Any) -> Any:
 
 def validate_name(value: Any) -> str:
     value = cv.string(value)
-    if len(value.encode("utf-8")) > MAX_NAME_LENGTH:
-        raise cv.Invalid(f"Names are limited to {MAX_NAME_LENGTH} bytes of ASCII text")
+    # A matched name is trimmed to printable ASCII on the way back, so accept nothing else
+    if len(value) > MAX_NAME_LENGTH or not (value.isascii() and value.isprintable()):
+        raise cv.Invalid(
+            f"Names are limited to {MAX_NAME_LENGTH} printable ASCII characters"
+        )
     return value
 
 
