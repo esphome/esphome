@@ -22,7 +22,7 @@ void TFLuna::dump_config() {
   ESP_LOGCONFIG(TAG, "TF-Luna (i2c):");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "Firmware: %s", this->get_version_string_().c_str());
+  ESP_LOGCONFIG(TAG, "Firmware: %s", this->version_);
 
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Distance:", this->distance_sensor_);
@@ -60,24 +60,18 @@ void TFLuna::setup() {
     }
   }
 
-  if (!this->read_bytes(VERSION_REVISION_REGISTER, version_, sizeof(version_))) {
+  uint8_t raw_version[3];
+  if (!this->read_bytes(VERSION_REVISION_REGISTER, raw_version, sizeof(raw_version))) {
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
     return;
-  }
-  std::string version_string = this->get_version_string_();
-  ESP_LOGI(TAG, "Firmware: %s", version_string.c_str());
-
+  } else {
+    snprintf(version_, sizeof(version_), "%d.%d.%d", raw_version[2], raw_version[1], raw_version[0]);
 #ifdef USE_TEXT_SENSOR
-  if (this->version_text_sensor_ != nullptr) {
-    this->version_text_sensor_->publish_state(version_string.c_str());
-  }
+    if (this->version_text_sensor_ != nullptr) {
+      this->version_text_sensor_->publish_state(version_);
+    }
 #endif
-}
-
-std::string TFLuna::get_version_string_() {
-  char version_string[12];
-  snprintf(version_string, sizeof(version_string), "%d.%d.%d", version_[2], version_[1], version_[0]);
-  return version_string;
+  }
 }
 
 [[nodiscard]] bool TFLuna::read_data_() {
