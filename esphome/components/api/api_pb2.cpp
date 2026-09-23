@@ -1281,6 +1281,12 @@ uint8_t *ListEntitiesServicesArgument::encode(ProtoWriteBuffer &buffer PROTO_ENC
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->example);
 #endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->optional);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, this->default_value);
+#endif
   return pos;
 }
 uint32_t ListEntitiesServicesArgument::calculate_size() const {
@@ -1292,6 +1298,12 @@ uint32_t ListEntitiesServicesArgument::calculate_size() const {
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
   size += ProtoSize::calc_length(1, this->example.size());
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  size += ProtoSize::calc_bool(1, this->optional);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  size += ProtoSize::calc_length(1, this->default_value.size());
 #endif
   return size;
 }
