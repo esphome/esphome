@@ -4,7 +4,6 @@ esp32_touch:
   measurement_duration: 8ms
   low_voltage_reference: 0.5V
   high_voltage_reference: 2.7V
-  voltage_attenuation: 1.5V
 
 binary_sensor:
   - platform: esp32_touch

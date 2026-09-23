@@ -1,0 +1,12 @@
+display:
+  - platform: mipi_dsi
+    model: WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-3.4C
+lvgl:
+  byte_order: little_endian
+  rotation: 90
+
+psram:
+
+esp_ldo:
+  - channel: 3
+    voltage: 2.5V

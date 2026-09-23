@@ -15,6 +15,10 @@ from esphome.const import (
     UNIT_DEGREES,
     UNIT_MICROTESLA,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
+
+CONF_AUTO_SET_RESET = "auto_set_reset"
 
 DEPENDENCIES = ["i2c"]
 
@@ -43,6 +47,7 @@ heading_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_DEGREES,
     icon=ICON_SCREEN_ROTATION,
     accuracy_decimals=1,
+    state_class=STATE_CLASS_MEASUREMENT,
 )
 
 CONFIG_SCHEMA = (
@@ -54,6 +59,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_FIELD_STRENGTH_Y): field_strength_schema,
             cv.Optional(CONF_FIELD_STRENGTH_Z): field_strength_schema,
             cv.Optional(CONF_HEADING): heading_schema,
+            cv.Optional(CONF_AUTO_SET_RESET, default=True): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -61,7 +67,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def auto_data_rate(config):
+def auto_data_rate(config: ConfigType) -> MockObj:
     interval_msec = config[CONF_UPDATE_INTERVAL].total_milliseconds
     interval_hz = 1000.0 / interval_msec
     for datarate in sorted(MMC5603Datarates.keys()):
@@ -70,7 +76,7 @@ def auto_data_rate(config):
     return MMC5603Datarates[75]
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -88,3 +94,5 @@ async def to_code(config):
     if CONF_HEADING in config:
         sens = await sensor.new_sensor(config[CONF_HEADING])
         cg.add(var.set_heading_sensor(sens))
+    if CONF_AUTO_SET_RESET in config:
+        cg.add(var.set_auto_set_reset(config[CONF_AUTO_SET_RESET]))

@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace hdc1080 {
+namespace esphome::hdc1080 {
 
 static const char *const TAG = "hdc1080";
 
@@ -78,5 +77,4 @@ void HDC1080Component::update() {
   });
 }
 
-}  // namespace hdc1080
-}  // namespace esphome
+}  // namespace esphome::hdc1080

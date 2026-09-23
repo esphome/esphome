@@ -12,10 +12,14 @@ from esphome.const import (
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
+    STATE_CLASS_MEASUREMENT,
     UNIT_AMPERE,
     UNIT_VOLT,
     UNIT_WATT,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@balrog-kun"]
 DEPENDENCIES = ["spi"]
@@ -39,7 +43,7 @@ CONF_VOLTAGE_HPF = "voltage_hpf"
 CONF_PULSE_ENERGY = "pulse_energy"
 
 
-def validate_config(config):
+def validate_config(config: ConfigType) -> ConfigType:
     current_gain = abs(config[CONF_CURRENT_GAIN]) * (
         1.0 if config[CONF_PGA_GAIN] == "10X" else 5.0
     )
@@ -82,16 +86,19 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_VOLT,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_AMPERE,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_CURRENT,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_POWER): sensor.sensor_schema(
                 unit_of_measurement=UNIT_WATT,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )
@@ -101,7 +108,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
@@ -132,7 +139,13 @@ async def to_code(config):
             cv.Required(CONF_ID): cv.use_id(CS5460AComponent),
         }
     ),
+    synchronous=True,
 )
-async def restart_action_to_code(config, action_id, template_arg, args):
+async def restart_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)

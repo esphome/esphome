@@ -19,6 +19,7 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 max9611_ns = cg.esphome_ns.namespace("max9611")
@@ -35,7 +36,9 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MAX9611Component),
-            cv.Required(CONF_SHUNT_RESISTANCE): cv.resistance,
+            cv.Required(CONF_SHUNT_RESISTANCE): cv.All(
+                cv.resistance, cv.Range(min=1e-6)
+            ),
             cv.Required(CONF_GAIN): cv.enum(MAX9611_GAIN, upper=True),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
@@ -68,7 +71,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

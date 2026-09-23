@@ -1,4 +1,5 @@
 esphome:
+  debug_scheduler: true  # Enable scheduler leak detection
   name: scheduler-removed-item-race
 
 host:

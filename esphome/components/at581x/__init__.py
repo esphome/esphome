@@ -4,6 +4,9 @@ import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_FREQUENCY, CONF_ID
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@X-Ryl669"]
 DEPENDENCIES = ["i2c"]
@@ -70,7 +73,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -89,8 +92,14 @@ AT581XSettingsAction = at581x_ns.class_("AT581XSettingsAction", automation.Actio
             cv.Required(CONF_ID): cv.use_id(AT581XComponent),
         }
     ),
+    synchronous=True,
 )
-async def at581x_reset_to_code(config, action_id, template_arg, args):
+async def at581x_reset_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
@@ -160,60 +169,56 @@ RADAR_SETTINGS_SCHEMA = cv.Schema(
     "at581x.settings",
     AT581XSettingsAction,
     RADAR_SETTINGS_SCHEMA,
+    synchronous=True,
 )
-async def at581x_settings_to_code(config, action_id, template_arg, args):
+async def at581x_settings_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
     # Radar configuration
     if frontend_reset := config.get(CONF_HW_FRONTEND_RESET):
-        template_ = await cg.templatable(frontend_reset, args, int)
+        template_ = await cg.templatable(frontend_reset, args, cg.int8)
         cg.add(var.set_hw_frontend_reset(template_))
 
     if freq := config.get(CONF_FREQUENCY):
-        template_ = await cg.templatable(freq, args, float)
-        template_ = int(template_ / 1000000)
+        if not cg.is_template(freq):
+            freq = int(freq / 1000000)
+        template_ = await cg.templatable(freq, args, cg.int_)
         cg.add(var.set_frequency(template_))
 
-    if sens_dist := config.get(CONF_SENSING_DISTANCE):
-        template_ = await cg.templatable(sens_dist, args, int)
+    if (sens_dist := config.get(CONF_SENSING_DISTANCE)) is not None:
+        template_ = await cg.templatable(sens_dist, args, cg.int_)
         cg.add(var.set_sensing_distance(template_))
 
     if selfcheck := config.get(CONF_POWERON_SELFCHECK_TIME):
-        template_ = await cg.templatable(selfcheck, args, float)
-        if isinstance(template_, cv.TimePeriod):
-            template_ = template_.total_milliseconds
-        template_ = int(template_)
+        template_ = await cg.templatable(selfcheck, args, cg.int_)
         cg.add(var.set_poweron_selfcheck_time(template_))
 
     if protect := config.get(CONF_PROTECT_TIME):
-        template_ = await cg.templatable(protect, args, float)
-        if isinstance(template_, cv.TimePeriod):
-            template_ = template_.total_milliseconds
-        template_ = int(template_)
+        template_ = await cg.templatable(protect, args, cg.int_)
         cg.add(var.set_protect_time(template_))
 
     if trig_base := config.get(CONF_TRIGGER_BASE):
-        template_ = await cg.templatable(trig_base, args, float)
-        if isinstance(template_, cv.TimePeriod):
-            template_ = template_.total_milliseconds
-        template_ = int(template_)
+        template_ = await cg.templatable(trig_base, args, cg.int_)
         cg.add(var.set_trigger_base(template_))
 
     if trig_keep := config.get(CONF_TRIGGER_KEEP):
-        template_ = await cg.templatable(trig_keep, args, float)
-        if isinstance(template_, cv.TimePeriod):
-            template_ = template_.total_milliseconds
-        template_ = int(template_)
+        template_ = await cg.templatable(trig_keep, args, cg.int_)
         cg.add(var.set_trigger_keep(template_))
 
-    if stage_gain := config.get(CONF_STAGE_GAIN):
-        template_ = await cg.templatable(stage_gain, args, int)
+    if (stage_gain := config.get(CONF_STAGE_GAIN)) is not None:
+        template_ = await cg.templatable(stage_gain, args, cg.int_)
         cg.add(var.set_stage_gain(template_))
 
     if power := config.get(CONF_POWER_CONSUMPTION):
-        template_ = await cg.templatable(power, args, float)
-        template_ = int(template_ * 1000000)
+        if not cg.is_template(power):
+            power = int(power * 1000000)
+        template_ = await cg.templatable(power, args, cg.int_)
         cg.add(var.set_power_consumption(template_))
 
     return var

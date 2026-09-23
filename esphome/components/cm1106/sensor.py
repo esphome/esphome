@@ -13,6 +13,9 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@andrewjswan"]
@@ -43,8 +46,16 @@ CONFIG_SCHEMA = (
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "cm1106",
+    baud_rate=9600,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
+)
 
-async def to_code(config) -> None:
+
+async def to_code(config: ConfigType) -> None:
     """Code generation entry point."""
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -65,8 +76,14 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
     "cm1106.calibrate_zero",
     CM1106CalibrateZeroAction,
     CALIBRATION_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def cm1106_calibration_to_code(config, action_id, template_arg, args) -> None:
+async def cm1106_calibration_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     """Service code generation entry point."""
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)

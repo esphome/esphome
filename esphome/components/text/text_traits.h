@@ -4,8 +4,7 @@
 
 #include "esphome/core/string_ref.h"
 
-namespace esphome {
-namespace text {
+namespace esphome::text {
 
 enum TextMode : uint8_t {
   TEXT_MODE_TEXT = 0,
@@ -37,5 +36,4 @@ class TextTraits {
   TextMode mode_{TEXT_MODE_TEXT};
 };
 
-}  // namespace text
-}  // namespace esphome
+}  // namespace esphome::text

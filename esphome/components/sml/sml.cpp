@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include "sml_parser.h"
 
-namespace esphome {
-namespace sml {
+namespace esphome::sml {
 
 static const char *const TAG = "sml";
 
@@ -59,10 +58,6 @@ void Sml::loop() {
       };
     };
   }
-}
-
-void Sml::add_on_data_callback(std::function<void(std::vector<uint8_t>, bool)> &&callback) {
-  this->data_callbacks_.add(std::move(callback));
 }
 
 void Sml::process_sml_file_(const BytesView &sml_data) {
@@ -144,5 +139,4 @@ uint8_t get_code(uint8_t byte) {
   }
 }
 
-}  // namespace sml
-}  // namespace esphome
+}  // namespace esphome::sml

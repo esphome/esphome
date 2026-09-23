@@ -4,13 +4,16 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#ifdef USE_SENSOR_FILTER
 #include "esphome/components/sensor/filter.h"
+#endif
 
 #include <initializer_list>
 #include <memory>
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
+
+class Sensor;
 
 void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *obj);
 
@@ -33,6 +36,7 @@ enum StateClass : uint8_t {
   STATE_CLASS_TOTAL = 3,
   STATE_CLASS_MEASUREMENT_ANGLE = 4
 };
+constexpr uint8_t STATE_CLASS_LAST = static_cast<uint8_t>(STATE_CLASS_MEASUREMENT_ANGLE);
 
 const LogString *state_class_to_string(StateClass state_class);
 
@@ -40,7 +44,7 @@ const LogString *state_class_to_string(StateClass state_class);
  *
  * A sensor has unit of measurement and can use publish_state to send out a new value with the specified accuracy.
  */
-class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBase_UnitOfMeasurement {
+class Sensor : public EntityBase {
  public:
   explicit Sensor();
 
@@ -48,6 +52,8 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
   int8_t get_accuracy_decimals();
   /// Manually set the accuracy in decimals.
   void set_accuracy_decimals(int8_t accuracy_decimals);
+  /// Check if the accuracy in decimals has been manually set.
+  bool has_accuracy_decimals() const { return this->sensor_flags_.has_accuracy_override; }
 
   /// Get the state class, using the manual override if set.
   StateClass get_state_class();
@@ -65,6 +71,7 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
   /// Set force update mode.
   void set_force_update(bool force_update) { sensor_flags_.force_update = force_update; }
 
+#ifdef USE_SENSOR_FILTER
   /// Add a filter to the filter chain. Will be appended to the back.
   void add_filter(Filter *filter);
 
@@ -85,16 +92,24 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
 
   /// Clear the entire filter chain.
   void clear_filters();
+#endif
 
   /// Getter-syntax for .state.
-  float get_state() const;
-  /// Getter-syntax for .raw_state
-  float get_raw_state() const;
+  float get_state() const { return this->state; }
+  /// Get the last state received by publish_state(), before any filters were applied.
+  float get_raw_state() const {
+#ifdef USE_SENSOR_FILTER
+    return this->raw_state_;
+#else
+    return this->state;  // No filters compiled in, raw == filtered
+#endif
+  }
 
   /** Publish a new state to the front-end.
    *
-   * First, the new state will be assigned to the raw_value. Then it's passed through all filters
-   * until it finally lands in the .value member variable and a callback is issued.
+   * The value is passed through the filter chain (when filters are compiled in) before landing in
+   * the `state` member and triggering the state callback. The pre-filter value is available via
+   * get_raw_state().
    *
    * @param state The state as a floating point number.
    */
@@ -103,9 +118,17 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Add a callback that will be called every time a filtered value arrives.
-  void add_on_state_callback(std::function<void(float)> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) { this->callback_.add(std::forward<F>(callback)); }
   /// Add a callback that will be called every time the sensor sends a raw value.
-  void add_on_raw_state_callback(std::function<void(float)> &&callback);
+  /// When USE_SENSOR_FILTER is not enabled, delegates to the regular callback
+  /// since raw state equals filtered state without filter support compiled in.
+  template<typename F> void add_on_raw_state_callback(F &&callback) {
+#ifdef USE_SENSOR_FILTER
+    this->raw_callback_.add(std::forward<F>(callback));
+#else
+    this->callback_.add(std::forward<F>(callback));
+#endif
+  }
 
   /** This member variable stores the last state that has passed through all filters.
    *
@@ -116,19 +139,18 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
    */
   float state;
 
-  /** This member variable stores the current raw state of the sensor, without any filters applied.
-   *
-   * Unlike .state,this will be updated immediately when publish_state is called.
-   */
-  float raw_state;
-
   void internal_send_state_to_frontend(float state);
 
  protected:
-  std::unique_ptr<CallbackManager<void(float)>> raw_callback_;  ///< Storage for raw state callbacks (lazy allocated).
-  CallbackManager<void(float)> callback_;                       ///< Storage for filtered state callbacks.
+#ifdef USE_SENSOR_FILTER
+  float raw_state_{NAN};                           ///< The last state passed to publish_state(), before filters.
+  LazyCallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
+#endif
+  LazyCallbackManager<void(float)> callback_;  ///< Storage for filtered state callbacks.
 
+#ifdef USE_SENSOR_FILTER
   Filter *filter_list_{nullptr};  ///< Store all active filters.
+#endif
 
   // Group small members together to avoid padding
   int8_t accuracy_decimals_{-1};              ///< Accuracy in decimals (-1 = not set)
@@ -143,5 +165,4 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
   } sensor_flags_{};
 };
 
-}  // namespace sensor
-}  // namespace esphome
+}  // namespace esphome::sensor

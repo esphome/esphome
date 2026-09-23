@@ -3,8 +3,7 @@
 #include "esphome/core/application.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace pzem004t {
+namespace esphome::pzem004t {
 
 static const char *const TAG = "pzem004t";
 
@@ -26,7 +25,10 @@ void PZEM004T::loop() {
 
   // PZEM004T packet size is 7 byte
   while (this->available() >= 7) {
-    auto resp = *this->read_array<7>();
+    auto resp_opt = this->read_array<7>();
+    if (!resp_opt.has_value())
+      break;
+    auto resp = *resp_opt;
     // packet format:
     // 0: packet type
     // 1-5: data
@@ -123,5 +125,4 @@ void PZEM004T::dump_config() {
   LOG_SENSOR("", "Power", this->power_sensor_);
 }
 
-}  // namespace pzem004t
-}  // namespace esphome
+}  // namespace esphome::pzem004t

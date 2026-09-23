@@ -15,9 +15,7 @@ namespace esphome::datetime {
 #define LOG_DATETIME_TIME(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_icon_ref().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon_ref().c_str()); \
-    } \
+    LOG_ENTITY_ICON(TAG, prefix, *(obj)); \
   }
 
 class TimeCall;
@@ -69,7 +67,9 @@ class TimeCall {
   void perform();
   TimeCall &set_time(uint8_t hour, uint8_t minute, uint8_t second);
   TimeCall &set_time(ESPTime time);
-  TimeCall &set_time(const std::string &time);
+  TimeCall &set_time(const char *time, size_t len);
+  TimeCall &set_time(const char *time) { return this->set_time(time, strlen(time)); }
+  TimeCall &set_time(const std::string &time) { return this->set_time(time.c_str(), time.size()); }
 
   TimeCall &set_hour(uint8_t hour) {
     this->hour_ = hour;
@@ -98,7 +98,9 @@ class TimeCall {
   optional<uint8_t> second_;
 };
 
-template<typename... Ts> class TimeSetAction : public Action<Ts...>, public Parented<TimeEntity> {
+inline TimeCall TimeEntity::make_call() { return TimeCall(this); }
+
+template<typename... Ts> class TimeSetAction final : public Action<Ts...>, public Parented<TimeEntity> {
  public:
   TEMPLATABLE_VALUE(ESPTime, time)
 
@@ -113,7 +115,7 @@ template<typename... Ts> class TimeSetAction : public Action<Ts...>, public Pare
 };
 
 #ifdef USE_TIME
-class OnTimeTrigger : public Trigger<>, public Component, public Parented<TimeEntity> {
+class OnTimeTrigger final : public Trigger<>, public Component, public Parented<TimeEntity> {
  public:
   void loop() override;
 

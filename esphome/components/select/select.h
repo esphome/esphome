@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include "select_call.h"
 #include "select_traits.h"
 
@@ -11,9 +12,7 @@ namespace esphome::select {
 #define LOG_SELECT(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_icon_ref().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon_ref().c_str()); \
-    } \
+    LOG_ENTITY_ICON(TAG, prefix, *(obj)); \
   }
 
 #define SUB_SELECT(name) \
@@ -31,35 +30,32 @@ class Select : public EntityBase {
  public:
   SelectTraits traits;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  /// @deprecated Use current_option() instead. This member will be removed in ESPHome 2026.5.0.
-  ESPDEPRECATED("Use current_option() instead of .state. Will be removed in 2026.5.0", "2025.11.0")
-  std::string state{};
-
   Select() = default;
   ~Select() = default;
-#pragma GCC diagnostic pop
 
-  void publish_state(const std::string &state);
+  void publish_state(const std::string &state) { this->publish_state(state.c_str()); }
   void publish_state(const char *state);
   void publish_state(size_t index);
 
-  /// Return the currently selected option (as const char* from flash).
-  const char *current_option() const;
+  /// Return the currently selected option, or empty StringRef if no state.
+  /// The returned StringRef points to string literals from codegen (static storage).
+  /// Traits are set once at startup and valid for the lifetime of the program.
+  StringRef current_option() const {
+    return this->has_state() ? StringRef(this->option_at(this->active_index_)) : StringRef();
+  }
 
   /// Instantiate a SelectCall object to modify this select component's state.
   SelectCall make_call() { return SelectCall(this); }
 
   /// Return whether this select component contains the provided option.
-  bool has_option(const std::string &option) const;
-  bool has_option(const char *option) const;
+  bool has_option(const std::string &option) const { return this->index_of(option).has_value(); }
+  bool has_option(const char *option) const { return this->index_of(option).has_value(); }
 
   /// Return whether this select component contains the provided index offset.
-  bool has_index(size_t index) const;
+  bool has_index(size_t index) const { return index < this->size(); }
 
   /// Return the number of options in this select component.
-  size_t size() const;
+  size_t size() const { return this->traits.get_options().size(); }
 
   /// Find the (optional) index offset of the provided option value.
   optional<size_t> index_of(const char *option, size_t len) const;
@@ -75,7 +71,9 @@ class Select : public EntityBase {
   /// Return the option value at the provided index offset (as const char* from flash).
   const char *option_at(size_t index) const;
 
-  void add_on_state_callback(std::function<void(std::string, size_t)> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   friend class SelectCall;
@@ -111,7 +109,7 @@ class Select : public EntityBase {
     }
   }
 
-  CallbackManager<void(std::string, size_t)> state_callback_;
+  LazyCallbackManager<void(size_t)> state_callback_;
 };
 
 }  // namespace esphome::select

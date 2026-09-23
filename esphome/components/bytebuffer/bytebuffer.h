@@ -6,8 +6,7 @@
 #include <cstddef>
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace bytebuffer {
+namespace esphome::bytebuffer {
 
 enum Endian { LITTLE, BIG };
 
@@ -263,7 +262,7 @@ class ByteBuffer {
 
   void put_uint8(uint8_t value, size_t offset) { this->data_[offset] = value; }
   void put_uint16(uint16_t value, size_t offset) { this->put(value, offset); }
-  void put_uint24(uint32_t value, size_t offset) { this->put(value, offset); }
+  void put_uint24(uint32_t value, size_t offset) { this->put_uint32_(value, offset, 3); }
   void put_uint32(uint32_t value, size_t offset) { this->put(value, offset); }
   void put_uint64(uint64_t value, size_t offset) { this->put(value, offset); }
   // Signed versions of the put functions
@@ -417,5 +416,4 @@ class ByteBuffer {
   size_t limit_{0};
 };
 
-}  // namespace bytebuffer
-}  // namespace esphome
+}  // namespace esphome::bytebuffer

@@ -7,7 +7,7 @@
 
 namespace esphome::esp8266 {
 
-class ESP8266GPIOPin : public InternalGPIOPin {
+class ESP8266GPIOPin final : public InternalGPIOPin {
  public:
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
@@ -17,7 +17,7 @@ class ESP8266GPIOPin : public InternalGPIOPin {
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
   void detach_interrupt() const override;
   ISRInternalGPIOPin to_isr() const override;
   uint8_t get_pin() const override { return pin_; }

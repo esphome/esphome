@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/stepper/stepper.h"
 
-namespace esphome {
-namespace uln2003 {
+namespace esphome::uln2003 {
 
 enum ULN2003StepMode {
   ULN2003_STEP_MODE_FULL_STEP,
@@ -13,7 +12,7 @@ enum ULN2003StepMode {
   ULN2003_STEP_MODE_WAVE_DRIVE,
 };
 
-class ULN2003 : public stepper::Stepper, public Component {
+class ULN2003 final : public stepper::Stepper, public Component {
  public:
   void set_pin_a(GPIOPin *pin_a) { pin_a_ = pin_a; }
   void set_pin_b(GPIOPin *pin_b) { pin_b_ = pin_b; }
@@ -40,5 +39,4 @@ class ULN2003 : public stepper::Stepper, public Component {
   int32_t current_uln_pos_{0};
 };
 
-}  // namespace uln2003
-}  // namespace esphome
+}  // namespace esphome::uln2003

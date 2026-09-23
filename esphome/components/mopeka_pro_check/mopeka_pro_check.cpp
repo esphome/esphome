@@ -1,10 +1,7 @@
 #include "mopeka_pro_check.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
-namespace esphome {
-namespace mopeka_pro_check {
+namespace esphome::mopeka_pro_check {
 
 static const char *const TAG = "mopeka_pro_check";
 static const uint8_t MANUFACTURER_DATA_LENGTH = 10;
@@ -26,12 +23,13 @@ void MopekaProCheck::dump_config() {
  * Check if advertisement is for our sensor and if so decode it and
  * update the sensor state data.
  */
-bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool MopekaProCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     return false;
   }
 
-  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str().c_str());
+  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str_to(addr_buf));
 
   const auto &manu_datas = device.get_manufacturer_datas();
 
@@ -153,7 +151,4 @@ SensorReadQuality MopekaProCheck::parse_read_quality_(const std::vector<uint8_t>
   return static_cast<SensorReadQuality>(message[4] >> 6);
 }
 
-}  // namespace mopeka_pro_check
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::mopeka_pro_check

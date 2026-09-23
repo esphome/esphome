@@ -1,77 +1,103 @@
 #ifdef USE_HOST
 
-#include "esphome/core/hal.h"
-#include "esphome/core/helpers.h"
+#include "core.h"
+
+#include "esphome/core/application.h"
 #include "preferences.h"
 
-#include <sched.h>
-#include <time.h>
-#include <cmath>
+#include <climits>
+#include <csignal>
 #include <cstdlib>
+#include <string>
 
-namespace esphome {
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 
-void IRAM_ATTR HOT yield() { ::sched_yield(); }
-uint32_t IRAM_ATTR HOT millis() {
-  struct timespec spec;
-  clock_gettime(CLOCK_MONOTONIC, &spec);
-  time_t seconds = spec.tv_sec;
-  uint32_t ms = round(spec.tv_nsec / 1e6);
-  return ((uint32_t) seconds) * 1000U + ms;
+#ifdef __linux__
+#include <unistd.h>
+#endif
+
+namespace {
+volatile sig_atomic_t s_signal_received = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+void signal_handler(int signal) { s_signal_received = signal; }
+
+char **s_argv = nullptr;               // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+std::string *s_exe_path = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+std::string *s_reexec_path = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+std::string resolve_exe_path(const char *argv0) {
+#ifdef __linux__
+  char buf[PATH_MAX];
+  ssize_t len = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+  if (len > 0) {
+    buf[len] = '\0';
+    return std::string(buf);
+  }
+#endif
+#ifdef __APPLE__
+  char buf[PATH_MAX];
+  uint32_t size = sizeof(buf);
+  if (_NSGetExecutablePath(buf, &size) == 0) {
+    char real[PATH_MAX];
+    if (::realpath(buf, real) != nullptr)
+      return std::string(real);
+    return std::string(buf);
+  }
+#endif
+  if (argv0 == nullptr)
+    return {};
+  char real[PATH_MAX];
+  if (::realpath(argv0, real) != nullptr)
+    return std::string(real);
+  return std::string(argv0);
 }
-void IRAM_ATTR HOT delay(uint32_t ms) {
-  struct timespec ts;
-  ts.tv_sec = ms / 1000;
-  ts.tv_nsec = (ms % 1000) * 1000000;
-  int res;
-  do {
-    res = nanosleep(&ts, &ts);
-  } while (res != 0 && errno == EINTR);
-}
-uint32_t IRAM_ATTR HOT micros() {
-  struct timespec spec;
-  clock_gettime(CLOCK_MONOTONIC, &spec);
-  time_t seconds = spec.tv_sec;
-  uint32_t us = round(spec.tv_nsec / 1e3);
-  return ((uint32_t) seconds) * 1000000U + us;
-}
-void IRAM_ATTR HOT delayMicroseconds(uint32_t us) {
-  struct timespec ts;
-  ts.tv_sec = us / 1000000U;
-  ts.tv_nsec = (us % 1000000U) * 1000U;
-  int res;
-  do {
-    res = nanosleep(&ts, &ts);
-  } while (res != 0 && errno == EINTR);
-}
-void arch_restart() { exit(0); }
-void arch_init() {
-  // pass
-}
-void IRAM_ATTR HOT arch_feed_wdt() {
-  // pass
+}  // namespace
+
+namespace esphome::host {
+
+char **get_argv() { return s_argv; }
+
+const std::string &get_exe_path() {
+  static const std::string empty;
+  return s_exe_path != nullptr ? *s_exe_path : empty;
 }
 
-uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
-uint32_t arch_get_cpu_cycle_count() {
-  struct timespec spec;
-  clock_gettime(CLOCK_MONOTONIC, &spec);
-  time_t seconds = spec.tv_sec;
-  uint32_t us = spec.tv_nsec;
-  return ((uint32_t) seconds) * 1000000000U + us;
+void arm_reexec(const std::string &path) {
+  if (s_reexec_path != nullptr)
+    *s_reexec_path = path;
 }
-uint32_t arch_get_cpu_freq_hz() { return 1000000000U; }
 
-}  // namespace esphome
+const char *get_reexec_path() {
+  if (s_reexec_path == nullptr || s_reexec_path->empty())
+    return nullptr;
+  return s_reexec_path->c_str();
+}
+
+}  // namespace esphome::host
+
+// HAL functions live in hal.cpp.
 
 void setup();
 void loop();
-int main() {
+int main(int argc, char **argv) {
+  s_argv = argv;
+  static std::string exe_path = resolve_exe_path(argc > 0 ? argv[0] : nullptr);
+  s_exe_path = &exe_path;
+  static std::string reexec_path;
+  s_reexec_path = &reexec_path;
+
+  // Install signal handlers for graceful shutdown (flushes preferences to disk)
+  std::signal(SIGINT, signal_handler);
+  std::signal(SIGTERM, signal_handler);
+
   esphome::host::setup_preferences();
   setup();
-  while (true) {
+  while (s_signal_received == 0) {
     loop();
   }
+  esphome::App.run_safe_shutdown_hooks();
+  return 0;
 }
 
 #endif  // USE_HOST

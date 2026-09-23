@@ -6,7 +6,17 @@ import esphome.codegen as cg
 from esphome.components import time
 from esphome.components.esp32 import CORE, add_idf_sdkconfig_option
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_REBOOT_TIMEOUT, CONF_TIME_ID
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_ID,
+    CONF_REBOOT_TIMEOUT,
+    CONF_TIME_ID,
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_LN882X,
+    PLATFORM_RTL87XX,
+)
 from esphome.core import TimePeriod
 
 CONF_NETMASK = "netmask"
@@ -30,6 +40,7 @@ _WG_KEY_REGEX = re.compile(r"^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw480]=$")
 
 wireguard_ns = cg.esphome_ns.namespace("wireguard")
 Wireguard = wireguard_ns.class_("Wireguard", cg.Component, cg.PollingComponent)
+AllowedIP = wireguard_ns.struct("AllowedIP")
 WireguardPeerOnlineCondition = wireguard_ns.class_(
     "WireguardPeerOnlineCondition", automation.Condition
 )
@@ -52,34 +63,45 @@ def _cidr_network(value):
     try:
         ipaddress.ip_network(value, strict=False)
     except ValueError as err:
-        raise cv.Invalid(f"Invalid network in CIDR notation: {err}")
+        raise cv.Invalid(f"Invalid network in CIDR notation: {err}") from err
     return value
 
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(Wireguard),
-        cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
-        cv.Required(CONF_ADDRESS): cv.ipv4address,
-        cv.Optional(CONF_NETMASK, default="255.255.255.255"): cv.ipv4address,
-        cv.Required(CONF_PRIVATE_KEY): _wireguard_key,
-        cv.Required(CONF_PEER_ENDPOINT): cv.string,
-        cv.Required(CONF_PEER_PUBLIC_KEY): _wireguard_key,
-        cv.Optional(CONF_PEER_PORT, default=51820): cv.port,
-        cv.Optional(CONF_PEER_PRESHARED_KEY): _wireguard_key,
-        cv.Optional(CONF_PEER_ALLOWED_IPS, default=["0.0.0.0/0"]): cv.ensure_list(
-            _cidr_network
-        ),
-        cv.Optional(CONF_PEER_PERSISTENT_KEEPALIVE, default="0s"): cv.All(
-            cv.positive_time_period_seconds,
-            cv.Range(max=TimePeriod(seconds=65535)),
-        ),
-        cv.Optional(
-            CONF_REBOOT_TIMEOUT, default="15min"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_REQUIRE_CONNECTION_TO_PROCEED, default=False): cv.boolean,
-    }
-).extend(cv.polling_component_schema("10s"))
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(Wireguard),
+            cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
+            cv.Required(CONF_ADDRESS): cv.ipv4address,
+            cv.Optional(CONF_NETMASK, default="255.255.255.255"): cv.ipv4address,
+            cv.Required(CONF_PRIVATE_KEY): cv.sensitive(_wireguard_key),
+            cv.Required(CONF_PEER_ENDPOINT): cv.string,
+            cv.Required(CONF_PEER_PUBLIC_KEY): _wireguard_key,
+            cv.Optional(CONF_PEER_PORT, default=51820): cv.port,
+            cv.Optional(CONF_PEER_PRESHARED_KEY): cv.sensitive(_wireguard_key),
+            cv.Optional(CONF_PEER_ALLOWED_IPS, default=["0.0.0.0/0"]): cv.ensure_list(
+                _cidr_network
+            ),
+            cv.Optional(CONF_PEER_PERSISTENT_KEEPALIVE, default="0s"): cv.All(
+                cv.positive_time_period_seconds,
+                cv.Range(max=TimePeriod(seconds=65535)),
+            ),
+            cv.Optional(
+                CONF_REBOOT_TIMEOUT, default="15min"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_REQUIRE_CONNECTION_TO_PROCEED, default=False): cv.boolean,
+        }
+    ).extend(cv.polling_component_schema("10s")),
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+            PLATFORM_BK72XX,
+            PLATFORM_RTL87XX,
+            PLATFORM_LN882X,
+        ]
+    ),
+)
 
 
 async def to_code(config):
@@ -108,8 +130,18 @@ async def to_code(config):
         )
     )
 
-    for ip in allowed_ips:
-        cg.add(var.add_allowed_ip(str(ip.network_address), str(ip.netmask)))
+    cg.add(
+        var.set_allowed_ips(
+            [
+                cg.StructInitializer(
+                    AllowedIP,
+                    ("ip", str(ip.network_address)),
+                    ("netmask", str(ip.netmask)),
+                )
+                for ip in allowed_ips
+            ]
+        )
+    )
 
     cg.add(var.set_srctime(await cg.get_variable(config[CONF_TIME_ID])))
 
@@ -126,7 +158,7 @@ async def to_code(config):
     # the '+1' modifier is relative to the device's own address that will
     # be automatically added to the provided list.
     cg.add_build_flag(f"-DCONFIG_WIREGUARD_MAX_SRC_IPS={len(allowed_ips) + 1}")
-    cg.add_library("droscy/esp_wireguard", "0.4.2")
+    cg.add_library("droscy/esp_wireguard", "0.4.5")
 
     await cg.register_component(var, config)
 
@@ -157,6 +189,7 @@ async def wireguard_enabled_to_code(config, condition_id, template_arg, args):
     "wireguard.enable",
     WireguardEnableAction,
     cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
+    synchronous=True,
 )
 async def wireguard_enable_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -168,6 +201,7 @@ async def wireguard_enable_to_code(config, action_id, template_arg, args):
     "wireguard.disable",
     WireguardDisableAction,
     cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
+    synchronous=True,
 )
 async def wireguard_disable_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

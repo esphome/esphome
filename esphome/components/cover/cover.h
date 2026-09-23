@@ -10,8 +10,8 @@
 
 namespace esphome::cover {
 
-const extern float COVER_OPEN;
-const extern float COVER_CLOSED;
+static constexpr float COVER_OPEN = 1.0f;
+static constexpr float COVER_CLOSED = 0.0f;
 
 #define LOG_COVER(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -20,9 +20,7 @@ const extern float COVER_CLOSED;
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \
-    if (!(obj)->get_device_class_ref().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class_ref().c_str()); \
-    } \
+    LOG_ENTITY_DEVICE_CLASS(TAG, prefix, *(obj)); \
   }
 
 class Cover;
@@ -52,7 +50,7 @@ class CoverCall {
   void perform();
 
   const optional<float> &get_position() const;
-  bool get_stop() const;
+  bool get_stop() const { return this->stop_; }
   const optional<float> &get_tilt() const;
   const optional<bool> &get_toggle() const;
 
@@ -109,7 +107,7 @@ const LogString *cover_operation_to_str(CoverOperation op);
  * to control all values of the cover. Also implement get_traits() to return what operations
  * the cover supports.
  */
-class Cover : public EntityBase, public EntityBase_DeviceClass {
+class Cover : public EntityBase {
  public:
   explicit Cover();
 
@@ -125,9 +123,9 @@ class Cover : public EntityBase, public EntityBase_DeviceClass {
   float tilt{COVER_OPEN};
 
   /// Construct a new cover call used to control the cover.
-  CoverCall make_call();
+  CoverCall make_call() { return {this}; }
 
-  void add_on_state_callback(std::function<void()> &&f);
+  template<typename F> void add_on_state_callback(F &&f) { this->state_callback_.add(std::forward<F>(f)); }
 
   /** Publish the current state of the cover.
    *
@@ -141,9 +139,9 @@ class Cover : public EntityBase, public EntityBase_DeviceClass {
   virtual CoverTraits get_traits() = 0;
 
   /// Helper method to check if the cover is fully open. Equivalent to comparing .position against 1.0
-  bool is_fully_open() const;
+  bool is_fully_open() const { return this->position == COVER_OPEN; }
   /// Helper method to check if the cover is fully closed. Equivalent to comparing .position against 0.0
-  bool is_fully_closed() const;
+  bool is_fully_closed() const { return this->position == COVER_CLOSED; }
 
  protected:
   friend CoverCall;
@@ -152,7 +150,7 @@ class Cover : public EntityBase, public EntityBase_DeviceClass {
 
   optional<CoverRestoreState> restore_state_();
 
-  CallbackManager<void()> state_callback_{};
+  LazyCallbackManager<void()> state_callback_{};
 
   ESPPreferenceObject rtc_;
 };

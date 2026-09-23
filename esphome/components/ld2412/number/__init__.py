@@ -16,6 +16,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_SECOND,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_LD2412_ID, LD2412_ns, LD2412Component
 
@@ -31,6 +32,7 @@ TIMEOUT_GROUP = "timeout"
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_LD2412_ID): cv.use_id(LD2412Component),
         cv.Optional(CONF_LIGHT_THRESHOLD): number.number_schema(
             LightThresholdNumber,
@@ -84,7 +86,7 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
     if light_threshold_config := config.get(CONF_LIGHT_THRESHOLD):
         n = await number.new_number(
@@ -107,14 +109,14 @@ async def to_code(config):
     for x in range(14):
         if gate_conf := config.get(f"gate_{x}"):
             move_config = gate_conf[CONF_MOVE_THRESHOLD]
-            n = cg.new_Pvariable(move_config[CONF_ID], x)
+            n = cg.new_Pvariable(move_config[CONF_ID])
             await number.register_number(
                 n, move_config, min_value=0, max_value=100, step=1
             )
             await cg.register_parented(n, config[CONF_LD2412_ID])
             cg.add(LD2412_component.set_gate_move_threshold_number(x, n))
             still_config = gate_conf[CONF_STILL_THRESHOLD]
-            n = cg.new_Pvariable(still_config[CONF_ID], x)
+            n = cg.new_Pvariable(still_config[CONF_ID])
             await number.register_number(
                 n, still_config, min_value=0, max_value=100, step=1
             )

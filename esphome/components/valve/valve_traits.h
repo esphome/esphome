@@ -1,7 +1,6 @@
 #pragma once
 
-namespace esphome {
-namespace valve {
+namespace esphome::valve {
 
 class ValveTraits {
  public:
@@ -23,5 +22,4 @@ class ValveTraits {
   bool supports_stop_{false};
 };
 
-}  // namespace valve
-}  // namespace esphome
+}  // namespace esphome::valve

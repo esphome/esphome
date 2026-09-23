@@ -17,6 +17,9 @@ from esphome.const import (
     UNIT_EMPTY,
     UNIT_PERCENT,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -63,7 +66,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -93,11 +96,17 @@ async def to_code(config):
         },
         key=CONF_LEVEL,
     ),
+    synchronous=True,
 )
-async def set_heater_level_to_code(config, action_id, template_arg, args):
+async def set_heater_level_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    level_ = await cg.templatable(config[CONF_LEVEL], args, int)
+    level_ = await cg.templatable(config[CONF_LEVEL], args, cg.uint8)
     cg.add(var.set_level(level_))
     return var
 
@@ -112,10 +121,16 @@ async def set_heater_level_to_code(config, action_id, template_arg, args):
         },
         key=CONF_STATUS,
     ),
+    synchronous=True,
 )
-async def set_heater_to_code(config, action_id, template_arg, args):
+async def set_heater_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    status_ = await cg.templatable(config[CONF_LEVEL], args, bool)
+    status_ = await cg.templatable(config[CONF_STATUS], args, cg.bool_)
     cg.add(var.set_status(status_))
     return var

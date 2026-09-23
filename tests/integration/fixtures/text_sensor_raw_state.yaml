@@ -56,6 +56,36 @@ text_sensor:
       - prepend: "["
       - append: "]"
 
+  - platform: template
+    name: "To Lower Sensor"
+    id: to_lower_sensor
+    filters:
+      - to_lower
+
+  - platform: template
+    name: "Lambda Sensor"
+    id: lambda_sensor
+    filters:
+      - lambda: |-
+          return {"[" + x + "]"};
+
+  - platform: template
+    name: "Lambda Raw State Sensor"
+    id: lambda_raw_state_sensor
+    filters:
+      - lambda: |-
+          return {x + " MODIFIED"};
+
+  - platform: template
+    name: "Lambda Skip Sensor"
+    id: lambda_skip_sensor
+    filters:
+      - lambda: |-
+          if (x == "skip") {
+            return {};
+          }
+          return {x + " passed"};
+
 # Button to publish values and log raw_state vs state
 button:
   - platform: template
@@ -179,3 +209,73 @@ button:
           format: "CHAINED: state='%s'"
           args:
             - id(chained_sensor).state.c_str()
+
+  - platform: template
+    name: "Test To Lower Button"
+    id: test_to_lower_button
+    on_press:
+      - text_sensor.template.publish:
+          id: to_lower_sensor
+          state: "HELLO WORLD"
+      - delay: 50ms
+      - logger.log:
+          format: "TO_LOWER: state='%s'"
+          args:
+            - id(to_lower_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Lambda Button"
+    id: test_lambda_button
+    on_press:
+      - text_sensor.template.publish:
+          id: lambda_sensor
+          state: "test"
+      - delay: 50ms
+      - logger.log:
+          format: "LAMBDA: state='%s'"
+          args:
+            - id(lambda_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Lambda Pass Button"
+    id: test_lambda_pass_button
+    on_press:
+      - text_sensor.template.publish:
+          id: lambda_skip_sensor
+          state: "value"
+      - delay: 50ms
+      - logger.log:
+          format: "LAMBDA_PASS: state='%s'"
+          args:
+            - id(lambda_skip_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Lambda Skip Button"
+    id: test_lambda_skip_button
+    on_press:
+      - text_sensor.template.publish:
+          id: lambda_skip_sensor
+          state: "skip"
+      - delay: 50ms
+      # When lambda returns {}, the value should NOT be published
+      # so state should remain from previous publish (or empty if first)
+      - logger.log:
+          format: "LAMBDA_SKIP: state='%s'"
+          args:
+            - id(lambda_skip_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Lambda Raw State Button"
+    id: test_lambda_raw_state_button
+    on_press:
+      - text_sensor.template.publish:
+          id: lambda_raw_state_sensor
+          state: "original"
+      - delay: 50ms
+      # Verify raw_state is preserved (not mutated) after lambda filter
+      # state should be "original MODIFIED", raw_state should be "original"
+      - logger.log:
+          format: "LAMBDA_RAW_STATE: state='%s' raw_state='%s'"
+          args:
+            - id(lambda_raw_state_sensor).state.c_str()
+            - id(lambda_raw_state_sensor).get_raw_state().c_str()

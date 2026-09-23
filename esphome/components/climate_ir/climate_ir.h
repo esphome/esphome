@@ -7,8 +7,7 @@
 #include "esphome/components/remote_transmitter/remote_transmitter.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace climate_ir {
+namespace esphome::climate_ir {
 
 /* A base for climate which works by sending (and receiving) IR codes
 
@@ -42,6 +41,7 @@ class ClimateIR : public Component,
   void dump_config() override;
   void set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
   void set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
+  void set_supports_heat_cool(bool supports_heat_cool) { this->supports_heat_cool_ = supports_heat_cool; }
   void set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
   void set_humidity_sensor(sensor::Sensor *sensor) { this->humidity_sensor_ = sensor; }
 
@@ -61,6 +61,8 @@ class ClimateIR : public Component,
 
   bool supports_cool_{true};
   bool supports_heat_{true};
+  // Default (supports_cool && supports_heat) is resolved during code generation.
+  bool supports_heat_cool_{true};
   bool supports_dry_{false};
   bool supports_fan_only_{false};
   climate::ClimateFanModeMask fan_modes_{};
@@ -71,5 +73,4 @@ class ClimateIR : public Component,
   sensor::Sensor *humidity_sensor_{nullptr};
 };
 
-}  // namespace climate_ir
-}  // namespace esphome
+}  // namespace esphome::climate_ir

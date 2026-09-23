@@ -7,17 +7,26 @@ import subprocess
 import sys
 import tempfile
 
+from esphome import config_validation as cv
 from esphome.components.esp32 import PLATFORM_VERSION_LOOKUP
 from esphome.helpers import write_file_if_changed
 
 ver = PLATFORM_VERSION_LOOKUP["recommended"]
-version_str = f"{ver.major}.{ver.minor:02d}.{ver.patch:02d}"
 root = Path(__file__).parent.parent
 boards_file_path = root / "esphome" / "components" / "esp32" / "boards.py"
 
 
 def get_boards():
     with tempfile.TemporaryDirectory() as tempdir:
+        if isinstance(ver, cv.Version):
+            branch = f"{ver.major}.{ver.minor:02d}.{ver.patch:02d}"
+            if ver.extra:
+                branch += f"-{ver.extra}"
+            repo = "https://github.com/pioarduino/platform-espressif32"
+        else:
+            # URL format: "https://github.com/user/repo.git#branch"
+            url = str(ver)
+            repo, branch = url.rsplit("#", 1) if "#" in url else (url, "main")
         subprocess.run(
             [
                 "git",
@@ -28,8 +37,8 @@ def get_boards():
                 "--depth",
                 "1",
                 "--branch",
-                f"{ver.major}.{ver.minor:02d}.{ver.patch:02d}",
-                "https://github.com/pioarduino/platform-espressif32",
+                branch,
+                repo,
                 tempdir,
             ],
             check=True,
@@ -43,16 +52,26 @@ def get_boards():
                 name = board_info["name"]
                 board = fname.stem
                 variant = mcu.upper()
-                boards[board] = {
+                chip_variant = board_info["build"].get("chip_variant", "")
+                entry = {
                     "name": name,
                     "variant": f"VARIANT_{variant}",
                 }
+                if chip_variant.endswith("_es"):
+                    entry["engineering_sample"] = True
+                boards[board] = entry
         return boards
 
 
 TEMPLATE = """    "%s": {
         "name": "%s",
         "variant": %s,
+    },"""
+
+TEMPLATE_ES = """    "%s": {
+        "name": "%s",
+        "variant": %s,
+        "engineering_sample": True,
     },"""
 
 
@@ -66,7 +85,8 @@ def main(check: bool):
         if line == "BOARDS = {":
             parts.append(line)
             parts.extend(
-                TEMPLATE % (board, info["name"], info["variant"])
+                (TEMPLATE_ES if info.get("engineering_sample") else TEMPLATE)
+                % (board, info["name"], info["variant"])
                 for board, info in sorted(boards.items())
             )
             parts.append("}")

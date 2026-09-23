@@ -1,17 +1,15 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
 
-#include <vector>
+#include <functional>
 
-namespace esphome {
-namespace combination {
+namespace esphome::combination {
 
 class CombinationComponent : public Component, public sensor::Sensor {
  public:
-  float get_setup_priority() const override { return esphome::setup_priority::DATA; }
-
   /// @brief Logs all source sensor's names
   virtual void log_source_sensors() = 0;
 
@@ -43,17 +41,24 @@ class CombinationNoParameterComponent : public CombinationComponent {
 // Base class for opertions that require one parameter to compute the combination
 class CombinationOneParameterComponent : public CombinationComponent {
  public:
-  void add_source(Sensor *sensor, std::function<float(float)> const &stddev);
-  void add_source(Sensor *sensor, float stddev);
+  void set_source_count(size_t count) { this->sensor_sources_.init(count); }
+  void add_source(Sensor *sensor, std::function<float(float)> const &compute);
+  void add_source(Sensor *sensor, float value);
 
-  /// @brief Logs all source sensor's names in sensor_pairs_
+  /// @brief Logs all source sensors' names in sensor_sources_
   void log_source_sensors() override;
 
  protected:
-  std::vector<std::pair<Sensor *, std::function<float(float)>>> sensor_pairs_;
+  struct SensorSource {
+    sensor::Sensor *sensor;
+    std::function<float(float)> compute;
+    CombinationOneParameterComponent *parent;
+  };
+
+  FixedVector<SensorSource> sensor_sources_;
 };
 
-class KalmanCombinationComponent : public CombinationOneParameterComponent {
+class KalmanCombinationComponent final : public CombinationOneParameterComponent {
  public:
   void dump_config() override;
   void setup() override;
@@ -80,7 +85,7 @@ class KalmanCombinationComponent : public CombinationOneParameterComponent {
   float variance_{INFINITY};
 };
 
-class LinearCombinationComponent : public CombinationOneParameterComponent {
+class LinearCombinationComponent final : public CombinationOneParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("linear")); }
   void setup() override;
@@ -88,54 +93,53 @@ class LinearCombinationComponent : public CombinationOneParameterComponent {
   void handle_new_value(float value);
 };
 
-class MaximumCombinationComponent : public CombinationNoParameterComponent {
+class MaximumCombinationComponent final : public CombinationNoParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("max")); }
 
   void handle_new_value(float value) override;
 };
 
-class MeanCombinationComponent : public CombinationNoParameterComponent {
+class MeanCombinationComponent final : public CombinationNoParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("mean")); }
 
   void handle_new_value(float value) override;
 };
 
-class MedianCombinationComponent : public CombinationNoParameterComponent {
+class MedianCombinationComponent final : public CombinationNoParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("median")); }
 
   void handle_new_value(float value) override;
 };
 
-class MinimumCombinationComponent : public CombinationNoParameterComponent {
+class MinimumCombinationComponent final : public CombinationNoParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("min")); }
 
   void handle_new_value(float value) override;
 };
 
-class MostRecentCombinationComponent : public CombinationNoParameterComponent {
+class MostRecentCombinationComponent final : public CombinationNoParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("most_recently_updated")); }
 
   void handle_new_value(float value) override;
 };
 
-class RangeCombinationComponent : public CombinationNoParameterComponent {
+class RangeCombinationComponent final : public CombinationNoParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("range")); }
 
   void handle_new_value(float value) override;
 };
 
-class SumCombinationComponent : public CombinationNoParameterComponent {
+class SumCombinationComponent final : public CombinationNoParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("sum")); }
 
   void handle_new_value(float value) override;
 };
 
-}  // namespace combination
-}  // namespace esphome
+}  // namespace esphome::combination

@@ -12,6 +12,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PASCAL,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@gcormier"]
@@ -56,7 +57,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_K_VALUE, default=4096): cv.uint16_t,
+            cv.Optional(CONF_K_VALUE, default=4096): cv.int_range(min=1, max=65535),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -64,7 +65,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

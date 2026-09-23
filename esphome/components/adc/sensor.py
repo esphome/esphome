@@ -2,12 +2,17 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
-from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32 import (
+    VARIANT_ESP32S31,
+    get_esp32_variant,
+    include_builtin_idf_component,
+    require_adc_oneshot_iram,
+)
 from esphome.components.nrf52.const import AIN_TO_GPIO, EXTRA_ADC
 from esphome.components.zephyr import (
     zephyr_add_overlay,
+    zephyr_add_overlay_builder,
     zephyr_add_prj_conf,
-    zephyr_add_user,
 )
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -24,6 +29,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 from . import (
     ATTENUATION_MODES,
@@ -47,9 +53,17 @@ _attenuation = cv.enum(ATTENUATION_MODES, lower=True)
 _sampling_mode = cv.enum(SAMPLING_MODES, lower=True)
 
 
-def validate_config(config):
+def validate_config(config: ConfigType) -> ConfigType:
     if config[CONF_RAW] and config.get(CONF_ATTENUATION, None) == "auto":
         raise cv.Invalid("Automatic attenuation cannot be used when raw output is set")
+
+    # The S31 ADC supports a single attenuation level (SOC_ADC_ATTEN_NUM is 1)
+    if (
+        CORE.is_esp32
+        and get_esp32_variant() == VARIANT_ESP32S31
+        and config.get(CONF_ATTENUATION, "0db") != "0db"
+    ):
+        raise cv.Invalid("ESP32-S31 only supports 'attenuation: 0db'")
 
     if config.get(CONF_ATTENUATION, None) == "auto" and config.get(CONF_SAMPLES, 1) > 1:
         raise cv.Invalid(
@@ -62,6 +76,20 @@ def validate_config(config):
         # Alter value here so `config` command prints the recommended change
         config[CONF_ATTENUATION] = _attenuation("12db")
 
+    # Remove before 2027.2.0
+    if config[CONF_PIN] == "TEMPERATURE":
+        _LOGGER.warning(
+            "[adc] `pin: TEMPERATURE` is deprecated, use the `internal_temperature` "
+            "sensor platform instead. Will be removed in 2027.2.0"
+        )
+
+    return config
+
+
+def _require_adc_iram(config: ConfigType) -> ConfigType:
+    """Register ADC oneshot IRAM requirement during config validation."""
+    if CORE.is_esp32:
+        require_adc_oneshot_iram()
     return config
 
 
@@ -95,12 +123,25 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("60s")),
     validate_config,
+    _require_adc_iram,
 )
 
 CONF_ADC_CHANNEL_ID = "adc_channel_id"
 
 
-async def to_code(config):
+def _overlay_io_channels() -> str:
+    channel_count = CORE.data[CONF_ADC_CHANNEL_ID]
+    entries = ", ".join(f"<&adc {channel_id}>" for channel_id in range(channel_count))
+    return f"""
+            / {{
+                zephyr,user {{
+                    io-channels = {entries};
+                }};
+            }};
+            """
+
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
@@ -108,6 +149,7 @@ async def to_code(config):
     if config[CONF_PIN] == "VCC":
         cg.add_define("USE_ADC_SENSOR_VCC")
     elif config[CONF_PIN] == "TEMPERATURE":
+        # Remove before 2027.2.0
         cg.add(var.set_is_temperature())
     elif not CORE.is_nrf52 or config[CONF_PIN][CONF_NUMBER] not in EXTRA_ADC:
         pin = await cg.gpio_pin_expression(config[CONF_PIN])
@@ -118,6 +160,9 @@ async def to_code(config):
     cg.add(var.set_sampling_mode(config[CONF_SAMPLING_MODE]))
 
     if CORE.is_esp32:
+        # Re-enable ESP-IDF's ADC driver (excluded by default to save compile time)
+        include_builtin_idf_component("esp_adc")
+
         if attenuation := config.get(CONF_ATTENUATION):
             if attenuation == "auto":
                 cg.add(var.set_autorange(cg.global_ns.true))
@@ -157,25 +202,23 @@ async def to_code(config):
         if isinstance(pin_number, int):
             GPIO_TO_AIN = {v: k for k, v in AIN_TO_GPIO.items()}
             pin_number = GPIO_TO_AIN[pin_number]
-        zephyr_add_user("io-channels", f"<&adc {channel_id}>")
-        zephyr_add_overlay(
-            f"""
-&adc {{
-    #address-cells = <1>;
-    #size-cells = <0>;
+        zephyr_add_overlay_builder(_overlay_io_channels)
+        zephyr_add_overlay(f"""
+                &adc {{
+                    #address-cells = <1>;
+                    #size-cells = <0>;
 
-    channel@{channel_id} {{
-        reg = <{channel_id}>;
-        zephyr,gain = "{gain}";
-        zephyr,reference = "ADC_REF_INTERNAL";
-        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
-        zephyr,input-positive = <NRF_SAADC_{pin_number}>;
-        zephyr,resolution = <14>;
-        zephyr,oversampling = <8>;
-    }};
-}};
-"""
-        )
+                    channel@{channel_id} {{
+                        reg = <{channel_id}>;
+                        zephyr,gain = "{gain}";
+                        zephyr,reference = "ADC_REF_INTERNAL";
+                        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+                        zephyr,input-positive = <NRF_SAADC_{pin_number}>;
+                        zephyr,resolution = <14>;
+                        zephyr,oversampling = <8>;
+                    }};
+                }};
+            """)
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
@@ -185,7 +228,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_IDF,
         },
         "adc_sensor_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
-        "adc_sensor_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "adc_sensor_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
         "adc_sensor_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,

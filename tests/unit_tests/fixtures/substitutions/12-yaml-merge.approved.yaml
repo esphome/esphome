@@ -1,0 +1,9 @@
+substitutions:
+  x: 7
+test_list:
+  - content:
+      before: Content before
+      after: Content after
+      keys_in_inc3:
+        x: 7
+        y: 8

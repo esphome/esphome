@@ -8,8 +8,10 @@ from esphome.const import (
     DEVICE_CLASS_BATTERY,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_BRIGHTNESS_5,
+    STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["am43"]
 CODEOWNERS = ["@buxtronix"]
@@ -26,11 +28,13 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_BATTERY,
                 accuracy_decimals=0,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
                 icon=ICON_BRIGHTNESS_5,
                 accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )
@@ -39,7 +43,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await ble_client.register_ble_node(var, config)

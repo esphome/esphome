@@ -9,8 +9,7 @@
 #undef CAN_IO_UNUSED
 #define CAN_IO_UNUSED ((gpio_num_t) -1)
 
-namespace esphome {
-namespace esp32_can {
+namespace esphome::esp32_can {
 
 static const char *const TAG = "esp32_can";
 
@@ -75,8 +74,15 @@ bool ESP32Can::setup_internal() {
     return false;
   }
 
+  // Select TWAI mode based on configuration
+  twai_mode_t twai_mode = (this->mode_ == CAN_MODE_LISTEN_ONLY) ? TWAI_MODE_LISTEN_ONLY : TWAI_MODE_NORMAL;
+
+  if (this->mode_ == CAN_MODE_LISTEN_ONLY) {
+    ESP_LOGI(TAG, "CAN bus configured in LISTEN_ONLY mode (passive, no ACKs)");
+  }
+
   twai_general_config_t g_config =
-      TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t) this->tx_, (gpio_num_t) this->rx_, TWAI_MODE_NORMAL);
+      TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t) this->tx_, (gpio_num_t) this->rx_, twai_mode);
   g_config.controller_id = next_twai_ctrl_num++;
   if (this->tx_queue_len_.has_value()) {
     g_config.tx_queue_len = this->tx_queue_len_.value();
@@ -111,6 +117,12 @@ bool ESP32Can::setup_internal() {
 }
 
 canbus::Error ESP32Can::send_message(struct canbus::CanFrame *frame) {
+  // In listen-only mode, we cannot transmit
+  if (this->mode_ == CAN_MODE_LISTEN_ONLY) {
+    ESP_LOGW(TAG, "Cannot send messages in LISTEN_ONLY mode");
+    return canbus::ERROR_FAIL;
+  }
+
   if (this->twai_handle_ == nullptr) {
     // not setup yet or setup failed
     return canbus::ERROR_FAIL;
@@ -171,7 +183,6 @@ canbus::Error ESP32Can::read_message(struct canbus::CanFrame *frame) {
   return canbus::ERROR_OK;
 }
 
-}  // namespace esp32_can
-}  // namespace esphome
+}  // namespace esphome::esp32_can
 
 #endif

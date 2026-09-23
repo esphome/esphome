@@ -1,12 +1,12 @@
 #include "dallas_temp.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace dallas_temp {
+namespace esphome::dallas_temp {
 
 static const char *const TAG = "dallas.temp.sensor";
 
 static const uint8_t DALLAS_MODEL_DS18S20 = 0x10;
+static const uint8_t DALLAS_MODEL_DS18B20 = 0x28;
 static const uint8_t DALLAS_COMMAND_START_CONVERSION = 0x44;
 static const uint8_t DALLAS_COMMAND_READ_SCRATCH_PAD = 0xBE;
 static const uint8_t DALLAS_COMMAND_WRITE_SCRATCH_PAD = 0x4E;
@@ -44,14 +44,14 @@ void DallasTemperatureSensor::update() {
 
   this->send_command_(DALLAS_COMMAND_START_CONVERSION);
 
-  this->set_timeout(this->get_address_name(), this->millis_to_wait_for_conversion_(), [this] {
+  this->set_timeout(this->get_address_name().c_str(), this->millis_to_wait_for_conversion_(), [this] {
     if (!this->read_scratch_pad_() || !this->check_scratch_pad_()) {
       this->publish_state(NAN);
       return;
     }
 
     float tempc = this->get_temp_c_();
-    ESP_LOGD(TAG, "'%s': Got Temperature=%.1f°C", this->get_name().c_str(), tempc);
+    ESP_LOGD(TAG, "'%s': Got Temperature=%f°C", this->get_name().c_str(), tempc);
     this->publish_state(tempc);
   });
 }
@@ -136,7 +136,10 @@ bool DallasTemperatureSensor::check_scratch_pad_() {
 float DallasTemperatureSensor::get_temp_c_() {
   int16_t temp = (this->scratch_pad_[1] << 8) | this->scratch_pad_[0];
   if ((this->address_ & 0xff) == DALLAS_MODEL_DS18S20) {
-    return (temp >> 1) + (this->scratch_pad_[7] - this->scratch_pad_[6]) / float(this->scratch_pad_[7]) - 0.25;
+    if (this->scratch_pad_[7] == 0) {
+      return NAN;
+    }
+    return (temp >> 1) + (this->scratch_pad_[7] - this->scratch_pad_[6]) / float(this->scratch_pad_[7]) - 0.25f;
   }
   switch (this->resolution_) {
     case 9:
@@ -152,9 +155,15 @@ float DallasTemperatureSensor::get_temp_c_() {
     default:
       break;
   }
-
+  // undocumented test for powerup measurement of 85
+  // https://github.com/cpetrich/counterfeit_DS18B20#solution-to-the-85-c-problem
+  if ((this->address_ & 0xff) == DALLAS_MODEL_DS18B20) {
+    if ((temp == 85 * 16) && (this->scratch_pad_[6] == 0xc)) {
+      ESP_LOGD(TAG, "dropping reading caused by sensor reset");
+      return NAN;
+    }
+  }
   return temp / 16.0f;
 }
 
-}  // namespace dallas_temp
-}  // namespace esphome
+}  // namespace esphome::dallas_temp

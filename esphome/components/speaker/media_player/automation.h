@@ -2,15 +2,15 @@
 
 #include "speaker_media_player.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/components/audio/audio.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace speaker {
+namespace esphome::speaker {
 
-template<typename... Ts> class PlayOnDeviceMediaAction : public Action<Ts...>, public Parented<SpeakerMediaPlayer> {
+template<typename... Ts>
+class PlayOnDeviceMediaAction final : public Action<Ts...>, public Parented<SpeakerMediaPlayer> {
   TEMPLATABLE_VALUE(audio::AudioFile *, audio_file)
   TEMPLATABLE_VALUE(bool, announcement)
   TEMPLATABLE_VALUE(bool, enqueue)
@@ -20,7 +20,6 @@ template<typename... Ts> class PlayOnDeviceMediaAction : public Action<Ts...>, p
   }
 };
 
-}  // namespace speaker
-}  // namespace esphome
+}  // namespace esphome::speaker
 
 #endif

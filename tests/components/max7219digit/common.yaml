@@ -13,10 +13,10 @@ esphome:
   on_boot:
     - priority: 100
       then:
-        - max7129digit.invert_off:
-        - max7129digit.invert_on:
-        - max7129digit.turn_on:
-        - max7129digit.turn_off:
-        - max7129digit.reverse_on:
-        - max7129digit.reverse_off:
-        - max7129digit.intensity: 10
+        - max7219digit.invert_off:
+        - max7219digit.invert_on:
+        - max7219digit.turn_on:
+        - max7219digit.turn_off:
+        - max7219digit.reverse_on:
+        - max7219digit.reverse_off:
+        - max7219digit.intensity: 10

@@ -11,6 +11,9 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 
@@ -51,8 +54,18 @@ CONFIG_SCHEMA = (
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "senseair",
+    baud_rate=9600,
+    require_rx=True,
+    require_tx=True,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
+)
 
-async def to_code(config):
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
@@ -73,21 +86,37 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
     "senseair.background_calibration",
     SenseAirBackgroundCalibrationAction,
     CALIBRATION_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
     "senseair.background_calibration_result",
     SenseAirBackgroundCalibrationResultAction,
     CALIBRATION_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "senseair.abc_enable", SenseAirABCEnableAction, CALIBRATION_ACTION_SCHEMA
+    "senseair.abc_enable",
+    SenseAirABCEnableAction,
+    CALIBRATION_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "senseair.abc_disable", SenseAirABCDisableAction, CALIBRATION_ACTION_SCHEMA
+    "senseair.abc_disable",
+    SenseAirABCDisableAction,
+    CALIBRATION_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "senseair.abc_get_period", SenseAirABCGetPeriodAction, CALIBRATION_ACTION_SCHEMA
+    "senseair.abc_get_period",
+    SenseAirABCGetPeriodAction,
+    CALIBRATION_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def senseair_action_to_code(config, action_id, template_arg, args):
+async def senseair_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)

@@ -6,15 +6,17 @@ from esphome.const import (
     CONF_BASELINE,
     CONF_CO2,
     CONF_ID,
+    CONF_WARMUP_TIME,
     DEVICE_CLASS_CARBON_DIOXIDE,
     ICON_MOLECULE_CO2,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
-
-CONF_WARMUP_TIME = "warmup_time"
 
 hc8_ns = cg.esphome_ns.namespace("hc8")
 HC8Component = hc8_ns.class_("HC8Component", cg.PollingComponent, uart.UARTDevice)
@@ -45,10 +47,13 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     baud_rate=9600,
     require_rx=True,
     require_tx=True,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
@@ -69,9 +74,17 @@ CALIBRATION_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "hc8.calibrate", HC8CalibrateAction, CALIBRATION_ACTION_SCHEMA
+    "hc8.calibrate",
+    HC8CalibrateAction,
+    CALIBRATION_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def hc8_calibration_to_code(config, action_id, template_arg, args):
+async def hc8_calibration_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_BASELINE], args, cg.uint16)

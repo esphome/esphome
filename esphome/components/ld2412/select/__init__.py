@@ -3,12 +3,14 @@ from esphome.components import select
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
+    CONF_ID,
     ENTITY_CATEGORY_CONFIG,
     ICON_LIGHTBULB,
     ICON_RULER,
     ICON_SCALE,
     ICON_THERMOMETER,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_LD2412_ID, LD2412_ns, LD2412Component
 
@@ -22,6 +24,7 @@ CONF_OUT_PIN_LEVEL = "out_pin_level"
 
 
 CONFIG_SCHEMA = {
+    cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2412_ID): cv.use_id(LD2412Component),
     cv.Optional(CONF_BAUD_RATE): select.select_schema(
         BaudRateSelect,
@@ -46,7 +49,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
     if baud_rate_config := config.get(CONF_BAUD_RATE):
         s = await select.new_select(

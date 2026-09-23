@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32
 
+#include <atomic>
 #include <esp_camera.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -14,8 +15,7 @@
 #include "esphome/components/i2c/i2c_bus.h"
 #endif  // USE_I2C
 
-namespace esphome {
-namespace esp32_camera {
+namespace esphome::esp32_camera {
 
 class ESP32Camera;
 
@@ -38,6 +38,18 @@ enum ESP32CameraFrameSize {
   ESP32_CAMERA_SIZE_2560X1600,  // WQXGA
   ESP32_CAMERA_SIZE_1080X1920,  // PFHD
   ESP32_CAMERA_SIZE_2560X1920,  // QSXGA
+};
+
+enum ESP32CameraPixelFormat {
+  ESP32_PIXEL_FORMAT_RGB565,
+  ESP32_PIXEL_FORMAT_YUV422,
+  ESP32_PIXEL_FORMAT_YUV420,
+  ESP32_PIXEL_FORMAT_GRAYSCALE,
+  ESP32_PIXEL_FORMAT_JPEG,
+  ESP32_PIXEL_FORMAT_RGB888,
+  ESP32_PIXEL_FORMAT_RAW,
+  ESP32_PIXEL_FORMAT_RGB444,
+  ESP32_PIXEL_FORMAT_RGB555,
 };
 
 enum ESP32AgcGainCeiling {
@@ -107,7 +119,7 @@ class ESP32CameraImageReader : public camera::CameraImageReader {
 };
 
 /* ---------------- ESP32Camera class ---------------- */
-class ESP32Camera : public camera::Camera {
+class ESP32Camera final : public camera::Camera {
  public:
   ESP32Camera();
 
@@ -125,27 +137,28 @@ class ESP32Camera : public camera::Camera {
   void set_reset_pin(uint8_t pin);
   void set_power_down_pin(uint8_t pin);
   /* -- image */
+  void set_pixel_format(ESP32CameraPixelFormat format);
   void set_frame_size(ESP32CameraFrameSize size);
   void set_jpeg_quality(uint8_t quality);
-  void set_vertical_flip(bool vertical_flip);
-  void set_horizontal_mirror(bool horizontal_mirror);
-  void set_contrast(int contrast);
-  void set_brightness(int brightness);
-  void set_saturation(int saturation);
-  void set_special_effect(ESP32SpecialEffect effect);
+  void set_vertical_flip(bool vertical_flip) { this->vertical_flip_ = vertical_flip; }
+  void set_horizontal_mirror(bool horizontal_mirror) { this->horizontal_mirror_ = horizontal_mirror; }
+  void set_contrast(int contrast) { this->contrast_ = contrast; }
+  void set_brightness(int brightness) { this->brightness_ = brightness; }
+  void set_saturation(int saturation) { this->saturation_ = saturation; }
+  void set_special_effect(ESP32SpecialEffect effect) { this->special_effect_ = effect; }
   /* -- exposure */
-  void set_aec_mode(ESP32GainControlMode mode);
-  void set_aec2(bool aec2);
-  void set_ae_level(int ae_level);
-  void set_aec_value(uint32_t aec_value);
+  void set_aec_mode(ESP32GainControlMode mode) { this->aec_mode_ = mode; }
+  void set_aec2(bool aec2) { this->aec2_ = aec2; }
+  void set_ae_level(int ae_level) { this->ae_level_ = ae_level; }
+  void set_aec_value(uint32_t aec_value) { this->aec_value_ = aec_value; }
   /* -- gains */
-  void set_agc_mode(ESP32GainControlMode mode);
-  void set_agc_value(uint8_t agc_value);
-  void set_agc_gain_ceiling(ESP32AgcGainCeiling gain_ceiling);
+  void set_agc_mode(ESP32GainControlMode mode) { this->agc_mode_ = mode; }
+  void set_agc_value(uint8_t agc_value) { this->agc_value_ = agc_value; }
+  void set_agc_gain_ceiling(ESP32AgcGainCeiling gain_ceiling) { this->agc_gain_ceiling_ = gain_ceiling; }
   /* -- white balance */
-  void set_wb_mode(ESP32WhiteBalanceMode mode);
+  void set_wb_mode(ESP32WhiteBalanceMode mode) { this->wb_mode_ = mode; }
   /* -- test */
-  void set_test_pattern(bool test_pattern);
+  void set_test_pattern(bool test_pattern) { this->test_pattern_ = test_pattern; }
   /* -- framerates */
   void set_max_update_interval(uint32_t max_update_interval);
   void set_idle_update_interval(uint32_t idle_update_interval);
@@ -158,7 +171,6 @@ class ESP32Camera : public camera::Camera {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   /* public API (specific) */
   void start_stream(camera::CameraRequester requester) override;
   void stop_stream(camera::CameraRequester requester) override;
@@ -205,20 +217,25 @@ class ESP32Camera : public camera::Camera {
 
   esp_err_t init_error_{ESP_OK};
   std::shared_ptr<ESP32CameraImage> current_image_;
-  uint8_t single_requesters_{0};
-  uint8_t stream_requesters_{0};
+  std::atomic<uint8_t> single_requesters_{0};
+  std::atomic<uint8_t> stream_requesters_{0};
   QueueHandle_t framebuffer_get_queue_;
   QueueHandle_t framebuffer_return_queue_;
   std::vector<camera::CameraListener *> listeners_;
 
   uint32_t last_idle_request_{0};
   uint32_t last_update_{0};
+#if ESPHOME_LOG_LEVEL < ESPHOME_LOG_LEVEL_VERBOSE
+  uint32_t last_log_time_{0};
+  uint16_t frame_count_{0};
+#endif
 #ifdef USE_I2C
   i2c::InternalI2CBus *i2c_bus_{nullptr};
 #endif  // USE_I2C
+  RAMAllocator<camera_fb_t> fb_allocator_{RAMAllocator<camera_fb_t>::ALLOC_INTERNAL};
 };
 
-class ESP32CameraImageTrigger : public Trigger<CameraImageData>, public camera::CameraListener {
+class ESP32CameraImageTrigger final : public Trigger<CameraImageData>, public camera::CameraListener {
  public:
   explicit ESP32CameraImageTrigger(ESP32Camera *parent) { parent->add_listener(this); }
   void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override {
@@ -229,19 +246,18 @@ class ESP32CameraImageTrigger : public Trigger<CameraImageData>, public camera::
   }
 };
 
-class ESP32CameraStreamStartTrigger : public Trigger<>, public camera::CameraListener {
+class ESP32CameraStreamStartTrigger final : public Trigger<>, public camera::CameraListener {
  public:
   explicit ESP32CameraStreamStartTrigger(ESP32Camera *parent) { parent->add_listener(this); }
   void on_stream_start() override { this->trigger(); }
 };
 
-class ESP32CameraStreamStopTrigger : public Trigger<>, public camera::CameraListener {
+class ESP32CameraStreamStopTrigger final : public Trigger<>, public camera::CameraListener {
  public:
   explicit ESP32CameraStreamStopTrigger(ESP32Camera *parent) { parent->add_listener(this); }
   void on_stream_stop() override { this->trigger(); }
 };
 
-}  // namespace esp32_camera
-}  // namespace esphome
+}  // namespace esphome::esp32_camera
 
 #endif

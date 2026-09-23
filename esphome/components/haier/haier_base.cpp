@@ -10,8 +10,7 @@
 using namespace esphome::climate;
 using namespace esphome::uart;
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 static const char *const TAG = "haier.climate";
 constexpr size_t COMMUNICATION_TIMEOUT_MS = 60000;
@@ -133,7 +132,7 @@ void HaierClimateBase::save_settings() {
 }
 
 bool HaierClimateBase::get_display_state() const {
-  return (this->display_status_ == SwitchState::ON) || (this->display_status_ == SwitchState::PENDING_ON);
+  return (this->display_status_ == SwitchState::SWITCH_ON) || (this->display_status_ == SwitchState::PENDING_ON);
 }
 
 void HaierClimateBase::set_display_state(bool state) {
@@ -145,7 +144,7 @@ void HaierClimateBase::set_display_state(bool state) {
 }
 
 bool HaierClimateBase::get_health_mode() const {
-  return (this->health_mode_ == SwitchState::ON) || (this->health_mode_ == SwitchState::PENDING_ON);
+  return (this->health_mode_ == SwitchState::SWITCH_ON) || (this->health_mode_ == SwitchState::PENDING_ON);
 }
 
 void HaierClimateBase::set_health_mode(bool state) {
@@ -191,14 +190,8 @@ void HaierClimateBase::set_supported_presets(climate::ClimatePresetMask presets)
     this->traits_.add_supported_preset(climate::CLIMATE_PRESET_NONE);
 }
 
-void HaierClimateBase::set_send_wifi(bool send_wifi) { this->send_wifi_signal_ = send_wifi; }
-
 void HaierClimateBase::send_custom_command(const haier_protocol::HaierMessage &message) {
   this->action_request_ = PendingAction({ActionRequest::SEND_CUSTOM_COMMAND, message});
-}
-
-void HaierClimateBase::add_status_message_callback(std::function<void(const char *, size_t)> &&callback) {
-  this->status_message_callback_.add(std::move(callback));
 }
 
 haier_protocol::HandlerError HaierClimateBase::answer_preprocess_(
@@ -246,14 +239,15 @@ void HaierClimateBase::setup() {
   this->last_request_timestamp_ = std::chrono::steady_clock::now();
   this->set_phase(ProtocolPhases::SENDING_INIT_1);
   this->haier_protocol_.set_default_timeout_handler(
-      std::bind(&esphome::haier::HaierClimateBase::timeout_default_handler_, this, std::placeholders::_1));
+      [this](haier_protocol::FrameType type) { return this->timeout_default_handler_(type); });
   this->set_handlers();
   this->initialization();
 }
 
 void HaierClimateBase::dump_config() {
   LOG_CLIMATE("", "Haier Climate", this);
-  ESP_LOGCONFIG(TAG, "  Device communication status: %s", this->valid_connection() ? "established" : "none");
+  ESP_LOGCONFIG(TAG, "  Device communication status: %s",
+                this->valid_connection() ? LOG_STR_LITERAL("established") : LOG_STR_LITERAL("none"));
 }
 
 void HaierClimateBase::loop() {
@@ -350,8 +344,7 @@ ClimateTraits HaierClimateBase::traits() { return traits_; }
 
 void HaierClimateBase::initialization() {
   constexpr uint32_t restore_settings_version = 0xA77D21EF;
-  this->base_rtc_ =
-      global_preferences->make_preference<HaierBaseSettings>(this->get_preference_hash() ^ restore_settings_version);
+  this->base_rtc_ = this->make_entity_preference<HaierBaseSettings>(restore_settings_version);
   HaierBaseSettings recovered;
   if (!this->base_rtc_.load(&recovered)) {
     recovered = {false, true};
@@ -423,5 +416,4 @@ void HaierClimateBase::send_message_(const haier_protocol::HaierMessage &command
   this->last_request_timestamp_ = std::chrono::steady_clock::now();
 }
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

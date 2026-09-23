@@ -18,7 +18,6 @@ class BufferImpl : public Buffer {
   ~BufferImpl() override;
 
  protected:
-  RAMAllocator<uint8_t> allocator_;
   size_t size_{};
   uint8_t *data_{};
 };

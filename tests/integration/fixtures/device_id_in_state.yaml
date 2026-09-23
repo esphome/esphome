@@ -46,6 +46,7 @@ sensor:
 
 binary_sensor:
   - platform: template
+    id: motion_detected
     name: Motion Detected
     device_id: motion_sensor
     lambda: return true;
@@ -82,3 +83,117 @@ output:
     write_action:
       - lambda: |-
           ESP_LOGD("test", "Light output: %d", state);
+
+cover:
+  - platform: template
+    name: Garage Door
+    device_id: motion_sensor
+    optimistic: true
+
+fan:
+  - platform: template
+    name: Ceiling Fan
+    device_id: humidity_monitor
+    speed_count: 3
+    has_oscillating: false
+    has_direction: false
+
+lock:
+  - platform: template
+    name: Front Door Lock
+    device_id: motion_sensor
+    optimistic: true
+
+number:
+  - platform: template
+    name: Target Temperature
+    device_id: temperature_monitor
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+
+select:
+  - platform: template
+    name: Mode Select
+    device_id: humidity_monitor
+    optimistic: true
+    options:
+      - "Auto"
+      - "Manual"
+
+text:
+  - platform: template
+    name: Device Label
+    device_id: temperature_monitor
+    optimistic: true
+    mode: text
+
+valve:
+  - platform: template
+    name: Water Valve
+    device_id: humidity_monitor
+    optimistic: true
+
+globals:
+  - id: global_away
+    type: bool
+    initial_value: "false"
+  - id: global_is_on
+    type: bool
+    initial_value: "true"
+
+water_heater:
+  - platform: template
+    name: Test Boiler
+    device_id: temperature_monitor
+    optimistic: true
+    current_temperature: !lambda "return 45.0f;"
+    target_temperature: !lambda "return 60.0f;"
+    away: !lambda "return id(global_away);"
+    is_on: !lambda "return id(global_is_on);"
+    supported_modes:
+      - "off"
+      - electric
+    visual:
+      min_temperature: 30.0
+      max_temperature: 85.0
+      target_temperature_step: 0.5
+    set_action:
+      - lambda: |-
+          ESP_LOGD("test", "Water heater set");
+
+alarm_control_panel:
+  - platform: template
+    name: House Alarm
+    device_id: motion_sensor
+    codes:
+      - "1234"
+    restore_mode: ALWAYS_DISARMED
+    binary_sensors:
+      - input: motion_detected
+
+datetime:
+  - platform: template
+    name: Schedule Date
+    device_id: temperature_monitor
+    type: date
+    optimistic: true
+  - platform: template
+    name: Schedule Time
+    device_id: humidity_monitor
+    type: time
+    optimistic: true
+  - platform: template
+    name: Schedule DateTime
+    device_id: motion_sensor
+    type: datetime
+    optimistic: true
+
+event:
+  - platform: template
+    name: Doorbell
+    device_id: motion_sensor
+    event_types:
+      - "press"
+      - "double_press"

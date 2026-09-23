@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import binary_sensor, esp32_ble_tracker, sensor
+from esphome.components import binary_sensor, ble_device_base, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
@@ -12,23 +12,25 @@ from esphome.const import (
     DEVICE_CLASS_MOTION,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_TIMELAPSE,
+    STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
     UNIT_MINUTE,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
-DEPENDENCIES = ["esp32_ble_tracker"]
-AUTO_LOAD = ["xiaomi_ble", "sensor"]
+AUTO_LOAD = ["ble_device_base", "xiaomi_ble", "sensor"]
 
 xiaomi_cgpr1_ns = cg.esphome_ns.namespace("xiaomi_cgpr1")
 XiaomiCGPR1 = xiaomi_cgpr1_ns.class_(
     "XiaomiCGPR1",
     binary_sensor.BinarySensor,
     cg.Component,
-    esp32_ble_tracker.ESPBTDeviceListener,
+    ble_device_base.ESPBTDeviceListener,
 )
 
 CONFIG_SCHEMA = cv.All(
+    ble_device_base.rename_legacy_hub_id("xiaomi_cgpr1"),
     binary_sensor.binary_sensor_schema(XiaomiCGPR1, device_class=DEVICE_CLASS_MOTION)
     .extend(
         {
@@ -38,6 +40,7 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_PERCENT,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_BATTERY,
+                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_IDLE_TIME): sensor.sensor_schema(
@@ -45,23 +48,25 @@ CONFIG_SCHEMA = cv.All(
                 icon=ICON_TIMELAPSE,
                 accuracy_decimals=0,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_LUX,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_ILLUMINANCE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )
-    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
+    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
-    await esp32_ble_tracker.register_ble_device(var, config)
+    await ble_device_base.register_ble_device(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_bindkey(config[CONF_BINDKEY]))

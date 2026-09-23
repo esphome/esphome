@@ -15,9 +15,7 @@ namespace esphome::datetime {
 #define LOG_DATETIME_DATE(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_icon_ref().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon_ref().c_str()); \
-    } \
+    LOG_ENTITY_ICON(TAG, prefix, *(obj)); \
   }
 
 class DateCall;
@@ -67,7 +65,9 @@ class DateCall {
   void perform();
   DateCall &set_date(uint16_t year, uint8_t month, uint8_t day);
   DateCall &set_date(ESPTime time);
-  DateCall &set_date(const std::string &date);
+  DateCall &set_date(const char *date, size_t len);
+  DateCall &set_date(const char *date) { return this->set_date(date, strlen(date)); }
+  DateCall &set_date(const std::string &date) { return this->set_date(date.c_str(), date.size()); }
 
   DateCall &set_year(uint16_t year) {
     this->year_ = year;
@@ -91,12 +91,14 @@ class DateCall {
 
   DateEntity *parent_;
 
-  optional<int16_t> year_;
+  optional<uint16_t> year_;
   optional<uint8_t> month_;
   optional<uint8_t> day_;
 };
 
-template<typename... Ts> class DateSetAction : public Action<Ts...>, public Parented<DateEntity> {
+inline DateCall DateEntity::make_call() { return DateCall(this); }
+
+template<typename... Ts> class DateSetAction final : public Action<Ts...>, public Parented<DateEntity> {
  public:
   TEMPLATABLE_VALUE(ESPTime, date)
 

@@ -8,8 +8,7 @@
 #include <cstdlib>
 #include <utility>
 
-namespace esphome {
-namespace matrix_keypad {
+namespace esphome::matrix_keypad {
 
 class MatrixKeypadListener {
  public:
@@ -19,9 +18,9 @@ class MatrixKeypadListener {
   virtual void key_released(uint8_t key){};
 };
 
-class MatrixKeyTrigger : public Trigger<uint8_t> {};
+class MatrixKeyTrigger final : public Trigger<uint8_t> {};
 
-class MatrixKeypad : public key_provider::KeyProvider, public Component {
+class MatrixKeypad final : public key_provider::KeyProvider, public Component {
  public:
   void setup() override;
   void loop() override;
@@ -44,10 +43,11 @@ class MatrixKeypad : public key_provider::KeyProvider, public Component {
   bool has_diodes_{false};
   bool has_pulldowns_{false};
   int pressed_key_ = -1;
+  uint32_t active_start_{0};
+  int active_key_{-1};
 
   std::vector<MatrixKeypadListener *> listeners_{};
   std::vector<MatrixKeyTrigger *> key_triggers_;
 };
 
-}  // namespace matrix_keypad
-}  // namespace esphome
+}  // namespace esphome::matrix_keypad

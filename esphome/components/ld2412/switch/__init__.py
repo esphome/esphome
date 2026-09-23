@@ -3,11 +3,13 @@ from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BLUETOOTH,
+    CONF_ID,
     DEVICE_CLASS_SWITCH,
     ENTITY_CATEGORY_CONFIG,
     ICON_BLUETOOTH,
     ICON_PULSE,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_LD2412_ID, LD2412_ns, LD2412Component
 
@@ -17,6 +19,7 @@ EngineeringModeSwitch = LD2412_ns.class_("EngineeringModeSwitch", switch.Switch)
 CONF_ENGINEERING_MODE = "engineering_mode"
 
 CONFIG_SCHEMA = {
+    cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2412_ID): cv.use_id(LD2412Component),
     cv.Optional(CONF_BLUETOOTH): switch.switch_schema(
         BluetoothSwitch,
@@ -33,7 +36,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
     if bluetooth_config := config.get(CONF_BLUETOOTH):
         s = await switch.new_switch(bluetooth_config)

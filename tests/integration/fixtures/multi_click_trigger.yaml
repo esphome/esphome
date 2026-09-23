@@ -1,0 +1,105 @@
+esphome:
+  name: test-multi-click
+
+host:
+api:
+  batch_delay: 0ms
+  services:
+    - service: run_all_tests
+      then:
+        # Prime the binary sensor with an initial OFF state.
+        # trigger_on_initial_state defaults to false, so the first
+        # state change from unknown won't fire callbacks.
+        - binary_sensor.template.publish:
+            id: test_button
+            state: false
+        - delay: 50ms
+
+        # Test 1: Single click (ON < 50ms, OFF >= 30ms)
+        - binary_sensor.template.publish:
+            id: test_button
+            state: true
+        - delay: 20ms
+        - binary_sensor.template.publish:
+            id: test_button
+            state: false
+        # Wait for single click trigger (30ms) + cooldown (100ms) + margin
+        - delay: 200ms
+
+        # Test 2: Double click (ON < 50ms, OFF < 25ms, ON < 50ms, OFF >= 25ms)
+        - binary_sensor.template.publish:
+            id: test_button
+            state: true
+        - delay: 20ms
+        - binary_sensor.template.publish:
+            id: test_button
+            state: false
+        - delay: 15ms
+        - binary_sensor.template.publish:
+            id: test_button
+            state: true
+        - delay: 20ms
+        - binary_sensor.template.publish:
+            id: test_button
+            state: false
+        # Wait for double click trigger (25ms) + cooldown (100ms) + margin
+        - delay: 200ms
+
+        # Test 3: Long press (ON >= 80ms)
+        - binary_sensor.template.publish:
+            id: test_button
+            state: true
+        - delay: 100ms
+        - binary_sensor.template.publish:
+            id: test_button
+            state: false
+
+logger:
+  level: VERBOSE
+
+globals:
+  - id: single_click_count
+    type: int
+    initial_value: "0"
+  - id: double_click_count
+    type: int
+    initial_value: "0"
+  - id: long_press_count
+    type: int
+    initial_value: "0"
+
+binary_sensor:
+  - platform: template
+    name: "Test Button"
+    id: test_button
+    on_multi_click:
+      # Single press
+      - timing:
+          - ON for at most 50ms
+          - OFF for at least 30ms
+        invalid_cooldown: 100ms
+        then:
+          - lambda: |-
+              id(single_click_count) += 1;
+              ESP_LOGI("multi_click_test", "SINGLE_CLICK count=%d", id(single_click_count));
+
+      # Double press
+      - timing:
+          - ON for at most 50ms
+          - OFF for at most 25ms
+          - ON for at most 50ms
+          - OFF for at least 25ms
+        invalid_cooldown: 100ms
+        then:
+          - lambda: |-
+              id(double_click_count) += 1;
+              ESP_LOGI("multi_click_test", "DOUBLE_CLICK count=%d", id(double_click_count));
+
+      # Long press
+      - timing:
+          - ON for at least 80ms
+        invalid_cooldown: 100ms
+        then:
+          - lambda: |-
+              id(long_press_count) += 1;
+              ESP_LOGI("multi_click_test", "LONG_PRESS count=%d", id(long_press_count));

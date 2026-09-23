@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ID,
     CONF_LIGHT,
     CONF_MOVING_DISTANCE,
     DEVICE_CLASS_DISTANCE,
@@ -15,6 +16,7 @@ from esphome.const import (
     UNIT_EMPTY,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 from . import CONF_LD2412_ID, LD2412Component
 
@@ -28,6 +30,7 @@ CONF_STILL_ENERGY = "still_energy"
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_LD2412_ID): cv.use_id(LD2412Component),
         cv.Optional(CONF_DETECTION_DISTANCE): sensor.sensor_schema(
             device_class=DEVICE_CLASS_DISTANCE,
@@ -154,7 +157,7 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
     if detection_distance_config := config.get(CONF_DETECTION_DISTANCE):
         sens = await sensor.new_sensor(detection_distance_config)

@@ -3,6 +3,7 @@ from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FACTORY_RESET,
+    CONF_ID,
     CONF_RESTART,
     DEVICE_CLASS_RESTART,
     ENTITY_CATEGORY_CONFIG,
@@ -11,6 +12,7 @@ from esphome.const import (
     ICON_RESTART,
     ICON_RESTART_ALERT,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 
@@ -21,6 +23,7 @@ RestartButton = ld2410_ns.class_("RestartButton", button.Button)
 CONF_QUERY_PARAMS = "query_params"
 
 CONFIG_SCHEMA = {
+    cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
     cv.Optional(CONF_FACTORY_RESET): button.button_schema(
         FactoryResetButton,
@@ -42,7 +45,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
     if factory_reset_config := config.get(CONF_FACTORY_RESET):
         b = await button.new_button(factory_reset_config)

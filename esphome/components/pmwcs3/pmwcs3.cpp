@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pmwcs3 {
+namespace esphome::pmwcs3 {
 
 static const uint8_t PMWCS3_I2C_ADDRESS = 0x63;
 static const uint8_t PMWCS3_REG_READ_START = 0x01;
@@ -52,8 +51,6 @@ void PMWCS3Component::water_calibration() {
 }
 
 void PMWCS3Component::update() { this->read_data_(); }
-
-float PMWCS3Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void PMWCS3Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PMWCS3");
@@ -108,5 +105,4 @@ void PMWCS3Component::read_data_() {
   });
 }
 
-}  // namespace pmwcs3
-}  // namespace esphome
+}  // namespace esphome::pmwcs3

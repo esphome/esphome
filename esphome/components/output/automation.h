@@ -2,13 +2,13 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/defines.h"
 #include "esphome/components/output/binary_output.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace output {
+namespace esphome::output {
 
-template<typename... Ts> class TurnOffAction : public Action<Ts...> {
+template<typename... Ts> class TurnOffAction final : public Action<Ts...> {
  public:
   TurnOffAction(BinaryOutput *output) : output_(output) {}
 
@@ -18,7 +18,7 @@ template<typename... Ts> class TurnOffAction : public Action<Ts...> {
   BinaryOutput *output_;
 };
 
-template<typename... Ts> class TurnOnAction : public Action<Ts...> {
+template<typename... Ts> class TurnOnAction final : public Action<Ts...> {
  public:
   TurnOnAction(BinaryOutput *output) : output_(output) {}
 
@@ -28,7 +28,7 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
   BinaryOutput *output_;
 };
 
-template<typename... Ts> class SetLevelAction : public Action<Ts...> {
+template<typename... Ts> class SetLevelAction final : public Action<Ts...> {
  public:
   SetLevelAction(FloatOutput *output) : output_(output) {}
 
@@ -40,7 +40,8 @@ template<typename... Ts> class SetLevelAction : public Action<Ts...> {
   FloatOutput *output_;
 };
 
-template<typename... Ts> class SetMinPowerAction : public Action<Ts...> {
+#ifdef USE_OUTPUT_FLOAT_POWER_SCALING
+template<typename... Ts> class SetMinPowerAction final : public Action<Ts...> {
  public:
   SetMinPowerAction(FloatOutput *output) : output_(output) {}
 
@@ -52,7 +53,7 @@ template<typename... Ts> class SetMinPowerAction : public Action<Ts...> {
   FloatOutput *output_;
 };
 
-template<typename... Ts> class SetMaxPowerAction : public Action<Ts...> {
+template<typename... Ts> class SetMaxPowerAction final : public Action<Ts...> {
  public:
   SetMaxPowerAction(FloatOutput *output) : output_(output) {}
 
@@ -63,6 +64,6 @@ template<typename... Ts> class SetMaxPowerAction : public Action<Ts...> {
  protected:
   FloatOutput *output_;
 };
+#endif  // USE_OUTPUT_FLOAT_POWER_SCALING
 
-}  // namespace output
-}  // namespace esphome
+}  // namespace esphome::output

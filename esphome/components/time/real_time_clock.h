@@ -6,41 +6,24 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
+#ifdef USE_TIME_TIMEZONE
+#include "posix_tz.h"
+#endif
 
-namespace esphome {
-namespace time {
+namespace esphome::time {
 
 /// The RealTimeClock class exposes common timekeeping functions via the device's local real-time clock.
 ///
 /// \note
-/// The C library (newlib) available on ESPs only supports TZ strings that specify an offset and DST info;
-/// you cannot specify zone names or paths to zoneinfo files.
-/// \see https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
+/// The timezone is pre-parsed into a ParsedTimezone struct: at codegen time from the YAML
+/// configuration, or at runtime by API clients that send the parsed struct (Home Assistant
+/// 2026.3.0 and newer). See set_global_tz() in posix_tz.h.
 class RealTimeClock : public PollingComponent {
  public:
   explicit RealTimeClock();
 
-#ifdef USE_TIME_TIMEZONE
-  /// Set the time zone.
-  void set_timezone(const std::string &tz) {
-    this->timezone_ = tz;
-    this->apply_timezone_();
-  }
-
-  /// Set the time zone from raw buffer, only if it differs from the current one.
-  void set_timezone(const char *tz, size_t len) {
-    if (this->timezone_.length() != len || memcmp(this->timezone_.c_str(), tz, len) != 0) {
-      this->timezone_.assign(tz, len);
-      this->apply_timezone_();
-    }
-  }
-
-  /// Get the time zone currently in use.
-  std::string get_timezone() { return this->timezone_; }
-#endif
-
   /// Get the time in the currently defined timezone.
-  ESPTime now() { return ESPTime::from_epoch_local(this->timestamp_now()); }
+  ESPTime now();
 
   /// Get the time without any time zone or DST corrections.
   ESPTime utcnow() { return ESPTime::from_epoch_utc(this->timestamp_now()); }
@@ -48,9 +31,9 @@ class RealTimeClock : public PollingComponent {
   /// Get the current time as the UTC epoch since January 1st 1970.
   time_t timestamp_now() { return ::time(nullptr); }
 
-  void add_on_time_sync_callback(std::function<void()> &&callback) {
-    this->time_sync_callback_.add(std::move(callback));
-  };
+  template<typename F> void add_on_time_sync_callback(F &&callback) {
+    this->time_sync_callback_.add(std::forward<F>(callback));
+  }
 
   void dump_config() override;
 
@@ -58,15 +41,10 @@ class RealTimeClock : public PollingComponent {
   /// Report a unix epoch as current time.
   void synchronize_epoch_(uint32_t epoch);
 
-#ifdef USE_TIME_TIMEZONE
-  std::string timezone_{};
-  void apply_timezone_();
-#endif
-
-  CallbackManager<void()> time_sync_callback_;
+  LazyCallbackManager<void()> time_sync_callback_;
 };
 
-template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {
+template<typename... Ts> class TimeHasTimeCondition final : public Condition<Ts...> {
  public:
   TimeHasTimeCondition(RealTimeClock *parent) : parent_(parent) {}
   bool check(const Ts &...x) override { return this->parent_->now().is_valid(); }
@@ -75,5 +53,4 @@ template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {
   RealTimeClock *parent_;
 };
 
-}  // namespace time
-}  // namespace esphome
+}  // namespace esphome::time

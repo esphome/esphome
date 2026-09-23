@@ -6,8 +6,7 @@
 
 using esphome::i2c::ErrorCode;
 
-namespace esphome {
-namespace ltr_als_ps {
+namespace esphome::ltr_als_ps {
 
 static const char *const TAG = "ltr_als_ps";
 
@@ -137,7 +136,6 @@ void LTRAlsPsComponent::update() {
 
 void LTRAlsPsComponent::loop() {
   ErrorCode err = i2c::ERROR_OK;
-  static uint8_t tries{0};
 
   switch (this->state_) {
     case State::DELAYED_SETUP:
@@ -166,20 +164,20 @@ void LTRAlsPsComponent::loop() {
 
     case State::WAITING_FOR_DATA:
       if (this->is_als_data_ready_(this->als_readings_) == LtrDataAvail::LTR_DATA_OK) {
-        tries = 0;
+        this->read_data_tries_ = 0;
         ESP_LOGV(TAG, "Reading sensor data having gain = %.0fx, time = %d ms", get_gain_coeff(this->als_readings_.gain),
                  get_itime_ms(this->als_readings_.integration_time));
         this->read_sensor_data_(this->als_readings_);
         this->state_ = State::DATA_COLLECTED;
         this->apply_lux_calculation_(this->als_readings_);
-      } else if (tries >= MAX_TRIES) {
+      } else if (this->read_data_tries_ >= MAX_TRIES) {
         ESP_LOGW(TAG, "Can't get data after several tries.");
-        tries = 0;
+        this->read_data_tries_ = 0;
         this->status_set_warning();
         this->state_ = State::IDLE;
         return;
       } else {
-        tries++;
+        this->read_data_tries_++;
       }
       break;
 
@@ -221,21 +219,21 @@ void LTRAlsPsComponent::loop() {
 }
 
 void LTRAlsPsComponent::check_and_trigger_ps_() {
-  static uint32_t last_high_trigger_time{0};
-  static uint32_t last_low_trigger_time{0};
   uint16_t ps_data = this->read_ps_data_();
   uint32_t now = millis();
 
   if (ps_data != this->ps_readings_) {
     this->ps_readings_ = ps_data;
     // Higher values - object is closer to sensor
-    if (ps_data > this->ps_threshold_high_ && now - last_high_trigger_time >= this->ps_cooldown_time_s_ * 1000) {
-      last_high_trigger_time = now;
+    if (ps_data > this->ps_threshold_high_ &&
+        now - this->last_ps_high_trigger_time_ >= this->ps_cooldown_time_s_ * 1000) {
+      this->last_ps_high_trigger_time_ = now;
       ESP_LOGV(TAG, "Proximity high threshold triggered. Value = %d, Trigger level = %d", ps_data,
                this->ps_threshold_high_);
       this->on_ps_high_trigger_callback_.call();
-    } else if (ps_data < this->ps_threshold_low_ && now - last_low_trigger_time >= this->ps_cooldown_time_s_ * 1000) {
-      last_low_trigger_time = now;
+    } else if (ps_data < this->ps_threshold_low_ &&
+               now - this->last_ps_low_trigger_time_ >= this->ps_cooldown_time_s_ * 1000) {
+      this->last_ps_low_trigger_time_ = now;
       ESP_LOGV(TAG, "Proximity low threshold triggered. Value = %d, Trigger level = %d", ps_data,
                this->ps_threshold_low_);
       this->on_ps_low_trigger_callback_.call();
@@ -482,12 +480,12 @@ void LTRAlsPsComponent::apply_lux_calculation_(AlsReadings &data) {
   float inv_pfactor = this->glass_attenuation_factor_;
   float lux = 0.0f;
 
-  if (ratio < 0.45) {
-    lux = (1.7743 * ch0 + 1.1059 * ch1);
-  } else if (ratio < 0.64 && ratio >= 0.45) {
-    lux = (4.2785 * ch0 - 1.9548 * ch1);
-  } else if (ratio < 0.85 && ratio >= 0.64) {
-    lux = (0.5926 * ch0 + 0.1185 * ch1);
+  if (ratio < 0.45f) {
+    lux = (1.7743f * ch0 + 1.1059f * ch1);
+  } else if (ratio < 0.64f && ratio >= 0.45f) {
+    lux = (4.2785f * ch0 - 1.9548f * ch1);
+  } else if (ratio < 0.85f && ratio >= 0.64f) {
+    lux = (0.5926f * ch0 + 0.1185f * ch1);
   } else {
     ESP_LOGW(TAG, "Impossible ch1/(ch0 + ch1) ratio");
     lux = 0.0f;
@@ -522,5 +520,4 @@ void LTRAlsPsComponent::publish_data_part_2_(AlsReadings &data) {
     this->actual_integration_time_sensor_->publish_state(get_itime_ms(data.integration_time));
   }
 }
-}  // namespace ltr_als_ps
-}  // namespace esphome
+}  // namespace esphome::ltr_als_ps

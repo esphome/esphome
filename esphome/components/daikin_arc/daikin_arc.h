@@ -2,8 +2,7 @@
 
 #include "esphome/components/climate_ir/climate_ir.h"
 
-namespace esphome {
-namespace daikin_arc {
+namespace esphome::daikin_arc {
 
 // Values for Daikin ARC43XXX IR Controllers
 // Temperature
@@ -46,7 +45,7 @@ const uint8_t DAIKIN_DBG_TOLERANCE = 25;
 // State Frame size
 const uint8_t DAIKIN_STATE_FRAME_SIZE = 19;
 
-class DaikinArcClimate : public climate_ir::ClimateIR {
+class DaikinArcClimate final : public climate_ir::ClimateIR {
  public:
   DaikinArcClimate()
       : climate_ir::ClimateIR(DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX, 0.5f, true, true,
@@ -70,7 +69,7 @@ class DaikinArcClimate : public climate_ir::ClimateIR {
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool parse_state_frame_(const uint8_t frame[]);
+  uint8_t last_humidity_{0x66};
 };
 
-}  // namespace daikin_arc
-}  // namespace esphome
+}  // namespace esphome::daikin_arc

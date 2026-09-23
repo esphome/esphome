@@ -3,7 +3,9 @@ from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_VOLUME
-from esphome.core import CoroPriority, coroutine_with_priority
+from esphome.core import ID, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
 IS_PLATFORM_COMPONENT = True
@@ -31,27 +33,44 @@ SET_VOLUME_ACTION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@automation.register_action("audio_dac.mute_off", MuteOffAction, MUTE_ACTION_SCHEMA)
-@automation.register_action("audio_dac.mute_on", MuteOnAction, MUTE_ACTION_SCHEMA)
-async def audio_dac_mute_action_to_code(config, action_id, template_arg, args):
+@automation.register_action(
+    "audio_dac.mute_off", MuteOffAction, MUTE_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "audio_dac.mute_on", MuteOnAction, MUTE_ACTION_SCHEMA, synchronous=True
+)
+async def audio_dac_mute_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
-    "audio_dac.set_volume", SetVolumeAction, SET_VOLUME_ACTION_SCHEMA
+    "audio_dac.set_volume",
+    SetVolumeAction,
+    SET_VOLUME_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def audio_dac_set_volume_to_code(config, action_id, template_arg, args):
+async def audio_dac_set_volume_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    template_ = await cg.templatable(config.get(CONF_VOLUME), args, float)
+    template_ = await cg.templatable(config.get(CONF_VOLUME), args, cg.float_)
     cg.add(var.set_volume(template_))
 
     return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_AUDIO_DAC")
     cg.add_global(audio_dac_ns.using)

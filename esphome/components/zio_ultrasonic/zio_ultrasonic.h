@@ -6,15 +6,13 @@
 
 static const char *const TAG = "Zio Ultrasonic";
 
-namespace esphome {
-namespace zio_ultrasonic {
+namespace esphome::zio_ultrasonic {
 
-class ZioUltrasonicComponent : public i2c::I2CDevice, public PollingComponent, public sensor::Sensor {
+class ZioUltrasonicComponent final : public i2c::I2CDevice, public PollingComponent, public sensor::Sensor {
  public:
   void dump_config() override;
 
   void update() override;
 };
 
-}  // namespace zio_ultrasonic
-}  // namespace esphome
+}  // namespace esphome::zio_ultrasonic

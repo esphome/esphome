@@ -1,5 +1,6 @@
 substitutions:
   cs_pin: GPIO5
+  interrupt_pin: GPIO15
 
 packages:
   spi: !include ../../test_build_components/common/spi/esp32-idf.yaml

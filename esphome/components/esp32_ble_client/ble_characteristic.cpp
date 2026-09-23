@@ -50,8 +50,12 @@ void BLECharacteristic::parse_descriptors() {
     desc->handle = result.handle;
     desc->characteristic = this;
     this->descriptors.push_back(desc);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    char uuid_buf[espbt::UUID_STR_LEN];
+    desc->uuid.to_str(uuid_buf);
     ESP_LOGV(TAG, "[%d] [%s]    descriptor %s, handle 0x%x", this->service->client->get_connection_index(),
-             this->service->client->address_str(), desc->uuid.to_string().c_str(), desc->handle);
+             this->service->client->address_str(), uuid_buf, desc->handle);
+#endif
     offset++;
   }
 }

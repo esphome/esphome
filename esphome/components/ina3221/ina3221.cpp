@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ina3221 {
+namespace esphome::ina3221 {
 
 static const char *const TAG = "ina3221";
 
@@ -113,7 +112,6 @@ void INA3221Component::update() {
   }
 }
 
-float INA3221Component::get_setup_priority() const { return setup_priority::DATA; }
 void INA3221Component::set_shunt_resistance(int channel, float resistance_ohm) {
   this->channels_[channel].shunt_resistance_ = resistance_ohm;
 }
@@ -129,5 +127,4 @@ bool INA3221Component::INA3221Channel::should_measure_bus_voltage() {
   return this->bus_voltage_sensor_ != nullptr || this->power_sensor_ != nullptr;
 }
 
-}  // namespace ina3221
-}  // namespace esphome
+}  // namespace esphome::ina3221

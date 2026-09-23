@@ -10,6 +10,9 @@ from esphome.const import (
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@SeByDocKy"]
 DEPENDENCIES = ["i2c"]
@@ -72,7 +75,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -106,13 +109,20 @@ PMWCS3_CALIBRATION_SCHEMA = cv.Schema(
     "pmwcs3.air_calibration",
     PMWCS3AirCalibrationAction,
     PMWCS3_CALIBRATION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
     "pmwcs3.water_calibration",
     PMWCS3WaterCalibrationAction,
     PMWCS3_CALIBRATION_SCHEMA,
+    synchronous=True,
 )
-async def pmwcs3_calibration_to_code(config, action_id, template_arg, args):
+async def pmwcs3_calibration_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     parent = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, parent)
 
@@ -130,10 +140,16 @@ PMWCS3_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(
     "pmwcs3.new_i2c_address",
     PMWCS3NewI2cAddressAction,
     PMWCS3_NEW_I2C_ADDRESS_SCHEMA,
+    synchronous=True,
 )
-async def pmwcs3newi2caddress_to_code(config, action_id, template_arg, args):
+async def pmwcs3newi2caddress_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     parent = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, parent)
-    address = await cg.templatable(config[CONF_ADDRESS], args, int)
+    address = await cg.templatable(config[CONF_ADDRESS], args, cg.int_)
     cg.add(var.set_new_address(address))
     return var

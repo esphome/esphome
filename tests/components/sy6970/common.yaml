@@ -1,0 +1,57 @@
+sy6970:
+  id: sy6970_component
+  i2c_id: i2c_bus
+  address: 0x6A
+  enable_status_led: true
+  input_current_limit: 1000
+  charge_voltage: 4200
+  charge_current: 500
+  precharge_current: 128
+  charge_enabled: true
+  enable_adc: true
+  update_interval: 5s
+
+sensor:
+  - platform: sy6970
+    sy6970_id: sy6970_component
+    vbus_voltage:
+      name: "VBUS Voltage"
+      id: vbus_voltage_sensor
+    battery_voltage:
+      name: "Battery Voltage"
+      id: battery_voltage_sensor
+    system_voltage:
+      name: "System Voltage"
+      id: system_voltage_sensor
+    charge_current:
+      name: "Charge Current"
+      id: charge_current_sensor
+    precharge_current:
+      name: "Precharge Current"
+      id: precharge_current_sensor
+
+binary_sensor:
+  - platform: sy6970
+    sy6970_id: sy6970_component
+    vbus_connected:
+      name: "VBUS Connected"
+      id: vbus_connected_binary
+    charging:
+      name: "Charging"
+      id: charging_binary
+    charge_done:
+      name: "Charge Done"
+      id: charge_done_binary
+
+text_sensor:
+  - platform: sy6970
+    sy6970_id: sy6970_component
+    bus_status:
+      name: "Bus Status"
+      id: bus_status_text
+    charge_status:
+      name: "Charge Status"
+      id: charge_status_text
+    ntc_status:
+      name: "NTC Status"
+      id: ntc_status_text

@@ -1,7 +1,8 @@
 packages:
-  lvgl: !include lvgl-package.yaml
+  lvgl_package: !include lvgl-package.yaml
   spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
   i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+  lvgl: !include common.yaml
 
 sensor:
   - platform: rotary_encoder
@@ -21,7 +22,7 @@ binary_sensor:
       ignore_strapping_warning: true
 
 display:
-  - platform: ili9xxx
+  - platform: mipi_spi
     spi_id: spi_bus
     model: st7789v
     id: second_display
@@ -41,7 +42,7 @@ display:
     invert_colors: false
     update_interval: never
 
-  - platform: ili9xxx
+  - platform: mipi_spi
     spi_id: spi_bus
     model: st7789v
     id: tft_display
@@ -77,5 +78,3 @@ lvgl:
     - component.update: tft_display
     - delay: 60s
     - lvgl.resume:
-
-<<: !include common.yaml

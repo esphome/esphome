@@ -1,7 +1,6 @@
 #include "ds2484.h"
 
-namespace esphome {
-namespace ds2484 {
+namespace esphome::ds2484 {
 static const char *const TAG = "ds2484.onewire";
 
 void DS2484OneWireBus::setup() {
@@ -110,9 +109,9 @@ uint8_t DS2484OneWireBus::read8() {
 }
 
 uint64_t DS2484OneWireBus::read64() {
-  uint8_t response = 0;
+  uint64_t response = 0;
   for (uint8_t i = 0; i < 8; i++) {
-    response |= (this->read8() << (i * 8));
+    response |= (static_cast<uint64_t>(this->read8()) << (i * 8));
   }
   return response;
 }
@@ -204,5 +203,4 @@ uint64_t IRAM_ATTR DS2484OneWireBus::search_int() {
   return address;
 }
 
-}  // namespace ds2484
-}  // namespace esphome
+}  // namespace esphome::ds2484

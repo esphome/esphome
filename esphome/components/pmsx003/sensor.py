@@ -1,3 +1,5 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
@@ -32,6 +34,8 @@ from esphome.const import (
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_PERCENT,
 )
+from esphome.core import TimePeriodMilliseconds
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ximex"]
 DEPENDENCIES = ["uart"]
@@ -40,47 +44,141 @@ pmsx003_ns = cg.esphome_ns.namespace("pmsx003")
 PMSX003Component = pmsx003_ns.class_("PMSX003Component", uart.UARTDevice, cg.Component)
 PMSX003Sensor = pmsx003_ns.class_("PMSX003Sensor", sensor.Sensor)
 
-TYPE_PMSX003 = "PMSX003"
+TYPE_PMS1003 = "PMS1003"
+TYPE_PMS3003 = "PMS3003"
+TYPE_PMSX003 = "PMSX003"  # PMS5003, PMS6003, PMS7003, PMSA003 (NOT PMSA003I - see `pmsa003i` component)
+TYPE_PMS5003S = "PMS5003S"
 TYPE_PMS5003T = "PMS5003T"
 TYPE_PMS5003ST = "PMS5003ST"
-TYPE_PMS5003S = "PMS5003S"
+TYPE_PMS9003M = "PMS9003M"
 
-PMSX003Type = pmsx003_ns.enum("PMSX003Type")
+Type = pmsx003_ns.enum("Type", is_class=True)
 
 PMSX003_TYPES = {
-    TYPE_PMSX003: PMSX003Type.PMSX003_TYPE_X003,
-    TYPE_PMS5003T: PMSX003Type.PMSX003_TYPE_5003T,
-    TYPE_PMS5003ST: PMSX003Type.PMSX003_TYPE_5003ST,
-    TYPE_PMS5003S: PMSX003Type.PMSX003_TYPE_5003S,
+    TYPE_PMS1003: Type.PMS1003,
+    TYPE_PMS3003: Type.PMS3003,
+    TYPE_PMSX003: Type.PMSX003,
+    TYPE_PMS5003S: Type.PMS5003S,
+    TYPE_PMS5003T: Type.PMS5003T,
+    TYPE_PMS5003ST: Type.PMS5003ST,
+    TYPE_PMS9003M: Type.PMS9003M,
 }
 
 SENSORS_TO_TYPE = {
-    CONF_PM_1_0: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_2_5: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_10_0: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_1_0_STD: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_2_5_STD: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_10_0_STD: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_0_3UM: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_0_5UM: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_1_0UM: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_2_5UM: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_5_0UM: [TYPE_PMSX003, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_10_0UM: [TYPE_PMSX003, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_FORMALDEHYDE: [TYPE_PMS5003ST, TYPE_PMS5003S],
+    CONF_PM_1_0_STD: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_2_5_STD: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_10_0_STD: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_1_0: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_2_5: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_10_0: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_0_3UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_0_5UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_1_0UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_2_5UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_5_0UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_10_0UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_FORMALDEHYDE: [TYPE_PMS5003S, TYPE_PMS5003ST],
     CONF_TEMPERATURE: [TYPE_PMS5003T, TYPE_PMS5003ST],
     CONF_HUMIDITY: [TYPE_PMS5003T, TYPE_PMS5003ST],
 }
 
 
-def validate_pmsx003_sensors(value):
+def validate_pmsx003_sensors(value: ConfigType) -> ConfigType:
     for key, types in SENSORS_TO_TYPE.items():
         if key in value and value[CONF_TYPE] not in types:
             raise cv.Invalid(f"{value[CONF_TYPE]} does not have {key} sensor!")
     return value
 
 
-def validate_update_interval(value):
+def validate_update_interval(value: Any) -> TimePeriodMilliseconds:
     value = cv.positive_time_period_milliseconds(value)
     if value == cv.time_period("0s"):
         return value
@@ -91,7 +189,7 @@ def validate_update_interval(value):
     return value
 
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PMSX003Component),
@@ -196,14 +294,21 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA),
+    validate_pmsx003_sensors,
 )
 
 
-def final_validate(config):
+def final_validate(config: ConfigType) -> None:
     require_tx = config[CONF_UPDATE_INTERVAL] > cv.time_period("0s")
     schema = uart.final_validate_device_schema(
-        "pmsx003", baud_rate=9600, require_rx=True, require_tx=require_tx
+        "pmsx003",
+        baud_rate=9600,
+        require_rx=True,
+        require_tx=require_tx,
+        data_bits=8,
+        parity="NONE",
+        stop_bits=1,
     )
     schema(config)
 
@@ -211,7 +316,7 @@ def final_validate(config):
 FINAL_VALIDATE_SCHEMA = final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

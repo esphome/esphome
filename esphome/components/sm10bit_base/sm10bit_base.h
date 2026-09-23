@@ -5,8 +5,7 @@
 #include "esphome/components/output/float_output.h"
 #include <vector>
 
-namespace esphome {
-namespace sm10bit_base {
+namespace esphome::sm10bit_base {
 
 class Sm10BitBase : public Component {
  public:
@@ -28,7 +27,7 @@ class Sm10BitBase : public Component {
   void dump_config() override;
   void loop() override;
 
-  class Channel : public output::FloatOutput {
+  class Channel final : public output::FloatOutput {
    public:
     void set_parent(Sm10BitBase *parent) { parent_ = parent; }
     void set_channel(uint8_t channel) { channel_ = channel; }
@@ -59,5 +58,4 @@ class Sm10BitBase : public Component {
   bool update_{true};
 };
 
-}  // namespace sm10bit_base
-}  // namespace esphome
+}  // namespace esphome::sm10bit_base

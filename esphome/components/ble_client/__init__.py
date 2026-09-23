@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_NAME,
+    CONF_NOTIFY,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_SERVICE_UUID,
@@ -16,10 +17,45 @@ from esphome.const import (
     CONF_VALUE,
 )
 from esphome.core import ID
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["esp32_ble_client"]
 CODEOWNERS = ["@buxtronix", "@clydebarrow"]
 DEPENDENCIES = ["esp32_ble_tracker"]
+
+CONF_DESCRIPTOR_UUID = "descriptor_uuid"
+CONF_ON_NOTIFY = "on_notify"
+
+
+def validate_descriptor_not_notify(config: ConfigType) -> ConfigType:
+    """Reject descriptor_uuid combined with notify or on_notify.
+
+    BLE descriptors cannot send notifications; only characteristics can, and
+    ESP-IDF has no descriptor variant of esp_ble_gattc_register_for_notify.
+    """
+    if CONF_DESCRIPTOR_UUID in config and (
+        config.get(CONF_NOTIFY) or CONF_ON_NOTIFY in config
+    ):
+        raise cv.Invalid(
+            f"'{CONF_DESCRIPTOR_UUID}' cannot be used with '{CONF_NOTIFY}' or "
+            f"'{CONF_ON_NOTIFY}': BLE descriptors cannot send notifications; remove "
+            f"'{CONF_DESCRIPTOR_UUID}' to receive characteristic notifications, or "
+            f"remove '{CONF_NOTIFY}' and '{CONF_ON_NOTIFY}' to poll the descriptor"
+        )
+    return config
+
+
+def notify_from_on_notify(config: ConfigType) -> ConfigType:
+    """Enable notifications when an on_notify automation is configured.
+
+    The triggers have no registration path of their own; without notify the
+    automation would validate but never fire.
+    """
+    if CONF_ON_NOTIFY in config and not config[CONF_NOTIFY]:
+        config = config.copy()
+        config[CONF_NOTIFY] = True
+    return config
+
 
 ble_client_ns = cg.esphome_ns.namespace("ble_client")
 BLEClient = ble_client_ns.class_("BLEClient", esp32_ble_client.BLEClientBase)
@@ -172,7 +208,10 @@ BLE_REMOVE_BOND_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "ble_client.disconnect", BLEDisconnectAction, BLE_CONNECT_ACTION_SCHEMA
+    "ble_client.disconnect",
+    BLEDisconnectAction,
+    BLE_CONNECT_ACTION_SCHEMA,
+    synchronous=False,
 )
 async def ble_disconnect_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
@@ -180,7 +219,10 @@ async def ble_disconnect_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "ble_client.connect", BLEConnectAction, BLE_CONNECT_ACTION_SCHEMA
+    "ble_client.connect",
+    BLEConnectAction,
+    BLE_CONNECT_ACTION_SCHEMA,
+    synchronous=False,
 )
 async def ble_connect_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
@@ -188,7 +230,10 @@ async def ble_connect_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "ble_client.ble_write", BLEWriteAction, BLE_WRITE_ACTION_SCHEMA
+    "ble_client.ble_write",
+    BLEWriteAction,
+    BLE_WRITE_ACTION_SCHEMA,
+    synchronous=False,
 )
 async def ble_write_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
@@ -247,6 +292,7 @@ async def ble_write_to_code(config, action_id, template_arg, args):
     "ble_client.numeric_comparison_reply",
     BLENumericComparisonReplyAction,
     BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def numeric_comparison_reply_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
@@ -263,7 +309,10 @@ async def numeric_comparison_reply_to_code(config, action_id, template_arg, args
 
 
 @automation.register_action(
-    "ble_client.passkey_reply", BLEPasskeyReplyAction, BLE_PASSKEY_REPLY_ACTION_SCHEMA
+    "ble_client.passkey_reply",
+    BLEPasskeyReplyAction,
+    BLE_PASSKEY_REPLY_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def passkey_reply_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
@@ -283,6 +332,7 @@ async def passkey_reply_to_code(config, action_id, template_arg, args):
     "ble_client.remove_bond",
     BLERemoveBondAction,
     BLE_REMOVE_BOND_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def remove_bond_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])

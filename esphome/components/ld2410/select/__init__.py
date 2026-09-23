@@ -3,12 +3,14 @@ from esphome.components import select
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
+    CONF_ID,
     ENTITY_CATEGORY_CONFIG,
     ICON_LIGHTBULB,
     ICON_RULER,
     ICON_SCALE,
     ICON_THERMOMETER,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 
@@ -22,6 +24,7 @@ CONF_OUT_PIN_LEVEL = "out_pin_level"
 
 
 CONFIG_SCHEMA = {
+    cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
     cv.Optional(CONF_DISTANCE_RESOLUTION): select.select_schema(
         DistanceResolutionSelect,
@@ -46,7 +49,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
     if distance_resolution_config := config.get(CONF_DISTANCE_RESOLUTION):
         s = await select.new_select(

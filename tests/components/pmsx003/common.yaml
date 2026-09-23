@@ -8,11 +8,11 @@ sensor:
     pm_10_0:
       name: PM 10.0 Concentration
     pm_1_0_std:
-      name: PM 1.0 Standard Atmospher Concentration
+      name: PM 1.0 Standard Atmospheric Concentration
     pm_2_5_std:
-      name: PM 2.5 Standard Atmospher Concentration
+      name: PM 2.5 Standard Atmospheric Concentration
     pm_10_0_std:
-      name: PM 10.0 Standard Atmospher Concentration
+      name: PM 10.0 Standard Atmospheric Concentration
     pm_0_3um:
       name: Particulate Count >0.3um
     pm_0_5um:

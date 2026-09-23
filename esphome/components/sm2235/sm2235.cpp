@@ -1,8 +1,7 @@
 #include "sm2235.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sm2235 {
+namespace esphome::sm2235 {
 
 static const char *const TAG = "sm2235";
 
@@ -15,14 +14,13 @@ void SM2235::setup() {
 }
 
 void SM2235::dump_config() {
-  ESP_LOGCONFIG(TAG, "sm2235:");
-  LOG_PIN("  Data Pin: ", this->data_pin_);
-  LOG_PIN("  Clock Pin: ", this->clock_pin_);
   ESP_LOGCONFIG(TAG,
+                "SM2235:\n"
                 "  Color Channels Max Power: %u\n"
                 "  White Channels Max Power: %u",
                 this->max_power_color_channels_, this->max_power_white_channels_);
+  LOG_PIN("  Data Pin: ", this->data_pin_);
+  LOG_PIN("  Clock Pin: ", this->clock_pin_);
 }
 
-}  // namespace sm2235
-}  // namespace esphome
+}  // namespace esphome::sm2235

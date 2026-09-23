@@ -28,13 +28,15 @@ class Number;
  */
 class Number : public EntityBase {
  public:
-  float state;
+  float state{};
 
   void publish_state(float state);
 
   NumberCall make_call() { return NumberCall(this); }
 
-  void add_on_state_callback(std::function<void(float)> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
   NumberTraits traits;
 
@@ -49,7 +51,7 @@ class Number : public EntityBase {
    */
   virtual void control(float value) = 0;
 
-  CallbackManager<void(float)> state_callback_;
+  LazyCallbackManager<void(float)> state_callback_;
 };
 
 }  // namespace esphome::number

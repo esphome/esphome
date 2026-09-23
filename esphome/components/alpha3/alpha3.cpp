@@ -5,8 +5,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace alpha3 {
+namespace esphome::alpha3 {
 
 static const char *const TAG = "alpha3";
 
@@ -125,7 +124,7 @@ void Alpha3::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
         this->current_sensor_->publish_state(NAN);
       if (this->speed_sensor_ != nullptr)
         this->speed_sensor_->publish_state(NAN);
-      if (this->speed_sensor_ != nullptr)
+      if (this->voltage_sensor_ != nullptr)
         this->voltage_sensor_->publish_state(NAN);
       break;
     }
@@ -163,8 +162,9 @@ void Alpha3::send_request_(uint8_t *request, size_t len) {
   auto status =
       esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->geni_handle_, len,
                                request, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-  if (status)
+  if (status) {
     ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str(), status);
+  }
 }
 
 void Alpha3::update() {
@@ -185,7 +185,6 @@ void Alpha3::update() {
     delay(25);  // need to wait between requests
   }
 }
-}  // namespace alpha3
-}  // namespace esphome
+}  // namespace esphome::alpha3
 
 #endif
