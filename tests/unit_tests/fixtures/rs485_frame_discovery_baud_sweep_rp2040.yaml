@@ -1,0 +1,20 @@
+esphome:
+  name: test-device
+
+rp2040:
+  board: rpipicow
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO0
+  rx_pin: GPIO1
+  baud_rate: 9600
+
+rs485_frame:
+  id: hub
+  uart_id: uart_bus
+  # discovery.baud_sweep needs runtime UART reconfiguration (load_settings), which only
+  # exists on ESP-IDF and ESP8266 -- on rp2040 the sweep cannot change the line settings,
+  # so it must be rejected at config-validate time rather than silently no-op at setup.
+  discovery:
+    baud_sweep: [9600, 19200]

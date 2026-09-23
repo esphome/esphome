@@ -1,0 +1,37 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+
+rs485_frame:
+  id: hub
+  uart_id: uart_bus
+  max_frame_length: 6
+  framing:
+    escape:
+      mode: escape_byte
+      byte: 0x00
+  crc:
+    type: sum16_big_endian
+  tx:
+    gate:
+      frame_type: [0x01, 0x01]
+
+button:
+  # frame_type (2 bytes) + payload (8 bytes) = 10 bytes, exceeding the hub's
+  # max_frame_length: 6 -- queue_raw_frame would drop this at runtime every time it is
+  # pressed. Must be rejected at config-validate time instead.
+  - platform: rs485_frame
+    rs485_frame_id: hub
+    name: "Too Long"
+    frame_type: [0x00, 0xA1]
+    payload: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]

@@ -190,3 +190,85 @@ def test_changed_mask_on_field_over_four_bytes_raises_clean_invalid(
     assert result.errors, "expected a validation error for mask: on a >4-byte field"
     assert all(isinstance(err, vol.Invalid) for err in result.errors)
     assert any("has no effect" in str(err) for err in result.errors)
+
+
+def test_masked_int_on_field_over_four_bytes_raises_clean_invalid(
+    fixture_path: Path,
+) -> None:
+    """masked_int's eval_alt_ always decodes via decode_int (4-byte truncated, unlike
+    'changed'/'changed_gated', which fall back to a full-length byte compare past 4
+    bytes) -- a masked_int alt referencing a field longer than 4 bytes would silently
+    match against only the field's first 4 bytes. Must be rejected."""
+    CORE.config_path = fixture_path / "dummy.yaml"
+    raw_config = yaml_util.load_yaml(
+        fixture_path / "rs485_frame_response_monitor_masked_int_on_long_field.yaml"
+    )
+
+    result = esphome_config.validate_config(raw_config, {})
+
+    assert result.errors, (
+        "expected a validation error for masked_int on a >4-byte field"
+    )
+    assert all(isinstance(err, vol.Invalid) for err in result.errors)
+    assert any(
+        "decodes only" in str(err) or "4 bytes" in str(err) for err in result.errors
+    )
+
+
+def test_changed_gated_gate_field_over_four_bytes_raises_clean_invalid(
+    fixture_path: Path,
+) -> None:
+    """changed_gated's gate: field is read via gate_active_, which always decodes via
+    decode_int with no >4-byte fallback (unlike the alt's own field, which eval_alt_ does
+    fall back for) -- gating on a field longer than 4 bytes would silently compare only
+    its first 4 bytes. Must be rejected."""
+    CORE.config_path = fixture_path / "dummy.yaml"
+    raw_config = yaml_util.load_yaml(
+        fixture_path
+        / "rs485_frame_response_monitor_changed_gated_gate_on_long_field.yaml"
+    )
+
+    result = esphome_config.validate_config(raw_config, {})
+
+    assert result.errors, (
+        "expected a validation error for changed_gated gate: on a >4-byte field"
+    )
+    assert all(isinstance(err, vol.Invalid) for err in result.errors)
+    assert any(
+        "decodes only" in str(err) or "4 bytes" in str(err) for err in result.errors
+    )
+
+
+def test_trigger_empty_frame_type_raises_clean_invalid(fixture_path: Path) -> None:
+    """A response_monitor trigger with frame_type: [] would match every RX frame, so the
+    pending window never has a well-defined start -- this entry would never arm. Must be
+    rejected."""
+    CORE.config_path = fixture_path / "dummy.yaml"
+    raw_config = yaml_util.load_yaml(
+        fixture_path / "rs485_frame_response_monitor_empty_trigger_frame_type.yaml"
+    )
+
+    result = esphome_config.validate_config(raw_config, {})
+
+    assert result.errors, "expected a validation error for an empty trigger frame_type:"
+    assert all(isinstance(err, vol.Invalid) for err in result.errors)
+
+
+def test_button_resolving_to_empty_trigger_raises_clean_invalid(
+    fixture_path: Path,
+) -> None:
+    """A button_id: trigger whose referenced button's raw frame_type:/payload: are both
+    empty resolves to a zero-byte trigger -- this entry would never arm. Must be
+    rejected."""
+    CORE.config_path = fixture_path / "dummy.yaml"
+    raw_config = yaml_util.load_yaml(
+        fixture_path / "rs485_frame_response_monitor_button_resolves_empty_trigger.yaml"
+    )
+
+    result = esphome_config.validate_config(raw_config, {})
+
+    assert result.errors, (
+        "expected a validation error for a button resolving to no bytes"
+    )
+    assert all(isinstance(err, vol.Invalid) for err in result.errors)
+    assert any("empty" in str(err) for err in result.errors)

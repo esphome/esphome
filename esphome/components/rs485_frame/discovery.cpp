@@ -528,8 +528,9 @@ void RS485FrameDiscovery::set_baud_sweep(uart::UARTComponent *uart, const std::v
   this->sweep_dwell_ms_ = dwell_ms;
   // A sweep needs a UART to reconfigure and at least one baud and one data-bit width to try.
   // Runtime UART reconfiguration (load_settings) only exists on ESP-IDF and ESP8266; on other
-  // platforms the sweep cannot change the line settings, so it is disabled rather than silently
-  // scoring every candidate against the unchanged hardware baud.
+  // platforms discovery.baud_sweep: is rejected at config-validate time (__init__.py's
+  // DISCOVERY_SCHEMA, cv.only_on), so the #else branch below is unreachable via YAML and exists
+  // only as defense in depth.
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   this->sweeping_ = uart != nullptr && !bauds.empty() && !data_bits.empty();
   if (this->sweeping_)

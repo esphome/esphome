@@ -19,6 +19,8 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_VALUE,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
 )
 from esphome.core import ID as CoreID, HexInt
 import esphome.final_validate as fv
@@ -184,6 +186,16 @@ def validate_frame_type(value):
 MAX_FRAME_TYPE_ALTS = 4
 
 
+# Used only for individual alternates inside the list-of-prefixes on_frame: form (see
+# validate_frame_type_or_list below). Unlike the top-level single-prefix form, where an
+# empty frame_type: [] is the documented match-all shorthand, an empty *alternate* inside
+# a list (frame_type: [[0x01, 0x03], []]) has no such meaning and would silently make the
+# whole trigger match-all -- so it requires at least one byte.
+_validate_frame_type_alt = cv.All(
+    cv.ensure_list(validate_byte), cv.Length(min=1, max=8)
+)
+
+
 def validate_frame_type_or_list(value):
     # on_frame: frame_type accepts either a single prefix ([0x01, 0x03]) or a list of
     # prefixes ([[0x01, 0x03], [0x01, 0x09]]) so one lambda can decode multiple related
@@ -198,7 +210,7 @@ def validate_frame_type_or_list(value):
         value = [value]
     if value and isinstance(value[0], list):
         return cv.All(
-            cv.ensure_list(validate_frame_type),
+            cv.ensure_list(_validate_frame_type_alt),
             cv.Length(min=1, max=MAX_FRAME_TYPE_ALTS),
         )(value)
     single = validate_frame_type(value)
@@ -448,9 +460,13 @@ DISCOVERY_SCHEMA = cv.Schema(
         # baud_sweep: when present, discovery cycles the UART through each baud rate (crossed with
         # data_bits_sweep) for `dwell`, scores the framing at each, and locks onto the best before
         # continuing. Omit it if you already know the baud rate. Runtime UART reconfiguration is
-        # implemented on ESP-IDF and ESP8266; on other platforms the sweep cannot change settings.
+        # only implemented on ESP-IDF and ESP8266 (uart::UARTComponent::load_settings()), so the
+        # sweep is rejected at config-validate time on any other platform rather than silently
+        # doing nothing at setup.
         cv.Optional(CONF_BAUD_SWEEP): cv.All(
-            cv.ensure_list(cv.int_range(min=300, max=2000000)), cv.Length(min=1)
+            cv.ensure_list(cv.int_range(min=300, max=2000000)),
+            cv.Length(min=1),
+            cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
         ),
         # data_bits widths to try at each baud. RS485 is almost always 8; 7 is the only other
         # value worth trying on legacy buses. Crossed with baud_sweep to form the candidate list.
@@ -538,12 +554,21 @@ def _validate_button_id(value):
     return CoreID(cv.validate_id_name(value), is_declaration=False, type=None)
 
 
+# response_monitor trigger.frame_type: (unlike on_frame's, which allows an empty list as
+# documented match-all shorthand) has no match-all use case -- a trigger that matches
+# every RX frame has no well-defined "confirmation window start", so it would never
+# meaningfully arm. Require at least one byte.
+_validate_trigger_frame_type = cv.All(
+    cv.ensure_list(validate_byte), cv.Length(min=1, max=8)
+)
+
+
 def _validate_trigger(value):
     value = cv.Schema(
         {
             cv.Optional(CONF_BUTTON_ID): _validate_button_id,
             cv.Optional(CONF_BUTTON_NAME): cv.string_strict,
-            cv.Optional(CONF_FRAME_TYPE): validate_frame_type,
+            cv.Optional(CONF_FRAME_TYPE): _validate_trigger_frame_type,
         }
     )(value)
     cv.has_exactly_one_key(CONF_BUTTON_ID, CONF_BUTTON_NAME, CONF_FRAME_TYPE)(value)
@@ -812,6 +837,22 @@ def validate_hub(config):
                     "already compares the field's full byte range for fields this long; "
                     "remove mask:/bit: from this signature entry"
                 )
+            # masked_int always decodes via decode_int_ (response_monitor.cpp's
+            # eval_alt_), unlike changed/changed_gated which fall back to a full-length
+            # byte compare past 4 bytes — a field longer than 4 bytes would silently
+            # match against only its first 4 bytes, so reject it instead of accepting
+            # dead config.
+            if (
+                alt[CONF_TYPE] == SIGNATURE_TYPE_MASKED_INT
+                and field_names[alt[CONF_FIELD]][CONF_LENGTH] > 4
+            ):
+                raise cv.Invalid(
+                    f"response_monitor entry '{entry[CONF_NAME]}': masked_int on field "
+                    f"'{alt[CONF_FIELD]}' (length "
+                    f"{field_names[alt[CONF_FIELD]][CONF_LENGTH]} > 4 bytes) decodes only "
+                    "the field's first 4 bytes — use a field of 4 bytes or fewer, or a "
+                    "different signature type"
+                )
             if alt[CONF_TYPE] == SIGNATURE_TYPE_CHANGED_GATED:
                 gate_field = alt[CONF_GATE][CONF_FIELD]
                 if gate_field not in field_names:
@@ -819,6 +860,17 @@ def validate_hub(config):
                         f"response_monitor entry '{entry[CONF_NAME]}': unknown gate field "
                         f"'{gate_field}' — valid response_fields names are "
                         f"{sorted(field_names) or '(none declared)'}"
+                    )
+                # gate_active_ (response_monitor.cpp) always decodes the gate field via
+                # decode_int_, with no >4-byte fallback (unlike the alt's own field
+                # above) — a gate field longer than 4 bytes would silently compare only
+                # its first 4 bytes.
+                if field_names[gate_field][CONF_LENGTH] > 4:
+                    raise cv.Invalid(
+                        f"response_monitor entry '{entry[CONF_NAME]}': gate field "
+                        f"'{gate_field}' (length {field_names[gate_field][CONF_LENGTH]} "
+                        "> 4 bytes) decodes only the gate field's first 4 bytes — use a "
+                        "gate field of 4 bytes or fewer"
                     )
 
     return config
@@ -966,6 +1018,12 @@ def _final_validate_response_monitor(config):
         entry["_resolved_trigger"] = _resolve_button_trigger(
             button_config, hub_command_format
         )
+        if not entry["_resolved_trigger"]:
+            raise cv.Invalid(
+                f"response_monitor entry '{entry[CONF_NAME]}': {ref} resolves to an "
+                "empty trigger (frame_type/payload/value all empty) — this entry would "
+                "never arm"
+            )
         if len(entry["_resolved_trigger"]) > MAX_RESPONSE_TRIGGER_LEN:
             raise cv.Invalid(
                 f"response_monitor entry '{entry[CONF_NAME]}': {ref} "

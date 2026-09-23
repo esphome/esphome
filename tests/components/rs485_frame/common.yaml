@@ -181,16 +181,17 @@ rs485_frame:
   # Hub 5 — discovery mode: no framing/crc/escape declared (those are what it discovers). The
   # hub bypasses framing/validation/TX and passively analyzes raw traffic. Compiles the
   # USE_RS485_FRAME_DISCOVERY code path in CI.
+  #
+  # discovery.baud_sweep: is validated as ESP32/ESP8266-only (runtime UART reconfiguration is
+  # only implemented there), so it is not set here -- this file compiles on rp2040-ard too.
+  # common_baud_sweep.yaml adds it back via !extend for the platforms that support it; see
+  # test.esp32-idf.yaml / test.esp32-ard.yaml / test.esp8266-ard.yaml.
   - id: rs485_frame_hub5
     uart_id: uart_bus
     discovery:
       interval: 15s
       idle_gap: 4ms
       min_framing_confidence: 75
-      # Exercise the runtime baud/data-bits sweep codegen path.
-      baud_sweep: [9600, 19200, 38400]
-      data_bits_sweep: [7, 8]
-      dwell: 8s
 
   # Hub 6 — sum16_little_endian CRC: compiles the little-endian 2-byte CRC read/emit branch
   # for a sum (the counterpart to sum16_big_endian; same on-wire byte order as crc16_modbus).

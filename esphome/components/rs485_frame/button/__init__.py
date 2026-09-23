@@ -9,6 +9,7 @@ from .. import (
     CONF_COMMAND_FORMAT,
     CONF_ENDIAN,
     CONF_FRAME_TYPE,
+    CONF_MAX_FRAME_LENGTH,
     CONF_POSTAMBLE,
     CONF_PREAMBLE,
     CONF_RS485_FRAME_ID,
@@ -17,6 +18,7 @@ from .. import (
     MAX_COMMAND_VALUES,
     MAX_FRAME_LENGTH_UPPER,
     RS485FrameHub,
+    _resolve_button_trigger,
     rs485_frame_ns,
     validate_byte,
     validate_frame_type,
@@ -96,25 +98,42 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config):
-    # The `value:` form requires a command_format somewhere — either on the button itself
-    # (command_format: or value_element_bytes:) or on the hub. If the button supplies its own
-    # full command_format, skip the hub check.
-    if CONF_VALUE not in config:
-        return config
-    if CONF_COMMAND_FORMAT in config:
-        return config
-
     full_config = fv.full_config.get()
     hub_path = full_config.get_path_for_id(config[CONF_RS485_FRAME_ID])[:-1]
     hub_config = full_config.get_config_for_path(hub_path)
-    if CONF_COMMAND_FORMAT not in hub_config:
-        # value_element_bytes on the button provides element width but still needs the hub's
-        # preamble/endian/postamble, so the hub must have a command_format.
+
+    # The `value:` form requires a command_format somewhere — either on the button itself
+    # (command_format: or value_element_bytes:) or on the hub. If the button supplies its own
+    # full command_format, skip the hub check.
+    if (
+        CONF_VALUE in config
+        and CONF_COMMAND_FORMAT not in config
+        and CONF_COMMAND_FORMAT not in hub_config
+    ):
+        # value_element_bytes on the button provides element width but still needs the
+        # hub's preamble/endian/postamble, so the hub must have a command_format.
         raise cv.Invalid(
             "rs485_frame button 'value' requires the referenced hub to have a "
             "'command_format:' block (missing on the hub). Add one to the hub, add "
             "'command_format:' directly to this button, or use the raw 'frame_type' + "
             f"'payload' form instead. See {DOC_COMMAND_FORMAT_URL}"
+        )
+
+    # The button's resolved on-wire frame (raw frame_type: + payload:, or command_format's
+    # preamble + encoded value(s) + postamble) must fit within the hub's max_frame_length: —
+    # otherwise queue_raw_frame()/queue_command_values() silently drops it at runtime, every
+    # time the button is pressed (rs485_frame.cpp). Mirrors _resolve_button_trigger's own
+    # on-wire byte layout so the length checked here is exactly the length the hub will see.
+    hub_command_format = None
+    if CONF_VALUE in config and CONF_COMMAND_FORMAT not in config:
+        hub_command_format = hub_config.get(CONF_COMMAND_FORMAT)
+    resolved = _resolve_button_trigger(config, hub_command_format)
+    max_frame_length = hub_config[CONF_MAX_FRAME_LENGTH]
+    if len(resolved) > max_frame_length:
+        raise cv.Invalid(
+            f"rs485_frame button resolves to a {len(resolved)}-byte frame, exceeding the "
+            f"referenced hub's max_frame_length: ({max_frame_length}) — the hub would drop "
+            "this frame every time the button is pressed"
         )
     return config
 
