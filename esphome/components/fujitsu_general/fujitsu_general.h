@@ -7,8 +7,8 @@
 
 namespace esphome::fujitsu_general {
 
-const uint8_t FUJITSU_GENERAL_TEMP_MIN = 16;  // Celsius // TODO 16 for heating, 18 for cooling, unsupported in ESPH
-const uint8_t FUJITSU_GENERAL_TEMP_MAX = 30;  // Celsius
+constexpr uint8_t FUJITSU_GENERAL_TEMP_MIN = 16;  // Celsius // TODO 16 for heating, 18 for cooling, unsupported in ESPH
+constexpr uint8_t FUJITSU_GENERAL_TEMP_MAX = 30;  // Celsius
 
 // clang-format off
 /**
