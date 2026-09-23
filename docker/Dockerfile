@@ -22,15 +22,12 @@ RUN \
     -r /requirements.txt
 
 # Install the ESPHome Device Builder dashboard.
-RUN uv pip install --no-cache-dir esphome-device-builder==1.13.1
+RUN uv pip install --no-cache-dir esphome-device-builder==1.15.0
 
 RUN \
     platformio settings set enable_telemetry No \
     && platformio settings set check_platformio_interval 1000000 \
     && mkdir -p /piolibs
-
-COPY script/platformio_install_deps.py platformio.ini /
-RUN /platformio_install_deps.py /platformio.ini --libraries
 
 ARG BUILD_VERSION
 
