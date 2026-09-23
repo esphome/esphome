@@ -1,0 +1,22 @@
+# pylint: disable=E0602
+Import("env")  # noqa
+
+import builtins
+import functools
+import sys
+
+# SCons 4.11 declares `from __future__ import annotations` in its own
+# SConscript.py and runs every SConscript file through compile() without
+# dont_inherit=True, so that future flag leaks into the platform's builder
+# scripts and turns their annotations into strings. LibreTiny's Library
+# dataclass declares `env: InitVar[Environment]`, which dataclasses can no
+# longer recognise as an InitVar once it is a string, and the build fails with
+# "__post_init__() missing 1 required positional argument: 'env'".
+#
+# This runs as a pre-script, before the platform's builder/main.py is loaded,
+# and makes SCons compile the remaining SConscripts without inheriting its own
+# future flags, which is what SCons 4.8 did in effect. The module is fetched
+# from sys.modules because SCons.Script also exports a function of that name.
+sconscript = sys.modules["SCons.Script.SConscript"]
+if sconscript.__dict__.get("compile") is None:
+    sconscript.compile = functools.partial(builtins.compile, dont_inherit=True)
