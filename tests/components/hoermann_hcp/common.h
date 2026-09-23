@@ -61,10 +61,12 @@ inline void consume_command(HoermannHcp &door) { poll_command(door); }
 class TestableHoermannHcp : public HoermannHcp {
  public:
   using HoermannHcp::connection_timeout_ms_;
+  using HoermannHcp::advance_pause_;
   using HoermannHcp::light_request_pending_;
   using HoermannHcp::light_request_sent_at_;
   using HoermannHcp::announcing_;
   using HoermannHcp::pause_ack_timeout_ms_;
+  using HoermannHcp::pause_started_at_;
   using HoermannHcp::pause_confirmed_;
   using HoermannHcp::pause_quiet_ms_;
   using HoermannHcp::pause_settle_ms_;
