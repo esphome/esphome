@@ -36,16 +36,24 @@ class CoverCall : public actuator::ActuatorCallBase {
  public:
   CoverCall(Cover *parent);
 
-  // Covariant wrappers — return CoverCall& for fluent chaining compatibility
+  /// Set the command as a string, "STOP", "OPEN", "CLOSE", "TOGGLE".
   CoverCall &set_command(const char *command);
+  /// Set the command to open the cover.
   CoverCall &set_command_open();
+  /// Set the command to close the cover.
   CoverCall &set_command_close();
+  /// Set the command to stop the cover.
   CoverCall &set_command_stop();
+  /// Set the command to toggle the cover.
   CoverCall &set_command_toggle();
+  /// Set the call to a certain target position.
   CoverCall &set_position(float position);
+  /// Set the call to a certain target tilt.
   CoverCall &set_tilt(float tilt);
+  /// Set whether this cover call should stop the cover.
   CoverCall &set_stop(bool stop);
 
+  /// Perform the cover call.
   void perform();
 
   const optional<float> &get_tilt() const { return this->tilt_; }
@@ -54,7 +62,7 @@ class CoverCall : public actuator::ActuatorCallBase {
   optional<float> tilt_{};
 
  private:
-  void validate() override;
+  void validate_();
 };
 
 /// Struct used to store the restored state of a cover
@@ -114,7 +122,11 @@ class Cover : public actuator::ActuatorBase, public actuator::IActuator {
 
   virtual CoverTraits get_traits() = 0;
 
-  // IActuator implementation
+ protected:
+  friend CoverCall;
+
+  // IActuator implementation. Protected so these raw state accessors are only reachable through an
+  // IActuator pointer, not as Cover methods (use make_call() to move the cover).
   float get_position() const override { return this->position; }
   void set_position(float p) override { this->position = p; }
   actuator::ActuatorOperation get_operation() const override { return this->current_operation; }
@@ -122,9 +134,6 @@ class Cover : public actuator::ActuatorBase, public actuator::IActuator {
   void do_publish_state(bool save) override { this->publish_state(save); }
   optional<float> do_restore_state() override;
   const char *get_entity_name() const override { return this->get_name().c_str(); }
-
- protected:
-  friend CoverCall;
 
   virtual void control(const CoverCall &call) = 0;
 
