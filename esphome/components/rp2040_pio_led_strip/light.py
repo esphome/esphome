@@ -222,17 +222,16 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
+    var = cg.new_Pvariable(
+        config[CONF_OUTPUT_ID],
+        config[CONF_NUM_LEDS],
+        light.channel_colors_struct(config[CONF_CHANNEL_COLORS]),
+    )
     id = config[CONF_ID].id
     await light.register_light(var, config)
     await cg.register_component(var, config)
 
-    cg.add(var.set_num_leds(config[CONF_NUM_LEDS]))
     cg.add(var.set_pin(config[CONF_PIN]))
-
-    cg.add(
-        var.set_channel_colors(light.channel_colors_struct(config[CONF_CHANNEL_COLORS]))
-    )
 
     cg.add(var.set_pio(config[CONF_PIO]))
     cg.add(var.set_program(cg.RawExpression(f"&rp2040_pio_led_strip_{id}_program")))
