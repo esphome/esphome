@@ -6,46 +6,6 @@
 
 namespace esphome::cover {
 
-template<typename... Ts> class OpenAction final : public Action<Ts...> {
- public:
-  explicit OpenAction(Cover *cover) : cover_(cover) {}
-
-  void play(const Ts &...x) override { this->cover_->make_call().set_command_open().perform(); }
-
- protected:
-  Cover *cover_;
-};
-
-template<typename... Ts> class CloseAction final : public Action<Ts...> {
- public:
-  explicit CloseAction(Cover *cover) : cover_(cover) {}
-
-  void play(const Ts &...x) override { this->cover_->make_call().set_command_close().perform(); }
-
- protected:
-  Cover *cover_;
-};
-
-template<typename... Ts> class StopAction final : public Action<Ts...> {
- public:
-  explicit StopAction(Cover *cover) : cover_(cover) {}
-
-  void play(const Ts &...x) override { this->cover_->make_call().set_command_stop().perform(); }
-
- protected:
-  Cover *cover_;
-};
-
-template<typename... Ts> class ToggleAction final : public Action<Ts...> {
- public:
-  explicit ToggleAction(Cover *cover) : cover_(cover) {}
-
-  void play(const Ts &...x) override { this->cover_->make_call().set_command_toggle().perform(); }
-
- protected:
-  Cover *cover_;
-};
-
 template<bool OPEN, typename... Ts> class CoverPositionCondition final : public Condition<Ts...> {
  public:
   CoverPositionCondition(Cover *cover) : cover_(cover) {}
