@@ -54,12 +54,6 @@ RESTORE_MODES = {
 }
 
 
-ControlAction = switch_ns.class_("ControlAction", automation.Action)
-ToggleAction = switch_ns.class_("ToggleAction", automation.Action)
-TurnOffAction = switch_ns.class_("TurnOffAction", automation.Action)
-TurnOnAction = switch_ns.class_("TurnOnAction", automation.Action)
-SwitchPublishAction = switch_ns.class_("SwitchPublishAction", automation.Action)
-
 SwitchCondition = switch_ns.class_("SwitchCondition", Condition)
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True)
 
@@ -193,29 +187,19 @@ SWITCH_CONTROL_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "switch.control", ControlAction, SWITCH_CONTROL_ACTION_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "switch.control",
+    SWITCH_CONTROL_ACTION_SCHEMA,
+    automation.ApplyField(CONF_STATE, "control", cg.bool_),
 )
-async def switch_control_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
-    cg.add(var.set_state(template_))
-    return var
-
-
-@automation.register_action(
-    "switch.toggle", ToggleAction, SWITCH_ACTION_SCHEMA, synchronous=True
-)
-@automation.register_action(
-    "switch.turn_off", TurnOffAction, SWITCH_ACTION_SCHEMA, synchronous=True
-)
-@automation.register_action(
-    "switch.turn_on", TurnOnAction, SWITCH_ACTION_SCHEMA, synchronous=True
-)
-async def switch_toggle_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+for _name, _call in (
+    ("switch.toggle", "toggle()"),
+    ("switch.turn_off", "turn_off()"),
+    ("switch.turn_on", "turn_on()"),
+):
+    automation.register_apply_action(
+        _name, SWITCH_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 
 @automation.register_condition("switch.is_on", SwitchCondition, SWITCH_ACTION_SCHEMA)

@@ -11,7 +11,7 @@ const uint8_t MITSUBISHI_TEMP_MIN = 16;  // Celsius
 const uint8_t MITSUBISHI_TEMP_MAX = 31;  // Celsius
 
 // Fan mode
-enum SetFanMode {
+enum SetFanMode : uint8_t {
   MITSUBISHI_FAN_3L = 0,  // 3 levels + auto
   MITSUBISHI_FAN_4L,      // 4 levels + auto
   MITSUBISHI_FAN_Q4L,     // Quiet + 4 levels + auto
@@ -19,7 +19,7 @@ enum SetFanMode {
 };
 
 // Enum to represent horizontal directios
-enum HorizontalDirection {
+enum HorizontalDirection : uint8_t {
   HORIZONTAL_DIRECTION_LEFT = 0x10,
   HORIZONTAL_DIRECTION_MIDDLE_LEFT = 0x20,
   HORIZONTAL_DIRECTION_MIDDLE = 0x30,
@@ -29,7 +29,7 @@ enum HorizontalDirection {
 };
 
 // Enum to represent vertical directions
-enum VerticalDirection {
+enum VerticalDirection : uint8_t {
   VERTICAL_DIRECTION_AUTO = 0x00,
   VERTICAL_DIRECTION_UP = 0x08,
   VERTICAL_DIRECTION_MIDDLE_UP = 0x10,
@@ -38,12 +38,14 @@ enum VerticalDirection {
   VERTICAL_DIRECTION_DOWN = 0x28,
 };
 
+// Fan modes offered by every set_fan_mode option.
+static constexpr climate::ClimateFanModeMask MITSUBISHI_BASE_FAN_MODES{
+    climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH};
+
 class MitsubishiClimate final : public climate_ir::ClimateIR {
  public:
   MitsubishiClimate()
-      : climate_ir::ClimateIR(MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, true, true,
-                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MIDDLE,
-                               climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_FAN_QUIET},
+      : climate_ir::ClimateIR(MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, true, true, MITSUBISHI_BASE_FAN_MODES,
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, climate::CLIMATE_SWING_VERTICAL,
                                climate::CLIMATE_SWING_HORIZONTAL},
                               {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST,
@@ -54,7 +56,14 @@ class MitsubishiClimate final : public climate_ir::ClimateIR {
   void set_supports_fan_only(bool supports_fan_only) { this->supports_fan_only_ = supports_fan_only; }
   void set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
 
-  void set_fan_mode(SetFanMode fan_mode) { this->fan_mode_ = fan_mode; }
+  void set_fan_mode(SetFanMode fan_mode) {
+    this->fan_mode_ = fan_mode;
+    this->fan_modes_ = MITSUBISHI_BASE_FAN_MODES;
+    if (fan_mode == MITSUBISHI_FAN_Q4L)
+      this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);
+    if (fan_mode >= MITSUBISHI_FAN_4L)
+      this->fan_modes_.insert(climate::CLIMATE_FAN_MIDDLE);  // Shouldn't be used for this but it helps
+  }
 
   void set_horizontal_default(HorizontalDirection horizontal_direction) {
     this->default_horizontal_direction_ = horizontal_direction;
@@ -74,8 +83,6 @@ class MitsubishiClimate final : public climate_ir::ClimateIR {
 
   HorizontalDirection default_horizontal_direction_;
   VerticalDirection default_vertical_direction_;
-
-  climate::ClimateTraits traits() override;
 };
 
 }  // namespace esphome::mitsubishi

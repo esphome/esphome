@@ -503,7 +503,6 @@ void BME680Component::set_pressure_oversampling(BME680Oversampling pressure_over
 void BME680Component::set_humidity_oversampling(BME680Oversampling humidity_oversampling) {
   this->humidity_oversampling_ = humidity_oversampling;
 }
-void BME680Component::set_iir_filter(BME680IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 void BME680Component::set_heater(uint16_t heater_temperature, uint16_t heater_duration) {
   this->heater_temperature_ = heater_temperature;
   this->heater_duration_ = heater_duration;
