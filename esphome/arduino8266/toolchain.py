@@ -27,10 +27,7 @@ _MAX_RAM_SIZE = 81920
 
 
 def _warn_ignored_platformio_options() -> None:
-    """Warn for component-added platformio options the native build drops.
-
-    The consumed set lives next to the routing in core/config.py so the
-    two cannot drift."""
+    """Warn for component-added platformio options the native build drops."""
     from esphome.core.config import NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS
 
     consumed = NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS
@@ -235,11 +232,8 @@ def _parse_app_size(build_dir: Path, paths: framework.InstalledPaths) -> int | N
 
 
 def _print_size_summary(build_dir: Path, paths: framework.InstalledPaths) -> bool:
-    """Print the PlatformIO-shaped RAM/Flash lines; False when skipped.
-
-    The exact shape (including the bar) is parsed by
-    ``script/ci_memory_impact_extract.py``; ``print_size_line`` matches it.
-    """
+    """Print the RAM/Flash lines ``ci_memory_impact_extract.py`` parses;
+    False when skipped."""
     from esphome.build_helpers.size_summary import print_size_line
 
     size_tool = _toolchain_tool("size")
@@ -293,11 +287,8 @@ _CCACHE_UNRESOLVED: Any = object()
 
 
 def get_idedata(ccache: str | None = _CCACHE_UNRESOLVED) -> dict | None:
-    """Derive idedata from the build's compile_commands.json.
-
-    Same contract as ``espidf.toolchain.get_idedata``: the fields IDE
-    integrations, clang-tidy, and the memory analyzer expect.
-    """
+    """Derive idedata from the build's compile_commands.json (same
+    contract as ``espidf.toolchain.get_idedata``)."""
     from esphome.build_helpers.idedata import load_or_build_idedata
 
     if ccache is _CCACHE_UNRESOLVED:
