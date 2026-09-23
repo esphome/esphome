@@ -25,16 +25,18 @@ Valve::Valve() { this->position = VALVE_OPEN; }
 // ValveCall
 //
 
-// Covariant wrapper for set_command (the only one with non-trivial base) — others are inline in valve.h
+// The other covariant wrappers are inline in valve.h
 ValveCall &ValveCall::set_command(const char *command) {
-  actuator::ActuatorCallBase::set_command(command);
+  if (!this->set_command_(command)) {
+    ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
+  }
   return *this;
 }
 
 void ValveCall::perform() {
   ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   auto traits = static_cast<Valve *>(this->parent_)->get_traits();
-  this->ValveCall::validate();
+  this->validate_();
   if (this->stop_) {
     ESP_LOGV(TAG, "  Command: STOP");
   }
@@ -51,7 +53,7 @@ void ValveCall::perform() {
   static_cast<Valve *>(this->parent_)->control(*this);
 }
 
-void ValveCall::validate() {
+void ValveCall::validate_() {
   auto traits = static_cast<Valve *>(this->parent_)->get_traits();
 
   if (this->position_.has_value()) {
