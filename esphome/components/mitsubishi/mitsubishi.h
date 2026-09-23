@@ -38,13 +38,14 @@ enum VerticalDirection : uint8_t {
   VERTICAL_DIRECTION_DOWN = 0x28,
 };
 
+// Fan modes offered by every set_fan_mode option.
+static constexpr climate::ClimateFanModeMask MITSUBISHI_BASE_FAN_MODES{
+    climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH};
+
 class MitsubishiClimate final : public climate_ir::ClimateIR {
  public:
   MitsubishiClimate()
-      : climate_ir::ClimateIR(MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, true, true,
-                              // 3 levels by default; set_fan_mode() adds the rest.
-                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
-                               climate::CLIMATE_FAN_HIGH},
+      : climate_ir::ClimateIR(MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, true, true, MITSUBISHI_BASE_FAN_MODES,
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, climate::CLIMATE_SWING_VERTICAL,
                                climate::CLIMATE_SWING_HORIZONTAL},
                               {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST,
@@ -57,6 +58,7 @@ class MitsubishiClimate final : public climate_ir::ClimateIR {
 
   void set_fan_mode(SetFanMode fan_mode) {
     this->fan_mode_ = fan_mode;
+    this->fan_modes_ = MITSUBISHI_BASE_FAN_MODES;
     if (fan_mode == MITSUBISHI_FAN_Q4L)
       this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);
     if (fan_mode >= MITSUBISHI_FAN_4L)

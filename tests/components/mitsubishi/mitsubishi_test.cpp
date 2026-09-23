@@ -52,4 +52,14 @@ TEST(MitsubishiClimateTest, FanModesForQuietAnd4Levels) {
   EXPECT_TRUE(traits.supports_fan_mode(climate::CLIMATE_FAN_QUIET));
 }
 
+TEST(MitsubishiClimateTest, FanModesFollowTheLastSetFanMode) {
+  MitsubishiClimate climate;
+  climate.set_fan_mode(MITSUBISHI_FAN_Q4L);
+  climate.set_fan_mode(MITSUBISHI_FAN_3L);
+  auto traits = climate.get_traits();
+  EXPECT_FALSE(traits.supports_fan_mode(climate::CLIMATE_FAN_MIDDLE));
+  EXPECT_FALSE(traits.supports_fan_mode(climate::CLIMATE_FAN_QUIET));
+  EXPECT_TRUE(traits.supports_fan_mode(climate::CLIMATE_FAN_HIGH));
+}
+
 }  // namespace esphome::mitsubishi::testing
