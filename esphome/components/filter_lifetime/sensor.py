@@ -3,7 +3,6 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor, sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     DEVICE_CLASS_DURATION,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL,
@@ -24,7 +23,6 @@ filter_lifetime_ns = cg.esphome_ns.namespace("filter_lifetime")
 FilterLifetime = filter_lifetime_ns.class_(
     "FilterLifetime", sensor.Sensor, cg.PollingComponent
 )
-ResetFilterAction = filter_lifetime_ns.class_("ResetFilterAction", automation.Action)
 
 
 def validate_is_on_config(config):
@@ -113,16 +111,12 @@ async def to_code(config):
         cg.add(var.set_remaining_days_sensor(sens))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "filter_lifetime.reset_filter",
-    ResetFilterAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(FilterLifetime),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("reset_filter()"),
 )
-async def reset_filter_action_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
