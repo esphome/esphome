@@ -31,34 +31,6 @@ template<bool HasTransitionLength, typename... Ts> class ToggleAction final : pu
       transition_length_{};
 };
 
-// All configured fields are baked into a single stateless lambda whose
-// constants live in flash. The action only stores one function pointer
-// plus one parent pointer, regardless of how many fields the user set.
-// Trigger args are forwarded to the apply function so user lambdas
-// (e.g. `brightness: !lambda "return x;"`) keep working.
-//
-// Trigger args are normalized to `const std::remove_cvref_t<Ts> &...` so
-// the codegen can emit a matching parameter list for both the apply lambda
-// and any inner field lambdas without producing invalid C++ source text
-// (e.g. `const T & &` if Ts already carries a reference, or `const const
-// T &` if Ts already carries a const). This keeps trigger args no-copy
-// regardless of whether the trigger supplies `T`, `T &`, or `const T &`.
-template<typename... Ts> class LightControlAction final : public Action<Ts...> {
- public:
-  using ApplyFn = void (*)(LightState *, LightCall &, const std::remove_cvref_t<Ts> &...);
-  LightControlAction(LightState *parent, ApplyFn apply) : parent_(parent), apply_(apply) {}
-
-  void play(const Ts &...x) override {
-    auto call = this->parent_->make_call();
-    this->apply_(this->parent_, call, x...);
-    call.perform();
-  }
-
- protected:
-  LightState *parent_;
-  ApplyFn apply_;
-};
-
 template<bool HasTransitionLength, typename... Ts> class DimRelativeAction final : public Action<Ts...> {
  public:
   explicit DimRelativeAction(LightState *parent) : parent_(parent) {}
