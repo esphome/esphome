@@ -6,17 +6,25 @@
 
 namespace esphome::rx8025t {
 
+static const uint8_t RX8025T_REG_SEC = 0x00;
+static const uint8_t RX8025T_REG_FLAG = 0x0E;
+static const uint8_t RX8025T_FLAG_VDET = 0x01;
+static const uint8_t RX8025T_FLAG_VLF = 0x02;
+
 static const char *const TAG = "rx8025t";
 
+constexpr uint8_t bcd2dec(uint8_t val) { return (val >> 4) * 10 + (val & 0x0f); }
+constexpr uint8_t dec2bcd(uint8_t val) { return ((val / 10) << 4) + (val % 10); }
+
 void RX8025TComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up RX8025T...");
-  if (!this->read_rtc_()) {
+  uint8_t flags;
+  if (!this->read_flags_(&flags)) {
     this->mark_failed();
     return;
   }
 
-  if (this->rx8025t_.reg.vlf) {
-    ESP_LOGW(TAG, "RX8025T VLF flag is set - Loss of oscillator detected. Time may be invalid.");
+  if (flags & RX8025T_FLAG_VLF) {
+    ESP_LOGW(TAG, "VLF flag is set - Loss of oscillator detected. Time may be invalid.");
   }
 }
 
@@ -31,34 +39,53 @@ void RX8025TComponent::dump_config() {
   time::RealTimeClock::dump_config();
 }
 
+bool RX8025TComponent::read_flags_(uint8_t *flags) {
+  if (!this->read_byte(RX8025T_REG_FLAG, flags)) {
+    ESP_LOGE(TAG, "Can't read flag register.");
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return false;
+  }
+  return true;
+}
+
 void RX8025TComponent::read_time() {
-  if (!this->read_rtc_()) {
+  uint8_t flags;
+  if (!this->read_flags_(&flags)) {
     return;
   }
 
-  if (this->rx8025t_.reg.vlf) {
-    ESP_LOGW(TAG, "RX8025T has VLF flag set - time data may be invalid, not syncing to system clock.");
+  uint8_t date[7];
+  if (!this->read_bytes(RX8025T_REG_SEC, date, sizeof(date))) {
+    ESP_LOGE(TAG, "Can't read I2C data.");
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+  this->status_clear_warning();
+
+  if (flags & RX8025T_FLAG_VLF) {
+    ESP_LOGW(TAG, "VLF flag is set - time data may be invalid, not syncing to system clock.");
     return;
   }
 
   ESPTime rtc_time{
-      .second = uint8_t(this->rx8025t_.reg.second + 10u * this->rx8025t_.reg.second_10),
-      .minute = uint8_t(this->rx8025t_.reg.minute + 10u * this->rx8025t_.reg.minute_10),
-      .hour = uint8_t(this->rx8025t_.reg.hour + 10u * this->rx8025t_.reg.hour_10),
-      .day_of_week =
-          static_cast<uint8_t>(this->rx8025t_.reg.weekday ? __builtin_ctz(this->rx8025t_.reg.weekday) + 1 : 1),
-      .day_of_month = uint8_t(this->rx8025t_.reg.day + 10u * this->rx8025t_.reg.day_10),
+      .second = bcd2dec(date[0] & 0x7f),
+      .minute = bcd2dec(date[1] & 0x7f),
+      .hour = bcd2dec(date[2] & 0x3f),
+      .day_of_week = static_cast<uint8_t>((date[3] & 0x7f) ? __builtin_ctz(date[3] & 0x7f) + 1 : 1),
+      .day_of_month = bcd2dec(date[4] & 0x3f),
       .day_of_year = 1,
-      .month = uint8_t(this->rx8025t_.reg.month + 10u * this->rx8025t_.reg.month_10),
-      .year = uint16_t(this->rx8025t_.reg.year + 10u * this->rx8025t_.reg.year_10 + 2000),
+      .month = bcd2dec(date[5] & 0x1f),
+      .year = static_cast<uint16_t>(bcd2dec(date[6]) + 2000),
       .is_dst = false,
       .timestamp = 0,
   };
   rtc_time.recalc_timestamp_utc(false);
-  if (!rtc_time.is_valid(true, false)) {
+  if (!rtc_time.is_valid(/*check_day_of_week=*/true, /*check_day_of_year=*/false)) {
     ESP_LOGE(TAG, "Invalid RTC time, not syncing to system clock.");
     return;
   }
+  ESP_LOGD(TAG, "Read UTC time: %04d-%02d-%02d %02d:%02d:%02d  VDET:%s", rtc_time.year, rtc_time.month,
+           rtc_time.day_of_month, rtc_time.hour, rtc_time.minute, rtc_time.second, ONOFF(flags & RX8025T_FLAG_VDET));
   this->synchronize_epoch_(rtc_time.timestamp);
 }
 
@@ -69,62 +96,33 @@ void RX8025TComponent::write_time() {
     return;
   }
 
-  this->rx8025t_.reg.year = (now.year - 2000) % 10;
-  this->rx8025t_.reg.year_10 = (now.year - 2000) / 10 % 10;
-  this->rx8025t_.reg.month = now.month % 10;
-  this->rx8025t_.reg.month_10 = now.month / 10;
-  this->rx8025t_.reg.day = now.day_of_month % 10;
-  this->rx8025t_.reg.day_10 = now.day_of_month / 10;
-  this->rx8025t_.reg.weekday = 1 << (now.day_of_week - 1);
-  this->rx8025t_.reg.hour = now.hour % 10;
-  this->rx8025t_.reg.hour_10 = now.hour / 10;
-  this->rx8025t_.reg.minute = now.minute % 10;
-  this->rx8025t_.reg.minute_10 = now.minute / 10;
-  this->rx8025t_.reg.second = now.second % 10;
-  this->rx8025t_.reg.second_10 = now.second / 10;
-
-  if (!this->write_rtc_()) {
-    return;
-  }
-
-  // Clear VLF and VDET flags via read-modify-write of flag register
-  uint8_t flag_reg;
-  if (!this->read_byte(0x0E, &flag_reg)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return;
-  }
-  flag_reg &= ~0x03;
-  if (!this->write_byte(0x0E, flag_reg)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  }
-}
-
-bool RX8025TComponent::read_rtc_() {
-  if (!this->read_bytes(0, this->rx8025t_.raw, sizeof(this->rx8025t_.raw))) {
-    ESP_LOGE(TAG, "Can't read I2C data.");
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return false;
-  }
-  ESP_LOGD(TAG, "Read  %u%u:%u%u:%u%u 20%u%u-%u%u-%u%u  VLF:%s VDET:%s", this->rx8025t_.reg.hour_10,
-           this->rx8025t_.reg.hour, this->rx8025t_.reg.minute_10, this->rx8025t_.reg.minute,
-           this->rx8025t_.reg.second_10, this->rx8025t_.reg.second, this->rx8025t_.reg.year_10, this->rx8025t_.reg.year,
-           this->rx8025t_.reg.month_10, this->rx8025t_.reg.month, this->rx8025t_.reg.day_10, this->rx8025t_.reg.day,
-           ONOFF(this->rx8025t_.reg.vlf), ONOFF(this->rx8025t_.reg.vdet));
-
-  return true;
-}
-
-bool RX8025TComponent::write_rtc_() {
-  if (!this->write_bytes(0, this->rx8025t_.raw, 7)) {
+  uint8_t buff[7];
+  buff[0] = dec2bcd(now.second);
+  buff[1] = dec2bcd(now.minute);
+  buff[2] = dec2bcd(now.hour);
+  buff[3] = 1 << (now.day_of_week - 1);
+  buff[4] = dec2bcd(now.day_of_month);
+  buff[5] = dec2bcd(now.month);
+  buff[6] = dec2bcd(now.year % 100);
+  if (!this->write_bytes(RX8025T_REG_SEC, buff, sizeof(buff))) {
     ESP_LOGE(TAG, "Can't write I2C data.");
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return false;
+    return;
   }
-  ESP_LOGD(TAG, "Write %u%u:%u%u:%u%u 20%u%u-%u%u-%u%u", this->rx8025t_.reg.hour_10, this->rx8025t_.reg.hour,
-           this->rx8025t_.reg.minute_10, this->rx8025t_.reg.minute, this->rx8025t_.reg.second_10,
-           this->rx8025t_.reg.second, this->rx8025t_.reg.year_10, this->rx8025t_.reg.year, this->rx8025t_.reg.month_10,
-           this->rx8025t_.reg.month, this->rx8025t_.reg.day_10, this->rx8025t_.reg.day);
-  return true;
+  ESP_LOGD(TAG, "Wrote UTC time: %04d-%02d-%02d %02d:%02d:%02d", now.year, now.month, now.day_of_month, now.hour,
+           now.minute, now.second);
+
+  // Clear VLF and VDET flags via read-modify-write of flag register
+  uint8_t flags;
+  if (!this->read_flags_(&flags)) {
+    return;
+  }
+  flags &= ~(RX8025T_FLAG_VLF | RX8025T_FLAG_VDET);
+  if (!this->write_byte(RX8025T_REG_FLAG, flags)) {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+  this->status_clear_warning();
 }
 
 }  // namespace esphome::rx8025t
