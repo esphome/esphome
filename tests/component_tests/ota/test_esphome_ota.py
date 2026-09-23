@@ -476,43 +476,36 @@ def test_static_encryption_key() -> None:
     ("yaml_name", "defines_present", "defines_absent"),
     [
         # An api key alone compiles the transport in without requiring it;
-        # the device uses the api server's key, not a copy
+        # the ota keeps its own pointer to the key so safe mode, which never
+        # constructs the api server, can still use it
         (
             "api_key_offer",
-            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_FROM_API"},
+            {"USE_OTA_ENCRYPTION"},
             {"USE_OTA_ENCRYPTION_REQUIRED", "USE_OTA_ENCRYPTION_PROVISIONED"},
         ),
         # A password still guards plaintext uploads on an offering device
         (
             "api_key_offer_password",
-            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_FROM_API", "USE_OTA_PASSWORD"},
+            {"USE_OTA_ENCRYPTION", "USE_OTA_PASSWORD"},
             {"USE_OTA_ENCRYPTION_REQUIRED", "USE_OTA_ENCRYPTION_PROVISIONED"},
         ),
         # The ota encryption block is what makes the device refuse plaintext
         (
             "encryption_required",
-            {
-                "USE_OTA_ENCRYPTION",
-                "USE_OTA_ENCRYPTION_REQUIRED",
-                "USE_OTA_ENCRYPTION_FROM_API",
-            },
+            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_REQUIRED"},
             {"USE_OTA_ENCRYPTION_PROVISIONED"},
         ),
         # Without api encryption the ota key is the device's own
         (
             "own_key",
             {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_REQUIRED"},
-            {"USE_OTA_ENCRYPTION_FROM_API", "USE_OTA_ENCRYPTION_PROVISIONED"},
+            {"USE_OTA_ENCRYPTION_PROVISIONED"},
         ),
         # A key provisioned at runtime lives in the api server; the device
         # offers with it once provisioned and never requires it
         (
             "runtime_api_key",
-            {
-                "USE_OTA_ENCRYPTION",
-                "USE_OTA_ENCRYPTION_FROM_API",
-                "USE_OTA_ENCRYPTION_PROVISIONED",
-            },
+            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_PROVISIONED"},
             {"USE_OTA_ENCRYPTION_REQUIRED"},
         ),
         # No api encryption at all keeps the noise glue out of the build
@@ -522,7 +515,6 @@ def test_static_encryption_key() -> None:
             {
                 "USE_OTA_ENCRYPTION",
                 "USE_OTA_ENCRYPTION_REQUIRED",
-                "USE_OTA_ENCRYPTION_FROM_API",
                 "USE_OTA_ENCRYPTION_PROVISIONED",
             },
         ),
@@ -541,8 +533,10 @@ def test_encryption_offer_codegen(
     assert defines_present <= defines
     assert not (defines_absent & defines)
     encrypted = "USE_OTA_ENCRYPTION" in defines_present
-    own_key = encrypted and "USE_OTA_ENCRYPTION_FROM_API" not in defines_present
+    own_key = encrypted and "USE_OTA_ENCRYPTION_PROVISIONED" not in defines_present
     assert ("esphome_esphomeotacomponent_id->set_noise_psk(" in main_cpp) is own_key
+    # The api shares the ota's array instead of emitting the same key twice
+    assert main_cpp.count("_psk[] PROGMEM") == (1 if own_key else 0)
     assert ("set_auth_password(" in main_cpp) is ("USE_OTA_PASSWORD" in defines_present)
     # The noise transport source compiles only when the define is set
     assert FILTER_SOURCE_FILES() == ([] if encrypted else ["ota_esphome_noise.cpp"])
