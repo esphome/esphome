@@ -77,3 +77,14 @@ text_sensor:
             return {x.substr(0, 10) + "..."};
           }
           return {x};
+
+  - platform: template
+    name: "Test Publish Action"
+    id: test_publish_action
+    on_value:
+      - text_sensor.template.publish:
+          id: test_map_single
+          state: "ON"
+      - text_sensor.template.publish:
+          id: test_map_single
+          state: !lambda 'return x + " again";'
