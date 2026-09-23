@@ -7,7 +7,7 @@ namespace esphome::feedback {
 
 // Inheritance: FeedbackValve -> FeedbackActuatorBase (Component), Valve (ActuatorBase, IActuator)
 // No shared ancestors. No diamond inheritance.
-class FeedbackValve : public FeedbackActuatorBase, public valve::Valve {
+class FeedbackValve final : public FeedbackActuatorBase, public valve::Valve {
  public:
   FeedbackValve() { this->set_actuator(this); }
   valve::ValveTraits get_traits() override;
