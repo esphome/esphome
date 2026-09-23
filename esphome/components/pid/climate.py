@@ -39,7 +39,7 @@ CONF_KD_MULTIPLIER = "kd_multiplier"
 
 
 def _validate_thresholds(config: ConfigType) -> ConfigType:
-    # Same rule as PIDClimate::set_deadband_thresholds; an equal pair disables the deadband.
+    # Same rule as PIDClimate::set_deadband_thresholds; equal is allowed since 0/0 is the default.
     if config[CONF_THRESHOLD_LOW] > config[CONF_THRESHOLD_HIGH]:
         raise cv.Invalid(
             f"{CONF_THRESHOLD_LOW} must not be greater than {CONF_THRESHOLD_HIGH}"
