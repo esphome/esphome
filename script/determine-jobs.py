@@ -564,10 +564,8 @@ def _path_or_file_trigger(
 
 @cache
 def _cached_components_closure(files: tuple[str, ...]) -> frozenset[str]:
-    """Dependency closure of the changed components, from the changed files.
-
-    The walk is expensive and every toolchain smoke-test job asks for the
-    same file list, so compute it once per run."""
+    """Dependency closure of the changed components; cached because the
+    walk is expensive and every smoke-test job asks for the same list."""
     component_files = [f for f in files if filter_component_and_test_files(f)]
     return frozenset(get_components_with_dependencies(component_files, True))
 
@@ -723,12 +721,8 @@ def _esp8266_native_path_or_file_trigger(files: list[str]) -> bool:
 
 
 def esp8266_native_components_to_test(branch: str | None = None) -> list[str]:
-    """Subset of ``ESP8266_NATIVE_TEST_COMPONENTS`` the job needs to compile.
-
-    Same narrowing logic as ``esp32_platformio_components_to_test``: the full
-    list on core or infrastructure changes, otherwise the intersection with
-    the changed-component dependency closure (empty list skips the job).
-    """
+    """Subset of ``ESP8266_NATIVE_TEST_COMPONENTS`` the job needs to
+    compile (same narrowing as ``esp32_platformio_components_to_test``)."""
     return _toolchain_components_to_test(
         branch, ESP8266_NATIVE_TEST_COMPONENTS, _esp8266_native_path_or_file_trigger
     )
