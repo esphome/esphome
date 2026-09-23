@@ -46,24 +46,4 @@ template<typename... Ts> class CM1106CalibrateZeroAction final : public Action<T
   CM1106Component *cm1106_;
 };
 
-template<typename... Ts> class CM1106ABCEnableAction : public Action<Ts...> {
- public:
-  CM1106ABCEnableAction(CM1106Component *cm1106) : cm1106_(cm1106) {}
-
-  void play(Ts... x) override { this->cm1106_->abc_enable(); }
-
- protected:
-  CM1106Component *cm1106_;
-};
-
-template<typename... Ts> class CM1106ABCDisableAction : public Action<Ts...> {
- public:
-  CM1106ABCDisableAction(CM1106Component *cm1106) : cm1106_(cm1106) {}
-
-  void play(Ts... x) override { this->cm1106_->abc_disable(); }
-
- protected:
-  CM1106Component *cm1106_;
-};
-
 }  // namespace esphome::cm1106

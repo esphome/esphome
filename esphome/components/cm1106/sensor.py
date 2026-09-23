@@ -30,8 +30,6 @@ CM1106CalibrateZeroAction = cm1106_ns.class_(
     "CM1106CalibrateZeroAction",
     automation.Action,
 )
-CM1106ABCEnableAction = cm1106_ns.class_("CM1106ABCEnableAction", automation.Action)
-CM1106ABCDisableAction = cm1106_ns.class_("CM1106ABCDisableAction", automation.Action)
 
 
 CONFIG_SCHEMA = (
@@ -92,18 +90,6 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
     CALIBRATION_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
-    "cm1106.abc_enable",
-    CM1106ABCEnableAction,
-    CALIBRATION_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "cm1106.abc_disable",
-    CM1106ABCDisableAction,
-    CALIBRATION_ACTION_SCHEMA,
-    synchronous=True,
-)
 async def cm1106_calibration_to_code(
     config: ConfigType,
     action_id: ID,
@@ -113,3 +99,12 @@ async def cm1106_calibration_to_code(
     """Service code generation entry point."""
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+for _name, _call in (
+    ("cm1106.abc_enable", "abc_enable()"),
+    ("cm1106.abc_disable", "abc_disable()"),
+):
+    automation.register_apply_action(
+        _name, CALIBRATION_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )

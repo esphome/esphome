@@ -1,6 +1,11 @@
 sensor:
   - platform: cm1106
+    id: cm1106_sensor
     co2:
       name: CM1106 CO2 Value
+      on_value:
+        then:
+          - cm1106.abc_enable: cm1106_sensor
+          - cm1106.abc_disable
     update_interval: 15s
     automatic_baseline_calibration: false
