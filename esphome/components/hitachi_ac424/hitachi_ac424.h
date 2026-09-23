@@ -77,7 +77,7 @@ const uint16_t HITACHI_AC424_BITS = HITACHI_AC424_STATE_LENGTH * 8;
 #define HITACHI_AC424_GETBITS8(data, offset, size) \
   (((data) & (((uint8_t) UINT8_MAX >> (8 - (size))) << (offset))) >> (offset))
 
-class HitachiClimate : public climate_ir::ClimateIR {
+class HitachiClimate final : public climate_ir::ClimateIR {
  public:
   HitachiClimate()
       : climate_ir::ClimateIR(HITACHI_AC424_TEMP_MIN, HITACHI_AC424_TEMP_MAX, 1.0F, true, true,

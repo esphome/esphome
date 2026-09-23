@@ -9,7 +9,7 @@
 
 namespace esphome::demo {
 
-class DemoDate : public datetime::DateEntity, public Component {
+class DemoDate final : public datetime::DateEntity, public Component {
  public:
   void setup() override {
     this->year_ = 2038;

@@ -84,9 +84,7 @@ constexpr uint16_t CWATTHR = 0xE402;
 constexpr uint16_t AFWATTHR = 0xE403;
 constexpr uint16_t BFWATTHR = 0xE404;
 constexpr uint16_t CFWATTHR = 0xE405;
-constexpr uint16_t ARWATTHR = 0xE406;
-constexpr uint16_t BRWATTHR = 0xE407;
-constexpr uint16_t CRWATTHR = 0xE408;
+// 0xE406-0xE408 are reserved on the ADE7880 (it does not implement total reactive energy accumulation)
 constexpr uint16_t AFVARHR = 0xE409;
 constexpr uint16_t BFVARHR = 0xE40A;
 constexpr uint16_t CFVARHR = 0xE40B;

@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import cover
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 from .. import (
     TIME_BASED_ACTUATOR_SCHEMA,
@@ -24,7 +25,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await cover.new_cover(config)
     await cg.register_component(var, config)
     await apply_time_based_actuator_config(var, config)

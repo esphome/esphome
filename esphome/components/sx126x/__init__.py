@@ -41,6 +41,8 @@ CONF_SPREADING_FACTOR = "spreading_factor"
 CONF_SYNC_VALUE = "sync_value"
 CONF_TCXO_VOLTAGE = "tcxo_voltage"
 CONF_TCXO_DELAY = "tcxo_delay"
+CONF_WHITENING_ENABLE = "whitening_enable"
+CONF_WHITENING_INITIAL = "whitening_initial"
 
 sx126x_ns = cg.esphome_ns.namespace("sx126x")
 SX126x = sx126x_ns.class_("SX126x", cg.Component, spi.SPIDevice)
@@ -232,6 +234,10 @@ CONFIG_SCHEMA = (
                 cv.positive_time_period_microseconds,
                 cv.Range(max=TimePeriod(microseconds=262144000)),
             ),
+            cv.Optional(CONF_WHITENING_ENABLE, default=False): cv.boolean,
+            cv.Optional(CONF_WHITENING_INITIAL, default=0x0100): cv.All(
+                cv.hex_int, cv.Range(min=0, max=0x1FF)
+            ),
         },
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -285,6 +291,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_rf_switch(config[CONF_RF_SWITCH]))
     cg.add(var.set_tcxo_voltage(config[CONF_TCXO_VOLTAGE]))
     cg.add(var.set_tcxo_delay(config[CONF_TCXO_DELAY]))
+    cg.add(var.set_whitening_enable(config[CONF_WHITENING_ENABLE]))
+    cg.add(var.set_whitening_initial(config[CONF_WHITENING_INITIAL]))
 
 
 NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(

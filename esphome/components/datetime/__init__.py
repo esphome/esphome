@@ -21,13 +21,14 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_YEAR,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass, TemplateArgsType
+from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@rfdarter", "@jesserockz"]
 
@@ -65,7 +66,7 @@ DATETIME_MODES = [
 ]
 
 
-def _validate_time_present(config):
+def _validate_time_present(config: ConfigType) -> ConfigType:
     config = config.copy()
     if CONF_ON_TIME in config and CONF_TIME_ID not in config:
         time_id = cv.use_id(time.RealTimeClock)(None)
@@ -139,7 +140,7 @@ def datetime_schema(class_: MockObjClass) -> cv.Schema:
 
 
 @setup_entity("datetime")
-async def setup_datetime_core_(var, config):
+async def setup_datetime_core_(var: MockObj, config: ConfigType) -> None:
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
@@ -160,7 +161,7 @@ async def setup_datetime_core_(var, config):
         await cg.register_parented(trigger, var)
 
 
-async def register_datetime(var, config):
+async def register_datetime(var: MockObj, config: ConfigType) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     entity_type = config[CONF_TYPE].lower()
@@ -169,14 +170,14 @@ async def register_datetime(var, config):
     await setup_datetime_core_(var, config)
 
 
-async def new_datetime(config, *args):
+async def new_datetime(config: ConfigType, *args: SafeExpType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_datetime(var, config)
     return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(datetime_ns.using)
 
 
@@ -193,7 +194,12 @@ async def to_code(config):
     ),
     synchronous=True,
 )
-async def datetime_date_set_to_code(config, action_id, template_arg, args):
+async def datetime_date_set_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     action_var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(action_var, config[CONF_ID])
 
@@ -226,7 +232,12 @@ async def datetime_date_set_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def datetime_time_set_to_code(config, action_id, template_arg, args):
+async def datetime_time_set_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     action_var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(action_var, config[CONF_ID])
 
@@ -259,7 +270,12 @@ async def datetime_time_set_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def datetime_datetime_set_to_code(config, action_id, template_arg, args):
+async def datetime_datetime_set_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     action_var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(action_var, config[CONF_ID])
 

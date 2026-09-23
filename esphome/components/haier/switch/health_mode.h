@@ -5,7 +5,7 @@
 
 namespace esphome::haier {
 
-class HealthModeSwitch : public switch_::Switch, public Parented<HaierClimateBase> {
+class HealthModeSwitch final : public switch_::Switch, public Parented<HaierClimateBase> {
  public:
   HealthModeSwitch() = default;
 

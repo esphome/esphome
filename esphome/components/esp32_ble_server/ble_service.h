@@ -19,7 +19,7 @@ class BLEServer;
 
 using namespace esp32_ble;
 
-class BLEService {
+class BLEService final {
  public:
   BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id, bool advertise);
   ~BLEService();
