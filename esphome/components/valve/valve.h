@@ -55,7 +55,7 @@ class ValveCall : public actuator::ActuatorCallBase {
   void perform();
 
  private:
-  void validate();
+  void validate_();
 };
 
 /// Struct used to store the restored state of a valve

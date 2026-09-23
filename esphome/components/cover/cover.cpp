@@ -36,7 +36,7 @@ CoverCall &CoverCall::set_command(const char *command) {
 void CoverCall::perform() {
   ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   auto traits = static_cast<Cover *>(this->parent_)->get_traits();
-  this->CoverCall::validate();
+  this->validate_();
   if (this->stop_) {
     ESP_LOGV(TAG, "  Command: STOP");
   }
@@ -56,7 +56,7 @@ void CoverCall::perform() {
   static_cast<Cover *>(this->parent_)->control(*this);
 }
 
-void CoverCall::validate() {
+void CoverCall::validate_() {
   auto traits = static_cast<Cover *>(this->parent_)->get_traits();
   const char *name = this->parent_->get_name().c_str();
 

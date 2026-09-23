@@ -62,7 +62,7 @@ class CoverCall : public actuator::ActuatorCallBase {
   optional<float> tilt_{};
 
  private:
-  void validate();
+  void validate_();
 };
 
 /// Struct used to store the restored state of a cover
