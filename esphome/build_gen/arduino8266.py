@@ -1251,7 +1251,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     # edge (hundreds of edges in a real project)
     lines.append(f"srcflags = {' '.join(src_other + include_flags)}")
     src_cxx_override = None
-    if pch_enabled() and any(tok.startswith("-include") for tok in cxxflags):
+    if pch_enabled() and any(tok.startswith("-include") for tok in flag_sets.cxxflags):
         # $cxxflags expands first, so a user -include there means GCC would
         # never load the .gch
         _LOGGER.warning(
@@ -1271,7 +1271,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
                 # handles staleness. Strip resolved and raw build paths
                 # (symlinks) so identical configs share cache entries
                 flags_id = (
-                    " ".join(cxxflags)
+                    " ".join(flag_sets.cxxflags)
                     .replace(effective_ccache_basedir(), "")
                     .replace(str(CORE.build_path), "")
                 )
