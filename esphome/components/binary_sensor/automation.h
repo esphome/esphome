@@ -165,20 +165,6 @@ template<typename... Ts> class BinarySensorCondition final : public Condition<Ts
   bool state_;
 };
 
-template<typename... Ts> class BinarySensorPublishAction final : public Action<Ts...> {
- public:
-  explicit BinarySensorPublishAction(BinarySensor *sensor) : sensor_(sensor) {}
-  TEMPLATABLE_VALUE(bool, state)
-
-  void play(const Ts &...x) override {
-    auto val = this->state_.value(x...);
-    this->sensor_->publish_state(val);
-  }
-
- protected:
-  BinarySensor *sensor_;
-};
-
 template<typename... Ts> class BinarySensorInvalidateAction final : public Action<Ts...> {
  public:
   explicit BinarySensorInvalidateAction(BinarySensor *sensor) : sensor_(sensor) {}

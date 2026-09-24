@@ -163,10 +163,6 @@ ValueRangeTrigger = number_ns.class_(
     "ValueRangeTrigger", automation.Trigger.template(cg.float_), cg.Component
 )
 
-# Actions
-NumberSetAction = number_ns.class_("NumberSetAction", automation.Action)
-NumberOperationAction = number_ns.class_("NumberOperationAction", automation.Action)
-
 # Conditions
 NumberInRangeCondition = number_ns.class_(
     "NumberInRangeCondition", automation.Condition
@@ -366,85 +362,40 @@ OPERATION_BASE_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "number.set",
-    NumberSetAction,
     OPERATION_BASE_SCHEMA.extend(
         {
             cv.Required(CONF_VALUE): cv.templatable(cv.float_),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "set_value", cg.float_),
+    call="make_call",
 )
-async def number_set_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.float_)
-    cg.add(var.set_value(template_))
-    return var
 
+# The operation is fixed by the action name; CONF_MODE only stays accepted in the config.
+for _name, _mode, _cycle in (
+    ("number.increment", "INCREMENT", True),
+    ("number.decrement", "DECREMENT", True),
+    ("number.to_min", "TO_MIN", False),
+    ("number.to_max", "TO_MAX", False),
+):
+    _schema = {cv.Optional(CONF_MODE, default=_mode): cv.one_of(_mode, upper=True)}
+    _fields = [
+        automation.ApplyCall(f"with_operation({NUMBER_OPERATION_OPTIONS[_mode]})")
+    ]
+    if _cycle:
+        _schema[cv.Optional(CONF_CYCLE, default=True)] = cv.boolean
+        _fields.append(automation.ApplyField(CONF_CYCLE, "with_cycle", cg.bool_))
+    automation.register_apply_action(
+        _name,
+        automation.maybe_simple_id(OPERATION_BASE_SCHEMA.extend(_schema)),
+        *_fields,
+        call="make_call",
+    )
 
-@automation.register_action(
-    "number.increment",
-    NumberOperationAction,
-    automation.maybe_simple_id(
-        OPERATION_BASE_SCHEMA.extend(
-            {
-                cv.Optional(CONF_MODE, default="INCREMENT"): cv.one_of(
-                    "INCREMENT", upper=True
-                ),
-                cv.Optional(CONF_CYCLE, default=True): cv.boolean,
-            }
-        )
-    ),
-    synchronous=True,
-)
-@automation.register_action(
-    "number.decrement",
-    NumberOperationAction,
-    automation.maybe_simple_id(
-        OPERATION_BASE_SCHEMA.extend(
-            {
-                cv.Optional(CONF_MODE, default="DECREMENT"): cv.one_of(
-                    "DECREMENT", upper=True
-                ),
-                cv.Optional(CONF_CYCLE, default=True): cv.boolean,
-            }
-        )
-    ),
-    synchronous=True,
-)
-@automation.register_action(
-    "number.to_min",
-    NumberOperationAction,
-    automation.maybe_simple_id(
-        OPERATION_BASE_SCHEMA.extend(
-            {
-                cv.Optional(CONF_MODE, default="TO_MIN"): cv.one_of(
-                    "TO_MIN", upper=True
-                ),
-            }
-        )
-    ),
-    synchronous=True,
-)
-@automation.register_action(
-    "number.to_max",
-    NumberOperationAction,
-    automation.maybe_simple_id(
-        OPERATION_BASE_SCHEMA.extend(
-            {
-                cv.Optional(CONF_MODE, default="TO_MAX"): cv.one_of(
-                    "TO_MAX", upper=True
-                ),
-            }
-        )
-    ),
-    synchronous=True,
-)
-@automation.register_action(
+automation.register_apply_action(
     "number.operation",
-    NumberOperationAction,
     OPERATION_BASE_SCHEMA.extend(
         {
             cv.Required(CONF_OPERATION): cv.templatable(
@@ -453,23 +404,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             cv.Optional(CONF_CYCLE, default=True): cv.templatable(cv.boolean),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_OPERATION, "with_operation", NumberOperation),
+    automation.ApplyField(CONF_CYCLE, "with_cycle", cg.bool_),
+    call="make_call",
 )
-async def number_to_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if (operation := config.get(CONF_OPERATION)) is not None:
-        to_ = await cg.templatable(operation, args, NumberOperation)
-        cg.add(var.set_operation(to_))
-        if (cycle := config.get(CONF_CYCLE)) is not None:
-            template_ = await cg.templatable(cycle, args, cg.bool_)
-            cg.add(var.set_cycle(template_))
-    if (mode := config.get(CONF_MODE)) is not None:
-        template_ = await cg.templatable(
-            NUMBER_OPERATION_OPTIONS[mode], args, NumberOperation
-        )
-        cg.add(var.set_operation(template_))
-        if (cycle := config.get(CONF_CYCLE)) is not None:
-            template_ = await cg.templatable(cycle, args, cg.bool_)
-            cg.add(var.set_cycle(template_))
-    return var

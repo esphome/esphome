@@ -16,14 +16,14 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_MOTION,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass, TemplateArgsType
+from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@nohat"]
@@ -39,8 +39,6 @@ DEVICE_CLASSES = [
 event_ns = cg.esphome_ns.namespace("event")
 Event = event_ns.class_("Event", cg.EntityBase)
 EventPtr = Event.operator("ptr")
-
-TriggerEventAction = event_ns.class_("TriggerEventAction", automation.Action)
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
@@ -135,20 +133,11 @@ TRIGGER_EVENT_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
-    "event.trigger", TriggerEventAction, TRIGGER_EVENT_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "event.trigger",
+    TRIGGER_EVENT_SCHEMA,
+    automation.ApplyField(CONF_EVENT_TYPE, "trigger", cg.std_string),
 )
-async def event_fire_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    templ = await cg.templatable(config[CONF_EVENT_TYPE], args, cg.std_string)
-    cg.add(var.set_event_type(templ))
-    return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)
