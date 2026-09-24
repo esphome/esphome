@@ -43,6 +43,17 @@ binary_sensor:
         - binary_sensor.template.publish:
             id: publish_target
             state: !lambda "return x.value_or(false);"
+        - if:
+            condition:
+              binary_sensor.is_on: publish_target
+            then:
+              - logger.log: "publish_target is on"
+        - if:
+            condition:
+              binary_sensor.is_off:
+                id: publish_target
+            then:
+              - logger.log: "publish_target is off"
 
   - platform: template
     id: publish_target
