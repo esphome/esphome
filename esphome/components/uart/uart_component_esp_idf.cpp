@@ -210,6 +210,18 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
+#ifdef USE_GPIO_HOLD
+  // If any of the UART pins are held, disable hold to allow uart control.
+  if (this->tx_pin_ != nullptr && this->tx_pin_->get_hold()) {
+    gpio_hold_dis(static_cast<gpio_num_t>(this->tx_pin_->get_pin()));
+  }
+  if (this->rx_pin_ != nullptr && this->rx_pin_->get_hold()) {
+    gpio_hold_dis(static_cast<gpio_num_t>(this->rx_pin_->get_pin()));
+  }
+  if (this->flow_control_pin_ != nullptr && this->flow_control_pin_->get_hold()) {
+    gpio_hold_dis(static_cast<gpio_num_t>(this->flow_control_pin_->get_pin()));
+  }
+#endif
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
   // Register ISR callback to wake the main loop when UART data arrives.
@@ -469,6 +481,18 @@ void IDFUARTComponent::on_shutdown() {
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_driver_delete failed: %s", esp_err_to_name(err));
   }
+#ifdef USE_GPIO_HOLD
+  // If any of the UART pins are held, hold them so they retain their state.
+  if (this->tx_pin_ != nullptr && this->tx_pin_->get_hold()) {
+    gpio_hold_en(static_cast<gpio_num_t>(this->tx_pin_->get_pin()));
+  }
+  if (this->rx_pin_ != nullptr && this->rx_pin_->get_hold()) {
+    gpio_hold_en(static_cast<gpio_num_t>(this->rx_pin_->get_pin()));
+  }
+  if (this->flow_control_pin_ != nullptr && this->flow_control_pin_->get_hold()) {
+    gpio_hold_en(static_cast<gpio_num_t>(this->flow_control_pin_->get_pin()));
+  }
+#endif
 }
 
 }  // namespace esphome::uart
