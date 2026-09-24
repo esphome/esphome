@@ -127,6 +127,7 @@ class MipiCsiCamera final : public camera::Camera {
   bool select_sensor_format_();
   bool configure_device_();
   bool start_streaming_();
+  void teardown_();
   void report_throughput_(uint32_t now);
   /// Logs every MIPI-CSI format the sensor offers, used when the configured resolution is rejected.
   void log_sensor_formats_();

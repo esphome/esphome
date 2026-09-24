@@ -70,8 +70,8 @@ static void format_fourcc(uint32_t fourcc, FourccName out) {
 /* ---------------- MipiCsiCamera: setup ---------------- */
 
 void MipiCsiCamera::setup() {
-  if (!this->start_external_clock_() || !this->init_video_() || !this->configure_device_() ||
-      !this->start_streaming_()) {
+  if (!this->start_external_clock_() || !this->init_video_() || !this->configure_device_()) {
+    this->teardown_();
     this->mark_failed();
     return;
   }
@@ -80,6 +80,7 @@ void MipiCsiCamera::setup() {
   this->result_queue_ = xQueueCreate(1, sizeof(size_t));
   if (this->result_queue_ == nullptr) {
     ESP_LOGE(TAG, "Not enough memory for the frame queue");
+    this->teardown_();
     this->mark_failed();
     return;
   }
@@ -89,6 +90,13 @@ void MipiCsiCamera::setup() {
     ESP_LOGE(TAG, "Not enough memory to start the capture task");
     vQueueDelete(this->result_queue_);
     this->result_queue_ = nullptr;
+    this->teardown_();
+    this->mark_failed();
+    return;
+  }
+
+  if (!this->start_streaming_()) {
+    this->teardown_();
     this->mark_failed();
     return;
   }
@@ -288,7 +296,8 @@ bool MipiCsiCamera::configure_device_() {
   if (!this->read_back_format_(mapping.fourcc, mapping.bytes_per_pixel, mapping.name))
     return false;
 
-  return this->encoder_.init(this->width_, this->height_, mapping.jpeg_input, mapping.sub_sample, this->jpeg_quality_);
+  return this->encoder_.init(this->width_, this->height_, mapping.jpeg_input, mapping.sub_sample, this->jpeg_quality_,
+                             this->expected_frame_size_);
 }
 
 bool MipiCsiCamera::read_back_format_(uint32_t expected_fourcc, uint8_t bytes_per_pixel, const char *name) {
@@ -396,6 +405,23 @@ bool MipiCsiCamera::start_streaming_() {
     return false;
   }
   return true;
+}
+
+void MipiCsiCamera::teardown_() {
+  if (this->fd_ < 0)
+    return;
+
+  // Ignored if the stream was never turned on: VIDIOC_STREAMOFF then just reports an error.
+  int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  ioctl(this->fd_, VIDIOC_STREAMOFF, &type);
+
+  for (auto &buffer : this->buffers_) {
+    munmap(buffer.data, buffer.length);
+  }
+  this->buffers_.release();
+
+  close(this->fd_);
+  this->fd_ = -1;
 }
 
 void MipiCsiCamera::dump_config() {
