@@ -3,7 +3,6 @@
 #include <cstring>
 #include <limits>
 #include <string>
-#include <vector>
 
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
@@ -23,20 +22,17 @@ class Event : public EntityBase {
  public:
   void trigger(const std::string &event_type);
 
-  /// Set the event types supported by this event (from initializer list).
+  /// Set the event types supported by this event; called by generated code with string literals.
   void set_event_types(std::initializer_list<const char *> event_types) {
     this->types_ = event_types;
     this->last_event_type_ = nullptr;  // Reset when types change
   }
-  /// Set the event types supported by this event (from FixedVector).
+  /// Copy the event types of another event, for components that wrap one.
   void set_event_types(const FixedVector<const char *> &event_types);
-  /// Set the event types supported by this event (from vector).
-  void set_event_types(const std::vector<const char *> &event_types);
 
   // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
   void set_event_types(std::initializer_list<std::string> event_types) = delete;
   void set_event_types(const FixedVector<std::string> &event_types) = delete;
-  void set_event_types(const std::vector<std::string> &event_types) = delete;
 
   /// Return the event types supported by this event.
   const FixedVector<const char *> &get_event_types() const { return this->types_; }
