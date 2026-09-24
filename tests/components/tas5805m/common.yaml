@@ -16,3 +16,31 @@ esphome:
     - tas5805m.deactivate: tas5805m_amp
     - tas5805m.activate:
         id: tas5805m_amp
+
+binary_sensor:
+  - platform: tas5805m
+    tas5805m_id: tas5805m_amp
+    have_fault:
+      name: Any Fault
+    left_channel_dc_fault:
+      name: Left Channel DC Fault
+    right_channel_dc_fault:
+      name: Right Channel DC Fault
+    left_channel_over_current:
+      name: Left Channel Over Current
+    right_channel_over_current:
+      name: Right Channel Over Current
+    otp_crc_check:
+      name: OTP CRC Check
+    bq_write_failed:
+      name: BQ Write Failed
+    clock_fault:
+      name: Clock Fault
+    pvdd_over_voltage:
+      name: PVDD Over Voltage
+    pvdd_under_voltage:
+      name: PVDD Under Voltage
+    over_temp_shutdown:
+      name: Over Temperature Shutdown
+    over_temp_warning:
+      name: Over Temperature Warning

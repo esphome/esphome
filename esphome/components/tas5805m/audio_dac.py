@@ -14,6 +14,7 @@ CONF_DAC_MODE = "dac_mode"
 CONF_MIXER_MODE = "mixer_mode"
 CONF_VOLUME_MIN_DB = "volume_min_db"
 CONF_VOLUME_MAX_DB = "volume_max_db"
+CONF_TAS5805M_ID = "tas5805m_id"
 
 tas5805m_ns = cg.esphome_ns.namespace("tas5805m")
 TAS5805M = tas5805m_ns.class_("TAS5805M", AudioDac, cg.PollingComponent, i2c.I2CDevice)

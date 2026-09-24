@@ -75,9 +75,10 @@ static const uint8_t STARTUP_SEQUENCE[][2] PROGMEM = {
 };
 
 // Fault bits per register (CHAN_FAULT, GLOBAL_FAULT1, GLOBAL_FAULT2, OT_WARNING, one byte each, low to high).
-// The clock fault is left out: it is set whenever the I2S clock stops, and the power state already reports that.
+// The clock fault is left out of the log and have_fault: it is set whenever the I2S clock stops, which is normal.
 static constexpr uint32_t TAS5805M_FAULT_ERROR_MASKS = 0x0001C30F;
 static constexpr uint32_t TAS5805M_FAULT_WARNING_MASKS = 0x04000000;
+static constexpr uint8_t TAS5805M_GLOBAL_FAULT1_CLOCK_BIT = 2;
 
 // An if chain rather than a switch: a switch table would land in rodata, which is RAM on ESP8266.
 static const LogString *fault_name(uint8_t reg, uint8_t bit) {
@@ -198,8 +199,15 @@ bool TAS5805M::write_ctrl_state_(uint8_t state, bool muted) {
   return true;
 }
 
+#ifdef USE_BINARY_SENSOR
+static void publish_fault(binary_sensor::BinarySensor *sensor, const uint8_t *faults, uint8_t reg, uint8_t bit) {
+  if (sensor != nullptr)
+    sensor->publish_state(faults[reg] & (1 << bit));
+}
+#endif
+
 // Returns false if the fault registers could not be read
-bool TAS5805M::log_faults_() {
+bool TAS5805M::read_faults_() {
   uint8_t faults[TAS5805M_FAULT_REGISTER_COUNT];
   if (!this->read_bytes(TAS5805M_CHAN_FAULT, faults, sizeof(faults)))
     return false;
@@ -216,15 +224,35 @@ bool TAS5805M::log_faults_() {
       }
     }
   }
+  bool clear = any_fault;
+#ifdef USE_BINARY_SENSOR
+  if (this->have_fault_binary_sensor_ != nullptr)
+    this->have_fault_binary_sensor_->publish_state(any_fault);
+  publish_fault(this->right_channel_over_current_binary_sensor_, faults, 0, 0);
+  publish_fault(this->left_channel_over_current_binary_sensor_, faults, 0, 1);
+  publish_fault(this->right_channel_dc_fault_binary_sensor_, faults, 0, 2);
+  publish_fault(this->left_channel_dc_fault_binary_sensor_, faults, 0, 3);
+  publish_fault(this->pvdd_under_voltage_binary_sensor_, faults, 1, 0);
+  publish_fault(this->pvdd_over_voltage_binary_sensor_, faults, 1, 1);
+  publish_fault(this->clock_fault_binary_sensor_, faults, 1, TAS5805M_GLOBAL_FAULT1_CLOCK_BIT);
+  publish_fault(this->bq_write_failed_binary_sensor_, faults, 1, 6);
+  publish_fault(this->otp_crc_check_binary_sensor_, faults, 1, 7);
+  publish_fault(this->over_temp_shutdown_binary_sensor_, faults, 2, 0);
+  publish_fault(this->over_temp_warning_binary_sensor_, faults, 3, 2);
+  // The clock fault stays latched after the clock returns; clear it so the sensor follows the clock
+  if (this->clock_fault_binary_sensor_ != nullptr && (faults[1] & (1 << TAS5805M_GLOBAL_FAULT1_CLOCK_BIT)))
+    clear = true;
+#endif
   // Faults are latched and keep the output stage off until cleared
-  if (any_fault && !this->write_byte(TAS5805M_FAULT_CLEAR, TAS5805M_FAULT_CLEAR_ANALOG))
+  if (clear && !this->write_byte(TAS5805M_FAULT_CLEAR, TAS5805M_FAULT_CLEAR_ANALOG)) {
     ESP_LOGW(TAG, "Failed to clear faults");
+  }
   return true;
 }
 
 void TAS5805M::update() {
   uint8_t power_state;
-  if (!this->log_faults_() || !this->read_byte(TAS5805M_POWER_STATE, &power_state)) {
+  if (!this->read_faults_() || !this->read_byte(TAS5805M_POWER_STATE, &power_state)) {
     this->status_set_warning(LOG_STR("Failed to read status"));
     return;
   }
@@ -268,6 +296,20 @@ void TAS5805M::dump_config() {
                 this->analog_gain_db_,
                 this->dac_mode_ == DAC_MODE_PBTL ? LOG_STR_LITERAL("PBTL") : LOG_STR_LITERAL("BTL"),
                 LOG_STR_ARG(mixer_mode), this->volume_min_db_, this->volume_max_db_);
+#ifdef USE_BINARY_SENSOR
+  LOG_BINARY_SENSOR("  ", "Any Fault", this->have_fault_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Left Channel DC Fault", this->left_channel_dc_fault_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Right Channel DC Fault", this->right_channel_dc_fault_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Left Channel Over Current", this->left_channel_over_current_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Right Channel Over Current", this->right_channel_over_current_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "OTP CRC Check", this->otp_crc_check_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "BQ Write Failed", this->bq_write_failed_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Clock Fault", this->clock_fault_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "PVDD Over Voltage", this->pvdd_over_voltage_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "PVDD Under Voltage", this->pvdd_under_voltage_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Over Temperature Shutdown", this->over_temp_shutdown_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Over Temperature Warning", this->over_temp_warning_binary_sensor_);
+#endif
 }
 
 bool TAS5805M::set_mute_(bool muted) {

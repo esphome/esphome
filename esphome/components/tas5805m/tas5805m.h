@@ -5,6 +5,10 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+
 namespace esphome::tas5805m {
 
 enum DacMode : uint8_t {
@@ -46,6 +50,21 @@ class TAS5805M : public audio_dac::AudioDac, public PollingComponent, public i2c
   void set_volume_min_db(float volume_min_db) { this->volume_min_db_ = volume_min_db; }
   void set_volume_max_db(float volume_max_db) { this->volume_max_db_ = volume_max_db; }
 
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(have_fault)
+  SUB_BINARY_SENSOR(left_channel_dc_fault)
+  SUB_BINARY_SENSOR(right_channel_dc_fault)
+  SUB_BINARY_SENSOR(left_channel_over_current)
+  SUB_BINARY_SENSOR(right_channel_over_current)
+  SUB_BINARY_SENSOR(otp_crc_check)
+  SUB_BINARY_SENSOR(bq_write_failed)
+  SUB_BINARY_SENSOR(clock_fault)
+  SUB_BINARY_SENSOR(pvdd_over_voltage)
+  SUB_BINARY_SENSOR(pvdd_under_voltage)
+  SUB_BINARY_SENSOR(over_temp_shutdown)
+  SUB_BINARY_SENSOR(over_temp_warning)
+#endif
+
  protected:
   bool select_book_page_(uint8_t book, uint8_t page);
   bool init_();
@@ -53,7 +72,7 @@ class TAS5805M : public audio_dac::AudioDac, public PollingComponent, public i2c
   bool set_mute_(bool muted);
   bool write_volume_();
   bool write_mixer_();
-  bool log_faults_();
+  bool read_faults_();
 
   GPIOPin *enable_pin_{nullptr};
   float volume_{0};
