@@ -79,10 +79,6 @@ CONF_NET_ACTIVE_ENERGY_DG = "net_active_energy_dg"
 CONF_NET_REACTIVE_ENERGY_DG = "net_reactive_energy_dg"
 CONF_NET_APPARENT_ENERGY_DG = "net_apparent_energy_dg"
 
-UNIT_KILOWATT_HOURS = "kWh"
-UNIT_KILOVOLT_AMPS_HOURS = "kVAh"
-UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kVARh"
-
 selec_meter_ns = cg.esphome_ns.namespace("selec_meter")
 SelecMeter = selec_meter_ns.class_(
     "SelecMeter", cg.PollingComponent, modbus.ModbusClientDevice

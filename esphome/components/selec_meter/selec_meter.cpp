@@ -423,8 +423,8 @@ void SelecMeter::dump_config() {
                 "  Model: %s\n"
                 "  Byte Order: %s\n"
                 "  Address: 0x%02X",
-                this->model_ == Model::EM4M ? "EM4M" : "EM2M", this->word_swap_ ? "LSRF (word-swapped)" : "MSRF",
-                this->address_);
+                this->model_ == Model::EM4M ? LOG_STR_LITERAL("EM4M") : LOG_STR_LITERAL("EM2M"),
+                this->word_swap_ ? LOG_STR_LITERAL("LSRF (word-swapped)") : LOG_STR_LITERAL("MSRF"), this->address_);
   LOG_SENSOR("  ", "Total Active Energy", this->total_active_energy_sensor_);
   LOG_SENSOR("  ", "Import Active Energy", this->import_active_energy_sensor_);
   LOG_SENSOR("  ", "Export Active Energy", this->export_active_energy_sensor_);
