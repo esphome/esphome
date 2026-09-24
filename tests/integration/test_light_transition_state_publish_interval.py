@@ -19,8 +19,6 @@ import pytest
 from .state_utils import InitialStateHelper, require_entity, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
-INTERVAL_FIXTURE = "light_transition_state_publish_interval"
-SAVE_FIXTURE = "light_transition_interval_save"
 SAVED_LINE = "Saving deferred preferences"
 
 Timeline = list[tuple[float, LightState]]
@@ -130,7 +128,7 @@ def _assert_ramp(timeline: Timeline, target: float) -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.shared_yaml(INTERVAL_FIXTURE)
+@pytest.mark.shared_yaml("light_transition_state_publish_interval")
 async def test_transition_interval_zero_behaves_like_legacy(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -154,7 +152,7 @@ async def test_transition_interval_zero_behaves_like_legacy(
 
 
 @pytest.mark.asyncio
-@pytest.mark.shared_yaml(INTERVAL_FIXTURE)
+@pytest.mark.shared_yaml("light_transition_state_publish_interval")
 async def test_transition_interval_nonzero_emits_intermediate_updates(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -183,7 +181,7 @@ async def test_transition_interval_nonzero_emits_intermediate_updates(
 
 
 @pytest.mark.asyncio
-@pytest.mark.shared_yaml(INTERVAL_FIXTURE)
+@pytest.mark.shared_yaml("light_transition_state_publish_interval")
 async def test_light_transition_state_publish_interval(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -249,7 +247,7 @@ async def test_light_transition_state_publish_interval(
 
 
 @pytest.mark.asyncio
-@pytest.mark.shared_yaml(INTERVAL_FIXTURE)
+@pytest.mark.shared_yaml("light_transition_state_publish_interval")
 async def test_flash_interval_emits_intermediate_updates(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -284,7 +282,7 @@ async def test_flash_interval_emits_intermediate_updates(
 
 
 @pytest.mark.asyncio
-@pytest.mark.shared_yaml(SAVE_FIXTURE)
+@pytest.mark.shared_yaml("light_transition_interval_save")
 async def test_transition_interval_persistence_semantics(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -325,7 +323,7 @@ async def test_transition_interval_persistence_semantics(
 
 
 @pytest.mark.asyncio
-@pytest.mark.shared_yaml(SAVE_FIXTURE)
+@pytest.mark.shared_yaml("light_transition_interval_save")
 async def test_interrupted_deferred_save_does_not_leak(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
