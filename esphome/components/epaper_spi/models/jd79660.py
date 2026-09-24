@@ -116,3 +116,39 @@ jd79660.extend(
         (0x04,),
     ),
 )
+
+# Good Display GDEY0213F51
+#
+# Panel: 2.13" BWYR (4-color) e-paper, 122x250, controller JD79661
+# Init derived from Good Display sample
+# <https://www.good-display.com/companyfile/1047.html>
+# Cross-checked against GxEPD2_213c_GDEY0213F51
+# <https://github.com/ZinggJM/GxEPD2/blob/master/src/epd4c/GxEPD2_213c_GDEY0213F51.cpp>
+#
+# Note: busy pin uses LOW=busy, HIGH=idle.
+#
+# fmt: off
+jd79660.extend(
+    "goodisplay-gdey0213f51-2.13",
+    width=128,
+    height=250,
+
+    initsequence=(
+        (0x4D, 0x78,),
+        (0x00, 0x0F, 0x29,),  # PSR
+        (0x01, 0x07, 0x00,),  # PWRR
+        (0x03, 0x10, 0x54, 0x44,),  # POFS
+        (0x06, 0x05, 0x00, 0x3F, 0x0A, 0x25, 0x12, 0x1A,),  # BTST_P
+        (0x50, 0x37,),  # CDI
+        (0x60, 0x02, 0x02,),  # TCON
+        (0x61, 128 // 256, 128 % 256, 250 // 256, 250 % 256,),  # TRES: 128x250 fixed
+        (0xE7, 0x1C,),
+        (0xE3, 0x22,),
+        (0xB4, 0xD0,),
+        (0xB5, 0x03,),
+        (0xE9, 0x01,),
+        (0x30, 0x08,),
+        # Power On (0x04): Must be early part of init seq = Disabled later!
+        (0x04,),
+    ),
+)
