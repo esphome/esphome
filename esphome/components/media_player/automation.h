@@ -27,41 +27,4 @@ static_assert(std::is_trivially_copyable_v<StateAnyForwarder>);
 static_assert(sizeof(StateEnterForwarder<MediaPlayerState::MEDIA_PLAYER_STATE_IDLE>) <= sizeof(void *));
 static_assert(std::is_trivially_copyable_v<StateEnterForwarder<MediaPlayerState::MEDIA_PLAYER_STATE_IDLE>>);
 
-template<typename... Ts> class IsIdleCondition final : public Condition<Ts...>, public Parented<MediaPlayer> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_IDLE; }
-};
-
-template<typename... Ts> class IsPlayingCondition final : public Condition<Ts...>, public Parented<MediaPlayer> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING; }
-};
-
-template<typename... Ts> class IsPausedCondition final : public Condition<Ts...>, public Parented<MediaPlayer> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_PAUSED; }
-};
-
-template<typename... Ts> class IsAnnouncingCondition final : public Condition<Ts...>, public Parented<MediaPlayer> {
- public:
-  bool check(const Ts &...x) override {
-    return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
-  }
-};
-
-template<typename... Ts> class IsOnCondition final : public Condition<Ts...>, public Parented<MediaPlayer> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_ON; }
-};
-
-template<typename... Ts> class IsOffCondition final : public Condition<Ts...>, public Parented<MediaPlayer> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_OFF; }
-};
-
-template<typename... Ts> class IsMutedCondition final : public Condition<Ts...>, public Parented<MediaPlayer> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->is_muted(); }
-};
-
 }  // namespace esphome::media_player
