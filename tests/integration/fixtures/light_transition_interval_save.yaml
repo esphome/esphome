@@ -7,7 +7,7 @@ logger:
   level: VERBOSE
 
 preferences:
-  flash_write_interval: 0s
+  flash_write_interval: 0s  # Flush to disk on every loop
 
 output:
   - platform: template
@@ -23,6 +23,7 @@ light:
     id: test_mono_light
     name: "Test Mono Light"
     output: mono_output
+    restore_mode: RESTORE_DEFAULT_OFF
     default_transition_length: 1s
     transition_state_publish_interval: 0.2s
 

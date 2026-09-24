@@ -316,7 +316,15 @@ class LightState : public EntityBase, public Component {
 
   /// Point remote_values at the new transformer's target, or leave it tracking current_values
   /// when this light publishes intermediate states on an interval from loop().
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   void set_transformer_remote_values_(const LightColorValues &target, bool set_remote_values);
+#else
+  void set_transformer_remote_values_(const LightColorValues &target, bool set_remote_values) {
+    if (set_remote_values) {
+      this->remote_values = target;
+    }
+  }
+#endif
 
   /// Internal method to save the current remote_values to the preferences
   void save_remote_values_();

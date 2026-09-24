@@ -419,21 +419,19 @@ void LightState::disable_loop_if_idle_() {
   }
 }
 
-void LightState::set_transformer_remote_values_(const LightColorValues &target, bool set_remote_values) {
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+void LightState::set_transformer_remote_values_(const LightColorValues &target, bool set_remote_values) {
   this->transition_publish_enabled_ = set_remote_values && this->transition_state_publish_interval_ > 0;
   this->defer_transition_save_ = false;
   if (this->transition_publish_enabled_) {
     // loop() copies current_values into remote_values on each interval and at the end
     this->remote_values = this->current_values;
     this->last_transition_state_publish_ = App.get_loop_component_start_time();
-    return;
-  }
-#endif
-  if (set_remote_values) {
+  } else if (set_remote_values) {
     this->remote_values = target;
   }
 }
+#endif
 
 void LightState::save_remote_values_() {
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL

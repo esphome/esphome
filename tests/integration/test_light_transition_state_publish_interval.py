@@ -76,15 +76,16 @@ class _Recorder:
         return self.timeline
 
 
-class _SaveCounter:
-    """Counts preference saves in the device log."""
+class _LogCounter:
+    """Counts device log lines containing ``needle`` and lets a test await a count."""
 
-    def __init__(self) -> None:
+    def __init__(self, needle: str) -> None:
+        self.needle = needle
         self.count = 0
         self._changed = asyncio.Event()
 
     def on_line(self, line: str) -> None:
-        if SAVED_LINE in line:
+        if self.needle in line:
             self.count += 1
             self._changed.set()
 
@@ -105,13 +106,19 @@ async def _subscribe(client: APIClient) -> tuple[list[EntityInfo], _Recorder]:
     return entities, recorder
 
 
+def _visible_brightness(state: LightState) -> float:
+    """Brightness as a remote sees it: an off light counts as zero."""
+    return state.brightness if state.state else 0.0
+
+
 def _brightness_is(value: float) -> DonePredicate:
-    return lambda _elapsed, state: state.brightness == pytest.approx(value, abs=0.01)
+    return lambda _elapsed, state: (
+        _visible_brightness(state) == pytest.approx(value, abs=0.01)
+    )
 
 
 def _brightness_values(timeline: Timeline) -> list[float]:
-    """Brightness as a remote sees it: an off state counts as zero."""
-    return [state.brightness if state.state else 0.0 for _, state in timeline]
+    return [_visible_brightness(state) for _, state in timeline]
 
 
 def _assert_ramp(timeline: Timeline, target: float) -> None:
@@ -258,14 +265,16 @@ async def test_flash_interval_emits_intermediate_updates(
             lambda: client.light_command(
                 key=mono.key, state=True, brightness=0.4, transition_length=0.0
             ),
-            lambda _t, s: s.state and s.brightness == pytest.approx(0.4, abs=0.01),
+            _brightness_is(0.4),
         )
         timeline = await recorder.run(
             mono.key,
             lambda: client.light_command(
                 key=mono.key, brightness=1.0, flash_length=1.0
             ),
-            lambda t, s: t > 0.5 and s.brightness == pytest.approx(0.4, abs=0.01),
+            lambda t, s: (
+                t > 0.5 and _visible_brightness(s) == pytest.approx(0.4, abs=0.01)
+            ),
         )
 
         values = _brightness_values(timeline)
@@ -282,7 +291,7 @@ async def test_transition_interval_persistence_semantics(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """A save=true interval transition saves once, at its end, and restores that value."""
-    saves = _SaveCounter()
+    saves = _LogCounter(SAVED_LINE)
     async with (
         run_compiled(yaml_config, line_callback=saves.on_line),
         api_client_connected() as client,
@@ -301,15 +310,18 @@ async def test_transition_interval_persistence_semantics(
         await saves.wait_for(before + 1)
         assert saves.count == before + 1
 
+    # The restored light fades up from off over its default transition, so wait for the end
     async with run_compiled(yaml_config), api_client_connected() as client:
         entities, _ = await client.list_entities_services()
         mono = require_entity(entities, "test_mono_light", LightInfo)
-        state = await wait_for_state(
-            client, lambda s: isinstance(s, LightState) and s.key == mono.key
+        await wait_for_state(
+            client,
+            lambda s: (
+                isinstance(s, LightState)
+                and s.key == mono.key
+                and _visible_brightness(s) == pytest.approx(1.0, abs=0.01)
+            ),
         )
-        assert isinstance(state, LightState)
-        assert state.state
-        assert state.brightness == pytest.approx(1.0, abs=0.05)
 
 
 @pytest.mark.asyncio
@@ -320,7 +332,7 @@ async def test_interrupted_deferred_save_does_not_leak(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """A save=true transition cut short by another call must not save when that call ends."""
-    saves = _SaveCounter()
+    saves = _LogCounter(SAVED_LINE)
     async with (
         run_compiled(yaml_config, line_callback=saves.on_line),
         api_client_connected() as client,
@@ -346,7 +358,9 @@ async def test_interrupted_deferred_save_does_not_leak(
         await recorder.run(
             mono.key,
             lambda: client.button_command(by_flash.key),
-            lambda t, s: t > 0.5 and s.brightness == pytest.approx(0.5, abs=0.01),
+            lambda t, s: (
+                t > 0.5 and _visible_brightness(s) == pytest.approx(0.5, abs=0.01)
+            ),
             settle=0.2,
         )
         assert saves.count == before
