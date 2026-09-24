@@ -947,7 +947,11 @@ void PrometheusHandler::climate_setting_row_(AsyncResponseStream *stream, climat
   stream->print(ESPHOME_F("\",category=\""));
   stream->print(setting.c_str());
   stream->print(ESPHOME_F("\",setting_value=\""));
+#ifdef USE_ESP8266
+  stream->print((const __FlashStringHelper *) setting_value);
+#else
   stream->print(LOG_STR_ARG(setting_value));
+#endif
   stream->print(ESPHOME_F("\"} "));
   stream->print(ESPHOME_F("1.0"));
   stream->print(ESPHOME_F("\n"));
