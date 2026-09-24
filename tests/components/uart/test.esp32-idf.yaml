@@ -28,6 +28,7 @@ uart:
     tx_pin: 21
     rx_pin: 22
     baud_rate: 115200
+    clock_source: REF_TICK
     debug:
       debug_prefix: "[UART1] "
   - id: uart_debug_custom

@@ -322,7 +322,7 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
   // State
   print_metric_labels_(stream, ESPHOME_F("esphome_light_state"), obj, area, node, friendly_name);
   stream->print(ESPHOME_F("\"} "));
-  stream->print(obj->remote_values.is_on());
+  stream->print(obj->get_reported_values().is_on());
   stream->print(ESPHOME_F("\n"));
   // Brightness and RGBW
   light::LightColorValues color = obj->current_values;

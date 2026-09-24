@@ -775,6 +775,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-Wno-unused-variable")
     cg.add_build_flag("-Wno-unused-but-set-variable")
     cg.add_build_flag("-Wno-sign-compare")
+    cg.add_build_flag("-Wno-unused-function")
     # C++20 deprecated ++/--, compound assignment, and chained assignment on
     # volatile lvalues; GCC warns via -Wvolatile, on by default at gnu++20.
     # C++23 (P2327R1) removed the deprecation for compound assignment, so the
