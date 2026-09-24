@@ -1,5 +1,8 @@
 #include "rtttl.h"
+#include <algorithm>
 #include <cmath>
+#include <cstring>
+#include <limits>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
@@ -147,14 +150,14 @@ void Rtttl::loop() {
 #endif  // USE_SPEAKER
 
   // Align to note: most rtttl's out there does not add any space after the ',' separator but just in case
-  while (this->position_ < this->rtttl_.length()) {
-    char c = this->rtttl_[this->position_];
+  while (this->position_ < this->song_len_) {
+    char c = this->song_at_(this->position_);
     if (c != ',' && c != ' ')
       break;
     this->position_++;
   }
 
-  if (this->position_ >= this->rtttl_.length()) {
+  if (this->position_ >= this->song_len_) {
     this->finish_();
     return;
   }
@@ -169,12 +172,12 @@ void Rtttl::loop() {
     this->note_duration_ = this->wholenote_duration_ / this->default_note_denominator_;
   }
 
-  uint8_t note_index_in_octave = note_index_from_char(this->rtttl_[this->position_]);
+  uint8_t note_index_in_octave = note_index_from_char(this->song_at_(this->position_));
 
   this->position_++;
 
   // Now, get optional '#' sharp
-  if (this->rtttl_[this->position_] == '#') {
+  if (this->song_at_(this->position_) == '#') {
     note_index_in_octave++;
     this->position_++;
   }
@@ -192,7 +195,7 @@ void Rtttl::loop() {
   }
 
   // Now, get optional '.' dotted note
-  if (this->rtttl_[this->position_] == '.') {
+  if (this->song_at_(this->position_) == '.') {
     this->note_duration_ += this->note_duration_ / 2;  // Duration +50%
     this->position_++;
   }
@@ -264,15 +267,68 @@ void Rtttl::loop() {
 }
 
 void Rtttl::play(std::string rtttl) {
-  if (this->state_ != State::STOPPED && this->state_ != State::STOPPING) {
-    size_t pos = this->rtttl_.find(':');
-    size_t len = (pos != std::string::npos) ? pos : this->rtttl_.length();
-    ESP_LOGW(TAG, "Already playing: %.*s", (int) len, this->rtttl_.c_str());
+  if (this->is_busy_()) {
     return;
   }
+  this->owned_song_ = std::move(rtttl);
+  this->set_song_(this->owned_song_.data(), this->owned_song_.size());
+  this->start_();
+}
 
-  this->rtttl_ = std::move(rtttl);
+void Rtttl::play(StaticSong song) {
+  if (this->is_busy_()) {
+    return;
+  }
+  // Release a previously owned song; the static one needs no storage.
+  std::string().swap(this->owned_song_);
+  const char *data = reinterpret_cast<const char *>(song.rtttl);
+  this->set_song_(data, ESPHOME_strlen_P(data));
+  this->start_();
+}
 
+void Rtttl::set_song_(const char *song, size_t len) {
+  this->song_ = song;
+  // Anything past what the 16 bit length holds is dropped; the validator keeps configured songs shorter.
+  this->song_len_ = static_cast<uint16_t>(std::min<size_t>(len, std::numeric_limits<uint16_t>::max()));
+}
+
+bool Rtttl::is_busy_() const {
+  if (this->state_ == State::STOPPED || this->state_ == State::STOPPING) {
+    return false;
+  }
+  char name[SONG_NAME_LENGTH_LIMIT + 1];
+  this->song_name_(name, sizeof(name), this->song_find_(':', 0, this->song_len_));
+  ESP_LOGW(TAG, "Already playing: %s", name);
+  return true;
+}
+
+size_t Rtttl::song_find_(char c, size_t from, size_t end) const {
+  for (size_t pos = from; pos < end; pos++) {
+    if (this->song_at_(pos) == c)
+      return pos;
+  }
+  return end;
+}
+
+size_t Rtttl::song_find_control_(char key, size_t from, size_t end) const {
+  size_t pos = from;
+  while ((pos = this->song_find_(key, pos, end)) < end) {
+    if (this->song_at_(pos + 1) == '=')
+      return pos;
+    pos++;
+  }
+  return end;
+}
+
+void Rtttl::song_name_(char *buf, size_t size, size_t name_len) const {
+  size_t len = std::min(name_len, size - 1);
+  for (size_t pos = 0; pos < len; pos++) {
+    buf[pos] = this->song_at_(pos);
+  }
+  buf[len] = '\0';
+}
+
+void Rtttl::start_() {
   this->default_note_denominator_ = DEFAULT_NOTE_DENOMINATOR;
   this->default_octave_ = DEFAULT_OCTAVE;
   this->note_duration_ = 0;
@@ -281,9 +337,9 @@ void Rtttl::play(std::string rtttl) {
   uint16_t num;  // Used for: default note-denominator, default octave, BPM
 
   // Get name
-  this->position_ = this->rtttl_.find(':');
+  this->position_ = this->song_find_(':', 0, this->song_len_);
 
-  if (this->position_ == std::string::npos) {
+  if (this->position_ == this->song_len_) {
     ESP_LOGE(TAG, "Unable to determine name; missing ':'");
     return;
   }
@@ -292,18 +348,20 @@ void Rtttl::play(std::string rtttl) {
              static_cast<unsigned>(SONG_NAME_LENGTH_LIMIT));
     return;
   }
-  ESP_LOGD(TAG, "Playing song %.*s", (int) this->position_, this->rtttl_.c_str());
+  char name[SONG_NAME_LENGTH_LIMIT + 1];
+  this->song_name_(name, sizeof(name), this->position_);
+  ESP_LOGD(TAG, "Playing song %s", name);
 
   size_t name_end_position = this->position_;
-  size_t control_end = this->rtttl_.find(':', name_end_position + 1);
-  if (control_end == std::string::npos) {
+  size_t control_end = this->song_find_(':', name_end_position + 1, this->song_len_);
+  if (control_end == this->song_len_) {
     ESP_LOGE(TAG, "Missing second ':'");
     return;
   }
 
   // Get default duration
-  size_t pos = this->rtttl_.find("d=", name_end_position);
-  if (pos == std::string::npos || pos >= control_end) {
+  size_t pos = this->song_find_control_('d', name_end_position, control_end);
+  if (pos == control_end) {
     ESP_LOGW(TAG, "Missing 'd='; use default duration %d", this->default_note_denominator_);
   } else {
     this->position_ = pos + 2;
@@ -317,8 +375,8 @@ void Rtttl::play(std::string rtttl) {
   }
 
   // Get default octave
-  pos = this->rtttl_.find("o=", name_end_position);
-  if (pos == std::string::npos || pos >= control_end) {
+  pos = this->song_find_control_('o', name_end_position, control_end);
+  if (pos == control_end) {
     ESP_LOGW(TAG, "Missing 'o='; use default octave %d", this->default_octave_);
   } else {
     this->position_ = pos + 2;
@@ -332,8 +390,8 @@ void Rtttl::play(std::string rtttl) {
   }
 
   // Get BPM
-  pos = this->rtttl_.find("b=", name_end_position);
-  if (pos == std::string::npos || pos >= control_end) {
+  pos = this->song_find_control_('b', name_end_position, control_end);
+  if (pos == control_end) {
     ESP_LOGW(TAG, "Missing 'b='; use default BPM %d", bpm);
   } else {
     this->position_ = pos + 2;
@@ -387,7 +445,7 @@ void Rtttl::stop() {
   }
 #endif  // USE_SPEAKER
 
-  this->position_ = this->rtttl_.length();
+  this->position_ = this->song_len_;
   this->note_duration_ = 0;
 }
 
@@ -411,7 +469,7 @@ void Rtttl::finish_() {
 #endif  // USE_SPEAKER
 
   // Ensure no more notes are played in case finish_() is called for an error.
-  this->position_ = this->rtttl_.length();
+  this->position_ = this->song_len_;
   this->note_duration_ = 0;
 }
 
