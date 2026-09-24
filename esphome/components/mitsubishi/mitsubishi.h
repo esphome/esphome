@@ -51,10 +51,10 @@ class MitsubishiClimate final : public climate_ir::ClimateIR {
                               {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST,
                                climate::CLIMATE_PRESET_SLEEP}) {}
 
-  void set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
-  void set_supports_dry(bool supports_dry) { this->supports_dry_ = supports_dry; }
-  void set_supports_fan_only(bool supports_fan_only) { this->supports_fan_only_ = supports_fan_only; }
-  void set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
+  void set_supports_dry(bool supports_dry) { this->set_mode_supported_(climate::CLIMATE_MODE_DRY, supports_dry); }
+  void set_supports_fan_only(bool supports_fan_only) {
+    this->set_mode_supported_(climate::CLIMATE_MODE_FAN_ONLY, supports_fan_only);
+  }
 
   void set_fan_mode(SetFanMode fan_mode) {
     this->fan_mode_ = fan_mode;

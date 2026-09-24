@@ -551,11 +551,17 @@ text:
     update_interval: 1s
     lambda: |
       return std::string{"Hello!"};
+    # Exercise a register_apply_condition inside a trigger with a std::string
+    # argument, so ApplyCondition<std::string> is compiled.
     set_action:
       then:
-        - logger.log:
-            format: Template Text set to %s
-            args: ["x.c_str()"]
+        - if:
+            condition:
+              cover.is_open: template_cover_with_triggers
+            then:
+              - logger.log:
+                  format: Template Text set to %s
+                  args: ["x.c_str()"]
 
 alarm_control_panel:
   - platform: template

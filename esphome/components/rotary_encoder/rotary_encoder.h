@@ -4,7 +4,6 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 
 namespace esphome::rotary_encoder {
@@ -104,17 +103,6 @@ class RotaryEncoderSensor final : public sensor::Sensor, public Component {
   CallbackManager<void()> on_clockwise_callback_{};
   CallbackManager<void()> on_anticlockwise_callback_{};
   CallbackManager<void(int32_t)> listeners_{};
-};
-
-template<typename... Ts> class RotaryEncoderSetValueAction final : public Action<Ts...> {
- public:
-  RotaryEncoderSetValueAction(RotaryEncoderSensor *encoder) : encoder_(encoder) {}
-  TEMPLATABLE_VALUE(int, value)
-
-  void play(const Ts &...x) override { this->encoder_->set_value(this->value_.value(x...)); }
-
- protected:
-  RotaryEncoderSensor *encoder_;
 };
 
 }  // namespace esphome::rotary_encoder

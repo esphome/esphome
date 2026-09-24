@@ -68,23 +68,6 @@ template<typename... Ts> class CycleSpeedAction final : public Action<Ts...> {
   Fan *state_;
 };
 
-template<typename... Ts> class FanIsOnCondition final : public Condition<Ts...> {
- public:
-  explicit FanIsOnCondition(Fan *state) : state_(state) {}
-  bool check(const Ts &...x) override { return this->state_->state; }
-
- protected:
-  Fan *state_;
-};
-template<typename... Ts> class FanIsOffCondition final : public Condition<Ts...> {
- public:
-  explicit FanIsOffCondition(Fan *state) : state_(state) {}
-  bool check(const Ts &...x) override { return !this->state_->state; }
-
- protected:
-  Fan *state_;
-};
-
 class FanStateTrigger final : public Trigger<Fan *> {
  public:
   FanStateTrigger(Fan *state) : fan_(state) {
