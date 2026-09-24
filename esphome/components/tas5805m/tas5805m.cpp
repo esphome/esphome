@@ -154,7 +154,7 @@ bool TAS5805M::init_() {
 
   // Setters are public, so keep the value inside the register range
   const uint8_t again =
-      static_cast<uint8_t>(clamp(lroundf(-this->analog_gain_db_ * 2.0f), 0L, long{TAS5805M_AGAIN_MINUS_15_5DB}));
+      static_cast<uint8_t>(lroundf(clamp(-this->analog_gain_db_ * 2.0f, 0.0f, float{TAS5805M_AGAIN_MINUS_15_5DB})));
   if (!this->write_byte(TAS5805M_DEVICE_CTRL_1, this->dac_mode_ == DAC_MODE_PBTL ? TAS5805M_DEVICE_CTRL_1_PBTL : 0) ||
       !this->write_byte(TAS5805M_AGAIN, again) || !this->write_volume_() ||
       !this->write_ctrl_state_(TAS5805M_CTRL_STATE_PLAY, this->is_muted_) ||
@@ -333,7 +333,7 @@ bool TAS5805M::write_volume_() {
   // volume 0.0 maps to volume_min_db_, which is only close to silence at -103 dB
   const float volume_db = std::lerp(this->volume_min_db_, this->volume_max_db_, this->volume_);
   const uint8_t dig_vol = static_cast<uint8_t>(
-      clamp(lroundf(TAS5805M_DIG_VOL_0DB - volume_db * 2.0f), 0L, long{TAS5805M_DIG_VOL_MINUS_103DB}));
+      lroundf(clamp(TAS5805M_DIG_VOL_0DB - volume_db * 2.0f, 0.0f, float{TAS5805M_DIG_VOL_MINUS_103DB})));
   ESP_LOGV(TAG, "Setting volume to 0x%02X", dig_vol);
   return this->write_byte(TAS5805M_DIG_VOL, dig_vol);
 }
