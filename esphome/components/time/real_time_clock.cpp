@@ -1,5 +1,8 @@
 #include "real_time_clock.h"
 #include "esphome/core/log.h"
+#ifdef USE_TIME_DISCIPLINE
+#include "clock_discipline.h"
+#endif
 #ifdef USE_HOST
 #include <sys/time.h>
 #elif defined(USE_ZEPHYR)
@@ -21,7 +24,18 @@ namespace esphome::time {
 
 static const char *const TAG = "time";
 
-RealTimeClock::RealTimeClock() = default;
+RealTimeClock::RealTimeClock() {
+#ifdef USE_TIME_DISCIPLINE
+  // Register before consumer callbacks, including those of sources that set libc time directly.
+  this->time_sync_callback_.add([this]() {
+    if (this->discipline_observed_) {
+      this->discipline_observed_ = false;
+    } else if (this->discipline_ != nullptr) {
+      this->discipline_->on_sync(this->discipline_source_);
+    }
+  });
+#endif
+}
 
 ESPTime __attribute__((noinline)) RealTimeClock::now() {
 #ifdef USE_TIME_TIMEZONE
@@ -58,6 +72,13 @@ void RealTimeClock::dump_config() {
 
 void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   ESP_LOGVV(TAG, "Got epoch %" PRIu32, epoch);
+#ifdef USE_TIME_DISCIPLINE
+  if (this->discipline_ != nullptr && this->discipline_->observe_epoch(this->discipline_source_, epoch)) {
+    this->discipline_observed_ = true;
+    this->time_sync_callback_.call();
+    return;
+  }
+#endif
   // Skip if time is already synchronized to avoid unnecessary writes, log spam,
   // and prevent clock jumping backwards due to network latency
   constexpr time_t min_valid_epoch = 1546300800;  // January 1, 2019

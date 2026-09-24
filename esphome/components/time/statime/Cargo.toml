@@ -1,0 +1,26 @@
+[package]
+name = "esphome-time-discipline"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.95"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+
+[features]
+# Host C ABI tests need the host's Rust runtime. Firmware leaves this disabled;
+# the Statime dependencies always retain default-features = false.
+std = []
+
+[dependencies]
+statime-algo = { git = "https://github.com/Nebensound/ntpd-rs", rev = "cc188798d01ec7546b5dc6f17bf22791bf96df20", default-features = false }
+statime-base = { git = "https://github.com/Nebensound/ntpd-rs", rev = "cc188798d01ec7546b5dc6f17bf22791bf96df20", default-features = false }
+
+[profile.release]
+panic = "abort"
+opt-level = "s"
+codegen-units = 1
+
+[profile.dev]
+panic = "abort"

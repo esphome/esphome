@@ -1,7 +1,10 @@
 import errno
 import functools
 from importlib import resources
+import json
 import logging
+from pathlib import Path
+import sys
 
 import tzlocal
 
@@ -12,10 +15,12 @@ from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADVANCED,
     CONF_AT,
     CONF_CRON,
     CONF_DAYS_OF_MONTH,
     CONF_DAYS_OF_WEEK,
+    CONF_FRAMEWORK,
     CONF_HOUR,
     CONF_HOURS,
     CONF_ID,
@@ -28,6 +33,7 @@ from esphome.const import (
     CONF_SECONDS,
     CONF_TIMEZONE,
     CONF_TRIGGER_ID,
+    CONF_UPDATE_INTERVAL,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -37,7 +43,9 @@ from esphome.const import (
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
-from esphome.helpers import cpp_string_escape
+import esphome.final_validate as fv
+from esphome.helpers import cpp_string_escape, write_file_if_changed
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,6 +58,8 @@ RealTimeClock = time_ns.class_("RealTimeClock", cg.PollingComponent)
 CronTrigger = time_ns.class_("CronTrigger", automation.Trigger.template(), cg.Component)
 SyncTrigger = time_ns.class_("SyncTrigger", automation.Trigger.template(), cg.Component)
 TimeHasTimeCondition = time_ns.class_("TimeHasTimeCondition", Condition)
+ClockDiscipline = time_ns.class_("ClockDiscipline", cg.PollingComponent)
+CONF_DISCIPLINE = "discipline"
 
 # C++ types for pre-parsed timezone struct generation
 DSTRuleType_cpp = time_ns.enum("DSTRuleType", is_class=True)
@@ -342,6 +352,12 @@ def validate_tz(value: str) -> str:
 
 TIME_SCHEMA = cv.Schema(
     {
+        cv.Optional(CONF_DISCIPLINE): cv.All(
+            cv.only_with_framework(["esp-idf"]),
+            cv.Schema({cv.GenerateID(): cv.declare_id(ClockDiscipline)}).extend(
+                cv.COMPONENT_SCHEMA
+            ),
+        ),
         cv.Optional(CONF_TIMEZONE): cv.All(
             cv.only_with_framework(["arduino", "esp-idf", "host"]),
             validate_tz,
@@ -374,6 +390,38 @@ TIME_SCHEMA = cv.Schema(
     # unaffected; YAML can override as before.
     cv.polling_component_schema("15min", visibility=cv.Visibility.ADVANCED)
 )
+
+
+def _final_validate_discipline(config: ConfigType) -> None:
+    full_config = fv.full_config.get()
+    sources = full_config.get(DOMAIN, [])
+    owners = [entry[CONF_DISCIPLINE] for entry in sources if CONF_DISCIPLINE in entry]
+    if not owners:
+        return
+    from esphome.components import esp32
+
+    if len(owners) != 1 or len(sources) > 2:
+        raise cv.Invalid(
+            "Configure one shared discipline controller and at most two time sources"
+        )
+    if not CORE.using_toolchain_esp_idf or esp32.get_esp32_variant() not in (
+        "ESP32",
+        "ESP32S3",
+        "ESP32C6",
+    ):
+        raise cv.Invalid(
+            "Time discipline requires native ESP-IDF on ESP32, ESP32-S3 or ESP32-C6"
+        )
+    stack = full_config[PLATFORM_ESP32][CONF_FRAMEWORK][CONF_ADVANCED][
+        esp32.CONF_LOOP_TASK_STACK_SIZE
+    ]
+    if stack < 32768:
+        raise cv.Invalid(
+            "Time discipline currently requires framework.advanced.loop_task_stack_size: 32768"
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate_discipline
 
 
 def _emit_dst_rule_fields(prefix, rule):
@@ -462,11 +510,33 @@ async def register_time(time_var, config):
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if CORE.using_zephyr:
         zephyr_add_prj_conf("POSIX_CLOCK", True)
     cg.add_define("USE_TIME")
     cg.add_global(time_ns.using)
+    owners = [entry[CONF_DISCIPLINE] for entry in config if CONF_DISCIPLINE in entry]
+    if owners:
+        from esphome.components import esp32
+
+        owner = owners[0]
+        discipline = cg.new_Pvariable(owner[CONF_ID], len(config))
+        await cg.register_component(discipline, owner)
+        cg.add_define("USE_TIME_DISCIPLINE")
+        cg.add_build_flag("-Wl,--wrap=settimeofday")
+        esp32.add_idf_component(
+            name="statime", path=str(Path(__file__).parent / "statime")
+        )
+        # CMake's IDF Python environment does not contain ESPHome's build helpers.
+        # Record the builder's interpreter; no toolchain is installed during codegen.
+        write_file_if_changed(
+            CORE.relative_build_path("time_discipline.json"),
+            json.dumps({"python": sys.executable}),
+        )
+        for index, entry in enumerate(config):
+            source = await cg.get_variable(entry[CONF_ID])
+            cg.add(source.set_discipline(discipline, index))
+            cg.add(discipline.set_source_timeout(index, entry[CONF_UPDATE_INTERVAL]))
 
 
 @automation.register_condition(
@@ -490,5 +560,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
         "posix_tz.cpp": "USE_TIME_TIMEZONE",
         "automation.cpp": "USE_TIME_TRIGGERS",
+        "clock_discipline.cpp": "USE_TIME_DISCIPLINE",
     }
 )
