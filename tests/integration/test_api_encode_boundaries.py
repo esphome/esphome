@@ -57,22 +57,20 @@ async def test_api_encode_boundaries(
         assert isinstance(first_number, NumberState)
         assert first_number.state == -123.5
 
-        client.button_command(button.key)
-        await asyncio.gather(
-            waiter.expect(
-                lambda s: (
-                    isinstance(s, SensorState)
-                    and s.key == sensor.key
-                    and s.state == 12.5
-                ),
-                label="sensor 12.5",
+        # Arm both waits before the press so no ordering of the replies can slip past them
+        sensor_seen = waiter.expect(
+            lambda s: (
+                isinstance(s, SensorState) and s.key == sensor.key and s.state == 12.5
             ),
-            waiter.expect(
-                lambda s: (
-                    isinstance(s, TextSensorState)
-                    and s.key == text.key
-                    and s.state == "y" * 200
-                ),
-                label="text 200 x y",
-            ),
+            label="sensor 12.5",
         )
+        text_seen = waiter.expect(
+            lambda s: (
+                isinstance(s, TextSensorState)
+                and s.key == text.key
+                and s.state == "y" * 200
+            ),
+            label="text 200 x y",
+        )
+        client.button_command(button.key)
+        await asyncio.gather(sensor_seen, text_seen)

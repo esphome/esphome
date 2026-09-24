@@ -126,11 +126,6 @@ def camel_to_snake(name: str) -> str:
     return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
 
-def force_str(force: bool) -> str:
-    """Convert a boolean force value to string format for C++ code."""
-    return str(force).lower()
-
-
 def _encode_call(func: str, *args: str, force: bool = False) -> str:
     """Emit one ProtoEncode call; every helper takes the cursor and returns it advanced."""
     suffix = "_force" if force else ""

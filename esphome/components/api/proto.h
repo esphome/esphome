@@ -221,6 +221,9 @@ class Proto32Bit {
       proto_check_bounds_failed(pos, n, proto_debug_end_, __builtin_FUNCTION()); \
   } while (0)
 void proto_check_bounds_failed(const uint8_t *pos, size_t bytes, const uint8_t *end, const char *caller);
+/// Aborts unless an encode body ended exactly where calculate_size() promised. A plain check rather than
+/// assert(), so NDEBUG cannot switch it off.
+void proto_check_encode_end(const uint8_t *end, const uint8_t *expected);
 #else
 #define PROTO_ENCODE_DEBUG_PARAM
 #define PROTO_ENCODE_DEBUG_ARG
