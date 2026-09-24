@@ -33,6 +33,7 @@ from esphome.cpp_generator import MockObjClass
 IS_PLATFORM_COMPONENT = True
 
 CODEOWNERS = ["@esphome/core"]
+AUTO_LOAD = ["actuator"]
 
 DEVICE_CLASSES = [
     DEVICE_CLASS_EMPTY,
@@ -41,8 +42,10 @@ DEVICE_CLASSES = [
 ]
 
 valve_ns = cg.esphome_ns.namespace("valve")
+actuator_ns = cg.esphome_ns.namespace("actuator")
+ActuatorBase = actuator_ns.class_("ActuatorBase", cg.EntityBase)
 
-Valve = valve_ns.class_("Valve", cg.EntityBase)
+Valve = valve_ns.class_("Valve", ActuatorBase, actuator_ns.class_("IActuator"))
 
 VALVE_OPEN = valve_ns.VALVE_OPEN
 VALVE_CLOSED = valve_ns.VALVE_CLOSED
@@ -54,6 +57,7 @@ VALVE_STATES = {
 validate_valve_state = cv.enum(VALVE_STATES, upper=True)
 
 ValveOperation = valve_ns.enum("ValveOperation")
+
 VALVE_OPERATIONS = {
     "IDLE": ValveOperation.VALVE_OPERATION_IDLE,
     "OPENING": ValveOperation.VALVE_OPERATION_OPENING,
