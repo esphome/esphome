@@ -135,9 +135,6 @@ MultiClickTriggerBase = binary_sensor_ns.class_(
 MultiClickTrigger = binary_sensor_ns.class_("MultiClickTrigger", MultiClickTriggerBase)
 MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 
-BinarySensorPublishAction = binary_sensor_ns.class_(
-    "BinarySensorPublishAction", automation.Action
-)
 BinarySensorInvalidateAction = binary_sensor_ns.class_(
     "BinarySensorInvalidateAction", automation.Action
 )
