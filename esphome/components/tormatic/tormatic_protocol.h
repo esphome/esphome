@@ -18,32 +18,34 @@
  * | 0xF3 0xCB | 0x00 0x00 0x00 0x06 | 0x01 0x04 | 0x00 0x0A 0x00 0x01 |
  * | 0xF3 0xCB | 0x00 0x00 0x00 0x05 | 0x01 0x04 | 0x02 0x03 0x00      |
  *
- * This request asks for the gate status (0x0A); the only other value observed
- * in the request was 0x0B, but replies were always zero. Presumably this
- * queries another sensor on the unit like a safety breaker, but this is not
- * relevant for an esphome cover component.
+ * Gate status uses type 0x0A.
  *
  * The second byte of the reply is set to 0x03 when the gate is in fully open
  * position. Other valid values for the second byte are: (0x0) Paused, (0x1)
- * Closed, (0x2) Ventilating, (0x3) Opened, (0x4) Opening, (0x5) Closing. The
- * meaning of the other bytes is currently unknown and ignored by the component.
+ * Closed, (0x2) Ventilating, (0x3) Opened, (0x4) Opening, (0x5) Closing.
  *
  * Controlling the gate:
  *
  * | sequence  |        length       |    type   |       payload       |
  * | 0x40 0xFF | 0x00 0x00 0x00 0x06 | 0x01 0x06 | 0x00 0x0A 0x00 0x03 |
- * | 0x40 0xFF | 0x00 0x00 0x00 0x06 | 0x01 0x06 | 0x00 0x0A 0x00 0x03 |
  *
- * The unit acks any commands by echoing back the message in full. However,
- * this does _not_ mean the gate has started closing. The component only
- * considers status replies as authoritative and simply fires off commands,
- * ignoring the echoed messages.
+ * The unit acks commands by echoing back the message in full.
  *
- * The payload structure is as follows: [0x00, 0x0A] (gate), followed by
- * one of the states normally carried in status replies: (0x0) Pause, (0x1)
- * Close, (0x2) Ventilate (open ~20%), (0x3) Open/high-torque reverse. The
- * protocol implementation in this file simply reuses the GateStatus enum
- * for this purpose.
+ * Gate command payload:
+ *
+ *   00 0A 00 XX
+ *
+ * where XX is:
+ *
+ *   00 = pause
+ *   01 = close
+ *   02 = ventilate
+ *   03 = open
+ *
+ * Light command payload:
+ *
+ *   00 0B 00 01 = light on
+ *   00 0B 00 00 = light off
  */
 
 namespace esphome::tormatic {
@@ -56,7 +58,6 @@ enum MessageType : uint16_t {
   COMMAND = 0x0106,
 };
 
-// Max string length: 7 ("Unknown"/"Command"). Update print() buffer sizes if adding longer strings.
 inline const char *message_type_to_str(MessageType t) {
   switch (t) {
     case STATUS:
@@ -75,20 +76,21 @@ struct MessageHeader {
   MessageType type;
 
   MessageHeader() = default;
+
   MessageHeader(MessageType type, uint16_t seq, uint32_t payload_size) {
     this->type = type;
     this->seq = seq;
-    // len includes the length of the type field. It was
-    // included in MessageHeader to avoid having to parse
-    // it as part of the payload.
+
+    // len includes the length of the type field.
     this->len = payload_size + sizeof(this->type);
   }
 
   std::string print() {
-    // 64 bytes: "MessageHeader: seq " + uint16 + ", len " + uint32 + ", type " + type + safety margin
     char buf[64];
+
     buf_append_printf(buf, sizeof(buf), 0, "MessageHeader: seq %d, len %" PRIu32 ", type %s", this->seq, this->len,
                       message_type_to_str(this->type));
+
     return buf;
   }
 
@@ -98,21 +100,18 @@ struct MessageHeader {
     this->type = convert_big_endian(this->type);
   }
 
-  // payload_size returns the amount of payload bytes to be read from the uart
-  // buffer after reading the header.
   uint32_t payload_size() { return this->len > sizeof(this->type) ? this->len - sizeof(this->type) : 0; }
+
 } __attribute__((packed));
 
-// StatusType denotes which 'page' of information needs to be retrieved.
-// On my Novoferm 423, only the GATE status type returns values, Unknown
-// only contains zeroes.
+// Device/function type inside the command payload.
 enum StatusType : uint16_t {
   GATE = 0x0A,
-  UNKNOWN = 0x0B,
+  LIGHT = 0x0B,
 };
 
 // GateStatus defines the current state of the gate, received in a StatusReply
-// and sent in a Command.
+// and sent in a gate command.
 enum GateStatus : uint8_t {
   PAUSED,
   CLOSED,
@@ -126,32 +125,40 @@ inline CoverOperation gate_status_to_cover_operation(GateStatus s) {
   switch (s) {
     case OPENING:
       return COVER_OPERATION_OPENING;
+
     case CLOSING:
       return COVER_OPERATION_CLOSING;
+
     case OPENED:
     case CLOSED:
     case PAUSED:
     case VENTILATING:
       return COVER_OPERATION_IDLE;
   }
+
   return COVER_OPERATION_IDLE;
 }
 
-// Max string length: 11 ("Ventilating"). Update print() buffer sizes if adding longer strings.
 inline const char *gate_status_to_str(GateStatus s) {
   switch (s) {
     case PAUSED:
       return "Paused";
+
     case CLOSED:
       return "Closed";
+
     case VENTILATING:
       return "Ventilating";
+
     case OPENED:
       return "Opened";
+
     case OPENING:
       return "Opening";
+
     case CLOSING:
       return "Closing";
+
     default:
       return "Unknown";
   }
@@ -163,12 +170,14 @@ struct StatusRequest {
   uint16_t trailer = 0x1;
 
   StatusRequest() = default;
+
   StatusRequest(StatusType type) { this->type = type; }
 
   void byteswap() {
     this->type = convert_big_endian(this->type);
     this->trailer = convert_big_endian(this->trailer);
   }
+
 } __attribute__((packed));
 
 // StatusReply is received from the unit in response to a StatusRequest.
@@ -178,13 +187,15 @@ struct StatusReply {
   uint8_t trailer = 0x0;
 
   std::string print() {
-    // 48 bytes: "StatusReply: state " (19) + state (11) + safety margin
     char buf[48];
+
     buf_append_printf(buf, sizeof(buf), 0, "StatusReply: state %s", gate_status_to_str(this->state));
+
     return buf;
   }
 
-  void byteswap(){};
+  void byteswap() {}
+
 } __attribute__((packed));
 
 // Serialize the given object to a new byte vector.
@@ -198,30 +209,54 @@ template<typename T> std::vector<uint8_t> serialize(T obj) {
   return out;
 }
 
-// Command tells the gate to start or stop moving.
-// It is echoed back by the unit on success.
+// Gate command.
+// Serialized payload:
+//
+//   00 0A 00 XX
+//
 struct CommandRequestReply {
-  // The part of the unit to control. For now only the gate is supported.
   StatusType type = GATE;
   uint8_t pad = 0x0;
-  // The desired state:
-  // PAUSED = stop
+
+  // PAUSED      = stop
+  // CLOSED      = close
   // VENTILATING = move to ~20% open
-  // CLOSED = close
-  // OPENED = open/high-torque reverse when closing
+  // OPENED      = open/high-torque reverse when closing
   GateStatus state;
 
   CommandRequestReply() = default;
+
   CommandRequestReply(GateStatus state) { this->state = state; }
 
   std::string print() {
-    // 56 bytes: "CommandRequestReply: state " (27) + state (11) + safety margin
     char buf[56];
+
     buf_append_printf(buf, sizeof(buf), 0, "CommandRequestReply: state %s", gate_status_to_str(this->state));
+
     return buf;
   }
 
   void byteswap() { this->type = convert_big_endian(this->type); }
+
+} __attribute__((packed));
+
+// Light command.
+// Serialized payload:
+//
+//   00 0B 00 01 = ON
+//   00 0B 00 00 = OFF
+//
+struct LightCommand {
+  StatusType type = LIGHT;
+  uint8_t pad = 0x0;
+  uint8_t state;
+
+  LightCommand() = default;
+
+  explicit LightCommand(bool state) { this->state = state ? 0x01 : 0x00; }
+
+  void byteswap() { this->type = convert_big_endian(this->type); }
+
 } __attribute__((packed));
 
 }  // namespace esphome::tormatic
