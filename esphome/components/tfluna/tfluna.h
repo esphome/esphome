@@ -42,7 +42,7 @@ class TFLuna : public i2c::I2CDevice, public PollingComponent {
 
   void restart();
 
- private:
+ protected:
   char version_[12] = "unknown";
 
   uint16_t previous_timestamp_ = 0;
