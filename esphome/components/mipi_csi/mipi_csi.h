@@ -10,6 +10,7 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+#include <freertos/task.h>
 
 #include <esp_cam_sensor_types.h>
 
@@ -174,6 +175,7 @@ class MipiCsiCamera final : public camera::Camera {
   FixedVector<FrameBuffer> buffers_;
   JpegEncoder encoder_;
   QueueHandle_t result_queue_{nullptr};
+  TaskHandle_t capture_task_handle_{nullptr};
   /// Set by the main loop to ask the capture task for one frame, cleared by the task when done.
   std::atomic<bool> frame_wanted_{false};
 
