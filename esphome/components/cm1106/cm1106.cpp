@@ -9,12 +9,13 @@ static const char *const TAG = "cm1106";
 static const uint8_t C_M1106_CMD_GET_CO2[4] = {0x11, 0x01, 0x01, 0xED};
 static const uint8_t C_M1106_CMD_SET_CO2_CALIB[6] = {0x11, 0x03, 0x03, 0x00, 0x00, 0x00};
 static const uint8_t C_M1106_CMD_SET_CO2_CALIB_RESPONSE[4] = {0x16, 0x01, 0x03, 0xE6};
+// The factory default ABC calibration cycle differs between CM1106 models, so
+// every ABC write applies the configured cycle and baseline explicitly.
 static const uint8_t C_M1106_CMD_SET_ABC_STATUS[10] = {0x11, 0x07, 0x10, 0x64, 0x00, 0x0F, 0x01, 0x90, 0x64, 0x00};
 static const uint8_t C_M1106_CMD_SET_ABC_STATUS_RESPONSE[4] = {0x16, 0x01, 0x10, 0xD9};
 
 static const uint8_t CM1106_ABC_FLAG_ENABLE = 0x0;
 static const uint8_t CM1106_ABC_FLAG_DISABLE = 0x2;
-
 uint8_t cm1106_checksum(const uint8_t *response, size_t len) {
   uint8_t crc = 0;
   for (size_t i = 0; i < len - 1; i++) {
@@ -32,7 +33,7 @@ void CM1106Component::setup() {
   }
 
   if (this->abc_boot_logic_ != CM1106_ABC_NONE) {
-    this->abc_set_(this->abc_boot_logic_);
+    this->abc_set_(this->abc_boot_logic_ == CM1106_ABC_ENABLED);
   }
 }
 
@@ -67,14 +68,14 @@ void CM1106Component::update() {
     const bool preheating = status & 0x1;
     if (preheating) {
       ESP_LOGW(TAG, "Preheating; CO₂=%uppm", ppm);
+      this->status_set_warning();
+      return;
     } else {
-      ESP_LOGW(TAG, "returned error, status=%02X", status);
+      ESP_LOGW(TAG, "Status: %02X", status);
     }
-    this->status_set_warning();
-    return;
   }
 
-  ESP_LOGD(TAG, "CO₂=%uppm status=%02X DF4=%02X", ppm, status, response[6]);
+  ESP_LOGD(TAG, "CO₂=%uppm DF4=%02X", ppm, response[6]);
   if (this->co2_sensor_ != nullptr)
     this->co2_sensor_->publish_state(ppm);
 }
@@ -103,10 +104,14 @@ void CM1106Component::calibrate_zero(uint16_t ppm) {
   ESP_LOGD(TAG, "Successfully calibrated sensor to %uppm", ppm);
 }
 
-void CM1106Component::send_abc_command_(uint8_t flag) {
+void CM1106Component::abc_set_(bool enabled) {
+  ESP_LOGD(TAG, "%sabling automatic baseline calibration", enabled ? LOG_STR_LITERAL("En") : LOG_STR_LITERAL("Dis"));
   uint8_t cmd[10];
   memcpy(cmd, C_M1106_CMD_SET_ABC_STATUS, sizeof(cmd));
-  cmd[4] = flag;
+  cmd[4] = enabled ? CM1106_ABC_FLAG_ENABLE : CM1106_ABC_FLAG_DISABLE;
+  cmd[5] = this->abc_cycle_;
+  cmd[6] = this->abc_baseline_ >> 8;
+  cmd[7] = this->abc_baseline_ & 0xFF;
   uint8_t response[4] = {0};
 
   if (!this->cm1106_write_command_(cmd, sizeof(cmd), response, sizeof(response))) {
@@ -125,19 +130,6 @@ void CM1106Component::send_abc_command_(uint8_t flag) {
   this->status_clear_warning();
   ESP_LOGD(TAG, "Successfully set ABC status");
 }
-
-void CM1106Component::abc_set_(CM1106ABCLogic abc_logic) {
-  if (abc_logic == CM1106_ABC_NONE) {
-    ESP_LOGE(TAG, "Invalid ABC logic");
-    return;
-  }
-  const bool abc_enabled = (abc_logic == CM1106_ABC_ENABLED);
-  const char *abc_operation = abc_enabled ? "En" : "Dis";
-  ESP_LOGD(TAG, "%sabling automatic baseline calibration", abc_operation);
-  const uint8_t flag = abc_enabled ? CM1106_ABC_FLAG_ENABLE : CM1106_ABC_FLAG_DISABLE;
-  this->send_abc_command_(flag);
-}
-
 bool CM1106Component::cm1106_write_command_(const uint8_t *command, size_t command_len, uint8_t *response,
                                             size_t response_len) {
   // Empty RX Buffer
@@ -159,8 +151,9 @@ void CM1106Component::dump_config() {
   if (this->abc_boot_logic_ != CM1106_ABC_NONE) {
     ESP_LOGCONFIG(TAG, "  Automatic baseline calibration on boot: %s",
                   ONOFF(this->abc_boot_logic_ == CM1106_ABC_ENABLED));
+    ESP_LOGCONFIG(TAG, "  ABC calibration cycle: %u days", this->abc_cycle_);
+    ESP_LOGCONFIG(TAG, "  ABC baseline: %uppm", this->abc_baseline_);
   }
-
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
