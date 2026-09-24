@@ -6,7 +6,7 @@
 
 namespace esphome::tc74 {
 
-class TC74Component : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
+class TC74Component final : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
  public:
   /// Setup the sensor and check connection.
   void setup() override;

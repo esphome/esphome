@@ -41,7 +41,7 @@ enum HlkFm22xNoteType {
 };
 
 enum HlkFm22xResult {
-  SUCCESS = 0x00,
+  SUCCEEDED = 0x00,
   REJECTED = 0x01,
   ABORTED = 0x02,
   FAILED4_CAMERA = 0x04,
@@ -139,43 +139,6 @@ class HlkFm22xComponent final : public PollingComponent, public uart::UARTDevice
   CallbackManager<void(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t)> face_info_callback_;
   CallbackManager<void(int16_t, uint8_t)> enrollment_done_callback_;
   CallbackManager<void(uint8_t)> enrollment_failed_callback_;
-};
-
-template<typename... Ts> class EnrollmentAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  TEMPLATABLE_VALUE(std::string, name)
-  TEMPLATABLE_VALUE(uint8_t, direction)
-
-  void play(const Ts &...x) override {
-    auto name = this->name_.value(x...);
-    auto direction = (HlkFm22xFaceDirection) this->direction_.value(x...);
-    this->parent_->enroll_face(name, direction);
-  }
-};
-
-template<typename... Ts> class DeleteAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  TEMPLATABLE_VALUE(int16_t, face_id)
-
-  void play(const Ts &...x) override {
-    auto face_id = this->face_id_.value(x...);
-    this->parent_->delete_face(face_id);
-  }
-};
-
-template<typename... Ts> class DeleteAllAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->delete_all_faces(); }
-};
-
-template<typename... Ts> class ScanAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->scan_face(); }
-};
-
-template<typename... Ts> class ResetAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->reset(); }
 };
 
 }  // namespace esphome::hlk_fm22x

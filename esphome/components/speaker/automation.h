@@ -7,7 +7,7 @@
 
 namespace esphome::speaker {
 
-template<typename... Ts> class PlayAction : public Action<Ts...>, public Parented<Speaker> {
+template<typename... Ts> class PlayAction final : public Action<Ts...>, public Parented<Speaker> {
  public:
   void set_data_template(std::vector<uint8_t> (*func)(Ts...)) {
     this->data_.func = func;
@@ -38,47 +38,12 @@ template<typename... Ts> class PlayAction : public Action<Ts...>, public Parente
   } data_;
 };
 
-template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Parented<Speaker> {
-  TEMPLATABLE_VALUE(float, volume)
-  void play(const Ts &...x) override { this->parent_->set_volume(this->volume_.value(x...)); }
-};
-
-template<typename... Ts> class MuteOnAction : public Action<Ts...> {
- public:
-  explicit MuteOnAction(Speaker *speaker) : speaker_(speaker) {}
-
-  void play(const Ts &...x) override { this->speaker_->set_mute_state(true); }
-
- protected:
-  Speaker *speaker_;
-};
-
-template<typename... Ts> class MuteOffAction : public Action<Ts...> {
- public:
-  explicit MuteOffAction(Speaker *speaker) : speaker_(speaker) {}
-
-  void play(const Ts &...x) override { this->speaker_->set_mute_state(false); }
-
- protected:
-  Speaker *speaker_;
-};
-
-template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<Speaker> {
- public:
-  void play(const Ts &...x) override { this->parent_->stop(); }
-};
-
-template<typename... Ts> class FinishAction : public Action<Ts...>, public Parented<Speaker> {
- public:
-  void play(const Ts &...x) override { this->parent_->finish(); }
-};
-
-template<typename... Ts> class IsPlayingCondition : public Condition<Ts...>, public Parented<Speaker> {
+template<typename... Ts> class IsPlayingCondition final : public Condition<Ts...>, public Parented<Speaker> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_running(); }
 };
 
-template<typename... Ts> class IsStoppedCondition : public Condition<Ts...>, public Parented<Speaker> {
+template<typename... Ts> class IsStoppedCondition final : public Condition<Ts...>, public Parented<Speaker> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_stopped(); }
 };

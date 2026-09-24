@@ -46,6 +46,7 @@ class DFPlayer final : public uart::UARTDevice, public Component {
   void pause();
   void stop();
   void random();
+  void set_current_track_repeat(bool enable);
 
   bool is_playing() { return is_playing_; }
   void dump_config() override;

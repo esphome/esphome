@@ -5,6 +5,7 @@ from esphome.automation import Condition, maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server, zigbee
 from esphome.components.const import CONF_ON_STATE_CHANGE
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DELAY,
@@ -38,6 +39,7 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_GARAGE_DOOR,
     DEVICE_CLASS_GAS,
+    DEVICE_CLASS_GLASS_BREAK,
     DEVICE_CLASS_HEAT,
     DEVICE_CLASS_LIGHT,
     DEVICE_CLASS_LOCK,
@@ -80,6 +82,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_GARAGE_DOOR,
     DEVICE_CLASS_GAS,
+    DEVICE_CLASS_GLASS_BREAK,
     DEVICE_CLASS_HEAT,
     DEVICE_CLASS_LIGHT,
     DEVICE_CLASS_LOCK,
@@ -131,9 +134,6 @@ MultiClickTriggerBase = binary_sensor_ns.class_(
 MultiClickTrigger = binary_sensor_ns.class_("MultiClickTrigger", MultiClickTriggerBase)
 MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 
-BinarySensorPublishAction = binary_sensor_ns.class_(
-    "BinarySensorPublishAction", automation.Action
-)
 BinarySensorInvalidateAction = binary_sensor_ns.class_(
     "BinarySensorInvalidateAction", automation.Action
 )
@@ -448,8 +448,12 @@ _BINARY_SENSOR_SCHEMA = (
             cv.Exclusive(
                 CONF_TRIGGER_ON_INITIAL_STATE, CONF_TRIGGER_ON_INITIAL_STATE
             ): cv.boolean,
-            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-            cv.Optional(CONF_FILTERS): validate_filters,
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_device_class,
+            cv.Optional(
+                CONF_FILTERS, visibility=cv.Visibility.ADVANCED
+            ): validate_filters,
             cv.Optional(CONF_ON_PRESS): automation.validate_automation({}),
             cv.Optional(CONF_ON_RELEASE): automation.validate_automation({}),
             cv.Optional(CONF_ON_CLICK): cv.All(
@@ -557,6 +561,11 @@ _CALLBACK_AUTOMATIONS = (
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_binary_sensor_automations(var, config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+
+    if config.get(CONF_ON_CLICK) or config.get(CONF_ON_DOUBLE_CLICK):
+        cg.add_define("USE_BINARY_SENSOR_CLICK_TRIGGER")
+    if config.get(CONF_ON_MULTI_CLICK):
+        cg.add_define("USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER")
 
     for conf in config.get(CONF_ON_CLICK, []):
         trigger = cg.new_Pvariable(
@@ -671,3 +680,15 @@ async def to_code(config):
 async def binary_sensor_invalidate_state_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+# automation.cpp only implements the click/double_click/multi_click triggers
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {
+        "automation.cpp": (
+            "USE_BINARY_SENSOR_CLICK_TRIGGER",
+            "USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER",
+        ),
+        "filter.cpp": "USE_BINARY_SENSOR_FILTER",
+    }
+)

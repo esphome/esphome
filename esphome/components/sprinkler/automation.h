@@ -6,47 +6,7 @@
 
 namespace esphome::sprinkler {
 
-template<typename... Ts> class SetDividerAction : public Action<Ts...> {
- public:
-  explicit SetDividerAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
-
-  TEMPLATABLE_VALUE(uint32_t, divider)
-
-  void play(const Ts &...x) override { this->sprinkler_->set_divider(this->divider_.optional_value(x...)); }
-
- protected:
-  Sprinkler *sprinkler_;
-};
-
-template<typename... Ts> class SetMultiplierAction : public Action<Ts...> {
- public:
-  explicit SetMultiplierAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
-
-  TEMPLATABLE_VALUE(float, multiplier)
-
-  void play(const Ts &...x) override { this->sprinkler_->set_multiplier(this->multiplier_.optional_value(x...)); }
-
- protected:
-  Sprinkler *sprinkler_;
-};
-
-template<typename... Ts> class QueueValveAction : public Action<Ts...> {
- public:
-  explicit QueueValveAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
-
-  TEMPLATABLE_VALUE(size_t, valve_number)
-  TEMPLATABLE_VALUE(uint32_t, valve_run_duration)
-
-  void play(const Ts &...x) override {
-    this->sprinkler_->queue_valve(this->valve_number_.optional_value(x...),
-                                  this->valve_run_duration_.optional_value(x...));
-  }
-
- protected:
-  Sprinkler *sprinkler_;
-};
-
-template<typename... Ts> class ClearQueuedValvesAction : public Action<Ts...> {
+template<typename... Ts> class ClearQueuedValvesAction final : public Action<Ts...> {
  public:
   explicit ClearQueuedValvesAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
 
@@ -56,35 +16,7 @@ template<typename... Ts> class ClearQueuedValvesAction : public Action<Ts...> {
   Sprinkler *sprinkler_;
 };
 
-template<typename... Ts> class SetRepeatAction : public Action<Ts...> {
- public:
-  explicit SetRepeatAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
-
-  TEMPLATABLE_VALUE(uint32_t, repeat)
-
-  void play(const Ts &...x) override { this->sprinkler_->set_repeat(this->repeat_.optional_value(x...)); }
-
- protected:
-  Sprinkler *sprinkler_;
-};
-
-template<typename... Ts> class SetRunDurationAction : public Action<Ts...> {
- public:
-  explicit SetRunDurationAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
-
-  TEMPLATABLE_VALUE(size_t, valve_number)
-  TEMPLATABLE_VALUE(uint32_t, valve_run_duration)
-
-  void play(const Ts &...x) override {
-    this->sprinkler_->set_valve_run_duration(this->valve_number_.optional_value(x...),
-                                             this->valve_run_duration_.optional_value(x...));
-  }
-
- protected:
-  Sprinkler *sprinkler_;
-};
-
-template<typename... Ts> class StartFromQueueAction : public Action<Ts...> {
+template<typename... Ts> class StartFromQueueAction final : public Action<Ts...> {
  public:
   explicit StartFromQueueAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
 
@@ -94,7 +26,7 @@ template<typename... Ts> class StartFromQueueAction : public Action<Ts...> {
   Sprinkler *sprinkler_;
 };
 
-template<typename... Ts> class StartFullCycleAction : public Action<Ts...> {
+template<typename... Ts> class StartFullCycleAction final : public Action<Ts...> {
  public:
   explicit StartFullCycleAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
 
@@ -104,7 +36,7 @@ template<typename... Ts> class StartFullCycleAction : public Action<Ts...> {
   Sprinkler *sprinkler_;
 };
 
-template<typename... Ts> class StartSingleValveAction : public Action<Ts...> {
+template<typename... Ts> class StartSingleValveAction final : public Action<Ts...> {
  public:
   explicit StartSingleValveAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
 
@@ -122,7 +54,7 @@ template<typename... Ts> class StartSingleValveAction : public Action<Ts...> {
   TemplatableValue<size_t, Ts...> valve_to_start_{};
 };
 
-template<typename... Ts> class ShutdownAction : public Action<Ts...> {
+template<typename... Ts> class ShutdownAction final : public Action<Ts...> {
  public:
   explicit ShutdownAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
 
@@ -132,7 +64,7 @@ template<typename... Ts> class ShutdownAction : public Action<Ts...> {
   Sprinkler *sprinkler_;
 };
 
-template<typename... Ts> class NextValveAction : public Action<Ts...> {
+template<typename... Ts> class NextValveAction final : public Action<Ts...> {
  public:
   explicit NextValveAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
 
@@ -142,7 +74,7 @@ template<typename... Ts> class NextValveAction : public Action<Ts...> {
   Sprinkler *sprinkler_;
 };
 
-template<typename... Ts> class PreviousValveAction : public Action<Ts...> {
+template<typename... Ts> class PreviousValveAction final : public Action<Ts...> {
  public:
   explicit PreviousValveAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
 
@@ -152,7 +84,7 @@ template<typename... Ts> class PreviousValveAction : public Action<Ts...> {
   Sprinkler *sprinkler_;
 };
 
-template<typename... Ts> class PauseAction : public Action<Ts...> {
+template<typename... Ts> class PauseAction final : public Action<Ts...> {
  public:
   explicit PauseAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
 
@@ -162,7 +94,7 @@ template<typename... Ts> class PauseAction : public Action<Ts...> {
   Sprinkler *sprinkler_;
 };
 
-template<typename... Ts> class ResumeAction : public Action<Ts...> {
+template<typename... Ts> class ResumeAction final : public Action<Ts...> {
  public:
   explicit ResumeAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
 
@@ -172,7 +104,7 @@ template<typename... Ts> class ResumeAction : public Action<Ts...> {
   Sprinkler *sprinkler_;
 };
 
-template<typename... Ts> class ResumeOrStartAction : public Action<Ts...> {
+template<typename... Ts> class ResumeOrStartAction final : public Action<Ts...> {
  public:
   explicit ResumeOrStartAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
 

@@ -81,12 +81,6 @@ struct Timer {
              this->id.c_str(), this->name.c_str(), this->total_seconds, this->seconds_left, YESNO(this->is_active));
     return buffer.data();
   }
-  // Remove before 2026.8.0
-  ESPDEPRECATED("Use to_str() instead. Removed in 2026.8.0", "2026.2.0")
-  std::string to_string() const {  // NOLINT
-    char buffer[TO_STR_BUFFER_SIZE];
-    return this->to_str(buffer);
-  }
 };
 
 struct WakeWord {
@@ -110,7 +104,7 @@ enum class MediaPlayerResponseState {
 };
 #endif
 
-class VoiceAssistant : public Component {
+class VoiceAssistant final : public Component {
  public:
   VoiceAssistant();
 
@@ -353,37 +347,12 @@ class VoiceAssistant : public Component {
 #endif
 };
 
-template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<VoiceAssistant> {
-  TEMPLATABLE_VALUE(std::string, wake_word);
-
- public:
-  void play(const Ts &...x) override {
-    this->parent_->set_wake_word(this->wake_word_.value(x...));
-    this->parent_->request_start(false, this->silence_detection_);
-  }
-
-  void set_silence_detection(bool silence_detection) { this->silence_detection_ = silence_detection; }
-
- protected:
-  bool silence_detection_;
-};
-
-template<typename... Ts> class StartContinuousAction : public Action<Ts...>, public Parented<VoiceAssistant> {
- public:
-  void play(const Ts &...x) override { this->parent_->request_start(true, true); }
-};
-
-template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<VoiceAssistant> {
- public:
-  void play(const Ts &...x) override { this->parent_->request_stop(); }
-};
-
-template<typename... Ts> class IsRunningCondition : public Condition<Ts...>, public Parented<VoiceAssistant> {
+template<typename... Ts> class IsRunningCondition final : public Condition<Ts...>, public Parented<VoiceAssistant> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_running() || this->parent_->is_continuous(); }
 };
 
-template<typename... Ts> class ConnectedCondition : public Condition<Ts...>, public Parented<VoiceAssistant> {
+template<typename... Ts> class ConnectedCondition final : public Condition<Ts...>, public Parented<VoiceAssistant> {
  public:
   bool check(const Ts &...x) override { return this->parent_->get_api_connection() != nullptr; }
 };

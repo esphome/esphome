@@ -11,7 +11,7 @@ enum SensorType {
   SUN_SENSOR_AZIMUTH,
 };
 
-class SunSensor : public sensor::Sensor, public PollingComponent {
+class SunSensor final : public sensor::Sensor, public PollingComponent {
  public:
   void set_parent(Sun *parent) { parent_ = parent; }
   void set_type(SensorType type) { type_ = type; }

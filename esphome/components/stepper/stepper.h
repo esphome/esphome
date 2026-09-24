@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 
 namespace esphome::stepper {
 
@@ -35,76 +34,6 @@ class Stepper {
   float max_speed_{1e6f};
   uint32_t last_calculation_{0};
   uint32_t last_step_{0};
-};
-
-template<typename... Ts> class SetTargetAction : public Action<Ts...> {
- public:
-  explicit SetTargetAction(Stepper *parent) : parent_(parent) {}
-
-  TEMPLATABLE_VALUE(int32_t, target)
-
-  void play(const Ts &...x) override { this->parent_->set_target(this->target_.value(x...)); }
-
- protected:
-  Stepper *parent_;
-};
-
-template<typename... Ts> class ReportPositionAction : public Action<Ts...> {
- public:
-  explicit ReportPositionAction(Stepper *parent) : parent_(parent) {}
-
-  TEMPLATABLE_VALUE(int32_t, position)
-
-  void play(const Ts &...x) override { this->parent_->report_position(this->position_.value(x...)); }
-
- protected:
-  Stepper *parent_;
-};
-
-template<typename... Ts> class SetSpeedAction : public Action<Ts...> {
- public:
-  explicit SetSpeedAction(Stepper *parent) : parent_(parent) {}
-
-  TEMPLATABLE_VALUE(float, speed);
-
-  void play(const Ts &...x) override {
-    float speed = this->speed_.value(x...);
-    this->parent_->set_max_speed(speed);
-    this->parent_->on_update_speed();
-  }
-
- protected:
-  Stepper *parent_;
-};
-
-template<typename... Ts> class SetAccelerationAction : public Action<Ts...> {
- public:
-  explicit SetAccelerationAction(Stepper *parent) : parent_(parent) {}
-
-  TEMPLATABLE_VALUE(float, acceleration);
-
-  void play(const Ts &...x) override {
-    float acceleration = this->acceleration_.value(x...);
-    this->parent_->set_acceleration(acceleration);
-  }
-
- protected:
-  Stepper *parent_;
-};
-
-template<typename... Ts> class SetDecelerationAction : public Action<Ts...> {
- public:
-  explicit SetDecelerationAction(Stepper *parent) : parent_(parent) {}
-
-  TEMPLATABLE_VALUE(float, deceleration);
-
-  void play(const Ts &...x) override {
-    float deceleration = this->deceleration_.value(x...);
-    this->parent_->set_deceleration(deceleration);
-  }
-
- protected:
-  Stepper *parent_;
 };
 
 }  // namespace esphome::stepper

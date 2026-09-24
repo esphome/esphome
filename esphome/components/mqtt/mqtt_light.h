@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTJSONLightComponent : public mqtt::MQTTComponent, public light::LightRemoteValuesListener {
+class MQTTJSONLightComponent final : public mqtt::MQTTComponent, public light::LightRemoteValuesListener {
  public:
   explicit MQTTJSONLightComponent(light::LightState *state);
 

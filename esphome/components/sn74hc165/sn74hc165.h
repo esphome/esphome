@@ -8,7 +8,7 @@
 
 namespace esphome::sn74hc165 {
 
-class SN74HC165Component : public Component {
+class SN74HC165Component final : public Component {
  public:
   SN74HC165Component() = default;
 
@@ -40,7 +40,7 @@ class SN74HC165Component : public Component {
 };
 
 /// Helper class to expose a SC74HC165 pin as an internal input GPIO pin.
-class SN74HC165GPIOPin : public GPIOPin, public Parented<SN74HC165Component> {
+class SN74HC165GPIOPin final : public GPIOPin, public Parented<SN74HC165Component> {
  public:
   void setup() override {}
   void pin_mode(gpio::Flags flags) override {}

@@ -4,7 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
-#include <vector>
+#include <span>
 
 namespace esphome::selec_meter {
 
@@ -15,7 +15,7 @@ namespace esphome::selec_meter {
  public: \
   void set_##name##_sensor(sensor::Sensor *(name)) { this->name##_sensor_ = name; }
 
-class SelecMeter final : public PollingComponent, public modbus::ModbusDevice {
+class SelecMeter final : public PollingComponent, public modbus::ModbusClientDevice {
  public:
   SELEC_METER_SENSOR(total_active_energy)
   SELEC_METER_SENSOR(import_active_energy)
@@ -37,7 +37,8 @@ class SelecMeter final : public PollingComponent, public modbus::ModbusDevice {
 
   void update() override;
 
-  void on_modbus_data(const std::vector<uint8_t> &data) override;
+  void on_read_input_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                               modbus::ResponseStatus status) override;
 
   void dump_config() override;
 };

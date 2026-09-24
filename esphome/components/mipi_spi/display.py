@@ -41,14 +41,11 @@ from esphome.const import (
     CONF_DATA_RATE,
     CONF_DC_PIN,
     CONF_DIMENSIONS,
-    CONF_DISABLED,
     CONF_ENABLE_PIN,
     CONF_ID,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
     CONF_LAMBDA,
-    CONF_MIRROR_X,
-    CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_RESET_PIN,
     CONF_ROTATION,
@@ -56,8 +53,9 @@ from esphome.const import (
     CONF_TRANSFORM,
     CONF_WIDTH,
 )
-from esphome.cpp_generator import TemplateArguments
+from esphome.cpp_generator import MockObjClass, TemplateArguments
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 from . import CONF_BUS_MODE, CONF_SPI_16, DOMAIN, models
 
@@ -113,7 +111,7 @@ DISPLAY_PIXEL_MODES = {
 }
 
 
-def denominator(config):
+def denominator(config: ConfigType) -> int:
     """
     Calculate the best denominator for a buffer size fraction.
     The denominator should be a number between 2 and 16 that divides the display height evenly,
@@ -135,19 +133,10 @@ def denominator(config):
         return next(x for x in range(2, 17) if frac >= 1 / x)
 
 
-def model_schema(config):
+def model_schema(config: ConfigType) -> cv.All | cv.Schema:
     model = MODELS[config[CONF_MODEL]]
     bus_mode = config[CONF_BUS_MODE]
-    transform = cv.Any(
-        cv.Schema(
-            {
-                cv.Required(CONF_MIRROR_X): cv.boolean,
-                cv.Required(CONF_MIRROR_Y): cv.boolean,
-                **model.swap_xy_schema(),
-            }
-        ),
-        cv.one_of(CONF_DISABLED, lower=True),
-    )
+    transform = model.transform_schema()
     # CUSTOM model will need to provide a custom init sequence
     iseqconf = (
         cv.Required(CONF_INIT_SEQUENCE)
@@ -250,7 +239,7 @@ def model_schema(config):
 
 
 @model_schema_extractor(MODELS, model_schema, extra={CONF_BUS_MODE: TYPE_SINGLE})
-def customise_schema(config):
+def customise_schema(config: ConfigType) -> ConfigType:
     """
     Create a customised config schema for a specific model and validate the configuration.
     :param config: The configuration dictionary to validate
@@ -265,6 +254,7 @@ def customise_schema(config):
         extra=ALLOW_EXTRA,
     )(config)
     model = MODELS[config[CONF_MODEL]]
+    model.check_requirements()
     bus_modes = (TYPE_SINGLE, TYPE_QUAD, TYPE_OCTAL)
     config = cv.Schema(
         {
@@ -316,7 +306,7 @@ def customise_schema(config):
 CONFIG_SCHEMA = customise_schema
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     global_config = full_config.get()
     model = MODELS[config[CONF_MODEL]]
 
@@ -352,7 +342,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def get_instance(config):
+def get_instance(config: ConfigType) -> tuple[MockObjClass, list]:
     """
     Get the type of MipiSpi instance to create based on the configuration,
     and the template arguments.
@@ -405,10 +395,10 @@ def get_instance(config):
     return MipiSpi, templateargs
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     model = MODELS[config[CONF_MODEL]]
     var_id = config[CONF_ID]
-    init_sequence = model.get_sequence(config, False)
+    init_sequence = model.get_sequence(config, add_madctl=False, add_reset=True)
     var_id.type, templateargs = get_instance(config)
     var = cg.new_Pvariable(var_id, TemplateArguments(*templateargs))
     cg.add(var.set_init_sequence(init_sequence))
@@ -425,6 +415,8 @@ async def to_code(config):
         dc_pin = await cg.gpio_pin_expression(dc_pin)
         cg.add(var.set_dc_pin(dc_pin))
 
+    if config.get(CONF_INVERT_COLORS):
+        cg.add(var.set_invert_colors(True))
     if lamb := config.get(CONF_LAMBDA):
         lambda_ = await cg.process_lambda(
             lamb, [(display.DisplayRef, "it")], return_type=cg.void
