@@ -21,8 +21,7 @@ from esphome.const import (
     UNIT_PULSES,
     UNIT_PULSES_PER_MINUTE,
 )
-from esphome.core import CORE, ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 CONF_USE_PCNT = "use_pcnt"
@@ -39,10 +38,6 @@ COUNT_MODE_SCHEMA = cv.enum(COUNT_MODES, upper=True)
 
 PulseCounterSensor = pulse_counter_ns.class_(
     "PulseCounterSensor", sensor.Sensor, cg.PollingComponent
-)
-
-SetTotalPulsesAction = pulse_counter_ns.class_(
-    "SetTotalPulsesAction", automation.Action
 )
 
 
@@ -150,25 +145,13 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_total_sensor(sens))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "pulse_counter.set_total_pulses",
-    SetTotalPulsesAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(PulseCounterSensor),
             cv.Required(CONF_VALUE): cv.templatable(cv.uint32_t),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "set_total_pulses", cg.uint32),
 )
-async def set_total_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint32)
-    cg.add(var.set_total_pulses(template_))
-    return var
