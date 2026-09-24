@@ -1,7 +1,7 @@
 from logging import getLogger
 
 from esphome import automation, core
-from esphome.automation import Condition, maybe_simple_id
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server, zigbee
 from esphome.components.const import CONF_ON_STATE_CHANGE
@@ -137,9 +137,6 @@ MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 BinarySensorInvalidateAction = binary_sensor_ns.class_(
     "BinarySensorInvalidateAction", automation.Action
 )
-
-# Condition
-BinarySensorCondition = binary_sensor_ns.class_("BinarySensorCondition", Condition)
 
 # Filters
 Filter = binary_sensor_ns.class_("Filter")
@@ -645,20 +642,12 @@ BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_condition(
-    "binary_sensor.is_on", BinarySensorCondition, BINARY_SENSOR_CONDITION_SCHEMA
+automation.register_apply_condition(
+    "binary_sensor.is_on", BINARY_SENSOR_CONDITION_SCHEMA, "state"
 )
-async def binary_sensor_is_on_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren, True)
-
-
-@automation.register_condition(
-    "binary_sensor.is_off", BinarySensorCondition, BINARY_SENSOR_CONDITION_SCHEMA
+automation.register_apply_condition(
+    "binary_sensor.is_off", BINARY_SENSOR_CONDITION_SCHEMA, "state == false"
 )
-async def binary_sensor_is_off_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren, False)
 
 
 @coroutine_with_priority(CoroPriority.CORE)
