@@ -386,7 +386,7 @@ LIGHT_CONDITION_SCHEMA = automation.maybe_simple_id(
 )
 
 automation.register_apply_condition(
-    "light.is_on", LIGHT_CONDITION_SCHEMA, "current_values.is_on() == true"
+    "light.is_on", LIGHT_CONDITION_SCHEMA, "current_values.is_on()"
 )
 automation.register_apply_condition(
     "light.is_off", LIGHT_CONDITION_SCHEMA, "current_values.is_on() == false"
