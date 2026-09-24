@@ -370,7 +370,7 @@ FAN_CONDITION_SCHEMA = automation.maybe_simple_id(
     }
 )
 
-automation.register_apply_condition("fan.is_on", FAN_CONDITION_SCHEMA, "state == true")
+automation.register_apply_condition("fan.is_on", FAN_CONDITION_SCHEMA, "state")
 automation.register_apply_condition(
     "fan.is_off", FAN_CONDITION_SCHEMA, "state == false"
 )
