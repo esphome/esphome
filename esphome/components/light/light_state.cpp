@@ -18,7 +18,7 @@ LightState::LightState(LightOutput *output) : output_(output) {}
 LightTraits LightState::get_traits() { return this->output_->get_traits(); }
 LightCall LightState::turn_on() { return this->make_call().set_state(true); }
 LightCall LightState::turn_off() { return this->make_call().set_state(false); }
-LightCall LightState::toggle() { return this->make_call().set_state(!this->get_target_values().is_on()); }
+LightCall LightState::toggle() { return this->make_call().set_state(!this->remote_values.is_on()); }
 LightCall LightState::make_call() { return LightCall(this); }
 
 void LightState::setup() {
@@ -141,7 +141,6 @@ void LightState::loop() {
     if (this->transition_publish_enabled_ && !finished) {
       const uint32_t now = App.get_loop_component_start_time();
       if (now - this->last_transition_state_publish_ >= this->transition_state_publish_interval_) {
-        this->remote_values = this->current_values;
         this->publish_state();
         this->last_transition_state_publish_ = now;
       }
@@ -156,12 +155,9 @@ void LightState::loop() {
       this->transformer_ = nullptr;
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
       if (this->transition_publish_enabled_) {
+        // Report the end state from remote_values; a flash's stop() left publishing to us
         this->transition_publish_enabled_ = false;
-        // A flash's stop() already restored and published its end state
-        if (this->remote_values != this->current_values) {
-          this->remote_values = this->current_values;
-          this->publish_state();
-        }
+        this->publish_state();
       }
 #endif
       if (this->target_state_reached_listeners_) {
@@ -419,37 +415,35 @@ void LightState::disable_loop_if_idle_() {
 void LightState::set_transformer_remote_values_(const LightColorValues &target, bool set_remote_values) {
   this->transition_publish_enabled_ = set_remote_values && this->transition_state_publish_interval_ > 0;
   if (this->transition_publish_enabled_) {
-    // loop() copies current_values into remote_values on each interval and at the end
-    this->remote_values = this->current_values;
     this->last_transition_state_publish_ = App.get_loop_component_start_time();
-  } else if (set_remote_values) {
+  }
+  if (set_remote_values) {
     this->remote_values = target;
   }
 }
 #endif
 
 void LightState::save_remote_values_() {
-  const LightColorValues &values = this->get_target_values();
   LightStateRTCState saved;
-  saved.color_mode = values.get_color_mode();
+  saved.color_mode = this->remote_values.get_color_mode();
   switch (this->restore_mode_) {
     case LIGHT_RESTORE_AND_OFF:
     case LIGHT_RESTORE_AND_ON:
       saved.state = (this->restore_mode_ == LIGHT_RESTORE_AND_ON);
       break;
     default:
-      saved.state = values.is_on();
+      saved.state = this->remote_values.is_on();
       break;
   }
-  saved.brightness = values.get_brightness();
-  saved.color_brightness = values.get_color_brightness();
-  saved.red = values.get_red();
-  saved.green = values.get_green();
-  saved.blue = values.get_blue();
-  saved.white = values.get_white();
-  saved.color_temp = values.get_color_temperature();
-  saved.cold_white = values.get_cold_white();
-  saved.warm_white = values.get_warm_white();
+  saved.brightness = this->remote_values.get_brightness();
+  saved.color_brightness = this->remote_values.get_color_brightness();
+  saved.red = this->remote_values.get_red();
+  saved.green = this->remote_values.get_green();
+  saved.blue = this->remote_values.get_blue();
+  saved.white = this->remote_values.get_white();
+  saved.color_temp = this->remote_values.get_color_temperature();
+  saved.cold_white = this->remote_values.get_cold_white();
+  saved.warm_white = this->remote_values.get_warm_white();
   saved.effect = this->active_effect_index_;
   this->rtc_.save(&saved);
 }

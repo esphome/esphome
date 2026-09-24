@@ -32,7 +32,7 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
     root[ESPHOME_F("effect_count")] = state.get_effect_count();
   }
 
-  auto values = state.remote_values;
+  auto values = state.get_reported_values();
 
   const auto color_mode = values.get_color_mode();
   const auto *mode_str = get_color_mode_json_str(color_mode);
@@ -78,7 +78,7 @@ void LightJSONSchema::parse_color_json(LightState &state, LightCall &call, JsonO
         call.set_state(false);
         break;
       case PARSE_TOGGLE:
-        call.set_state(!state.get_target_values().is_on());
+        call.set_state(!state.remote_values.is_on());
         break;
       case PARSE_NONE:
         break;

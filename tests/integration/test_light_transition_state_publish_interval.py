@@ -107,7 +107,7 @@ def _assert_ramp(timeline: Timeline, target: float) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.shared_yaml("light_transition_state_publish_interval")
-async def test_transition_interval_zero_behaves_like_legacy(
+async def test_light_without_interval_publishes_target_once(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,

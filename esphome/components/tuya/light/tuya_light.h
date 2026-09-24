@@ -62,11 +62,6 @@ class TuyaLight final : public Component, public light::LightOutput {
   bool color_type_lowercase_{false};
   bool color_interlock_{false};
   light::LightState *state_{nullptr};
-
-  /// True while a transition runs; remote_values follows the fade when interval publishing is on
-  bool is_transitioning_() const {
-    return this->state_->is_transformer_active() || this->state_->current_values != this->state_->remote_values;
-  }
 };
 
 }  // namespace esphome::tuya

@@ -45,7 +45,7 @@ template<bool HasTransitionLength, typename... Ts> class DimRelativeAction final
     auto call = this->parent_->make_call();
     float rel = this->relative_brightness_.value(x...);
     float cur;
-    this->parent_->get_target_values().as_brightness(&cur);
+    this->parent_->remote_values.as_brightness(&cur);
     if ((limit_mode_ == LimitMode::DO_NOTHING) && ((cur < min_brightness_) || (cur > max_brightness_))) {
       return;
     }
@@ -126,7 +126,7 @@ class LightTurnOnTrigger final : public Trigger<>, public LightRemoteValuesListe
 
   void on_light_remote_values_update() override {
     // using the remote value because of transitions we need to trigger as early as possible
-    auto is_on = this->light_->get_target_values().is_on();
+    auto is_on = this->light_->remote_values.is_on();
     // only trigger when going from off to on
     auto should_trigger = is_on && !this->last_on_;
     // Set new state immediately so that trigger() doesn't devolve

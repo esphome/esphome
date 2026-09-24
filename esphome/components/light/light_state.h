@@ -101,16 +101,19 @@ class LightState : public EntityBase, public Component {
   LightCall turn_off();
   LightCall toggle();
 
-  /// The values a new call, toggle or save starts from: the transformer's target while interval
-  /// publishing keeps a mid-transition sample in remote_values, otherwise remote_values.
-  const LightColorValues &get_target_values() const {
+  /// The values reported to the frontend: current_values while a light publishes intermediate
+  /// states on an interval, otherwise remote_values.
+  const LightColorValues &get_reported_values() const {
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
     if (this->transition_publish_enabled_) {
-      return this->transformer_->get_target_values();
+      return this->current_values;
     }
 #endif
     return this->remote_values;
   }
+
+  /// True from the call that starts a transition or flash until it reaches its target.
+  bool is_transitioning() const { return this->transformer_ != nullptr; }
   LightCall make_call();
 
   // ========== INTERNAL METHODS ==========
@@ -139,9 +142,6 @@ class LightState : public EntityBase, public Component {
    * These are different from the "current" values: For example transitions will
    * continuously change the "current" values. But the remote values will immediately
    * switch to the target value for a transition, reducing the number of packets sent.
-   * A light with transition_state_publish_interval set is the exception: its remote
-   * values follow the transition sample by sample, so read get_target_values() when
-   * you need the target while a transition or flash is running.
    *
    * This value does not have gamma correction applied.
    *
@@ -312,6 +312,7 @@ class LightState : public EntityBase, public Component {
   friend LightOutput;
   friend LightCall;
   friend class AddressableLight;
+  friend class LightFlashTransformer;
 
   /// Internal method to start an effect with the given index
   void start_effect_(uint32_t effect_index);
@@ -328,8 +329,8 @@ class LightState : public EntityBase, public Component {
   /// Internal method to set the color values to target immediately (with no transition).
   void set_immediately_(const LightColorValues &target, bool set_remote_values);
 
-  /// Point remote_values at the new transformer's target, or leave it tracking current_values
-  /// when this light publishes intermediate states on an interval from loop().
+  /// Point remote_values at the new transformer's target and, when this light publishes
+  /// intermediate states on an interval, start the interval clock.
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   void set_transformer_remote_values_(const LightColorValues &target, bool set_remote_values);
 #else
@@ -405,7 +406,7 @@ class LightState : public EntityBase, public Component {
   // for effects, true if a transformer (transition) is active.
   bool is_transformer_active_{false};
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
-  /// True while the active transformer publishes remote_values on an interval from loop().
+  /// True while the active transformer publishes current_values on an interval from loop().
   bool transition_publish_enabled_{false};
 #endif
   /// Restore mode of the light.
