@@ -7,6 +7,7 @@
 #ifdef USE_WEBSERVER
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/entity_includes.h"
 #include "esphome/core/progmem.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"

@@ -431,7 +431,7 @@ def build_all_include(header_files: list[str] | None = None) -> None:
 
     from esphome.writer import ESPHOME_H_EXCLUDE
 
-    exclude = {str(path) for path in ESPHOME_H_EXCLUDE}
+    exclude = {path.as_posix() for path in ESPHOME_H_EXCLUDE}
     headers = [f'#include "{h}"' for h in header_files if h not in exclude]
     headers.sort()
     headers.append("")

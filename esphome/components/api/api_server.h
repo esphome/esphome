@@ -14,6 +14,7 @@
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/entity_includes.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 #ifdef USE_PROVISIONING
