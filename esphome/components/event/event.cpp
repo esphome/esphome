@@ -7,17 +7,17 @@ namespace esphome::event {
 
 static const char *const TAG = "event";
 
-void Event::trigger(const std::string &event_type) {
+void Event::trigger(const char *event_type) {
   // Linear search with strcmp - faster than std::set for small datasets (1-5 items typical)
   const char *found = nullptr;
   for (const char *type : this->types_) {
-    if (strcmp(type, event_type.c_str()) == 0) {
+    if (strcmp(type, event_type) == 0) {
       found = type;
       break;
     }
   }
   if (found == nullptr) {
-    ESP_LOGE(TAG, "'%s': invalid event type for trigger(): %s", this->get_name().c_str(), event_type.c_str());
+    ESP_LOGE(TAG, "'%s': invalid event type for trigger(): %s", this->get_name().c_str(), event_type);
     return;
   }
   this->last_event_type_ = found;
