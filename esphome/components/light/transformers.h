@@ -105,6 +105,11 @@ class LightFlashTransformer : public LightTransformer {
     }
     this->state_.current_values = this->get_start_values();
     this->state_.remote_values = this->get_start_values();
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+    // The light reports the end state itself once the transformer finishes
+    if (this->state_.transition_publish_enabled_)
+      return;
+#endif
     this->state_.publish_state();
   }
 

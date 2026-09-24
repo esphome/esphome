@@ -600,7 +600,7 @@ bool APIConnection::send_light_state(light::LightState *light) {
 uint16_t APIConnection::try_send_light_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *light = static_cast<light::LightState *>(entity);
   LightStateResponse resp;
-  auto values = light->remote_values;
+  auto values = light->get_reported_values();
   auto color_mode = values.get_color_mode();
   resp.state = values.is_on();
   resp.color_mode = static_cast<enums::ColorMode>(color_mode);
@@ -2267,7 +2267,12 @@ bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, 
   // Capacity reserved above, cannot fail
   (void) shared_buf.resize(write_start + payload_size);
   ProtoWriteBuffer buffer{&shared_buf, write_start};
-  encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
+  uint8_t *end = encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
+#ifdef ESPHOME_DEBUG_API
+  proto_check_encode_end(end, shared_buf.data() + shared_buf.size());
+#else
+  (void) end;
+#endif
   return this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type);
 }
 // encode_to_buffer is defined inline in api_connection.h (ESPHOME_ALWAYS_INLINE)
