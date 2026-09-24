@@ -166,7 +166,7 @@ async def to_code(config: ConfigType) -> None:
     if (resolution := config.get(CONF_RESOLUTION)) is not None:
         cg.add(var.set_resolution(*resolution))
     cg.add(var.set_sensor_name(config[CONF_SENSOR]))
-    cg.add(var.set_init_ldo(config.get(CONF_INIT_LDO, True)))
+    cg.add(var.set_init_ldo(config.get(CONF_INIT_LDO)))
     cg.add(var.set_framerate(int(config[CONF_FRAMERATE])))
     cg.add(var.set_sccb_frequency(int(config[CONF_SCCB_FREQUENCY])))
     idle_framerate = config[CONF_IDLE_FRAMERATE]

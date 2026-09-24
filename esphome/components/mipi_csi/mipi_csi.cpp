@@ -85,17 +85,16 @@ void MipiCsiCamera::setup() {
     return;
   }
 
-  if (xTaskCreatePinnedToCore(&MipiCsiCamera::capture_task, "mipi_csi", CAPTURE_TASK_STACK_SIZE, this,
-                              CAPTURE_TASK_PRIORITY, nullptr, CAPTURE_TASK_CORE) != pdPASS) {
-    ESP_LOGE(TAG, "Not enough memory to start the capture task");
-    vQueueDelete(this->result_queue_);
-    this->result_queue_ = nullptr;
+  if (!this->start_streaming_()) {
     this->teardown_();
     this->mark_failed();
     return;
   }
 
-  if (!this->start_streaming_()) {
+  if (xTaskCreatePinnedToCore(&MipiCsiCamera::capture_task, "mipi_csi", CAPTURE_TASK_STACK_SIZE, this,
+                              CAPTURE_TASK_PRIORITY, &this->capture_task_handle_, CAPTURE_TASK_CORE) != pdPASS) {
+    ESP_LOGE(TAG, "Not enough memory to start the capture task");
+    this->capture_task_handle_ = nullptr;
     this->teardown_();
     this->mark_failed();
     return;
@@ -408,6 +407,16 @@ bool MipiCsiCamera::start_streaming_() {
 }
 
 void MipiCsiCamera::teardown_() {
+  if (this->capture_task_handle_ != nullptr) {
+    vTaskDelete(this->capture_task_handle_);
+    this->capture_task_handle_ = nullptr;
+  }
+
+  if (this->result_queue_ != nullptr) {
+    vQueueDelete(this->result_queue_);
+    this->result_queue_ = nullptr;
+  }
+
   if (this->fd_ < 0)
     return;
 
