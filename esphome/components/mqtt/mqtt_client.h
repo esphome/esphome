@@ -417,15 +417,6 @@ template<typename... Ts> class MQTTPublishJsonAction final : public Action<Ts...
   MQTTClientComponent *parent_;
 };
 
-template<typename... Ts> class MQTTConnectedCondition final : public Condition<Ts...> {
- public:
-  MQTTConnectedCondition(MQTTClientComponent *parent) : parent_(parent) {}
-  bool check(const Ts &...x) override { return this->parent_->is_connected(); }
-
- protected:
-  MQTTClientComponent *parent_;
-};
-
 template<typename... Ts> class MQTTEnableAction final : public Action<Ts...> {
  public:
   MQTTEnableAction(MQTTClientComponent *parent) : parent_(parent) {}

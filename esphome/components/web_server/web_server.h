@@ -8,6 +8,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/progmem.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -36,12 +37,8 @@ extern const size_t ESPHOME_WEBSERVER_JS_INCLUDE_SIZE;
 
 namespace esphome::web_server {
 
-// Type for parameter names that can be stored in flash on ESP8266
-#ifdef USE_ESP8266
-using ParamNameType = const __FlashStringHelper *;
-#else
-using ParamNameType = const char *;
-#endif
+// Parameter names live in flash on ESP8266
+using ParamNameType = ProgmemStr;
 
 // All platforms need to defer actions to main loop thread.
 // Multi-core platforms need this for thread safety.
