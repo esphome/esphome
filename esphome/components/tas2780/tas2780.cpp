@@ -575,7 +575,7 @@ bool TAS2780::set_mute_on() {
 
 bool TAS2780::set_volume(float volume) {
   float previous = this->volume_;
-  this->volume_ = clamp<float>(volume, 0.0, 1.0);
+  this->volume_ = clamp(volume, 0.0f, 1.0f);
   if (!this->write_volume_()) {
     this->volume_ = previous;
     return false;
@@ -617,7 +617,7 @@ bool TAS2780::write_volume_() {
   float range_min = std::min(this->vol_range_min_, this->vol_range_max_);
   float range_max = std::max(this->vol_range_min_, this->vol_range_max_);
   float volume = this->volume_ * (range_max - range_min) + range_min;
-  float attenuation = (1. - volume) * 200.f;
+  float attenuation = (1.0f - volume) * 200.0f;
   ESP_LOGD(TAG, "Setting attenuation to: %4.2f", attenuation);
   // Clamp before converting; lambda-supplied volume ranges are not bounded
   auto dvc = static_cast<uint8_t>(clamp(attenuation, 0.0f, 200.0f));
