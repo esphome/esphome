@@ -18,6 +18,7 @@ from esphome.automation import (
     TriggerOnTrueForwarder,
     build_callback_automations,
     has_non_synchronous_actions,
+    literal_with_length,
     maybe_simple_id,
     register_apply_action,
     register_apply_condition,
@@ -836,6 +837,23 @@ async def test_apply_string_constant_stays_in_flash_on_esp8266(
     assert f'::{PARENT_OBJ}->play(progmem_string(ESPHOME_F("a:b")));' in _apply_lambda(
         mock_cg
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("platform", ["esp32", "esp8266"])
+async def test_apply_literal_with_length_is_plain_on_every_platform(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen, platform: str
+) -> None:
+    """A (const char *, size_t) target gets the RAM literal and its byte length, never a flash copy."""
+    fields = (
+        ApplyField("option", "set_option", cg.std_string, const_fn=literal_with_length),
+    )
+    await _run_apply_action(
+        registries, fields, {"option": "h\u00e9llo"}, platform=platform
+    )
+    text = _apply_lambda(mock_cg)
+    assert f'::{PARENT_OBJ}->set_option("h\\303\\251llo", 6);' in text
+    assert "progmem_string" not in text
 
 
 @pytest.mark.asyncio
