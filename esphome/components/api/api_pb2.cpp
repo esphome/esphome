@@ -4009,7 +4009,7 @@ uint32_t ListEntitiesInfraredResponse::calculate_size() const {
   return size;
 }
 #endif
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 bool InfraredRFTransmitRawTimingsRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
 #ifdef USE_DEVICES
@@ -4080,6 +4080,24 @@ InfraredRFReceiveEvent::calculate_size() const {
       size += ProtoSize::calc_sint32_force(1, it);
     }
   }
+  return size;
+}
+uint8_t *InfraredRFTransmitCompleteResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+  uint8_t *__restrict__ pos = buffer.get_pos();
+#ifdef USE_DEVICES
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->device_id);
+#endif
+  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
+  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, this->success);
+  return pos;
+}
+uint32_t InfraredRFTransmitCompleteResponse::calculate_size() const {
+  uint32_t size = 0;
+#ifdef USE_DEVICES
+  size += ProtoSize::calc_uint32(1, this->device_id);
+#endif
+  size += 5;
+  size += ProtoSize::calc_bool(1, this->success);
   return size;
 }
 #endif

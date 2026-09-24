@@ -143,6 +143,14 @@ class RemoteRMTChannel {
 #endif  // SOC_RMT_SUPPORTED
 #endif  // USE_ESP32
 
+class RemoteTransmitterBase;
+
+#ifdef USE_IR_RF_TRANSMIT_COMPLETE
+/// Defined by ir_rf_base: answers the API request waiting on the entity that submitted seq;
+/// sent is false when the platform never put the frame on the wire.
+/// One function for the whole build instead of a callback list on every transmitter.
+void ir_rf_transmit_complete(RemoteTransmitterBase *transmitter, uint16_t seq, bool sent);
+#endif
 // Protocol shapes, checked where a protocol is used so a missing method fails at the use site
 // instead of deep inside a template body. Receive-only protocols such as RCSwitchBase decode
 // without encoding.
@@ -164,21 +172,24 @@ class RemoteTransmitterBase : public RemoteComponentBase {
   RemoteTransmitterBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
   class TransmitCall {
    public:
-    explicit TransmitCall(RemoteTransmitterBase *parent) : parent_(parent) {}
+    TransmitCall(RemoteTransmitterBase *parent, uint16_t seq) : parent_(parent), seq_(seq) {}
     RemoteTransmitData *get_data() { return &this->parent_->temp_; }
     void set_send_times(uint32_t send_times) { send_times_ = send_times; }
     void set_send_wait(uint32_t send_wait) { send_wait_ = send_wait; }
-    void perform() { this->parent_->send_(this->send_times_, this->send_wait_); }
+    /// Identifies this transmission in the completion hook
+    uint16_t get_seq() const { return this->seq_; }
+    void perform() { this->parent_->send_(this->send_times_, this->send_wait_, this->seq_); }
 
    protected:
     RemoteTransmitterBase *parent_;
     uint32_t send_times_{1};
     uint32_t send_wait_{0};
+    uint16_t seq_;
   };
 
   TransmitCall transmit() {
     this->temp_.reset();
-    return TransmitCall(this);
+    return TransmitCall(this, this->take_seq_());
   }
   template<RemoteProtocolEncoder Protocol>
   void transmit(const typename Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
@@ -190,9 +201,25 @@ class RemoteTransmitterBase : public RemoteComponentBase {
   }
 
  protected:
-  void send_(uint32_t send_times, uint32_t send_wait);
+  void send_(uint32_t send_times, uint32_t send_wait, uint16_t seq);
   virtual void send_internal(uint32_t send_times, uint32_t send_wait) = 0;
-  void send_single_() { this->send_(1, 0); }
+  /// Platforms that report completion later wait out the previous frame here, before send_()
+  /// assigns the next seq, so that completion carries the seq it belongs to
+  virtual void flush_pending_completion() {}
+  void send_single_() { this->send_(1, 0, this->take_seq_()); }
+#ifdef USE_IR_RF_TRANSMIT_COMPLETE
+  /// Reports the frame handed to the platform last, after its final repeat and before the
+  /// on_complete trigger; a seq only has to be unique within the 30 s reply window
+  void notify_complete_(bool sent) { ir_rf_transmit_complete(this, this->current_seq_, sent); }
+  uint16_t take_seq_() { return ++this->next_seq_; }
+
+  uint16_t next_seq_{0};
+  uint16_t current_seq_{0};
+#else
+  // seq tracking only exists for the API completion reply
+  void notify_complete_(bool /*sent*/) {}
+  static uint16_t take_seq_() { return 0; }
+#endif
 
   /// Use same vector for all transmits, avoids many allocations
   RemoteTransmitData temp_;
