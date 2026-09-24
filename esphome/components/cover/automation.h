@@ -6,19 +6,6 @@
 
 namespace esphome::cover {
 
-template<bool OPEN, typename... Ts> class CoverPositionCondition final : public Condition<Ts...> {
- public:
-  CoverPositionCondition(Cover *cover) : cover_(cover) {}
-
-  bool check(const Ts &...x) override { return this->cover_->position == (OPEN ? COVER_OPEN : COVER_CLOSED); }
-
- protected:
-  Cover *cover_;
-};
-
-template<typename... Ts> using CoverIsOpenCondition = CoverPositionCondition<true, Ts...>;
-template<typename... Ts> using CoverIsClosedCondition = CoverPositionCondition<false, Ts...>;
-
 template<bool OPEN> class CoverPositionTrigger final : public Trigger<> {
  public:
   CoverPositionTrigger(Cover *a_cover) : cover_(a_cover) {
