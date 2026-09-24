@@ -4,12 +4,14 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_FACTORY_RESET,
     DEVICE_CLASS_RESTART,
-    ENTITY_CATEGORY_DIAGNOSTIC,
     ENTITY_CATEGORY_CONFIG,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_DATABASE,
     ICON_RESTART,
     ICON_RESTART_ALERT,
-    ICON_DATABASE,
 )
+from esphome.types import ConfigType
+
 from .. import CONF_LD2420_ID, LD2420Component, ld2420_ns
 
 LD2420ApplyConfigButton = ld2420_ns.class_("LD2420ApplyConfigButton", button.Button)
@@ -49,7 +51,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     ld2420_component = await cg.get_variable(config[CONF_LD2420_ID])
     if apply_config := config.get(CONF_APPLY_CONFIG):
         b = await button.new_button(apply_config)

@@ -1,0 +1,21 @@
+# pylint: disable=E0602
+Import("env")  # noqa
+
+import os
+
+# Filter out Updater.cpp from the Arduino core build
+# This saves 228 bytes of .bss by not instantiating the global Update object
+# ESPHome uses its own native OTA backend instead
+
+
+def filter_updater_from_core(env, node):
+    """Filter callback to exclude Updater.cpp from framework build."""
+    path = node.get_path()
+    if path.endswith("Updater.cpp"):
+        print(f"ESPHome: Excluding {os.path.basename(path)} from build (using native OTA backend)")
+        return None
+    return node
+
+
+# Apply the filter to framework sources
+env.AddBuildMiddleware(filter_updater_from_core, "**/cores/esp8266/Updater.cpp")

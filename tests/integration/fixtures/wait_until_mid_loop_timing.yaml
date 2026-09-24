@@ -1,0 +1,109 @@
+# Test for PR #11676 bug: wait_until timeout when triggered mid-component-loop
+# This demonstrates that App.get_loop_component_start_time() is stale when
+# wait_until is triggered partway through a component's loop execution
+
+esphome:
+  name: wait-mid-loop
+
+host:
+
+api:
+  actions:
+    - action: test_mid_loop_timeout
+      then:
+        - logger.log: "=== Test: wait_until triggered mid-loop should timeout correctly ==="
+
+        # Reset test state
+        - globals.set:
+            id: test_complete
+            value: 'false'
+
+        # Trigger the slow script that will call wait_until mid-execution
+        - script.execute: slow_script
+
+        # Wait for test to complete (should take ~300ms: 100ms delay + 200ms timeout)
+        - wait_until:
+            condition:
+              lambda: return id(test_complete);
+            timeout: 2s
+
+        - if:
+            condition:
+              lambda: return id(test_complete);
+            then:
+              - logger.log: "✓ Test PASSED: wait_until timed out correctly"
+            else:
+              - logger.log: "✗ Test FAILED: wait_until did not complete properly"
+
+logger:
+  level: DEBUG
+
+globals:
+  - id: test_complete
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+  - id: test_condition
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+  - id: timeout_start_time
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+
+  - id: timeout_end_time
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+
+script:
+  # This script simulates a component that takes time during its execution
+  # When wait_until is triggered mid-script, the loop_component_start_time
+  # will be stale (from when the script's component loop started)
+  - id: slow_script
+    then:
+      - logger.log: "Script: Starting, about to do some work..."
+
+      # Simulate component doing work for 100ms
+      # This represents time spent in a component's loop() before triggering wait_until
+      - delay: 100ms
+
+      - logger.log: "Script: 100ms elapsed, now starting wait_until with 200ms timeout"
+      - lambda: |-
+          // Record when timeout starts
+          id(timeout_start_time) = millis();
+          id(test_condition) = false;
+
+      # At this point:
+      # - Script component's loop started 100ms ago
+      # - App.loop_component_start_time_ = time from 100ms ago (stale!)
+      # - wait_until will capture millis() NOW (fresh)
+      # - BUG: loop() will use stale loop_component_start_time, causing immediate timeout
+
+      - wait_until:
+          condition:
+            lambda: return id(test_condition);
+          timeout: 200ms
+
+      - lambda: |-
+          // Record when timeout completes
+          id(timeout_end_time) = millis();
+          uint32_t elapsed = id(timeout_end_time) - id(timeout_start_time);
+
+          ESP_LOGD("TEST", "wait_until completed after %u ms (expected ~200ms)", elapsed);
+
+          // Check if timeout took approximately correct time
+          // Should be ~200ms, not <50ms (immediate timeout)
+          if (elapsed >= 150 && elapsed <= 250) {
+            ESP_LOGD("TEST", "✓ Timeout duration correct: %u ms", elapsed);
+            id(test_complete) = true;
+          } else {
+            ESP_LOGE("TEST", "✗ Timeout duration WRONG: %u ms (expected 150-250ms)", elapsed);
+            if (elapsed < 50) {
+              ESP_LOGE("TEST", "  → Likely BUG: Immediate timeout due to stale loop_component_start_time");
+            }
+            id(test_complete) = false;
+          }

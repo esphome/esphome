@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import ble_client, display, time
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
     CONF_DISCONNECT_DELAY,
@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_TIME_ID,
     CONF_VALIDITY_PERIOD,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["ble_client"]
 
@@ -36,7 +37,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
     await ble_client.register_ble_node(var, config)

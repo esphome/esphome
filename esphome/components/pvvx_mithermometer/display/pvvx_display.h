@@ -1,19 +1,22 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+
+#ifdef USE_ESP32
+
+#include "esphome/core/component.h"
 #include "esphome/components/ble_client/ble_client.h"
+#include "esphome/components/ble_device_base/ble_device.h"
+#include "esphome/components/display/display.h"
 
 #include <cinttypes>
 
-#ifdef USE_ESP32
 #include <esp_gattc_api.h>
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
 #endif
 
-namespace esphome {
-namespace pvvx_mithermometer {
+namespace esphome::pvvx_mithermometer {
 
 class PVVXDisplay;
 
@@ -29,9 +32,9 @@ enum UNIT {
   UNIT_DEG_E,     ///< show "°E"
 };
 
-using pvvx_writer_t = std::function<void(PVVXDisplay &)>;
+using pvvx_writer_t = display::DisplayWriter<PVVXDisplay>;
 
-class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
+class PVVXDisplay final : public ble_client::BLEClientNode, public PollingComponent {
  public:
   void set_writer(pvvx_writer_t &&writer) { this->writer_ = writer; }
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
@@ -39,12 +42,11 @@ class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
 
   void dump_config() override;
 
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
   void update() override;
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
+  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
 
   /// Set validity period of the display information in seconds (1..65535)
   void set_validity_period(uint16_t validity_period) { this->validity_period_ = validity_period; }
@@ -60,13 +62,13 @@ class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
    * Valid values are from -99.5 to 1999.5. Smaller values are displayed as Lo, higher as Hi.
    * It will printed as it fits in the screen.
    */
-  void print_bignum(float bignum) { this->bignum_ = bignum * 10; }
+  void print_bignum(float bignum) { this->bignum_ = static_cast<int16_t>(bignum * 10); }
   /**
    * Print the small number
    *
    * Valid values are from -9 to 99. Smaller values are displayed as Lo, higher as Hi.
    */
-  void print_smallnum(float smallnum) { this->smallnum_ = smallnum; }
+  void print_smallnum(float smallnum) { this->smallnum_ = static_cast<int16_t>(smallnum); }
   /**
    * Print a happy face
    *
@@ -107,13 +109,14 @@ class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
   bool auto_clear_enabled_{true};
   uint32_t disconnect_delay_ms_ = 5000;
   uint16_t validity_period_ = 300;
-  uint16_t bignum_ = 0;
-  uint16_t smallnum_ = 0;
+  int16_t bignum_ = 0;
+  int16_t smallnum_ = 0;
   uint8_t cfg_ = 0;
 
   void setcfgbit_(uint8_t bit, bool value);
   void send_to_setup_char_(uint8_t *blk, size_t size);
   void delayed_disconnect_();
+  void sync_time_and_display_();
 #ifdef USE_TIME
   void sync_time_();
   time::RealTimeClock *time_{nullptr};
@@ -121,15 +124,13 @@ class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
   uint16_t char_handle_ = 0;
   bool connection_established_ = false;
 
-  esp32_ble_tracker::ESPBTUUID service_uuid_ =
-      esp32_ble_tracker::ESPBTUUID::from_raw("00001f10-0000-1000-8000-00805f9b34fb");
-  esp32_ble_tracker::ESPBTUUID char_uuid_ =
-      esp32_ble_tracker::ESPBTUUID::from_raw("00001f1f-0000-1000-8000-00805f9b34fb");
+  ble_device_base::ESPBTUUID service_uuid_ =
+      ble_device_base::ESPBTUUID::from_raw("00001f10-0000-1000-8000-00805f9b34fb");
+  ble_device_base::ESPBTUUID char_uuid_ = ble_device_base::ESPBTUUID::from_raw("00001f1f-0000-1000-8000-00805f9b34fb");
 
-  optional<pvvx_writer_t> writer_{};
+  pvvx_writer_t writer_{};
 };
 
-}  // namespace pvvx_mithermometer
-}  // namespace esphome
+}  // namespace esphome::pvvx_mithermometer
 
-#endif
+#endif  // USE_ESP32

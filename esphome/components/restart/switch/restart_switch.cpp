@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace restart {
+namespace esphome::restart {
 
 static const char *const TAG = "restart";
 
@@ -13,7 +12,7 @@ void RestartSwitch::write_state(bool state) {
   this->publish_state(false);
 
   if (state) {
-    ESP_LOGI(TAG, "Restarting device...");
+    ESP_LOGI(TAG, "Restarting device");
     // Let MQTT settle a bit
     delay(100);  // NOLINT
     App.safe_reboot();
@@ -21,5 +20,4 @@ void RestartSwitch::write_state(bool state) {
 }
 void RestartSwitch::dump_config() { LOG_SWITCH("", "Restart Switch", this); }
 
-}  // namespace restart
-}  // namespace esphome
+}  // namespace esphome::restart

@@ -1,0 +1,7 @@
+sensor:
+  - platform: sdp3x
+    i2c_id: i2c_bus
+    id: filter_pressure
+    name: HVAC Filter Pressure drop
+    accuracy_decimals: 3
+    update_interval: 5s

@@ -1,0 +1,319 @@
+from collections.abc import Callable
+from pathlib import Path
+import textwrap
+from typing import TypedDict
+
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.const import CONF_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.helpers import copy_file_if_changed, write_file_if_changed
+from esphome.types import ConfigType
+from esphome.writer import clean_cmake_cache
+
+from .const import (
+    CONF_CDC_ACM,
+    KEY_BOOTLOADER,
+    KEY_EXTRA_BUILD_FILES,
+    KEY_KCONFIG,
+    KEY_OVERLAY,
+    KEY_OVERLAY_BUILDER,
+    KEY_PM_STATIC,
+    KEY_PRJ_CONF,
+    KEY_SYSBUILD,
+    KEY_ZEPHYR,
+    zephyr_ns,
+)
+
+CODEOWNERS = ["@tomaszduda23"]
+
+
+class HexValue:
+    """Wrap an integer so it is written as 0x... in prj.conf (required for hex Kconfig types)."""
+
+    def __init__(self, value: int) -> None:
+        self.value = value
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, HexValue):
+            return self.value == other.value
+        return NotImplemented
+
+    def __repr__(self) -> str:
+        return f"HexValue(0x{self.value:X})"
+
+    def __str__(self) -> str:
+        return f"0x{self.value:X}"
+
+
+PrjConfValueType = bool | str | int | HexValue
+
+
+class Section:
+    def __init__(self, name: str, address: int, size: int, region: str) -> None:
+        self.name = name
+        self.address = address
+        self.size = size
+        self.region = region
+        self.end_address = self.address + self.size
+
+    def __str__(self) -> str:
+        return (
+            f"{self.name}:\n"
+            f"  address: 0x{self.address:X}\n"
+            f"  end_address: 0x{self.end_address:X}\n"
+            f"  region: {self.region}\n"
+            f"  size: 0x{self.size:X}"
+        )
+
+
+class ZephyrData(TypedDict):
+    board: str
+    bootloader: str
+    prj_conf: dict[str, dict[str, tuple[PrjConfValueType, bool]]]
+    overlay: dict[str, str]
+    extra_build_files: dict[str, Path]
+    pm_static: list[Section]
+    kconfig: str
+    sysbuild: bool
+    overlay_builder: list[Callable[[], str]]
+
+
+def zephyr_set_core_data(config: ConfigType) -> None:
+    CORE.data[KEY_ZEPHYR] = ZephyrData(
+        board=config[CONF_BOARD],
+        bootloader=config[KEY_BOOTLOADER],
+        prj_conf={},
+        overlay={
+            "": "",
+        },  # set empty to make sure that overlay is cleared after config change
+        overlay_builder=[],
+        extra_build_files={},
+        pm_static=[],
+        kconfig="",
+        # When OTA is disabled, the image is built without a bootloader even if the
+        # config says `bootloader: mcuboot`, so the image can be smaller. This was
+        # the default behaviour in SDK 2.6.1.
+        sysbuild=False,
+    )
+
+
+def zephyr_data() -> ZephyrData:
+    return CORE.data[KEY_ZEPHYR]
+
+
+def zephyr_add_prj_conf(
+    name: str,
+    value: PrjConfValueType,
+    required: bool = True,
+    image: str = "",
+) -> None:
+    """Set an zephyr prj conf value."""
+    if not name.startswith("CONFIG_"):
+        name = "CONFIG_" + name
+    if image not in zephyr_data()[KEY_PRJ_CONF]:
+        zephyr_data()[KEY_PRJ_CONF][image] = {}
+    prj_conf = zephyr_data()[KEY_PRJ_CONF][image]
+    if name not in prj_conf:
+        prj_conf[name] = (value, required)
+        return
+    old_value, old_required = prj_conf[name]
+    if old_value != value and old_required:
+        raise ValueError(
+            f"{name} already set with value '{old_value}', cannot set again to '{value}'"
+        )
+    if required:
+        prj_conf[name] = (value, required)
+
+
+def zephyr_add_overlay(content: str, image: str = "") -> None:
+    data = zephyr_data()
+    if image not in data[KEY_OVERLAY]:
+        data[KEY_OVERLAY][image] = ""
+    data[KEY_OVERLAY][image] += textwrap.dedent(content)
+
+
+def zephyr_add_overlay_builder(func: Callable[[], str]) -> None:
+    data = zephyr_data()
+    if func not in data[KEY_OVERLAY_BUILDER]:
+        data[KEY_OVERLAY_BUILDER].append(func)
+
+
+def add_extra_build_file(filename: str, path: Path) -> bool:
+    """Add an extra build file to the project."""
+    extra_build_files = zephyr_data()[KEY_EXTRA_BUILD_FILES]
+    if filename not in extra_build_files:
+        extra_build_files[filename] = path
+        return True
+    return False
+
+
+def add_extra_script(stage: str, filename: str, path: Path) -> None:
+    """Add an extra script to the project."""
+    key = f"{stage}:{filename}"
+    if add_extra_build_file(filename, path):
+        cg.add_platformio_option("extra_scripts", [key])
+
+
+def zephyr_to_code(config: ConfigType) -> None:
+    cg.add_build_flag("-DUSE_ZEPHYR")
+    cg.add_define("USE_NATIVE_64BIT_TIME")
+    # The settings subsystem finds stored preferences by key, so key migration is possible
+    cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
+    cg.set_cpp_standard("gnu++20")
+    # c++ support
+    zephyr_add_prj_conf("FPU", True)
+    zephyr_add_prj_conf("STD_CPP20", True)
+    # random_bytes() uses sys_rand_get() which requires the entropy subsystem
+    zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
+
+    # <err> os: ***** USAGE FAULT *****
+    # <err> os:   Illegal load of EXC_RETURN into PC
+    zephyr_add_prj_conf("MAIN_STACK_SIZE", 2048, required=False)
+
+    CORE.add_job(_cdc_acm_to_code, config)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _cdc_acm_to_code(config: ConfigType) -> None:
+    need_cdc_cb = zephyr_data()[KEY_PRJ_CONF][""].get(
+        "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", (False,)
+    )[0]
+    if need_cdc_cb:
+        var = cg.new_Pvariable(config[CONF_CDC_ACM])
+        await cg.register_component(var, {})
+
+
+def zephyr_setup_preferences() -> None:
+    cg.add(zephyr_ns.setup_preferences())
+    zephyr_add_prj_conf("SETTINGS", True)
+    zephyr_add_prj_conf("NVS", True)
+    zephyr_add_prj_conf("FLASH_MAP", True)
+    zephyr_add_prj_conf("FLASH", True)
+
+
+def _format_prj_conf_val(value: PrjConfValueType) -> str:
+    if isinstance(value, bool):
+        return "y" if value else "n"
+    if isinstance(value, HexValue):
+        return hex(value.value)
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, str):
+        return f'"{value}"'
+    raise ValueError
+
+
+def zephyr_add_cdc_acm(config: ConfigType, id: int) -> None:
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
+        zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
+    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
+    zephyr_add_prj_conf("USB_CDC_ACM", True)
+    # prevent device to go to susspend, without this communication stop working in python
+    # there should be a way to solve it
+    zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
+    # prevent logging when buffer is full
+    zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
+    zephyr_add_overlay(
+        f"""
+            &zephyr_udc0 {{
+                cdc_acm_uart{id}: cdc_acm_uart{id} {{
+                    compatible = "zephyr,cdc-acm-uart";
+                }};
+            }};
+        """
+    )
+
+
+def zephyr_add_kconfig(kconfig: str) -> None:
+    zephyr_data()[KEY_KCONFIG] += textwrap.dedent(kconfig) + "\n"
+
+
+def zephyr_add_pm_static(sections: list[Section]) -> None:
+    zephyr_data()[KEY_PM_STATIC].extend(sections)
+
+
+def _write_file_if_changed_or_remove_when_empty(path: Path, content: str) -> bool:
+    """Write content to path, or remove a stale file when content is empty.
+
+    Returns True if the file changed on disk.
+    """
+    if content:
+        return write_file_if_changed(path, content)
+    if path.is_file():
+        path.unlink()
+        return True
+    return False
+
+
+def copy_files() -> None:
+    for builder_func in zephyr_data()[KEY_OVERLAY_BUILDER]:
+        overlay_contents = builder_func()
+        zephyr_add_overlay(overlay_contents)
+
+    changed = False
+
+    for image, want_opts in zephyr_data()[KEY_PRJ_CONF].items():
+        prj_conf = (
+            "\n".join(
+                f"{name}={_format_prj_conf_val(value[0])}"
+                for name, value in sorted(want_opts.items())
+            )
+            + "\n"
+        )
+
+        if image:
+            path = CORE.relative_build_path(f"zephyr/sysbuild/{image}.conf")
+        else:
+            path = CORE.relative_build_path("zephyr/prj.conf")
+
+        changed |= write_file_if_changed(path, prj_conf)
+
+    for image, content in zephyr_data()[KEY_OVERLAY].items():
+        if image:
+            path = CORE.relative_build_path(f"zephyr/sysbuild/{image}.overlay")
+        else:
+            path = CORE.relative_build_path("zephyr/app.overlay")
+        changed |= write_file_if_changed(path, content)
+
+    for filename, path in zephyr_data()[KEY_EXTRA_BUILD_FILES].items():
+        changed |= copy_file_if_changed(
+            path,
+            CORE.relative_build_path(filename),
+        )
+
+    pm_static = "\n".join(str(item) for item in zephyr_data()[KEY_PM_STATIC])
+    changed |= _write_file_if_changed_or_remove_when_empty(
+        CORE.relative_build_path("zephyr/pm_static.yml"), pm_static
+    )
+
+    kconfig = zephyr_data()[KEY_KCONFIG]
+    if kconfig:
+        kconfig = (
+            textwrap.dedent(
+                """
+                menu "Zephyr"
+                source "Kconfig.zephyr"
+                endmenu
+                """
+            )
+            + "\n"
+            + kconfig
+        )
+    changed |= _write_file_if_changed_or_remove_when_empty(
+        CORE.relative_build_path("zephyr/Kconfig"), kconfig
+    )
+
+    sysbuild_conf = ""
+    if zephyr_data()[KEY_SYSBUILD]:
+        sysbuild_conf = "SB_CONFIG_BOOTLOADER_MCUBOOT=y\n"
+    changed |= _write_file_if_changed_or_remove_when_empty(
+        CORE.relative_build_path("zephyr/sysbuild.conf"), sysbuild_conf
+    )
+
+    if changed:
+        # A configure-time input changed; drop the CMake cache so the build
+        # can't reuse stale configure results (the native sdk-nrf toolchain
+        # rebuilds pristine when the cache is missing).
+        clean_cmake_cache()

@@ -1,8 +1,7 @@
 #include "coolix_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.coolix";
 
@@ -109,5 +108,4 @@ void CoolixProtocol::dump(const CoolixData &data) {
   }
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

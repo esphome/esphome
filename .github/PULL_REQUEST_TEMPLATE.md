@@ -6,7 +6,10 @@
 
 - [ ] Bugfix (non-breaking change which fixes an issue)
 - [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
+- [ ] New developer-facing feature (adds functionality for component developers; no end-user configuration change)
+- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected) — [policy](https://developers.esphome.io/contributing/code/#what-constitutes-a-c-breaking-change)
+- [ ] Developer breaking change (an API change that could break external components) — [policy](https://developers.esphome.io/contributing/code/#what-is-considered-public-c-api)
+- [ ] Undocumented C++ API change (removal or change of undocumented public methods that lambda users may depend on) — [policy](https://developers.esphome.io/contributing/code/#c-user-expectations)
 - [ ] Code quality improvements to existing code or addition of tests
 - [ ] Other
 
@@ -14,18 +17,24 @@
 
 - fixes <link to issue>
 
-**Pull request in [esphome-docs](https://github.com/esphome/esphome-docs) with documentation (if applicable):**
+**Pull request in [esphome.io](https://github.com/esphome/esphome.io) with documentation (if applicable):**
 
-- esphome/esphome-docs#<esphome-docs PR number goes here>
+- esphome/esphome.io#<esphome.io PR number goes here>
+
+**Pull request in [developers.esphome.io](https://github.com/esphome/developers.esphome.io) with developer documentation (if applicable):**
+
+- esphome/developers.esphome.io#<developers.esphome.io PR number goes here>
 
 ## Test Environment
 
 - [ ] ESP32
 - [ ] ESP32 IDF
 - [ ] ESP8266
-- [ ] RP2040
+- [ ] RP2040/RP2350
 - [ ] BK72xx
 - [ ] RTL87xx
+- [ ] LN882x
+- [ ] nRF52840
 
 ## Example entry for `config.yaml`:
 
@@ -39,4 +48,4 @@
   - [ ] Tests have been added to verify that the new code works (under `tests/` folder).
 
 If user exposed functionality or configuration variables are added/changed:
-  - [ ] Documentation added/updated in [esphome-docs](https://github.com/esphome/esphome-docs).
+  - [ ] Documentation added/updated in [esphome.io](https://github.com/esphome/esphome.io).

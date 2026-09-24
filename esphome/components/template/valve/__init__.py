@@ -1,12 +1,12 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import valve
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ASSUMED_STATE,
     CONF_CLOSE_ACTION,
     CONF_CURRENT_OPERATION,
-    CONF_ID,
+    CONF_DEVICE_CLASS,
     CONF_LAMBDA,
     CONF_OPEN_ACTION,
     CONF_OPTIMISTIC,
@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_STATE,
     CONF_STOP_ACTION,
 )
+
 from .. import template_ns
 
 TemplateValve = template_ns.class_("TemplateValve", valve.Valve, cg.Component)
@@ -30,23 +31,34 @@ RESTORE_MODES = {
 CONF_HAS_POSITION = "has_position"
 CONF_TOGGLE_ACTION = "toggle_action"
 
-CONFIG_SCHEMA = valve.VALVE_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(TemplateValve),
-        cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-        cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
-        cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
-        cv.Optional(CONF_HAS_POSITION, default=False): cv.boolean,
-        cv.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_STOP_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_TOGGLE_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_POSITION_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_RESTORE_MODE, default="NO_RESTORE"): cv.enum(
-            RESTORE_MODES, upper=True
-        ),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    cv.with_visibility(
+        valve.valve_schema(TemplateValve),
+        cv.Visibility.UI,
+        CONF_DEVICE_CLASS,
+    )
+    .extend(
+        {
+            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
+            cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
+            cv.Optional(CONF_HAS_POSITION, default=False): cv.boolean,
+            cv.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),
+            cv.Optional(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
+            cv.Optional(CONF_STOP_ACTION): automation.validate_automation(single=True),
+            cv.Optional(CONF_TOGGLE_ACTION): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_POSITION_ACTION): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_RESTORE_MODE, default="NO_RESTORE"): cv.enum(
+                RESTORE_MODES, upper=True
+            ),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):
@@ -87,12 +99,13 @@ async def to_code(config):
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
 
-@automation.register_action(
+# CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
+# one is present and both write the position.
+automation.register_apply_action(
     "valve.template.publish",
-    valve.ValvePublishAction,
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(valve.Valve),
+            cv.GenerateID(): cv.use_id(TemplateValve),
             cv.Exclusive(CONF_STATE, "pos"): cv.templatable(valve.validate_valve_state),
             cv.Exclusive(CONF_POSITION, "pos"): cv.templatable(cv.percentage),
             cv.Optional(CONF_CURRENT_OPERATION): cv.templatable(
@@ -100,19 +113,10 @@ async def to_code(config):
             ),
         }
     ),
+    automation.ApplyField(CONF_STATE, "position = {}", cg.float_),
+    automation.ApplyField(CONF_POSITION, "position = {}", cg.float_),
+    automation.ApplyField(
+        CONF_CURRENT_OPERATION, "current_operation = {}", valve.ValveOperation
+    ),
+    automation.ApplyCall("publish_state()"),
 )
-async def valve_template_publish_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if state_config := config.get(CONF_STATE):
-        template_ = await cg.templatable(state_config, args, float)
-        cg.add(var.set_position(template_))
-    if (position_config := config.get(CONF_POSITION)) is not None:
-        template_ = await cg.templatable(position_config, args, float)
-        cg.add(var.set_position(template_))
-    if current_operation_config := config.get(CONF_CURRENT_OPERATION):
-        template_ = await cg.templatable(
-            current_operation_config, args, valve.ValveOperation
-        )
-        cg.add(var.set_current_operation(template_))
-    return var

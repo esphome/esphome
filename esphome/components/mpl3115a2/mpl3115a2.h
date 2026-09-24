@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace mpl3115a2 {
+namespace esphome::mpl3115a2 {
 
 // enums from https://github.com/adafruit/Adafruit_MPL3115A2_Library/
 /** MPL3115A2 registers **/
@@ -81,7 +80,7 @@ enum {
   MPL3115A2_CTRL_REG1_OS128 = 0x38,
 };
 
-class MPL3115A2Component : public PollingComponent, public i2c::I2CDevice {
+class MPL3115A2Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
   void set_altitude(sensor::Sensor *altitude) { altitude_ = altitude; }
@@ -90,8 +89,6 @@ class MPL3115A2Component : public PollingComponent, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   void update() override;
-
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   sensor::Sensor *temperature_{nullptr};
@@ -104,5 +101,4 @@ class MPL3115A2Component : public PollingComponent, public i2c::I2CDevice {
   } error_code_{NONE};
 };
 
-}  // namespace mpl3115a2
-}  // namespace esphome
+}  // namespace esphome::mpl3115a2

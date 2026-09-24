@@ -4,19 +4,21 @@ from esphome.components import ble_client, esp32_ble_tracker, text_sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHARACTERISTIC_UUID,
-    CONF_ID,
+    CONF_NOTIFY,
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
 )
 
-from .. import ble_client_ns
+from .. import (
+    CONF_DESCRIPTOR_UUID,
+    CONF_ON_NOTIFY,
+    ble_client_ns,
+    notify_from_on_notify,
+    validate_descriptor_not_notify,
+)
 
 DEPENDENCIES = ["ble_client"]
 
-CONF_DESCRIPTOR_UUID = "descriptor_uuid"
-
-CONF_NOTIFY = "notify"
-CONF_ON_NOTIFY = "on_notify"
 
 adv_data_t = cg.std_vector.template(cg.uint8)
 adv_data_t_const_ref = adv_data_t.operator("ref").operator("const")
@@ -32,9 +34,9 @@ BLETextSensorNotifyTrigger = ble_client_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    text_sensor.TEXT_SENSOR_SCHEMA.extend(
+    text_sensor.text_sensor_schema(BLETextSensor)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(BLETextSensor),
             cv.Required(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
             cv.Required(CONF_CHARACTERISTIC_UUID): esp32_ble_tracker.bt_uuid,
             cv.Optional(CONF_DESCRIPTOR_UUID): esp32_ble_tracker.bt_uuid,
@@ -49,12 +51,14 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(ble_client.BLE_CLIENT_SCHEMA)
+    .extend(ble_client.BLE_CLIENT_SCHEMA),
+    validate_descriptor_not_notify,
+    notify_from_on_notify,
 )
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await text_sensor.new_text_sensor(config)
     if len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
         cg.add(
             var.set_service_uuid16(esp32_ble_tracker.as_hex(config[CONF_SERVICE_UUID]))
@@ -89,7 +93,7 @@ async def to_code(config):
         )
         cg.add(var.set_char_uuid128(uuid128))
 
-    if descriptor_uuid := config:
+    if descriptor_uuid := config.get(CONF_DESCRIPTOR_UUID):
         if len(descriptor_uuid) == len(esp32_ble_tracker.bt_uuid16_format):
             cg.add(var.set_descr_uuid16(esp32_ble_tracker.as_hex(descriptor_uuid)))
         elif len(descriptor_uuid) == len(esp32_ble_tracker.bt_uuid32_format):
@@ -101,7 +105,6 @@ async def to_code(config):
     await cg.register_component(var, config)
     await ble_client.register_ble_node(var, config)
     cg.add(var.set_enable_notify(config[CONF_NOTIFY]))
-    await text_sensor.register_text_sensor(var, config)
     for conf in config.get(CONF_ON_NOTIFY, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await ble_client.register_ble_node(trigger, config)

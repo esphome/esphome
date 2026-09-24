@@ -1,8 +1,9 @@
 import logging
 from pathlib import Path
+from typing import Any
 
-import esphome.config_validation as cv
 from esphome import git, loader
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMPONENTS,
     CONF_EXTERNAL_COMPONENTS,
@@ -17,7 +18,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
 )
-from esphome.core import CORE
+from esphome.core import CORE, TimePeriodSeconds
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,11 +36,11 @@ CONFIG_SCHEMA = cv.ensure_list(
 )
 
 
-async def to_code(config):
+async def to_code(config: dict[str, Any]) -> None:
     pass
 
 
-def _process_git_config(config: dict, refresh) -> str:
+def _process_git_config(config: dict[str, Any], refresh: TimePeriodSeconds) -> Path:
     repo_dir, _ = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),
@@ -70,7 +71,34 @@ def _process_git_config(config: dict, refresh) -> str:
     return components_dir
 
 
-def _process_single_config(config: dict):
+def _log_overridden_components(
+    conf: dict[str, Any], component_names: list[str]
+) -> None:
+    overridden = [
+        name
+        for name in component_names
+        if (loader.CORE_COMPONENTS_PATH / name / "__init__.py").is_file()
+    ]
+    if not overridden:
+        return
+    if conf[CONF_TYPE] == TYPE_GIT:
+        source = conf[CONF_URL]
+        if ref := conf.get(CONF_REF):
+            source = f"{source}@{ref}"
+        if path := conf.get(CONF_PATH):
+            source = f"{source} ({path})"
+    else:
+        source = conf[CONF_PATH]
+    _LOGGER.info(
+        "External components are overriding built-in components:\n"
+        "  source: %s\n"
+        "  components: %s",
+        source,
+        ", ".join(sorted(overridden)),
+    )
+
+
+def _process_single_config(config: dict[str, Any]) -> None:
     conf = config[CONF_SOURCE]
     if conf[CONF_TYPE] == TYPE_GIT:
         with cv.prepend_path([CONF_SOURCE]):
@@ -80,11 +108,11 @@ def _process_single_config(config: dict):
     elif conf[CONF_TYPE] == TYPE_LOCAL:
         components_dir = Path(CORE.relative_config_path(conf[CONF_PATH]))
     else:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     if config[CONF_COMPONENTS] == "all":
-        num_components = len(list(components_dir.glob("*/__init__.py")))
-        if num_components > 100:
+        component_names = [p.parent.name for p in components_dir.glob("*/__init__.py")]
+        if len(component_names) > 100:
             # Prevent accidentally including all components from an esphome fork/branch
             # In this case force the user to manually specify which components they want to include
             raise cv.Invalid(
@@ -101,11 +129,14 @@ def _process_single_config(config: dict):
                     [CONF_COMPONENTS, i],
                 )
         allowed_components = config[CONF_COMPONENTS]
+        component_names = allowed_components
+
+    _log_overridden_components(conf, component_names)
 
     loader.install_meta_finder(components_dir, allowed_components=allowed_components)
 
 
-def do_external_components_pass(config: dict) -> None:
+def do_external_components_pass(config: dict[str, Any]) -> None:
     conf = config.get(DOMAIN)
     if conf is None:
         return

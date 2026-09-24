@@ -1,8 +1,7 @@
 #include "max17043.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace max17043 {
+namespace esphome::max17043 {
 
 // MAX174043 is a 1-Cell Fuel Gauge with ModelGauge and Low-Battery Alert
 // Consult the datasheet at https://www.analog.com/en/products/max17043.html
@@ -22,16 +21,16 @@ void MAX17043Component::update() {
 
   if (this->voltage_sensor_ != nullptr) {
     if (!this->read_byte_16(MAX17043_VCELL, &raw_voltage)) {
-      this->status_set_warning("Unable to read MAX17043_VCELL");
+      this->status_set_warning(LOG_STR("Unable to read MAX17043_VCELL"));
     } else {
-      float voltage = (1.25 * (float) (raw_voltage >> 4)) / 1000.0;
+      float voltage = (1.25f * (float) (raw_voltage >> 4)) / 1000.0f;
       this->voltage_sensor_->publish_state(voltage);
       this->status_clear_warning();
     }
   }
   if (this->battery_remaining_sensor_ != nullptr) {
     if (!this->read_byte_16(MAX17043_SOC, &raw_percent)) {
-      this->status_set_warning("Unable to read MAX17043_SOC");
+      this->status_set_warning(LOG_STR("Unable to read MAX17043_SOC"));
     } else {
       float percent = (float) ((raw_percent >> 8) + 0.003906f * (raw_percent & 0x00ff));
       this->battery_remaining_sensor_->publish_state(percent);
@@ -41,8 +40,6 @@ void MAX17043Component::update() {
 }
 
 void MAX17043Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MAX17043...");
-
   uint16_t config_reg;
   if (this->write(&MAX17043_CONFIG, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
@@ -59,14 +56,14 @@ void MAX17043Component::setup() {
 
   if (config_reg != MAX17043_CONFIG_POWER_UP_DEFAULT) {
     ESP_LOGE(TAG, "Device does not appear to be a MAX17043");
-    this->status_set_error("unrecognised");
+    this->status_set_error(LOG_STR("unrecognised"));
     this->mark_failed();
     return;
   }
 
   // need to write back to config register to reset the sleep bit
   if (!this->write_byte_16(MAX17043_CONFIG, MAX17043_CONFIG_POWER_UP_DEFAULT)) {
-    this->status_set_error("sleep reset failed");
+    this->status_set_error(LOG_STR("sleep reset failed"));
     this->mark_failed();
     return;
   }
@@ -76,14 +73,12 @@ void MAX17043Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX17043:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MAX17043 failed");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Battery Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Battery Level", this->battery_remaining_sensor_);
 }
-
-float MAX17043Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void MAX17043Component::sleep_mode() {
   if (!this->is_failed()) {
@@ -94,5 +89,4 @@ void MAX17043Component::sleep_mode() {
   }
 }
 
-}  // namespace max17043
-}  // namespace esphome
+}  // namespace esphome::max17043

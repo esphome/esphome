@@ -1,9 +1,8 @@
 #include "ssd1351_base.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
-namespace esphome {
-namespace ssd1351_base {
+namespace esphome::ssd1351_base {
 
 static const char *const TAG = "ssd1351";
 
@@ -160,6 +159,12 @@ void HOT SSD1351::draw_absolute_pixel_internal(int x, int y, Color color) {
   this->buffer_[pos] = color565 & 0xff;
 }
 void SSD1351::fill(Color color) {
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
   const uint32_t color565 = display::ColorUtil::color_to_565(color);
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++) {
     if (i & 1) {
@@ -192,5 +197,4 @@ const char *SSD1351::model_str_() {
   }
 }
 
-}  // namespace ssd1351_base
-}  // namespace esphome
+}  // namespace esphome::ssd1351_base

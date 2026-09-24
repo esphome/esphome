@@ -1,18 +1,19 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import light, output
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BLUE,
+    CONF_COLD_WHITE,
+    CONF_COLD_WHITE_COLOR_TEMPERATURE,
     CONF_COLOR_INTERLOCK,
     CONF_CONSTANT_BRIGHTNESS,
     CONF_GREEN,
-    CONF_RED,
     CONF_OUTPUT_ID,
-    CONF_COLD_WHITE,
+    CONF_RED,
     CONF_WARM_WHITE,
-    CONF_COLD_WHITE_COLOR_TEMPERATURE,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
 )
+from esphome.types import ConfigType
 
 rgbww_ns = cg.esphome_ns.namespace("rgbww")
 RGBWWLightOutput = rgbww_ns.class_("RGBWWLightOutput", light.LightOutput)
@@ -40,7 +41,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(var, config)
 

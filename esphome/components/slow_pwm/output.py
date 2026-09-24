@@ -1,15 +1,15 @@
-from esphome import pins, core
+from esphome import automation, core, pins
+import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
-import esphome.codegen as cg
-from esphome import automation
 from esphome.const import (
     CONF_ID,
-    CONF_PIN,
     CONF_PERIOD,
-    CONF_TURN_ON_ACTION,
+    CONF_PIN,
     CONF_TURN_OFF_ACTION,
+    CONF_TURN_ON_ACTION,
 )
+from esphome.types import ConfigType
 
 slow_pwm_ns = cg.esphome_ns.namespace("slow_pwm")
 SlowPWMOutput = slow_pwm_ns.class_("SlowPWMOutput", output.FloatOutput, cg.Component)
@@ -43,7 +43,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await output.register_output(var, config)

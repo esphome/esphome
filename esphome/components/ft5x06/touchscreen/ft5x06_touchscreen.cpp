@@ -1,19 +1,28 @@
 #include "ft5x06_touchscreen.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ft5x06 {
+namespace esphome::ft5x06 {
 
 static const char *const TAG = "ft5x06.touchscreen";
 
 void FT5x06Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up FT5x06 Touchscreen...");
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
     this->interrupt_pin_->setup();
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
+  }
+
+  // reading the chip registers to get max x/y does not seem to work.
+  if (this->display_ != nullptr) {
+    if (this->x_raw_max_ == this->x_raw_min_) {
+      this->x_raw_max_ = this->display_->get_native_width();
+    }
+    if (this->y_raw_max_ == this->y_raw_min_) {
+      this->y_raw_max_ = this->display_->get_native_height();
+    }
   }
 
   // wait 200ms after reset.
@@ -40,16 +49,6 @@ void FT5x06Touchscreen::continue_setup_() {
       this->mark_failed();
       return;
   }
-  // reading the chip registers to get max x/y does not seem to work.
-  if (this->display_ != nullptr) {
-    if (this->x_raw_max_ == this->x_raw_min_) {
-      this->x_raw_max_ = this->display_->get_native_width();
-    }
-    if (this->y_raw_max_ == this->y_raw_min_) {
-      this->y_raw_max_ = this->display_->get_native_height();
-    }
-  }
-  ESP_LOGCONFIG(TAG, "FT5x06 Touchscreen setup complete");
 }
 
 void FT5x06Touchscreen::update_touches() {
@@ -73,7 +72,7 @@ void FT5x06Touchscreen::update_touches() {
     uint16_t x = encode_uint16(data[i][0] & 0x0F, data[i][1]);
     uint16_t y = encode_uint16(data[i][2] & 0xF, data[i][3]);
 
-    ESP_LOGD(TAG, "Read %X status, id: %d, pos %d/%d", status, id, x, y);
+    ESP_LOGV(TAG, "Read %X status, id: %d, pos %d/%d", status, id, x, y);
     if (status == 0 || status == 2) {
       this->add_raw_touch_position_(id, x, y);
     }
@@ -81,9 +80,11 @@ void FT5x06Touchscreen::update_touches() {
 }
 
 void FT5x06Touchscreen::dump_config() {
-  ESP_LOGCONFIG(TAG, "FT5x06 Touchscreen:");
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
-  ESP_LOGCONFIG(TAG, "  Vendor ID: 0x%X", (int) this->vendor_id_);
+  ESP_LOGCONFIG(TAG,
+                "FT5x06 Touchscreen:\n"
+                "  Address: 0x%02X\n"
+                "  Vendor ID: 0x%X",
+                this->address_, (int) this->vendor_id_);
 }
 
 bool FT5x06Touchscreen::err_check_(i2c::ErrorCode err, const char *msg) {
@@ -98,5 +99,4 @@ bool FT5x06Touchscreen::set_mode_(FTMode mode) {
   return this->err_check_(this->write_register(FT5X06_MODE_REG, (uint8_t *) &mode, 1), "Set mode");
 }
 
-}  // namespace ft5x06
-}  // namespace esphome
+}  // namespace esphome::ft5x06

@@ -1,0 +1,6 @@
+cover:
+  - platform: tormatic
+    id: tormatic_garage_door
+    name: Tormatic Garage Door
+    open_duration: 15s
+    close_duration: 22s

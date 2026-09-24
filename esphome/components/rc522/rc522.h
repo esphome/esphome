@@ -7,8 +7,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace rc522 {
+namespace esphome::rc522 {
 
 class RC522BinarySensor;
 class RC522Trigger;
@@ -19,7 +18,6 @@ class RC522 : public PollingComponent {
   void dump_config() override;
 
   void update() override;
-  float get_setup_priority() const override { return setup_priority::DATA; };
 
   void loop() override;
 
@@ -253,7 +251,7 @@ class RC522 : public PollingComponent {
   } error_code_{NONE};
 };
 
-class RC522BinarySensor : public binary_sensor::BinarySensor {
+class RC522BinarySensor final : public binary_sensor::BinarySensor {
  public:
   void set_uid(const std::vector<uint8_t> &uid) { uid_ = uid; }
 
@@ -271,10 +269,9 @@ class RC522BinarySensor : public binary_sensor::BinarySensor {
   bool found_{false};
 };
 
-class RC522Trigger : public Trigger<std::string> {
+class RC522Trigger final : public Trigger<std::string> {
  public:
   void process(std::vector<uint8_t> &data);
 };
 
-}  // namespace rc522
-}  // namespace esphome
+}  // namespace esphome::rc522

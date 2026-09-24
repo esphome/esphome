@@ -1,0 +1,28 @@
+gps:
+  latitude:
+    name: "Latitude"
+    id: gps_lat
+    on_value:
+      then:
+        - logger.log:
+            format: "%.6f, %.6f"
+            args: [id(gps_lat).state, id(gps_long).state]
+  longitude:
+    name: "Longitude"
+    id: gps_long
+  altitude:
+    name: "Altitude"
+  speed:
+    name: "Speed"
+  course:
+    name: "Course"
+  satellites:
+    name: "Satellites"
+  hdop:
+    name: "HDOP"
+
+time:
+  - platform: gps
+    on_time_sync:
+      then:
+        logger.log: "It's time!"

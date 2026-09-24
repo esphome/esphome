@@ -1,0 +1,45 @@
+esphome:
+  on_boot:
+    then:
+      - dfplayer.play: 5
+      - dfplayer.play:
+          file: 4
+          loop: true
+      - dfplayer.play_folder:
+          folder: 1
+          file: 3
+      - dfplayer.play_folder:
+          folder: 1
+          loop: true
+      - dfplayer.set_device:
+          device: TF_CARD
+      - dfplayer.set_volume: 5
+      - dfplayer.set_eq: ROCK
+      - dfplayer.play_next
+      - dfplayer.play_previous
+      - dfplayer.reset
+      - dfplayer.start
+      - dfplayer.pause
+      - dfplayer.stop
+      - dfplayer.random
+      - dfplayer.volume_up
+      - dfplayer.volume_down
+      - dfplayer.sleep
+      - dfplayer.set_current_track_repeat
+      - dfplayer.set_current_track_repeat: true
+      - dfplayer.set_current_track_repeat:
+          enable: false
+      - dfplayer.set_current_track_repeat:
+          enable: !lambda return true;
+      - dfplayer.set_current_track_repeat:
+          id: dfplayer_test
+
+dfplayer:
+  id: dfplayer_test
+  on_finished_playback:
+    then:
+      if:
+        condition:
+          not: dfplayer.is_playing
+        then:
+          logger.log: Playback finished event

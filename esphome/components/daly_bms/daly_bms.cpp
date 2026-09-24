@@ -1,9 +1,10 @@
 #include "daly_bms.h"
 #include <vector>
+#include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace daly_bms {
+namespace esphome::daly_bms {
 
 static const char *const TAG = "daly_bms";
 
@@ -21,10 +22,7 @@ static const uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
 
 void DalyBmsComponent::setup() { this->next_request_ = 1; }
 
-void DalyBmsComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Daly BMS:");
-  this->check_uart_settings(9600);
-}
+void DalyBmsComponent::dump_config() { ESP_LOGCONFIG(TAG, "Daly BMS:"); }
 
 void DalyBmsComponent::update() {
   this->trigger_next_ = true;
@@ -32,7 +30,7 @@ void DalyBmsComponent::update() {
 }
 
 void DalyBmsComponent::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (this->receiving_ && (now - this->last_transmission_ >= 200)) {
     // last transmission too long ago. Reset RX index.
     ESP_LOGW(TAG, "Last transmission too long ago. Reset RX index.");
@@ -101,8 +99,6 @@ void DalyBmsComponent::loop() {
     }
   }
 }
-
-float DalyBmsComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 void DalyBmsComponent::request_data_(uint8_t data_id) {
   uint8_t request_message[DALY_FRAME_SIZE];
@@ -298,6 +294,12 @@ void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
                 if (this->cell_16_voltage_sensor_) {
                   this->cell_16_voltage_sensor_->publish_state((float) encode_uint16(it[5], it[6]) / 1000);
                 }
+                if (this->cell_17_voltage_sensor_) {
+                  this->cell_17_voltage_sensor_->publish_state((float) encode_uint16(it[7], it[8]) / 1000);
+                }
+                if (this->cell_18_voltage_sensor_) {
+                  this->cell_18_voltage_sensor_->publish_state((float) encode_uint16(it[9], it[10]) / 1000);
+                }
                 break;
             }
             break;
@@ -315,5 +317,4 @@ void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
   }
 }
 
-}  // namespace daly_bms
-}  // namespace esphome
+}  // namespace esphome::daly_bms

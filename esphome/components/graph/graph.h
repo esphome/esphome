@@ -42,7 +42,7 @@ enum ValuePositionType {
   VALUE_POSITION_TYPE_BELOW
 };
 
-class GraphLegend {
+class GraphLegend final {
  public:
   void init(Graph *g);
   void set_name_font(display::BaseFont *font) { this->font_label_ = font; }
@@ -105,7 +105,7 @@ class HistoryData {
   std::vector<float> samples_;
 };
 
-class GraphTrace {
+class GraphTrace final {
  public:
   void init(Graph *g);
   void set_name(std::string name) { name_ = std::move(name); }
@@ -123,7 +123,7 @@ class GraphTrace {
 
  protected:
   sensor::Sensor *sensor_{nullptr};
-  std::string name_{""};
+  std::string name_;
   uint8_t line_thickness_{3};
   enum LineType line_type_ { LINE_TYPE_SOLID };
   Color line_color_{COLOR_ON};
@@ -134,7 +134,7 @@ class GraphTrace {
   friend GraphLegend;
 };
 
-class Graph : public Component {
+class Graph final : public Component {
  public:
   void draw(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color);
   void draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color);
@@ -161,11 +161,15 @@ class Graph : public Component {
   uint32_t get_duration() { return duration_; }
   uint32_t get_width() { return width_; }
   uint32_t get_height() { return height_; }
+  float get_graph_limit_min() { return graph_limit_min_; }
+  float get_graph_limit_max() { return graph_limit_max_; }
 
  protected:
   uint32_t duration_;  /// in seconds
   uint32_t width_;     /// in pixels
   uint32_t height_;    /// in pixels
+  float graph_limit_min_{NAN};
+  float graph_limit_max_{NAN};
   float min_value_{NAN};
   float max_value_{NAN};
   float min_range_{1.0};

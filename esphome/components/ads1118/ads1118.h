@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ads1118 {
+namespace esphome::ads1118 {
 
 enum ADS1118Multiplexer {
   ADS1118_MULTIPLEXER_P0_N1 = 0b000,
@@ -27,14 +26,13 @@ enum ADS1118Gain {
   ADS1118_GAIN_0P256 = 0b101,
 };
 
-class ADS1118 : public Component,
-                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_TRAILING,
-                                      spi::DATA_RATE_1MHZ> {
+class ADS1118 final : public Component,
+                      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                            spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
  public:
   ADS1118() = default;
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   /// Helper method to request a measurement from a sensor.
   float request_measurement(ADS1118Multiplexer multiplexer, ADS1118Gain gain, bool temperature_mode);
 
@@ -42,5 +40,4 @@ class ADS1118 : public Component,
   uint16_t config_{0};
 };
 
-}  // namespace ads1118
-}  // namespace esphome
+}  // namespace esphome::ads1118

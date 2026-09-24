@@ -1,9 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
+from esphome.types import ConfigType
 
-from .. import M5Stack8AngleComponent, m5stack_8angle_ns, CONF_M5STACK_8ANGLE_ID
-
+from .. import CONF_M5STACK_8ANGLE_ID, M5Stack8AngleComponent, m5stack_8angle_ns
 
 M5Stack8AngleSwitchBinarySensor = m5stack_8angle_ns.class_(
     "M5Stack8AngleSwitchBinarySensor",
@@ -23,7 +23,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_M5STACK_8ANGLE_ID])
     sens = await binary_sensor.new_binary_sensor(config)
     cg.add(sens.set_parent(hub))

@@ -1,0 +1,10 @@
+sensor:
+  - platform: ee895
+    i2c_id: i2c_bus
+    address: 0x5F
+    co2:
+      name: EE895 CO2
+    temperature:
+      name: EE895 Temperature
+    pressure:
+      name: EE895 Pressure

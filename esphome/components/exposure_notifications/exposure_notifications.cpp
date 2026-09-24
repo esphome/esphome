@@ -1,13 +1,10 @@
 #include "exposure_notifications.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
-#ifdef USE_ESP32
+namespace esphome::exposure_notifications {
 
-namespace esphome {
-namespace exposure_notifications {
-
-using namespace esp32_ble_tracker;
+using namespace ble_device_base;
 
 static const char *const TAG = "exposure_notifications";
 
@@ -43,7 +40,4 @@ bool ExposureNotificationTrigger::parse_device(const ESPBTDevice &device) {
   return true;
 }
 
-}  // namespace exposure_notifications
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::exposure_notifications

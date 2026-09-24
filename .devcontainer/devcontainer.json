@@ -1,22 +1,20 @@
 {
   "name": "ESPHome Dev",
-  "image": "ghcr.io/esphome/esphome-lint:dev",
+  "context": "..",
+  "dockerFile": "Dockerfile",
   "postCreateCommand": [
     "script/devcontainer-post-create"
   ],
-  "containerEnv": {
-    "DEVCONTAINER": "1",
-    "PIP_BREAK_SYSTEM_PACKAGES": "1",
-    "PIP_ROOT_USER_ACTION": "ignore"
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "runArgs": [
     "--privileged",
     "-e",
-    "ESPHOME_DASHBOARD_USE_PING=1"
-    // uncomment and edit the path in order to pass though local USB serial to the conatiner
+    "GIT_EDITOR=code --wait"
+    // uncomment and edit the path in order to pass through local USB serial to the container
     // , "--device=/dev/ttyACM0"
   ],
-  "appPort": 6052,
   // if you are using avahi in the host device, uncomment these to allow the
   // devcontainer to find devices via mdns
   //"mounts": [
@@ -31,7 +29,7 @@
         "ms-python.python",
         "ms-python.pylint",
         "ms-python.flake8",
-        "ms-python.black-formatter",
+        "charliermarsh.ruff",
         "visualstudioexptteam.vscodeintellicode",
         // yaml
         "redhat.vscode-yaml",
@@ -42,21 +40,22 @@
       ],
       "settings": {
         "python.languageServer": "Pylance",
-        "python.pythonPath": "/usr/bin/python3",
+        // Use the container's pre-provisioned venv (built by the Dockerfile, outside the
+        // bind-mounted workspace) rather than a ./venv that may leak in from the host and
+        // mismatch the container's Python. See .devcontainer/Dockerfile (esphome-venv).
+        "python.defaultInterpreterPath": "/home/esphome/.local/esphome-venv/bin/python",
+        "python.terminal.activateEnvironment": true,
         "pylint.args": [
           "--rcfile=${workspaceFolder}/pyproject.toml"
         ],
         "flake8.args": [
           "--config=${workspaceFolder}/.flake8"
         ],
-        "black-formatter.args": [
-          "--config",
-          "${workspaceFolder}/pyproject.toml"
-        ],
+        "ruff.configuration": "${workspaceFolder}/pyproject.toml",
         "[python]": {
           // VS will say "Value is not accepted" before building the devcontainer, but the warning
           // should go away after build is completed.
-          "editor.defaultFormatter": "ms-python.black-formatter"
+          "editor.defaultFormatter": "charliermarsh.ruff"
         },
         "editor.formatOnPaste": false,
         "editor.formatOnSave": true,

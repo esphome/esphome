@@ -3,10 +3,8 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
-#include "esphome/core/optional.h"
 
-namespace esphome {
-namespace veml7700 {
+namespace esphome::veml7700 {
 
 using esphome::i2c::ErrorCode;
 
@@ -97,12 +95,11 @@ union PSMRegister {
   } __attribute__((packed));
 };
 
-class VEML7700Component : public PollingComponent, public i2c::I2CDevice {
+class VEML7700Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   //
   // EspHome framework functions
   //
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -198,5 +195,4 @@ class VEML7700Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *actual_integration_time_sensor_{nullptr};  // Actual integration time for the measurement
 };
 
-}  // namespace veml7700
-}  // namespace esphome
+}  // namespace esphome::veml7700

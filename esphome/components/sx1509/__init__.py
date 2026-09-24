@@ -1,18 +1,23 @@
+from esphome import automation, pins
 import esphome.codegen as cg
+from esphome.components import i2c, key_provider
+from esphome.components.const import CONF_KEYS
 import esphome.config_validation as cv
-from esphome import pins
-from esphome.components import i2c
 from esphome.const import (
     CONF_ID,
     CONF_INPUT,
-    CONF_NUMBER,
-    CONF_MODE,
     CONF_INVERTED,
+    CONF_MODE,
+    CONF_NUMBER,
+    CONF_ON_KEY,
+    CONF_OPEN_DRAIN,
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
-    CONF_OPEN_DRAIN,
+    CONF_TRIGGER_ID,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CONF_KEYPAD = "keypad"
 CONF_KEY_ROWS = "key_rows"
@@ -22,22 +27,49 @@ CONF_SCAN_TIME = "scan_time"
 CONF_DEBOUNCE_TIME = "debounce_time"
 CONF_SX1509_ID = "sx1509_id"
 
+AUTO_LOAD = ["key_provider", "gpio_expander"]
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 
 sx1509_ns = cg.esphome_ns.namespace("sx1509")
 
-SX1509Component = sx1509_ns.class_("SX1509Component", cg.Component, i2c.I2CDevice)
+SX1509Component = sx1509_ns.class_(
+    "SX1509Component", cg.Component, i2c.I2CDevice, key_provider.KeyProvider
+)
 SX1509GPIOPin = sx1509_ns.class_("SX1509GPIOPin", cg.GPIOPin)
+SX1509KeyTrigger = sx1509_ns.class_(
+    "SX1509KeyTrigger", automation.Trigger.template(cg.uint8)
+)
 
-KEYPAD_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_KEY_ROWS): cv.int_range(min=1, max=8),
-        cv.Required(CONF_KEY_COLUMNS): cv.int_range(min=1, max=8),
-        cv.Optional(CONF_SLEEP_TIME): cv.int_range(min=128, max=8192),
-        cv.Optional(CONF_SCAN_TIME): cv.int_range(min=1, max=128),
-        cv.Optional(CONF_DEBOUNCE_TIME): cv.int_range(min=1, max=64),
-    }
+
+def check_keys(config: ConfigType) -> ConfigType:
+    if (
+        CONF_KEYS in config
+        and len(config[CONF_KEYS]) != config[CONF_KEY_ROWS] * config[CONF_KEY_COLUMNS]
+    ):
+        raise cv.Invalid(
+            "The number of key codes must equal the number of rows * columns"
+        )
+    return config
+
+
+KEYPAD_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_KEY_ROWS): cv.int_range(min=2, max=8),
+            cv.Required(CONF_KEY_COLUMNS): cv.int_range(min=1, max=8),
+            cv.Optional(CONF_SLEEP_TIME): cv.int_range(min=128, max=8192),
+            cv.Optional(CONF_SCAN_TIME): cv.int_range(min=1, max=128),
+            cv.Optional(CONF_DEBOUNCE_TIME): cv.int_range(min=1, max=64),
+            cv.Optional(CONF_KEYS): cv.string,
+            cv.Optional(CONF_ON_KEY): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SX1509KeyTrigger),
+                }
+            ),
+        }
+    ),
+    check_keys,
 )
 
 CONFIG_SCHEMA = (
@@ -52,24 +84,29 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-    if CONF_KEYPAD in config:
-        keypad = config[CONF_KEYPAD]
-        cg.add(var.set_rows_cols(keypad[CONF_KEY_ROWS], keypad[CONF_KEY_COLUMNS]))
+    if conf := config.get(CONF_KEYPAD):
+        cg.add(var.set_rows_cols(conf[CONF_KEY_ROWS], conf[CONF_KEY_COLUMNS]))
         if (
-            CONF_SLEEP_TIME in keypad
-            and CONF_SCAN_TIME in keypad
-            and CONF_DEBOUNCE_TIME in keypad
+            CONF_SLEEP_TIME in conf
+            and CONF_SCAN_TIME in conf
+            and CONF_DEBOUNCE_TIME in conf
         ):
-            cg.add(var.set_sleep_time(keypad[CONF_SLEEP_TIME]))
-            cg.add(var.set_scan_time(keypad[CONF_SCAN_TIME]))
-            cg.add(var.set_debounce_time(keypad[CONF_DEBOUNCE_TIME]))
+            cg.add(var.set_sleep_time(conf[CONF_SLEEP_TIME]))
+            cg.add(var.set_scan_time(conf[CONF_SCAN_TIME]))
+            cg.add(var.set_debounce_time(conf[CONF_DEBOUNCE_TIME]))
+        if keys := conf.get(CONF_KEYS):
+            cg.add(var.set_keys(keys))
+        for tconf in conf.get(CONF_ON_KEY, []):
+            trigger = cg.new_Pvariable(tconf[CONF_TRIGGER_ID])
+            cg.add(var.register_key_trigger(trigger))
+            await automation.build_automation(trigger, [(cg.uint8, "x")], tconf)
 
 
-def validate_mode(value):
+def validate_mode(value: ConfigType) -> ConfigType:
     if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
         raise cv.Invalid("Mode must be either input or output")
     if value[CONF_INPUT] and value[CONF_OUTPUT]:
@@ -107,7 +144,7 @@ SX1509_PIN_SCHEMA = cv.All(
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_SX1509, SX1509_PIN_SCHEMA)
-async def sx1509_pin_to_code(config):
+async def sx1509_pin_to_code(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_SX1509])
     cg.add(var.set_parent(parent))

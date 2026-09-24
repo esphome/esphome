@@ -1,34 +1,49 @@
 #include "seeed_mr60bha2.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
 #include <utility>
 
-namespace esphome {
-namespace seeed_mr60bha2 {
+namespace esphome::seeed_mr60bha2 {
 
 static const char *const TAG = "seeed_mr60bha2";
+
+// Maximum bytes to log in verbose hex output
+static constexpr size_t MR60BHA2_MAX_LOG_BYTES = 64;
 
 // Prints the component's configuration data. dump_config() prints all of the component's configuration
 // items in an easy-to-read format, including the configuration key-value pairs.
 void MR60BHA2Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MR60BHA2:");
+#ifdef USE_BINARY_SENSOR
+  LOG_BINARY_SENSOR(" ", "People Exist Binary Sensor", this->has_target_binary_sensor_);
+#endif
 #ifdef USE_SENSOR
   LOG_SENSOR(" ", "Breath Rate Sensor", this->breath_rate_sensor_);
   LOG_SENSOR(" ", "Heart Rate Sensor", this->heart_rate_sensor_);
   LOG_SENSOR(" ", "Distance Sensor", this->distance_sensor_);
+  LOG_SENSOR(" ", "Target Number Sensor", this->num_targets_sensor_);
 #endif
 }
 
 // main loop
 void MR60BHA2Component::loop() {
-  uint8_t byte;
+  // Read all available bytes in batches to reduce UART call overhead.
+  size_t avail = this->available();
+  uint8_t buf[64];
+  while (avail > 0) {
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
 
-  // Is there data on the serial port
-  while (this->available()) {
-    this->read_byte(&byte);
-    this->rx_message_.push_back(byte);
-    if (!this->validate_message_()) {
-      this->rx_message_.clear();
+    for (size_t i = 0; i < to_read; i++) {
+      this->rx_message_.push_back(buf[i]);
+      if (!this->validate_message_()) {
+        this->rx_message_.clear();
+      }
     }
   }
 }
@@ -94,7 +109,8 @@ bool MR60BHA2Component::validate_message_() {
   uint16_t frame_type = encode_uint16(data[5], data[6]);
 
   if (frame_type != BREATH_RATE_TYPE_BUFFER && frame_type != HEART_RATE_TYPE_BUFFER &&
-      frame_type != DISTANCE_TYPE_BUFFER) {
+      frame_type != DISTANCE_TYPE_BUFFER && frame_type != PEOPLE_EXIST_TYPE_BUFFER &&
+      frame_type != PRINT_CLOUD_BUFFER) {
     return false;
   }
 
@@ -103,7 +119,10 @@ bool MR60BHA2Component::validate_message_() {
   if (at == 7) {
     if (!validate_checksum(data, 7, header_checksum)) {
       ESP_LOGE(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", header_checksum);
-      ESP_LOGV(TAG, "GET FRAME: %s", format_hex_pretty(data, 8).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      char hex_buf[format_hex_pretty_size(MR60BHA2_MAX_LOG_BYTES)];
+#endif
+      ESP_LOGV(TAG, "GET FRAME: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), data, 8));
       return false;
     }
     return true;
@@ -118,14 +137,22 @@ bool MR60BHA2Component::validate_message_() {
   if (at == 8 + length) {
     if (!validate_checksum(data + 8, length, data_checksum)) {
       ESP_LOGE(TAG, "DATA_CKSUM_FRAME ERROR: 0x%02x", data_checksum);
-      ESP_LOGV(TAG, "GET FRAME: %s", format_hex_pretty(data, 8 + length).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      char hex_buf[format_hex_pretty_size(MR60BHA2_MAX_LOG_BYTES)];
+#endif
+      ESP_LOGV(TAG, "GET FRAME: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), data, 8 + length));
       return false;
     }
   }
 
   const uint8_t *frame_data = data + 8;
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf1[format_hex_pretty_size(MR60BHA2_MAX_LOG_BYTES)];
+  char hex_buf2[format_hex_pretty_size(MR60BHA2_MAX_LOG_BYTES)];
+#endif
   ESP_LOGV(TAG, "Received Frame: ID: 0x%04x, Type: 0x%04x, Data: [%s] Raw Data: [%s]", frame_id, frame_type,
-           format_hex_pretty(frame_data, length).c_str(), format_hex_pretty(this->rx_message_).c_str());
+           format_hex_pretty_to(hex_buf1, sizeof(hex_buf1), frame_data, length),
+           format_hex_pretty_to(hex_buf2, sizeof(hex_buf2), this->rx_message_.data(), this->rx_message_.size()));
   this->process_frame_(frame_id, frame_type, data + 8, length);
 
   // Return false to reset rx buffer
@@ -144,6 +171,22 @@ void MR60BHA2Component::process_frame_(uint16_t frame_id, uint16_t frame_type, c
         }
       }
       break;
+    case PEOPLE_EXIST_TYPE_BUFFER:
+      if (this->has_target_binary_sensor_ != nullptr && length >= 2) {
+        uint16_t has_target_int = encode_uint16(data[1], data[0]);
+        this->has_target_binary_sensor_->publish_state(has_target_int);
+        if (has_target_int == 0) {
+          if (this->breath_rate_sensor_ != nullptr)
+            this->breath_rate_sensor_->publish_state(0.0);
+          if (this->heart_rate_sensor_ != nullptr)
+            this->heart_rate_sensor_->publish_state(0.0);
+          if (this->distance_sensor_ != nullptr)
+            this->distance_sensor_->publish_state(0.0);
+          if (this->num_targets_sensor_ != nullptr)
+            this->num_targets_sensor_->publish_state(0);
+        }
+      }
+      break;
     case HEART_RATE_TYPE_BUFFER:
       if (this->heart_rate_sensor_ != nullptr && length >= 4) {
         uint32_t current_heart_rate_int = encode_uint32(data[3], data[2], data[1], data[0]);
@@ -155,7 +198,7 @@ void MR60BHA2Component::process_frame_(uint16_t frame_id, uint16_t frame_type, c
       }
       break;
     case DISTANCE_TYPE_BUFFER:
-      if (!data[0]) {
+      if (length >= 1 && data[0] != 0) {
         if (this->distance_sensor_ != nullptr && length >= 8) {
           uint32_t current_distance_int = encode_uint32(data[7], data[6], data[5], data[4]);
           float distance_float;
@@ -164,10 +207,15 @@ void MR60BHA2Component::process_frame_(uint16_t frame_id, uint16_t frame_type, c
         }
       }
       break;
+    case PRINT_CLOUD_BUFFER:
+      if (this->num_targets_sensor_ != nullptr && length >= 4) {
+        uint32_t current_num_targets_int = encode_uint32(data[3], data[2], data[1], data[0]);
+        this->num_targets_sensor_->publish_state(current_num_targets_int);
+      }
+      break;
     default:
       break;
   }
 }
 
-}  // namespace seeed_mr60bha2
-}  // namespace esphome
+}  // namespace esphome::seeed_mr60bha2

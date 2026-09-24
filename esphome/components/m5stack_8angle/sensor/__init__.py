@@ -1,7 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
-
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BIT_DEPTH,
     CONF_CHANNEL,
@@ -9,14 +8,14 @@ from esphome.const import (
     ICON_ROTATE_RIGHT,
     STATE_CLASS_MEASUREMENT,
 )
+from esphome.types import ConfigType
 
 from .. import (
+    CONF_M5STACK_8ANGLE_ID,
     AnalogBits,
     M5Stack8AngleComponent,
     m5stack_8angle_ns,
-    CONF_M5STACK_8ANGLE_ID,
 )
-
 
 M5Stack8AngleKnobSensor = m5stack_8angle_ns.class_(
     "M5Stack8AngleKnobSensor",
@@ -57,7 +56,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_M5STACK_8ANGLE_ID])

@@ -4,16 +4,13 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ina260 {
+namespace esphome::ina260 {
 
-class INA260Component : public PollingComponent, public i2c::I2CDevice {
+class INA260Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
   void update() override;
-
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_bus_voltage_sensor(sensor::Sensor *bus_voltage_sensor) { this->bus_voltage_sensor_ = bus_voltage_sensor; }
   void set_current_sensor(sensor::Sensor *current_sensor) { this->current_sensor_ = current_sensor; }
@@ -35,5 +32,4 @@ class INA260Component : public PollingComponent, public i2c::I2CDevice {
   } error_code_{NONE};
 };
 
-}  // namespace ina260
-}  // namespace esphome
+}  // namespace esphome::ina260

@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace ina226 {
+namespace esphome::ina226 {
 
 static const char *const TAG = "ina226";
 
@@ -37,8 +36,6 @@ static const uint16_t INA226_ADC_TIMES[] = {140, 204, 332, 588, 1100, 2116, 4156
 static const uint16_t INA226_ADC_AVG_SAMPLES[] = {1, 4, 16, 64, 128, 256, 512, 1024};
 
 void INA226Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up INA226...");
-
   ConfigurationRegister config;
 
   config.reset = 1;
@@ -73,7 +70,7 @@ void INA226Component::setup() {
 
   this->calibration_lsb_ = lsb;
 
-  auto calibration = uint32_t(0.00512 / (lsb * this->shunt_resistance_ohm_ / 1000000.0f));
+  auto calibration = uint32_t(0.00512f / (lsb * this->shunt_resistance_ohm_ / 1000000.0f));
 
   ESP_LOGV(TAG, "    Using LSB=%" PRIu32 " calibration=%" PRIu32, lsb, calibration);
 
@@ -88,22 +85,23 @@ void INA226Component::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with INA226 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
   LOG_UPDATE_INTERVAL(this);
 
-  ESP_LOGCONFIG(TAG, "  ADC Conversion Time Bus Voltage: %d", INA226_ADC_TIMES[this->adc_time_voltage_ & 0b111]);
-  ESP_LOGCONFIG(TAG, "  ADC Conversion Time Shunt Voltage: %d", INA226_ADC_TIMES[this->adc_time_current_ & 0b111]);
-  ESP_LOGCONFIG(TAG, "  ADC Averaging Samples: %d", INA226_ADC_AVG_SAMPLES[this->adc_avg_samples_ & 0b111]);
+  ESP_LOGCONFIG(TAG,
+                "  ADC Conversion Time Bus Voltage: %d\n"
+                "  ADC Conversion Time Shunt Voltage: %d\n"
+                "  ADC Averaging Samples: %d",
+                INA226_ADC_TIMES[this->adc_time_voltage_ & 0b111], INA226_ADC_TIMES[this->adc_time_current_ & 0b111],
+                INA226_ADC_AVG_SAMPLES[this->adc_avg_samples_ & 0b111]);
 
   LOG_SENSOR("  ", "Bus Voltage", this->bus_voltage_sensor_);
   LOG_SENSOR("  ", "Shunt Voltage", this->shunt_voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);
 }
-
-float INA226Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void INA226Component::update() {
   if (this->bus_voltage_sensor_ != nullptr) {
@@ -162,5 +160,4 @@ int32_t INA226Component::twos_complement_(int32_t val, uint8_t bits) {
   return val;
 }
 
-}  // namespace ina226
-}  // namespace esphome
+}  // namespace esphome::ina226

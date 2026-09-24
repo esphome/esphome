@@ -1,0 +1,6 @@
+rdm6300:
+
+binary_sensor:
+  - platform: rdm6300
+    uid: 7616525
+    name: RDM6300 NFC Tag

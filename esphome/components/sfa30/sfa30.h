@@ -4,14 +4,12 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 
-namespace esphome {
-namespace sfa30 {
+namespace esphome::sfa30 {
 
-class SFA30Component : public PollingComponent, public sensirion_common::SensirionI2CDevice {
+class SFA30Component final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
   enum ErrorCode { DEVICE_MARKING_READ_FAILED, MEASUREMENT_INIT_FAILED, UNKNOWN };
 
  public:
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -30,5 +28,4 @@ class SFA30Component : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *temperature_sensor_{nullptr};
 };
 
-}  // namespace sfa30
-}  // namespace esphome
+}  // namespace esphome::sfa30

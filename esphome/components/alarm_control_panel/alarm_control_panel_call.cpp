@@ -4,15 +4,23 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace alarm_control_panel {
+namespace esphome::alarm_control_panel {
 
 static const char *const TAG = "alarm_control_panel";
 
 AlarmControlPanelCall::AlarmControlPanelCall(AlarmControlPanel *parent) : parent_(parent) {}
 
-AlarmControlPanelCall &AlarmControlPanelCall::set_code(const std::string &code) {
-  this->code_ = code;
+AlarmControlPanelCall &AlarmControlPanelCall::set_code(const char *code) {
+  if (code != nullptr) {
+    return this->set_code(code, strlen(code));
+  }
+  return *this;
+}
+
+AlarmControlPanelCall &AlarmControlPanelCall::set_code(const char *code, size_t len) {
+  if (code != nullptr) {
+    this->code_ = std::string(code, len);
+  }
   return *this;
 }
 
@@ -99,5 +107,4 @@ void AlarmControlPanelCall::perform() {
   }
 }
 
-}  // namespace alarm_control_panel
-}  // namespace esphome
+}  // namespace esphome::alarm_control_panel

@@ -1,8 +1,10 @@
+import esphome.codegen as cg
 from esphome.components import time as time_
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import CONF_ID
-from .. import gps_ns, GPSListener, CONF_GPS_ID, GPS
+from esphome.types import ConfigType
+
+from .. import CONF_GPS_ID, GPS, GPSListener, gps_ns
 
 DEPENDENCIES = ["gps"]
 
@@ -18,7 +20,7 @@ CONFIG_SCHEMA = time_.TIME_SCHEMA.extend(
 ).extend(cv.polling_component_schema("5min"))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await time_.register_time(var, config)
     await cg.register_component(var, config)

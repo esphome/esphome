@@ -1,23 +1,23 @@
 import esphome.codegen as cg
+from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor, sensirion_common
-
 from esphome.const import (
-    CONF_ID,
     CONF_FORMALDEHYDE,
     CONF_HUMIDITY,
+    CONF_ID,
     CONF_TEMPERATURE,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     ICON_RADIATOR,
-    ICON_WATER_PERCENT,
     ICON_THERMOMETER,
+    ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
     UNIT_PARTS_PER_BILLION,
     UNIT_PERCENT,
-    UNIT_CELSIUS,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ghsensdev"]
 DEPENDENCIES = ["i2c"]
@@ -67,7 +67,7 @@ SENSOR_MAP = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

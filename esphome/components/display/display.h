@@ -23,8 +23,7 @@
 #include "esphome/components/graphical_display_menu/graphical_display_menu.h"
 #endif
 
-namespace esphome {
-namespace display {
+namespace esphome::display {
 
 /** TextAlign is used to tell the display class how to position a piece of text. By default
  * the coordinates you enter for the print*() functions take the upper left corner of the text
@@ -138,8 +137,6 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
-#define PI 3.1415926535897932384626433832795
-
 const int EDGES_TRIGON = 3;
 const int EDGES_TRIANGLE = 3;
 const int EDGES_TETRAGON = 4;
@@ -178,19 +175,131 @@ class Display;
 class DisplayPage;
 class DisplayOnPageChangeTrigger;
 
-using display_writer_t = std::function<void(Display &)>;
+/** Optimized display writer that uses function pointers for stateless lambdas.
+ *
+ * Similar to TemplatableValue but specialized for display writer callbacks.
+ * Saves ~8 bytes per stateless lambda on 32-bit platforms (16 bytes std::function → ~8 bytes discriminator+pointer).
+ *
+ * Supports both:
+ * - Stateless lambdas (from YAML) → function pointer (4 bytes)
+ * - Stateful lambdas/std::function (from C++ code) → std::function* (heap allocated)
+ *
+ * @tparam T The display type (e.g., Display, Nextion, GPIOLCDDisplay)
+ */
+template<typename T> class DisplayWriter {
+ public:
+  DisplayWriter() : type_(NONE) {}
+
+  // For stateless lambdas (convertible to function pointer): use function pointer (4 bytes)
+  template<typename F>
+  DisplayWriter(F f) requires std::invocable<F, T &> && std::convertible_to<F, void (*)(T &)>
+      : type_(STATELESS_LAMBDA) {
+    this->stateless_f_ = f;  // Implicit conversion to function pointer
+  }
+
+  // For stateful lambdas and std::function (not convertible to function pointer): use std::function* (heap allocated)
+  // This handles backwards compatibility with external components
+  template<typename F>
+  DisplayWriter(F f) requires std::invocable<F, T &> &&(!std::convertible_to<F, void (*)(T &)>) : type_(LAMBDA) {
+    this->f_ = new std::function<void(T &)>(std::move(f));
+  }
+
+  // Copy constructor
+  DisplayWriter(const DisplayWriter &other) : type_(other.type_) {
+    if (type_ == LAMBDA) {
+      this->f_ = new std::function<void(T &)>(*other.f_);
+    } else if (type_ == STATELESS_LAMBDA) {
+      this->stateless_f_ = other.stateless_f_;
+    }
+  }
+
+  // Move constructor
+  DisplayWriter(DisplayWriter &&other) noexcept : type_(other.type_) {
+    if (type_ == LAMBDA) {
+      this->f_ = other.f_;
+      other.f_ = nullptr;
+    } else if (type_ == STATELESS_LAMBDA) {
+      this->stateless_f_ = other.stateless_f_;
+    }
+    other.type_ = NONE;
+  }
+
+  // Assignment operators
+  DisplayWriter &operator=(const DisplayWriter &other) {
+    if (this != &other) {
+      this->~DisplayWriter();
+      new (this) DisplayWriter(other);
+    }
+    return *this;
+  }
+
+  DisplayWriter &operator=(DisplayWriter &&other) noexcept {
+    if (this != &other) {
+      this->~DisplayWriter();
+      new (this) DisplayWriter(std::move(other));
+    }
+    return *this;
+  }
+
+  ~DisplayWriter() {
+    if (type_ == LAMBDA) {
+      delete this->f_;
+    }
+    // STATELESS_LAMBDA/NONE: no cleanup needed (function pointer or empty)
+  }
+
+  bool has_value() const { return this->type_ != NONE; }
+
+  void call(T &display) const {
+    switch (this->type_) {
+      case STATELESS_LAMBDA:
+        this->stateless_f_(display);  // Direct function pointer call
+        break;
+      case LAMBDA:
+        (*this->f_)(display);  // std::function call
+        break;
+      case NONE:
+      default:
+        break;
+    }
+  }
+
+  // Operator() for convenience
+  void operator()(T &display) const { this->call(display); }
+
+  // Operator* for backwards compatibility with (*writer_)(*this) pattern
+  DisplayWriter &operator*() { return *this; }
+  const DisplayWriter &operator*() const { return *this; }
+
+ protected:
+  enum : uint8_t {
+    NONE,
+    LAMBDA,
+    STATELESS_LAMBDA,
+  } type_;
+
+  union {
+    std::function<void(T &)> *f_;
+    void (*stateless_f_)(T &);
+  };
+};
+
+// Type alias for Display writer - uses optimized DisplayWriter instead of std::function
+using display_writer_t = DisplayWriter<Display>;
 
 #define LOG_DISPLAY(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, prefix type); \
-    ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, (obj)->rotation_); \
-    ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, (obj)->get_width(), (obj)->get_height()); \
+    ESP_LOGCONFIG(TAG, \
+                  prefix type "\n" \
+                              "%s  Rotations: %d °\n" \
+                              "%s  Dimensions: %dpx x %dpx", \
+                  prefix, (obj)->rotation_, prefix, (obj)->get_width(), (obj)->get_height()); \
   }
 
 /// Turn the pixel OFF.
-extern const Color COLOR_OFF;
+inline constexpr Color COLOR_OFF(0, 0, 0, 0);
 /// Turn the pixel ON.
-extern const Color COLOR_ON;
+inline constexpr Color COLOR_ON(255, 255, 255, 255);
 
 class BaseImage {
  public:
@@ -210,7 +319,7 @@ class Display : public PollingComponent {
   /// Fill the entire screen with the given color.
   virtual void fill(Color color);
   /// Clear the entire screen by filling it with OFF pixels.
-  void clear();
+  virtual void clear();
 
   /// Get the calculated width of the display in pixels with rotation applied.
   virtual int get_width() { return this->get_width_internal(); }
@@ -594,7 +703,7 @@ class Display : public PollingComponent {
   void add_on_page_change_trigger(DisplayOnPageChangeTrigger *t) { this->on_page_change_triggers_.push_back(t); }
 
   /// Internal method to set the display rotation with.
-  void set_rotation(DisplayRotation rotation);
+  virtual void set_rotation(DisplayRotation rotation);
 
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
@@ -649,6 +758,13 @@ class Display : public PollingComponent {
 
   bool is_clipping() const { return !this->clipping_rectangle_.empty(); }
 
+  /// Whether (x, y) falls outside the active clipping rectangle. Tests the
+  /// stack top in place: get_clipping() is out of line and returns the Rect
+  /// by value, which per pixel drawing cannot afford.
+  bool ESPHOME_ALWAYS_INLINE is_point_clipped(int x, int y) const {
+    return this->is_clipping() && !this->clipping_rectangle_.back().inside(x, y);
+  }
+
   /** Check if pixel is within region of display.
    */
   bool clip(int x, int y);
@@ -665,6 +781,17 @@ class Display : public PollingComponent {
   void do_update_();
   void clear_clipping_();
 
+  /// Watchdog feed for per pixel loops. App.feed_wdt() is already rate
+  /// limited, but every call reads the clock; only every 256th pixel makes
+  /// that call, so the real feeds are unchanged and a pixel costs a counter.
+  /// At 20 us per pixel on the slowest e-paper path that is about 5 ms
+  /// between clock reads.
+  void ESPHOME_ALWAYS_INLINE feed_wdt_per_pixel_() {
+    if (++this->wdt_pixel_counter_ == 0)
+      this->feed_wdt_pixel_slow_();
+  }
+  void feed_wdt_pixel_slow_();
+
   virtual int get_height_internal() = 0;
   virtual int get_width_internal() = 0;
 
@@ -678,24 +805,25 @@ class Display : public PollingComponent {
   void sort_triangle_points_by_y_(int *x1, int *y1, int *x2, int *y2, int *x3, int *y3);
 
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
-  optional<display_writer_t> writer_{};
+  display_writer_t writer_{};
   DisplayPage *page_{nullptr};
   DisplayPage *previous_page_{nullptr};
   std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
   bool auto_clear_enabled_{true};
   std::vector<Rect> clipping_rectangle_;
+  uint8_t wdt_pixel_counter_{0};
   bool show_test_card_{false};
 };
 
-class DisplayPage {
+class DisplayPage final {
  public:
   DisplayPage(display_writer_t writer);
   void show();
   void show_next();
   void show_prev();
-  void set_parent(Display *parent);
-  void set_prev(DisplayPage *prev);
-  void set_next(DisplayPage *next);
+  void set_parent(Display *parent) { this->parent_ = parent; }
+  void set_prev(DisplayPage *prev) { this->prev_ = prev; }
+  void set_next(DisplayPage *next) { this->next_ = next; }
   const display_writer_t &get_writer() const;
 
  protected:
@@ -705,11 +833,14 @@ class DisplayPage {
   DisplayPage *next_{nullptr};
 };
 
-template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
+inline void Display::show_next_page() { this->page_->show_next(); }
+inline void Display::show_prev_page() { this->page_->show_prev(); }
+
+template<typename... Ts> class DisplayPageShowAction final : public Action<Ts...> {
  public:
   TEMPLATABLE_VALUE(DisplayPage *, page)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto *page = this->page_.value(x...);
     if (page != nullptr) {
       page->show();
@@ -717,37 +848,19 @@ template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
   }
 };
 
-template<typename... Ts> class DisplayPageShowNextAction : public Action<Ts...> {
- public:
-  DisplayPageShowNextAction(Display *buffer) : buffer_(buffer) {}
-
-  void play(Ts... x) override { this->buffer_->show_next_page(); }
-
-  Display *buffer_;
-};
-
-template<typename... Ts> class DisplayPageShowPrevAction : public Action<Ts...> {
- public:
-  DisplayPageShowPrevAction(Display *buffer) : buffer_(buffer) {}
-
-  void play(Ts... x) override { this->buffer_->show_prev_page(); }
-
-  Display *buffer_;
-};
-
-template<typename... Ts> class DisplayIsDisplayingPageCondition : public Condition<Ts...> {
+template<typename... Ts> class DisplayIsDisplayingPageCondition final : public Condition<Ts...> {
  public:
   DisplayIsDisplayingPageCondition(Display *parent) : parent_(parent) {}
 
   void set_page(DisplayPage *page) { this->page_ = page; }
-  bool check(Ts... x) override { return this->parent_->get_active_page() == this->page_; }
+  bool check(const Ts &...x) override { return this->parent_->get_active_page() == this->page_; }
 
  protected:
   Display *parent_;
   DisplayPage *page_;
 };
 
-class DisplayOnPageChangeTrigger : public Trigger<DisplayPage *, DisplayPage *> {
+class DisplayOnPageChangeTrigger final : public Trigger<DisplayPage *, DisplayPage *> {
  public:
   explicit DisplayOnPageChangeTrigger(Display *parent) { parent->add_on_page_change_trigger(this); }
   void process(DisplayPage *from, DisplayPage *to);
@@ -761,5 +874,4 @@ class DisplayOnPageChangeTrigger : public Trigger<DisplayPage *, DisplayPage *> 
 
 const LogString *text_align_to_string(TextAlign textalign);
 
-}  // namespace display
-}  // namespace esphome
+}  // namespace esphome::display

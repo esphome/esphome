@@ -1,13 +1,12 @@
 #include "canbus.h"
+#include <algorithm>
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace canbus {
+namespace esphome::canbus {
 
 static const char *const TAG = "canbus";
 
 void Canbus::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Canbus...");
   if (!this->setup_internal()) {
     ESP_LOGE(TAG, "setup error!");
     this->mark_failed();
@@ -22,8 +21,8 @@ void Canbus::dump_config() {
   }
 }
 
-void Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
-                       const std::vector<uint8_t> &data) {
+canbus::Error Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
+                                const std::vector<uint8_t> &data) {
   struct CanFrame can_message;
 
   uint8_t size = static_cast<uint8_t>(data.size());
@@ -46,7 +45,15 @@ void Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transm
     ESP_LOGVV(TAG, "  data[%d]=%02x", i, can_message.data[i]);
   }
 
-  this->send_message(&can_message);
+  canbus::Error error = this->send_message(&can_message);
+  if (error != canbus::ERROR_OK) {
+    if (use_extended_id) {
+      ESP_LOGW(TAG, "send to extended id=0x%08" PRIx32 " failed with error %d!", can_id, error);
+    } else {
+      ESP_LOGW(TAG, "send to standard id=0x%03" PRIx32 " failed with error %d!", can_id, error);
+    }
+  }
+  return error;
 }
 
 void Canbus::add_trigger(CanbusTrigger *trigger) {
@@ -75,10 +82,13 @@ void Canbus::loop() {
     std::vector<uint8_t> data;
 
     // show data received
-    for (int i = 0; i < can_message.can_data_length_code; i++) {
+    for (int i = 0; i < std::min(can_message.can_data_length_code, CAN_MAX_DATA_LENGTH); i++) {
       ESP_LOGV(TAG, "  can_message.data[%d]=%02x", i, can_message.data[i]);
       data.push_back(can_message.data[i]);
     }
+
+    this->callback_manager_(can_message.can_id, can_message.use_extended_id, can_message.remote_transmission_request,
+                            data);
 
     // fire all triggers
     for (auto *trigger : this->triggers_) {
@@ -92,5 +102,4 @@ void Canbus::loop() {
   }
 }
 
-}  // namespace canbus
-}  // namespace esphome
+}  // namespace esphome::canbus

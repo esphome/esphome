@@ -1,8 +1,7 @@
 #include "tlc5971.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tlc5971 {
+namespace esphome::tlc5971 {
 
 static const char *const TAG = "tlc5971";
 
@@ -13,19 +12,21 @@ void TLC5971::setup() {
   this->clock_pin_->digital_write(true);
 
   this->pwm_amounts_.resize(this->num_chips_ * N_CHANNELS_PER_CHIP, 0);
-
-  ESP_LOGCONFIG(TAG, "Done setting up TLC5971 output component.");
 }
 void TLC5971::dump_config() {
-  ESP_LOGCONFIG(TAG, "TLC5971:");
+  ESP_LOGCONFIG(TAG,
+                "TLC5971:\n"
+                "  Number of chips: %u",
+                this->num_chips_);
   LOG_PIN("  Data Pin: ", this->data_pin_);
   LOG_PIN("  Clock Pin: ", this->clock_pin_);
-  ESP_LOGCONFIG(TAG, "  Number of chips: %u", this->num_chips_);
 }
 
 void TLC5971::loop() {
-  if (!this->update_)
+  if (!this->update_) {
+    this->disable_loop();
     return;
+  }
 
   uint32_t command;
 
@@ -66,13 +67,8 @@ void TLC5971::transfer_(uint8_t send) {
   uint8_t startbit = 0x80;
 
   bool towrite, lastmosi = !(send & startbit);
-  uint8_t bitdelay_us = (1000000 / 1000000) / 2;
 
   for (uint8_t b = startbit; b != 0; b = b >> 1) {
-    if (bitdelay_us) {
-      delayMicroseconds(bitdelay_us);
-    }
-
     towrite = send & b;
     if ((lastmosi != towrite)) {
       this->data_pin_->digital_write(towrite);
@@ -80,11 +76,6 @@ void TLC5971::transfer_(uint8_t send) {
     }
 
     this->clock_pin_->digital_write(true);
-
-    if (bitdelay_us) {
-      delayMicroseconds(bitdelay_us);
-    }
-
     this->clock_pin_->digital_write(false);
   }
 }
@@ -93,9 +84,9 @@ void TLC5971::set_channel_value(uint16_t channel, uint16_t value) {
     return;
   if (this->pwm_amounts_[channel] != value) {
     this->update_ = true;
+    this->enable_loop();
   }
   this->pwm_amounts_[channel] = value;
 }
 
-}  // namespace tlc5971
-}  // namespace esphome
+}  // namespace esphome::tlc5971

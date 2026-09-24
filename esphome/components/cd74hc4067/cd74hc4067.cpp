@@ -2,16 +2,11 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace cd74hc4067 {
+namespace esphome::cd74hc4067 {
 
 static const char *const TAG = "cd74hc4067";
 
-float CD74HC4067Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void CD74HC4067Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up CD74HC4067...");
-
   this->pin_s0_->setup();
   this->pin_s1_->setup();
   this->pin_s2_->setup();
@@ -23,12 +18,14 @@ void CD74HC4067Component::setup() {
 }
 
 void CD74HC4067Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "CD74HC4067 Multiplexer:");
+  ESP_LOGCONFIG(TAG,
+                "CD74HC4067 Multiplexer:\n"
+                "  switch delay: %" PRIu32,
+                this->switch_delay_);
   LOG_PIN("  S0 Pin: ", this->pin_s0_);
   LOG_PIN("  S1 Pin: ", this->pin_s1_);
   LOG_PIN("  S2 Pin: ", this->pin_s2_);
   LOG_PIN("  S3 Pin: ", this->pin_s3_);
-  ESP_LOGCONFIG(TAG, "switch delay: %" PRIu32, this->switch_delay_);
 }
 
 void CD74HC4067Component::activate_pin(uint8_t pin) {
@@ -83,5 +80,4 @@ void CD74HC4067Sensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-}  // namespace cd74hc4067
-}  // namespace esphome
+}  // namespace esphome::cd74hc4067

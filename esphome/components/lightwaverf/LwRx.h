@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace lightwaverf {
+namespace esphome::lightwaverf {
 
 // LwRx.h
 //
@@ -105,8 +104,8 @@ class LwRx {
 
   uint32_t rx_prev;  // time of previous interrupt in microseconds
 
-  bool rx_msgcomplete = false;  // set high when message available
-  bool rx_translate = true;     // Set false to get raw data
+  volatile bool rx_msgcomplete = false;  // set high when message available
+  bool rx_translate = true;              // Set false to get raw data
 
   uint8_t rx_state = 0;
 
@@ -138,5 +137,4 @@ class LwRx {
   InternalGPIOPin *rx_pin_;
 };
 
-}  // namespace lightwaverf
-}  // namespace esphome
+}  // namespace esphome::lightwaverf

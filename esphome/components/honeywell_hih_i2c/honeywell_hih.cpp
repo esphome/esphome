@@ -5,8 +5,7 @@
 #include "honeywell_hih.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace honeywell_hih_i2c {
+namespace esphome::honeywell_hih_i2c {
 
 static const char *const TAG = "honeywell_hih.i2c";
 
@@ -17,7 +16,7 @@ void HoneywellHIComponent::read_sensor_data_() {
   uint8_t data[4];
 
   if (this->read(data, sizeof(data)) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Communication with Honeywell HIH failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
@@ -37,7 +36,7 @@ void HoneywellHIComponent::read_sensor_data_() {
 
 void HoneywellHIComponent::start_measurement_() {
   if (this->write(REQUEST_CMD, sizeof(REQUEST_CMD)) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Communication with Honeywell HIH failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
@@ -49,7 +48,7 @@ bool HoneywellHIComponent::is_measurement_ready_() {
   uint8_t data[1];
 
   if (this->read(data, sizeof(data)) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Communication with Honeywell HIH failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return false;
   }
@@ -84,14 +83,11 @@ void HoneywellHIComponent::dump_config() {
   ESP_LOGD(TAG, "Honeywell HIH:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with Honeywell HIH failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_UPDATE_INTERVAL(this);
 }
 
-float HoneywellHIComponent::get_setup_priority() const { return setup_priority::DATA; }
-
-}  // namespace honeywell_hih_i2c
-}  // namespace esphome
+}  // namespace esphome::honeywell_hih_i2c

@@ -6,53 +6,59 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
-#include "../lvgl.h"
+#include "esphome/components/lvgl/lvgl_esphome.h"
 
-namespace esphome {
-namespace lvgl {
+namespace esphome::lvgl {
 
-class LVGLSelect : public select::Select {
+class LVGLSelect final : public select::Select, public Component {
  public:
-  void set_widget(LvSelectable *widget, lv_anim_enable_t anim = LV_ANIM_OFF) {
-    this->widget_ = widget;
-    this->anim_ = anim;
+  LVGLSelect(LvSelectable *widget, lv_anim_enable_t anim, bool restore)
+      : widget_(widget), anim_(anim), restore_(restore) {}
+
+  void setup() override {
     this->set_options_();
+    if (this->restore_) {
+      size_t index;
+      this->pref_ = this->make_entity_preference<size_t>();
+      if (this->pref_.load(&index))
+        this->widget_->set_selected_index(index, LV_ANIM_OFF);
+    }
+    this->publish();
     lv_obj_add_event_cb(
         this->widget_->obj,
         [](lv_event_t *e) {
-          auto *it = static_cast<LVGLSelect *>(e->user_data);
+          auto *it = static_cast<LVGLSelect *>(lv_event_get_user_data(e));
           it->set_options_();
         },
         LV_EVENT_REFRESH, this);
-    if (this->initial_state_.has_value()) {
-      this->control(this->initial_state_.value());
-      this->initial_state_.reset();
-    }
-    this->publish();
     auto lamb = [](lv_event_t *e) {
-      auto *self = static_cast<LVGLSelect *>(e->user_data);
+      auto *self = static_cast<LVGLSelect *>(lv_event_get_user_data(e));
       self->publish();
     };
     lv_obj_add_event_cb(this->widget_->obj, lamb, LV_EVENT_VALUE_CHANGED, this);
     lv_obj_add_event_cb(this->widget_->obj, lamb, lv_update_event, this);
   }
 
-  void publish() { this->publish_state(this->widget_->get_selected_text()); }
+  void publish() {
+    auto index = this->widget_->get_selected_index();
+    this->publish_state(index);
+    if (this->restore_) {
+      this->pref_.save(&index);
+    }
+  }
 
  protected:
-  void control(const std::string &value) override {
-    if (this->widget_ != nullptr) {
-      this->widget_->set_selected_text(value, this->anim_);
-    } else {
-      this->initial_state_ = value;
-    }
+  void control(size_t index) override {
+    this->widget_->set_selected_index(index, this->anim_);
+    // The update event fires the widget's on_value/on_update triggers
+    lv_obj_send_event(this->widget_->obj, lv_update_event, nullptr);
   }
   void set_options_() { this->traits.set_options(this->widget_->get_options()); }
 
-  LvSelectable *widget_{};
-  optional<std::string> initial_state_{};
-  lv_anim_enable_t anim_{LV_ANIM_OFF};
+  LvSelectable *widget_;
+  lv_anim_enable_t anim_;
+  bool restore_;
+  ESPPreferenceObject pref_{};
 };
 
-}  // namespace lvgl
-}  // namespace esphome
+}  // namespace esphome::lvgl

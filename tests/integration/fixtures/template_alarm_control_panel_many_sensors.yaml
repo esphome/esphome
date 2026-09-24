@@ -1,0 +1,136 @@
+esphome:
+  name: template-alarm-many-sensors
+  friendly_name: "Template Alarm Control Panel with Many Sensors"
+
+logger:
+
+host:
+
+api:
+
+binary_sensor:
+  - platform: template
+    id: sensor1
+    name: "Door 1"
+  - platform: template
+    id: sensor2
+    name: "Door 2"
+  - platform: template
+    id: sensor3
+    name: "Window 1"
+  - platform: template
+    id: sensor4
+    name: "Window 2"
+  - platform: template
+    id: sensor5
+    name: "Motion 1"
+  - platform: template
+    id: sensor6
+    name: "Motion 2"
+  - platform: template
+    id: sensor7
+    name: "Glass Break 1"
+  - platform: template
+    id: sensor8
+    name: "Glass Break 2"
+  - platform: template
+    id: sensor9
+    name: "Smoke Detector"
+  - platform: template
+    id: sensor10
+    name: "CO Detector"
+
+alarm_control_panel:
+  - platform: template
+    id: test_alarm
+    name: "Test Alarm"
+    codes:
+      - "1234"
+    requires_code_to_arm: true
+    arming_away_time: 5s
+    arming_home_time: 3s
+    arming_night_time: 3s
+    pending_time: 10s
+    trigger_time: 300s
+    restore_mode: ALWAYS_DISARMED
+    binary_sensors:
+      - input: sensor1
+        bypass_armed_home: false
+        bypass_armed_night: false
+        bypass_auto: true
+        chime: true
+        trigger_mode: DELAYED
+      - input: sensor2
+        bypass_armed_home: false
+        bypass_armed_night: false
+        bypass_auto: true
+        chime: true
+        trigger_mode: DELAYED
+      - input: sensor3
+        bypass_armed_home: true
+        bypass_armed_night: false
+        bypass_auto: false
+        chime: false
+        trigger_mode: DELAYED
+      - input: sensor4
+        bypass_armed_home: true
+        bypass_armed_night: false
+        bypass_auto: false
+        chime: false
+        trigger_mode: DELAYED
+      - input: sensor5
+        bypass_armed_home: false
+        bypass_armed_night: true
+        bypass_auto: false
+        chime: false
+        trigger_mode: INSTANT
+      - input: sensor6
+        bypass_armed_home: false
+        bypass_armed_night: true
+        bypass_auto: false
+        chime: false
+        trigger_mode: INSTANT
+      - input: sensor7
+        bypass_armed_home: false
+        bypass_armed_night: false
+        bypass_auto: false
+        chime: false
+        trigger_mode: INSTANT
+      - input: sensor8
+        bypass_armed_home: false
+        bypass_armed_night: false
+        bypass_auto: false
+        chime: false
+        trigger_mode: INSTANT
+      - input: sensor9
+        bypass_armed_home: false
+        bypass_armed_night: false
+        bypass_auto: false
+        chime: false
+        trigger_mode: INSTANT_ALWAYS
+      - input: sensor10
+        bypass_armed_home: false
+        bypass_armed_night: false
+        bypass_auto: false
+        chime: false
+        trigger_mode: INSTANT_ALWAYS
+    on_disarmed:
+      - logger.log: "Alarm disarmed"
+    on_arming:
+      - logger.log: "Alarm arming"
+    on_armed_away:
+      - logger.log: "Alarm armed away"
+    on_armed_home:
+      - logger.log: "Alarm armed home"
+    on_armed_night:
+      - logger.log: "Alarm armed night"
+    on_pending:
+      - logger.log: "Alarm pending"
+    on_triggered:
+      - logger.log: "Alarm triggered"
+    on_cleared:
+      - logger.log: "Alarm cleared"
+    on_chime:
+      - logger.log: "Chime activated"
+    on_ready:
+      - logger.log: "Sensors ready state changed"

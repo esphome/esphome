@@ -2,15 +2,16 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/switch/switch.h"
 
-#include <vector>
+namespace esphome::gpio {
 
-namespace esphome {
-namespace gpio {
-
-class GPIOSwitch : public switch_::Switch, public Component {
+class GPIOSwitch final : public switch_::Switch, public Component {
  public:
+  // User provided, not "= default": `new(p) GPIOSwitch()` would zero-fill .bss that is already zero.
+  GPIOSwitch() {}
+
   void set_pin(GPIOPin *pin) { pin_ = pin; }
 
   // ========== INTERNAL METHODS ==========
@@ -19,16 +20,19 @@ class GPIOSwitch : public switch_::Switch, public Component {
 
   void setup() override;
   void dump_config() override;
-  void set_interlock(const std::vector<Switch *> &interlock);
+#ifdef USE_GPIO_SWITCH_INTERLOCK
+  void set_interlock(const std::initializer_list<Switch *> &interlock);
   void set_interlock_wait_time(uint32_t interlock_wait_time) { interlock_wait_time_ = interlock_wait_time; }
+#endif
 
  protected:
   void write_state(bool state) override;
 
-  GPIOPin *pin_;
-  std::vector<Switch *> interlock_;
+  GPIOPin *pin_{nullptr};
+#ifdef USE_GPIO_SWITCH_INTERLOCK
+  FixedVector<Switch *> interlock_;
   uint32_t interlock_wait_time_{0};
+#endif
 };
 
-}  // namespace gpio
-}  // namespace esphome
+}  // namespace esphome::gpio

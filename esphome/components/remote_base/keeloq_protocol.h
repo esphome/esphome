@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct KeeloqData {
   uint32_t encrypted;  // 32 bit encrypted field
@@ -25,9 +24,9 @@ struct KeeloqData {
 
 class KeeloqProtocol : public RemoteProtocol<KeeloqData> {
  public:
-  void encode(RemoteTransmitData *dst, const KeeloqData &data) override;
-  optional<KeeloqData> decode(RemoteReceiveData src) override;
-  void dump(const KeeloqData &data) override;
+  void encode(RemoteTransmitData *dst, const KeeloqData &data);
+  optional<KeeloqData> decode(RemoteReceiveData src);
+  void dump(const KeeloqData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Keeloq)
@@ -49,5 +48,4 @@ template<typename... Ts> class KeeloqAction : public RemoteTransmitterActionBase
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

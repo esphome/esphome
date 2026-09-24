@@ -1,17 +1,18 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-#ifdef USE_ESP32
+// No platform #ifdef: ble_device_base provides the BLE types on every platform,
+// and this component is only compiled when configured — which requires a BLE
+// hub — so it builds on any platform with a BLEHub tracker without a per-chip
+// guard.
+namespace esphome::ble_presence {
 
-namespace esphome {
-namespace ble_presence {
-
-class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
-                          public esp32_ble_tracker::ESPBTDeviceListener,
-                          public Component {
+class BLEPresenceDevice final : public binary_sensor::BinarySensorInitiallyOff,
+                                public ble_device_base::ESPBTDeviceListener,
+                                public Component {
  public:
   void set_address(uint64_t address) {
     this->match_by_ = MATCH_BY_MAC_ADDRESS;
@@ -23,19 +24,19 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   }
   void set_service_uuid16(uint16_t uuid) {
     this->match_by_ = MATCH_BY_SERVICE_UUID;
-    this->uuid_ = esp32_ble_tracker::ESPBTUUID::from_uint16(uuid);
+    this->uuid_ = ble_device_base::ESPBTUUID::from_uint16(uuid);
   }
   void set_service_uuid32(uint32_t uuid) {
     this->match_by_ = MATCH_BY_SERVICE_UUID;
-    this->uuid_ = esp32_ble_tracker::ESPBTUUID::from_uint32(uuid);
+    this->uuid_ = ble_device_base::ESPBTUUID::from_uint32(uuid);
   }
   void set_service_uuid128(uint8_t *uuid) {
     this->match_by_ = MATCH_BY_SERVICE_UUID;
-    this->uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw(uuid);
+    this->uuid_ = ble_device_base::ESPBTUUID::from_raw(uuid);
   }
   void set_ibeacon_uuid(uint8_t *uuid) {
     this->match_by_ = MATCH_BY_IBEACON_UUID;
-    this->ibeacon_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw(uuid);
+    this->ibeacon_uuid_ = ble_device_base::ESPBTUUID::from_raw(uuid);
   }
   void set_ibeacon_major(uint16_t major) {
     this->check_ibeacon_major_ = true;
@@ -50,7 +51,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
     this->minimum_rssi_ = rssi;
   }
   void set_timeout(uint32_t timeout) { this->timeout_ = timeout; }
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override {
     if (this->check_minimum_rssi_ && this->minimum_rssi_ > device.get_rssi()) {
       return false;
     }
@@ -76,11 +77,12 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
         }
         break;
       case MATCH_BY_IBEACON_UUID:
-        if (!device.get_ibeacon().has_value()) {
+        auto maybe_ibeacon = device.get_ibeacon();
+        if (!maybe_ibeacon.has_value()) {
           return false;
         }
 
-        auto ibeacon = device.get_ibeacon().value();
+        auto ibeacon = *maybe_ibeacon;
 
         if (this->ibeacon_uuid_ != ibeacon.get_uuid()) {
           return false;
@@ -101,11 +103,10 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   }
 
   void loop() override {
-    if (this->found_ && this->last_seen_ + this->timeout_ < millis())
+    if (this->found_ && millis() - this->last_seen_ > this->timeout_)
       this->set_found_(false);
   }
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   void set_found_(bool state) {
@@ -120,9 +121,9 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   uint64_t address_;
   uint8_t *irk_;
 
-  esp32_ble_tracker::ESPBTUUID uuid_;
+  ble_device_base::ESPBTUUID uuid_;
 
-  esp32_ble_tracker::ESPBTUUID ibeacon_uuid_;
+  ble_device_base::ESPBTUUID ibeacon_uuid_;
   uint16_t ibeacon_major_{0};
   uint16_t ibeacon_minor_{0};
 
@@ -137,7 +138,4 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   uint32_t timeout_{};
 };
 
-}  // namespace ble_presence
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::ble_presence

@@ -1,12 +1,13 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import one_wire, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_RESOLUTION,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
+from esphome.types import ConfigType
 
 dallas_temp_ns = cg.esphome_ns.namespace("dallas_temp")
 
@@ -35,7 +36,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await one_wire.register_one_wire_device(var, config)

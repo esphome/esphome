@@ -1,0 +1,8 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+status_led:
+  pin: GPIO2

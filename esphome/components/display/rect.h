@@ -2,8 +2,7 @@
 
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace display {
+namespace esphome::display {
 
 static const int16_t VALUE_NO_SET = 32766;
 
@@ -26,11 +25,18 @@ class Rect {
   void extend(Rect rect);
   void shrink(Rect rect);
 
-  bool inside(Rect rect, bool absolute = true) const;
-  bool inside(int16_t test_x, int16_t test_y, bool absolute = true) const;
+  bool inside(Rect rect) const;
+  bool ESPHOME_ALWAYS_INLINE inside(int16_t test_x, int16_t test_y, bool absolute = true) const {
+    if (!this->is_set()) {
+      return true;
+    }
+    if (absolute) {
+      return test_x >= this->x && test_x < this->x2() && test_y >= this->y && test_y < this->y2();
+    }
+    return test_x >= 0 && test_x < this->w && test_y >= 0 && test_y < this->h;
+  }
   bool equal(Rect rect) const;
   void info(const std::string &prefix = "rect info:");
 };
 
-}  // namespace display
-}  // namespace esphome
+}  // namespace esphome::display

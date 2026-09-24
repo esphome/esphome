@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace waveshare_epaper {
+namespace esphome::waveshare_epaper {
 
 static const char *const TAG = "waveshare_2.13v3";
 
@@ -72,7 +71,8 @@ void WaveshareEPaper2P13InV3::write_buffer_(uint8_t cmd, int top, int bottom) {
   this->set_window_(top, bottom);
   this->command(cmd);
   this->start_data_();
-  auto width_bytes = this->get_width_internal() / 8;
+
+  auto width_bytes = this->get_width_controller() / 8;
   this->write_array(this->buffer_ + top * width_bytes, (bottom - top) * width_bytes);
   this->end_data_();
 }
@@ -86,7 +86,11 @@ void WaveshareEPaper2P13InV3::send_reset_() {
 }
 
 void WaveshareEPaper2P13InV3::setup() {
-  setup_pins_();
+  this->init_internal_(this->get_buffer_length_());
+  this->setup_pins_();
+  this->spi_setup();
+  this->reset_();
+
   delay(20);
   this->send_reset_();
   // as a one-off delay this is not worth working around.
@@ -162,7 +166,8 @@ void WaveshareEPaper2P13InV3::display() {
   }
 }
 
-int WaveshareEPaper2P13InV3::get_width_internal() { return 128; }
+int WaveshareEPaper2P13InV3::get_width_controller() { return 128; }
+int WaveshareEPaper2P13InV3::get_width_internal() { return 122; }
 
 int WaveshareEPaper2P13InV3::get_height_internal() { return 250; }
 
@@ -171,16 +176,15 @@ uint32_t WaveshareEPaper2P13InV3::idle_timeout_() { return 5000; }
 void WaveshareEPaper2P13InV3::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this)
   ESP_LOGCONFIG(TAG, "  Model: 2.13inV3");
-  LOG_PIN("  CS Pin: ", this->cs_)
-  LOG_PIN("  Reset Pin: ", this->reset_pin_)
-  LOG_PIN("  DC Pin: ", this->dc_pin_)
-  LOG_PIN("  Busy Pin: ", this->busy_pin_)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_PIN("  CS Pin: ", this->cs_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 void WaveshareEPaper2P13InV3::set_full_update_every(uint32_t full_update_every) {
   this->full_update_every_ = full_update_every;
 }
 
-}  // namespace waveshare_epaper
-}  // namespace esphome
+}  // namespace esphome::waveshare_epaper

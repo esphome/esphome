@@ -2,16 +2,14 @@
 
 #include <utility>
 
-#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace display {
+namespace esphome::display {
 
 static const char *const TAG = "display";
 
 void DisplayBuffer::init_internal_(uint32_t buffer_length) {
-  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> allocator;
   this->buffer_ = allocator.allocate(buffer_length);
   if (this->buffer_ == nullptr) {
     ESP_LOGE(TAG, "Could not allocate buffer for display!");
@@ -45,7 +43,7 @@ int DisplayBuffer::get_height() {
 }
 
 void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return;  // NOLINT
 
   switch (this->rotation_) {
@@ -65,8 +63,7 @@ void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
       break;
   }
   this->draw_absolute_pixel_internal(x, y, color);
-  App.feed_wdt();
+  this->feed_wdt_per_pixel_();
 }
 
-}  // namespace display
-}  // namespace esphome
+}  // namespace esphome::display

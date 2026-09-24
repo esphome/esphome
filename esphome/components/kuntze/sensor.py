@@ -1,27 +1,28 @@
 import esphome.codegen as cg
+from esphome.components import modbus, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, modbus
 from esphome.const import (
-    CONF_ID,
     CONF_EC,
+    CONF_ID,
     CONF_PH,
     CONF_TEMPERATURE,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_TEMPERATURE,
     ICON_EMPTY,
     ICON_THERMOMETER,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_EMPTY,
     UNIT_PH,
-    STATE_CLASS_MEASUREMENT,
-    DEVICE_CLASS_EMPTY,
-    DEVICE_CLASS_TEMPERATURE,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb"]
 
 AUTO_LOAD = ["modbus"]
 
 kuntze_ns = cg.esphome_ns.namespace("kuntze")
-Kuntze = kuntze_ns.class_("Kuntze", cg.PollingComponent, modbus.ModbusDevice)
+Kuntze = kuntze_ns.class_("Kuntze", cg.PollingComponent, modbus.ModbusClientDevice)
 
 CONF_DIS1 = "dis1"
 CONF_DIS2 = "dis2"
@@ -88,10 +89,17 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("kuntze", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await modbus.register_modbus_device(var, config)
+    await modbus.register_modbus_client_device(var, config)
 
     if CONF_PH in config:
         conf = config[CONF_PH]

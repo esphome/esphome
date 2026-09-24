@@ -1,6 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import spi
-from ..ens160_base import to_code_base, cv, CONFIG_SCHEMA_BASE
+from esphome.types import ConfigType
+
+from ..ens160_base import CONFIG_SCHEMA_BASE, cv, to_code_base
 
 AUTO_LOAD = ["ens160_base"]
 CODEOWNERS = ["@latonita"]
@@ -17,6 +19,6 @@ CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(spi.spi_device_schema()).extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await to_code_base(config)
     await spi.register_spi_device(var, config)

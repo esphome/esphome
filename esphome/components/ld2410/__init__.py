@@ -1,10 +1,14 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import uart
-from esphome.const import CONF_ID, CONF_THROTTLE, CONF_TIMEOUT, CONF_PASSWORD
 from esphome import automation
 from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
+from esphome.components import uart
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_PASSWORD, CONF_THROTTLE, CONF_TIMEOUT
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
+AUTO_LOAD = ["ld24xx"]
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@sebcaps", "@regevbr"]
 MULTI_CONF = True
@@ -13,18 +17,16 @@ ld2410_ns = cg.esphome_ns.namespace("ld2410")
 LD2410Component = ld2410_ns.class_("LD2410Component", cg.Component, uart.UARTDevice)
 
 CONF_LD2410_ID = "ld2410_id"
-
 CONF_MAX_MOVE_DISTANCE = "max_move_distance"
 CONF_MAX_STILL_DISTANCE = "max_still_distance"
-CONF_STILL_THRESHOLDS = [f"g{x}_still_threshold" for x in range(9)]
 CONF_MOVE_THRESHOLDS = [f"g{x}_move_threshold" for x in range(9)]
+CONF_STILL_THRESHOLDS = [f"g{x}_still_threshold" for x in range(9)]
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LD2410Component),
-        cv.Optional(CONF_THROTTLE, default="1000ms"): cv.All(
-            cv.positive_time_period_milliseconds,
-            cv.Range(min=cv.TimePeriod(milliseconds=1)),
+        cv.Optional(CONF_THROTTLE): cv.invalid(
+            f"{CONF_THROTTLE} has been removed; use per-sensor filters, instead"
         ),
         cv.Optional(CONF_MAX_MOVE_DISTANCE): cv.invalid(
             f"The '{CONF_MAX_MOVE_DISTANCE}' option has been moved to the '{CONF_MAX_MOVE_DISTANCE}'"
@@ -70,11 +72,10 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    cg.add(var.set_throttle(config[CONF_THROTTLE]))
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
@@ -99,9 +100,17 @@ BLUETOOTH_PASSWORD_SET_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "bluetooth_password.set", BluetoothPasswordSetAction, BLUETOOTH_PASSWORD_SET_SCHEMA
+    "bluetooth_password.set",
+    BluetoothPasswordSetAction,
+    BLUETOOTH_PASSWORD_SET_SCHEMA,
+    synchronous=True,
 )
-async def bluetooth_password_set_to_code(config, action_id, template_arg, args):
+async def bluetooth_password_set_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_PASSWORD], args, cg.std_string)

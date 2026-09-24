@@ -1,8 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_STATE
-from . import SunGTIL2Component, CONF_SUN_GTIL2_ID
+from esphome.types import ConfigType
+
+from . import CONF_SUN_GTIL2_ID, SunGTIL2Component
 
 CONF_SERIAL_NUMBER = "serial_number"
 
@@ -21,7 +23,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_SUN_GTIL2_ID])
     if state_config := config.get(CONF_STATE):
         sens = await text_sensor.new_text_sensor(state_config)

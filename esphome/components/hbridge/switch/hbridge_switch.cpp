@@ -3,16 +3,13 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace hbridge {
+namespace esphome::hbridge {
 
 static const char *const TAG = "switch.hbridge";
 
 float HBridgeSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 void HBridgeSwitch::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up H-Bridge Switch '%s'...", this->name_.c_str());
-
-  optional<bool> initial_state = this->get_initial_state_with_restore_mode().value_or(false);
+  optional<bool> initial_state = this->get_initial_state_with_restore_mode();
 
   // Like GPIOSwitch does, set the pin state both before and after pin setup()
   this->on_pin_->digital_write(false);
@@ -24,7 +21,7 @@ void HBridgeSwitch::setup() {
   this->off_pin_->digital_write(false);
 
   if (initial_state.has_value())
-    this->write_state(initial_state);
+    this->write_state(initial_state.value());
 }
 
 void HBridgeSwitch::dump_config() {
@@ -32,8 +29,9 @@ void HBridgeSwitch::dump_config() {
   LOG_PIN("  On Pin: ", this->on_pin_);
   LOG_PIN("  Off Pin: ", this->off_pin_);
   ESP_LOGCONFIG(TAG, "  Pulse length: %" PRId32 " ms", this->pulse_length_);
-  if (this->wait_time_)
+  if (this->wait_time_) {
     ESP_LOGCONFIG(TAG, "  Wait time %" PRId32 " ms", this->wait_time_);
+  }
 }
 
 void HBridgeSwitch::write_state(bool state) {
@@ -91,5 +89,4 @@ void HBridgeSwitch::timer_fn_() {
   this->timer_running_ = false;
 }
 
-}  // namespace hbridge
-}  // namespace esphome
+}  // namespace esphome::hbridge

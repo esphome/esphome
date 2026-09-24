@@ -1,14 +1,5 @@
-uart:
-  - id: seeed_mr24hpc1_uart
-    tx_pin: ${uart_tx_pin}
-    rx_pin: ${uart_rx_pin}
-    baud_rate: 115200
-    parity: NONE
-    stop_bits: 1
-
 seeed_mr24hpc1:
   id: my_seeed_mr24hpc1
-  uart_id: seeed_mr24hpc1_uart
 
 sensor:
   - platform: seeed_mr24hpc1

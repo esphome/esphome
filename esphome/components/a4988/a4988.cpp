@@ -1,13 +1,11 @@
 #include "a4988.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace a4988 {
+namespace esphome::a4988 {
 
 static const char *const TAG = "a4988.stepper";
 
 void A4988::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up A4988...");
   if (this->sleep_pin_ != nullptr) {
     this->sleep_pin_->setup();
     this->sleep_pin_->digital_write(false);
@@ -52,5 +50,4 @@ void A4988::loop() {
   this->step_pin_->digital_write(false);
 }
 
-}  // namespace a4988
-}  // namespace esphome
+}  // namespace esphome::a4988

@@ -1,23 +1,16 @@
 from esphome.components.sensor import Sensor, new_sensor, sensor_schema
 import esphome.config_validation as cv
 
-from ..defines import CONF_WIDGET
-from ..lvcode import (
-    API_EVENT,
-    EVENT_ARG,
-    LVGL_COMP_ARG,
-    UPDATE_EVENT,
-    LambdaContext,
-    LvContext,
-    lv_add,
-    lvgl_static,
-)
-from ..types import LV_EVENT, LvNumber
+from ..defines import CONF_TRIGGER, CONF_WIDGET
+from ..lvcode import EVENT_ARG, LambdaContext, LvContext, lv_add, lvgl_static
+from ..schemas import TRIGGER_EVENT_MAP, VALUE_TRIGGER_SCHEMA
+from ..types import LvNumber
 from ..widgets import Widget, get_widgets, wait_for_widgets
 
 CONFIG_SCHEMA = sensor_schema(Sensor).extend(
     {
         cv.Required(CONF_WIDGET): cv.use_id(LvNumber),
+        **VALUE_TRIGGER_SCHEMA,
     }
 )
 
@@ -30,13 +23,11 @@ async def to_code(config):
     await wait_for_widgets()
     async with LambdaContext(EVENT_ARG) as lamb:
         lv_add(sensor.publish_state(widget.get_value()))
-    async with LvContext(LVGL_COMP_ARG):
+    async with LvContext():
         lv_add(
             lvgl_static.add_event_cb(
                 widget.obj,
                 await lamb.get_lambda(),
-                LV_EVENT.VALUE_CHANGED,
-                API_EVENT,
-                UPDATE_EVENT,
+                *TRIGGER_EVENT_MAP[config[CONF_TRIGGER]],
             )
         )

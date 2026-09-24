@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace senseair {
+namespace esphome::senseair {
 
 static const char *const TAG = "senseair";
 static const uint8_t SENSEAIR_REQUEST_LENGTH = 8;
@@ -53,10 +52,14 @@ void SenseAirComponent::update() {
 
   this->status_clear_warning();
   const uint8_t length = response[2];
-  const uint16_t status = (uint16_t(response[3]) << 8) | response[4];
-  const int16_t ppm = int16_t((response[length + 1] << 8) | response[length + 2]);
+  const uint16_t status = encode_uint16(response[3], response[4]);
+  const uint16_t ppm = encode_uint16(response[length + 1], response[length + 2]);
 
-  ESP_LOGD(TAG, "SenseAir Received CO₂=%dppm Status=0x%02X", ppm, status);
+  ESP_LOGD(TAG, "SenseAir Received CO₂=%uppm Status=0x%02X", ppm, status);
+  if (ppm == 0 && (status & SenseAirStatus::OUT_OF_RANGE_ERROR) != 0) {
+    ESP_LOGD(TAG, "Discarding 0 ppm reading with out-of-range status.");
+    return;
+  }
   if (this->co2_sensor_ != nullptr)
     this->co2_sensor_->publish_state(ppm);
 }
@@ -86,8 +89,9 @@ void SenseAirComponent::background_calibration_result() {
   }
 
   // Check if 5th bit (register CI6) is set
-  ESP_LOGI(TAG, "SenseAir Result=%s (%02x%02x%02x %02x%02x %02x%02x)", (response[4] & 0b100000) != 0 ? "OK" : "NOT_OK",
-           response[0], response[1], response[2], response[3], response[4], response[5], response[6]);
+  ESP_LOGI(TAG, "SenseAir Result=%s (%02x%02x%02x %02x%02x %02x%02x)",
+           (response[4] & 0b100000) != 0 ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("NOT_OK"), response[0], response[1],
+           response[2], response[3], response[4], response[5], response[6]);
 }
 
 void SenseAirComponent::abc_enable() {
@@ -143,8 +147,6 @@ bool SenseAirComponent::senseair_write_command_(const uint8_t *command, uint8_t 
 void SenseAirComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SenseAir:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
-  this->check_uart_settings(9600);
 }
 
-}  // namespace senseair
-}  // namespace esphome
+}  // namespace esphome::senseair

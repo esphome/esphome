@@ -3,8 +3,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace st7920 {
+namespace esphome::st7920 {
 
 static const char *const TAG = "st7920";
 
@@ -32,7 +31,6 @@ static const uint8_t LCD_LINE2 = 0x88;
 static const uint8_t LCD_LINE3 = 0x98;
 
 void ST7920::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ST7920...");
   this->dump_config();
   this->spi_setup();
   this->init_internal_(this->get_buffer_length_());
@@ -73,16 +71,19 @@ void ST7920::goto_xy_(uint16_t x, uint16_t y) {
 }
 
 void HOT ST7920::write_display_data() {
-  uint8_t i, j, b;
-  for (j = 0; j < (uint8_t) (this->get_height_internal() / 2); j++) {
+  int i, j;
+  uint8_t b;
+  int width_bytes = this->get_width_internal() / 8;
+  int half_height = this->get_height_internal() / 2;
+  for (j = 0; j < half_height; j++) {
     this->goto_xy_(0, j);
     this->enable();
-    for (i = 0; i < 16; i++) {  // 16 bytes from line #0+
-      b = this->buffer_[i + j * 16];
+    for (i = 0; i < width_bytes; i++) {
+      b = this->buffer_[i + j * width_bytes];
       this->send_(LCD_DATA, b);
     }
-    for (i = 0; i < 16; i++) {  // 16 bytes from line #32+
-      b = this->buffer_[i + (j + 32) * 16];
+    for (i = 0; i < width_bytes; i++) {
+      b = this->buffer_[i + (j + half_height) * width_bytes];
       this->send_(LCD_DATA, b);
     }
     this->disable();
@@ -90,13 +91,24 @@ void HOT ST7920::write_display_data() {
   }
 }
 
-void ST7920::fill(Color color) { memset(this->buffer_, color.is_on() ? 0xFF : 0x00, this->get_buffer_length_()); }
+void ST7920::fill(Color color) {
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
+  uint8_t fill = color.is_on() ? 0xFF : 0x00;
+  memset(this->buffer_, fill, this->get_buffer_length_());
+}
 
 void ST7920::dump_config() {
   LOG_DISPLAY("", "ST7920", this);
   LOG_PIN("  CS Pin: ", this->cs_);
-  ESP_LOGCONFIG(TAG, "  Height: %d", this->height_);
-  ESP_LOGCONFIG(TAG, "  Width: %d", this->width_);
+  ESP_LOGCONFIG(TAG,
+                "  Height: %d\n"
+                "  Width: %d",
+                this->height_, this->width_);
 }
 
 float ST7920::get_setup_priority() const { return setup_priority::PROCESSOR; }
@@ -129,7 +141,7 @@ void HOT ST7920::draw_absolute_pixel_internal(int x, int y, Color color) {
 }
 
 void ST7920::display_init_() {
-  ESP_LOGD(TAG, "Initializing display...");
+  ESP_LOGD(TAG, "Initializing display");
   this->command_(LCD_BASIC);      // 8bit mode
   this->command_(LCD_BASIC);      // 8bit mode
   this->command_(LCD_CLS);        // clear screen
@@ -141,5 +153,4 @@ void ST7920::display_init_() {
   this->write_display_data();
 }
 
-}  // namespace st7920
-}  // namespace esphome
+}  // namespace esphome::st7920

@@ -1,8 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import CONF_ID, CONF_KEY, CONF_ROW, CONF_COL
-from .. import MatrixKeypad, matrix_keypad_ns, CONF_KEYPAD_ID
+import esphome.config_validation as cv
+from esphome.const import CONF_COL, CONF_ID, CONF_KEY, CONF_ROW
+from esphome.types import ConfigType
+
+from .. import CONF_KEYPAD_ID, MatrixKeypad, matrix_keypad_ns
 
 DEPENDENCIES = ["matrix_keypad"]
 
@@ -11,7 +13,7 @@ MatrixKeypadBinarySensor = matrix_keypad_ns.class_(
 )
 
 
-def check_button(obj):
+def check_button(obj: ConfigType) -> ConfigType:
     if CONF_ROW in obj or CONF_COL in obj:
         if CONF_KEY in obj:
             raise cv.Invalid("You can't provide both a key and a position")
@@ -39,7 +41,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if CONF_KEY in config:
         var = cg.new_Pvariable(config[CONF_ID], config[CONF_KEY][0])
     else:

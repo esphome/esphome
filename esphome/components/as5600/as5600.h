@@ -6,8 +6,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace as5600 {
+namespace esphome::as5600 {
 
 static const uint16_t POSITION_COUNT = 4096;
 static const float RAW_TO_DEGREES = 360.0 / POSITION_COUNT;
@@ -44,13 +43,12 @@ enum AS5600MagnetStatus : uint8_t {
   MAGNET_WEAK = 6,    // 0b110 / magnet too weak
 };
 
-class AS5600Component : public Component, public i2c::I2CDevice {
+class AS5600Component final : public Component, public i2c::I2CDevice {
  public:
   /// Set up the internal sensor array.
   void setup() override;
   void dump_config() override;
   /// HARDWARE_LATE setup priority
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   // configuration setters
   void set_dir_pin(InternalGPIOPin *pin) { this->dir_pin_ = pin; }
@@ -101,5 +99,4 @@ class AS5600Component : public Component, public i2c::I2CDevice {
   float range_scale_{1.0};
 };
 
-}  // namespace as5600
-}  // namespace esphome
+}  // namespace esphome::as5600

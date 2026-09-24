@@ -2,34 +2,34 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace m5stack_8angle {
+namespace esphome::m5stack_8angle {
 
 static const char *const TAG = "m5stack_8angle";
 
 void M5Stack8AngleComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up M5STACK_8ANGLE...");
   i2c::ErrorCode err;
 
   err = this->read(nullptr, 0);
   if (err != i2c::NO_ERROR) {
-    ESP_LOGE(TAG, "I2C error %02X...", err);
+    ESP_LOGE(TAG, "I2C error %02X", err);
     this->mark_failed();
     return;
   };
 
   err = this->read_register(M5STACK_8ANGLE_REGISTER_FW_VERSION, &this->fw_version_, 1);
   if (err != i2c::NO_ERROR) {
-    ESP_LOGE(TAG, "I2C error %02X...", err);
+    ESP_LOGE(TAG, "I2C error %02X", err);
     this->mark_failed();
     return;
   };
 }
 
 void M5Stack8AngleComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "M5STACK_8ANGLE:");
+  ESP_LOGCONFIG(TAG,
+                "M5STACK_8ANGLE:\n"
+                "  Firmware version: %d",
+                this->fw_version_);
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  Firmware version: %d ", this->fw_version_);
 }
 
 float M5Stack8AngleComponent::read_knob_pos(uint8_t channel, AnalogBits bits) {
@@ -68,7 +68,4 @@ int8_t M5Stack8AngleComponent::read_switch() {
   }
 }
 
-float M5Stack8AngleComponent::get_setup_priority() const { return setup_priority::DATA; }
-
-}  // namespace m5stack_8angle
-}  // namespace esphome
+}  // namespace esphome::m5stack_8angle

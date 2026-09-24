@@ -8,19 +8,17 @@
 #endif
 #include "esphome/components/cover/cover.h"
 
-namespace esphome {
-namespace feedback {
+namespace esphome::feedback {
 
-class FeedbackCover : public cover::Cover, public Component {
+class FeedbackCover final : public cover::Cover, public Component {
  public:
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; };
 
-  Trigger<> *get_open_trigger() const { return this->open_trigger_; }
-  Trigger<> *get_close_trigger() const { return this->close_trigger_; }
-  Trigger<> *get_stop_trigger() const { return this->stop_trigger_; }
+  Trigger<> *get_open_trigger() { return &this->open_trigger_; }
+  Trigger<> *get_close_trigger() { return &this->close_trigger_; }
+  Trigger<> *get_stop_trigger() { return &this->stop_trigger_; }
 
 #ifdef USE_BINARY_SENSOR
   void set_open_endstop(binary_sensor::BinarySensor *open_endstop);
@@ -62,9 +60,9 @@ class FeedbackCover : public cover::Cover, public Component {
   binary_sensor::BinarySensor *close_obstacle_{nullptr};
 
 #endif
-  Trigger<> *open_trigger_{new Trigger<>()};
-  Trigger<> *close_trigger_{new Trigger<>()};
-  Trigger<> *stop_trigger_{new Trigger<>()};
+  Trigger<> open_trigger_;
+  Trigger<> close_trigger_;
+  Trigger<> stop_trigger_;
 
   uint32_t open_duration_{0};
   uint32_t close_duration_{0};
@@ -86,5 +84,4 @@ class FeedbackCover : public cover::Cover, public Component {
   uint32_t update_interval_{1000};
 };
 
-}  // namespace feedback
-}  // namespace esphome
+}  // namespace esphome::feedback

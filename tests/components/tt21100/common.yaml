@@ -1,0 +1,13 @@
+touchscreen:
+  - platform: tt21100
+    i2c_id: i2c_bus
+    id: tt21100_touchscreen
+    display: test_display_screen
+    interrupt_pin: ${interrupt_pin}
+    reset_pin: ${reset_pin}
+
+binary_sensor:
+  - platform: tt21100
+    id: tt21100_button
+    name: Home Button
+    index: 1

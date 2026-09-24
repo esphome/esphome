@@ -1,0 +1,23 @@
+output:
+  - platform: gpio
+    id: light_test_binary
+    pin: 12
+  - platform: zephyr_pwm
+    id: test_ledc_1
+    pin: 13
+  - platform: zephyr_pwm
+    id: test_ledc_2
+    pin:
+      number: 14
+      inverted: true
+  - platform: zephyr_pwm
+    id: test_ledc_3
+    pin: 15
+  - platform: zephyr_pwm
+    id: test_ledc_4
+    pin: 16
+  - platform: zephyr_pwm
+    id: test_ledc_5
+    pin: 17
+
+<<: !include common.yaml

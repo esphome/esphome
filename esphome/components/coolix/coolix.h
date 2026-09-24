@@ -4,14 +4,13 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace coolix {
+namespace esphome::coolix {
 
 // Temperature
 const uint8_t COOLIX_TEMP_MIN = 17;  // Celsius
 const uint8_t COOLIX_TEMP_MAX = 30;  // Celsius
 
-class CoolixClimate : public climate_ir::ClimateIR {
+class CoolixClimate final : public climate_ir::ClimateIR {
  public:
   CoolixClimate()
       : climate_ir::ClimateIR(COOLIX_TEMP_MIN, COOLIX_TEMP_MAX, 1.0f, true, true,
@@ -23,7 +22,8 @@ class CoolixClimate : public climate_ir::ClimateIR {
   void control(const climate::ClimateCall &call) override {
     send_swing_cmd_ = call.get_swing_mode().has_value();
     // swing resets after unit powered off
-    if (call.get_mode().has_value() && *call.get_mode() == climate::CLIMATE_MODE_OFF)
+    auto mode = call.get_mode();
+    if (mode.has_value() && *mode == climate::CLIMATE_MODE_OFF)
       this->swing_mode = climate::CLIMATE_SWING_OFF;
     climate_ir::ClimateIR::control(call);
   }
@@ -41,5 +41,4 @@ class CoolixClimate : public climate_ir::ClimateIR {
   bool send_swing_cmd_{false};
 };
 
-}  // namespace coolix
-}  // namespace esphome
+}  // namespace esphome::coolix

@@ -1,15 +1,9 @@
-uart:
-  - id: uart_kuntze
-    tx_pin: 4
-    rx_pin: 5
-    baud_rate: 9600
+substitutions:
+  tx_pin: GPIO0
+  rx_pin: GPIO2
+  flow_control_pin: GPIO15
 
-modbus:
-  flow_control_pin: 13
+packages:
+  modbus: !include ../../test_build_components/common/modbus/esp8266-ard.yaml
 
-sensor:
-  - platform: kuntze
-    ph:
-      name: Kuntze pH
-    temperature:
-      name: Kuntze temperature
+<<: !include common.yaml

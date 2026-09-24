@@ -1,13 +1,15 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace cse7766 {
+namespace esphome::cse7766 {
 
-class CSE7766Component : public Component, public uart::UARTDevice {
+static constexpr size_t CSE7766_RAW_DATA_SIZE = 24;
+
+class CSE7766Component final : public Component, public uart::UARTDevice {
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
@@ -22,15 +24,17 @@ class CSE7766Component : public Component, public uart::UARTDevice {
   void set_power_factor_sensor(sensor::Sensor *power_factor_sensor) { power_factor_sensor_ = power_factor_sensor; }
 
   void loop() override;
-  float get_setup_priority() const override;
   void dump_config() override;
 
  protected:
   bool check_byte_();
   void parse_data_();
-  uint32_t get_24_bit_uint_(uint8_t start_index);
+  uint32_t get_24_bit_uint_(uint8_t start_index) const {
+    return encode_uint24(this->raw_data_[start_index], this->raw_data_[start_index + 1],
+                         this->raw_data_[start_index + 2]);
+  }
 
-  uint8_t raw_data_[24];
+  uint8_t raw_data_[CSE7766_RAW_DATA_SIZE];
   uint8_t raw_data_index_{0};
   uint32_t last_transmission_{0};
   sensor::Sensor *voltage_sensor_{nullptr};
@@ -44,5 +48,4 @@ class CSE7766Component : public Component, public uart::UARTDevice {
   uint16_t cf_pulses_last_{0};
 };
 
-}  // namespace cse7766
-}  // namespace esphome
+}  // namespace esphome::cse7766

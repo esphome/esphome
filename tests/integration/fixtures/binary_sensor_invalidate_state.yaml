@@ -1,0 +1,39 @@
+esphome:
+  name: test-binary-sensor-invalidate
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+# Template binary sensor that we can control
+binary_sensor:
+  - platform: template
+    name: "Test Binary Sensor"
+    id: test_binary_sensor
+
+# Buttons to control the binary sensor state
+button:
+  - platform: template
+    name: "Set True"
+    id: set_true_button
+    on_press:
+      - binary_sensor.template.publish:
+          id: test_binary_sensor
+          state: true
+
+  - platform: template
+    name: "Set False"
+    id: set_false_button
+    on_press:
+      - binary_sensor.template.publish:
+          id: test_binary_sensor
+          state: false
+
+  - platform: template
+    name: "Invalidate State"
+    id: invalidate_button
+    on_press:
+      - binary_sensor.invalidate_state:
+          id: test_binary_sensor

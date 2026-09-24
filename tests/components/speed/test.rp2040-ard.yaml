@@ -1,9 +1,5 @@
-output:
-  - platform: rp2040_pwm
-    id: fan_output_1
-    pin: 12
+substitutions:
+  output_platform: rp2040_pwm
+  pin: GPIO4
 
-fan:
-  - platform: speed
-    id: fan_speed
-    output: fan_output_1
+<<: !include common.yaml

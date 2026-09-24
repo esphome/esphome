@@ -1,0 +1,12 @@
+sensor:
+  - platform: qmp6988
+    i2c_id: i2c_bus
+    temperature:
+      name: QMP6988 Temperature
+      oversampling: 32x
+    pressure:
+      name: QMP6988 Pressure
+      oversampling: 2x
+    address: 0x70
+    update_interval: 30s
+    iir_filter: 16x

@@ -1,9 +1,4 @@
-i2c:
-  - id: i2c_zio_ultrasonic
-    scl: 5
-    sda: 4
+packages:
+  i2c: !include ../../test_build_components/common/i2c/rp2040-ard.yaml
 
-sensor:
-  - platform: zio_ultrasonic
-    name: "Distance"
-    update_interval: 60s
+<<: !include common.yaml

@@ -1,0 +1,9 @@
+display:
+  - platform: sdl
+    id: file_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 480
+      height: 480
+
+<<: !include common.yaml

@@ -1,5 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.config_helpers import filter_source_files_from_platform
+from esphome.const import PlatformFramework
 
 nextion_ns = cg.esphome_ns.namespace("nextion")
 Nextion = nextion_ns.class_("Nextion", cg.PollingComponent, uart.UARTDevice)
@@ -8,3 +10,15 @@ nextion_ref = Nextion.operator("ref")
 CONF_NEXTION_ID = "nextion_id"
 CONF_PUBLISH_STATE = "publish_state"
 CONF_SEND_TO_NEXTION = "send_to_nextion"
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "nextion_upload_esp32.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+        "nextion_upload_arduino.cpp": {
+            PlatformFramework.ESP8266_ARDUINO,
+        },
+    }
+)

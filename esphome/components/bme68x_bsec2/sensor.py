@@ -1,5 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import (
+    CONF_BREATH_VOC_EQUIVALENT,
+    CONF_CO2_EQUIVALENT,
+    CONF_IAQ,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_GAS_RESISTANCE,
@@ -9,8 +14,10 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     CONF_TEMPERATURE,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
+    DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     ICON_GAS_CYLINDER,
     ICON_GAUGE,
     ICON_THERMOMETER,
@@ -22,17 +29,15 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 from . import CONF_BME68X_BSEC2_ID, SAMPLE_RATE_OPTIONS, BME68xBSEC2Component
 
 DEPENDENCIES = ["bme68x_bsec2"]
 
-CONF_BREATH_VOC_EQUIVALENT = "breath_voc_equivalent"
-CONF_CO2_EQUIVALENT = "co2_equivalent"
-CONF_IAQ = "iaq"
 CONF_IAQ_STATIC = "iaq_static"
 ICON_ACCURACY = "mdi:checkbox-marked-circle-outline"
-ICON_TEST_TUBE = "mdi:test-tube"
 UNIT_IAQ = "IAQ"
 
 TYPES = [
@@ -49,6 +54,7 @@ TYPES = [
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_BME68X_BSEC2_ID): cv.use_id(BME68xBSEC2Component),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
             unit_of_measurement=UNIT_CELSIUS,
@@ -61,7 +67,6 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
             unit_of_measurement=UNIT_HECTOPASCAL,
-            icon=ICON_GAUGE,
             accuracy_decimals=1,
             device_class=DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
             state_class=STATE_CLASS_MEASUREMENT,
@@ -102,21 +107,21 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_CO2_EQUIVALENT): sensor.sensor_schema(
             unit_of_measurement=UNIT_PARTS_PER_MILLION,
-            icon=ICON_TEST_TUBE,
             accuracy_decimals=1,
+            device_class=DEVICE_CLASS_CARBON_DIOXIDE,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_BREATH_VOC_EQUIVALENT): sensor.sensor_schema(
             unit_of_measurement=UNIT_PARTS_PER_MILLION,
-            icon=ICON_TEST_TUBE,
             accuracy_decimals=1,
+            device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
     }
 )
 
 
-async def setup_conf(config, key, hub):
+async def setup_conf(config: ConfigType, key: str, hub: MockObj) -> None:
     if conf := config.get(key):
         sens = await sensor.new_sensor(conf)
         cg.add(getattr(hub, f"set_{key}_sensor")(sens))
@@ -124,7 +129,7 @@ async def setup_conf(config, key, hub):
             cg.add(getattr(hub, f"set_{key}_sample_rate")(sample_rate))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_BME68X_BSEC2_ID])
     for key in TYPES:
         await setup_conf(config, key, hub)

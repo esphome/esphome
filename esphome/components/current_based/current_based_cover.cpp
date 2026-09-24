@@ -1,10 +1,10 @@
 #include "current_based_cover.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include <cfloat>
 
-namespace esphome {
-namespace current_based {
+namespace esphome::current_based {
 
 static const char *const TAG = "current_based.cover";
 
@@ -36,9 +36,10 @@ void CurrentBasedCover::control(const CoverCall &call) {
       }
     }
   }
-  if (call.get_position().has_value()) {
-    auto pos = *call.get_position();
-    if (fabsf(this->position - pos) < 0.01) {
+  auto opt_pos = call.get_position();
+  if (opt_pos.has_value()) {
+    auto pos = *opt_pos;
+    if (fabsf(this->position - pos) < 0.01f) {
       // already at target
     } else {
       auto op = pos < this->position ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;
@@ -60,12 +61,12 @@ void CurrentBasedCover::loop() {
   if (this->current_operation == COVER_OPERATION_IDLE)
     return;
 
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   if (this->current_operation == COVER_OPERATION_OPENING) {
     if (this->malfunction_detection_ && this->is_closing_()) {  // Malfunction
       this->direction_idle_();
-      this->malfunction_trigger_->trigger();
+      this->malfunction_trigger_.trigger();
       ESP_LOGI(TAG, "'%s' - Malfunction detected during opening. Current flow detected in close circuit",
                this->name_.c_str());
     } else if (this->is_opening_blocked_()) {  // Blocked
@@ -86,7 +87,7 @@ void CurrentBasedCover::loop() {
   } else if (this->current_operation == COVER_OPERATION_CLOSING) {
     if (this->malfunction_detection_ && this->is_opening_()) {  // Malfunction
       this->direction_idle_();
-      this->malfunction_trigger_->trigger();
+      this->malfunction_trigger_.trigger();
       ESP_LOGI(TAG, "'%s' - Malfunction detected during closing. Current flow detected in open circuit",
                this->name_.c_str());
     } else if (this->is_closing_blocked_()) {  // Blocked
@@ -145,16 +146,19 @@ void CurrentBasedCover::dump_config() {
   if (this->close_obstacle_current_threshold_ != FLT_MAX) {
     ESP_LOGCONFIG(TAG, "  Close obstacle current threshold: %.11fA", this->close_obstacle_current_threshold_);
   }
-  ESP_LOGCONFIG(TAG, "  Close Duration: %.1fs", this->close_duration_ / 1e3f);
-  ESP_LOGCONFIG(TAG, "Obstacle Rollback: %.1f%%", this->obstacle_rollback_ * 100);
+  ESP_LOGCONFIG(TAG,
+                "  Close Duration: %.1fs\n"
+                "  Obstacle Rollback: %.1f%%",
+                this->close_duration_ / 1e3f, this->obstacle_rollback_ * 100);
   if (this->max_duration_ != UINT32_MAX) {
-    ESP_LOGCONFIG(TAG, "Maximum duration: %.1fs", this->max_duration_ / 1e3f);
+    ESP_LOGCONFIG(TAG, "  Maximum duration: %.1fs", this->max_duration_ / 1e3f);
   }
-  ESP_LOGCONFIG(TAG, "Start sensing delay: %.1fs", this->start_sensing_delay_ / 1e3f);
-  ESP_LOGCONFIG(TAG, "Malfunction detection: %s", YESNO(this->malfunction_detection_));
+  ESP_LOGCONFIG(TAG,
+                "  Start sensing delay: %.1fs\n"
+                "  Malfunction detection: %s",
+                this->start_sensing_delay_ / 1e3f, YESNO(this->malfunction_detection_));
 }
 
-float CurrentBasedCover::get_setup_priority() const { return setup_priority::DATA; }
 void CurrentBasedCover::stop_prev_trigger_() {
   if (this->prev_command_trigger_ != nullptr) {
     this->prev_command_trigger_->stop_action();
@@ -216,15 +220,15 @@ void CurrentBasedCover::start_direction_(CoverOperation dir) {
   Trigger<> *trig;
   switch (dir) {
     case COVER_OPERATION_IDLE:
-      trig = this->stop_trigger_;
+      trig = &this->stop_trigger_;
       break;
     case COVER_OPERATION_OPENING:
       this->last_operation_ = dir;
-      trig = this->open_trigger_;
+      trig = &this->open_trigger_;
       break;
     case COVER_OPERATION_CLOSING:
       this->last_operation_ = dir;
-      trig = this->close_trigger_;
+      trig = &this->close_trigger_;
       break;
     default:
       return;
@@ -266,5 +270,4 @@ void CurrentBasedCover::recompute_position_() {
   this->last_recompute_time_ = now;
 }
 
-}  // namespace current_based
-}  // namespace esphome
+}  // namespace esphome::current_based

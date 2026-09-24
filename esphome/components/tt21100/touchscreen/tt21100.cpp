@@ -1,8 +1,7 @@
 #include "tt21100.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tt21100 {
+namespace esphome::tt21100 {
 
 static const char *const TAG = "tt21100";
 
@@ -47,8 +46,6 @@ struct TT21100TouchReport {
 float TT21100Touchscreen::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
 
 void TT21100Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up TT21100 Touchscreen...");
-
   // Register interrupt pin
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
@@ -68,7 +65,7 @@ void TT21100Touchscreen::setup() {
       this->x_raw_max_ = this->display_->get_native_width();
     }
     if (this->y_raw_max_ == this->y_raw_min_) {
-      this->x_raw_max_ = this->display_->get_native_height();
+      this->y_raw_max_ = this->display_->get_native_height();
     }
   }
 
@@ -141,5 +138,4 @@ void TT21100Touchscreen::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
-}  // namespace tt21100
-}  // namespace esphome
+}  // namespace esphome::tt21100

@@ -1,12 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    DEVICE_CLASS_OCCUPANCY,
-    CONF_HAS_TARGET,
-)
-from . import CONF_MR24HPC1_ID, MR24HPC1Component
+from esphome.const import CONF_HAS_TARGET, DEVICE_CLASS_OCCUPANCY
+from esphome.types import ConfigType
 
+from . import CONF_MR24HPC1_ID, MR24HPC1Component
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(MR24HPC1Component),
@@ -16,7 +14,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])
     if has_target_config := config.get(CONF_HAS_TARGET):
         sens = await binary_sensor.new_binary_sensor(has_target_config)

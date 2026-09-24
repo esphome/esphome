@@ -1,9 +1,9 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import i2c, touchscreen
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_RESET_PIN, CONF_THRESHOLD
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@gpambrozio"]
 DEPENDENCIES = ["i2c"]
@@ -32,7 +32,7 @@ CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await touchscreen.register_touchscreen(var, config)
     await i2c.register_i2c_device(var, config)

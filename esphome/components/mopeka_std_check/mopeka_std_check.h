@@ -3,18 +3,16 @@
 #include <cinttypes>
 #include <vector>
 
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-#ifdef USE_ESP32
-
-namespace esphome {
-namespace mopeka_std_check {
+namespace esphome::mopeka_std_check {
 
 enum SensorType {
   STANDARD = 0x02,
   XL = 0x03,
+  STANDARD_ALT = 0x44,
   ETRAILER = 0x46,
 };
 
@@ -39,16 +37,15 @@ struct mopeka_std_package {  // NOLINT(readability-identifier-naming,altera-stru
   bool slow_update_rate : 1;
   bool sync_pressed : 1;
 
-  mopeka_std_values val[4];
+  mopeka_std_values val[3];
 } __attribute__((packed));
 
-class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class MopekaStdCheck final : public Component, public ble_device_base::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
 
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_level(sensor::Sensor *level) { this->level_ = level; };
   void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; };
@@ -71,10 +68,7 @@ class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
 
   float get_lpg_speed_of_sound_(float temperature);
   uint8_t parse_battery_level_(const mopeka_std_package *message);
-  uint8_t parse_temperature_(const mopeka_std_package *message);
+  int8_t parse_temperature_(const mopeka_std_package *message);
 };
 
-}  // namespace mopeka_std_check
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::mopeka_std_check

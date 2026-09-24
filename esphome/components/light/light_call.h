@@ -1,15 +1,23 @@
 #pragma once
 
-#include "esphome/core/optional.h"
 #include "light_color_values.h"
-#include <set>
 
 namespace esphome {
+
+// Forward declaration
+struct LogString;
+
 namespace light {
 
 class LightState;
+class LightTraits;
 
 /** This class represents a requested change in a light state.
+ *
+ * Light state changes are tracked using a bitfield flags_ to minimize memory usage.
+ * Each possible light property has a flag indicating whether it has been set.
+ * This design keeps LightCall at ~56 bytes to minimize heap fragmentation on
+ * ESP8266 and other memory-constrained devices.
  */
 class LightCall {
  public:
@@ -122,7 +130,11 @@ class LightCall {
   /// Set the effect of the light by its name.
   LightCall &set_effect(optional<std::string> effect);
   /// Set the effect of the light by its name.
-  LightCall &set_effect(const std::string &effect);
+  LightCall &set_effect(const std::string &effect) { return this->set_effect(effect.data(), effect.size()); }
+  /// Set the effect of the light by its name (const char * overload to resolve ambiguity).
+  LightCall &set_effect(const char *effect) { return this->set_effect(effect, strlen(effect)); }
+  /// Set the effect of the light by its name and length (zero-copy from API).
+  LightCall &set_effect(const char *effect, size_t len);
   /// Set the effect of the light by its internal index number (only for internal use).
   LightCall &set_effect(uint32_t effect_number);
   LightCall &set_effect(optional<uint32_t> effect_number);
@@ -130,6 +142,19 @@ class LightCall {
   LightCall &set_publish(bool publish);
   /// Set whether this light call should trigger a save state to recover them at startup..
   LightCall &set_save(bool save);
+
+  // Getter methods to check if values are set
+  bool has_state() const { return (flags_ & FLAG_HAS_STATE) != 0; }
+  bool has_brightness() const { return (flags_ & FLAG_HAS_BRIGHTNESS) != 0; }
+  bool has_color_brightness() const { return (flags_ & FLAG_HAS_COLOR_BRIGHTNESS) != 0; }
+  bool has_red() const { return (flags_ & FLAG_HAS_RED) != 0; }
+  bool has_green() const { return (flags_ & FLAG_HAS_GREEN) != 0; }
+  bool has_blue() const { return (flags_ & FLAG_HAS_BLUE) != 0; }
+  bool has_white() const { return (flags_ & FLAG_HAS_WHITE) != 0; }
+  bool has_color_temperature() const { return (flags_ & FLAG_HAS_COLOR_TEMPERATURE) != 0; }
+  bool has_cold_white() const { return (flags_ & FLAG_HAS_COLD_WHITE) != 0; }
+  bool has_warm_white() const { return (flags_ & FLAG_HAS_WARM_WHITE) != 0; }
+  bool has_color_mode() const { return (flags_ & FLAG_HAS_COLOR_MODE) != 0; }
 
   /** Set the RGB color of the light by RGB values.
    *
@@ -164,33 +189,67 @@ class LightCall {
   LightColorValues validate_();
 
   //// Compute the color mode that should be used for this call.
-  ColorMode compute_color_mode_();
-  /// Get potential color modes for this light call.
-  std::set<ColorMode> get_suitable_color_modes_();
+  ColorMode compute_color_mode_(const LightTraits &traits);
+  /// Get potential color modes bitmask for this light call.
+  color_mode_bitmask_t get_suitable_color_modes_mask_();
   /// Some color modes also can be set using non-native parameters, transform those calls.
-  void transform_parameters_();
+  void transform_parameters_(const LightTraits &traits);
 
-  bool has_transition_() { return this->transition_length_.has_value(); }
-  bool has_flash_() { return this->flash_length_.has_value(); }
-  bool has_effect_() { return this->effect_.has_value(); }
+  // Bits 0-7 index unit_fields_[] in validate_(); don't reorder (asserts in light_call.cpp).
+  enum FieldFlags : uint16_t {
+    FLAG_HAS_BRIGHTNESS = 1 << 0,
+    FLAG_HAS_COLOR_BRIGHTNESS = 1 << 1,
+    FLAG_HAS_RED = 1 << 2,
+    FLAG_HAS_GREEN = 1 << 3,
+    FLAG_HAS_BLUE = 1 << 4,
+    FLAG_HAS_WHITE = 1 << 5,
+    FLAG_HAS_COLD_WHITE = 1 << 6,
+    FLAG_HAS_WARM_WHITE = 1 << 7,
+    FLAG_HAS_COLOR_TEMPERATURE = 1 << 8,
+    FLAG_HAS_STATE = 1 << 9,
+    FLAG_HAS_TRANSITION = 1 << 10,
+    FLAG_HAS_FLASH = 1 << 11,
+    FLAG_HAS_EFFECT = 1 << 12,
+    FLAG_HAS_COLOR_MODE = 1 << 13,
+    FLAG_PUBLISH = 1 << 14,
+    FLAG_SAVE = 1 << 15,
+  };
+  static constexpr uint16_t CLAMP_FLAGS_MASK = 0x00FFu;  // bits 0-7
+
+  inline bool has_transition_() { return (this->flags_ & FLAG_HAS_TRANSITION) != 0; }
+  inline bool has_flash_() { return (this->flags_ & FLAG_HAS_FLASH) != 0; }
+  inline bool has_effect_() { return (this->flags_ & FLAG_HAS_EFFECT) != 0; }
+  inline bool get_publish_() { return (this->flags_ & FLAG_PUBLISH) != 0; }
+  inline bool get_save_() { return (this->flags_ & FLAG_SAVE) != 0; }
+
+  // Helper to set flag - defaults to true for common case
+  void set_flag_(FieldFlags flag, bool value = true) ESPHOME_ALWAYS_INLINE {
+    if (value) {
+      this->flags_ |= flag;
+    } else {
+      this->flags_ &= ~flag;
+    }
+  }
+
+  // Helper to clear flag - reduces code size for common case
+  void clear_flag_(FieldFlags flag) ESPHOME_ALWAYS_INLINE { this->flags_ &= ~flag; }
+
+  // Helper to log unsupported feature and clear flag - reduces code duplication
+  void log_and_clear_unsupported_(FieldFlags flag, const LogString *feature, bool use_color_mode_log);
 
   LightState *parent_;
-  optional<bool> state_;
-  optional<uint32_t> transition_length_;
-  optional<uint32_t> flash_length_;
-  optional<ColorMode> color_mode_;
-  optional<float> brightness_;
-  optional<float> color_brightness_;
-  optional<float> red_;
-  optional<float> green_;
-  optional<float> blue_;
-  optional<float> white_;
-  optional<float> color_temperature_;
-  optional<float> cold_white_;
-  optional<float> warm_white_;
-  optional<uint32_t> effect_;
-  bool publish_{true};
-  bool save_{true};
+
+  // Light state values - use flags_ to check if a value has been set.
+  uint32_t transition_length_;
+  uint32_t flash_length_;
+  uint32_t effect_;
+  ESPHOME_LIGHT_UNIT_FIELDS_UNION();
+  float color_temperature_;
+
+  // Smaller members at the end for better packing
+  uint16_t flags_{FLAG_PUBLISH | FLAG_SAVE};  // Tracks which values are set
+  ColorMode color_mode_;
+  bool state_;
 };
 
 }  // namespace light

@@ -1,0 +1,10 @@
+esphome:
+  name: test
+  devices:
+    - id: test_2258
+      name: "Device 1"
+    - id: d6ka
+      name: "Device 2"
+
+esp32:
+  board: esp32dev

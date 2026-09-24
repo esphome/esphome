@@ -2,13 +2,11 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace ssd1322_spi {
+namespace esphome::ssd1322_spi {
 
 static const char *const TAG = "ssd1322_spi";
 
 void SPISSD1322::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SPI SSD1322...");
   this->spi_setup();
   this->dc_pin_->setup();  // OUTPUT
   if (this->cs_)
@@ -20,11 +18,13 @@ void SPISSD1322::setup() {
 }
 void SPISSD1322::dump_config() {
   LOG_DISPLAY("", "SPI SSD1322", this);
-  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_());
+  ESP_LOGCONFIG(TAG,
+                "  Model: %s\n"
+                "  Initial Brightness: %.2f",
+                this->model_str_(), this->brightness_);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  Initial Brightness: %.2f", this->brightness_);
   LOG_UPDATE_INTERVAL(this);
 }
 void SPISSD1322::command(uint8_t value) {
@@ -67,5 +67,4 @@ void HOT SPISSD1322::write_display_data() {
   this->disable();
 }
 
-}  // namespace ssd1322_spi
-}  // namespace esphome
+}  // namespace esphome::ssd1322_spi

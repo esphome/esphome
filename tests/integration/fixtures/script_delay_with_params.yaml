@@ -1,0 +1,131 @@
+esphome:
+  name: test-script-delay-params
+
+host:
+
+api:
+  actions:
+    # Test case from issue #12044: parent script with repeat calling child with delay
+    - action: test_repeat_with_delay
+      then:
+        - logger.log: "=== TEST: Repeat loop calling script with delay and parameters ==="
+        - script.execute: father_script
+
+    # Test case from issue #12043: script.wait with delayed child script
+    - action: test_script_wait
+      then:
+        - logger.log: "=== TEST: script.wait with delayed child script ==="
+        - script.execute: show_start_page
+        - script.wait: show_start_page
+        - logger.log: "After wait: script completed successfully"
+
+    # Test: Delay with different parameter types
+    - action: test_delay_param_types
+      then:
+        - logger.log: "=== TEST: Delay with various parameter types ==="
+        - script.execute:
+            id: delay_with_int
+            val: 42
+        - delay: 50ms
+        - script.execute:
+            id: delay_with_string
+            msg: "test message"
+        - delay: 50ms
+        - script.execute:
+            id: delay_with_float
+            num: 3.14
+
+logger:
+  level: DEBUG
+
+script:
+  # Reproduces issue #12044: child script with conditional delay
+  - id: son_script
+    mode: single
+    parameters:
+      iteration: int
+    then:
+      - logger.log:
+          format: "Son script started with iteration %d"
+          args: ['iteration']
+      - if:
+          condition:
+            lambda: 'return iteration >= 5;'
+          then:
+            - logger.log:
+                format: "Son script delaying for iteration %d"
+                args: ['iteration']
+            - delay: 100ms
+      - logger.log:
+          format: "Son script finished with iteration %d"
+          args: ['iteration']
+
+  # Reproduces issue #12044: parent script with repeat loop
+  - id: father_script
+    mode: single
+    then:
+      - repeat:
+          count: 10
+          then:
+            - logger.log:
+                format: "Father iteration %d: calling son"
+                args: ['iteration']
+            - script.execute:
+                id: son_script
+                iteration: !lambda 'return iteration;'
+            - script.wait: son_script
+            - logger.log:
+                format: "Father iteration %d: son finished, wait returned"
+                args: ['iteration']
+
+  # Reproduces issue #12043: script.wait hangs
+  - id: show_start_page
+    mode: single
+    then:
+      - logger.log: "Start page: beginning"
+      - delay: 100ms
+      - logger.log: "Start page: after delay"
+      - delay: 100ms
+      - logger.log: "Start page: completed"
+
+  # Test delay with int parameter
+  - id: delay_with_int
+    mode: single
+    parameters:
+      val: int
+    then:
+      - logger.log:
+          format: "Int test: before delay, val=%d"
+          args: ['val']
+      - delay: 50ms
+      - logger.log:
+          format: "Int test: after delay, val=%d"
+          args: ['val']
+
+  # Test delay with string parameter
+  - id: delay_with_string
+    mode: single
+    parameters:
+      msg: string
+    then:
+      - logger.log:
+          format: "String test: before delay, msg=%s"
+          args: ['msg.c_str()']
+      - delay: 50ms
+      - logger.log:
+          format: "String test: after delay, msg=%s"
+          args: ['msg.c_str()']
+
+  # Test delay with float parameter
+  - id: delay_with_float
+    mode: single
+    parameters:
+      num: float
+    then:
+      - logger.log:
+          format: "Float test: before delay, num=%.2f"
+          args: ['num']
+      - delay: 50ms
+      - logger.log:
+          format: "Float test: after delay, num=%.2f"
+          args: ['num']

@@ -1,19 +1,21 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_EXTERNAL_TEMPERATURE,
     CONF_ID,
     CONF_INTERNAL_TEMPERATURE,
     CONF_SPEED,
     DEVICE_CLASS_TEMPERATURE,
+    ICON_PERCENT,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
     UNIT_REVOLUTIONS_PER_MINUTE,
-    ICON_PERCENT,
 )
-from .. import EMC2101_COMPONENT_SCHEMA, CONF_EMC2101_ID, emc2101_ns
+from esphome.types import ConfigType
+
+from .. import CONF_EMC2101_ID, EMC2101_COMPONENT_SCHEMA, emc2101_ns
 
 DEPENDENCIES = ["emc2101"]
 
@@ -52,7 +54,7 @@ CONFIG_SCHEMA = EMC2101_COMPONENT_SCHEMA.extend(
 ).extend(cv.polling_component_schema("60s"))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     paren = await cg.get_variable(config[CONF_EMC2101_ID])
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)

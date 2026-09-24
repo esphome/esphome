@@ -7,10 +7,9 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace pulse_meter {
+namespace esphome::pulse_meter {
 
-class PulseMeterSensor : public sensor::Sensor, public Component {
+class PulseMeterSensor final : public sensor::Sensor, public Component {
  public:
   enum InternalFilterMode {
     FILTER_EDGE = 0,
@@ -27,7 +26,6 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
 
   void setup() override;
   void loop() override;
-  float get_setup_priority() const override;
   void dump_config() override;
 
  protected:
@@ -47,22 +45,22 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   uint32_t total_pulses_ = 0;
   uint32_t last_processed_edge_us_ = 0;
 
-  // This struct (and the two pointers) are used to pass data between the ISR and loop.
-  // These two pointers are exchanged each loop.
-  // Therefore you can't use data in the pointer to loop receives to set values in the pointer to loop sends.
-  // As a result it's easiest if you only use these pointers to send data from the ISR to the loop.
-  // (except for resetting the values)
+  // This struct and variable are used to pass data between the ISR and loop.
+  // The data from state_ is read and then count_ in state_ is reset in each loop.
+  // This must be done while guarded by an InterruptLock. Use this variable to send data
+  // from the ISR to the loop not the other way around (except for resetting count_).
   struct State {
     uint32_t last_detected_edge_us_ = 0;
     uint32_t last_rising_edge_us_ = 0;
     uint32_t count_ = 0;
   };
-  State state_[2];
-  volatile State *set_ = state_;
-  volatile State *get_ = state_ + 1;
+  volatile State state_{};
 
-  // Only use these variables in the ISR
+  // Only use the following variables in the ISR or while guarded by an InterruptLock
   ISRInternalGPIOPin isr_pin_;
+
+  /// The last pin value seen
+  bool last_pin_val_ = false;
 
   /// Filter state for edge mode
   struct EdgeState {
@@ -74,10 +72,8 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   struct PulseState {
     uint32_t last_intr_ = 0;
     bool latched_ = false;
-    bool last_pin_val_ = false;
   };
   PulseState pulse_state_{};
 };
 
-}  // namespace pulse_meter
-}  // namespace esphome
+}  // namespace esphome::pulse_meter

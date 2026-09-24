@@ -5,15 +5,13 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/cover/cover.h"
 
-namespace esphome {
-namespace he60r {
+namespace esphome::he60r {
 
-class HE60rCover : public cover::Cover, public Component, public uart::UARTDevice {
+class HE60rCover final : public cover::Cover, public Component, public uart::UARTDevice {
  public:
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; };
 
   void set_open_duration(uint32_t duration) { this->open_duration_ = duration; }
   void set_close_duration(uint32_t duration) { this->close_duration_ = duration; }
@@ -42,5 +40,4 @@ class HE60rCover : public cover::Cover, public Component, public uart::UARTDevic
   uint8_t counter_{};
 };
 
-}  // namespace he60r
-}  // namespace esphome
+}  // namespace esphome::he60r

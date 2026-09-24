@@ -1,0 +1,5 @@
+sensor:
+  - platform: zio_ultrasonic
+    i2c_id: i2c_bus
+    name: "Distance"
+    update_interval: 60s

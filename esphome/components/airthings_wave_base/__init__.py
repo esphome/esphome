@@ -1,18 +1,17 @@
 import esphome.codegen as cg
+from esphome.components import ble_client, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, ble_client
-
 from esphome.const import (
     CONF_BATTERY_VOLTAGE,
     CONF_HUMIDITY,
     CONF_PRESSURE,
     CONF_TEMPERATURE,
     CONF_TVOC,
-    DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+    DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
@@ -21,8 +20,10 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_VOLT,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
-CODEOWNERS = ["@ncareau", "@jeromelaban", "@kpfleming"]
+CODEOWNERS = ["@ncareau", "@jeromelaban"]
 
 DEPENDENCIES = ["ble_client"]
 
@@ -35,7 +36,7 @@ AirthingsWaveBase = airthings_wave_base_ns.class_(
 
 
 BASE_SCHEMA = (
-    sensor.SENSOR_SCHEMA.extend(
+    cv.Schema(
         {
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
@@ -79,7 +80,7 @@ BASE_SCHEMA = (
 )
 
 
-async def wave_base_to_code(var, config):
+async def wave_base_to_code(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     await ble_client.register_ble_node(var, config)

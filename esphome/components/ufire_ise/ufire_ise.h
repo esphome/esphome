@@ -6,8 +6,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ufire_ise {
+namespace esphome::ufire_ise {
 
 static const float PROBE_MV_TO_PH = 59.2;
 static const float PROBE_TMP_CORRECTION = 0.03;
@@ -30,7 +29,7 @@ static const uint8_t COMMAND_CALIBRATE_LOW = 10;
 static const uint8_t COMMAND_MEASURE_TEMP = 40;
 static const uint8_t COMMAND_MEASURE_MV = 80;
 
-class UFireISEComponent : public PollingComponent, public i2c::I2CDevice {
+class UFireISEComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;
@@ -59,37 +58,36 @@ class UFireISEComponent : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *ph_sensor_{nullptr};
 };
 
-template<typename... Ts> class UFireISECalibrateProbeLowAction : public Action<Ts...> {
+template<typename... Ts> class UFireISECalibrateProbeLowAction final : public Action<Ts...> {
  public:
   UFireISECalibrateProbeLowAction(UFireISEComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, solution)
 
-  void play(Ts... x) override { this->parent_->calibrate_probe_low(this->solution_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->calibrate_probe_low(this->solution_.value(x...)); }
 
  protected:
   UFireISEComponent *parent_;
 };
 
-template<typename... Ts> class UFireISECalibrateProbeHighAction : public Action<Ts...> {
+template<typename... Ts> class UFireISECalibrateProbeHighAction final : public Action<Ts...> {
  public:
   UFireISECalibrateProbeHighAction(UFireISEComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, solution)
 
-  void play(Ts... x) override { this->parent_->calibrate_probe_high(this->solution_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->calibrate_probe_high(this->solution_.value(x...)); }
 
  protected:
   UFireISEComponent *parent_;
 };
 
-template<typename... Ts> class UFireISEResetAction : public Action<Ts...> {
+template<typename... Ts> class UFireISEResetAction final : public Action<Ts...> {
  public:
   UFireISEResetAction(UFireISEComponent *parent) : parent_(parent) {}
 
-  void play(Ts... x) override { this->parent_->reset_board(); }
+  void play(const Ts &...x) override { this->parent_->reset_board(); }
 
  protected:
   UFireISEComponent *parent_;
 };
 
-}  // namespace ufire_ise
-}  // namespace esphome
+}  // namespace esphome::ufire_ise

@@ -3,131 +3,144 @@
 #include "esphome/core/automation.h"
 #include "display_menu_base.h"
 
-namespace esphome {
-namespace display_menu_base {
+namespace esphome::display_menu_base {
 
-template<typename... Ts> class UpAction : public Action<Ts...> {
+template<typename... Ts> class UpAction final : public Action<Ts...> {
  public:
   explicit UpAction(DisplayMenuComponent *menu) : menu_(menu) {}
 
-  void play(Ts... x) override { this->menu_->up(); }
+  void play(const Ts &...x) override { this->menu_->up(); }
 
  protected:
   DisplayMenuComponent *menu_;
 };
 
-template<typename... Ts> class DownAction : public Action<Ts...> {
+template<typename... Ts> class DownAction final : public Action<Ts...> {
  public:
   explicit DownAction(DisplayMenuComponent *menu) : menu_(menu) {}
 
-  void play(Ts... x) override { this->menu_->down(); }
+  void play(const Ts &...x) override { this->menu_->down(); }
 
  protected:
   DisplayMenuComponent *menu_;
 };
 
-template<typename... Ts> class LeftAction : public Action<Ts...> {
+template<typename... Ts> class LeftAction final : public Action<Ts...> {
  public:
   explicit LeftAction(DisplayMenuComponent *menu) : menu_(menu) {}
 
-  void play(Ts... x) override { this->menu_->left(); }
+  void play(const Ts &...x) override { this->menu_->left(); }
 
  protected:
   DisplayMenuComponent *menu_;
 };
 
-template<typename... Ts> class RightAction : public Action<Ts...> {
+template<typename... Ts> class RightAction final : public Action<Ts...> {
  public:
   explicit RightAction(DisplayMenuComponent *menu) : menu_(menu) {}
 
-  void play(Ts... x) override { this->menu_->right(); }
+  void play(const Ts &...x) override { this->menu_->right(); }
 
  protected:
   DisplayMenuComponent *menu_;
 };
 
-template<typename... Ts> class EnterAction : public Action<Ts...> {
+template<typename... Ts> class EnterAction final : public Action<Ts...> {
  public:
   explicit EnterAction(DisplayMenuComponent *menu) : menu_(menu) {}
 
-  void play(Ts... x) override { this->menu_->enter(); }
+  void play(const Ts &...x) override { this->menu_->enter(); }
 
  protected:
   DisplayMenuComponent *menu_;
 };
 
-template<typename... Ts> class ShowAction : public Action<Ts...> {
+template<typename... Ts> class ShowAction final : public Action<Ts...> {
  public:
   explicit ShowAction(DisplayMenuComponent *menu) : menu_(menu) {}
 
-  void play(Ts... x) override { this->menu_->show(); }
+  void play(const Ts &...x) override { this->menu_->show(); }
 
  protected:
   DisplayMenuComponent *menu_;
 };
 
-template<typename... Ts> class HideAction : public Action<Ts...> {
+template<typename... Ts> class HideAction final : public Action<Ts...> {
  public:
   explicit HideAction(DisplayMenuComponent *menu) : menu_(menu) {}
 
-  void play(Ts... x) override { this->menu_->hide(); }
+  void play(const Ts &...x) override { this->menu_->hide(); }
 
  protected:
   DisplayMenuComponent *menu_;
 };
 
-template<typename... Ts> class ShowMainAction : public Action<Ts...> {
+template<typename... Ts> class ShowMainAction final : public Action<Ts...> {
  public:
   explicit ShowMainAction(DisplayMenuComponent *menu) : menu_(menu) {}
 
-  void play(Ts... x) override { this->menu_->show_main(); }
+  void play(const Ts &...x) override { this->menu_->show_main(); }
 
  protected:
   DisplayMenuComponent *menu_;
 };
-template<typename... Ts> class IsActiveCondition : public Condition<Ts...> {
+template<typename... Ts> class IsActiveCondition final : public Condition<Ts...> {
  public:
   explicit IsActiveCondition(DisplayMenuComponent *menu) : menu_(menu) {}
-  bool check(Ts... x) override { return this->menu_->is_active(); }
+  bool check(const Ts &...x) override { return this->menu_->is_active(); }
 
  protected:
   DisplayMenuComponent *menu_;
 };
 
-class DisplayMenuOnEnterTrigger : public Trigger<const MenuItem *> {
+class DisplayMenuOnEnterTrigger final : public Trigger<const MenuItem *> {
  public:
-  explicit DisplayMenuOnEnterTrigger(MenuItem *parent) {
-    parent->add_on_enter_callback([this, parent]() { this->trigger(parent); });
+  explicit DisplayMenuOnEnterTrigger(MenuItem *parent) : parent_(parent) {
+    parent->add_on_enter_callback([this]() { this->trigger(this->parent_); });
   }
+
+ protected:
+  MenuItem *parent_;
 };
 
-class DisplayMenuOnLeaveTrigger : public Trigger<const MenuItem *> {
+class DisplayMenuOnLeaveTrigger final : public Trigger<const MenuItem *> {
  public:
-  explicit DisplayMenuOnLeaveTrigger(MenuItem *parent) {
-    parent->add_on_leave_callback([this, parent]() { this->trigger(parent); });
+  explicit DisplayMenuOnLeaveTrigger(MenuItem *parent) : parent_(parent) {
+    parent->add_on_leave_callback([this]() { this->trigger(this->parent_); });
   }
+
+ protected:
+  MenuItem *parent_;
 };
 
-class DisplayMenuOnValueTrigger : public Trigger<const MenuItem *> {
+class DisplayMenuOnValueTrigger final : public Trigger<const MenuItem *> {
  public:
-  explicit DisplayMenuOnValueTrigger(MenuItem *parent) {
-    parent->add_on_value_callback([this, parent]() { this->trigger(parent); });
+  explicit DisplayMenuOnValueTrigger(MenuItem *parent) : parent_(parent) {
+    parent->add_on_value_callback([this]() { this->trigger(this->parent_); });
   }
+
+ protected:
+  MenuItem *parent_;
 };
 
-class DisplayMenuOnNextTrigger : public Trigger<const MenuItem *> {
+class DisplayMenuOnNextTrigger final : public Trigger<const MenuItem *> {
  public:
-  explicit DisplayMenuOnNextTrigger(MenuItemCustom *parent) {
-    parent->add_on_next_callback([this, parent]() { this->trigger(parent); });
+  explicit DisplayMenuOnNextTrigger(MenuItemCustom *parent) : parent_(parent) {
+    parent->add_on_next_callback([this]() { this->trigger(this->parent_); });
   }
+
+ protected:
+  MenuItemCustom *parent_;
 };
 
-class DisplayMenuOnPrevTrigger : public Trigger<const MenuItem *> {
+class DisplayMenuOnPrevTrigger final : public Trigger<const MenuItem *> {
  public:
-  explicit DisplayMenuOnPrevTrigger(MenuItemCustom *parent) {
-    parent->add_on_prev_callback([this, parent]() { this->trigger(parent); });
+  explicit DisplayMenuOnPrevTrigger(MenuItemCustom *parent) : parent_(parent) {
+    parent->add_on_prev_callback([this]() { this->trigger(this->parent_); });
   }
+
+ protected:
+  MenuItemCustom *parent_;
 };
 
-}  // namespace display_menu_base
-}  // namespace esphome
+}  // namespace esphome::display_menu_base

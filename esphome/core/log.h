@@ -1,21 +1,29 @@
 #pragma once
 
+#include "log_const_en.h"
+
 #include <cassert>
 #include <cstdarg>
+
+// Debug assert that only fires when ESPHOME_DEBUG is defined (e.g. in CI/test builds).
+// Zero cost in production firmware.
+#ifdef ESPHOME_DEBUG
+#define ESPHOME_DEBUG_ASSERT(expr) assert(expr)  // NOLINT
+#else
+#define ESPHOME_DEBUG_ASSERT(expr) ((void) 0)
+#endif
+// for PRIu32 and friends
+#include <cinttypes>
 #include <string>
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 #include "WString.h"
-#include "esphome/core/defines.h"  // for USE_ARDUINO_VERSION_CODE
 #endif
 
 // Include ESP-IDF/Arduino based logging methods here so they don't undefine ours later
-#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
+#if defined(USE_ESP32)
 #include <esp_err.h>
 #include <esp_log.h>
-#endif
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#include <esp32-hal-log.h>
 #endif
 #ifdef USE_LIBRETINY
 #include <lt_logger.h>
@@ -45,8 +53,8 @@ namespace esphome {
 #define ESPHOME_LOG_COLOR_CYAN "36"     // DEBUG
 #define ESPHOME_LOG_COLOR_GRAY "37"     // VERBOSE
 #define ESPHOME_LOG_COLOR_WHITE "38"
-#define ESPHOME_LOG_SECRET_BEGIN "\033[5m"
-#define ESPHOME_LOG_SECRET_END "\033[6m"
+#define ESPHOME_LOG_SECRET_BEGIN "\033[8m"
+#define ESPHOME_LOG_SECRET_END "\033[28m"
 #define LOG_SECRET(x) ESPHOME_LOG_SECRET_BEGIN x ESPHOME_LOG_SECRET_END
 
 #define ESPHOME_LOG_COLOR(COLOR) "\033[0;" COLOR "m"
@@ -59,10 +67,7 @@ void esp_log_printf_(int level, const char *tag, int line, const char *format, .
 void esp_log_printf_(int level, const char *tag, int line, const __FlashStringHelper *format, ...);
 #endif
 void esp_log_vprintf_(int level, const char *tag, int line, const char *format, va_list args);  // NOLINT
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-void esp_log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
-#endif
-#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
+#if defined(USE_ESP32)
 int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 
@@ -74,7 +79,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
 #define esph_log_vv(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_VERY_VERBOSE, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_VERY_VERBOSE, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_VERY_VERBOSE
 #else
@@ -83,7 +88,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 #define esph_log_v(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_VERBOSE, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_VERBOSE, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_VERBOSE
 #else
@@ -92,9 +97,9 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
 #define esph_log_d(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_DEBUG, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_DEBUG, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 #define esph_log_config(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_CONFIG, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_CONFIG, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_DEBUG
 #define ESPHOME_LOG_HAS_CONFIG
@@ -105,7 +110,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
 #define esph_log_i(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_INFO, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_INFO, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_INFO
 #else
@@ -114,7 +119,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
 #define esph_log_w(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_WARN, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_WARN, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_WARN
 #else
@@ -123,7 +128,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
 #define esph_log_e(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_ERROR, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_ERROR, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_ERROR
 #else
@@ -161,6 +166,8 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #define YESNO(b) ((b) ? "YES" : "NO")
 #define ONOFF(b) ((b) ? "ON" : "OFF")
 #define TRUEFALSE(b) ((b) ? "TRUE" : "FALSE")
+// for use with optional values
+#define ONOFFMAYBE(b) (((b).has_value()) ? ONOFF((b).value()) : "UNKNOWN")
 
 // Helper class that identifies strings that may be stored in flash storage (similar to Arduino's __FlashStringHelper)
 struct LogString;
@@ -169,20 +176,7 @@ struct LogString;
 
 #include <pgmspace.h>
 
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 0)
 #define LOG_STR_ARG(s) ((PGM_P) (s))
-#else
-// Pre-Arduino 2.5, we can't pass a PSTR() to printf(). Emulate support by copying the message to a
-// local buffer first. String length is limited to 63 characters.
-// https://github.com/esp8266/Arduino/commit/6280e98b0360f85fdac2b8f10707fffb4f6e6e31
-#define LOG_STR_ARG(s) \
-  ({ \
-    char __buf[64]; \
-    __buf[63] = '\0'; \
-    strncpy_P(__buf, (PGM_P) (s), 63); \
-    __buf; \
-  })
-#endif
 
 #define LOG_STR(s) (reinterpret_cast<const LogString *>(PSTR(s)))
 #define LOG_STR_LITERAL(s) LOG_STR_ARG(LOG_STR(s))

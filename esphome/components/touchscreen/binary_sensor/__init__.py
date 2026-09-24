@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor, display
 import esphome.config_validation as cv
 from esphome.const import CONF_PAGE_ID, CONF_PAGES
+from esphome.types import ConfigType
 
 from .. import CONF_TOUCHSCREEN_ID, TouchListener, Touchscreen, touchscreen_ns
 
@@ -19,9 +20,10 @@ CONF_X_MIN = "x_min"
 CONF_X_MAX = "x_max"
 CONF_Y_MIN = "y_min"
 CONF_Y_MAX = "y_max"
+CONF_USE_RAW = "use_raw"
 
 
-def _validate_coords(config):
+def _validate_coords(config: ConfigType) -> ConfigType:
     if (
         config[CONF_X_MAX] < config[CONF_X_MIN]
         or config[CONF_Y_MAX] < config[CONF_Y_MIN]
@@ -46,6 +48,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.GenerateID(CONF_TOUCHSCREEN_ID): cv.use_id(Touchscreen),
+            cv.Optional(CONF_USE_RAW, default=False): cv.boolean,
             cv.Required(CONF_X_MIN): cv.int_range(min=0, max=2000),
             cv.Required(CONF_X_MAX): cv.int_range(min=0, max=2000),
             cv.Required(CONF_Y_MIN): cv.int_range(min=0, max=2000),
@@ -64,11 +67,12 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_TOUCHSCREEN_ID])
 
+    cg.add(var.set_use_raw(config[CONF_USE_RAW]))
     cg.add(
         var.set_area(
             config[CONF_X_MIN],

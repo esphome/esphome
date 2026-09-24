@@ -1,13 +1,14 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
+from esphome.components.const import CONF_LIBRETINY
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_VERSION,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_CELLPHONE_ARROW_DOWN,
 )
 
-from .const import CONF_LIBRETINY, LTComponent
+from .const import LTComponent
 
 DEPENDENCIES = ["libretiny"]
 

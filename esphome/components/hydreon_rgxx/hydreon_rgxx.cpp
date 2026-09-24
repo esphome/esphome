@@ -1,8 +1,7 @@
 #include "hydreon_rgxx.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace hydreon_rgxx {
+namespace esphome::hydreon_rgxx {
 
 static const char *const TAG = "hydreon_rgxx.sensor";
 static const int MAX_DATA_LENGTH_BYTES = 80;
@@ -12,14 +11,15 @@ static const char *const PROTOCOL_NAMES[] = {HYDREON_RGXX_PROTOCOL_LIST(, HYDREO
 static const char *const IGNORE_STRINGS[] = {HYDREON_RGXX_IGNORE_LIST(, HYDREON_RGXX_COMMA)};
 
 void HydreonRGxxComponent::dump_config() {
-  this->check_uart_settings(9600, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
   ESP_LOGCONFIG(TAG, "hydreon_rgxx:");
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Connection with hydreon_rgxx failed!");
   }
   if (model_ == RG9) {
-    ESP_LOGCONFIG(TAG, "  Model: RG9");
-    ESP_LOGCONFIG(TAG, "  Disable Led: %s", TRUEFALSE(this->disable_led_));
+    ESP_LOGCONFIG(TAG,
+                  "  Model: RG9\n"
+                  "  Disable Led: %s",
+                  TRUEFALSE(this->disable_led_));
   } else {
     ESP_LOGCONFIG(TAG, "  Model: RG15");
     if (this->resolution_ == FORCE_HIGH) {
@@ -39,7 +39,6 @@ void HydreonRGxxComponent::dump_config() {
 }
 
 void HydreonRGxxComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up hydreon_rgxx...");
   while (this->available() != 0) {
     this->read();
   }
@@ -157,12 +156,6 @@ void HydreonRGxxComponent::schedule_reboot_() {
   });
 }
 
-bool HydreonRGxxComponent::buffer_starts_with_(const std::string &prefix) {
-  return this->buffer_starts_with_(prefix.c_str());
-}
-
-bool HydreonRGxxComponent::buffer_starts_with_(const char *prefix) { return buffer_.rfind(prefix, 0) == 0; }
-
 void HydreonRGxxComponent::process_line_() {
   ESP_LOGV(TAG, "Read from serial: %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
 
@@ -189,7 +182,7 @@ void HydreonRGxxComponent::process_line_() {
     ESP_LOGW(TAG, "Received EmSat!");
     this->em_sat_ = true;
   }
-  if (this->buffer_starts_with_("PwrDays")) {
+  if (buffer_.starts_with("PwrDays")) {
     if (this->boot_count_ <= 0) {
       this->boot_count_ = 1;
     } else {
@@ -218,7 +211,7 @@ void HydreonRGxxComponent::process_line_() {
     }
     return;
   }
-  if (this->buffer_starts_with_("SW")) {
+  if (buffer_.starts_with("SW")) {
     std::string::size_type majend = this->buffer_.find('.');
     std::string::size_type endversion = this->buffer_.find(' ', 3);
     if (majend == std::string::npos || endversion == std::string::npos || majend > endversion) {
@@ -280,7 +273,7 @@ void HydreonRGxxComponent::process_line_() {
     }
   } else {
     for (const auto *ignore : IGNORE_STRINGS) {
-      if (this->buffer_starts_with_(ignore)) {
+      if (buffer_.starts_with(ignore)) {
         ESP_LOGI(TAG, "Ignoring %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
         return;
       }
@@ -289,7 +282,4 @@ void HydreonRGxxComponent::process_line_() {
   }
 }
 
-float HydreonRGxxComponent::get_setup_priority() const { return setup_priority::DATA; }
-
-}  // namespace hydreon_rgxx
-}  // namespace esphome
+}  // namespace esphome::hydreon_rgxx

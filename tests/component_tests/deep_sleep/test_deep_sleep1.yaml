@@ -1,7 +1,8 @@
 ---
 esphome:
   name: test
-  platform: ESP32
+
+esp32:
   board: nodemcu-32s
 
 deep_sleep:

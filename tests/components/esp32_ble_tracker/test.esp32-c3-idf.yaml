@@ -1,1 +1,8 @@
+packages:
+  ble: !include ../../test_build_components/common/ble/esp32-c3-idf.yaml
+
 <<: !include common.yaml
+
+esp32_ble_tracker:
+  max_connections: 9
+  software_coexistence: false

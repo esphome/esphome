@@ -2,10 +2,7 @@
 
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
-namespace esphome {
-namespace mopeka_ble {
+namespace esphome::mopeka_ble {
 
 static const char *const TAG = "mopeka_ble";
 
@@ -35,7 +32,8 @@ static const uint8_t MANUFACTURER_NRF52_DATA_LENGTH = 10;
  * - Bluetooth data frame size
  */
 
-bool MopekaListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool MopekaListener::parse_device(const ble_device_base::ESPBTDevice &device) {
+  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   // Fetch information about BLE device.
   const auto &service_uuids = device.get_service_uuids();
   if (service_uuids.size() != 1) {
@@ -50,8 +48,8 @@ bool MopekaListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   const auto &manu_data = manu_datas[0];
 
   // Is the device maybe a Mopeka Std (CC2540) sensor.
-  if (service_uuid == esp32_ble_tracker::ESPBTUUID::from_uint16(SERVICE_UUID_CC2540)) {
-    if (manu_data.uuid != esp32_ble_tracker::ESPBTUUID::from_uint16(MANUFACTURER_CC2540_ID)) {
+  if (service_uuid == ble_device_base::ESPBTUUID::from_uint16(SERVICE_UUID_CC2540)) {
+    if (manu_data.uuid != ble_device_base::ESPBTUUID::from_uint16(MANUFACTURER_CC2540_ID)) {
       return false;
     }
 
@@ -62,12 +60,12 @@ bool MopekaListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     const bool sync_button_pressed = (manu_data.data[3] & 0x80) != 0;
 
     if (this->show_sensors_without_sync_ || sync_button_pressed) {
-      ESP_LOGI(TAG, "MOPEKA STD (CC2540) SENSOR FOUND: %s", device.address_str().c_str());
+      ESP_LOGI(TAG, "MOPEKA STD (CC2540) SENSOR FOUND: %s", device.address_str_to(addr_buf));
     }
 
     // Is the device maybe a Mopeka Pro (NRF52) sensor.
-  } else if (service_uuid == esp32_ble_tracker::ESPBTUUID::from_uint16(SERVICE_UUID_NRF52)) {
-    if (manu_data.uuid != esp32_ble_tracker::ESPBTUUID::from_uint16(MANUFACTURER_NRF52_ID)) {
+  } else if (service_uuid == ble_device_base::ESPBTUUID::from_uint16(SERVICE_UUID_NRF52)) {
+    if (manu_data.uuid != ble_device_base::ESPBTUUID::from_uint16(MANUFACTURER_NRF52_ID)) {
       return false;
     }
 
@@ -78,14 +76,11 @@ bool MopekaListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     const bool sync_button_pressed = (manu_data.data[2] & 0x80) != 0;
 
     if (this->show_sensors_without_sync_ || sync_button_pressed) {
-      ESP_LOGI(TAG, "MOPEKA PRO (NRF52) SENSOR FOUND: %s", device.address_str().c_str());
+      ESP_LOGI(TAG, "MOPEKA PRO (NRF52) SENSOR FOUND: %s", device.address_str_to(addr_buf));
     }
   }
 
   return false;
 }
 
-}  // namespace mopeka_ble
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::mopeka_ble

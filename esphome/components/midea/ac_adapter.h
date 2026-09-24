@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#if (defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)) || defined(USE_ESP_IDF)
 
 // MideaUART
 #include <Appliance/AirConditioner/AirConditioner.h>
@@ -8,9 +8,7 @@
 #include "esphome/components/climate/climate_traits.h"
 #include "air_conditioner.h"
 
-namespace esphome {
-namespace midea {
-namespace ac {
+namespace esphome::midea::ac {
 
 using MideaMode = dudanov::midea::ac::Mode;
 using MideaSwingMode = dudanov::midea::ac::SwingMode;
@@ -20,9 +18,9 @@ using MideaPreset = dudanov::midea::ac::Preset;
 class Constants {
  public:
   static const char *const TAG;
-  static const std::string FREEZE_PROTECTION;
-  static const std::string SILENT;
-  static const std::string TURBO;
+  static const char *const FREEZE_PROTECTION;
+  static const char *const SILENT;
+  static const char *const TURBO;
 };
 
 class Converters {
@@ -32,20 +30,18 @@ class Converters {
   static MideaSwingMode to_midea_swing_mode(ClimateSwingMode mode);
   static ClimateSwingMode to_climate_swing_mode(MideaSwingMode mode);
   static MideaPreset to_midea_preset(ClimatePreset preset);
-  static MideaPreset to_midea_preset(const std::string &preset);
+  static MideaPreset to_midea_preset(const char *preset);
   static bool is_custom_midea_preset(MideaPreset preset);
   static ClimatePreset to_climate_preset(MideaPreset preset);
-  static const std::string &to_custom_climate_preset(MideaPreset preset);
+  static const char *to_custom_climate_preset(MideaPreset preset);
   static MideaFanMode to_midea_fan_mode(ClimateFanMode fan_mode);
-  static MideaFanMode to_midea_fan_mode(const std::string &fan_mode);
+  static MideaFanMode to_midea_fan_mode(const char *fan_mode);
   static bool is_custom_midea_fan_mode(MideaFanMode fan_mode);
   static ClimateFanMode to_climate_fan_mode(MideaFanMode fan_mode);
-  static const std::string &to_custom_climate_fan_mode(MideaFanMode fan_mode);
+  static const char *to_custom_climate_fan_mode(MideaFanMode fan_mode);
   static void to_climate_traits(ClimateTraits &traits, const dudanov::midea::ac::Capabilities &capabilities);
 };
 
-}  // namespace ac
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea::ac
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO || USE_ESP_IDF

@@ -1,0 +1,50 @@
+cc1101:
+  id: cc1101_radio
+  cs_pin: ${cs_pin}
+  frequency: 433.92MHz
+  modulation_type: ASK/OOK
+  output_power: 10
+
+# Dual-pin wiring (recommended by the CC1101 docs):
+#   CC1101 GDO0 → ${gdo0_pin} (remote_transmitter)
+#   CC1101 GDO2 → ${gdo2_pin} (remote_receiver)
+remote_transmitter:
+  id: rf_tx
+  pin: ${gdo0_pin}
+  carrier_duty_percent: 100%
+  # Switch the chip into TX state for the duration of each transmission and back to RX
+  # afterwards.  Driver-agnostic: any RF front-end with begin_tx/begin_rx-style actions
+  # can be wired this way.
+  on_transmit:
+    then:
+      - cc1101.begin_tx: cc1101_radio
+  on_complete:
+    then:
+      - cc1101.begin_rx: cc1101_radio
+
+remote_receiver:
+  id: rf_rx
+  pin: ${gdo2_pin}
+
+radio_frequency:
+  - platform: ir_rf_proxy
+    id: rf_proxy_cc1101_tx
+    name: "CC1101 RF Transmitter"
+    frequency: 433.92MHz
+    remote_transmitter_id: rf_tx
+    # Optional: retune the CC1101 per-transmit when the API request specifies a
+    # different carrier frequency.  Demonstrates the on_control trigger.
+    on_control:
+      then:
+        - if:
+            condition:
+              lambda: "return x.get_frequency().has_value() && *x.get_frequency() > 0;"
+            then:
+              - cc1101.set_frequency:
+                  id: cc1101_radio
+                  value: !lambda "return *x.get_frequency();"
+  - platform: ir_rf_proxy
+    id: rf_proxy_cc1101_rx
+    name: "CC1101 RF Receiver"
+    frequency: 433.92MHz
+    remote_receiver_id: rf_rx

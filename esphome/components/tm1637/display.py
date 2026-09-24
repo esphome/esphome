@@ -1,16 +1,17 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import display
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLK_PIN,
     CONF_DIO_PIN,
     CONF_ID,
-    CONF_LAMBDA,
     CONF_INTENSITY,
     CONF_INVERTED,
+    CONF_LAMBDA,
     CONF_LENGTH,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@glmnet"]
 
@@ -32,7 +33,7 @@ CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
 ).extend(cv.polling_component_schema("1s"))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
 

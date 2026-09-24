@@ -56,8 +56,7 @@ template<typename T, size_t N> constexpr size_t size(const T (&/*unused*/)[N]) n
 
 }  // Anonymous namespace
 
-namespace esphome {
-namespace shelly_dimmer {
+namespace esphome::shelly_dimmer {
 
 /// Computes a crappy checksum as defined by the Shelly Dimmer protocol.
 uint16_t shelly_dimmer_checksum(const uint8_t *buf, int len) {
@@ -101,8 +100,6 @@ void ShellyDimmer::setup() {
   this->pin_nrst_->setup();
   this->pin_boot0_->setup();
 
-  ESP_LOGI(TAG, "Initializing Shelly Dimmer...");
-
   this->handle_firmware();
 
   this->send_settings_();
@@ -115,22 +112,20 @@ void ShellyDimmer::setup() {
 void ShellyDimmer::update() { this->send_command_(SHELLY_DIMMER_PROTO_CMD_POLL, nullptr, 0); }
 
 void ShellyDimmer::dump_config() {
-  ESP_LOGCONFIG(TAG, "ShellyDimmer:");
+  ESP_LOGCONFIG(TAG,
+                "ShellyDimmer:\n"
+                "  Leading Edge: %s\n"
+                "  Warmup Brightness: %d\n"
+                "  Minimum Brightness: %d\n"
+                "  Maximum Brightness: %d\n"
+                "  STM32 current firmware version: %d.%d\n"
+                "  STM32 required firmware version: %d.%d",
+                YESNO(this->leading_edge_), this->warmup_brightness_, this->min_brightness_, this->max_brightness_,
+                this->version_major_, this->version_minor_, USE_SHD_FIRMWARE_MAJOR_VERSION,
+                USE_SHD_FIRMWARE_MINOR_VERSION);
   LOG_PIN("  NRST Pin: ", this->pin_nrst_);
   LOG_PIN("  BOOT0 Pin: ", this->pin_boot0_);
-
-  ESP_LOGCONFIG(TAG, "  Leading Edge: %s", YESNO(this->leading_edge_));
-  ESP_LOGCONFIG(TAG, "  Warmup Brightness: %d", this->warmup_brightness_);
-  // ESP_LOGCONFIG(TAG, "  Warmup Time: %d", this->warmup_time_);
-  // ESP_LOGCONFIG(TAG, "  Fade Rate: %d", this->fade_rate_);
-  ESP_LOGCONFIG(TAG, "  Minimum Brightness: %d", this->min_brightness_);
-  ESP_LOGCONFIG(TAG, "  Maximum Brightness: %d", this->max_brightness_);
-
   LOG_UPDATE_INTERVAL(this);
-
-  ESP_LOGCONFIG(TAG, "  STM32 current firmware version: %d.%d ", this->version_major_, this->version_minor_);
-  ESP_LOGCONFIG(TAG, "  STM32 required firmware version: %d.%d", USE_SHD_FIRMWARE_MAJOR_VERSION,
-                USE_SHD_FIRMWARE_MINOR_VERSION);
 
   if (this->version_major_ != USE_SHD_FIRMWARE_MAJOR_VERSION ||
       this->version_minor_ != USE_SHD_FIRMWARE_MINOR_VERSION) {
@@ -192,8 +187,8 @@ bool ShellyDimmer::upgrade_firmware_() {
       break;
     }
 
-    std::memcpy(buffer, p, BUFFER_SIZE);
-    p += BUFFER_SIZE;
+    std::memcpy(buffer, p, len);
+    p += len;
 
     if (stm32_write_memory(stm32, addr, buffer, len) != STM32_ERR_OK) {
       ESP_LOGW(TAG, "Failed to write to STM32 flash memory");
@@ -212,7 +207,7 @@ bool ShellyDimmer::upgrade_firmware_() {
 
 uint16_t ShellyDimmer::convert_brightness_(float brightness) {
   // Special case for zero as only zero means turn off completely.
-  if (brightness == 0.0) {
+  if (brightness == 0.0f) {
     return 0;
   }
 
@@ -268,7 +263,10 @@ void ShellyDimmer::send_settings_() {
 }
 
 bool ShellyDimmer::send_command_(uint8_t cmd, const uint8_t *const payload, uint8_t len) {
-  ESP_LOGD(TAG, "Sending command: 0x%02x (%d bytes) payload 0x%s", cmd, len, format_hex(payload, len).c_str());
+  // Buffer for hex formatting: max frame size * 2 + null (covers any payload)
+  char hex_buf[SHELLY_DIMMER_PROTO_MAX_FRAME_SIZE * 2 + 1];
+  ESP_LOGD(TAG, "Sending command: 0x%02x (%d bytes) payload 0x%s", cmd, len,
+           format_hex_to(hex_buf, sizeof(hex_buf), payload, len));
 
   // Prepare a command frame.
   uint8_t frame[SHELLY_DIMMER_PROTO_MAX_FRAME_SIZE];
@@ -403,7 +401,7 @@ bool ShellyDimmer::handle_frame_() {
   // Handle response.
   switch (cmd) {
     case SHELLY_DIMMER_PROTO_CMD_POLL: {
-      if (payload_len < 16) {
+      if (payload_len < 17) {
         return false;
       }
 
@@ -434,13 +432,15 @@ bool ShellyDimmer::handle_frame_() {
         current = CURRENT_SCALING_FACTOR / static_cast<float>(current_raw);
       }
 
-      ESP_LOGI(TAG, "Got dimmer data:");
-      ESP_LOGI(TAG, "  HW version: %d", hw_version);
-      ESP_LOGI(TAG, "  Brightness: %d", brightness);
-      ESP_LOGI(TAG, "  Fade rate:  %d", fade_rate);
-      ESP_LOGI(TAG, "  Power:      %f W", power);
-      ESP_LOGI(TAG, "  Voltage:    %f V", voltage);
-      ESP_LOGI(TAG, "  Current:    %f A", current);
+      ESP_LOGI(TAG,
+               "Got dimmer data:\n"
+               "  HW version: %d\n"
+               "  Brightness: %d\n"
+               "  Fade rate:  %d\n"
+               "  Power:      %f W\n"
+               "  Voltage:    %f V\n"
+               "  Current:    %f A",
+               hw_version, brightness, fade_rate, power, voltage, current);
 
       // Update sensors.
       if (this->power_sensor_ != nullptr) {
@@ -521,7 +521,6 @@ void ShellyDimmer::reset_dfu_boot_() {
   this->reset_(true);
 }
 
-}  // namespace shelly_dimmer
-}  // namespace esphome
+}  // namespace esphome::shelly_dimmer
 
 #endif  // USE_ESP8266

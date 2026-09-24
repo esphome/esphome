@@ -1,21 +1,22 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR_TEMPERATURE,
     CONF_GAIN,
+    CONF_GLASS_ATTENUATION_FACTOR,
     CONF_ID,
     CONF_ILLUMINANCE,
-    CONF_GLASS_ATTENUATION_FACTOR,
     CONF_INTEGRATION_TIME,
     DEVICE_CLASS_ILLUMINANCE,
     ICON_LIGHTBULB,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PERCENT,
     ICON_THERMOMETER,
+    STATE_CLASS_MEASUREMENT,
     UNIT_KELVIN,
     UNIT_LUX,
+    UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -103,7 +104,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

@@ -1,18 +1,15 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
-import esphome.final_validate as fv
 from esphome.components import switch
-from esphome.const import (
-    CONF_BEEPER,
-    CONF_DISPLAY,
-    ENTITY_CATEGORY_CONFIG,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_BEEPER, CONF_DISPLAY, ENTITY_CATEGORY_CONFIG
+import esphome.final_validate as fv
+
 from ..climate import (
     CONF_HAIER_ID,
     CONF_PROTOCOL,
+    PROTOCOL_HON,
     HaierClimateBase,
     haier_ns,
-    PROTOCOL_HON,
 )
 
 CODEOWNERS = ["@paveldn"]
@@ -63,7 +60,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def _final_validate(config):
+def _final_validate(config) -> None:
     full_config = fv.full_config.get()
     for switch_type in [CONF_BEEPER, CONF_QUIET_MODE]:
         # Check switches that are only supported for HonClimate
@@ -75,7 +72,6 @@ def _final_validate(config):
                 raise cv.Invalid(
                     f"{switch_type} switch is only supported for hon climate"
                 )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

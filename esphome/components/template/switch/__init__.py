@@ -1,17 +1,18 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import switch
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ASSUMED_STATE,
+    CONF_DEVICE_CLASS,
     CONF_ID,
     CONF_LAMBDA,
     CONF_OPTIMISTIC,
-    CONF_RESTORE_STATE,
     CONF_STATE,
     CONF_TURN_OFF_ACTION,
     CONF_TURN_ON_ACTION,
 )
+
 from .. import template_ns
 
 TemplateSwitch = template_ns.class_("TemplateSwitch", switch.Switch, cg.Component)
@@ -31,7 +32,11 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    switch.switch_schema(TemplateSwitch)
+    cv.with_visibility(
+        switch.switch_schema(TemplateSwitch),
+        cv.Visibility.UI,
+        CONF_DEVICE_CLASS,
+    )
     .extend(
         {
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
@@ -42,9 +47,6 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_TURN_ON_ACTION): automation.validate_automation(
                 single=True
-            ),
-            cv.Optional(CONF_RESTORE_STATE): cv.invalid(
-                "The restore_state option has been removed in 2023.7.0. Use the restore_mode option instead"
             ),
         }
     )
@@ -70,23 +72,20 @@ async def to_code(config):
         await automation.build_automation(
             var.get_turn_on_trigger(), [], config[CONF_TURN_ON_ACTION]
         )
-    cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
-    cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
+    # optimistic_ and assumed_state_ are false in C++; only emit setters to turn them on.
+    if config[CONF_OPTIMISTIC]:
+        cg.add(var.set_optimistic(True))
+    if config[CONF_ASSUMED_STATE]:
+        cg.add(var.set_assumed_state(True))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "switch.template.publish",
-    switch.SwitchPublishAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(switch.Switch),
             cv.Required(CONF_STATE): cv.templatable(cv.boolean),
         }
     ),
+    automation.ApplyField(CONF_STATE, "publish_state", cg.bool_),
 )
-async def switch_template_publish_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_STATE], args, bool)
-    cg.add(var.set_state(template_))
-    return var

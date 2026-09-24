@@ -1,8 +1,12 @@
-from esphome import config_validation as cv
-from esphome import codegen as cg
+from typing import Any
+
+from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_BLUE, CONF_GREEN, CONF_ID, CONF_RED, CONF_WHITE
+from esphome.types import ConfigType
 
 ColorStruct = cg.esphome_ns.struct("Color")
+
+INSTANCE_TYPE = ColorStruct
 
 MULTI_CONF = True
 
@@ -13,7 +17,7 @@ CONF_WHITE_INT = "white_int"
 CONF_HEX = "hex"
 
 
-def hex_color(value):
+def hex_color(value: Any) -> tuple[int, int, int]:
     if isinstance(value, int):
         value = str(value)
     if not isinstance(value, str):
@@ -38,7 +42,7 @@ components = {
 }
 
 
-def validate_color(config):
+def validate_color(config: ConfigType) -> ConfigType:
     has_components = set(config) & components
     has_hex = CONF_HEX in config
     if has_hex and has_components:
@@ -67,7 +71,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def from_rgbw(config):
+def from_rgbw(config: ConfigType) -> tuple[int, int, int, int]:
     r = 0
     if CONF_RED in config:
         r = int(config[CONF_RED] * 255)
@@ -95,7 +99,7 @@ def from_rgbw(config):
     return (r, g, b, w)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if CONF_HEX in config:
         r, g, b = config[CONF_HEX]
         w = 0

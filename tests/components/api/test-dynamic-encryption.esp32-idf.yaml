@@ -1,0 +1,11 @@
+packages:
+  common: !include common-base.yaml
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+# Encryption enabled without a key: compiles both frame helpers so the key
+# can be provisioned at runtime (zero-PSK noise or deprecated plaintext)
+api:
+  encryption:

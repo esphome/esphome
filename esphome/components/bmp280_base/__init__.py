@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_IIR_FILTER,
@@ -13,6 +13,8 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_HECTOPASCAL,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ademuri"]
 
@@ -69,7 +71,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-async def to_code_base(config):
+async def to_code_base(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

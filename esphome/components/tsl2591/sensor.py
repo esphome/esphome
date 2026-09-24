@@ -19,27 +19,31 @@
 # Here is the project that started me down the TSL2591 device trail in the first
 # place: https://hackaday.io/project/176690-the-water-watcher
 
+from typing import Any
+
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_GAIN,
     CONF_ACTUAL_GAIN,
-    CONF_ID,
-    CONF_NAME,
-    CONF_INTEGRATION_TIME,
-    CONF_FULL_SPECTRUM,
-    CONF_INFRARED,
-    CONF_POWER_SAVE_MODE,
-    CONF_VISIBLE,
     CONF_CALCULATED_LUX,
     CONF_DEVICE_FACTOR,
+    CONF_FULL_SPECTRUM,
+    CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
-    ICON_BRIGHTNESS_6,
+    CONF_ID,
+    CONF_INFRARED,
+    CONF_INTEGRATION_TIME,
+    CONF_NAME,
+    CONF_POWER_SAVE_MODE,
+    CONF_VISIBLE,
     DEVICE_CLASS_ILLUMINANCE,
+    ICON_BRIGHTNESS_6,
     STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
 )
+from esphome.core import EnumValue
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -71,7 +75,7 @@ GAINS = {
 }
 
 
-def validate_integration_time(value):
+def validate_integration_time(value: Any) -> EnumValue:
     value = cv.positive_time_period_milliseconds(value).total_milliseconds
     return cv.enum(INTEGRATION_TIMES, int=True)(value)
 
@@ -131,7 +135,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

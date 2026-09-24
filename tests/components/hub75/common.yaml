@@ -1,0 +1,12 @@
+esphome:
+  on_boot:
+    # Test simple value
+    - hub75.set_brightness: 200
+
+    # Test templatable value
+    - hub75.set_brightness: !lambda 'return 100;'
+
+    # Test with explicit ID
+    - hub75.set_brightness:
+        id: my_hub75
+        brightness: 50

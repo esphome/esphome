@@ -1,9 +1,9 @@
 #include "nau7802.h"
+#include <cmath>
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace nau7802 {
+namespace esphome::nau7802 {
 
 static const char *const TAG = "nau7802";
 
@@ -53,7 +53,6 @@ static const uint8_t DEVICE_REV = 0x1F;
 
 void NAU7802Sensor::setup() {
   i2c::I2CRegister pu_ctrl = this->reg(PU_CTRL_REG);
-  ESP_LOGCONFIG(TAG, "Setting up NAU7802 '%s'...", this->name_.c_str());
   uint8_t rev;
 
   if (this->read_register(DEVICE_REV | READ_BIT, &rev, 1)) {
@@ -78,14 +77,13 @@ void NAU7802Sensor::setup() {
     return;
   }
 
-  uint32_t gcal = (uint32_t) (round(this->gain_calibration_ * (1 << GCAL1_FRACTIONAL)));
+  uint32_t gcal = (uint32_t) (std::round(this->gain_calibration_ * (1 << GCAL1_FRACTIONAL)));
   this->write_value_(OCAL1_B2_REG, 3, this->offset_calibration_);
   this->write_value_(GCAL1_B3_REG, 4, gcal);
 
   // turn on AFE
   pu_ctrl |= PU_CTRL_POWERUP_ANALOG;
-  auto f = std::bind(&NAU7802Sensor::complete_setup_, this);
-  this->set_timeout(600, f);
+  this->set_timeout(600, [this]() { this->complete_setup_(); });
 }
 
 void NAU7802Sensor::complete_setup_() {
@@ -120,8 +118,6 @@ void NAU7802Sensor::complete_setup_() {
   // PGA stabilizer cap on output
   i2c::I2CRegister pwr_reg = this->reg(POWER_REG);
   pwr_reg |= POWER_PGA_CAP_EN;
-
-  this->setup_complete_ = true;
 }
 
 void NAU7802Sensor::dump_config() {
@@ -129,12 +125,14 @@ void NAU7802Sensor::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with NAU7802 failed earlier, during setup");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL_FOR, this->get_name().c_str());
     return;
   }
   // Note these may differ from the values on the device if calbration has been run
-  ESP_LOGCONFIG(TAG, "  Offset Calibration: %s", to_string(this->offset_calibration_).c_str());
-  ESP_LOGCONFIG(TAG, "  Gain Calibration: %f", this->gain_calibration_);
+  ESP_LOGCONFIG(TAG,
+                "  Offset Calibration: %" PRId32 "\n"
+                "  Gain Calibration: %f",
+                this->offset_calibration_, this->gain_calibration_);
 
   std::string voltage = "unknown";
   switch (this->ldo_) {
@@ -219,7 +217,7 @@ void NAU7802Sensor::dump_config() {
 
 void NAU7802Sensor::write_value_(uint8_t start_reg, size_t size, int32_t value) {
   uint8_t data[4];
-  for (int i = 0; i < size; i++) {
+  for (size_t i = 0; i < size; i++) {
     data[i] = 0xFF & (value >> (size - 1 - i) * 8);
   }
   this->write_register(start_reg, data, size);
@@ -229,7 +227,7 @@ int32_t NAU7802Sensor::read_value_(uint8_t start_reg, size_t size) {
   uint8_t data[4];
   this->read_register(start_reg, data, size);
   int32_t result = 0;
-  for (int i = 0; i < size; i++) {
+  for (size_t i = 0; i < size; i++) {
     result |= data[i] << (size - 1 - i) * 8;
   }
   // extend sign bit
@@ -279,7 +277,7 @@ void NAU7802Sensor::loop() {
       this->set_calibration_failure_(true);
       this->state_ = CalibrationState::INACTIVE;
       ESP_LOGE(TAG, "Failed to calibrate sensor");
-      this->status_set_error("Calibration Failed");
+      this->status_set_error(LOG_STR("Calibration Failed"));
       return;
     }
 
@@ -290,14 +288,12 @@ void NAU7802Sensor::loop() {
       this->status_clear_error();
 
     int32_t ocal = this->read_value_(OCAL1_B2_REG, 3);
-    ESP_LOGI(TAG, "New Offset: %s", to_string(ocal).c_str());
+    ESP_LOGI(TAG, "New Offset: %" PRId32, ocal);
     uint32_t gcal = this->read_value_(GCAL1_B3_REG, 4);
     float gcal_f = ((float) gcal / (float) (1 << GCAL1_FRACTIONAL));
     ESP_LOGI(TAG, "New Gain: %f", gcal_f);
   }
 }
-
-float NAU7802Sensor::get_setup_priority() const { return setup_priority::DATA; }
 
 void NAU7802Sensor::update() {
   if (!this->is_data_ready_()) {
@@ -317,7 +313,4 @@ void NAU7802Sensor::update() {
 
 bool NAU7802Sensor::is_data_ready_() { return this->reg(PU_CTRL_REG).get() & PU_CTRL_CYCLE_READY; }
 
-bool NAU7802Sensor::can_proceed() { return this->setup_complete_; }
-
-}  // namespace nau7802
-}  // namespace esphome
+}  // namespace esphome::nau7802

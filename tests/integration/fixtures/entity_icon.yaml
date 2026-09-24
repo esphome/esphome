@@ -1,0 +1,78 @@
+esphome:
+  name: icon-test
+
+host:
+
+api:
+
+logger:
+
+# Test entities with custom icons
+sensor:
+  - platform: template
+    name: "Sensor With Icon"
+    icon: "mdi:temperature-celsius"
+    unit_of_measurement: "°C"
+    update_interval: 1s
+    lambda: |-
+      return 25.5;
+
+  - platform: template
+    name: "Sensor Without Icon"
+    unit_of_measurement: "%"
+    update_interval: 1s
+    lambda: |-
+      return 50.0;
+
+binary_sensor:
+  - platform: template
+    name: "Binary Sensor With Icon"
+    icon: "mdi:motion-sensor"
+    lambda: |-
+      return true;
+
+  - platform: template
+    name: "Binary Sensor Without Icon"
+    lambda: |-
+      return false;
+
+text_sensor:
+  - platform: template
+    name: "Text Sensor With Icon"
+    icon: "mdi:text-box"
+    lambda: |-
+      return {"Hello Icons"};
+
+switch:
+  - platform: template
+    name: "Switch With Icon"
+    icon: "mdi:toggle-switch"
+    optimistic: true
+
+button:
+  - platform: template
+    name: "Button With Icon"
+    icon: "mdi:gesture-tap-button"
+    on_press:
+      - logger.log: "Button with icon pressed"
+
+number:
+  - platform: template
+    name: "Number With Icon"
+    icon: "mdi:numeric"
+    initial_value: 42
+    min_value: 0
+    max_value: 100
+    step: 1
+    optimistic: true
+
+select:
+  - platform: template
+    name: "Select With Icon"
+    icon: "mdi:format-list-bulleted"
+    options:
+      - "Option A"
+      - "Option B"
+      - "Option C"
+    initial_option: "Option A"
+    optimistic: true

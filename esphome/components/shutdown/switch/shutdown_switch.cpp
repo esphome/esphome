@@ -10,8 +10,7 @@
 #include <Esp.h>
 #endif
 
-namespace esphome {
-namespace shutdown {
+namespace esphome::shutdown {
 
 static const char *const TAG = "shutdown.switch";
 
@@ -21,7 +20,7 @@ void ShutdownSwitch::write_state(bool state) {
   this->publish_state(false);
 
   if (state) {
-    ESP_LOGI(TAG, "Shutting down...");
+    ESP_LOGI(TAG, "Shutting down");
     delay(100);  // NOLINT
 
     App.run_safe_shutdown_hooks();
@@ -34,5 +33,4 @@ void ShutdownSwitch::write_state(bool state) {
   }
 }
 
-}  // namespace shutdown
-}  // namespace esphome
+}  // namespace esphome::shutdown

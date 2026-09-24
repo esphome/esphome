@@ -5,17 +5,9 @@
 
 #include "weikai_spi.h"
 
-namespace esphome {
-namespace weikai_spi {
+namespace esphome::weikai_spi {
 using namespace weikai;
 static const char *const TAG = "weikai_spi";
-
-/// @brief convert an int to binary representation as C++ std::string
-/// @param val integer to convert
-/// @return a std::string
-inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
-/// Convert std::string to C string
-#define I2S2CS(val) (i2s(val).c_str())
 
 /// @brief measure the time elapsed between two calls
 /// @param last_time time of the previous call
@@ -107,7 +99,8 @@ uint8_t WeikaiRegisterSPI::read_reg() const {
   spi_comp->write_byte(cmd);
   uint8_t val = spi_comp->read_byte();
   spi_comp->disable();
-  ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", I2S2CS(cmd), cmd,
+  char bin_buf[9];
+  ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", format_bin_to(bin_buf, cmd), cmd,
             reg_to_str(this->register_, this->comp_->page1()), this->channel_, val);
   return val;
 }
@@ -120,8 +113,9 @@ void WeikaiRegisterSPI::read_fifo(uint8_t *data, size_t length) const {
   spi_comp->read_array(data, length);
   spi_comp->disable();
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buffer", I2S2CS(cmd), cmd, this->channel_,
-            length);
+  char bin_buf[9];
+  ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buffer", format_bin_to(bin_buf, cmd), cmd,
+            this->channel_, length);
   print_buffer(data, length);
 #endif
 }
@@ -132,8 +126,9 @@ void WeikaiRegisterSPI::write_reg(uint8_t value) {
   spi_comp->enable();
   spi_comp->write_array(buf, 2);
   spi_comp->disable();
-  ESP_LOGVV(TAG, "WeikaiRegisterSPI::write_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", I2S2CS(buf[0]), buf[0],
-            reg_to_str(this->register_, this->comp_->page1()), this->channel_, buf[1]);
+  char bin_buf[9];
+  ESP_LOGVV(TAG, "WeikaiRegisterSPI::write_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", format_bin_to(bin_buf, buf[0]),
+            buf[0], reg_to_str(this->register_, this->comp_->page1()), this->channel_, buf[1]);
 }
 
 void WeikaiRegisterSPI::write_fifo(uint8_t *data, size_t length) {
@@ -145,8 +140,9 @@ void WeikaiRegisterSPI::write_fifo(uint8_t *data, size_t length) {
   spi_comp->disable();
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  ESP_LOGVV(TAG, "WeikaiRegisterSPI::write_fifo() cmd=%s(%02X) ch=%d len=%d buffer", I2S2CS(cmd), cmd, this->channel_,
-            length);
+  char bin_buf[9];
+  ESP_LOGVV(TAG, "WeikaiRegisterSPI::write_fifo() cmd=%s(%02X) ch=%d len=%d buffer", format_bin_to(bin_buf, cmd), cmd,
+            this->channel_, length);
   print_buffer(data, length);
 #endif
 }
@@ -156,7 +152,7 @@ void WeikaiRegisterSPI::write_fifo(uint8_t *data, size_t length) {
 ///////////////////////////////////////////////////////////////////////////////
 void WeikaiComponentSPI::setup() {
   using namespace weikai;
-  ESP_LOGCONFIG(TAG, "Setting up wk2168_spi: %s with %d UARTs...", this->get_name(), this->children_.size());
+  ESP_LOGCONFIG(TAG, "Setup %s (%d UARTs)", this->get_name(), this->children_.size());
   this->spi_setup();
   // enable all channels
   this->reg(WKREG_GENA, 0) = GENA_C1EN | GENA_C2EN | GENA_C3EN | GENA_C4EN;
@@ -173,11 +169,16 @@ void WeikaiComponentSPI::setup() {
 }
 
 void WeikaiComponentSPI::dump_config() {
-  ESP_LOGCONFIG(TAG, "Initialization of %s with %d UARTs completed", this->get_name(), this->children_.size());
-  ESP_LOGCONFIG(TAG, "  Crystal: %" PRIu32 "", this->crystal_);
-  if (test_mode_)
-    ESP_LOGCONFIG(TAG, "  Test mode: %d", test_mode_);
-  ESP_LOGCONFIG(TAG, "  Transfer buffer size: %d", XFER_MAX_SIZE);
+  ESP_LOGCONFIG(TAG,
+                "Initialization of %s with %d UARTs completed\n"
+                "  Crystal: %" PRIu32,
+                this->get_name(), this->children_.size(), this->crystal_);
+  if (test_mode_) {
+    ESP_LOGCONFIG(TAG,
+                  "  Test mode: %d\n"
+                  "  Transfer buffer size: %d",
+                  test_mode_, XFER_MAX_SIZE);
+  }
   LOG_PIN("  CS Pin: ", this->cs_);
 
   for (auto *child : this->children_) {
@@ -185,5 +186,4 @@ void WeikaiComponentSPI::dump_config() {
   }
 }
 
-}  // namespace weikai_spi
-}  // namespace esphome
+}  // namespace esphome::weikai_spi

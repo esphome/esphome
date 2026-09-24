@@ -8,17 +8,15 @@
 #ifdef USE_ESP32
 #include <esp_gattc_api.h>
 
-namespace esphome {
-namespace ble_client {
+namespace esphome::ble_client {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
-class BLEClientRSSISensor : public sensor::Sensor, public PollingComponent, public BLEClientNode {
+class BLEClientRSSISensor final : public sensor::Sensor, public PollingComponent, public BLEClientNode {
  public:
   void loop() override;
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
 
@@ -30,6 +28,5 @@ class BLEClientRSSISensor : public sensor::Sensor, public PollingComponent, publ
   bool should_update_{false};
 };
 
-}  // namespace ble_client
-}  // namespace esphome
+}  // namespace esphome::ble_client
 #endif

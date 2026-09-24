@@ -35,8 +35,7 @@
 #include "pronto_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.pronto";
 
@@ -44,9 +43,13 @@ bool ProntoData::operator==(const ProntoData &rhs) const {
   std::vector<uint16_t> data1 = encode_pronto(data);
   std::vector<uint16_t> data2 = encode_pronto(rhs.data);
 
+  if (data1.size() != data2.size() || data1.empty()) {
+    return false;
+  }
+
   uint32_t total_diff = 0;
   // Don't need to check the last one, it's the large gap at the end.
-  for (std::vector<uint16_t>::size_type i = 0; i < data1.size() - 1; ++i) {
+  for (size_t i = 0; i < data1.size() - 1; ++i) {
     int diff = data2[i] - data1[i];
     diff *= diff;
     if (rhs.delta == -1 && diff > 9)
@@ -59,18 +62,19 @@ bool ProntoData::operator==(const ProntoData &rhs) const {
 }
 
 // DO NOT EXPORT from this file
-static const uint16_t MICROSECONDS_T_MAX = 0xFFFFU;
-static const uint16_t LEARNED_TOKEN = 0x0000U;
-static const uint16_t LEARNED_NON_MODULATED_TOKEN = 0x0100U;
-static const uint16_t BITS_IN_HEXADECIMAL = 4U;
-static const uint16_t DIGITS_IN_PRONTO_NUMBER = 4U;
-static const uint16_t NUMBERS_IN_PREAMBLE = 4U;
-static const uint16_t HEX_MASK = 0xFU;
-static const uint32_t REFERENCE_FREQUENCY = 4145146UL;
-static const uint16_t FALLBACK_FREQUENCY = 64767U;  // To use with frequency = 0;
-static const uint32_t MICROSECONDS_IN_SECONDS = 1000000UL;
-static const uint16_t PRONTO_DEFAULT_GAP = 45000;
-static const uint16_t MARK_EXCESS_MICROS = 20;
+static constexpr uint16_t MICROSECONDS_T_MAX = 0xFFFFU;
+static constexpr uint16_t LEARNED_TOKEN = 0x0000U;
+static constexpr uint16_t LEARNED_NON_MODULATED_TOKEN = 0x0100U;
+static constexpr uint16_t BITS_IN_HEXADECIMAL = 4U;
+static constexpr uint16_t DIGITS_IN_PRONTO_NUMBER = 4U;
+static constexpr uint16_t NUMBERS_IN_PREAMBLE = 4U;
+static constexpr uint16_t HEX_MASK = 0xFU;
+static constexpr uint32_t REFERENCE_FREQUENCY = 4145146UL;
+static constexpr uint16_t FALLBACK_FREQUENCY = 64767U;  // To use with frequency = 0;
+static constexpr uint32_t MICROSECONDS_IN_SECONDS = 1000000UL;
+static constexpr uint16_t PRONTO_DEFAULT_GAP = 45000;
+static constexpr uint16_t MARK_EXCESS_MICROS = 20;
+static constexpr size_t PRONTO_LOG_CHUNK_SIZE = 230;
 
 static uint16_t to_frequency_k_hz(uint16_t code) {
   if (code == 0)
@@ -103,8 +107,7 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::vector<uin
 
   uint16_t intros = 2 * data[2];
   uint16_t repeats = 2 * data[3];
-  ESP_LOGD(TAG, "Send Pronto: intros=%d", intros);
-  ESP_LOGD(TAG, "Send Pronto: repeats=%d", repeats);
+  ESP_LOGD(TAG, "Send Pronto: intros=%d, repeats=%d", intros, repeats);
   if (NUMBERS_IN_PREAMBLE + intros + repeats != data.size()) {  // inconsistent sizes
     ESP_LOGE(TAG, "Inconsistent data, not sending");
     return;
@@ -225,19 +228,18 @@ optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) {
 }
 
 void ProntoProtocol::dump(const ProntoData &data) {
-  std::string rest;
-
-  rest = data.data;
   ESP_LOGI(TAG, "Received Pronto: data=");
-  while (true) {
-    ESP_LOGI(TAG, "%s", rest.substr(0, 230).c_str());
-    if (rest.size() > 230) {
-      rest = rest.substr(230);
-    } else {
-      break;
-    }
-  }
+
+  const char *ptr = data.data.c_str();
+  size_t remaining = data.data.size();
+
+  // Log in chunks, always logging at least once (even for empty string)
+  do {
+    size_t chunk_size = remaining < PRONTO_LOG_CHUNK_SIZE ? remaining : PRONTO_LOG_CHUNK_SIZE;
+    ESP_LOGI(TAG, "%.*s", (int) chunk_size, ptr);
+    ptr += chunk_size;
+    remaining -= chunk_size;
+  } while (remaining > 0);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

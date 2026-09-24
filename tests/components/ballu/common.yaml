@@ -1,0 +1,9 @@
+climate:
+  - platform: heatpumpir
+    protocol: ballu
+    horizontal_default: middle
+    vertical_default: middle
+    name: HeatpumpIR Climate
+    min_temperature: 18
+    max_temperature: 30
+    transmitter_id: xmitr

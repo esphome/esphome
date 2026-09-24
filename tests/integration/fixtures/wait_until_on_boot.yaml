@@ -1,0 +1,47 @@
+# Test for wait_until in on_boot automation
+# Reproduces bug where wait_until in on_boot would hang forever
+# because WaitUntilAction::setup() would disable_loop() after
+# play_complex() had already enabled it.
+
+esphome:
+  name: wait-until-on-boot
+  on_boot:
+    then:
+      - logger.log: "on_boot: Starting wait_until test"
+      - globals.set:
+          id: on_boot_started
+          value: 'true'
+      - wait_until:
+          condition:
+            lambda: return id(test_flag);
+          timeout: 5s
+      - logger.log: "on_boot: wait_until completed successfully"
+
+host:
+
+logger:
+  level: DEBUG
+
+globals:
+  - id: on_boot_started
+    type: bool
+    initial_value: 'false'
+  - id: test_flag
+    type: bool
+    initial_value: 'false'
+
+api:
+  actions:
+    - action: set_test_flag
+      then:
+        - globals.set:
+            id: test_flag
+            value: 'true'
+    - action: check_on_boot_started
+      then:
+        - lambda: |-
+            if (id(on_boot_started)) {
+              ESP_LOGI("test", "on_boot has started");
+            } else {
+              ESP_LOGI("test", "on_boot has NOT started");
+            }

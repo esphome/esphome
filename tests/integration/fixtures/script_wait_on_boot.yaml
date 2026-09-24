@@ -1,0 +1,54 @@
+esphome:
+  name: test-script-wait-on-boot
+  on_boot:
+    # Use default priority (600.0) which is same as ScriptWaitAction's setup priority
+    # This tests the race condition where on_boot runs before ScriptWaitAction::setup()
+    then:
+      - logger.log: "=== on_boot: Starting boot sequence ==="
+      - script.execute: show_start_page
+      - script.wait: show_start_page
+      - logger.log: "=== on_boot: First script completed, starting second ==="
+      - script.execute: flip_thru_pages
+      - script.wait: flip_thru_pages
+      - logger.log: "=== on_boot: All boot scripts completed successfully ==="
+
+host:
+
+api:
+  actions:
+    # Manual trigger for additional testing
+    - action: test_script_wait
+      then:
+        - logger.log: "=== Manual test: Starting ==="
+        - script.execute: show_start_page
+        - script.wait: show_start_page
+        - logger.log: "=== Manual test: First script completed ==="
+        - script.execute: flip_thru_pages
+        - script.wait: flip_thru_pages
+        - logger.log: "=== Manual test: All completed ==="
+
+logger:
+  level: DEBUG
+
+script:
+  # First script - simulates display initialization
+  - id: show_start_page
+    mode: single
+    then:
+      - logger.log: "show_start_page: Starting"
+      - delay: 100ms
+      - logger.log: "show_start_page: After delay 1"
+      - delay: 100ms
+      - logger.log: "show_start_page: Completed"
+
+  # Second script - simulates page flip sequence
+  - id: flip_thru_pages
+    mode: single
+    then:
+      - logger.log: "flip_thru_pages: Starting"
+      - delay: 50ms
+      - logger.log: "flip_thru_pages: Page 1"
+      - delay: 50ms
+      - logger.log: "flip_thru_pages: Page 2"
+      - delay: 50ms
+      - logger.log: "flip_thru_pages: Completed"

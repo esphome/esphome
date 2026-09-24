@@ -1,13 +1,14 @@
 import esphome.codegen as cg
+from esphome.components import binary_sensor, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, binary_sensor
 from esphome.const import (
-    CONF_ID,
-    CONF_PORT,
-    CONF_NAME,
-    CONF_SENSORS,
     CONF_BINARY_SENSORS,
+    CONF_ID,
+    CONF_NAME,
+    CONF_PORT,
+    CONF_SENSORS,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["socket"]
 CODEOWNERS = ["@Links2004"]
@@ -45,7 +46,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("10s"))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(

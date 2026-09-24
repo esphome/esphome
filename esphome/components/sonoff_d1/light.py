@@ -1,11 +1,8 @@
 import esphome.codegen as cg
+from esphome.components import light, uart
 import esphome.config_validation as cv
-from esphome.components import uart, light
-from esphome.const import (
-    CONF_OUTPUT_ID,
-    CONF_MIN_VALUE,
-    CONF_MAX_VALUE,
-)
+from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_OUTPUT_ID
+from esphome.types import ConfigType
 
 CONF_USE_RM433_REMOTE = "use_rm433_remote"
 
@@ -33,7 +30,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

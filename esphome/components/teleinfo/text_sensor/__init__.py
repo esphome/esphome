@@ -1,8 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
-from .. import CONF_TAG_NAME, TELEINFO_LISTENER_SCHEMA, teleinfo_ns, CONF_TELEINFO_ID
+from .. import CONF_TAG_NAME, CONF_TELEINFO_ID, TELEINFO_LISTENER_SCHEMA, teleinfo_ns
 
 TeleInfoTextSensor = teleinfo_ns.class_(
     "TeleInfoTextSensor", text_sensor.TextSensor, cg.Component
@@ -13,7 +14,7 @@ CONFIG_SCHEMA = text_sensor.text_sensor_schema(TeleInfoTextSensor).extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_TAG_NAME])
     await cg.register_component(var, config)
     await text_sensor.register_text_sensor(var, config)

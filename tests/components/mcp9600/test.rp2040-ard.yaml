@@ -1,12 +1,4 @@
-i2c:
-  - id: i2c_mcp9600
-    scl: 5
-    sda: 4
+packages:
+  i2c: !include ../../test_build_components/common/i2c/rp2040-ard.yaml
 
-sensor:
-  - platform: mcp9600
-    thermocouple_type: K
-    hot_junction:
-      name: Thermocouple Temperature
-    cold_junction:
-      name: Ambient Temperature
+<<: !include common.yaml

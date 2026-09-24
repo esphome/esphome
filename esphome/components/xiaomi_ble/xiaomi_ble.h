@@ -1,14 +1,11 @@
 #pragma once
 
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/core/component.h"
 
 #include <vector>
 
-#ifdef USE_ESP32
-
-namespace esphome {
-namespace xiaomi_ble {
+namespace esphome::xiaomi_ble {
 
 struct XiaomiParseResult {
   enum {
@@ -20,6 +17,7 @@ struct XiaomiParseResult {
     TYPE_LYWSD02MMC,
     TYPE_CGG1,
     TYPE_LYWSD03MMC,
+    TYPE_XMWSDJ04MMC,
     TYPE_CGD1,
     TYPE_CGDK2,
     TYPE_JQJCY01YM,
@@ -68,16 +66,13 @@ struct XiaomiAESVector {
 
 bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result);
 bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult &result);
-optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::ServiceData &service_data);
+optional<XiaomiParseResult> parse_xiaomi_header(const ble_device_base::ServiceData &service_data);
 bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, const uint64_t &address);
-bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const std::string &address);
+bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const char *address);
 
-class XiaomiListener : public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiListener final : public ble_device_base::ESPBTDeviceListener {
  public:
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override;
 };
 
-}  // namespace xiaomi_ble
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::xiaomi_ble

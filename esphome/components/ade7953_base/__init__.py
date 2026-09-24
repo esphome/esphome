@@ -1,28 +1,32 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import sensor
 from esphome import pins
+import esphome.codegen as cg
+from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_FREQUENCY,
     CONF_IRQ_PIN,
     CONF_VOLTAGE,
-    CONF_FREQUENCY,
     CONF_VOLTAGE_GAIN,
-    DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_APPARENT_POWER,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_REACTIVE_POWER,
-    DEVICE_CLASS_POWER_FACTOR,
-    DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_FREQUENCY,
+    DEVICE_CLASS_POWER,
+    DEVICE_CLASS_POWER_FACTOR,
+    DEVICE_CLASS_REACTIVE_POWER,
+    DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_VOLT,
-    UNIT_HERTZ,
     UNIT_AMPERE,
-    UNIT_VOLT_AMPS,
-    UNIT_WATT,
-    UNIT_VOLT_AMPS_REACTIVE,
+    UNIT_HERTZ,
     UNIT_PERCENT,
+    UNIT_VOLT,
+    UNIT_VOLT_AMPS,
+    UNIT_VOLT_AMPS_REACTIVE,
+    UNIT_WATT,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
+
+CODEOWNERS = ["@angelnu"]
 
 CONF_CURRENT_A = "current_a"
 CONF_CURRENT_B = "current_b"
@@ -161,7 +165,7 @@ ADE7953_CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-async def register_ade7953(var, config):
+async def register_ade7953(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     if irq_pin_config := config.get(CONF_IRQ_PIN):

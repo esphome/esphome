@@ -3,8 +3,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace audio_dac {
+namespace esphome::audio_dac {
 
 class AudioDac {
  public:
@@ -19,5 +18,4 @@ class AudioDac {
   bool is_muted_{false};
 };
 
-}  // namespace audio_dac
-}  // namespace esphome
+}  // namespace esphome::audio_dac

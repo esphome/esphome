@@ -1,23 +1,61 @@
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components import esp32_ble_client, esp32_ble_tracker
+from esphome.components import esp32_ble, esp32_ble_client, esp32_ble_tracker
+from esphome.components.esp32_ble import BTLoggers
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHARACTERISTIC_UUID,
     CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_NAME,
+    CONF_NOTIFY,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
     CONF_VALUE,
 )
+from esphome.core import ID
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["esp32_ble_client"]
 CODEOWNERS = ["@buxtronix", "@clydebarrow"]
 DEPENDENCIES = ["esp32_ble_tracker"]
+
+CONF_DESCRIPTOR_UUID = "descriptor_uuid"
+CONF_ON_NOTIFY = "on_notify"
+
+
+def validate_descriptor_not_notify(config: ConfigType) -> ConfigType:
+    """Reject descriptor_uuid combined with notify or on_notify.
+
+    BLE descriptors cannot send notifications; only characteristics can, and
+    ESP-IDF has no descriptor variant of esp_ble_gattc_register_for_notify.
+    """
+    if CONF_DESCRIPTOR_UUID in config and (
+        config.get(CONF_NOTIFY) or CONF_ON_NOTIFY in config
+    ):
+        raise cv.Invalid(
+            f"'{CONF_DESCRIPTOR_UUID}' cannot be used with '{CONF_NOTIFY}' or "
+            f"'{CONF_ON_NOTIFY}': BLE descriptors cannot send notifications; remove "
+            f"'{CONF_DESCRIPTOR_UUID}' to receive characteristic notifications, or "
+            f"remove '{CONF_NOTIFY}' and '{CONF_ON_NOTIFY}' to poll the descriptor"
+        )
+    return config
+
+
+def notify_from_on_notify(config: ConfigType) -> ConfigType:
+    """Enable notifications when an on_notify automation is configured.
+
+    The triggers have no registration path of their own; without notify the
+    automation would validate but never fire.
+    """
+    if CONF_ON_NOTIFY in config and not config[CONF_NOTIFY]:
+        config = config.copy()
+        config[CONF_NOTIFY] = True
+    return config
+
 
 ble_client_ns = cg.esphome_ns.namespace("ble_client")
 BLEClient = ble_client_ns.class_("BLEClient", esp32_ble_client.BLEClientBase)
@@ -67,7 +105,7 @@ CONF_AUTO_CONNECT = "auto_connect"
 
 MULTI_CONF = True
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BLEClient),
@@ -114,7 +152,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
+    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA),
+    esp32_ble.consume_connection_slots(1, "ble_client"),
 )
 
 CONF_BLE_CLIENT_ID = "ble_client_id"
@@ -169,25 +208,32 @@ BLE_REMOVE_BOND_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "ble_client.disconnect", BLEDisconnectAction, BLE_CONNECT_ACTION_SCHEMA
+    "ble_client.disconnect",
+    BLEDisconnectAction,
+    BLE_CONNECT_ACTION_SCHEMA,
+    synchronous=False,
 )
 async def ble_disconnect_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 @automation.register_action(
-    "ble_client.connect", BLEConnectAction, BLE_CONNECT_ACTION_SCHEMA
+    "ble_client.connect",
+    BLEConnectAction,
+    BLE_CONNECT_ACTION_SCHEMA,
+    synchronous=False,
 )
 async def ble_connect_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-    return var
+    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 @automation.register_action(
-    "ble_client.ble_write", BLEWriteAction, BLE_WRITE_ACTION_SCHEMA
+    "ble_client.ble_write",
+    BLEWriteAction,
+    BLE_WRITE_ACTION_SCHEMA,
+    synchronous=False,
 )
 async def ble_write_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
@@ -198,7 +244,12 @@ async def ble_write_to_code(config, action_id, template_arg, args):
         templ = await cg.templatable(value, args, cg.std_vector.template(cg.uint8))
         cg.add(var.set_value_template(templ))
     else:
-        cg.add(var.set_value_simple(value))
+        # Generate static array in flash to avoid RAM copy
+        if isinstance(value, bytes):
+            value = list(value)
+        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
+        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*value))
+        cg.add(var.set_value_simple(arr, len(value)))
 
     if len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
         cg.add(
@@ -241,6 +292,7 @@ async def ble_write_to_code(config, action_id, template_arg, args):
     "ble_client.numeric_comparison_reply",
     BLENumericComparisonReplyAction,
     BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def numeric_comparison_reply_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
@@ -257,7 +309,10 @@ async def numeric_comparison_reply_to_code(config, action_id, template_arg, args
 
 
 @automation.register_action(
-    "ble_client.passkey_reply", BLEPasskeyReplyAction, BLE_PASSKEY_REPLY_ACTION_SCHEMA
+    "ble_client.passkey_reply",
+    BLEPasskeyReplyAction,
+    BLE_PASSKEY_REPLY_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def passkey_reply_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
@@ -277,15 +332,18 @@ async def passkey_reply_to_code(config, action_id, template_arg, args):
     "ble_client.remove_bond",
     BLERemoveBondAction,
     BLE_REMOVE_BOND_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def remove_bond_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-
-    return var
+    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 async def to_code(config):
+    # Register the loggers this component needs
+    esp32_ble.register_bt_logger(BTLoggers.GATT, BTLoggers.SMP)
+    cg.add_define("USE_ESP32_BLE_UUID")
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await esp32_ble_tracker.register_client(var, config)

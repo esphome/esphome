@@ -3,24 +3,21 @@
 #include "esphome/core/component.h"
 #include "esphome/components/fan/fan.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
-class CopyFan : public fan::Fan, public Component {
+class CopyFan final : public fan::Fan, public Component {
  public:
   void set_source(fan::Fan *source) { source_ = source; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   fan::FanTraits get_traits() override;
 
  protected:
   void control(const fan::FanCall &call) override;
-  ;
+  void copy_state_from_source_();
 
   fan::Fan *source_;
 };
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

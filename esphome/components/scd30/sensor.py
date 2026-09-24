@@ -1,25 +1,30 @@
 from esphome import automation, core
 import esphome.codegen as cg
+from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor
-from esphome.components import sensirion_common
 from esphome.const import (
-    CONF_ID,
-    CONF_HUMIDITY,
-    CONF_TEMPERATURE,
+    CONF_ALTITUDE_COMPENSATION,
+    CONF_AMBIENT_PRESSURE_COMPENSATION,
+    CONF_AUTOMATIC_SELF_CALIBRATION,
     CONF_CO2,
+    CONF_HUMIDITY,
+    CONF_ID,
+    CONF_TEMPERATURE,
     CONF_TEMPERATURE_OFFSET,
     CONF_UPDATE_INTERVAL,
     CONF_VALUE,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
     ICON_MOLECULE_CO2,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
+    UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
@@ -33,11 +38,6 @@ SCD30Component = scd30_ns.class_(
 ForceRecalibrationWithReference = scd30_ns.class_(
     "ForceRecalibrationWithReference", automation.Action
 )
-
-CONF_AUTOMATIC_SELF_CALIBRATION = "automatic_self_calibration"
-CONF_ALTITUDE_COMPENSATION = "altitude_compensation"
-CONF_AMBIENT_PRESSURE_COMPENSATION = "ambient_pressure_compensation"
-
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -69,13 +69,13 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION, default=0): cv.pressure,
             cv.Optional(CONF_TEMPERATURE_OFFSET): cv.All(
-                cv.temperature,
+                cv.temperature_delta,
                 cv.float_range(min=0, max=655.35),
             ),
             cv.Optional(CONF_UPDATE_INTERVAL, default="60s"): cv.All(
                 cv.positive_time_period_seconds,
                 cv.Range(
-                    min=core.TimePeriod(seconds=1), max=core.TimePeriod(seconds=1800)
+                    min=core.TimePeriod(seconds=2), max=core.TimePeriod(seconds=1800)
                 ),
             ),
         }
@@ -85,7 +85,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -131,10 +131,14 @@ async def to_code(config):
         },
         key=CONF_VALUE,
     ),
+    synchronous=True,
 )
 async def scd30_force_recalibration_with_reference_to_code(
-    config, action_id, template_arg, args
-):
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint16)

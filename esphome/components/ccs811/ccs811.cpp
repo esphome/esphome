@@ -1,9 +1,9 @@
 #include "ccs811.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
-namespace esphome {
-namespace ccs811 {
+namespace esphome::ccs811 {
 
 static const char *const TAG = "ccs811";
 
@@ -80,8 +80,8 @@ void CCS811Component::setup() {
            bootloader_version, application_version);
   if (this->version_ != nullptr) {
     char version[20];  // "15.15.15 (0xffff)" is 17 chars, plus NUL, plus wiggle room
-    sprintf(version, "%d.%d.%d (0x%02x)", (application_version >> 12 & 15), (application_version >> 8 & 15),
-            (application_version >> 4 & 15), application_version);
+    buf_append_printf(version, sizeof(version), 0, "%d.%d.%d (0x%02x)", (application_version >> 12 & 15),
+                      (application_version >> 8 & 15), (application_version >> 4 & 15), application_version);
     ESP_LOGD(TAG, "publishing version state: %s", version);
     this->version_->publish_state(version);
   }
@@ -151,10 +151,10 @@ void CCS811Component::send_env_data_() {
 void CCS811Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CCS811");
   LOG_I2C_DEVICE(this)
-  LOG_UPDATE_INTERVAL(this)
-  LOG_SENSOR("  ", "CO2 Sensor", this->co2_)
-  LOG_SENSOR("  ", "TVOC Sensor", this->tvoc_)
-  LOG_TEXT_SENSOR("  ", "Firmware Version Sensor", this->version_)
+  LOG_UPDATE_INTERVAL(this);
+  LOG_SENSOR("  ", "CO2 Sensor", this->co2_);
+  LOG_SENSOR("  ", "TVOC Sensor", this->tvoc_);
+  LOG_TEXT_SENSOR("  ", "Firmware Version Sensor", this->version_);
   if (this->baseline_) {
     ESP_LOGCONFIG(TAG, "  Baseline: %04X", *this->baseline_);
   } else {
@@ -163,7 +163,7 @@ void CCS811Component::dump_config() {
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, "Communication failed! Is the sensor connected?");
+        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
         break;
       case INVALID_ID:
         ESP_LOGW(TAG, "Sensor reported an invalid ID. Is this a CCS811?");
@@ -185,5 +185,4 @@ void CCS811Component::dump_config() {
   }
 }
 
-}  // namespace ccs811
-}  // namespace esphome
+}  // namespace esphome::ccs811

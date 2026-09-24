@@ -1,35 +1,37 @@
 import esphome.codegen as cg
+from esphome.components import ble_device_base, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, esp32_ble_tracker
 from esphome.const import (
+    CONF_BATTERY_LEVEL,
+    CONF_CONDUCTIVITY,
+    CONF_ID,
+    CONF_ILLUMINANCE,
     CONF_MAC_ADDRESS,
+    CONF_MOISTURE,
     CONF_TEMPERATURE,
+    DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_TEMPERATURE,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_FLOWER,
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
-    UNIT_PERCENT,
-    CONF_ID,
-    CONF_MOISTURE,
-    CONF_ILLUMINANCE,
     UNIT_LUX,
-    CONF_CONDUCTIVITY,
     UNIT_MICROSIEMENS_PER_CENTIMETER,
-    ICON_FLOWER,
-    DEVICE_CLASS_BATTERY,
-    CONF_BATTERY_LEVEL,
+    UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
-DEPENDENCIES = ["esp32_ble_tracker"]
+AUTO_LOAD = ["ble_device_base"]
 
 xiaomi_hhccjcy10_ns = cg.esphome_ns.namespace("xiaomi_hhccjcy10")
 XiaomiHHCCJCY10 = xiaomi_hhccjcy10_ns.class_(
-    "XiaomiHHCCJCY10", esp32_ble_tracker.ESPBTDeviceListener, cg.Component
+    "XiaomiHHCCJCY10", ble_device_base.ESPBTDeviceListener, cg.Component
 )
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
+    ble_device_base.rename_legacy_hub_id("xiaomi_hhccjcy10"),
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(XiaomiHHCCJCY10),
@@ -67,15 +69,15 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
+    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await esp32_ble_tracker.register_ble_device(var, config)
+    await ble_device_base.register_ble_device(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 

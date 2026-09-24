@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace dps310 {
+namespace esphome::dps310 {
 
 static const char *const TAG = "dps310";
 
@@ -11,8 +10,6 @@ void DPS310Component::setup() {
   uint8_t coef_data_raw[DPS310_NUM_COEF_REGS];
   auto timer = DPS310_INIT_TIMEOUT;
   uint8_t reg = 0;
-
-  ESP_LOGCONFIG(TAG, "Setting up DPS310...");
   // first, reset the sensor
   if (!this->write_byte(DPS310_REG_RESET, DPS310_CMD_RESET)) {
     this->mark_failed();
@@ -86,19 +83,19 @@ void DPS310Component::setup() {
 }
 
 void DPS310Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "DPS310:");
-  ESP_LOGCONFIG(TAG, "  Product ID: %u", this->prod_rev_id_ & 0x0F);
-  ESP_LOGCONFIG(TAG, "  Revision ID: %u", (this->prod_rev_id_ >> 4) & 0x0F);
+  ESP_LOGCONFIG(TAG,
+                "DPS310:\n"
+                "  Product ID: %u\n"
+                "  Revision ID: %u",
+                this->prod_rev_id_ & 0x0F, (this->prod_rev_id_ >> 4) & 0x0F);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with DPS310 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
 }
-
-float DPS310Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void DPS310Component::update() {
   if (!this->update_in_progress_) {
@@ -129,8 +126,7 @@ void DPS310Component::read_() {
     this->update_in_progress_ = false;
     this->status_clear_warning();
   } else {
-    auto f = std::bind(&DPS310Component::read_, this);
-    this->set_timeout("dps310", 10, f);
+    this->set_timeout("dps310", 10, [this]() { this->read_(); });
   }
 }
 
@@ -185,5 +181,4 @@ int32_t DPS310Component::twos_complement(int32_t val, uint8_t bits) {
   return val;
 }
 
-}  // namespace dps310
-}  // namespace esphome
+}  // namespace esphome::dps310

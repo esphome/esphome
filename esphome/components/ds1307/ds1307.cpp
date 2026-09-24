@@ -4,13 +4,11 @@
 // Datasheet:
 // - https://datasheets.maximintegrated.com/en/ds/DS1307.pdf
 
-namespace esphome {
-namespace ds1307 {
+namespace esphome::ds1307 {
 
 static const char *const TAG = "ds1307";
 
 void DS1307Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up DS1307...");
   if (!this->read_rtc_()) {
     this->mark_failed();
   }
@@ -22,12 +20,10 @@ void DS1307Component::dump_config() {
   ESP_LOGCONFIG(TAG, "DS1307:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with DS1307 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
-  ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->timezone_.c_str());
+  RealTimeClock::dump_config();
 }
-
-float DS1307Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void DS1307Component::read_time() {
   if (!this->read_rtc_()) {
@@ -43,14 +39,11 @@ void DS1307Component::read_time() {
       .hour = uint8_t(ds1307_.reg.hour + 10u * ds1307_.reg.hour_10),
       .day_of_week = uint8_t(ds1307_.reg.weekday),
       .day_of_month = uint8_t(ds1307_.reg.day + 10u * ds1307_.reg.day_10),
-      .day_of_year = 1,  // ignored by recalc_timestamp_utc(false)
       .month = uint8_t(ds1307_.reg.month + 10u * ds1307_.reg.month_10),
       .year = uint16_t(ds1307_.reg.year + 10u * ds1307_.reg.year_10 + 2000),
-      .is_dst = false,  // not used
-      .timestamp = 0    // overwritten by recalc_timestamp_utc(false)
   };
   rtc_time.recalc_timestamp_utc(false);
-  if (!rtc_time.is_valid()) {
+  if (!rtc_time.is_valid(/*check_day_of_week=*/true, /*check_day_of_year=*/false)) {
     ESP_LOGE(TAG, "Invalid RTC time, not syncing to system clock.");
     return;
   }
@@ -105,5 +98,4 @@ bool DS1307Component::write_rtc_() {
            ds1307_.reg.day, ONOFF(ds1307_.reg.ch), ds1307_.reg.rs, ONOFF(ds1307_.reg.sqwe), ONOFF(ds1307_.reg.out));
   return true;
 }
-}  // namespace ds1307
-}  // namespace esphome
+}  // namespace esphome::ds1307

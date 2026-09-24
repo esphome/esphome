@@ -3,23 +3,22 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.keeloq";
 
-static const uint32_t BIT_TIME_US = 380;
-static const uint8_t NBITS_PREAMBLE = 12;
-static const uint8_t NBITS_REPEAT = 1;
-static const uint8_t NBITS_VLOW = 1;
-static const uint8_t NBITS_SERIAL = 28;
-static const uint8_t NBITS_BUTTONS = 4;
-static const uint8_t NBITS_DISC = 12;
-static const uint8_t NBITS_SYNC_CNT = 16;
+static constexpr uint32_t BIT_TIME_US = 380;
+static constexpr uint8_t NBITS_PREAMBLE = 12;
+static constexpr uint8_t NBITS_REPEAT = 1;
+static constexpr uint8_t NBITS_VLOW = 1;
+static constexpr uint8_t NBITS_SERIAL = 28;
+static constexpr uint8_t NBITS_BUTTONS = 4;
+static constexpr uint8_t NBITS_DISC = 12;
+static constexpr uint8_t NBITS_SYNC_CNT = 16;
 
-static const uint8_t NBITS_FIXED_DATA = NBITS_REPEAT + NBITS_VLOW + NBITS_BUTTONS + NBITS_SERIAL;
-static const uint8_t NBITS_ENCRYPTED_DATA = NBITS_BUTTONS + NBITS_DISC + NBITS_SYNC_CNT;
-static const uint8_t NBITS_DATA = NBITS_FIXED_DATA + NBITS_ENCRYPTED_DATA;
+static constexpr uint8_t NBITS_FIXED_DATA = NBITS_REPEAT + NBITS_VLOW + NBITS_BUTTONS + NBITS_SERIAL;
+static constexpr uint8_t NBITS_ENCRYPTED_DATA = NBITS_BUTTONS + NBITS_DISC + NBITS_SYNC_CNT;
+static constexpr uint8_t NBITS_DATA = NBITS_FIXED_DATA + NBITS_ENCRYPTED_DATA;
 
 /*
 KeeLoq Protocol
@@ -190,5 +189,4 @@ void KeeloqProtocol::dump(const KeeloqData &data) {
   ESP_LOGD(TAG, "Received Keeloq: address=0x%08" PRIx32 ", command=0x%02x", data.address, data.command);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

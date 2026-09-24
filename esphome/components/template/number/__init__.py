@@ -1,8 +1,9 @@
 from esphome import automation
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import number
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DEVICE_CLASS,
     CONF_ID,
     CONF_INITIAL_VALUE,
     CONF_LAMBDA,
@@ -10,9 +11,11 @@ from esphome.const import (
     CONF_MIN_VALUE,
     CONF_OPTIMISTIC,
     CONF_RESTORE_VALUE,
-    CONF_STEP,
     CONF_SET_ACTION,
+    CONF_STEP,
+    CONF_UNIT_OF_MEASUREMENT,
 )
+
 from .. import template_ns
 
 TemplateNumber = template_ns.class_(
@@ -45,7 +48,12 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    number.number_schema(TemplateNumber)
+    cv.with_visibility(
+        number.number_schema(TemplateNumber),
+        cv.Visibility.UI,
+        CONF_DEVICE_CLASS,
+        CONF_UNIT_OF_MEASUREMENT,
+    )
     .extend(
         {
             cv.Required(CONF_MAX_VALUE): cv.float_,

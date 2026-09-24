@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
@@ -8,12 +10,15 @@ from esphome.const import (
     CONF_AWAY_COMMAND_TOPIC,
     CONF_AWAY_STATE_TOPIC,
     CONF_CURRENT_HUMIDITY_STATE_TOPIC,
+    CONF_CURRENT_TEMPERATURE,
     CONF_CURRENT_TEMPERATURE_STATE_TOPIC,
     CONF_CUSTOM_FAN_MODE,
     CONF_CUSTOM_PRESET,
+    CONF_ENTITY_CATEGORY,
     CONF_FAN_MODE,
     CONF_FAN_MODE_COMMAND_TOPIC,
     CONF_FAN_MODE_STATE_TOPIC,
+    CONF_ICON,
     CONF_ID,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
@@ -45,8 +50,14 @@ from esphome.const import (
     CONF_VISUAL,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, coroutine_with_priority
-from esphome.cpp_helpers import setup_entity
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_entity,
+)
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType, SafeExpType
 
 IS_PLATFORM_COMPONENT = True
 
@@ -109,14 +120,24 @@ CLIMATE_SWING_MODES = {
 
 validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 
-CONF_CURRENT_TEMPERATURE = "current_temperature"
+ClimateAction = climate_ns.enum("ClimateAction")
+CLIMATE_ACTIONS = {
+    "OFF": ClimateAction.CLIMATE_ACTION_OFF,
+    "COOLING": ClimateAction.CLIMATE_ACTION_COOLING,
+    "HEATING": ClimateAction.CLIMATE_ACTION_HEATING,
+    "IDLE": ClimateAction.CLIMATE_ACTION_IDLE,
+    "DRYING": ClimateAction.CLIMATE_ACTION_DRYING,
+    "FAN": ClimateAction.CLIMATE_ACTION_FAN,
+    "DEFROSTING": ClimateAction.CLIMATE_ACTION_DEFROSTING,
+}
+
+validate_climate_action = cv.enum(CLIMATE_ACTIONS, upper=True)
+
 CONF_MIN_HUMIDITY = "min_humidity"
 CONF_MAX_HUMIDITY = "max_humidity"
 CONF_TARGET_HUMIDITY = "target_humidity"
 
-visual_temperature = cv.float_with_unit(
-    "visual_temperature", "(°C|° C|°|C|° K|° K|K|°F|° F|F)?"
-)
+visual_temperature = cv.float_with_unit("visual_temperature", "(°|(° ?)?[CKF])?")
 
 
 VISUAL_TEMPERATURE_STEP_SCHEMA = cv.Schema(
@@ -127,8 +148,7 @@ VISUAL_TEMPERATURE_STEP_SCHEMA = cv.Schema(
 )
 
 
-def visual_temperature_step(value):
-
+def visual_temperature_step(value: Any) -> ConfigType:
     # Allow defining target/current temperature steps separately
     if isinstance(value, dict):
         return VISUAL_TEMPERATURE_STEP_SCHEMA(value)
@@ -144,7 +164,6 @@ def visual_temperature_step(value):
 
 
 # Actions
-ControlAction = climate_ns.class_("ControlAction", automation.Action)
 StateTrigger = climate_ns.class_(
     "StateTrigger", automation.Trigger.template(Climate.operator("ref"))
 )
@@ -152,12 +171,11 @@ ControlTrigger = climate_ns.class_(
     "ControlTrigger", automation.Trigger.template(ClimateCall.operator("ref"))
 )
 
-CLIMATE_SCHEMA = (
+_CLIMATE_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(Climate),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTClimateComponent),
             cv.Optional(CONF_VISUAL, default={}): cv.Schema(
                 {
@@ -246,15 +264,40 @@ CLIMATE_SCHEMA = (
 )
 
 
-async def setup_climate_core_(var, config):
-    await setup_entity(var, config)
+_CLIMATE_SCHEMA.add_extra(entity_duplicate_validator("climate"))
 
-    visual = config[CONF_VISUAL]
+
+def climate_schema(
+    class_: MockObjClass,
+    *,
+    entity_category: str = cv.UNDEFINED,
+    icon: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {
+        cv.GenerateID(): cv.declare_id(class_),
+    }
+
+    for key, default, validator in [
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_ICON, icon, cv.icon),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _CLIMATE_SCHEMA.extend(schema)
+
+
+@setup_entity("climate")
+async def setup_climate_core_(var: MockObj, config: ConfigType) -> None:
+    visual = config.get(CONF_VISUAL, {})
     if (min_temp := visual.get(CONF_MIN_TEMPERATURE)) is not None:
+        cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
         cg.add(var.set_visual_min_temperature_override(min_temp))
     if (max_temp := visual.get(CONF_MAX_TEMPERATURE)) is not None:
+        cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
         cg.add(var.set_visual_max_temperature_override(max_temp))
     if (temp_step := visual.get(CONF_TEMPERATURE_STEP)) is not None:
+        cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
         cg.add(
             var.set_visual_temperature_step_override(
                 temp_step[CONF_TARGET_TEMPERATURE],
@@ -262,8 +305,10 @@ async def setup_climate_core_(var, config):
             )
         )
     if (min_humidity := visual.get(CONF_MIN_HUMIDITY)) is not None:
+        cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
         cg.add(var.set_visual_min_humidity_override(min_humidity))
     if (max_humidity := visual.get(CONF_MAX_HUMIDITY)) is not None:
+        cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
         cg.add(var.set_visual_max_humidity_override(max_humidity))
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
@@ -374,7 +419,7 @@ async def setup_climate_core_(var, config):
             )
         ) is not None:
             cg.add(
-                mqtt_.set_custom_target_temperature_state_topic(
+                mqtt_.set_custom_target_temperature_low_state_topic(
                     target_temperature_low_state_topic
                 )
             )
@@ -413,11 +458,18 @@ async def setup_climate_core_(var, config):
         await web_server.add_entity_config(var, web_server_config)
 
 
-async def register_climate(var, config):
+async def register_climate(var: MockObj, config: ConfigType) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_climate(var))
+    queue_entity_register("climate", config)
+    CORE.register_platform_component("climate", var)
     await setup_climate_core_(var, config)
+
+
+async def new_climate(config: ConfigType, *args: SafeExpType) -> MockObj:
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await register_climate(var, config)
+    return var
 
 
 CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
@@ -442,46 +494,43 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
-    "climate.control", ControlAction, CLIMATE_CONTROL_ACTION_SCHEMA
+def _literal_with_length(config: ConfigType, value: str) -> str:
+    # The (const char *, size_t) overload compares bytes in place, so it needs a plain
+    # literal rather than the default PROGMEM rendering on ESP8266, and skips a strlen.
+    return f"{cg.safe_exp(value)}, {len(value.encode('utf-8'))}"
+
+
+automation.register_apply_action(
+    "climate.control",
+    CLIMATE_CONTROL_ACTION_SCHEMA,
+    automation.ApplyField(CONF_MODE, "set_mode", ClimateMode),
+    automation.ApplyField(CONF_TARGET_TEMPERATURE, "set_target_temperature", cg.float_),
+    automation.ApplyField(
+        CONF_TARGET_TEMPERATURE_LOW, "set_target_temperature_low", cg.float_
+    ),
+    automation.ApplyField(
+        CONF_TARGET_TEMPERATURE_HIGH, "set_target_temperature_high", cg.float_
+    ),
+    automation.ApplyField(CONF_TARGET_HUMIDITY, "set_target_humidity", cg.float_),
+    automation.ApplyField(CONF_FAN_MODE, "set_fan_mode", ClimateFanMode),
+    automation.ApplyField(
+        CONF_CUSTOM_FAN_MODE,
+        "set_fan_mode",
+        cg.std_string,
+        const_fn=_literal_with_length,
+    ),
+    automation.ApplyField(CONF_PRESET, "set_preset", ClimatePreset),
+    automation.ApplyField(
+        CONF_CUSTOM_PRESET,
+        "set_preset",
+        cg.std_string,
+        const_fn=_literal_with_length,
+    ),
+    automation.ApplyField(CONF_SWING_MODE, "set_swing_mode", ClimateSwingMode),
+    call="make_call",
 )
-async def climate_control_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if (mode := config.get(CONF_MODE)) is not None:
-        template_ = await cg.templatable(mode, args, ClimateMode)
-        cg.add(var.set_mode(template_))
-    if (target_temp := config.get(CONF_TARGET_TEMPERATURE)) is not None:
-        template_ = await cg.templatable(target_temp, args, float)
-        cg.add(var.set_target_temperature(template_))
-    if (target_temp_low := config.get(CONF_TARGET_TEMPERATURE_LOW)) is not None:
-        template_ = await cg.templatable(target_temp_low, args, float)
-        cg.add(var.set_target_temperature_low(template_))
-    if (target_temp_high := config.get(CONF_TARGET_TEMPERATURE_HIGH)) is not None:
-        template_ = await cg.templatable(target_temp_high, args, float)
-        cg.add(var.set_target_temperature_high(template_))
-    if (target_humidity := config.get(CONF_TARGET_HUMIDITY)) is not None:
-        template_ = await cg.templatable(target_humidity, args, float)
-        cg.add(var.set_target_humidity(template_))
-    if (fan_mode := config.get(CONF_FAN_MODE)) is not None:
-        template_ = await cg.templatable(fan_mode, args, ClimateFanMode)
-        cg.add(var.set_fan_mode(template_))
-    if (custom_fan_mode := config.get(CONF_CUSTOM_FAN_MODE)) is not None:
-        template_ = await cg.templatable(custom_fan_mode, args, cg.std_string)
-        cg.add(var.set_custom_fan_mode(template_))
-    if (preset := config.get(CONF_PRESET)) is not None:
-        template_ = await cg.templatable(preset, args, ClimatePreset)
-        cg.add(var.set_preset(template_))
-    if (custom_preset := config.get(CONF_CUSTOM_PRESET)) is not None:
-        template_ = await cg.templatable(custom_preset, args, cg.std_string)
-        cg.add(var.set_custom_preset(template_))
-    if (swing_mode := config.get(CONF_SWING_MODE)) is not None:
-        template_ = await cg.templatable(swing_mode, args, ClimateSwingMode)
-        cg.add(var.set_swing_mode(template_))
-    return var
 
 
-@coroutine_with_priority(100.0)
-async def to_code(config):
-    cg.add_define("USE_CLIMATE")
+@coroutine_with_priority(CoroPriority.CORE)
+async def to_code(config: ConfigType) -> None:
     cg.add_global(climate_ns.using)

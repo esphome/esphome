@@ -1,0 +1,11 @@
+sensor:
+  - platform: sfa30
+    i2c_id: i2c_bus
+    formaldehyde:
+      name: SFA30 formaldehyde
+    temperature:
+      name: SFA30 temperature
+    humidity:
+      name: SFA30 humidity
+    address: 0x5D
+    update_interval: 30s

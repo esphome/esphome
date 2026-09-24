@@ -6,15 +6,14 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace ina219 {
+namespace esphome::ina219 {
 
-class INA219Component : public PollingComponent, public i2c::I2CDevice {
+class INA219Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
+  void on_powerdown() override;
 
   void set_shunt_resistance_ohm(float shunt_resistance_ohm) { shunt_resistance_ohm_ = shunt_resistance_ohm; }
   void set_max_current_a(float max_current_a) { max_current_a_ = max_current_a; }
@@ -35,5 +34,4 @@ class INA219Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *power_sensor_{nullptr};
 };
 
-}  // namespace ina219
-}  // namespace esphome
+}  // namespace esphome::ina219

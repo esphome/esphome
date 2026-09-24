@@ -1,12 +1,14 @@
-uart:
-  - id: uart_dsmr
-    tx_pin: 17
-    rx_pin: 16
-    baud_rate: 9600
+substitutions:
+  request_pin: GPIO15
 
-dsmr:
-  decryption_key: 00112233445566778899aabbccddeeff
-  max_telegram_length: 1000
-  request_pin: 15
-  request_interval: 20s
-  receive_timeout: 100ms
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-ard.yaml
+
+<<: !include common.yaml
+
+sensor:
+  - platform: dsmr
+    energy_delivered_lux:
+      name: "Energy Consumed Luxembourg. OBIS: 1-0:1.8.0"
+    energy_delivered_tariff1:
+      name: "Energy Consumed Tariff 1. OBIS: 1-0:1.8.1"

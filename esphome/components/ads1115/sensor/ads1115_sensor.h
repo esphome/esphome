@@ -8,19 +8,19 @@
 
 #include "../ads1115.h"
 
-namespace esphome {
-namespace ads1115 {
+namespace esphome::ads1115 {
 
 /// Internal holder class that is in instance of Sensor so that the hub can create individual sensors.
-class ADS1115Sensor : public sensor::Sensor,
-                      public PollingComponent,
-                      public voltage_sampler::VoltageSampler,
-                      public Parented<ADS1115Component> {
+class ADS1115Sensor final : public sensor::Sensor,
+                            public PollingComponent,
+                            public voltage_sampler::VoltageSampler,
+                            public Parented<ADS1115Component> {
  public:
   void update() override;
   void set_multiplexer(ADS1115Multiplexer multiplexer) { this->multiplexer_ = multiplexer; }
   void set_gain(ADS1115Gain gain) { this->gain_ = gain; }
   void set_resolution(ADS1115Resolution resolution) { this->resolution_ = resolution; }
+  void set_samplerate(ADS1115Samplerate samplerate) { this->samplerate_ = samplerate; }
   float sample() override;
 
   void dump_config() override;
@@ -29,7 +29,7 @@ class ADS1115Sensor : public sensor::Sensor,
   ADS1115Multiplexer multiplexer_;
   ADS1115Gain gain_;
   ADS1115Resolution resolution_;
+  ADS1115Samplerate samplerate_;
 };
 
-}  // namespace ads1115
-}  // namespace esphome
+}  // namespace esphome::ads1115

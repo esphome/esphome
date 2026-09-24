@@ -8,10 +8,9 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "mqtt_component.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
-class MQTTTextSensor : public mqtt::MQTTComponent {
+class MQTTTextSensor final : public mqtt::MQTTComponent {
  public:
   explicit MQTTTextSensor(text_sensor::TextSensor *sensor);
 
@@ -26,15 +25,13 @@ class MQTTTextSensor : public mqtt::MQTTComponent {
   bool send_initial_state() override;
 
  protected:
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
-  std::string unique_id() override;
 
   text_sensor::TextSensor *sensor_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

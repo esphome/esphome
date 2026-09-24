@@ -1,15 +1,20 @@
+import contextlib
 from datetime import datetime
-import hashlib
 import json
 import logging
+from pathlib import Path
 import ssl
+import tempfile
 import time
+from typing import TYPE_CHECKING
 
 import paho.mqtt.client as mqtt
 
 from esphome.const import (
     CONF_BROKER,
     CONF_CERTIFICATE_AUTHORITY,
+    CONF_CLIENT_CERTIFICATE,
+    CONF_CLIENT_CERTIFICATE_KEY,
     CONF_DISCOVERY_PREFIX,
     CONF_ESPHOME,
     CONF_LOG_TOPIC,
@@ -17,21 +22,24 @@ from esphome.const import (
     CONF_NAME,
     CONF_PASSWORD,
     CONF_PORT,
-    CONF_SSL_FINGERPRINTS,
+    CONF_SKIP_CERT_CN_CHECK,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
     CONF_USERNAME,
 )
-from esphome.core import CORE, EsphomeError
+from esphome.core import EsphomeError
 from esphome.helpers import get_int_env, get_str_env
-from esphome.log import Fore, color
+from esphome.types import ConfigType
 from esphome.util import safe_print
+
+if TYPE_CHECKING:
+    import threading
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def config_from_env():
-    config = {
+    return {
         CONF_MQTT: {
             CONF_USERNAME: get_str_env("ESPHOME_DASHBOARD_MQTT_USERNAME"),
             CONF_PASSWORD: get_str_env("ESPHOME_DASHBOARD_MQTT_PASSWORD"),
@@ -39,7 +47,6 @@ def config_from_env():
             CONF_PORT: get_int_env("ESPHOME_DASHBOARD_MQTT_PORT", 1883),
         },
     }
-    return config
 
 
 def initialize(
@@ -48,10 +55,8 @@ def initialize(
     client = prepare(
         config, subscriptions, on_message, on_connect, username, password, client_id
     )
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         client.loop_forever()
-    except KeyboardInterrupt:
-        pass
     return 0
 
 
@@ -99,18 +104,33 @@ def prepare(
     elif username:
         client.username_pw_set(username, password)
 
-    if config[CONF_MQTT].get(CONF_SSL_FINGERPRINTS) or config[CONF_MQTT].get(
-        CONF_CERTIFICATE_AUTHORITY
-    ):
-        tls_version = ssl.PROTOCOL_TLS  # pylint: disable=no-member
-        client.tls_set(
-            ca_certs=None,
-            certfile=None,
-            keyfile=None,
-            cert_reqs=ssl.CERT_REQUIRED,
-            tls_version=tls_version,
-            ciphers=None,
+    if config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY):
+        context = ssl.create_default_context(
+            cadata=config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY)
         )
+        if config[CONF_MQTT].get(CONF_SKIP_CERT_CN_CHECK):
+            context.check_hostname = False
+        if config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE) and config[CONF_MQTT].get(
+            CONF_CLIENT_CERTIFICATE_KEY
+        ):
+            with (
+                tempfile.NamedTemporaryFile(
+                    encoding="utf-8", mode="w+", delete=False
+                ) as cert_file,
+                tempfile.NamedTemporaryFile(
+                    encoding="utf-8", mode="w+", delete=False
+                ) as key_file,
+            ):
+                try:
+                    cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
+                    key_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY))
+                    cert_file.close()
+                    key_file.close()
+                    context.load_cert_chain(cert_file.name, key_file.name)
+                finally:
+                    Path(cert_file.name).unlink()
+                    Path(key_file.name).unlink()
+        client.tls_set_context(context)
 
     try:
         host = str(config[CONF_MQTT][CONF_BROKER])
@@ -127,7 +147,7 @@ def show_discover(config, username=None, password=None, client_id=None):
     _LOGGER.info("Starting log output from %s", topic)
 
     def on_message(client, userdata, msg):
-        time_ = datetime.now().time().strftime("[%H:%M:%S]")
+        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
         payload = msg.payload.decode(errors="backslashreplace")
         if len(payload) > 0:
             message = time_ + " " + payload
@@ -143,8 +163,13 @@ def show_discover(config, username=None, password=None, client_id=None):
 
 
 def get_esphome_device_ip(
-    config, username=None, password=None, client_id=None, timeout=25
-):
+    config: ConfigType,
+    username: str | None = None,
+    password: str | None = None,
+    client_id: str | None = None,
+    timeout: float = 25,
+    stop_event: "threading.Event | None" = None,
+) -> list[str]:
     if CONF_MQTT not in config:
         raise EsphomeError(
             "Cannot discover IP via MQTT as the config does not include the mqtt: "
@@ -155,58 +180,120 @@ def get_esphome_device_ip(
             "Cannot discover IP via MQTT as the config does not include the device name: "
             "component"
         )
+    if not config[CONF_MQTT].get(CONF_BROKER):
+        raise EsphomeError(
+            "Cannot discover IP via MQTT as the broker is not configured"
+        )
 
     dev_name = config[CONF_ESPHOME][CONF_NAME]
     dev_ip = None
+    failed = False
 
     topic = "esphome/discover/" + dev_name
     _LOGGER.info("Starting looking for IP in topic %s", topic)
 
     def on_message(client, userdata, msg):
-        nonlocal dev_ip
-        time_ = datetime.now().time().strftime("[%H:%M:%S]")
+        nonlocal dev_ip, failed
+        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
         payload = msg.payload.decode(errors="backslashreplace")
         if len(payload) > 0:
             message = time_ + " " + payload
             _LOGGER.debug(message)
 
-            data = json.loads(payload)
+            try:
+                data = json.loads(payload)
+            except ValueError:
+                data = None
+            if not isinstance(data, dict):
+                # A raise in this handler would kill paho's network thread
+                _LOGGER.warning("Ignoring unparsable discovery payload")
+                return
             if "name" not in data or data["name"] != dev_name:
-                _LOGGER.Warn("Wrong device answer")
+                _LOGGER.warning("Wrong device answer")
                 return
 
-            dev_ip = []
+            addresses = []
             key = "ip"
             n = 0
             while key in data:
-                dev_ip.append(data[key])
+                value = data[key]
+                if (
+                    isinstance(value, str)
+                    and (value := value.strip())
+                    and value.isprintable()
+                ):
+                    addresses.append(value)
+                else:
+                    # repr-escaped and truncated: must not forge log lines
+                    _LOGGER.warning(
+                        "Ignoring invalid address in discovery answer: %s",
+                        repr(value)[:100],
+                    )
                 n = n + 1
                 key = "ip" + str(n)
 
-            if dev_ip:
-                client.disconnect()
+            if not addresses:
+                _LOGGER.warning("Device answer did not include an IP address")
+                failed = True
+                return
+
+            dev_ip = addresses
+            failed = False  # a complete answer wins over an earlier empty one
+            client.disconnect()
 
     def on_connect(client, userdata, flags, return_code):
         topic = "esphome/ping/" + dev_name
         _LOGGER.info("Send discover via MQTT broker topic: %s", topic)
         client.publish(topic, None, retain=False)
 
+    if stop_event is not None and stop_event.is_set():
+        # Teardown already started; don't open a broker connection at all
+        return []
+
+    def on_disconnect(client, userdata, result_code):
+        nonlocal failed
+        if result_code != 0:
+            _LOGGER.warning("Disconnected from MQTT broker (%s)", result_code)
+            failed = True
+
     mqtt_client = prepare(
         config, [topic], on_message, on_connect, username, password, client_id
     )
+    # Discovery is one-shot; prepare()'s reconnect-forever on_disconnect runs
+    # on the network thread and would make loop_stop() below join forever.
+    mqtt_client.on_disconnect = on_disconnect
 
-    mqtt_client.loop_start()
-    while timeout > 0:
-        if dev_ip is not None:
-            break
-        timeout -= 0.250
-        time.sleep(0.250)
-    mqtt_client.loop_stop()
+    if stop_event is None:
+        import threading
+
+        stop_event = threading.Event()  # never set; wait() below is a plain sleep
+    stopped = stop_event.is_set()  # teardown may have started during connect
+    try:
+        if not stopped:
+            mqtt_client.loop_start()
+            while timeout > 0:
+                if dev_ip is not None or failed:
+                    break
+                if stop_event.wait(0.250):
+                    stopped = True
+                    break
+                timeout -= 0.250
+    finally:
+        # A cleanup failure must not replace the discovery result or its
+        # EsphomeError; a second disconnect after on_message's is harmless.
+        try:
+            mqtt_client.disconnect()
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.debug("Error disconnecting from MQTT broker", exc_info=True)
+        mqtt_client.loop_stop()  # only signals and joins; does not raise
 
     if dev_ip is None:
+        if stopped:
+            # Aborted by the caller, not a failure; stay quiet
+            return []
         raise EsphomeError("Failed to find IP via MQTT")
 
-    _LOGGER.info("Found IP: %s", dev_ip)
+    _LOGGER.info("Found IP via MQTT broker: %s", ", ".join(dev_ip))
     return dev_ip
 
 
@@ -233,7 +320,7 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
     _LOGGER.info("Starting log output from %s", topic)
 
     def on_message(client, userdata, msg):
-        time_ = datetime.now().time().strftime("[%H:%M:%S]")
+        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
         payload = msg.payload.decode(errors="backslashreplace")
         message = time_ + payload
         safe_print(message)
@@ -263,23 +350,3 @@ def clear_topic(config, topic, username=None, password=None, client_id=None):
         client.publish(msg.topic, None, retain=True)
 
     return initialize(config, [topic], on_message, None, username, password, client_id)
-
-
-# From marvinroger/async-mqtt-client -> scripts/get-fingerprint/get-fingerprint.py
-def get_fingerprint(config):
-    addr = str(config[CONF_MQTT][CONF_BROKER]), int(config[CONF_MQTT][CONF_PORT])
-    _LOGGER.info("Getting fingerprint from %s:%s", addr[0], addr[1])
-    try:
-        cert_pem = ssl.get_server_certificate(addr)
-    except OSError as err:
-        _LOGGER.error("Unable to connect to server: %s", err)
-        return 1
-    cert_der = ssl.PEM_cert_to_DER_cert(cert_pem)
-
-    sha1 = hashlib.sha1(cert_der).hexdigest()
-
-    safe_print(f"SHA1 Fingerprint: {color(Fore.CYAN, sha1)}")
-    safe_print(
-        f"Copy the string above into mqtt.ssl_fingerprints section of {CORE.config_path}"
-    )
-    return 0

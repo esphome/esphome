@@ -1,8 +1,11 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_IAQ_ACCURACY
-from . import BME680BSECComponent, CONF_BME680_BSEC_ID
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
+
+from . import CONF_BME680_BSEC_ID, BME680BSECComponent
 
 DEPENDENCIES = ["bme680_bsec"]
 
@@ -20,13 +23,13 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def setup_conf(config, key, hub):
+async def setup_conf(config: ConfigType, key: str, hub: MockObj) -> None:
     if sensor_config := config.get(key):
         sens = await text_sensor.new_text_sensor(sensor_config)
         cg.add(getattr(hub, f"set_{key}_text_sensor")(sens))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_BME680_BSEC_ID])
     for key in TYPES:
         await setup_conf(config, key, hub)

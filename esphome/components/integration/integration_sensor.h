@@ -6,8 +6,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace integration {
+namespace esphome::integration {
 
 enum IntegrationSensorTime {
   INTEGRATION_SENSOR_TIME_MILLISECOND = 0,
@@ -23,16 +22,16 @@ enum IntegrationMethod {
   INTEGRATION_METHOD_RIGHT,
 };
 
-class IntegrationSensor : public sensor::Sensor, public Component {
+class IntegrationSensor final : public sensor::Sensor, public Component {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void set_sensor(Sensor *sensor) { sensor_ = sensor; }
   void set_time(IntegrationSensorTime time) { time_ = time; }
   void set_method(IntegrationMethod method) { method_ = method; }
   void set_restore(bool restore) { restore_ = restore; }
   void reset() { this->publish_and_save_(0.0f); }
+  void set_value(float value) { this->publish_and_save_(value); }
 
  protected:
   void process_sensor_value_(float value);
@@ -72,15 +71,16 @@ class IntegrationSensor : public sensor::Sensor, public Component {
   float last_value_{0.0f};
 };
 
-template<typename... Ts> class ResetAction : public Action<Ts...> {
+template<typename... Ts> class ResetAction final : public Action<Ts...>, public Parented<IntegrationSensor> {
  public:
-  explicit ResetAction(IntegrationSensor *parent) : parent_(parent) {}
-
-  void play(Ts... x) override { this->parent_->reset(); }
-
- protected:
-  IntegrationSensor *parent_;
+  void play(const Ts &...x) override { this->parent_->reset(); }
 };
 
-}  // namespace integration
-}  // namespace esphome
+template<typename... Ts> class SetValueAction final : public Action<Ts...>, public Parented<IntegrationSensor> {
+ public:
+  TEMPLATABLE_VALUE(float, value)
+
+  void play(const Ts &...x) override { this->parent_->set_value(this->value_.value(x...)); }
+};
+
+}  // namespace esphome::integration

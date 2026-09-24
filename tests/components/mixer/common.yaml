@@ -1,0 +1,23 @@
+esphome:
+  on_boot:
+    then:
+      - mixer_speaker.apply_ducking:
+          id: source_speaker_1_id
+          decibel_reduction: 255
+          duration: 1s
+
+speaker:
+  - platform: i2s_audio
+    id: mixer_output_speaker_id
+    i2s_audio_id: i2s_audio_bus
+    dac_type: external
+    i2s_dout_pin: ${dout_pin}
+    bits_per_sample: 32bit
+    channel: stereo
+  - platform: mixer
+    output_speaker: mixer_output_speaker_id
+    bits_per_sample: 32
+    num_channels: 2
+    source_speakers:
+      - id: source_speaker_1_id
+      - id: source_speaker_2_id

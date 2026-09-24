@@ -49,8 +49,7 @@ const uint8_t TRIGGER_KEEP_TIME_ADDR = 0x42;  // 4 bytes, so up to 0x45
 const uint8_t TIME41_VALUE = 1;
 const uint8_t SELF_CHECK_TIME_ADDR = 0x38;  // 2 bytes, up to 0x39
 
-namespace esphome {
-namespace at581x {
+namespace esphome::at581x {
 
 static const char *const TAG = "at581x";
 
@@ -71,19 +70,22 @@ bool AT581XComponent::i2c_read_reg(uint8_t addr, uint8_t &data) {
   return this->read_register(addr, &data, 1) == esphome::i2c::NO_ERROR;
 }
 
-void AT581XComponent::setup() { ESP_LOGCONFIG(TAG, "Setting up AT581X..."); }
+void AT581XComponent::setup() {}
 void AT581XComponent::dump_config() { LOG_I2C_DEVICE(this); }
 #define ARRAY_SIZE(X) (sizeof(X) / sizeof((X)[0]))
 bool AT581XComponent::i2c_write_config() {
-  ESP_LOGCONFIG(TAG, "Writing new config for AT581X...");
-  ESP_LOGCONFIG(TAG, "Frequency: %dMHz", this->freq_);
-  ESP_LOGCONFIG(TAG, "Sensing distance: %d", this->delta_);
-  ESP_LOGCONFIG(TAG, "Power: %dµA", this->power_);
-  ESP_LOGCONFIG(TAG, "Gain: %d", this->gain_);
-  ESP_LOGCONFIG(TAG, "Trigger base time: %dms", this->trigger_base_time_ms_);
-  ESP_LOGCONFIG(TAG, "Trigger keep time: %dms", this->trigger_keep_time_ms_);
-  ESP_LOGCONFIG(TAG, "Protect time: %dms", this->protect_time_ms_);
-  ESP_LOGCONFIG(TAG, "Self check time: %dms", this->self_check_time_ms_);
+  ESP_LOGCONFIG(TAG,
+                "Writing new config for AT581X\n"
+                "  Frequency: %dMHz\n"
+                "  Sensing distance: %d\n"
+                "  Power: %dµA\n"
+                "  Gain: %d\n"
+                "  Trigger base time: %dms\n"
+                "  Trigger keep time: %dms\n"
+                "  Protect time: %dms\n"
+                "  Self check time: %dms",
+                this->freq_, this->delta_, this->power_, this->gain_, this->trigger_base_time_ms_,
+                this->trigger_keep_time_ms_, this->protect_time_ms_, this->self_check_time_ms_);
 
   // Set frequency point
   if (!this->i2c_write_reg(FREQ_ADDR, GAIN61_VALUE)) {
@@ -132,6 +134,11 @@ bool AT581XComponent::i2c_write_config() {
   }
 
   // Set gain
+  if (this->gain_ < 0 || static_cast<size_t>(this->gain_) >= ARRAY_SIZE(GAIN5C_TABLE) ||
+      static_cast<size_t>(this->gain_ >> 1) >= ARRAY_SIZE(GAIN63_TABLE)) {
+    ESP_LOGE(TAG, "AT581X gain index out of range: %d", this->gain_);
+    return false;
+  }
   if (!this->i2c_write_reg(GAIN_ADDR_TABLE[0], GAIN5C_TABLE[this->gain_]) ||
       !this->i2c_write_reg(GAIN_ADDR_TABLE[1], GAIN63_TABLE[this->gain_ >> 1])) {
     ESP_LOGE(TAG, "Failed to write AT581X gain registers");
@@ -191,5 +198,4 @@ void AT581XComponent::set_rf_mode(bool enable) {
   }
 }
 
-}  // namespace at581x
-}  // namespace esphome
+}  // namespace esphome::at581x

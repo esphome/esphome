@@ -7,15 +7,12 @@
 // ref:
 // https://github.com/tinovi/i2cArduino/blob/master/i2cArduino.h
 
-namespace esphome {
-namespace pmwcs3 {
+namespace esphome::pmwcs3 {
 
-class PMWCS3Component : public PollingComponent, public i2c::I2CDevice {
+class PMWCS3Component final : public PollingComponent, public i2c::I2CDevice {
  public:
-  void setup() override;
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override;
 
   void set_e25_sensor(sensor::Sensor *e25_sensor) { e25_sensor_ = e25_sensor; }
   void set_ec_sensor(sensor::Sensor *ec_sensor) { ec_sensor_ = ec_sensor; }
@@ -35,36 +32,35 @@ class PMWCS3Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *vwc_sensor_{nullptr};
 };
 
-template<typename... Ts> class PMWCS3AirCalibrationAction : public Action<Ts...> {
+template<typename... Ts> class PMWCS3AirCalibrationAction final : public Action<Ts...> {
  public:
   PMWCS3AirCalibrationAction(PMWCS3Component *parent) : parent_(parent) {}
 
-  void play(Ts... x) override { this->parent_->air_calibration(); }
+  void play(const Ts &...x) override { this->parent_->air_calibration(); }
 
  protected:
   PMWCS3Component *parent_;
 };
 
-template<typename... Ts> class PMWCS3WaterCalibrationAction : public Action<Ts...> {
+template<typename... Ts> class PMWCS3WaterCalibrationAction final : public Action<Ts...> {
  public:
   PMWCS3WaterCalibrationAction(PMWCS3Component *parent) : parent_(parent) {}
 
-  void play(Ts... x) override { this->parent_->water_calibration(); }
+  void play(const Ts &...x) override { this->parent_->water_calibration(); }
 
  protected:
   PMWCS3Component *parent_;
 };
 
-template<typename... Ts> class PMWCS3NewI2cAddressAction : public Action<Ts...> {
+template<typename... Ts> class PMWCS3NewI2cAddressAction final : public Action<Ts...> {
  public:
   PMWCS3NewI2cAddressAction(PMWCS3Component *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(int, new_address)
 
-  void play(Ts... x) override { this->parent_->new_i2c_address(this->new_address_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->new_i2c_address(this->new_address_.value(x...)); }
 
  protected:
   PMWCS3Component *parent_;
 };
 
-}  // namespace pmwcs3
-}  // namespace esphome
+}  // namespace esphome::pmwcs3

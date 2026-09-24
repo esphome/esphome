@@ -31,18 +31,17 @@
   -----
 */
 
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/light/light_state.h"
 #include "esphome/components/light/light_traits.h"
 
-namespace esphome {
-namespace sonoff_d1 {
+namespace esphome::sonoff_d1 {
 
-class SonoffD1Output : public light::LightOutput, public uart::UARTDevice, public Component {
+class SonoffD1Output final : public light::LightOutput, public uart::UARTDevice, public Component {
  public:
   // LightOutput methods
   light::LightTraits get_traits() override;
@@ -53,7 +52,6 @@ class SonoffD1Output : public light::LightOutput, public uart::UARTDevice, publi
   void setup() override{};
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return esphome::setup_priority::DATA; }
 
   // Custom methods
   void set_use_rm433_remote(const bool use_rm433_remote) { this->use_rm433_remote_ = use_rm433_remote; }
@@ -81,5 +79,4 @@ class SonoffD1Output : public light::LightOutput, public uart::UARTDevice, publi
   void publish_state_(bool is_on, uint8_t brightness);
 };
 
-}  // namespace sonoff_d1
-}  // namespace esphome
+}  // namespace esphome::sonoff_d1

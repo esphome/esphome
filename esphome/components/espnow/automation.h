@@ -1,0 +1,143 @@
+#pragma once
+
+#ifdef USE_ESP32
+
+#include "espnow_component.h"
+
+#include "esphome/core/automation.h"
+#include "esphome/core/base_automation.h"
+
+namespace esphome::espnow {
+
+template<typename... Ts> class SendAction final : public Action<Ts...>, public Parented<ESPNowComponent> {
+  TEMPLATABLE_VALUE(peer_address_t, address);
+  TEMPLATABLE_VALUE(std::vector<uint8_t>, data);
+
+ public:
+  void add_on_sent(const std::initializer_list<Action<Ts...> *> &actions) {
+    this->sent_.add_actions(actions);
+    if (this->flags_.wait_for_sent) {
+      this->sent_.add_action(new LambdaAction<Ts...>([this](Ts... x) { this->play_next_(x...); }));
+    }
+  }
+  void add_on_error(const std::initializer_list<Action<Ts...> *> &actions) {
+    this->error_.add_actions(actions);
+    if (this->flags_.wait_for_sent) {
+      this->error_.add_action(new LambdaAction<Ts...>([this](Ts... x) {
+        if (this->flags_.continue_on_error) {
+          this->play_next_(x...);
+        } else {
+          this->stop_complex();
+        }
+      }));
+    }
+  }
+
+  void set_wait_for_sent(bool wait_for_sent) { this->flags_.wait_for_sent = wait_for_sent; }
+  void set_continue_on_error(bool continue_on_error) { this->flags_.continue_on_error = continue_on_error; }
+
+  void play_complex(const Ts &...x) override {
+    this->num_running_++;
+    send_callback_t send_callback = [this, x...](esp_err_t status) {
+      if (status == ESP_OK) {
+        if (!this->sent_.empty()) {
+          this->sent_.play(x...);
+        } else if (this->flags_.wait_for_sent) {
+          this->play_next_(x...);
+        }
+      } else {
+        if (!this->error_.empty()) {
+          this->error_.play(x...);
+        } else if (this->flags_.wait_for_sent) {
+          if (this->flags_.continue_on_error) {
+            this->play_next_(x...);
+          } else {
+            this->stop_complex();
+          }
+        }
+      }
+    };
+    peer_address_t address = this->address_.value(x...);
+    std::vector<uint8_t> data = this->data_.value(x...);
+    esp_err_t err = this->parent_->send(address.data(), data, send_callback);
+    if (err != ESP_OK) {
+      send_callback(err);
+    } else if (!this->flags_.wait_for_sent) {
+      this->play_next_(x...);
+    }
+  }
+
+ protected:
+  void play(const Ts &...x) override { /* ignore - see play_complex */
+  }
+
+  void stop() override {
+    this->sent_.stop();
+    this->error_.stop();
+  }
+
+  ActionList<Ts...> sent_;
+  ActionList<Ts...> error_;
+
+  struct {
+    uint8_t wait_for_sent : 1;      // Wait for the send operation to complete before continuing automation
+    uint8_t continue_on_error : 1;  // Continue automation even if the send operation fails
+    uint8_t reserved : 6;           // Reserved for future use
+  } flags_{0};
+};
+
+class OnReceiveTrigger final : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint16_t>,
+                               public ESPNowReceivedPacketHandler {
+ public:
+  explicit OnReceiveTrigger(std::array<uint8_t, ESP_NOW_ETH_ALEN> address) : has_address_(true) {
+    memcpy(this->address_, address.data(), ESP_NOW_ETH_ALEN);
+  }
+
+  explicit OnReceiveTrigger() {}
+
+  bool on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) override {
+    bool match = !this->has_address_ || (memcmp(this->address_, info.src_addr, ESP_NOW_ETH_ALEN) == 0);
+    if (!match)
+      return false;
+
+    this->trigger(info, data, size);
+    return false;  // Return false to continue processing other internal handlers
+  }
+
+ protected:
+  bool has_address_{false};
+  uint8_t address_[ESP_NOW_ETH_ALEN]{};
+};
+class OnUnknownPeerTrigger final : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint16_t>,
+                                   public ESPNowUnknownPeerHandler {
+ public:
+  bool on_unknown_peer(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) override {
+    this->trigger(info, data, size);
+    return false;  // Return false to continue processing other internal handlers
+  }
+};
+class OnBroadcastTrigger final : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint16_t>,
+                                 public ESPNowBroadcastHandler {
+ public:
+  explicit OnBroadcastTrigger(std::array<uint8_t, ESP_NOW_ETH_ALEN> address) : has_address_(true) {
+    memcpy(this->address_, address.data(), ESP_NOW_ETH_ALEN);
+  }
+  explicit OnBroadcastTrigger() {}
+
+  bool on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) override {
+    bool match = !this->has_address_ || (memcmp(this->address_, info.src_addr, ESP_NOW_ETH_ALEN) == 0);
+    if (!match)
+      return false;
+
+    this->trigger(info, data, size);
+    return false;  // Return false to continue processing other internal handlers
+  }
+
+ protected:
+  bool has_address_{false};
+  uint8_t address_[ESP_NOW_ETH_ALEN]{};
+};
+
+}  // namespace esphome::espnow
+
+#endif  // USE_ESP32

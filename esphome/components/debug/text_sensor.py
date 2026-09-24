@@ -1,14 +1,15 @@
+import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import (
     CONF_DEVICE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_CHIP,
     ICON_RESTART,
 )
+from esphome.types import ConfigType
 
-from . import CONF_DEBUG_ID, DebugComponent
+from . import CONF_DEBUG_ID, FILTER_SOURCE_FILES, DebugComponent  # noqa: F401  pylint: disable=unused-import
 
 DEPENDENCIES = ["debug"]
 
@@ -29,7 +30,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     debug_component = await cg.get_variable(config[CONF_DEBUG_ID])
 
     if CONF_DEVICE in config:

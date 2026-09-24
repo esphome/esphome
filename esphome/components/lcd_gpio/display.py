@@ -1,15 +1,16 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import lcd_base
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DATA_PINS,
     CONF_ENABLE_PIN,
-    CONF_RS_PIN,
-    CONF_RW_PIN,
     CONF_ID,
     CONF_LAMBDA,
+    CONF_RS_PIN,
+    CONF_RW_PIN,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["lcd_base"]
 
@@ -17,7 +18,7 @@ lcd_gpio_ns = cg.esphome_ns.namespace("lcd_gpio")
 GPIOLCDDisplay = lcd_gpio_ns.class_("GPIOLCDDisplay", lcd_base.LCDDisplay)
 
 
-def validate_pin_length(value):
+def validate_pin_length(value: list[ConfigType]) -> list[ConfigType]:
     if len(value) != 4 and len(value) != 8:
         raise cv.Invalid(
             f"LCD Displays can either operate in 4-pin or 8-pin mode,not {len(value)}-pin mode"
@@ -38,12 +39,10 @@ CONFIG_SCHEMA = lcd_base.LCD_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await lcd_base.setup_lcd_display(var, config)
-    pins_ = []
-    for conf in config[CONF_DATA_PINS]:
-        pins_.append(await cg.gpio_pin_expression(conf))
+    pins_ = [await cg.gpio_pin_expression(conf) for conf in config[CONF_DATA_PINS]]
     cg.add(var.set_data_pins(*pins_))
     enable = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
     cg.add(var.set_enable_pin(enable))

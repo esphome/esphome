@@ -7,8 +7,7 @@
 #include "esphome/components/power_supply/power_supply.h"
 #endif
 
-namespace esphome {
-namespace output {
+namespace esphome::output {
 
 #define LOG_BINARY_OUTPUT(this) \
   if (this->inverted_) { \
@@ -69,5 +68,4 @@ class BinaryOutput {
 #endif
 };
 
-}  // namespace output
-}  // namespace esphome
+}  // namespace esphome::output

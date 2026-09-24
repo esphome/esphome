@@ -1,16 +1,17 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import light, output
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BLUE,
+    CONF_COLD_WHITE_COLOR_TEMPERATURE,
     CONF_COLOR_INTERLOCK,
     CONF_COLOR_TEMPERATURE,
     CONF_GREEN,
-    CONF_RED,
     CONF_OUTPUT_ID,
-    CONF_COLD_WHITE_COLOR_TEMPERATURE,
+    CONF_RED,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
 
@@ -37,7 +38,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(var, config)
 

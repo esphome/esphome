@@ -7,8 +7,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace nau7802 {
+namespace esphome::nau7802 {
 
 enum NAU7802Gain {
   NAU7802_GAIN_128 = 0b111,
@@ -48,7 +47,7 @@ enum NAU7802CalibrationModes {
   NAU7802_CALIBRATE_GAIN = 0b11,
 };
 
-class NAU7802Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class NAU7802Sensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void set_samples_per_second(NAU7802SPS sps) { this->sps_ = sps; }
   void set_ldo_voltage(NAU7802LDO ldo) { this->ldo_ = ldo; }
@@ -61,9 +60,7 @@ class NAU7802Sensor : public sensor::Sensor, public PollingComponent, public i2c
 
   void setup() override;
   void loop() override;
-  bool can_proceed() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
  protected:
@@ -80,7 +77,6 @@ class NAU7802Sensor : public sensor::Sensor, public PollingComponent, public i2c
   int32_t offset_calibration_;
   bool offset_calibration_failed_ = false;
   bool gain_calibration_failed_ = false;
-  bool setup_complete_ = false;
 
   //
   // Config values
@@ -101,21 +97,20 @@ class NAU7802Sensor : public sensor::Sensor, public PollingComponent, public i2c
 };
 
 template<typename... Ts>
-class NAU7802CalbrateExternalOffsetAction : public Action<Ts...>, public Parented<NAU7802Sensor> {
+class NAU7802CalbrateExternalOffsetAction final : public Action<Ts...>, public Parented<NAU7802Sensor> {
  public:
-  void play(Ts... x) override { this->parent_->calibrate_external_offset(); }
+  void play(const Ts &...x) override { this->parent_->calibrate_external_offset(); }
 };
 
 template<typename... Ts>
-class NAU7802CalbrateInternalOffsetAction : public Action<Ts...>, public Parented<NAU7802Sensor> {
+class NAU7802CalbrateInternalOffsetAction final : public Action<Ts...>, public Parented<NAU7802Sensor> {
  public:
-  void play(Ts... x) override { this->parent_->calibrate_internal_offset(); }
+  void play(const Ts &...x) override { this->parent_->calibrate_internal_offset(); }
 };
 
-template<typename... Ts> class NAU7802CalbrateGainAction : public Action<Ts...>, public Parented<NAU7802Sensor> {
+template<typename... Ts> class NAU7802CalbrateGainAction final : public Action<Ts...>, public Parented<NAU7802Sensor> {
  public:
-  void play(Ts... x) override { this->parent_->calibrate_gain(); }
+  void play(const Ts &...x) override { this->parent_->calibrate_gain(); }
 };
 
-}  // namespace nau7802
-}  // namespace esphome
+}  // namespace esphome::nau7802

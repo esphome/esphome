@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "esphome/core/defines.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
 #include "esphome/core/component.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/components/network/ip_address.h"
@@ -25,25 +25,9 @@
 #include "IPAddress.h"
 #endif
 
-namespace esphome {
-namespace statsd {
+namespace esphome::statsd {
 
-using sensor_type_t = enum { TYPE_SENSOR, TYPE_BINARY_SENSOR };
-
-using sensors_t = struct {
-  const char *name;
-  sensor_type_t type;
-  union {
-#ifdef USE_SENSOR
-    esphome::sensor::Sensor *sensor;
-#endif
-#ifdef USE_BINARY_SENSOR
-    esphome::binary_sensor::BinarySensor *binary_sensor;
-#endif
-  };
-};
-
-class StatsdComponent : public PollingComponent {
+class StatsdComponent final : public PollingComponent {
  public:
   ~StatsdComponent();
 
@@ -71,6 +55,20 @@ class StatsdComponent : public PollingComponent {
   const char *prefix_;
   uint16_t port_;
 
+  using sensor_type_t = enum { TYPE_SENSOR, TYPE_BINARY_SENSOR };
+  using sensors_t = struct {
+    const char *name;
+    sensor_type_t type;
+    union {
+#ifdef USE_SENSOR
+      esphome::sensor::Sensor *sensor;
+#endif
+#ifdef USE_BINARY_SENSOR
+      esphome::binary_sensor::BinarySensor *binary_sensor;
+#endif
+    };
+  };
+
   std::vector<sensors_t> sensors_;
 
 #ifdef USE_ESP8266
@@ -83,6 +81,6 @@ class StatsdComponent : public PollingComponent {
   void send_(std::string *out);
 };
 
-}  // namespace statsd
-}  // namespace esphome
-#endif
+}  // namespace esphome::statsd
+
+#endif  // USE_NETWORK && !USE_ZEPHYR

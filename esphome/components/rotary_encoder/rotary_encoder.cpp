@@ -1,9 +1,8 @@
 #include "rotary_encoder.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
-namespace esphome {
-namespace rotary_encoder {
+namespace esphome::rotary_encoder {
 
 static const char *const TAG = "rotary_encoder";
 
@@ -93,13 +92,17 @@ void IRAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensorStore 
   int8_t rotation_dir = 0;
   uint16_t new_state = STATE_LOOKUP_TABLE[input_state];
   if ((new_state & arg->resolution & STATE_HAS_INCREMENTED) != 0) {
-    if (arg->counter < arg->max_value)
-      arg->counter++;
+    if (arg->counter < arg->max_value) {
+      auto x = arg->counter + 1;
+      arg->counter = x;
+    }
     rotation_dir = 1;
   }
   if ((new_state & arg->resolution & STATE_HAS_DECREMENTED) != 0) {
-    if (arg->counter > arg->min_value)
-      arg->counter--;
+    if (arg->counter > arg->min_value) {
+      auto x = arg->counter - 1;
+      arg->counter = x;
+    }
     rotation_dir = -1;
   }
 
@@ -125,12 +128,10 @@ void IRAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensorStore 
 }
 
 void RotaryEncoderSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Rotary Encoder '%s'...", this->name_.c_str());
-
   int32_t initial_value = 0;
   switch (this->restore_mode_) {
     case ROTARY_ENCODER_RESTORE_DEFAULT_ZERO:
-      this->rtc_ = global_preferences->make_preference<int32_t>(this->get_object_id_hash());
+      this->rtc_ = this->make_entity_preference<int32_t>();
       if (!this->rtc_.load(&initial_value)) {
         initial_value = 0;
       }
@@ -219,7 +220,7 @@ void RotaryEncoderSensor::loop() {
   }
 
   if (this->pin_i_ != nullptr && this->pin_i_->digital_read()) {
-    this->store_.counter = 0;
+    this->store_.counter = std::clamp<int32_t>(0, this->store_.min_value, this->store_.max_value);
   }
   int counter = this->store_.counter;
   if (this->store_.last_read != counter || this->publish_initial_value_) {
@@ -233,7 +234,6 @@ void RotaryEncoderSensor::loop() {
   }
 }
 
-float RotaryEncoderSensor::get_setup_priority() const { return setup_priority::DATA; }
 void RotaryEncoderSensor::set_restore_mode(RotaryEncoderRestoreMode restore_mode) {
   this->restore_mode_ = restore_mode;
 }
@@ -241,5 +241,4 @@ void RotaryEncoderSensor::set_resolution(RotaryEncoderResolution mode) { this->s
 void RotaryEncoderSensor::set_min_value(int32_t min_value) { this->store_.min_value = min_value; }
 void RotaryEncoderSensor::set_max_value(int32_t max_value) { this->store_.max_value = max_value; }
 
-}  // namespace rotary_encoder
-}  // namespace esphome
+}  // namespace esphome::rotary_encoder

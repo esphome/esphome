@@ -1,14 +1,4 @@
-i2c:
-  - id: i2c_ee895
-    scl: 16
-    sda: 17
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
 
-sensor:
-  - platform: ee895
-    address: 0x5F
-    co2:
-      name: EE895 CO2
-    temperature:
-      name: EE895 Temperature
-    pressure:
-      name: EE895 Pressure
+<<: !include common.yaml

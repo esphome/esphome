@@ -1,13 +1,11 @@
 #include "gpio_lcd_display.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace lcd_gpio {
+namespace esphome::lcd_gpio {
 
 static const char *const TAG = "lcd_gpio";
 
 void GPIOLCDDisplay::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up GPIO LCD Display...");
   this->rs_pin_->setup();  // OUTPUT
   this->rs_pin_->digital_write(false);
   if (this->rw_pin_ != nullptr) {
@@ -24,8 +22,10 @@ void GPIOLCDDisplay::setup() {
   LCDDisplay::setup();
 }
 void GPIOLCDDisplay::dump_config() {
-  ESP_LOGCONFIG(TAG, "GPIO LCD Display:");
-  ESP_LOGCONFIG(TAG, "  Columns: %u, Rows: %u", this->columns_, this->rows_);
+  ESP_LOGCONFIG(TAG,
+                "GPIO LCD Display:\n"
+                "  Columns: %u, Rows: %u",
+                this->columns_, this->rows_);
   LOG_PIN("  RS Pin: ", this->rs_pin_);
   LOG_PIN("  RW Pin: ", this->rw_pin_);
   LOG_PIN("  Enable Pin: ", this->enable_pin_);
@@ -62,5 +62,4 @@ void GPIOLCDDisplay::send(uint8_t value, bool rs) {
   }
 }
 
-}  // namespace lcd_gpio
-}  // namespace esphome
+}  // namespace esphome::lcd_gpio

@@ -5,16 +5,17 @@
 #ifdef USE_MQTT
 #ifdef USE_FAN
 
-#include "esphome/components/fan/fan_state.h"
+#include "esphome/components/fan/fan.h"
 #include "mqtt_component.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
-class MQTTFanComponent : public mqtt::MQTTComponent {
+class MQTTFanComponent final : public mqtt::MQTTComponent {
  public:
   explicit MQTTFanComponent(fan::Fan *state);
 
+  MQTT_COMPONENT_CUSTOM_TOPIC(direction, command)
+  MQTT_COMPONENT_CUSTOM_TOPIC(direction, state)
   MQTT_COMPONENT_CUSTOM_TOPIC(oscillation, command)
   MQTT_COMPONENT_CUSTOM_TOPIC(oscillation, state)
   MQTT_COMPONENT_CUSTOM_TOPIC(speed_level, command)
@@ -35,7 +36,7 @@ class MQTTFanComponent : public mqtt::MQTTComponent {
   bool send_initial_state() override;
   bool publish_state();
   /// 'fan' component type for discovery.
-  std::string component_type() const override;
+  const char *component_type() const override;
 
   fan::Fan *get_state() const;
 
@@ -45,8 +46,7 @@ class MQTTFanComponent : public mqtt::MQTTComponent {
   fan::Fan *state_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

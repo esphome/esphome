@@ -1,15 +1,15 @@
 import esphome.codegen as cg
+from esphome.components import ble_client, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, ble_client
-
 from esphome.const import (
-    STATE_CLASS_MEASUREMENT,
-    UNIT_BECQUEREL_PER_CUBIC_METER,
     CONF_ID,
     CONF_RADON,
     CONF_RADON_LONG_TERM,
     ICON_RADIOACTIVE,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_BECQUEREL_PER_CUBIC_METER,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["ble_client"]
 
@@ -41,7 +41,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

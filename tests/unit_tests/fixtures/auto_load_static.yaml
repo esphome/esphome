@@ -1,0 +1,8 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+
+# Test component with static AUTO_LOAD
+test_component:

@@ -2,13 +2,11 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace ssd1331_spi {
+namespace esphome::ssd1331_spi {
 
 static const char *const TAG = "ssd1331_spi";
 
 void SPISSD1331::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SPI SSD1331...");
   this->spi_setup();
   this->dc_pin_->setup();  // OUTPUT
   if (this->cs_)
@@ -53,5 +51,4 @@ void HOT SPISSD1331::write_display_data() {
   this->disable();
 }
 
-}  // namespace ssd1331_spi
-}  // namespace esphome
+}  // namespace esphome::ssd1331_spi

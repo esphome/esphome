@@ -1,0 +1,10 @@
+<<: !include common.yaml
+
+esp32_ble_tracker:
+
+esp32_ble:
+  max_connections: 9
+
+bluetooth_proxy:
+  active: true
+  connection_slots: 9

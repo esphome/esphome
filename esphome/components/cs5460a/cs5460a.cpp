@@ -1,8 +1,7 @@
 #include "cs5460a.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace cs5460a {
+namespace esphome::cs5460a {
 
 static const char *const TAG = "cs5460a";
 
@@ -52,8 +51,6 @@ bool CS5460AComponent::softreset_() {
 }
 
 void CS5460AComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up CS5460A...");
-
   float current_full_scale = (pga_gain_ == CS5460A_PGA_GAIN_10X) ? 0.25 : 0.10;
   float voltage_full_scale = 0.25;
   current_multiplier_ = current_full_scale / (fabsf(current_gain_) * 0x1000000);
@@ -252,7 +249,7 @@ bool CS5460AComponent::check_status_() {
     bool dir = status & (1 << 21);
     if (current_gain_ < 0)
       dir = !dir;
-    ESP_LOGI(TAG, "Energy counter %s pulse", dir ? "negative" : "positive");
+    ESP_LOGI(TAG, "Energy counter %s pulse", dir ? LOG_STR_LITERAL("negative") : LOG_STR_LITERAL("positive"));
     clear |= 1 << 22;
   }
 
@@ -319,22 +316,29 @@ bool CS5460AComponent::check_status_() {
 void CS5460AComponent::dump_config() {
   uint32_t state = this->get_component_state();
 
-  ESP_LOGCONFIG(TAG, "CS5460A:");
-  ESP_LOGCONFIG(TAG, "  Init status: %s",
-                state == COMPONENT_STATE_LOOP ? "OK" : (state == COMPONENT_STATE_FAILED ? "failed" : "other"));
+  ESP_LOGCONFIG(TAG,
+                "CS5460A:\n"
+                "  Init status: %s",
+                state == COMPONENT_STATE_LOOP
+                    ? LOG_STR_LITERAL("OK")
+                    : (state == COMPONENT_STATE_FAILED ? LOG_STR_LITERAL("failed") : LOG_STR_LITERAL("other")));
   LOG_PIN("  CS Pin: ", cs_);
-  ESP_LOGCONFIG(TAG, "  Samples / cycle: %" PRIu32, samples_);
-  ESP_LOGCONFIG(TAG, "  Phase offset: %i", phase_offset_);
-  ESP_LOGCONFIG(TAG, "  PGA Gain: %s", pga_gain_ == CS5460A_PGA_GAIN_50X ? "50x" : "10x");
-  ESP_LOGCONFIG(TAG, "  Current gain: %.5f", current_gain_);
-  ESP_LOGCONFIG(TAG, "  Voltage gain: %.5f", voltage_gain_);
-  ESP_LOGCONFIG(TAG, "  Current HPF: %s", current_hpf_ ? "enabled" : "disabled");
-  ESP_LOGCONFIG(TAG, "  Voltage HPF: %s", voltage_hpf_ ? "enabled" : "disabled");
-  ESP_LOGCONFIG(TAG, "  Pulse energy: %.2f Wh", pulse_energy_wh_);
+  ESP_LOGCONFIG(TAG,
+                "  Samples / cycle: %" PRIu32 "\n"
+                "  Phase offset: %i\n"
+                "  PGA Gain: %s\n"
+                "  Current gain: %.5f\n"
+                "  Voltage gain: %.5f\n"
+                "  Current HPF: %s\n"
+                "  Voltage HPF: %s\n"
+                "  Pulse energy: %.2f Wh",
+                samples_, phase_offset_,
+                pga_gain_ == CS5460A_PGA_GAIN_50X ? LOG_STR_LITERAL("50x") : LOG_STR_LITERAL("10x"), current_gain_,
+                voltage_gain_, current_hpf_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"),
+                voltage_hpf_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"), pulse_energy_wh_);
   LOG_SENSOR("  ", "Voltage", voltage_sensor_);
   LOG_SENSOR("  ", "Current", current_sensor_);
   LOG_SENSOR("  ", "Power", power_sensor_);
 }
 
-}  // namespace cs5460a
-}  // namespace esphome
+}  // namespace esphome::cs5460a

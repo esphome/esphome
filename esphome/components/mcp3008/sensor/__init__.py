@@ -1,16 +1,17 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_NUMBER,
     CONF_REFERENCE_VOLTAGE,
-    UNIT_VOLT,
-    STATE_CLASS_MEASUREMENT,
     DEVICE_CLASS_VOLTAGE,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_VOLT,
 )
+from esphome.types import ConfigType
 
-from .. import mcp3008_ns, MCP3008
+from .. import MCP3008, mcp3008_ns
 
 AUTO_LOAD = ["voltage_sampler"]
 
@@ -35,7 +36,7 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.GenerateID(CONF_MCP3008_ID): cv.use_id(MCP3008),
-            cv.Required(CONF_NUMBER): cv.int_,
+            cv.Required(CONF_NUMBER): cv.int_range(min=0, max=7),
             cv.Optional(CONF_REFERENCE_VOLTAGE, default="3.3V"): cv.voltage,
         }
     )
@@ -43,7 +44,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_parented(var, config[CONF_MCP3008_ID])
     await cg.register_component(var, config)

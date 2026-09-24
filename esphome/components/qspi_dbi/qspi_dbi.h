@@ -3,18 +3,15 @@
 //
 #pragma once
 
-#ifdef USE_ESP_IDF
-#include "esphome/core/component.h"
+#if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S3)
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/components/display/display_color_utils.h"
-#include "esp_lcd_panel_ops.h"
 
 #include "esp_lcd_panel_rgb.h"
 
-namespace esphome {
-namespace qspi_dbi {
+namespace esphome::qspi_dbi {
 
 constexpr static const char *const TAG = "display.qspi_dbi";
 static const uint8_t SW_RESET_CMD = 0x01;
@@ -56,9 +53,9 @@ enum Model {
   RM67162,
 };
 
-class QspiDbi : public display::DisplayBuffer,
-                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                      spi::DATA_RATE_1MHZ> {
+class QspiDbi final : public display::DisplayBuffer,
+                      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                            spi::DATA_RATE_1MHZ> {
  public:
   void set_model(const char *model) { this->model_ = model; }
   void update() override;
@@ -105,6 +102,7 @@ class QspiDbi : public display::DisplayBuffer,
   int get_height_internal() override { return this->height_; }
   bool can_proceed() override { return this->setup_complete_; }
   void add_init_sequence(const std::vector<uint8_t> &sequence) { this->init_sequences_.push_back(sequence); }
+  void set_draw_rounding(unsigned rounding) { this->draw_rounding_ = rounding; }
 
  protected:
   void check_buffer_() {
@@ -161,6 +159,7 @@ class QspiDbi : public display::DisplayBuffer,
   bool mirror_x_{};
   bool mirror_y_{};
   bool draw_from_origin_{false};
+  unsigned draw_rounding_{2};
   uint8_t brightness_{0xD0};
   const char *model_{"Unknown"};
   std::vector<std::vector<uint8_t>> init_sequences_{};
@@ -168,6 +167,5 @@ class QspiDbi : public display::DisplayBuffer,
   esp_lcd_panel_handle_t handle_{};
 };
 
-}  // namespace qspi_dbi
-}  // namespace esphome
+}  // namespace esphome::qspi_dbi
 #endif

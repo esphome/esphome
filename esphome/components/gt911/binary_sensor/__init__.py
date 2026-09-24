@@ -1,10 +1,11 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_INDEX
+from esphome.types import ConfigType
 
 from .. import gt911_ns
-from ..touchscreen import GT911Touchscreen, GT911ButtonListener
+from ..touchscreen import GT911ButtonListener, GT911Touchscreen
 
 CONF_GT911_ID = "gt911_id"
 
@@ -24,7 +25,7 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(GT911Button).extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_GT911_ID])

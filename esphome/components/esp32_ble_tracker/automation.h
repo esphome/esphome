@@ -3,14 +3,16 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
+#include <vector>
+
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace esp32_ble_tracker {
-class ESPBTAdvertiseTrigger : public Trigger<const ESPBTDevice &>, public ESPBTDeviceListener {
+namespace esphome::esp32_ble_tracker {
+#ifdef USE_ESP32_BLE_DEVICE
+class ESPBTAdvertiseTrigger final : public Trigger<const ESPBTDevice &>, public ESPBTDeviceListener {
  public:
   explicit ESPBTAdvertiseTrigger(ESP32BLETracker *parent) { parent->register_listener(this); }
-  void set_addresses(const std::vector<uint64_t> &addresses) { this->address_vec_ = addresses; }
+  void set_addresses(std::initializer_list<uint64_t> addresses) { this->address_vec_ = addresses; }
 
   bool parse_device(const ESPBTDevice &device) override {
     uint64_t u64_addr = device.address_uint64();
@@ -28,7 +30,7 @@ class ESPBTAdvertiseTrigger : public Trigger<const ESPBTDevice &>, public ESPBTD
   std::vector<uint64_t> address_vec_;
 };
 
-class BLEServiceDataAdvertiseTrigger : public Trigger<const adv_data_t &>, public ESPBTDeviceListener {
+class BLEServiceDataAdvertiseTrigger final : public Trigger<const adv_data_t &>, public ESPBTDeviceListener {
  public:
   explicit BLEServiceDataAdvertiseTrigger(ESP32BLETracker *parent) { parent->register_listener(this); }
   void set_address(uint64_t address) { this->address_ = address; }
@@ -54,7 +56,7 @@ class BLEServiceDataAdvertiseTrigger : public Trigger<const adv_data_t &>, publi
   ESPBTUUID uuid_;
 };
 
-class BLEManufacturerDataAdvertiseTrigger : public Trigger<const adv_data_t &>, public ESPBTDeviceListener {
+class BLEManufacturerDataAdvertiseTrigger final : public Trigger<const adv_data_t &>, public ESPBTDeviceListener {
  public:
   explicit BLEManufacturerDataAdvertiseTrigger(ESP32BLETracker *parent) { parent->register_listener(this); }
   void set_address(uint64_t address) { this->address_ = address; }
@@ -80,33 +82,18 @@ class BLEManufacturerDataAdvertiseTrigger : public Trigger<const adv_data_t &>, 
   ESPBTUUID uuid_;
 };
 
-class BLEEndOfScanTrigger : public Trigger<>, public ESPBTDeviceListener {
+#endif  // USE_ESP32_BLE_DEVICE
+
+class BLEEndOfScanTrigger final : public Trigger<>, public ESPBTDeviceListener {
  public:
   explicit BLEEndOfScanTrigger(ESP32BLETracker *parent) { parent->register_listener(this); }
 
+#ifdef USE_ESP32_BLE_DEVICE
   bool parse_device(const ESPBTDevice &device) override { return false; }
+#endif
   void on_scan_end() override { this->trigger(); }
 };
 
-template<typename... Ts> class ESP32BLEStartScanAction : public Action<Ts...> {
- public:
-  ESP32BLEStartScanAction(ESP32BLETracker *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(bool, continuous)
-  void play(Ts... x) override {
-    this->parent_->set_scan_continuous(this->continuous_.value(x...));
-    this->parent_->start_scan();
-  }
-
- protected:
-  ESP32BLETracker *parent_;
-};
-
-template<typename... Ts> class ESP32BLEStopScanAction : public Action<Ts...>, public Parented<ESP32BLETracker> {
- public:
-  void play(Ts... x) override { this->parent_->stop_scan(); }
-};
-
-}  // namespace esp32_ble_tracker
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_tracker
 
 #endif

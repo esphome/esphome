@@ -1,12 +1,4 @@
-i2c:
-  - id: i2c_xgzp68xx
-    scl: 16
-    sda: 17
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
 
-sensor:
-  - platform: xgzp68xx
-    k_value: 4096
-    temperature:
-      name: Pressure Temperature
-    pressure:
-      name: Differential pressure
+<<: !include common.yaml

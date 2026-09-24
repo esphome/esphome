@@ -1,19 +1,17 @@
 import logging
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
-from .. import (
-    BEDJET_CLIENT_SCHEMA,
-    bedjet_ns,
-    register_bedjet_child,
-)
+from esphome.types import ConfigType
+
+from .. import BEDJET_CLIENT_SCHEMA, bedjet_ns, register_bedjet_child
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@jhansche", "@javawizard"]
@@ -41,7 +39,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(BEDJET_CLIENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await register_bedjet_child(var, config)

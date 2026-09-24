@@ -1,8 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL
-from . import cap1188_ns, CAP1188Component, CONF_CAP1188_ID
+from esphome.types import ConfigType
+
+from . import CONF_CAP1188_ID, CAP1188Component, cap1188_ns
 
 DEPENDENCIES = ["cap1188"]
 CAP1188Channel = cap1188_ns.class_("CAP1188Channel", binary_sensor.BinarySensor)
@@ -15,7 +17,7 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(CAP1188Channel).extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     hub = await cg.get_variable(config[CONF_CAP1188_ID])
     cg.add(var.set_channel(config[CONF_CHANNEL]))

@@ -5,41 +5,175 @@ Constants already defined in esphome.const are not duplicated here and must be i
 """
 
 import logging
+from typing import Any
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_ITEMS
-from esphome.core import ID, Lambda
-from esphome.cpp_generator import LambdaExpression, MockObj
-from esphome.cpp_types import uint32
+from esphome.core import CORE, ID, Lambda
+from esphome.cpp_generator import MockObj, StaticCastExpression, call_lambda
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
-
-from .helpers import requires_component
+from esphome.types import Expression, SafeExpType
 
 LOGGER = logging.getLogger(__name__)
-lvgl_ns = cg.esphome_ns.namespace("lvgl")
 
-lv_defines = {}  # Dict of #defines to provide as build flags
+DOMAIN = "lvgl"
+KEY_COLOR_FORMATS = "color_formats"
+KEY_ESPHOME_FONTS_USED = "esphome_fonts_used"
+KEY_FOCUSED_WIDGETS = "focused_widgets"
+KEY_LV_DEFINES = "lv_defines"
+KEY_LV_FONTS_USED = "lv_fonts_used"
+KEY_LV_IMAGES_USED = "lv_images_used"
+KEY_LV_USES = "lv_uses"
+KEY_NAMED_STYLES = "named_styles"
+KEY_REFRESHED_WIDGETS = "refreshed_widgets"
+KEY_REMAPPED_USES = "remapped_uses"
+KEY_STYLES_USED = "styles_used"
+KEY_THEME_UPDATE_REQUESTS = "theme_update_requests"
+KEY_THEME_WIDGET_MAP = "theme_widget_map"
+KEY_UPDATED_WIDGETS = "updated_widgets"
+KEY_WIDGET_MAP = "widget_map"
+KEY_WIDGETS_COMPLETED = "widgets_completed"
+KEY_OPTIONS = "options"
+KEY_WARNINGS = "warnings"
+
+# Initial set of LVGL features that are always enabled.
+_INITIAL_LV_USES = frozenset(
+    {
+        "USER_DATA",
+        "LOG",
+        "STYLE",
+        "FONT_PLACEHOLDER",
+        "THEME_DEFAULT",
+    }
+)
 
 
-def add_define(macro, value="1"):
-    if macro in lv_defines and lv_defines[macro] != value:
+# These collections accumulate state across a single compilation run.  They
+# are stored under ``CORE.data`` (which ``CORE.reset()`` clears between runs)
+# rather than as module-level globals, otherwise they would leak between
+# successive compilations / unit tests.
+
+
+def _get_data(key: str, default: Any) -> Any:
+    """
+    Get a data structure from the global data store by key
+    :param key: A key for the data
+    :param default: The default data
+    :return:
+    """
+    return CORE.data.setdefault(DOMAIN, {}).setdefault(key, default)
+
+
+def get_lv_images_used() -> set[ID]:
+    return _get_data(KEY_LV_IMAGES_USED, set())
+
+
+def get_lv_uses() -> set[str]:
+    return _get_data(KEY_LV_USES, set(_INITIAL_LV_USES))
+
+
+def get_lv_fonts_used() -> set[str]:
+    return _get_data(KEY_LV_FONTS_USED, set())
+
+
+def get_esphome_fonts_used() -> set[ID]:
+    return _get_data(KEY_ESPHOME_FONTS_USED, set())
+
+
+def add_lv_use(*names: str) -> None:
+    uses = get_lv_uses()
+    for name in names:
+        uses.add(name)
+
+
+def get_warnings() -> set[str]:
+    return _get_data(KEY_WARNINGS, set())
+
+
+def get_remapped_uses() -> set[str]:
+    return _get_data(KEY_REMAPPED_USES, set())
+
+
+def add_warning(msg: str) -> None:
+    get_warnings().add(msg)
+
+
+def get_options() -> dict[str, Any]:
+    return _get_data(KEY_OPTIONS, {})
+
+
+def get_defines() -> dict[str, str]:
+    return _get_data(KEY_LV_DEFINES, {})
+
+
+def get_updated_widgets() -> dict:
+    return _get_data(KEY_UPDATED_WIDGETS, {})
+
+
+def get_theme_widget_map() -> dict[str, Any]:
+    return _get_data(KEY_THEME_WIDGET_MAP, {})
+
+
+def get_theme_update_requests() -> dict[str, dict[tuple[str, str], None]]:
+    # Values are dicts used as ordered sets (insertion order is deterministic,
+    # unlike a plain `set` of strings/tuples, whose iteration order depends on
+    # per-process string hash randomization) so codegen output doesn't churn
+    # between builds of the same config.
+    return _get_data(KEY_THEME_UPDATE_REQUESTS, {})
+
+
+def get_styles_used() -> set[str]:
+    return _get_data(KEY_STYLES_USED, set())
+
+
+def get_widget_map() -> dict[str, Any]:
+    return _get_data(KEY_WIDGET_MAP, {})
+
+
+def get_widgets_completed() -> bool:
+    # ``[value]`` rather than the bare value so that we can mutate the
+    # entry in place; ``CORE.data`` is reset for us between runs.
+    return _get_data(KEY_WIDGETS_COMPLETED, [False])[0]
+
+
+def set_widgets_completed(value: bool) -> None:
+    _get_data(KEY_WIDGETS_COMPLETED, [False])[0] = value
+
+
+def is_widget_completed(name: ID) -> bool:
+    return name in get_widget_map()
+
+
+def get_focused_widgets() -> set:
+    return _get_data(KEY_FOCUSED_WIDGETS, set())
+
+
+def get_refreshed_widgets() -> set:
+    return _get_data(KEY_REFRESHED_WIDGETS, set())
+
+
+def add_define(macro: str, value="1"):
+    lv_defines = get_defines()
+    value = str(value)
+    if lv_defines.setdefault(macro, value) != value:
         LOGGER.error(
             "Redefinition of %s - was %s now %s", macro, lv_defines[macro], value
         )
     lv_defines[macro] = value
 
 
-def literal(arg):
+def is_defined(macro) -> bool:
+    return macro in get_defines()
+
+
+def literal(arg) -> MockObj:
     if isinstance(arg, str):
         return MockObj(arg)
     return arg
 
 
-def call_lambda(lamb: LambdaExpression):
-    expr = lamb.content.strip()
-    if expr.startswith("return") and expr.endswith(";"):
-        return expr[6:][:-1].strip()
-    return f"{lamb}()"
+def addr(arg) -> MockObj:
+    return MockObj(f"&{arg}")
 
 
 class LValidator:
@@ -48,28 +182,43 @@ class LValidator:
     has `process()` to convert a value during code generation
     """
 
-    def __init__(self, validator, rtype, retmapper=None, requires=None):
+    def __init__(
+        self, validator, rtype: MockObj, retmapper=None, requires=None, animatable=False
+    ):
         self.validator = validator
         self.rtype = rtype
         self.retmapper = retmapper
         self.requires = requires
+        self.animatable = animatable
 
     def __call__(self, value):
         if self.requires:
-            value = requires_component(self.requires)(value)
+            value = cv.requires_component(self.requires)(value)
         if isinstance(value, cv.Lambda):
             return cv.returning_lambda(value)
         return self.validator(value)
 
-    async def process(self, value, args=()):
+    async def process(
+        self,
+        value: Any,
+        args: list[tuple[SafeExpType, str]] | None = None,
+        raw_lambda: bool = False,
+    ) -> Expression:
         if value is None:
             return None
         if isinstance(value, Lambda):
-            return cg.RawExpression(
-                call_lambda(
-                    await cg.process_lambda(value, args, return_type=self.rtype)
-                )
-            )
+            # Local import to avoid circular import
+            from .lvcode import get_lambda_context_args
+
+            # `args is None` means "inherit the enclosing lambda context"; an explicit
+            # empty list means "no parameters" and must be preserved as-is.
+            if args is None:
+                args = get_lambda_context_args()
+
+            lamb = await cg.process_lambda(value, args, return_type=self.rtype)
+            if raw_lambda:
+                return lamb
+            return call_lambda(lamb)
         if self.retmapper is not None:
             return self.retmapper(value)
         if isinstance(value, ID):
@@ -78,6 +227,8 @@ class LValidator:
             value = [
                 await cg.get_variable(x) if isinstance(x, ID) else x for x in value
             ]
+        if self.rtype is cg.int_:
+            value = int(value)
         return cg.safe_exp(value)
 
 
@@ -88,10 +239,11 @@ class LvConstant(LValidator):
     The property `one_of` has the single case validator, and `several_of` allows a list of constants.
     """
 
-    def __init__(self, prefix: str, *choices):
+    def __init__(self, prefix: str, *choices, typename=None):
         self.prefix = prefix
-        self.choices = choices
-        prefixed_choices = [prefix + v for v in choices]
+        self.choices = tuple(x.upper() for x in choices)
+        self.typename = typename or prefix.lower() + "t"
+        prefixed_choices = [prefix + v.upper() for v in choices]
         prefixed_validator = cv.one_of(*prefixed_choices, upper=True)
 
         @schema_extractor("one_of")
@@ -102,24 +254,30 @@ class LvConstant(LValidator):
                 return prefixed_validator(value)
             return self.prefix + cv.one_of(*choices, upper=True)(value)
 
-        super().__init__(validator, rtype=uint32)
+        super().__init__(validator, rtype=cg.uint32)
         self.retmapper = self.mapper
-        self.one_of = LValidator(validator, uint32, retmapper=self.mapper)
+        self.one_of = LValidator(validator, cg.uint32, retmapper=self.mapper)
         self.several_of = LValidator(
-            cv.ensure_list(self.one_of), uint32, retmapper=self.mapper
+            cv.ensure_list(self.one_of), cg.uint32, retmapper=self.mapper
         )
 
-    def mapper(self, value):
+    def mapper(self, value) -> Any:
         if not isinstance(value, list):
             value = [value]
-        return literal(
-            "|".join(
-                [
-                    str(v) if str(v).startswith(self.prefix) else self.prefix + str(v)
-                    for v in value
-                ]
-            ).upper()
-        )
+        value = [
+            (
+                str(v).upper()
+                if str(v).startswith(self.prefix)
+                else self.prefix + str(v).upper()
+            )
+            for v in value
+        ]
+        if len(value) == 1:
+            return literal(value[0])
+        value = literal("|".join(value))
+        if self.typename is None:
+            return value
+        return StaticCastExpression(self.typename, value)
 
     def extend(self, *choices):
         """
@@ -127,7 +285,14 @@ class LvConstant(LValidator):
         :param choices: The extra choices
         :return: A new LVConstant instance
         """
-        return LvConstant(self.prefix, *(self.choices + choices))
+        return LvConstant(
+            self.prefix, *(self.choices + choices), typename=self.typename
+        )
+
+    def __getattr__(self, item):
+        if item.upper() not in self.choices:
+            raise AttributeError(f"{item} not one of {self.choices}")
+        return self.mapper(item)
 
 
 # Parts
@@ -146,7 +311,9 @@ TYPE_FLEX = "flex"
 TYPE_GRID = "grid"
 TYPE_NONE = "none"
 
-LV_FONTS = list(f"montserrat_{s}" for s in range(8, 50, 2)) + [
+DIRECTIONS = LvConstant("LV_DIR_", "LEFT", "RIGHT", "BOTTOM", "TOP")
+
+LV_FONTS = [f"montserrat_{s}" for s in range(8, 50, 2)] + [
     "dejavu_16_persian_hebrew",
     "simsun_16_cjk",
     "unscii_8",
@@ -154,28 +321,108 @@ LV_FONTS = list(f"montserrat_{s}" for s in range(8, 50, 2)) + [
 ]
 
 LV_EVENT_MAP = {
-    "PRESS": "PRESSED",
-    "SHORT_CLICK": "SHORT_CLICKED",
+    "ALL_EVENTS": "ALL",
+    "CANCEL": "CANCEL",
+    "CHANGE": "VALUE_CHANGED",
+    "CHILD_CHANGE": "CHILD_CHANGED",
+    "CHILD_CREATE": "CHILD_CREATED",
+    "CHILD_DELETE": "CHILD_DELETED",
+    "CLICK": "CLICKED",
+    "COLOR_FORMAT_CHANGE": "COLOR_FORMAT_CHANGED",
+    "COVER_CHECK": "COVER_CHECK",
+    "CREATE": "CREATE",
+    "DEFOCUS": "DEFOCUSED",
+    "DELETE": "DELETE",
+    "DOUBLE_CLICK": "DOUBLE_CLICKED",
+    "DRAW_MAIN": "DRAW_MAIN",
+    "DRAW_MAIN_BEGIN": "DRAW_MAIN_BEGIN",
+    "DRAW_MAIN_END": "DRAW_MAIN_END",
+    "DRAW_POST": "DRAW_POST",
+    "DRAW_POST_BEGIN": "DRAW_POST_BEGIN",
+    "DRAW_POST_END": "DRAW_POST_END",
+    "DRAW_TASK_ADD": "DRAW_TASK_ADDED",
+    "FOCUS": "FOCUSED",
+    "GESTURE": "GESTURE",
+    "GET_SELF_SIZE": "GET_SELF_SIZE",
+    "HIT_TEST": "HIT_TEST",
+    "HOVER_LEAVE": "HOVER_LEAVE",
+    "HOVER_OVER": "HOVER_OVER",
+    "INDEV_RESET": "INDEV_RESET",
+    "INSERT": "INSERT",
+    "INVALIDATE_AREA": "INVALIDATE_AREA",
+    "KEY": "KEY",
+    "LAYOUT_CHANGE": "LAYOUT_CHANGED",
+    "LEAVE": "LEAVE",
     "LONG_PRESS": "LONG_PRESSED",
     "LONG_PRESS_REPEAT": "LONG_PRESSED_REPEAT",
-    "CLICK": "CLICKED",
+    "PRESS": "PRESSED",
+    "PRESS_LOST": "PRESS_LOST",
+    "PRESSING": "PRESSING",
+    "READY": "READY",
+    "REFRESH": "REFRESH",
+    "REFR_EXT_DRAW_SIZE": "REFR_EXT_DRAW_SIZE",
     "RELEASE": "RELEASED",
+    "ROTARY": "ROTARY",
+    "SCROLL": "SCROLL",
     "SCROLL_BEGIN": "SCROLL_BEGIN",
     "SCROLL_END": "SCROLL_END",
-    "SCROLL": "SCROLL",
-    "FOCUS": "FOCUSED",
-    "DEFOCUS": "DEFOCUSED",
-    "READY": "READY",
-    "CANCEL": "CANCEL",
-    "ALL_EVENTS": "ALL",
-    "CHANGE": "VALUE_CHANGED",
+    "SCROLL_THROW_BEGIN": "SCROLL_THROW_BEGIN",
+    "SHORT_CLICK": "SHORT_CLICKED",
+    "SINGLE_CLICK": "SINGLE_CLICKED",
+    "SIZE_CHANGE": "SIZE_CHANGED",
+    "STATE_CHANGE": "STATE_CHANGED",
+    "STYLE_CHANGE": "STYLE_CHANGED",
+    "TRIPLE_CLICK": "TRIPLE_CLICKED",
+}
+
+LV_PRESS_EVENTS = ("PRESS", "PRESSING", "RELEASE")
+
+VALUE_ON_CHANGE = "on_change"
+VALUE_ON_UPDATE = "on_update"
+VALUE_ON_VALUE = "on_value"
+VALUE_ON_RELEASE = "on_release"
+
+LV_VALUE_EVENTS = (VALUE_ON_CHANGE, VALUE_ON_UPDATE, VALUE_ON_VALUE, VALUE_ON_RELEASE)
+
+
+def is_press_event(event: str) -> bool:
+    return event.removeprefix("on_").upper() in LV_PRESS_EVENTS
+
+
+LV_SCREEN_EVENT_MAP = {
+    "SCREEN_LOAD": "SCREEN_LOADED",
+    "SCREEN_LOAD_START": "SCREEN_LOAD_START",
+    "SCREEN_UNLOAD": "SCREEN_UNLOADED",
+    "SCREEN_UNLOAD_START": "SCREEN_UNLOAD_START",
+}
+
+LV_DISPLAY_EVENT_MAP = {
+    "FLUSH_FINISH": "FLUSH_FINISH",
+    "FLUSH_START": "FLUSH_START",
+    "FLUSH_WAIT_FINISH": "FLUSH_WAIT_FINISH",
+    "FLUSH_WAIT_START": "FLUSH_WAIT_START",
+    "REFR_READY": "REFR_READY",
+    "REFR_REQUEST": "REFR_REQUEST",
+    "REFR_START": "REFR_START",
+    "RENDER_READY": "RENDER_READY",
+    "RENDER_START": "RENDER_START",
+    "RESOLUTION_CHANGE": "RESOLUTION_CHANGED",
+    "UPDATE_LAYOUT_COMPLETE": "UPDATE_LAYOUT_COMPLETED",
+    "VSYNC": "VSYNC",
+    "VSYNC_REQUEST": "VSYNC_REQUEST",
 }
 
 LV_EVENT_TRIGGERS = tuple(f"on_{x.lower()}" for x in LV_EVENT_MAP)
+LV_DISPLAY_EVENT_TRIGGERS = tuple(f"on_{x.lower()}" for x in LV_DISPLAY_EVENT_MAP)
+LV_SCREEN_EVENT_TRIGGERS = tuple(f"on_{x.lower()}" for x in LV_SCREEN_EVENT_MAP)
+
+SWIPE_TRIGGERS = tuple(
+    f"on_swipe_{x.lower()}" for x in DIRECTIONS.choices + ("up", "down")
+)
 
 
 LV_ANIM = LvConstant(
-    "LV_SCR_LOAD_ANIM_",
+    "LV_SCREEN_LOAD_ANIM_",
     "NONE",
     "OVER_LEFT",
     "OVER_RIGHT",
@@ -195,6 +442,7 @@ LV_ANIM = LvConstant(
 
 LV_GRAD_DIR = LvConstant("LV_GRAD_DIR_", "NONE", "HOR", "VER")
 LV_DITHER = LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF")
+LV_GRAD_EXTEND = LvConstant("LV_GRAD_EXTEND_", "PAD", "REPEAT", "REFLECT")
 
 LV_LOG_LEVELS = {
     "VERBOSE": "TRACE",
@@ -215,7 +463,7 @@ LV_LONG_MODES = LvConstant(
 )
 
 STATES = (
-    "default",
+    # default state not included here
     "checked",
     "focused",
     "focus_key",
@@ -237,10 +485,12 @@ PARTS = (
     CONF_KNOB,
     CONF_SELECTED,
     CONF_ITEMS,
-    CONF_TICKS,
+    # CONF_TICKS,
     CONF_CURSOR,
     CONF_TEXTAREA_PLACEHOLDER,
 )
+
+LV_PART = LvConstant("LV_PART_", *(p.upper() for p in PARTS))
 
 KEYBOARD_MODES = LvConstant(
     "LV_KEYBOARD_MODE_",
@@ -250,8 +500,9 @@ KEYBOARD_MODES = LvConstant(
     "NUMBER",
 )
 ROLLER_MODES = LvConstant("LV_ROLLER_MODE_", "NORMAL", "INFINITE")
-DIRECTIONS = LvConstant("LV_DIR_", "LEFT", "RIGHT", "BOTTOM", "TOP")
 TILE_DIRECTIONS = DIRECTIONS.extend("HOR", "VER", "ALL")
+SCROLL_DIRECTIONS = TILE_DIRECTIONS.extend("NONE")
+SNAP_DIRECTIONS = LvConstant("LV_SCROLL_SNAP_", "NONE", "START", "END", "CENTER")
 CHILD_ALIGNMENTS = LvConstant(
     "LV_ALIGN_",
     "TOP_LEFT",
@@ -294,6 +545,21 @@ FLEX_FLOWS = LvConstant(
     "COLUMN_WRAP_REVERSE",
 )
 
+TRANSFORM_STYLE_PROPS = frozenset(
+    {"transform_rotation", "transform_scale", "transform_scale_x", "transform_scale_y"}
+)
+
+DROP_SHADOW_STYLE_PROPS = frozenset(
+    {
+        "drop_shadow_color",
+        "drop_shadow_offset_x",
+        "drop_shadow_offset_y",
+        "drop_shadow_opa",
+        "drop_shadow_quality",
+        "drop_shadow_radius",
+    }
+)
+
 OBJ_FLAGS = (
     "hidden",
     "clickable",
@@ -318,19 +584,18 @@ OBJ_FLAGS = (
     "overflow_visible",
     "layout_1",
     "layout_2",
+    "send_draw_task_events",
     "widget_1",
     "widget_2",
-    "user_1",
-    "user_2",
-    "user_3",
-    "user_4",
 )
+LV_OBJ_FLAG = LvConstant("LV_OBJ_FLAG_", *OBJ_FLAGS)
 
 ARC_MODES = LvConstant("LV_ARC_MODE_", "NORMAL", "REVERSE", "SYMMETRICAL")
 BAR_MODES = LvConstant("LV_BAR_MODE_", "NORMAL", "SYMMETRICAL", "RANGE")
+SLIDER_MODES = LvConstant("LV_SLIDER_MODE_", "NORMAL", "SYMMETRICAL", "RANGE")
 
 BUTTONMATRIX_CTRLS = LvConstant(
-    "LV_BTNMATRIX_CTRL_",
+    "LV_BUTTONMATRIX_CTRL_",
     "HIDDEN",
     "NO_REPEAT",
     "DISABLED",
@@ -367,6 +632,8 @@ LV_FLEX_ALIGNMENTS = LvConstant(
     "SPACE_BETWEEN",
 )
 
+LV_FLEX_CROSS_ALIGNMENTS = LV_FLEX_ALIGNMENTS.extend("STRETCH")
+
 LV_MENU_MODES = LvConstant(
     "LV_MENU_HEADER_",
     "TOP_FIXED",
@@ -391,37 +658,44 @@ CONF_ACCEPTED_CHARS = "accepted_chars"
 CONF_ADJUSTABLE = "adjustable"
 CONF_ALIGN = "align"
 CONF_ALIGN_TO = "align_to"
+CONF_ALIGN_TO_LAMBDA_ID = "align_to_lambda_id"
+CONF_ANGLE_RANGE = "angle_range"
 CONF_ANIMATED = "animated"
 CONF_ANIMATION = "animation"
+CONF_ANIMATIONS = "animations"
 CONF_ANTIALIAS = "antialias"
 CONF_ARC_LENGTH = "arc_length"
 CONF_AUTO_START = "auto_start"
 CONF_BACKGROUND_STYLE = "background_style"
+CONF_BG_OPA = "bg_opa"
+CONF_BOTTOM_LAYER = "bottom_layer"
 CONF_BUTTON_STYLE = "button_style"
 CONF_DECIMAL_PLACES = "decimal_places"
 CONF_COLUMN = "column"
 CONF_DIGITS = "digits"
 CONF_DISP_BG_COLOR = "disp_bg_color"
 CONF_DISP_BG_IMAGE = "disp_bg_image"
+CONF_DISP_BG_OPA = "disp_bg_opa"
 CONF_BODY = "body"
 CONF_BUTTONS = "buttons"
-CONF_BYTE_ORDER = "byte_order"
 CONF_CHANGE_RATE = "change_rate"
 CONF_CLOSE_BUTTON = "close_button"
 CONF_COLOR_DEPTH = "color_depth"
+CONF_COLOR_END = "color_end"
+CONF_COLOR_START = "color_start"
+CONF_CONTAINER = "container"
 CONF_CONTROL = "control"
-CONF_DEFAULT = "default"
 CONF_DEFAULT_FONT = "default_font"
 CONF_DEFAULT_GROUP = "default_group"
 CONF_DIR = "dir"
 CONF_DISPLAYS = "displays"
-CONF_DRAW_ROUNDING = "draw_rounding"
 CONF_EDITING = "editing"
 CONF_ENCODERS = "encoders"
 CONF_END_ANGLE = "end_angle"
 CONF_END_VALUE = "end_value"
 CONF_ENTER_BUTTON = "enter_button"
 CONF_ENTRIES = "entries"
+CONF_EXT_CLICK_AREA = "ext_click_area"
 CONF_FLAGS = "flags"
 CONF_FLEX_FLOW = "flex_flow"
 CONF_FLEX_ALIGN_MAIN = "flex_align_main"
@@ -429,6 +703,7 @@ CONF_FLEX_ALIGN_CROSS = "flex_align_cross"
 CONF_FLEX_ALIGN_TRACK = "flex_align_track"
 CONF_FLEX_GROW = "flex_grow"
 CONF_FREEZE = "freeze"
+CONF_DARK_MODE = "dark_mode"
 CONF_FULL_REFRESH = "full_refresh"
 CONF_GRADIENTS = "gradients"
 CONF_GRID_CELL_ROW_POS = "grid_cell_row_pos"
@@ -441,28 +716,36 @@ CONF_GRID_COLUMN_ALIGN = "grid_column_align"
 CONF_GRID_COLUMNS = "grid_columns"
 CONF_GRID_ROW_ALIGN = "grid_row_align"
 CONF_GRID_ROWS = "grid_rows"
+CONF_HEADER_BUTTONS = "header_buttons"
 CONF_HEADER_MODE = "header_mode"
 CONF_HOME = "home"
+CONF_IMAGE = "image"
+CONF_INDICATORS = "indicators"
 CONF_INITIAL_FOCUS = "initial_focus"
+CONF_SELECTED_DIGIT = "selected_digit"
 CONF_KEY_CODE = "key_code"
 CONF_KEYPADS = "keypads"
 CONF_LAYOUT = "layout"
 CONF_LEFT_BUTTON = "left_button"
 CONF_LINE_WIDTH = "line_width"
-CONF_LOG_LEVEL = "log_level"
 CONF_LONG_PRESS_TIME = "long_press_time"
 CONF_LONG_PRESS_REPEAT_TIME = "long_press_repeat_time"
 CONF_LVGL_ID = "lvgl_id"
 CONF_LONG_MODE = "long_mode"
+CONF_MAJOR_TICKS_STYLE = "major_ticks_style"
+CONF_MAPPING = "mapping"
 CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
-CONF_OFFSET_X = "offset_x"
-CONF_OFFSET_Y = "offset_y"
 CONF_ONE_CHECKED = "one_checked"
 CONF_ONE_LINE = "one_line"
+CONF_ON_DRAW_START = "on_draw_start"
+CONF_ON_DRAW_END = "on_draw_end"
+CONF_ON_LANDSCAPE = "on_landscape"
 CONF_ON_PAUSE = "on_pause"
+CONF_ON_PORTRAIT = "on_portrait"
 CONF_ON_RESUME = "on_resume"
 CONF_ON_SELECT = "on_select"
+CONF_ON_STOP = "on_stop"
 CONF_OPA = "opa"
 CONF_NEXT = "next"
 CONF_PAD_ROW = "pad_row"
@@ -470,11 +753,14 @@ CONF_PAD_COLUMN = "pad_column"
 CONF_PAGE = "page"
 CONF_PAGE_WRAP = "page_wrap"
 CONF_PASSWORD_MODE = "password_mode"
+CONF_PAUSED = "paused"
 CONF_PIVOT_X = "pivot_x"
 CONF_PIVOT_Y = "pivot_y"
 CONF_PLACEHOLDER_TEXT = "placeholder_text"
 CONF_POINTS = "points"
 CONF_PREVIOUS = "previous"
+CONF_RADIUS = "radius"
+CONF_REFRESH_INTERVAL = "refresh_interval"
 CONF_REPEAT_COUNT = "repeat_count"
 CONF_RECOLOR = "recolor"
 CONF_RESUME_ON_INPUT = "resume_on_input"
@@ -482,8 +768,12 @@ CONF_RIGHT_BUTTON = "right_button"
 CONF_ROLLOVER = "rollover"
 CONF_ROOT_BACK_BTN = "root_back_btn"
 CONF_ROWS = "rows"
+CONF_SCALE = "scale"
 CONF_SCALE_LINES = "scale_lines"
 CONF_SCROLLBAR_MODE = "scrollbar_mode"
+CONF_SCROLL_DIR = "scroll_dir"
+CONF_SCROLL_SNAP_X = "scroll_snap_x"
+CONF_SCROLL_SNAP_Y = "scroll_snap_y"
 CONF_SELECTED_INDEX = "selected_index"
 CONF_SELECTED_TEXT = "selected_text"
 CONF_SHOW_SNOW = "show_snow"
@@ -492,6 +782,7 @@ CONF_SRC = "src"
 CONF_START_ANGLE = "start_angle"
 CONF_START_VALUE = "start_value"
 CONF_STATES = "states"
+CONF_STRIDE = "stride"
 CONF_STYLE = "style"
 CONF_STYLES = "styles"
 CONF_STYLE_DEFINITIONS = "style_definitions"
@@ -500,6 +791,8 @@ CONF_SKIP = "skip"
 CONF_SYMBOL = "symbol"
 CONF_TAB_ID = "tab_id"
 CONF_TABS = "tabs"
+CONF_THEME = "theme"
+CONF_TICK_STYLE = "tick_style"
 CONF_TIME_FORMAT = "time_format"
 CONF_TILE = "tile"
 CONF_TILE_ID = "tile_id"
@@ -507,14 +800,15 @@ CONF_TILES = "tiles"
 CONF_TITLE = "title"
 CONF_TOP_LAYER = "top_layer"
 CONF_TOUCHSCREENS = "touchscreens"
+CONF_TRANSFORM_ROTATION = "transform_rotation"
+CONF_TRANSFORM_SCALE = "transform_scale"
 CONF_TRANSPARENCY_KEY = "transparency_key"
-CONF_THEME = "theme"
+CONF_TRIGGER = "trigger"
 CONF_UPDATE_ON_RELEASE = "update_on_release"
+CONF_UPDATE_WHEN_DISPLAY_IDLE = "update_when_display_idle"
 CONF_VISIBLE_ROW_COUNT = "visible_row_count"
 CONF_WIDGET = "widget"
 CONF_WIDGETS = "widgets"
-CONF_X = "x"
-CONF_Y = "y"
 CONF_ZOOM = "zoom"
 
 # Keypad keys
@@ -535,6 +829,16 @@ LV_KEYS = LvConstant(
     "END",
 )
 
+LV_SCALE_MODE = LvConstant(
+    "LV_SCALE_MODE_",
+    "HORIZONTAL_TOP",
+    "HORIZONTAL_BOTTOM",
+    "VERTICAL_LEFT",
+    "VERTICAL_RIGHT",
+    "ROUND_INNER",
+    "ROUND_OUTER",
+)
+
 
 DEFAULT_ESPHOME_FONT = "esphome_lv_default_font"
 
@@ -547,3 +851,29 @@ def join_enums(enums, prefix=""):
     if prefix:
         return literal("|".join(f"{prefix}{e.upper()}" for e in enums))
     return literal("|".join(f"(int){e.upper()}" for e in enums))
+
+
+# fmt: off
+LV_COLOR_FORMATS = (
+    "RGB565", "SWAPPED", "RGB565A8", "RGB888", "XRGB8888", "ARGB8888", "PREMULTIPLIED", "L8", "AL88", "A8", "I1",
+)
+
+LV_DEFINES = (
+    "LV_USE_FREERTOS_TASK_NOTIFY", "LV_DRAW_BUF_STRIDE_ALIGN", "LV_USE_DRAW_SW", "LV_DRAW_SW_DRAW_UNIT_CNT",
+    "LV_DRAW_SW_COMPLEX", "LV_USE_DRAW_SW_COMPLEX_GRADIENTS", "LV_USE_DRAW_PXP", "LV_USE_PXP_DRAW_THREAD", "LV_USE_DRAW_G2D",
+    "LV_USE_G2D_DRAW_THREAD", "LV_VG_LITE_USE_BOX_SHADOW", "LV_VG_LITE_THORVG_16PIXELS_ALIGN", "LV_LOG_USE_TIMESTAMP",
+    "LV_LOG_USE_FILE_LINE", "LV_USE_OBJ_ID_BUILTIN", "LV_USE_OBJ_PROPERTY_NAME", "LV_ATTRIBUTE_MEM_ALIGN_SIZE",
+    "LV_FONT_MONTSERRAT_14", "LV_USE_FONT_PLACEHOLDER", "LV_WIDGETS_HAS_DEFAULT_VALUE", "LV_USE_ARCLABEL",
+    "LV_USE_CALENDAR", "LV_USE_CALENDAR_HEADER_ARROW", "LV_USE_CALENDAR_HEADER_DROPDOWN", "LV_USE_CHART",
+    "LV_USE_LIST", "LV_USE_MENU", "LV_USE_MSGBOX", "LV_USE_SCALE",
+    "LV_USE_TABLE", "LV_USE_SPAN", "LV_USE_WIN", "LV_USE_THEME_DEFAULT",
+    "LV_THEME_DEFAULT_GROW", "LV_USE_THEME_SIMPLE", "LV_USE_THEME_MONO", "LV_USE_FLEX",
+    "LV_USE_GRID", "LV_USE_PROFILER_BUILTIN", "LV_PROFILER_BUILTIN_DEFAULT_ENABLE", "LV_PROFILER_LAYOUT",
+    "LV_PROFILER_REFR", "LV_PROFILER_DRAW", "LV_PROFILER_INDEV", "LV_PROFILER_DECODER",
+    "LV_PROFILER_FONT", "LV_PROFILER_FS", "LV_PROFILER_TIMER", "LV_PROFILER_CACHE",
+    "LV_PROFILER_EVENT", "LV_USE_OBSERVER", "LV_IME_PINYIN_USE_DEFAULT_DICT", "LV_IME_PINYIN_USE_K9_MODE",
+    "LV_FILE_EXPLORER_QUICK_ACCESS", "LV_TEST_SCREENSHOT_CREATE_REFERENCE_IMAGE", "LV_LINUX_FBDEV_MMAP",
+    "LV_USE_NUTTX_MOUSE_MOVE_STEP", "LV_USE_GENERIC_MIPI", "LV_BUILD_EXAMPLES", "LV_BUILD_DEMOS",
+    "LV_WAYLAND_USE_EGL", "LV_WAYLAND_USE_G2D", "LV_WAYLAND_USE_SHM", "LV_LINUX_DRM_USE_EGL",
+    "LV_USE_LZ4", "LV_USE_THORVG", "LV_SDL_USE_EGL", "LV_USE_EGL", "LV_LABEL_LONG_TXT_HINT", "LV_LABEL_TEXT_SELECTION",
+) + tuple(f"LV_DRAW_SW_SUPPORT_{f}" for f in LV_COLOR_FORMATS)

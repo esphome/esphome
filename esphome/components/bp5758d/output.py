@@ -1,7 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import output
-from esphome.const import CONF_CHANNEL, CONF_ID, CONF_CURRENT
+import esphome.config_validation as cv
+from esphome.const import CONF_CHANNEL, CONF_CURRENT, CONF_ID
+from esphome.types import ConfigType
+
 from . import BP5758D
 
 DEPENDENCIES = ["bp5758d"]
@@ -19,7 +21,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await output.register_output(var, config)
 

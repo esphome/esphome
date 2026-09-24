@@ -3,10 +3,9 @@
 #include "gpio_arduino.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace libretiny {
+namespace esphome::libretiny {
 
-static const char *const TAG = "lt.gpio";
+static const char *const TAG = "libretiny.gpio";
 
 static int IRAM_ATTR flags_to_mode(gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT) {
@@ -63,10 +62,8 @@ void ArduinoInternalGPIOPin::pin_mode(gpio::Flags flags) {
   pinMode(pin_, flags_to_mode(flags));  // NOLINT
 }
 
-std::string ArduinoInternalGPIOPin::dump_summary() const {
-  char buffer[32];
-  snprintf(buffer, sizeof(buffer), "%u", pin_);
-  return buffer;
+size_t ArduinoInternalGPIOPin::dump_summary(char *buffer, size_t len) const {
+  return snprintf(buffer, len, "%u", this->pin_);
 }
 
 bool ArduinoInternalGPIOPin::digital_read() {
@@ -79,7 +76,9 @@ void ArduinoInternalGPIOPin::detach_interrupt() const {
   detachInterrupt(pin_);  // NOLINT
 }
 
-}  // namespace libretiny
+}  // namespace esphome::libretiny
+
+namespace esphome {
 
 using namespace libretiny;
 

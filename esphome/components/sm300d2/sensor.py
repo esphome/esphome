@@ -1,31 +1,32 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, uart
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_CO2,
     CONF_FORMALDEHYDE,
-    CONF_TVOC,
+    CONF_HUMIDITY,
+    CONF_ID,
     CONF_PM_2_5,
     CONF_PM_10_0,
     CONF_TEMPERATURE,
-    CONF_HUMIDITY,
+    CONF_TVOC,
     DEVICE_CLASS_CARBON_DIOXIDE,
-    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
-    DEVICE_CLASS_PM25,
-    DEVICE_CLASS_PM10,
-    DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_HUMIDITY,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
-    UNIT_MICROGRAMS_PER_CUBIC_METER,
-    UNIT_CELSIUS,
-    UNIT_PERCENT,
-    ICON_MOLECULE_CO2,
-    ICON_FLASK,
+    DEVICE_CLASS_PM10,
+    DEVICE_CLASS_PM25,
+    DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     ICON_CHEMICAL_WEAPON,
+    ICON_FLASK,
     ICON_GRAIN,
+    ICON_MOLECULE_CO2,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
+    UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_PARTS_PER_MILLION,
+    UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 
@@ -88,8 +89,12 @@ CONFIG_SCHEMA = cv.All(
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "sm300d2", baud_rate=9600, require_rx=True, data_bits=8, parity="NONE", stop_bits=1
+)
 
-async def to_code(config):
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

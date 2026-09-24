@@ -1,14 +1,14 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import climate_ir
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
     CONF_PROTOCOL,
     CONF_VISUAL,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@rob-deutsch"]
 
@@ -53,6 +53,7 @@ PROTOCOLS = {
     "mitsubishi_sez": Protocol.PROTOCOL_MITSUBISHI_SEZ,
     "panasonic_ckp": Protocol.PROTOCOL_PANASONIC_CKP,
     "panasonic_dke": Protocol.PROTOCOL_PANASONIC_DKE,
+    "panasonic_eke": Protocol.PROTOCOL_PANASONIC_EKE,
     "panasonic_jke": Protocol.PROTOCOL_PANASONIC_JKE,
     "panasonic_lke": Protocol.PROTOCOL_PANASONIC_LKE,
     "panasonic_nke": Protocol.PROTOCOL_PANASONIC_NKE,
@@ -70,6 +71,7 @@ PROTOCOLS = {
     "airway": Protocol.PROTOCOL_AIRWAY,
     "bgh_aud": Protocol.PROTOCOL_BGH_AUD,
     "panasonic_altdke": Protocol.PROTOCOL_PANASONIC_ALTDKE,
+    "philco_phs32": Protocol.PROTOCOL_PHILCO_PHS32,
     "vaillantvai8": Protocol.PROTOCOL_VAILLANTVAI8,
     "r51m": Protocol.PROTOCOL_R51M,
 }
@@ -96,10 +98,21 @@ VERTICAL_DIRECTIONS = {
     "down": VerticalDirections.VERTICAL_DIRECTION_DOWN,
 }
 
+
+def _default_visual(config: ConfigType) -> ConfigType:
+    # Seed the visual min/max from the required min/max_temperature so the entity
+    # reports the configured range in Home Assistant instead of the ClimateIR
+    # 0-100 default. Done during validation so the effective range is visible in
+    # the dumped config and set before new_climate_ir() reads CONF_VISUAL.
+    visual = config.setdefault(CONF_VISUAL, {})
+    visual.setdefault(CONF_MAX_TEMPERATURE, config[CONF_MAX_TEMPERATURE])
+    visual.setdefault(CONF_MIN_TEMPERATURE, config[CONF_MIN_TEMPERATURE])
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
-    climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
+    climate_ir.climate_ir_with_receiver_schema(HeatpumpIRClimate).extend(
         {
-            cv.GenerateID(): cv.declare_id(HeatpumpIRClimate),
             cv.Required(CONF_PROTOCOL): cv.enum(PROTOCOLS),
             cv.Required(CONF_HORIZONTAL_DEFAULT): cv.enum(HORIZONTAL_DIRECTIONS),
             cv.Required(CONF_VERTICAL_DEFAULT): cv.enum(VERTICAL_DIRECTIONS),
@@ -107,26 +120,19 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MAX_TEMPERATURE): cv.temperature,
         }
     ),
-    cv.only_with_arduino,
+    cv.Any(cv.only_with_arduino, cv.only_on_esp32),
+    _default_visual,
 )
 
 
-def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    if CONF_VISUAL not in config:
-        config[CONF_VISUAL] = {}
-    visual = config[CONF_VISUAL]
-    if CONF_MAX_TEMPERATURE not in visual:
-        visual[CONF_MAX_TEMPERATURE] = config[CONF_MAX_TEMPERATURE]
-    if CONF_MIN_TEMPERATURE not in visual:
-        visual[CONF_MIN_TEMPERATURE] = config[CONF_MIN_TEMPERATURE]
-    yield climate_ir.register_climate_ir(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await climate_ir.new_climate_ir(config)
     cg.add(var.set_protocol(config[CONF_PROTOCOL]))
     cg.add(var.set_horizontal_default(config[CONF_HORIZONTAL_DEFAULT]))
     cg.add(var.set_vertical_default(config[CONF_VERTICAL_DEFAULT]))
     cg.add(var.set_max_temperature(config[CONF_MAX_TEMPERATURE]))
     cg.add(var.set_min_temperature(config[CONF_MIN_TEMPERATURE]))
 
-    cg.add_library("tonia/HeatpumpIR", "1.0.27")
-    if CORE.is_libretiny:
-        CORE.add_platformio_option("lib_ignore", "IRremoteESP8266")
+    cg.add_library("tonia/HeatpumpIR", "1.0.42")
+    if CORE.is_libretiny or CORE.is_esp32:
+        CORE.add_platformio_option("lib_ignore", ["IRremoteESP8266"])

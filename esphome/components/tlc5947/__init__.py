@@ -1,9 +1,9 @@
 # this component is for the "TLC5947 24-Channel, 12-Bit PWM LED Driver" [https://www.ti.com/lit/ds/symlink/tlc5947.pdf],
 # which is used e.g. on [https://www.adafruit.com/product/1429]. The code is based on the components sm2135 and sm26716.
 
+from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
 from esphome.const import (
     CONF_CLOCK_PIN,
     CONF_DATA_PIN,
@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_NUM_CHIPS,
     CONF_OE_PIN,
 )
+from esphome.types import ConfigType
 
 CONF_LAT_PIN = "lat_pin"
 
@@ -32,7 +33,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

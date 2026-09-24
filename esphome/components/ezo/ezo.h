@@ -5,8 +5,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include <deque>
 
-namespace esphome {
-namespace ezo {
+namespace esphome::ezo {
 
 static const char *const TAG = "ezo.sensor";
 
@@ -33,20 +32,19 @@ class EzoCommand {
 };
 
 /// This class implements support for the EZO circuits in i2c mode
-class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class EZOSensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void loop() override;
   void dump_config() override;
   void update() override;
-  float get_setup_priority() const override { return setup_priority::DATA; };
 
   // I2C
   void set_address(uint8_t address);
 
   // Device Information
   void get_device_information();
-  void add_device_infomation_callback(std::function<void(std::string)> &&callback) {
-    this->device_infomation_callback_.add(std::move(callback));
+  template<typename F> void add_device_infomation_callback(F &&callback) {
+    this->device_infomation_callback_.add(std::forward<F>(callback));
   }
 
   // Sleep
@@ -57,15 +55,13 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
 
   // Slope
   void get_slope();
-  void add_slope_callback(std::function<void(std::string)> &&callback) {
-    this->slope_callback_.add(std::move(callback));
-  }
+  template<typename F> void add_slope_callback(F &&callback) { this->slope_callback_.add(std::forward<F>(callback)); }
 
   // T
   void get_t();
   void set_t(float value);
   void set_tempcomp_value(float temp);  // For backwards compatibility
-  void add_t_callback(std::function<void(std::string)> &&callback) { this->t_callback_.add(std::move(callback)); }
+  template<typename F> void add_t_callback(F &&callback) { this->t_callback_.add(std::forward<F>(callback)); }
 
   // Calibration
   void get_calibration();
@@ -74,26 +70,24 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void set_calibration_point_high(float value);
   void set_calibration_generic(float value);
   void clear_calibration();
-  void add_calibration_callback(std::function<void(std::string)> &&callback) {
-    this->calibration_callback_.add(std::move(callback));
+  template<typename F> void add_calibration_callback(F &&callback) {
+    this->calibration_callback_.add(std::forward<F>(callback));
   }
 
   // LED
   void get_led_state();
   void set_led_state(bool on);
-  void add_led_state_callback(std::function<void(bool)> &&callback) { this->led_callback_.add(std::move(callback)); }
+  template<typename F> void add_led_state_callback(F &&callback) { this->led_callback_.add(std::forward<F>(callback)); }
 
   // Custom
   void send_custom(const std::string &to_send);
-  void add_custom_callback(std::function<void(std::string)> &&callback) {
-    this->custom_callback_.add(std::move(callback));
-  }
+  template<typename F> void add_custom_callback(F &&callback) { this->custom_callback_.add(std::forward<F>(callback)); }
 
  protected:
   std::deque<std::unique_ptr<EzoCommand>> commands_;
   int new_address_;
 
-  void add_command_(const std::string &command, EzoCommandType command_type, uint16_t delay_ms = 300);
+  void add_command_(const char *command, EzoCommandType command_type, uint16_t delay_ms = 300);
 
   void set_calibration_point_(EzoCalibrationType type, float value);
 
@@ -107,5 +101,4 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   uint32_t start_time_ = 0;
 };
 
-}  // namespace ezo
-}  // namespace esphome
+}  // namespace esphome::ezo

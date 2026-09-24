@@ -5,12 +5,11 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace htu21d {
+namespace esphome::htu21d {
 
 enum HTU21DSensorModels { HTU21D_SENSOR_MODEL_HTU21D = 0, HTU21D_SENSOR_MODEL_SI7021, HTU21D_SENSOR_MODEL_SHT21 };
 
-class HTU21DComponent : public PollingComponent, public i2c::I2CDevice {
+class HTU21DComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
@@ -26,9 +25,7 @@ class HTU21DComponent : public PollingComponent, public i2c::I2CDevice {
   bool is_heater_enabled();
   void set_heater(bool status);
   void set_heater_level(uint8_t level);
-  int8_t get_heater_level();
-
-  float get_setup_priority() const override;
+  uint8_t get_heater_level();
 
  protected:
   sensor::Sensor *temperature_{nullptr};
@@ -37,27 +34,26 @@ class HTU21DComponent : public PollingComponent, public i2c::I2CDevice {
   HTU21DSensorModels sensor_model_{HTU21D_SENSOR_MODEL_HTU21D};
 };
 
-template<typename... Ts> class SetHeaterLevelAction : public Action<Ts...>, public Parented<HTU21DComponent> {
+template<typename... Ts> class SetHeaterLevelAction final : public Action<Ts...>, public Parented<HTU21DComponent> {
  public:
   TEMPLATABLE_VALUE(uint8_t, level)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto level = this->level_.value(x...);
 
     this->parent_->set_heater_level(level);
   }
 };
 
-template<typename... Ts> class SetHeaterAction : public Action<Ts...>, public Parented<HTU21DComponent> {
+template<typename... Ts> class SetHeaterAction final : public Action<Ts...>, public Parented<HTU21DComponent> {
  public:
   TEMPLATABLE_VALUE(bool, status)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto status = this->status_.value(x...);
 
     this->parent_->set_heater(status);
   }
 };
 
-}  // namespace htu21d
-}  // namespace esphome
+}  // namespace esphome::htu21d

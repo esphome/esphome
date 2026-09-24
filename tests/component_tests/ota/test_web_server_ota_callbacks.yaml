@@ -1,0 +1,31 @@
+esphome:
+  name: test_web_server_ota_callbacks
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+logger:
+
+web_server:
+  port: 80
+
+ota:
+  - platform: web_server
+    on_begin:
+      - logger.log: "OTA started"
+    on_progress:
+      - logger.log:
+          format: "OTA progress: %.1f%%"
+          args: ["x"]
+    on_end:
+      - logger.log: "OTA completed"
+    on_error:
+      - logger.log:
+          format: "OTA error: %d"
+          args: ["x"]
+    on_state_change:
+      - logger.log: "OTA state changed"

@@ -1,24 +1,24 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
+from typing import Any
+
 from esphome import automation
-from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_FILE, CONF_DEVICE, CONF_VOLUME
+import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.const import CONF_LOOP
+import esphome.config_validation as cv
+from esphome.const import CONF_DEVICE, CONF_FILE, CONF_ID, CONF_VOLUME
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@glmnet"]
 
 dfplayer_ns = cg.esphome_ns.namespace("dfplayer")
 DFPlayer = dfplayer_ns.class_("DFPlayer", cg.Component)
-DFPlayerFinishedPlaybackTrigger = dfplayer_ns.class_(
-    "DFPlayerFinishedPlaybackTrigger", automation.Trigger.template()
-)
 DFPlayerIsPlayingCondition = dfplayer_ns.class_(
     "DFPlayerIsPlayingCondition", automation.Condition
 )
 
 MULTI_CONF = True
 CONF_FOLDER = "folder"
-CONF_LOOP = "loop"
+CONF_ENABLE = "enable"
 CONF_EQ_PRESET = "eq_preset"
 CONF_ON_FINISHED_PLAYBACK = "on_finished_playback"
 
@@ -58,18 +58,24 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(DFPlayer),
-            cv.Optional(CONF_ON_FINISHED_PLAYBACK): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        DFPlayerFinishedPlaybackTrigger
-                    ),
-                }
-            ),
+            cv.Optional(CONF_ON_FINISHED_PLAYBACK): automation.validate_automation({}),
         }
     ).extend(uart.UART_DEVICE_SCHEMA)
 )
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "dfplayer", baud_rate=9600, require_tx=True
+    "dfplayer",
+    baud_rate=9600,
+    require_tx=True,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
+)
+
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_FINISHED_PLAYBACK, "add_on_finished_playback_callback"
+    ),
 )
 
 
@@ -78,9 +84,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    for conf in config.get(CONF_ON_FINISHED_PLAYBACK, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 @automation.register_action(
@@ -91,6 +95,7 @@ async def to_code(config):
             cv.GenerateID(): cv.use_id(DFPlayer),
         }
     ),
+    synchronous=True,
 )
 async def dfplayer_next_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -106,6 +111,7 @@ async def dfplayer_next_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(DFPlayer),
         }
     ),
+    synchronous=True,
 )
 async def dfplayer_previous_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -123,11 +129,12 @@ async def dfplayer_previous_to_code(config, action_id, template_arg, args):
         },
         key=CONF_FILE,
     ),
+    synchronous=True,
 )
 async def dfplayer_play_mp3_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_FILE], args, float)
+    template_ = await cg.templatable(config[CONF_FILE], args, cg.uint16)
     cg.add(var.set_file(template_))
     return var
 
@@ -143,14 +150,15 @@ async def dfplayer_play_mp3_to_code(config, action_id, template_arg, args):
         },
         key=CONF_FILE,
     ),
+    synchronous=True,
 )
 async def dfplayer_play_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_FILE], args, float)
+    template_ = await cg.templatable(config[CONF_FILE], args, cg.uint16)
     cg.add(var.set_file(template_))
     if CONF_LOOP in config:
-        template_ = await cg.templatable(config[CONF_LOOP], args, float)
+        template_ = await cg.templatable(config[CONF_LOOP], args, cg.bool_)
         cg.add(var.set_loop(template_))
     return var
 
@@ -166,17 +174,18 @@ async def dfplayer_play_to_code(config, action_id, template_arg, args):
             cv.Optional(CONF_LOOP): cv.templatable(cv.boolean),
         }
     ),
+    synchronous=True,
 )
 async def dfplayer_play_folder_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_FOLDER], args, float)
+    template_ = await cg.templatable(config[CONF_FOLDER], args, cg.uint16)
     cg.add(var.set_folder(template_))
     if CONF_FILE in config:
-        template_ = await cg.templatable(config[CONF_FILE], args, float)
+        template_ = await cg.templatable(config[CONF_FILE], args, cg.uint16)
         cg.add(var.set_file(template_))
     if CONF_LOOP in config:
-        template_ = await cg.templatable(config[CONF_LOOP], args, float)
+        template_ = await cg.templatable(config[CONF_LOOP], args, cg.bool_)
         cg.add(var.set_loop(template_))
     return var
 
@@ -191,6 +200,7 @@ async def dfplayer_play_folder_to_code(config, action_id, template_arg, args):
         },
         key=CONF_DEVICE,
     ),
+    synchronous=True,
 )
 async def dfplayer_set_device_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -210,11 +220,12 @@ async def dfplayer_set_device_to_code(config, action_id, template_arg, args):
         },
         key=CONF_VOLUME,
     ),
+    synchronous=True,
 )
 async def dfplayer_set_volume_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_VOLUME], args, float)
+    template_ = await cg.templatable(config[CONF_VOLUME], args, cg.uint8)
     cg.add(var.set_volume(template_))
     return var
 
@@ -227,6 +238,7 @@ async def dfplayer_set_volume_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(DFPlayer),
         }
     ),
+    synchronous=True,
 )
 async def dfplayer_volume_up_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -242,6 +254,7 @@ async def dfplayer_volume_up_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(DFPlayer),
         }
     ),
+    synchronous=True,
 )
 async def dfplayer_volume_down_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -259,6 +272,7 @@ async def dfplayer_volume_down_to_code(config, action_id, template_arg, args):
         },
         key=CONF_EQ_PRESET,
     ),
+    synchronous=True,
 )
 async def dfplayer_set_eq_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -276,6 +290,7 @@ async def dfplayer_set_eq_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(DFPlayer),
         }
     ),
+    synchronous=True,
 )
 async def dfplayer_sleep_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -291,6 +306,7 @@ async def dfplayer_sleep_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(DFPlayer),
         }
     ),
+    synchronous=True,
 )
 async def dfplayer_reset_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -306,6 +322,7 @@ async def dfplayer_reset_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(DFPlayer),
         }
     ),
+    synchronous=True,
 )
 async def dfplayer_start_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -321,6 +338,7 @@ async def dfplayer_start_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(DFPlayer),
         }
     ),
+    synchronous=True,
 )
 async def dfplayer_pause_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -336,6 +354,7 @@ async def dfplayer_pause_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(DFPlayer),
         }
     ),
+    synchronous=True,
 )
 async def dfplayer_stop_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -351,11 +370,38 @@ async def dfplayer_stop_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(DFPlayer),
         }
     ),
+    synchronous=True,
 )
 async def dfplayer_random_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
+
+
+def _default_enable(value: Any) -> Any:
+    """Fill in ``enable: true`` for a bare action or a mapping that only picks the player.
+
+    Done before ``maybe_simple_value`` so neither form is wrapped as the ``enable`` value.
+    """
+    if value is None or isinstance(value, dict):
+        return {CONF_ENABLE: True, **(value or {})}
+    return value
+
+
+automation.register_apply_action(
+    "dfplayer.set_current_track_repeat",
+    cv.All(
+        _default_enable,
+        cv.maybe_simple_value(
+            {
+                cv.GenerateID(): cv.use_id(DFPlayer),
+                cv.Optional(CONF_ENABLE, default=True): cv.templatable(cv.boolean),
+            },
+            key=CONF_ENABLE,
+        ),
+    ),
+    automation.ApplyField(CONF_ENABLE, "set_current_track_repeat", cg.bool_),
+)
 
 
 @automation.register_condition(

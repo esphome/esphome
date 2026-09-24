@@ -1,9 +1,12 @@
+import logging
+
 from esphome import core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
 from esphome.components.display import validate_rotation
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AUTO_CLEAR_ENABLED,
     CONF_COLOR_ORDER,
     CONF_COLOR_PALETTE,
     CONF_DC_PIN,
@@ -27,17 +30,13 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.core import CORE, HexInt
+from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
 
-
-def AUTO_LOAD():
-    if CORE.is_esp32:
-        return ["psram"]
-    return []
-
-
 CODEOWNERS = ["@nielsnl68", "@clydebarrow"]
+LOGGER = logging.getLogger(__name__)
 
 ili9xxx_ns = cg.esphome_ns.namespace("ili9xxx")
 ILI9XXXDisplay = ili9xxx_ns.class_(
@@ -59,6 +58,7 @@ ColorOrder = display.display_ns.enum("ColorMode")
 
 MODELS = {
     "GC9A01A": ili9xxx_ns.class_("ILI9XXXGC9A01A", ILI9XXXDisplay),
+    "GC9D01N": ili9xxx_ns.class_("ILI9XXXGC9D01N", ILI9XXXDisplay),
     "M5STACK": ili9xxx_ns.class_("ILI9XXXM5Stack", ILI9XXXDisplay),
     "M5CORE": ili9xxx_ns.class_("ILI9XXXM5CORE", ILI9XXXDisplay),
     "TFT_2.4": ili9xxx_ns.class_("ILI9XXXILI9341", ILI9XXXDisplay),
@@ -84,7 +84,7 @@ COLOR_ORDERS = {
     "BGR": ColorOrder.COLOR_ORDER_BGR,
 }
 
-COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
+COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE", "8BIT", upper=True)
 
 CONF_LED_PIN = "led_pin"
 CONF_COLOR_PALETTE_IMAGES = "color_palette_images"
@@ -92,7 +92,7 @@ CONF_INVERT_DISPLAY = "invert_display"
 CONF_PIXEL_MODE = "pixel_mode"
 
 
-def cmd(c, *args):
+def cmd(c: int, *args: int) -> list[int]:
     """
     Create a command sequence
     :param c: The command (8 bit)
@@ -102,7 +102,7 @@ def cmd(c, *args):
     return [c, len(args)] + list(args)
 
 
-def map_sequence(value):
+def map_sequence(value: list[int]) -> list[int]:
     """
     An initialisation sequence is a literal array of data bytes.
     The format is a repeated sequence of [CMD, <data>]
@@ -112,7 +112,7 @@ def map_sequence(value):
     return cmd(*value)
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     if (
         config.get(CONF_COLOR_PALETTE) == "IMAGE_ADAPTIVE"
         and CONF_COLOR_PALETTE_IMAGES not in config
@@ -139,9 +139,10 @@ def _validate(config):
     ]:
         raise cv.Invalid("Selected model can't run on ESP8266.")
 
-    if model == "CUSTOM":
-        if CONF_INIT_SEQUENCE not in config or CONF_DIMENSIONS not in config:
-            raise cv.Invalid("CUSTOM model requires init_sequence and dimensions")
+    if model == "CUSTOM" and (
+        CONF_INIT_SEQUENCE not in config or CONF_DIMENSIONS not in config
+    ):
+        raise cv.Invalid("CUSTOM model requires init_sequence and dimensions")
 
     return config
 
@@ -195,17 +196,38 @@ CONFIG_SCHEMA = cv.All(
     _validate,
 )
 
-FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
-    "ili9xxx", require_miso=False, require_mosi=True
-)
+
+def final_validate(config: ConfigType) -> None:
+    global_config = full_config.get()
+    # Ideally would calculate buffer size here, but that info is not available on the Python side
+    needs_buffer = (
+        CONF_LAMBDA in config or CONF_PAGES in config or config[CONF_AUTO_CLEAR_ENABLED]
+    )
+    if (
+        CORE.is_esp32
+        and config[CONF_COLOR_PALETTE] == "NONE"
+        and "psram" not in global_config
+        and needs_buffer
+    ):
+        LOGGER.info("Consider enabling PSRAM if available for the display buffer")
+
+    spi.final_validate_device_schema("ili9xxx", require_miso=False, require_mosi=True)(
+        config
+    )
 
 
-async def to_code(config):
+FINAL_VALIDATE_SCHEMA = final_validate
+
+
+async def to_code(config: ConfigType) -> None:
+    LOGGER.warning(
+        "The 'ili9xxx' component is deprecated, it is recommended to use 'mipi_spi' instead."
+    )
     rhs = MODELS[config[CONF_MODEL]].new()
     var = cg.Pvariable(config[CONF_ID], rhs)
 
     await display.register_display(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
     if init_sequences := config.get(CONF_INIT_SEQUENCE):
@@ -257,12 +279,12 @@ async def to_code(config):
         cg.add(var.set_buffer_color_mode(ILI9XXXColorMode.BITS_8_INDEXED))
         from PIL import Image
 
-        def load_image(filename):
+        def load_image(filename: str) -> Image.Image:
             path = CORE.relative_config_path(filename)
             try:
                 return Image.open(path)
             except Exception as e:
-                raise core.EsphomeError(f"Could not load image file {path}: {e}")
+                raise core.EsphomeError(f"Could not load image file {path}: {e}") from e
 
         # make a wide horizontal combined image.
         images = [load_image(x) for x in config[CONF_COLOR_PALETTE_IMAGES]]
@@ -283,6 +305,8 @@ async def to_code(config):
         palette = converted.getpalette()
         assert len(palette) == 256 * 3
         rhs = palette
+    elif config[CONF_COLOR_PALETTE] == "8BIT":
+        cg.add(var.set_buffer_color_mode(ILI9XXXColorMode.BITS_8))
     else:
         cg.add(var.set_buffer_color_mode(ILI9XXXColorMode.BITS_16))
 

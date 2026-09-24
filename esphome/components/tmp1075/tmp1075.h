@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace tmp1075 {
+namespace esphome::tmp1075 {
 
 struct TMP1075Config {
   union {
@@ -36,9 +35,8 @@ struct TMP1075Config {
       uint8_t shutdown : 1;  // Sets the device in shutdown mode to conserve power.
                              // 0: Device is in continuous conversion
                              // 1: Device is in shutdown mode
-      uint8_t unused : 8;
     } fields;
-    uint16_t regvalue;
+    uint8_t regvalue;
   };
 };
 
@@ -54,12 +52,10 @@ enum EAlertFunction {
   ALERT_INTERRUPT = 1,
 };
 
-class TMP1075Sensor : public PollingComponent, public sensor::Sensor, public i2c::I2CDevice {
+class TMP1075Sensor final : public PollingComponent, public sensor::Sensor, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;
-
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void dump_config() override;
 
@@ -88,5 +84,4 @@ class TMP1075Sensor : public PollingComponent, public sensor::Sensor, public i2c
   void log_config_();
 };
 
-}  // namespace tmp1075
-}  // namespace esphome
+}  // namespace esphome::tmp1075

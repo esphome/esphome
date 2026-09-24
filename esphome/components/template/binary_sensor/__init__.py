@@ -2,7 +2,13 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_CONDITION, CONF_ID, CONF_LAMBDA, CONF_STATE
+from esphome.const import (
+    CONF_CONDITION,
+    CONF_DEVICE_CLASS,
+    CONF_ID,
+    CONF_LAMBDA,
+    CONF_STATE,
+)
 from esphome.cpp_generator import LambdaExpression
 
 from .. import template_ns
@@ -12,7 +18,11 @@ TemplateBinarySensor = template_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    binary_sensor.binary_sensor_schema(TemplateBinarySensor)
+    cv.with_visibility(
+        binary_sensor.binary_sensor_schema(TemplateBinarySensor),
+        cv.Visibility.UI,
+        CONF_DEVICE_CLASS,
+    )
     .extend(
         {
             cv.Exclusive(CONF_LAMBDA, CONF_CONDITION): cv.returning_lambda,
@@ -38,25 +48,25 @@ async def to_code(config):
         condition = await automation.build_condition(
             condition, cg.TemplateArguments(), []
         )
+        # Generate a stateless lambda that calls condition.check()
+        # capture="" is safe because condition is a global variable in generated C++ code
+        # and doesn't need to be captured. This allows implicit conversion to function pointer.
         template_ = LambdaExpression(
-            f"return {condition.check()};", [], return_type=cg.optional.template(bool)
+            f"return {condition.check()};",
+            [],
+            return_type=cg.optional.template(bool),
+            capture="",
         )
         cg.add(var.set_template(template_))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "binary_sensor.template.publish",
-    binary_sensor.BinarySensorPublishAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(binary_sensor.BinarySensor),
             cv.Required(CONF_STATE): cv.templatable(cv.boolean),
         }
     ),
+    automation.ApplyField(CONF_STATE, "publish_state", cg.bool_),
 )
-async def binary_sensor_template_publish_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_STATE], args, bool)
-    cg.add(var.set_state(template_))
-    return var

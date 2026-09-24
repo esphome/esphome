@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ms8607 {
+namespace esphome::ms8607 {
 
 /// TAG used for logging calls
 static const char *const TAG = "ms8607";
@@ -64,62 +63,62 @@ enum class MS8607Component::SetupStatus {
 };
 
 static uint8_t crc4(uint16_t *buffer, size_t length);
-static uint8_t hsensor_crc_check(uint16_t value);
 
 void MS8607Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MS8607...");
   this->error_code_ = ErrorCode::NONE;
   this->setup_status_ = SetupStatus::NEEDS_RESET;
 
   // I do not know why the device sometimes NACKs the reset command, but
   // try 3 times in case it's a transitory issue on this boot
-  this->set_retry(
-      "reset", 5, 3,
-      [this](const uint8_t remaining_setup_attempts) {
-        ESP_LOGD(TAG, "Resetting both I2C addresses: 0x%02X, 0x%02X", this->address_,
-                 this->humidity_device_->get_address());
-        // I believe sending the reset command to both addresses is preferable to
-        // skipping humidity if PT fails for some reason.
-        // However, only consider the reset successful if they both ACK
-        bool const pt_successful = this->write_bytes(MS8607_PT_CMD_RESET, nullptr, 0);
-        bool const h_successful = this->humidity_device_->write_bytes(MS8607_CMD_H_RESET, nullptr, 0);
+  // Backoff: executes at now, +5ms, +30ms
+  this->reset_attempts_remaining_ = 3;
+  this->reset_interval_ = 5;
+  this->try_reset_();
+}
 
-        if (!(pt_successful && h_successful)) {
-          ESP_LOGE(TAG, "Resetting I2C devices failed");
-          if (!pt_successful && !h_successful) {
-            this->error_code_ = ErrorCode::PTH_RESET_FAILED;
-          } else if (!pt_successful) {
-            this->error_code_ = ErrorCode::PT_RESET_FAILED;
-          } else {
-            this->error_code_ = ErrorCode::H_RESET_FAILED;
-          }
+void MS8607Component::try_reset_() {
+  ESP_LOGD(TAG, "Resetting both I2C addresses: 0x%02X, 0x%02X", this->address_, this->humidity_device_->get_address());
+  // I believe sending the reset command to both addresses is preferable to
+  // skipping humidity if PT fails for some reason.
+  // However, only consider the reset successful if they both ACK
+  bool const pt_successful = this->write_bytes(MS8607_PT_CMD_RESET, nullptr, 0);
+  bool const h_successful = this->humidity_device_->write_bytes(MS8607_CMD_H_RESET, nullptr, 0);
 
-          if (remaining_setup_attempts > 0) {
-            this->status_set_error();
-          } else {
-            this->mark_failed();
-          }
-          return RetryResult::RETRY;
-        }
+  if (!(pt_successful && h_successful)) {
+    ESP_LOGE(TAG, "Resetting I2C devices failed");
+    if (!pt_successful && !h_successful) {
+      this->error_code_ = ErrorCode::PTH_RESET_FAILED;
+    } else if (!pt_successful) {
+      this->error_code_ = ErrorCode::PT_RESET_FAILED;
+    } else {
+      this->error_code_ = ErrorCode::H_RESET_FAILED;
+    }
 
-        this->setup_status_ = SetupStatus::NEEDS_PROM_READ;
-        this->error_code_ = ErrorCode::NONE;
-        this->status_clear_error();
+    if (--this->reset_attempts_remaining_ > 0) {
+      uint32_t delay = this->reset_interval_;
+      this->reset_interval_ *= 5;
+      this->set_timeout("reset", delay, [this]() { this->try_reset_(); });
+      this->status_set_error();
+    } else {
+      this->mark_failed();
+    }
+    return;
+  }
 
-        // 15ms delay matches datasheet, Adafruit_MS8607 & SparkFun_PHT_MS8607_Arduino_Library
-        this->set_timeout("prom-read", 15, [this]() {
-          if (this->read_calibration_values_from_prom_()) {
-            this->setup_status_ = SetupStatus::SUCCESSFUL;
-            this->status_clear_error();
-          } else {
-            this->mark_failed();
-            return;
-          }
-        });
+  this->setup_status_ = SetupStatus::NEEDS_PROM_READ;
+  this->error_code_ = ErrorCode::NONE;
+  this->status_clear_error();
 
-        return RetryResult::DONE;
-      },
-      5.0f);  // executes at now, +5ms, +25ms
+  // 15ms delay matches datasheet, Adafruit_MS8607 & SparkFun_PHT_MS8607_Arduino_Library
+  this->set_timeout("prom-read", 15, [this]() {
+    if (this->read_calibration_values_from_prom_()) {
+      this->setup_status_ = SetupStatus::SUCCESSFUL;
+      this->status_clear_error();
+    } else {
+      this->mark_failed();
+      return;
+    }
+  });
 }
 
 void MS8607Component::update() {
@@ -140,7 +139,7 @@ void MS8607Component::dump_config() {
   // LOG_I2C_DEVICE doesn't work for humidity, the `address_` is protected. Log using get_address()
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->humidity_device_->get_address());
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MS8607 failed.");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     switch (this->error_code_) {
       case ErrorCode::PT_RESET_FAILED:
         ESP_LOGE(TAG, "Temperature/Pressure RESET failed");
@@ -244,35 +243,6 @@ static uint8_t crc4(uint16_t *buffer, size_t length) {
   return (crc_remainder >> 12) & 0xF;  // only the most significant 4 bits
 }
 
-/**
- * @brief Calculates CRC value for the provided humidity (+ status bits) value
- *
- * CRC-8 check comes from other MS8607 libraries on github. I did not find it in the datasheet,
- * and it differs from the crc8 implementation that's already part of esphome.
- *
- * @param value two byte humidity sensor value read from i2c
- * @return uint8_t computed crc value
- */
-static uint8_t hsensor_crc_check(uint16_t value) {
-  uint32_t polynom = 0x988000;  // x^8 + x^5 + x^4 + 1
-  uint32_t msb = 0x800000;
-  uint32_t mask = 0xFF8000;
-  uint32_t result = (uint32_t) value << 8;  // Pad with zeros as specified in spec
-
-  while (msb != 0x80) {
-    // Check if msb of current value is 1 and apply XOR mask
-    if (result & msb) {
-      result = ((result ^ polynom) & mask) | (result & ~mask);
-    }
-
-    // Shift by one
-    msb >>= 1;
-    mask >>= 1;
-    polynom >>= 1;
-  }
-  return result & 0xFF;
-}
-
 void MS8607Component::request_read_temperature_() {
   // Tell MS8607 to start ADC conversion of temperature sensor
   if (!this->write_bytes(MS8607_CMD_CONV_D2_OSR_8K, nullptr, 0)) {
@@ -280,9 +250,8 @@ void MS8607Component::request_read_temperature_() {
     return;
   }
 
-  auto f = std::bind(&MS8607Component::read_temperature_, this);
   // datasheet says 17.2ms max conversion time at OSR 8192
-  this->set_timeout("temperature", 20, f);
+  this->set_timeout("temperature", 20, [this]() { this->read_temperature_(); });
 }
 
 void MS8607Component::read_temperature_() {
@@ -302,9 +271,8 @@ void MS8607Component::request_read_pressure_(uint32_t d2_raw_temperature) {
     return;
   }
 
-  auto f = std::bind(&MS8607Component::read_pressure_, this, d2_raw_temperature);
   // datasheet says 17.2ms max conversion time at OSR 8192
-  this->set_timeout("pressure", 20, f);
+  this->set_timeout("pressure", 20, [this, d2_raw_temperature]() { this->read_pressure_(d2_raw_temperature); });
 }
 
 void MS8607Component::read_pressure_(uint32_t d2_raw_temperature) {
@@ -324,9 +292,8 @@ void MS8607Component::request_read_humidity_(float temperature_float) {
     return;
   }
 
-  auto f = std::bind(&MS8607Component::read_humidity_, this, temperature_float);
   // datasheet says 15.89ms max conversion time at OSR 8192
-  this->set_timeout("humidity", 20, f);
+  this->set_timeout("humidity", 20, [this, temperature_float]() { this->read_humidity_(temperature_float); });
 }
 
 void MS8607Component::read_humidity_(float temperature_float) {
@@ -341,7 +308,7 @@ void MS8607Component::read_humidity_(float temperature_float) {
   // Bit1 of the two LSBS must be set to '1'. Bit0 is currently not assigned"
   uint16_t humidity = encode_uint16(bytes[0], bytes[1]);
   uint8_t const expected_crc = bytes[2];
-  uint8_t const actual_crc = hsensor_crc_check(humidity);
+  uint8_t const actual_crc = crc8(bytes, 2, 0, 0x31, true);
   if (expected_crc != actual_crc) {
     ESP_LOGE(TAG, "Incorrect Humidity CRC value. Provided value 0x%01X != calculated value 0x%01X", expected_crc,
              actual_crc);
@@ -356,7 +323,7 @@ void MS8607Component::read_humidity_(float temperature_float) {
 
   // map 16 bit humidity value into range [-6%, 118%]
   float const humidity_partial = double(humidity) / (1 << 16);
-  float const humidity_percentage = lerp(humidity_partial, -6.0, 118.0);
+  float const humidity_percentage = std::lerp(-6.0, 118.0, humidity_partial);
   float const compensated_humidity_percentage =
       humidity_percentage + (20 - temperature_float) * MS8607_H_TEMP_COEFFICIENT;
   ESP_LOGD(TAG, "Compensated for temperature, humidity=%.2f%%", compensated_humidity_percentage);
@@ -440,5 +407,4 @@ void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1
   }
 }
 
-}  // namespace ms8607
-}  // namespace esphome
+}  // namespace esphome::ms8607

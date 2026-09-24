@@ -4,14 +4,15 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace esp8266_pwm {
+namespace esphome::esp8266_pwm {
 
-class ESP8266PWM : public output::FloatOutput, public Component {
+class ESP8266PWM final : public output::FloatOutput, public Component {
  public:
+  // User provided, not "= default": `new(p) ESP8266PWM()` would zero-fill .bss that is already zero.
+  ESP8266PWM() {}
+
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
   void set_frequency(float frequency) { this->frequency_ = frequency; }
   /// Dynamically update frequency
@@ -29,26 +30,12 @@ class ESP8266PWM : public output::FloatOutput, public Component {
  protected:
   void write_state(float state) override;
 
-  InternalGPIOPin *pin_;
-  float frequency_{1000.0};
+  InternalGPIOPin *pin_{nullptr};
+  float frequency_{1000.0};  // Keep in sync with DEFAULT_FREQUENCY in output.py
   /// Cache last output level for dynamic frequency updating
   float last_output_{0.0};
 };
 
-template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
- public:
-  SetFrequencyAction(ESP8266PWM *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(float, frequency);
-
-  void play(Ts... x) {
-    float freq = this->frequency_.value(x...);
-    this->parent_->update_frequency(freq);
-  }
-
-  ESP8266PWM *parent_;
-};
-
-}  // namespace esp8266_pwm
-}  // namespace esphome
+}  // namespace esphome::esp8266_pwm
 
 #endif

@@ -9,9 +9,8 @@ light:
     id: led_matrix_32x8
     default_transition_length: 500ms
     chipset: ws2812
-    rgb_order: GRB
+    channel_colors: GRB
     num_leds: 256
     pin: 2
-    rmt_channel: 0
     effects:
       - wled:

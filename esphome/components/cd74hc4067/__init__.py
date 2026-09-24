@@ -1,10 +1,8 @@
-import esphome.codegen as cg
 from esphome import pins
+import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_DELAY,
-    CONF_ID,
-)
+from esphome.const import CONF_DELAY, CONF_ID
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["sensor", "voltage_sampler"]
 CODEOWNERS = ["@asoehlke"]
@@ -12,9 +10,7 @@ MULTI_CONF = True
 
 cd74hc4067_ns = cg.esphome_ns.namespace("cd74hc4067")
 
-CD74HC4067Component = cd74hc4067_ns.class_(
-    "CD74HC4067Component", cg.Component, cg.PollingComponent
-)
+CD74HC4067Component = cd74hc4067_ns.class_("CD74HC4067Component", cg.Component)
 
 CONF_PIN_S0 = "pin_s0"
 CONF_PIN_S1 = "pin_s1"
@@ -38,7 +34,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

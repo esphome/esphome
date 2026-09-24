@@ -1,12 +1,4 @@
-i2c:
-  - id: i2c_dht12
-    scl: 5
-    sda: 4
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp8266-ard.yaml
 
-sensor:
-  - platform: dht12
-    temperature:
-      name: DHT12 Temperature
-    humidity:
-      name: DHT12 Humidity
-    update_interval: 15s
+<<: !include common.yaml

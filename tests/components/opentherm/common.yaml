@@ -16,6 +16,19 @@ opentherm:
   summer_mode_active: true
   dhw_block: true
   sync_mode: true
+  controller_product_type: 63
+  controller_product_version: 1
+  opentherm_version_controller: 2.2
+  controller_id: 1
+  controller_configuration: 1
+  before_send:
+    then:
+      - lambda: |-
+          ESP_LOGW("OT", ">> Sending message %d", x.id);
+  before_process_response:
+    then:
+      - lambda: |-
+          ESP_LOGW("OT", "<< Processing response %d", x.id);
 
 output:
   - platform: opentherm
@@ -79,7 +92,7 @@ sensor:
     ch_pump_starts:
       name: "Boiler Number of starts CH pump"
     dhw_pump_valve_starts:
-      name: "Boiler Number of starts DHW pump/valve"
+      name: "Boiler Number of starts DHW pump valve"
     dhw_burner_starts:
       name: "Boiler Number of starts burner during DHW mode"
     burner_operation_hours:
@@ -126,7 +139,7 @@ binary_sensor:
     dhw_present:
       name: "Boiler DHW present"
     control_type_on_off:
-      name: "Boiler Control type is on/off"
+      name: "Boiler Control type is on-off"
     cooling_supported:
       name: "Boiler Cooling supported"
     dhw_storage_tank:
@@ -140,9 +153,9 @@ binary_sensor:
     max_ch_setpoint_transfer_enabled:
       name: "Boiler CH maximum setpoint transfer enabled"
     dhw_setpoint_rw:
-      name: "Boiler DHW setpoint read/write"
+      name: "Boiler DHW setpoint read-write"
     max_ch_setpoint_rw:
-      name: "Boiler CH maximum setpoint read/write"
+      name: "Boiler CH maximum setpoint read-write"
 
 switch:
   - platform: opentherm
@@ -157,4 +170,4 @@ switch:
     otc_active:
       name: "Boiler Outside temperature compensation active"
     ch2_active:
-      name: "Boiler Central Heating 2 active"
+      name: "Boiler Central Heating 2 active status"

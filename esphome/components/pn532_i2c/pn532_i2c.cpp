@@ -7,8 +7,7 @@
 // - https://www.nxp.com/docs/en/nxp/application-notes/AN133910.pdf
 // - https://www.nxp.com/docs/en/nxp/application-notes/153710.pdf
 
-namespace esphome {
-namespace pn532_i2c {
+namespace esphome::pn532_i2c {
 
 static const char *const TAG = "pn532_i2c";
 
@@ -49,7 +48,7 @@ bool PN532I2C::read_response(uint8_t command, std::vector<uint8_t> &data) {
     return false;
   }
 
-  if (data[1] != 0x00 && data[2] != 0x00 && data[3] != 0xFF) {
+  if (data[1] != 0x00 || data[2] != 0x00 || data[3] != 0xFF) {
     // invalid packet
     ESP_LOGV(TAG, "read data invalid preamble!");
     return false;
@@ -95,7 +94,7 @@ uint8_t PN532I2C::read_response_length_() {
     return 0;
   }
 
-  if (data[1] != 0x00 && data[2] != 0x00 && data[3] != 0xFF) {
+  if (data[1] != 0x00 || data[2] != 0x00 || data[3] != 0xFF) {
     // invalid packet
     ESP_LOGV(TAG, "read data invalid preamble!");
     return 0;
@@ -125,5 +124,4 @@ void PN532I2C::dump_config() {
   LOG_I2C_DEVICE(this);
 }
 
-}  // namespace pn532_i2c
-}  // namespace esphome
+}  // namespace esphome::pn532_i2c

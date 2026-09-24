@@ -1,16 +1,21 @@
+import contextlib
 import re
+from typing import Any
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import time
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_TIME_ID,
     CONF_ID,
-    CONF_TRIGGER_ID,
     CONF_LATITUDE,
     CONF_LONGITUDE,
+    CONF_TIME_ID,
+    CONF_TRIGGER_ID,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@OttoWinter"]
 sun_ns = cg.esphome_ns.namespace("sun")
@@ -39,14 +44,12 @@ ELEVATION_MAP = {
 }
 
 
-def elevation(value):
+def elevation(value: Any) -> float:
     if isinstance(value, str):
-        try:
+        with contextlib.suppress(cv.Invalid):
             value = ELEVATION_MAP[
                 cv.one_of(*ELEVATION_MAP, lower=True, space="_")(value)
             ]
-        except cv.Invalid:
-            pass
     value = cv.angle(value)
     return cv.float_range(min=-180, max=180)(value)
 
@@ -61,7 +64,7 @@ LAT_LON_REGEX = re.compile(
 )
 
 
-def parse_latlon(value):
+def parse_latlon(value: Any) -> float:
     if isinstance(value, str) and value.endswith("°"):
         # strip trailing degree character
         value = value[:-1]
@@ -115,7 +118,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     time_ = await cg.get_variable(config[CONF_TIME_ID])
     cg.add(var.set_time(time_))
@@ -151,7 +154,12 @@ async def to_code(config):
         }
     ),
 )
-async def sun_above_horizon_to_code(config, condition_id, template_arg, args):
+async def sun_above_horizon_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(condition_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     templ = await cg.templatable(config[CONF_ELEVATION], args, cg.double)
@@ -172,7 +180,12 @@ async def sun_above_horizon_to_code(config, condition_id, template_arg, args):
         }
     ),
 )
-async def sun_below_horizon_to_code(config, condition_id, template_arg, args):
+async def sun_below_horizon_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(condition_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     templ = await cg.templatable(config[CONF_ELEVATION], args, cg.double)

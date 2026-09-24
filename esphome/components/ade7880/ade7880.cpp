@@ -13,8 +13,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace ade7880 {
+namespace esphome::ade7880 {
 
 static const char *const TAG = "ade7880";
 
@@ -88,14 +87,24 @@ void ADE7880::update_sensor_from_s16_register16_(sensor::Sensor *sensor, uint16_
   sensor->publish_state(f(val));
 }
 
-template<typename F>
-void ADE7880::update_sensor_from_s32_register16_(sensor::Sensor *sensor, uint16_t a_register, F &&f) {
-  if (sensor == nullptr) {
+void ADE7880::update_active_energy_(PowerChannel *channel, uint16_t a_register) {
+  if (channel->forward_active_energy == nullptr && channel->reverse_active_energy == nullptr) {
     return;
   }
 
-  float val = this->read_s32_register16_(a_register);
-  sensor->publish_state(f(val));
+  // The ADE7880 has no separate forward/reverse active energy accumulators. The xWATTHR registers
+  // accumulate signed energy since the last read (positive = imported/forward, negative = exported/
+  // reverse), so split the value by sign into the forward and reverse running totals.
+  float val = this->read_s32_register16_(a_register) / 14400.0f;
+  if (val >= 0.0f) {
+    if (channel->forward_active_energy != nullptr) {
+      channel->forward_active_energy->publish_state(channel->forward_active_energy_total += val);
+    }
+  } else {
+    if (channel->reverse_active_energy != nullptr) {
+      channel->reverse_active_energy->publish_state(channel->reverse_active_energy_total -= val);
+    }
+  }
 }
 
 void ADE7880::update() {
@@ -113,17 +122,12 @@ void ADE7880::update() {
   if (this->channel_a_ != nullptr) {
     auto *chan = this->channel_a_;
     this->update_sensor_from_s24zp_register16_(chan->current, AIRMS, [](float val) { return val / 100000.0f; });
-    this->update_sensor_from_s24zp_register16_(chan->voltage, BVRMS, [](float val) { return val / 10000.0f; });
+    this->update_sensor_from_s24zp_register16_(chan->voltage, AVRMS, [](float val) { return val / 10000.0f; });
     this->update_sensor_from_s24zp_register16_(chan->active_power, AWATT, [](float val) { return val / 100.0f; });
     this->update_sensor_from_s24zp_register16_(chan->apparent_power, AVA, [](float val) { return val / 100.0f; });
     this->update_sensor_from_s16_register16_(chan->power_factor, APF,
                                              [](float val) { return std::abs(val / -327.68f); });
-    this->update_sensor_from_s32_register16_(chan->forward_active_energy, AFWATTHR, [&chan](float val) {
-      return chan->forward_active_energy_total += val / 14400.0f;
-    });
-    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, AFWATTHR, [&chan](float val) {
-      return chan->reverse_active_energy_total += val / 14400.0f;
-    });
+    this->update_active_energy_(chan, AWATTHR);
   }
 
   if (this->channel_b_ != nullptr) {
@@ -134,12 +138,7 @@ void ADE7880::update() {
     this->update_sensor_from_s24zp_register16_(chan->apparent_power, BVA, [](float val) { return val / 100.0f; });
     this->update_sensor_from_s16_register16_(chan->power_factor, BPF,
                                              [](float val) { return std::abs(val / -327.68f); });
-    this->update_sensor_from_s32_register16_(chan->forward_active_energy, BFWATTHR, [&chan](float val) {
-      return chan->forward_active_energy_total += val / 14400.0f;
-    });
-    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, BFWATTHR, [&chan](float val) {
-      return chan->reverse_active_energy_total += val / 14400.0f;
-    });
+    this->update_active_energy_(chan, BWATTHR);
   }
 
   if (this->channel_c_ != nullptr) {
@@ -150,23 +149,20 @@ void ADE7880::update() {
     this->update_sensor_from_s24zp_register16_(chan->apparent_power, CVA, [](float val) { return val / 100.0f; });
     this->update_sensor_from_s16_register16_(chan->power_factor, CPF,
                                              [](float val) { return std::abs(val / -327.68f); });
-    this->update_sensor_from_s32_register16_(chan->forward_active_energy, CFWATTHR, [&chan](float val) {
-      return chan->forward_active_energy_total += val / 14400.0f;
-    });
-    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, CFWATTHR, [&chan](float val) {
-      return chan->reverse_active_energy_total += val / 14400.0f;
-    });
+    this->update_active_energy_(chan, CWATTHR);
   }
 
   ESP_LOGD(TAG, "update took %" PRIu32 " ms", millis() - start);
 }
 
 void ADE7880::dump_config() {
-  ESP_LOGCONFIG(TAG, "ADE7880:");
+  ESP_LOGCONFIG(TAG,
+                "ADE7880:\n"
+                "  Frequency: %.0f Hz",
+                this->frequency_);
   LOG_PIN("  IRQ0  Pin: ", this->irq0_pin_);
   LOG_PIN("  IRQ1  Pin: ", this->irq1_pin_);
   LOG_PIN("  RESET Pin: ", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  Frequency: %.0f Hz", this->frequency_);
 
   if (this->channel_a_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Phase A:");
@@ -177,11 +173,14 @@ void ADE7880::dump_config() {
     LOG_SENSOR("    ", "Power Factor", this->channel_a_->power_factor);
     LOG_SENSOR("    ", "Forward Active Energy", this->channel_a_->forward_active_energy);
     LOG_SENSOR("    ", "Reverse Active Energy", this->channel_a_->reverse_active_energy);
-    ESP_LOGCONFIG(TAG, "    Calibration:");
-    ESP_LOGCONFIG(TAG, "     Current: %" PRId32, this->channel_a_->current_gain_calibration);
-    ESP_LOGCONFIG(TAG, "     Voltage: %" PRId32, this->channel_a_->voltage_gain_calibration);
-    ESP_LOGCONFIG(TAG, "     Power: %" PRId32, this->channel_a_->power_gain_calibration);
-    ESP_LOGCONFIG(TAG, "     Phase Angle: %u", this->channel_a_->phase_angle_calibration);
+    ESP_LOGCONFIG(TAG,
+                  "    Calibration:\n"
+                  "     Current: %" PRId32 "\n"
+                  "     Voltage: %" PRId32 "\n"
+                  "     Power: %" PRId32 "\n"
+                  "     Phase Angle: %u",
+                  this->channel_a_->current_gain_calibration, this->channel_a_->voltage_gain_calibration,
+                  this->channel_a_->power_gain_calibration, this->channel_a_->phase_angle_calibration);
   }
 
   if (this->channel_b_ != nullptr) {
@@ -193,11 +192,14 @@ void ADE7880::dump_config() {
     LOG_SENSOR("    ", "Power Factor", this->channel_b_->power_factor);
     LOG_SENSOR("    ", "Forward Active Energy", this->channel_b_->forward_active_energy);
     LOG_SENSOR("    ", "Reverse Active Energy", this->channel_b_->reverse_active_energy);
-    ESP_LOGCONFIG(TAG, "    Calibration:");
-    ESP_LOGCONFIG(TAG, "     Current: %" PRId32, this->channel_b_->current_gain_calibration);
-    ESP_LOGCONFIG(TAG, "     Voltage: %" PRId32, this->channel_b_->voltage_gain_calibration);
-    ESP_LOGCONFIG(TAG, "     Power: %" PRId32, this->channel_b_->power_gain_calibration);
-    ESP_LOGCONFIG(TAG, "     Phase Angle: %u", this->channel_b_->phase_angle_calibration);
+    ESP_LOGCONFIG(TAG,
+                  "    Calibration:\n"
+                  "     Current: %" PRId32 "\n"
+                  "     Voltage: %" PRId32 "\n"
+                  "     Power: %" PRId32 "\n"
+                  "     Phase Angle: %u",
+                  this->channel_b_->current_gain_calibration, this->channel_b_->voltage_gain_calibration,
+                  this->channel_b_->power_gain_calibration, this->channel_b_->phase_angle_calibration);
   }
 
   if (this->channel_c_ != nullptr) {
@@ -209,18 +211,23 @@ void ADE7880::dump_config() {
     LOG_SENSOR("    ", "Power Factor", this->channel_c_->power_factor);
     LOG_SENSOR("    ", "Forward Active Energy", this->channel_c_->forward_active_energy);
     LOG_SENSOR("    ", "Reverse Active Energy", this->channel_c_->reverse_active_energy);
-    ESP_LOGCONFIG(TAG, "    Calibration:");
-    ESP_LOGCONFIG(TAG, "     Current: %" PRId32, this->channel_c_->current_gain_calibration);
-    ESP_LOGCONFIG(TAG, "     Voltage: %" PRId32, this->channel_c_->voltage_gain_calibration);
-    ESP_LOGCONFIG(TAG, "     Power: %" PRId32, this->channel_c_->power_gain_calibration);
-    ESP_LOGCONFIG(TAG, "     Phase Angle: %u", this->channel_c_->phase_angle_calibration);
+    ESP_LOGCONFIG(TAG,
+                  "    Calibration:\n"
+                  "     Current: %" PRId32 "\n"
+                  "     Voltage: %" PRId32 "\n"
+                  "     Power: %" PRId32 "\n"
+                  "     Phase Angle: %u",
+                  this->channel_c_->current_gain_calibration, this->channel_c_->voltage_gain_calibration,
+                  this->channel_c_->power_gain_calibration, this->channel_c_->phase_angle_calibration);
   }
 
   if (this->channel_n_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Neutral:");
     LOG_SENSOR("    ", "Current", this->channel_n_->current);
-    ESP_LOGCONFIG(TAG, "    Calibration:");
-    ESP_LOGCONFIG(TAG, "     Current: %" PRId32, this->channel_n_->current_gain_calibration);
+    ESP_LOGCONFIG(TAG,
+                  "    Calibration:\n"
+                  "     Current: %" PRId32,
+                  this->channel_n_->current_gain_calibration);
   }
 
   LOG_I2C_DEVICE(this);
@@ -300,5 +307,4 @@ void ADE7880::reset_device_() {
   this->store_.reset_pending = true;
 }
 
-}  // namespace ade7880
-}  // namespace esphome
+}  // namespace esphome::ade7880

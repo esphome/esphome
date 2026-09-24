@@ -7,10 +7,12 @@ substitutions:
   hbridge_on_pin: "2"
   hbridge_off_pin: "3"
 
-packages:
-  common: !include common.yaml
+<<: !include common.yaml
 
 switch:
-  - id: !extend switch_hbridge
+  - platform: hbridge
+    id: switch_hbridge
+    on_pin: ${hbridge_on_pin}
+    off_pin: ${hbridge_off_pin}
     wait_time: 10ms
     optimistic: true

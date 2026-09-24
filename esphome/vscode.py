@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from io import StringIO
 import json
-import os
+from pathlib import Path
+import sys
+import traceback
 from typing import Any
 
 from esphome.config import Config, _format_vol_invalid, validate_config
 import esphome.config_validation as cv
-from esphome.core import CORE, DocumentRange
+from esphome.const import __version__ as ESPHOME_VERSION
+from esphome.core import CORE, DocumentRange, EsphomeError
 from esphome.yaml_util import parse_yaml
 
 
@@ -66,48 +69,94 @@ def _read_file_content_from_json_on_stdin() -> str:
     return data["content"]
 
 
-def _print_file_read_event(path: str) -> None:
+def _print_file_read_event(path: Path) -> None:
     """Print a file read event."""
     print(
         json.dumps(
             {
                 "type": "read_file",
-                "path": path,
+                "path": str(path),
+            }
+        )
+    )
+
+
+def _request_and_get_stream_on_stdin(fname: Path) -> StringIO:
+    _print_file_read_event(fname)
+    return StringIO(_read_file_content_from_json_on_stdin())
+
+
+def _vscode_loader(fname: Path) -> dict[str, Any]:
+    raw_yaml_stream = _request_and_get_stream_on_stdin(fname)
+    # it is required to set the name on StringIO so document on start_mark
+    # is set properly. Otherwise it is initialized with "<file>"
+    raw_yaml_stream.name = fname
+    return parse_yaml(fname, raw_yaml_stream, _vscode_loader)
+
+
+def _ace_loader(fname: Path) -> dict[str, Any]:
+    raw_yaml_stream = _request_and_get_stream_on_stdin(fname)
+    return parse_yaml(fname, raw_yaml_stream)
+
+
+def _format_unexpected_error(err: Exception) -> str:
+    """Describe a crash inside validation with the frame it came from."""
+    message = f"Unexpected error while validating: {type(err).__name__}: {err}"
+    frames = traceback.extract_tb(err.__traceback__)
+    if not frames:
+        return message
+    frame = frames[-1]
+    return f"{message} ({frame.filename}:{frame.lineno} in {frame.name})"
+
+
+def _print_version():
+    """Print ESPHome version."""
+    print(
+        json.dumps(
+            {
+                "type": "version",
+                "value": ESPHOME_VERSION,
             }
         )
     )
 
 
 def read_config(args):
+    _print_version()
+
     while True:
         CORE.reset()
         data = json.loads(input())
-        assert data["type"] == "validate"
+        assert data["type"] == "validate" or data["type"] == "exit"
+        if data["type"] == "exit":
+            return
         CORE.vscode = True
-        CORE.ace = args.ace
-        f = data["file"]
-        if CORE.ace:
-            CORE.config_path = os.path.join(args.configuration, f)
+        if args.ace:  # Running from ESPHome Compiler dashboard, not vscode
+            CORE.config_path = Path(args.configuration) / data["file"]
+            loader = _ace_loader
         else:
-            CORE.config_path = data["file"]
+            CORE.config_path = Path(data["file"])
+            loader = _vscode_loader
 
         file_name = CORE.config_path
-        _print_file_read_event(file_name)
-        raw_yaml = _read_file_content_from_json_on_stdin()
         command_line_substitutions: dict[str, Any] = (
             dict(args.substitution) if args.substitution else {}
         )
         vs = VSCodeResult()
         try:
-            config = parse_yaml(file_name, StringIO(raw_yaml))
+            config = loader(file_name)
             res = validate_config(config, command_line_substitutions)
-        except Exception as err:  # pylint: disable=broad-except
+        except (EsphomeError, cv.Invalid) as err:
             vs.add_yaml_error(str(err))
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+            # stdout carries the JSON protocol; the full chain goes to stderr.
+            traceback.print_exc(file=sys.stderr)
+            vs.add_yaml_error(_format_unexpected_error(err))
         else:
             for err in res.errors:
                 try:
                     range_ = _get_invalid_range(res, err)
                     vs.add_validation_error(range_, _format_vol_invalid(err, res))
-                except Exception:  # pylint: disable=broad-except
+                except Exception:  # noqa: BLE001  # pylint: disable=broad-except
                     continue
         print(vs.dump())

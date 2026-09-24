@@ -2,8 +2,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace atm90e32 {
+namespace esphome::atm90e32 {
 
 /* STATUS REGISTERS */
 static const uint16_t ATM90E32_REGISTER_METEREN = 0x00;        // Metering Enable
@@ -176,16 +175,17 @@ static const uint16_t ATM90E32_REGISTER_ANENERGYCH = 0xAF;  // C Reverse Harm. E
 
 /* POWER & P.F. REGISTERS */
 static const uint16_t ATM90E32_REGISTER_PMEANT = 0xB0;   // Total Mean Power (P)
-static const uint16_t ATM90E32_REGISTER_PMEAN = 0xB1;    // Mean Power Reg Base (P)
+static const uint16_t ATM90E32_REGISTER_PMEAN = 0xB1;    // Active Power Reg Base (P)
 static const uint16_t ATM90E32_REGISTER_PMEANA = 0xB1;   // A Mean Power (P)
 static const uint16_t ATM90E32_REGISTER_PMEANB = 0xB2;   // B Mean Power (P)
 static const uint16_t ATM90E32_REGISTER_PMEANC = 0xB3;   // C Mean Power (P)
 static const uint16_t ATM90E32_REGISTER_QMEANT = 0xB4;   // Total Mean Power (Q)
-static const uint16_t ATM90E32_REGISTER_QMEAN = 0xB5;    // Mean Power Reg Base (Q)
+static const uint16_t ATM90E32_REGISTER_QMEAN = 0xB5;    // Reactive Power Reg Base (Q)
 static const uint16_t ATM90E32_REGISTER_QMEANA = 0xB5;   // A Mean Power (Q)
 static const uint16_t ATM90E32_REGISTER_QMEANB = 0xB6;   // B Mean Power (Q)
 static const uint16_t ATM90E32_REGISTER_QMEANC = 0xB7;   // C Mean Power (Q)
 static const uint16_t ATM90E32_REGISTER_SMEANT = 0xB8;   // Total Mean Power (S)
+static const uint16_t ATM90E32_REGISTER_SMEAN = 0xB9;    // Apparent Mean Power Base (S)
 static const uint16_t ATM90E32_REGISTER_SMEANA = 0xB9;   // A Mean Power (S)
 static const uint16_t ATM90E32_REGISTER_SMEANB = 0xBA;   // B Mean Power (S)
 static const uint16_t ATM90E32_REGISTER_SMEANC = 0xBB;   // C Mean Power (S)
@@ -206,6 +206,7 @@ static const uint16_t ATM90E32_REGISTER_QMEANALSB = 0xC5;   // Lower Word (A Rea
 static const uint16_t ATM90E32_REGISTER_QMEANBLSB = 0xC6;   // Lower Word (B React. Power)
 static const uint16_t ATM90E32_REGISTER_QMEANCLSB = 0xC7;   // Lower Word (C React. Power)
 static const uint16_t ATM90E32_REGISTER_SAMEANTLSB = 0xC8;  // Lower Word (Tot. App. Power)
+static const uint16_t ATM90E32_REGISTER_SMEANLSB = 0xC9;    // Lower Word Reg Base (Apparent Power)
 static const uint16_t ATM90E32_REGISTER_SMEANALSB = 0xC9;   // Lower Word (A App. Power)
 static const uint16_t ATM90E32_REGISTER_SMEANBLSB = 0xCA;   // Lower Word (B App. Power)
 static const uint16_t ATM90E32_REGISTER_SMEANCLSB = 0xCB;   // Lower Word (C App. Power)
@@ -266,5 +267,4 @@ static const uint16_t ATM90E32_REGISTER_UANGLEA = 0xFD;  // A Voltage Phase Angl
 static const uint16_t ATM90E32_REGISTER_UANGLEB = 0xFE;  // B Voltage Phase Angle
 static const uint16_t ATM90E32_REGISTER_UANGLEC = 0xFF;  // C Voltage Phase Angle
 
-}  // namespace atm90e32
-}  // namespace esphome
+}  // namespace esphome::atm90e32

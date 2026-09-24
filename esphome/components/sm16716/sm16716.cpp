@@ -1,13 +1,11 @@
 #include "sm16716.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sm16716 {
+namespace esphome::sm16716 {
 
 static const char *const TAG = "sm16716";
 
 void SM16716::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SM16716OutputComponent...");
   this->data_pin_->setup();
   this->data_pin_->digital_write(false);
   this->clock_pin_->setup();
@@ -15,11 +13,13 @@ void SM16716::setup() {
   this->pwm_amounts_.resize(this->num_channels_, 0);
 }
 void SM16716::dump_config() {
-  ESP_LOGCONFIG(TAG, "SM16716:");
+  ESP_LOGCONFIG(TAG,
+                "SM16716:\n"
+                "  Total number of channels: %u\n"
+                "  Number of chips: %u",
+                this->num_channels_, this->num_chips_);
   LOG_PIN("  Data Pin: ", this->data_pin_);
   LOG_PIN("  Clock Pin: ", this->clock_pin_);
-  ESP_LOGCONFIG(TAG, "  Total number of channels: %u", this->num_channels_);
-  ESP_LOGCONFIG(TAG, "  Number of chips: %u", this->num_chips_);
 }
 void SM16716::loop() {
   if (!this->update_)
@@ -48,5 +48,4 @@ void SM16716::loop() {
   this->update_ = false;
 }
 
-}  // namespace sm16716
-}  // namespace esphome
+}  // namespace esphome::sm16716

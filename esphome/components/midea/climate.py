@@ -1,9 +1,9 @@
-from esphome.core import coroutine
 from esphome import automation
-from esphome.components import climate, sensor, uart, remote_transmitter
+import esphome.codegen as cg
+from esphome.components import climate, remote_base, remote_transmitter, sensor, uart
+from esphome.components.climate import ClimateMode, ClimatePreset, ClimateSwingMode
 from esphome.components.remote_base import CONF_TRANSMITTER_ID
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import (
     CONF_AUTOCONF,
     CONF_BEEPER,
@@ -16,24 +16,23 @@ from esphome.const import (
     CONF_SUPPORTED_MODES,
     CONF_SUPPORTED_PRESETS,
     CONF_SUPPORTED_SWING_MODES,
-    CONF_TIMEOUT,
     CONF_TEMPERATURE,
+    CONF_TIMEOUT,
+    CONF_USE_FAHRENHEIT,
+    DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_HUMIDITY,
     ICON_POWER,
     ICON_THERMOMETER,
     ICON_WATER_PERCENT,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
     UNIT_WATT,
 )
-from esphome.components.climate import (
-    ClimateMode,
-    ClimatePreset,
-    ClimateSwingMode,
-)
+from esphome.core import CORE, coroutine
 
 CODEOWNERS = ["@dudanov"]
 DEPENDENCIES = ["climate", "uart"]
@@ -56,7 +55,9 @@ def templatize(value):
 
 def register_action(name, type_, schema):
     validator = templatize(schema).extend(MIDEA_ACTION_BASE_SCHEMA)
-    registerer = automation.register_action(f"midea_ac.{name}", type_, validator)
+    registerer = automation.register_action(
+        f"midea_ac.{name}", type_, validator, synchronous=True
+    )
 
     def decorator(func):
         async def new_func(config, action_id, template_arg, args):
@@ -107,9 +108,9 @@ validate_custom_fan_modes = cv.enum(CUSTOM_FAN_MODES, upper=True)
 validate_custom_presets = cv.enum(CUSTOM_PRESETS, upper=True)
 
 CONFIG_SCHEMA = cv.All(
-    climate.CLIMATE_SCHEMA.extend(
+    climate.climate_schema(AirConditioner)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(AirConditioner),
             cv.Optional(CONF_PERIOD, default="1s"): cv.time_period,
             cv.Optional(CONF_TIMEOUT, default="2s"): cv.time_period,
             cv.Optional(CONF_NUM_ATTEMPTS, default=3): cv.int_range(min=1, max=5),
@@ -152,7 +153,12 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
-    cv.only_with_arduino,
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+        ]
+    ),
 )
 
 # Actions
@@ -172,11 +178,10 @@ MIDEA_ACTION_BASE_SCHEMA = cv.Schema(
 )
 
 # FollowMe action
-MIDEA_FOLLOW_ME_MIN = 0
-MIDEA_FOLLOW_ME_MAX = 37
 MIDEA_FOLLOW_ME_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_TEMPERATURE): cv.templatable(cv.temperature),
+        cv.Optional(CONF_USE_FAHRENHEIT, default=False): cv.templatable(cv.boolean),
         cv.Optional(CONF_BEEPER, default=False): cv.templatable(cv.boolean),
     }
 )
@@ -186,6 +191,8 @@ MIDEA_FOLLOW_ME_SCHEMA = cv.Schema(
 async def follow_me_to_code(var, config, args):
     template_ = await cg.templatable(config[CONF_BEEPER], args, cg.bool_)
     cg.add(var.set_beeper(template_))
+    template_ = await cg.templatable(config[CONF_USE_FAHRENHEIT], args, cg.bool_)
+    cg.add(var.set_use_fahrenheit(template_))
     template_ = await cg.templatable(config[CONF_TEMPERATURE], args, cg.float_)
     cg.add(var.set_temperature(template_))
 
@@ -260,15 +267,20 @@ async def power_inv_to_code(var, config, args):
     pass
 
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "midea", baud_rate=9600, require_rx=True, require_tx=True
+)
+
+
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await climate.new_climate(config)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    await climate.register_climate(var, config)
     cg.add(var.set_period(config[CONF_PERIOD].total_milliseconds))
     cg.add(var.set_response_timeout(config[CONF_TIMEOUT].total_milliseconds))
     cg.add(var.set_request_attempts(config[CONF_NUM_ATTEMPTS]))
     if CONF_TRANSMITTER_ID in config:
+        remote_base.request_protocol("midea")  # ir_transmitter.h uses it from C++
         cg.add_define("USE_REMOTE_TRANSMITTER")
         transmitter_ = await cg.get_variable(config[CONF_TRANSMITTER_ID])
         cg.add(var.set_transmitter(transmitter_))
@@ -293,4 +305,14 @@ async def to_code(config):
     if CONF_HUMIDITY_SETPOINT in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
         cg.add(var.set_humidity_setpoint_sensor(sens))
-    cg.add_library("dudanov/MideaUART", "1.1.9")
+    # MideaUART uses the Arduino WiFi API for the network-notify frame
+    # (WiFi auto-enables Network via dependency mapping). On ESP-IDF the
+    # library talks to esp_wifi directly, so no library entry is needed.
+    if CORE.is_esp32 and CORE.using_arduino:
+        cg.add_library("WiFi", None)
+    # Using the repository until a release containing ESP-IDF support is published
+    cg.add_library(
+        name="MideaUART",
+        version=None,
+        repository="https://github.com/dudanov/MideaUART.git#eeea6c3e9b4474f067054592b435be1c4e466815",
+    )

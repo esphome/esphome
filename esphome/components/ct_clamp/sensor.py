@@ -1,12 +1,13 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_SENSOR,
     DEVICE_CLASS_CURRENT,
     STATE_CLASS_MEASUREMENT,
     UNIT_AMPERE,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["voltage_sampler"]
 CODEOWNERS = ["@jesserockz"]
@@ -36,7 +37,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 

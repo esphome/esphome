@@ -1,25 +1,24 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text
-from esphome.const import (
-    CONF_ENTITY_CATEGORY,
-    CONF_ICON,
-    CONF_MODE,
-    CONF_SOURCE_ID,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_ENTITY_CATEGORY, CONF_ICON, CONF_MODE, CONF_SOURCE_ID
 from esphome.core.entity_helpers import inherit_property_from
+from esphome.types import ConfigType
 
 from .. import copy_ns
 
 CopyText = copy_ns.class_("CopyText", text.Text, cg.Component)
 
 
-CONFIG_SCHEMA = text.TEXT_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(CopyText),
-        cv.Required(CONF_SOURCE_ID): cv.use_id(text.Text),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    text.text_schema(CopyText)
+    .extend(
+        {
+            cv.Required(CONF_SOURCE_ID): cv.use_id(text.Text),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 FINAL_VALIDATE_SCHEMA = cv.All(
     inherit_property_from(CONF_ICON, CONF_SOURCE_ID),
@@ -28,7 +27,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await text.new_text(config)
     await cg.register_component(var, config)
 

@@ -1,6 +1,6 @@
 canbus:
   - platform: esp32_can
-    id: esp32_internal_can
+    id: canbus_esp32_internal_can
     rx_pin: 4
     tx_pin: 5
     can_id: 4
@@ -37,10 +37,30 @@ canbus:
                   break;
               }
 
+number:
+  - platform: template
+    name: "Test Number"
+    id: canbus_test_number
+    optimistic: true
+    min_value: 0
+    max_value: 255
+    step: 1
+
 button:
   - platform: template
     name: Canbus Actions
     on_press:
+      - canbus.send:
+          can_id: 0x601
+          data: [0, 1, 2]
+      - canbus.send:
+          can_id: 0x1FFFFFFF
+          use_extended_id: true
+          data: [0, 1, 2]
       - canbus.send: "abc"
       - canbus.send: [0, 1, 2]
       - canbus.send: !lambda return {0, 1, 2};
+      # Test canbus.send with lambda that references a component (function pointer)
+      - canbus.send: !lambda |-
+          uint8_t val = (uint8_t)id(canbus_test_number).state;
+          return std::vector<uint8_t>{0xAA, val, 0xBB};

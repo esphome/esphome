@@ -1,19 +1,21 @@
+from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
 from esphome.const import (
+    CONF_CALIBRATION,
     CONF_CAPACITANCE,
     CONF_DIV_RATIO,
     CONF_INDOOR,
     CONF_IRQ_PIN,
     CONF_LIGHTNING_THRESHOLD,
     CONF_MASK_DISTURBER,
-    CONF_CALIBRATION,
-    CONF_TUNE_ANTENNA,
     CONF_NOISE_LEVEL,
     CONF_SPIKE_REJECTION,
+    CONF_TUNE_ANTENNA,
     CONF_WATCHDOG_THRESHOLD,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 MULTI_CONF = True
 
@@ -42,7 +44,7 @@ AS3935_SCHEMA = cv.Schema(
 )
 
 
-async def setup_as3935(var, config):
+async def setup_as3935(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     irq_pin = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])

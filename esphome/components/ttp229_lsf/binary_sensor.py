@@ -1,8 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL
-from . import ttp229_lsf_ns, TTP229LSFComponent, CONF_TTP229_ID
+from esphome.types import ConfigType
+
+from . import CONF_TTP229_ID, TTP229LSFComponent, ttp229_lsf_ns
 
 DEPENDENCIES = ["ttp229_lsf"]
 TTP229Channel = ttp229_lsf_ns.class_("TTP229Channel", binary_sensor.BinarySensor)
@@ -15,7 +17,7 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(TTP229Channel).extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
 
     cg.add(var.set_channel(config[CONF_CHANNEL]))

@@ -1,10 +1,11 @@
 from typing import Any
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import output
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from .. import const, schema, validate, input, generate
+
+from .. import const, generate, input, schema, validate
 
 DEPENDENCIES = [const.OPENTHERM]
 COMPONENT_TYPE = const.OUTPUT
@@ -20,7 +21,7 @@ async def new_openthermoutput(
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await output.register_output(var, config)
-    cg.add(getattr(var, "set_id")(cg.RawExpression(f'"{key}_{config[CONF_ID]}"')))
+    cg.add(var.set_id(cg.RawExpression(f'"{key}_{config[CONF_ID]}"')))
     input.generate_setters(var, config)
     return var
 

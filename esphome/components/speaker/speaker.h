@@ -9,14 +9,17 @@
 #endif
 
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 
 #include "esphome/components/audio/audio.h"
 #ifdef USE_AUDIO_DAC
 #include "esphome/components/audio_dac/audio_dac.h"
 #endif
 
-namespace esphome {
-namespace speaker {
+namespace esphome::speaker {
+
+/// Volumes below this are treated as zero
+static constexpr float SILENT_VOLUME_THRESHOLD = 0.001f;
 
 enum State : uint8_t {
   STATE_STOPPED = 0,
@@ -56,36 +59,36 @@ class Speaker {
   // When finish() is not implemented on the platform component it should just do a normal stop.
   virtual void finish() { this->stop(); }
 
+  // Pauses processing incoming audio. Needs to be implemented specifically per speaker component
+  virtual void set_pause_state(bool pause_state) {}
+  virtual bool get_pause_state() const { return false; }
+
   virtual bool has_buffered_data() const = 0;
 
   bool is_running() const { return this->state_ == STATE_RUNNING; }
   bool is_stopped() const { return this->state_ == STATE_STOPPED; }
 
-  // Volume control is handled by a configured audio dac component. Individual speaker components can
-  // override and implement in software if an audio dac isn't available.
+  // Volume and mute are independent: changing one never alters the other's stored state. Volume control is
+  // handled by a configured audio dac component. Individual speaker components can override and implement in
+  // software if an audio dac isn't available.
   virtual void set_volume(float volume) {
     this->volume_ = volume;
 #ifdef USE_AUDIO_DAC
     if (this->audio_dac_ != nullptr) {
       this->audio_dac_->set_volume(volume);
+      this->apply_audio_dac_mute_();
     }
 #endif
   };
-  float get_volume() { return this->volume_; }
+  virtual float get_volume() { return this->volume_; }
 
   virtual void set_mute_state(bool mute_state) {
     this->mute_state_ = mute_state;
 #ifdef USE_AUDIO_DAC
-    if (this->audio_dac_) {
-      if (mute_state) {
-        this->audio_dac_->set_mute_on();
-      } else {
-        this->audio_dac_->set_mute_off();
-      }
-    }
+    this->apply_audio_dac_mute_();
 #endif
   }
-  bool get_mute_state() { return this->mute_state_; }
+  virtual bool get_mute_state() { return this->mute_state_; }
 
 #ifdef USE_AUDIO_DAC
   void set_audio_dac(audio_dac::AudioDac *audio_dac) { this->audio_dac_ = audio_dac; }
@@ -95,7 +98,34 @@ class Speaker {
     this->audio_stream_info_ = audio_stream_info;
   }
 
+  audio::AudioStreamInfo &get_audio_stream_info() { return this->audio_stream_info_; }
+
+  /// Callback function for sending the duration of the audio written to the speaker since the last callback.
+  /// Parameters:
+  ///   - Frames played
+  ///   - System time in microseconds when the frames were written to the DAC
+  template<typename F> void add_audio_output_callback(F &&callback) {
+    this->audio_output_callback_.add(std::forward<F>(callback));
+  }
+
  protected:
+  /// @brief Whether the output should be silent: muted, or the volume is effectively zero.
+  /// Volume steps from media players can leave a positive value near float epsilon instead of exactly zero.
+  bool is_silent_() const { return this->mute_state_ || this->volume_ < SILENT_VOLUME_THRESHOLD; }
+
+#ifdef USE_AUDIO_DAC
+  /// @brief Uses the audio dac's mute as the silence mechanism, since a dac's minimum volume is often audible.
+  void apply_audio_dac_mute_() {
+    if (this->audio_dac_ == nullptr)
+      return;
+    if (this->is_silent_()) {
+      this->audio_dac_->set_mute_on();
+    } else {
+      this->audio_dac_->set_mute_off();
+    }
+  }
+#endif
+
   State state_{STATE_STOPPED};
   audio::AudioStreamInfo audio_stream_info_;
   float volume_{1.0f};
@@ -104,7 +134,8 @@ class Speaker {
 #ifdef USE_AUDIO_DAC
   audio_dac::AudioDac *audio_dac_{nullptr};
 #endif
+
+  CallbackManager<void(uint32_t, int64_t)> audio_output_callback_{};
 };
 
-}  // namespace speaker
-}  // namespace esphome
+}  // namespace esphome::speaker
