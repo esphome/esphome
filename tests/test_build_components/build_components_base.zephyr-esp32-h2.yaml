@@ -1,0 +1,16 @@
+esphome:
+  name: componenttestesp32h2
+  friendly_name: $component_name
+
+zephyr:
+  variant: ESP32H2
+
+logger:
+  level: VERY_VERBOSE
+  baud_rate: 0
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file

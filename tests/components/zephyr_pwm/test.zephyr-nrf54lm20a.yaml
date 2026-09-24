@@ -1,0 +1,13 @@
+output:
+  - platform: zephyr_pwm
+    id: pwm_output_1
+    # Nordic's own "P<port>.<pin>" nomenclature, same pin as a flat "2".
+    pin: P0.02
+  - platform: zephyr_pwm
+    id: pwm_output_2
+    pin:
+      # gpio0 on this SoC only has 10 pins (ngpios = 10 in nrf54lm20_a_b.dtsi) --
+      # unlike nRF52840's uniform 32-pin ports, so a flat pin number here must stay
+      # within that real range.
+      number: P0.05
+      inverted: true

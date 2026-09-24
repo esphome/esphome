@@ -1,0 +1,16 @@
+packages:
+  zephyr: !include common.yaml
+
+zephyr:
+  variant: NRF52
+  # Mainline Zephyr (not NCS) -- lighter/faster to fetch for this test, and the
+  # in-tree nrf7002ek shield used below ships with either SDK's boards/shields/.
+  framework:
+    type: zephyr
+  board: nrf52840dk
+  # nrf52840dk has the Arduino-compatible header nrf7002ek is designed to stack
+  # onto -- exercises shields: end to end (west build's -DSHIELD=, and
+  # dts_lookup.py's shield-overlay merge) against a real, in-tree shield with no
+  # shield_source: override needed.
+  shields:
+    - nrf7002ek

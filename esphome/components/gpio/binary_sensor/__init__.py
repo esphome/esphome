@@ -50,6 +50,7 @@ CONFIG_SCHEMA = (
                 nrf52=True,
                 rp2=True,
                 rtl87xx=False,
+                zephyr=True,
             ): cv.boolean,
             cv.Optional(CONF_INTERRUPT_TYPE, default="ANY"): cv.enum(
                 INTERRUPT_TYPES, upper=True

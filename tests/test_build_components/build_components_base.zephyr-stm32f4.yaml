@@ -1,0 +1,27 @@
+esphome:
+  name: componentteststm32f4
+  friendly_name: $component_name
+
+zephyr:
+  variant: STM32F4
+  # nucleo_f401re ships no storage_partition; 0x10000-0x20000 is unused stock flash.
+  overlays:
+    app: |
+      &flash0 {
+        partitions {
+          storage_partition: partition@10000 {
+            label = "storage";
+            reg = <0x00010000 DT_SIZE_K(64)>;
+          };
+        };
+      };
+
+logger:
+  level: VERY_VERBOSE
+  baud_rate: 0
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file

@@ -647,7 +647,8 @@ esphome/components/xiaomi_xmwsdj04mmc/* @medusalix
 esphome/components/xl9535/* @mreditor97
 esphome/components/xpt2046/touchscreen/* @nielsnl68 @numo68
 esphome/components/xxtea/* @clydebarrow
-esphome/components/zephyr/* @tomaszduda23
+esphome/components/zephyr/* @rwrozelle @tomaszduda23
+esphome/components/zephyr_can/* @mrk-its
 esphome/components/zephyr_mcumgr/ota/* @tomaszduda23
 esphome/components/zephyr_pwm/* @wiomoc
 esphome/components/zhlt01/* @cfeenstra1024

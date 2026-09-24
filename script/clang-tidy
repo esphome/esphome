@@ -297,7 +297,7 @@ def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
         if sys.stdout.isatty():
             invocation.append("--use-color")
 
-        if args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx")):
+        if args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx", "nrf52")):
             # MMIO peripheral access on these bare-metal platforms is all
             # fixed-address.
             # bugprone-pointer-arithmetic-on-polymorphic-object (and its

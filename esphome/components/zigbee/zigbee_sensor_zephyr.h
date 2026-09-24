@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/components/zigbee/zigbee_zephyr.h"
-#if defined(USE_ZIGBEE) && defined(USE_NRF52) && defined(USE_SENSOR)
+#if defined(USE_ZIGBEE) && (defined(USE_NRF52) || defined(USE_ZEPHYR_FRAMEWORK_ZIGBEE)) && defined(USE_SENSOR)
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 extern "C" {

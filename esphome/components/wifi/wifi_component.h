@@ -6,7 +6,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_ZEPHYR)
 #include "esphome/core/lock_free_queue.h"
 #endif
 #if defined(USE_LIBRETINY) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
@@ -182,8 +182,9 @@ using bssid_t = std::array<uint8_t, 6>;
 // its BSSIDs are kept, the strongest ones
 static constexpr size_t WIFI_SCAN_RESULT_BOUND = 12;
 
-// RP2040's callback delivers results one at a time with no count, so it needs a growable vector
-#if defined(USE_RP2)
+// RP2040's callback delivers results one at a time with no count, so it needs a growable vector.
+// Zephyr's callback is likewise one NET_EVENT_WIFI_SCAN_RESULT per AP with no advance count.
+#if defined(USE_RP2) || defined(USE_ZEPHYR)
 template<typename T> using wifi_scan_vector_t = std::vector<T>;
 #else
 template<typename T> using wifi_scan_vector_t = FixedVector<T>;
@@ -374,6 +375,10 @@ struct IDFWiFiEvent;
 
 #ifdef USE_LIBRETINY
 struct LTWiFiEvent;
+#endif
+
+#ifdef USE_ZEPHYR
+struct ZephyrWiFiEvent;
 #endif
 
 /** Listener interface for WiFi IP state changes.
@@ -680,6 +685,12 @@ class WiFiComponent final : public Component {
     }
   }
 #endif  // USE_ESP32 && USE_WIFI_RUNTIME_ROAMING_SUPPRESSION
+
+#ifdef USE_ZEPHYR
+  /// Returns false (caller keeps ownership) if the queue is full.
+  bool push_zephyr_wifi_event(void *event);
+  void set_min_scan_rssi(int8_t min_rssi) { this->min_scan_rssi_ = min_rssi; }
+#endif
 
  protected:
 #ifdef USE_WIFI_AP
@@ -1049,6 +1060,14 @@ class WiFiComponent final : public Component {
 #else
   FreeRTOSQueue<LTWiFiEvent, LT_EVENT_QUEUE_SIZE> event_queue_;
 #endif
+#endif
+
+#ifdef USE_ZEPHYR
+  // 17 slots = 16 usable (ring buffer reserves one slot).
+  LockFreeQueue<ZephyrWiFiEvent, 17> event_queue_;
+  // Scan results weaker than this (dBm) are dropped before queuing. -128 (default) is
+  // below any real RSSI, so filtering is off unless min_rssi: is configured.
+  int8_t min_scan_rssi_{-128};
 #endif
 
  private:

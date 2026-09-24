@@ -1,0 +1,29 @@
+sensor:
+  - id: adc_my_sensor
+    platform: adc
+    pin: 17
+    name: ADC Test sensor
+    update_interval: "1:01"
+    unit_of_measurement: "°C"
+    icon: "mdi:water-percent"
+    accuracy_decimals: 5
+    setup_priority: -100
+    force_update: true
+  - platform: adc
+    pin: 16
+    name: ADC Second sensor
+    update_interval: 5sec
+  # Declared out of ascending pin/IADC-input order on purpose (pin 17 above
+  # maps to IADC_INPUT_PB1, this one to IADC_INPUT_PB2) and mixed with an
+  # emulated sensor -- same position-vs-silicon-channel regression coverage
+  # as the nrf52 test, applied to Silicon Labs' fully-regular IADC mapping.
+  # PB0-PB2 (flat pins 16-18, gpio_port_width=16) are used rather than PA5/
+  # PA6 -- xg24_ek2703a's own usart0_default pinctrl (this variant's console
+  # UART) claims those two.
+  - platform: adc
+    id: adc_mixed_emulated_sensor
+    pin: 18
+    name: ADC Mixed Emulated sensor
+    update_interval: 5sec
+    emulation:
+      - 900mV

@@ -1,0 +1,34 @@
+esphome:
+  on_boot:
+    then:
+      - uart.write:
+          id: uart_id
+          data: 'Hello World'
+      - uart.write:
+          id: uart_id
+          data: [0x00, 0x20, 0x42]
+      # scenario 1: ESPHome device calls, emulated peripheral responds (static + cycling)
+      - uart.write:
+          id: uart_bus_id
+          data: "AT\r\n"
+      # scenario 2: emulated peripheral initiates, unprompted -- targets the emulator id
+      - uart.write:
+          id: uart_emul_id
+          data: "+CREG: 1\r\n"
+
+uart:
+  - id: uart_id
+    port: uart0
+    baud_rate: 115200
+    data_bits: 8
+    parity: NONE
+    stop_bits: 1
+  - id: uart_bus_id
+    baud_rate: 115200
+    emulation:
+      id: uart_emul_id
+      responses:
+        "AT\r\n": "OK\r\n"
+        "AT+GMR\r\n": ["v1.0\r\n", "v1.1\r\n"]
+    debug:
+      direction: BOTH

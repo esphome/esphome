@@ -1,0 +1,26 @@
+<<: !include common.yaml
+
+zephyr:
+  variant: ESP32C3
+  # dfrobot/beetle_esp32c3@1.0.0 -- declared in board.yml's revision: list but has no
+  # revision-specific overlay file on disk (only @2.0.0, tested by test-revision.*,
+  # does), exercising the "declared revision resolves but has nothing to merge"
+  # fallback path in dts_lookup.py's get_board_edt(), alongside the @2.0.0 case.
+  board: beetle_esp32c3@1.0.0
+  single_slot: true
+  overlays:
+    app: |
+      /delete-node/ &slot1_partition;
+      &slot0_partition {
+        reg = <0x20000 DT_SIZE_K(3584)>;
+      };
+    mcuboot: |
+      / {
+        chosen {
+          zephyr,code-partition = &boot_partition;
+        };
+      };
+      /delete-node/ &slot1_partition;
+      &slot0_partition {
+        reg = <0x20000 DT_SIZE_K(3584)>;
+      };
