@@ -79,7 +79,7 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
   }
   const bool at_limit = server->at_client_limit_();
   if (at_limit || !server->noise_ctx_.has_psk()) {
-    ESP_LOGD(TAG, "Not dialing: %s", at_limit ? "max connections" : "no key");
+    ESP_LOGD(TAG, "Not dialing: %s", at_limit ? LOG_STR_LITERAL("max connections") : LOG_STR_LITERAL("no key"));
     // Not a dial failure; retry without escalating the backoff
     this->schedule_wait_(now, PRECONDITION_RETRY_MS);
     return;
@@ -102,7 +102,8 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
   }
   this->dial_socket_ = socket::socket_loop_monitored(((struct sockaddr *) &addr)->sa_family, SOCK_STREAM, IPPROTO_TCP);
   if (!this->dial_socket_ || this->dial_socket_->setblocking(false) != 0) {
-    ESP_LOGW(TAG, "Socket %s failed: errno %d", this->dial_socket_ ? "setblocking" : "create", errno);
+    ESP_LOGW(TAG, "Socket %s failed: errno %d",
+             this->dial_socket_ ? LOG_STR_LITERAL("setblocking") : LOG_STR_LITERAL("create"), errno);
     this->schedule_retry_(now);
     return;
   }
