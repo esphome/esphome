@@ -1,7 +1,7 @@
 from logging import getLogger
 
 from esphome import automation, core
-from esphome.automation import Condition, maybe_simple_id
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server, zigbee
 from esphome.components.const import CONF_ON_STATE_CHANGE
@@ -39,6 +39,7 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_GARAGE_DOOR,
     DEVICE_CLASS_GAS,
+    DEVICE_CLASS_GLASS_BREAK,
     DEVICE_CLASS_HEAT,
     DEVICE_CLASS_LIGHT,
     DEVICE_CLASS_LOCK,
@@ -81,6 +82,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_GARAGE_DOOR,
     DEVICE_CLASS_GAS,
+    DEVICE_CLASS_GLASS_BREAK,
     DEVICE_CLASS_HEAT,
     DEVICE_CLASS_LIGHT,
     DEVICE_CLASS_LOCK,
@@ -132,15 +134,9 @@ MultiClickTriggerBase = binary_sensor_ns.class_(
 MultiClickTrigger = binary_sensor_ns.class_("MultiClickTrigger", MultiClickTriggerBase)
 MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 
-BinarySensorPublishAction = binary_sensor_ns.class_(
-    "BinarySensorPublishAction", automation.Action
-)
 BinarySensorInvalidateAction = binary_sensor_ns.class_(
     "BinarySensorInvalidateAction", automation.Action
 )
-
-# Condition
-BinarySensorCondition = binary_sensor_ns.class_("BinarySensorCondition", Condition)
 
 # Filters
 Filter = binary_sensor_ns.class_("Filter")
@@ -452,7 +448,9 @@ _BINARY_SENSOR_SCHEMA = (
             cv.Optional(
                 CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
             ): validate_device_class,
-            cv.Optional(CONF_FILTERS): validate_filters,
+            cv.Optional(
+                CONF_FILTERS, visibility=cv.Visibility.ADVANCED
+            ): validate_filters,
             cv.Optional(CONF_ON_PRESS): automation.validate_automation({}),
             cv.Optional(CONF_ON_RELEASE): automation.validate_automation({}),
             cv.Optional(CONF_ON_CLICK): cv.All(
@@ -644,20 +642,12 @@ BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_condition(
-    "binary_sensor.is_on", BinarySensorCondition, BINARY_SENSOR_CONDITION_SCHEMA
+automation.register_apply_condition(
+    "binary_sensor.is_on", BINARY_SENSOR_CONDITION_SCHEMA, "state"
 )
-async def binary_sensor_is_on_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren, True)
-
-
-@automation.register_condition(
-    "binary_sensor.is_off", BinarySensorCondition, BINARY_SENSOR_CONDITION_SCHEMA
+automation.register_apply_condition(
+    "binary_sensor.is_off", BINARY_SENSOR_CONDITION_SCHEMA, "state == false"
 )
-async def binary_sensor_is_off_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren, False)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

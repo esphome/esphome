@@ -68,6 +68,17 @@ esphome:
 
       - light.toggle: test_binary_light
       - light.turn_off: test_rgb_light
+      - if:
+          condition:
+            light.is_on: test_binary_light
+          then:
+            - logger.log: binary light is on
+      - if:
+          condition:
+            light.is_off:
+              id: test_rgb_light
+          then:
+            - logger.log: rgb light is off
       - light.turn_on:
           id: test_rgb_light
           brightness: 100%
@@ -77,6 +88,16 @@ esphome:
       - light.control:
           id: test_monochromatic_light
           state: on
+      # flash_length and a turn_off with its own transition
+      - light.turn_on:
+          id: test_rgb_light
+          flash_length: 750ms
+      - light.turn_on:
+          id: test_rgb_light
+          flash_length: !lambda return 250;
+      - light.turn_off:
+          id: test_rgb_light
+          transition_length: 300ms
       # Test static effect name resolution at codegen time
       - light.turn_on:
           id: test_monochromatic_light

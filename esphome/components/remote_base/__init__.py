@@ -169,6 +169,12 @@ def request_protocol(name: str) -> None:
     cg.add_define(protocol_define(name))
 
 
+def _request_protocol_if_in_tree(name: str) -> None:
+    """Registry names from external components have no source file here and need no define."""
+    if _protocol_stem(name) in _PROTOCOL_STEMS:
+        request_protocol(name)
+
+
 # Only the protocol sources a configuration uses are compiled
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {f"{stem}_protocol.cpp": protocol_define(stem) for stem in _PROTOCOL_STEMS}
@@ -182,7 +188,7 @@ def register_binary_sensor(
 
     def decorator(func: Callable[[MockObj, ConfigType], Any]) -> Callable:
         async def new_func(var: MockObj, config: ConfigType) -> None:
-            request_protocol(name)
+            _request_protocol_if_in_tree(name)
             await coroutine(func)(var, config)
 
         return registerer(new_func)
@@ -200,7 +206,7 @@ def register_trigger(name, type, data_type):
 
     def decorator(func):
         async def new_func(config):
-            request_protocol(name)
+            _request_protocol_if_in_tree(name)
             var = cg.new_Pvariable(config[CONF_TRIGGER_ID])
             await coroutine(func)(var, config)
             await automation.build_automation(var, [(data_type, "x")], config)
@@ -218,7 +224,7 @@ def register_dumper(name, type, schema=None):
 
     def decorator(func):
         async def new_func(config, dumper_id):
-            request_protocol(name)
+            _request_protocol_if_in_tree(name)
             var = cg.new_Pvariable(dumper_id)
             await coroutine(func)(var, config)
             return var
@@ -259,7 +265,7 @@ def register_action(name, type_, schema):
 
     def decorator(func):
         async def new_func(config, action_id, template_arg, args):
-            request_protocol(name)
+            _request_protocol_if_in_tree(name)
             var = cg.new_Pvariable(action_id, template_arg)
             await register_transmittable(var, config)
             if CONF_REPEAT in config:
@@ -1143,7 +1149,7 @@ def gobox_dumper(var, config):
 
 @register_action("gobox", GoboxAction, GOBOX_SCHEMA)
 async def gobox_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_CODE], args, cg.int_)
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint64)
     cg.add(var.set_code(template_))
 
 
