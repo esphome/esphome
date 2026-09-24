@@ -102,7 +102,8 @@ class LightState : public EntityBase, public Component {
   LightCall toggle();
 
   /// The values reported to the frontend: current_values while a light publishes intermediate
-  /// states on an interval, otherwise remote_values.
+  /// states on an interval, otherwise remote_values. Each interval sample is a publish_state(),
+  /// so on_state automations run on every sample as well.
   const LightColorValues &get_reported_values() const {
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
     if (this->transition_publish_enabled_) {

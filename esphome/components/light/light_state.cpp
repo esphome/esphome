@@ -109,7 +109,11 @@ void LightState::dump_config() {
                   "  Gamma Correct: %.2f",
                   this->default_transition_length_ / 1e3f, this->gamma_correct_);
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
-    ESP_LOGCONFIG(TAG, "  Transition State Publish Interval: %" PRIu32 "ms", this->transition_state_publish_interval_);
+    // The define is build wide; only lights that set the option have an interval
+    if (this->transition_state_publish_interval_ != 0) {
+      ESP_LOGCONFIG(TAG, "  Transition State Publish Interval: %" PRIu32 "ms",
+                    this->transition_state_publish_interval_);
+    }
 #endif
   }
   if (traits.supports_color_capability(ColorCapability::COLOR_TEMPERATURE)) {
