@@ -66,7 +66,7 @@ void TFLuna::setup() {
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
     return;
   } else {
-    snprintf(version_, sizeof(version_), "%d.%d.%d", raw_version[2], raw_version[1], raw_version[0]);
+    snprintf(this->version_, sizeof(this->version_), "%d.%d.%d", raw_version[2], raw_version[1], raw_version[0]);
 #ifdef USE_TEXT_SENSOR
     if (this->version_text_sensor_ != nullptr) {
       this->version_text_sensor_->publish_state(version_);
@@ -89,7 +89,7 @@ void TFLuna::setup() {
   int16_t temperature_raw = encode_uint16(buf[5], buf[4]);
   uint16_t timestamp = encode_uint16(buf[7], buf[6]);
 
-  if (timestamp == previous_timestamp_) {
+  if (timestamp == this->previous_timestamp_) {
     return false;
   }
 
