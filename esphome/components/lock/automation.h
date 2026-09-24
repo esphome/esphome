@@ -36,19 +36,6 @@ template<typename... Ts> class OpenAction final : public Action<Ts...> {
   Lock *lock_;
 };
 
-template<typename... Ts> class LockCondition final : public Condition<Ts...> {
- public:
-  LockCondition(Lock *parent, bool state) : parent_(parent), state_(state) {}
-  bool check(const Ts &...x) override {
-    auto check_state = this->state_ ? LockState::LOCK_STATE_LOCKED : LockState::LOCK_STATE_UNLOCKED;
-    return this->parent_->state == check_state;
-  }
-
- protected:
-  Lock *parent_;
-  bool state_;
-};
-
 /// Callback forwarder that triggers an Automation<> only when a specific lock state is entered.
 /// Pointer-sized (single Automation* field) to fit inline in Callback::ctx_.
 template<LockState State> struct LockStateForwarder {
