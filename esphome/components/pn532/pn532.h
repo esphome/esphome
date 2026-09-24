@@ -28,10 +28,11 @@ enum PN532ReadReady : uint8_t {
 // SEL_RES (SAK) bits, as reported by InListPassiveTarget for ISO/IEC 14443 type A targets (NXP AN10833)
 static constexpr uint8_t SEL_RES_MIFARE_CLASSIC = 0x08;
 static constexpr uint8_t SEL_RES_ISO_DEP = 0x20;
+static constexpr uint8_t SEL_RES_TNP3XXX = 0x01;  // MIFARE Classic 1K compatible
 
 /// Tag type (nfc::TAG_TYPE_*) from a type A target's SEL_RES byte
 inline uint8_t tag_type_from_sel_res(uint8_t sel_res) {
-  if (sel_res & SEL_RES_MIFARE_CLASSIC)
+  if ((sel_res & SEL_RES_MIFARE_CLASSIC) || sel_res == SEL_RES_TNP3XXX)
     return nfc::TAG_TYPE_MIFARE_CLASSIC;
   if (sel_res & SEL_RES_ISO_DEP)
     return nfc::TAG_TYPE_4;

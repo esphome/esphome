@@ -12,6 +12,7 @@ namespace {
 class FakePN532 : public PN532 {
  public:
   using PN532::auth_mifare_classic_block_;
+  using PN532::read_mifare_ultralight_bytes_;
   using PN532::read_mifare_classic_block_;
   using PN532::write_mifare_classic_block_;
   using PN532::write_mifare_ultralight_page_;
@@ -51,6 +52,7 @@ TEST(PN532TagType, FromSelRes) {
   EXPECT_EQ(tag_type_from_sel_res(0x08), nfc::TAG_TYPE_MIFARE_CLASSIC);  // Classic 1K
   EXPECT_EQ(tag_type_from_sel_res(0x18), nfc::TAG_TYPE_MIFARE_CLASSIC);  // Classic 4K
   EXPECT_EQ(tag_type_from_sel_res(0x09), nfc::TAG_TYPE_MIFARE_CLASSIC);  // Mini
+  EXPECT_EQ(tag_type_from_sel_res(0x01), nfc::TAG_TYPE_MIFARE_CLASSIC);  // TNP3xxx
   EXPECT_EQ(tag_type_from_sel_res(0x00), nfc::TAG_TYPE_2);               // Ultralight / NTAG
   EXPECT_EQ(tag_type_from_sel_res(0x20), nfc::TAG_TYPE_4);               // ISO-DEP (phones, DESFire)
   EXPECT_EQ(tag_type_from_sel_res(0x40), nfc::TAG_TYPE_UNKNOWN);
@@ -103,6 +105,43 @@ TEST(PN532Mifare, AuthSendsFourUidBytes) {
   // InDataExchange, Tg, Cmd, Addr, key (6), UID (4)
   ASSERT_EQ(cmd.size(), 14u);
   EXPECT_EQ(std::vector<uint8_t>(cmd.end() - 4, cmd.end()), (std::vector<uint8_t>{0x33, 0x44, 0x55, 0x66}));
+}
+
+// Reads in 16-byte chunks, keeps only the bytes asked for, and advances 4 pages per READ.
+TEST(PN532Mifare, UltralightReadTrimsLastChunk) {
+  FakePN532 pn532;
+  std::vector<uint8_t> first(17), second(17);
+  first[0] = second[0] = 0x00;  // status
+  for (uint8_t i = 0; i < 16; i++) {
+    first[i + 1] = i;
+    second[i + 1] = 0x10 + i;
+  }
+  pn532.responses.push_back(first);
+  pn532.responses.push_back(second);
+
+  std::vector<uint8_t> data;
+  ASSERT_TRUE(pn532.read_mifare_ultralight_bytes_(4, 20, data));
+  ASSERT_EQ(data.size(), 20u);
+  EXPECT_EQ(data[15], 15);
+  EXPECT_EQ(data[16], 0x10);
+  EXPECT_EQ(data[19], 0x13);
+
+  ASSERT_EQ(pn532.written.size(), 2u);
+  EXPECT_EQ(frame_data(pn532.written[0]).back(), 4);  // READ page 4
+  EXPECT_EQ(frame_data(pn532.written[1]).back(), 8);  // then page 8
+}
+
+TEST(PN532Mifare, UltralightReadRejectsBadResponses) {
+  FakePN532 pn532;
+  std::vector<uint8_t> data;
+  pn532.responses.push_back({0x00, 0x01, 0x02});  // short response
+  EXPECT_FALSE(pn532.read_mifare_ultralight_bytes_(4, 16, data));
+
+  std::vector<uint8_t> failed(17, 0x00);
+  failed[0] = 0x01;  // timeout status
+  pn532.responses.push_back(failed);
+  data.clear();
+  EXPECT_FALSE(pn532.read_mifare_ultralight_bytes_(4, 16, data));
 }
 
 }  // namespace esphome::pn532
