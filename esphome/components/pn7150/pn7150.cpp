@@ -11,7 +11,7 @@ void PN7150::dump_config() {
   PN71xx::dump_config();
 }
 
-uint8_t PN7150::verify_reset_(nfc::NciMessage &rx, const bool reset_config) {
+uint8_t PN7150::verify_reset(nfc::NciMessage &rx, const bool reset_config) {
   // CORE_RESET_RSP payload: status, NCI version (reported as 1.1, see UM10936 4.1), configuration status
   if ((!rx.message_type_is(nfc::NCI_PKT_MT_CTRL_RESPONSE)) || (!rx.message_length_is(3)) ||
       (rx.get_message()[nfc::NCI_PKT_PAYLOAD_OFFSET + 1] != 0x11) ||
@@ -28,7 +28,7 @@ uint8_t PN7150::verify_reset_(nfc::NciMessage &rx, const bool reset_config) {
   return nfc::STATUS_OK;
 }
 
-uint8_t PN7150::process_init_response_(nfc::NciMessage &rx) {
+uint8_t PN7150::process_init_response(nfc::NciMessage &rx) {
   // NCI 1.0 CORE_INIT_RSP: the manufacturer ID and 4 bytes of manufacturer specific information follow the list of
   // supported RF interfaces, whose length is at offset 8 (UM10936, 5.2)
   const auto &msg = rx.get_message();

@@ -45,11 +45,11 @@ class PN7160 : public pn71xx::PN71xx {
   void set_wkup_req_pin(GPIOPin *wkup_req_pin) { this->wkup_req_pin_ = wkup_req_pin; }
 
  protected:
-  void prepare_reset_() override;
-  uint8_t verify_reset_(nfc::NciMessage &rx, bool reset_config) override;
-  uint8_t process_init_response_(nfc::NciMessage &rx) override;
-  std::span<const uint8_t> pmu_config_() const override { return PMU_CFG; }
-  std::span<const uint8_t> listen_mode_routing_config_() const override { return RF_LISTEN_MODE_ROUTING_CONFIG; }
+  void prepare_reset() override;
+  uint8_t verify_reset(nfc::NciMessage &rx, bool reset_config) override;
+  uint8_t process_init_response(nfc::NciMessage &rx) override;
+  std::span<const uint8_t> pmu_config() const override { return PMU_CFG; }
+  std::span<const uint8_t> listen_mode_routing_config() const override { return RF_LISTEN_MODE_ROUTING_CONFIG; }
 
   GPIOPin *dwl_req_pin_{nullptr};
   GPIOPin *wkup_req_pin_{nullptr};

@@ -19,10 +19,10 @@ class FakePN71xx : public PN71xx {
   uint8_t write_failures{0};
 
  protected:
-  uint8_t verify_reset_(nfc::NciMessage &rx, bool reset_config) override { return nfc::STATUS_OK; }
-  uint8_t process_init_response_(nfc::NciMessage &rx) override { return nfc::STATUS_OK; }
-  std::span<const uint8_t> pmu_config_() const override { return {}; }
-  std::span<const uint8_t> listen_mode_routing_config_() const override { return {}; }
+  uint8_t verify_reset(nfc::NciMessage &rx, bool reset_config) override { return nfc::STATUS_OK; }
+  uint8_t process_init_response(nfc::NciMessage &rx) override { return nfc::STATUS_OK; }
+  std::span<const uint8_t> pmu_config() const override { return {}; }
+  std::span<const uint8_t> listen_mode_routing_config() const override { return {}; }
 
   uint8_t read_nfcc(nfc::NciMessage &rx, uint16_t timeout) override {
     if (this->to_read.empty())
@@ -139,7 +139,7 @@ TEST(PN71xxCardEmulation, ChunkedNdefReadMatchesFile) {
   expected.insert(expected.end(), encoded.begin(), encoded.end());
 
   std::vector<uint8_t> file;
-  for (uint16_t offset = 0; offset < expected.size(); offset += 5) {
+  for (size_t offset = 0; offset < expected.size(); offset += 5) {
     const uint8_t length = std::min<size_t>(5, expected.size() - offset);
     auto response =
         respond(nfcc, {0x00, 0xB0, static_cast<uint8_t>(offset >> 8), static_cast<uint8_t>(offset), length});

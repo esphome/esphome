@@ -201,7 +201,7 @@ uint8_t PN71xx::set_test_mode(const TestMode test_mode, const std::vector<uint8_
 }
 
 uint8_t PN71xx::reset_core_(const bool reset_config, const bool power) {
-  this->prepare_reset_();
+  this->prepare_reset();
 
   if (power) {
     this->ven_pin_->digital_write(true);
@@ -226,7 +226,7 @@ uint8_t PN71xx::reset_core_(const bool reset_config, const bool power) {
     ESP_LOGE(TAG, "Invalid reset response: %s", nfc::format_bytes_to(buf, rx.get_message()));
     return rx.get_simple_status_response();
   }
-  return this->verify_reset_(rx, reset_config);
+  return this->verify_reset(rx, reset_config);
 }
 
 uint8_t PN71xx::init_core_() {
@@ -244,7 +244,7 @@ uint8_t PN71xx::init_core_() {
     return nfc::STATUS_FAILED;
   }
 
-  return this->process_init_response_(rx);
+  return this->process_init_response(rx);
 }
 
 uint8_t PN71xx::send_init_config_() {
@@ -256,7 +256,7 @@ uint8_t PN71xx::send_init_config_() {
     return nfc::STATUS_FAILED;
   }
 
-  const auto pmu_config = this->pmu_config_();
+  const auto pmu_config = this->pmu_config();
   tx.set_message(nfc::NCI_PKT_MT_CTRL_COMMAND, nfc::NCI_CORE_GID, nfc::NCI_CORE_SET_CONFIG_OID,
                  std::vector<uint8_t>(pmu_config.begin(), pmu_config.end()));
 
@@ -327,7 +327,7 @@ uint8_t PN71xx::set_discover_map_() {
 }
 
 uint8_t PN71xx::set_listen_mode_routing_() {
-  const auto routing_config = this->listen_mode_routing_config_();
+  const auto routing_config = this->listen_mode_routing_config();
   nfc::NciMessage rx;
   nfc::NciMessage tx(nfc::NCI_PKT_MT_CTRL_COMMAND, nfc::RF_GID, nfc::RF_SET_LISTEN_MODE_ROUTING_OID,
                      std::vector<uint8_t>(routing_config.begin(), routing_config.end()));
@@ -939,7 +939,7 @@ void PN71xx::process_rf_discover_oid_(nfc::NciMessage &rx) {
 
   if (rx.get_message().back() != nfc::RF_DISCOVER_NTF_NT_MORE) {
     this->nci_fsm_set_state_(NCIState::RFST_W4_HOST_SELECT);
-    ESP_LOGVV(TAG, "Discovered %u endpoints", this->discovered_endpoint_.size());
+    ESP_LOGVV(TAG, "Discovered %zu endpoints", this->discovered_endpoint_.size());
   }
 }
 

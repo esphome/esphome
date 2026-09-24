@@ -28,7 +28,7 @@ void PN7160::dump_config() {
   }
 }
 
-void PN7160::prepare_reset_() {
+void PN7160::prepare_reset() {
   // DWL_REQ must be low when VEN rises, or the chip starts in firmware download mode (UM11495)
   if (this->dwl_req_pin_ != nullptr) {
     this->dwl_req_pin_->digital_write(false);
@@ -36,7 +36,7 @@ void PN7160::prepare_reset_() {
   }
 }
 
-uint8_t PN7160::verify_reset_(nfc::NciMessage &rx, const bool reset_config) {
+uint8_t PN7160::verify_reset(nfc::NciMessage &rx, const bool reset_config) {
   // PN7160 always sends CORE_RESET_NTF after CORE_RESET_RSP (UM11495, 8.2)
   if (this->read_nfcc(rx, pn71xx::NFCC_INIT_TIMEOUT) != nfc::STATUS_OK) {
     ESP_LOGE(TAG, "Reset notification was not received");
@@ -65,8 +65,8 @@ uint8_t PN7160::verify_reset_(nfc::NciMessage &rx, const bool reset_config) {
   return nfc::STATUS_OK;
 }
 
-uint8_t PN7160::process_init_response_(nfc::NciMessage &rx) {
-  // the chip's version information is logged from CORE_RESET_NTF in verify_reset_()
+uint8_t PN7160::process_init_response(nfc::NciMessage &rx) {
+  // the chip's version information is logged from CORE_RESET_NTF in verify_reset()
   if (rx.get_message().size() >= 8) {
     std::vector<uint8_t> features(rx.get_message().begin() + 4, rx.get_message().begin() + 8);
     char feat_buf[nfc::FORMAT_BYTES_BUFFER_SIZE];

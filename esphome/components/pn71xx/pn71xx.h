@@ -184,15 +184,15 @@ class PN71xx : public nfc::Nfcc, public Component {
 
   /// Chip hooks
   /// Called before the NFCC is reset, e.g. to make sure it will not start in firmware download mode
-  virtual void prepare_reset_() {}
+  virtual void prepare_reset() {}
   /// Validates what follows a successful CORE_RESET_RSP (in `rx`); may read more messages from the NFCC
-  virtual uint8_t verify_reset_(nfc::NciMessage &rx, bool reset_config) = 0;
+  virtual uint8_t verify_reset(nfc::NciMessage &rx, bool reset_config) = 0;
   /// Logs chip information from a successful CORE_INIT_RSP
-  virtual uint8_t process_init_response_(nfc::NciMessage &rx) = 0;
+  virtual uint8_t process_init_response(nfc::NciMessage &rx) = 0;
   /// Parameters for the CORE_SET_CONFIG_CMD that configures the power management unit
-  virtual std::span<const uint8_t> pmu_config_() const = 0;
+  virtual std::span<const uint8_t> pmu_config() const = 0;
   /// Payload of the RF_SET_LISTEN_MODE_ROUTING_CMD
-  virtual std::span<const uint8_t> listen_mode_routing_config_() const = 0;
+  virtual std::span<const uint8_t> listen_mode_routing_config() const = 0;
 
   uint8_t send_init_config_();
   uint8_t send_core_config_();

@@ -26,10 +26,10 @@ class PN7150 : public pn71xx::PN71xx {
   void dump_config() override;
 
  protected:
-  uint8_t verify_reset_(nfc::NciMessage &rx, bool reset_config) override;
-  uint8_t process_init_response_(nfc::NciMessage &rx) override;
-  std::span<const uint8_t> pmu_config_() const override { return PMU_CFG; }
-  std::span<const uint8_t> listen_mode_routing_config_() const override { return RF_LISTEN_MODE_ROUTING_CONFIG; }
+  uint8_t verify_reset(nfc::NciMessage &rx, bool reset_config) override;
+  uint8_t process_init_response(nfc::NciMessage &rx) override;
+  std::span<const uint8_t> pmu_config() const override { return PMU_CFG; }
+  std::span<const uint8_t> listen_mode_routing_config() const override { return RF_LISTEN_MODE_ROUTING_CONFIG; }
 };
 
 }  // namespace esphome::pn7150
