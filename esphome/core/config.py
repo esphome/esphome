@@ -46,7 +46,7 @@ from esphome.const import (
 )
 from esphome.core import (
     CORE,
-    KEY_CONTROLLER_REGISTRY_COUNT,
+    KEY_CONTROLLER_REGISTRY_CONTROLLERS,
     CoroPriority,
     coroutine_with_priority,
 )
@@ -674,12 +674,35 @@ async def _add_platform_defines() -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _add_controller_registry_define() -> None:
-    # Generate StaticVector size for ControllerRegistry
-    controller_count = CORE.data.get(KEY_CONTROLLER_REGISTRY_COUNT, 0)
-    if controller_count > 0:
-        cg.add_define("USE_CONTROLLER_REGISTRY")
-        cg.add_define("CONTROLLER_REGISTRY_MAX", controller_count)
+async def _add_controller_registry_dispatch() -> None:
+    # Define ControllerRegistry::notify_*() in main.cpp as direct calls on each
+    # registered controller. entity_types.h expands one definition per entity
+    # type that is compiled in, so only the callbacks in use are emitted.
+    controllers = CORE.data.get(KEY_CONTROLLER_REGISTRY_CONTROLLERS)
+    if not controllers:
+        return
+    cg.add_define("USE_CONTROLLER_REGISTRY")
+    for var in controllers:
+        cg.add_global(
+            cg.RawStatement(
+                f"static_assert(ControllerContract<std::remove_pointer_t<decltype({var})>>, "
+                f'"{var} is missing an on_*_update() callback for an entity type in this build '
+                '(esphome/core/controller_registry.h)");'
+            )
+        )
+    calls = " \\\n".join(f"    {var}->on_##callback(obj);" for var in controllers)
+    cg.add_global(
+        cg.RawStatement(
+            "#define ENTITY_TYPE_(type, singular, plural, count, upper)\n"
+            "#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \\\n"
+            "  void ControllerRegistry::notify_##callback(type *obj) { \\\n"
+            f"{calls} \\\n"
+            "  }\n"
+            '#include "esphome/core/entity_types.h"\n'
+            "#undef ENTITY_TYPE_\n"
+            "#undef ENTITY_CONTROLLER_TYPE_"
+        )
+    )
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -755,7 +778,7 @@ async def to_code(config: ConfigType) -> None:
     )
 
     CORE.add_job(_add_platform_defines)
-    CORE.add_job(_add_controller_registry_define)
+    CORE.add_job(_add_controller_registry_dispatch)
     CORE.add_job(_add_looping_components)
 
     CORE.add_job(_add_automations, config)
