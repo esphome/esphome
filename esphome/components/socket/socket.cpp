@@ -191,8 +191,7 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
     return 0;
   }
 #else
-  // Unlike inet_addr(), inet_aton() can signal failure while still
-  // accepting the broadcast address 255.255.255.255
+  // inet_aton() reports failure separately from the address, so 255.255.255.255 needs no special case
   if (inet_aton(ip_address, &server->sin_addr) == 0) {
     errno = EINVAL;
     return 0;
