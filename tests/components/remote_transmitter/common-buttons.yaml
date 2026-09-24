@@ -275,3 +275,6 @@ button:
       - remote_transmitter.digital_write: true
       - remote_transmitter.digital_write:
           value: false
+      - remote_transmitter.digital_write:
+          transmitter_id: xmitr
+          value: !lambda return id(remote_transmitter_test_number).state > 127;
