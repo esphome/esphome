@@ -96,7 +96,7 @@ def test_clock_source_codegen(
     tmp_path: Path,
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    """Emit IDF constants directly and preserve the omitted-option default."""
+    """Emit IDF constants directly and skip the setter when nothing changes."""
     config = tmp_path / "uart.yaml"
     config.write_text(
         "esphome:\n  name: uart-clock-test\n"
@@ -106,7 +106,7 @@ def test_clock_source_codegen(
         encoding="utf-8",
     )
     main_cpp = generate_main(config)
-    if source is None:
+    if source in (None, "default"):
         assert "set_clock_source(" not in main_cpp
     else:
         assert f"test_uart->set_clock_source(::UART_SCLK_{source.upper()});" in main_cpp

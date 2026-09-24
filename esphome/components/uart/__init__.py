@@ -391,7 +391,8 @@ async def to_code(config):
         cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
         if CONF_FLUSH_TIMEOUT in config:
             cg.add(var.set_flush_timeout(config[CONF_FLUSH_TIMEOUT]))
-        if (clock_source := config.get(CONF_CLOCK_SOURCE)) is not None:
+        # The member already defaults to UART_SCLK_DEFAULT, so only emit a real choice
+        if (clock_source := config.get(CONF_CLOCK_SOURCE, "DEFAULT")) != "DEFAULT":
             cg.add(var.set_clock_source(UART_CLOCK_SOURCES[clock_source]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
