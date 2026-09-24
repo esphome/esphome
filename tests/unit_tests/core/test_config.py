@@ -1383,6 +1383,30 @@ async def test_to_code_adds_libraries(yaml_file: Callable[[str], Path]) -> None:
     )
 
 
+@pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
+@pytest.mark.parametrize(
+    ("testing_mode", "expected"), [(False, True), (True, False)], ids=["user", "ci"]
+)
+async def test_to_code_unused_function_warning_only_in_testing_mode(
+    yaml_file: Callable[[str], Path], testing_mode: bool, expected: bool
+) -> None:
+    """-Wunused-function is silenced for user builds and kept for CI (testing mode) builds."""
+    result = load_config_from_fixture(yaml_file, "libraries.yaml", FIXTURES_DIR)
+    assert result is not None
+
+    with (
+        patch.object(CORE, "testing_mode", testing_mode),
+        patch("esphome.core.config.cg") as mock_cg,
+    ):
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    flags = [c.args[0] for c in mock_cg.add_build_flag.call_args_list]
+    assert ("-Wno-unused-function" in flags) is expected
+
+
 def test_esphome_build_internals_are_yaml_only() -> None:
     """Raw build-system inputs in the ``esphome:`` block are ``YAML_ONLY``.
 
