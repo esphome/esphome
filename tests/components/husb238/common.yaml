@@ -1,0 +1,6 @@
+husb238:
+
+binary_sensor:
+  - platform: husb238
+    attached: "PD Attached"
+    cc_direction: "CC Direction"
