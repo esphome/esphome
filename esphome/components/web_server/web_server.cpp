@@ -5,7 +5,6 @@
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/controller_registry.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -365,7 +364,6 @@ json::SerializationBuffer<> WebServer::get_config_json() {
 }
 
 void WebServer::setup() {
-  ControllerRegistry::register_controller(this);
   this->base_->init();
 
 #ifdef USE_LOGGER
