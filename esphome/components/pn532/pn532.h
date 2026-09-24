@@ -19,7 +19,7 @@ static const uint8_t PN532_COMMAND_INDATAEXCHANGE = 0x40;
 static const uint8_t PN532_COMMAND_INLISTPASSIVETARGET = 0x4A;
 static const uint8_t PN532_COMMAND_POWERDOWN = 0x16;
 
-enum PN532ReadReady {
+enum PN532ReadReady : uint8_t {
   WOULDBLOCK = 0,
   TIMEOUT,
   READY,
@@ -109,27 +109,32 @@ class PN532 : public PollingComponent {
   bool write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message);
   bool clean_mifare_ultralight_();
 
-  bool updates_enabled_{true};
-  bool requested_read_{false};
-  std::vector<PN532BinarySensor *> binary_sensors_;
-  std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
-  std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
-  nfc::NfcTagUid current_uid_;
-  std::unique_ptr<nfc::NdefMessage> next_task_message_to_write_;
-  optional<uint32_t> rd_start_time_{};
-  enum PN532ReadReady rd_ready_ { WOULDBLOCK };
-  enum NfcTask {
+  enum NfcTask : uint8_t {
     READ = 0,
     CLEAN,
     FORMAT,
     WRITE,
-  } next_task_{READ};
-  enum PN532Error {
+  };
+  enum PN532Error : uint8_t {
     NONE = 0,
     WAKEUP_FAILED,
     SAM_COMMAND_FAILED,
-  } error_code_{NONE};
+  };
+
+  // members are ordered by alignment, widest first, to minimize padding
   CallbackManager<void()> on_finished_write_callback_;
+  std::vector<PN532BinarySensor *> binary_sensors_;
+  std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
+  std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
+  std::unique_ptr<nfc::NdefMessage> next_task_message_to_write_;
+  nfc::NfcTagUid current_uid_;
+  uint32_t rd_start_time_{0};  // valid only while rd_started_ is set
+  PN532ReadReady rd_ready_{WOULDBLOCK};
+  NfcTask next_task_{READ};
+  PN532Error error_code_{NONE};
+  bool rd_started_{false};
+  bool updates_enabled_{true};
+  bool requested_read_{false};
 };
 
 class PN532BinarySensor final : public binary_sensor::BinarySensor {

@@ -315,16 +315,17 @@ void PN532::send_nack_() {
 enum PN532ReadReady PN532::read_ready_(bool block) {
   if (this->rd_ready_ == READY) {
     if (block) {
-      this->rd_start_time_.reset();
+      this->rd_started_ = false;
       this->rd_ready_ = WOULDBLOCK;
     }
     return READY;
   }
 
-  if (!this->rd_start_time_.has_value()) {
+  if (!this->rd_started_) {
     this->rd_start_time_ = millis();
+    this->rd_started_ = true;
   }
-  const uint32_t rd_start_time = *this->rd_start_time_;
+  const uint32_t rd_start_time = this->rd_start_time_;
 
   while (true) {
     if (this->is_read_ready()) {
@@ -348,7 +349,7 @@ enum PN532ReadReady PN532::read_ready_(bool block) {
 
   auto rdy = this->rd_ready_;
   if (block || rdy == TIMEOUT) {
-    this->rd_start_time_.reset();
+    this->rd_started_ = false;
     this->rd_ready_ = WOULDBLOCK;
   }
   return rdy;
