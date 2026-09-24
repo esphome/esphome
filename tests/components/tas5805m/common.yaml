@@ -1,0 +1,18 @@
+audio_dac:
+  - platform: tas5805m
+    id: tas5805m_amp
+    i2c_id: i2c_bus
+    address: 0x2D
+    enable_pin: GPIO12
+    analog_gain: -15.5dB
+    dac_mode: btl
+    mixer_mode: stereo
+    volume_min_db: -60dB
+    volume_max_db: 0dB
+    update_interval: 1s
+
+esphome:
+  on_boot:
+    - tas5805m.deactivate: tas5805m_amp
+    - tas5805m.activate:
+        id: tas5805m_amp

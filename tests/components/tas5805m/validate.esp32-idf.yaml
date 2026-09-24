@@ -1,0 +1,10 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+
+audio_dac:
+  - platform: tas5805m
+    id: tas5805m_pbtl
+    i2c_id: i2c_bus
+    dac_mode: PBTL
+    mixer_mode: mono
+    analog_gain: -3.5dB
