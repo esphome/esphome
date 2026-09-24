@@ -200,9 +200,7 @@ for _name, _call in (
         _name, SWITCH_ACTION_SCHEMA, automation.ApplyCall(_call)
     )
 
-automation.register_apply_condition(
-    "switch.is_on", SWITCH_ACTION_SCHEMA, "state == true"
-)
+automation.register_apply_condition("switch.is_on", SWITCH_ACTION_SCHEMA, "state")
 automation.register_apply_condition(
     "switch.is_off", SWITCH_ACTION_SCHEMA, "state == false"
 )
