@@ -21,7 +21,9 @@ namespace esphome::event {
 
 class Event : public EntityBase {
  public:
-  void trigger(const std::string &event_type);
+  /// Trigger an event; the type is matched against the configured types by string compare.
+  void trigger(const char *event_type);
+  void trigger(const std::string &event_type) { this->trigger(event_type.c_str()); }
 
   /// Set the event types supported by this event (from initializer list).
   void set_event_types(std::initializer_list<const char *> event_types) {
