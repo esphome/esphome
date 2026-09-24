@@ -600,7 +600,7 @@ bool APIConnection::send_light_state(light::LightState *light) {
 uint16_t APIConnection::try_send_light_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *light = static_cast<light::LightState *>(entity);
   LightStateResponse resp;
-  auto values = light->remote_values;
+  auto values = light->get_reported_values();
   auto color_mode = values.get_color_mode();
   resp.state = values.is_on();
   resp.color_mode = static_cast<enums::ColorMode>(color_mode);
