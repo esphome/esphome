@@ -7,110 +7,110 @@ namespace esphome::tas2780 {
 
 static const char *const TAG = "tas2780";
 
-static const uint8_t TAS2780_PAGE_SELECT = 0x00;  // Page Select
-static const uint8_t TAS2780_PAGE_0 = 0x00;       // Page 0
-static const uint8_t TAS2780_PAGE_1 = 0x01;       // Page 1
-static const uint8_t TAS2780_PAGE_FD = 0xFD;      // Page 0xFD
+static constexpr uint8_t TAS2780_PAGE_SELECT = 0x00;  // Page Select
+static constexpr uint8_t TAS2780_PAGE_0 = 0x00;       // Page 0
+static constexpr uint8_t TAS2780_PAGE_1 = 0x01;       // Page 1
+static constexpr uint8_t TAS2780_PAGE_FD = 0xFD;      // Page 0xFD
 
 /* PAGE 0 */
-static const uint8_t TAS2780_SW_RESET = 0x01;      // Software Reset
-static const uint8_t TAS2780_SW_RESET_CMD = 0x01;  // Trigger software reset
-static const uint8_t TAS2780_MODE_CTRL = 0x02;     // Device operational mode
-static const uint8_t TAS2780_MODE_CTRL_MODE_MASK = 0x07;
-static const uint8_t TAS2780_MODE_CTRL_MODE_ACTIVE = 0x00;
-static const uint8_t TAS2780_MODE_CTRL_MODE_ACTIVE_MUTED = 0x01;
-static const uint8_t TAS2780_MODE_CTRL_MODE_SFTW_SHTDWN = 0x02;
+static constexpr uint8_t TAS2780_SW_RESET = 0x01;      // Software Reset
+static constexpr uint8_t TAS2780_SW_RESET_CMD = 0x01;  // Trigger software reset
+static constexpr uint8_t TAS2780_MODE_CTRL = 0x02;     // Device operational mode
+static constexpr uint8_t TAS2780_MODE_CTRL_MODE_MASK = 0x07;
+static constexpr uint8_t TAS2780_MODE_CTRL_MODE_ACTIVE = 0x00;
+static constexpr uint8_t TAS2780_MODE_CTRL_MODE_ACTIVE_MUTED = 0x01;
+static constexpr uint8_t TAS2780_MODE_CTRL_MODE_SFTW_SHTDWN = 0x02;
 
-static const uint8_t TAS2780_CHNL_0 = 0x03;  // Y Bridge and Channel settings
-static const uint8_t TAS2780_CHNL_0_CDS_MODE_SHIFT = 6;
-static const uint8_t TAS2780_CHNL_0_CDS_MODE_MASK = (0x03 << TAS2780_CHNL_0_CDS_MODE_SHIFT);
-static const uint8_t TAS2780_CHNL_0_AMP_LEVEL_SHIFT = 1;
-static const uint8_t TAS2780_CHNL_0_AMP_LEVEL_MASK = (0x1F) << TAS2780_CHNL_0_AMP_LEVEL_SHIFT;
-static const uint8_t TAS2780_AMP_LEVEL_MAX = 0x14;  // Codes above 20 are reserved
+static constexpr uint8_t TAS2780_CHNL_0 = 0x03;  // Y Bridge and Channel settings
+static constexpr uint8_t TAS2780_CHNL_0_CDS_MODE_SHIFT = 6;
+static constexpr uint8_t TAS2780_CHNL_0_CDS_MODE_MASK = (0x03 << TAS2780_CHNL_0_CDS_MODE_SHIFT);
+static constexpr uint8_t TAS2780_CHNL_0_AMP_LEVEL_SHIFT = 1;
+static constexpr uint8_t TAS2780_CHNL_0_AMP_LEVEL_MASK = (0x1F) << TAS2780_CHNL_0_AMP_LEVEL_SHIFT;
+static constexpr uint8_t TAS2780_AMP_LEVEL_MAX = 0x14;  // Codes above 20 are reserved
 
-static const uint8_t TAS2780_DC_BLK0 = 0x04;  // SAR Filter and DC Path Blocker
-static const uint8_t TAS2780_DC_BLK0_VBAT1S_MODE_SHIFT = 7;
-static const uint8_t TAS2780_DC_BLK1 = 0x05;  // Record DC Blocker
+static constexpr uint8_t TAS2780_DC_BLK0 = 0x04;  // SAR Filter and DC Path Blocker
+static constexpr uint8_t TAS2780_DC_BLK0_VBAT1S_MODE_SHIFT = 7;
+static constexpr uint8_t TAS2780_DC_BLK1 = 0x05;  // Record DC Blocker
 
-static const uint8_t TAS2780_TDM_CFG2 = 0x0A;  // TDM Configuration 2
-static const uint8_t TAS2780_TDM_CFG2_RX_SCFG_SHIFT = 4;
-static const uint8_t TAS2780_TDM_CFG2_RX_SCFG_MASK = (3 << TAS2780_TDM_CFG2_RX_SCFG_SHIFT);
-static const uint8_t TAS2780_TDM_CFG2_RX_SCFG_STEREO_DWN_MIX = (3 << TAS2780_TDM_CFG2_RX_SCFG_SHIFT);
-static const uint8_t TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT = (1 << TAS2780_TDM_CFG2_RX_SCFG_SHIFT);
-static const uint8_t TAS2780_TDM_CFG2_RX_SCFG_MONO_RIGHT = (2 << TAS2780_TDM_CFG2_RX_SCFG_SHIFT);
-static const uint8_t TAS2780_TDM_CFG2_RX_WLEN_SHIFT = 2;
-static const uint8_t TAS2780_TDM_CFG2_RX_WLEN_MASK = (3 << TAS2780_TDM_CFG2_RX_WLEN_SHIFT);
-static const uint8_t TAS2780_TDM_CFG2_RX_WLEN_32BIT = (3 << TAS2780_TDM_CFG2_RX_WLEN_SHIFT);
-static const uint8_t TAS2780_TDM_CFG2_RX_SLEN_MASK = (3 << 0);
-static const uint8_t TAS2780_TDM_CFG2_RX_SLEN_32BIT = 2;
+static constexpr uint8_t TAS2780_TDM_CFG2 = 0x0A;  // TDM Configuration 2
+static constexpr uint8_t TAS2780_TDM_CFG2_RX_SCFG_SHIFT = 4;
+static constexpr uint8_t TAS2780_TDM_CFG2_RX_SCFG_MASK = (3 << TAS2780_TDM_CFG2_RX_SCFG_SHIFT);
+static constexpr uint8_t TAS2780_TDM_CFG2_RX_SCFG_STEREO_DWN_MIX = (3 << TAS2780_TDM_CFG2_RX_SCFG_SHIFT);
+static constexpr uint8_t TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT = (1 << TAS2780_TDM_CFG2_RX_SCFG_SHIFT);
+static constexpr uint8_t TAS2780_TDM_CFG2_RX_SCFG_MONO_RIGHT = (2 << TAS2780_TDM_CFG2_RX_SCFG_SHIFT);
+static constexpr uint8_t TAS2780_TDM_CFG2_RX_WLEN_SHIFT = 2;
+static constexpr uint8_t TAS2780_TDM_CFG2_RX_WLEN_MASK = (3 << TAS2780_TDM_CFG2_RX_WLEN_SHIFT);
+static constexpr uint8_t TAS2780_TDM_CFG2_RX_WLEN_32BIT = (3 << TAS2780_TDM_CFG2_RX_WLEN_SHIFT);
+static constexpr uint8_t TAS2780_TDM_CFG2_RX_SLEN_MASK = (3 << 0);
+static constexpr uint8_t TAS2780_TDM_CFG2_RX_SLEN_32BIT = 2;
 
-static const uint8_t TAS2780_TDM_CFG5 = 0x0E;                   // TDM Configuration 5
-static const uint8_t TAS2780_TDM_CFG5_TX_VSNS_EN_SLOT4 = 0x44;  // vsns TX enable, slot 4
-static const uint8_t TAS2780_TDM_CFG6 = 0x0F;                   // TDM Configuration 6
-static const uint8_t TAS2780_TDM_CFG6_TX_ISNS_EN_SLOT0 = 0x40;  // isns TX enable, slot 0
+static constexpr uint8_t TAS2780_TDM_CFG5 = 0x0E;                   // TDM Configuration 5
+static constexpr uint8_t TAS2780_TDM_CFG5_TX_VSNS_EN_SLOT4 = 0x44;  // vsns TX enable, slot 4
+static constexpr uint8_t TAS2780_TDM_CFG6 = 0x0F;                   // TDM Configuration 6
+static constexpr uint8_t TAS2780_TDM_CFG6_TX_ISNS_EN_SLOT0 = 0x40;  // isns TX enable, slot 0
 
-static const uint8_t TAS2780_DVC = 0x1A;  // Digital Volume Control
+static constexpr uint8_t TAS2780_DVC = 0x1A;  // Digital Volume Control
 
 /* Interrupts */
-static const uint8_t TAS2780_INT_MASK_ALL = 0xFF;  // Mask all interrupts
-static const uint8_t TAS2780_INT_MASK0 = 0x3B;     // Interrupt Mask 0
-static const uint8_t TAS2780_INT_MASK1 = 0x3C;     // Interrupt Mask 1
-static const uint8_t TAS2780_INT_MASK1_0 = 0x3D;   // Interrupt Mask 1_0 (INT_LTCH1_0 group)
-static const uint8_t TAS2780_INT_MASK2 = 0x40;     // Interrupt Mask 2
-static const uint8_t TAS2780_INT_MASK3 = 0x41;     // Interrupt Mask 3
-static const uint8_t TAS2780_INT_LTCH0 = 0x49;     // Latched Interrupt Read-back 0
-static const uint8_t TAS2780_INT_LTCH1 = 0x4A;     // Latched Interrupt Read-back 1
-static const uint8_t TAS2780_INT_LTCH1_0 = 0x4B;   // Latched Interrupt Read-back 1_0
-static const uint8_t TAS2780_INT_LTCH2 = 0x4F;     // Latched Interrupt Read-back 2
+static constexpr uint8_t TAS2780_INT_MASK_ALL = 0xFF;  // Mask all interrupts
+static constexpr uint8_t TAS2780_INT_MASK0 = 0x3B;     // Interrupt Mask 0
+static constexpr uint8_t TAS2780_INT_MASK1 = 0x3C;     // Interrupt Mask 1
+static constexpr uint8_t TAS2780_INT_MASK1_0 = 0x3D;   // Interrupt Mask 1_0 (INT_LTCH1_0 group)
+static constexpr uint8_t TAS2780_INT_MASK2 = 0x40;     // Interrupt Mask 2
+static constexpr uint8_t TAS2780_INT_MASK3 = 0x41;     // Interrupt Mask 3
+static constexpr uint8_t TAS2780_INT_LTCH0 = 0x49;     // Latched Interrupt Read-back 0
+static constexpr uint8_t TAS2780_INT_LTCH1 = 0x4A;     // Latched Interrupt Read-back 1
+static constexpr uint8_t TAS2780_INT_LTCH1_0 = 0x4B;   // Latched Interrupt Read-back 1_0
+static constexpr uint8_t TAS2780_INT_LTCH2 = 0x4F;     // Latched Interrupt Read-back 2
 
-static const uint8_t TAS2780_INT_CLK_CFG = 0x5C;                // Clock Setting and IRQZ
-static const uint8_t TAS2780_INT_CLK_CFG_CLR_LATCH = (1 << 2);  // Clear interrupt latches
-static const uint8_t TAS2780_INT_CLK_CFG_MODE_MASK = 0x03;      // Trigger mode field mask
-static const uint8_t TAS2780_INT_CLK_CFG_MODE_LIVE = 0x00;      // Trigger on any unmasked live interrupt
-static const uint8_t TAS2780_PVDD_UVLO = 0x71;                  // UVLO Threshold
-static const uint8_t TAS2780_PVDD_UVLO_2V76 = 0x03;             // PVDD UVLO threshold = 2.76V
+static constexpr uint8_t TAS2780_INT_CLK_CFG = 0x5C;                // Clock Setting and IRQZ
+static constexpr uint8_t TAS2780_INT_CLK_CFG_CLR_LATCH = (1 << 2);  // Clear interrupt latches
+static constexpr uint8_t TAS2780_INT_CLK_CFG_MODE_MASK = 0x03;      // Trigger mode field mask
+static constexpr uint8_t TAS2780_INT_CLK_CFG_MODE_LIVE = 0x00;      // Trigger on any unmasked live interrupt
+static constexpr uint8_t TAS2780_PVDD_UVLO = 0x71;                  // UVLO Threshold
+static constexpr uint8_t TAS2780_PVDD_UVLO_2V76 = 0x03;             // PVDD UVLO threshold = 2.76V
 
 /* PAGE 0x01 */
-static const uint8_t TAS2780_INIT_0 = 0x17;        // Initialization
-static const uint8_t TAS2780_INIT_0_VAL = 0xC8;    // SARBurstMask=0, CMP_HYST_LP=1
-static const uint8_t TAS2780_LSR = 0x19;           // Modulation
-static const uint8_t TAS2780_LSR_PWM_MODE = 0x00;  // PWM modulation mode
-static const uint8_t TAS2780_INIT_1 = 0x21;        // Initialization
-static const uint8_t TAS2780_INIT_1_VAL = 0x00;    // Disable comparator hysteresis
-static const uint8_t TAS2780_INIT_2 = 0x35;        // Initialization
-static const uint8_t TAS2780_INIT_2_VAL = 0x74;    // Noise minimized
+static constexpr uint8_t TAS2780_INIT_0 = 0x17;        // Initialization
+static constexpr uint8_t TAS2780_INIT_0_VAL = 0xC8;    // SARBurstMask=0, CMP_HYST_LP=1
+static constexpr uint8_t TAS2780_LSR = 0x19;           // Modulation
+static constexpr uint8_t TAS2780_LSR_PWM_MODE = 0x00;  // PWM modulation mode
+static constexpr uint8_t TAS2780_INIT_1 = 0x21;        // Initialization
+static constexpr uint8_t TAS2780_INIT_1_VAL = 0x00;    // Disable comparator hysteresis
+static constexpr uint8_t TAS2780_INIT_2 = 0x35;        // Initialization
+static constexpr uint8_t TAS2780_INIT_2_VAL = 0x74;    // Noise minimized
 
 /* PAGE 0xFD */
-static const uint8_t TAS2780_PAGE_FD_ACCESS = 0x0D;         // Page 0xFD access unlock/lock register
-static const uint8_t TAS2780_PAGE_FD_ACCESS_UNLOCK = 0x0D;  // Unlock page 0xFD access
-static const uint8_t TAS2780_PAGE_FD_ACCESS_LOCK = 0x00;    // Lock page 0xFD access
-static const uint8_t TAS2780_INIT_3 = 0x3E;                 // Initialization
-static const uint8_t TAS2780_INIT_3_VAL = 0x4A;             // Optimal Dmin
+static constexpr uint8_t TAS2780_PAGE_FD_ACCESS = 0x0D;         // Page 0xFD access unlock/lock register
+static constexpr uint8_t TAS2780_PAGE_FD_ACCESS_UNLOCK = 0x0D;  // Unlock page 0xFD access
+static constexpr uint8_t TAS2780_PAGE_FD_ACCESS_LOCK = 0x00;    // Lock page 0xFD access
+static constexpr uint8_t TAS2780_INIT_3 = 0x3E;                 // Initialization
+static constexpr uint8_t TAS2780_INIT_3_VAL = 0x4A;             // Optimal Dmin
 
 /* Latched interrupt bits */
-static const uint8_t TAS2780_INT_LTCH0_IR_OT = (1 << 0);     // over temp error
-static const uint8_t TAS2780_INT_LTCH0_IR_OC = (1 << 1);     // over current error
-static const uint8_t TAS2780_INT_LTCH0_IR_TDMCE = (1 << 2);  // TDM_CLOCK_ERROR
-static const uint8_t TAS2780_INT_LTCH0_IR_LIMA = (1 << 3);   // limiter active
-static const uint8_t TAS2780_INT_LTCH0_IR_PBIP = (1 << 4);   // PVDD below limiter inflection point
-static const uint8_t TAS2780_INT_LTCH0_IR_LIMMA = (1 << 5);  // limiter max attenuation
-static const uint8_t TAS2780_INT_LTCH0_IR_BOPIH = (1 << 6);  // BOP infinite hold
-static const uint8_t TAS2780_INT_LTCH0_IR_BOPM = (1 << 7);   // due to bop mute
+static constexpr uint8_t TAS2780_INT_LTCH0_IR_OT = (1 << 0);     // over temp error
+static constexpr uint8_t TAS2780_INT_LTCH0_IR_OC = (1 << 1);     // over current error
+static constexpr uint8_t TAS2780_INT_LTCH0_IR_TDMCE = (1 << 2);  // TDM_CLOCK_ERROR
+static constexpr uint8_t TAS2780_INT_LTCH0_IR_LIMA = (1 << 3);   // limiter active
+static constexpr uint8_t TAS2780_INT_LTCH0_IR_PBIP = (1 << 4);   // PVDD below limiter inflection point
+static constexpr uint8_t TAS2780_INT_LTCH0_IR_LIMMA = (1 << 5);  // limiter max attenuation
+static constexpr uint8_t TAS2780_INT_LTCH0_IR_BOPIH = (1 << 6);  // BOP infinite hold
+static constexpr uint8_t TAS2780_INT_LTCH0_IR_BOPM = (1 << 7);   // due to bop mute
 
-static const uint8_t TAS2780_INT_LTCH1_IR_VBATLIM = (1 << 0);  // Gain Limiter interrupt
-static const uint8_t TAS2780_INT_LTCH1_IR_LDMODE = (3 << 3);   // Load Diagnostic mode fault status
-static const uint8_t TAS2780_INT_LTCH1_IR_LDC = (1 << 5);      // Load diagnostic completion
-static const uint8_t TAS2780_INT_LTCH1_IR_OTPCRC = (1 << 6);   // OTP CRC error flag
+static constexpr uint8_t TAS2780_INT_LTCH1_IR_VBATLIM = (1 << 0);  // Gain Limiter interrupt
+static constexpr uint8_t TAS2780_INT_LTCH1_IR_LDMODE = (3 << 3);   // Load Diagnostic mode fault status
+static constexpr uint8_t TAS2780_INT_LTCH1_IR_LDC = (1 << 5);      // Load diagnostic completion
+static constexpr uint8_t TAS2780_INT_LTCH1_IR_OTPCRC = (1 << 6);   // OTP CRC error flag
 
-static const uint8_t TAS2780_INT_LTCH1_0_IR_VBAT1S_UVLO = (1 << 5);  // VBAT1S Under Voltage
-static const uint8_t TAS2780_INT_LTCH1_0_IR_PLL_CLK = (1 << 7);      // Internal PLL Clock Error
+static constexpr uint8_t TAS2780_INT_LTCH1_0_IR_VBAT1S_UVLO = (1 << 5);  // VBAT1S Under Voltage
+static constexpr uint8_t TAS2780_INT_LTCH1_0_IR_PLL_CLK = (1 << 7);      // Internal PLL Clock Error
 
-static const uint8_t TAS2780_INT_LTCH2_IR_PUVLO = (1 << 0);   // PVDD UVLO
-static const uint8_t TAS2780_INT_LTCH2_IR_LDO_OL = (1 << 1);  // Internal VBAT1S LDO Over Load
-static const uint8_t TAS2780_INT_LTCH2_IR_LDO_OV = (1 << 2);  // Internal VBAT1S LDO Over Voltage
-static const uint8_t TAS2780_INT_LTCH2_IR_LDO_UV = (1 << 3);  // Internal VBAT1S LDO Under Voltage
+static constexpr uint8_t TAS2780_INT_LTCH2_IR_PUVLO = (1 << 0);   // PVDD UVLO
+static constexpr uint8_t TAS2780_INT_LTCH2_IR_LDO_OL = (1 << 1);  // Internal VBAT1S LDO Over Load
+static constexpr uint8_t TAS2780_INT_LTCH2_IR_LDO_OV = (1 << 2);  // Internal VBAT1S LDO Over Voltage
+static constexpr uint8_t TAS2780_INT_LTCH2_IR_LDO_UV = (1 << 3);  // Internal VBAT1S LDO Under Voltage
 
-static const uint8_t POWER_MODES[4][2] = {
+static constexpr uint8_t POWER_MODES[4][2] = {
     {2, 0},  // PWR_MODE0: CDS_MODE=10, VBAT1S_MODE=0
     {0, 0},  // PWR_MODE1: CDS_MODE=00, VBAT1S_MODE=0
     {3, 1},  // PWR_MODE2: CDS_MODE=11, VBAT1S_MODE=1
