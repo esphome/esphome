@@ -38,10 +38,10 @@ binary_sensor:
             args: ['x.has_value() ? ONOFF(x) : "Unknown"']
         - binary_sensor.invalidate_state: binary_sensor_some_binary_sensor
         - binary_sensor.template.publish:
-            id: publish_target
+            id: binary_sensor_publish_target
             state: true
         - binary_sensor.template.publish:
-            id: publish_target
+            id: binary_sensor_publish_target
             state: !lambda "return x.value_or(false);"
         - if:
             condition:
@@ -56,7 +56,7 @@ binary_sensor:
               - logger.log: "publish_target is off"
 
   - platform: template
-    id: publish_target
+    id: binary_sensor_publish_target
     name: "Publish Target"
 
   # Test autorepeat with default configuration (no timings)
