@@ -204,14 +204,14 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    *
    * @param css_url The url to the web server stylesheet.
    */
-  void set_css_url(const char *css_url);
+  void set_css_url(const char *css_url) { this->css_url_ = css_url; }
 
   /** Set the URL to the script that's embedded in the index page. Defaults to
    * https://oi.esphome.io/v1/webserver-v1.min.js
    *
    * @param js_url The url to the web server script.
    */
-  void set_js_url(const char *js_url);
+  void set_js_url(const char *js_url) { this->js_url_ = js_url; }
 #endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
@@ -219,7 +219,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    *
    * @param css_include Local path to web server script.
    */
-  void set_css_include(const char *css_include);
+  void set_css_include(const char *css_include) { this->css_include_ = css_include; }
 #endif
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
@@ -227,7 +227,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    *
    * @param js_include Local path to web server script.
    */
-  void set_js_include(const char *js_include);
+  void set_js_include(const char *js_include) { this->js_include_ = js_include; }
 #endif
 
   /** Determine whether internal components should be displayed on the web server.
@@ -241,6 +241,22 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    * @param expose_log.
    */
   void set_expose_log(bool expose_log) { this->expose_log_ = expose_log; }
+
+#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
+  /** Set the origins that browsers are allowed to make cross-origin requests from.
+   *
+   * Requests without an `Origin` header (e.g. non-browser clients like curl or the native API)
+   * are always allowed. Requests whose `Origin` matches the address the device is served on
+   * (same-origin) are always allowed. Any other browser origin must appear in this list, or the
+   * request is rejected. A single "*" entry allows any origin. Each other entry must exactly match
+   * the requesting page's `Origin` header (e.g. "https://example.com").
+   *
+   * This list is also used to authorize Private Network Access requests when that feature is enabled.
+   *
+   * @param origins The list of allowed origins.
+   */
+  void set_allowed_origins(std::initializer_list<const char *> origins) { this->allowed_origins_ = origins; }
+#endif
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -577,7 +593,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 
   web_server_base::WebServerBase *base_;
 #ifdef USE_ESP32
-  AsyncEventSource events_{"/events", this};
+  AsyncEventSource events_{StringRef::from_lit("/events"), this};
 #elif USE_ARDUINO
   DeferredUpdateEventSourceList events_;
 #endif
@@ -593,6 +609,16 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
   const char *js_include_{nullptr};
 #endif
   bool expose_log_{true};
+#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
+  // Extra origins allowed to make cross-origin browser requests ("*" means any origin).
+  // Only compiled when allowed_origins is configured; same-origin is always allowed regardless.
+  FixedVector<const char *> allowed_origins_;
+#endif
+
+  /// Check whether the given request Origin is permitted. Same-origin (matching the Host the
+  /// request was sent to) and requests without an Origin header are always allowed; any other
+  /// origin must be listed in allowed_origins. The caller passes the already-read Origin header.
+  bool is_request_origin_allowed_(AsyncWebServerRequest *request, const std::string &origin);
 
  private:
 #ifdef USE_SENSOR

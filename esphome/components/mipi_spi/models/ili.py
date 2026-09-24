@@ -314,6 +314,7 @@ DriverChip(
     data_rate="40MHz",
     dc_pin=4,
     cs_pin=5,
+    requires={"psram"},
     # reset_pin={CONF_INVERTED: True, CONF_NUMBER: 48},
     initsequence=(
         (0xEF, 0x03, 0x80, 0x02),
@@ -379,6 +380,7 @@ DriverChip(
     cs_pin=5,
     dc_pin=4,
     reset_pin=48,
+    requires={"psram"},
     initsequence=(
         (0xEF, 0x03, 0x80, 0x02),
         (0xCF, 0x00, 0xC1, 0x30),
@@ -711,6 +713,7 @@ ST7796.extend(
     reset_pin=4,
     dc_pin={"number": 0, "ignore_strapping_warning": True},
     invert_colors=True,
+    requires={"psram"},
 )
 
 ST7789V.extend(

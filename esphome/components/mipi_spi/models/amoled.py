@@ -16,7 +16,7 @@ from esphome.components.mipi import (
     delay,
 )
 from esphome.components.spi import TYPE_QUAD
-from esphome.config_validation import UNDEFINED
+from esphome.const import CONF_MIRROR_X, CONF_MIRROR_Y
 
 DriverChip(
     "T-DISPLAY-S3-AMOLED",
@@ -29,6 +29,7 @@ DriverChip(
     brightness=0xD0,
     color_order=MODE_RGB,
     no_slpout=True,  # SLPOUT is in the init sequence, early
+    requires={"psram"},
     initsequence=(SLPOUT,),
 )
 
@@ -43,6 +44,7 @@ DriverChip(
     data_rate="40MHz",
     brightness=0xD0,
     color_order=MODE_RGB,
+    requires={"psram"},
     initsequence=(
         (PAGESEL, 4),
         (0x6A, 0x00),
@@ -90,6 +92,7 @@ T4_S3_AMOLED = RM690B0.extend(
     reset_pin=13,
     enable_pin=9,
     bus_mode=TYPE_QUAD,
+    requires={"psram"},
 )
 
 CO5300 = DriverChip(
@@ -98,7 +101,7 @@ CO5300 = DriverChip(
     color_order=MODE_RGB,
     bus_mode=TYPE_QUAD,
     no_slpout=True,
-    swap_xy=UNDEFINED,
+    transforms={CONF_MIRROR_X, CONF_MIRROR_Y},
     width=480,
     height=480,
     initsequence=(

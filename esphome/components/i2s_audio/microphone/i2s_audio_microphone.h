@@ -29,6 +29,10 @@ class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphon
 
   void set_pdm(bool pdm) { this->pdm_ = pdm; }
 
+#if SOC_I2S_SUPPORTS_PDM_RX
+  void set_pdm_dsr(i2s_pdm_dsr_t pdm_dsr) { this->pdm_dsr_ = pdm_dsr; }
+#endif
+
  protected:
   /// @brief Starts the I2S driver. Updates the ``audio_stream_info_`` member variable with the current setttings.
   /// @return True if succesful, false otherwise
@@ -42,7 +46,7 @@ class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphon
   /// @param data
   void fix_dc_offset_(std::vector<uint8_t> &data);
 
-  size_t read_(uint8_t *buf, size_t len, TickType_t ticks_to_wait);
+  size_t read_(uint8_t *buf, size_t len, uint32_t timeout_ms);
 
   /// @brief Sets the Microphone ``audio_stream_info_`` member variable to the configured I2S settings.
   void configure_stream_settings_();
@@ -57,6 +61,9 @@ class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphon
   gpio_num_t din_pin_{I2S_GPIO_UNUSED};
   i2s_chan_handle_t rx_handle_;
   bool pdm_{false};
+#if SOC_I2S_SUPPORTS_PDM_RX
+  i2s_pdm_dsr_t pdm_dsr_{I2S_PDM_DSR_8S};
+#endif
 
   bool correct_dc_offset_;
   bool locked_driver_{false};

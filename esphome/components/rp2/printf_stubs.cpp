@@ -33,8 +33,8 @@ static int write_printf_buffer(FILE *stream, char *buf, int len) {
   if (write_len >= PRINTF_BUFFER_SIZE) {
     fwrite(buf, 1, PRINTF_BUFFER_SIZE - 1, stream);
     // Use fwrite for the message to avoid recursive __wrap_printf call
-    static const char msg[] = "\nprintf buffer overflow\n";
-    fwrite(msg, 1, sizeof(msg) - 1, stream);
+    static const char MSG[] = "\nprintf buffer overflow\n";
+    fwrite(MSG, 1, sizeof(MSG) - 1, stream);
     abort();
   }
   if (fwrite(buf, 1, write_len, stream) < write_len || ferror(stream)) {

@@ -6,10 +6,13 @@ from typing import Any
 
 import pytest
 
+from esphome import config_validation as cv
 from esphome.components.display import CONF_SHOW_TEST_CARD
 from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.mipi import DriverChip
 from esphome.components.mipi_spi.display import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
 from esphome.const import CONF_BUFFER_SIZE, PlatformFramework
+from esphome.core import CORE
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -183,3 +186,77 @@ def test_buffer_size_selected_when_lvgl_with_test_card(
     )
 
     assert config[CONF_BUFFER_SIZE] == pytest.approx(1.0 / 4)
+
+
+def test_requires_missing_single_component_raises() -> None:
+    """A model that requires a single component raises when it is absent."""
+    CORE.raw_config = {}
+    chip = DriverChip("TEST-REQUIRES-PSRAM", requires={"psram"})
+
+    with pytest.raises(
+        cv.Invalid,
+        match=r"TEST-REQUIRES-PSRAM requires component 'psram' to be configured",
+    ):
+        chip.check_requirements()
+
+
+def test_requires_missing_multiple_components_raises() -> None:
+    """A model that requires several components lists all the missing ones, pluralized."""
+    CORE.raw_config = {}
+    chip = DriverChip("TEST-REQUIRES-MULTI", requires={"psram", "pca9554"})
+
+    with pytest.raises(
+        cv.Invalid,
+        match=r"TEST-REQUIRES-MULTI requires components '.*' to be configured",
+    ) as excinfo:
+        chip.check_requirements()
+    assert "psram" in str(excinfo.value)
+    assert "pca9554" in str(excinfo.value)
+
+
+def test_requires_satisfied_does_not_raise() -> None:
+    """No error is raised once all the required components are configured."""
+    CORE.raw_config = {"psram": True, "pca9554": []}
+    chip = DriverChip("TEST-REQUIRES-SATISFIED", requires={"psram", "pca9554"})
+
+    chip.check_requirements()  # Should not raise
+
+
+def test_requires_absent_does_not_raise() -> None:
+    """Models without a requires set are unaffected by the check."""
+    CORE.raw_config = {}
+    chip = DriverChip("TEST-REQUIRES-NONE")
+
+    chip.check_requirements()  # Should not raise
+
+
+def test_predefined_model_requires_psram(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A predefined board model known to have PSRAM rejects a config without it."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    CORE.raw_config = {}
+
+    with pytest.raises(
+        cv.Invalid, match=r"S3BOX requires component 'psram' to be configured"
+    ):
+        _validated({"model": "s3box"})
+
+
+def test_predefined_model_requires_psram_satisfied(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Any,
+) -> None:
+    """The same board model validates once PSRAM is configured."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("psram", True)
+    CORE.raw_config = {"psram": True}
+
+    config = _validated({"model": "s3box"})
+    assert config["model"] == "S3BOX"

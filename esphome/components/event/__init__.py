@@ -23,7 +23,8 @@ from esphome.core.entity_helpers import (
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@nohat"]
 IS_PLATFORM_COMPONENT = True
@@ -39,8 +40,6 @@ event_ns = cg.esphome_ns.namespace("event")
 Event = event_ns.class_("Event", cg.EntityBase)
 EventPtr = Event.operator("ptr")
 
-TriggerEventAction = event_ns.class_("TriggerEventAction", automation.Action)
-
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 _EVENT_SCHEMA = (
@@ -50,7 +49,9 @@ _EVENT_SCHEMA = (
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTEventComponent),
             cv.GenerateID(): cv.declare_id(Event),
-            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_device_class,
             cv.Optional(CONF_ON_EVENT): automation.validate_automation({}),
         }
     )
@@ -91,7 +92,9 @@ _CALLBACK_AUTOMATIONS = (
 
 
 @setup_entity("event")
-async def setup_event_core_(var, config, *, event_types: list[str]):
+async def setup_event_core_(
+    var: MockObj, config: ConfigType, *, event_types: list[str]
+) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     cg.add(var.set_event_types(event_types))
@@ -106,7 +109,9 @@ async def setup_event_core_(var, config, *, event_types: list[str]):
         await web_server.add_entity_config(var, web_server_config)
 
 
-async def register_event(var, config, *, event_types: list[str]):
+async def register_event(
+    var: MockObj, config: ConfigType, *, event_types: list[str]
+) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     queue_entity_register("event", config)
@@ -114,7 +119,7 @@ async def register_event(var, config, *, event_types: list[str]):
     await setup_event_core_(var, config, event_types=event_types)
 
 
-async def new_event(config, *, event_types: list[str]):
+async def new_event(config: ConfigType, *, event_types: list[str]) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await register_event(var, config, event_types=event_types)
     return var
@@ -128,17 +133,13 @@ TRIGGER_EVENT_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
-    "event.trigger", TriggerEventAction, TRIGGER_EVENT_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "event.trigger",
+    TRIGGER_EVENT_SCHEMA,
+    automation.ApplyField(CONF_EVENT_TYPE, "trigger", cg.std_string),
 )
-async def event_fire_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    templ = await cg.templatable(config[CONF_EVENT_TYPE], args, cg.std_string)
-    cg.add(var.set_event_type(templ))
-    return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(event_ns.using)

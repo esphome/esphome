@@ -93,7 +93,7 @@ void Emc2101Component::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
-  ESP_LOGCONFIG(TAG, "  Mode: %s", this->dac_mode_ ? "DAC" : "PWM");
+  ESP_LOGCONFIG(TAG, "  Mode: %s", this->dac_mode_ ? LOG_STR_LITERAL("DAC") : LOG_STR_LITERAL("PWM"));
   if (this->dac_mode_) {
     ESP_LOGCONFIG(TAG, "  DAC Conversion Rate: %X", this->dac_conversion_rate_);
   } else {
@@ -145,9 +145,9 @@ float Emc2101Component::get_external_temperature() {
     return NAN;
   }
 
-  // join msb and lsb (5 least significant bits are not used)
-  uint16_t raw = (msb << 8 | lsb) >> 5;
-  return raw * 0.125;
+  // join msb and lsb (5 least significant bits are not used); msb is signed, so read as int16_t
+  int16_t raw = static_cast<int16_t>((msb << 8) | lsb) >> 5;
+  return raw * 0.125f;
 }
 
 float Emc2101Component::get_speed() {
