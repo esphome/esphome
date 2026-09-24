@@ -22,7 +22,7 @@ float MCP3204::read_data(uint8_t pin, bool differential) {
                           ((differential ? 0 : 1) << 5) |  // single or differential bit
                           ((pin & 0x07) << 2);             // pin
   // One full-duplex transaction: command out, 12-bit result back in bytes 1 and 2.
-  // Word aligned so the ESP-IDF DMA path uses the buffer in place instead of a heap bounce buffer.
+  // Word aligned so ESP-IDF DMA uses the buffer in place; only ESP32-P4 also checks the length and bounces.
   alignas(4) uint8_t buffer[3] = {command, 0x00, 0x00};
 
   this->enable();
