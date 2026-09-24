@@ -69,7 +69,7 @@ class AddressableLightWrapper : public light::AddressableLight {
 
   void write_state(light::LightState *state) override {
     // Don't overwrite state if the underlying light is turned on
-    if (this->light_state_->remote_values.is_on()) {
+    if (this->light_state_->get_target_values().is_on()) {
       this->mark_shown_();
       return;
     }

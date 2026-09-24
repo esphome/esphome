@@ -67,7 +67,7 @@ class RandomLightEffect : public LightEffect {
       return;
     }
 
-    auto color_mode = this->state_->remote_values.get_color_mode();
+    auto color_mode = this->state_->get_target_values().get_color_mode();
     auto call = this->state_->turn_on();
     bool changed = false;
     if (color_mode & ColorCapability::RGB) {
@@ -200,7 +200,7 @@ class FlickerLightEffect : public LightEffect {
   explicit FlickerLightEffect(const char *name) : LightEffect(name) {}
 
   void apply() override {
-    LightColorValues remote = this->state_->remote_values;
+    LightColorValues remote = this->state_->get_target_values();
     LightColorValues current = this->state_->current_values;
     LightColorValues out;
     const float alpha = this->alpha_;
