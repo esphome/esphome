@@ -24,6 +24,7 @@ from esphome.const import (
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_CELSIUS,
+    UNIT_MILLIVOLT,
     UNIT_VOLT,
     UNIT_WATT,
     UNIT_WATT_HOURS,
@@ -44,7 +45,6 @@ CONF_TEMPERATURE_COEFFICIENT = "temperature_coefficient"
 CONF_RESET_ON_BOOT = "reset_on_boot"
 UNIT_COULOMB = "C"
 UNIT_JOULE = "J"
-UNIT_MILLIVOLT = "mV"
 
 ina2xx_base_ns = cg.esphome_ns.namespace("ina2xx_base")
 INA2XX = ina2xx_base_ns.class_("INA2XX", cg.PollingComponent)

@@ -5,6 +5,17 @@ namespace esphome::pid {
 
 static const char *const TAG = "pid.climate";
 
+bool PIDClimate::set_deadband_thresholds(float threshold_low, float threshold_high) {
+  if (threshold_low > threshold_high) {
+    ESP_LOGW(TAG, "Deadband threshold low %.2f must not be greater than high %.2f", threshold_low, threshold_high);
+    return false;
+  }
+
+  this->set_threshold_low(threshold_low);
+  this->set_threshold_high(threshold_high);
+  return true;
+}
+
 void PIDClimate::setup() {
   this->sensor_->add_on_state_callback([this](float state) {
     // only publish if state/current temperature has changed in two digits of precision

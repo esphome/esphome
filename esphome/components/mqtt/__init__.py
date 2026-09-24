@@ -1,5 +1,4 @@
 from esphome import automation
-from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components import logger, socket
 from esphome.components.esp32 import (
@@ -135,7 +134,6 @@ MQTTDisconnectTrigger = mqtt_ns.class_(
     "MQTTDisconnectTrigger", automation.Trigger.template(MQTTClientDisconnectReason)
 )
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
-MQTTConnectedCondition = mqtt_ns.class_("MQTTConnectedCondition", Condition)
 
 MQTTAlarmControlPanelComponent = mqtt_ns.class_(
     "MQTTAlarmControlPanelComponent", MQTTComponent
@@ -599,18 +597,15 @@ async def register_mqtt_component(var, config):
             )
 
 
-@automation.register_condition(
+automation.register_apply_condition(
     "mqtt.connected",
-    MQTTConnectedCondition,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(MQTTClientComponent),
         }
     ),
+    "is_connected()",
 )
-async def mqtt_connected_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
 @automation.register_action(
