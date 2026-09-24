@@ -21,9 +21,10 @@ class JpegEncoder {
   /// @param input_format Pixel layout of the frames that will be passed to encode().
   /// @param sub_sample Chroma subsampling to use for the encoded image.
   /// @param quality JPEG quality, 1 (smallest) to 100 (best).
+  /// @param frame_size Size in bytes of one raw frame in @p input_format
   /// @return true when the encoder is ready for use.
   bool init(uint16_t width, uint16_t height, jpeg_enc_input_format_t input_format, jpeg_down_sampling_type_t sub_sample,
-            uint8_t quality);
+            uint8_t quality, size_t frame_size);
 
   /// Encodes one frame into the internal output buffer.
   /// @param frame Raw pixel data in the configured input format.

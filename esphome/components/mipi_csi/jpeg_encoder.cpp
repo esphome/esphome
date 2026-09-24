@@ -14,22 +14,8 @@ static constexpr int ENCODE_TIMEOUT_MS = 5000;
 /// Smallest output buffer we will allocate, so that tiny frames still have room for the headers.
 static constexpr size_t MIN_OUTPUT_SIZE = 8192;
 
-static size_t bytes_per_pixel(jpeg_enc_input_format_t format) {
-  switch (format) {
-    case JPEG_ENCODE_IN_FORMAT_RGB888:
-      return 3;
-    case JPEG_ENCODE_IN_FORMAT_RGB565:
-    case JPEG_ENCODE_IN_FORMAT_YUV422:
-      return 2;
-    case JPEG_ENCODE_IN_FORMAT_GRAY:
-      return 1;
-    default:
-      return 2;
-  }
-}
-
 bool JpegEncoder::init(uint16_t width, uint16_t height, jpeg_enc_input_format_t input_format,
-                       jpeg_down_sampling_type_t sub_sample, uint8_t quality) {
+                       jpeg_down_sampling_type_t sub_sample, uint8_t quality, size_t frame_size) {
   jpeg_encode_engine_cfg_t engine_config{};
   engine_config.timeout_ms = ENCODE_TIMEOUT_MS;
   esp_err_t err = jpeg_new_encoder_engine(&engine_config, &this->engine_);
@@ -40,7 +26,7 @@ bool JpegEncoder::init(uint16_t width, uint16_t height, jpeg_enc_input_format_t 
 
   // A JPEG is expected to be well under the raw frame size, and three quarters of it is the
   // headroom Espressif's own examples use. Encoding fails outright if a frame ever exceeds it.
-  size_t requested = static_cast<size_t>(width) * height * bytes_per_pixel(input_format) * 3 / 4;
+  size_t requested = frame_size * 3 / 4;
   if (requested < MIN_OUTPUT_SIZE) {
     requested = MIN_OUTPUT_SIZE;
   }
