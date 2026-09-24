@@ -174,6 +174,7 @@ bool TAS2780::init_() {
     return false;
   }
   this->current_page_ = 0xFF;
+  this->applied_power_mode_ = 0xFF;  // only a complete init makes the chip trustworthy again
   this->reg(TAS2780_SW_RESET) = TAS2780_SW_RESET_CMD;
   delay(1);
 
@@ -229,7 +230,10 @@ bool TAS2780::init_() {
     return false;
 
   // Software reset sets DVC back to 0 dB (full volume)
-  return this->apply_config();
+  if (!this->apply_config())
+    return false;
+  this->applied_power_mode_ = this->power_mode_;
+  return true;
 }
 
 void TAS2780::activate() {
@@ -276,7 +280,6 @@ bool TAS2780::set_power_mode_(uint8_t power_mode) {
       !this->update_bits_(TAS2780_DC_BLK0, TAS2780_DC_BLK0_VBAT1S_MODE_MASK, vbat1s_mode ? 0xFF : 0)) {
     return false;
   }
-  this->applied_power_mode_ = power_mode;
   return true;
 }
 
