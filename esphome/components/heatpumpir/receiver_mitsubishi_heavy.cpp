@@ -9,7 +9,6 @@ namespace esphome::heatpumpir {
 
 static const uint8_t FRAME_PREFIX[5] = {0x52, 0xAE, 0xC3, 0x26, 0xD9};
 static const uint8_t XOR_CHECKSUM_EXPECTED = 0xFF;
-static const uint8_t FRAME_LENGTH = 11;
 static const uint8_t PREFIX_LENGTH = 5;
 static const uint8_t MODE_TEMP_BYTE = 9;
 static const uint8_t MODE_MASK = 0x07;

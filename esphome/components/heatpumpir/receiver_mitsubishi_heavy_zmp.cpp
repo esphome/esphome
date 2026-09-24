@@ -7,7 +7,7 @@
 
 namespace esphome::heatpumpir {
 
-bool decode_mitsubishi_heavy_zmp(const uint8_t frame[11], HeatpumpIRClimate &climate) {
+bool decode_mitsubishi_heavy_zmp(const uint8_t frame[FRAME_LENGTH], HeatpumpIRClimate &climate) {
   static const uint8_t BYTE_SWING_H = 5;
   static const uint8_t BYTE_FAN = 7;
   static const uint8_t FAN_SPEED_MASK = 0xE0;

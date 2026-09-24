@@ -107,7 +107,7 @@ const std::map<Protocol, std::function<bool(HeatpumpIRClimate &, remote_base::Re
     PROTOCOL_RECEIVE_MAP = {
         {PROTOCOL_MITSUBISHI_HEAVY_ZMP,
          [](HeatpumpIRClimate &climate, remote_base::RemoteReceiveData &data) {
-           uint8_t frame[11];
+           uint8_t frame[FRAME_LENGTH];
            return decode_mitsubishi_heavy_frame(data, frame, climate) && decode_mitsubishi_heavy_zmp(frame, climate);
          }},
 };
