@@ -11,8 +11,7 @@ namespace esphome::runtime_image {
  * @brief Image decoder specialization for JPEG images based on libjpeg-turbo.
  *
  * Unlike the JPEGDEC based decoder, this one also supports progressive JPEG
- * images. Note that progressive decoding buffers the coefficients of the whole
- * image in memory, so large progressive images generally require PSRAM.
+ * images.
  */
 class JpegTurboDecoder : public ImageDecoder {
  public:
