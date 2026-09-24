@@ -6,16 +6,16 @@
 namespace esphome::tfluna {
 
 // see https://files.waveshare.com/upload/a/ac/SJ-PM-TF-Luna_A05_Product_Manual.pdf
-static const uint8_t SAVE_REGISTER = 0x20;
-static const uint8_t VERSION_REVISION_REGISTER = 0x0A;
-static const uint8_t DISTANCE_LOW_REGISTER = 0x00;
-static const uint8_t RESTORE_FACTORY_DEFAULTS_REGISTER = 0x29;
-static const uint8_t SHUTDOWN_REBOOT_REGISTER = 0x21;
-static const uint8_t MODE_REGISTER = 0x23;
-static const uint8_t MODE_TRIGGER = 0x01;
-static const uint8_t TRIGGER_ONESHOT_REGISTER = 0x24;
-static const uint8_t MAX_READ_ATTEMPTS = 5;
-static const uint8_t READ_RETRY_MS = 5;
+static constexpr uint8_t SAVE_REGISTER = 0x20;
+static constexpr uint8_t VERSION_REVISION_REGISTER = 0x0A;
+static constexpr uint8_t DISTANCE_LOW_REGISTER = 0x00;
+static constexpr uint8_t RESTORE_FACTORY_DEFAULTS_REGISTER = 0x29;
+static constexpr uint8_t SHUTDOWN_REBOOT_REGISTER = 0x21;
+static constexpr uint8_t MODE_REGISTER = 0x23;
+static constexpr uint8_t MODE_TRIGGER = 0x01;
+static constexpr uint8_t TRIGGER_ONESHOT_REGISTER = 0x24;
+static constexpr uint8_t MAX_READ_ATTEMPTS = 5;
+static constexpr uint8_t READ_RETRY_MS = 5;
 static const char *const TAG = "tfluna";
 static const char *const READ_RETRY_TIMEOUT = "read_retry";
 
