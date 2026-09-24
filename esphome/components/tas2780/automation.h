@@ -5,19 +5,6 @@
 
 namespace esphome::tas2780 {
 
-template<typename... Ts> class ActivateAction : public Action<Ts...>, public Parented<TAS2780> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, power_mode)
-
-  void play(const Ts &...x) override {
-    if (this->power_mode_.has_value()) {
-      this->parent_->activate(this->power_mode_.value(x...));
-    } else {
-      this->parent_->activate();
-    }
-  }
-};
-
 template<typename... Ts> class UpdateConfigAction : public Action<Ts...>, public Parented<TAS2780> {
  public:
   TEMPLATABLE_VALUE(uint8_t, amp_level)

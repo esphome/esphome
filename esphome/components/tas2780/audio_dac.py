@@ -20,9 +20,6 @@ CHANNELS = {
     "right": ChannelSelect.RIGHT_CHANNEL,
 }
 
-ActivateAction = tas2780_ns.class_(
-    "ActivateAction", automation.Action, cg.Parented.template(TAS2780)
-)
 
 UpdateConfigAction = tas2780_ns.class_(
     "UpdateConfigAction", automation.Action, cg.Parented.template(TAS2780)
@@ -62,12 +59,21 @@ CONFIG_SCHEMA = cv.All(
 
 TAS2780_BASE_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(TAS2780)})
 
+# A missing power_mode activates with the configured one, see TAS2780::POWER_MODE_KEEP.
+POWER_MODE_KEEP = 0xFF
+
+
+def _default_power_mode_keep(config: ConfigType) -> ConfigType:
+    config.setdefault(CONF_POWER_MODE, POWER_MODE_KEEP)
+    return config
+
+
 TAS2780_ACTIVATE_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(TAS2780),
         cv.Optional(CONF_POWER_MODE): cv.templatable(cv.int_range(min=0, max=3)),
     }
-)
+).add_extra(_default_power_mode_keep)
 
 
 automation.register_apply_action(
@@ -83,21 +89,11 @@ automation.register_apply_action(
 )
 
 
-@automation.register_action(
-    "tas2780.activate", ActivateAction, TAS2780_ACTIVATE_ACTION_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "tas2780.activate",
+    TAS2780_ACTIVATE_ACTION_SCHEMA,
+    automation.ApplyField(CONF_POWER_MODE, "activate", cg.uint8),
 )
-async def tas2780_activate_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    if (power_mode := config.get(CONF_POWER_MODE)) is not None:
-        template = await cg.templatable(power_mode, args, cg.uint8)
-        cg.add(var.set_power_mode(template))
-    return var
 
 
 TAS2780_UPDATE_CONFIG_SCHEMA = cv.Schema(

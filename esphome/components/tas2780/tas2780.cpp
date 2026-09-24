@@ -228,9 +228,9 @@ bool TAS2780::init_() {
   return true;
 }
 
-void TAS2780::activate() { this->activate(this->power_mode_); }
-
 void TAS2780::activate(uint8_t power_mode) {
+  if (power_mode == POWER_MODE_KEEP)
+    power_mode = this->power_mode_;
   if (power_mode >= 4) {
     ESP_LOGE(TAG, "Invalid power mode %u, must be 0-3", power_mode);
     return;

@@ -16,6 +16,9 @@ esphome:
     - tas2780.activate:
         id: tas2780_amp
         power_mode: 1
+    - tas2780.activate:
+        id: tas2780_amp
+        power_mode: !lambda "return id(tas2780_amp).volume() > 0.5f ? 3 : 1;"
     - tas2780.update_config:
         id: tas2780_amp
         amp_level: 10

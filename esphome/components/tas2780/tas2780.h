@@ -17,8 +17,9 @@ class TAS2780 : public audio_dac::AudioDac, public PollingComponent, public i2c:
   void update() override;
 
   void reset();
-  void activate();
-  void activate(uint8_t power_mode);
+  static constexpr uint8_t POWER_MODE_KEEP = 0xFF;
+  /// Activate with the given power mode, or the configured one for POWER_MODE_KEEP.
+  void activate(uint8_t power_mode = POWER_MODE_KEEP);
   void deactivate();
   bool apply_amp_and_channel_config();
 
