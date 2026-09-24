@@ -6,7 +6,6 @@
 namespace esphome::tfluna {
 
 class ResetButton : public button::Button, public Parented<TFLuna> {
- public:
  protected:
   void press_action() override;
 };
