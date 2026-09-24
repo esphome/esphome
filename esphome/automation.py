@@ -224,6 +224,15 @@ def flash_string(config: ConfigType, value: str) -> str:
     return str(cg.safe_exp(value))
 
 
+def literal_with_length(config: ConfigType, value: str) -> str:
+    """Renderer for a ``(const char *, size_t)`` target: a plain literal plus its byte length.
+
+    The target compares or copies the bytes in place, so it needs the RAM literal rather than
+    the PROGMEM rendering on ESP8266, and the length saves a strlen.
+    """
+    return f"{cg.safe_exp(value)}, {len(value.encode('utf-8'))}"
+
+
 @dataclass(frozen=True)
 class ApplyCall:
     """One statement from config keys, e.g. ``"set_range({}, {})"`` with ``((CONF_LOW, cg.float_), ...)``.
@@ -330,9 +339,9 @@ def _check_key_in_schema(
         schema = schema.schema[markers[part]]
 
 
-async def _apply_parent(config: ConfigType) -> str:
+async def _apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
     # Global-scope qualified so a trigger arg named like the id cannot shadow it.
-    return f"::{await cg.get_variable(config[CONF_ID])}"
+    return f"::{await cg.get_variable(config[id_key])}"
 
 
 def _apply_lambda_args(args: TemplateArgsType) -> TemplateArgsType:
@@ -387,12 +396,14 @@ def register_apply_action(
     schema: cv.Schema,
     *fields: ApplyField | ApplyCall,
     call: str | None = None,
+    id_key: str = CONF_ID,
 ) -> None:
     """Register an action that only forwards config values to its parent, with no C++ class.
 
-    Generates one stateless function for ``ApplyAction<Ts...>``: parent and constants are baked
-    in, lambdas are called inline with the trigger args. With ``call`` every statement targets
-    the call object ``auto apply_call = parent->call()``, and ``apply_call.perform()`` is appended.
+    Generates one stateless function for ``ApplyAction<Ts...>``: the parent (read from
+    ``id_key``) and constants are baked in, lambdas are called inline with the trigger args.
+    With ``call`` every statement targets the call object ``auto apply_call = parent->call()``,
+    and ``apply_call.perform()`` is appended.
     """
     # An action stores the value, so a std::string constant stays in flash on ESP8266.
     statements_spec = [
@@ -405,6 +416,7 @@ def register_apply_action(
         )
         for c in (f if isinstance(f, ApplyCall) else f.call() for f in fields)
     ]
+    _check_key_in_schema(name, schema, id_key)
     for _, members in statements_spec:
         for conf_key, _, _ in members:
             _check_key_in_schema(name, schema, conf_key)
@@ -415,7 +427,7 @@ def register_apply_action(
         template_arg: cg.TemplateArguments,
         args: TemplateArgsType,
     ) -> MockObj:
-        parent = await _apply_parent(config)
+        parent = await _apply_parent(config, id_key)
         lambda_args = _apply_lambda_args(args)
         receiver = "apply_call." if call else f"{parent}->"
         statements: list[str] = []
@@ -442,7 +454,7 @@ def register_apply_action(
 
 
 def register_apply_condition(
-    name: str, schema: cv.Schema, check: str | ApplyCall
+    name: str, schema: cv.Schema, check: str | ApplyCall, id_key: str = CONF_ID
 ) -> None:
     """Register a condition that is one expression on its parent, with no C++ class.
 
@@ -454,6 +466,7 @@ def register_apply_condition(
     """
     call = check if isinstance(check, ApplyCall) else ApplyCall(check)
     members = call.members
+    _check_key_in_schema(name, schema, id_key)
     for conf_key, _, _ in members:
         _check_key_in_schema(name, schema, conf_key)
 
@@ -463,7 +476,7 @@ def register_apply_condition(
         template_arg: cg.TemplateArguments,
         args: TemplateArgsType,
     ) -> MockObj:
-        parent = await _apply_parent(config)
+        parent = await _apply_parent(config, id_key)
         lambda_args = _apply_lambda_args(args)
         exprs = await _render_values(
             name,
