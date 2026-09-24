@@ -39,11 +39,15 @@ uint8_t PN7160Spi::write_nfcc(nfc::NciMessage &tx) {
   auto encoded = tx.encode();
   this->enable();
   // send "transfer direction detector"; the NFCC answers 0xFF when it is ready to receive (UM11495, 6.3.3)
-  const bool ready = this->transfer_byte(TDD_SPI_WRITE) == 0xFF;
+  const uint8_t status = this->transfer_byte(TDD_SPI_WRITE);
+  const bool ready = status == 0xFF;
   if (ready) {
     this->write_array(encoded.data(), encoded.size());
   }
   this->disable();
+  if (!ready) {
+    ESP_LOGV(TAG, "NFCC not ready for write (0x%02X)", status);
+  }
   return ready ? nfc::STATUS_OK : nfc::STATUS_FAILED;
 }
 

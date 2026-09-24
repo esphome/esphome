@@ -12,6 +12,23 @@ namespace esphome::pn71xx {
 
 static const char *const TAG = "pn71xx";
 
+// Builds a message with a URI record and, optionally, the Home Assistant Android app record
+static std::unique_ptr<nfc::NdefMessage> build_uri_message(const std::string &uri,
+                                                           const bool include_android_app_record) {
+  auto ndef_message = make_unique<nfc::NdefMessage>();
+
+  ndef_message->add_uri_record(uri);
+
+  if (include_android_app_record) {
+    auto ext_record = make_unique<nfc::NdefRecord>();
+    ext_record->set_tnf(nfc::TNF_EXTERNAL_TYPE);
+    ext_record->set_type(nfc::HA_TAG_ID_EXT_RECORD_TYPE);
+    ext_record->set_payload(nfc::HA_TAG_ID_EXT_RECORD_PAYLOAD);
+    ndef_message->add_record(std::move(ext_record));
+  }
+  return ndef_message;
+}
+
 void PN71xx::setup() {
   this->irq_pin_->setup();
   this->ven_pin_->setup();
@@ -29,26 +46,22 @@ void PN71xx::loop() {
   this->purge_old_tags_();
 }
 
-void PN71xx::set_tag_emulation_message(std::shared_ptr<nfc::NdefMessage> message) {
-  this->card_emulation_message_ = std::move(message);
+void PN71xx::set_tag_emulation_message(const std::shared_ptr<nfc::NdefMessage> &message) {
+  if (message == nullptr) {
+    return;
+  }
+  // encoded once here so it is validated up front and not re-encoded for every read from the reader
+  auto encoded = message->encode();
+  if (encoded.size() > CARD_EMU_T4T_MAX_NDEF_SIZE) {
+    ESP_LOGE(TAG, "Tag emulation message too long: %zu > %u bytes", encoded.size(), CARD_EMU_T4T_MAX_NDEF_SIZE);
+    return;
+  }
+  this->card_emulation_ndef_ = std::move(encoded);
   ESP_LOGD(TAG, "Tag emulation message set");
 }
 
 void PN71xx::set_tag_emulation_message(const std::string &message, const bool include_android_app_record) {
-  auto ndef_message = make_unique<nfc::NdefMessage>();
-
-  ndef_message->add_uri_record(message);
-
-  if (include_android_app_record) {
-    auto ext_record = make_unique<nfc::NdefRecord>();
-    ext_record->set_tnf(nfc::TNF_EXTERNAL_TYPE);
-    ext_record->set_type(nfc::HA_TAG_ID_EXT_RECORD_TYPE);
-    ext_record->set_payload(nfc::HA_TAG_ID_EXT_RECORD_PAYLOAD);
-    ndef_message->add_record(std::move(ext_record));
-  }
-
-  this->card_emulation_message_ = std::move(ndef_message);
-  ESP_LOGD(TAG, "Tag emulation message set");
+  this->set_tag_emulation_message(build_uri_message(message, include_android_app_record));
 }
 
 void PN71xx::set_tag_emulation_message(const char *message, const bool include_android_app_record) {
@@ -64,7 +77,7 @@ void PN71xx::set_tag_emulation_off() {
 }
 
 void PN71xx::set_tag_emulation_on() {
-  if (this->card_emulation_message_ == nullptr) {
+  if (this->card_emulation_ndef_.empty()) {
     ESP_LOGE(TAG, "No NDEF message is set; tag emulation cannot be enabled");
     return;
   }
@@ -122,20 +135,7 @@ void PN71xx::set_tag_write_message(std::shared_ptr<nfc::NdefMessage> message) {
 }
 
 void PN71xx::set_tag_write_message(const std::string &message, const bool include_android_app_record) {
-  auto ndef_message = make_unique<nfc::NdefMessage>();
-
-  ndef_message->add_uri_record(message);
-
-  if (include_android_app_record) {
-    auto ext_record = make_unique<nfc::NdefRecord>();
-    ext_record->set_tnf(nfc::TNF_EXTERNAL_TYPE);
-    ext_record->set_type(nfc::HA_TAG_ID_EXT_RECORD_TYPE);
-    ext_record->set_payload(nfc::HA_TAG_ID_EXT_RECORD_PAYLOAD);
-    ndef_message->add_record(std::move(ext_record));
-  }
-
-  this->next_task_message_to_write_ = std::move(ndef_message);
-  ESP_LOGD(TAG, "Message to write has been set");
+  this->set_tag_write_message(build_uri_message(message, include_android_app_record));
 }
 
 uint8_t PN71xx::set_test_mode(const TestMode test_mode, const std::vector<uint8_t> &data,
@@ -649,7 +649,8 @@ void PN71xx::nci_fsm_transition_() {
     case NCIState::RFST_POLL_ACTIVE:
     case NCIState::EP_SELECTING:
     case NCIState::EP_DEACTIVATING:
-      // only a notification from the NFCC ends the EP_ states; if it was lost, recover rather than wait forever
+      // only a notification from the NFCC ends the EP_ states; if it was lost, recover rather than wait forever.
+      // millis(), not the loop start time: the state is stamped after tag operations that may block for seconds.
       if ((this->nci_state_ == NCIState::EP_SELECTING || this->nci_state_ == NCIState::EP_DEACTIVATING) &&
           !this->irq_pin_->digital_read() && millis() - this->last_nci_state_change_ > NFCC_STATE_TIMEOUT) {
         ESP_LOGW(TAG, "Timed out waiting for notification in state %u; resetting NFCC", (uint8_t) this->nci_state_);
@@ -995,14 +996,7 @@ void PN71xx::process_data_message_(nfc::NciMessage &rx) {
 }
 
 bool PN71xx::card_emu_t4t_read_ndef_(const uint16_t offset, const uint8_t length, std::vector<uint8_t> &ndef_response) {
-  auto ndef_message = this->card_emulation_message_->encode();
-  char ndef_buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
-  ESP_LOGVV(TAG, "Encoded NDEF message: %s", nfc::format_bytes_to(ndef_buf, ndef_message));
-
-  if (ndef_message.size() > CARD_EMU_T4T_MAX_NDEF_SIZE) {
-    ESP_LOGE(TAG, "Emulated NDEF message too long: %zu > %u bytes", ndef_message.size(), CARD_EMU_T4T_MAX_NDEF_SIZE);
-    return false;
-  }
+  const auto &ndef_message = this->card_emulation_ndef_;
   // the NDEF file is a two-byte big-endian length (NLEN) followed by the message
   const uint16_t ndef_msg_size = ndef_message.size();
   const uint32_t file_size = ndef_msg_size + 2;
@@ -1027,7 +1021,7 @@ bool PN71xx::card_emu_t4t_read_ndef_(const uint16_t offset, const uint8_t length
 
 void PN71xx::card_emu_t4t_get_response_(const std::vector<uint8_t> &response, std::vector<uint8_t> &ndef_response) {
   ndef_response.clear();
-  if (this->card_emulation_message_ == nullptr) {
+  if (this->card_emulation_ndef_.empty()) {
     ESP_LOGE(TAG, "No NDEF message is set; tag emulation not possible");
     return;
   }
@@ -1124,7 +1118,7 @@ uint8_t PN71xx::transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, const uint
       if (rx.message_type_is(nfc::NCI_PKT_MT_CTRL_RESPONSE)) {
         break;
       }
-      ESP_LOGV(TAG, "Discarding message received while waiting for response: %s",
+      ESP_LOGW(TAG, "Discarding message received while waiting for response: %s",
                nfc::format_bytes_to(buf, rx.get_message()));
     }
     // for commands, the GID and OID should match and the status should be OK

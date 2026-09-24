@@ -167,4 +167,16 @@ TEST(PN71xxCardEmulation, TruncatedApdusAreRejected) {
   EXPECT_EQ(respond(nfcc, {0x00, 0xD6, 0x00, 0x00, 0x10, 0x00, 0x00}), SW_NOT_FOUND);
 }
 
+// A message too large for the emulated NDEF file is refused when it is set, keeping the previous one.
+TEST(PN71xxCardEmulation, OversizedMessageRejectedWhenSet) {
+  FakePN71xx nfcc;
+  nfcc.set_tag_emulation_message("https://www.home-assistant.io/tag/test", false);
+  nfcc.set_tag_emulation_message("https://www.home-assistant.io/tag/" + std::string(300, 'x'), false);
+  select_ndef_file(nfcc);
+  auto response = respond(nfcc, {0x00, 0xB0, 0x00, 0x00, 0x02});
+  ASSERT_EQ(response.size(), 4u);
+  EXPECT_LT((response[0] << 8) | response[1], 0xFF - 2);
+  EXPECT_EQ(std::vector<uint8_t>(response.end() - 2, response.end()), SW_OK);
+}
+
 }  // namespace esphome::pn71xx

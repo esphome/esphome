@@ -145,7 +145,7 @@ class PN71xx : public nfc::Nfcc, public Component {
   void set_ven_pin(GPIOPin *ven_pin) { this->ven_pin_ = ven_pin; }
 
   void set_tag_ttl(uint32_t ttl) { this->tag_ttl_ = ttl; }
-  void set_tag_emulation_message(std::shared_ptr<nfc::NdefMessage> message);
+  void set_tag_emulation_message(const std::shared_ptr<nfc::NdefMessage> &message);
   void set_tag_emulation_message(const std::string &message, bool include_android_app_record = true);
   void set_tag_emulation_message(const char *message, bool include_android_app_record = true);
   void set_tag_emulation_off();
@@ -291,7 +291,7 @@ class PN71xx : public nfc::Nfcc, public Component {
   NCIState nci_state_{NCIState::NFCC_RESET};
   NCIState nci_state_error_{NCIState::NONE};
 
-  std::shared_ptr<nfc::NdefMessage> card_emulation_message_;
+  std::vector<uint8_t> card_emulation_ndef_;  // encoded emulation message; empty when none is set
   std::shared_ptr<nfc::NdefMessage> next_task_message_to_write_;
 
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
