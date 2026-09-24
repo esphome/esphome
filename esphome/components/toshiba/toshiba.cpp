@@ -22,7 +22,13 @@ const uint16_t TOSHIBA_ZERO_SPACE = 540;
 const uint16_t TOSHIBA_ONE_SPACE = 1620;
 const uint16_t TOSHIBA_CARRIER_FREQUENCY = 38000;
 const uint8_t TOSHIBA_HEADER_LENGTH = 4;
+const ToshibaTimings TOSHIBA_GENERIC_TIMINGS{TOSHIBA_HEADER_MARK, TOSHIBA_HEADER_SPACE, TOSHIBA_BIT_MARK,
+                                             TOSHIBA_ONE_SPACE,   TOSHIBA_ZERO_SPACE,   TOSHIBA_GAP_SPACE};
+// The RAS-B10N3KV2 family uses the same message content as GENERIC but requires the timings
+// used by the RAS-B13 remote family (values from IRremoteESP8266's TOSHIBA_AC protocol)
+const ToshibaTimings RAS_B10N3KV2_TIMINGS{4400, 4300, 580, 1600, 490, 7400};
 // Generic Toshiba commands/flags
+const uint8_t TOSHIBA_GENERIC_MESSAGE_LENGTH = 9;
 const uint8_t TOSHIBA_COMMAND_DEFAULT = 0x01;
 const uint8_t TOSHIBA_COMMAND_TIMER = 0x02;
 const uint8_t TOSHIBA_COMMAND_POWER = 0x08;
@@ -445,14 +451,15 @@ void ToshibaClimate::transmit_state() {
     this->transmit_rac_pt1411hwru_();
   } else if (this->model_ == MODEL_RAS_2819T) {
     this->transmit_ras_2819t_();
+  } else if (this->model_ == MODEL_RAS_B10N3KV2) {
+    this->transmit_ras_b10n3kv2_();
   } else {
     this->transmit_generic_();
   }
 }
 
-void ToshibaClimate::transmit_generic_() {
-  uint8_t message[16] = {0};
-  uint8_t message_length = 9;
+void ToshibaClimate::build_generic_message_(uint8_t *message) {
+  const uint8_t message_length = TOSHIBA_GENERIC_MESSAGE_LENGTH;
 
   // Header
   message[0] = 0xf2;
@@ -536,12 +543,30 @@ void ToshibaClimate::transmit_generic_() {
   for (uint8_t i = 4; i < 8; i++) {
     message[8] ^= message[i];
   }
+}
+
+void ToshibaClimate::transmit_generic_() {
+  uint8_t message[16] = {0};
+  this->build_generic_message_(message);
 
   // Transmit
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
 
-  this->encode_(data, message, message_length, 1);
+  this->encode_(data, message, TOSHIBA_GENERIC_MESSAGE_LENGTH, 1, TOSHIBA_GENERIC_TIMINGS);
+
+  transmit.perform();
+}
+
+void ToshibaClimate::transmit_ras_b10n3kv2_() {
+  uint8_t message[16] = {0};
+  this->build_generic_message_(message);
+
+  // Transmit
+  auto transmit = this->transmitter_->transmit();
+  auto *data = transmit.get_data();
+
+  this->encode_(data, message, TOSHIBA_GENERIC_MESSAGE_LENGTH, 1, RAS_B10N3KV2_TIMINGS);
 
   transmit.perform();
 }
@@ -661,10 +686,10 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
   }
 
   // load first block of IR code and repeat it once
-  this->encode_(data, &message[0], RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
+  this->encode_(data, &message[0], RAC_PT1411HWRU_MESSAGE_LENGTH, 1, TOSHIBA_GENERIC_TIMINGS);
   // load second block of IR code, if present
   if (message[6] != 0) {
-    this->encode_(data, &message[6], RAC_PT1411HWRU_MESSAGE_LENGTH, 0);
+    this->encode_(data, &message[6], RAC_PT1411HWRU_MESSAGE_LENGTH, 0, TOSHIBA_GENERIC_TIMINGS);
   }
 
   transmit.perform();
@@ -674,12 +699,12 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
   data->space(TOSHIBA_PACKET_SPACE);
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_VERTICAL:
-      this->encode_(data, &RAC_PT1411HWRU_SWING_VERTICAL[0], RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
+      this->encode_(data, &RAC_PT1411HWRU_SWING_VERTICAL[0], RAC_PT1411HWRU_MESSAGE_LENGTH, 1, TOSHIBA_GENERIC_TIMINGS);
       break;
 
     case climate::CLIMATE_SWING_OFF:
     default:
-      this->encode_(data, &RAC_PT1411HWRU_SWING_OFF[0], RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
+      this->encode_(data, &RAC_PT1411HWRU_SWING_OFF[0], RAC_PT1411HWRU_MESSAGE_LENGTH, 1, TOSHIBA_GENERIC_TIMINGS);
   }
 
   data->space(TOSHIBA_PACKET_SPACE);
@@ -739,7 +764,7 @@ void ToshibaClimate::transmit_rac_pt1411hwru_temp_(const bool cs_state, const bo
     message[5] = ~message[4];
 
     // load IR code and repeat it once
-    this->encode_(data, message, RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
+    this->encode_(data, message, RAC_PT1411HWRU_MESSAGE_LENGTH, 1, TOSHIBA_GENERIC_TIMINGS);
 
     transmit.perform();
   }
@@ -772,7 +797,7 @@ void ToshibaClimate::transmit_ras_2819t_() {
     swing_message[5] = RAS_2819T_SWING_TOGGLE & 0xFF;
 
     // Use single packet transmission WITH repeat (like regular commands)
-    this->encode_(swing_data, swing_message, RAS_2819T_MESSAGE_LENGTH, 1);
+    this->encode_(swing_data, swing_message, RAS_2819T_MESSAGE_LENGTH, 1, TOSHIBA_GENERIC_TIMINGS);
     swing_transmit.perform();
 
     // Update all state tracking
@@ -933,11 +958,11 @@ void ToshibaClimate::transmit_ras_2819t_() {
   auto *data = transmit.get_data();
 
   // Use existing Toshiba encode function for proper timing
-  this->encode_(data, message1, RAS_2819T_MESSAGE_LENGTH, 1);
+  this->encode_(data, message1, RAS_2819T_MESSAGE_LENGTH, 1, TOSHIBA_GENERIC_TIMINGS);
 
   if (this->mode != climate::CLIMATE_MODE_OFF) {
     // Send second packet with gap
-    this->encode_(data, message2, RAS_2819T_MESSAGE_LENGTH, 0);
+    this->encode_(data, message2, RAS_2819T_MESSAGE_LENGTH, 0, TOSHIBA_GENERIC_TIMINGS);
   }
 
   transmit.perform();
@@ -1336,23 +1361,23 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
 }
 
 void ToshibaClimate::encode_(remote_base::RemoteTransmitData *data, const uint8_t *message, const uint8_t nbytes,
-                             const uint8_t repeat) {
+                             const uint8_t repeat, const ToshibaTimings &timings) {
   data->set_carrier_frequency(TOSHIBA_CARRIER_FREQUENCY);
 
   for (uint8_t copy = 0; copy <= repeat; copy++) {
-    data->item(TOSHIBA_HEADER_MARK, TOSHIBA_HEADER_SPACE);
+    data->item(timings.header_mark, timings.header_space);
 
     for (uint8_t byte = 0; byte < nbytes; byte++) {
       for (uint8_t bit = 0; bit < 8; bit++) {
-        data->mark(TOSHIBA_BIT_MARK);
+        data->mark(timings.bit_mark);
         if (message[byte] & (1 << (7 - bit))) {
-          data->space(TOSHIBA_ONE_SPACE);
+          data->space(timings.one_space);
         } else {
-          data->space(TOSHIBA_ZERO_SPACE);
+          data->space(timings.zero_space);
         }
       }
     }
-    data->item(TOSHIBA_BIT_MARK, TOSHIBA_GAP_SPACE);
+    data->item(timings.bit_mark, timings.gap_space);
   }
 }
 
