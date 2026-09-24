@@ -6,13 +6,6 @@
 
 namespace esphome::event {
 
-template<typename... Ts> class TriggerEventAction final : public Action<Ts...>, public Parented<Event> {
- public:
-  TEMPLATABLE_VALUE(std::string, event_type)
-
-  void play(const Ts &...x) override { this->parent_->trigger(this->event_type_.value(x...)); }
-};
-
 class EventTrigger final : public Trigger<StringRef> {
  public:
   EventTrigger(Event *event) {
