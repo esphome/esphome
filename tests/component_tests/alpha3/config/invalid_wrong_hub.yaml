@@ -1,0 +1,30 @@
+esphome:
+  name: alpha3-test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+esp32_ble_tracker:
+
+ble_client:
+  - id: alpha3_blec
+    mac_address: 01:02:03:04:05:06
+
+globals:
+  - id: not_alpha3
+    type: int
+    initial_value: "0"
+
+sensor:
+  - platform: alpha3
+    id: alpha3_hub
+    ble_client_id: alpha3_blec
+
+binary_sensor:
+  - platform: alpha3
+    alpha3_id: not_alpha3
+    ready: {name: Ready}
