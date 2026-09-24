@@ -32,7 +32,7 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
     root[ESPHOME_F("effect_count")] = state.get_effect_count();
   }
 
-  auto values = state.remote_values;
+  auto values = state.get_reported_values();
 
   const auto color_mode = values.get_color_mode();
   const auto *mode_str = get_color_mode_json_str(color_mode);
