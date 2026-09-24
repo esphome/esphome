@@ -13,7 +13,7 @@ namespace esphome::script {
 
 class ScriptLogger {
  protected:
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
   void esp_logw_(int line, const __FlashStringHelper *format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
   }

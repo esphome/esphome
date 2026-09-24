@@ -50,7 +50,7 @@ bool MQTTLockComponent::send_initial_state() { return this->publish_state(); }
 
 bool MQTTLockComponent::publish_state() {
   char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
   char buf[LOCK_STATE_STR_SIZE];
   strncpy_P(buf, (PGM_P) lock_state_to_string(this->lock_->state), sizeof(buf) - 1);
   buf[sizeof(buf) - 1] = '\0';
