@@ -676,15 +676,17 @@ async def _add_platform_defines() -> None:
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_controller_registry_dispatch() -> None:
     # controller_dispatch.h defines ControllerRegistry::notify_*() as direct
-    # calls on the controllers returned by esphome_controllers().
+    # calls on the controllers returned by esphome_controllers(), emitted as
+    #   static auto esphome_controllers() { return std::tuple{a, b}; }
     controllers = CORE.data.get(KEY_CONTROLLER_REGISTRY_CONTROLLERS)
     if not controllers:
         return
     cg.add_define("USE_CONTROLLER_REGISTRY")
-    entries = ", ".join(str(var) for var in controllers)
+    controllers = cg.ArrayInitializer(*controllers)
+    cg.add_global(cg.RawStatement("#include <tuple>"))
     cg.add_global(
         cg.RawStatement(
-            f"static auto esphome_controllers() {{ return std::tuple{{{entries}}}; }}"
+            f"static auto esphome_controllers() {{ return std::tuple{controllers}; }}"
         )
     )
     cg.add_global(cg.RawStatement('#include "esphome/core/controller_dispatch.h"'))

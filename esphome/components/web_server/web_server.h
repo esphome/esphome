@@ -484,7 +484,7 @@ class WebServer final : public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_MEDIA_PLAYER
-  void on_media_player_update(media_player::MediaPlayer *obj) {}
+  void on_media_player_update(media_player::MediaPlayer *) {}
 #endif
 
 #ifdef USE_EVENT

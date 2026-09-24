@@ -1210,12 +1210,7 @@ class EsphomeCore:
             self.platform_counts[platform_name] = 1
 
     def register_controller(self, controller: "MockObj") -> None:
-        """Register a controller that receives every entity state update.
-
-        Code generation defines the ControllerRegistry notify functions in
-        main.cpp as direct calls on each registered controller, so the C++
-        class only needs the on_*_update methods, not a base class.
-        """
+        """Register a controller that receives every entity state update."""
         self.data.setdefault(KEY_CONTROLLER_REGISTRY_CONTROLLERS, []).append(controller)
 
     @property
