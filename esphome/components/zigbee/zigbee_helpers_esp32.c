@@ -5,13 +5,13 @@
 #include "zigbee_helpers_esp32.h"
 #include "ezbee/zha.h"
 
-ezb_zcl_attr_desc_t esphome_zb_cluster_add_or_update_attr(uint16_t cluster_id, ezb_zcl_cluster_desc_t cluster_desc,
-                                                          uint16_t attr_id, void *value_p) {
+ezb_err_t esphome_zb_cluster_add_or_update_attr(uint16_t cluster_id, ezb_zcl_cluster_desc_t cluster_desc,
+                                                uint16_t attr_id, void *value_p) {
   ezb_zcl_attr_desc_t attr_desc = ezb_zcl_cluster_get_attr_desc(cluster_desc, attr_id, EZB_ZCL_STD_MANUF_CODE);
-  if (attr_desc == NULL) {
-    esphome_zb_cluster_add_attr(cluster_id, cluster_desc, attr_id, value_p);
+  if (attr_desc != NULL) {
+    return ezb_zcl_attr_desc_set_value(attr_desc, value_p);
   }
-  return attr_desc;
+  return esphome_zb_cluster_add_attr(cluster_id, cluster_desc, attr_id, value_p);
 }
 
 ezb_err_t esphome_zb_add_or_update_cluster(uint16_t cluster_id, ezb_af_ep_desc_t ep_desc, uint8_t role_mask) {

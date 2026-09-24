@@ -32,7 +32,7 @@ uint8_t *get_zcl_string(const char *str, uint8_t max_size, bool use_max_size = f
 
 struct AttrValue {
   ezb_zcl_attr_desc_t attr_desc;
-  void *value_p;
+  uint8_t value[4];
 };
 
 class ZigbeeAttribute;
@@ -138,10 +138,19 @@ void ZigbeeComponent::add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint
   if (cluster_desc == NULL) {
     return;
   }
-  ezb_zcl_attr_desc_t attr_desc = esphome_zb_cluster_add_or_update_attr(cluster_id, cluster_desc, attr_id, value_p);
+  // TODO: revert when esp-zigbee-lib fixes set_value before init
+  ezb_zcl_attr_desc_t attr_desc = ezb_zcl_cluster_get_attr_desc(cluster_desc, attr_id, EZB_ZCL_STD_MANUF_CODE);
 
   if (attr_desc != NULL) {
-    attr_values_.push_back({attr_desc, value_p});
+    static_assert(sizeof(*value_p) <= 4);
+    static_assert(!std::is_same_v<T, std::string>);
+    static_assert(!std::is_convertible_v<T, const char *>);
+    AttrValue attr_value;
+    attr_value.attr_desc = attr_desc;
+    memcpy(&attr_value.value, value_p, sizeof(*value_p));
+    attr_values_.push_back(attr_value);
+  } else {
+    esphome_zb_cluster_add_attr(cluster_id, cluster_desc, attr_id, value_p);
   }
 
   if (attr != nullptr) {

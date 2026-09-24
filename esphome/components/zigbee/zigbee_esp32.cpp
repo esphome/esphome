@@ -342,7 +342,7 @@ void ZigbeeComponent::setup() {
   // Finish zigbee data model
   for (auto &attr_value : this->attr_values_) {
     ezb_zcl_attr_desc_t attr_desc = attr_value.attr_desc;
-    void *value_p = attr_value.value_p;
+    void *value_p = &attr_value.value;
     if (attr_desc != NULL) {
       ezb_zcl_attr_desc_set_value(attr_desc, value_p);
     }
