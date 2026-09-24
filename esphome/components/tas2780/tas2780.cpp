@@ -97,47 +97,46 @@ static constexpr uint8_t POWER_MODE_VBAT1S_MODES = 0x04;
 static constexpr uint32_t TAS2780_INT_LTCH_ERROR_MASKS = 0x0FA058C7;
 static constexpr uint32_t TAS2780_INT_LTCH_INFO_MASKS = 0x00002138;
 
+// An if chain rather than a switch: a switch table would land in rodata, which is RAM on ESP8266.
 static const LogString *fault_name(uint8_t reg, uint8_t bit) {
-  switch ((reg << 3) | bit) {
-    case 0x00:
-      return LOG_STR("Over temperature error");
-    case 0x01:
-      return LOG_STR("Over current error");
-    case 0x02:
-      return LOG_STR("TDM Clock Error");
-    case 0x03:
-      return LOG_STR("Limiter active");
-    case 0x04:
-      return LOG_STR("PVDD below limiter inflection point");
-    case 0x05:
-      return LOG_STR("Limiter max attenuation");
-    case 0x06:
-      return LOG_STR("BOP infinite hold");
-    case 0x07:
-      return LOG_STR("BOP Mute");
-    case 0x08:
-      return LOG_STR("Gain limiter active");
-    case 0x0B:
-      return LOG_STR("Load Diagnostic mode fault status");
-    case 0x0D:
-      return LOG_STR("Load diagnostic complete");
-    case 0x0E:
-      return LOG_STR("OTP CRC error flag");
-    case 0x15:
-      return LOG_STR("VBAT1S Under Voltage");
-    case 0x17:
-      return LOG_STR("Internal PLL Clock Error");
-    case 0x18:
-      return LOG_STR("PVDD UVLO");
-    case 0x19:
-      return LOG_STR("Internal VBAT1S LDO Over Load");
-    case 0x1A:
-      return LOG_STR("Internal VBAT1S LDO Over Voltage");
-    case 0x1B:
-      return LOG_STR("Internal VBAT1S LDO Under Voltage");
-    default:
-      return nullptr;
-  }
+  const uint8_t key = (reg << 3) | bit;
+  if (key == 0x00)
+    return LOG_STR("Over temperature error");
+  if (key == 0x01)
+    return LOG_STR("Over current error");
+  if (key == 0x02)
+    return LOG_STR("TDM Clock Error");
+  if (key == 0x03)
+    return LOG_STR("Limiter active");
+  if (key == 0x04)
+    return LOG_STR("PVDD below limiter inflection point");
+  if (key == 0x05)
+    return LOG_STR("Limiter max attenuation");
+  if (key == 0x06)
+    return LOG_STR("BOP infinite hold");
+  if (key == 0x07)
+    return LOG_STR("BOP Mute");
+  if (key == 0x08)
+    return LOG_STR("Gain limiter active");
+  if (key == 0x0B)
+    return LOG_STR("Load Diagnostic mode fault status");
+  if (key == 0x0D)
+    return LOG_STR("Load diagnostic complete");
+  if (key == 0x0E)
+    return LOG_STR("OTP CRC error flag");
+  if (key == 0x15)
+    return LOG_STR("VBAT1S Under Voltage");
+  if (key == 0x17)
+    return LOG_STR("Internal PLL Clock Error");
+  if (key == 0x18)
+    return LOG_STR("PVDD UVLO");
+  if (key == 0x19)
+    return LOG_STR("Internal VBAT1S LDO Over Load");
+  if (key == 0x1A)
+    return LOG_STR("Internal VBAT1S LDO Over Voltage");
+  if (key == 0x1B)
+    return LOG_STR("Internal VBAT1S LDO Under Voltage");
+  return nullptr;
 }
 
 void TAS2780::setup() {
