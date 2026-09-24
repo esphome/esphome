@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
+from esphome.components.const import CONF_HUMIDITY_SOURCE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AMBIENT_PRESSURE_COMPENSATION,
@@ -37,8 +38,6 @@ MEASUREMENT_MODE_OPTIONS = {
     "continuous": MeasurementMode.CONTINUOUS,
     "single_shot": MeasurementMode.SINGLE_SHOT,
 }
-
-CONF_HUMIDITY_SOURCE = "humidity_source"
 
 CONFIG_SCHEMA = (
     cv.Schema(
