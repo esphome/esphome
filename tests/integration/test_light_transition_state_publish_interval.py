@@ -112,7 +112,7 @@ async def test_transition_interval_zero_behaves_like_legacy(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """A light with the default 0s interval publishes the target once, up front."""
+    """A light without the option publishes the target once, up front."""
     async with run_compiled(yaml_config), api_client_connected() as client:
         entities, recorder = await _subscribe(client)
         legacy = require_entity(entities, "test_legacy_light", LightInfo)

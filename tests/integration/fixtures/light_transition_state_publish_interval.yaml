@@ -113,7 +113,7 @@ light:
     default_transition_length: 1s
     transition_state_publish_interval: 0.2s
 
-  # Interval left at its default: publishes only when a call starts
+  # No interval: publishes only when a call starts
   - platform: monochromatic
     id: test_legacy_light
     name: "Test Legacy Light"
