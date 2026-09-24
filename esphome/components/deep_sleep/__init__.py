@@ -422,8 +422,12 @@ async def to_code(config: ConfigType) -> None:
 
     if CONF_TOUCH_WAKEUP in config:
         cg.add(var.set_touch_wakeup(config[CONF_TOUCH_WAKEUP]))
-    if CORE.using_zephyr and "zigbee" not in CORE.loaded_integrations:
-        zephyr_add_prj_conf("POWEROFF", True)
+    if CORE.using_zephyr:
+        # Devices are suspended when CPU is entering a low power state
+        # https://github.com/nrfconnect/sdk-zephyr/blob/v3.7.99-ncs2-2/doc/services/pm/device.rst#system-managed-device-power-management
+        zephyr_add_prj_conf("PM_DEVICE", True)
+        if "zigbee" not in CORE.loaded_integrations:
+            zephyr_add_prj_conf("POWEROFF", True)
 
     cg.add_define("USE_DEEP_SLEEP")
 
