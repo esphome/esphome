@@ -126,10 +126,10 @@ enum class TestMode : uint8_t {
 };
 
 struct DiscoveredEndpoint {
-  uint8_t id;
-  uint8_t protocol;
   uint32_t last_seen;
   std::unique_ptr<nfc::NfcTag> tag;
+  uint8_t id;
+  uint8_t protocol;
   bool trig_called;
 };
 
@@ -266,36 +266,35 @@ class PN71xx : public nfc::Nfcc, public Component {
     EP_CLEAN,
     EP_FORMAT,
     EP_WRITE,
-  } next_task_{EP_READ};
+  };
+
+  // members are ordered by alignment, widest first, to minimize padding
+  CallbackManager<void()> on_emulated_tag_scan_callback_;
+  CallbackManager<void()> on_finished_write_callback_;
+
+  std::vector<DiscoveredEndpoint> discovered_endpoint_;
+  std::vector<uint8_t> card_emulation_ndef_;  // encoded emulation message; empty when none is set
+  std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
+  std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
+  std::shared_ptr<nfc::NdefMessage> next_task_message_to_write_;
+
+  GPIOPin *irq_pin_{nullptr};
+  GPIOPin *ven_pin_{nullptr};
+
+  uint32_t last_nci_state_change_{0};
+  uint32_t tag_ttl_{250};
+
+  NfcTask next_task_{EP_READ};
+  CardEmulationState ce_state_{CardEmulationState::CARD_EMU_IDLE};
+  NCIState nci_state_{NCIState::NFCC_RESET};
+  NCIState nci_state_error_{NCIState::NONE};
+  uint8_t error_count_{0};
+  uint8_t selecting_endpoint_{0};
 
   bool config_refresh_pending_{false};
   bool core_config_is_solo_{false};
   bool listening_enabled_{false};
   bool polling_enabled_{true};
-
-  uint8_t error_count_{0};
-  uint8_t fail_count_{0};
-  uint32_t last_nci_state_change_{0};
-  uint8_t selecting_endpoint_{0};
-  uint32_t tag_ttl_{250};
-
-  GPIOPin *irq_pin_{nullptr};
-  GPIOPin *ven_pin_{nullptr};
-
-  CallbackManager<void()> on_emulated_tag_scan_callback_;
-  CallbackManager<void()> on_finished_write_callback_;
-
-  std::vector<DiscoveredEndpoint> discovered_endpoint_;
-
-  CardEmulationState ce_state_{CardEmulationState::CARD_EMU_IDLE};
-  NCIState nci_state_{NCIState::NFCC_RESET};
-  NCIState nci_state_error_{NCIState::NONE};
-
-  std::vector<uint8_t> card_emulation_ndef_;  // encoded emulation message; empty when none is set
-  std::shared_ptr<nfc::NdefMessage> next_task_message_to_write_;
-
-  std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
-  std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
 };
 
 }  // namespace esphome::pn71xx

@@ -828,8 +828,11 @@ void PN71xx::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
       this->discovered_endpoint_[tag_loc.value()].last_seen = App.get_loop_component_start_time();
       ESP_LOGVV(TAG, "Tag cache updated");
     } else {
-      this->discovered_endpoint_.emplace_back(DiscoveredEndpoint{
-          discovery_id, protocol, App.get_loop_component_start_time(), std::move(incoming_tag), false});
+      this->discovered_endpoint_.emplace_back(DiscoveredEndpoint{.last_seen = App.get_loop_component_start_time(),
+                                                                 .tag = std::move(incoming_tag),
+                                                                 .id = discovery_id,
+                                                                 .protocol = protocol,
+                                                                 .trig_called = false});
       tag_loc = this->discovered_endpoint_.size() - 1;
       ESP_LOGVV(TAG, "Tag added to cache");
     }
@@ -931,9 +934,12 @@ void PN71xx::process_rf_discover_oid_(nfc::NciMessage &rx) {
       this->discovered_endpoint_[tag_loc.value()].last_seen = App.get_loop_component_start_time();
       ESP_LOGVV(TAG, "Tag found & updated");
     } else {
-      this->discovered_endpoint_.emplace_back(DiscoveredEndpoint{
-          rx.get_message_byte(nfc::RF_DISCOVER_NTF_DISCOVERY_ID), rx.get_message_byte(nfc::RF_DISCOVER_NTF_PROTOCOL),
-          App.get_loop_component_start_time(), std::move(incoming_tag), false});
+      this->discovered_endpoint_.emplace_back(
+          DiscoveredEndpoint{.last_seen = App.get_loop_component_start_time(),
+                             .tag = std::move(incoming_tag),
+                             .id = rx.get_message_byte(nfc::RF_DISCOVER_NTF_DISCOVERY_ID),
+                             .protocol = rx.get_message_byte(nfc::RF_DISCOVER_NTF_PROTOCOL),
+                             .trig_called = false});
       ESP_LOGVV(TAG, "Tag saved");
     }
   }
