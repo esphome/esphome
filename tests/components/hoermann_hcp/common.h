@@ -69,6 +69,7 @@ class TestableHoermannHcp : public HoermannHcp {
 #ifdef USE_TEXT_SENSOR
   using HoermannHcp::identity_asked_at_;
   using HoermannHcp::identity_request_;
+  using HoermannHcp::firmware_unreadable_;
 #endif
   using HoermannHcp::is_light_toggle_pending_;
   using HoermannHcp::key_press_delay_ms_;

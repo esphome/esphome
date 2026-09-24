@@ -178,9 +178,12 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // The request given up on, for update() to report.
   uint8_t identity_unanswered_{0};
   uint8_t transfer_answer_counter_{0};
+  // Bytes of a firmware version that could not be read, left in firmware_version_ for update() to log.
+  uint8_t firmware_unreadable_len_{0};
   bool identity_started_{false};
   bool serial_first_half_seen_{false};
   bool transfer_answer_pending_{false};
+  bool firmware_unreadable_{false};
   char serial_number_[27]{};
   char firmware_version_[13]{};
 #endif

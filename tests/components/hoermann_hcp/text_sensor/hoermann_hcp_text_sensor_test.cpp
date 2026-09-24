@@ -243,8 +243,53 @@ TEST(HoermannHcpTextSensorTest, ShortFirmwareVersionIsNotKept) {
   send_serial(door);
   status_poll(door, 0x07);
   transfer(door, 0x08, SUB_FIRMWARE, FIRMWARE, 10);
+  EXPECT_TRUE(door.firmware_unreadable_);  // kept for the log
   EXPECT_EQ(fixture.version_shown(), "");
+  EXPECT_FALSE(door.firmware_unreadable_);  // logged once
   EXPECT_EQ(door.identity_request_, 0x06);
+}
+
+// Nor is one without any payload, which is still logged.
+TEST(HoermannHcpTextSensorTest, EmptyFirmwareVersionIsLoggedNotShown) {
+  IdentityFixture fixture;
+  auto &door = fixture.door;
+  status_poll(door);
+  send_serial(door);
+  status_poll(door, 0x07);
+  transfer(door, 0x08, SUB_FIRMWARE, FIRMWARE, 0);
+  EXPECT_TRUE(door.firmware_unreadable_);
+  EXPECT_EQ(fixture.version_shown(), "");
+  EXPECT_FALSE(door.firmware_unreadable_);
+  EXPECT_EQ(door.identity_request_, 0x06);
+}
+
+// A readable firmware version right after a short one, before the loop has turned, is still shown.
+TEST(HoermannHcpTextSensorTest, ReadableFirmwareVersionAfterAShortOneIsShown) {
+  IdentityFixture fixture;
+  auto &door = fixture.door;
+  status_poll(door);
+  send_serial(door);
+  status_poll(door, 0x07);
+  transfer(door, 0x08, SUB_FIRMWARE, FIRMWARE, 10);
+  transfer(door, 0x09, SUB_FIRMWARE, FIRMWARE, 12);
+  EXPECT_FALSE(door.firmware_unreadable_);
+  EXPECT_EQ(fixture.version_shown(), "FW-TEST 1.0");
+}
+
+// A firmware version that is not text is not shown, is logged, and is not asked for again: it would come back
+// the same.
+TEST(HoermannHcpTextSensorTest, FirmwareVersionThatIsNotTextIsLoggedNotShown) {
+  IdentityFixture fixture;
+  auto &door = fixture.door;
+  status_poll(door);
+  send_serial(door);
+  status_poll(door, 0x07);
+  const char binary[12] = {0x01, 0x12, 0x34, 0x00, 0, 0, 0, 0, 0, 0, 0, 0};
+  transfer(door, 0x08, SUB_FIRMWARE, binary, 12);
+  EXPECT_TRUE(door.firmware_unreadable_);
+  EXPECT_EQ(fixture.version_shown(), "");  // the raw bytes are not published
+  EXPECT_FALSE(door.firmware_unreadable_);
+  EXPECT_EQ(door.identity_request_, 0);
 }
 
 // A repeat of a transfer already taken, as after a lost acknowledgement, is acknowledged again. Answered as a

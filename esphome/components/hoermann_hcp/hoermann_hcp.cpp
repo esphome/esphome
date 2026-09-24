@@ -1,6 +1,9 @@
 #include "hoermann_hcp.h"
 
+#include <algorithm>
+
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::hoermann_hcp {
@@ -94,16 +97,19 @@ static void copy_payload(const modbus::RegisterValues &registers, size_t count, 
   }
 }
 
-// Ends the text at the first byte that is not printable, since the padding behind it varies, and cuts trailing
-// spaces. Works in place.
-static void terminate_text(char *text, size_t len) {
+// The text at the start: up to the first byte that is not printable, since the padding behind it varies, without
+// trailing spaces.
+static size_t text_length(const char *text, size_t len) {
   size_t at = 0;
   while (at < len && text[at] >= 0x20 && text[at] <= 0x7E)
     at++;
   while (at > 0 && text[at - 1] == ' ')
     at--;
-  text[at] = '\0';
+  return at;
 }
+
+// Works in place.
+static void terminate_text(char *text, size_t len) { text[text_length(text, len)] = '\0'; }
 #endif
 
 void HoermannHcp::update() {
@@ -349,11 +355,23 @@ void HoermannHcp::take_identity_transfer_(const modbus::RegisterValues &register
 
   const size_t payload_regs = registers.size() - TRANSFER_PAYLOAD_REG;
   if (sub_code == TRANSFER_SUB_FIRMWARE) {
-    if (this->identity_request_ == REQUEST_FIRMWARE && payload_regs >= FIRMWARE_REGS) {
-      copy_payload(registers, FIRMWARE_REGS, this->firmware_version_);
-      terminate_text(this->firmware_version_, 2 * FIRMWARE_REGS);
+    if (this->identity_request_ != REQUEST_FIRMWARE)
+      return;
+    const size_t regs = std::min(payload_regs, FIRMWARE_REGS);
+    copy_payload(registers, regs, this->firmware_version_);
+    if (regs == FIRMWARE_REGS && text_length(this->firmware_version_, 2 * regs) != 0) {
+      terminate_text(this->firmware_version_, 2 * regs);
+      // An unreadable one before it would otherwise have this one logged instead of shown.
+      this->firmware_unreadable_ = false;
       this->identity_request_ = 0;
+      return;
     }
+    // Left as it came for update() to log, since the answer path is no place for that.
+    this->firmware_unreadable_ = true;
+    this->firmware_unreadable_len_ = 2 * regs;
+    // Too short is asked for again; bytes that are not text would come back the same.
+    if (regs == FIRMWARE_REGS)
+      this->identity_request_ = 0;
     return;
   }
   if (this->identity_request_ != REQUEST_SERIAL)
@@ -387,6 +405,15 @@ void HoermannHcp::publish_identity_() {
       this->serial_number_[0] != '\0') {
     this->serial_number_text_sensor_->publish_state(this->serial_number_);
     this->serial_number_[0] = '\0';
+  }
+  // Before the version is published: the buffer holds the bytes as they came, not text.
+  if (this->firmware_unreadable_) {
+    char hex[2 * sizeof(this->firmware_version_) + 1];
+    ESP_LOGW(
+        TAG, "Motor sent a firmware version that could not be read (%u bytes): %s", this->firmware_unreadable_len_,
+        format_hex_to(hex, reinterpret_cast<const uint8_t *>(this->firmware_version_), this->firmware_unreadable_len_));
+    this->firmware_unreadable_ = false;
+    this->firmware_version_[0] = '\0';
   }
   if (this->version_text_sensor_ != nullptr && this->firmware_version_[0] != '\0') {
     this->version_text_sensor_->publish_state(this->firmware_version_);
