@@ -140,16 +140,7 @@ class JPEGFormat(Format):
                 return
             from esphome.components.esp32 import add_idf_component
 
-            # Fetched via git instead of the component registry: the registry
-            # checkout is named espressif__libjpeg-turbo, which breaks the
-            # component's own reference to the idf::libjpeg-turbo CMake
-            # target. A git dependency keeps the plain component name.
-            add_idf_component(
-                name="libjpeg-turbo",
-                repo="https://github.com/espressif/idf-extra-components.git",
-                ref="19cc4c48622a6025ef105bd27debd55c80c9a83d",
-                path="libjpeg-turbo",
-            )
+            add_idf_component(name="espressif/libjpeg-turbo", ref="3.2.0")
             return
         cg.add_define("USE_RUNTIME_IMAGE_JPEG_DEC")
         cg.add_library("JPEGDEC", "1.8.4", "https://github.com/bitbank2/JPEGDEC#1.8.4")
