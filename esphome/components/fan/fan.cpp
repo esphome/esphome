@@ -153,11 +153,6 @@ void FanRestoreState::apply(Fan &fan) {
   fan.publish_state();
 }
 
-FanCall Fan::turn_on() { return this->make_call().set_state(true); }
-FanCall Fan::turn_off() { return this->make_call().set_state(false); }
-FanCall Fan::toggle() { return this->make_call().set_state(!this->state); }
-FanCall Fan::make_call() { return FanCall(*this); }
-
 const char *Fan::find_preset_mode_(const char *preset_mode) {
   return this->find_preset_mode_(preset_mode, preset_mode ? strlen(preset_mode) : 0);
 }
@@ -339,8 +334,9 @@ void Fan::dump_traits_(const char *tag, const char *prefix) {
   }
   if (traits.supports_preset_modes()) {
     ESP_LOGCONFIG(tag, "%s  Supported presets:", prefix);
-    for (const char *s : traits.supported_preset_modes())
+    for (const char *s : traits.supported_preset_modes()) {
       ESP_LOGCONFIG(tag, "%s    - %s", prefix, s);
+    }
   }
 }
 

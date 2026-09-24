@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_TARGET_COUNT
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ANGLE,
@@ -14,6 +15,7 @@ from esphome.const import (
     UNIT_DEGREES,
     UNIT_MILLIMETER,
 )
+from esphome.types import ConfigType
 
 from . import CONF_LD2450_ID, LD2450Component
 
@@ -21,7 +23,6 @@ DEPENDENCIES = ["ld2450"]
 
 CONF_MOVING_TARGET_COUNT = "moving_target_count"
 CONF_STILL_TARGET_COUNT = "still_target_count"
-CONF_TARGET_COUNT = "target_count"
 
 ICON_ACCOUNT_GROUP = "mdi:account-group"
 ICON_ACCOUNT_SWITCH = "mdi:account-switch"
@@ -226,7 +227,7 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     ld2450_component = await cg.get_variable(config[CONF_LD2450_ID])
 
     if target_count_config := config.get(CONF_TARGET_COUNT):

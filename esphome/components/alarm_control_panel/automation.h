@@ -27,54 +27,6 @@ static_assert(std::is_trivially_copyable_v<StateAnyForwarder>);
 static_assert(sizeof(StateEnterForwarder<ACP_STATE_TRIGGERED>) <= sizeof(void *));
 static_assert(std::is_trivially_copyable_v<StateEnterForwarder<ACP_STATE_TRIGGERED>>);
 
-template<typename... Ts> class ArmAwayAction final : public Action<Ts...> {
- public:
-  explicit ArmAwayAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
-
-  TEMPLATABLE_VALUE(std::string, code)
-
-  void play(const Ts &...x) override { this->alarm_control_panel_->arm_away(this->code_.optional_value(x...)); }
-
- protected:
-  AlarmControlPanel *alarm_control_panel_;
-};
-
-template<typename... Ts> class ArmHomeAction final : public Action<Ts...> {
- public:
-  explicit ArmHomeAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
-
-  TEMPLATABLE_VALUE(std::string, code)
-
-  void play(const Ts &...x) override { this->alarm_control_panel_->arm_home(this->code_.optional_value(x...)); }
-
- protected:
-  AlarmControlPanel *alarm_control_panel_;
-};
-
-template<typename... Ts> class ArmNightAction final : public Action<Ts...> {
- public:
-  explicit ArmNightAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
-
-  TEMPLATABLE_VALUE(std::string, code)
-
-  void play(const Ts &...x) override { this->alarm_control_panel_->arm_night(this->code_.optional_value(x...)); }
-
- protected:
-  AlarmControlPanel *alarm_control_panel_;
-};
-
-template<typename... Ts> class DisarmAction final : public Action<Ts...> {
- public:
-  explicit DisarmAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
-
-  TEMPLATABLE_VALUE(std::string, code)
-
-  void play(const Ts &...x) override { this->alarm_control_panel_->disarm(this->code_.optional_value(x...)); }
-
- protected:
-  AlarmControlPanel *alarm_control_panel_;
-};
-
 template<typename... Ts> class PendingAction final : public Action<Ts...> {
  public:
   explicit PendingAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}

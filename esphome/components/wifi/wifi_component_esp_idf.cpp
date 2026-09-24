@@ -141,11 +141,6 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
 }
 
 void WiFiComponent::wifi_pre_setup_() {
-  uint8_t mac[6];
-  if (has_custom_mac_address()) {
-    get_mac_address_raw(mac);
-    set_mac_address(mac);
-  }
   // Network interface setup handled by network component
   s_wifi_event_group = xEventGroupCreate();
   if (s_wifi_event_group == nullptr) {
@@ -581,7 +576,14 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
     // lwIP starts the SNTP client if it gets an SNTP server from DHCP. We don't need the time, and more importantly,
     // the built-in SNTP client has a memory leak in certain situations. Disable this feature.
     // https://github.com/esphome/issues/issues/2299
-    sntp_servermode_dhcp(false);
+    {
+#if SNTP_GET_SERVERS_FROM_DHCP || SNTP_GET_SERVERS_FROM_DHCPV6
+      // sntp_servermode_dhcp() is an empty macro unless lwIP is built with
+      // DHCP-supplied NTP servers, so only that build needs the core lock.
+      LwIPLock lock;
+#endif
+      sntp_servermode_dhcp(false);
+    }
 
     // No manual IP is set; use DHCP client
     if (dhcp_status != ESP_NETIF_DHCP_STARTED) {
@@ -620,6 +622,8 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
 
   return true;
 }
+
+esp_netif_t *WiFiComponent::get_esp_netif_sta() { return s_sta_netif; }
 
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
@@ -826,6 +830,19 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
              (const char *) it.ssid, bssid_buf, it.channel, get_auth_mode_str(it.authmode));
 #endif
     s_sta_connected = true;
+    if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED) {
+      // Driver-initiated roam: the WIFI_REASON_ROAMING disconnect was ignored,
+      // so the state machine never left STA_CONNECTED.
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
+      char roam_bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(it.bssid, roam_bssid_s);
+      ESP_LOGI(TAG, "Roamed ssid='%.*s' bssid=" LOG_SECRET("%s") " channel=%u", it.ssid_len, (const char *) it.ssid,
+               roam_bssid_s, it.channel);
+#endif
+      bssid_t roam_bssid;
+      std::copy(it.bssid, it.bssid + 6, roam_bssid.begin());
+      this->handle_driver_roam_(roam_bssid, it.channel);
+    }
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     // Defer listener notification until state machine reaches STA_CONNECTED
     // This ensures wifi.connected condition returns true in listener automations
@@ -848,7 +865,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       ESP_LOGI(TAG, "Disconnected ssid='%.*s' reason='Station Roaming'", it.ssid_len, (const char *) it.ssid);
       return;
     } else {
-      char bssid_s[18];
+      char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(it.bssid, bssid_s);
       ESP_LOGW(TAG, "Disconnected ssid='%.*s' bssid=" LOG_SECRET("%s") " reason='%s'", it.ssid_len,
                (const char *) it.ssid, bssid_s, get_disconnect_reason_str(it.reason));
@@ -892,69 +909,92 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     const auto &it = data->data.sta_scan_done;
     ESP_LOGV(TAG, "Scan done: status=%" PRIu32 " number=%u scan_id=%u", it.status, it.number, it.scan_id);
 
-    scan_result_.clear();
-    this->scan_done_ = true;
-    if (it.status != 0) {
-      // scan error
-      return;
-    }
-
-    if (it.number == 0) {
-      // no results
-      return;
-    }
-
     uint16_t number = it.number;
-    bool needs_full = this->needs_full_scan_results_();
+    const bool filtered = this->is_scan_driver_filtered_();
+    const bool needs_full = this->needs_full_scan_results_();
+    {
+      // Mutate in place under the lock; blocking a portal request is fine and
+      // avoids scratch buffers
+      ScanResultsLock lock(this);
+      this->scan_result_.clear();
+      this->scan_done_ = true;
+      if (it.status != 0) {
+        // scan error
+        return;
+      }
 
-    // Smart reserve: full capacity if needed, small reserve otherwise
-    if (needs_full) {
-      this->scan_result_.reserve(number);
-    } else {
-      this->scan_result_.reserve(WIFI_SCAN_RESULT_FILTERED_RESERVE);
-    }
+      if (number == 0) {
+        // no results
+        return;
+      }
+
+      const size_t wanted = filtered ? std::min<size_t>(number, WIFI_SCAN_RESULT_BOUND) : number;
+      // Storage is reused across the scans of one retry cycle and freed on connect; an exhausted
+      // heap drops this scan and the retry logic scans again
+      if (this->scan_result_.capacity() < wanted && !this->scan_result_.try_init(wanted)) {
+        esp_wifi_clear_ap_list();
+        ESP_LOGW(TAG, "No memory for %zu scan results", wanted);
+        return;
+      }
 
 #ifdef USE_ESP32_HOSTED
-    // getting records one at a time fails on P4 with hosted esp32 WiFi coprocessor
-    // Presumably an upstream bug, work-around by getting all records at once
-    // Use stack buffer (3904 bytes / ~80 bytes per record = ~48 records) with heap fallback
-    static constexpr size_t SCAN_RECORD_STACK_COUNT = 3904 / sizeof(wifi_ap_record_t);
-    SmallBufferWithHeapFallback<SCAN_RECORD_STACK_COUNT, wifi_ap_record_t> records(number);
-    err = esp_wifi_scan_get_ap_records(&number, records.get());
-    if (err != ESP_OK) {
-      esp_wifi_clear_ap_list();
-      ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(err));
-      return;
-    }
-    for (uint16_t i = 0; i < number; i++) {
-      wifi_ap_record_t &record = records.get()[i];
-#else
-    // Process one record at a time to avoid large buffer allocation
-    for (uint16_t i = 0; i < number; i++) {
-      wifi_ap_record_t record;
-      err = esp_wifi_scan_get_ap_record(&record);
+      // getting records one at a time fails on P4 with hosted esp32 WiFi coprocessor
+      // Presumably an upstream bug, work-around by getting all records at once
+      // Use stack buffer (3904 bytes / ~80 bytes per record = ~48 records) with heap fallback
+      static constexpr size_t SCAN_RECORD_STACK_COUNT = 3904 / sizeof(wifi_ap_record_t);
+      SmallBufferWithHeapFallback<SCAN_RECORD_STACK_COUNT, wifi_ap_record_t> records(number);
+      err = esp_wifi_scan_get_ap_records(&number, records.get());
       if (err != ESP_OK) {
-        ESP_LOGW(TAG, "esp_wifi_scan_get_ap_record failed: %s", esp_err_to_name(err));
-        esp_wifi_clear_ap_list();  // Free remaining records not yet retrieved
-        break;
+        esp_wifi_clear_ap_list();
+        ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(err));
+        return;
       }
+      for (uint16_t i = 0; i < number; i++) {
+        wifi_ap_record_t &record = records.get()[i];
+#else
+      // Process one record at a time to avoid large buffer allocation
+      for (uint16_t i = 0; i < number; i++) {
+        wifi_ap_record_t record;
+        err = esp_wifi_scan_get_ap_record(&record);
+        if (err != ESP_OK) {
+          ESP_LOGW(TAG, "esp_wifi_scan_get_ap_record failed: %s", esp_err_to_name(err));
+          esp_wifi_clear_ap_list();  // Free remaining records not yet retrieved
+          break;
+        }
 #endif  // USE_ESP32_HOSTED
 
-      // Check C string first - avoid std::string construction for non-matching networks
-      const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
-
-      // Only construct std::string and store if needed
-      if (needs_full || this->matches_configured_network_(ssid_cstr, record.bssid)) {
+        const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
+        if (!needs_full && !this->matches_configured_network_(ssid_cstr, record.bssid)) {
+          this->log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);
+          continue;
+        }
         bssid_t bssid;
         std::copy(record.bssid, record.bssid + 6, bssid.begin());
-        this->scan_result_.emplace_back(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
-                                        record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
-      } else {
-        this->log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);
+        if (this->scan_result_.size() < wanted) {
+          this->scan_result_.emplace_back(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
+                                          record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
+          continue;
+        }
+        // Records arrive in scan order, not by signal, so a bounded store keeps the strongest by
+        // replacing its weakest entry. Only SSID and signal decide here; a channel or auth constrained
+        // network hidden behind 12 stronger APs of its own SSID is not a real deployment
+        WiFiScanResult *weakest = &this->scan_result_[0];
+        for (auto &res : this->scan_result_) {
+          if (res.get_rssi() < weakest->get_rssi())
+            weakest = &res;
+        }
+        if (record.rssi <= weakest->get_rssi()) {
+          this->log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);
+          continue;
+        }
+        // Rebuilt in place rather than assigned; assignment pulls in CompactString's operators, 104 B of flash
+        weakest->~WiFiScanResult();
+        new (weakest) WiFiScanResult(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
+                                     record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
       }
     }
     ESP_LOGV(TAG, "Scan complete: %u found, %zu stored%s", number, this->scan_result_.size(),
-             needs_full ? "" : " (filtered)");
+             filtered ? LOG_STR_LITERAL(" (driver filtered)") : LOG_STR_LITERAL(""));
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
     this->notify_scan_results_listeners_();
 #endif
@@ -1031,6 +1071,16 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   wifi_scan_config_t config{};
   config.ssid = nullptr;
   config.bssid = nullptr;
+#ifndef USE_WIFI_MULTI_SSID
+  // One configured network with an SSID: let the driver keep only its APs, so the WiFi library
+  // holds fewer records during the scan. Full results (portal, provisioning, listeners) and a
+  // network configured by BSSID alone still scan everything
+  this->scan_driver_filtered_ =
+      !this->needs_full_scan_results_() && this->sta_.size() == 1 && !this->sta_[0].get_ssid().empty();
+  if (this->scan_driver_filtered_) {
+    config.ssid = const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(this->sta_[0].get_ssid().c_str()));
+  }
+#endif
   config.channel = 0;
   config.show_hidden = true;
   config.scan_type = passive ? WIFI_SCAN_TYPE_PASSIVE : WIFI_SCAN_TYPE_ACTIVE;
@@ -1043,7 +1093,7 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   // When scanning while connected (roaming), return to home channel between
   // each scanned channel to maintain the connection (helps with BLE/WiFi coexistence)
 #ifdef CONFIG_SOC_WIFI_SUPPORTED
-  if (this->roaming_state_ == RoamingState::SCANNING) {
+  if (this->is_roaming_scan_active()) {
     config.coex_background_scan = true;
   }
 #endif
@@ -1215,18 +1265,6 @@ bssid_t WiFiComponent::wifi_bssid() {
   }
   std::copy(info.bssid, info.bssid + 6, bssid.begin());
   return bssid;
-}
-std::string WiFiComponent::wifi_ssid() {
-  wifi_ap_record_t info{};
-  esp_err_t err = esp_wifi_sta_get_ap_info(&info);
-  if (err != ESP_OK) {
-    // Very verbose only: this is expected during dump_config() before connection is established (PR #9823)
-    ESP_LOGVV(TAG, "esp_wifi_sta_get_ap_info failed: %s", esp_err_to_name(err));
-    return "";
-  }
-  auto *ssid_s = reinterpret_cast<const char *>(info.ssid);
-  size_t len = strnlen(ssid_s, sizeof(info.ssid));
-  return {ssid_s, len};
 }
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
   wifi_ap_record_t info{};
