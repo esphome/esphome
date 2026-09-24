@@ -200,9 +200,9 @@ async def to_code(config: ConfigType) -> None:
 
 
 def _add_idf_config(config: ConfigType) -> None:
-    add_idf_component(name="espressif/esp_video", ref="^2.5.0")
-    add_idf_component(name="espressif/esp_cam_sensor", ref="^2.6.0")
-    add_idf_component(name="espressif/esp_ipa", ref="^2.4.0")
+    add_idf_component(name="espressif/esp_video", ref="2.5.0")
+    add_idf_component(name="espressif/esp_cam_sensor", ref="2.6.0")
+    add_idf_component(name="espressif/esp_ipa", ref="2.4.0")
 
     sensor = config[CONF_SENSOR]
     add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}", True)
