@@ -54,6 +54,35 @@ void arch_restart() {
   }
 }
 
+// Measured on BK7231T (two units): cold power-up -> REBOOT_REASON_POWER; OTA and restart button -> SOFTWARE.
+// Neither POWER nor WATCHDOG is a trustworthy signal: the BK7231T decoder falls back to POWER for values it does not
+// recognise, and Beken (every watchdog feed) and LN882H (every boot) pre-record WATCHDOG, so a reset that does not
+// clear that record reads as WATCHDOG. BK7231N and BK7238 use a different decoder and were not tested; public
+// BK7231N logs report software restarts as "SW Reboot".
+ResetCause arch_get_reset_cause() {
+  switch (lt_get_reboot_reason()) {
+    case REBOOT_REASON_POWER:
+      return ResetCause::RESET_CAUSE_POWER_ON;
+    case REBOOT_REASON_SOFTWARE:
+      return ResetCause::RESET_CAUSE_SOFTWARE;
+    case REBOOT_REASON_WATCHDOG:
+      return ResetCause::RESET_CAUSE_WATCHDOG;
+    case REBOOT_REASON_CRASH:
+      return ResetCause::RESET_CAUSE_PANIC;
+    // No family returns these today; a brownout or reset-pin event reads as WATCHDOG or POWER instead.
+    case REBOOT_REASON_BROWNOUT:
+      return ResetCause::RESET_CAUSE_BROWNOUT;
+    case REBOOT_REASON_HARDWARE:
+      return ResetCause::RESET_CAUSE_EXTERNAL;
+    case REBOOT_REASON_SLEEP_GPIO:
+    case REBOOT_REASON_SLEEP_RTC:
+    case REBOOT_REASON_SLEEP_USB:
+      return ResetCause::RESET_CAUSE_SLEEP_WAKE;
+    default:  // includes REBOOT_REASON_UNKNOWN
+      return ResetCause::RESET_CAUSE_UNKNOWN;
+  }
+}
+
 }  // namespace esphome
 
 #endif  // USE_LIBRETINY

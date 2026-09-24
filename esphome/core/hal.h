@@ -37,6 +37,28 @@ namespace esphome {
 // components/<platform>/hal.h.
 void __attribute__((noreturn)) arch_restart();
 
+/// Why the current boot happened, as reported by the platform SDK. Most platforms report only a subset.
+///
+/// RESET_CAUSE_UNKNOWN (0) means the SDK gave no usable reason. It has no YAML spelling, so callers must treat it
+/// as "not configured". An SDK that cannot tell two causes apart reports a neighbouring one instead: an ESP32
+/// reset-pin press reads as POWER_ON, some ESP32-S3 esp_restart() calls and unrecorded Beken and LN882H resets read
+/// as WATCHDOG, and many ESP8266 boards read a cold power-up as EXTERNAL. POWER_ON is not proof of a cold boot.
+/// The values are prefixed because bare names collide with SDK macros (EXTERNAL, RESET_PIN).
+enum class ResetCause : uint8_t {
+  RESET_CAUSE_UNKNOWN = 0,
+  RESET_CAUSE_POWER_ON,    ///< Reported as a cold boot; see above.
+  RESET_CAUSE_SOFTWARE,    ///< Restart by the firmware (arch_restart()): OTA, restart button, reboot_timeout.
+  RESET_CAUSE_WATCHDOG,    ///< Hardware or software watchdog expired.
+  RESET_CAUSE_PANIC,       ///< Exception, assert or unhandled fault.
+  RESET_CAUSE_BROWNOUT,    ///< Supply dipped below the brownout threshold.
+  RESET_CAUSE_EXTERNAL,    ///< Reset pin asserted.
+  RESET_CAUSE_SLEEP_WAKE,  ///< Woke from deep sleep.
+};
+
+/// Report why this boot happened. Defined in each components/<platform>/hal.cpp, so a platform that lacks it
+/// fails at link time.
+ResetCause arch_get_reset_cause();
+
 #ifndef USE_ESP8266
 // All non-ESP8266 platforms: PROGMEM is a no-op, so these are direct dereferences.
 // ESP8266's out-of-line declarations live in components/esp8266/hal.h.

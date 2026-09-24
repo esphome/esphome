@@ -55,6 +55,31 @@ RESTORE_MODES = {
     "DISABLED": SwitchRestoreMode.SWITCH_RESTORE_DISABLED,
 }
 
+CONF_RESTORE_MODE_ON_RESET = "restore_mode_on_reset"
+
+ResetCause = cg.esphome_ns.enum("ResetCause", is_class=True)
+
+# RESET_CAUSE_UNKNOWN has no spelling, so an unclassified boot never selects an override.
+# RESET_CAUSE_POWER_ON is withheld: a false power-on would energise the load, so it needs
+# per-platform evidence. arch_get_reset_cause() already reports it; adding it is Python-only.
+RESET_CAUSES = {
+    "software": ResetCause.RESET_CAUSE_SOFTWARE,
+    "watchdog": ResetCause.RESET_CAUSE_WATCHDOG,
+    "panic": ResetCause.RESET_CAUSE_PANIC,
+    "brownout": ResetCause.RESET_CAUSE_BROWNOUT,
+    "external": ResetCause.RESET_CAUSE_EXTERNAL,
+    "sleep_wake": ResetCause.RESET_CAUSE_SLEEP_WAKE,
+}
+
+_RESTORE_MODE_ENUM = cv.enum(RESTORE_MODES, upper=True, space="_")
+
+
+# Declarative so script/build_language_schema.py can describe each cause to editors.
+_RESTORE_MODE_ON_RESET_SCHEMA = cv.All(
+    cv.Schema({cv.Optional(cause): _RESTORE_MODE_ENUM for cause in RESET_CAUSES}),
+    cv.has_at_least_one_key(*RESET_CAUSES),
+)
+
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True)
 
@@ -67,9 +92,8 @@ _SWITCH_SCHEMA = (
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSwitchComponent),
             cv.Optional(CONF_INVERTED): cv.boolean,
-            cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
-                RESTORE_MODES, upper=True, space="_"
-            ),
+            cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): _RESTORE_MODE_ENUM,
+            cv.Optional(CONF_RESTORE_MODE_ON_RESET): _RESTORE_MODE_ON_RESET_SCHEMA,
             cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
             cv.Optional(CONF_ON_TURN_ON): automation.validate_automation({}),
             cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation({}),
@@ -103,7 +127,7 @@ def switch_schema(
         (
             CONF_RESTORE_MODE,
             default_restore_mode,
-            cv.enum(RESTORE_MODES, upper=True, space="_")
+            _RESTORE_MODE_ENUM
             if default_restore_mode is not cv.UNDEFINED
             else cv.UNDEFINED,
         ),
@@ -158,6 +182,20 @@ async def setup_switch_core_(var, config):
     setup_device_class(config)
 
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
+
+    if overrides := config.get(CONF_RESTORE_MODE_ON_RESET):
+        cg.add_define("USE_SWITCH_RESTORE_MODE_ON_RESET")
+        # Flat (cause, mode) byte pairs; cast so the table cannot drift from the C++ enums.
+        table = []
+        for cause, mode in sorted(overrides.items()):
+            table.append(
+                cg.RawExpression(f"static_cast<uint8_t>({RESET_CAUSES[cause]})")
+            )
+            table.append(cg.RawExpression(f"static_cast<uint8_t>({mode.enum_value})"))
+        arr = cg.static_const_array(
+            ID(f"{config[CONF_ID].id}_reset_overrides", type=cg.uint8), table
+        )
+        cg.add(var.set_restore_mode_on_reset(arr, len(overrides)))
     await zigbee.setup_switch(var, config)
 
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
@@ -119,7 +120,24 @@ class Switch : public EntityBase {
 
   bool is_inverted() const { return this->inverted_; }
 
+#ifdef USE_SWITCH_RESTORE_MODE_ON_RESET
+  bool has_reset_overrides() const { return this->reset_overrides_ != nullptr; }
+#endif
+
   void set_restore_mode(SwitchRestoreMode restore_mode) { this->restore_mode = restore_mode; }
+
+#ifdef USE_SWITCH_RESTORE_MODE_ON_RESET
+  /** Override `restore_mode` for specific boot causes.
+   *
+   * `table` holds `count` interleaved (ResetCause, SwitchRestoreMode) byte pairs and must outlive this object; the
+   * code generator emits it as a `static const` (in DRAM on ESP8266). A boot whose cause is not in the table,
+   * including RESET_CAUSE_UNKNOWN, uses `restore_mode`.
+   */
+  void set_restore_mode_on_reset(const uint8_t *table, uint8_t count) {
+    this->reset_overrides_ = table;
+    this->reset_override_count_ = count;
+  }
+#endif
 
  protected:
   /** Write the given state to hardware. You should implement this
@@ -132,8 +150,24 @@ class Switch : public EntityBase {
    */
   virtual void write_state(bool state) = 0;
 
+#ifdef USE_SWITCH_RESTORE_MODE_ON_RESET
+  /// `restore_mode`, unless this boot's cause has an entry in the override table.
+  SwitchRestoreMode effective_restore_mode_();
+
+  /// True when `restore_mode` or any override is persistent: an override cannot restore a state that was never saved.
+  bool is_persistent_();
+#else
+  SwitchRestoreMode effective_restore_mode_() { return this->restore_mode; }
+  bool is_persistent_() { return (this->restore_mode & RESTORE_MODE_PERSISTENT_MASK) != 0; }
+#endif
+
   // Pointer first (4 bytes)
   ESPPreferenceObject rtc_;
+
+#ifdef USE_SWITCH_RESTORE_MODE_ON_RESET
+  /// Interleaved (cause, mode) byte pairs, or nullptr when no override is configured.
+  const uint8_t *reset_overrides_{nullptr};
+#endif
 
   // LazyCallbackManager (4 bytes on 32-bit - nullptr when empty)
   LazyCallbackManager<void(bool)> state_callback_{};
@@ -141,7 +175,13 @@ class Switch : public EntityBase {
   // Small types grouped together
   Deduplicator<bool> publish_dedup_;  // 2 bytes (bool has_value_ + bool last_value_)
   bool inverted_{false};              // 1 byte
+#ifdef USE_SWITCH_RESTORE_MODE_ON_RESET
+  // With reset_overrides_, grows sizeof(Switch) 56 -> 64 on host (+4 to +8 expected on 32-bit): Deduplicator<bool>
+  // is 3 bytes, not 2 (core/helpers.h), so this group has no padding to reuse.
+  uint8_t reset_override_count_{0};
+#else
   // Total: 3 bytes, 1 byte padding
+#endif
 };
 
 #define LOG_SWITCH(prefix, type, obj) log_switch((TAG), (prefix), LOG_STR_LITERAL(type), (obj))

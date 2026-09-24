@@ -25,6 +25,10 @@ void arch_restart() {
   }
 }
 
+// Always UNKNOWN for now: chip_reset's HAD_POR bit (read by debug/debug_rp2.cpp) is sticky, and arch_restart() reboots
+// through the watchdog, so a cold-boot bit can survive into a software restart. Telling them apart is unvalidated.
+ResetCause arch_get_reset_cause() { return ResetCause::RESET_CAUSE_UNKNOWN; }
+
 void arch_init() {
 #ifdef USE_RP2_CRASH_HANDLER
   rp2::crash_handler_read_and_clear();

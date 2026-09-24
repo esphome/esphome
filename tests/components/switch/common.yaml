@@ -21,6 +21,16 @@ switch:
       - logger.log: "Switch is now ON"
     on_turn_off:
       - logger.log: "Switch is now OFF"
+  # Every accepted cause fails safe, so the option needs no platform gate.
+  - platform: template
+    name: "Reset Cause Override Switch"
+    id: reset_cause_override_switch
+    optimistic: true
+    restore_mode: ALWAYS_ON
+    restore_mode_on_reset:
+      software: RESTORE_DEFAULT_OFF
+      watchdog: ALWAYS_OFF
+      external: ALWAYS_ON
 
 esphome:
   on_boot:

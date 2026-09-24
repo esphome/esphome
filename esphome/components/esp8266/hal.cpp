@@ -4,6 +4,7 @@
 #include "esphome/core/helpers.h"
 
 #include <Arduino.h>
+#include <Esp.h>
 #include <core_esp8266_features.h>
 #include <coredecls.h>
 
@@ -95,6 +96,29 @@ void arch_restart() {
   // restart() doesn't always end execution
   while (true) {  // NOLINT(clang-diagnostic-unreachable-code)
     yield();
+  }
+}
+
+// REASON_DEFAULT_RST (0) is both "power on" and what a boot with no recorded reason reads, and a false POWER_ON would
+// energise a load, so it maps to UNKNOWN. Measured on an ESP-12E: OTA and restart button -> REASON_SOFT_RESTART.
+ResetCause arch_get_reset_cause() {
+  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
+  switch (ESP.getResetInfoPtr()->reason) {
+    case REASON_SOFT_RESTART:
+      return ResetCause::RESET_CAUSE_SOFTWARE;
+    case REASON_WDT_RST:
+    case REASON_SOFT_WDT_RST:
+      return ResetCause::RESET_CAUSE_WATCHDOG;
+    case REASON_EXCEPTION_RST:
+      return ResetCause::RESET_CAUSE_PANIC;
+    // Also what a cold power-up reads on many boards, when RST rises after CHIP_EN
+    // (esp8266/Arduino#3266).
+    case REASON_EXT_SYS_RST:
+      return ResetCause::RESET_CAUSE_EXTERNAL;
+    case REASON_DEEP_SLEEP_AWAKE:
+      return ResetCause::RESET_CAUSE_SLEEP_WAKE;
+    default:  // includes REASON_DEFAULT_RST -- see above
+      return ResetCause::RESET_CAUSE_UNKNOWN;
   }
 }
 

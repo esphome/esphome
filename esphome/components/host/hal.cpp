@@ -54,7 +54,12 @@ void IRAM_ATTR HOT delayMicroseconds(uint32_t us) {
     res = nanosleep(&ts, &ts);
   } while (res != 0 && errno == EINTR);
 }
+// Test affordance only; see arch_get_reset_cause() below.
+static const char *const RESET_CAUSE_ENV = "ESPHOME_RESET_CAUSE";
+
 void arch_restart() {
+  // Always a software restart: clear the test hook so an execv'd image does not inherit it.
+  unsetenv(RESET_CAUSE_ENV);
   // Host OTA: if a re-exec is armed, swap binaries instead of exiting.
   if (const char *target = host::get_reexec_path()) {
     char **argv = host::get_argv();
@@ -66,6 +71,30 @@ void arch_restart() {
     }
   }
   exit(0);
+}
+
+// Test hook: ESPHOME_RESET_CAUSE names a cause; unset or unrecognised is UNKNOWN, so no override fires in a
+// normal deployment. Read on every call so one gtest process can observe several causes. Never export it from a
+// service definition: arch_restart() can clear it only in this process, not in a supervisor's environment.
+ResetCause arch_get_reset_cause() {
+  const char *value = getenv(RESET_CAUSE_ENV);
+  if (value == nullptr)
+    return ResetCause::RESET_CAUSE_UNKNOWN;
+  if (std::strcmp(value, "power_on") == 0)
+    return ResetCause::RESET_CAUSE_POWER_ON;
+  if (std::strcmp(value, "software") == 0)
+    return ResetCause::RESET_CAUSE_SOFTWARE;
+  if (std::strcmp(value, "watchdog") == 0)
+    return ResetCause::RESET_CAUSE_WATCHDOG;
+  if (std::strcmp(value, "panic") == 0)
+    return ResetCause::RESET_CAUSE_PANIC;
+  if (std::strcmp(value, "brownout") == 0)
+    return ResetCause::RESET_CAUSE_BROWNOUT;
+  if (std::strcmp(value, "external") == 0)
+    return ResetCause::RESET_CAUSE_EXTERNAL;
+  if (std::strcmp(value, "sleep_wake") == 0)
+    return ResetCause::RESET_CAUSE_SLEEP_WAKE;
+  return ResetCause::RESET_CAUSE_UNKNOWN;
 }
 
 uint32_t arch_get_cpu_cycle_count() {

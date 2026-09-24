@@ -64,6 +64,10 @@ void arch_feed_wdt() {
 
 void arch_restart() { sys_reboot(SYS_REBOOT_COLD); }
 
+// Always UNKNOWN for now: nRF52's RESETREAS (via hwinfo, see zephyr/reset_reason.cpp) has no power-on bit, so a cold
+// boot and a brownout both read as no flags, and it accumulates until cleared. Unverified on hardware.
+ResetCause arch_get_reset_cause() { return ResetCause::RESET_CAUSE_UNKNOWN; }
+
 }  // namespace esphome
 
 #endif  // USE_ZEPHYR
