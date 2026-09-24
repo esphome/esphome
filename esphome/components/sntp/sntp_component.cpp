@@ -56,11 +56,9 @@ void SNTPComponent::setup() {
   this->zone_pref_ = global_preferences->make_preference<ZonePreference>(
       fnv1_hash_extend(fnv1_hash("sntp_timezone"), this->config_zone_), true);
   ZonePreference saved{};
-  if (this->zone_pref_.load(&saved) && memchr(saved.zone, '\0', sizeof(saved.zone)) != nullptr &&
-      is_valid_zone(StringRef(saved.zone))) {
-    strcpy(this->zone_, saved.zone);  // NOLINT(clang-analyzer-security.insecureAPI.strcpy)
   } else {
     strncpy(this->zone_, this->config_zone_, MAX_ZONE_LENGTH);
+    this->zone_[MAX_ZONE_LENGTH] = '\0';
   }
   this->set_interval(TIMEZONE_REFRESH, this->timezone_update_interval_, [this]() { this->fetch_timezone_(); });
 #endif
