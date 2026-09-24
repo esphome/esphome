@@ -211,6 +211,7 @@ VERSION_H_TARGET = "esphome/core/version.h"
 BUILD_INFO_DATA_H_TARGET = "esphome/core/build_info_data.h"
 BUILD_INFO_DATA_CPP_TARGET = "esphome/core/build_info_data.cpp"
 ENTITY_TYPES_H_TARGET = "esphome/core/entity_types.h"
+CONTROLLER_DISPATCH_H_TARGET = "esphome/core/controller_dispatch.h"
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
@@ -243,6 +244,9 @@ def copy_src_tree():
     # new component is loaded by a consumer.
     esphome_h_exclude = {
         Path(ENTITY_TYPES_H_TARGET),
+        Path(
+            CONTROLLER_DISPATCH_H_TARGET
+        ),  # included by main.cpp once ESPHOME_CONTROLLERS is defined
         Path(
             "esphome/core/ring_buffer.h"
         ),  # moved to components/ring_buffer/, removed in 2026.11.0

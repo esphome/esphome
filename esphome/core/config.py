@@ -675,34 +675,19 @@ async def _add_platform_defines() -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_controller_registry_dispatch() -> None:
-    # Define ControllerRegistry::notify_*() in main.cpp as direct calls on each
-    # registered controller. entity_types.h expands one definition per entity
-    # type that is compiled in, so only the callbacks in use are emitted.
+    # controller_dispatch.h defines ControllerRegistry::notify_*() as direct
+    # calls on the controllers returned by esphome_controllers().
     controllers = CORE.data.get(KEY_CONTROLLER_REGISTRY_CONTROLLERS)
     if not controllers:
         return
     cg.add_define("USE_CONTROLLER_REGISTRY")
-    for var in controllers:
-        cg.add_global(
-            cg.RawStatement(
-                f"static_assert(ControllerContract<std::remove_pointer_t<decltype({var})>>, "
-                f'"{var} is missing an on_*_update() callback for an entity type in this build '
-                '(esphome/core/controller_registry.h)");'
-            )
-        )
-    calls = " \\\n".join(f"    {var}->on_##callback(obj);" for var in controllers)
+    entries = ", ".join(str(var) for var in controllers)
     cg.add_global(
         cg.RawStatement(
-            "#define ENTITY_TYPE_(type, singular, plural, count, upper)\n"
-            "#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \\\n"
-            "  void ControllerRegistry::notify_##callback(type *obj) { \\\n"
-            f"{calls} \\\n"
-            "  }\n"
-            '#include "esphome/core/entity_types.h"\n'
-            "#undef ENTITY_TYPE_\n"
-            "#undef ENTITY_CONTROLLER_TYPE_"
+            f"static auto esphome_controllers() {{ return std::tuple{{{entries}}}; }}"
         )
     )
+    cg.add_global(cg.RawStatement('#include "esphome/core/controller_dispatch.h"'))
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
