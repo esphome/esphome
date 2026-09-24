@@ -3957,8 +3957,12 @@ class UsbDeviceDescriptor final : public ProtoMessage {
   uint32_t product_id{0};
   uint32_t bcd_device{0};
   uint32_t interface_number{0};
-  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
-  uint32_t calculate_size() const;
+  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
@@ -3975,12 +3979,16 @@ class SerialProxyIdentity final : public ProtoMessage {
   uint32_t instance{0};
   enums::SerialProxyIdentitySource source{};
   uint32_t flags{0};
-  StringRef manufacturer{};
-  StringRef product{};
-  StringRef serial_number{};
+  StringRef manufacturer{nullptr, 0};   // null until set, encode only
+  StringRef product{nullptr, 0};        // null until set, encode only
+  StringRef serial_number{nullptr, 0};  // null until set, encode only
   UsbDeviceDescriptor usb{};
-  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
-  uint32_t calculate_size() const;
+  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
