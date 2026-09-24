@@ -484,6 +484,7 @@ class WebServer final : public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_MEDIA_PLAYER
+  // Not exposed over HTTP; the stub only satisfies ControllerContract
   void on_media_player_update(media_player::MediaPlayer *) {}
 #endif
 
