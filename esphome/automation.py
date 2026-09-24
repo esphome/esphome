@@ -224,6 +224,15 @@ def flash_string(config: ConfigType, value: str) -> str:
     return str(cg.safe_exp(value))
 
 
+def literal_with_length(config: ConfigType, value: str) -> str:
+    """Renderer for a ``(const char *, size_t)`` target: a plain literal plus its byte length.
+
+    The target compares or copies the bytes in place, so it needs the RAM literal rather than
+    the PROGMEM rendering on ESP8266, and the length saves a strlen.
+    """
+    return f"{cg.safe_exp(value)}, {len(value.encode('utf-8'))}"
+
+
 @dataclass(frozen=True)
 class ApplyCall:
     """One statement from config keys, e.g. ``"set_range({}, {})"`` with ``((CONF_LOW, cg.float_), ...)``.
