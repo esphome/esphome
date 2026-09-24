@@ -276,16 +276,6 @@ template<class C, typename... Ts> class ScriptStopAction final : public Action<T
   C *script_;
 };
 
-template<class C, typename... Ts> class IsRunningCondition final : public Condition<Ts...> {
- public:
-  explicit IsRunningCondition(C *parent) : parent_(parent) {}
-
-  bool check(const Ts &...x) override { return this->parent_->is_running(); }
-
- protected:
-  C *parent_;
-};
-
 /** Wait for a script to finish before continuing.
  *
  * Uses queue-based storage to safely handle concurrent executions.
