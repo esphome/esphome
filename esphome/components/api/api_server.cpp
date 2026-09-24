@@ -5,7 +5,6 @@
 #include "api_connection.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
-#include "esphome/core/controller_registry.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -29,6 +28,29 @@ static const char *const TAG = "api";
 // APIServer
 APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+#ifdef USE_API_NOISE
+static constexpr uint32_t NOISE_PSK_PREF_HASH = 88491486UL;
+#endif
+
+#if defined(USE_API_NOISE) && defined(USE_OTA_ENCRYPTION_PROVISIONED)
+bool load_saved_noise_psk(noise::psk_t &out) {
+  SavedNoisePsk saved;
+#ifdef USE_PREFERENCE_KEY_LOOKUP
+  const bool loaded =
+      global_preferences->load_from_key(NOISE_PSK_PREF_HASH, reinterpret_cast<uint8_t *>(&saved), sizeof(saved));
+#else
+  // Slot backends need the reservation walk; it only lands on the record when the reservations before
+  // it match a normal boot, otherwise the type checked checksum fails the load
+  const bool loaded = global_preferences->make_preference<SavedNoisePsk>(NOISE_PSK_PREF_HASH, true).load(&saved);
+#endif
+  // The all-zeros record means no key
+  if (!loaded || noise::NoiseContext::is_all_zeros(saved.psk))
+    return false;
+  out = saved.psk;
+  return true;
+}
+#endif
+
 APIServer::APIServer() { global_api_server = this; }
 
 void APIServer::socket_failed_(const LogString *msg) {
@@ -38,13 +60,10 @@ void APIServer::socket_failed_(const LogString *msg) {
 }
 
 void APIServer::setup() {
-  ControllerRegistry::register_controller(this);
-
 #ifdef USE_API_NOISE
   // Always reserve the slot: flash preferences are positional on esp8266, so
   // a yaml key build must keep the layout of a runtime key build
-  uint32_t hash = 88491486UL;
-  this->noise_pref_ = global_preferences->make_preference<SavedNoisePsk>(hash, true);
+  this->noise_pref_ = global_preferences->make_preference<SavedNoisePsk>(NOISE_PSK_PREF_HASH, true);
 #ifndef USE_API_NOISE_PSK_FROM_YAML
   // A cleared record loads fine but holds no key
   if (this->load_and_apply_noise_psk_() && this->noise_ctx_.has_psk()) {
@@ -456,8 +475,9 @@ void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call
     // Home Assistant subscribes to actions shortly *after* authenticating, so actions
     // fired right at connection time (on_client_connected, on_time_sync, ...) can
     // arrive before the subscription and are lost - warn instead of failing silently.
-    ESP_LOGW(TAG, "Home Assistant %s '%s' dropped; %s",
-             call.is_event ? LOG_STR_LITERAL("event") : LOG_STR_LITERAL("action"), call.service.c_str(),
+    ESP_LOGW(TAG, "Home Assistant %s '%.*s' dropped; %s",
+             call.is_event ? LOG_STR_LITERAL("event") : LOG_STR_LITERAL("action"),
+             static_cast<int>(call.service.size()), call.service.empty() ? "" : call.service.c_str(),
              this->is_connected() ? LOG_STR_LITERAL("client has not subscribed to actions (yet)")
                                   : LOG_STR_LITERAL("no client connected"));
   }

@@ -5,7 +5,6 @@
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/controller_registry.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -200,10 +199,10 @@ void DeferredUpdateEventSource::process_deferred_queue_() {
       deferred_queue_.erase(deferred_queue_.begin());
       this->consecutive_send_failures_ = 0;  // Reset failure count on successful send
     } else {
-      // NOTE: Similar logic exists in web_server_idf/web_server_idf.cpp in AsyncEventSourceResponse::process_buffer_()
-      // The implementations differ due to platform-specific APIs (DISCARDED vs HTTPD_SOCK_ERR_TIMEOUT, close() vs
-      // fd_.store(0)), but the failure counting and timeout logic should be kept in sync. If you change this logic,
-      // also update the ESP-IDF implementation.
+      // NOTE: Similar logic exists in web_server_idf/web_server_idf.cpp in AsyncEventSourceResponse::process_buffer_().
+      // The close mechanisms are platform-specific (this path calls close() directly; the IDF path is time-based and
+      // closes through HTTPD to preserve session ownership), but both drop a client after roughly 20 seconds without
+      // send progress. Keep that stall policy in sync when changing either side.
       this->consecutive_send_failures_++;
       if (this->consecutive_send_failures_ >= MAX_CONSECUTIVE_SEND_FAILURES) {
         // Too many failures, connection is likely dead
@@ -365,7 +364,6 @@ json::SerializationBuffer<> WebServer::get_config_json() {
 }
 
 void WebServer::setup() {
-  ControllerRegistry::register_controller(this);
   this->base_->init();
 
 #ifdef USE_LOGGER
@@ -1015,7 +1013,7 @@ json::SerializationBuffer<> WebServer::light_json_(light::LightState *obj, JsonD
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_value(root, obj, "light", obj->remote_values.is_on() ? "ON" : "OFF", start_config);
+  set_json_value(root, obj, "light", obj->get_reported_values().is_on() ? "ON" : "OFF", start_config);
 
   light::LightJSONSchema::dump_json(*obj, root);
   if (start_config == DETAIL_ALL) {
@@ -1415,8 +1413,11 @@ json::SerializationBuffer<> WebServer::text_json_(text::Text *obj, const std::st
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  const char *state = obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD ? "********" : value.c_str();
-  set_json_icon_state_value(root, obj, "text", state, value.c_str(), start_config);
+  // A password entity shows the mask and prefills the input with nothing, so the secret never
+  // reaches the JSON and the mask cannot be written back as the value
+  const bool password = obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD;
+  set_json_icon_state_value(root, obj, "text", password ? "********" : value.c_str(), password ? "" : value.c_str(),
+                            start_config);
   root[ESPHOME_F("min_length")] = obj->traits.get_min_length();
   root[ESPHOME_F("max_length")] = obj->traits.get_max_length();
   root[ESPHOME_F("pattern")] = obj->traits.get_pattern_c_str();
