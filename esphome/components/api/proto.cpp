@@ -195,6 +195,12 @@ void proto_check_bounds_failed(const uint8_t *pos, size_t bytes, const uint8_t *
   ESP_LOGE(TAG, "Proto encode bounds check failed in %s: need %zu bytes, %td available", caller, bytes, end - pos);
   abort();
 }
+void proto_check_encode_end(const uint8_t *end, const uint8_t *expected) {
+  if (end == expected)
+    return;
+  ESP_LOGE(TAG, "Proto encode ended %td bytes off the calculated size", end - expected);
+  abort();
+}
 void ProtoWriteBuffer::debug_check_bounds_(size_t bytes, const char *caller) {
   if (this->pos_ + bytes > this->buffer_->data() + this->buffer_->size()) {
     ESP_LOGE(TAG, "ProtoWriteBuffer bounds check failed in %s: bytes=%zu offset=%td buf_size=%zu", caller, bytes,
