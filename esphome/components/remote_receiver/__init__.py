@@ -112,17 +112,21 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
             cv.Optional(CONF_DUMP, default=[]): remote_base.validate_dumpers,
             cv.Optional(CONF_TOLERANCE, default="25%"): validate_tolerance,
+            # pulse ring targets hold one 4 byte entry per pulse; 4000b keeps their 1000 pulses
             cv.SplitDefault(
                 CONF_BUFFER_SIZE,
-                esp32="10000b",
-                esp32_c2="1000b",
-                esp32_c61="1000b",
-                esp8266="1000b",
-                bk72xx="1000b",
-                ln882x="1000b",
-                rtl87xx="1000b",
-                rp2="1000b",
-            ): cv.validate_bytes,
+                esp32=cv.UNDEFINED,
+                # the pulse ring needs a size; only RMT targets size themselves in setup()
+                **{
+                    f"esp32_{variant.removeprefix('ESP32').lower()}": "4000b"
+                    for variant in esp32_rmt.VARIANTS_NO_RMT
+                },
+                esp8266="4000b",
+                bk72xx="4000b",
+                ln882x="4000b",
+                rtl87xx="4000b",
+                rp2="4000b",
+            ): cv.All(cv.validate_bytes, cv.int_range(min=64, max=65535)),
             cv.Optional(CONF_FILTER, default="50us"): cv.All(
                 cv.positive_time_period_microseconds,
                 cv.Range(max=TimePeriod(microseconds=4294967295)),
@@ -233,7 +237,8 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_TOLERANCE][CONF_VALUE], config[CONF_TOLERANCE][CONF_TYPE]
         )
     )
-    cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
+    if CONF_BUFFER_SIZE in config:
+        cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
     cg.add(var.set_filter_us(config[CONF_FILTER]))
     cg.add(var.set_idle_us(config[CONF_IDLE]))
 

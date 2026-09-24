@@ -70,7 +70,6 @@
 #define USE_ESP32_CAMERA_JPEG_CONVERSION
 #define USE_ESP32_HOSTED
 #define USE_ESP32_HOSTED_HTTP_UPDATE
-#define USE_ESP32_IMPROV_STATE_CALLBACK
 #define USE_ESP_NOW_HOSTED
 #define USE_EVENT
 #define USE_FAN
@@ -83,12 +82,14 @@
 #define USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT 8000  // NOLINT
 #define USE_I2S_AUDIO_SPDIF_MODE
 #define USE_IMAGE
+#define USE_IMPROV_BLE_STATE_CALLBACK
 #define USE_INFRARED
 #define USE_IR_RF
 #define USE_JSON
 #define USE_RADIO_FREQUENCY
 #define USE_LIGHT
 #define USE_LIGHT_GAMMA_LUT
+#define USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
 #define USE_LOCK
 #define USE_LOGGER
 #define USE_LOGGER_LEVEL_LISTENERS
@@ -266,7 +267,7 @@
 #define MAX_API_CONNECTIONS 6
 // The Improv library is not in the Zephyr tidy environment
 #define USE_IMPROV_SERIAL
-#define USE_IMPROV_SERIAL_NEXT_URL
+#define USE_IMPROV_NEXT_URL
 #define USE_MD5
 #define USE_NOISE
 #define USE_SHA256
@@ -283,7 +284,6 @@
 #define USE_RUNTIME_STATS
 #define USE_OTA
 #define USE_OTA_ENCRYPTION
-#define USE_OTA_ENCRYPTION_FROM_API
 #define USE_OTA_ENCRYPTION_PROVISIONED
 #define USE_OTA_ENCRYPTION_REQUIRED
 #define USE_OTA_PASSWORD
@@ -298,6 +298,8 @@
 #ifdef USE_ARDUINO
 #define USE_PROMETHEUS
 #define USE_WIFI_WPA2_EAP
+// Kept in the Arduino block so clang-tidy sees both scan storage paths
+#define USE_WIFI_MULTI_SSID
 #endif
 
 // Platforms with native 64-bit time sources (no rollover tracking needed)
@@ -329,6 +331,8 @@
 #else
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 0
 #endif
+// Defined here so static analysis parses the slot and its call site.
+#define USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER
 #define BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE 16
 #endif
 
@@ -388,8 +392,7 @@
 #define USE_ESP32_CAMERA_JPEG_ENCODER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
-#define USE_IMPROV
-#define USE_ESP32_IMPROV_NEXT_URL
+#define USE_IMPROV_BLE
 #define USE_MICROPHONE
 #define USE_PSRAM
 #define USE_SENDSPIN
@@ -397,6 +400,7 @@
 #define USE_SENDSPIN_CONTROLLER
 #define USE_SENDSPIN_METADATA
 #define USE_SENDSPIN_PLAYER
+#define USE_SENDSPIN_SWITCH
 #define USE_SENDSPIN_VISUALIZER
 #define USE_SENDSPIN_PORT 8928  // NOLINT
 #define USE_SOCKET_IMPL_BSD_SOCKETS
@@ -475,6 +479,9 @@
 #define USE_OPENTHREAD
 #define USE_ZIGBEE
 #endif
+#ifndef USE_OPENTHREAD
+#define USE_MDNS_SUPPORTS_ENABLE_DISABLE
+#endif
 #endif
 
 #if defined(USE_ESP32_VARIANT_ESP32S2)
@@ -530,7 +537,7 @@
 // rp2/__init__.py codegen also defines USE_RP2040 as a back-compat alias
 // for external custom components that may still test for it.
 #ifdef USE_RP2
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 0, 0)
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 1, 0)
 #define USE_RP2_CRASH_HANDLER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C

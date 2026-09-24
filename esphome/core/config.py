@@ -717,9 +717,10 @@ async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.RawExpression("using std::min"))
     cg.add_global(cg.RawExpression("using std::max"))
 
-    # Construct App via placement new — see application.cpp for storage details
+    # Construct App via placement new — see application.cpp for storage details.
+    # No parens: `Application()` would zero-fill storage that is already zero.
     cg.add_global(cg.RawStatement("#include <new>"))
-    cg.add(cg.RawExpression("new (&App) Application()"))
+    cg.add(cg.RawExpression("new (&App) Application"))
     name = config[CONF_NAME]
     friendly_name = config[CONF_FRIENDLY_NAME]
     name_add_mac_suffix = config[CONF_NAME_ADD_MAC_SUFFIX]
@@ -768,6 +769,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-Wno-unused-variable")
     cg.add_build_flag("-Wno-unused-but-set-variable")
     cg.add_build_flag("-Wno-sign-compare")
+    cg.add_build_flag("-Wno-unused-function")
     # C++20 deprecated ++/--, compound assignment, and chained assignment on
     # volatile lvalues; GCC warns via -Wvolatile, on by default at gnu++20.
     # C++23 (P2327R1) removed the deprecation for compound assignment, so the

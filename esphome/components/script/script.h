@@ -8,28 +8,19 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::script {
 
 class ScriptLogger {
  protected:
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  void esp_logw_(int line, const __FlashStringHelper *format, const char *param) {
+  void esp_logw_(int line, ProgmemStr format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
   }
-  void esp_logd_(int line, const __FlashStringHelper *format, const char *param) {
+  void esp_logd_(int line, ProgmemStr format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
   }
-  void esp_log_(int level, int line, const __FlashStringHelper *format, const char *param);
-#else
-  void esp_logw_(int line, const char *format, const char *param) {
-    esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
-  }
-  void esp_logd_(int line, const char *format, const char *param) {
-    esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
-  }
-  void esp_log_(int level, int line, const char *format, const char *param);
-#endif
+  void esp_log_(int level, int line, ProgmemStr format, const char *param);
 };
 
 /// The abstract base class for all script types.
@@ -274,16 +265,6 @@ template<class C, typename... Ts> class ScriptStopAction final : public Action<T
 
  protected:
   C *script_;
-};
-
-template<class C, typename... Ts> class IsRunningCondition final : public Condition<Ts...> {
- public:
-  explicit IsRunningCondition(C *parent) : parent_(parent) {}
-
-  bool check(const Ts &...x) override { return this->parent_->is_running(); }
-
- protected:
-  C *parent_;
 };
 
 /** Wait for a script to finish before continuing.

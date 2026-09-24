@@ -364,7 +364,10 @@ void APIConnection::check_keepalive_(uint32_t now) {
     ESP_LOGVV(TAG, "Sending keepalive PING");
     PingRequest req;
     this->flags_.sent_ping = this->send_message(req);
-    if (!this->flags_.sent_ping) {
+    if (this->flags_.sent_ping) {
+      // Quiet for a keepalive period and the ping is on its way: a one-off stall's storage can go
+      this->helper_->release_overflow_buffer();
+    } else {
       // If we can't send the ping request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
       ESP_LOGW(TAG, "Buffer full, ping queued");
@@ -597,7 +600,7 @@ bool APIConnection::send_light_state(light::LightState *light) {
 uint16_t APIConnection::try_send_light_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *light = static_cast<light::LightState *>(entity);
   LightStateResponse resp;
-  auto values = light->remote_values;
+  auto values = light->get_reported_values();
   auto color_mode = values.get_color_mode();
   resp.state = values.is_on();
   resp.color_mode = static_cast<enums::ColorMode>(color_mode);
@@ -717,12 +720,7 @@ uint16_t APIConnection::try_send_switch_info(EntityBase *entity, APIConnection *
 }
 void APIConnection::on_switch_command_request(const SwitchCommandRequest &msg) {
   ENTITY_COMMAND_GET(switch_::Switch, a_switch, switch)
-
-  if (msg.state) {
-    a_switch->turn_on();
-  } else {
-    a_switch->turn_off();
-  }
+  a_switch->control(msg.state);
 }
 #endif
 
@@ -2269,7 +2267,12 @@ bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, 
   // Capacity reserved above, cannot fail
   (void) shared_buf.resize(write_start + payload_size);
   ProtoWriteBuffer buffer{&shared_buf, write_start};
-  encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
+  uint8_t *end = encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
+#ifdef ESPHOME_DEBUG_API
+  proto_check_encode_end(end, shared_buf.data() + shared_buf.size());
+#else
+  (void) end;
+#endif
   return this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type);
 }
 // encode_to_buffer is defined inline in api_connection.h (ESPHOME_ALWAYS_INLINE)
