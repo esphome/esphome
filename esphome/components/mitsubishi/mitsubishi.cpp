@@ -102,7 +102,7 @@ void MitsubishiClimate::transmit_state() {
     default:
       remote_state[6] = MITSUBISHI_MODE_COOL;
       remote_state[8] = MITSUBISHI_MODE_A_COOL;
-      if (this->supports_heat_) {
+      if (this->modes_.count(climate::CLIMATE_MODE_HEAT)) {
         remote_state[6] = MITSUBISHI_MODE_HEAT;
         remote_state[8] = MITSUBISHI_MODE_A_HEAT;
       }

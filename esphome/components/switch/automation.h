@@ -6,16 +6,6 @@
 
 namespace esphome::switch_ {
 
-template<typename... Ts> class SwitchCondition final : public Condition<Ts...> {
- public:
-  SwitchCondition(Switch *parent, bool state) : parent_(parent), state_(state) {}
-  bool check(const Ts &...x) override { return this->parent_->state == this->state_; }
-
- protected:
-  Switch *parent_;
-  bool state_;
-};
-
 class SwitchStateTrigger final : public Trigger<bool> {
  public:
   SwitchStateTrigger(Switch *a_switch) {

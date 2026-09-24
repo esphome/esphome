@@ -131,6 +131,13 @@ void LightJSONSchema::parse_color_json(LightState &state, LightCall &call, JsonO
     call.set_white(float(root[ESPHOME_F("white_value")]) / 255.0f);
   }
 
+  if (root[ESPHOME_F("white")].is<uint8_t>()) {
+    // White stays full because ESPHome multiplies brightness and white
+    call.set_color_mode_if_supported(ColorMode::WHITE);
+    call.set_brightness(float(root[ESPHOME_F("white")]) / 255.0f);
+    call.set_white(1.0f);
+  }
+
   if (root[ESPHOME_F("color_temp")].is<uint16_t>()) {
     call.set_color_temperature(float(root[ESPHOME_F("color_temp")]));
   }

@@ -190,16 +190,15 @@ _STATE_TRIGGERS = (
     (CONF_ON_TURN_OFF, MediaPlayerState.MEDIA_PLAYER_STATE_OFF),
 )
 
-# State conditions that all share the same schema and codegen handler
-_STATE_CONDITIONS = [
-    "idle",
-    "paused",
-    "playing",
-    "announcing",
-    "on",
-    "off",
-    "muted",
-]
+# State conditions: (config_key suffix, checked state)
+_STATE_CONDITIONS = (
+    ("idle", MediaPlayerState.MEDIA_PLAYER_STATE_IDLE),
+    ("paused", MediaPlayerState.MEDIA_PLAYER_STATE_PAUSED),
+    ("playing", MediaPlayerState.MEDIA_PLAYER_STATE_PLAYING),
+    ("announcing", MediaPlayerState.MEDIA_PLAYER_STATE_ANNOUNCING),
+    ("on", MediaPlayerState.MEDIA_PLAYER_STATE_ON),
+    ("off", MediaPlayerState.MEDIA_PLAYER_STATE_OFF),
+)
 
 MediaPlayerCommand = media_player_ns.enum("MediaPlayerCommand", is_class=True)
 
@@ -360,27 +359,16 @@ for _action_name in _COMMAND_ACTIONS:
     )
 
 
-def _snake_to_camel(name):
-    return "".join(word.capitalize() for word in name.split("_"))
+for _condition_name, _state in _STATE_CONDITIONS:
+    automation.register_apply_condition(
+        f"media_player.is_{_condition_name}",
+        MEDIA_PLAYER_CONDITION_SCHEMA,
+        f"state == {_state}",
+    )
 
-
-def _register_state_conditions():
-    async def handler(config, action_id, template_arg, args):
-        var = cg.new_Pvariable(action_id, template_arg)
-        await cg.register_parented(var, config[CONF_ID])
-        return var
-
-    for condition_name in _STATE_CONDITIONS:
-        class_name = f"Is{_snake_to_camel(condition_name)}Condition"
-        condition_class = media_player_ns.class_(class_name, automation.Condition)
-        automation.register_condition(
-            f"media_player.is_{condition_name}",
-            condition_class,
-            MEDIA_PLAYER_CONDITION_SCHEMA,
-        )(handler)
-
-
-_register_state_conditions()
+automation.register_apply_condition(
+    "media_player.is_muted", MEDIA_PLAYER_CONDITION_SCHEMA, "is_muted()"
+)
 
 
 automation.register_apply_action(
