@@ -28,6 +28,11 @@ void setup() {
 
   ::testing::InitGoogleTest();
   int exit_code = RUN_ALL_TESTS();
+  // A test folder that never reached the build would otherwise pass as an empty run
+  if (::testing::UnitTest::GetInstance()->total_test_count() == 0) {
+    fprintf(stderr, "No tests were linked into this binary\n");
+    exit_code = 1;
+  }
   exit(exit_code);
 }
 
