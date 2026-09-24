@@ -25,6 +25,21 @@ enum PN532ReadReady {
   READY,
 };
 
+// SEL_RES (SAK) bits, as reported by InListPassiveTarget for ISO/IEC 14443 type A targets (NXP AN10833)
+static constexpr uint8_t SEL_RES_MIFARE_CLASSIC = 0x08;
+static constexpr uint8_t SEL_RES_ISO_DEP = 0x20;
+
+/// Tag type (nfc::TAG_TYPE_*) from a type A target's SEL_RES byte
+inline uint8_t tag_type_from_sel_res(uint8_t sel_res) {
+  if (sel_res & SEL_RES_MIFARE_CLASSIC)
+    return nfc::TAG_TYPE_MIFARE_CLASSIC;
+  if (sel_res & SEL_RES_ISO_DEP)
+    return nfc::TAG_TYPE_4;
+  if (sel_res == 0x00)
+    return nfc::TAG_TYPE_2;
+  return nfc::TAG_TYPE_UNKNOWN;
+}
+
 class PN532BinarySensor;
 
 class PN532 : public PollingComponent {
@@ -67,11 +82,14 @@ class PN532 : public PollingComponent {
   virtual bool read_data(std::vector<uint8_t> &data, uint8_t len) = 0;
   virtual bool read_response(uint8_t command, std::vector<uint8_t> &data) = 0;
 
-  std::unique_ptr<nfc::NfcTag> read_tag_(nfc::NfcTagUid &uid);
+  std::unique_ptr<nfc::NfcTag> read_tag_(nfc::NfcTagUid &uid, uint8_t tag_type);
 
-  bool format_tag_(nfc::NfcTagUid &uid);
-  bool clean_tag_(nfc::NfcTagUid &uid);
-  bool write_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message);
+  bool format_tag_(nfc::NfcTagUid &uid, uint8_t tag_type);
+  bool clean_tag_(nfc::NfcTagUid &uid, uint8_t tag_type);
+  bool write_tag_(nfc::NfcTagUid &uid, uint8_t tag_type, nfc::NdefMessage *message);
+  /// Sends an InDataExchange command and reads the response; returns false unless the status byte reports success.
+  /// On success, `response` holds the data returned by the target, without the status byte.
+  bool in_data_exchange_(const std::vector<uint8_t> &command, std::vector<uint8_t> &response);
 
   std::unique_ptr<nfc::NfcTag> read_mifare_classic_tag_(nfc::NfcTagUid &uid);
   bool read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
@@ -97,7 +115,7 @@ class PN532 : public PollingComponent {
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
   nfc::NfcTagUid current_uid_;
-  nfc::NdefMessage *next_task_message_to_write_;
+  std::unique_ptr<nfc::NdefMessage> next_task_message_to_write_;
   optional<uint32_t> rd_start_time_{};
   enum PN532ReadReady rd_ready_ { WOULDBLOCK };
   enum NfcTask {

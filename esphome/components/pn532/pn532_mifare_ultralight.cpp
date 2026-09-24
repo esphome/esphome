@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <memory>
 
@@ -51,24 +52,20 @@ bool PN532::read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes
   std::vector<uint8_t> response;
 
   for (uint8_t i = 0; i * read_increment < num_bytes; i++) {
-    if (!this->write_command_({
-            PN532_COMMAND_INDATAEXCHANGE,
-            0x01,  // One card
-            nfc::MIFARE_CMD_READ,
-            uint8_t(i * nfc::MIFARE_ULTRALIGHT_READ_SIZE + start_page),
-        })) {
+    // a READ returns 4 pages (16 bytes)
+    if (!this->in_data_exchange_(
+            {
+                PN532_COMMAND_INDATAEXCHANGE,
+                0x01,  // One card
+                nfc::MIFARE_CMD_READ,
+                uint8_t(i * nfc::MIFARE_ULTRALIGHT_READ_SIZE + start_page),
+            },
+            response) ||
+        response.size() != read_increment) {
       return false;
     }
-
-    if (!this->read_response(PN532_COMMAND_INDATAEXCHANGE, response) || response[0] != 0x00) {
-      return false;
-    }
-    uint16_t bytes_offset = (i + 1) * read_increment;
-    auto pages_in_end_itr = bytes_offset <= num_bytes ? response.end() : response.end() - (bytes_offset - num_bytes);
-
-    if ((pages_in_end_itr > response.begin()) && (pages_in_end_itr <= response.end())) {
-      data.insert(data.end(), response.begin() + 1, pages_in_end_itr);
-    }
+    const uint16_t remaining = num_bytes - i * read_increment;
+    data.insert(data.end(), response.begin(), response.begin() + std::min<uint16_t>(read_increment, remaining));
   }
 
   char data_buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
@@ -87,7 +84,7 @@ bool PN532::is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_3_t
 
 uint16_t PN532::read_mifare_ultralight_capacity_() {
   std::vector<uint8_t> data;
-  if (this->read_mifare_ultralight_bytes_(3, nfc::MIFARE_ULTRALIGHT_PAGE_SIZE, data)) {
+  if (this->read_mifare_ultralight_bytes_(3, nfc::MIFARE_ULTRALIGHT_PAGE_SIZE, data) && data.size() > 2) {
     ESP_LOGV(TAG, "Tag capacity is %u bytes", data[2] * 8U);
     return data[2] * 8U;
   }
@@ -174,13 +171,9 @@ bool PN532::write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write
       page_num,
   });
   cmd.insert(cmd.end(), write_data, write_data + len);
-  if (!this->write_command_(cmd)) {
-    ESP_LOGE(TAG, "Error writing page %u", page_num);
-    return false;
-  }
 
   std::vector<uint8_t> response;
-  if (!this->read_response(PN532_COMMAND_INDATAEXCHANGE, response)) {
+  if (!this->in_data_exchange_(cmd, response)) {
     ESP_LOGE(TAG, "Error writing page %u", page_num);
     return false;
   }
