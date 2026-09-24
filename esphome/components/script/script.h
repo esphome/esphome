@@ -8,28 +8,19 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::script {
 
 class ScriptLogger {
  protected:
-#ifdef USE_ESP8266
-  void esp_logw_(int line, const __FlashStringHelper *format, const char *param) {
+  void esp_logw_(int line, ProgmemStr format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
   }
-  void esp_logd_(int line, const __FlashStringHelper *format, const char *param) {
+  void esp_logd_(int line, ProgmemStr format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
   }
-  void esp_log_(int level, int line, const __FlashStringHelper *format, const char *param);
-#else
-  void esp_logw_(int line, const char *format, const char *param) {
-    esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
-  }
-  void esp_logd_(int line, const char *format, const char *param) {
-    esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
-  }
-  void esp_log_(int level, int line, const char *format, const char *param);
-#endif
+  void esp_log_(int level, int line, ProgmemStr format, const char *param);
 };
 
 /// The abstract base class for all script types.

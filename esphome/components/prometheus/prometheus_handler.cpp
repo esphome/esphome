@@ -144,14 +144,8 @@ void PrometheusHandler::add_friendly_name_label_(AsyncResponseStream *stream, st
   }
 }
 
-#ifdef USE_ESP8266
-void PrometheusHandler::print_metric_labels_(AsyncResponseStream *stream, const __FlashStringHelper *metric_name,
-                                             EntityBase *obj, std::string &area, std::string &node,
-                                             std::string &friendly_name) {
-#else
-void PrometheusHandler::print_metric_labels_(AsyncResponseStream *stream, const char *metric_name, EntityBase *obj,
+void PrometheusHandler::print_metric_labels_(AsyncResponseStream *stream, ProgmemStr metric_name, EntityBase *obj,
                                              std::string &area, std::string &node, std::string &friendly_name) {
-#endif
   stream->print(metric_name);
   stream->print(ESPHOME_F("{id=\""));
   stream->print(relabel_id_(obj).c_str());
@@ -903,11 +897,7 @@ void PrometheusHandler::valve_row_(AsyncResponseStream *stream, valve::Valve *ob
   stream->print(ESPHOME_F("\",name=\""));
   stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\",operation=\""));
-#ifdef USE_ESP8266
-  stream->print((const __FlashStringHelper *) valve::valve_operation_to_str(obj->current_operation));
-#else
-  stream->print((const char *) valve::valve_operation_to_str(obj->current_operation));
-#endif
+  stream->print(reinterpret_cast<ProgmemStr>(valve::valve_operation_to_str(obj->current_operation)));
   stream->print(ESPHOME_F("\"} "));
   stream->print(ESPHOME_F("1.0"));
   stream->print(ESPHOME_F("\n"));
