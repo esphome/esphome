@@ -32,9 +32,6 @@ UpdateEntity = update_ns.class_("UpdateEntity", cg.EntityBase)
 
 UpdateInfo = update_ns.struct("UpdateInfo")
 
-PerformAction = update_ns.class_(
-    "PerformAction", automation.Action, cg.Parented.template(UpdateEntity)
-)
 CheckAction = update_ns.class_(
     "CheckAction", automation.Action, cg.Parented.template(UpdateEntity)
 )
@@ -133,9 +130,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add_global(update_ns.using)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "update.perform",
-    PerformAction,
     automation.maybe_simple_id(
         {
             cv.GenerateID(): cv.use_id(UpdateEntity),
@@ -144,20 +140,8 @@ async def to_code(config: ConfigType) -> None:
             ): cv.templatable(cv.boolean),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_FORCE_UPDATE, "perform", cg.bool_),
 )
-async def update_perform_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-
-    force = await cg.templatable(config[CONF_FORCE_UPDATE], args, cg.bool_)
-    cg.add(var.set_force(force))
-    return var
 
 
 @automation.register_action(

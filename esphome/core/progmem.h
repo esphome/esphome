@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <new>
+#include <string>
 
 #include "esphome/core/hal.h"  // For PROGMEM definition
 
@@ -23,6 +24,7 @@
 #define ESPHOME_strcasecmp_P strcasecmp_P
 #define ESPHOME_strncmp_P strncmp_P
 #define ESPHOME_strncasecmp_P strncasecmp_P
+#define ESPHOME_strlen_P strlen_P
 // Type for pointers to PROGMEM strings (for use with ESPHOME_F return values)
 using ProgmemStr = const __FlashStringHelper *;
 // Storage class for PROGMEM_STRING_TABLE data. Mirrors the logger's choice of
@@ -46,6 +48,7 @@ using ProgmemStr = const __FlashStringHelper *;
 #define ESPHOME_strcasecmp_P strcasecmp
 #define ESPHOME_strncmp_P strncmp
 #define ESPHOME_strncasecmp_P strncasecmp
+#define ESPHOME_strlen_P strlen
 // Type for pointers to strings (no PROGMEM on non-ESP8266 platforms)
 using ProgmemStr = const char *;
 // No-op on non-ESP8266 platforms where PROGMEM itself is a no-op.
@@ -53,6 +56,13 @@ using ProgmemStr = const char *;
 #endif
 
 namespace esphome {
+
+/// Copies a string stored with ESPHOME_F into a std::string.
+#ifdef USE_ESP8266
+std::string progmem_string(ProgmemStr str);
+#else
+inline std::string progmem_string(ProgmemStr str) { return std::string(str); }
+#endif
 
 /// Helper for C++20 string literal template arguments
 template<size_t N> struct FixedString {
