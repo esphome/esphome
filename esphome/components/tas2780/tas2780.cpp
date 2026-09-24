@@ -319,18 +319,15 @@ void TAS2780::dump_config() {
   ESP_LOGCONFIG(TAG, "Audio Amplifier:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  const char *channel_str = LOG_STR_LITERAL("Mono Downmix");
-  if (this->selected_channel_ == LEFT_CHANNEL) {
-    channel_str = LOG_STR_LITERAL("Left");
-  } else if (this->selected_channel_ == RIGHT_CHANNEL) {
-    channel_str = LOG_STR_LITERAL("Right");
-  }
   ESP_LOGCONFIG(TAG,
                 "  Power Mode: %u\n"
                 "  Amp Level: %u\n"
                 "  Volume Range: %.2f - %.2f\n"
                 "  Channel: %s",
-                this->power_mode_, this->amp_level_, this->vol_range_min_, this->vol_range_max_, channel_str);
+                this->power_mode_, this->amp_level_, this->vol_range_min_, this->vol_range_max_,
+                this->selected_channel_ == LEFT_CHANNEL    ? LOG_STR_LITERAL("Left")
+                : this->selected_channel_ == RIGHT_CHANNEL ? LOG_STR_LITERAL("Right")
+                                                           : LOG_STR_LITERAL("Mono Downmix"));
 }
 
 bool TAS2780::write_mode_ctrl_(uint8_t mode) {
