@@ -5,14 +5,8 @@ namespace esphome::script {
 
 static const char *const TAG = "script";
 
-#ifdef USE_ESP8266
-void ScriptLogger::esp_log_(int level, int line, const __FlashStringHelper *format, const char *param) {
+void ScriptLogger::esp_log_(int level, int line, ProgmemStr format, const char *param) {
   esp_log_printf_(level, TAG, line, format, param);
 }
-#else
-void ScriptLogger::esp_log_(int level, int line, const char *format, const char *param) {
-  esp_log_printf_(level, TAG, line, format, param);
-}
-#endif
 
 }  // namespace esphome::script
