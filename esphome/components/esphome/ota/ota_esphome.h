@@ -187,6 +187,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   OTAState ota_state_{OTAState::IDLE};
   uint8_t handshake_buf_pos_{0};
   uint8_t ota_features_{0};
+  bool remote_closed_{false};  // the peer hung up cleanly during a blocking read
 #ifdef USE_OTA_PASSWORD
   uint8_t auth_buf_pos_{0};
   uint8_t auth_type_{0};  // Store auth type to know which hasher to use
