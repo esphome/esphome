@@ -19,8 +19,6 @@ import pytest
 from .state_utils import InitialStateHelper, require_entity, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
-SAVED_LINE = "Saving deferred preferences"
-
 Timeline = list[tuple[float, LightState]]
 DonePredicate = Callable[[float, LightState], bool]
 
@@ -72,26 +70,6 @@ class _Recorder:
             await asyncio.sleep(settle)
         self._done = None
         return self.timeline
-
-
-class _LogCounter:
-    """Counts device log lines containing ``needle`` and lets a test await a count."""
-
-    def __init__(self, needle: str) -> None:
-        self.needle = needle
-        self.count = 0
-        self._changed = asyncio.Event()
-
-    def on_line(self, line: str) -> None:
-        if self.needle in line:
-            self.count += 1
-            self._changed.set()
-
-    async def wait_for(self, count: int) -> None:
-        async with asyncio.timeout(5):
-            while self.count < count:
-                self._changed.clear()
-                await self._changed.wait()
 
 
 async def _subscribe(client: APIClient) -> tuple[list[EntityInfo], _Recorder]:
@@ -288,16 +266,11 @@ async def test_transition_interval_persistence_semantics(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """A save=true interval transition saves once, at its end, and restores that value."""
-    saves = _LogCounter(SAVED_LINE)
-    async with (
-        run_compiled(yaml_config, line_callback=saves.on_line),
-        api_client_connected() as client,
-    ):
+    """A save=true interval transition saves its target, not a sample, and restores it."""
+    async with run_compiled(yaml_config), api_client_connected() as client:
         entities, recorder = await _subscribe(client)
         mono = require_entity(entities, "test_mono_light", LightInfo)
         button = require_entity(entities, "run_persistence_transition", ButtonInfo)
-        before = saves.count
 
         timeline = await recorder.run(
             mono.key,
@@ -305,8 +278,6 @@ async def test_transition_interval_persistence_semantics(
             _brightness_is(1.0),
         )
         _assert_ramp(timeline, 1.0)
-        await saves.wait_for(before + 1)
-        assert saves.count == before + 1
 
     # The restored light fades up from off over its default transition, so wait for the end
     async with run_compiled(yaml_config), api_client_connected() as client:
@@ -323,42 +294,35 @@ async def test_transition_interval_persistence_semantics(
 
 
 @pytest.mark.asyncio
-@pytest.mark.shared_yaml("light_transition_interval_save")
-async def test_interrupted_deferred_save_does_not_leak(
+@pytest.mark.shared_yaml("light_transition_state_publish_interval")
+async def test_partial_call_during_interval_transition_keeps_target(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """A save=true transition cut short by another call must not save when that call ends."""
-    saves = _LogCounter(SAVED_LINE)
-    async with (
-        run_compiled(yaml_config, line_callback=saves.on_line),
-        api_client_connected() as client,
-    ):
+    """A colour temperature change mid-fade keeps the fade's brightness target."""
+    async with run_compiled(yaml_config), api_client_connected() as client:
         entities, recorder = await _subscribe(client)
-        mono = require_entity(entities, "test_mono_light", LightInfo)
-        by_transition = require_entity(
-            entities, "run_interrupted_by_unsaved_transition", ButtonInfo
-        )
-        by_flash = require_entity(entities, "run_interrupted_by_flash", ButtonInfo)
-        before = saves.count
+        cwww = require_entity(entities, "test_cwww_light", LightInfo)
 
-        # A save=false transition to 0.5 interrupts the save=true one
+        # Let the fade from off run for a couple of samples before changing only the colour
         await recorder.run(
-            mono.key,
-            lambda: client.button_command(by_transition.key),
-            _brightness_is(0.5),
-            settle=0.2,
-        )
-        assert saves.count == before
-
-        # A flash interrupts the next save=true transition and returns to 0.5
-        await recorder.run(
-            mono.key,
-            lambda: client.button_command(by_flash.key),
-            lambda t, s: (
-                t > 0.5 and _visible_brightness(s) == pytest.approx(0.5, abs=0.01)
+            cwww.key,
+            lambda: client.light_command(
+                key=cwww.key,
+                state=True,
+                brightness=1.0,
+                color_temperature=153.0,
+                transition_length=1.0,
             ),
-            settle=0.2,
+            lambda t, _s: t >= 0.3,
         )
-        assert saves.count == before
+        timeline = await recorder.run(
+            cwww.key,
+            lambda: client.light_command(
+                key=cwww.key, color_temperature=300.0, transition_length=1.0
+            ),
+            lambda _t, s: s.color_temperature == pytest.approx(300.0, abs=1.0),
+        )
+
+        assert _brightness_values(timeline)[-1] == pytest.approx(1.0, abs=0.01)

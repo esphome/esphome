@@ -78,7 +78,7 @@ void LightJSONSchema::parse_color_json(LightState &state, LightCall &call, JsonO
         call.set_state(false);
         break;
       case PARSE_TOGGLE:
-        call.set_state(!state.remote_values.is_on());
+        call.set_state(!state.get_target_values().is_on());
         break;
       case PARSE_NONE:
         break;

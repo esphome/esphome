@@ -3,8 +3,6 @@ esphome:
 host:
 api:
 logger:
-  # Deferred preference saves are logged at VERBOSE
-  level: VERBOSE
 
 preferences:
   flash_write_interval: 0s  # Flush to disk on every loop
@@ -38,37 +36,3 @@ button:
           call.set_transition_length(1000);
           call.set_save(true);
           call.perform();
-
-  - platform: template
-    id: run_interrupted_by_unsaved_transition
-    name: "Run Interrupted By Unsaved Transition"
-    on_press:
-      - lambda: |-
-          auto call = id(test_mono_light).turn_on();
-          call.set_brightness(1.0f);
-          call.set_transition_length(2000);
-          call.set_save(true);
-          call.perform();
-
-          auto interrupt = id(test_mono_light).turn_on();
-          interrupt.set_brightness(0.5f);
-          interrupt.set_transition_length(1000);
-          interrupt.set_save(false);
-          interrupt.perform();
-
-  - platform: template
-    id: run_interrupted_by_flash
-    name: "Run Interrupted By Flash"
-    on_press:
-      - lambda: |-
-          auto call = id(test_mono_light).turn_on();
-          call.set_brightness(1.0f);
-          call.set_transition_length(2000);
-          call.set_save(true);
-          call.perform();
-
-          // Flashes never save; the deferred save above must not run when this ends
-          auto flash = id(test_mono_light).turn_on();
-          flash.set_brightness(0.2f);
-          flash.set_flash_length(1000);
-          flash.perform();

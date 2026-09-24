@@ -285,7 +285,7 @@ LightColorValues LightCall::validate_() {
   }
 
   // Create color values and validate+apply ranges in one step to eliminate duplicate checks
-  auto v = this->parent_->remote_values;
+  auto v = this->parent_->get_target_values();
   if (this->has_color_mode())
     v.set_color_mode(this->color_mode_);
   if (this->has_state())

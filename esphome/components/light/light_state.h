@@ -100,6 +100,17 @@ class LightState : public EntityBase, public Component {
   LightCall turn_on();
   LightCall turn_off();
   LightCall toggle();
+
+  /// The values a new call, toggle or save starts from: the transformer's target while interval
+  /// publishing keeps a mid-transition sample in remote_values, otherwise remote_values.
+  const LightColorValues &get_target_values() const {
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+    if (this->transition_publish_enabled_) {
+      return this->transformer_->get_target_values();
+    }
+#endif
+    return this->remote_values;
+  }
   LightCall make_call();
 
   // ========== INTERNAL METHODS ==========
@@ -393,8 +404,6 @@ class LightState : public EntityBase, public Component {
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   /// True while the active transformer publishes remote_values on an interval from loop().
   bool transition_publish_enabled_{false};
-  /// A save requested while transition_publish_enabled_ runs when the transformer finishes.
-  bool defer_transition_save_{false};
 #endif
   /// Restore mode of the light.
   LightRestoreMode restore_mode_;

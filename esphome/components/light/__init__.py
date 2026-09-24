@@ -410,6 +410,11 @@ RGB_LIGHT_SCHEMA = BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
 ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(AddressableLightState),
+        # The addressable transformer writes the LED buffer directly, so there is no
+        # intermediate state to publish
+        cv.Optional(CONF_TRANSITION_STATE_PUBLISH_INTERVAL): cv.invalid(
+            "transition_state_publish_interval is not supported on addressable lights"
+        ),
         cv.Optional(CONF_EFFECTS): validate_effects(ADDRESSABLE_EFFECTS),
         cv.Optional(CONF_COLOR_CORRECT): cv.All(
             [cv.percentage], cv.Length(min=3, max=4)
