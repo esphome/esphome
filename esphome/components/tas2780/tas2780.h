@@ -31,7 +31,7 @@ class TAS2780 : public audio_dac::AudioDac, public PollingComponent, public i2c:
   float volume() override { return this->volume_; }
 
   void set_amp_level(uint8_t amp_level) { this->amp_level_ = amp_level; }
-  void set_power_mode(uint8_t power_mode) { this->power_mode_ = power_mode; }
+  void set_power_mode(uint8_t power_mode);
   void set_vol_range_min(float min_val) { this->vol_range_min_ = min_val; }
   void set_vol_range_max(float max_val) { this->vol_range_max_ = max_val; }
   void set_selected_channel(ChannelSelect channel) { this->selected_channel_ = channel; }

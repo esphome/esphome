@@ -261,12 +261,16 @@ bool TAS2780::reinit_() {
   return true;
 }
 
-bool TAS2780::set_power_mode_(uint8_t power_mode) {
-  // Lambda-supplied values bypass schema validation
+void TAS2780::set_power_mode(uint8_t power_mode) {
+  // Lambda-supplied values bypass schema validation; refuse before anything touches the chip
   if (power_mode >= 4) {
     ESP_LOGE(TAG, "Invalid power mode %u, must be 0-3", power_mode);
-    return false;
+    return;
   }
+  this->power_mode_ = power_mode;
+}
+
+bool TAS2780::set_power_mode_(uint8_t power_mode) {
   uint8_t cds_mode = (POWER_MODE_CDS_MODES >> (power_mode * 2)) & 0x03;
   uint8_t vbat1s_mode = (POWER_MODE_VBAT1S_MODES >> power_mode) & 0x01;
   if (!this->update_bits_(TAS2780_CHNL_0, TAS2780_CHNL_0_CDS_MODE_MASK, cds_mode << TAS2780_CHNL_0_CDS_MODE_SHIFT) ||
@@ -348,8 +352,11 @@ bool TAS2780::set_mute_(bool muted) {
   }
   uint8_t current_mode = mode_ctrl & TAS2780_MODE_CTRL_MODE_MASK;
   // Only switch between active/muted if device is active; don't wake from shutdown
-  if (current_mode == TAS2780_MODE_CTRL_MODE_ACTIVE || current_mode == TAS2780_MODE_CTRL_MODE_ACTIVE_MUTED) {
-    this->write_byte(TAS2780_MODE_CTRL, (mode_ctrl & ~TAS2780_MODE_CTRL_MODE_MASK) | this->active_mode_());
+  if ((current_mode == TAS2780_MODE_CTRL_MODE_ACTIVE || current_mode == TAS2780_MODE_CTRL_MODE_ACTIVE_MUTED) &&
+      !this->write_byte(TAS2780_MODE_CTRL, (mode_ctrl & ~TAS2780_MODE_CTRL_MODE_MASK) | this->active_mode_())) {
+    ESP_LOGE(TAG, "Failed to write MODE_CTRL");
+    this->is_muted_ = previous;
+    return false;
   }
   return true;
 }
