@@ -7,7 +7,8 @@ namespace esphome::ld2450 {
 
 class ZoneTypeSelect : public select::Select, public Parented<LD2450Component> {
  public:
-  ZoneTypeSelect() = default;
+  // User provided, not "= default": `new(p) ZoneTypeSelect()` would zero-fill .bss that is already zero.
+  ZoneTypeSelect() {}
 
  protected:
   void control(size_t index) override;

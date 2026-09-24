@@ -22,27 +22,4 @@ class TextSensorStateRawTrigger final : public Trigger<std::string> {
   }
 };
 
-template<typename... Ts> class TextSensorStateCondition final : public Condition<Ts...> {
- public:
-  explicit TextSensorStateCondition(TextSensor *parent) : parent_(parent) {}
-
-  TEMPLATABLE_VALUE(std::string, state)
-
-  bool check(const Ts &...x) override { return this->parent_->state == this->state_.value(x...); }
-
- protected:
-  TextSensor *parent_;
-};
-
-template<typename... Ts> class TextSensorPublishAction final : public Action<Ts...> {
- public:
-  TextSensorPublishAction(TextSensor *sensor) : sensor_(sensor) {}
-  TEMPLATABLE_VALUE(std::string, state)
-
-  void play(const Ts &...x) override { this->sensor_->publish_state(this->state_.value(x...)); }
-
- protected:
-  TextSensor *sensor_;
-};
-
 }  // namespace esphome::text_sensor

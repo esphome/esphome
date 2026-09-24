@@ -2,14 +2,21 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
 #include <vector>
+
+// AES-CCM backend for encrypted-payload (bindkey) decryption:
+//   - ESP32 + ESP-IDF >= 6.0 -> PSA crypto (psa_aead_decrypt), hardware-backed.
+//   - every other platform   -> the portable software AES-CCM in ble_device_base, so
+//     decryption never depends on the SDK exposing mbedtls/PSA to application code.
+#ifdef USE_ESP32
 #include <esp_idf_version.h>
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 #include <psa/crypto.h>
-#else
-#include "mbedtls/ccm.h"
+#define XIAOMI_CRYPTO_PSA
+#endif
+#endif
+#ifndef XIAOMI_CRYPTO_PSA
+#include "esphome/components/ble_device_base/ble_aes_ccm.h"
 #endif
 
 namespace esphome::xiaomi_ble {
@@ -166,7 +173,7 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
   return success;
 }
 
-optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::ServiceData &service_data) {
+optional<XiaomiParseResult> parse_xiaomi_header(const ble_device_base::ServiceData &service_data) {
   XiaomiParseResult result;
   if (!service_data.uuid.contains(0x95, 0xFE)) {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): no service data UUID magic bytes.");
@@ -286,7 +293,7 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
     return false;
   }
 
-  uint8_t mac_reverse[6] = {0};
+  uint8_t mac_reverse[MAC_ADDRESS_SIZE] = {0};
   mac_reverse[5] = (uint8_t) (address >> 40);
   mac_reverse[4] = (uint8_t) (address >> 32);
   mac_reverse[3] = (uint8_t) (address >> 24);
@@ -318,7 +325,7 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
   memcpy(vector.iv + 6, v + 2, 3);               // sensor type (2) + packet id (1)
   memcpy(vector.iv + 9, v + raw.size() - 7, 3);  // payload counter
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#ifdef XIAOMI_CRYPTO_PSA
   // PSA AEAD expects ciphertext + tag concatenated
   uint8_t ct_with_tag[sizeof(vector.ciphertext) + sizeof(vector.tag)];
   memcpy(ct_with_tag, vector.ciphertext, vector.datasize);
@@ -344,24 +351,14 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
   psa_destroy_key(key_id);
   bool decrypt_ok = (status == PSA_SUCCESS && plaintext_length == vector.datasize);
 #else
-  mbedtls_ccm_context ctx;
-  mbedtls_ccm_init(&ctx);
-
-  int ret = mbedtls_ccm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, vector.key, vector.keysize * 8);
-  if (ret) {
-    ESP_LOGVV(TAG, "decrypt_xiaomi_payload(): mbedtls_ccm_setkey() failed.");
-    mbedtls_ccm_free(&ctx);
-    return false;
-  }
-
-  ret = mbedtls_ccm_auth_decrypt(&ctx, vector.datasize, vector.iv, vector.ivsize, vector.authdata, vector.authsize,
-                                 vector.ciphertext, vector.plaintext, vector.tag, vector.tagsize);
-  mbedtls_ccm_free(&ctx);
-  bool decrypt_ok = (ret == 0);
+  // Portable software AES-CCM (ble_device_base) — no SDK mbedtls/PSA dependency.
+  bool decrypt_ok = ble_device_base::aes_ccm_auth_decrypt(vector.key, vector.iv, vector.ivsize, vector.authdata,
+                                                          vector.authsize, vector.ciphertext, vector.datasize,
+                                                          vector.plaintext, vector.tag, vector.tagsize);
 #endif
 
   if (!decrypt_ok) {
-    uint8_t mac_address[6] = {0};
+    uint8_t mac_address[MAC_ADDRESS_SIZE] = {0};
     memcpy(mac_address, mac_reverse + 5, 1);
     memcpy(mac_address + 1, mac_reverse + 4, 1);
     memcpy(mac_address + 2, mac_reverse + 3, 1);
@@ -448,7 +445,7 @@ bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const char
   return true;
 }
 
-bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiListener::parse_device(const ble_device_base::ESPBTDevice &device) {
   // Previously the message was parsed twice per packet, once by XiaomiListener::parse_device()
   // and then again by the respective device class's parse_device() function. Parsing the header
   // here and then for each device seems to be unnecessary and complicates the duplicate packet filtering.
@@ -460,5 +457,3 @@ bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 }
 
 }  // namespace esphome::xiaomi_ble
-
-#endif

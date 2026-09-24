@@ -23,6 +23,8 @@ void update_lambda(BaseTemplateSelect *sel_comp, const optional<std::string> &va
 template<bool HAS_LAMBDA, bool OPTIMISTIC, bool RESTORE_VALUE, size_t INITIAL_OPTION_INDEX>
 class TemplateSelect : public BaseTemplateSelect {
  public:
+  // User provided, not "= default": `new(p) TemplateSelect()` would zero-fill .bss that is already zero.
+  TemplateSelect() {}
   template<typename F> void set_lambda(F &&f) {
     if constexpr (HAS_LAMBDA) {
       this->f_.set(std::forward<F>(f));

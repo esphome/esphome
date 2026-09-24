@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
@@ -41,6 +43,8 @@ from esphome.const import (
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_PERCENT,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@martgras"]
@@ -115,7 +119,7 @@ def _gas_sensor(
     )
 
 
-def float_previously_pct(value):
+def float_previously_pct(value: Any) -> Any:
     if isinstance(value, str) and "%" in value:
         raise cv.Invalid(
             f"The value '{value}' is a percentage. Suggested value: {float(value.strip('%')) / 100}"
@@ -284,6 +288,11 @@ SEN5X_ACTION_SCHEMA = maybe_simple_id(
     SEN5X_ACTION_SCHEMA,
     synchronous=True,
 )
-async def sen54_fan_to_code(config, action_id, template_arg, args):
+async def sen54_fan_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)

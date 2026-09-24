@@ -10,7 +10,8 @@ class APIPlaintextFrameHelper final : public APIFrameHelper {
   // Plaintext header structure (worst case):
   // Pos 0: indicator (0x00)
   // Pos 1-3: payload size varint (up to 3 bytes)
-  // Pos 4-5: message type varint (up to 2 bytes)
+  // Pos 4-5: message type varint (up to 2 bytes; covers message IDs up to
+  //          16383, enforced by the proto codegen)
   // Pos 6+: actual payload data
   static constexpr uint8_t HEADER_PADDING = 1 + 3 + 2;  // indicator + size varint + type varint
 
@@ -21,7 +22,7 @@ class APIPlaintextFrameHelper final : public APIFrameHelper {
   APIError init() override;
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
-  APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) override;
+  APIError write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) override;
   APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) override;
 #ifdef USE_API_NOISE
   // After try_read_frame_ returned PROTOCOL_SWITCH_TO_NOISE: copy out the
