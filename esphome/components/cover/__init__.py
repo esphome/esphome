@@ -49,6 +49,7 @@ from esphome.types import ConfigType, SafeExpType
 IS_PLATFORM_COMPONENT = True
 
 CODEOWNERS = ["@esphome/core"]
+AUTO_LOAD = ["actuator"]
 DEVICE_CLASSES = [
     DEVICE_CLASS_AWNING,
     DEVICE_CLASS_BLIND,
@@ -66,8 +67,10 @@ DEVICE_CLASSES = [
 _LOGGER = logging.getLogger(__name__)
 
 cover_ns = cg.esphome_ns.namespace("cover")
+actuator_ns = cg.esphome_ns.namespace("actuator")
+ActuatorBase = actuator_ns.class_("ActuatorBase", cg.EntityBase)
 
-Cover = cover_ns.class_("Cover", cg.EntityBase)
+Cover = cover_ns.class_("Cover", ActuatorBase, actuator_ns.class_("IActuator"))
 
 COVER_OPEN = cover_ns.COVER_OPEN
 COVER_CLOSED = cover_ns.COVER_CLOSED
@@ -79,6 +82,7 @@ COVER_STATES = {
 validate_cover_state = cv.enum(COVER_STATES, upper=True)
 
 CoverOperation = cover_ns.enum("CoverOperation")
+
 COVER_OPERATIONS = {
     "IDLE": CoverOperation.COVER_OPERATION_IDLE,
     "OPENING": CoverOperation.COVER_OPERATION_OPENING,
