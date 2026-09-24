@@ -156,10 +156,12 @@ void LightState::loop() {
       this->transformer_ = nullptr;
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
       if (this->transition_publish_enabled_) {
-        // stop() restores a flash's start values, so publish the end state after it
         this->transition_publish_enabled_ = false;
-        this->remote_values = this->current_values;
-        this->publish_state();
+        // A flash's stop() already restored and published its end state
+        if (this->remote_values != this->current_values) {
+          this->remote_values = this->current_values;
+          this->publish_state();
+        }
       }
 #endif
       if (this->target_state_reached_listeners_) {

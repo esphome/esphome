@@ -82,14 +82,14 @@ void LightCall::perform() {
     ESP_LOGV(TAG, "'%s' Setting:", name);
 
     // Only print color mode when it's being changed
-    ColorMode current_color_mode = this->parent_->remote_values.get_color_mode();
+    ColorMode current_color_mode = this->parent_->get_target_values().get_color_mode();
     ColorMode target_color_mode = this->has_color_mode() ? this->color_mode_ : current_color_mode;
     if (target_color_mode != current_color_mode) {
       ESP_LOGV(TAG, "  Color mode: %s", LOG_STR_ARG(color_mode_to_human(v.get_color_mode())));
     }
 
     // Only print state when it's being changed
-    bool current_state = this->parent_->remote_values.is_on();
+    bool current_state = this->parent_->get_target_values().is_on();
     bool target_state = this->has_state() ? this->state_ : current_state;
     if (target_state != current_state) {
       ESP_LOGV(TAG, "  State: %s", ONOFF(v.is_on()));
@@ -233,14 +233,14 @@ LightColorValues LightCall::validate_() {
 
   // Make sure a simple (no specific brightness) turn-on makes the light visible
   if (this->has_state() && this->state_ && (color_mode & ColorCapability::BRIGHTNESS) && !this->has_brightness() &&
-      this->parent_->remote_values.get_brightness() == 0.0f) {
+      this->parent_->get_target_values().get_brightness() == 0.0f) {
     this->brightness_ = 1.0f;
     this->set_flag_(FLAG_HAS_BRIGHTNESS);
   }
 
   // Set color brightness to 100% if currently zero and a color is set.
   if ((this->has_red() || this->has_green() || this->has_blue()) && !this->has_color_brightness() &&
-      this->parent_->remote_values.get_color_brightness() == 0.0f) {
+      this->parent_->get_target_values().get_color_brightness() == 0.0f) {
     this->color_brightness_ = 1.0f;
     this->set_flag_(FLAG_HAS_COLOR_BRIGHTNESS);
   }
@@ -444,7 +444,7 @@ ColorMode LightCall::compute_color_mode_(const LightTraits &traits) {
     return *supported_modes.begin();
 
   // Don't change if the light is being turned off.
-  ColorMode current_mode = this->parent_->remote_values.get_color_mode();
+  ColorMode current_mode = this->parent_->get_target_values().get_color_mode();
   if (this->has_state() && !this->state_)
     return current_mode;
 
@@ -570,7 +570,7 @@ LightCall &LightCall::from_light_color_values(const LightColorValues &values) {
   return *this;
 }
 ColorMode LightCall::get_active_color_mode_() {
-  return this->has_color_mode() ? this->color_mode_ : this->parent_->remote_values.get_color_mode();
+  return this->has_color_mode() ? this->color_mode_ : this->parent_->get_target_values().get_color_mode();
 }
 LightCall &LightCall::set_transition_length_if_supported(uint32_t transition_length) {
   if (this->get_active_color_mode_() & ColorCapability::BRIGHTNESS)
