@@ -769,10 +769,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-Wno-unused-variable")
     cg.add_build_flag("-Wno-unused-but-set-variable")
     cg.add_build_flag("-Wno-sign-compare")
-    # Helpers used only in log calls become unused when the log level compiles those calls out.
-    # Users cannot act on that, so the warning is kept only for CI (testing mode) builds.
-    if not CORE.testing_mode:
-        cg.add_build_flag("-Wno-unused-function")
+    cg.add_build_flag("-Wno-unused-function")
     # C++20 deprecated ++/--, compound assignment, and chained assignment on
     # volatile lvalues; GCC warns via -Wvolatile, on by default at gnu++20.
     # C++23 (P2327R1) removed the deprecation for compound assignment, so the
