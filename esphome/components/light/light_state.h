@@ -306,18 +306,17 @@ class LightState : public EntityBase, public Component {
   /// Internal method to stop the current effect (if one is active).
   void stop_effect_();
   /// Internal method to start a transition to the target color with the given length.
-  void start_transition_(const LightColorValues &target, uint32_t length);
+  void start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values);
 
   /// Internal method to start a flash for the specified amount of time.
-  void start_flash_(const LightColorValues &target, uint32_t length);
+  void start_flash_(const LightColorValues &target, uint32_t length, bool set_remote_values);
 
   /// Internal method to set the color values to target immediately (with no transition).
-  void set_immediately_(const LightColorValues &target);
+  void set_immediately_(const LightColorValues &target, bool set_remote_values);
 
-#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
-  /// Clear interval-publish / deferred-save flags when a transformer completes or is replaced.
-  void reset_transition_publish_state_();
-#endif
+  /// Point remote_values at the new transformer's target, or leave it tracking current_values
+  /// when this light publishes intermediate states on an interval from loop().
+  void set_transformer_remote_values_(const LightColorValues &target, bool set_remote_values);
 
   /// Internal method to save the current remote_values to the preferences
   void save_remote_values_();
@@ -384,12 +383,11 @@ class LightState : public EntityBase, public Component {
   // for effects, true if a transformer (transition) is active.
   bool is_transformer_active_{false};
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  /// True while the active transformer publishes remote_values on an interval from loop().
   bool transition_publish_enabled_{false};
-  // When a transition uses interval-based publishing and a call requested save=true,
-  // defer saving until the transformer has reached the final state in loop().
+  /// A save requested while transition_publish_enabled_ runs when the transformer finishes.
   bool defer_transition_save_{false};
 #endif
-
   /// Restore mode of the light.
   LightRestoreMode restore_mode_;
 };

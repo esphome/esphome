@@ -6,11 +6,7 @@ import logging
 import esphome.automation as auto
 import esphome.codegen as cg
 from esphome.components import mqtt, power_supply, web_server
-from esphome.components.const import (
-    CONF_CHANNEL_COLORS,
-    CONF_IS_WRGB,
-    CONF_TRANSITION_STATE_PUBLISH_INTERVAL,
-)
+from esphome.components.const import CONF_CHANNEL_COLORS, CONF_IS_WRGB
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -347,6 +343,7 @@ RESTORE_MODES = {
 # Schema default that also matches the C++ initializer in light_state.h; codegen
 # skips the setter when the config equals it.
 DEFAULT_FLASH_TRANSITION_LENGTH = "0s"
+CONF_TRANSITION_STATE_PUBLISH_INTERVAL = "transition_state_publish_interval"
 
 LIGHT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
@@ -520,22 +517,11 @@ async def setup_light_core_(light_var, config, output_var):
         DEFAULT_FLASH_TRANSITION_LENGTH
     ):
         cg.add(light_var.set_flash_transition_length(flash_transition_length))
-    # Only wire up the transition-state publish machinery (and pay its per-light
-    # RAM/flash cost) when a light actually opts in with a non-zero interval. The
-    # default "0s" leaves USE_LIGHT_TRANSITION_PUBLISH_INTERVAL undefined so the
-    # feature compiles out entirely for configs that don't use it.
-    transition_state_publish_interval = config.get(
-        CONF_TRANSITION_STATE_PUBLISH_INTERVAL
-    )
+    # A non-zero interval opts this light in and compiles the feature in
     if (
-        transition_state_publish_interval is not None
-        and transition_state_publish_interval.total_milliseconds > 0
-    ):
-        cg.add(
-            light_var.set_transition_state_publish_interval(
-                transition_state_publish_interval
-            )
-        )
+        interval := config.get(CONF_TRANSITION_STATE_PUBLISH_INTERVAL)
+    ) is not None and interval.total_milliseconds > 0:
+        cg.add(light_var.set_transition_state_publish_interval(interval))
         cg.add_define("USE_LIGHT_TRANSITION_PUBLISH_INTERVAL")
     if (gamma_correct := config.get(CONF_GAMMA_CORRECT)) is not None:
         cg.add(light_var.set_gamma_correct(gamma_correct))

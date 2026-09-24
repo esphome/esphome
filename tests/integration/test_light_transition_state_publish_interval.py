@@ -1,347 +1,203 @@
-"""Integration tests for transition_state_publish_interval behavior on lights.
-
-These tests verify both legacy behavior (interval = 0s) and the new
-interval-publishing semantics for transitions and flashes, using host mode.
-"""
+"""Integration tests for the light transition_state_publish_interval option."""
 
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
-from typing import Any
+from collections.abc import Callable
+from itertools import pairwise
 
-import aioesphomeapi
-from aioesphomeapi import EntityState, LightState
+from aioesphomeapi import (
+    APIClient,
+    ButtonInfo,
+    EntityInfo,
+    EntityState,
+    LightInfo,
+    LightState,
+)
 import pytest
-import pytest_asyncio
 
+from .state_utils import InitialStateHelper, require_entity, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
+INTERVAL_FIXTURE = "light_transition_state_publish_interval"
+SAVE_FIXTURE = "light_transition_interval_save"
+SAVED_LINE = "Saving deferred preferences"
 
-async def _collect_state_timeline(
-    client: aioesphomeapi.APIClient,
-    target_key: int,
-    action: Any,
-    duration: float,
-) -> list[tuple[float, LightState]]:
-    """Collect a timeline of LightState updates for a single entity key.
+Timeline = list[tuple[float, LightState]]
+DonePredicate = Callable[[float, LightState], bool]
 
-    Args:
-        client: Connected API client.
-        target_key: The entity key of the light to track.
-        action: A callable or coroutine that triggers the transition.
-        duration: How long to record states after invoking action.
 
-    Returns:
-        List of (timestamp, LightState) tuples.
+class _Recorder:
+    """Records the states one light publishes while an action runs.
+
+    ``run`` fires ``action`` and returns the (elapsed, state) timeline once a
+    published state satisfies ``done``, after ``settle`` more seconds so late
+    publishes still land in the timeline.
     """
-    loop = asyncio.get_running_loop()
-    start_time = loop.time()
-    end_time = start_time + duration
-    timeline: list[tuple[float, LightState]] = []
 
-    def on_state(state: EntityState) -> None:
-        if isinstance(state, LightState) and state.key == target_key:
-            now = loop.time()
-            # Only record states within the requested collection window.
-            if now <= end_time:
-                timeline.append((now - start_time, state))
+    def __init__(self) -> None:
+        self._loop = asyncio.get_running_loop()
+        self._event = asyncio.Event()
+        self._key = 0
+        self._start = 0.0
+        self._done: DonePredicate | None = None
+        self.timeline: Timeline = []
 
-    client.subscribe_states(on_state)
+    def on_state(self, state: EntityState) -> None:
+        if (
+            self._done is None
+            or not isinstance(state, LightState)
+            or state.key != self._key
+        ):
+            return
+        elapsed = self._loop.time() - self._start
+        self.timeline.append((elapsed, state))
+        if self._done(elapsed, state):
+            self._event.set()
 
-    # Run action (sync or async)
-    if asyncio.iscoroutinefunction(action):
-        await action()
-    else:
+    async def run(
+        self,
+        key: int,
+        action: Callable[[], None],
+        done: DonePredicate,
+        settle: float = 0.0,
+    ) -> Timeline:
+        self.timeline = []
+        self._key = key
+        self._done = done
+        self._event.clear()
+        self._start = self._loop.time()
         action()
+        async with asyncio.timeout(5):
+            await self._event.wait()
+        if settle:
+            await asyncio.sleep(settle)
+        self._done = None
+        return self.timeline
 
-    # Collect for the requested duration
-    await asyncio.sleep(duration)
-    return timeline
+
+class _SaveCounter:
+    """Counts preference saves in the device log."""
+
+    def __init__(self) -> None:
+        self.count = 0
+        self._changed = asyncio.Event()
+
+    def on_line(self, line: str) -> None:
+        if SAVED_LINE in line:
+            self.count += 1
+            self._changed.set()
+
+    async def wait_for(self, count: int) -> None:
+        async with asyncio.timeout(5):
+            while self.count < count:
+                self._changed.clear()
+                await self._changed.wait()
 
 
-@pytest_asyncio.fixture
-async def yaml_config(
-    request: pytest.FixtureRequest,
-    unused_tcp_port: int,
-) -> str:
-    test_name: str = request.node.name
-    base_name = test_name.replace("test_", "").partition("[")[0]
+async def _subscribe(client: APIClient) -> tuple[list[EntityInfo], _Recorder]:
+    """List entities and attach a recorder once the initial states have arrived."""
+    entities, _ = await client.list_entities_services()
+    helper = InitialStateHelper(entities)
+    recorder = _Recorder()
+    client.subscribe_states(helper.on_state_wrapper(recorder.on_state))
+    await helper.wait_for_initial_states()
+    return entities, recorder
 
-    alias_map = {
-        "transition_interval_zero_behaves_like_legacy": "light_transition_state_publish_interval",
-        "transition_interval_nonzero_emits_intermediate_updates": "light_transition_state_publish_interval",
-        "flash_interval_emits_intermediate_updates": "light_transition_state_publish_interval",
-    }
-    base_name = alias_map.get(base_name, base_name)
 
-    fixture_path = Path(__file__).parent / "fixtures" / f"{base_name}.yaml"
-    if not fixture_path.exists():
-        raise FileNotFoundError(f"Fixture file not found: {fixture_path}")
+def _brightness_is(value: float) -> DonePredicate:
+    return lambda _elapsed, state: state.brightness == pytest.approx(value, abs=0.01)
 
-    loop = asyncio.get_running_loop()
-    content = await loop.run_in_executor(None, fixture_path.read_text)
 
-    if "api:" in content:
-        content = content.replace("api:", f"api:\n  port: {unused_tcp_port}")
+def _brightness_values(timeline: Timeline) -> list[float]:
+    """Brightness as a remote sees it: an off state counts as zero."""
+    return [state.brightness if state.state else 0.0 for _, state in timeline]
 
-    if "esphome:" in content and "platformio_options:" not in content:
-        content = content.replace(
-            "esphome:",
-            "esphome:\n"
-            "  platformio_options:\n"
-            "    build_flags:\n"
-            '      - "-DDEBUG"\n'
-            '      - "-g"',
-        )
 
-    return content
+def _assert_ramp(timeline: Timeline, target: float) -> None:
+    """Several states were published and the last one is ``target`` after ~1 s."""
+    values = _brightness_values(timeline)
+    assert len(values) >= 3, values
+    assert values[-1] == pytest.approx(target, abs=0.05), values
+    assert timeline[-1][0] >= 0.8, timeline[-1][0]
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml(INTERVAL_FIXTURE)
 async def test_transition_interval_zero_behaves_like_legacy(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """When interval == 0s, behavior should match legacy semantics.
+    """A light with the default 0s interval publishes the target once, up front."""
+    async with run_compiled(yaml_config), api_client_connected() as client:
+        entities, recorder = await _subscribe(client)
+        legacy = require_entity(entities, "test_legacy_light", LightInfo)
 
-    Expected behavior:
-      - A transition with transition_length > 0 publishes only the final state
-        (no intermediate publishes caused by the interval logic).
-    """
-    # Force interval to 0s in the fixture to emulate legacy behavior
-    yaml_zero = yaml_config.replace(
-        "transition_state_publish_interval: 0.2s",
-        "transition_state_publish_interval: 0s",
-    )
+        timeline = await recorder.run(
+            legacy.key,
+            lambda: client.light_command(
+                key=legacy.key, state=True, brightness=0.8, transition_length=1.0
+            ),
+            _brightness_is(0.8),
+            settle=1.3,
+        )
 
-    async with run_compiled(yaml_zero), api_client_connected() as client:
-        # Get entities and locate lights
-        entities, _ = await client.list_entities_services()
-
-        # Map object_id to LightInfo
-        light_infos: dict[str, aioesphomeapi.LightInfo] = {
-            e.object_id: e for e in entities if isinstance(e, aioesphomeapi.LightInfo)
-        }
-
-        mono = light_infos.get("test_mono_light")
-        rgb = light_infos.get("test_rgb_light")
-        cwww = light_infos.get("test_cwww_light")
-        assert mono is not None
-        assert rgb is not None
-        assert cwww is not None
-
-        # Helper to run a transition and collect states
-        async def run_case(
-            light: aioesphomeapi.LightInfo,
-        ) -> list[tuple[float, LightState]]:
-            return await _collect_state_timeline(
-                client,
-                light.key,
-                lambda: client.light_command(
-                    key=light.key,
-                    state=True,
-                    brightness=0.8,
-                    transition_length=1.0,
-                ),
-                duration=1.5,
-            )
-
-        mono_timeline = await run_case(mono)
-        rgb_timeline = await run_case(rgb)
-        cwww_timeline = await run_case(cwww)
-
-        for name, tl in (
-            ("mono", mono_timeline),
-            ("rgb", rgb_timeline),
-            ("cwww", cwww_timeline),
-        ):
-            assert len(tl) >= 1, f"Expected at least one state update for {name}"
-            # With interval 0, we expect effectively a single publish at or near the final state.
-            # Allow a tiny number of extra states, but ensure they are not a dense stream.
-            assert len(tl) <= 3, (
-                f"Unexpectedly many publishes for {name} with interval=0s: {len(tl)}"
-            )
-            # Last state should be at target brightness
-            _, last = tl[-1]
-            assert last.brightness is not None
-            assert last.brightness == pytest.approx(0.8)
+        assert _brightness_values(timeline) == [pytest.approx(0.8)]
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml(INTERVAL_FIXTURE)
 async def test_transition_interval_nonzero_emits_intermediate_updates(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """When interval > 0, transitions should emit multiple intermediate updates.
-
-    We verify this on the monochromatic light:
-      - First publish reflects the starting state (no jump directly to final).
-      - Multiple updates occur during the 1s transition.
-      - Final state matches the target brightness.
-    """
+    """Turning on over 1 s with a 200 ms interval publishes a rising ramp."""
     async with run_compiled(yaml_config), api_client_connected() as client:
-        entities, _ = await client.list_entities_services()
+        entities, recorder = await _subscribe(client)
+        mono = require_entity(entities, "test_mono_light", LightInfo)
 
-        light_infos: dict[str, aioesphomeapi.LightInfo] = {
-            e.object_id: e for e in entities if isinstance(e, aioesphomeapi.LightInfo)
-        }
-        mono = light_infos.get("test_mono_light")
-        assert mono is not None
-
-        # Ensure starting state is off / low brightness
-        client.light_command(key=mono.key, state=False, brightness=0.0)
-        await asyncio.sleep(0.2)
-
-        mono_timeline = await _collect_state_timeline(
-            client,
+        timeline = await recorder.run(
             mono.key,
             lambda: client.light_command(
-                key=mono.key,
-                state=True,
-                brightness=1.0,
-                transition_length=1.0,
+                key=mono.key, state=True, brightness=1.0, transition_length=1.0
             ),
-            duration=1.5,
+            _brightness_is(1.0),
         )
 
-        assert len(mono_timeline) >= 3, (
-            "Expected multiple publishes during transition when interval > 0, "
-            f"got {len(mono_timeline)}"
-        )
-
-        # Inspect last entry
-        last_t, last_state = mono_timeline[-1]
-
-        assert last_state.brightness is not None
-
-        # Extract brightness time series (including initial and final publishes).
-        brightness_values = [
-            state.brightness
-            for _, state in mono_timeline
-            if state.brightness is not None
-        ]
-        assert brightness_values, "Expected brightness values in timeline"
-
-        # We expect: brightness starts near 0, rises through several intermediate
-        # values, and ends near 1.0. Allow some flexibility for host-mode timing
-        # and a possible initial pre-transition sample.
-        assert len(brightness_values) >= 5, (
-            "Expected at least five brightness updates for interval=0.2s, "
-            f"got {len(brightness_values)} values={brightness_values}"
-        )
-
-        values = list(brightness_values)
-        # If the very first sample is much higher than the second (e.g. a
-        # pre-transition state), drop it before analyzing the ramp.
-        if len(values) >= 2 and values[0] > values[1] + 0.2:
-            values = values[1:]
-
-        min_brightness = min(values)
-        max_brightness = max(values)
-
-        # Ensure we genuinely ramp from near 0 up to near 1.
-        assert min_brightness == pytest.approx(0.0, abs=0.1), (
-            "Expected minimum brightness near 0.0 during transition; "
-            f"got min={min_brightness}, values={values}"
-        )
-        assert max_brightness == pytest.approx(1.0, abs=0.05), (
-            "Expected maximum brightness near 1.0 during transition; "
-            f"got max={max_brightness}, values={values}"
-        )
-
-        # There should be multiple intermediate values strictly between 0 and 1.
-        intermediate = [b for b in values if 0.1 < b < 0.9]
-        assert len(intermediate) >= 2, (
-            "Expected at least two intermediate brightness values between 0.1 and 0.9; "
-            f"got values={values}"
-        )
-
-        # Brightness should be non-decreasing over time (within a small tolerance
-        # to account for numeric jitter in host mode).
-        for i in range(len(values) - 1):
-            assert values[i + 1] >= values[i] - 0.1, (
-                "Brightness should not drop significantly during transition; "
-                f"values={values}"
-            )
-
-        # Rough timing sanity check: we expect states roughly every ~0.2s (configured interval),
-        # so having more than 1 second of total span and at least a couple of intermediate points
-        # is sufficient as a non-flaky check.
-        assert last_t >= 0.8, f"Transition appeared to end too quickly: {last_t}s"
+        values = _brightness_values(timeline)
+        assert len(values) >= 5, values
+        assert values[0] == pytest.approx(0.0, abs=0.1), values
+        assert values[-1] == pytest.approx(1.0, abs=0.05), values
+        assert len([v for v in values if 0.1 < v < 0.9]) >= 2, values
+        assert all(b >= a - 0.1 for a, b in pairwise(values)), values
+        assert timeline[-1][0] >= 0.8, timeline[-1][0]
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml(INTERVAL_FIXTURE)
 async def test_light_transition_state_publish_interval(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Validate interval publishing for default, RGB, and CWWW transitions.
-
-    This test uses the shared fixture "light_transition_state_publish_interval.yaml"
-    (via the yaml_config fixture) which defines mono, RGB, and CWWW lights with
-    default_transition_length: 1s and transition_state_publish_interval: 0.2s.
-
-    It verifies that:
-      - Default transitions (no explicit transition_length) use the configured
-        default_transition_length while emitting intermediate updates.
-      - RGB transitions emit multiple intermediate updates and reach the target
-        brightness while changing color over time.
-      - CWWW/CT transitions emit intermediate updates and reach the target
-        color temperature.
-    """
+    """Default-length, RGB and color temperature transitions publish on the interval."""
     async with run_compiled(yaml_config), api_client_connected() as client:
-        entities, _ = await client.list_entities_services()
+        entities, recorder = await _subscribe(client)
+        mono = require_entity(entities, "test_mono_light", LightInfo)
+        rgb = require_entity(entities, "test_rgb_light", LightInfo)
+        cwww = require_entity(entities, "test_cwww_light", LightInfo)
 
-        light_infos: dict[str, aioesphomeapi.LightInfo] = {
-            e.object_id: e for e in entities if isinstance(e, aioesphomeapi.LightInfo)
-        }
-
-        mono = light_infos.get("test_mono_light")
-        rgb = light_infos.get("test_rgb_light")
-        cwww = light_infos.get("test_cwww_light")
-        assert mono is not None
-        assert rgb is not None
-        assert cwww is not None
-
-        # Ensure a known starting state for all lights.
-        for light in (mono, rgb, cwww):
-            client.light_command(key=light.key, state=False, brightness=0.0)
-        await asyncio.sleep(0.2)
-
-        # 1) Default transition (no explicit transition_length) should use
-        #    default_transition_length: 1s and emit multiple updates.
-        mono_timeline_default = await _collect_state_timeline(
-            client,
+        # No transition_length: default_transition_length (1 s) applies
+        timeline = await recorder.run(
             mono.key,
-            lambda: client.light_command(
-                key=mono.key,
-                state=True,
-                brightness=1.0,
-                # No transition_length: rely on default_transition_length.
-            ),
-            duration=1.5,
+            lambda: client.light_command(key=mono.key, state=True, brightness=1.0),
+            _brightness_is(1.0),
         )
+        _assert_ramp(timeline, 1.0)
 
-        assert len(mono_timeline_default) >= 3, (
-            "Expected multiple publishes during default transition when interval > 0, "
-            f"got {len(mono_timeline_default)}"
-        )
-        last_t_default, last_state_default = mono_timeline_default[-1]
-        assert last_state_default.brightness is not None
-        assert last_state_default.brightness == pytest.approx(1.0, abs=0.05)
-        # Expect the transition to span close to the configured default (1s).
-        assert last_t_default >= 0.8, (
-            f"Default transition appeared to end too quickly: {last_t_default}s"
-        )
-
-        # 2) RGB transition: verify multiple intermediate updates and final
-        #    brightness while color components change over time.
-        rgb_timeline = await _collect_state_timeline(
-            client,
+        timeline = await recorder.run(
             rgb.key,
             lambda: client.light_command(
                 key=rgb.key,
@@ -350,299 +206,147 @@ async def test_light_transition_state_publish_interval(
                 rgb=(1.0, 0.0, 0.0),
                 transition_length=1.0,
             ),
-            duration=1.5,
+            _brightness_is(1.0),
         )
+        _assert_ramp(timeline, 1.0)
 
-        assert len(rgb_timeline) >= 3, (
-            "Expected multiple publishes during RGB transition when interval > 0, "
-            f"got {len(rgb_timeline)}"
-        )
-
-        rgb_times, rgb_states = zip(*rgb_timeline, strict=True)
-        last_t_rgb = rgb_times[-1]
-        last_state_rgb = rgb_states[-1]
-
-        assert last_state_rgb.brightness is not None
-        assert last_state_rgb.brightness == pytest.approx(1.0, abs=0.05)
-
-        # We primarily care that the transition spans a reasonable amount of
-        # time and produces multiple interval-driven publishes; the exact
-        # per-channel waveform is implementation-dependent.
-        assert last_t_rgb >= 0.8, (
-            f"RGB transition appeared to end too quickly: {last_t_rgb}s"
-        )
-
-        # 3) CWWW/CT transition: verify intermediate updates and that the final
-        #    color temperature reaches the requested value.
-        # Establish a known starting color temperature (cold end, 153 mireds)
-        # instantly so the transition to 300 mireds always spans a real gradient;
-        # otherwise the light's power-on color temperature could coincide with the
-        # target and produce no intermediate values to observe.
-        client.light_command(
-            key=cwww.key,
-            state=True,
-            color_temperature=153.0,
-            brightness=1.0,
-            transition_length=0.0,
-        )
-        await asyncio.sleep(0.3)
-        cwww_timeline = await _collect_state_timeline(
-            client,
+        # Start at the cold end instantly so the fade to 300 mireds has a gradient
+        await recorder.run(
             cwww.key,
             lambda: client.light_command(
                 key=cwww.key,
                 state=True,
-                color_temperature=300.0,
                 brightness=1.0,
+                color_temperature=153.0,
+                transition_length=0.0,
+            ),
+            lambda _t, s: (
+                s.state and s.color_temperature == pytest.approx(153.0, abs=1.0)
+            ),
+        )
+        timeline = await recorder.run(
+            cwww.key,
+            lambda: client.light_command(
+                key=cwww.key,
+                state=True,
+                brightness=1.0,
+                color_temperature=300.0,
                 transition_length=1.0,
             ),
-            duration=1.5,
+            lambda _t, s: s.color_temperature == pytest.approx(300.0, abs=1.0),
         )
-
-        assert len(cwww_timeline) >= 3, (
-            "Expected multiple publishes during CWWW/CT transition when interval > 0, "
-            f"got {len(cwww_timeline)}"
-        )
-
-        cwww_times, cwww_states = zip(*cwww_timeline, strict=True)
-        last_t_cwww = cwww_times[-1]
-        last_state_cwww = cwww_states[-1]
-
-        ct_values = [
-            state.color_temperature
-            for state in cwww_states
-            if state.color_temperature is not None
-        ]
-        assert ct_values, "Expected color_temperature values in CWWW timeline"
-
-        min_ct = min(ct_values)
-        max_ct = max(ct_values)
-        # We expect the final color temperature near the requested value and at
-        # least one intermediate value that differs from it.
-        assert last_state_cwww.color_temperature is not None
-        assert last_state_cwww.color_temperature == pytest.approx(300.0, abs=5.0)
-        assert min_ct < max_ct, (
-            "Expected at least one intermediate color_temperature value different "
-            f"from the final; values={ct_values}"
-        )
-        assert last_t_cwww >= 0.8, (
-            f"CWWW/CT transition appeared to end too quickly: {last_t_cwww}s"
-        )
+        ct_values = [state.color_temperature for _, state in timeline]
+        assert len(ct_values) >= 3, ct_values
+        assert min(ct_values) < max(ct_values), ct_values
+        assert timeline[-1][0] >= 0.8, timeline[-1][0]
 
 
 @pytest.mark.asyncio
-async def test_transition_interval_persistence_semantics(
-    yaml_config: str,
-    run_compiled: RunCompiledFunction,
-    api_client_connected: APIClientConnectedFactory,
-) -> None:
-    save_log_count = 0
-
-    def on_log_line(line: str) -> None:
-        nonlocal save_log_count
-        if "LightState preferences saved:" in line:
-            save_log_count += 1
-
-    async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
-        api_client_connected() as client,
-    ):
-        entities, _ = await client.list_entities_services()
-
-        light_infos: dict[str, aioesphomeapi.LightInfo] = {
-            e.object_id: e for e in entities if isinstance(e, aioesphomeapi.LightInfo)
-        }
-        button_infos: dict[str, aioesphomeapi.ButtonInfo] = {
-            e.object_id: e for e in entities if isinstance(e, aioesphomeapi.ButtonInfo)
-        }
-
-        mono = light_infos.get("test_mono_light_persist")
-        run_button = button_infos.get("run_persistence_transition")
-        assert mono is not None
-        assert run_button is not None
-
-        client.light_command(key=mono.key, state=False, brightness=0.0)
-        await asyncio.sleep(0.2)
-
-        first_run_timeline = await _collect_state_timeline(
-            client,
-            mono.key,
-            lambda: client.button_command(run_button.key),
-            duration=1.5,
-        )
-
-        assert first_run_timeline
-
-        times, states = zip(*first_run_timeline, strict=True)
-        last_t = times[-1]
-        last_state = states[-1]
-
-        brightness_values = [s.brightness for s in states if s.brightness is not None]
-        assert brightness_values
-
-        min_brightness = min(brightness_values)
-        assert min_brightness < 0.95
-
-        assert last_state.brightness is not None
-        assert last_state.brightness == pytest.approx(1.0, abs=0.05)
-        assert last_t >= 0.8
-
-    async with run_compiled(yaml_config), api_client_connected() as client:
-        entities, _ = await client.list_entities_services()
-
-        light_infos: dict[str, aioesphomeapi.LightInfo] = {
-            e.object_id: e for e in entities if isinstance(e, aioesphomeapi.LightInfo)
-        }
-        mono = light_infos.get("test_mono_light_persist")
-        assert mono is not None
-
-        loop = asyncio.get_running_loop()
-        initial_state_future: asyncio.Future[LightState] = loop.create_future()
-
-        def on_state(state: EntityState) -> None:
-            if (
-                isinstance(state, LightState)
-                and state.key == mono.key
-                and not initial_state_future.done()
-            ):
-                initial_state_future.set_result(state)
-
-        client.subscribe_states(on_state)
-
-        try:
-            initial_state = await asyncio.wait_for(initial_state_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Did not receive initial light state after restart")
-
-        # After restart, we expect the restored brightness (if reported) to
-        # match the final value saved at the end of the transition.
-        if initial_state.brightness is not None:
-            assert initial_state.brightness == pytest.approx(1.0, abs=0.05)
-
-    # Across both runs we expect exactly one preference save for this light
-    # during the save=true interval transition.
-    assert save_log_count == 1
-
-
-@pytest.mark.asyncio
-async def test_interrupted_deferred_save_does_not_leak(
-    yaml_config: str,
-    run_compiled: RunCompiledFunction,
-    api_client_connected: APIClientConnectedFactory,
-) -> None:
-    """Interrupted save=true interval transitions must not leak deferred saves.
-
-    A save=true transition sets defer_transition_save_. If a flash or save=false
-    transition interrupts it before completion, that flag must be cleared so the
-    interrupting call does not persist preferences when it finishes.
-    """
-    save_log_count = 0
-
-    def on_log_line(line: str) -> None:
-        nonlocal save_log_count
-        if "LightState preferences saved:" in line:
-            save_log_count += 1
-
-    async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
-        api_client_connected() as client,
-    ):
-        entities, _ = await client.list_entities_services()
-
-        light_infos: dict[str, aioesphomeapi.LightInfo] = {
-            e.object_id: e for e in entities if isinstance(e, aioesphomeapi.LightInfo)
-        }
-        button_infos: dict[str, aioesphomeapi.ButtonInfo] = {
-            e.object_id: e for e in entities if isinstance(e, aioesphomeapi.ButtonInfo)
-        }
-
-        mono = light_infos.get("test_mono_light_defer_leak")
-        flash_button = button_infos.get("run_interrupted_by_flash")
-        transition_button = button_infos.get("run_interrupted_by_unsaved_transition")
-        assert mono is not None
-        assert flash_button is not None
-        assert transition_button is not None
-
-        client.light_command(key=mono.key, state=False, brightness=0.0)
-        await asyncio.sleep(0.2)
-        save_log_count = 0
-
-        await _collect_state_timeline(
-            client,
-            mono.key,
-            lambda: client.button_command(flash_button.key),
-            duration=1.5,
-        )
-        assert save_log_count == 0, (
-            "Flash interrupting a save=true interval transition must not save preferences"
-        )
-
-        client.light_command(key=mono.key, state=False, brightness=0.0)
-        await asyncio.sleep(0.2)
-        save_log_count = 0
-
-        await _collect_state_timeline(
-            client,
-            mono.key,
-            lambda: client.button_command(transition_button.key),
-            duration=1.5,
-        )
-        assert save_log_count == 0, (
-            "save=false transition interrupting a save=true interval transition "
-            "must not save preferences"
-        )
-
-
-@pytest.mark.asyncio
+@pytest.mark.shared_yaml(INTERVAL_FIXTURE)
 async def test_flash_interval_emits_intermediate_updates(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
+    """A flash publishes its value on the interval and ends back where it started."""
     async with run_compiled(yaml_config), api_client_connected() as client:
-        entities, _ = await client.list_entities_services()
+        entities, recorder = await _subscribe(client)
+        mono = require_entity(entities, "test_mono_light", LightInfo)
 
-        light_infos: dict[str, aioesphomeapi.LightInfo] = {
-            e.object_id: e for e in entities if isinstance(e, aioesphomeapi.LightInfo)
-        }
-
-        mono = light_infos.get("test_mono_light")
-        assert mono is not None
-
-        client.light_command(key=mono.key, state=True, brightness=0.4)
-        await asyncio.sleep(0.2)
-
-        baseline_timeline = await _collect_state_timeline(
-            client,
-            mono.key,
-            lambda: None,
-            duration=0.2,
-        )
-
-        assert baseline_timeline
-        _, baseline_state = baseline_timeline[-1]
-        assert baseline_state.brightness is not None
-        baseline_brightness = baseline_state.brightness
-
-        flash_timeline = await _collect_state_timeline(
-            client,
+        await recorder.run(
             mono.key,
             lambda: client.light_command(
-                key=mono.key,
-                flash_length=1.0,
+                key=mono.key, state=True, brightness=0.4, transition_length=0.0
             ),
-            duration=1.5,
+            lambda _t, s: s.state and s.brightness == pytest.approx(0.4, abs=0.01),
+        )
+        timeline = await recorder.run(
+            mono.key,
+            lambda: client.light_command(
+                key=mono.key, brightness=1.0, flash_length=1.0
+            ),
+            lambda t, s: t > 0.5 and s.brightness == pytest.approx(0.4, abs=0.01),
         )
 
-        assert len(flash_timeline) >= 3
+        values = _brightness_values(timeline)
+        assert values.count(pytest.approx(1.0, abs=0.01)) >= 3, values
+        assert values[-1] == pytest.approx(0.4, abs=0.05), values
+        assert timeline[-1][0] >= 0.8, timeline[-1][0]
 
-        times, states = zip(*flash_timeline, strict=True)
-        last_t = times[-1]
-        last_state = states[-1]
 
-        brightness_values = [s.brightness for s in states if s.brightness is not None]
-        assert brightness_values
+@pytest.mark.asyncio
+@pytest.mark.shared_yaml(SAVE_FIXTURE)
+async def test_transition_interval_persistence_semantics(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """A save=true interval transition saves once, at its end, and restores that value."""
+    saves = _SaveCounter()
+    async with (
+        run_compiled(yaml_config, line_callback=saves.on_line),
+        api_client_connected() as client,
+    ):
+        entities, recorder = await _subscribe(client)
+        mono = require_entity(entities, "test_mono_light", LightInfo)
+        button = require_entity(entities, "run_persistence_transition", ButtonInfo)
+        before = saves.count
 
-        assert last_state.brightness is not None
-        assert last_state.brightness == pytest.approx(baseline_brightness, abs=0.15)
-        assert last_t >= 0.8
+        timeline = await recorder.run(
+            mono.key,
+            lambda: client.button_command(button.key),
+            _brightness_is(1.0),
+        )
+        _assert_ramp(timeline, 1.0)
+        await saves.wait_for(before + 1)
+        assert saves.count == before + 1
+
+    async with run_compiled(yaml_config), api_client_connected() as client:
+        entities, _ = await client.list_entities_services()
+        mono = require_entity(entities, "test_mono_light", LightInfo)
+        state = await wait_for_state(
+            client, lambda s: isinstance(s, LightState) and s.key == mono.key
+        )
+        assert isinstance(state, LightState)
+        assert state.state
+        assert state.brightness == pytest.approx(1.0, abs=0.05)
+
+
+@pytest.mark.asyncio
+@pytest.mark.shared_yaml(SAVE_FIXTURE)
+async def test_interrupted_deferred_save_does_not_leak(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """A save=true transition cut short by another call must not save when that call ends."""
+    saves = _SaveCounter()
+    async with (
+        run_compiled(yaml_config, line_callback=saves.on_line),
+        api_client_connected() as client,
+    ):
+        entities, recorder = await _subscribe(client)
+        mono = require_entity(entities, "test_mono_light", LightInfo)
+        by_transition = require_entity(
+            entities, "run_interrupted_by_unsaved_transition", ButtonInfo
+        )
+        by_flash = require_entity(entities, "run_interrupted_by_flash", ButtonInfo)
+        before = saves.count
+
+        # A save=false transition to 0.5 interrupts the save=true one
+        await recorder.run(
+            mono.key,
+            lambda: client.button_command(by_transition.key),
+            _brightness_is(0.5),
+            settle=0.2,
+        )
+        assert saves.count == before
+
+        # A flash interrupts the next save=true transition and returns to 0.5
+        await recorder.run(
+            mono.key,
+            lambda: client.button_command(by_flash.key),
+            lambda t, s: t > 0.5 and s.brightness == pytest.approx(0.5, abs=0.01),
+            settle=0.2,
+        )
+        assert saves.count == before

@@ -71,6 +71,13 @@ output:
       - logger.log:
           format: "cwww_warm_white: %.2f"
           args: [state]
+  - platform: template
+    id: legacy_output
+    type: float
+    write_action:
+      - logger.log:
+          format: "legacy_output: %.2f"
+          args: [state]
 
 light:
   # Monochromatic light (brightness only)
@@ -105,3 +112,10 @@ light:
     constant_brightness: true
     default_transition_length: 1s
     transition_state_publish_interval: 0.2s
+
+  # Interval left at its default: publishes only when a call starts
+  - platform: monochromatic
+    id: test_legacy_light
+    name: "Test Legacy Light"
+    output: legacy_output
+    default_transition_length: 1s
