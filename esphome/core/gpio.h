@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cstdint>
 
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -27,7 +28,11 @@ enum Flags : uint8_t {
   FLAG_OPEN_DRAIN = 0x04,
   FLAG_PULLUP = 0x08,
   FLAG_PULLDOWN = 0x10,
+  FLAG_HOLD = 0x20,
 };
+
+const uint8_t FLAG_IO_MASK = FLAG_INPUT | FLAG_OUTPUT | FLAG_OPEN_DRAIN;
+const uint8_t FLAG_PULL_MASK = FLAG_PULLUP | FLAG_PULLDOWN;
 
 class FlagsHelper {
  public:
@@ -79,6 +84,13 @@ class GPIOPin {
   virtual size_t dump_summary(char *buffer, size_t len) const;
 
   virtual bool is_internal() { return false; }
+#ifdef USE_GPIO_HOLD
+  inline bool get_hold() const { return this->get_flags() & gpio::FLAG_HOLD; }
+  virtual inline bool is_held() const { return false; }
+#else
+  inline bool get_hold() const { return false; }
+  inline bool is_held() const { return false; }
+#endif
 };
 
 /// Copy of GPIOPin that is safe to use from ISRs (with no virtual functions)
@@ -110,6 +122,10 @@ class InternalGPIOPin : public GPIOPin {
   bool is_internal() override { return true; }
 
   virtual bool is_inverted() const = 0;
+
+#ifdef USE_GPIO_HOLD
+  inline bool is_held() const override = 0;
+#endif
 
  protected:
   virtual void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const = 0;
