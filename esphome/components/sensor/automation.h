@@ -20,17 +20,6 @@ class SensorRawStateTrigger final : public Trigger<float> {
   }
 };
 
-template<typename... Ts> class SensorPublishAction final : public Action<Ts...> {
- public:
-  SensorPublishAction(Sensor *sensor) : sensor_(sensor) {}
-  TEMPLATABLE_VALUE(float, state)
-
-  void play(const Ts &...x) override { this->sensor_->publish_state(this->state_.value(x...)); }
-
- protected:
-  Sensor *sensor_;
-};
-
 class ValueRangeTrigger final : public Trigger<float>, public Component {
  public:
   explicit ValueRangeTrigger(Sensor *parent) : parent_(parent) {}
