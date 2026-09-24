@@ -31,7 +31,7 @@ void arch_init() {
     // Adafruit bootloader doesn't feed the WDT while
     // erasing flash during a firmware update, so a shorter timeout can break the update.
     wdt_config.window.max = 30000;
-#elif USE_ZIGBEE
+#elif defined(USE_ZIGBEE)
     // zboss thread uses a lot of CPU cycles during startup
     wdt_config.window.max = 10000;
 #else
