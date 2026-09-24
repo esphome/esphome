@@ -139,6 +139,9 @@ class LightState : public EntityBase, public Component {
    * These are different from the "current" values: For example transitions will
    * continuously change the "current" values. But the remote values will immediately
    * switch to the target value for a transition, reducing the number of packets sent.
+   * A light with transition_state_publish_interval set is the exception: its remote
+   * values follow the transition sample by sample, so read get_target_values() when
+   * you need the target while a transition or flash is running.
    *
    * This value does not have gamma correction applied.
    *
