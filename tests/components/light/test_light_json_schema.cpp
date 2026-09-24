@@ -51,6 +51,16 @@ TEST(LightJSONSchema, TopLevelWhiteSelectsWhiteMode) {
   EXPECT_FLOAT_EQ(values.get_white(), 1.0f);
 }
 
+TEST(LightJSONSchema, TopLevelWhiteOverridesBrightness) {
+  InterlockedRgbwOutput output;
+  LightState state(&output);
+
+  auto values = parse(state, R"({"state":"ON","brightness":255,"white":128})");
+
+  EXPECT_EQ(values.get_color_mode(), ColorMode::WHITE);
+  EXPECT_FLOAT_EQ(values.get_brightness(), 128.0f / 255.0f);
+}
+
 TEST(LightJSONSchema, ColorWStillSetsWhite) {
   InterlockedRgbwOutput output;
   LightState state(&output);
