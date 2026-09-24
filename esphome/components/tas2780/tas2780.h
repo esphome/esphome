@@ -16,6 +16,7 @@ class TAS2780 : public audio_dac::AudioDac, public PollingComponent, public i2c:
   float get_setup_priority() const override { return setup_priority::IO; }
   void update() override;
 
+  /// Software reset and re-initialization, leaving the amplifier on or off as last requested.
   void reset();
   /// Activate with the configured power mode; re-initializes first when the mode changed.
   void activate();
@@ -58,6 +59,7 @@ class TAS2780 : public audio_dac::AudioDac, public PollingComponent, public i2c:
   uint8_t applied_power_mode_{0xFF};
   uint8_t amp_level_{8};
   ChannelSelect selected_channel_{MONO_DWN_MIX};
+  bool active_{false};
 };
 
 }  // namespace esphome::tas2780

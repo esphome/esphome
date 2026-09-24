@@ -237,20 +237,27 @@ bool TAS2780::init_() {
 }
 
 void TAS2780::activate() {
+  if (this->is_failed())
+    return;
   ESP_LOGD(TAG, "Activating (PWR_MODE:%u)", this->power_mode_);
   this->clear_latches_();
   if (this->power_mode_ != this->applied_power_mode_ && !this->reinit_())
     return;
-  this->write_mode_ctrl_(this->active_mode_());
+  this->active_ = this->write_mode_ctrl_(this->active_mode_());
 }
 
 void TAS2780::deactivate() {
+  if (this->is_failed())
+    return;
   ESP_LOGD(TAG, "Deactivating");
+  this->active_ = false;
   this->write_mode_ctrl_(TAS2780_MODE_CTRL_MODE_SFTW_SHTDWN);
 }
 
 void TAS2780::reset() {
-  if (this->reinit_())
+  if (this->is_failed())
+    return;
+  if (this->reinit_() && this->active_)
     this->activate();
 }
 
@@ -276,11 +283,8 @@ void TAS2780::set_power_mode(uint8_t power_mode) {
 bool TAS2780::set_power_mode_(uint8_t power_mode) {
   uint8_t cds_mode = (POWER_MODE_CDS_MODES >> (power_mode * 2)) & 0x03;
   uint8_t vbat1s_mode = (POWER_MODE_VBAT1S_MODES >> power_mode) & 0x01;
-  if (!this->update_bits_(TAS2780_CHNL_0, TAS2780_CHNL_0_CDS_MODE_MASK, cds_mode << TAS2780_CHNL_0_CDS_MODE_SHIFT) ||
-      !this->update_bits_(TAS2780_DC_BLK0, TAS2780_DC_BLK0_VBAT1S_MODE_MASK, vbat1s_mode ? 0xFF : 0)) {
-    return false;
-  }
-  return true;
+  return this->update_bits_(TAS2780_CHNL_0, TAS2780_CHNL_0_CDS_MODE_MASK, cds_mode << TAS2780_CHNL_0_CDS_MODE_SHIFT) &&
+         this->update_bits_(TAS2780_DC_BLK0, TAS2780_DC_BLK0_VBAT1S_MODE_MASK, vbat1s_mode ? 0xFF : 0);
 }
 
 void TAS2780::clear_latches_() {
