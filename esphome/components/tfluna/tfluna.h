@@ -47,7 +47,7 @@ class TFLuna : public i2c::I2CDevice, public PollingComponent {
 
   uint16_t previous_timestamp_ = 0;
 
-  bool read_data_();
+  [[nodiscard]] bool read_data_();
 
   void read_data_timeout_();
 
