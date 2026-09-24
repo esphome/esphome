@@ -1599,6 +1599,7 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
     root[ESPHOME_F("min_temp")] =
         (value_accuracy_to_buf(temp_buf, traits.get_visual_min_temperature(), target_accuracy), temp_buf);
     root[ESPHOME_F("step")] = traits.get_visual_target_temperature_step();
+    root[ESPHOME_F("temperature_unit")] = static_cast<uint8_t>(traits.get_temperature_unit());
     this->add_sorting_info_(root, obj);
   }
 
@@ -1980,6 +1981,7 @@ json::SerializationBuffer<> WebServer::water_heater_json_(water_heater::WaterHea
     root[ESPHOME_F("min_temp")] = traits.get_min_temperature();
     root[ESPHOME_F("max_temp")] = traits.get_max_temperature();
     root[ESPHOME_F("step")] = traits.get_target_temperature_step();
+    root[ESPHOME_F("temperature_unit")] = static_cast<uint8_t>(traits.get_temperature_unit());
     this->add_sorting_info_(root, obj);
   }
 
