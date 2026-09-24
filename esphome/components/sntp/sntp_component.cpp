@@ -56,30 +56,29 @@ void SNTPComponent::setup() {
   this->zone_pref_ = global_preferences->make_preference<ZonePreference>(
       fnv1_hash_extend(fnv1_hash("sntp_timezone"), this->config_zone_), true);
   ZonePreference saved{};
-}
-else {
-  strncpy(this->zone_, this->config_zone_, MAX_ZONE_LENGTH);
-  this->zone_[MAX_ZONE_LENGTH] = '\0';
-}
-this->set_interval(TIMEZONE_REFRESH, this->timezone_update_interval_, [this]() { this->fetch_timezone_(); });
+  } else {
+    strncpy(this->zone_, this->config_zone_, MAX_ZONE_LENGTH);
+    this->zone_[MAX_ZONE_LENGTH] = '\0';
+  }
+  this->set_interval(TIMEZONE_REFRESH, this->timezone_update_interval_, [this]() { this->fetch_timezone_(); });
 #endif
 #if defined(USE_ESP32)
-SNTPComponent::instance = this;
-if (esp_sntp_enabled()) {
-  esp_sntp_stop();
-}
-esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
-size_t i = 0;
-for (auto &server : this->servers_) {
-  esp_sntp_setservername(i++, server);
-}
-esp_sntp_set_sync_interval(this->get_update_interval());
-esp_sntp_set_time_sync_notification_cb([](struct timeval *tv) {
-  if (SNTPComponent::instance != nullptr) {
-    SNTPComponent::instance->defer([]() { SNTPComponent::instance->time_synced(); });
+  SNTPComponent::instance = this;
+  if (esp_sntp_enabled()) {
+    esp_sntp_stop();
   }
-});
-esp_sntp_init();
+  esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
+  size_t i = 0;
+  for (auto &server : this->servers_) {
+    esp_sntp_setservername(i++, server);
+  }
+  esp_sntp_set_sync_interval(this->get_update_interval());
+  esp_sntp_set_time_sync_notification_cb([](struct timeval *tv) {
+    if (SNTPComponent::instance != nullptr) {
+      SNTPComponent::instance->defer([]() { SNTPComponent::instance->time_synced(); });
+    }
+  });
+  esp_sntp_init();
 #else
   sntp_stop();
   sntp_setoperatingmode(SNTP_OPMODE_POLL);
