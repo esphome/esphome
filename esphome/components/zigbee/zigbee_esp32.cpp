@@ -343,12 +343,10 @@ void ZigbeeComponent::setup() {
   for (auto &attr_value : this->attr_values_) {
     ezb_zcl_attr_desc_t attr_desc = attr_value.attr_desc;
     void *value_p = &attr_value.value;
-    if (attr_desc != NULL) {
-      ezb_zcl_attr_desc_set_value(attr_desc, value_p);
-    }
+    ezb_zcl_attr_desc_set_value(attr_desc, value_p);
   }
   // free memory
-  this->attr_values_.clear();
+  std::vector<AttrValue>().swap(this->attr_values_);
 
   // Start the Zigbee task with priority 1 to ensure main loop can still run even if Zigbee is busy
   xTaskCreate(ezb_task, "Zigbee_main", 4096, NULL, 1, NULL);
@@ -391,6 +389,19 @@ void ZigbeeComponent::dump_config() {
                   reinterpret_cast<const char *>(this->basic_cluster_data_.model + 1),
                   YESNO(this->device_role_ == EZB_NWK_DEVICE_TYPE_ROUTER));
   }
+}
+
+ezb_zcl_attr_desc_t ZigbeeComponent::get_attr_desc_(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
+                                                    uint16_t attr_id) {
+  ezb_af_ep_desc_t ep_desc = ezb_af_device_get_endpoint_desc(this->dev_desc_, endpoint_id);
+  if (ep_desc == NULL) {
+    return NULL;
+  }
+  ezb_zcl_cluster_desc_t cluster_desc = ezb_af_endpoint_get_cluster_desc(ep_desc, cluster_id, role);
+  if (cluster_desc == NULL) {
+    return NULL;
+  }
+  return ezb_zcl_cluster_get_attr_desc(cluster_desc, attr_id, EZB_ZCL_STD_MANUF_CODE);
 }
 }  // namespace esphome::zigbee
 

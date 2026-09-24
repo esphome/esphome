@@ -101,6 +101,8 @@ class ZigbeeComponent final : public Component {
   std::atomic<bool> joined_ = false;
   std::atomic<bool> join_pending_ = false;
   std::atomic<bool> factory_new_ = false;
+  // TODO: remove when esp-zigbee-lib fixes set_value before init
+  ezb_zcl_attr_desc_t get_attr_desc_(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id);
 };
 
 template<typename T>
@@ -115,10 +117,16 @@ void ZigbeeComponent::add_attr(ZigbeeAttribute *attr, uint8_t endpoint_id, uint1
   // The size byte of the zcl_str must be set to the maximum value,
   // even though the initial string may be shorter.
   if constexpr (std::is_same<T, std::string>::value) {
+    if (this->get_attr_desc_(endpoint_id, cluster_id, role, attr_id) != NULL) {
+      return;
+    }
     auto zcl_str = get_zcl_string(value.c_str(), max_size, true);
     add_attr_(attr, endpoint_id, cluster_id, role, attr_id, zcl_str);
     delete[] zcl_str;
   } else if constexpr (std::is_convertible<T, const char *>::value) {
+    if (this->get_attr_desc_(endpoint_id, cluster_id, role, attr_id) != NULL) {
+      return;
+    }
     auto zcl_str = get_zcl_string(value, max_size, true);
     add_attr_(attr, endpoint_id, cluster_id, role, attr_id, zcl_str);
     delete[] zcl_str;
@@ -143,8 +151,6 @@ void ZigbeeComponent::add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint
 
   if (attr_desc != NULL) {
     static_assert(sizeof(*value_p) <= 4);
-    static_assert(!std::is_same_v<T, std::string>);
-    static_assert(!std::is_convertible_v<T, const char *>);
     AttrValue attr_value;
     attr_value.attr_desc = attr_desc;
     memcpy(&attr_value.value, value_p, sizeof(*value_p));
