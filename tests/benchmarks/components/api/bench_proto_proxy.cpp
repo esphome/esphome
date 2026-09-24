@@ -249,7 +249,7 @@ static APIBuffer build_infrared_rf_transmit_wire() {
   std::memcpy(bytes + len, packed, packed_len);
   len += packed_len;
   // field 6: modulation = 1 (non-zero so it's actually emitted and exercises
-  // decode_varint for this field, matching the documented layout above).
+  // decode_field for this field, matching the documented layout above).
   put_byte(0x30);
   put_varint(1);
 

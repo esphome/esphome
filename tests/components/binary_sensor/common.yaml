@@ -45,13 +45,13 @@ binary_sensor:
             state: !lambda "return x.value_or(false);"
         - if:
             condition:
-              binary_sensor.is_on: publish_target
+              binary_sensor.is_on: binary_sensor_publish_target
             then:
               - logger.log: "publish_target is on"
         - if:
             condition:
               binary_sensor.is_off:
-                id: publish_target
+                id: binary_sensor_publish_target
             then:
               - logger.log: "publish_target is off"
 
