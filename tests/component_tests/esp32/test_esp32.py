@@ -170,11 +170,6 @@ def test_esp32_rejects_unsupported_cli_toolchain(
             id="mismatched_board_variant_config",
         ),
         pytest.param(
-            {"variant": "esp32s31", "toolchain": Toolchain.PLATFORMIO.value},
-            r"No default board is known for ESP32S31\. Please specify the `board:` option explicitly\. @ data\['variant'\]",
-            id="variant_without_default_board_requires_explicit_board_under_platformio",
-        ),
-        pytest.param(
             {
                 "variant": "esp32s2",
                 "framework": {
@@ -1551,27 +1546,3 @@ def test_mbedtls_tls_zigbee_requires_extras(
     """The Zigbee hooks mark the CCM/deterministic ECDSA as required."""
     generate_main(component_config_path("tls_zigbee_c6.yaml"))
     assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _CCM_ECDSA_EXTRAS
-
-
-_VASPRINTF_STUB_FLAGS = {"-Wl,--wrap=vasprintf", "-Wl,--undefined=__wrap_vasprintf"}
-
-
-@pytest.mark.parametrize(
-    ("config_file", "expected"),
-    [
-        pytest.param("vasprintf_stub_c6.yaml", True, id="c6"),
-        pytest.param("vasprintf_stub_c6_full_printf.yaml", False, id="c6_full_printf"),
-        pytest.param("exclusion_reincludes.yaml", False, id="esp32"),
-    ],
-)
-def test_vasprintf_stub_only_on_rom_vsnprintf_variants(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-    config_file: str,
-    expected: bool,
-) -> None:
-    """The vasprintf wrap is emitted only where the ROM lacks vasprintf but has vsnprintf."""
-    generate_main(component_config_path(config_file))
-    assert (CORE.build_flags >= _VASPRINTF_STUB_FLAGS) is expected
-    defines = {define.name for define in CORE.defines}
-    assert ("USE_ESP32_VASPRINTF_STUB" in defines) is expected

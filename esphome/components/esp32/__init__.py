@@ -883,6 +883,15 @@ def add_extra_build_file(filename: str, path: Path) -> bool:
     return False
 
 
+def arduino_component_ref(ver: cv.Version) -> str:
+    """The espressif/arduino-esp32 registry version for an Arduino release.
+
+    The registry lowercases prerelease tags (4.0.0-rc1) while the GitHub
+    release tag, which the PlatformIO toolchain downloads, keeps 4.0.0-RC1.
+    """
+    return str(ver).lower()
+
+
 def _format_framework_arduino_version(ver: cv.Version) -> str:
     # 3.3.6+ changed filename from esp32-{ver}.zip to esp32-core-{ver}.tar.xz
     if ver >= cv.Version(3, 3, 6):
@@ -932,14 +941,12 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 12),
+    "recommended": cv.Version(4, 0, 0, "RC1"),
     "latest": cv.Version(3, 3, 12),
     "dev": cv.Version(3, 3, 12),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
-    cv.Version(
-        4, 0, 0, "alpha1"
-    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(4, 0, 0, "RC1"): cv.Version(61, 4, 0, "RC1"),
     cv.Version(3, 3, 12): cv.Version(55, 3, 312),
     cv.Version(3, 3, 11): cv.Version(55, 3, 311),
     cv.Version(3, 3, 10): cv.Version(55, 3, 39),
@@ -964,7 +971,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
-    cv.Version(4, 0, 0, "alpha1"): cv.Version(6, 0, 1),
+    cv.Version(4, 0, 0, "RC1"): cv.Version(6, 1, 0),
     cv.Version(3, 3, 12): cv.Version(5, 5, 5),
     cv.Version(3, 3, 11): cv.Version(5, 5, 5),
     cv.Version(3, 3, 10): cv.Version(5, 5, 5),
@@ -989,12 +996,13 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 5),
+    "recommended": cv.Version(6, 1, 0),
     "latest": cv.Version(5, 5, 5),
     "dev": cv.Version(5, 5, 5),
 }
 
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(6, 1, 0): cv.Version(61, 4, 0, "RC1"),
     cv.Version(
         6, 0, 1
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
@@ -1022,7 +1030,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 312),
+    "recommended": cv.Version(61, 4, 0, "RC1"),
     "latest": cv.Version(55, 3, 312),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
@@ -3512,7 +3520,7 @@ def _write_idf_component_yml():
         if CORE.using_toolchain_esp_idf:
             add_idf_component(
                 name=ARDUINO_ESP32_COMPONENT_NAME,
-                ref=str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+                ref=arduino_component_ref(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             )
 
     if CORE.using_toolchain_esp_idf:
