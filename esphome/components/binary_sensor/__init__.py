@@ -643,7 +643,7 @@ BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id(
 
 
 automation.register_apply_condition(
-    "binary_sensor.is_on", BINARY_SENSOR_CONDITION_SCHEMA, "state == true"
+    "binary_sensor.is_on", BINARY_SENSOR_CONDITION_SCHEMA, "state"
 )
 automation.register_apply_condition(
     "binary_sensor.is_off", BINARY_SENSOR_CONDITION_SCHEMA, "state == false"
