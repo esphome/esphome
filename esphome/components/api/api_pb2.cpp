@@ -182,7 +182,7 @@ uint8_t *DeviceInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 26, this->api_encryption_provisionable);
 #endif
 #ifdef USE_API_OUTGOING_CONNECTION
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 27, this->api_outgoing_connection_supported);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 27, this->api_outgoing_connection_supported);
 #endif
   return pos;
 }
