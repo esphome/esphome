@@ -1015,7 +1015,7 @@ json::SerializationBuffer<> WebServer::light_json_(light::LightState *obj, JsonD
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_value(root, obj, "light", obj->remote_values.is_on() ? "ON" : "OFF", start_config);
+  set_json_value(root, obj, "light", obj->get_reported_values().is_on() ? "ON" : "OFF", start_config);
 
   light::LightJSONSchema::dump_json(*obj, root);
   if (start_config == DETAIL_ALL) {
