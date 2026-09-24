@@ -38,6 +38,9 @@ static constexpr bool is_default_uart0_pin(int8_t pin_num) {
   return pin_num == U0TXD_GPIO_NUM || pin_num == U0RXD_GPIO_NUM;
 }
 
+// clock_source_ is stored in a byte; every uart_sclk_t value is a soc_module_clk_t below SOC_MOD_CLK_INVALID
+static_assert(SOC_MOD_CLK_INVALID <= UINT8_MAX, "uart_sclk_t no longer fits in uint8_t clock_source_");
+
 static const LogString *clock_source_to_str(uart_sclk_t clock_source) {
   switch (clock_source) {
 #if SOC_UART_SUPPORT_APB_CLK
@@ -94,7 +97,7 @@ uart_config_t IDFUARTComponent::get_config_() {
   uart_config.parity = parity;
   uart_config.stop_bits = this->stop_bits_ == 1 ? UART_STOP_BITS_1 : UART_STOP_BITS_2;
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-  uart_config.source_clk = this->clock_source_;
+  uart_config.source_clk = static_cast<uart_sclk_t>(this->clock_source_);
   uart_config.rx_flow_ctrl_thresh = 122;
 
   return uart_config;
@@ -367,7 +370,7 @@ void IDFUARTComponent::dump_config() {
 #endif
                 ,
                 this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_,
-                LOG_STR_ARG(clock_source_to_str(this->clock_source_)));
+                LOG_STR_ARG(clock_source_to_str(static_cast<uart_sclk_t>(this->clock_source_))));
   this->check_logger_conflict();
 }
 
