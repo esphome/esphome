@@ -6,7 +6,7 @@ sensor:
       on_value:
         then:
           - cm1106.abc_enable: cm1106_sensor
-          - cm1106.abc_disable
+          - cm1106.abc_disable: cm1106_sensor
     update_interval: 15s
     automatic_baseline_calibration:
       cycle: 7
