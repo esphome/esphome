@@ -1,11 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
+from esphome.components.const import CONF_HUMIDITY_SOURCE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BASELINE,
     CONF_COMPENSATION,
     CONF_ECO2,
-    CONF_HUMIDITY_SOURCE,
     CONF_ID,
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE_SOURCE,

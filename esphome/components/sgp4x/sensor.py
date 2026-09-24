@@ -1,13 +1,16 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
-from esphome.components.const import CONF_NOX_INDEX, CONF_VOC_INDEX
+from esphome.components.const import (
+    CONF_HUMIDITY_SOURCE,
+    CONF_NOX_INDEX,
+    CONF_VOC_INDEX,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALGORITHM_TUNING,
     CONF_COMPENSATION,
     CONF_GAIN_FACTOR,
     CONF_GATING_MAX_DURATION_MINUTES,
-    CONF_HUMIDITY_SOURCE,
     CONF_ID,
     CONF_INDEX_OFFSET,
     CONF_LEARNING_TIME_GAIN_HOURS,
