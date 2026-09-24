@@ -57,6 +57,15 @@ def hash_components(components: list[str]) -> str:
     return hashlib.sha256(key.encode()).hexdigest()[:16]
 
 
+def with_platform_domains(components: list[str]) -> set[str]:
+    """Return ``components`` plus the domain of each ``domain.platform`` entry.
+
+    The domain's own ``AUTO_LOAD`` and ``DEPENDENCIES`` (e.g. ``cover`` loading
+    ``actuator``) are then followed when dependencies are resolved.
+    """
+    return set(components) | {c.split(".", 1)[0] for c in components if "." in c}
+
+
 def populate_dependency_config(
     config: dict,
     component_names: list[str],
@@ -361,7 +370,7 @@ def compile_and_get_binary(
     # Obtain possible dependencies BEFORE validate_config, because
     # get_all_dependencies calls CORE.reset() which clears build_path.
     components_with_dependencies: list[str] = sorted(
-        get_all_dependencies(set(components))
+        get_all_dependencies(with_platform_domains(components))
     )
 
     # Apply overrides for any transitively discovered dependencies.
