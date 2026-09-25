@@ -354,25 +354,15 @@ def _apply_lambda_args(args: TemplateArgsType) -> TemplateArgsType:
 
 def _apply_function(
     id_: ID,
-    return_type: str,
-    args: TemplateArgsType,
+    return_type: SafeExpType,
+    template_arg: cg.TemplateArguments,
+    lambda_args: TemplateArgsType,
     statements: list[str],
 ) -> MockObj:
-    """Emit ``static <return_type> <id>_fn(args)`` at global scope and declare ``id_`` as the
-    ``ApplyAction`` or ``ApplyCondition`` templated on it, so ``play()`` calls it directly."""
-    fn_name = f"{id_.id}_fn"
-    params = ", ".join(f"{cg.safe_exp(t)} {arg}" for t, arg in _apply_lambda_args(args))
-    # Declared before the storage that names it; the body follows it and every id it uses
-    # was awaited (declared) while its statements were rendered.
-    cg.add_global(cg.RawStatement(f"static {return_type} {fn_name}({params});"))
-    var = cg.new_Pvariable(
-        id_, cg.TemplateArguments(cg.RawExpression(fn_name), *[t for t, _ in args])
-    )
-    body = "\n".join(f"  {line}" for line in statements)
-    cg.add_global(
-        cg.RawStatement(f"static {return_type} {fn_name}({params}) {{\n{body}\n}}")
-    )
-    return var
+    """Emit the generated function and declare ``id_`` as the ``ApplyAction`` or
+    ``ApplyCondition`` templated on it, so ``play()`` calls it directly."""
+    fn = cg.static_function(f"{id_.id}_fn", return_type, lambda_args, statements)
+    return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
 
 
 async def _render_values(
@@ -471,7 +461,9 @@ def register_apply_action(
                 *statements,
                 "apply_call.perform();",
             ]
-        return _apply_function(action_id, "void", args, statements)
+        return _apply_function(
+            action_id, cg.void, template_arg, lambda_args, statements
+        )
 
     register_action(name, ApplyAction, schema, synchronous=True)(builder)
 
@@ -513,8 +505,9 @@ def register_apply_condition(
         )
         return _apply_function(
             condition_id,
-            "bool",
-            args,
+            cg.bool_,
+            template_arg,
+            lambda_args,
             [f"return {parent}->{call.target.format(*exprs)};"],
         )
 
