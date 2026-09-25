@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 import logging
 
 from esphome import automation
@@ -32,7 +33,7 @@ from esphome.core import CORE, ID, EsphomeError
 from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
-from esphome.types import ConfigType
+from esphome.types import ConfigFragmentType, ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ CONF_ZONE = "zone"
 # The esphome-timezone-worker endpoint
 DEFAULT_SERVICE_URL = "https://esphome-timezone.clyde-beb.workers.dev/v1/timezone"
 ZONE_IP = "ip"
+SET_TIMEZONE_ACTION = "time.sntp.set_timezone"
 # Must match SNTPComponent::MAX_ZONE_LENGTH
 MAX_ZONE_LENGTH = 47
 
@@ -109,7 +111,42 @@ def uses_timezone_service(config: ConfigType) -> bool:
     return isinstance(config.get(CONF_TIMEZONE), dict)
 
 
-def _sntp_final_validate(config: ConfigType) -> None:
+def require_timezone_service(config: ConfigType, user: str) -> ConfigType:
+    """Check an sntp time configuration gets its time zone from a service, for something that needs that."""
+    if not uses_timezone_service(config):
+        raise cv.Invalid(
+            f"{user} needs the '{CONF_TIMEZONE}' option to be set to a service, "
+            f"for example '{CONF_TIMEZONE}: {{{CONF_ZONE}: {ZONE_IP}}}'"
+        )
+    return config
+
+
+def _find_actions(items: ConfigFragmentType, name: str) -> Iterator[ConfigType]:
+    """Yield the configuration of every use of an action anywhere in the given configuration."""
+    if isinstance(items, list):
+        for item in items:
+            yield from _find_actions(item, name)
+    elif isinstance(items, dict):
+        for key, value in items.items():
+            if key == name:
+                yield value
+            else:
+                yield from _find_actions(value, name)
+
+
+def _check_set_timezone_actions() -> None:
+    full_conf = fv.full_config.get()
+    sntp_configs = {
+        conf[CONF_ID].id: conf
+        for conf in full_conf.get(CONF_TIME, [])
+        if conf.get(CONF_PLATFORM) == CONF_SNTP
+    }
+    for action in _find_actions(full_conf, SET_TIMEZONE_ACTION):
+        if (sntp_conf := sntp_configs.get(action[CONF_ID].id)) is not None:
+            require_timezone_service(sntp_conf, f"The {SET_TIMEZONE_ACTION} action")
+
+
+def _merge_sntp_configs() -> None:
     """Merge multiple SNTP instances into one, similar to OTA merging behavior."""
     full_conf = fv.full_config.get()
     time_confs = full_conf.get(CONF_TIME, [])
@@ -184,6 +221,12 @@ CONFIG_SCHEMA = cv.All(
     ),
 )
 
+
+def _sntp_final_validate(config: ConfigType) -> None:
+    _merge_sntp_configs()
+    _check_set_timezone_actions()
+
+
 FINAL_VALIDATE_SCHEMA = _sntp_final_validate
 
 
@@ -225,6 +268,10 @@ async def to_code(config: ConfigType) -> None:
             try:
                 initial_tz = time_.detect_tz() or ""
             except EsphomeError:
+                _LOGGER.warning(
+                    "Could not find the time zone of this computer, so UTC is used "
+                    "until the time zone service answers"
+                )
                 initial_tz = ""
         else:
             initial_tz = time_.validate_tz(zone)
@@ -263,7 +310,7 @@ def validate_set_timezone(value: object) -> object:
 
 
 @automation.register_action(
-    "time.sntp.set_timezone",
+    SET_TIMEZONE_ACTION,
     SetTimezoneAction,
     validate_set_timezone,
     synchronous=True,
@@ -274,20 +321,6 @@ async def sntp_set_timezone_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    sntp_conf = next(
-        (
-            conf
-            for conf in CORE.config.get(CONF_TIME, [])
-            if conf.get(CONF_PLATFORM) == CONF_SNTP
-            and conf[CONF_ID].id == config[CONF_ID].id
-        ),
-        None,
-    )
-    if sntp_conf is None or not uses_timezone_service(sntp_conf):
-        raise EsphomeError(
-            "time.sntp.set_timezone needs the sntp time 'timezone' option to be set "
-            f"to a service, for example 'timezone: {{zone: {ZONE_IP}}}'"
-        )
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     if (zone := config.get(CONF_ZONE)) is not None:

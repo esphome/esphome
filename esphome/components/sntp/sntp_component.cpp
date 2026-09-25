@@ -281,28 +281,18 @@ void SNTPComponent::fetch_timezone_() {
     container->end();
   } else {
     uint8_t buf[TIMEZONE_RESPONSE_MAX];
-    size_t len = 0;
-    uint32_t last_data_time = millis();
-    const uint32_t read_timeout = this->http_request_->get_timeout();
-    bool complete = false;
-    while (len < sizeof(buf)) {
-      int read_or_error = container->read(buf + len, sizeof(buf) - len);
-      App.feed_wdt();
-      yield();
-      auto result = http_request::http_read_loop_result(read_or_error, last_data_time, read_timeout,
-                                                        container->is_read_complete());
-      if (result == http_request::HttpReadLoopResult::RETRY)
-        continue;
-      if (result != http_request::HttpReadLoopResult::DATA) {
-        complete = result == http_request::HttpReadLoopResult::COMPLETE;
-        break;
-      }
-      len += read_or_error;
-    }
-    complete = complete || container->is_read_complete();
+    auto result = http_request::http_read_fully(container.get(), buf, sizeof(buf), sizeof(buf),
+                                                this->http_request_->get_timeout());
+    // Filling the buffer without reaching the end of the response means it is too large
+    const size_t len = container->get_bytes_read();
+    const bool complete = container->is_read_complete();
     container->end();
-    if (!complete) {
-      ESP_LOGW(TAG, "Timezone response incomplete or too large");
+    if (result.status == http_request::HttpReadStatus::ERROR) {
+      ESP_LOGW(TAG, "Reading the timezone response failed with error %d", result.error_code);
+    } else if (result.status == http_request::HttpReadStatus::TIMEOUT) {
+      ESP_LOGW(TAG, "Timed out reading the timezone response");
+    } else if (!complete) {
+      ESP_LOGW(TAG, "Timezone response is too large");
     } else {
       ok = this->apply_timezone_response_(buf, len);
     }

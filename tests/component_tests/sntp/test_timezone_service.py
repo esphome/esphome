@@ -1,6 +1,7 @@
 """Tests for fetching the SNTP timezone from a service at runtime."""
 
 from collections.abc import Callable
+import logging
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ from esphome.components.sntp.time import (
     ZONE_IP,
     validate_zone,
 )
+from esphome.config import read_config
 from esphome.core import CORE, EsphomeError
 
 CONFIG_DIR = Path(__file__).parent / "config"
@@ -63,11 +65,25 @@ def test_timezone_service_codegen(
     assert "set_timezone_abbreviation_text_sensor(" in main_cpp
 
 
-def test_timezone_abbreviation_without_service_raises(
-    generate_main: Callable[[str | Path], str],
+@pytest.mark.parametrize(
+    ("yaml_file", "user"),
+    [
+        ("timezone_abbreviation_without_service.yaml", "The sntp text sensor"),
+        ("timezone_action_without_service.yaml", "The time.sntp.set_timezone action"),
+        ("timezone_action_fixed_zone.yaml", "The time.sntp.set_timezone action"),
+    ],
+)
+def test_needs_timezone_service_is_rejected_by_validation(
+    yaml_file: str, user: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    with pytest.raises(EsphomeError, match="timezone.*option to be set to a service"):
-        generate_main(CONFIG_DIR / "timezone_abbreviation_without_service.yaml")
+    CORE.config_path = CONFIG_DIR / yaml_file
+
+    assert read_config({}) is None
+
+    captured = capsys.readouterr()
+    assert f"{user} needs the 'timezone' option to be set to a service" in (
+        captured.out + captured.err
+    )
 
 
 def test_timezone_service_ip(
@@ -124,3 +140,20 @@ def test_timezone_service_schema_rejects(config: dict) -> None:
 def test_set_timezone_schema_rejects(config: dict) -> None:
     with pytest.raises(cv.Invalid):
         SET_TIMEZONE_SCHEMA({"id": "sntp_time", **config})
+
+
+def test_timezone_service_ip_warns_when_build_zone_is_unknown(
+    generate_main: Callable[[str | Path], str],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def detect_tz() -> str:
+        raise EsphomeError("Could not automatically determine timezone")
+
+    monkeypatch.setattr("esphome.components.time.detect_tz", detect_tz)
+    with caplog.at_level(logging.WARNING):
+        main_cpp = generate_main(CONFIG_DIR / "timezone_service_ip.yaml")
+
+    assert "Could not find the time zone of this computer" in caplog.text
+    assert "USE_SNTP_TIMEZONE_SERVICE" in {d.name for d in CORE.defines}
+    assert "set_timezone_service(" in main_cpp
