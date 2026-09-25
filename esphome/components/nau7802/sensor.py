@@ -18,19 +18,6 @@ nau7802_ns = cg.esphome_ns.namespace("nau7802")
 NAU7802Sensor = nau7802_ns.class_(
     "NAU7802Sensor", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
 )
-NAU7802CalbrateExternalOffsetAction = nau7802_ns.class_(
-    "NAU7802CalbrateExternalOffsetAction",
-    automation.Action,
-    cg.Parented.template(NAU7802Sensor),
-)
-NAU7802CalbrateInternalOffsetAction = nau7802_ns.class_(
-    "NAU7802CalbrateInternalOffsetAction",
-    automation.Action,
-    cg.Parented.template(NAU7802Sensor),
-)
-NAU7802CalbrateGainAction = nau7802_ns.class_(
-    "NAU7802CalbrateGainAction", automation.Action, cg.Parented.template(NAU7802Sensor)
-)
 
 NAU7802Gain = nau7802_ns.enum("NAU7802Gain")
 GAINS = {
@@ -114,25 +101,11 @@ NAU7802_CALIBRATE_SCHEMA = maybe_simple_id(
 )
 
 
-automation.register_parented_action(
-    "nau7802.calibrate_internal_offset",
-    NAU7802CalbrateInternalOffsetAction,
-    NAU7802_CALIBRATE_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_parented_action(
-    "nau7802.calibrate_external_offset",
-    NAU7802CalbrateExternalOffsetAction,
-    NAU7802_CALIBRATE_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_parented_action(
-    "nau7802.calibrate_gain",
-    NAU7802CalbrateGainAction,
-    NAU7802_CALIBRATE_SCHEMA,
-    synchronous=True,
-)
+for _name, _call in (
+    ("nau7802.calibrate_internal_offset", "calibrate_internal_offset()"),
+    ("nau7802.calibrate_external_offset", "calibrate_external_offset()"),
+    ("nau7802.calibrate_gain", "calibrate_gain()"),
+):
+    automation.register_apply_action(
+        _name, NAU7802_CALIBRATE_SCHEMA, automation.ApplyCall(_call)
+    )
