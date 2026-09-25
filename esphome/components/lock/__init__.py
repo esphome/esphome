@@ -12,13 +12,13 @@ from esphome.const import (
     CONF_ON_UNLOCK,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass, TemplateArgsType
+from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@esphome/core"]
@@ -29,9 +29,6 @@ Lock = lock_ns.class_("Lock", cg.EntityBase)
 LockPtr = Lock.operator("ptr")
 LockCall = lock_ns.class_("LockCall")
 
-UnlockAction = lock_ns.class_("UnlockAction", automation.Action)
-LockAction = lock_ns.class_("LockAction", automation.Action)
-OpenAction = lock_ns.class_("OpenAction", automation.Action)
 LockPublishAction = lock_ns.class_("LockPublishAction", automation.Action)
 
 LockStateForwarder = lock_ns.class_("LockStateForwarder")
@@ -134,23 +131,14 @@ LOCK_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "lock.unlock", UnlockAction, LOCK_ACTION_SCHEMA, synchronous=True
-)
-@automation.register_action(
-    "lock.lock", LockAction, LOCK_ACTION_SCHEMA, synchronous=True
-)
-@automation.register_action(
-    "lock.open", OpenAction, LOCK_ACTION_SCHEMA, synchronous=True
-)
-async def lock_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+for _name, _call in (
+    ("lock.unlock", "unlock()"),
+    ("lock.lock", "lock()"),
+    ("lock.open", "open()"),
+):
+    automation.register_apply_action(
+        _name, LOCK_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 
 automation.register_apply_condition(
