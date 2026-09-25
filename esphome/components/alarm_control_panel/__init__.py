@@ -42,10 +42,6 @@ StateEnterForwarder = alarm_control_panel_ns.class_("StateEnterForwarder")
 AlarmControlPanelState = alarm_control_panel_ns.enum("AlarmControlPanelState")
 
 
-AlarmControlPanelCondition = alarm_control_panel_ns.class_(
-    "AlarmControlPanelCondition", automation.Condition
-)
-
 _ALARM_CONTROL_PANEL_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
@@ -216,18 +212,10 @@ for _name, _call in (
     )
 
 
-automation.register_simple_condition(
-    "alarm_control_panel.ready",
-    AlarmControlPanelCondition,
-    ALARM_CONTROL_PANEL_CONDITION_SCHEMA,
-)
-
-
-automation.register_simple_condition(
-    "alarm_control_panel.is_armed",
-    AlarmControlPanelCondition,
-    ALARM_CONTROL_PANEL_CONDITION_SCHEMA,
-)
+for _name in ("alarm_control_panel.ready", "alarm_control_panel.is_armed"):
+    automation.register_apply_condition(
+        _name, ALARM_CONTROL_PANEL_CONDITION_SCHEMA, "is_armed_pending_or_triggered()"
+    )
 
 
 @coroutine_with_priority(CoroPriority.CORE)
