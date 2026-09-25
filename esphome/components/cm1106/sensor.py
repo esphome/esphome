@@ -22,10 +22,6 @@ cm1106_ns = cg.esphome_ns.namespace("cm1106")
 CM1106Component = cm1106_ns.class_(
     "CM1106Component", cg.PollingComponent, uart.UARTDevice
 )
-CM1106CalibrateZeroAction = cm1106_ns.class_(
-    "CM1106CalibrateZeroAction",
-    automation.Action,
-)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -70,9 +66,8 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-automation.register_simple_action(
+automation.register_apply_action(
     "cm1106.calibrate_zero",
-    CM1106CalibrateZeroAction,
     CALIBRATION_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("calibrate_zero(400)"),
 )
