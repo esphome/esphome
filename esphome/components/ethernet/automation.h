@@ -16,15 +16,5 @@ template<typename... Ts> class EthernetEnabledCondition final : public Condition
   bool check(const Ts &...x) override { return global_eth_component->is_enabled(); }
 };
 
-template<typename... Ts> class EthernetEnableAction final : public Action<Ts...> {
- public:
-  void play(const Ts &...x) override { global_eth_component->enable(); }
-};
-
-template<typename... Ts> class EthernetDisableAction final : public Action<Ts...> {
- public:
-  void play(const Ts &...x) override { global_eth_component->disable(); }
-};
-
 }  // namespace esphome::ethernet
 #endif

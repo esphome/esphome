@@ -241,8 +241,6 @@ EthernetComponent = ethernet_ns.class_("EthernetComponent", cg.Component)
 ManualIP = ethernet_ns.struct("ManualIP")
 EthernetConnectedCondition = ethernet_ns.class_("EthernetConnectedCondition", Condition)
 EthernetEnabledCondition = ethernet_ns.class_("EthernetEnabledCondition", Condition)
-EthernetEnableAction = ethernet_ns.class_("EthernetEnableAction", automation.Action)
-EthernetDisableAction = ethernet_ns.class_("EthernetDisableAction", automation.Action)
 
 
 def _is_framework_spi_polling_mode_supported() -> bool:
@@ -938,10 +936,13 @@ for _name, _cls in (
     ("ethernet.enabled", EthernetEnabledCondition),
 ):
     automation.register_condition(_name, _cls, cv.Schema({}))(_new_pvariable_to_code)
-for _name, _cls in (
-    ("ethernet.enable", EthernetEnableAction),
-    ("ethernet.disable", EthernetDisableAction),
+
+ETHERNET_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(EthernetComponent)})
+
+for _name, _method in (
+    ("ethernet.enable", "enable()"),
+    ("ethernet.disable", "disable()"),
 ):
-    automation.register_action(_name, _cls, cv.Schema({}), synchronous=True)(
-        _new_pvariable_to_code
+    automation.register_apply_action(
+        _name, ETHERNET_ACTION_SCHEMA, automation.ApplyCall(_method)
     )
