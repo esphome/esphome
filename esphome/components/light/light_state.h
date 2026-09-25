@@ -100,6 +100,21 @@ class LightState : public EntityBase, public Component {
   LightCall turn_on();
   LightCall turn_off();
   LightCall toggle();
+
+  /// The values reported to the frontend: current_values while a light publishes intermediate
+  /// states on an interval, otherwise remote_values. Each interval sample is a publish_state(),
+  /// so on_state automations run on every sample as well.
+  const LightColorValues &get_reported_values() const {
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+    if (this->transition_publish_enabled_) {
+      return this->current_values;
+    }
+#endif
+    return this->remote_values;
+  }
+
+  /// True from the call that starts a transition or flash until it reaches its target.
+  bool is_transitioning() const { return this->transformer_ != nullptr; }
   LightCall make_call();
 
   // ========== INTERNAL METHODS ==========
@@ -171,6 +186,13 @@ class LightState : public EntityBase, public Component {
   /// Set the gamma correction factor
   void set_gamma_correct(float gamma_correct) { this->gamma_correct_ = gamma_correct; }
   float get_gamma_correct() const { return this->gamma_correct_; }
+
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  void set_transition_state_publish_interval(uint32_t transition_state_publish_interval) {
+    this->transition_state_publish_interval_ = transition_state_publish_interval;
+  }
+  uint32_t get_transition_state_publish_interval() const { return this->transition_state_publish_interval_; }
+#endif
 
 #ifdef USE_LIGHT_GAMMA_LUT
   /// Set pre-computed gamma forward lookup table (256-entry uint16 PROGMEM array)
@@ -291,6 +313,7 @@ class LightState : public EntityBase, public Component {
   friend LightOutput;
   friend LightCall;
   friend class AddressableLight;
+  friend class LightFlashTransformer;
 
   /// Internal method to start an effect with the given index
   void start_effect_(uint32_t effect_index);
@@ -306,6 +329,18 @@ class LightState : public EntityBase, public Component {
 
   /// Internal method to set the color values to target immediately (with no transition).
   void set_immediately_(const LightColorValues &target, bool set_remote_values);
+
+  /// Point remote_values at the new transformer's target and, when this light publishes
+  /// intermediate states on an interval, start the interval clock.
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  void set_transformer_remote_values_(const LightColorValues &target, bool set_remote_values);
+#else
+  void set_transformer_remote_values_(const LightColorValues &target, bool set_remote_values) {
+    if (set_remote_values) {
+      this->remote_values = target;
+    }
+  }
+#endif
 
   /// Internal method to save the current remote_values to the preferences
   void save_remote_values_();
@@ -356,7 +391,11 @@ class LightState : public EntityBase, public Component {
   /// Default transition length for all transitions in ms.
   uint32_t default_transition_length_{};
   /// Transition length to use for flash transitions.
-  uint32_t flash_transition_length_{};
+  uint32_t flash_transition_length_{};  // Keep in sync with DEFAULT_FLASH_TRANSITION_LENGTH in __init__.py
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  uint32_t transition_state_publish_interval_{0};
+  uint32_t last_transition_state_publish_{0};
+#endif
   /// Gamma correction factor for the light.
   float gamma_correct_{};
 #ifdef USE_LIGHT_GAMMA_LUT
@@ -367,6 +406,10 @@ class LightState : public EntityBase, public Component {
   bool next_write_{true};
   // for effects, true if a transformer (transition) is active.
   bool is_transformer_active_{false};
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  /// True while the active transformer publishes current_values on an interval from loop().
+  bool transition_publish_enabled_{false};
+#endif
   /// Restore mode of the light.
   LightRestoreMode restore_mode_;
 };

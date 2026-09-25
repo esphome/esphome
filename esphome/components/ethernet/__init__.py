@@ -53,12 +53,10 @@ from esphome.const import (
 )
 from esphome.core import (
     CORE,
-    ID,
     CoroPriority,
     TimePeriodMilliseconds,
     coroutine_with_priority,
 )
-from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -420,7 +418,9 @@ def _validate(config: ConfigType) -> ConfigType:
 BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(EthernetComponent),
-        cv.Optional(CONF_MANUAL_IP): MANUAL_IP_SCHEMA,
+        cv.Optional(
+            CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED
+        ): MANUAL_IP_SCHEMA,
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
@@ -922,24 +922,15 @@ def _filter_source_files() -> list[str]:
 FILTER_SOURCE_FILES = _filter_source_files
 
 
-async def _new_pvariable_to_code(
-    config: ConfigType,
-    id_: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return cg.new_Pvariable(id_, template_arg)
-
-
-for _name, _cls in (
-    ("ethernet.connected", EthernetConnectedCondition),
-    ("ethernet.enabled", EthernetEnabledCondition),
-):
-    automation.register_condition(_name, _cls, cv.Schema({}))(_new_pvariable_to_code)
-for _name, _cls in (
-    ("ethernet.enable", EthernetEnableAction),
-    ("ethernet.disable", EthernetDisableAction),
-):
-    automation.register_action(_name, _cls, cv.Schema({}), synchronous=True)(
-        _new_pvariable_to_code
-    )
+automation.register_bare_condition(
+    "ethernet.connected", EthernetConnectedCondition, cv.Schema({})
+)
+automation.register_bare_condition(
+    "ethernet.enabled", EthernetEnabledCondition, cv.Schema({})
+)
+automation.register_bare_action(
+    "ethernet.enable", EthernetEnableAction, cv.Schema({}), synchronous=True
+)
+automation.register_bare_action(
+    "ethernet.disable", EthernetDisableAction, cv.Schema({}), synchronous=True
+)

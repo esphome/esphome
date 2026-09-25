@@ -5,15 +5,12 @@
 #include "esphome/components/noise/noise.h"
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "proto.h"
 #include <cstring>
 #include <cinttypes>
-
-#ifdef USE_ESP8266
-#include <pgmspace.h>
-#endif
 
 namespace esphome::api {
 
@@ -26,11 +23,7 @@ static_assert(MAX_HANDSHAKE_SIZE == noise::MAX_HANDSHAKE_SIZE,
               "api and noise component handshake size limits must match");
 
 static const char *const TAG = "api.noise";
-#ifdef USE_ESP8266
 static constexpr char PROLOGUE_INIT[] PROGMEM = "NoiseAPIInit";
-#else
-static const char *const PROLOGUE_INIT = "NoiseAPIInit";
-#endif
 static constexpr size_t PROLOGUE_INIT_LEN = 12;  // strlen("NoiseAPIInit")
 
 // Maximum bytes to log in hex format (168 * 3 = 504, under TX buffer size of 512)
@@ -67,16 +60,12 @@ APIError APINoiseFrameHelper::init() {
   }
 
   // init prologue
-  size_t old_size = prologue_.size();
-  if (!prologue_.resize(old_size + PROLOGUE_INIT_LEN)) [[unlikely]] {
+  uint8_t *dst = prologue_.append(PROLOGUE_INIT_LEN);
+  if (dst == nullptr) [[unlikely]] {
     state_ = State::FAILED;
     return APIError::OUT_OF_MEMORY;
   }
-#ifdef USE_ESP8266
-  memcpy_P(prologue_.data() + old_size, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
-#else
-  std::memcpy(prologue_.data() + old_size, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
-#endif
+  progmem_memcpy(dst, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
 
   state_ = State::CLIENT_HELLO;
   return APIError::OK;
@@ -272,17 +261,17 @@ APIError APINoiseFrameHelper::state_action_client_hello_() {
     return handle_handshake_frame_error_(aerr);
   }
   // ignore contents, may be used in future for flags
-  // Resize for: existing prologue + 2 size bytes + frame data
-  size_t old_size = this->prologue_.size();
+  // Append 2 size bytes + frame data to the prologue
   size_t rx_size = this->rx_buf_.size();
-  if (!this->prologue_.resize(old_size + 2 + rx_size)) [[unlikely]] {
+  uint8_t *dst = this->prologue_.append(2 + rx_size);
+  if (dst == nullptr) [[unlikely]] {
     state_ = State::FAILED;
     return APIError::OUT_OF_MEMORY;
   }
-  this->prologue_[old_size] = (uint8_t) (rx_size >> 8);
-  this->prologue_[old_size + 1] = (uint8_t) rx_size;
+  dst[0] = (uint8_t) (rx_size >> 8);
+  dst[1] = (uint8_t) rx_size;
   if (rx_size > 0) {
-    std::memcpy(this->prologue_.data() + old_size + 2, this->rx_buf_.data(), rx_size);
+    std::memcpy(dst + 2, this->rx_buf_.data(), rx_size);
   }
 
   state_ = State::SERVER_HELLO;
@@ -548,7 +537,7 @@ APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
  * @return 0 on success, -1 on error (check errno)
  */
 APIError APINoiseFrameHelper::init_handshake_() {
-  int err = this->handshake_.init(this->ctx_.get_psk(), prologue_.data(), prologue_.size());
+  int err = this->handshake_.init(this->ctx_, prologue_.data(), prologue_.size());
   APIError aerr = handle_noise_error_(err, LOG_STR("noise_handshake_init"), APIError::HANDSHAKESTATE_SETUP_FAILED);
   if (aerr != APIError::OK)
     return aerr;

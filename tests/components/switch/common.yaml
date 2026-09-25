@@ -29,3 +29,13 @@ esphome:
     - switch.control:
         id: the_switch
         state: !lambda return (1 > 2);
+    - if:
+        condition:
+          switch.is_on: the_switch
+        then:
+          - logger.log: "Switch is on"
+    - if:
+        condition:
+          switch.is_off: the_switch
+        then:
+          - logger.log: "Switch is off"

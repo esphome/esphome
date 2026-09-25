@@ -9,6 +9,7 @@
 #include "driver/gpio.h"
 #include "esp_private/gpio.h"
 #include "soc/gpio_num.h"
+#include "soc/soc_caps.h"
 #include "soc/uart_pins.h"
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
@@ -35,6 +36,32 @@ static const char *const TAG = "uart";
 /// causing TX data to loop back into RX on the same pin.
 static constexpr bool is_default_uart0_pin(int8_t pin_num) {
   return pin_num == U0TXD_GPIO_NUM || pin_num == U0RXD_GPIO_NUM;
+}
+
+// clock_source_ is stored in a byte; every uart_sclk_t value is a soc_module_clk_t below SOC_MOD_CLK_INVALID
+static_assert(SOC_MOD_CLK_INVALID <= UINT8_MAX, "uart_sclk_t no longer fits in uint8_t clock_source_");
+
+static const LogString *clock_source_to_str(uart_sclk_t clock_source) {
+  switch (clock_source) {
+#if SOC_UART_SUPPORT_APB_CLK
+    case UART_SCLK_APB:
+      return LOG_STR("APB");
+#endif
+#if SOC_UART_SUPPORT_XTAL_CLK
+    case UART_SCLK_XTAL:
+      return LOG_STR("XTAL");
+#endif
+#if SOC_UART_SUPPORT_RTC_CLK
+    case UART_SCLK_RTC:
+      return LOG_STR("RTC");
+#endif
+#if SOC_UART_SUPPORT_REF_TICK
+    case UART_SCLK_REF_TICK:
+      return LOG_STR("REF_TICK");
+#endif
+    default:
+      return clock_source == UART_SCLK_DEFAULT ? LOG_STR("DEFAULT") : LOG_STR("UNKNOWN");
+  }
 }
 
 uart_config_t IDFUARTComponent::get_config_() {
@@ -70,7 +97,7 @@ uart_config_t IDFUARTComponent::get_config_() {
   uart_config.parity = parity;
   uart_config.stop_bits = this->stop_bits_ == 1 ? UART_STOP_BITS_1 : UART_STOP_BITS_2;
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-  uart_config.source_clk = UART_SCLK_DEFAULT;
+  uart_config.source_clk = static_cast<uart_sclk_t>(this->clock_source_);
   uart_config.rx_flow_ctrl_thresh = 122;
 
   return uart_config;
@@ -160,6 +187,7 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
+  this->last_good_framing_ = this->framing_();
 
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
   int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
@@ -189,18 +217,9 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     setup_pin_if_needed(this->tx_pin_);
   }
 
-  uint32_t invert = 0;
-  if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted()) {
-    invert |= UART_SIGNAL_TXD_INV;
-  }
-  if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted()) {
-    invert |= UART_SIGNAL_RXD_INV;
-  }
-  if (this->flow_control_pin_ != nullptr && this->flow_control_pin_->is_inverted()) {
-    invert |= UART_SIGNAL_RTS_INV;
-  }
-
-  err = uart_set_line_inverse(this->uart_num_, invert);
+  // Must precede uart_set_pin() so an inverted TX line never shows the wrong idle
+  // level; apply_line_settings_() repeats it later for the reset registers.
+  err = uart_set_line_inverse(this->uart_num_, this->line_inversion_mask_());
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_line_inverse failed: %s", esp_err_to_name(err));
     this->mark_failed();
@@ -214,25 +233,7 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 
-  err = uart_set_rx_full_threshold(this->uart_num_, this->rx_full_threshold_);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_set_rx_full_threshold failed: %s", esp_err_to_name(err));
-    this->mark_failed();
-    return;
-  }
-
-  err = uart_set_rx_timeout(this->uart_num_, this->rx_timeout_);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_set_rx_timeout failed: %s", esp_err_to_name(err));
-    this->mark_failed();
-    return;
-  }
-
-  // Per ESP-IDF docs, uart_set_mode() must be called only after uart_driver_install().
-  auto mode = this->flow_control_pin_ != nullptr ? UART_MODE_RS485_HALF_DUPLEX : UART_MODE_UART;
-  err = uart_set_mode(this->uart_num_, mode);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_set_mode failed: %s", esp_err_to_name(err));
+  if (this->apply_line_settings_() != ESP_OK) {
     this->mark_failed();
     return;
   }
@@ -248,6 +249,99 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     ESP_LOGCONFIG(TAG, "Reloaded UART %u", this->uart_num_);
     this->dump_config();
   }
+}
+
+uint32_t IDFUARTComponent::line_inversion_mask_() {
+  uint32_t invert = 0;
+  if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted()) {
+    invert |= UART_SIGNAL_TXD_INV;
+  }
+  if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted()) {
+    invert |= UART_SIGNAL_RXD_INV;
+  }
+  if (this->flow_control_pin_ != nullptr && this->flow_control_pin_->is_inverted()) {
+    invert |= UART_SIGNAL_RTS_INV;
+  }
+  return invert;
+}
+
+esp_err_t IDFUARTComponent::apply_line_settings_() {
+  // uart_param_config() resets these; call after every use of it.
+  esp_err_t err = uart_set_line_inverse(this->uart_num_, this->line_inversion_mask_());
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_line_inverse failed: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  err = uart_set_rx_full_threshold(this->uart_num_, this->rx_full_threshold_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_rx_full_threshold failed: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  err = uart_set_rx_timeout(this->uart_num_, this->rx_timeout_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_rx_timeout failed: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // Per ESP-IDF docs, uart_set_mode() must be called only after uart_driver_install().
+  auto mode = this->flow_control_pin_ != nullptr ? UART_MODE_RS485_HALF_DUPLEX : UART_MODE_UART;
+  err = uart_set_mode(this->uart_num_, mode);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_mode failed: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  return ESP_OK;
+}
+
+void IDFUARTComponent::set_framing_(const Framing &framing) {
+  this->baud_rate_ = framing.baud_rate;
+  this->data_bits_ = framing.data_bits;
+  this->stop_bits_ = framing.stop_bits;
+  this->parity_ = framing.parity;
+  this->rx_full_threshold_ = framing.rx_full_threshold;
+}
+
+esp_err_t IDFUARTComponent::apply_settings_live() {
+  if (this->is_failed()) {
+    return ESP_ERR_INVALID_STATE;
+  }
+  // No driver yet: nothing to reconfigure in place.
+  if (!uart_is_driver_installed(this->uart_num_)) {
+    this->load_settings(false);
+    return this->is_failed() ? ESP_FAIL : ESP_OK;
+  }
+  // Keeps the driver ring buffers; flushes both hardware FIFOs (in-flight bytes lost).
+  uart_config_t uart_config = this->get_config_();
+  esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
+  if (err != ESP_OK) {
+    // Failure leaves the registers reset; put back the last accepted framing so the
+    // getters still describe the hardware.
+    if (this->last_good_framing_.baud_rate == 0) {
+      ESP_LOGE(TAG, "uart_param_config (live) failed: %s; no previous framing to restore", esp_err_to_name(err));
+      this->mark_failed();
+      return err;
+    }
+    ESP_LOGW(TAG, "uart_param_config (live) failed: %s; restoring %" PRIu32 " baud", esp_err_to_name(err),
+             this->last_good_framing_.baud_rate);
+    this->set_framing_(this->last_good_framing_);
+    uart_config = this->get_config_();
+    esp_err_t restore_err = uart_param_config(this->uart_num_, &uart_config);
+    if (restore_err != ESP_OK) {
+      ESP_LOGE(TAG, "UART left unconfigured after failed live reconfigure: %s", esp_err_to_name(restore_err));
+      this->mark_failed();
+      return err;
+    }
+    // Previous framing is live again; report the refusal (line-setting errors log).
+    this->apply_line_settings_();
+    return err;
+  }
+  this->last_good_framing_ = this->framing_();
+  // The new framing is live; a line-setting failure here only logs.
+  this->apply_line_settings_();
+  return ESP_OK;
 }
 
 void IDFUARTComponent::dump_config() {
@@ -269,12 +363,14 @@ void IDFUARTComponent::dump_config() {
                 "  Baud Rate: %" PRIu32 " baud\n"
                 "  Data Bits: %u\n"
                 "  Parity: %s\n"
-                "  Stop bits: %u"
+                "  Stop bits: %u\n"
+                "  Clock Source: %s"
 #ifdef USE_UART_WAKE_LOOP_ON_RX
                 "\n  Wake on data RX: ENABLED"
 #endif
                 ,
-                this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_);
+                this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_,
+                LOG_STR_ARG(clock_source_to_str(static_cast<uart_sclk_t>(this->clock_source_))));
   this->check_logger_conflict();
 }
 

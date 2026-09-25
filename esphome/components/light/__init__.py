@@ -340,6 +340,11 @@ RESTORE_MODES = {
     "RESTORE_AND_ON": LightRestoreMode.LIGHT_RESTORE_AND_ON,
 }
 
+# Schema default that also matches the C++ initializer in light_state.h; codegen
+# skips the setter when the config equals it.
+DEFAULT_FLASH_TRANSITION_LENGTH = "0s"
+CONF_TRANSITION_STATE_PUBLISH_INTERVAL = "transition_state_publish_interval"
+
 LIGHT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
@@ -387,8 +392,13 @@ BRIGHTNESS_ONLY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
             CONF_DEFAULT_TRANSITION_LENGTH, default="1s"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(
-            CONF_FLASH_TRANSITION_LENGTH, default="0s"
+            CONF_FLASH_TRANSITION_LENGTH, default=DEFAULT_FLASH_TRANSITION_LENGTH
         ): cv.positive_time_period_milliseconds,
+        # Below 150ms a device cannot publish any faster and only spends CPU and traffic
+        cv.Optional(CONF_TRANSITION_STATE_PUBLISH_INTERVAL): cv.All(
+            cv.positive_time_period_milliseconds,
+            cv.Range(min=cv.TimePeriod(milliseconds=150)),
+        ),
         cv.Optional(CONF_EFFECTS): validate_effects(MONOCHROMATIC_EFFECTS),
     }
 )
@@ -402,6 +412,11 @@ RGB_LIGHT_SCHEMA = BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
 ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(AddressableLightState),
+        # The addressable transformer writes the LED buffer directly, so there is no
+        # intermediate state to publish
+        cv.Optional(CONF_TRANSITION_STATE_PUBLISH_INTERVAL): cv.invalid(
+            "transition_state_publish_interval is not supported on addressable lights"
+        ),
         cv.Optional(CONF_EFFECTS): validate_effects(ADDRESSABLE_EFFECTS),
         cv.Optional(CONF_COLOR_CORRECT): cv.All(
             [cv.percentage], cv.Length(min=3, max=4)
@@ -502,10 +517,17 @@ async def setup_light_core_(light_var, config, output_var):
         default_transition_length := config.get(CONF_DEFAULT_TRANSITION_LENGTH)
     ) is not None:
         cg.add(light_var.set_default_transition_length(default_transition_length))
+    # Skip the setter when the config matches the C++ initializer.
     if (
         flash_transition_length := config.get(CONF_FLASH_TRANSITION_LENGTH)
-    ) is not None:
+    ) is not None and flash_transition_length != cv.time_period(
+        DEFAULT_FLASH_TRANSITION_LENGTH
+    ):
         cg.add(light_var.set_flash_transition_length(flash_transition_length))
+    # Setting an interval opts this light in and compiles the feature in
+    if (interval := config.get(CONF_TRANSITION_STATE_PUBLISH_INTERVAL)) is not None:
+        cg.add(light_var.set_transition_state_publish_interval(interval))
+        cg.add_define("USE_LIGHT_TRANSITION_PUBLISH_INTERVAL")
     if (gamma_correct := config.get(CONF_GAMMA_CORRECT)) is not None:
         cg.add(light_var.set_gamma_correct(gamma_correct))
         fwd_arr = _get_or_create_gamma_table(gamma_correct)
@@ -514,7 +536,8 @@ async def setup_light_core_(light_var, config, output_var):
     effects = await cg.build_registry_list(
         EFFECTS_REGISTRY, config.get(CONF_EFFECTS, [])
     )
-    cg.add(light_var.add_effects(effects))
+    if effects:
+        cg.add(light_var.add_effects(effects))
 
     for conf in config.get(CONF_ON_TURN_ON, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)

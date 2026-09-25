@@ -5,16 +5,20 @@
 #include <cassert>
 #include <cmath>
 #include <cstdarg>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <new>
 #include <span>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 #include <concepts>
 #include <strings.h>
@@ -38,6 +42,7 @@
 #endif
 
 #ifdef USE_ESP32
+#include <esp_system.h>
 #include <esp_heap_caps.h>
 #endif
 
@@ -237,8 +242,9 @@ template<typename T, size_t N> class StaticVector {
   size_t count_{0};
 
  public:
-  // Default constructor
-  StaticVector() = default;
+  // User provided, not "= default": otherwise `StaticVector<...> x_{}` members
+  // value-initialize and memset data_, defeating the comment above.
+  constexpr StaticVector() noexcept {}
 
   // Iterator range constructor
   template<typename InputIt> StaticVector(InputIt first, InputIt last) {
@@ -539,7 +545,15 @@ template<typename T, size_t N> inline void init_array_from(std::array<T, N> &des
   }
 }
 
-/// Fixed-capacity vector - allocates once at runtime, never reallocates
+// Abort with a reason that reaches the panic output on ESP32. Elsewhere the literal is dropped
+// before it can land in rodata, which is RAM on ESP8266
+#ifdef USE_ESP32
+#define ESPHOME_ABORT_WITH_REASON(reason) esp_system_abort(reason)
+#else
+#define ESPHOME_ABORT_WITH_REASON(reason) abort()
+#endif
+
+/// Fixed-capacity vector - sized once through init() or try_init(); push_back never reallocates
 /// This avoids std::vector template overhead (_M_realloc_insert, _M_default_append)
 /// when size is known at initialization but not at compile time
 template<typename T> class FixedVector {
@@ -562,8 +576,7 @@ template<typename T> class FixedVector {
   void cleanup_() {
     if (data_ != nullptr) {
       destroy_elements_();
-      // Free raw memory
-      ::operator delete(data_);
+      free(data_);  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
     }
   }
 
@@ -632,16 +645,27 @@ template<typename T> class FixedVector {
   // Allocate capacity - can be called multiple times to reinit
   // IMPORTANT: After calling init(), you MUST use push_back() to add elements.
   // Direct assignment via operator[] does NOT update the size counter.
+  // Aborts on exhaustion; use try_init() to handle failure.
   void init(size_t n) {
+    if (!try_init(n))
+      ESPHOME_ABORT_WITH_REASON("FixedVector: out of memory");
+  }
+
+  // Same as init(), but returns false when memory is exhausted; the previous storage is freed either way
+  bool try_init(size_t n) {
     cleanup_();
     reset_();
-    if (n > 0) {
-      // Allocate raw memory without calling constructors
-      // sizeof(T) is correct here for any type T (value types, pointers, etc.)
-      // NOLINTNEXTLINE(bugprone-sizeof-expression)
-      data_ = static_cast<T *>(::operator new(n * sizeof(T)));
-      capacity_ = n;
-    }
+    if (n == 0)
+      return true;
+    if (n > SIZE_MAX / sizeof(T))
+      return false;  // the byte count would wrap into a small block
+    // sizeof(T) is correct here for any type T (value types, pointers, etc.)
+    // NOLINTNEXTLINE(bugprone-sizeof-expression,cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+    data_ = static_cast<T *>(malloc(n * sizeof(T)));
+    if (data_ == nullptr)
+      return false;
+    capacity_ = n;
+    return true;
   }
 
   // Clear the vector (destroy all elements, reset size to 0, keep capacity)
@@ -738,14 +762,22 @@ template<typename T> class FixedVector {
 template<size_t STACK_SIZE, typename T = uint8_t> class SmallBufferWithHeapFallback {
  public:
   explicit SmallBufferWithHeapFallback(size_t size) {
+    static_assert(std::is_trivially_default_constructible_v<T> && std::is_trivially_destructible_v<T>,
+                  "the heap fallback leaves elements unconstructed");
     if (size <= STACK_SIZE) {
       this->buffer_ = this->stack_buffer_;
     } else {
-      this->heap_buffer_ = new T[size];
+      if (size <= SIZE_MAX / sizeof(T)) {
+        // NOLINTNEXTLINE(bugprone-sizeof-expression,cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+        this->heap_buffer_ = static_cast<T *>(malloc(size * sizeof(T)));
+      }
+      // Callers write through get() unchecked, so exhaustion aborts like the new[] it replaces
+      if (this->heap_buffer_ == nullptr)
+        ESPHOME_ABORT_WITH_REASON("SmallBufferWithHeapFallback: out of memory");
       this->buffer_ = this->heap_buffer_;
     }
   }
-  ~SmallBufferWithHeapFallback() { delete[] this->heap_buffer_; }
+  ~SmallBufferWithHeapFallback() { free(this->heap_buffer_); }  // NOLINT(cppcoreguidelines-no-malloc)
 
   // Delete copy and move operations to prevent double-delete
   SmallBufferWithHeapFallback(const SmallBufferWithHeapFallback &) = delete;
@@ -2034,6 +2066,32 @@ class LwIPLock {
 #endif
 };
 
+#if defined(USE_ESP8266) && F_CPU != 160000000L
+// Forward decl from <user_interface.h>
+// NOLINTNEXTLINE(readability-redundant-declaration)
+extern "C" bool system_update_cpu_freq(uint8_t freq);
+#endif
+
+/** Runs the CPU at 160 MHz while alive. ESP8266 built for 80 MHz only; elsewhere it compiles to nothing.
+ *
+ * The core resets the clock before every loop() pass, so a scope must stay within one pass, must not nest and
+ * must not yield to the main loop. Peripheral clocks are unchanged, but the cycle counter runs twice as fast, so
+ * code that times itself against F_CPU, including ISRs that fire while a scope is open, must read CPU2X.
+ */
+class CpuFrequencyBoost {
+ public:
+  CpuFrequencyBoost(const CpuFrequencyBoost &) = delete;
+  CpuFrequencyBoost &operator=(const CpuFrequencyBoost &) = delete;
+#if defined(USE_ESP8266) && F_CPU != 160000000L
+  CpuFrequencyBoost() { system_update_cpu_freq(160); }
+  ~CpuFrequencyBoost() { system_update_cpu_freq(80); }
+#else
+  // Not = default, so clang-tidy does not flag unused variables at call sites
+  CpuFrequencyBoost() {}
+  ~CpuFrequencyBoost() {}
+#endif
+};
+
 /** Helper class to request `loop()` to be called as fast as possible.
  *
  * Usually the ESPHome main loop runs at 60 Hz, sleeping in between invocations of `loop()` if necessary. When a higher
@@ -2094,6 +2152,10 @@ void delay_microseconds_safe(uint32_t us);
 
 /// @name Memory management
 ///@{
+
+template<typename T> struct RAMDeleter;
+/// unique_ptr over RAMAllocator storage
+template<typename T> using RAMUniquePtr = std::unique_ptr<T, RAMDeleter<T>>;
 
 /** An STL allocator that uses SPI or internal RAM.
  * Returns `nullptr` in case no memory is available.
@@ -2165,6 +2227,26 @@ template<class T> class RAMAllocator {
     free(p);  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
   }
 
+  /// Value initialize one T; empty on exhaustion. new (std::nothrow) aborts on ESP-IDF instead.
+  /// Default flags prefer PSRAM; pass PREFER_INTERNAL to keep an object where plain new put it.
+  template<typename... Args> RAMUniquePtr<T> make_unique(Args &&...args) {
+    static_assert(alignof(T) <= alignof(std::max_align_t), "malloc storage cannot hold an over aligned type");
+    T *p = this->allocate(1);
+    if (p == nullptr)
+      return {};
+    // ::new so a class scoped operator new cannot hide the global placement form
+    return RAMUniquePtr<T>(::new (p) T(std::forward<Args>(args)...));
+  }
+
+  /// n elements left uninitialized, as std::make_unique_for_overwrite does; empty on exhaustion, overflow, and n == 0
+  RAMUniquePtr<T[]> make_unique_array_for_overwrite(size_t n) {
+    static_assert(std::is_trivially_default_constructible_v<T>, "elements are left unconstructed");
+    static_assert(alignof(T) <= alignof(std::max_align_t), "malloc storage cannot hold an over aligned type");
+    if (n == 0 || n > SIZE_MAX / sizeof(T))
+      return {};
+    return RAMUniquePtr<T[]>(this->allocate(n));
+  }
+
   /**
    * Return the total heap space available via this allocator
    */
@@ -2226,6 +2308,19 @@ template<class T> class RAMAllocator {
 };
 
 template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
+
+/// Destroys and frees RAMAllocator storage. Not convertible: free() needs the address malloc returned
+template<typename T> struct RAMDeleter {
+  void operator()(T *p) const {
+    p->~T();
+    RAMAllocator<T>().deallocate(p, 1);
+  }
+};
+/// Array form: elements must be trivial, the count is not stored so only the storage is freed
+template<typename T> struct RAMDeleter<T[]> {
+  static_assert(std::is_trivially_destructible_v<T>, "RAMUniquePtr<T[]> is for trivially destructible elements");
+  void operator()(T *p) const { RAMAllocator<T>().deallocate(p, 1); }
+};
 
 /**
  * Functions to constrain the range of arithmetic values.

@@ -37,6 +37,25 @@ CONF_HANDSHAKE_PIN = "handshake_pin"
 CONF_SDIO_FREQUENCY = "sdio_frequency"
 CONF_SPI_MODE = "spi_mode"
 
+# ESP-NOW-over-hosted shim (esp_now_hosted.cpp). esp-hosted proxies esp_wifi.h
+# but not esp_now.h (espressif/esp-hosted-mcu#19), and esp_wifi_remote injects
+# the esp_now.h header on the ESP32-P4 host with no implementation, leaving the
+# esp_now_* symbols undefined at link. On a P4 host, esp_now_hosted.cpp DEFINES
+# those symbols and forwards each call to the co-processor over esp-hosted's
+# CustomRpc "peer data transfer" channel, so ESPHome's `espnow` component links
+# and runs unchanged (proven on a Tab5, 2026-07-20). The .cpp is guarded to
+# CONFIG_IDF_TARGET_ESP32P4 so it compiles to nothing on hosts with a native
+# ESP-NOW stack. CustomRpc needs these two host-side Kconfig options. Host
+# registers 3 handlers (RESP, RECV, SEND); the coprocessor registers 1 (REQ);
+# we ask for 8 to leave room for other CustomRpc extensions alongside.
+#
+# The coprocessor must run the matching custom firmware (a parallel effort in
+# esphome/esp-hosted-firmware). esp_now_hosted_rpc.h here is the canonical copy
+# of the wire contract and MUST stay byte-identical to the copy that coprocessor
+# firmware uses — the packed structs are the on-wire layout, so any divergence
+# silently corrupts every ESP-NOW frame.
+_MAX_CUSTOM_MSG_HANDLERS = 8
+
 # Shared fields for both transport modes
 BASE_SCHEMA = cv.Schema(
     {
@@ -262,6 +281,25 @@ async def to_code(config: ConfigType) -> None:
     else:
         _configure_spi(config)
 
+    # ESP-NOW-over-hosted shim: only the radio-less ESP32-P4 host needs it (see
+    # the note by _MAX_CUSTOM_MSG_HANDLERS). Enabled for every P4 host, not
+    # gated on the `espnow` component being present: the shim is tiny and the
+    # esp_now_* symbols/CustomRpc calls it defines require these Kconfig options
+    # to link whenever esp_now_hosted.cpp compiles (which is on any P4 host), so
+    # coupling the two keeps the build consistent. When `espnow` is absent the
+    # symbols are simply unused and never register a callback at runtime.
+    if esp32.get_esp32_variant() == esp32.VARIANT_ESP32P4:
+        add_define("USE_ESP_NOW_HOSTED")
+        # esp_now_hosted.cpp includes esp_now.h, which esp_wifi provides
+        esp32.include_builtin_idf_component("esp_wifi")
+        # esp-hosted's CustomRpc ("peer data transfer") path — off by default.
+        esp32.add_idf_sdkconfig_option(
+            "CONFIG_ESP_HOSTED_ENABLE_PEER_DATA_TRANSFER", True
+        )
+        esp32.add_idf_sdkconfig_option(
+            "CONFIG_ESP_HOSTED_MAX_CUSTOM_MSG_HANDLERS", _MAX_CUSTOM_MSG_HANDLERS
+        )
+
     # Place the transport mempool in PSRAM. Required on memory-tight host
     # configurations (e.g. P4 with a large LVGL UI) where the internal-RAM
     # mempool allocation fails at boot with `sdio_mempool_create` assert.
@@ -275,7 +313,7 @@ async def to_code(config: ConfigType) -> None:
     esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.6.3")
     esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.3")
     esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
-    esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.12")
+    esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.13")
     esp32.add_extra_script(
         "post",
         "esp32_hosted.py",

@@ -44,6 +44,16 @@ This document provides essential context for AI models interacting with this pro
 
 ## 4. Coding Conventions & Style Guide
 
+**Read the developer documentation before writing a component.** https://developers.esphome.io covers the
+component lifecycle, the main loop, and the reasoning behind the rules below in far more depth than this
+file does, and it is the authority when they disagree. The most useful starting points:
+
+*   https://developers.esphome.io/architecture/components/ - component lifecycle, `setup()`, `loop()`,
+    setup priorities, and how a component is registered.
+*   https://developers.esphome.io/architecture/components/advanced/ - choosing between `loop()`,
+    `set_interval`, `set_timeout` and `defer`; waking the loop from another thread; the RAM cost of each.
+*   https://developers.esphome.io/contributing/code/ - contribution rules, public API and breaking changes.
+
 *   **Formatting:**
     *   **Python:** Uses `ruff` and `flake8` for linting and formatting. Configuration is in `pyproject.toml`.
     *   **C++:** Uses `clang-format` for formatting. Configuration is in `.clang-format`.
@@ -142,6 +152,47 @@ This document provides essential context for AI models interacting with this pro
     *   **Indentation:** Use spaces (two per indentation level), not tabs
     *   **Type aliases:** Prefer `using type_t = int;` over `typedef int type_t;`
     *   **Line length:** Wrap lines at no more than 120 characters
+    *   **Timing in `loop()`:** Never call `millis()` in a `loop()` body. The current tick's timestamp is
+        already cached - use `App.get_loop_component_start_time()` (from `esphome/core/application.h`).
+        Only reach for `millis()` when you genuinely need sub-tick resolution inside a long operation.
+    *   **The main loop runs every 16 ms.** A rate-limit gate shorter than that does nothing: the check
+        passes on essentially every pass of the loop, so it costs a comparison and buys nothing. Pick an
+        interval comfortably coarser than 16 ms, or drop the gate entirely and accept running every loop.
+        ```cpp
+        // Bad - a 10ms gate against a 16ms loop never holds anything back
+        static constexpr uint32_t POLL_INTERVAL_MS = 10;
+        const uint32_t now = millis();
+        if (now - this->last_poll_ < POLL_INTERVAL_MS)
+          return;
+        this->last_poll_ = now;
+        ```
+        ```cpp
+        // Good - an interval that actually rate limits, off the cached timestamp
+        static constexpr uint32_t POLL_INTERVAL_MS = 100;
+        const uint32_t now = App.get_loop_component_start_time();
+        if (now - this->last_poll_ < POLL_INTERVAL_MS)
+          return;
+        this->last_poll_ = now;
+        ```
+        Pick the primitive by cadence: under 250 ms use a gated `loop()`; 500 ms and above use
+        `set_interval`. Full reasoning, including why `set_interval` costs more below 500 ms:
+        https://developers.esphome.io/architecture/components/advanced/#quick-rule-of-thumb
+    *   **Don't override a default with the same value:** if a base class method already returns what you
+        want, do not override it. `Component::get_setup_priority()` returns `setup_priority::DATA`, so a
+        component that wants `DATA` should simply leave it alone.
+        ```cpp
+        // Bad - this is exactly what the base class already does
+        float get_setup_priority() const override { return setup_priority::DATA; }
+        ```
+    *   **Logging string literals:** wrap literals passed as `%s` arguments in `LOG_STR_LITERAL()` so they
+        can be stored in flash rather than RAM.
+        ```cpp
+        // Bad
+        ESP_LOGV(TAG, "Key %u %s", key, pressed ? "pressed" : "released");
+
+        // Good
+        ESP_LOGV(TAG, "Key %u %s", key, pressed ? LOG_STR_LITERAL("pressed") : LOG_STR_LITERAL("released"));
+        ```
     *   **Constructor parameters vs setters:** Component properties that are both **required** and **invariant**
         (never change after construction) should be constructor parameters rather than set via setter methods.
         This makes the dependency explicit and prevents use of the object in an incompletely-initialized state.
@@ -380,7 +431,31 @@ This document provides essential context for AI models interacting with this pro
           MyComponent *parent_;
         };
         ```
-        Register with `@automation.register_action("my_component.do_something", MyAction, schema, synchronous=True)`. Use `synchronous=True` for actions that run to completion inside `play()` without deferring. Use `synchronous=False` if the action may suspend/defer execution (e.g. `delay`, `wait_until`, `script.wait`) or store trigger arguments for later use.
+        Register it without writing a builder:
+        ```python
+        automation.register_simple_action(
+            "my_component.do_something", MyAction, schema, synchronous=True
+        )
+        ```
+        The constructor receives the object named by `config[CONF_ID]`. Use `register_bare_action` for a
+        no-argument constructor, `register_parented_action` for a class deriving from `Parented<T>`, and
+        the `@automation.register_action(...)` decorator only when the builder must also set fields.
+
+        Use `synchronous=True` for actions that run to completion inside `play()` without deferring. Use `synchronous=False` if the action may suspend/defer execution (e.g. `delay`, `wait_until`, `script.wait`) or store trigger arguments for later use.
+
+        **Actions that only forward templatable values to their parent need no C++ class.** Register them
+        with `register_apply_action`; do not write a `TEMPLATABLE_VALUE` class or a builder for this shape.
+        ```python
+        automation.register_apply_action(
+            "my_component.set_gains",
+            schema,
+            automation.ApplyField(CONF_KP, "set_kp", cg.float_),
+            automation.ApplyField(CONF_KI, "set_ki", cg.float_),
+        )
+        ```
+        The `ApplyField`, `ApplyCall` and `register_apply_action` docstrings in `esphome/automation.py` cover
+        the rest; `cover.control` and `cover.template.publish` are in-tree examples. `TEMPLATABLE_VALUE` with
+        `cg.templatable` stays for actions whose `play()` has real logic beyond forwarding values.
 
     *   **Conditions:**
         ```cpp
@@ -392,7 +467,21 @@ This document provides essential context for AI models interacting with this pro
           MyComponent *parent_;
         };
         ```
-        Register with `@automation.register_condition("my_component.is_active", MyCondition, schema)`.
+        Register with `automation.register_simple_condition("my_component.is_active", MyCondition, schema)`;
+        `register_bare_condition`, `register_parented_condition` and the decorator follow the action rules.
+
+        **Conditions that only test their parent need no C++ class either.** Register them with
+        `register_apply_condition`; the expression is applied to the parent, and an `ApplyCall` compares
+        against config values.
+        ```python
+        automation.register_apply_condition("my_component.is_active", schema, "is_active()")
+        automation.register_apply_condition(
+            "my_component.state_is",
+            schema,
+            automation.ApplyCall("state == {}", ((CONF_STATE, cg.bool_),)),
+        )
+        ```
+        `cover.is_open`, `rtttl.is_playing` and `component.is_idle` are in-tree examples.
 
 *   **Type Hints:** Type-hint all function signatures, including test functions and config validators (e.g. `def validate_x(config: ConfigType) -> ConfigType:`, `def test_x() -> None:`). Import `ConfigType` from `esphome.types`.
 
@@ -502,6 +591,7 @@ This document provides essential context for AI models interacting with this pro
     4.  **Lint:** Run `prek` to ensure code is compliant.
     5.  **Commit:** Commit your changes. There is no strict format for commit messages.
     6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title must start with a `[tag]` prefix. For component work, use the component name (e.g., `[display] Fix bug`, `[abc123] Add new component`); for changes to shared/core code that isn't tied to a single component, use `[core]` (e.g., `[core] Add validator`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
+    7.  **Comments:** When commenting on GitHub PRs or issues, don't tag contributors, especially bots. Avoid referring to list items (e.g. from reviews) with the form #nn - this will be interpreted by GitHub as a reference to issue or PR nn. Keep comments short and exclude irrelevant details, backstories, restatement of previous comments and anything that is already obvious to the reader.
 
 *   **Documentation Contributions:**
     *   Documentation is hosted in the separate `esphome/esphome.io` repository.
@@ -562,6 +652,36 @@ This document provides essential context for AI models interacting with this pro
            Use `cg.add_define("MAX_SERVICES", count)` to set the size from Python configuration.
            Like `std::array` but with vector-like API (`push_back()`, `size()`) and no STL reallocation code.
 
+           **Listener and child-entity registration lists are the most common case, and the most commonly
+           missed.** A `register_*()` method called once per child at code generation time has a count that
+           is known at compile time, so it should never be a `std::vector`. Use `cg.slot_counter()`: it
+           returns a function that each consumer calls once per slot it will occupy, and after every
+           `to_code` has run it emits the define with the final count. When nothing registers, no define is
+           emitted and the storage plus its registration method compile out entirely.
+           ```python
+           # hub component's __init__.py
+           _request_listener_slot = cg.slot_counter("MY_COMPONENT_LISTENER_COUNT")
+
+
+           async def register_listener(hub: MockObj, var: MockObj) -> None:
+               _request_listener_slot()
+               cg.add(hub.register_listener(var))
+           ```
+           When several instances each own a list declared at the same size (one per hub of a
+           `MULTI_CONF` component), pass the owning object as the key, `_request_listener_slot(str(hub))`;
+           the define is then the largest count any one key requested instead of the total.
+           ```cpp
+           #ifdef MY_COMPONENT_LISTENER_COUNT
+             void register_listener(MyComponentListener *listener);
+           #endif
+            protected:
+           #ifdef MY_COMPONENT_LISTENER_COUNT
+             StaticVector<MyComponentListener *, MY_COMPONENT_LISTENER_COUNT> listeners_;
+           #endif
+           ```
+           Request slots from `to_code`, not from a job that runs after `CoroPriority.FINAL` - a late
+           request raises rather than silently undercounting.
+
         3. **Runtime-known sizes:** Use `FixedVector` from `esphome/core/helpers.h` when the size is only known at runtime initialization.
            ```cpp
            // Bad - generates STL realloc code (_M_realloc_insert)
@@ -599,9 +719,27 @@ This document provides essential context for AI models interacting with this pro
            ```
            Linear search on small datasets (1-16 elements) is often faster than hashing/tree overhead, but this depends on lookup frequency and access patterns. For frequent lookups in hot code paths, the O(1) vs O(n) complexity difference may still matter even for small datasets. `std::vector` with simple structs is usually fine—it's the heavy containers (`map`, `set`, `unordered_map`) that should be avoided for small datasets unless profiling shows otherwise.
 
-        5. **Avoid `std::deque`:** It allocates in 512-byte blocks regardless of element size, guaranteeing at least 512 bytes of RAM usage immediately. This is a major source of crashes on memory-constrained devices.
+        5. **Strings set once from configuration:** Use `StringRef` (`esphome/core/string_ref.h`) rather than
+           `std::string`. Code generation passes a string literal that lives in flash for the life of the
+           program, so storing a `std::string` copies it onto the heap for nothing. `StringRef` is a
+           non-owning pointer plus length; it does not copy, and it must only ever refer to storage that
+           outlives it (a string literal, or a buffer owned elsewhere).
+           ```cpp
+           // Bad - heap copy of a literal that is already in flash
+           void set_keys(std::string keys) { this->keys_ = std::move(keys); }
+           std::string keys_;
+           ```
+           ```cpp
+           // Good - no allocation
+           void set_keys(const char *keys) { this->keys_ = StringRef(keys); }
+           StringRef keys_;
+           ```
 
-        6. **Detection:** Look for these patterns in compiler output:
+        6. **Avoid `std::deque`:** It allocates in 512-byte blocks regardless of element size, guaranteeing at least 512 bytes of RAM usage immediately. This is a major source of crashes on memory-constrained devices.
+
+        7. **Never use `new (std::nothrow)`:** On ESP-IDF exceptions are disabled, so a failed nothrow allocation aborts instead of returning `nullptr`. Use `RAMAllocator` from `esphome/core/helpers.h`; CI rejects `std::nothrow`.
+
+        8. **Detection:** Look for these patterns in compiler output:
            - Large code sections with STL symbols (vector, map, set)
            - `alloc`, `realloc`, `dealloc` in symbol names
            - `_M_realloc_insert`, `_M_default_append` (vector reallocation)
@@ -745,7 +883,7 @@ This document provides essential context for AI models interacting with this pro
         cv.rename_key(
             CONF_OLD_KEY, CONF_NEW_KEY, removed_in="2026.6.0", component="my_component"
         ),
-        cv.Schema({ ... }),
+        cv.Schema({...}),
     )
     ```
     For other deprecations, warn manually during validation:

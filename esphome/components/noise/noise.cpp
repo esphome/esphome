@@ -1,19 +1,25 @@
 #include "noise.h"
 #ifdef USE_NOISE
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <algorithm>
 #include <cstring>
 
 #include <noise/protocol.h>
 
-#ifdef USE_ESP8266
-#include <pgmspace.h>
-#endif
-
 namespace esphome::noise {
 
 static const char *const TAG = "noise";
+
+void NoiseContext::load_psk(psk_t &out) const {
+  if (this->psk_ == nullptr) {
+    out.fill(0);
+    return;
+  }
+  progmem_memcpy(out.data(), this->psk_, out.size());
+}
 
 const LogString *noise_err_to_logstr(int err) {
   if (err == NOISE_ERROR_NO_MEMORY)
@@ -65,22 +71,13 @@ size_t format_reject_payload(uint8_t *buf, size_t capacity, const LogString *rea
     return 0;
   }
   buf[0] = HANDSHAKE_STATUS_REJECT;
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  // On ESP8266 with flash strings, we need to use PROGMEM-aware functions
-  size_t reason_len = strlen_P(reinterpret_cast<PGM_P>(reason));
-  reason_len = std::min(reason_len, capacity - 1);
-  if (reason_len > 0) {
-    memcpy_P(buf + 1, reinterpret_cast<PGM_P>(reason), reason_len);
-  }
-#else
+  // The reason may live in PROGMEM on ESP8266; the progmem helpers read RAM and flash alike
   const char *reason_str = LOG_STR_ARG(reason);
-  size_t reason_len = strlen(reason_str);
-  reason_len = std::min(reason_len, capacity - 1);
+  size_t reason_len = std::min(ESPHOME_strlen_P(reason_str), capacity - 1);
   if (reason_len > 0) {
     // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - binary protocol, not a C string
-    std::memcpy(buf + 1, reason_str, reason_len);
+    progmem_memcpy(buf + 1, reason_str, reason_len);
   }
-#endif
   return reason_len + 1;
 }
 
