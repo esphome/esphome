@@ -516,3 +516,20 @@ async def test_restore_state_initial_color_mode_uses_inferred_mode() -> None:
     restore_state_config = RESTORE_STATE_SCHEMA({"color_mode": "initial"})
     statements = await _restore_state_statements(restore_state_config, {"red": 0.3})
     assert statements == [("color_mode", f"s.color_mode = {_mask('RGB')};")]
+
+
+def test_every_restore_state_field_offers_completion() -> None:
+    # Regression test: each field's validator must answer SCHEMA_EXTRACT (instead of
+    # raising), or the editor gets no completion for it.
+    for key, validator in _RESTORE_STATE_FIELDS_SCHEMA.schema.items():
+        values = validator(SCHEMA_EXTRACT)
+        assert RESTORE_STATE_KEEP in values, key
+        assert RESTORE_STATE_INITIAL in values, key
+
+
+def test_restore_state_color_mode_completion_includes_color_modes() -> None:
+    validator = _RESTORE_STATE_FIELDS_SCHEMA.schema[
+        next(k for k in _RESTORE_STATE_FIELDS_SCHEMA.schema if k == "color_mode")
+    ]
+    values = validator(SCHEMA_EXTRACT)
+    assert {"KEEP", "INITIAL", "RGB", "COLD_WARM_WHITE"} <= set(values)

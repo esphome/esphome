@@ -280,7 +280,16 @@ def _keep_or(validator: Callable[[Any], Any]) -> Callable[[Any], Any]:
     Extend a validator to also accept the `KEEP`/`INITIAL` options
     """
 
+    @schema_extractor("one_of")
     def validate(value: Any) -> Any:
+        if value == SCHEMA_EXTRACT:
+            # Editor completion: the sentinels plus the wrapped validator's own values,
+            # if it is an enum. Numeric validators have none to offer.
+            try:
+                inner = tuple(validator(SCHEMA_EXTRACT))
+            except cv.Invalid:
+                inner = ()
+            return (RESTORE_STATE_KEEP, RESTORE_STATE_INITIAL, *inner)
         if isinstance(value, str):
             upper = value.strip().upper()
             if upper in (RESTORE_STATE_KEEP, RESTORE_STATE_INITIAL):

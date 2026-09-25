@@ -301,8 +301,7 @@ def _final_validate(config: ConfigType) -> None:
     if not data.effect_refs and not data.effect_cycle_refs:
         return
 
-    # Drain the lists so we only validate once even though
-    # FINAL_VALIDATE_SCHEMA runs for each light platform instance.
+    # Drain the lists so each recorded reference is only validated once.
     refs = data.effect_refs
     data.effect_refs = []
     cycle_refs = data.effect_cycle_refs
