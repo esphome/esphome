@@ -28,6 +28,7 @@ void DeviceFirmwareUpdate::setup() {
         this->reset_pin_->digital_write(true);
       } else {
         NRF_POWER->GPREGRET = DFU_MAGIC_UF2_RESET;
+        arch_feed_wdt();
         App.reboot();
       }
     }
