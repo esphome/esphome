@@ -11,7 +11,10 @@ from typing import Any
 
 from esphome import yaml_util
 import esphome.codegen as cg
-from esphome.components.const import CONF_ENABLE_OTA_DOWNGRADE_PROTECTION
+from esphome.components.const import (
+    CONF_ENABLE_OTA_DOWNGRADE_PROTECTION,
+    CONF_IGNORE_NOT_FOUND,
+)
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -111,6 +114,7 @@ CONF_ENGINEERING_SAMPLE = "engineering_sample"
 CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
+CONF_NVS_CACHE_IN_PSRAM = "nvs_cache_in_psram"
 CONF_FLASH_CHIP = "flash_chip"
 CONF_KEY_ID = "key_id"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
@@ -1595,6 +1599,29 @@ def final_validate(config) -> None:
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_EXECUTE_FROM_PSRAM],
                 )
             )
+    if advanced.get(CONF_NVS_CACHE_IN_PSRAM):
+        psram_conf = full_config.get(PSRAM_DOMAIN)
+        if (
+            psram_conf is None
+            or psram_conf[CONF_DISABLED]
+            or psram_conf[CONF_IGNORE_NOT_FOUND]
+        ):
+            errs.append(
+                cv.Invalid(
+                    f"'{CONF_NVS_CACHE_IN_PSRAM}' requires PSRAM with 'ignore_not_found: false'",
+                    path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_NVS_CACHE_IN_PSRAM],
+                )
+            )
+        if (
+            advanced.get(CONF_NVS_ENCRYPTION) is not None
+            or conf_fw[CONF_SDKCONFIG_OPTIONS].get("CONFIG_NVS_ENCRYPTION") == "y"
+        ):
+            errs.append(
+                cv.Invalid(
+                    f"'{CONF_NVS_CACHE_IN_PSRAM}' cannot be used with NVS encryption; the keys must stay in internal RAM",
+                    path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_NVS_CACHE_IN_PSRAM],
+                )
+            )
 
     final_validate_pins(full_config)
 
@@ -2035,6 +2062,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_RINGBUF_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_HEAP_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_EXECUTE_FROM_PSRAM, default=False): cv.boolean,
+                cv.Optional(CONF_NVS_CACHE_IN_PSRAM): cv.boolean,
                 cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
                     min=8192, max=32768
                 ),
@@ -2359,6 +2387,20 @@ async def _set_libc_picolibc_newlib_compat() -> None:
         option,
         CORE.data[KEY_ESP32].get(KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED, False),
     )
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _apply_nvs_cache_in_psram(explicit: bool) -> None:
+    """Keep the NVS cache in PSRAM unless NVS encryption is on, however it was enabled."""
+    # The encrypted partition object holds the derived keys, which must stay in internal RAM
+    if is_idf_sdkconfig_option_enabled("CONFIG_NVS_ENCRYPTION"):
+        if explicit:
+            _LOGGER.warning(
+                "%s ignored: NVS encryption keeps the NVS cache in internal RAM",
+                CONF_NVS_CACHE_IN_PSRAM,
+            )
+        return
+    set_idf_sdkconfig_default("CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM", True)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -2912,6 +2954,17 @@ async def to_code(config):
 
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
         add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
+
+    # Imported here as psram imports this module
+    from esphome.components.psram import is_guaranteed as psram_is_guaranteed
+
+    # Frees internal heap (the cache scales with the NVS partition) but slows NVS, so only
+    # where PSRAM is known to be fitted. Decided at FINAL so every way of enabling NVS
+    # encryption has been seen and a user's sdkconfig_options value wins.
+    # Unset means on; only an explicit true is worth a warning when it has to be dropped.
+    requested = advanced.get(CONF_NVS_CACHE_IN_PSRAM)
+    if requested is not False and psram_is_guaranteed():
+        CORE.add_job(_apply_nvs_cache_in_psram, requested is True)
 
     # Apply LWIP core locking for better socket performance
     # This is already enabled by default in Arduino framework, where it provides

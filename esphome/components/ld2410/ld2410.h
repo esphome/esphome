@@ -24,7 +24,6 @@
 #endif
 #include "esphome/components/ld24xx/ld24xx.h"
 #include "esphome/components/uart/uart.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
 #include <array>
