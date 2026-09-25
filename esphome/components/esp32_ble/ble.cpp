@@ -6,16 +6,23 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifndef USE_ESP32_HOSTED
 #include <esp_bt.h>
 #else
 #include "esphome/components/watchdog/watchdog.h"
 #include <cinttypes>
 extern "C" {
 #include <esp_hosted.h>
+#ifndef CONFIG_ESP_HOSTED_HOST_FEAT_BT
+// esp_hosted 2.x
 #include <esp_hosted_misc.h>
 #include <esp_hosted_bluedroid.h>
+#endif
 }
+#ifdef CONFIG_ESP_HOSTED_HOST_FEAT_BT
+// esp_hosted 3.x
+#include <esp_hosted_bt_host_stack.h>
+#endif
 #endif
 #include <esp_bt_device.h>
 #include <esp_bt_main.h>
@@ -35,7 +42,7 @@ namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble";
 
-#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifdef USE_ESP32_HOSTED
 // Bringing up the remote BT controller issues synchronous RPCs to the
 // co-processor with 5 second response timeouts, and the default task watchdog
 // is also 5 seconds. If the co-processor firmware does not answer (for example
@@ -43,8 +50,9 @@ static const char *const TAG = "esp32_ble";
 // device before the RPC could return an error, causing a boot loop. Raise the
 // watchdog for the duration of the bring-up so failures surface as error
 // returns instead. 60 seconds covers the worst case: transport reconnect
-// (up to ~20s), version preflight (1s), controller init/enable (5s each) and
-// the bluedroid host bring-up over the hosted HCI transport.
+// (up to ~20s), version preflight (1s), the controller init retry window
+// (5s of 5s RPCs), controller enable (5s) and the bluedroid host bring-up
+// over the hosted HCI transport.
 static constexpr uint32_t HOSTED_BT_WDT_TIMEOUT_MS = 60000;
 #endif
 
@@ -202,10 +210,10 @@ void ESP32BLE::advertising_init_() {
 
 bool ESP32BLE::ble_setup_() {
   esp_err_t err;
-#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifdef USE_ESP32_HOSTED
   watchdog::WatchdogManager wdt(HOSTED_BT_WDT_TIMEOUT_MS);
 #endif
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifndef USE_ESP32_HOSTED
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
@@ -239,8 +247,7 @@ bool ESP32BLE::ble_setup_() {
   }
 
   // Fast preflight (1 second RPC timeout): verifies the co-processor answers
-  // RPCs at all before the 5 second timeout BT controller RPCs below, and
-  // before hosted_hci_bluedroid_open(), which aborts if the transport is down.
+  // RPCs at all before the 5 second timeout BT controller RPCs below.
   esp_hosted_coprocessor_fwver_t fw_ver{};
   if (esp_hosted_get_coprocessor_fwversion(&fw_ver) != ESP_OK) {
     ESP_LOGE(TAG, "Co-processor not responding; BLE disabled. Update its firmware with the esp32_hosted "
@@ -249,6 +256,21 @@ bool ESP32BLE::ble_setup_() {
   }
   ESP_LOGD(TAG, "Co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32, fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
 
+#ifdef CONFIG_ESP_HOSTED_HOST_FEAT_BT
+  // Brings the remote controller up and attaches bluedroid's HCI driver to
+  // the hosted transport.
+  esp_hosted_bt_host_stack_cfg_t bt_cfg{};
+  bt_cfg.stack = ESP_HOSTED_BT_HOST_STACK_BLUEDROID;
+  bt_cfg.bring_up_controller = true;
+  bt_cfg.controller_ready_timeout_ms = EH_BT_CTRL_DEFAULT_READY_TIMEOUT_MS;
+  if (esp_hosted_bt_host_stack_setup(&bt_cfg) != ESP_OK) {
+    ESP_LOGE(TAG,
+             "BT controller bring-up failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
+             " may lack BT support. Update it with the esp32_hosted update component; BLE disabled",
+             fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
+    return false;
+  }
+#else
   if (esp_hosted_bt_controller_init() != ESP_OK) {
     ESP_LOGE(TAG,
              "BT controller init failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
@@ -273,6 +295,7 @@ bool ESP32BLE::ble_setup_() {
       .register_host_callback = hosted_hci_bluedroid_register_host_callback,
   };
   esp_bluedroid_attach_hci_driver(&operations);
+#endif
 #endif
 
   err = esp_bluedroid_init();
@@ -393,7 +416,7 @@ bool ESP32BLE::ble_setup_() {
 }
 
 bool ESP32BLE::ble_dismantle_() {
-#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifdef USE_ESP32_HOSTED
   // Same 5 second RPCs as the bring-up path; see HOSTED_BT_WDT_TIMEOUT_MS
   watchdog::WatchdogManager wdt(HOSTED_BT_WDT_TIMEOUT_MS);
 #endif
@@ -416,7 +439,7 @@ bool ESP32BLE::ble_dismantle_() {
     ESP_LOGD(TAG, "Already deinitialized");
   }
 
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifndef USE_ESP32_HOSTED
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE) {
     // stop bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED) {
@@ -439,6 +462,12 @@ bool ESP32BLE::ble_dismantle_() {
       ESP_LOGE(TAG, "esp bt controller disable failed");
       return false;
     }
+  }
+#elif defined(CONFIG_ESP_HOSTED_HOST_FEAT_BT)
+  // Detaches the HCI driver and disables/deinitializes the remote controller
+  if (esp_hosted_bt_host_stack_teardown() != ESP_OK) {
+    ESP_LOGE(TAG, "esp_hosted_bt_host_stack_teardown failed");
+    return false;
   }
 #else
   if (esp_hosted_bt_controller_disable() != ESP_OK) {
