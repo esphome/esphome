@@ -13,6 +13,7 @@ from esphome.components.zephyr.const import (
     KEY_BOOTLOADER,
     KEY_SYSBUILD,
 )
+from esphome.components.zephyr_ble_server import request_ble_l2cap_mtu
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_HARDWARE_UART,
@@ -140,6 +141,7 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
 
         zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
+        request_ble_l2cap_mtu(498)  # matches NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP
     if CONF_HARDWARE_UART in transport:
         uart = UARTS[transport[CONF_HARDWARE_UART]]
         uart_name = uart[0]
