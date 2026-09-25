@@ -1,106 +1,83 @@
 #include "hob2hood_protocol.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
+
+#include <array>
+#include <cstdlib>
 
 namespace esphome::remote_base {
 
 static const char *const TAG = "remote.hob2hood";
 
+// A frame is 25 bits: a leading 0, then the command byte, command + 1 and command + 2. Zero bits are marks
+// and one bits are spaces; equal neighbours merge into one run of n * BIT_TIME_US plus a fixed adjustment.
+static constexpr uint8_t NBITS = 25;
 static constexpr uint32_t BIT_TIME_US = 700;
-static constexpr int32_t SPACE_US = -200;
-static constexpr int32_t MARK_US = 300;
+static constexpr int32_t MARK_ADJUST_US = 300;
+static constexpr int32_t SPACE_ADJUST_US = -200;
+// The longest frame (light_off) has 18 runs
+static constexpr uint8_t MAX_RUNS = 18;
 
-bool Hob2HoodProtocol::get_timings_(const Hob2HoodCommand data, RemoteReceiveData *src, RemoteTransmitData *dst) {
-  // Generate the timings for receiving or transmitting Hob2Hood data. src or dst may be set to nullptr.
-  static constexpr uint32_t BIT_MASK = (1U << 24U);
-  // Transmitted data is 25 bits, first bit is always zero, followed by (data) (data + 1) (data + 2)
-  uint32_t transmitted_data = ((uint8_t) data << 16U) | ((uint8_t) (data + 1) << 8U) | (uint8_t) (data + 2);
-  int8_t bit_counter = 0;
-  bool current_bit = (transmitted_data & BIT_MASK) != 0;
-  bool result = true;
-  for (uint8_t bits_remaining = 25; bits_remaining > 0; bits_remaining--) {
-    if (current_bit) {
-      bit_counter++;
-    } else {
-      bit_counter--;
-    }
-    transmitted_data <<= 1U;
-    current_bit = (transmitted_data & BIT_MASK) != 0;
-    // Emit a mark or space if the bit value changes compared to the previous bit or if the message is finished
-    if (bits_remaining == 1 || (bit_counter > 0) != current_bit) {
-      uint32_t total_time = ((bit_counter > 0) ? SPACE_US : MARK_US) + BIT_TIME_US * std::abs(bit_counter);
-      if (src != nullptr && result) {  // Receiving
-        if (bit_counter < 0) {
-          result = src->expect_mark(total_time);
-        } else if (bits_remaining != 1) {  // Ignore the last space if the message ends with a space
-          result = src->expect_space(total_time);
-        }
-      }
-      if (dst != nullptr) {  // Transmitting
-        if (bit_counter < 0) {
-          dst->mark(total_time);
-        } else {
-          dst->space(total_time);
-        }
-      } else if (!result) {  // If we're only receiving, return early
-        return result;
-      }
-      bit_counter = 0;
+static constexpr std::array<Hob2HoodCommand, 7> COMMANDS = {
+    HOB2HOOD_COMMAND_LIGHT_OFF,  HOB2HOOD_COMMAND_LIGHT_ON, HOB2HOOD_COMMAND_FAN_OFF, HOB2HOOD_COMMAND_FAN_LOW,
+    HOB2HOOD_COMMAND_FAN_MEDIUM, HOB2HOOD_COMMAND_FAN_HIGH, HOB2HOOD_COMMAND_FAN_MAX,
+};
+// Same order as COMMANDS; the last entry is the fallback
+PROGMEM_STRING_TABLE(Hob2HoodCommandNames, "light_off", "light_on", "fan_off", "fan_low", "fan_medium", "fan_high",
+                     "fan_max", "unknown");
+
+// Walks the frame of `command` as runs of equal bits. emit(is_mark, length_us, is_last) returns false to stop.
+template<typename F> static bool walk_runs(Hob2HoodCommand command, F &&emit) {
+  // Shifted so the first of the 25 bits is the top bit
+  uint32_t bits = ((uint32_t(command) << 16) | (uint32_t(uint8_t(command + 1)) << 8) | uint8_t(command + 2))
+                  << (32 - NBITS);
+  int8_t run = 0;
+  for (uint8_t i = 0; i < NBITS; i++, bits <<= 1) {
+    const bool bit = (bits & 0x80000000) != 0;
+    run += bit ? 1 : -1;
+    const bool last = i == NBITS - 1;
+    if (last || (((bits << 1) & 0x80000000) != 0) != bit) {
+      const uint32_t length = BIT_TIME_US * std::abs(run) + (run < 0 ? MARK_ADJUST_US : SPACE_ADJUST_US);
+      if (!emit(run < 0, length, last))
+        return false;
+      run = 0;
     }
   }
-  return result;
+  return true;
 }
 
 void Hob2HoodProtocol::encode(RemoteTransmitData *dst, const Hob2HoodData &data) {
-  static constexpr uint32_t CARRIER_FREQUENCY = 38000;
-  static constexpr uint32_t RESERVE_LENGTH = 17;
-  dst->set_carrier_frequency(CARRIER_FREQUENCY);
-  dst->reserve(RESERVE_LENGTH);
-  this->get_timings_(data.command, nullptr, dst);
+  dst->set_carrier_frequency(38000);
+  dst->reserve(MAX_RUNS);
+  walk_runs(data.command, [dst](bool is_mark, uint32_t length, bool) {
+    if (is_mark) {
+      dst->mark(length);
+    } else {
+      dst->space(length);
+    }
+    return true;
+  });
 }
 
 optional<Hob2HoodData> Hob2HoodProtocol::decode(RemoteReceiveData src) {
-  static constexpr std::array<Hob2HoodCommand, 7> COMMANDS = {
-      HOB2HOOD_CMD_LIGHT_OFF,  HOB2HOOD_CMD_LIGHT_ON, HOB2HOOD_CMD_FAN_OFF, HOB2HOOD_CMD_FAN_LOW,
-      HOB2HOOD_CMD_FAN_MEDIUM, HOB2HOOD_CMD_FAN_HIGH, HOB2HOOD_CMD_FAN_MAX,
-  };
-  for (auto cmd : COMMANDS) {
+  for (auto command : COMMANDS) {
     src.reset();
-    if (this->get_timings_(cmd, &src, nullptr)) {
-      return Hob2HoodData{cmd};
-    }
+    // The receiver does not capture a trailing space, so the last run only has to match when it is a mark
+    const bool matched = walk_runs(command, [&src](bool is_mark, uint32_t length, bool last) {
+      return is_mark ? src.expect_mark(length) : (last || src.expect_space(length));
+    });
+    if (matched)
+      return Hob2HoodData{command};
   }
   return {};
 }
 
 void Hob2HoodProtocol::dump(const Hob2HoodData &data) {
-  const char *command_str;
-  switch (data.command) {
-    case HOB2HOOD_CMD_LIGHT_OFF:
-      command_str = "light_off";
-      break;
-    case HOB2HOOD_CMD_LIGHT_ON:
-      command_str = "light_on";
-      break;
-    case HOB2HOOD_CMD_FAN_OFF:
-      command_str = "fan_off";
-      break;
-    case HOB2HOOD_CMD_FAN_LOW:
-      command_str = "fan_low";
-      break;
-    case HOB2HOOD_CMD_FAN_MEDIUM:
-      command_str = "fan_medium";
-      break;
-    case HOB2HOOD_CMD_FAN_HIGH:
-      command_str = "fan_high";
-      break;
-    case HOB2HOOD_CMD_FAN_MAX:
-      command_str = "fan_max";
-      break;
-    default:
-      command_str = "unknown";
-      break;
-  }
-  ESP_LOGD(TAG, "Received Hob2Hood: %s", command_str);
+  uint8_t index = 0;
+  while (index < COMMANDS.size() && COMMANDS[index] != data.command)
+    index++;
+  ESP_LOGI(TAG, "Received Hob2Hood: %s",
+           LOG_STR_ARG(Hob2HoodCommandNames::get_log_str(index, Hob2HoodCommandNames::LAST_INDEX)));
 }
 
 }  // namespace esphome::remote_base

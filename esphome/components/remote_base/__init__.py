@@ -2117,15 +2117,14 @@ async def aeha_action(var, config, args):
 
 Hob2HoodCommand = remote_base_ns.enum("Hob2HoodCommand")
 HOB2HOOD_COMMAND_OPTIONS = {
-    "light_off": Hob2HoodCommand.HOB2HOOD_CMD_LIGHT_OFF,
-    "light_on": Hob2HoodCommand.HOB2HOOD_CMD_LIGHT_ON,
-    "fan_off": Hob2HoodCommand.HOB2HOOD_CMD_FAN_OFF,
-    "fan_low": Hob2HoodCommand.HOB2HOOD_CMD_FAN_LOW,
-    "fan_medium": Hob2HoodCommand.HOB2HOOD_CMD_FAN_MEDIUM,
-    "fan_high": Hob2HoodCommand.HOB2HOOD_CMD_FAN_HIGH,
-    "fan_max": Hob2HoodCommand.HOB2HOOD_CMD_FAN_MAX,
+    "light_off": Hob2HoodCommand.HOB2HOOD_COMMAND_LIGHT_OFF,
+    "light_on": Hob2HoodCommand.HOB2HOOD_COMMAND_LIGHT_ON,
+    "fan_off": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_OFF,
+    "fan_low": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_LOW,
+    "fan_medium": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_MEDIUM,
+    "fan_high": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_HIGH,
+    "fan_max": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_MAX,
 }
-
 
 HOB2HOOD_SCHEMA = cv.Schema(
     {cv.Required(CONF_COMMAND): cv.enum(HOB2HOOD_COMMAND_OPTIONS, lower=True)}
@@ -2134,7 +2133,14 @@ HOB2HOOD_SCHEMA = cv.Schema(
 
 @register_binary_sensor("hob2hood", Hob2HoodBinarySensor, HOB2HOOD_SCHEMA)
 def hob2hood_binary_sensor(var, config):
-    cg.add(var.set_command(config[CONF_COMMAND]))
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                Hob2HoodData,
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
 
 
 @register_trigger("hob2hood", Hob2HoodTrigger, Hob2HoodData)
@@ -2149,7 +2155,7 @@ def hob2hood_dumper(var, config):
 
 @register_action("hob2hood", Hob2HoodAction, HOB2HOOD_SCHEMA)
 async def hob2hood_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    template_ = await cg.templatable(config[CONF_COMMAND], args, Hob2HoodCommand)
     cg.add(var.set_command(template_))
 
 
