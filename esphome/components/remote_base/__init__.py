@@ -47,7 +47,7 @@ from esphome.const import (
 from esphome.core import ID, coroutine
 from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
 from esphome.util import Registry, SimpleRegistry
 
 AUTO_LOAD = ["binary_sensor"]
@@ -2132,7 +2132,7 @@ HOB2HOOD_SCHEMA = cv.Schema(
 
 
 @register_binary_sensor("hob2hood", Hob2HoodBinarySensor, HOB2HOOD_SCHEMA)
-def hob2hood_binary_sensor(var, config):
+def hob2hood_binary_sensor(var: MockObj, config: ConfigType) -> None:
     cg.add(
         var.set_data(
             cg.StructInitializer(
@@ -2144,17 +2144,19 @@ def hob2hood_binary_sensor(var, config):
 
 
 @register_trigger("hob2hood", Hob2HoodTrigger, Hob2HoodData)
-def hob2hood_trigger(var, config):
-    pass
+def hob2hood_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
 
 
 @register_dumper("hob2hood", Hob2HoodDumper)
-def hob2hood_dumper(var, config):
-    pass
+def hob2hood_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
 
 
 @register_action("hob2hood", Hob2HoodAction, HOB2HOOD_SCHEMA)
-async def hob2hood_action(var, config, args):
+async def hob2hood_action(
+    var: MockObj, config: ConfigType, args: TemplateArgsType
+) -> None:
     template_ = await cg.templatable(config[CONF_COMMAND], args, Hob2HoodCommand)
     cg.add(var.set_command(template_))
 
