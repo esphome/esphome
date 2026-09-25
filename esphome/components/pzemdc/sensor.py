@@ -20,17 +20,12 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["modbus"]
 
 pzemdc_ns = cg.esphome_ns.namespace("pzemdc")
 PZEMDC = pzemdc_ns.class_("PZEMDC", cg.PollingComponent, modbus.ModbusClientDevice)
-
-# Actions
-ResetEnergyAction = pzemdc_ns.class_("ResetEnergyAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -67,24 +62,15 @@ CONFIG_SCHEMA = (
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "pzemdc.reset_energy",
-    ResetEnergyAction,
     maybe_simple_id(
         {
             cv.GenerateID(CONF_ID): cv.use_id(PZEMDC),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("reset_energy()"),
 )
-async def reset_energy_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 def _final_validate(config: ConfigType) -> None:

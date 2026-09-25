@@ -62,7 +62,7 @@ DEFAULT_PORT = 80
 
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
-WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
+WebServer = web_server_ns.class_("WebServer", cg.Component)
 
 sorting_groups = {}
 
@@ -378,8 +378,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)
 
-    # Track controller registration for StaticVector sizing
-    CORE.register_controller()
+    CORE.register_controller(var)
 
     version = config[CONF_VERSION]
 

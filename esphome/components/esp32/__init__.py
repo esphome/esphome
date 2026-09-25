@@ -12,7 +12,10 @@ from typing import Any
 from esphome import yaml_util
 from esphome.code_scan import keep_float_scanf
 import esphome.codegen as cg
-from esphome.components.const import CONF_ENABLE_OTA_DOWNGRADE_PROTECTION
+from esphome.components.const import (
+    CONF_ENABLE_OTA_DOWNGRADE_PROTECTION,
+    CONF_IGNORE_NOT_FOUND,
+)
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -112,6 +115,7 @@ CONF_ENGINEERING_SAMPLE = "engineering_sample"
 CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
+CONF_NVS_CACHE_IN_PSRAM = "nvs_cache_in_psram"
 CONF_FLASH_CHIP = "flash_chip"
 CONF_KEY_ID = "key_id"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
@@ -267,7 +271,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_lcd",  # LCD controller drivers - only needed by display component
     "esp_local_ctrl",  # Local control over HTTPS/BLE - ESPHome has native API
     "esp_phy",  # RF PHY - re-included by internal_temperature on the original ESP32; esp_wifi/bt/ieee802154 pull it back
-    "esp_wifi",  # WiFi stack - re-included by request_wifi(), espnow; bt pulls it back for BLE builds
+    "esp_wifi",  # WiFi stack - re-included by request_wifi(), espnow, esp32_hosted; bt pulls it back for BLE builds
     "espcoredump",  # Core dump support - ESPHome has its own debug component
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
     "ieee802154",  # 802.15.4 radio - IDF openthread and the Zigbee libs pull it back
@@ -429,6 +433,7 @@ ARDUINO_DISABLED_LIBRARIES: frozenset[str] = frozenset(
         "Hash",
         "HTTPClient",
         "HTTPUpdate",
+        "HTTPUpdateServer",
         "Insights",
         "LittleFS",
         "Matter",
@@ -936,14 +941,15 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 11),
-    "latest": cv.Version(3, 3, 11),
-    "dev": cv.Version(3, 3, 11),
+    "recommended": cv.Version(3, 3, 12),
+    "latest": cv.Version(3, 3, 12),
+    "dev": cv.Version(3, 3, 12),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         4, 0, 0, "alpha1"
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(3, 3, 12): cv.Version(55, 3, 312),
     cv.Version(3, 3, 11): cv.Version(55, 3, 311),
     cv.Version(3, 3, 10): cv.Version(55, 3, 39),
     cv.Version(3, 3, 9): cv.Version(55, 3, 39),
@@ -968,6 +974,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
     cv.Version(4, 0, 0, "alpha1"): cv.Version(6, 0, 1),
+    cv.Version(3, 3, 12): cv.Version(5, 5, 5),
     cv.Version(3, 3, 11): cv.Version(5, 5, 5),
     cv.Version(3, 3, 10): cv.Version(5, 5, 5),
     cv.Version(3, 3, 9): cv.Version(5, 5, 4),
@@ -1003,7 +1010,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         6, 0, 0
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
-    cv.Version(5, 5, 5): cv.Version(55, 3, 311),
+    cv.Version(5, 5, 5): cv.Version(55, 3, 312),
     cv.Version(5, 5, 4): cv.Version(55, 3, 39),
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
     cv.Version(5, 5, 3): cv.Version(55, 3, 37),
@@ -1024,8 +1031,8 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 311),
-    "latest": cv.Version(55, 3, 311),
+    "recommended": cv.Version(55, 3, 312),
+    "latest": cv.Version(55, 3, 312),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
 
@@ -1597,6 +1604,29 @@ def final_validate(config) -> None:
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_EXECUTE_FROM_PSRAM],
                 )
             )
+    if advanced.get(CONF_NVS_CACHE_IN_PSRAM):
+        psram_conf = full_config.get(PSRAM_DOMAIN)
+        if (
+            psram_conf is None
+            or psram_conf[CONF_DISABLED]
+            or psram_conf[CONF_IGNORE_NOT_FOUND]
+        ):
+            errs.append(
+                cv.Invalid(
+                    f"'{CONF_NVS_CACHE_IN_PSRAM}' requires PSRAM with 'ignore_not_found: false'",
+                    path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_NVS_CACHE_IN_PSRAM],
+                )
+            )
+        if (
+            advanced.get(CONF_NVS_ENCRYPTION) is not None
+            or conf_fw[CONF_SDKCONFIG_OPTIONS].get("CONFIG_NVS_ENCRYPTION") == "y"
+        ):
+            errs.append(
+                cv.Invalid(
+                    f"'{CONF_NVS_CACHE_IN_PSRAM}' cannot be used with NVS encryption; the keys must stay in internal RAM",
+                    path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_NVS_CACHE_IN_PSRAM],
+                )
+            )
 
     final_validate_pins(full_config)
 
@@ -2038,6 +2068,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_RINGBUF_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_HEAP_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_EXECUTE_FROM_PSRAM, default=False): cv.boolean,
+                cv.Optional(CONF_NVS_CACHE_IN_PSRAM): cv.boolean,
                 cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
                     min=8192, max=32768
                 ),
@@ -2389,6 +2420,20 @@ async def _add_sscanf_stub(enable_full_scanf: bool | None) -> None:
     ):
         return
     _add_wrap_stub("sscanf", "USE_ESP32_SSCANF_STUB")
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _apply_nvs_cache_in_psram(explicit: bool) -> None:
+    """Keep the NVS cache in PSRAM unless NVS encryption is on, however it was enabled."""
+    # The encrypted partition object holds the derived keys, which must stay in internal RAM
+    if is_idf_sdkconfig_option_enabled("CONFIG_NVS_ENCRYPTION"):
+        if explicit:
+            _LOGGER.warning(
+                "%s ignored: NVS encryption keeps the NVS cache in internal RAM",
+                CONF_NVS_CACHE_IN_PSRAM,
+            )
+        return
+    set_idf_sdkconfig_default("CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM", True)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -2824,6 +2869,11 @@ async def to_code(config):
             config.get(CONF_ENGINEERING_SAMPLE, False),
         )
 
+    # ESP32-C2 defaults to the ROM's newlib "nano" printf, which does not
+    # understand %zu or %lld and crashes on any %s that follows one.
+    if variant == VARIANT_ESP32C2:
+        add_idf_sdkconfig_option("CONFIG_LIBC_NEWLIB_NANO_FORMAT", False)
+
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
     # and for PSRAM users saves significant IRAM by keeping C library functions in ROM.
@@ -2936,6 +2986,17 @@ async def to_code(config):
 
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
         add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
+
+    # Imported here as psram imports this module
+    from esphome.components.psram import is_guaranteed as psram_is_guaranteed
+
+    # Frees internal heap (the cache scales with the NVS partition) but slows NVS, so only
+    # where PSRAM is known to be fitted. Decided at FINAL so every way of enabling NVS
+    # encryption has been seen and a user's sdkconfig_options value wins.
+    # Unset means on; only an explicit true is worth a warning when it has to be dropped.
+    requested = advanced.get(CONF_NVS_CACHE_IN_PSRAM)
+    if requested is not False and psram_is_guaranteed():
+        CORE.add_job(_apply_nvs_cache_in_psram, requested is True)
 
     # Apply LWIP core locking for better socket performance
     # This is already enabled by default in Arduino framework, where it provides

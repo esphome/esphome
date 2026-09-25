@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
@@ -21,16 +20,6 @@ class CM1106Component final : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *co2_sensor_{nullptr};
 
   bool cm1106_write_command_(const uint8_t *command, size_t command_len, uint8_t *response, size_t response_len);
-};
-
-template<typename... Ts> class CM1106CalibrateZeroAction final : public Action<Ts...> {
- public:
-  CM1106CalibrateZeroAction(CM1106Component *cm1106) : cm1106_(cm1106) {}
-
-  void play(const Ts &...x) override { this->cm1106_->calibrate_zero(400); }
-
- protected:
-  CM1106Component *cm1106_;
 };
 
 }  // namespace esphome::cm1106
