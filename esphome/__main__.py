@@ -1342,8 +1342,12 @@ def _upload_via_native_api(
     # fall back to a plaintext upload
     noise_psk = None
     plaintext_fallback = False
+    allow_plaintext_upload = False
     if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
         noise_psk = encryption_conf.get(CONF_KEY)
+        allow_plaintext_upload = bool(
+            encryption_conf.get(espota2.CONF_ALLOW_PLAINTEXT_UPLOAD)
+        )
         if not noise_psk:
             raise EsphomeError(
                 "OTA encryption is configured but no key was resolved; "
@@ -1394,6 +1398,7 @@ def _upload_via_native_api(
         ota_type,
         noise_psk,
         plaintext_fallback=plaintext_fallback,
+        allow_plaintext_upload=allow_plaintext_upload,
     )
 
 

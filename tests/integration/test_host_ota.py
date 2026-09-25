@@ -167,6 +167,33 @@ class _Device:
         assert self.proc.returncode is None, "process died on rejected OTA"
 
 
+def _handshake_then_close(port: int, noise_psk: str) -> None:
+    """Negotiate and complete the Noise handshake like a key probe, then
+    hang up without sending an OTA type."""
+    with socket.create_connection((LOCALHOST, port), timeout=5.0) as sock:
+        espota2.send_check(sock, espota2.MAGIC_BYTES, "magic bytes")
+        _, version = espota2.receive_exactly(sock, 2, "version", espota2.RESPONSE_OK)
+        features_to_send = (
+            espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
+            | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
+            | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+            | espota2.CLIENT_FEATURE_SUPPORTS_NOISE
+        )
+        espota2.send_check(sock, features_to_send, "features")
+        espota2.receive_exactly(sock, 1, "features", espota2.RESPONSE_FEATURE_FLAGS)
+        (features,) = espota2.receive_exactly(sock, 1, "feature flags", None)
+        assert features & espota2.SERVER_FEATURE_SUPPORTS_NOISE
+        prologue = (
+            espota2.NOISE_PROLOGUE_INIT
+            + bytes(espota2.MAGIC_BYTES)
+            + bytes([espota2.RESPONSE_OK, version, features_to_send])
+            + bytes([espota2.RESPONSE_FEATURE_FLAGS, features])
+        )
+        noise = espota2.NoiseSocketWrapper(sock, noise_psk, prologue)
+        noise.do_handshake()
+        espota2.receive_exactly(noise, 1, "auth", espota2.RESPONSE_AUTH_OK)
+
+
 async def _provision_key(
     dev: _Device, api_client_connected: APIClientConnectedFactory
 ) -> None:
@@ -221,16 +248,24 @@ async def test_host_ota_encrypted(
     compile_esphome: CompileFunction,
     reserved_tcp_port: tuple[int, socket.socket],
 ) -> None:
-    """Encrypted self-OTA succeeds; a plaintext upload to the same device fails."""
+    """A client that leaves right after the handshake, as a key probe does,
+    is a clean close, not an OTA error; a plaintext upload is refused; an
+    encrypted self-OTA succeeds."""
     pytest.importorskip("aioesphomeapi.noise")
     dev = _Device(
         *await _build(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, _lines):
+    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, lines):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
+        await asyncio.get_running_loop().run_in_executor(
+            None, _handshake_then_close, dev.ota_port, API_KEY
+        )
+        # The error path logs its warning instead of this line, never after it
+        await _wait_for_line(lines, "Client left after the handshake")
+        assert not [line for line in lines if "[W][esphome.ota" in line]
         await dev.refused_ota(
             None, None, "plaintext upload to an encrypted device must fail"
         )
