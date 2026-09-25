@@ -16,7 +16,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
 )
 from esphome.cpp_generator import MockObj, literal
-from esphome.types import TemplateArgsType
+from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@ssieb"]
 
@@ -35,8 +35,6 @@ CONF_ON_RESULT = "on_result"
 
 key_collector_ns = cg.esphome_ns.namespace("key_collector")
 KeyCollector = key_collector_ns.class_("KeyCollector", cg.Component)
-EnableAction = key_collector_ns.class_("EnableAction", automation.Action)
-DisableAction = key_collector_ns.class_("DisableAction", automation.Action)
 
 X_TYPE = cg.std_string_ref.operator("const")
 
@@ -90,7 +88,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     for source_conf in config.get(CONF_SOURCE_ID, ()):
@@ -134,33 +132,19 @@ async def to_code(config):
     cg.add(var.set_enabled(config[CONF_ENABLE_ON_BOOT]))
 
 
-@automation.register_action(
+KEY_COLLECTOR_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(KeyCollector),
+    }
+)
+
+automation.register_apply_action(
     "key_collector.enable",
-    EnableAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(KeyCollector),
-        }
-    ),
-    synchronous=True,
+    KEY_COLLECTOR_ACTION_SCHEMA,
+    automation.ApplyCall("set_enabled(true)"),
 )
-async def enable_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
+automation.register_apply_action(
     "key_collector.disable",
-    DisableAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(KeyCollector),
-        }
-    ),
-    synchronous=True,
+    KEY_COLLECTOR_ACTION_SCHEMA,
+    automation.ApplyCall("set_enabled(false)"),
 )
-async def disable_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

@@ -3,6 +3,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import runtime_image
+from esphome.components.const import CONF_SLOT
 from esphome.components.image import CONF_TRANSPARENCY, Image_, add_metadata
 import esphome.config_validation as cv
 from esphome.const import (
@@ -15,7 +16,6 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.core import ID
-from esphome.cpp_generator import TemplateArgsType
 from esphome.types import ConfigType
 
 from .. import (
@@ -45,7 +45,6 @@ MAX_IMAGE_DIMENSION = 32767
 MAX_DISPLAY_OFFSET = cv.TimePeriod(seconds=60)
 MIN_DISPLAY_OFFSET = cv.TimePeriod(seconds=-60)
 
-CONF_SLOT = "slot"
 CONF_CURRENT_IMAGE = "current_image"
 CONF_TRANSITION_IMAGE = "transition_image"
 CONF_ON_IMAGE_DISPLAY = "on_image_display"
@@ -198,16 +197,8 @@ async def to_code(config: ConfigType) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-SendspinImageTransitionFinishedAction = sendspin_ns.class_(
-    "SendspinImageTransitionFinishedAction",
-    automation.Action,
-    cg.Parented.template(SendspinImageSlot),
-)
-
-
-@automation.register_action(
+automation.register_apply_action(
     "sendspin.image.transition_finished",
-    SendspinImageTransitionFinishedAction,
     automation.maybe_simple_id(
         cv.Schema(
             {
@@ -215,14 +206,5 @@ SendspinImageTransitionFinishedAction = sendspin_ns.class_(
             }
         )
     ),
-    synchronous=True,
+    automation.ApplyCall("transition_finished()"),
 )
-async def sendspin_image_transition_finished_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> cg.MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

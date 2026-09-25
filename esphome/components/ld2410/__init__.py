@@ -4,6 +4,7 @@ import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PASSWORD, CONF_THROTTLE, CONF_TIMEOUT
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["ld24xx"]
 DEPENDENCIES = ["uart"]
@@ -69,7 +70,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
@@ -83,11 +84,6 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
 
 
 # Actions
-BluetoothPasswordSetAction = ld2410_ns.class_(
-    "BluetoothPasswordSetAction", automation.Action
-)
-
-
 BLUETOOTH_PASSWORD_SET_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(LD2410Component),
@@ -95,16 +91,8 @@ BLUETOOTH_PASSWORD_SET_SCHEMA = cv.Schema(
     }
 )
 
-
-@automation.register_action(
+automation.register_apply_action(
     "bluetooth_password.set",
-    BluetoothPasswordSetAction,
     BLUETOOTH_PASSWORD_SET_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_PASSWORD, "set_bluetooth_password", cg.std_string),
 )
-async def bluetooth_password_set_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_PASSWORD], args, cg.std_string)
-    cg.add(var.set_password(template_))
-    return var

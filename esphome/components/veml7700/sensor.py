@@ -1,5 +1,8 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import UNIT_COUNTS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTUAL_GAIN,
@@ -23,11 +26,12 @@ from esphome.const import (
     UNIT_LUX,
     UNIT_MILLISECOND,
 )
+from esphome.core import EnumValue
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["i2c"]
 
-UNIT_COUNTS = "#"
 ICON_MULTIPLICATION = "mdi:multiplication"
 ICON_BRIGHTNESS_7 = "mdi:brightness-7"
 
@@ -59,7 +63,7 @@ INTEGRATION_TIMES = {
 }
 
 
-def validate_integration_time(value):
+def validate_integration_time(value: Any) -> EnumValue:
     value = cv.positive_time_period_milliseconds(value).total_milliseconds
     return cv.enum(INTEGRATION_TIMES, int=True)(value)
 
@@ -151,7 +155,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

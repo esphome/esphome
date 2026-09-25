@@ -1,0 +1,24 @@
+tfluna:
+
+sensor:
+  - platform: tfluna
+    distance:
+      name: "Distance"
+    signal_strength:
+      name: TF-Luna Signal Strength
+    temperature:
+      name: TF-Luna Temperature
+    timestamp:
+      name: TF-Luna Timestamp
+
+text_sensor:
+  - platform: tfluna
+    version:
+      name: "TF-Luna firmware version"
+
+button:
+  - platform: tfluna
+    factory_reset:
+      name: "factory reset"
+    restart:
+      name: "restart"

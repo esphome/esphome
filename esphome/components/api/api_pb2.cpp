@@ -7,1353 +7,1361 @@
 
 namespace esphome::api {
 
-bool HelloRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 2:
-      this->api_version_major = value;
+void HelloRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<HelloRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.client_info = StringRef(value.data(), value.size());
       break;
-    case 3:
-      this->api_version_minor = value;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.api_version_major = value.as_varint();
       break;
-    default:
-      return false;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.api_version_minor = value.as_varint();
+      break;
   }
-  return true;
 }
-bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1: {
-      this->client_info = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-uint8_t *HelloResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *HelloResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const HelloResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->api_version_major);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->api_version_minor);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->server_info);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 34, this->name);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.api_version_major);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.api_version_minor);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.server_info);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 34, msg.name);
   return pos;
 }
-uint32_t HelloResponse::calculate_size() const {
+uint32_t HelloResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const HelloResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint32(1, this->api_version_major);
-  size += ProtoSize::calc_uint32(1, this->api_version_minor);
-  size += 2 + this->server_info.size();
-  size += 2 + this->name.size();
+  size += ProtoSize::calc_uint32(1, msg.api_version_major);
+  size += ProtoSize::calc_uint32(1, msg.api_version_minor);
+  size += 2 + msg.server_info.size();
+  size += 2 + msg.name.size();
   return size;
 }
-bool DisconnectRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->reason = static_cast<enums::DisconnectReason>(value);
+void DisconnectRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<DisconnectRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.reason = static_cast<enums::DisconnectReason>(value.as_varint());
       break;
-    default:
-      return false;
   }
-  return true;
 }
-uint8_t *DisconnectRequest::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *DisconnectRequest::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const DisconnectRequest *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(this->reason));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(msg.reason));
   return pos;
 }
-uint32_t DisconnectRequest::calculate_size() const {
+uint32_t DisconnectRequest::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const DisconnectRequest *>(self);
   uint32_t size = 0;
-  size += this->reason ? 2 : 0;
+  size += msg.reason ? 2 : 0;
   return size;
 }
 #ifdef USE_AREAS
-uint8_t *AreaInfo::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *AreaInfo::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const AreaInfo *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->area_id);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 18, this->name);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.area_id);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 18, msg.name);
   return pos;
 }
-uint32_t AreaInfo::calculate_size() const {
+uint32_t AreaInfo::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const AreaInfo *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint32(1, this->area_id);
-  size += 2 + this->name.size();
+  size += ProtoSize::calc_uint32(1, msg.area_id);
+  size += 2 + msg.name.size();
   return size;
 }
 #endif
 #ifdef USE_DEVICES
-uint8_t *DeviceInfo::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *DeviceInfo::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const DeviceInfo *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->device_id);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 18, this->name);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->area_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.device_id);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 18, msg.name);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.area_id);
   return pos;
 }
-uint32_t DeviceInfo::calculate_size() const {
+uint32_t DeviceInfo::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const DeviceInfo *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint32(1, this->device_id);
-  size += 2 + this->name.size();
-  size += ProtoSize::calc_uint32(1, this->area_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
+  size += 2 + msg.name.size();
+  size += ProtoSize::calc_uint32(1, msg.area_id);
   return size;
 }
 #endif
 #ifdef USE_SERIAL_PROXY
-uint8_t *SerialProxyInfo::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *SerialProxyInfo::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const SerialProxyInfo *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->name);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(this->port_type));
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.name);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(msg.port_type));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.configured_line_states);
   return pos;
 }
-uint32_t SerialProxyInfo::calculate_size() const {
+uint32_t SerialProxyInfo::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const SerialProxyInfo *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->name.size());
-  size += this->port_type ? 2 : 0;
+  size += ProtoSize::calc_length(1, msg.name.size());
+  size += msg.port_type ? 2 : 0;
+  size += ProtoSize::calc_uint32(1, msg.configured_line_states);
   return size;
 }
 #endif
-uint8_t *DeviceInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *DeviceInfoResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const DeviceInfoResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 18, this->name);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->mac_address);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 34, this->esphome_version);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 42, this->compilation_time);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 50, this->model);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 18, msg.name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.mac_address);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 34, msg.esphome_version);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 42, msg.compilation_time);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 50, msg.model);
 #ifdef USE_DEEP_SLEEP
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->has_deep_sleep);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.has_deep_sleep);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 66, this->project_name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 66, msg.project_name);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 74, this->project_version);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 74, msg.project_version);
 #endif
 #ifdef USE_WEBSERVER
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, this->webserver_port);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.webserver_port);
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 15, this->bluetooth_proxy_feature_flags);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 15, msg.bluetooth_proxy_feature_flags);
 #endif
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 98, this->manufacturer);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 106, this->friendly_name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 98, msg.manufacturer);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 106, msg.friendly_name);
 #ifdef USE_VOICE_ASSISTANT
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 17, this->voice_assistant_feature_flags);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 17, msg.voice_assistant_feature_flags);
 #endif
 #ifdef USE_AREAS
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 16, this->suggested_area, true);
+  pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 16, msg.suggested_area);
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 18, this->bluetooth_mac_address, true);
+  pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 18, msg.bluetooth_mac_address);
 #endif
 #ifdef USE_API_NOISE
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 19, this->api_encryption_supported);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 19, msg.api_encryption_supported);
 #endif
 #ifdef USE_DEVICES
-  for (const auto &it : this->devices) {
-    ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 20, it);
+  for (const auto &it : msg.devices) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 20, it);
   }
 #endif
 #ifdef USE_AREAS
-  for (const auto &it : this->areas) {
-    ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 21, it);
+  for (const auto &it : msg.areas) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 21, it);
   }
 #endif
 #ifdef USE_AREAS
-  ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 22, this->area);
+  pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 22, msg.area);
 #endif
 #ifdef USE_ZWAVE_PROXY
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 23, this->zwave_proxy_feature_flags);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 23, msg.zwave_proxy_feature_flags);
 #endif
 #ifdef USE_ZWAVE_PROXY
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 24, this->zwave_home_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 24, msg.zwave_home_id);
 #endif
 #ifdef USE_SERIAL_PROXY
-  for (const auto &it : this->serial_proxies) {
-    ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 25, it);
+  for (const auto &it : msg.serial_proxies) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 25, it);
   }
 #endif
 #ifdef USE_API_NOISE
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 26, this->api_encryption_provisionable);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.api_encryption_provisionable);
 #endif
   return pos;
 }
-uint32_t DeviceInfoResponse::calculate_size() const {
+uint32_t DeviceInfoResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const DeviceInfoResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->name.size();
-  size += 2 + this->mac_address.size();
-  size += 2 + this->esphome_version.size();
-  size += 2 + this->compilation_time.size();
-  size += 2 + this->model.size();
+  size += 2 + msg.name.size();
+  size += 2 + msg.mac_address.size();
+  size += 2 + msg.esphome_version.size();
+  size += 2 + msg.compilation_time.size();
+  size += 2 + msg.model.size();
 #ifdef USE_DEEP_SLEEP
-  size += ProtoSize::calc_bool(1, this->has_deep_sleep);
+  size += ProtoSize::calc_bool(1, msg.has_deep_sleep);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  size += 2 + this->project_name.size();
+  size += 2 + msg.project_name.size();
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  size += 2 + this->project_version.size();
+  size += 2 + msg.project_version.size();
 #endif
 #ifdef USE_WEBSERVER
-  size += ProtoSize::calc_uint32(1, this->webserver_port);
+  size += ProtoSize::calc_uint32(1, msg.webserver_port);
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  size += ProtoSize::calc_uint32(1, this->bluetooth_proxy_feature_flags);
+  size += ProtoSize::calc_uint32(1, msg.bluetooth_proxy_feature_flags);
 #endif
-  size += 2 + this->manufacturer.size();
-  size += 2 + this->friendly_name.size();
+  size += 2 + msg.manufacturer.size();
+  size += 2 + msg.friendly_name.size();
 #ifdef USE_VOICE_ASSISTANT
-  size += ProtoSize::calc_uint32(2, this->voice_assistant_feature_flags);
+  size += ProtoSize::calc_uint32(2, msg.voice_assistant_feature_flags);
 #endif
 #ifdef USE_AREAS
-  size += 3 + this->suggested_area.size();
+  size += 3 + msg.suggested_area.size();
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  size += 3 + this->bluetooth_mac_address.size();
+  size += 3 + msg.bluetooth_mac_address.size();
 #endif
 #ifdef USE_API_NOISE
-  size += ProtoSize::calc_bool(2, this->api_encryption_supported);
+  size += ProtoSize::calc_bool(2, msg.api_encryption_supported);
 #endif
 #ifdef USE_DEVICES
-  for (const auto &it : this->devices) {
+  for (const auto &it : msg.devices) {
     size += ProtoSize::calc_message_force(2, it.calculate_size());
   }
 #endif
 #ifdef USE_AREAS
-  for (const auto &it : this->areas) {
+  for (const auto &it : msg.areas) {
     size += ProtoSize::calc_message_force(2, it.calculate_size());
   }
 #endif
 #ifdef USE_AREAS
-  size += ProtoSize::calc_message(2, this->area.calculate_size());
+  size += ProtoSize::calc_message(2, msg.area.calculate_size());
 #endif
 #ifdef USE_ZWAVE_PROXY
-  size += ProtoSize::calc_uint32(2, this->zwave_proxy_feature_flags);
+  size += ProtoSize::calc_uint32(2, msg.zwave_proxy_feature_flags);
 #endif
 #ifdef USE_ZWAVE_PROXY
-  size += ProtoSize::calc_uint32(2, this->zwave_home_id);
+  size += ProtoSize::calc_uint32(2, msg.zwave_home_id);
 #endif
 #ifdef USE_SERIAL_PROXY
-  for (const auto &it : this->serial_proxies) {
+  for (const auto &it : msg.serial_proxies) {
     size += ProtoSize::calc_message_force(2, it.calculate_size());
   }
 #endif
 #ifdef USE_API_NOISE
-  size += ProtoSize::calc_bool(2, this->api_encryption_provisionable);
+  size += ProtoSize::calc_bool(2, msg.api_encryption_provisionable);
 #endif
   return size;
 }
 #ifdef USE_BLUETOOTH_PROXY
-uint8_t *BluetoothProxyCapabilities::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothProxyCapabilities::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothProxyCapabilities *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->feature_flags);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 18, this->mac_address);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.feature_flags);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 18, msg.mac_address);
   return pos;
 }
-uint32_t BluetoothProxyCapabilities::calculate_size() const {
+uint32_t BluetoothProxyCapabilities::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothProxyCapabilities *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint32(1, this->feature_flags);
-  size += 2 + this->mac_address.size();
+  size += ProtoSize::calc_uint32(1, msg.feature_flags);
+  size += 2 + msg.mac_address.size();
   return size;
 }
 #endif
 #ifdef USE_VOICE_ASSISTANT
-uint8_t *VoiceAssistantCapabilities::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *VoiceAssistantCapabilities::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const VoiceAssistantCapabilities *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->feature_flags);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.feature_flags);
   return pos;
 }
-uint32_t VoiceAssistantCapabilities::calculate_size() const {
+uint32_t VoiceAssistantCapabilities::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const VoiceAssistantCapabilities *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint32(1, this->feature_flags);
+  size += ProtoSize::calc_uint32(1, msg.feature_flags);
   return size;
 }
 #endif
 #ifdef USE_ZWAVE_PROXY
-uint8_t *ZWaveProxyCapabilities::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ZWaveProxyCapabilities::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ZWaveProxyCapabilities *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->feature_flags);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->home_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.feature_flags);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.home_id);
   return pos;
 }
-uint32_t ZWaveProxyCapabilities::calculate_size() const {
+uint32_t ZWaveProxyCapabilities::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ZWaveProxyCapabilities *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint32(1, this->feature_flags);
-  size += ProtoSize::calc_uint32(1, this->home_id);
+  size += ProtoSize::calc_uint32(1, msg.feature_flags);
+  size += ProtoSize::calc_uint32(1, msg.home_id);
   return size;
 }
 #endif
-uint8_t *DeviceCapabilitiesResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *DeviceCapabilitiesResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const DeviceCapabilitiesResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
 #ifdef USE_BLUETOOTH_PROXY
-  ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 1, this->bluetooth_proxy);
+  pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 1, msg.bluetooth_proxy);
 #endif
 #ifdef USE_VOICE_ASSISTANT
-  ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 2, this->voice_assistant);
+  pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 2, msg.voice_assistant);
 #endif
 #ifdef USE_ZWAVE_PROXY
-  ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 3, this->zwave_proxy);
+  pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 3, msg.zwave_proxy);
 #endif
 #ifdef USE_SERIAL_PROXY
-  for (const auto &it : this->serial_proxies) {
-    ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 4, it);
+  for (const auto &it : msg.serial_proxies) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 4, it);
   }
 #endif
   return pos;
 }
-uint32_t DeviceCapabilitiesResponse::calculate_size() const {
+uint32_t DeviceCapabilitiesResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const DeviceCapabilitiesResponse *>(self);
   uint32_t size = 0;
 #ifdef USE_BLUETOOTH_PROXY
-  size += ProtoSize::calc_message(1, this->bluetooth_proxy.calculate_size());
+  size += ProtoSize::calc_message(1, msg.bluetooth_proxy.calculate_size());
 #endif
 #ifdef USE_VOICE_ASSISTANT
-  size += ProtoSize::calc_message(1, this->voice_assistant.calculate_size());
+  size += ProtoSize::calc_message(1, msg.voice_assistant.calculate_size());
 #endif
 #ifdef USE_ZWAVE_PROXY
-  size += ProtoSize::calc_message(1, this->zwave_proxy.calculate_size());
+  size += ProtoSize::calc_message(1, msg.zwave_proxy.calculate_size());
 #endif
 #ifdef USE_SERIAL_PROXY
-  for (const auto &it : this->serial_proxies) {
+  for (const auto &it : msg.serial_proxies) {
     size += ProtoSize::calc_message_force(1, it.calculate_size());
   }
 #endif
   return size;
 }
 #ifdef USE_BINARY_SENSOR
-uint8_t *ListEntitiesBinarySensorResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesBinarySensorResponse::encode_msg(const void *self,
+                                                      ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesBinarySensorResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->device_class);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->is_status_binary_sensor);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->disabled_by_default);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.device_class);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.is_status_binary_sensor);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.icon);
 #endif
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, static_cast<uint32_t>(this->entity_category));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, static_cast<uint32_t>(msg.entity_category));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesBinarySensorResponse::calculate_size() const {
+uint32_t ListEntitiesBinarySensorResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesBinarySensorResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
-  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
-  size += ProtoSize::calc_bool(1, this->is_status_binary_sensor);
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
+  size += 2 + msg.name.size();
+  size += !msg.device_class.empty() ? 2 + msg.device_class.size() : 0;
+  size += ProtoSize::calc_bool(1, msg.is_status_binary_sensor);
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += this->entity_category ? 2 : 0;
+  size += msg.entity_category ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *BinarySensorStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BinarySensorStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BinarySensorStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->state);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, this->missing_state);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.state);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.missing_state);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.device_id);
 #endif
   return pos;
 }
-uint32_t BinarySensorStateResponse::calculate_size() const {
+uint32_t BinarySensorStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BinarySensorStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_bool(1, this->state);
-  size += ProtoSize::calc_bool(1, this->missing_state);
+  size += ProtoSize::calc_bool(1, msg.state);
+  size += ProtoSize::calc_bool(1, msg.missing_state);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
 #endif
 #ifdef USE_COVER
-uint8_t *ListEntitiesCoverResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesCoverResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesCoverResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->assumed_state);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->supports_position);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->supports_tilt);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->device_class);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, this->disabled_by_default);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.assumed_state);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.supports_position);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.supports_tilt);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.device_class);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.icon);
 #endif
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, static_cast<uint32_t>(this->entity_category));
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 12, this->supports_stop);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, static_cast<uint32_t>(msg.entity_category));
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 12, msg.supports_stop);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesCoverResponse::calculate_size() const {
+uint32_t ListEntitiesCoverResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesCoverResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
-  size += ProtoSize::calc_bool(1, this->assumed_state);
-  size += ProtoSize::calc_bool(1, this->supports_position);
-  size += ProtoSize::calc_bool(1, this->supports_tilt);
-  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
+  size += 2 + msg.name.size();
+  size += ProtoSize::calc_bool(1, msg.assumed_state);
+  size += ProtoSize::calc_bool(1, msg.supports_position);
+  size += ProtoSize::calc_bool(1, msg.supports_tilt);
+  size += !msg.device_class.empty() ? 2 + msg.device_class.size() : 0;
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += this->entity_category ? 2 : 0;
-  size += ProtoSize::calc_bool(1, this->supports_stop);
+  size += msg.entity_category ? 2 : 0;
+  size += ProtoSize::calc_bool(1, msg.supports_stop);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *CoverStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *CoverStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const CoverStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 3, this->position);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 4, this->tilt);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, static_cast<uint32_t>(this->current_operation));
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  if (uint32_t raw = float_to_raw(msg.position); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 29, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.tilt); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 37, raw);
+  }
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, static_cast<uint32_t>(msg.current_operation));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.device_id);
 #endif
   return pos;
 }
-uint32_t CoverStateResponse::calculate_size() const {
+uint32_t CoverStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const CoverStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_float(1, this->position);
-  size += ProtoSize::calc_float(1, this->tilt);
-  size += this->current_operation ? 2 : 0;
+  size += ProtoSize::calc_float(1, msg.position);
+  size += ProtoSize::calc_float(1, msg.tilt);
+  size += msg.current_operation ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-bool CoverCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 4:
-      this->has_position = value != 0;
+void CoverCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<CoverCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
       break;
-    case 6:
-      this->has_tilt = value != 0;
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.has_position = value.as_bool();
       break;
-    case 8:
-      this->stop = value != 0;
+    case proto_tag(5, WIRE_TYPE_FIXED32):
+      msg.position = value.as_float();
+      break;
+    case proto_tag(6, WIRE_TYPE_VARINT):
+      msg.has_tilt = value.as_bool();
+      break;
+    case proto_tag(7, WIRE_TYPE_FIXED32):
+      msg.tilt = value.as_float();
+      break;
+    case proto_tag(8, WIRE_TYPE_VARINT):
+      msg.stop = value.as_bool();
       break;
 #ifdef USE_DEVICES
-    case 9:
-      this->device_id = value;
+    case proto_tag(9, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool CoverCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    case 5:
-      this->position = value.as_float();
-      break;
-    case 7:
-      this->tilt = value.as_float();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_FAN
-uint8_t *ListEntitiesFanResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesFanResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesFanResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->supports_oscillation);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->supports_speed);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->supports_direction);
-  ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 8, this->supported_speed_count);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, this->disabled_by_default);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.supports_oscillation);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.supports_speed);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.supports_direction);
+  pos = ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.supported_speed_count);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.icon);
 #endif
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, static_cast<uint32_t>(this->entity_category));
-  for (const char *it : *this->supported_preset_modes) {
-    ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 12, it, strlen(it), true);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, static_cast<uint32_t>(msg.entity_category));
+  for (const char *it : *msg.supported_preset_modes) {
+    pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 12, it, strlen(it));
   }
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesFanResponse::calculate_size() const {
+uint32_t ListEntitiesFanResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesFanResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
-  size += ProtoSize::calc_bool(1, this->supports_oscillation);
-  size += ProtoSize::calc_bool(1, this->supports_speed);
-  size += ProtoSize::calc_bool(1, this->supports_direction);
-  size += ProtoSize::calc_int32(1, this->supported_speed_count);
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
+  size += 2 + msg.name.size();
+  size += ProtoSize::calc_bool(1, msg.supports_oscillation);
+  size += ProtoSize::calc_bool(1, msg.supports_speed);
+  size += ProtoSize::calc_bool(1, msg.supports_direction);
+  size += ProtoSize::calc_int32(1, msg.supported_speed_count);
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += this->entity_category ? 2 : 0;
-  if (!this->supported_preset_modes->empty()) {
-    for (const char *it : *this->supported_preset_modes) {
+  size += msg.entity_category ? 2 : 0;
+  if (!msg.supported_preset_modes->empty()) {
+    for (const char *it : *msg.supported_preset_modes) {
       size += ProtoSize::calc_length_force(1, strlen(it));
     }
   }
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *FanStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *FanStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const FanStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->state);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, this->oscillating);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, static_cast<uint32_t>(this->direction));
-  ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 6, this->speed_level);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 7, this->preset_mode);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.state);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.oscillating);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, static_cast<uint32_t>(msg.direction));
+  pos = ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.speed_level);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.preset_mode);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.device_id);
 #endif
   return pos;
 }
-uint32_t FanStateResponse::calculate_size() const {
+uint32_t FanStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const FanStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_bool(1, this->state);
-  size += ProtoSize::calc_bool(1, this->oscillating);
-  size += this->direction ? 2 : 0;
-  size += ProtoSize::calc_int32(1, this->speed_level);
-  size += ProtoSize::calc_length(1, this->preset_mode.size());
+  size += ProtoSize::calc_bool(1, msg.state);
+  size += ProtoSize::calc_bool(1, msg.oscillating);
+  size += msg.direction ? 2 : 0;
+  size += ProtoSize::calc_int32(1, msg.speed_level);
+  size += ProtoSize::calc_length(1, msg.preset_mode.size());
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-bool FanCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 2:
-      this->has_state = value != 0;
+void FanCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<FanCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
       break;
-    case 3:
-      this->state = value != 0;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.has_state = value.as_bool();
       break;
-    case 6:
-      this->has_oscillating = value != 0;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.state = value.as_bool();
       break;
-    case 7:
-      this->oscillating = value != 0;
+    case proto_tag(6, WIRE_TYPE_VARINT):
+      msg.has_oscillating = value.as_bool();
       break;
-    case 8:
-      this->has_direction = value != 0;
+    case proto_tag(7, WIRE_TYPE_VARINT):
+      msg.oscillating = value.as_bool();
       break;
-    case 9:
-      this->direction = static_cast<enums::FanDirection>(value);
+    case proto_tag(8, WIRE_TYPE_VARINT):
+      msg.has_direction = value.as_bool();
       break;
-    case 10:
-      this->has_speed_level = value != 0;
+    case proto_tag(9, WIRE_TYPE_VARINT):
+      msg.direction = static_cast<enums::FanDirection>(value.as_varint());
       break;
-    case 11:
-      this->speed_level = static_cast<int32_t>(value);
+    case proto_tag(10, WIRE_TYPE_VARINT):
+      msg.has_speed_level = value.as_bool();
       break;
-    case 12:
-      this->has_preset_mode = value != 0;
+    case proto_tag(11, WIRE_TYPE_VARINT):
+      msg.speed_level = static_cast<int32_t>(value.as_varint());
+      break;
+    case proto_tag(12, WIRE_TYPE_VARINT):
+      msg.has_preset_mode = value.as_bool();
+      break;
+    case proto_tag(13, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.preset_mode = StringRef(value.data(), value.size());
       break;
 #ifdef USE_DEVICES
-    case 14:
-      this->device_id = value;
+    case proto_tag(14, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool FanCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 13: {
-      this->preset_mode = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-bool FanCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_LIGHT
-uint8_t *ListEntitiesLightResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesLightResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesLightResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
-  for (const auto &it : *this->supported_color_modes) {
-    ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 12, static_cast<uint32_t>(it), true);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  for (const auto &it : *msg.supported_color_modes) {
+    pos = ProtoEncode::encode_uint32_force(pos PROTO_ENCODE_DEBUG_ARG, 12, static_cast<uint32_t>(it));
   }
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 9, this->min_mireds);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 10, this->max_mireds);
-  for (const char *it : *this->effects) {
-    ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 11, it, strlen(it), true);
+  if (uint32_t raw = float_to_raw(msg.min_mireds); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 77, raw);
   }
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 13, this->disabled_by_default);
+  if (uint32_t raw = float_to_raw(msg.max_mireds); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 85, raw);
+  }
+  for (const char *it : *msg.effects) {
+    pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 11, it, strlen(it));
+  }
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 14, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 14, msg.icon);
 #endif
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 15, static_cast<uint32_t>(this->entity_category));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 15, static_cast<uint32_t>(msg.entity_category));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 16, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 16, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesLightResponse::calculate_size() const {
+uint32_t ListEntitiesLightResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesLightResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
-  if (!this->supported_color_modes->empty()) {
-    size += this->supported_color_modes->size() * 2;
+  size += 2 + msg.name.size();
+  if (!msg.supported_color_modes->empty()) {
+    size += msg.supported_color_modes->size() * 2;
   }
-  size += ProtoSize::calc_float(1, this->min_mireds);
-  size += ProtoSize::calc_float(1, this->max_mireds);
-  if (!this->effects->empty()) {
-    for (const char *it : *this->effects) {
+  size += ProtoSize::calc_float(1, msg.min_mireds);
+  size += ProtoSize::calc_float(1, msg.max_mireds);
+  if (!msg.effects->empty()) {
+    for (const char *it : *msg.effects) {
       size += ProtoSize::calc_length_force(1, strlen(it));
     }
   }
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += this->entity_category ? 2 : 0;
+  size += msg.entity_category ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(2, this->device_id);
+  size += ProtoSize::calc_uint32(2, msg.device_id);
 #endif
   return size;
 }
-uint8_t *LightStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *LightStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const LightStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->state);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 3, this->brightness);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, static_cast<uint32_t>(this->color_mode));
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 10, this->color_brightness);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 4, this->red);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 5, this->green);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 6, this->blue);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 7, this->white);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 8, this->color_temperature);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 12, this->cold_white);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 13, this->warm_white);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 9, this->effect);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.state);
+  if (uint32_t raw = float_to_raw(msg.brightness); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 29, raw);
+  }
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, static_cast<uint32_t>(msg.color_mode));
+  if (uint32_t raw = float_to_raw(msg.color_brightness); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 85, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.red); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 37, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.green); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 45, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.blue); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 53, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.white); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 61, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.color_temperature); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 69, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.cold_white); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 101, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.warm_white); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 109, raw);
+  }
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.effect);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 14, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 14, msg.device_id);
 #endif
   return pos;
 }
-uint32_t LightStateResponse::calculate_size() const {
+uint32_t LightStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const LightStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_bool(1, this->state);
-  size += ProtoSize::calc_float(1, this->brightness);
-  size += this->color_mode ? 2 : 0;
-  size += ProtoSize::calc_float(1, this->color_brightness);
-  size += ProtoSize::calc_float(1, this->red);
-  size += ProtoSize::calc_float(1, this->green);
-  size += ProtoSize::calc_float(1, this->blue);
-  size += ProtoSize::calc_float(1, this->white);
-  size += ProtoSize::calc_float(1, this->color_temperature);
-  size += ProtoSize::calc_float(1, this->cold_white);
-  size += ProtoSize::calc_float(1, this->warm_white);
-  size += ProtoSize::calc_length(1, this->effect.size());
+  size += ProtoSize::calc_bool(1, msg.state);
+  size += ProtoSize::calc_float(1, msg.brightness);
+  size += msg.color_mode ? 2 : 0;
+  size += ProtoSize::calc_float(1, msg.color_brightness);
+  size += ProtoSize::calc_float(1, msg.red);
+  size += ProtoSize::calc_float(1, msg.green);
+  size += ProtoSize::calc_float(1, msg.blue);
+  size += ProtoSize::calc_float(1, msg.white);
+  size += ProtoSize::calc_float(1, msg.color_temperature);
+  size += ProtoSize::calc_float(1, msg.cold_white);
+  size += ProtoSize::calc_float(1, msg.warm_white);
+  size += ProtoSize::calc_length(1, msg.effect.size());
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-bool LightCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 2:
-      this->has_state = value != 0;
+void LightCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<LightCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
       break;
-    case 3:
-      this->state = value != 0;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.has_state = value.as_bool();
       break;
-    case 4:
-      this->has_brightness = value != 0;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.state = value.as_bool();
       break;
-    case 22:
-      this->has_color_mode = value != 0;
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.has_brightness = value.as_bool();
       break;
-    case 23:
-      this->color_mode = static_cast<enums::ColorMode>(value);
+    case proto_tag(5, WIRE_TYPE_FIXED32):
+      msg.brightness = value.as_float();
       break;
-    case 20:
-      this->has_color_brightness = value != 0;
+    case proto_tag(22, WIRE_TYPE_VARINT):
+      msg.has_color_mode = value.as_bool();
       break;
-    case 6:
-      this->has_rgb = value != 0;
+    case proto_tag(23, WIRE_TYPE_VARINT):
+      msg.color_mode = static_cast<enums::ColorMode>(value.as_varint());
       break;
-    case 10:
-      this->has_white = value != 0;
+    case proto_tag(20, WIRE_TYPE_VARINT):
+      msg.has_color_brightness = value.as_bool();
       break;
-    case 12:
-      this->has_color_temperature = value != 0;
+    case proto_tag(21, WIRE_TYPE_FIXED32):
+      msg.color_brightness = value.as_float();
       break;
-    case 24:
-      this->has_cold_white = value != 0;
+    case proto_tag(6, WIRE_TYPE_VARINT):
+      msg.has_rgb = value.as_bool();
       break;
-    case 26:
-      this->has_warm_white = value != 0;
+    case proto_tag(7, WIRE_TYPE_FIXED32):
+      msg.red = value.as_float();
       break;
-    case 14:
-      this->has_transition_length = value != 0;
+    case proto_tag(8, WIRE_TYPE_FIXED32):
+      msg.green = value.as_float();
       break;
-    case 15:
-      this->transition_length = value;
+    case proto_tag(9, WIRE_TYPE_FIXED32):
+      msg.blue = value.as_float();
       break;
-    case 16:
-      this->has_flash_length = value != 0;
+    case proto_tag(10, WIRE_TYPE_VARINT):
+      msg.has_white = value.as_bool();
       break;
-    case 17:
-      this->flash_length = value;
+    case proto_tag(11, WIRE_TYPE_FIXED32):
+      msg.white = value.as_float();
       break;
-    case 18:
-      this->has_effect = value != 0;
+    case proto_tag(12, WIRE_TYPE_VARINT):
+      msg.has_color_temperature = value.as_bool();
+      break;
+    case proto_tag(13, WIRE_TYPE_FIXED32):
+      msg.color_temperature = value.as_float();
+      break;
+    case proto_tag(24, WIRE_TYPE_VARINT):
+      msg.has_cold_white = value.as_bool();
+      break;
+    case proto_tag(25, WIRE_TYPE_FIXED32):
+      msg.cold_white = value.as_float();
+      break;
+    case proto_tag(26, WIRE_TYPE_VARINT):
+      msg.has_warm_white = value.as_bool();
+      break;
+    case proto_tag(27, WIRE_TYPE_FIXED32):
+      msg.warm_white = value.as_float();
+      break;
+    case proto_tag(14, WIRE_TYPE_VARINT):
+      msg.has_transition_length = value.as_bool();
+      break;
+    case proto_tag(15, WIRE_TYPE_VARINT):
+      msg.transition_length = value.as_varint();
+      break;
+    case proto_tag(16, WIRE_TYPE_VARINT):
+      msg.has_flash_length = value.as_bool();
+      break;
+    case proto_tag(17, WIRE_TYPE_VARINT):
+      msg.flash_length = value.as_varint();
+      break;
+    case proto_tag(18, WIRE_TYPE_VARINT):
+      msg.has_effect = value.as_bool();
+      break;
+    case proto_tag(19, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.effect = StringRef(value.data(), value.size());
       break;
 #ifdef USE_DEVICES
-    case 28:
-      this->device_id = value;
+    case proto_tag(28, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool LightCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 19: {
-      this->effect = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-bool LightCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    case 5:
-      this->brightness = value.as_float();
-      break;
-    case 21:
-      this->color_brightness = value.as_float();
-      break;
-    case 7:
-      this->red = value.as_float();
-      break;
-    case 8:
-      this->green = value.as_float();
-      break;
-    case 9:
-      this->blue = value.as_float();
-      break;
-    case 11:
-      this->white = value.as_float();
-      break;
-    case 13:
-      this->color_temperature = value.as_float();
-      break;
-    case 25:
-      this->cold_white = value.as_float();
-      break;
-    case 27:
-      this->warm_white = value.as_float();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_SENSOR
-uint8_t *ListEntitiesSensorResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesSensorResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesSensorResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, this->unit_of_measurement);
-  ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 7, this->accuracy_decimals);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 8, this->force_update);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 9, this->device_class);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, static_cast<uint32_t>(this->state_class));
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 12, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 13, static_cast<uint32_t>(this->entity_category));
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.unit_of_measurement);
+  pos = ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.accuracy_decimals);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.force_update);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.device_class);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, static_cast<uint32_t>(msg.state_class));
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 12, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 13, static_cast<uint32_t>(msg.entity_category));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 14, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 14, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesSensorResponse::calculate_size() const {
+uint32_t ListEntitiesSensorResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesSensorResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += !this->unit_of_measurement.empty() ? 2 + this->unit_of_measurement.size() : 0;
-  size += ProtoSize::calc_int32(1, this->accuracy_decimals);
-  size += ProtoSize::calc_bool(1, this->force_update);
-  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
-  size += this->state_class ? 2 : 0;
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
+  size += !msg.unit_of_measurement.empty() ? 2 + msg.unit_of_measurement.size() : 0;
+  size += ProtoSize::calc_int32(1, msg.accuracy_decimals);
+  size += ProtoSize::calc_bool(1, msg.force_update);
+  size += !msg.device_class.empty() ? 2 + msg.device_class.size() : 0;
+  size += msg.state_class ? 2 : 0;
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 uint8_t *
-SensorStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+SensorStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const SensorStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 2, this->state);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, this->missing_state);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  if (uint32_t raw = float_to_raw(msg.state); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, raw);
+  }
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.missing_state);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.device_id);
 #endif
   return pos;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 uint32_t
-SensorStateResponse::calculate_size() const {
+SensorStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const SensorStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_float(1, this->state);
-  size += ProtoSize::calc_bool(1, this->missing_state);
+  size += ProtoSize::calc_float(1, msg.state);
+  size += ProtoSize::calc_bool(1, msg.missing_state);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
 #endif
 #ifdef USE_SWITCH
-uint8_t *ListEntitiesSwitchResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesSwitchResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesSwitchResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->assumed_state);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, static_cast<uint32_t>(this->entity_category));
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 9, this->device_class);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.assumed_state);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, static_cast<uint32_t>(msg.entity_category));
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.device_class);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesSwitchResponse::calculate_size() const {
+uint32_t ListEntitiesSwitchResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesSwitchResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_bool(1, this->assumed_state);
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
-  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
+  size += ProtoSize::calc_bool(1, msg.assumed_state);
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
+  size += !msg.device_class.empty() ? 2 + msg.device_class.size() : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *SwitchStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *SwitchStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const SwitchStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->state);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.state);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.device_id);
 #endif
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.missing_state);
   return pos;
 }
-uint32_t SwitchStateResponse::calculate_size() const {
+uint32_t SwitchStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const SwitchStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_bool(1, this->state);
+  size += ProtoSize::calc_bool(1, msg.state);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
+  size += ProtoSize::calc_bool(1, msg.missing_state);
   return size;
 }
-bool SwitchCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 2:
-      this->state = value != 0;
+void SwitchCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<SwitchCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
+      break;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.state = value.as_bool();
       break;
 #ifdef USE_DEVICES
-    case 3:
-      this->device_id = value;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool SwitchCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_TEXT_SENSOR
-uint8_t *ListEntitiesTextSensorResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesTextSensorResponse::encode_msg(const void *self,
+                                                    ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesTextSensorResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(this->entity_category));
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->device_class);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(msg.entity_category));
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.device_class);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesTextSensorResponse::calculate_size() const {
+uint32_t ListEntitiesTextSensorResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesTextSensorResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
-  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
+  size += !msg.device_class.empty() ? 2 + msg.device_class.size() : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *TextSensorStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *TextSensorStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const TextSensorStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, this->state);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, this->missing_state);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.state);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.missing_state);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.device_id);
 #endif
   return pos;
 }
-uint32_t TextSensorStateResponse::calculate_size() const {
+uint32_t TextSensorStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const TextSensorStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_length(1, this->state.size());
-  size += ProtoSize::calc_bool(1, this->missing_state);
+  size += ProtoSize::calc_length(1, msg.state.size());
+  size += ProtoSize::calc_bool(1, msg.missing_state);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
 #endif
-bool SubscribeLogsRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->level = static_cast<enums::LogLevel>(value);
+void SubscribeLogsRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<SubscribeLogsRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.level = static_cast<enums::LogLevel>(value.as_varint());
       break;
-    case 2:
-      this->dump_config = value != 0;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.dump_config = value.as_bool();
       break;
-    default:
-      return false;
   }
-  return true;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 uint8_t *
-SubscribeLogsResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+SubscribeLogsResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const SubscribeLogsResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(this->level), true);
-  ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 26);
-  ProtoEncode::encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, this->message_len_);
-  ProtoEncode::encode_raw(pos PROTO_ENCODE_DEBUG_ARG, this->message_ptr_, this->message_len_);
+  pos = ProtoEncode::encode_uint32_force(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(msg.level));
+  pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 26);
+  pos = ProtoEncode::encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, msg.message_len_);
+  pos = ProtoEncode::encode_raw(pos PROTO_ENCODE_DEBUG_ARG, msg.message_ptr_, msg.message_len_);
   return pos;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 uint32_t
-SubscribeLogsResponse::calculate_size() const {
+SubscribeLogsResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const SubscribeLogsResponse *>(self);
   uint32_t size = 0;
   size += 2;
-  size += ProtoSize::calc_length_force(1, this->message_len_);
+  size += ProtoSize::calc_length_force(1, msg.message_len_);
   return size;
 }
 #ifdef USE_API_NOISE
-bool NoiseEncryptionSetKeyRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1: {
-      this->key = value.data();
-      this->key_len = value.size();
+void NoiseEncryptionSetKeyRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                                proto_varint_value_t scalar) {
+  auto &msg = *static_cast<NoiseEncryptionSetKeyRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.key = value.data();
+      msg.key_len = value.size();
       break;
-    }
-    default:
-      return false;
   }
-  return true;
 }
-uint8_t *NoiseEncryptionSetKeyResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *NoiseEncryptionSetKeyResponse::encode_msg(const void *self,
+                                                   ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const NoiseEncryptionSetKeyResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 1, this->success);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.success);
   return pos;
 }
-uint32_t NoiseEncryptionSetKeyResponse::calculate_size() const {
+uint32_t NoiseEncryptionSetKeyResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const NoiseEncryptionSetKeyResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_bool(1, this->success);
+  size += ProtoSize::calc_bool(1, msg.success);
   return size;
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-uint8_t *HomeassistantServiceMap::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *HomeassistantServiceMap::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const HomeassistantServiceMap *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, this->value);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.key);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.value);
   return pos;
 }
-uint32_t HomeassistantServiceMap::calculate_size() const {
+uint32_t HomeassistantServiceMap::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const HomeassistantServiceMap *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->key.size());
-  size += ProtoSize::calc_length(1, this->value.size());
+  size += ProtoSize::calc_length(1, msg.key.size());
+  size += ProtoSize::calc_length(1, msg.value.size());
   return size;
 }
-uint8_t *HomeassistantActionRequest::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *HomeassistantActionRequest::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const HomeassistantActionRequest *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->service);
-  for (auto &it : this->data) {
-    ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 2, it);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.service);
+  for (auto &it : msg.data) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 2, it);
   }
-  for (auto &it : this->data_template) {
-    ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 3, it);
+  for (auto &it : msg.data_template) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 3, it);
   }
-  for (auto &it : this->variables) {
-    ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 4, it);
+  for (auto &it : msg.variables) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 4, it);
   }
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->is_event);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.is_event);
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, this->call_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.call_id);
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->wants_response);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.wants_response);
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->response_template);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.response_template);
 #endif
   return pos;
 }
-uint32_t HomeassistantActionRequest::calculate_size() const {
+uint32_t HomeassistantActionRequest::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const HomeassistantActionRequest *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->service.size());
-  if (!this->data.empty()) {
-    for (const auto &it : this->data) {
+  size += ProtoSize::calc_length(1, msg.service.size());
+  if (!msg.data.empty()) {
+    for (const auto &it : msg.data) {
       size += ProtoSize::calc_message_force(1, it.calculate_size());
     }
   }
-  if (!this->data_template.empty()) {
-    for (const auto &it : this->data_template) {
+  if (!msg.data_template.empty()) {
+    for (const auto &it : msg.data_template) {
       size += ProtoSize::calc_message_force(1, it.calculate_size());
     }
   }
-  if (!this->variables.empty()) {
-    for (const auto &it : this->variables) {
+  if (!msg.variables.empty()) {
+    for (const auto &it : msg.variables) {
       size += ProtoSize::calc_message_force(1, it.calculate_size());
     }
   }
-  size += ProtoSize::calc_bool(1, this->is_event);
+  size += ProtoSize::calc_bool(1, msg.is_event);
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
-  size += ProtoSize::calc_uint32(1, this->call_id);
+  size += ProtoSize::calc_uint32(1, msg.call_id);
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  size += ProtoSize::calc_bool(1, this->wants_response);
+  size += ProtoSize::calc_bool(1, msg.wants_response);
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  size += ProtoSize::calc_length(1, this->response_template.size());
+  size += ProtoSize::calc_length(1, msg.response_template.size());
 #endif
   return size;
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
-bool HomeassistantActionResponse::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->call_id = value;
+void HomeassistantActionResponse::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                               proto_varint_value_t scalar) {
+  auto &msg = *static_cast<HomeassistantActionResponse *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.call_id = value.as_varint();
       break;
-    case 2:
-      this->success = value != 0;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.success = value.as_bool();
       break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool HomeassistantActionResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 3: {
-      this->error_message = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+    case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.error_message = StringRef(value.data(), value.size());
       break;
-    }
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-    case 4: {
-      this->response_data = value.data();
-      this->response_data_len = value.size();
+    case proto_tag(4, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.response_data = value.data();
+      msg.response_data_len = value.size();
       break;
-    }
 #endif
-    default:
-      return false;
   }
-  return true;
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-uint8_t *SubscribeHomeAssistantStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *SubscribeHomeAssistantStateResponse::encode_msg(const void *self,
+                                                         ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const SubscribeHomeAssistantStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->entity_id);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, this->attribute);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, this->once);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.entity_id);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.attribute);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.once);
   return pos;
 }
-uint32_t SubscribeHomeAssistantStateResponse::calculate_size() const {
+uint32_t SubscribeHomeAssistantStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const SubscribeHomeAssistantStateResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->entity_id.size());
-  size += ProtoSize::calc_length(1, this->attribute.size());
-  size += ProtoSize::calc_bool(1, this->once);
+  size += ProtoSize::calc_length(1, msg.entity_id.size());
+  size += ProtoSize::calc_length(1, msg.attribute.size());
+  size += ProtoSize::calc_bool(1, msg.once);
   return size;
 }
-bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1: {
-      this->entity_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+void HomeAssistantStateResponse::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                              proto_varint_value_t scalar) {
+  auto &msg = *static_cast<HomeAssistantStateResponse *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.entity_id = StringRef(value.data(), value.size());
       break;
-    }
-    case 2: {
-      this->state = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+    case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.state = StringRef(value.data(), value.size());
       break;
-    }
-    case 3: {
-      this->attribute = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+    case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.attribute = StringRef(value.data(), value.size());
       break;
-    }
-    default:
-      return false;
   }
-  return true;
 }
 #endif
-bool DSTRule::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->time_seconds = decode_zigzag32(static_cast<uint32_t>(value));
+void DSTRule::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<DSTRule *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.time_seconds = decode_zigzag32(static_cast<uint32_t>(value.as_varint()));
       break;
-    case 2:
-      this->day = value;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.day = value.as_varint();
       break;
-    case 3:
-      this->type = static_cast<enums::DSTRuleType>(value);
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.type = static_cast<enums::DSTRuleType>(value.as_varint());
       break;
-    case 4:
-      this->month = value;
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.month = value.as_varint();
       break;
-    case 5:
-      this->week = value;
+    case proto_tag(5, WIRE_TYPE_VARINT):
+      msg.week = value.as_varint();
       break;
-    case 6:
-      this->day_of_week = value;
+    case proto_tag(6, WIRE_TYPE_VARINT):
+      msg.day_of_week = value.as_varint();
       break;
-    default:
-      return false;
   }
-  return true;
 }
-bool ParsedTimezone::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->std_offset_seconds = decode_zigzag32(static_cast<uint32_t>(value));
+void ParsedTimezone::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<ParsedTimezone *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.std_offset_seconds = decode_zigzag32(static_cast<uint32_t>(value.as_varint()));
       break;
-    case 2:
-      this->dst_offset_seconds = decode_zigzag32(static_cast<uint32_t>(value));
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.dst_offset_seconds = decode_zigzag32(static_cast<uint32_t>(value.as_varint()));
       break;
-    default:
-      return false;
+    case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
+      value.decode_to_message(msg.dst_start);
+      break;
+    case proto_tag(4, WIRE_TYPE_LENGTH_DELIMITED):
+      value.decode_to_message(msg.dst_end);
+      break;
   }
-  return true;
 }
-bool ParsedTimezone::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 3:
-      value.decode_to_message(this->dst_start);
+void GetTimeResponse::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<GetTimeResponse *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.epoch_seconds = value.as_fixed32();
       break;
-    case 4:
-      value.decode_to_message(this->dst_end);
+    case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
+      value.decode_to_message(msg.parsed_timezone);
+      msg.has_parsed_timezone = true;
       break;
-    default:
-      return false;
   }
-  return true;
-}
-bool GetTimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 2: {
-      this->timezone = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    case 3:
-      value.decode_to_message(this->parsed_timezone);
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->epoch_seconds = value.as_fixed32();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #ifdef USE_API_USER_DEFINED_ACTIONS
-uint8_t *ListEntitiesServicesArgument::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesServicesArgument::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesServicesArgument *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->name);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(this->type));
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.name);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(msg.type));
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.description);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.example);
+#endif
   return pos;
 }
-uint32_t ListEntitiesServicesArgument::calculate_size() const {
+uint32_t ListEntitiesServicesArgument::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesServicesArgument *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->name.size());
-  size += this->type ? 2 : 0;
+  size += ProtoSize::calc_length(1, msg.name.size());
+  size += msg.type ? 2 : 0;
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  size += ProtoSize::calc_length(1, msg.description.size());
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  size += ProtoSize::calc_length(1, msg.example.size());
+#endif
   return size;
 }
-uint8_t *ListEntitiesServicesResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesServicesResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesServicesResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->name);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  for (auto &it : this->args) {
-    ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 3, it);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.name);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  for (auto &it : msg.args) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 3, it);
   }
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, static_cast<uint32_t>(this->supports_response));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, static_cast<uint32_t>(msg.supports_response));
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.description);
+#endif
   return pos;
 }
-uint32_t ListEntitiesServicesResponse::calculate_size() const {
+uint32_t ListEntitiesServicesResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesServicesResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += ProtoSize::calc_length(1, msg.name.size());
   size += 5;
-  if (!this->args.empty()) {
-    for (const auto &it : this->args) {
+  if (!msg.args.empty()) {
+    for (const auto &it : msg.args) {
       size += ProtoSize::calc_message_force(1, it.calculate_size());
     }
   }
-  size += this->supports_response ? 2 : 0;
+  size += msg.supports_response ? 2 : 0;
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  size += ProtoSize::calc_length(1, msg.description.size());
+#endif
   return size;
 }
-bool ExecuteServiceArgument::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->bool_ = value != 0;
+void ExecuteServiceArgument::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<ExecuteServiceArgument *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.bool_ = value.as_bool();
       break;
-    case 2:
-      this->legacy_int = static_cast<int32_t>(value);
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.legacy_int = static_cast<int32_t>(value.as_varint());
       break;
-    case 5:
-      this->int_ = decode_zigzag32(static_cast<uint32_t>(value));
+    case proto_tag(3, WIRE_TYPE_FIXED32):
+      msg.float_ = value.as_float();
       break;
-    case 6:
-      this->bool_array.push_back(value != 0);
+    case proto_tag(4, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.string_ = StringRef(value.data(), value.size());
       break;
-    case 7:
-      this->int_array.push_back(decode_zigzag32(static_cast<uint32_t>(value)));
+    case proto_tag(5, WIRE_TYPE_VARINT):
+      msg.int_ = decode_zigzag32(static_cast<uint32_t>(value.as_varint()));
       break;
-    default:
-      return false;
+    case proto_tag(6, WIRE_TYPE_VARINT):
+      msg.bool_array.push_back(value.as_bool());
+      break;
+    case proto_tag(7, WIRE_TYPE_VARINT):
+      msg.int_array.push_back(decode_zigzag32(static_cast<uint32_t>(value.as_varint())));
+      break;
+    case proto_tag(8, WIRE_TYPE_FIXED32):
+      msg.float_array.push_back(value.as_float());
+      break;
+    case proto_tag(9, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.string_array.push_back(value.as_string());
+      break;
   }
-  return true;
-}
-bool ExecuteServiceArgument::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 4: {
-      this->string_ = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    case 9:
-      this->string_array.push_back(value.as_string());
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool ExecuteServiceArgument::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 3:
-      this->float_ = value.as_float();
-      break;
-    case 8:
-      this->float_array.push_back(value.as_float());
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 void ExecuteServiceArgument::decode(const uint8_t *buffer, size_t length) {
   uint32_t count_bool_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 6);
@@ -1364,1116 +1372,1083 @@ void ExecuteServiceArgument::decode(const uint8_t *buffer, size_t length) {
   this->float_array.init(count_float_array);
   uint32_t count_string_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 9);
   this->string_array.init(count_string_array);
-  ProtoDecodableMessage::decode(buffer, length);
+  ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);
 }
-bool ExecuteServiceRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
+void ExecuteServiceRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<ExecuteServiceRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
+      break;
+    case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.args.emplace_back();
+      value.decode_to_message(msg.args.back());
+      break;
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-    case 3:
-      this->call_id = value;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.call_id = value.as_varint();
       break;
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-    case 4:
-      this->return_response = value != 0;
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.return_response = value.as_bool();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool ExecuteServiceRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 2:
-      this->args.emplace_back();
-      value.decode_to_message(this->args.back());
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool ExecuteServiceRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 void ExecuteServiceRequest::decode(const uint8_t *buffer, size_t length) {
   uint32_t count_args = ProtoDecodableMessage::count_repeated_field(buffer, length, 2);
   this->args.init(count_args);
-  ProtoDecodableMessage::decode(buffer, length);
+  ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);
 }
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-uint8_t *ExecuteServiceResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ExecuteServiceResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ExecuteServiceResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->call_id);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->success);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->error_message);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.call_id);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.success);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.error_message);
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-  ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 4, this->response_data, this->response_data_len);
+  pos = ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.response_data, msg.response_data_len);
 #endif
   return pos;
 }
-uint32_t ExecuteServiceResponse::calculate_size() const {
+uint32_t ExecuteServiceResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ExecuteServiceResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint32(1, this->call_id);
-  size += ProtoSize::calc_bool(1, this->success);
-  size += ProtoSize::calc_length(1, this->error_message.size());
+  size += ProtoSize::calc_uint32(1, msg.call_id);
+  size += ProtoSize::calc_bool(1, msg.success);
+  size += ProtoSize::calc_length(1, msg.error_message.size());
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-  size += ProtoSize::calc_length(1, this->response_data_len);
+  size += ProtoSize::calc_length(1, msg.response_data_len);
 #endif
   return size;
 }
 #endif
 #ifdef USE_CAMERA
-uint8_t *ListEntitiesCameraResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesCameraResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesCameraResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->disabled_by_default);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.icon);
 #endif
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(this->entity_category));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(msg.entity_category));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesCameraResponse::calculate_size() const {
+uint32_t ListEntitiesCameraResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesCameraResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
+  size += 2 + msg.name.size();
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += this->entity_category ? 2 : 0;
+  size += msg.entity_category ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *CameraImageResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *CameraImageResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const CameraImageResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 2, this->data_ptr_, this->data_len_);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, this->done);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.data_ptr_, msg.data_len_);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.done);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.device_id);
 #endif
   return pos;
 }
-uint32_t CameraImageResponse::calculate_size() const {
+uint32_t CameraImageResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const CameraImageResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_length(1, this->data_len_);
-  size += ProtoSize::calc_bool(1, this->done);
+  size += ProtoSize::calc_length(1, msg.data_len_);
+  size += ProtoSize::calc_bool(1, msg.done);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-bool CameraImageRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->single = value != 0;
+void CameraImageRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<CameraImageRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.single = value.as_bool();
       break;
-    case 2:
-      this->stream = value != 0;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.stream = value.as_bool();
       break;
-    default:
-      return false;
   }
-  return true;
 }
 #endif
 #ifdef USE_CLIMATE
-uint8_t *ListEntitiesClimateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesClimateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesClimateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->supports_current_temperature);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->supports_two_point_target_temperature);
-  for (const auto &it : *this->supported_modes) {
-    ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(it), true);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.supports_current_temperature);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.supports_two_point_target_temperature);
+  for (const auto &it : *msg.supported_modes) {
+    pos = ProtoEncode::encode_uint32_force(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(it));
   }
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 8, this->visual_min_temperature);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 9, this->visual_max_temperature);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 10, this->visual_target_temperature_step);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 12, this->supports_action);
-  for (const auto &it : *this->supported_fan_modes) {
-    ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 13, static_cast<uint32_t>(it), true);
+  if (uint32_t raw = float_to_raw(msg.visual_min_temperature); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 69, raw);
   }
-  for (const auto &it : *this->supported_swing_modes) {
-    ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 14, static_cast<uint32_t>(it), true);
+  if (uint32_t raw = float_to_raw(msg.visual_max_temperature); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 77, raw);
   }
-  for (const char *it : *this->supported_custom_fan_modes) {
-    ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 15, it, strlen(it), true);
+  if (uint32_t raw = float_to_raw(msg.visual_target_temperature_step); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 85, raw);
   }
-  for (const auto &it : *this->supported_presets) {
-    ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 16, static_cast<uint32_t>(it), true);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 12, msg.supports_action);
+  for (const auto &it : *msg.supported_fan_modes) {
+    pos = ProtoEncode::encode_uint32_force(pos PROTO_ENCODE_DEBUG_ARG, 13, static_cast<uint32_t>(it));
   }
-  for (const char *it : *this->supported_custom_presets) {
-    ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 17, it, strlen(it), true);
+  for (const auto &it : *msg.supported_swing_modes) {
+    pos = ProtoEncode::encode_uint32_force(pos PROTO_ENCODE_DEBUG_ARG, 14, static_cast<uint32_t>(it));
   }
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 18, this->disabled_by_default);
+  for (const char *it : *msg.supported_custom_fan_modes) {
+    pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 15, it, strlen(it));
+  }
+  for (const auto &it : *msg.supported_presets) {
+    pos = ProtoEncode::encode_uint32_force(pos PROTO_ENCODE_DEBUG_ARG, 16, static_cast<uint32_t>(it));
+  }
+  for (const char *it : *msg.supported_custom_presets) {
+    pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 17, it, strlen(it));
+  }
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 18, msg.disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 19, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 19, msg.icon);
 #endif
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 20, static_cast<uint32_t>(this->entity_category));
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 21, this->visual_current_temperature_step);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 22, this->supports_current_humidity);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 23, this->supports_target_humidity);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 24, this->visual_min_humidity);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 25, this->visual_max_humidity);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 20, static_cast<uint32_t>(msg.entity_category));
+  pos = ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.visual_current_temperature_step);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 22, msg.supports_current_humidity);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 23, msg.supports_target_humidity);
+  pos = ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 24, msg.visual_min_humidity);
+  pos = ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 25, msg.visual_max_humidity);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 26, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.device_id);
 #endif
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 27, this->feature_flags);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 28, static_cast<uint32_t>(this->temperature_unit));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 27, msg.feature_flags);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 28, static_cast<uint32_t>(msg.temperature_unit));
   return pos;
 }
-uint32_t ListEntitiesClimateResponse::calculate_size() const {
+uint32_t ListEntitiesClimateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesClimateResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
-  size += ProtoSize::calc_bool(1, this->supports_current_temperature);
-  size += ProtoSize::calc_bool(1, this->supports_two_point_target_temperature);
-  if (!this->supported_modes->empty()) {
-    size += this->supported_modes->size() * 2;
+  size += 2 + msg.name.size();
+  size += ProtoSize::calc_bool(1, msg.supports_current_temperature);
+  size += ProtoSize::calc_bool(1, msg.supports_two_point_target_temperature);
+  if (!msg.supported_modes->empty()) {
+    size += msg.supported_modes->size() * 2;
   }
-  size += ProtoSize::calc_float(1, this->visual_min_temperature);
-  size += ProtoSize::calc_float(1, this->visual_max_temperature);
-  size += ProtoSize::calc_float(1, this->visual_target_temperature_step);
-  size += ProtoSize::calc_bool(1, this->supports_action);
-  if (!this->supported_fan_modes->empty()) {
-    size += this->supported_fan_modes->size() * 2;
+  size += ProtoSize::calc_float(1, msg.visual_min_temperature);
+  size += ProtoSize::calc_float(1, msg.visual_max_temperature);
+  size += ProtoSize::calc_float(1, msg.visual_target_temperature_step);
+  size += ProtoSize::calc_bool(1, msg.supports_action);
+  if (!msg.supported_fan_modes->empty()) {
+    size += msg.supported_fan_modes->size() * 2;
   }
-  if (!this->supported_swing_modes->empty()) {
-    size += this->supported_swing_modes->size() * 2;
+  if (!msg.supported_swing_modes->empty()) {
+    size += msg.supported_swing_modes->size() * 2;
   }
-  if (!this->supported_custom_fan_modes->empty()) {
-    for (const char *it : *this->supported_custom_fan_modes) {
+  if (!msg.supported_custom_fan_modes->empty()) {
+    for (const char *it : *msg.supported_custom_fan_modes) {
       size += ProtoSize::calc_length_force(1, strlen(it));
     }
   }
-  if (!this->supported_presets->empty()) {
-    size += this->supported_presets->size() * 3;
+  if (!msg.supported_presets->empty()) {
+    size += msg.supported_presets->size() * 3;
   }
-  if (!this->supported_custom_presets->empty()) {
-    for (const char *it : *this->supported_custom_presets) {
+  if (!msg.supported_custom_presets->empty()) {
+    for (const char *it : *msg.supported_custom_presets) {
       size += ProtoSize::calc_length_force(2, strlen(it));
     }
   }
-  size += ProtoSize::calc_bool(2, this->disabled_by_default);
+  size += ProtoSize::calc_bool(2, msg.disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 3 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 3 + msg.icon.size() : 0;
 #endif
-  size += this->entity_category ? 3 : 0;
-  size += ProtoSize::calc_float(2, this->visual_current_temperature_step);
-  size += ProtoSize::calc_bool(2, this->supports_current_humidity);
-  size += ProtoSize::calc_bool(2, this->supports_target_humidity);
-  size += ProtoSize::calc_float(2, this->visual_min_humidity);
-  size += ProtoSize::calc_float(2, this->visual_max_humidity);
+  size += msg.entity_category ? 3 : 0;
+  size += ProtoSize::calc_float(2, msg.visual_current_temperature_step);
+  size += ProtoSize::calc_bool(2, msg.supports_current_humidity);
+  size += ProtoSize::calc_bool(2, msg.supports_target_humidity);
+  size += ProtoSize::calc_float(2, msg.visual_min_humidity);
+  size += ProtoSize::calc_float(2, msg.visual_max_humidity);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(2, this->device_id);
+  size += ProtoSize::calc_uint32(2, msg.device_id);
 #endif
-  size += ProtoSize::calc_uint32(2, this->feature_flags);
-  size += this->temperature_unit ? 3 : 0;
+  size += ProtoSize::calc_uint32(2, msg.feature_flags);
+  size += msg.temperature_unit ? 3 : 0;
   return size;
 }
-uint8_t *ClimateStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ClimateStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ClimateStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(this->mode));
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 3, this->current_temperature);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 4, this->target_temperature);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 5, this->target_temperature_low);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 6, this->target_temperature_high);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, static_cast<uint32_t>(this->action));
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, static_cast<uint32_t>(this->fan_mode));
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, static_cast<uint32_t>(this->swing_mode));
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 11, this->custom_fan_mode);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 12, static_cast<uint32_t>(this->preset));
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 13, this->custom_preset);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 14, this->current_humidity);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 15, this->target_humidity);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(msg.mode));
+  if (uint32_t raw = float_to_raw(msg.current_temperature); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 29, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.target_temperature); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 37, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.target_temperature_low); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 45, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.target_temperature_high); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 53, raw);
+  }
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, static_cast<uint32_t>(msg.action));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, static_cast<uint32_t>(msg.fan_mode));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, static_cast<uint32_t>(msg.swing_mode));
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 11, msg.custom_fan_mode);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 12, static_cast<uint32_t>(msg.preset));
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.custom_preset);
+  if (uint32_t raw = float_to_raw(msg.current_humidity); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 117, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.target_humidity); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 125, raw);
+  }
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 16, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 16, msg.device_id);
 #endif
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 17, msg.missing_state);
   return pos;
 }
-uint32_t ClimateStateResponse::calculate_size() const {
+uint32_t ClimateStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ClimateStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += this->mode ? 2 : 0;
-  size += ProtoSize::calc_float(1, this->current_temperature);
-  size += ProtoSize::calc_float(1, this->target_temperature);
-  size += ProtoSize::calc_float(1, this->target_temperature_low);
-  size += ProtoSize::calc_float(1, this->target_temperature_high);
-  size += this->action ? 2 : 0;
-  size += this->fan_mode ? 2 : 0;
-  size += this->swing_mode ? 2 : 0;
-  size += ProtoSize::calc_length(1, this->custom_fan_mode.size());
-  size += this->preset ? 2 : 0;
-  size += ProtoSize::calc_length(1, this->custom_preset.size());
-  size += ProtoSize::calc_float(1, this->current_humidity);
-  size += ProtoSize::calc_float(1, this->target_humidity);
+  size += msg.mode ? 2 : 0;
+  size += ProtoSize::calc_float(1, msg.current_temperature);
+  size += ProtoSize::calc_float(1, msg.target_temperature);
+  size += ProtoSize::calc_float(1, msg.target_temperature_low);
+  size += ProtoSize::calc_float(1, msg.target_temperature_high);
+  size += msg.action ? 2 : 0;
+  size += msg.fan_mode ? 2 : 0;
+  size += msg.swing_mode ? 2 : 0;
+  size += ProtoSize::calc_length(1, msg.custom_fan_mode.size());
+  size += msg.preset ? 2 : 0;
+  size += ProtoSize::calc_length(1, msg.custom_preset.size());
+  size += ProtoSize::calc_float(1, msg.current_humidity);
+  size += ProtoSize::calc_float(1, msg.target_humidity);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(2, this->device_id);
+  size += ProtoSize::calc_uint32(2, msg.device_id);
 #endif
+  size += ProtoSize::calc_bool(2, msg.missing_state);
   return size;
 }
-bool ClimateCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 2:
-      this->has_mode = value != 0;
+void ClimateCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<ClimateCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
       break;
-    case 3:
-      this->mode = static_cast<enums::ClimateMode>(value);
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.has_mode = value.as_bool();
       break;
-    case 4:
-      this->has_target_temperature = value != 0;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.mode = static_cast<enums::ClimateMode>(value.as_varint());
       break;
-    case 6:
-      this->has_target_temperature_low = value != 0;
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.has_target_temperature = value.as_bool();
       break;
-    case 8:
-      this->has_target_temperature_high = value != 0;
+    case proto_tag(5, WIRE_TYPE_FIXED32):
+      msg.target_temperature = value.as_float();
       break;
-    case 12:
-      this->has_fan_mode = value != 0;
+    case proto_tag(6, WIRE_TYPE_VARINT):
+      msg.has_target_temperature_low = value.as_bool();
       break;
-    case 13:
-      this->fan_mode = static_cast<enums::ClimateFanMode>(value);
+    case proto_tag(7, WIRE_TYPE_FIXED32):
+      msg.target_temperature_low = value.as_float();
       break;
-    case 14:
-      this->has_swing_mode = value != 0;
+    case proto_tag(8, WIRE_TYPE_VARINT):
+      msg.has_target_temperature_high = value.as_bool();
       break;
-    case 15:
-      this->swing_mode = static_cast<enums::ClimateSwingMode>(value);
+    case proto_tag(9, WIRE_TYPE_FIXED32):
+      msg.target_temperature_high = value.as_float();
       break;
-    case 16:
-      this->has_custom_fan_mode = value != 0;
+    case proto_tag(12, WIRE_TYPE_VARINT):
+      msg.has_fan_mode = value.as_bool();
       break;
-    case 18:
-      this->has_preset = value != 0;
+    case proto_tag(13, WIRE_TYPE_VARINT):
+      msg.fan_mode = static_cast<enums::ClimateFanMode>(value.as_varint());
       break;
-    case 19:
-      this->preset = static_cast<enums::ClimatePreset>(value);
+    case proto_tag(14, WIRE_TYPE_VARINT):
+      msg.has_swing_mode = value.as_bool();
       break;
-    case 20:
-      this->has_custom_preset = value != 0;
+    case proto_tag(15, WIRE_TYPE_VARINT):
+      msg.swing_mode = static_cast<enums::ClimateSwingMode>(value.as_varint());
       break;
-    case 22:
-      this->has_target_humidity = value != 0;
+    case proto_tag(16, WIRE_TYPE_VARINT):
+      msg.has_custom_fan_mode = value.as_bool();
+      break;
+    case proto_tag(17, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.custom_fan_mode = StringRef(value.data(), value.size());
+      break;
+    case proto_tag(18, WIRE_TYPE_VARINT):
+      msg.has_preset = value.as_bool();
+      break;
+    case proto_tag(19, WIRE_TYPE_VARINT):
+      msg.preset = static_cast<enums::ClimatePreset>(value.as_varint());
+      break;
+    case proto_tag(20, WIRE_TYPE_VARINT):
+      msg.has_custom_preset = value.as_bool();
+      break;
+    case proto_tag(21, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.custom_preset = StringRef(value.data(), value.size());
+      break;
+    case proto_tag(22, WIRE_TYPE_VARINT):
+      msg.has_target_humidity = value.as_bool();
+      break;
+    case proto_tag(23, WIRE_TYPE_FIXED32):
+      msg.target_humidity = value.as_float();
       break;
 #ifdef USE_DEVICES
-    case 24:
-      this->device_id = value;
+    case proto_tag(24, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool ClimateCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 17: {
-      this->custom_fan_mode = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    case 21: {
-      this->custom_preset = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-bool ClimateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    case 5:
-      this->target_temperature = value.as_float();
-      break;
-    case 7:
-      this->target_temperature_low = value.as_float();
-      break;
-    case 9:
-      this->target_temperature_high = value.as_float();
-      break;
-    case 23:
-      this->target_humidity = value.as_float();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_WATER_HEATER
-uint8_t *ListEntitiesWaterHeaterResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesWaterHeaterResponse::encode_msg(const void *self,
+                                                     ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesWaterHeaterResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.icon);
 #endif
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, static_cast<uint32_t>(this->entity_category));
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, static_cast<uint32_t>(msg.entity_category));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.device_id);
 #endif
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 8, this->min_temperature);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 9, this->max_temperature);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 10, this->target_temperature_step);
-  for (const auto &it : *this->supported_modes) {
-    ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, static_cast<uint32_t>(it), true);
+  if (uint32_t raw = float_to_raw(msg.min_temperature); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 69, raw);
   }
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 12, this->supported_features);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 13, static_cast<uint32_t>(this->temperature_unit));
+  if (uint32_t raw = float_to_raw(msg.max_temperature); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 77, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.target_temperature_step); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 85, raw);
+  }
+  for (const auto &it : *msg.supported_modes) {
+    pos = ProtoEncode::encode_uint32_force(pos PROTO_ENCODE_DEBUG_ARG, 11, static_cast<uint32_t>(it));
+  }
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 12, msg.supported_features);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 13, static_cast<uint32_t>(msg.temperature_unit));
   return pos;
 }
-uint32_t ListEntitiesWaterHeaterResponse::calculate_size() const {
+uint32_t ListEntitiesWaterHeaterResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesWaterHeaterResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
-  size += ProtoSize::calc_float(1, this->min_temperature);
-  size += ProtoSize::calc_float(1, this->max_temperature);
-  size += ProtoSize::calc_float(1, this->target_temperature_step);
-  if (!this->supported_modes->empty()) {
-    size += this->supported_modes->size() * 2;
+  size += ProtoSize::calc_float(1, msg.min_temperature);
+  size += ProtoSize::calc_float(1, msg.max_temperature);
+  size += ProtoSize::calc_float(1, msg.target_temperature_step);
+  if (!msg.supported_modes->empty()) {
+    size += msg.supported_modes->size() * 2;
   }
-  size += ProtoSize::calc_uint32(1, this->supported_features);
-  size += this->temperature_unit ? 2 : 0;
+  size += ProtoSize::calc_uint32(1, msg.supported_features);
+  size += msg.temperature_unit ? 2 : 0;
   return size;
 }
-uint8_t *WaterHeaterStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *WaterHeaterStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const WaterHeaterStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 2, this->current_temperature);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 3, this->target_temperature);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, static_cast<uint32_t>(this->mode));
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  if (uint32_t raw = float_to_raw(msg.current_temperature); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.target_temperature); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 29, raw);
+  }
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, static_cast<uint32_t>(msg.mode));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.device_id);
 #endif
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, this->state);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 7, this->target_temperature_low);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 8, this->target_temperature_high);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.state);
+  if (uint32_t raw = float_to_raw(msg.target_temperature_low); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 61, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.target_temperature_high); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 69, raw);
+  }
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.missing_state);
   return pos;
 }
-uint32_t WaterHeaterStateResponse::calculate_size() const {
+uint32_t WaterHeaterStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const WaterHeaterStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_float(1, this->current_temperature);
-  size += ProtoSize::calc_float(1, this->target_temperature);
-  size += this->mode ? 2 : 0;
+  size += ProtoSize::calc_float(1, msg.current_temperature);
+  size += ProtoSize::calc_float(1, msg.target_temperature);
+  size += msg.mode ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
-  size += ProtoSize::calc_uint32(1, this->state);
-  size += ProtoSize::calc_float(1, this->target_temperature_low);
-  size += ProtoSize::calc_float(1, this->target_temperature_high);
+  size += ProtoSize::calc_uint32(1, msg.state);
+  size += ProtoSize::calc_float(1, msg.target_temperature_low);
+  size += ProtoSize::calc_float(1, msg.target_temperature_high);
+  size += ProtoSize::calc_bool(1, msg.missing_state);
   return size;
 }
-bool WaterHeaterCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 2:
-      this->has_fields = value;
+void WaterHeaterCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                             proto_varint_value_t scalar) {
+  auto &msg = *static_cast<WaterHeaterCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
       break;
-    case 3:
-      this->mode = static_cast<enums::WaterHeaterMode>(value);
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.has_fields = value.as_varint();
+      break;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.mode = static_cast<enums::WaterHeaterMode>(value.as_varint());
+      break;
+    case proto_tag(4, WIRE_TYPE_FIXED32):
+      msg.target_temperature = value.as_float();
       break;
 #ifdef USE_DEVICES
-    case 5:
-      this->device_id = value;
+    case proto_tag(5, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    case 6:
-      this->state = value;
+    case proto_tag(6, WIRE_TYPE_VARINT):
+      msg.state = value.as_varint();
       break;
-    default:
-      return false;
+    case proto_tag(7, WIRE_TYPE_FIXED32):
+      msg.target_temperature_low = value.as_float();
+      break;
+    case proto_tag(8, WIRE_TYPE_FIXED32):
+      msg.target_temperature_high = value.as_float();
+      break;
   }
-  return true;
-}
-bool WaterHeaterCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    case 4:
-      this->target_temperature = value.as_float();
-      break;
-    case 7:
-      this->target_temperature_low = value.as_float();
-      break;
-    case 8:
-      this->target_temperature_high = value.as_float();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_NUMBER
-uint8_t *ListEntitiesNumberResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesNumberResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesNumberResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 6, this->min_value);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 7, this->max_value);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 8, this->step);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, static_cast<uint32_t>(this->entity_category));
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 11, this->unit_of_measurement);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 12, static_cast<uint32_t>(this->mode));
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 13, this->device_class);
+  if (uint32_t raw = float_to_raw(msg.min_value); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 53, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.max_value); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 61, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.step); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 69, raw);
+  }
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, static_cast<uint32_t>(msg.entity_category));
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 11, msg.unit_of_measurement);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 12, static_cast<uint32_t>(msg.mode));
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.device_class);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 14, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 14, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesNumberResponse::calculate_size() const {
+uint32_t ListEntitiesNumberResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesNumberResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_float(1, this->min_value);
-  size += ProtoSize::calc_float(1, this->max_value);
-  size += ProtoSize::calc_float(1, this->step);
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
-  size += !this->unit_of_measurement.empty() ? 2 + this->unit_of_measurement.size() : 0;
-  size += this->mode ? 2 : 0;
-  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
+  size += ProtoSize::calc_float(1, msg.min_value);
+  size += ProtoSize::calc_float(1, msg.max_value);
+  size += ProtoSize::calc_float(1, msg.step);
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
+  size += !msg.unit_of_measurement.empty() ? 2 + msg.unit_of_measurement.size() : 0;
+  size += msg.mode ? 2 : 0;
+  size += !msg.device_class.empty() ? 2 + msg.device_class.size() : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *NumberStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *NumberStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const NumberStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 2, this->state);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, this->missing_state);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  if (uint32_t raw = float_to_raw(msg.state); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, raw);
+  }
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.missing_state);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.device_id);
 #endif
   return pos;
 }
-uint32_t NumberStateResponse::calculate_size() const {
+uint32_t NumberStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const NumberStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_float(1, this->state);
-  size += ProtoSize::calc_bool(1, this->missing_state);
+  size += ProtoSize::calc_float(1, msg.state);
+  size += ProtoSize::calc_bool(1, msg.missing_state);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-bool NumberCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
+void NumberCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<NumberCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
+      break;
+    case proto_tag(2, WIRE_TYPE_FIXED32):
+      msg.state = value.as_float();
+      break;
 #ifdef USE_DEVICES
-    case 3:
-      this->device_id = value;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool NumberCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    case 2:
-      this->state = value.as_float();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_SELECT
-uint8_t *ListEntitiesSelectResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesSelectResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesSelectResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
-  for (const char *it : *this->options) {
-    ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, it, strlen(it), true);
+  for (const char *it : *msg.options) {
+    pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 6, it, strlen(it));
   }
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, static_cast<uint32_t>(this->entity_category));
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, static_cast<uint32_t>(msg.entity_category));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesSelectResponse::calculate_size() const {
+uint32_t ListEntitiesSelectResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesSelectResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  if (!this->options->empty()) {
-    for (const char *it : *this->options) {
+  if (!msg.options->empty()) {
+    for (const char *it : *msg.options) {
       size += ProtoSize::calc_length_force(1, strlen(it));
     }
   }
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *SelectStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *SelectStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const SelectStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, this->state);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, this->missing_state);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.state);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.missing_state);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.device_id);
 #endif
   return pos;
 }
-uint32_t SelectStateResponse::calculate_size() const {
+uint32_t SelectStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const SelectStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_length(1, this->state.size());
-  size += ProtoSize::calc_bool(1, this->missing_state);
+  size += ProtoSize::calc_length(1, msg.state.size());
+  size += ProtoSize::calc_bool(1, msg.missing_state);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-bool SelectCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
+void SelectCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<SelectCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
+      break;
+    case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.state = StringRef(value.data(), value.size());
+      break;
 #ifdef USE_DEVICES
-    case 3:
-      this->device_id = value;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool SelectCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 2: {
-      this->state = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-bool SelectCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_SIREN
-uint8_t *ListEntitiesSirenResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesSirenResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesSirenResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
-  for (const char *it : *this->tones) {
-    ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 7, it, strlen(it), true);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.disabled_by_default);
+  for (const char *it : *msg.tones) {
+    pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 7, it, strlen(it));
   }
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 8, this->supports_duration);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, this->supports_volume);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, static_cast<uint32_t>(this->entity_category));
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.supports_duration);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.supports_volume);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, static_cast<uint32_t>(msg.entity_category));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesSirenResponse::calculate_size() const {
+uint32_t ListEntitiesSirenResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesSirenResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  if (!this->tones->empty()) {
-    for (const char *it : *this->tones) {
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  if (!msg.tones->empty()) {
+    for (const char *it : *msg.tones) {
       size += ProtoSize::calc_length_force(1, strlen(it));
     }
   }
-  size += ProtoSize::calc_bool(1, this->supports_duration);
-  size += ProtoSize::calc_bool(1, this->supports_volume);
-  size += this->entity_category ? 2 : 0;
+  size += ProtoSize::calc_bool(1, msg.supports_duration);
+  size += ProtoSize::calc_bool(1, msg.supports_volume);
+  size += msg.entity_category ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *SirenStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *SirenStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const SirenStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->state);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.state);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.device_id);
 #endif
   return pos;
 }
-uint32_t SirenStateResponse::calculate_size() const {
+uint32_t SirenStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const SirenStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_bool(1, this->state);
+  size += ProtoSize::calc_bool(1, msg.state);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-bool SirenCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 2:
-      this->has_state = value != 0;
+void SirenCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<SirenCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
       break;
-    case 3:
-      this->state = value != 0;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.has_state = value.as_bool();
       break;
-    case 4:
-      this->has_tone = value != 0;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.state = value.as_bool();
       break;
-    case 6:
-      this->has_duration = value != 0;
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.has_tone = value.as_bool();
       break;
-    case 7:
-      this->duration = value;
+    case proto_tag(5, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.tone = StringRef(value.data(), value.size());
       break;
-    case 8:
-      this->has_volume = value != 0;
+    case proto_tag(6, WIRE_TYPE_VARINT):
+      msg.has_duration = value.as_bool();
+      break;
+    case proto_tag(7, WIRE_TYPE_VARINT):
+      msg.duration = value.as_varint();
+      break;
+    case proto_tag(8, WIRE_TYPE_VARINT):
+      msg.has_volume = value.as_bool();
+      break;
+    case proto_tag(9, WIRE_TYPE_FIXED32):
+      msg.volume = value.as_float();
       break;
 #ifdef USE_DEVICES
-    case 10:
-      this->device_id = value;
+    case proto_tag(10, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool SirenCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 5: {
-      this->tone = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-bool SirenCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    case 9:
-      this->volume = value.as_float();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_LOCK
-uint8_t *ListEntitiesLockResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesLockResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesLockResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(this->entity_category));
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 8, this->assumed_state);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, this->supports_open);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 10, this->requires_code);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 11, this->code_format);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(msg.entity_category));
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.assumed_state);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.supports_open);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.requires_code);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 11, msg.code_format);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 12, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 12, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesLockResponse::calculate_size() const {
+uint32_t ListEntitiesLockResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesLockResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
-  size += ProtoSize::calc_bool(1, this->assumed_state);
-  size += ProtoSize::calc_bool(1, this->supports_open);
-  size += ProtoSize::calc_bool(1, this->requires_code);
-  size += ProtoSize::calc_length(1, this->code_format.size());
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
+  size += ProtoSize::calc_bool(1, msg.assumed_state);
+  size += ProtoSize::calc_bool(1, msg.supports_open);
+  size += ProtoSize::calc_bool(1, msg.requires_code);
+  size += ProtoSize::calc_length(1, msg.code_format.size());
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *LockStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *LockStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const LockStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(this->state));
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(msg.state));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.device_id);
 #endif
   return pos;
 }
-uint32_t LockStateResponse::calculate_size() const {
+uint32_t LockStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const LockStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += this->state ? 2 : 0;
+  size += msg.state ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-bool LockCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 2:
-      this->command = static_cast<enums::LockCommand>(value);
+void LockCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<LockCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
       break;
-    case 3:
-      this->has_code = value != 0;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.command = static_cast<enums::LockCommand>(value.as_varint());
+      break;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.has_code = value.as_bool();
+      break;
+    case proto_tag(4, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.code = StringRef(value.data(), value.size());
       break;
 #ifdef USE_DEVICES
-    case 5:
-      this->device_id = value;
+    case proto_tag(5, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool LockCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 4: {
-      this->code = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-bool LockCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_BUTTON
-uint8_t *ListEntitiesButtonResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesButtonResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesButtonResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(this->entity_category));
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->device_class);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(msg.entity_category));
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.device_class);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesButtonResponse::calculate_size() const {
+uint32_t ListEntitiesButtonResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesButtonResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
-  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
+  size += !msg.device_class.empty() ? 2 + msg.device_class.size() : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-bool ButtonCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
+void ButtonCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<ButtonCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
+      break;
 #ifdef USE_DEVICES
-    case 2:
-      this->device_id = value;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool ButtonCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_MEDIA_PLAYER
-uint8_t *MediaPlayerSupportedFormat::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *MediaPlayerSupportedFormat::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const MediaPlayerSupportedFormat *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->format);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->sample_rate);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->num_channels);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, static_cast<uint32_t>(this->purpose));
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, this->sample_bytes);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.format);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.sample_rate);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.num_channels);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, static_cast<uint32_t>(msg.purpose));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.sample_bytes);
   return pos;
 }
-uint32_t MediaPlayerSupportedFormat::calculate_size() const {
+uint32_t MediaPlayerSupportedFormat::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const MediaPlayerSupportedFormat *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->format.size());
-  size += ProtoSize::calc_uint32(1, this->sample_rate);
-  size += ProtoSize::calc_uint32(1, this->num_channels);
-  size += this->purpose ? 2 : 0;
-  size += ProtoSize::calc_uint32(1, this->sample_bytes);
+  size += ProtoSize::calc_length(1, msg.format.size());
+  size += ProtoSize::calc_uint32(1, msg.sample_rate);
+  size += ProtoSize::calc_uint32(1, msg.num_channels);
+  size += msg.purpose ? 2 : 0;
+  size += ProtoSize::calc_uint32(1, msg.sample_bytes);
   return size;
 }
-uint8_t *ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesMediaPlayerResponse::encode_msg(const void *self,
+                                                     ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesMediaPlayerResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(this->entity_category));
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 8, this->supports_pause);
-  for (auto &it : this->supported_formats) {
-    ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 9, it);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(msg.entity_category));
+  for (auto &it : msg.supported_formats) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 9, it);
   }
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.device_id);
 #endif
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, this->feature_flags);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, msg.feature_flags);
   return pos;
 }
-uint32_t ListEntitiesMediaPlayerResponse::calculate_size() const {
+uint32_t ListEntitiesMediaPlayerResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesMediaPlayerResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
-  size += ProtoSize::calc_bool(1, this->supports_pause);
-  if (!this->supported_formats.empty()) {
-    for (const auto &it : this->supported_formats) {
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
+  if (!msg.supported_formats.empty()) {
+    for (const auto &it : msg.supported_formats) {
       size += ProtoSize::calc_message_force(1, it.calculate_size());
     }
   }
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
-  size += ProtoSize::calc_uint32(1, this->feature_flags);
+  size += ProtoSize::calc_uint32(1, msg.feature_flags);
   return size;
 }
-uint8_t *MediaPlayerStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *MediaPlayerStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const MediaPlayerStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(this->state));
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 3, this->volume);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 4, this->muted);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(msg.state));
+  if (uint32_t raw = float_to_raw(msg.volume); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 29, raw);
+  }
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.muted);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.device_id);
 #endif
   return pos;
 }
-uint32_t MediaPlayerStateResponse::calculate_size() const {
+uint32_t MediaPlayerStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const MediaPlayerStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += this->state ? 2 : 0;
-  size += ProtoSize::calc_float(1, this->volume);
-  size += ProtoSize::calc_bool(1, this->muted);
+  size += msg.state ? 2 : 0;
+  size += ProtoSize::calc_float(1, msg.volume);
+  size += ProtoSize::calc_bool(1, msg.muted);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-bool MediaPlayerCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 2:
-      this->has_command = value != 0;
+void MediaPlayerCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                             proto_varint_value_t scalar) {
+  auto &msg = *static_cast<MediaPlayerCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
       break;
-    case 3:
-      this->command = static_cast<enums::MediaPlayerCommand>(value);
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.has_command = value.as_bool();
       break;
-    case 4:
-      this->has_volume = value != 0;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.command = static_cast<enums::MediaPlayerCommand>(value.as_varint());
       break;
-    case 6:
-      this->has_media_url = value != 0;
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.has_volume = value.as_bool();
       break;
-    case 8:
-      this->has_announcement = value != 0;
+    case proto_tag(5, WIRE_TYPE_FIXED32):
+      msg.volume = value.as_float();
       break;
-    case 9:
-      this->announcement = value != 0;
+    case proto_tag(6, WIRE_TYPE_VARINT):
+      msg.has_media_url = value.as_bool();
+      break;
+    case proto_tag(7, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.media_url = StringRef(value.data(), value.size());
+      break;
+    case proto_tag(8, WIRE_TYPE_VARINT):
+      msg.has_announcement = value.as_bool();
+      break;
+    case proto_tag(9, WIRE_TYPE_VARINT):
+      msg.announcement = value.as_bool();
       break;
 #ifdef USE_DEVICES
-    case 10:
-      this->device_id = value;
+    case proto_tag(10, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool MediaPlayerCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 7: {
-      this->media_url = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-bool MediaPlayerCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    case 5:
-      this->volume = value.as_float();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-bool SubscribeBluetoothLEAdvertisementsRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->flags = value;
+void SubscribeBluetoothLEAdvertisementsRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                                             proto_varint_value_t scalar) {
+  auto &msg = *static_cast<SubscribeBluetoothLEAdvertisementsRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.flags = value.as_varint();
       break;
-    default:
-      return false;
   }
-  return true;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 uint8_t *
-BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+BluetoothLERawAdvertisementsResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothLERawAdvertisementsResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  for (uint16_t i = 0; i < this->advertisements_len; i++) {
-    auto &sub_msg = this->advertisements[i];
-    ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 10);
+  for (uint16_t i = 0; i < msg.advertisements_len; i++) {
+    auto &sub_msg = msg.advertisements[i];
+    pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 10);
     uint8_t *len_pos = pos;
-    ProtoEncode::reserve_byte(pos PROTO_ENCODE_DEBUG_ARG);
-    ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 8);
-    ProtoEncode::encode_varint_raw_48bit(pos PROTO_ENCODE_DEBUG_ARG, sub_msg.address);
-    ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 16);
-    ProtoEncode::encode_varint_raw_short(pos PROTO_ENCODE_DEBUG_ARG, encode_zigzag32(sub_msg.rssi));
+    pos = ProtoEncode::reserve_byte(pos PROTO_ENCODE_DEBUG_ARG);
+    pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 8);
+    pos = ProtoEncode::encode_varint_raw_48bit(pos PROTO_ENCODE_DEBUG_ARG, sub_msg.address);
+    pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 16);
+    pos = ProtoEncode::encode_varint_raw_short(pos PROTO_ENCODE_DEBUG_ARG, encode_zigzag32(sub_msg.rssi));
     if (sub_msg.address_type) {
-      ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 24);
-      ProtoEncode::encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, sub_msg.address_type);
+      pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 24);
+      pos = ProtoEncode::encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, sub_msg.address_type);
     }
-    ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 34);
-    ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, static_cast<uint8_t>(sub_msg.data_len));
-    ProtoEncode::encode_raw(pos PROTO_ENCODE_DEBUG_ARG, sub_msg.data, sub_msg.data_len);
+    pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 34);
+    pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, static_cast<uint8_t>(sub_msg.data_len));
+    pos = ProtoEncode::encode_raw(pos PROTO_ENCODE_DEBUG_ARG, sub_msg.data, sub_msg.data_len);
     *len_pos = static_cast<uint8_t>(pos - len_pos - 1);
   }
   return pos;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 uint32_t
-BluetoothLERawAdvertisementsResponse::calculate_size() const {
+BluetoothLERawAdvertisementsResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothLERawAdvertisementsResponse *>(self);
   uint32_t size = 0;
-  for (uint16_t i = 0; i < this->advertisements_len; i++) {
-    auto &sub_msg = this->advertisements[i];
+  for (uint16_t i = 0; i < msg.advertisements_len; i++) {
+    auto &sub_msg = msg.advertisements[i];
     size += 2;
     size += ProtoSize::calc_uint64_48bit_force(1, sub_msg.address);
     size += ProtoSize::calc_sint32_force(1, sub_msg.rssi);
@@ -2484,1572 +2459,1525 @@ BluetoothLERawAdvertisementsResponse::calculate_size() const {
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
-bool BluetoothDeviceRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->address = value;
+void BluetoothDeviceRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<BluetoothDeviceRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.address = value.as_varint();
       break;
-    case 2:
-      this->request_type = static_cast<enums::BluetoothDeviceRequestType>(value);
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.request_type = static_cast<enums::BluetoothDeviceRequestType>(value.as_varint());
       break;
-    case 3:
-      this->has_address_type = value != 0;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.has_address_type = value.as_bool();
       break;
-    case 4:
-      this->address_type = value;
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.address_type = value.as_varint();
       break;
-    default:
-      return false;
   }
-  return true;
 }
-uint8_t *BluetoothDeviceConnectionResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothDeviceConnectionResponse::encode_msg(const void *self,
+                                                       ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothDeviceConnectionResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->address);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->connected);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->mtu);
-  ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 4, this->error);
+  pos = ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.address);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.connected);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.mtu);
+  pos = ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.error);
   return pos;
 }
-uint32_t BluetoothDeviceConnectionResponse::calculate_size() const {
+uint32_t BluetoothDeviceConnectionResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothDeviceConnectionResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint64(1, this->address);
-  size += ProtoSize::calc_bool(1, this->connected);
-  size += ProtoSize::calc_uint32(1, this->mtu);
-  size += ProtoSize::calc_int32(1, this->error);
+  size += ProtoSize::calc_uint64(1, msg.address);
+  size += ProtoSize::calc_bool(1, msg.connected);
+  size += ProtoSize::calc_uint32(1, msg.mtu);
+  size += ProtoSize::calc_int32(1, msg.error);
   return size;
 }
-bool BluetoothGATTGetServicesRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->address = value;
+void BluetoothGATTGetServicesRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                                   proto_varint_value_t scalar) {
+  auto &msg = *static_cast<BluetoothGATTGetServicesRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.address = value.as_varint();
       break;
-    default:
-      return false;
   }
-  return true;
 }
-uint8_t *BluetoothGATTDescriptor::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothGATTDescriptor::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothGATTDescriptor *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  if (this->uuid[0] != 0 || this->uuid[1] != 0) {
-    ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->uuid[0], true);
-    ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->uuid[1], true);
+  if (msg.uuid[0] != 0 || msg.uuid[1] != 0) {
+    pos = ProtoEncode::encode_uint64_force(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.uuid[0]);
+    pos = ProtoEncode::encode_uint64_force(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.uuid[1]);
   }
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->handle);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->short_uuid);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.handle);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.short_uuid);
   return pos;
 }
-uint32_t BluetoothGATTDescriptor::calculate_size() const {
+uint32_t BluetoothGATTDescriptor::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothGATTDescriptor *>(self);
   uint32_t size = 0;
-  if (this->uuid[0] != 0 || this->uuid[1] != 0) {
-    size += ProtoSize::calc_uint64_force(1, this->uuid[0]);
-    size += ProtoSize::calc_uint64_force(1, this->uuid[1]);
+  if (msg.uuid[0] != 0 || msg.uuid[1] != 0) {
+    size += ProtoSize::calc_uint64_force(1, msg.uuid[0]);
+    size += ProtoSize::calc_uint64_force(1, msg.uuid[1]);
   }
-  size += ProtoSize::calc_uint32(1, this->handle);
-  size += ProtoSize::calc_uint32(1, this->short_uuid);
+  size += ProtoSize::calc_uint32(1, msg.handle);
+  size += ProtoSize::calc_uint32(1, msg.short_uuid);
   return size;
 }
-uint8_t *BluetoothGATTCharacteristic::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothGATTCharacteristic::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothGATTCharacteristic *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  if (this->uuid[0] != 0 || this->uuid[1] != 0) {
-    ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->uuid[0], true);
-    ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->uuid[1], true);
+  if (msg.uuid[0] != 0 || msg.uuid[1] != 0) {
+    pos = ProtoEncode::encode_uint64_force(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.uuid[0]);
+    pos = ProtoEncode::encode_uint64_force(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.uuid[1]);
   }
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->handle);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->properties);
-  for (auto &it : this->descriptors) {
-    ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 4, it);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.handle);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.properties);
+  for (auto &it : msg.descriptors) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 4, it);
   }
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, this->short_uuid);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.short_uuid);
   return pos;
 }
-uint32_t BluetoothGATTCharacteristic::calculate_size() const {
+uint32_t BluetoothGATTCharacteristic::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothGATTCharacteristic *>(self);
   uint32_t size = 0;
-  if (this->uuid[0] != 0 || this->uuid[1] != 0) {
-    size += ProtoSize::calc_uint64_force(1, this->uuid[0]);
-    size += ProtoSize::calc_uint64_force(1, this->uuid[1]);
+  if (msg.uuid[0] != 0 || msg.uuid[1] != 0) {
+    size += ProtoSize::calc_uint64_force(1, msg.uuid[0]);
+    size += ProtoSize::calc_uint64_force(1, msg.uuid[1]);
   }
-  size += ProtoSize::calc_uint32(1, this->handle);
-  size += ProtoSize::calc_uint32(1, this->properties);
-  if (!this->descriptors.empty()) {
-    for (const auto &it : this->descriptors) {
+  size += ProtoSize::calc_uint32(1, msg.handle);
+  size += ProtoSize::calc_uint32(1, msg.properties);
+  if (!msg.descriptors.empty()) {
+    for (const auto &it : msg.descriptors) {
       size += ProtoSize::calc_message_force(1, it.calculate_size());
     }
   }
-  size += ProtoSize::calc_uint32(1, this->short_uuid);
+  size += ProtoSize::calc_uint32(1, msg.short_uuid);
   return size;
 }
-uint8_t *BluetoothGATTService::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothGATTService::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothGATTService *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  if (this->uuid[0] != 0 || this->uuid[1] != 0) {
-    ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->uuid[0], true);
-    ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->uuid[1], true);
+  if (msg.uuid[0] != 0 || msg.uuid[1] != 0) {
+    pos = ProtoEncode::encode_uint64_force(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.uuid[0]);
+    pos = ProtoEncode::encode_uint64_force(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.uuid[1]);
   }
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->handle);
-  for (auto &it : this->characteristics) {
-    ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 3, it);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.handle);
+  for (auto &it : msg.characteristics) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 3, it);
   }
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, this->short_uuid);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.short_uuid);
   return pos;
 }
-uint32_t BluetoothGATTService::calculate_size() const {
+uint32_t BluetoothGATTService::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothGATTService *>(self);
   uint32_t size = 0;
-  if (this->uuid[0] != 0 || this->uuid[1] != 0) {
-    size += ProtoSize::calc_uint64_force(1, this->uuid[0]);
-    size += ProtoSize::calc_uint64_force(1, this->uuid[1]);
+  if (msg.uuid[0] != 0 || msg.uuid[1] != 0) {
+    size += ProtoSize::calc_uint64_force(1, msg.uuid[0]);
+    size += ProtoSize::calc_uint64_force(1, msg.uuid[1]);
   }
-  size += ProtoSize::calc_uint32(1, this->handle);
-  if (!this->characteristics.empty()) {
-    for (const auto &it : this->characteristics) {
+  size += ProtoSize::calc_uint32(1, msg.handle);
+  if (!msg.characteristics.empty()) {
+    for (const auto &it : msg.characteristics) {
       size += ProtoSize::calc_message_force(1, it.calculate_size());
     }
   }
-  size += ProtoSize::calc_uint32(1, this->short_uuid);
+  size += ProtoSize::calc_uint32(1, msg.short_uuid);
   return size;
 }
-uint8_t *BluetoothGATTGetServicesResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothGATTGetServicesResponse::encode_msg(const void *self,
+                                                      ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothGATTGetServicesResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->address);
-  for (auto &it : this->services) {
-    ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 2, it);
+  pos = ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.address);
+  for (auto &it : msg.services) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 2, it);
   }
   return pos;
 }
-uint32_t BluetoothGATTGetServicesResponse::calculate_size() const {
+uint32_t BluetoothGATTGetServicesResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothGATTGetServicesResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint64(1, this->address);
-  if (!this->services.empty()) {
-    for (const auto &it : this->services) {
+  size += ProtoSize::calc_uint64(1, msg.address);
+  if (!msg.services.empty()) {
+    for (const auto &it : msg.services) {
       size += ProtoSize::calc_message_force(1, it.calculate_size());
     }
   }
   return size;
 }
-uint8_t *BluetoothGATTGetServicesDoneResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothGATTGetServicesDoneResponse::encode_msg(const void *self,
+                                                          ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothGATTGetServicesDoneResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->address);
+  pos = ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.address);
   return pos;
 }
-uint32_t BluetoothGATTGetServicesDoneResponse::calculate_size() const {
+uint32_t BluetoothGATTGetServicesDoneResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothGATTGetServicesDoneResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint64(1, this->address);
+  size += ProtoSize::calc_uint64(1, msg.address);
   return size;
 }
-bool BluetoothGATTReadRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->address = value;
+void BluetoothGATTReadRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                            proto_varint_value_t scalar) {
+  auto &msg = *static_cast<BluetoothGATTReadRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.address = value.as_varint();
       break;
-    case 2:
-      this->handle = value;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.handle = value.as_varint();
       break;
-    default:
-      return false;
   }
-  return true;
 }
-uint8_t *BluetoothGATTReadResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothGATTReadResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothGATTReadResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->address);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->handle);
-  ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 3, this->data_ptr_, this->data_len_);
+  pos = ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.address);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.handle);
+  pos = ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.data_ptr_, msg.data_len_);
   return pos;
 }
-uint32_t BluetoothGATTReadResponse::calculate_size() const {
+uint32_t BluetoothGATTReadResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothGATTReadResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint64(1, this->address);
-  size += ProtoSize::calc_uint32(1, this->handle);
-  size += ProtoSize::calc_length(1, this->data_len_);
+  size += ProtoSize::calc_uint64(1, msg.address);
+  size += ProtoSize::calc_uint32(1, msg.handle);
+  size += ProtoSize::calc_length(1, msg.data_len_);
   return size;
 }
-bool BluetoothGATTWriteRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->address = value;
+void BluetoothGATTWriteRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                             proto_varint_value_t scalar) {
+  auto &msg = *static_cast<BluetoothGATTWriteRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.address = value.as_varint();
       break;
-    case 2:
-      this->handle = value;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.handle = value.as_varint();
       break;
-    case 3:
-      this->response = value != 0;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.response = value.as_bool();
       break;
-    default:
-      return false;
+    case proto_tag(4, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.data = value.data();
+      msg.data_len = value.size();
+      break;
   }
-  return true;
 }
-bool BluetoothGATTWriteRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 4: {
-      this->data = value.data();
-      this->data_len = value.size();
+void BluetoothGATTReadDescriptorRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                                      proto_varint_value_t scalar) {
+  auto &msg = *static_cast<BluetoothGATTReadDescriptorRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.address = value.as_varint();
       break;
-    }
-    default:
-      return false;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.handle = value.as_varint();
+      break;
   }
-  return true;
 }
-bool BluetoothGATTReadDescriptorRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->address = value;
+void BluetoothGATTWriteDescriptorRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                                       proto_varint_value_t scalar) {
+  auto &msg = *static_cast<BluetoothGATTWriteDescriptorRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.address = value.as_varint();
       break;
-    case 2:
-      this->handle = value;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.handle = value.as_varint();
       break;
-    default:
-      return false;
+    case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.data = value.data();
+      msg.data_len = value.size();
+      break;
   }
-  return true;
 }
-bool BluetoothGATTWriteDescriptorRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->address = value;
+void BluetoothGATTNotifyRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                              proto_varint_value_t scalar) {
+  auto &msg = *static_cast<BluetoothGATTNotifyRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.address = value.as_varint();
       break;
-    case 2:
-      this->handle = value;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.handle = value.as_varint();
       break;
-    default:
-      return false;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.enable = value.as_bool();
+      break;
   }
-  return true;
 }
-bool BluetoothGATTWriteDescriptorRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 3: {
-      this->data = value.data();
-      this->data_len = value.size();
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-bool BluetoothGATTNotifyRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->address = value;
-      break;
-    case 2:
-      this->handle = value;
-      break;
-    case 3:
-      this->enable = value != 0;
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-uint8_t *BluetoothGATTNotifyDataResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothGATTNotifyDataResponse::encode_msg(const void *self,
+                                                     ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothGATTNotifyDataResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->address);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->handle);
-  ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 3, this->data_ptr_, this->data_len_);
+  pos = ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.address);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.handle);
+  pos = ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.data_ptr_, msg.data_len_);
   return pos;
 }
-uint32_t BluetoothGATTNotifyDataResponse::calculate_size() const {
+uint32_t BluetoothGATTNotifyDataResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothGATTNotifyDataResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint64(1, this->address);
-  size += ProtoSize::calc_uint32(1, this->handle);
-  size += ProtoSize::calc_length(1, this->data_len_);
+  size += ProtoSize::calc_uint64(1, msg.address);
+  size += ProtoSize::calc_uint32(1, msg.handle);
+  size += ProtoSize::calc_length(1, msg.data_len_);
   return size;
 }
-uint8_t *BluetoothConnectionsFreeResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothConnectionsFreeResponse::encode_msg(const void *self,
+                                                      ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothConnectionsFreeResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->free);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->limit);
-  for (const auto &it : this->allocated) {
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.free);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.limit);
+  for (const auto &it : msg.allocated) {
     if (it != 0) {
-      ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 3, it, true);
+      pos = ProtoEncode::encode_uint64_force(pos PROTO_ENCODE_DEBUG_ARG, 3, it);
     }
   }
   return pos;
 }
-uint32_t BluetoothConnectionsFreeResponse::calculate_size() const {
+uint32_t BluetoothConnectionsFreeResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothConnectionsFreeResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint32(1, this->free);
-  size += ProtoSize::calc_uint32(1, this->limit);
-  for (const auto &it : this->allocated) {
+  size += ProtoSize::calc_uint32(1, msg.free);
+  size += ProtoSize::calc_uint32(1, msg.limit);
+  for (const auto &it : msg.allocated) {
     if (it != 0) {
       size += ProtoSize::calc_uint64_force(1, it);
     }
   }
   return size;
 }
-uint8_t *BluetoothGATTErrorResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothGATTErrorResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothGATTErrorResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->address);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->handle);
-  ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->error);
+  pos = ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.address);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.handle);
+  pos = ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.error);
   return pos;
 }
-uint32_t BluetoothGATTErrorResponse::calculate_size() const {
+uint32_t BluetoothGATTErrorResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothGATTErrorResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint64(1, this->address);
-  size += ProtoSize::calc_uint32(1, this->handle);
-  size += ProtoSize::calc_int32(1, this->error);
+  size += ProtoSize::calc_uint64(1, msg.address);
+  size += ProtoSize::calc_uint32(1, msg.handle);
+  size += ProtoSize::calc_int32(1, msg.error);
   return size;
 }
-uint8_t *BluetoothGATTWriteResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothGATTWriteResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothGATTWriteResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->address);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->handle);
+  pos = ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.address);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.handle);
   return pos;
 }
-uint32_t BluetoothGATTWriteResponse::calculate_size() const {
+uint32_t BluetoothGATTWriteResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothGATTWriteResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint64(1, this->address);
-  size += ProtoSize::calc_uint32(1, this->handle);
+  size += ProtoSize::calc_uint64(1, msg.address);
+  size += ProtoSize::calc_uint32(1, msg.handle);
   return size;
 }
-uint8_t *BluetoothGATTNotifyResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothGATTNotifyResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothGATTNotifyResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->address);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->handle);
+  pos = ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.address);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.handle);
   return pos;
 }
-uint32_t BluetoothGATTNotifyResponse::calculate_size() const {
+uint32_t BluetoothGATTNotifyResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothGATTNotifyResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint64(1, this->address);
-  size += ProtoSize::calc_uint32(1, this->handle);
+  size += ProtoSize::calc_uint64(1, msg.address);
+  size += ProtoSize::calc_uint32(1, msg.handle);
   return size;
 }
-uint8_t *BluetoothDevicePairingResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothDevicePairingResponse::encode_msg(const void *self,
+                                                    ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothDevicePairingResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->address);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->paired);
-  ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->error);
+  pos = ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.address);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.paired);
+  pos = ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.error);
   return pos;
 }
-uint32_t BluetoothDevicePairingResponse::calculate_size() const {
+uint32_t BluetoothDevicePairingResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothDevicePairingResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint64(1, this->address);
-  size += ProtoSize::calc_bool(1, this->paired);
-  size += ProtoSize::calc_int32(1, this->error);
+  size += ProtoSize::calc_uint64(1, msg.address);
+  size += ProtoSize::calc_bool(1, msg.paired);
+  size += ProtoSize::calc_int32(1, msg.error);
   return size;
 }
-uint8_t *BluetoothDeviceUnpairingResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothDeviceUnpairingResponse::encode_msg(const void *self,
+                                                      ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothDeviceUnpairingResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->address);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->success);
-  ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->error);
+  pos = ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.address);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.success);
+  pos = ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.error);
   return pos;
 }
-uint32_t BluetoothDeviceUnpairingResponse::calculate_size() const {
+uint32_t BluetoothDeviceUnpairingResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothDeviceUnpairingResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint64(1, this->address);
-  size += ProtoSize::calc_bool(1, this->success);
-  size += ProtoSize::calc_int32(1, this->error);
+  size += ProtoSize::calc_uint64(1, msg.address);
+  size += ProtoSize::calc_bool(1, msg.success);
+  size += ProtoSize::calc_int32(1, msg.error);
   return size;
 }
-uint8_t *BluetoothDeviceClearCacheResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothDeviceClearCacheResponse::encode_msg(const void *self,
+                                                       ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothDeviceClearCacheResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->address);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->success);
-  ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->error);
+  pos = ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.address);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.success);
+  pos = ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.error);
   return pos;
 }
-uint32_t BluetoothDeviceClearCacheResponse::calculate_size() const {
+uint32_t BluetoothDeviceClearCacheResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothDeviceClearCacheResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint64(1, this->address);
-  size += ProtoSize::calc_bool(1, this->success);
-  size += ProtoSize::calc_int32(1, this->error);
+  size += ProtoSize::calc_uint64(1, msg.address);
+  size += ProtoSize::calc_bool(1, msg.success);
+  size += ProtoSize::calc_int32(1, msg.error);
   return size;
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-uint8_t *BluetoothScannerStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothScannerStateResponse::encode_msg(const void *self,
+                                                   ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothScannerStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(this->state));
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(this->mode));
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, static_cast<uint32_t>(this->configured_mode));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(msg.state));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(msg.mode));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, static_cast<uint32_t>(msg.configured_mode));
   return pos;
 }
-uint32_t BluetoothScannerStateResponse::calculate_size() const {
+uint32_t BluetoothScannerStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothScannerStateResponse *>(self);
   uint32_t size = 0;
-  size += this->state ? 2 : 0;
-  size += this->mode ? 2 : 0;
-  size += this->configured_mode ? 2 : 0;
+  size += msg.state ? 2 : 0;
+  size += msg.mode ? 2 : 0;
+  size += msg.configured_mode ? 2 : 0;
   return size;
 }
-bool BluetoothScannerSetModeRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->mode = static_cast<enums::BluetoothScannerMode>(value);
+void BluetoothScannerSetModeRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                                  proto_varint_value_t scalar) {
+  auto &msg = *static_cast<BluetoothScannerSetModeRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.mode = static_cast<enums::BluetoothScannerMode>(value.as_varint());
       break;
-    default:
-      return false;
   }
-  return true;
 }
 #endif
 #ifdef USE_VOICE_ASSISTANT
-bool SubscribeVoiceAssistantRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->subscribe = value != 0;
+void SubscribeVoiceAssistantRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                                  proto_varint_value_t scalar) {
+  auto &msg = *static_cast<SubscribeVoiceAssistantRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.subscribe = value.as_bool();
       break;
-    case 2:
-      this->flags = value;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.flags = value.as_varint();
       break;
-    default:
-      return false;
   }
-  return true;
 }
-uint8_t *VoiceAssistantAudioSettings::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *VoiceAssistantAudioSettings::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const VoiceAssistantAudioSettings *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->noise_suppression_level);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->auto_gain);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 3, this->volume_multiplier);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.noise_suppression_level);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.auto_gain);
+  if (uint32_t raw = float_to_raw(msg.volume_multiplier); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 29, raw);
+  }
   return pos;
 }
-uint32_t VoiceAssistantAudioSettings::calculate_size() const {
+uint32_t VoiceAssistantAudioSettings::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const VoiceAssistantAudioSettings *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint32(1, this->noise_suppression_level);
-  size += ProtoSize::calc_uint32(1, this->auto_gain);
-  size += ProtoSize::calc_float(1, this->volume_multiplier);
+  size += ProtoSize::calc_uint32(1, msg.noise_suppression_level);
+  size += ProtoSize::calc_uint32(1, msg.auto_gain);
+  size += ProtoSize::calc_float(1, msg.volume_multiplier);
   return size;
 }
-uint8_t *VoiceAssistantRequest::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *VoiceAssistantRequest::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const VoiceAssistantRequest *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 1, this->start);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, this->conversation_id);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->flags);
-  ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 4, this->audio_settings);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->wake_word_phrase);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.start);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.conversation_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.flags);
+  pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 4, msg.audio_settings);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.wake_word_phrase);
   return pos;
 }
-uint32_t VoiceAssistantRequest::calculate_size() const {
+uint32_t VoiceAssistantRequest::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const VoiceAssistantRequest *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_bool(1, this->start);
-  size += ProtoSize::calc_length(1, this->conversation_id.size());
-  size += ProtoSize::calc_uint32(1, this->flags);
-  size += ProtoSize::calc_message(1, this->audio_settings.calculate_size());
-  size += ProtoSize::calc_length(1, this->wake_word_phrase.size());
+  size += ProtoSize::calc_bool(1, msg.start);
+  size += ProtoSize::calc_length(1, msg.conversation_id.size());
+  size += ProtoSize::calc_uint32(1, msg.flags);
+  size += ProtoSize::calc_message(1, msg.audio_settings.calculate_size());
+  size += ProtoSize::calc_length(1, msg.wake_word_phrase.size());
   return size;
 }
-bool VoiceAssistantResponse::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->port = value;
+void VoiceAssistantResponse::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<VoiceAssistantResponse *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.port = value.as_varint();
       break;
-    case 2:
-      this->error = value != 0;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.error = value.as_bool();
       break;
-    default:
-      return false;
   }
-  return true;
 }
-bool VoiceAssistantEventData::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1: {
-      this->name = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+void VoiceAssistantEventData::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<VoiceAssistantEventData *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.name = StringRef(value.data(), value.size());
       break;
-    }
-    case 2: {
-      this->value = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+    case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.value = StringRef(value.data(), value.size());
       break;
-    }
-    default:
-      return false;
   }
-  return true;
 }
-bool VoiceAssistantEventResponse::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->event_type = static_cast<enums::VoiceAssistantEvent>(value);
+void VoiceAssistantEventResponse::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                               proto_varint_value_t scalar) {
+  auto &msg = *static_cast<VoiceAssistantEventResponse *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.event_type = static_cast<enums::VoiceAssistantEvent>(value.as_varint());
       break;
-    default:
-      return false;
+    case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.data.emplace_back();
+      value.decode_to_message(msg.data.back());
+      break;
   }
-  return true;
 }
-bool VoiceAssistantEventResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 2:
-      this->data.emplace_back();
-      value.decode_to_message(this->data.back());
+void VoiceAssistantAudio::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<VoiceAssistantAudio *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.data = value.data();
+      msg.data_len = value.size();
       break;
-    default:
-      return false;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.end = value.as_bool();
+      break;
+    case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.data2 = value.data();
+      msg.data2_len = value.size();
+      break;
   }
-  return true;
 }
-bool VoiceAssistantAudio::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 2:
-      this->end = value != 0;
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool VoiceAssistantAudio::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1: {
-      this->data = value.data();
-      this->data_len = value.size();
-      break;
-    }
-    case 3: {
-      this->data2 = value.data();
-      this->data2_len = value.size();
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-uint8_t *VoiceAssistantAudio::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *VoiceAssistantAudio::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const VoiceAssistantAudio *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 1, this->data, this->data_len);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->end);
-  ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 3, this->data2, this->data2_len);
+  pos = ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.data, msg.data_len);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.end);
+  pos = ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.data2, msg.data2_len);
   return pos;
 }
-uint32_t VoiceAssistantAudio::calculate_size() const {
+uint32_t VoiceAssistantAudio::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const VoiceAssistantAudio *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->data_len);
-  size += ProtoSize::calc_bool(1, this->end);
-  size += ProtoSize::calc_length(1, this->data2_len);
+  size += ProtoSize::calc_length(1, msg.data_len);
+  size += ProtoSize::calc_bool(1, msg.end);
+  size += ProtoSize::calc_length(1, msg.data2_len);
   return size;
 }
-bool VoiceAssistantTimerEventResponse::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->event_type = static_cast<enums::VoiceAssistantTimerEvent>(value);
+void VoiceAssistantTimerEventResponse::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                                    proto_varint_value_t scalar) {
+  auto &msg = *static_cast<VoiceAssistantTimerEventResponse *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.event_type = static_cast<enums::VoiceAssistantTimerEvent>(value.as_varint());
       break;
-    case 4:
-      this->total_seconds = value;
+    case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.timer_id = StringRef(value.data(), value.size());
       break;
-    case 5:
-      this->seconds_left = value;
+    case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.name = StringRef(value.data(), value.size());
       break;
-    case 6:
-      this->is_active = value != 0;
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.total_seconds = value.as_varint();
       break;
-    default:
-      return false;
+    case proto_tag(5, WIRE_TYPE_VARINT):
+      msg.seconds_left = value.as_varint();
+      break;
+    case proto_tag(6, WIRE_TYPE_VARINT):
+      msg.is_active = value.as_bool();
+      break;
   }
-  return true;
 }
-bool VoiceAssistantTimerEventResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 2: {
-      this->timer_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+void VoiceAssistantAnnounceRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                                 proto_varint_value_t scalar) {
+  auto &msg = *static_cast<VoiceAssistantAnnounceRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.media_id = StringRef(value.data(), value.size());
       break;
-    }
-    case 3: {
-      this->name = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+    case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.text = StringRef(value.data(), value.size());
       break;
-    }
-    default:
-      return false;
+    case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.preannounce_media_id = StringRef(value.data(), value.size());
+      break;
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.start_conversation = value.as_bool();
+      break;
   }
-  return true;
 }
-bool VoiceAssistantAnnounceRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 4:
-      this->start_conversation = value != 0;
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool VoiceAssistantAnnounceRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1: {
-      this->media_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    case 2: {
-      this->text = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    case 3: {
-      this->preannounce_media_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-uint8_t *VoiceAssistantAnnounceFinished::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *VoiceAssistantAnnounceFinished::encode_msg(const void *self,
+                                                    ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const VoiceAssistantAnnounceFinished *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 1, this->success);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.success);
   return pos;
 }
-uint32_t VoiceAssistantAnnounceFinished::calculate_size() const {
+uint32_t VoiceAssistantAnnounceFinished::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const VoiceAssistantAnnounceFinished *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_bool(1, this->success);
+  size += ProtoSize::calc_bool(1, msg.success);
   return size;
 }
-uint8_t *VoiceAssistantWakeWord::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *VoiceAssistantWakeWord::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const VoiceAssistantWakeWord *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->id);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, this->wake_word);
-  for (auto &it : this->trained_languages) {
-    ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, it, true);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.id);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.wake_word);
+  for (auto &it : msg.trained_languages) {
+    pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 3, it);
   }
   return pos;
 }
-uint32_t VoiceAssistantWakeWord::calculate_size() const {
+uint32_t VoiceAssistantWakeWord::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const VoiceAssistantWakeWord *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->id.size());
-  size += ProtoSize::calc_length(1, this->wake_word.size());
-  if (!this->trained_languages.empty()) {
-    for (const auto &it : this->trained_languages) {
+  size += ProtoSize::calc_length(1, msg.id.size());
+  size += ProtoSize::calc_length(1, msg.wake_word.size());
+  if (!msg.trained_languages.empty()) {
+    for (const auto &it : msg.trained_languages) {
       size += ProtoSize::calc_length_force(1, it.size());
     }
   }
   return size;
 }
-bool VoiceAssistantExternalWakeWord::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 5:
-      this->model_size = value;
+void VoiceAssistantExternalWakeWord::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                                  proto_varint_value_t scalar) {
+  auto &msg = *static_cast<VoiceAssistantExternalWakeWord *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.id = StringRef(value.data(), value.size());
       break;
-    default:
-      return false;
+    case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.wake_word = StringRef(value.data(), value.size());
+      break;
+    case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.trained_languages.push_back(value.as_string());
+      break;
+    case proto_tag(4, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.model_type = StringRef(value.data(), value.size());
+      break;
+    case proto_tag(5, WIRE_TYPE_VARINT):
+      msg.model_size = value.as_varint();
+      break;
+    case proto_tag(6, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.model_hash = StringRef(value.data(), value.size());
+      break;
+    case proto_tag(7, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.url = StringRef(value.data(), value.size());
+      break;
   }
-  return true;
 }
-bool VoiceAssistantExternalWakeWord::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1: {
-      this->id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+void VoiceAssistantConfigurationRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                                      proto_varint_value_t scalar) {
+  auto &msg = *static_cast<VoiceAssistantConfigurationRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.external_wake_words.emplace_back();
+      value.decode_to_message(msg.external_wake_words.back());
       break;
-    }
-    case 2: {
-      this->wake_word = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    case 3:
-      this->trained_languages.push_back(value.as_string());
-      break;
-    case 4: {
-      this->model_type = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    case 6: {
-      this->model_hash = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    case 7: {
-      this->url = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    default:
-      return false;
   }
-  return true;
 }
-bool VoiceAssistantConfigurationRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1:
-      this->external_wake_words.emplace_back();
-      value.decode_to_message(this->external_wake_words.back());
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-uint8_t *VoiceAssistantConfigurationResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *VoiceAssistantConfigurationResponse::encode_msg(const void *self,
+                                                         ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const VoiceAssistantConfigurationResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  for (auto &it : this->available_wake_words) {
-    ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 1, it);
+  for (auto &it : msg.available_wake_words) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 1, it);
   }
-  for (const auto &it : *this->active_wake_words) {
-    ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, it, true);
+  for (const auto &it : *msg.active_wake_words) {
+    pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 2, it);
   }
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->max_active_wake_words);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.max_active_wake_words);
   return pos;
 }
-uint32_t VoiceAssistantConfigurationResponse::calculate_size() const {
+uint32_t VoiceAssistantConfigurationResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const VoiceAssistantConfigurationResponse *>(self);
   uint32_t size = 0;
-  if (!this->available_wake_words.empty()) {
-    for (const auto &it : this->available_wake_words) {
+  if (!msg.available_wake_words.empty()) {
+    for (const auto &it : msg.available_wake_words) {
       size += ProtoSize::calc_message_force(1, it.calculate_size());
     }
   }
-  if (!this->active_wake_words->empty()) {
-    for (const auto &it : *this->active_wake_words) {
+  if (!msg.active_wake_words->empty()) {
+    for (const auto &it : *msg.active_wake_words) {
       size += ProtoSize::calc_length_force(1, it.size());
     }
   }
-  size += ProtoSize::calc_uint32(1, this->max_active_wake_words);
+  size += ProtoSize::calc_uint32(1, msg.max_active_wake_words);
   return size;
 }
-bool VoiceAssistantSetConfiguration::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1:
-      this->active_wake_words.push_back(value.as_string());
+void VoiceAssistantSetConfiguration::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                                  proto_varint_value_t scalar) {
+  auto &msg = *static_cast<VoiceAssistantSetConfiguration *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.active_wake_words.push_back(value.as_string());
       break;
-    default:
-      return false;
   }
-  return true;
 }
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-uint8_t *ListEntitiesAlarmControlPanelResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesAlarmControlPanelResponse::encode_msg(const void *self,
+                                                           ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesAlarmControlPanelResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(this->entity_category));
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, this->supported_features);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, this->requires_code);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 10, this->requires_code_to_arm);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(msg.entity_category));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.supported_features);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.requires_code);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.requires_code_to_arm);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesAlarmControlPanelResponse::calculate_size() const {
+uint32_t ListEntitiesAlarmControlPanelResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesAlarmControlPanelResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
-  size += ProtoSize::calc_uint32(1, this->supported_features);
-  size += ProtoSize::calc_bool(1, this->requires_code);
-  size += ProtoSize::calc_bool(1, this->requires_code_to_arm);
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
+  size += ProtoSize::calc_uint32(1, msg.supported_features);
+  size += ProtoSize::calc_bool(1, msg.requires_code);
+  size += ProtoSize::calc_bool(1, msg.requires_code_to_arm);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *AlarmControlPanelStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *AlarmControlPanelStateResponse::encode_msg(const void *self,
+                                                    ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const AlarmControlPanelStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(this->state));
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(msg.state));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.device_id);
 #endif
   return pos;
 }
-uint32_t AlarmControlPanelStateResponse::calculate_size() const {
+uint32_t AlarmControlPanelStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const AlarmControlPanelStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += this->state ? 2 : 0;
+  size += msg.state ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-bool AlarmControlPanelCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 2:
-      this->command = static_cast<enums::AlarmControlPanelStateCommand>(value);
+void AlarmControlPanelCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                                   proto_varint_value_t scalar) {
+  auto &msg = *static_cast<AlarmControlPanelCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
+      break;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.command = static_cast<enums::AlarmControlPanelStateCommand>(value.as_varint());
+      break;
+    case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.code = StringRef(value.data(), value.size());
       break;
 #ifdef USE_DEVICES
-    case 4:
-      this->device_id = value;
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool AlarmControlPanelCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 3: {
-      this->code = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-bool AlarmControlPanelCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_TEXT
-uint8_t *ListEntitiesTextResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesTextResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesTextResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(this->entity_category));
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, this->min_length);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, this->max_length);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->pattern);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, static_cast<uint32_t>(this->mode));
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(msg.entity_category));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.min_length);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.max_length);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.pattern);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, static_cast<uint32_t>(msg.mode));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 12, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 12, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesTextResponse::calculate_size() const {
+uint32_t ListEntitiesTextResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesTextResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
-  size += ProtoSize::calc_uint32(1, this->min_length);
-  size += ProtoSize::calc_uint32(1, this->max_length);
-  size += ProtoSize::calc_length(1, this->pattern.size());
-  size += this->mode ? 2 : 0;
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
+  size += ProtoSize::calc_uint32(1, msg.min_length);
+  size += ProtoSize::calc_uint32(1, msg.max_length);
+  size += ProtoSize::calc_length(1, msg.pattern.size());
+  size += msg.mode ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *TextStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *TextStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const TextStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, this->state);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, this->missing_state);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.state);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.missing_state);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.device_id);
 #endif
   return pos;
 }
-uint32_t TextStateResponse::calculate_size() const {
+uint32_t TextStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const TextStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_length(1, this->state.size());
-  size += ProtoSize::calc_bool(1, this->missing_state);
+  size += ProtoSize::calc_length(1, msg.state.size());
+  size += ProtoSize::calc_bool(1, msg.missing_state);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-bool TextCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
+void TextCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<TextCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
+      break;
+    case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.state = StringRef(value.data(), value.size());
+      break;
 #ifdef USE_DEVICES
-    case 3:
-      this->device_id = value;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool TextCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 2: {
-      this->state = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-bool TextCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_DATETIME_DATE
-uint8_t *ListEntitiesDateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesDateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesDateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(this->entity_category));
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(msg.entity_category));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesDateResponse::calculate_size() const {
+uint32_t ListEntitiesDateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesDateResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *DateStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *DateStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const DateStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->missing_state);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->year);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, this->month);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, this->day);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.missing_state);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.year);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.month);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.day);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.device_id);
 #endif
   return pos;
 }
-uint32_t DateStateResponse::calculate_size() const {
+uint32_t DateStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const DateStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_bool(1, this->missing_state);
-  size += ProtoSize::calc_uint32(1, this->year);
-  size += ProtoSize::calc_uint32(1, this->month);
-  size += ProtoSize::calc_uint32(1, this->day);
+  size += ProtoSize::calc_bool(1, msg.missing_state);
+  size += ProtoSize::calc_uint32(1, msg.year);
+  size += ProtoSize::calc_uint32(1, msg.month);
+  size += ProtoSize::calc_uint32(1, msg.day);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-bool DateCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 2:
-      this->year = value;
+void DateCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<DateCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
       break;
-    case 3:
-      this->month = value;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.year = value.as_varint();
       break;
-    case 4:
-      this->day = value;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.month = value.as_varint();
+      break;
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.day = value.as_varint();
       break;
 #ifdef USE_DEVICES
-    case 5:
-      this->device_id = value;
+    case proto_tag(5, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool DateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_DATETIME_TIME
-uint8_t *ListEntitiesTimeResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesTimeResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesTimeResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(this->entity_category));
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(msg.entity_category));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesTimeResponse::calculate_size() const {
+uint32_t ListEntitiesTimeResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesTimeResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *TimeStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *TimeStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const TimeStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->missing_state);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->hour);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, this->minute);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, this->second);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.missing_state);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.hour);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.minute);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.second);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.device_id);
 #endif
   return pos;
 }
-uint32_t TimeStateResponse::calculate_size() const {
+uint32_t TimeStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const TimeStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_bool(1, this->missing_state);
-  size += ProtoSize::calc_uint32(1, this->hour);
-  size += ProtoSize::calc_uint32(1, this->minute);
-  size += ProtoSize::calc_uint32(1, this->second);
+  size += ProtoSize::calc_bool(1, msg.missing_state);
+  size += ProtoSize::calc_uint32(1, msg.hour);
+  size += ProtoSize::calc_uint32(1, msg.minute);
+  size += ProtoSize::calc_uint32(1, msg.second);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-bool TimeCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 2:
-      this->hour = value;
+void TimeCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<TimeCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
       break;
-    case 3:
-      this->minute = value;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.hour = value.as_varint();
       break;
-    case 4:
-      this->second = value;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.minute = value.as_varint();
+      break;
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.second = value.as_varint();
       break;
 #ifdef USE_DEVICES
-    case 5:
-      this->device_id = value;
+    case proto_tag(5, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool TimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_EVENT
-uint8_t *ListEntitiesEventResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesEventResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesEventResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(this->entity_category));
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->device_class);
-  for (const char *it : *this->event_types) {
-    ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 9, it, strlen(it), true);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(msg.entity_category));
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.device_class);
+  for (const char *it : *msg.event_types) {
+    pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 9, it, strlen(it));
   }
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesEventResponse::calculate_size() const {
+uint32_t ListEntitiesEventResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesEventResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
-  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
-  if (!this->event_types->empty()) {
-    for (const char *it : *this->event_types) {
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
+  size += !msg.device_class.empty() ? 2 + msg.device_class.size() : 0;
+  if (!msg.event_types->empty()) {
+    for (const char *it : *msg.event_types) {
       size += ProtoSize::calc_length_force(1, strlen(it));
     }
   }
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *EventResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *EventResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const EventResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, this->event_type);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.event_type);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.device_id);
 #endif
   return pos;
 }
-uint32_t EventResponse::calculate_size() const {
+uint32_t EventResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const EventResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_length(1, this->event_type.size());
+  size += ProtoSize::calc_length(1, msg.event_type.size());
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
 #endif
 #ifdef USE_VALVE
-uint8_t *ListEntitiesValveResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesValveResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesValveResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(this->entity_category));
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->device_class);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, this->assumed_state);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 10, this->supports_position);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 11, this->supports_stop);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(msg.entity_category));
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.device_class);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.assumed_state);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.supports_position);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 11, msg.supports_stop);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 12, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 12, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesValveResponse::calculate_size() const {
+uint32_t ListEntitiesValveResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesValveResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
-  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
-  size += ProtoSize::calc_bool(1, this->assumed_state);
-  size += ProtoSize::calc_bool(1, this->supports_position);
-  size += ProtoSize::calc_bool(1, this->supports_stop);
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
+  size += !msg.device_class.empty() ? 2 + msg.device_class.size() : 0;
+  size += ProtoSize::calc_bool(1, msg.assumed_state);
+  size += ProtoSize::calc_bool(1, msg.supports_position);
+  size += ProtoSize::calc_bool(1, msg.supports_stop);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *ValveStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ValveStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ValveStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 2, this->position);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, static_cast<uint32_t>(this->current_operation));
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  if (uint32_t raw = float_to_raw(msg.position); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, raw);
+  }
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, static_cast<uint32_t>(msg.current_operation));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ValveStateResponse::calculate_size() const {
+uint32_t ValveStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ValveStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_float(1, this->position);
-  size += this->current_operation ? 2 : 0;
+  size += ProtoSize::calc_float(1, msg.position);
+  size += msg.current_operation ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-bool ValveCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 2:
-      this->has_position = value != 0;
+void ValveCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<ValveCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
       break;
-    case 4:
-      this->stop = value != 0;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.has_position = value.as_bool();
+      break;
+    case proto_tag(3, WIRE_TYPE_FIXED32):
+      msg.position = value.as_float();
+      break;
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.stop = value.as_bool();
       break;
 #ifdef USE_DEVICES
-    case 5:
-      this->device_id = value;
+    case proto_tag(5, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool ValveCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    case 3:
-      this->position = value.as_float();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_DATETIME_DATETIME
-uint8_t *ListEntitiesDateTimeResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesDateTimeResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesDateTimeResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(this->entity_category));
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(msg.entity_category));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesDateTimeResponse::calculate_size() const {
+uint32_t ListEntitiesDateTimeResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesDateTimeResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *DateTimeStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *DateTimeStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const DateTimeStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->missing_state);
-  ProtoEncode::encode_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->epoch_seconds);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.missing_state);
+  if (uint32_t raw = msg.epoch_seconds; raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 29, raw);
+  }
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.device_id);
 #endif
   return pos;
 }
-uint32_t DateTimeStateResponse::calculate_size() const {
+uint32_t DateTimeStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const DateTimeStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_bool(1, this->missing_state);
-  size += ProtoSize::calc_fixed32(1, this->epoch_seconds);
+  size += ProtoSize::calc_bool(1, msg.missing_state);
+  size += ProtoSize::calc_fixed32(1, msg.epoch_seconds);
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-bool DateTimeCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
+void DateTimeCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<DateTimeCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
+      break;
+    case proto_tag(2, WIRE_TYPE_FIXED32):
+      msg.epoch_seconds = value.as_fixed32();
+      break;
 #ifdef USE_DEVICES
-    case 3:
-      this->device_id = value;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool DateTimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    case 2:
-      this->epoch_seconds = value.as_fixed32();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_UPDATE
-uint8_t *ListEntitiesUpdateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesUpdateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesUpdateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(this->entity_category));
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->device_class);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(msg.entity_category));
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.device_class);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.device_id);
 #endif
   return pos;
 }
-uint32_t ListEntitiesUpdateResponse::calculate_size() const {
+uint32_t ListEntitiesUpdateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesUpdateResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
-  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
+  size += !msg.device_class.empty() ? 2 + msg.device_class.size() : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-uint8_t *UpdateStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *UpdateStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const UpdateStateResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->missing_state);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, this->in_progress);
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 4, this->has_progress);
-  ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 5, this->progress);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, this->current_version);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 7, this->latest_version);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->title);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 9, this->release_summary);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->release_url);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.missing_state);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.in_progress);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.has_progress);
+  if (uint32_t raw = float_to_raw(msg.progress); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 45, raw);
+  }
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.current_version);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.latest_version);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.title);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.release_summary);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.release_url);
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, msg.device_id);
 #endif
   return pos;
 }
-uint32_t UpdateStateResponse::calculate_size() const {
+uint32_t UpdateStateResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const UpdateStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
-  size += ProtoSize::calc_bool(1, this->missing_state);
-  size += ProtoSize::calc_bool(1, this->in_progress);
-  size += ProtoSize::calc_bool(1, this->has_progress);
-  size += ProtoSize::calc_float(1, this->progress);
-  size += ProtoSize::calc_length(1, this->current_version.size());
-  size += ProtoSize::calc_length(1, this->latest_version.size());
-  size += ProtoSize::calc_length(1, this->title.size());
-  size += ProtoSize::calc_length(1, this->release_summary.size());
-  size += ProtoSize::calc_length(1, this->release_url.size());
+  size += ProtoSize::calc_bool(1, msg.missing_state);
+  size += ProtoSize::calc_bool(1, msg.in_progress);
+  size += ProtoSize::calc_bool(1, msg.has_progress);
+  size += ProtoSize::calc_float(1, msg.progress);
+  size += ProtoSize::calc_length(1, msg.current_version.size());
+  size += ProtoSize::calc_length(1, msg.latest_version.size());
+  size += ProtoSize::calc_length(1, msg.title.size());
+  size += ProtoSize::calc_length(1, msg.release_summary.size());
+  size += ProtoSize::calc_length(1, msg.release_url.size());
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   return size;
 }
-bool UpdateCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 2:
-      this->command = static_cast<enums::UpdateCommand>(value);
+void UpdateCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<UpdateCommandRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
+      break;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.command = static_cast<enums::UpdateCommand>(value.as_varint());
       break;
 #ifdef USE_DEVICES
-    case 3:
-      this->device_id = value;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    default:
-      return false;
   }
-  return true;
-}
-bool UpdateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 #endif
 #ifdef USE_ZWAVE_PROXY
-bool ZWaveProxyFrame::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1: {
-      this->data = value.data();
-      this->data_len = value.size();
+void ZWaveProxyFrame::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<ZWaveProxyFrame *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.data = value.data();
+      msg.data_len = value.size();
       break;
-    }
-    default:
-      return false;
   }
-  return true;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 uint8_t *
-ZWaveProxyFrame::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+ZWaveProxyFrame::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ZWaveProxyFrame *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 1, this->data, this->data_len);
+  pos = ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.data, msg.data_len);
   return pos;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 uint32_t
-ZWaveProxyFrame::calculate_size() const {
+ZWaveProxyFrame::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ZWaveProxyFrame *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->data_len);
+  size += ProtoSize::calc_length(1, msg.data_len);
   return size;
 }
-bool ZWaveProxyRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->type = static_cast<enums::ZWaveProxyRequestType>(value);
+void ZWaveProxyRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<ZWaveProxyRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.type = static_cast<enums::ZWaveProxyRequestType>(value.as_varint());
       break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool ZWaveProxyRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 2: {
-      this->data = value.data();
-      this->data_len = value.size();
+    case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.data = value.data();
+      msg.data_len = value.size();
       break;
-    }
-    default:
-      return false;
   }
-  return true;
 }
-uint8_t *ZWaveProxyRequest::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ZWaveProxyRequest::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ZWaveProxyRequest *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(this->type));
-  ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 2, this->data, this->data_len);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(msg.type));
+  pos = ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.data, msg.data_len);
   return pos;
 }
-uint32_t ZWaveProxyRequest::calculate_size() const {
+uint32_t ZWaveProxyRequest::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ZWaveProxyRequest *>(self);
   uint32_t size = 0;
-  size += this->type ? 2 : 0;
-  size += ProtoSize::calc_length(1, this->data_len);
+  size += msg.type ? 2 : 0;
+  size += ProtoSize::calc_length(1, msg.data_len);
+  return size;
+}
+uint8_t *ZWaveProxyRequestResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ZWaveProxyRequestResponse *>(self);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(msg.type));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(msg.status));
+  return pos;
+}
+uint32_t ZWaveProxyRequestResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ZWaveProxyRequestResponse *>(self);
+  uint32_t size = 0;
+  size += msg.type ? 2 : 0;
+  size += msg.status ? 2 : 0;
   return size;
 }
 #endif
 #ifdef USE_INFRARED
-uint8_t *ListEntitiesInfraredResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesInfraredResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesInfraredResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.icon);
 #endif
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, static_cast<uint32_t>(this->entity_category));
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, static_cast<uint32_t>(msg.entity_category));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.device_id);
 #endif
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, this->capabilities);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, this->receiver_frequency);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.capabilities);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.receiver_frequency);
   return pos;
 }
-uint32_t ListEntitiesInfraredResponse::calculate_size() const {
+uint32_t ListEntitiesInfraredResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesInfraredResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
-  size += ProtoSize::calc_uint32(1, this->capabilities);
-  size += ProtoSize::calc_uint32(1, this->receiver_frequency);
+  size += ProtoSize::calc_uint32(1, msg.capabilities);
+  size += ProtoSize::calc_uint32(1, msg.receiver_frequency);
   return size;
 }
 #endif
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
-bool InfraredRFTransmitRawTimingsRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
+void InfraredRFTransmitRawTimingsRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                                       proto_varint_value_t scalar) {
+  auto &msg = *static_cast<InfraredRFTransmitRawTimingsRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
 #ifdef USE_DEVICES
-    case 1:
-      this->device_id = value;
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.device_id = value.as_varint();
       break;
 #endif
-    case 3:
-      this->carrier_frequency = value;
+    case proto_tag(2, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
       break;
-    case 4:
-      this->repeat_count = value;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.carrier_frequency = value.as_varint();
       break;
-    case 6:
-      this->modulation = value;
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.repeat_count = value.as_varint();
       break;
-    default:
-      return false;
+    case proto_tag(5, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.timings_data_ = value.data();
+      msg.timings_length_ = value.size();
+      msg.timings_count_ = count_packed_varints(value.data(), value.size());
+      break;
+    case proto_tag(6, WIRE_TYPE_VARINT):
+      msg.modulation = value.as_varint();
+      break;
   }
-  return true;
-}
-bool InfraredRFTransmitRawTimingsRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 5: {
-      this->timings_data_ = value.data();
-      this->timings_length_ = value.size();
-      this->timings_count_ = count_packed_varints(value.data(), value.size());
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-bool InfraredRFTransmitRawTimingsRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 2:
-      this->key = value.as_fixed32();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 uint8_t *
-InfraredRFReceiveEvent::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+InfraredRFReceiveEvent::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const InfraredRFReceiveEvent *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.device_id);
 #endif
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  for (const auto &it : *this->timings) {
-    ProtoEncode::encode_sint32(pos PROTO_ENCODE_DEBUG_ARG, 3, it, true);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  for (const auto &it : *msg.timings) {
+    pos = ProtoEncode::encode_sint32_force(pos PROTO_ENCODE_DEBUG_ARG, 3, it);
   }
   return pos;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 uint32_t
-InfraredRFReceiveEvent::calculate_size() const {
+InfraredRFReceiveEvent::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const InfraredRFReceiveEvent *>(self);
   uint32_t size = 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   size += 5;
-  if (!this->timings->empty()) {
-    for (const auto &it : *this->timings) {
+  if (!msg.timings->empty()) {
+    for (const auto &it : *msg.timings) {
       size += ProtoSize::calc_sint32_force(1, it);
     }
   }
@@ -4057,209 +3985,353 @@ InfraredRFReceiveEvent::calculate_size() const {
 }
 #endif
 #ifdef USE_RADIO_FREQUENCY
-uint8_t *ListEntitiesRadioFrequencyResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *ListEntitiesRadioFrequencyResponse::encode_msg(const void *self,
+                                                        ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesRadioFrequencyResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
-  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->icon);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.icon);
 #endif
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->disabled_by_default);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, static_cast<uint32_t>(this->entity_category));
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.disabled_by_default);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, static_cast<uint32_t>(msg.entity_category));
 #ifdef USE_DEVICES
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, this->device_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.device_id);
 #endif
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, this->capabilities);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, this->frequency_min);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, this->frequency_max);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, this->supported_modulations);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.capabilities);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.frequency_min);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.frequency_max);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, msg.supported_modulations);
   return pos;
 }
-uint32_t ListEntitiesRadioFrequencyResponse::calculate_size() const {
+uint32_t ListEntitiesRadioFrequencyResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesRadioFrequencyResponse *>(self);
   uint32_t size = 0;
-  size += 2 + this->object_id.size();
+  size += 2 + msg.object_id.size();
   size += 5;
-  size += 2 + this->name.size();
+  size += 2 + msg.name.size();
 #ifdef USE_ENTITY_ICON
-  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+  size += !msg.icon.empty() ? 2 + msg.icon.size() : 0;
 #endif
-  size += ProtoSize::calc_bool(1, this->disabled_by_default);
-  size += this->entity_category ? 2 : 0;
+  size += ProtoSize::calc_bool(1, msg.disabled_by_default);
+  size += msg.entity_category ? 2 : 0;
 #ifdef USE_DEVICES
-  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
-  size += ProtoSize::calc_uint32(1, this->capabilities);
-  size += ProtoSize::calc_uint32(1, this->frequency_min);
-  size += ProtoSize::calc_uint32(1, this->frequency_max);
-  size += ProtoSize::calc_uint32(1, this->supported_modulations);
+  size += ProtoSize::calc_uint32(1, msg.capabilities);
+  size += ProtoSize::calc_uint32(1, msg.frequency_min);
+  size += ProtoSize::calc_uint32(1, msg.frequency_max);
+  size += ProtoSize::calc_uint32(1, msg.supported_modulations);
   return size;
 }
 #endif
 #ifdef USE_SERIAL_PROXY
-bool SerialProxyConfigureRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->instance = value;
+void SerialProxyConfigureRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                               proto_varint_value_t scalar) {
+  auto &msg = *static_cast<SerialProxyConfigureRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.instance = value.as_varint();
       break;
-    case 2:
-      this->baudrate = value;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.baudrate = value.as_varint();
       break;
-    case 3:
-      this->flow_control = value != 0;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.flow_control = value.as_bool();
       break;
-    case 4:
-      this->parity = static_cast<enums::SerialProxyParity>(value);
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.parity = static_cast<enums::SerialProxyParity>(value.as_varint());
       break;
-    case 5:
-      this->stop_bits = value;
+    case proto_tag(5, WIRE_TYPE_VARINT):
+      msg.stop_bits = value.as_varint();
       break;
-    case 6:
-      this->data_size = value;
+    case proto_tag(6, WIRE_TYPE_VARINT):
+      msg.data_size = value.as_varint();
       break;
-    default:
-      return false;
   }
-  return true;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 uint8_t *
-SerialProxyDataReceived::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+SerialProxyDataReceived::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const SerialProxyDataReceived *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->instance);
-  ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 2, this->data_ptr_, this->data_len_);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.instance);
+  pos = ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.data_ptr_, msg.data_len_);
   return pos;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 uint32_t
-SerialProxyDataReceived::calculate_size() const {
+SerialProxyDataReceived::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const SerialProxyDataReceived *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint32(1, this->instance);
-  size += ProtoSize::calc_length(1, this->data_len_);
+  size += ProtoSize::calc_uint32(1, msg.instance);
+  size += ProtoSize::calc_length(1, msg.data_len_);
   return size;
 }
-bool SerialProxyWriteRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->instance = value;
+void SerialProxyWriteRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<SerialProxyWriteRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.instance = value.as_varint();
       break;
-    default:
-      return false;
+    case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.data = value.data();
+      msg.data_len = value.size();
+      break;
   }
-  return true;
 }
-bool SerialProxyWriteRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 2: {
-      this->data = value.data();
-      this->data_len = value.size();
+void SerialProxySetModemPinsRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                                  proto_varint_value_t scalar) {
+  auto &msg = *static_cast<SerialProxySetModemPinsRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.instance = value.as_varint();
       break;
-    }
-    default:
-      return false;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.line_states = value.as_varint();
+      break;
   }
-  return true;
 }
-bool SerialProxySetModemPinsRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->instance = value;
+void SerialProxyGetModemPinsRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                                  proto_varint_value_t scalar) {
+  auto &msg = *static_cast<SerialProxyGetModemPinsRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.instance = value.as_varint();
       break;
-    case 2:
-      this->line_states = value;
-      break;
-    default:
-      return false;
   }
-  return true;
 }
-bool SerialProxyGetModemPinsRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->instance = value;
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-uint8_t *SerialProxyGetModemPinsResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *SerialProxyGetModemPinsResponse::encode_msg(const void *self,
+                                                     ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const SerialProxyGetModemPinsResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->instance);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->line_states);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.instance);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.line_states);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, static_cast<uint32_t>(msg.status));
   return pos;
 }
-uint32_t SerialProxyGetModemPinsResponse::calculate_size() const {
+uint32_t SerialProxyGetModemPinsResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const SerialProxyGetModemPinsResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint32(1, this->instance);
-  size += ProtoSize::calc_uint32(1, this->line_states);
+  size += ProtoSize::calc_uint32(1, msg.instance);
+  size += ProtoSize::calc_uint32(1, msg.line_states);
+  size += msg.status ? 2 : 0;
   return size;
 }
-bool SerialProxyRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->instance = value;
+void SerialProxyRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<SerialProxyRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.instance = value.as_varint();
       break;
-    case 2:
-      this->type = static_cast<enums::SerialProxyRequestType>(value);
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.type = static_cast<enums::SerialProxyRequestType>(value.as_varint());
       break;
-    default:
-      return false;
   }
-  return true;
 }
-uint8_t *SerialProxyRequestResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *SerialProxyRequestResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const SerialProxyRequestResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->instance);
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(this->type));
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, static_cast<uint32_t>(this->status));
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->error_message);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.instance);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(msg.type));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, static_cast<uint32_t>(msg.status));
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.error_message);
   return pos;
 }
-uint32_t SerialProxyRequestResponse::calculate_size() const {
+uint32_t SerialProxyRequestResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const SerialProxyRequestResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint32(1, this->instance);
-  size += this->type ? 2 : 0;
-  size += this->status ? 2 : 0;
-  size += ProtoSize::calc_length(1, this->error_message.size());
+  size += ProtoSize::calc_uint32(1, msg.instance);
+  size += msg.type ? 2 : 0;
+  size += msg.status ? 2 : 0;
+  size += ProtoSize::calc_length(1, msg.error_message.size());
   return size;
+}
+void SerialProxySetModeRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                             proto_varint_value_t scalar) {
+  auto &msg = *static_cast<SerialProxySetModeRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.instance = value.as_varint();
+      break;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.mode = static_cast<enums::SerialProxyMode>(value.as_varint());
+      break;
+  }
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
-bool BluetoothSetConnectionParamsRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->address = value;
+void BluetoothSetConnectionParamsRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                                       proto_varint_value_t scalar) {
+  auto &msg = *static_cast<BluetoothSetConnectionParamsRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      msg.address = value.as_varint();
       break;
-    case 2:
-      this->min_interval = value;
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      msg.min_interval = value.as_varint();
       break;
-    case 3:
-      this->max_interval = value;
+    case proto_tag(3, WIRE_TYPE_VARINT):
+      msg.max_interval = value.as_varint();
       break;
-    case 4:
-      this->latency = value;
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.latency = value.as_varint();
       break;
-    case 5:
-      this->timeout = value;
+    case proto_tag(5, WIRE_TYPE_VARINT):
+      msg.timeout = value.as_varint();
       break;
-    default:
-      return false;
   }
-  return true;
 }
-uint8_t *BluetoothSetConnectionParamsResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *BluetoothSetConnectionParamsResponse::encode_msg(const void *self,
+                                                          ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const BluetoothSetConnectionParamsResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, this->address);
-  ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->error);
+  pos = ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.address);
+  pos = ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.error);
   return pos;
 }
-uint32_t BluetoothSetConnectionParamsResponse::calculate_size() const {
+uint32_t BluetoothSetConnectionParamsResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const BluetoothSetConnectionParamsResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_uint64(1, this->address);
-  size += ProtoSize::calc_int32(1, this->error);
+  size += ProtoSize::calc_uint64(1, msg.address);
+  size += ProtoSize::calc_int32(1, msg.error);
   return size;
 }
+#endif
+#ifndef HAS_PROTO_MESSAGE_DUMP
+static_assert(!std::is_polymorphic_v<HelloRequest>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<DisconnectRequest>, "decodable messages carry no vtable");
+#ifdef USE_COVER
+static_assert(!std::is_polymorphic_v<CoverCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_FAN
+static_assert(!std::is_polymorphic_v<FanCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_LIGHT
+static_assert(!std::is_polymorphic_v<LightCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_SWITCH
+static_assert(!std::is_polymorphic_v<SwitchCommandRequest>, "decodable messages carry no vtable");
+#endif
+static_assert(!std::is_polymorphic_v<SubscribeLogsRequest>, "decodable messages carry no vtable");
+#ifdef USE_API_NOISE
+static_assert(!std::is_polymorphic_v<NoiseEncryptionSetKeyRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+static_assert(!std::is_polymorphic_v<HomeassistantActionResponse>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_API_HOMEASSISTANT_STATES
+static_assert(!std::is_polymorphic_v<HomeAssistantStateResponse>, "decodable messages carry no vtable");
+#endif
+static_assert(!std::is_polymorphic_v<DSTRule>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<ParsedTimezone>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<GetTimeResponse>, "decodable messages carry no vtable");
+#ifdef USE_API_USER_DEFINED_ACTIONS
+static_assert(!std::is_polymorphic_v<ExecuteServiceArgument>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<ExecuteServiceRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_CAMERA
+static_assert(!std::is_polymorphic_v<CameraImageRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_CLIMATE
+static_assert(!std::is_polymorphic_v<ClimateCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_WATER_HEATER
+static_assert(!std::is_polymorphic_v<WaterHeaterCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_NUMBER
+static_assert(!std::is_polymorphic_v<NumberCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_SELECT
+static_assert(!std::is_polymorphic_v<SelectCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_SIREN
+static_assert(!std::is_polymorphic_v<SirenCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_LOCK
+static_assert(!std::is_polymorphic_v<LockCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_BUTTON
+static_assert(!std::is_polymorphic_v<ButtonCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_MEDIA_PLAYER
+static_assert(!std::is_polymorphic_v<MediaPlayerCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+static_assert(!std::is_polymorphic_v<SubscribeBluetoothLEAdvertisementsRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
+static_assert(!std::is_polymorphic_v<BluetoothDeviceRequest>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<BluetoothGATTGetServicesRequest>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<BluetoothGATTReadRequest>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<BluetoothGATTWriteRequest>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<BluetoothGATTReadDescriptorRequest>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<BluetoothGATTWriteDescriptorRequest>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<BluetoothGATTNotifyRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+static_assert(!std::is_polymorphic_v<BluetoothScannerSetModeRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_VOICE_ASSISTANT
+static_assert(!std::is_polymorphic_v<SubscribeVoiceAssistantRequest>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<VoiceAssistantResponse>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<VoiceAssistantEventData>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<VoiceAssistantEventResponse>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<VoiceAssistantAudio>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<VoiceAssistantTimerEventResponse>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<VoiceAssistantAnnounceRequest>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<VoiceAssistantExternalWakeWord>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<VoiceAssistantConfigurationRequest>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<VoiceAssistantSetConfiguration>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+static_assert(!std::is_polymorphic_v<AlarmControlPanelCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_TEXT
+static_assert(!std::is_polymorphic_v<TextCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_DATETIME_DATE
+static_assert(!std::is_polymorphic_v<DateCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_DATETIME_TIME
+static_assert(!std::is_polymorphic_v<TimeCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_VALVE
+static_assert(!std::is_polymorphic_v<ValveCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_DATETIME_DATETIME
+static_assert(!std::is_polymorphic_v<DateTimeCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_UPDATE
+static_assert(!std::is_polymorphic_v<UpdateCommandRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_ZWAVE_PROXY
+static_assert(!std::is_polymorphic_v<ZWaveProxyFrame>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<ZWaveProxyRequest>, "decodable messages carry no vtable");
+#endif
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+static_assert(!std::is_polymorphic_v<InfraredRFTransmitRawTimingsRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_SERIAL_PROXY
+static_assert(!std::is_polymorphic_v<SerialProxyConfigureRequest>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<SerialProxyWriteRequest>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<SerialProxySetModemPinsRequest>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<SerialProxyGetModemPinsRequest>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<SerialProxyRequest>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<SerialProxySetModeRequest>, "decodable messages carry no vtable");
+#endif
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
+static_assert(!std::is_polymorphic_v<BluetoothSetConnectionParamsRequest>, "decodable messages carry no vtable");
+#endif
 #endif
 
 }  // namespace esphome::api

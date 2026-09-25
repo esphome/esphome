@@ -23,6 +23,7 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_TAG_NAME, CONF_TELEINFO_ID, TELEINFO_LISTENER_SCHEMA, teleinfo_ns
 
@@ -184,7 +185,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_TAG_NAME])
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)

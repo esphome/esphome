@@ -4,7 +4,6 @@
 #include <ctime>
 #include <initializer_list>
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/time/real_time_clock.h"
@@ -63,25 +62,25 @@ class Wireguard final : public PollingComponent {
   /// Prevent accidental use of std::string which would dangle
   void set_allowed_ips(std::initializer_list<std::tuple<std::string, std::string>> ips) = delete;
 
-  void set_keepalive(uint16_t seconds);
-  void set_reboot_timeout(uint32_t seconds);
-  void set_srctime(time::RealTimeClock *srctime);
+  void set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
+  void set_reboot_timeout(const uint32_t seconds) { this->reboot_timeout_ = seconds; }
+  void set_srctime(time::RealTimeClock *srctime) { this->srctime_ = srctime; }
 
 #ifdef USE_BINARY_SENSOR
-  void set_status_sensor(binary_sensor::BinarySensor *sensor);
-  void set_enabled_sensor(binary_sensor::BinarySensor *sensor);
+  void set_status_sensor(binary_sensor::BinarySensor *sensor) { this->status_sensor_ = sensor; }
+  void set_enabled_sensor(binary_sensor::BinarySensor *sensor) { this->enabled_sensor_ = sensor; }
 #endif
 
 #ifdef USE_SENSOR
-  void set_handshake_sensor(sensor::Sensor *sensor);
+  void set_handshake_sensor(sensor::Sensor *sensor) { this->handshake_sensor_ = sensor; }
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  void set_address_sensor(text_sensor::TextSensor *sensor);
+  void set_address_sensor(text_sensor::TextSensor *sensor) { this->address_sensor_ = sensor; }
 #endif
 
   /// Block the setup step until peer is connected.
-  void disable_auto_proceed();
+  void disable_auto_proceed() { this->proceed_allowed_ = false; }
 
   /// Enable the WireGuard component.
   void enable();
@@ -93,7 +92,7 @@ class Wireguard final : public PollingComponent {
   void publish_enabled_state();
 
   /// Return if the WireGuard component is or is not enabled.
-  bool is_enabled();
+  bool is_enabled() { return this->enabled_; }
 
   bool is_peer_up() const;
   time_t get_latest_handshake() const;
@@ -163,31 +162,6 @@ static constexpr size_t MASK_KEY_BUFFER_SIZE = 12;
 
 /// Strip most part of the key only for secure printing
 void mask_key_to(char *buffer, size_t len, const char *key);
-
-/// Condition to check if remote peer is online.
-template<typename... Ts>
-class WireguardPeerOnlineCondition final : public Condition<Ts...>, public Parented<Wireguard> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->is_peer_up(); }
-};
-
-/// Condition to check if Wireguard component is enabled.
-template<typename... Ts> class WireguardEnabledCondition final : public Condition<Ts...>, public Parented<Wireguard> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->is_enabled(); }
-};
-
-/// Action to enable Wireguard component.
-template<typename... Ts> class WireguardEnableAction final : public Action<Ts...>, public Parented<Wireguard> {
- public:
-  void play(const Ts &...x) override { this->parent_->enable(); }
-};
-
-/// Action to disable Wireguard component.
-template<typename... Ts> class WireguardDisableAction final : public Action<Ts...>, public Parented<Wireguard> {
- public:
-  void play(const Ts &...x) override { this->parent_->disable(); }
-};
 
 }  // namespace esphome::wireguard
 #endif

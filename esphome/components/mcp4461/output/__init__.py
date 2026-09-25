@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID, CONF_INITIAL_VALUE
+from esphome.types import ConfigType
 
 from .. import CONF_MCP4461_ID, Mcp4461Component, mcp4461_ns
 
@@ -34,7 +35,7 @@ CONF_NONVOLATILE_WRITE_DELAY = "nonvolatile_write_delay"
 VOLATILE_CHANNELS = ("A", "B", "C", "D")
 
 
-def _validate_nonvolatile(config):
+def _validate_nonvolatile(config: ConfigType) -> None:
     channel = str(config[CONF_CHANNEL])
 
     # Channels E-H address the nonvolatile registers directly — the mirroring options only
@@ -49,7 +50,7 @@ def _validate_nonvolatile(config):
                 f"enabling '{CONF_NONVOLATILE}' or setting '{CONF_NONVOLATILE_WRITE_DELAY}' is only valid for the "
                 f"volatile channels A-D; channels E-H are the nonvolatile registers themselves"
             )
-        return config
+        return
 
     config.setdefault(CONF_NONVOLATILE, True)
     if config[CONF_NONVOLATILE]:
@@ -62,7 +63,6 @@ def _validate_nonvolatile(config):
         raise cv.Invalid(
             f"'{CONF_NONVOLATILE_WRITE_DELAY}' requires '{CONF_NONVOLATILE}: true'"
         )
-    return config
 
 
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
@@ -90,7 +90,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 FINAL_VALIDATE_SCHEMA = _validate_nonvolatile
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_MCP4461_ID])
     var = cg.new_Pvariable(
         config[CONF_ID],
@@ -119,13 +119,6 @@ async def to_code(config):
 
 
 # ---- Actions ----
-WiperIncreaseAction = mcp4461_ns.class_("WiperIncreaseAction", automation.Action)
-WiperDecreaseAction = mcp4461_ns.class_("WiperDecreaseAction", automation.Action)
-WiperStoreNonvolatileAction = mcp4461_ns.class_(
-    "WiperStoreNonvolatileAction", automation.Action
-)
-WiperSetTerminalAction = mcp4461_ns.class_("WiperSetTerminalAction", automation.Action)
-
 WIPER_ACTION_SCHEMA = automation.maybe_simple_id(
     {cv.Required(CONF_ID): cv.use_id(Mcp4461Wiper)}
 )
@@ -142,36 +135,33 @@ TERMINAL_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
-    "mcp4461.wiper.increase", WiperIncreaseAction, WIPER_ACTION_SCHEMA, synchronous=True
-)
-@automation.register_action(
-    "mcp4461.wiper.decrease", WiperDecreaseAction, WIPER_ACTION_SCHEMA, synchronous=True
-)
-async def mcp4461_wiper_step_to_code(config, action_id, template_arg, args):
-    wiper = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, wiper)
+def _char_literal(config: ConfigType, value: str) -> str:
+    return f"'{value}'"
 
 
-@automation.register_action(
-    "mcp4461.wiper.store_nonvolatile",
-    WiperStoreNonvolatileAction,
+automation.register_apply_action(
+    "mcp4461.wiper.increase",
     WIPER_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("increase_wiper()"),
 )
-async def mcp4461_wiper_store_to_code(config, action_id, template_arg, args):
-    wiper = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, wiper)
 
+automation.register_apply_action(
+    "mcp4461.wiper.decrease",
+    WIPER_ACTION_SCHEMA,
+    automation.ApplyCall("decrease_wiper()"),
+)
 
-@automation.register_action(
+automation.register_apply_action(
+    "mcp4461.wiper.store_nonvolatile",
+    WIPER_ACTION_SCHEMA,
+    automation.ApplyCall("store_nonvolatile()"),
+)
+
+automation.register_apply_action(
     "mcp4461.wiper.set_terminal",
-    WiperSetTerminalAction,
     TERMINAL_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall(
+        "set_terminal({}, {})",
+        ((CONF_TERMINAL, cg.char, _char_literal), (CONF_ENABLE, cg.bool_)),
+    ),
 )
-async def mcp4461_wiper_terminal_to_code(config, action_id, template_arg, args):
-    wiper = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(
-        action_id, template_arg, wiper, ord(config[CONF_TERMINAL]), config[CONF_ENABLE]
-    )

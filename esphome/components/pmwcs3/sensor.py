@@ -10,6 +10,7 @@ from esphome.const import (
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@SeByDocKy"]
 DEPENDENCIES = ["i2c"]
@@ -24,17 +25,6 @@ ICON_ALPHA = "mdi:alpha-h-circle-outline"
 pmwcs3_ns = cg.esphome_ns.namespace("pmwcs3")
 PMWCS3Component = pmwcs3_ns.class_(
     "PMWCS3Component", cg.PollingComponent, i2c.I2CDevice
-)
-
-# Actions
-PMWCS3AirCalibrationAction = pmwcs3_ns.class_(
-    "PMWCS3AirCalibrationAction", automation.Action
-)
-PMWCS3WaterCalibrationAction = pmwcs3_ns.class_(
-    "PMWCS3WaterCalibrationAction", automation.Action
-)
-PMWCS3NewI2cAddressAction = pmwcs3_ns.class_(
-    "PMWCS3NewI2cAddressAction", automation.Action
 )
 
 CONFIG_SCHEMA = (
@@ -72,7 +62,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -101,23 +91,17 @@ PMWCS3_CALIBRATION_SCHEMA = cv.Schema(
     }
 )
 
-
-@automation.register_action(
+automation.register_apply_action(
     "pmwcs3.air_calibration",
-    PMWCS3AirCalibrationAction,
     PMWCS3_CALIBRATION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("air_calibration()"),
 )
-@automation.register_action(
-    "pmwcs3.water_calibration",
-    PMWCS3WaterCalibrationAction,
-    PMWCS3_CALIBRATION_SCHEMA,
-    synchronous=True,
-)
-async def pmwcs3_calibration_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
 
+automation.register_apply_action(
+    "pmwcs3.water_calibration",
+    PMWCS3_CALIBRATION_SCHEMA,
+    automation.ApplyCall("water_calibration()"),
+)
 
 PMWCS3_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(
     {
@@ -127,16 +111,8 @@ PMWCS3_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(
     key=CONF_ADDRESS,
 )
 
-
-@automation.register_action(
+automation.register_apply_action(
     "pmwcs3.new_i2c_address",
-    PMWCS3NewI2cAddressAction,
     PMWCS3_NEW_I2C_ADDRESS_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_ADDRESS, "new_i2c_address", cg.uint8),
 )
-async def pmwcs3newi2caddress_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-    address = await cg.templatable(config[CONF_ADDRESS], args, cg.int_)
-    cg.add(var.set_new_address(address))
-    return var
