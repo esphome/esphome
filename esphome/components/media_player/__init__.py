@@ -152,7 +152,7 @@ CONF_ON_PAUSE = "on_pause"
 CONF_ON_ANNOUNCEMENT = "on_announcement"
 CONF_MEDIA_URL = "media_url"
 
-# Command actions that all share the same schema and codegen handler
+# Command actions that all share the same schema and only differ in the command sent
 _COMMAND_ACTIONS = [
     "play",
     "pause",
@@ -190,27 +190,17 @@ _STATE_TRIGGERS = (
     (CONF_ON_TURN_OFF, MediaPlayerState.MEDIA_PLAYER_STATE_OFF),
 )
 
-# State conditions that all share the same schema and codegen handler
-_STATE_CONDITIONS = [
-    "idle",
-    "paused",
-    "playing",
-    "announcing",
-    "on",
-    "off",
-    "muted",
-]
+# State conditions: (config_key suffix, checked state)
+_STATE_CONDITIONS = (
+    ("idle", MediaPlayerState.MEDIA_PLAYER_STATE_IDLE),
+    ("paused", MediaPlayerState.MEDIA_PLAYER_STATE_PAUSED),
+    ("playing", MediaPlayerState.MEDIA_PLAYER_STATE_PLAYING),
+    ("announcing", MediaPlayerState.MEDIA_PLAYER_STATE_ANNOUNCING),
+    ("on", MediaPlayerState.MEDIA_PLAYER_STATE_ON),
+    ("off", MediaPlayerState.MEDIA_PLAYER_STATE_OFF),
+)
 
-# Special action classes with custom schemas/handlers
-PlayMediaAction = media_player_ns.class_(
-    "PlayMediaAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-EnqueueMediaAction = media_player_ns.class_(
-    "EnqueueMediaAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-VolumeSetAction = media_player_ns.class_(
-    "VolumeSetAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
+MediaPlayerCommand = media_player_ns.enum("MediaPlayerCommand", is_class=True)
 
 
 _CALLBACK_AUTOMATIONS = (
@@ -329,81 +319,60 @@ _MEDIA_URL_ACTION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-async def _media_action_handler(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    media_url = await cg.templatable(config[CONF_MEDIA_URL], args, cg.std_string)
-    announcement = await cg.templatable(config[CONF_ANNOUNCEMENT], args, cg.bool_)
-    cg.add(var.set_media_url(media_url))
-    cg.add(var.set_announcement(announcement))
-    return var
+_ANNOUNCEMENT_FIELD = automation.ApplyField(
+    CONF_ANNOUNCEMENT, "set_announcement", cg.bool_
+)
+_MEDIA_URL_FIELD = automation.ApplyField(CONF_MEDIA_URL, "set_media_url", cg.std_string)
 
 
-automation.register_action(
+def _set_command(command_name: str) -> automation.ApplyCall:
+    command = getattr(
+        MediaPlayerCommand, f"MEDIA_PLAYER_COMMAND_{command_name.upper()}"
+    )
+    return automation.ApplyCall(f"set_command({command})")
+
+
+automation.register_apply_action(
     "media_player.play_media",
-    PlayMediaAction,
     _MEDIA_URL_ACTION_SCHEMA,
-    synchronous=True,
-)(_media_action_handler)
+    _MEDIA_URL_FIELD,
+    _ANNOUNCEMENT_FIELD,
+    call="make_call",
+)
 
-automation.register_action(
+automation.register_apply_action(
     "media_player.enqueue",
-    EnqueueMediaAction,
     _MEDIA_URL_ACTION_SCHEMA,
-    synchronous=True,
-)(_media_action_handler)
+    _set_command("enqueue"),
+    _MEDIA_URL_FIELD,
+    _ANNOUNCEMENT_FIELD,
+    call="make_call",
+)
+
+for _action_name in _COMMAND_ACTIONS:
+    automation.register_apply_action(
+        f"media_player.{_action_name}",
+        MEDIA_PLAYER_ACTION_SCHEMA,
+        _set_command(_action_name),
+        _ANNOUNCEMENT_FIELD,
+        call="make_call",
+    )
 
 
-def _snake_to_camel(name):
-    return "".join(word.capitalize() for word in name.split("_"))
+for _condition_name, _state in _STATE_CONDITIONS:
+    automation.register_apply_condition(
+        f"media_player.is_{_condition_name}",
+        MEDIA_PLAYER_CONDITION_SCHEMA,
+        f"state == {_state}",
+    )
+
+automation.register_apply_condition(
+    "media_player.is_muted", MEDIA_PLAYER_CONDITION_SCHEMA, "is_muted()"
+)
 
 
-def _register_command_actions():
-    async def handler(config, action_id, template_arg, args):
-        var = cg.new_Pvariable(action_id, template_arg)
-        await cg.register_parented(var, config[CONF_ID])
-        announcement = await cg.templatable(config[CONF_ANNOUNCEMENT], args, cg.bool_)
-        cg.add(var.set_announcement(announcement))
-        return var
-
-    for action_name in _COMMAND_ACTIONS:
-        class_name = f"{_snake_to_camel(action_name)}Action"
-        action_class = media_player_ns.class_(
-            class_name, automation.Action, cg.Parented.template(MediaPlayer)
-        )
-        automation.register_action(
-            f"media_player.{action_name}",
-            action_class,
-            MEDIA_PLAYER_ACTION_SCHEMA,
-            synchronous=True,
-        )(handler)
-
-
-_register_command_actions()
-
-
-def _register_state_conditions():
-    async def handler(config, action_id, template_arg, args):
-        var = cg.new_Pvariable(action_id, template_arg)
-        await cg.register_parented(var, config[CONF_ID])
-        return var
-
-    for condition_name in _STATE_CONDITIONS:
-        class_name = f"Is{_snake_to_camel(condition_name)}Condition"
-        condition_class = media_player_ns.class_(class_name, automation.Condition)
-        automation.register_condition(
-            f"media_player.is_{condition_name}",
-            condition_class,
-            MEDIA_PLAYER_CONDITION_SCHEMA,
-        )(handler)
-
-
-_register_state_conditions()
-
-
-@automation.register_action(
+automation.register_apply_action(
     "media_player.volume_set",
-    VolumeSetAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(MediaPlayer),
@@ -411,14 +380,9 @@ _register_state_conditions()
         },
         key=CONF_VOLUME,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VOLUME, "set_volume", cg.float_),
+    call="make_call",
 )
-async def media_player_volume_set_action(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    volume = await cg.templatable(config[CONF_VOLUME], args, cg.float_)
-    cg.add(var.set_volume(volume))
-    return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)
