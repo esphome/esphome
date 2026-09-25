@@ -235,7 +235,7 @@ bool TAS5805M::read_faults_() {
 
 #ifdef USE_BINARY_SENSOR
   if (this->have_fault_binary_sensor_ != nullptr)
-    this->have_fault_binary_sensor_->publish_state(active != 0);
+    this->have_fault_binary_sensor_->publish_state((active & TAS5805M_FAULT_ERROR_MASKS) != 0);
   publish_fault(this->right_channel_over_current_binary_sensor_, faults, 0, 0);
   publish_fault(this->left_channel_over_current_binary_sensor_, faults, 0, 1);
   publish_fault(this->right_channel_dc_fault_binary_sensor_, faults, 0, 2);
