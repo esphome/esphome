@@ -495,9 +495,12 @@ async def to_code(config):
             zephyr_add_prj_conf("UART_INTERRUPT_DRIVEN", True)
 
             port_value = config[CONF_PORT]
+            node_known = True
             if port_value.startswith("&"):
                 port_label = port_value[1:]
-                validate_dts_label_exists("uart", zephyr_data()[KEY_BOARD], port_label)
+                node_known = validate_dts_label_exists(
+                    "uart", zephyr_data()[KEY_BOARD], port_label
+                )
             else:
                 port_label = resolve_uart_node_label(
                     zephyr_data()[KEY_BOARD],
@@ -518,6 +521,7 @@ async def to_code(config):
                 config[CONF_TX_PIN][CONF_NUMBER] if CONF_TX_PIN in config else None,
                 config[CONF_RX_PIN][CONF_NUMBER] if CONF_RX_PIN in config else None,
                 config[CONF_BAUD_RATE],
+                node_known,
             )
         else:
             cg.add(var.set_name(config[CONF_PORT]))

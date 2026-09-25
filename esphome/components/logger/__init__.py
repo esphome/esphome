@@ -592,7 +592,9 @@ async def _late_logger_init(config: ConfigType) -> None:
                 )
 
                 node = hw_uart[1:]
-                validate_dts_label_exists("uart", zephyr_data()[KEY_BOARD], node)
+                node_known = validate_dts_label_exists(
+                    "uart", zephyr_data()[KEY_BOARD], node
+                )
             else:
                 from esphome.components.zephyr.dts_lookup import resolve_uart_node_label
 
@@ -601,7 +603,10 @@ async def _late_logger_init(config: ConfigType) -> None:
                     hw_uart,
                     VARIANTS[zephyr_variant()].uart_node_labels,
                 )
-            zephyr_add_overlay(f"""&{node} {{ status = "okay";}};""")
+                node_known = True
+            if node_known:
+                zephyr_add_overlay(f"""&{node} {{ status = "okay";}};""")
+            # A phandle value, not a node override -- safe to forward-reference an undeclared label.
             zephyr_add_overlay(
                 f"""/ {{ chosen {{ zephyr,console = &{node}; zephyr,shell-uart = &{node}; }}; }};"""
             )

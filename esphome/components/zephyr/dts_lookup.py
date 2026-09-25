@@ -33,18 +33,24 @@ _BUS_OVERRIDES: dict[str, dict[str, str]] = {
 }
 
 
-def validate_dts_label_exists(platform: str, board: str, label: str) -> None:
-    """Called from to_code(), not CONFIG_SCHEMA -- raise EsphomeError (not cv.Invalid,
-    which only the schema-validation phase catches and formats) if label isn't among
-    board's real DTS node labels for platform ("uart"/"i2c"/"spi"/"can"); no-op if DTS
-    auto-detection is unavailable, same fallback the symbolic mapping paths accept."""
+def validate_dts_label_exists(platform: str, board: str, label: str) -> bool:
+    """Warn, don't raise, if label isn't among board's known DTS nodes -- it may be
+    declared in the user's own `zephyr: overlays:`, invisible to this scan. Returns
+    False then, so a caller can skip a forward-referencing `&label { ... }` override."""
     lookup_fn = _BUS_LOOKUP.get(platform)
     labels = lookup_fn(board) if lookup_fn is not None else None
     if labels is not None and label not in labels:
-        raise EsphomeError(
-            f"'{label}' is not a devicetree node on board '{board}' -- available "
-            f"{platform.upper()} labels: {', '.join(labels) or 'none'}"
+        _LOGGER.warning(
+            "'%s' is not among the %s devicetree nodes ESPHome found on board '%s' "
+            "(%s) -- assuming it's declared in your own `zephyr: overlays:`. If not, "
+            "this will fail at devicetree-compile time.",
+            label,
+            platform.upper(),
+            board,
+            ", ".join(labels) or "none found",
         )
+        return False
+    return True
 
 
 def dts_node_label_exists(board: str, label: str) -> bool:

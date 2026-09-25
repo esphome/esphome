@@ -13,6 +13,7 @@ namespace esphome::uart {
 class ZephyrUartComponent : public UARTComponent, public Component {
  public:
   void setup() override;
+  void loop() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::BUS; }
   void write_array(const uint8_t *data, size_t len) override;
@@ -34,10 +35,14 @@ class ZephyrUartComponent : public UARTComponent, public Component {
 
   static void uart_irq_handler_s(const struct device *dev, void *user_data);
   void uart_irq_handler_();
+  void drain_polled_rx_();
 
   const struct device *configured_dev_{nullptr};
   const struct device *uart_dev_{nullptr};
   const char *port_label_{""};
+  // Set in setup() when the driver has no interrupt-driven RX API (e.g. Segger RTT),
+  // detected via uart_irq_rx_ready() returning -ENOSYS.
+  bool polled_rx_{false};
 
   // Interrupt-driven RX ring buffer — allocated once in setup() from rx_buffer_size_
   std::unique_ptr<uint8_t[]> rx_buf_mem_;
