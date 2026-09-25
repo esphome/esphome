@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_OPERATION,
     CONF_OPTION,
     CONF_OPTIONS,
-    CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
@@ -33,12 +32,6 @@ IS_PLATFORM_COMPONENT = True
 select_ns = cg.esphome_ns.namespace("select")
 Select = select_ns.class_("Select", cg.EntityBase)
 SelectPtr = Select.operator("ptr")
-
-# Triggers
-SelectStateTrigger = select_ns.class_(
-    "SelectStateTrigger",
-    automation.Trigger.template(cg.StringRef, cg.size_t),
-)
 
 # Conditions
 SelectIsCondition = select_ns.class_("SelectIsCondition", automation.Condition)
@@ -60,11 +53,7 @@ _SELECT_SCHEMA = (
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSelectComponent),
             cv.GenerateID(): cv.declare_id(Select),
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SelectStateTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(),
         }
     )
 )
@@ -96,9 +85,16 @@ async def setup_select_core_(var, config, *, options: list[str]):
     cg.add(var.traits.set_options(options))
 
     for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.StringRef, "x"), (cg.size_t, "i")], conf
+        # The callback carries the index; the automation gets the option text as well.
+        parent = automation.parent_ref(var)
+        index = cg.RawExpression("index")
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [(cg.StringRef, "x"), (cg.size_t, "i")],
+            conf,
+            params=[(cg.size_t, "index")],
+            forward=[cg.StringRef(parent.option_at(index)), index],
         )
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
