@@ -2,7 +2,6 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/output/float_output.h"
 #include <cstdint>
 
@@ -41,20 +40,6 @@ class LEDCOutput final : public output::FloatOutput, public Component {
   float duty_{0.0f};
   uint32_t last_duty_{UINT32_MAX};
   bool initialized_ = false;
-};
-
-template<typename... Ts> class SetFrequencyAction final : public Action<Ts...> {
- public:
-  SetFrequencyAction(LEDCOutput *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(float, frequency);
-
-  void play(const Ts &...x) {
-    float freq = this->frequency_.value(x...);
-    this->parent_->update_frequency(freq);
-  }
-
- protected:
-  LEDCOutput *parent_;
 };
 
 }  // namespace esphome::ledc

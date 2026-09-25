@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, time
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@beormund"]
 DEPENDENCIES = ["i2c"]
@@ -19,7 +20,7 @@ CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
 ).extend(i2c.i2c_device_schema(0x32))
 
 
-@automation.register_action(
+automation.register_parented_action(
     "rx8130.write_time",
     WriteAction,
     cv.Schema(
@@ -29,13 +30,9 @@ CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
     ),
     synchronous=True,
 )
-async def rx8130_write_time_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "rx8130.read_time",
     ReadAction,
     automation.maybe_simple_id(
@@ -45,13 +42,9 @@ async def rx8130_write_time_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def rx8130_read_time_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

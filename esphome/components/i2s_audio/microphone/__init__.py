@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_NUM_CHANNELS,
     CONF_SAMPLE_RATE,
 )
+from esphome.types import ConfigType
 
 from .. import (
     CONF_ADC_TYPE,
@@ -46,7 +47,7 @@ I2S_PDM_DSR = {
 }
 
 
-def _validate_esp32_variant(config):
+def _validate_esp32_variant(config: ConfigType) -> ConfigType:
     variant = esp32.get_esp32_variant()
     if config[CONF_ADC_TYPE] == "external":
         if config[CONF_PDM] and variant not in PDM_VARIANTS:
@@ -65,13 +66,13 @@ def _validate_esp32_variant(config):
     raise NotImplementedError
 
 
-def _validate_channel(config):
+def _validate_channel(config: ConfigType) -> ConfigType:
     if config[CONF_CHANNEL] == CONF_MONO:
         raise cv.Invalid(f"I2S microphone does not support {CONF_MONO}.")
     return config
 
 
-def _set_num_channels_from_config(config):
+def _set_num_channels_from_config(config: ConfigType) -> ConfigType:
     if config[CONF_CHANNEL] in (CONF_LEFT, CONF_RIGHT):
         config[CONF_NUM_CHANNELS] = 1
     else:
@@ -80,7 +81,7 @@ def _set_num_channels_from_config(config):
     return config
 
 
-def _set_stream_limits(config):
+def _set_stream_limits(config: ConfigType) -> ConfigType:
     audio.set_stream_limits(
         min_bits_per_sample=config.get(CONF_BITS_PER_SAMPLE),
         max_bits_per_sample=config.get(CONF_BITS_PER_SAMPLE),
@@ -134,7 +135,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     if config[CONF_ADC_TYPE] == "internal":
         raise cv.Invalid(
             "Internal ADC is no longer supported. Use an external I2S microphone instead."
@@ -144,7 +145,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await register_i2s_audio_component(var, config)

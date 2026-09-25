@@ -83,9 +83,9 @@ struct HubCapabilities {
   /// Today: esp32 and rp2.
   bool gatt;
   /// request_scan_mode() is honored at runtime. Distinct from active_scan:
-  /// a passive-only controller (bk72xx) can never switch, and a hub may
-  /// support active scanning yet still refuse the runtime switch
-  /// (esp32_ble_tracker drives its mode through its own tracker API).
+  /// a passive-only controller can never switch, and a hub may support
+  /// active scanning yet still refuse the runtime switch (esp32_ble_tracker
+  /// drives its mode through its own tracker API).
   bool scan_mode_switch;
 };
 

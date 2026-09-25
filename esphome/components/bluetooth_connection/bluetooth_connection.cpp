@@ -1,6 +1,11 @@
 #include "bluetooth_connection.h"
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef USE_ESP32
+#include <esp_gap_ble_api.h>
+#include <esp_gattc_api.h>
+#endif
+
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/core/log.h"
@@ -39,4 +44,25 @@ BatchClose close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size
 
 }  // namespace esphome::bluetooth_connection
 
-#endif  // BLUETOOTH_CONNECTION_HAS_GATT
+#endif  // USE_BLUETOOTH_PROXY_CONNECTIONS
+
+#if defined(USE_ESP32) && defined(USE_BLE_GATT_CLIENT)
+namespace esphome::bluetooth_connection {
+
+// Address-scoped Bluedroid maintenance. Gated with the connection surface:
+// the advertisement-only arm no longer dispatches these requests at all.
+
+conn_err_t unpair_device(uint64_t address) {
+  esp_bd_addr_t bda;
+  ble_device_base::uint64_to_mac_msb_first(address, bda);
+  return esp_ble_remove_bond_device(bda);
+}
+
+conn_err_t clear_gatt_cache(uint64_t address) {
+  esp_bd_addr_t bda;
+  ble_device_base::uint64_to_mac_msb_first(address, bda);
+  return esp_ble_gattc_cache_clean(bda);
+}
+
+}  // namespace esphome::bluetooth_connection
+#endif  // USE_ESP32 && USE_BLE_GATT_CLIENT

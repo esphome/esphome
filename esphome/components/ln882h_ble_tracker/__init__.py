@@ -37,7 +37,6 @@ LN882HBLETracker = ln882h_ble_tracker_ns.class_(
 )
 
 StartScanAction = ln882h_ble_tracker_ns.class_("StartScanAction", automation.Action)
-StopScanAction = ln882h_ble_tracker_ns.class_("StopScanAction", automation.Action)
 
 ESPBTAdvertiseTrigger = ble_automation.ESPBTAdvertiseTrigger
 BLEServiceDataAdvertiseTrigger = ble_automation.BLEServiceDataAdvertiseTrigger
@@ -47,7 +46,7 @@ BLEEndOfScanTrigger = ble_automation.BLEEndOfScanTrigger
 
 # LN882H SDK reference scan rate: 100 ms interval / 50 ms window (50 % duty).
 SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
-    "100ms", window_default="50ms", supports_active=True
+    "100ms", window_default="50ms"
 )
 
 
@@ -103,9 +102,8 @@ async def start_scan_action_to_code(
     return var
 
 
-@automation.register_action(
+automation.register_apply_action(
     "ln882h_ble_tracker.stop_scan",
-    StopScanAction,
     automation.maybe_simple_id(
         cv.Schema(
             {
@@ -113,22 +111,16 @@ async def start_scan_action_to_code(
             }
         )
     ),
-    synchronous=True,
+    automation.ApplyCall("stop_scan()"),
 )
-async def stop_scan_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: list,
-) -> cg.MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 async def to_code(config: ConfigType) -> None:
     # Selects the BLEHub alias arm in ble_device_base/ble_hub_impl.h.
     cg.add_define("USE_LN882H_BLE_TRACKER")
+    # Compiles the shared adv + scan-response merge (the LN controller
+    # delivers the pair as separate reports).
+    cg.add_define("USE_BLE_SCAN_RESPONSE_MERGER")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
