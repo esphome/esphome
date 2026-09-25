@@ -13,8 +13,6 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PH,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -26,15 +24,6 @@ ufire_ise_ns = cg.esphome_ns.namespace("ufire_ise")
 UFireISEComponent = ufire_ise_ns.class_(
     "UFireISEComponent", cg.PollingComponent, i2c.I2CDevice
 )
-
-# Actions
-UFireISECalibrateProbeLowAction = ufire_ise_ns.class_(
-    "UFireISECalibrateProbeLowAction", automation.Action
-)
-UFireISECalibrateProbeHighAction = ufire_ise_ns.class_(
-    "UFireISECalibrateProbeHighAction", automation.Action
-)
-UFireISEResetAction = ufire_ise_ns.class_("UFireISEResetAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -89,59 +78,20 @@ UFIRE_ISE_CALIBRATE_PROBE_SCHEMA = cv.Schema(
     }
 )
 
-
-@automation.register_action(
+automation.register_apply_action(
     "ufire_ise.calibrate_probe_low",
-    UFireISECalibrateProbeLowAction,
     UFIRE_ISE_CALIBRATE_PROBE_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_SOLUTION, "calibrate_probe_low", cg.float_),
 )
-async def ufire_ise_calibrate_probe_low_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_SOLUTION], args, cg.float_)
-    cg.add(var.set_solution(template_))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "ufire_ise.calibrate_probe_high",
-    UFireISECalibrateProbeHighAction,
     UFIRE_ISE_CALIBRATE_PROBE_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_SOLUTION, "calibrate_probe_high", cg.float_),
 )
-async def ufire_ise_calibrate_probe_high_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_SOLUTION], args, cg.float_)
-    cg.add(var.set_solution(template_))
-    return var
-
 
 UFIRE_ISE_RESET_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(UFireISEComponent)})
 
-
-@automation.register_action(
-    "ufire_ise.reset",
-    UFireISEResetAction,
-    UFIRE_ISE_RESET_SCHEMA,
-    synchronous=True,
+automation.register_apply_action(
+    "ufire_ise.reset", UFIRE_ISE_RESET_SCHEMA, automation.ApplyCall("reset_board()")
 )
-async def ufire_ise_reset_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)

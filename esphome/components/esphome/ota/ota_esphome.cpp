@@ -470,6 +470,8 @@ void ESPHomeOTAComponent::handle_data_() {
   if (this->extended_proto_()) {
     // Read ota type, 1 byte
     if (!this->data_readall_(buf, 1)) {
+      if (this->client_left_before_start_())
+        return;
       this->log_read_error_(LOG_STR("OTA type"));
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
@@ -479,6 +481,9 @@ void ESPHomeOTAComponent::handle_data_() {
 
   // Read size, 4 bytes MSB first
   if (!this->data_readall_(buf, 4)) {
+    // The first request byte is the type on the extended protocol; a close after it was a cut-off request
+    if (!this->extended_proto_() && this->client_left_before_start_())
+      return;
     this->log_read_error_(LOG_STR("size"));
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
@@ -545,6 +550,8 @@ void ESPHomeOTAComponent::handle_data_() {
       // there is no would-block retry here and failures are already logged.
       read = this->noise_read_data_(buf, requested);
       if (read <= 0) {
+        if (this->remote_closed_)
+          this->log_remote_closed_(LOG_STR("data"));
         error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
         goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
       }
@@ -669,7 +676,11 @@ bool ESPHomeOTAComponent::readall_(uint8_t *buf, size_t len) {
         return false;
       }
     } else if (read == 0) {
-      ESP_LOGW(TAG, "Remote closed");
+      // A partial message is a cut-off request, not a clean close; the caller reports the clean one
+      this->remote_closed_ = at == 0;
+      if (at > 0) {
+        ESP_LOGW(TAG, "Remote closed after %u of %zu bytes", (unsigned) at, len);
+      }
       return false;
     } else {
       at += read;
@@ -715,7 +726,22 @@ void ESPHomeOTAComponent::log_socket_error_(const LogString *msg) {
   ESP_LOGW(TAG, "Socket %s: errno %d", LOG_STR_ARG(msg), errno);
 }
 
-void ESPHomeOTAComponent::log_read_error_(const LogString *what) { ESP_LOGW(TAG, "Read %s failed", LOG_STR_ARG(what)); }
+bool ESPHomeOTAComponent::client_left_before_start_() {
+  // Key probes and scanners hang up right after the handshake; nothing started, so no error status or callback
+  if (!this->remote_closed_)
+    return false;
+  ESP_LOGD(TAG, "Client left after the handshake");
+  this->cleanup_connection_();
+  return true;
+}
+
+void ESPHomeOTAComponent::log_read_error_(const LogString *what) {
+  if (this->remote_closed_) {
+    this->log_remote_closed_(what);
+    return;
+  }
+  ESP_LOGW(TAG, "Read %s failed", LOG_STR_ARG(what));
+}
 
 void ESPHomeOTAComponent::log_start_(const LogString *phase) {
   char peername[socket::SOCKADDR_STR_LEN];
@@ -796,6 +822,7 @@ void ESPHomeOTAComponent::cleanup_connection_() {
   this->handshake_buf_pos_ = 0;
   this->ota_state_ = OTAState::IDLE;
   this->ota_features_ = 0;
+  this->remote_closed_ = false;
   this->backend_ = nullptr;
 #ifdef USE_OTA_PASSWORD
   this->cleanup_auth_();

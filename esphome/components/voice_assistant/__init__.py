@@ -1,5 +1,4 @@
 from esphome import automation
-from esphome.automation import register_condition
 import esphome.codegen as cg
 from esphome.components import media_player, micro_wake_word, microphone, speaker
 import esphome.config_validation as cv
@@ -14,8 +13,6 @@ from esphome.const import (
     CONF_ON_START,
     CONF_SPEAKER,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["audio", "ring_buffer", "socket"]
@@ -424,29 +421,15 @@ automation.register_apply_action(
 )
 
 
-@register_condition(
-    "voice_assistant.is_running", IsRunningCondition, VOICE_ASSISTANT_ACTION_SCHEMA
+automation.register_parented_condition(
+    "voice_assistant.is_running",
+    IsRunningCondition,
+    VOICE_ASSISTANT_ACTION_SCHEMA,
 )
-async def voice_assistant_is_running_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@register_condition(
-    "voice_assistant.connected", ConnectedCondition, VOICE_ASSISTANT_ACTION_SCHEMA
+automation.register_parented_condition(
+    "voice_assistant.connected",
+    ConnectedCondition,
+    VOICE_ASSISTANT_ACTION_SCHEMA,
 )
-async def voice_assistant_connected_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

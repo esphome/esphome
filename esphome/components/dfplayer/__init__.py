@@ -199,7 +199,7 @@ automation.register_apply_action(
 )
 
 
-@automation.register_condition(
+automation.register_parented_condition(
     "dfplayer.is_playing",
     DFPlayerIsPlayingCondition,
     cv.Schema(
@@ -208,7 +208,3 @@ automation.register_apply_action(
         }
     ),
 )
-async def dfplayer_is_playing_to_code(config, condition_id, template_arg, args):
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
