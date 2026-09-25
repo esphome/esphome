@@ -23,3 +23,9 @@ script:
           zone: Australia/Sydney
       - time.sntp.set_timezone:
           zone: !lambda 'return "America/New_York";'
+      - time.sntp.set_timezone:
+          latitude: -33.87
+          longitude: 151.21
+      - time.sntp.set_timezone:
+          latitude: !lambda 'return 51.5;'
+          longitude: 151.21°

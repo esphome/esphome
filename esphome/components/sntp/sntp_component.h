@@ -54,13 +54,17 @@ class SNTPComponent final : public time::RealTimeClock {
     this->timezone_update_interval_ = update_interval;
   }
   void set_timezone_location(float latitude, float longitude) {
-    this->latitude_ = latitude;
-    this->longitude_ = longitude;
+    this->config_latitude_ = latitude;
+    this->config_longitude_ = longitude;
   }
 
-  /// Change the zone at runtime and fetch it now. The new zone is kept across reboots until the
-  /// zone or location in the configuration is changed. Returns false if the name is not a valid zone name.
+  /// Change the zone at runtime and fetch it now. The zone is only saved, to be kept across reboots, once the
+  /// service has accepted it, and the saved zone is dropped when the zone or location in the configuration
+  /// is changed. Returns false if the name is not a valid zone name.
   bool set_timezone(StringRef zone);
+  /// As above, but the service looks up the zone for a location in degrees. Returns false if the location
+  /// is out of range.
+  bool set_timezone(float latitude, float longitude);
 
 #ifdef USE_TEXT_SENSOR
   void set_timezone_abbreviation_text_sensor(text_sensor::TextSensor *text_sensor) {
@@ -77,18 +81,24 @@ class SNTPComponent final : public time::RealTimeClock {
   bool has_time_{false};
 
 #ifdef USE_SNTP_TIMEZONE_SERVICE
+  /// Use the stored zone or location if there is one, otherwise the one from the configuration.
+  void load_saved_or_config_();
   void fetch_timezone_();
   bool apply_timezone_response_(const uint8_t *data, size_t len);
 
   http_request::HttpRequestComponent *http_request_{nullptr};
   const char *timezone_url_{""};
   const char *config_zone_{""};
+  float config_latitude_{0};
+  float config_longitude_{0};
+  // The zone to ask the service for, or if empty the location
+  char zone_[MAX_ZONE_LENGTH + 1]{};
   float latitude_{0};
   float longitude_{0};
   uint32_t timezone_update_interval_{0};
   ESPPreferenceObject zone_pref_;
-  char zone_[MAX_ZONE_LENGTH + 1]{};
   bool timezone_fetched_{false};
+  bool zone_save_pending_{false};
 #ifdef USE_TEXT_SENSOR
   /// Publish the abbreviation for standard or daylight saving time, whichever is in effect.
   /// Unless `force` is set, only publish when that has changed since the last time.
@@ -112,8 +122,16 @@ class SNTPComponent final : public time::RealTimeClock {
 template<typename... Ts> class SetTimezoneAction final : public Action<Ts...>, public Parented<SNTPComponent> {
  public:
   TEMPLATABLE_VALUE(std::string, zone)
+  TEMPLATABLE_VALUE(float, latitude)
+  TEMPLATABLE_VALUE(float, longitude)
 
-  void play(const Ts &...x) override { this->parent_->set_timezone(StringRef(this->zone_.value(x...))); }
+  void play(const Ts &...x) override {
+    if (this->zone_.has_value()) {
+      this->parent_->set_timezone(StringRef(this->zone_.value(x...)));
+    } else {
+      this->parent_->set_timezone(this->latitude_.value(x...), this->longitude_.value(x...));
+    }
+  }
 };
 #endif
 

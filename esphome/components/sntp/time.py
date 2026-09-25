@@ -31,6 +31,7 @@ from esphome.const import (
 from esphome.core import CORE, ID, EsphomeError
 from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -71,18 +72,17 @@ def validate_zone(value: object) -> str:
     return value
 
 
+validate_latitude = cv.All(parse_latlon, cv.float_range(min=-90, max=90))
+validate_longitude = cv.All(parse_latlon, cv.float_range(min=-180, max=180))
+
 TIMEZONE_SERVICE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
             cv.Optional(CONF_SERVICE, default=DEFAULT_SERVICE_URL): validate_url,
             cv.Optional(CONF_ZONE): validate_zone,
-            cv.Inclusive(CONF_LATITUDE, "location"): cv.All(
-                parse_latlon, cv.float_range(min=-90, max=90)
-            ),
-            cv.Inclusive(CONF_LONGITUDE, "location"): cv.All(
-                parse_latlon, cv.float_range(min=-180, max=180)
-            ),
+            cv.Inclusive(CONF_LATITUDE, "location"): validate_latitude,
+            cv.Inclusive(CONF_LONGITUDE, "location"): validate_longitude,
             # The rules rarely change, so a daily fetch is plenty
             cv.Optional(CONF_UPDATE_INTERVAL, default="24h"): cv.All(
                 cv.positive_time_period_milliseconds,
@@ -237,16 +237,35 @@ async def to_code(config: ConfigType) -> None:
         cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_LOW_MEMORY")
 
 
+SET_TIMEZONE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(SNTPComponent),
+            cv.Optional(CONF_ZONE): cv.templatable(validate_zone),
+            cv.Inclusive(CONF_LATITUDE, "location"): cv.templatable(validate_latitude),
+            cv.Inclusive(CONF_LONGITUDE, "location"): cv.templatable(
+                validate_longitude
+            ),
+        }
+    ),
+    cv.has_exactly_one_key(CONF_ZONE, CONF_LATITUDE),
+)
+
+
+@schema_extractor("maybe")
+def validate_set_timezone(value: object) -> object:
+    """Accept the zone on its own as a shorthand for the `zone` option."""
+    if value == SCHEMA_EXTRACT:
+        return (SET_TIMEZONE_SCHEMA, CONF_ZONE)
+    if isinstance(value, dict):
+        return SET_TIMEZONE_SCHEMA(value)
+    return SET_TIMEZONE_SCHEMA({CONF_ZONE: value})
+
+
 @automation.register_action(
     "time.sntp.set_timezone",
     SetTimezoneAction,
-    cv.maybe_simple_value(
-        {
-            cv.GenerateID(): cv.use_id(SNTPComponent),
-            cv.Required(CONF_ZONE): cv.templatable(validate_zone),
-        },
-        key=CONF_ZONE,
-    ),
+    validate_set_timezone,
     synchronous=True,
 )
 async def sntp_set_timezone_to_code(
@@ -271,6 +290,17 @@ async def sntp_set_timezone_to_code(
         )
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    zone = await cg.templatable(config[CONF_ZONE], args, cg.std_string)
-    cg.add(var.set_zone(zone))
+    if (zone := config.get(CONF_ZONE)) is not None:
+        cg.add(var.set_zone(await cg.templatable(zone, args, cg.std_string)))
+    else:
+        cg.add(
+            var.set_latitude(
+                await cg.templatable(config[CONF_LATITUDE], args, cg.float_)
+            )
+        )
+        cg.add(
+            var.set_longitude(
+                await cg.templatable(config[CONF_LONGITUDE], args, cg.float_)
+            )
+        )
     return var

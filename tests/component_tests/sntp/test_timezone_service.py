@@ -8,6 +8,7 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components.sntp.time import (
     DEFAULT_SERVICE_URL,
+    SET_TIMEZONE_SCHEMA,
     TIMEZONE_SERVICE_SCHEMA,
     ZONE_IP,
     validate_zone,
@@ -53,6 +54,10 @@ def test_timezone_service_codegen(
     # The rules for the configured zone apply until the service answers
     assert "time::set_global_tz(tz);" in main_cpp
     assert 'set_zone(ESPHOME_F("Australia/Sydney"));' in main_cpp
+    # The action can also take a location
+    assert "sntp_settimezoneaction_id_2->set_latitude(" in main_cpp
+    assert "return 40.71f;" in main_cpp
+    assert "return -74.01f;" in main_cpp
 
     # The timezone abbreviation text sensor is wired to the sntp instance
     assert "set_timezone_abbreviation_text_sensor(" in main_cpp
@@ -102,3 +107,20 @@ def test_timezone_service_schema_rejects(config: dict) -> None:
     with pytest.raises(cv.Invalid):
         # Everything except the platform check, which needs a target platform
         cv.All(*TIMEZONE_SERVICE_SCHEMA.validators[:-1])(config)
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {},
+        {"zone": "ip", "latitude": 1, "longitude": 2},
+        {"latitude": 1},
+        {"longitude": 2},
+        {"latitude": 91, "longitude": 0},
+        {"latitude": 0, "longitude": -181},
+        {"zone": "Nowhere/Special"},
+    ],
+)
+def test_set_timezone_schema_rejects(config: dict) -> None:
+    with pytest.raises(cv.Invalid):
+        SET_TIMEZONE_SCHEMA({"id": "sntp_time", **config})

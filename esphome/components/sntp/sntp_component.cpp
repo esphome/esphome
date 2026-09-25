@@ -5,6 +5,7 @@
 #include "esphome/components/network/util.h"
 #include "esphome/components/time/posix_tz.h"
 #include <cctype>
+#include <cmath>
 #include <cinttypes>
 #include <cstdlib>
 #include <cstring>
@@ -26,6 +27,8 @@ static const char *const TAG = "sntp";
 static constexpr const char *TIMEZONE_REFRESH = "tz_refresh";
 static constexpr const char *TIMEZONE_FETCH = "tz_fetch";
 static constexpr uint32_t TIMEZONE_RETRY_MS = 60000;
+// Not in http_request's list of status codes
+static constexpr int HTTP_STATUS_UNPROCESSABLE_CONTENT = 422;
 // The service returns about 550 bytes
 static constexpr size_t TIMEZONE_RESPONSE_MAX = 1024;
 // Transition times are local seconds after midnight; POSIX allows -167 to +167 hours
@@ -37,9 +40,17 @@ static constexpr const char *TIMEZONE_ABBREVIATION = "tz_abbr";
 static constexpr uint32_t ABBREVIATION_CHECK_MS = 60000;
 #endif
 
+// A zone name, or if that is empty, a location
 struct ZonePreference {
   char zone[SNTPComponent::MAX_ZONE_LENGTH + 1];
+  float latitude;
+  float longitude;
 };
+
+// Written so that NaN is rejected
+static bool is_valid_location(float latitude, float longitude) {
+  return std::abs(latitude) <= 90.0f && std::abs(longitude) <= 180.0f;
+}
 
 // Accept only characters found in tz database names, so the zone is safe to put in a URL path.
 static bool is_valid_zone(StringRef zone) {
@@ -90,17 +101,10 @@ void SNTPComponent::setup() {
   // The key includes the configured zone and location, so a zone set at runtime is dropped when the
   // configuration changes
   uint32_t key = fnv1_hash_extend(fnv1_hash("sntp_timezone"), this->config_zone_);
-  key = fnv1_hash_extend(key, static_cast<int32_t>(this->latitude_ * 1e6f));
-  key = fnv1_hash_extend(key, static_cast<int32_t>(this->longitude_ * 1e6f));
+  key = fnv1_hash_extend(key, static_cast<int32_t>(this->config_latitude_ * 1e6f));
+  key = fnv1_hash_extend(key, static_cast<int32_t>(this->config_longitude_ * 1e6f));
   this->zone_pref_ = global_preferences->make_preference<ZonePreference>(key, true);
-  ZonePreference saved{};
-  if (this->zone_pref_.load(&saved) && memchr(saved.zone, '\0', sizeof(saved.zone)) != nullptr &&
-      is_valid_zone(StringRef(saved.zone))) {
-    strcpy(this->zone_, saved.zone);  // NOLINT(clang-analyzer-security.insecureAPI.strcpy)
-  } else {
-    strncpy(this->zone_, this->config_zone_, MAX_ZONE_LENGTH);
-    this->zone_[MAX_ZONE_LENGTH] = '\0';
-  }
+  this->load_saved_or_config_();
   this->set_interval(TIMEZONE_REFRESH, this->timezone_update_interval_, [this]() { this->fetch_timezone_(); });
 #ifdef USE_TEXT_SENSOR
   if (this->abbreviation_text_sensor_ != nullptr)
@@ -213,12 +217,40 @@ bool SNTPComponent::set_timezone(StringRef zone) {
   }
   size_t len = zone.copy(this->zone_, MAX_ZONE_LENGTH);
   this->zone_[len] = '\0';
-  ZonePreference pref{};
-  memcpy(pref.zone, this->zone_, len + 1);
-  this->zone_pref_.save(&pref);
+  this->zone_save_pending_ = true;
   ESP_LOGD(TAG, "Zone set to %s", this->zone_);
   this->set_timeout(TIMEZONE_FETCH, 0, [this]() { this->fetch_timezone_(); });
   return true;
+}
+
+bool SNTPComponent::set_timezone(float latitude, float longitude) {
+  if (!is_valid_location(latitude, longitude)) {
+    ESP_LOGW(TAG, "Invalid location %.4f, %.4f", latitude, longitude);
+    return false;
+  }
+  this->zone_[0] = '\0';
+  this->latitude_ = latitude;
+  this->longitude_ = longitude;
+  this->zone_save_pending_ = true;
+  ESP_LOGD(TAG, "Location set to %.4f, %.4f", latitude, longitude);
+  this->set_timeout(TIMEZONE_FETCH, 0, [this]() { this->fetch_timezone_(); });
+  return true;
+}
+
+void SNTPComponent::load_saved_or_config_() {
+  ZonePreference saved{};
+  if (this->zone_pref_.load(&saved) && memchr(saved.zone, '\0', sizeof(saved.zone)) != nullptr &&
+      (saved.zone[0] != '\0' ? is_valid_zone(StringRef(saved.zone))
+                             : is_valid_location(saved.latitude, saved.longitude))) {
+    strcpy(this->zone_, saved.zone);  // NOLINT(clang-analyzer-security.insecureAPI.strcpy)
+    this->latitude_ = saved.latitude;
+    this->longitude_ = saved.longitude;
+  } else {
+    strncpy(this->zone_, this->config_zone_, MAX_ZONE_LENGTH);
+    this->zone_[MAX_ZONE_LENGTH] = '\0';
+    this->latitude_ = this->config_latitude_;
+    this->longitude_ = this->config_longitude_;
+  }
 }
 
 void SNTPComponent::fetch_timezone_() {
@@ -236,11 +268,15 @@ void SNTPComponent::fetch_timezone_() {
   ESP_LOGD(TAG, "Fetching timezone for %s", body);
 
   bool ok = false;
+  bool rejected = false;
   auto container = this->http_request_->post(this->timezone_url_, std::string(body),
                                              {http_request::Header{"Content-Type", "application/json"}});
   if (container == nullptr) {
     ESP_LOGW(TAG, "Timezone request failed");
   } else if (!http_request::is_success(container->status_code)) {
+    // The service does not know the zone, or has no rules for it
+    rejected = container->status_code == http_request::HTTP_STATUS_NOT_FOUND ||
+               container->status_code == HTTP_STATUS_UNPROCESSABLE_CONTENT;
     ESP_LOGW(TAG, "Timezone request failed with HTTP status %d", container->status_code);
     container->end();
   } else {
@@ -274,7 +310,35 @@ void SNTPComponent::fetch_timezone_() {
 
   if (ok) {
     this->timezone_fetched_ = true;
+    if (this->zone_save_pending_) {
+      this->zone_save_pending_ = false;
+      ZonePreference pref{};
+      memcpy(pref.zone, this->zone_, strlen(this->zone_) + 1);
+      if (this->zone_[0] == '\0') {
+        pref.latitude = this->latitude_;
+        pref.longitude = this->longitude_;
+      }
+      this->zone_pref_.save(&pref);
+    }
     this->cancel_timeout(TIMEZONE_FETCH);
+  } else if (rejected) {
+    // Asking again cannot help, so don't retry every minute
+    this->cancel_timeout(TIMEZONE_FETCH);
+    if (this->zone_save_pending_) {
+      if (this->zone_[0] != '\0') {
+        ESP_LOGW(TAG, "The service has no rules for zone '%s', going back to the previous zone", this->zone_);
+      } else {
+        ESP_LOGW(TAG, "The service has no rules for location %.4f, %.4f, going back to the previous zone",
+                 this->latitude_, this->longitude_);
+      }
+      this->zone_save_pending_ = false;
+      this->load_saved_or_config_();
+      // The rules for the previous zone are still in use, unless none have been received yet
+      if (!this->timezone_fetched_)
+        this->set_timeout(TIMEZONE_FETCH, 0, [this]() { this->fetch_timezone_(); });
+    } else {
+      ESP_LOGE(TAG, "The service has no rules for the configured zone or location, will try again at the next update");
+    }
   } else {
     this->set_timeout(TIMEZONE_FETCH, TIMEZONE_RETRY_MS, [this]() { this->fetch_timezone_(); });
   }

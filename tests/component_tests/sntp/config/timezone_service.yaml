@@ -29,3 +29,6 @@ script:
   - id: change_timezone
     then:
       - time.sntp.set_timezone: Australia/Sydney
+      - time.sntp.set_timezone:
+          latitude: 40.71
+          longitude: -74.01°
