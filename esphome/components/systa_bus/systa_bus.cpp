@@ -29,6 +29,9 @@ void SystaBus::loop() {
       if (message_type != MESSAGE_TYPE_AQUA_SENSOR_DATA) {
         ESP_LOGV(TAG, "Unknown message type 0x%04x", message_type);
         this->buffer_.clear();
+        // A stray start byte followed by a real frame: keep this byte as the new start
+        if (c == START_BYTE)
+          this->buffer_.push_back(c);
       }
       continue;
     }
