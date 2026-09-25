@@ -270,15 +270,15 @@ bool UFM01Component::consume_ack_() {
 
 #ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
 bool UFM01Component::can_start_clear_action_() const {
+#ifdef USE_UFM01_SOFTWARE_VERSION
+  if (this->software_version_read_pending_)
+    return false;
+#endif
   switch (this->operating_mode_) {
     case OperatingMode::ACTIVE_STREAM:
       return true;
     case OperatingMode::PASSIVE_POLL:
-#ifdef USE_UFM01_SOFTWARE_VERSION
-      return !this->passive_read_pending_ && !this->software_version_read_pending_;
-#else
       return !this->passive_read_pending_;
-#endif
     case OperatingMode::STARTUP:
     case OperatingMode::ENTERING_PASSIVE:
       return false;

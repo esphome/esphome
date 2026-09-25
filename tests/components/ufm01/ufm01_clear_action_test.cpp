@@ -80,6 +80,28 @@ TEST_F(UFM01Test, ClearWaitsForPendingPassiveRead) {
   EXPECT_FALSE(action.completed);
 }
 
+#ifdef USE_UFM01_SOFTWARE_VERSION
+TEST_F(UFM01Test, ClearWaitsForPendingSoftwareVersionRead) {
+  MockClearAction action;
+  this->ufm01_.set_operating_mode(OperatingMode::ACTIVE_STREAM);
+  this->ufm01_.start_software_version_read();
+  this->mock_uart_.written_data.clear();
+  this->ufm01_.request_clear_accumulated_flow(&action);
+
+  this->ufm01_.loop_pending_clear_action();
+  EXPECT_TRUE(this->mock_uart_.written_data.empty());
+
+  auto response = make_software_version_response();
+  this->mock_uart_.enqueue(std::vector<uint8_t>(response.begin(), response.end()));
+  this->ufm01_.loop_active_stream();
+  this->ufm01_.loop_pending_clear_action();
+
+  ASSERT_EQ(this->mock_uart_.written_data.size(), 7u);
+  EXPECT_EQ(this->mock_uart_.written_data[3], 0x5A);
+  EXPECT_FALSE(action.completed);
+}
+#endif
+
 TEST_F(UFM01Test, ClearWaitsDuringStartup) {
   MockClearAction action;
   this->ufm01_.set_operating_mode(OperatingMode::STARTUP);
