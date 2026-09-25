@@ -1,10 +1,4 @@
-from esphome.automation import (
-    Action,
-    Condition,
-    maybe_simple_id,
-    register_action,
-    register_condition,
-)
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor, sensor
 import esphome.config_validation as cv
@@ -29,13 +23,13 @@ duty_time_sensor_ns = cg.esphome_ns.namespace("duty_time_sensor")
 DutyTimeSensor = duty_time_sensor_ns.class_(
     "DutyTimeSensor", sensor.Sensor, cg.PollingComponent
 )
-BaseAction = duty_time_sensor_ns.class_("BaseAction", Action, cg.Parented)
+BaseAction = duty_time_sensor_ns.class_("BaseAction", automation.Action, cg.Parented)
 StartAction = duty_time_sensor_ns.class_("StartAction", BaseAction)
 StopAction = duty_time_sensor_ns.class_("StopAction", BaseAction)
 ResetAction = duty_time_sensor_ns.class_("ResetAction", BaseAction)
 SetAction = duty_time_sensor_ns.class_("SetAction", BaseAction)
 RunningCondition = duty_time_sensor_ns.class_(
-    "RunningCondition", Condition, cg.Parented
+    "RunningCondition", automation.Condition, cg.Parented
 )
 
 
@@ -86,56 +80,38 @@ async def to_code(config: ConfigType) -> None:
 
 # AUTOMATIONS
 
-DUTY_TIME_ID_SCHEMA = maybe_simple_id(
+DUTY_TIME_ID_SCHEMA = automation.maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(DutyTimeSensor),
     }
 )
 
 
-@register_action(
-    "sensor.duty_time.start", StartAction, DUTY_TIME_ID_SCHEMA, synchronous=True
+automation.register_parented_action(
+    "sensor.duty_time.start",
+    StartAction,
+    DUTY_TIME_ID_SCHEMA,
+    synchronous=True,
 )
-async def sensor_runtime_start_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@register_action(
-    "sensor.duty_time.stop", StopAction, DUTY_TIME_ID_SCHEMA, synchronous=True
+automation.register_parented_action(
+    "sensor.duty_time.stop",
+    StopAction,
+    DUTY_TIME_ID_SCHEMA,
+    synchronous=True,
 )
-async def sensor_runtime_stop_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@register_action(
-    "sensor.duty_time.reset", ResetAction, DUTY_TIME_ID_SCHEMA, synchronous=True
+automation.register_parented_action(
+    "sensor.duty_time.reset",
+    ResetAction,
+    DUTY_TIME_ID_SCHEMA,
+    synchronous=True,
 )
-async def sensor_runtime_reset_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@register_condition(
+@automation.register_condition(
     "sensor.duty_time.is_running", RunningCondition, DUTY_TIME_ID_SCHEMA
 )
 async def duty_time_is_running_to_code(
@@ -148,7 +124,7 @@ async def duty_time_is_running_to_code(
     return cg.new_Pvariable(condition_id, template_arg, paren, True)
 
 
-@register_condition(
+@automation.register_condition(
     "sensor.duty_time.is_not_running", RunningCondition, DUTY_TIME_ID_SCHEMA
 )
 async def duty_time_is_not_running_to_code(

@@ -13,8 +13,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
@@ -72,18 +70,9 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_simple_action(
     "cm1106.calibrate_zero",
     CM1106CalibrateZeroAction,
     CALIBRATION_ACTION_SCHEMA,
     synchronous=True,
 )
-async def cm1106_calibration_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    """Service code generation entry point."""
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
