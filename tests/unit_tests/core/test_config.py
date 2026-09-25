@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from esphome import config_validation as cv, core
+import esphome.codegen as cg
 from esphome.components.safe_mode import to_code as safe_mode_to_code
 from esphome.const import (
     CONF_AREA,
@@ -23,7 +24,7 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     Toolchain,
 )
-from esphome.core import CORE, config
+from esphome.core import CORE, KEY_CONTROLLER_REGISTRY_CONTROLLERS, config
 from esphome.core.config import (
     Area,
     make_app_name_cpp,
@@ -453,6 +454,35 @@ async def test_add_looping_components_with_entries() -> None:
     # Deduplicated by type, with per-type counts as multiplier.
     assert "(2 * HasLoopOverride<esphome::wifi::WiFiComponent>::value)" in text
     assert "(1 * HasLoopOverride<esphome::logger::Logger>::value)" in text
+
+
+@pytest.mark.asyncio
+async def test_add_controller_registry_dispatch_without_controllers() -> None:
+    """Nothing is emitted when no controller registered."""
+    CORE.data.pop(KEY_CONTROLLER_REGISTRY_CONTROLLERS, None)
+
+    await config._add_controller_registry_dispatch()
+
+    assert "USE_CONTROLLER_REGISTRY" not in {d.name for d in CORE.defines}
+    assert not [s for s in CORE.global_statements if "controller" in str(s)]
+
+
+@pytest.mark.asyncio
+async def test_add_controller_registry_dispatch_with_controllers() -> None:
+    """Registered controllers become one tuple plus the dispatch include."""
+    CORE.register_controller(cg.MockObj("api_apiserver_id"))
+    CORE.register_controller(cg.MockObj("web_server_webserver_id"))
+
+    await config._add_controller_registry_dispatch()
+
+    assert "USE_CONTROLLER_REGISTRY" in {d.name for d in CORE.defines}
+    statements = [str(s) for s in CORE.global_statements]
+    assert "#include <tuple>" in statements
+    assert (
+        "static auto esphome_controllers() { return std::tuple{api_apiserver_id, web_server_webserver_id}; }"
+        in statements
+    )
+    assert '#include "esphome/core/controller_dispatch.h"' in statements
 
 
 def test_valid_include_with_angle_brackets() -> None:

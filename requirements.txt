@@ -32,7 +32,7 @@ ninja==1.13.2  # native esp8266 arduino toolchain build driver
 filelock==4.0.1  # inter-process locks (PlatformIO cache heal, git clone cache); >=3.32 for FileLock(fallback_to_soft=...), older versions silently drop the kwarg
 
 # esp-idf >= 5.0 requires this
-pyparsing >= 3.3.2
+pyparsing >= 3.3.3
 
 # For autocompletion
 argcomplete>=3.7.2

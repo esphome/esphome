@@ -1,5 +1,4 @@
 import esphome.codegen as cg
-from esphome.core import CORE
 from tests.testing_helpers import ComponentManifestOverride
 
 
@@ -12,6 +11,5 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_define("API_MAX_SEND_QUEUE", 8)
         cg.add_define("MAX_API_CONNECTIONS", 1)
         cg.add_define("USE_SOCKET_IMPL_BSD_SOCKETS")
-        CORE.register_controller()  # api_server registers with the controller registry
 
     manifest.to_code = to_code_testing
