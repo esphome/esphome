@@ -342,14 +342,6 @@ bool MQTTComponent::is_discovery_enabled() const {
   return this->discovery_enabled_ && global_mqtt_client->is_discovery_enabled();
 }
 
-void MQTTComponent::subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos) {
-  global_mqtt_client->subscribe(topic, std::move(callback), qos);
-}
-
-void MQTTComponent::subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos) {
-  global_mqtt_client->subscribe_json(topic, callback, qos);
-}
-
 MQTTComponent::MQTTComponent() = default;
 
 float MQTTComponent::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
