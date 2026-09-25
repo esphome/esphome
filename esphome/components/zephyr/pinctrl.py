@@ -295,15 +295,17 @@ def zephyr_setup_uart_pinctrl(
     tx_pin: int | None,
     rx_pin: int | None,
     baud_rate: int,
+    node_known: bool = True,
 ) -> None:
     """Add the TX/RX pinctrl overlay (if either pin is given) and the bus-enable
     overlay for `port_label`, mirroring zephyr_setup_i2c_pinctrl()/
-    zephyr_setup_spi_pinctrl()'s shape: this owns the whole family-specific
-    macro/group-role resolution internally so callers only ever deal in real
-    pin numbers, not devicetree overlay text."""
+    zephyr_setup_spi_pinctrl()'s shape. node_known=False skips the bus-enable
+    override -- it'd forward-reference an undeclared label."""
     from . import zephyr_add_overlay, zephyr_variant, zephyr_variant_family  # noqa: PLC0415 -- avoids circular import at module load
 
     if tx_pin is None and rx_pin is None:
+        if not node_known:
+            return
         from .dts_lookup import has_pinctrl_configured
 
         if not has_pinctrl_configured(board, port_label):
@@ -316,6 +318,16 @@ def zephyr_setup_uart_pinctrl(
                 port_label,
             )
         zephyr_add_overlay(f'&{port_label} {{ status = "okay"; }};')
+        return
+
+    if not node_known:
+        _LOGGER.warning(
+            "'%s' is not a devicetree node ESPHome found on board '%s' -- "
+            "tx_pin:/rx_pin: can't be applied to it this way. Configure pins "
+            "directly in your own `zephyr: overlays:` instead.",
+            port_label,
+            board,
+        )
         return
 
     prefix = port_label.upper()
