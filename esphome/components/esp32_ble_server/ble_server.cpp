@@ -10,7 +10,7 @@
 #include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <esp_bt_main.h>
-#ifndef ESP32_BLE_HOSTED
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
 #include <esp_bt.h>
 #endif
 #include <freertos/task.h>

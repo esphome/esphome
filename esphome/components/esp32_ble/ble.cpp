@@ -6,7 +6,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifndef ESP32_BLE_HOSTED
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
 #include <esp_bt.h>
 #else
 #include "esphome/components/watchdog/watchdog.h"
@@ -40,7 +40,7 @@ namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble";
 
-#ifdef ESP32_BLE_HOSTED
+#ifdef CONFIG_BT_CONTROLLER_DISABLED
 // Bringing up the remote BT controller issues synchronous RPCs to the
 // co-processor with 5 second response timeouts, and the default task watchdog
 // is also 5 seconds. If the co-processor firmware does not answer (for example
@@ -208,10 +208,10 @@ void ESP32BLE::advertising_init_() {
 
 bool ESP32BLE::ble_setup_() {
   esp_err_t err;
-#ifdef ESP32_BLE_HOSTED
+#ifdef CONFIG_BT_CONTROLLER_DISABLED
   watchdog::WatchdogManager wdt(HOSTED_BT_WDT_TIMEOUT_MS);
 #endif
-#ifndef ESP32_BLE_HOSTED
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
@@ -414,7 +414,7 @@ bool ESP32BLE::ble_setup_() {
 }
 
 bool ESP32BLE::ble_dismantle_() {
-#ifdef ESP32_BLE_HOSTED
+#ifdef CONFIG_BT_CONTROLLER_DISABLED
   // Same 5 second RPCs as the bring-up path; see HOSTED_BT_WDT_TIMEOUT_MS
   watchdog::WatchdogManager wdt(HOSTED_BT_WDT_TIMEOUT_MS);
 #endif
@@ -437,7 +437,7 @@ bool ESP32BLE::ble_dismantle_() {
     ESP_LOGD(TAG, "Already deinitialized");
   }
 
-#ifndef ESP32_BLE_HOSTED
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE) {
     // stop bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED) {

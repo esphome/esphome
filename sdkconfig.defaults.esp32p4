@@ -27,6 +27,7 @@ CONFIG_ESP_HOSTED_HOST_FEAT_PEER_DATA_MAX_CUSTOM_MSG_HANDLERS=8
 
 # BLE runs over the hosted co-processor on P4 (no native BT controller), so
 # the esp32_ble components must take the hosted bluedroid path instead of <esp_bt.h>.
+CONFIG_BT_CONTROLLER_DISABLED=y
 CONFIG_ESP_HOSTED_HOST_FEAT_BT=y
 
 # tinyusb CDC (usb_cdc_acm), same as esp32s3

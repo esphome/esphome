@@ -25,10 +25,6 @@
 #include <esp_gattc_api.h>
 #include <esp_gatts_api.h>
 
-#if defined(CONFIG_ESP_HOSTED_HOST_FEAT_BT) || defined(CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID)
-#define ESP32_BLE_HOSTED
-#endif
-
 namespace esphome::esp32_ble {
 
 // Maximum size of the BLE event queue
