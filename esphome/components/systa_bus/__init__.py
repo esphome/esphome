@@ -22,6 +22,10 @@ CONFIG_SCHEMA = uart.UART_DEVICE_SCHEMA.extend(
     }
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "systa_bus", baud_rate=9600, require_rx=True
+)
+
 _request_listener_slot = cg.slot_counter("SYSTA_BUS_LISTENER_COUNT")
 
 
