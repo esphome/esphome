@@ -14,7 +14,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_SYSTA_BUS_ID, SystaBus, systa_bus_ns
+from .. import CONF_SYSTA_BUS_ID, SystaBus, register_systa_bus_listener, systa_bus_ns
 
 SystaSolarAquaSensor = systa_bus_ns.class_("SystaSolarAquaSensor", cg.Component)
 
@@ -97,4 +97,4 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_pump_speed_sensor(sens))
 
     systa_bus = await cg.get_variable(config[CONF_SYSTA_BUS_ID])
-    cg.add(systa_bus.register_listener(var))
+    await register_systa_bus_listener(systa_bus, var)

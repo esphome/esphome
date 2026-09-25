@@ -47,8 +47,10 @@ void SystaBus::loop() {
           ESP_LOGW(TAG, "Checksum failed");
           continue;
         }
-        for (auto &listener : this->listeners_)
+#ifdef SYSTA_BUS_LISTENER_COUNT
+        for (auto *listener : this->listeners_)
           listener->handle_message(this->buffer_);
+#endif
       }
     }
   } while (this->available());

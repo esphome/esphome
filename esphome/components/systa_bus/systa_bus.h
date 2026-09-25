@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 
 namespace esphome::systa_bus {
@@ -24,12 +25,16 @@ class SystaBus : public uart::UARTDevice, public Component {
   void dump_config() override;
   void loop() override;
 
+#ifdef SYSTA_BUS_LISTENER_COUNT
   void register_listener(SystaBusListener *listener) { this->listeners_.push_back(listener); }
+#endif
 
  protected:
   ParseState state_{ParseState::IDLE};
   uint16_t length_{0};
-  std::vector<SystaBusListener *> listeners_{};
+#ifdef SYSTA_BUS_LISTENER_COUNT
+  StaticVector<SystaBusListener *, SYSTA_BUS_LISTENER_COUNT> listeners_;
+#endif
   StaticVector<uint8_t, BUFFER_SIZE> buffer_;
 };
 
