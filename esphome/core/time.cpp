@@ -114,8 +114,6 @@ std::string ESPTime::strftime(const char *format) {
   return std::string(buf, len);
 }
 
-std::string ESPTime::strftime(const std::string &format) { return this->strftime(format.c_str()); }
-
 // Helper to parse exactly N digits, returns false if not enough digits
 static bool parse_digits(const char *&p, const char *end, int count, uint16_t &value) {
   value = 0;

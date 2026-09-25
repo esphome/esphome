@@ -1,7 +1,10 @@
+from typing import Any
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
+from esphome.components.const import CONF_NOX_INDEX, CONF_VOC_INDEX
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALGORITHM_TUNING,
@@ -57,9 +60,6 @@ CONF_ACCELERATION_MODE = "acceleration_mode"
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
 
 
-# Actions
-StartFanAction = sen5x_ns.class_("StartFanAction", automation.Action)
-
 ACCELERATION_MODES = {
     "low": RhtAccelerationMode.LOW_ACCELERATION,
     "medium": RhtAccelerationMode.MEDIUM_ACCELERATION,
@@ -114,7 +114,7 @@ def _gas_sensor(
     )
 
 
-def float_previously_pct(value):
+def float_previously_pct(value: Any) -> Any:
     if isinstance(value, str) and "%" in value:
         raise cv.Invalid(
             f"The value '{value}' is a percentage. Suggested value: {float(value.strip('%')) / 100}"
@@ -122,7 +122,9 @@ def float_previously_pct(value):
     return value
 
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
+    cv.rename_key(CONF_VOC, CONF_VOC_INDEX, removed_in="2027.2.0", component="sen5x"),
+    cv.rename_key(CONF_NOX, CONF_NOX_INDEX, removed_in="2027.2.0", component="sen5x"),
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SEN5XComponent),
@@ -154,7 +156,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval,
-            cv.Optional(CONF_VOC): _gas_sensor(
+            cv.Optional(CONF_VOC_INDEX): _gas_sensor(
                 index_offset=100,
                 learning_time_offset=12,
                 learning_time_gain=12,
@@ -162,7 +164,7 @@ CONFIG_SCHEMA = (
                 std_initial=50,
                 gain_factor=230,
             ),
-            cv.Optional(CONF_NOX): _gas_sensor(
+            cv.Optional(CONF_NOX_INDEX): _gas_sensor(
                 index_offset=1,
                 learning_time_offset=12,
                 learning_time_gain=12,
@@ -199,7 +201,7 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x69))
+    .extend(i2c.i2c_device_schema(0x69)),
 )
 
 SENSOR_MAP = {
@@ -207,8 +209,8 @@ SENSOR_MAP = {
     CONF_PM_2_5: "set_pm_2_5_sensor",
     CONF_PM_4_0: "set_pm_4_0_sensor",
     CONF_PM_10_0: "set_pm_10_0_sensor",
-    CONF_VOC: "set_voc_sensor",
-    CONF_NOX: "set_nox_sensor",
+    CONF_VOC_INDEX: "set_voc_sensor",
+    CONF_NOX_INDEX: "set_nox_sensor",
     CONF_TEMPERATURE: "set_temperature_sensor",
     CONF_HUMIDITY: "set_humidity_sensor",
 }
@@ -237,7 +239,7 @@ async def to_code(config: ConfigType) -> None:
             sens = await sensor.new_sensor(cfg)
             cg.add(getattr(var, funcName)(sens))
 
-    if cfg := config.get(CONF_VOC, {}).get(CONF_ALGORITHM_TUNING):
+    if cfg := config.get(CONF_VOC_INDEX, {}).get(CONF_ALGORITHM_TUNING):
         cg.add(
             var.set_voc_algorithm_tuning(
                 cfg[CONF_INDEX_OFFSET],
@@ -248,7 +250,7 @@ async def to_code(config: ConfigType) -> None:
                 cfg[CONF_GAIN_FACTOR],
             )
         )
-    if cfg := config.get(CONF_NOX, {}).get(CONF_ALGORITHM_TUNING):
+    if cfg := config.get(CONF_NOX_INDEX, {}).get(CONF_ALGORITHM_TUNING):
         cg.add(
             var.set_nox_algorithm_tuning(
                 cfg[CONF_INDEX_OFFSET],
@@ -275,12 +277,8 @@ SEN5X_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "sen5x.start_fan_autoclean",
-    StartFanAction,
     SEN5X_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("start_fan_cleaning()"),
 )
-async def sen54_fan_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)

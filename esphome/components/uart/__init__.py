@@ -5,7 +5,26 @@ import re
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.components.esp32 import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+    variant_filtered_enum,
+)
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    filter_source_files_from_platform,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AFTER,
@@ -176,6 +195,33 @@ UART_PARITY_OPTIONS = {
 CONF_FLUSH_TIMEOUT = "flush_timeout"
 CONF_RX_FULL_THRESHOLD = "rx_full_threshold"
 CONF_RX_TIMEOUT = "rx_timeout"
+CONF_CLOCK_SOURCE = "clock_source"
+
+UARTClockSource = cg.global_ns.enum("uart_sclk_t")
+UART_CLOCK_SOURCES = {
+    "DEFAULT": UARTClockSource.UART_SCLK_DEFAULT,
+    "APB": UARTClockSource.UART_SCLK_APB,
+    "XTAL": UARTClockSource.UART_SCLK_XTAL,
+    "RTC": UARTClockSource.UART_SCLK_RTC,
+    "REF_TICK": UARTClockSource.UART_SCLK_REF_TICK,
+}
+
+# Keep in sync with SOC_UART_SUPPORT_* in ESP-IDF's per-variant soc_caps.h.
+UART_CLOCK_SOURCES_BY_VARIANT = {
+    VARIANT_ESP32: ["DEFAULT", "APB", "REF_TICK"],
+    VARIANT_ESP32C2: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32C3: ["DEFAULT", "APB", "XTAL", "RTC"],
+    VARIANT_ESP32C5: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32C6: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32C61: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32H2: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32H4: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32H21: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32P4: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32S2: ["DEFAULT", "APB", "REF_TICK"],
+    VARIANT_ESP32S3: ["DEFAULT", "APB", "XTAL", "RTC"],
+    VARIANT_ESP32S31: ["DEFAULT", "XTAL", "RTC"],
+}
 
 UARTDirection = uart_ns.enum("UARTDirection")
 UART_DIRECTIONS = {
@@ -260,6 +306,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FLUSH_TIMEOUT): cv.All(
                 cv.only_on_esp32, cv.positive_time_period_milliseconds
             ),
+            cv.Optional(CONF_CLOCK_SOURCE): cv.All(
+                cv.only_on_esp32,
+                variant_filtered_enum(UART_CLOCK_SOURCES_BY_VARIANT, upper=True),
+            ),
             cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
             cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
@@ -341,6 +391,9 @@ async def to_code(config):
         cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
         if CONF_FLUSH_TIMEOUT in config:
             cg.add(var.set_flush_timeout(config[CONF_FLUSH_TIMEOUT]))
+        # The member already defaults to UART_SCLK_DEFAULT, so only emit a real choice
+        if (clock_source := config.get(CONF_CLOCK_SOURCE, "DEFAULT")) != "DEFAULT":
+            cg.add(var.set_clock_source(UART_CLOCK_SOURCES[clock_source]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
     cg.add(var.set_parity(config[CONF_PARITY]))
@@ -521,7 +574,7 @@ async def final_step():
         cg.add_define("USE_UART_WAKE_LOOP_ON_RX")
 
 
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_platform_filter = filter_source_files_from_platform(
     {
         "uart_component_esp_idf.cpp": {
             PlatformFramework.ESP32_IDF,
@@ -537,3 +590,13 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
     }
 )
+
+# uart_debugger.cpp is fully #ifdef'd on USE_UART_DEBUGGER, set only when a
+# debug block is configured.
+_define_filter = filter_source_files_from_defines(
+    {"uart_debugger.cpp": "USE_UART_DEBUGGER"}
+)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    return _platform_filter() + _define_filter()
