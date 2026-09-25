@@ -1,9 +1,14 @@
 #ifdef USE_ZEPHYR
 #include "ble_server.h"
+#include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/settings/settings.h>
+
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
 
 namespace esphome::zephyr_ble_server {
 
@@ -13,13 +18,12 @@ static k_work advertise_work;  // NOLINT(cppcoreguidelines-avoid-non-const-globa
 
 BLEServer *global_ble_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-#define DEVICE_NAME CONFIG_BT_DEVICE_NAME
-#define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
-
-static const bt_data AD[] = {
-    BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-    BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
-};
+// The advertised name is taken from App.get_name() at setup() rather than the
+// compile-time CONFIG_BT_DEVICE_NAME. With name_add_mac_suffix that yields a
+// per-device name (e.g. "b-a1b2c3"), so several identical nodes in range stay
+// distinguishable in a scan instead of all advertising the same base name.
+// Captured once and reused by advertise(), which re-runs on every disconnect.
+static std::string device_name;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static const bt_data SD[] = {
 #ifdef USE_OTA
@@ -30,18 +34,50 @@ static const bt_data SD[] = {
 
 const bt_le_adv_param *const ADV_PARAM = BT_LE_ADV_CONN;
 
+// Last bt_le_adv_start() rc, surfaced in dump_config() because advertise() runs on
+// the BT workqueue thread whose logs don't reliably flush over USB-CDC. -255 means
+// advertise() has not run yet; 0 means advertising is up. Useful on a headless BLE
+// node where a non-zero rc is otherwise invisible.
+static volatile int advertise_rc = -255;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 static void advertise(k_work *work) {
   int rc = bt_le_adv_stop();
   if (rc) {
     ESP_LOGE(TAG, "Advertising failed to stop (rc %d)", rc);
   }
 
-  rc = bt_le_adv_start(ADV_PARAM, AD, ARRAY_SIZE(AD), SD, ARRAY_SIZE(SD));
+  // Link-gated suppression: when the policy has lowered advertising_wanted_ (the node
+  // is hub-linked, no wake window), stop here and do NOT restart. advertise() re-runs
+  // on every disconnect, so without this latch a policy-driven disconnect would
+  // immediately bring the advert back up and defeat "BLE off while linked".
+  if (global_ble_server != nullptr && !global_ble_server->is_advertising_wanted()) {
+    advertise_rc = -1;  // distinct from -255 (never ran) and 0 (up): intentionally suppressed
+    ESP_LOGI(TAG, "Advertising suppressed (link-gated off)");
+    return;
+  }
+
+  // Build the advertising data here (not as a static const) so the name carries
+  // the runtime device_name captured in setup().
+  //
+  // Do NOT include a BT_DATA_FLAGS element. The nRF SoftDevice Controller rejects
+  // HCI LE Set Advertising Data that carries the AD Flags type (0x01) with
+  // INVALID_PARAM (-EINVAL) -- it owns the discoverability flags for the
+  // connectable advertising mode and sets them itself. A bisection proved this is
+  // the sole cause of the long-standing advertising failure: a bare advert, a
+  // name-only AD, and the scan-response UUID each start cleanly (rc 0); only an AD
+  // containing the flags element fails. The name (for macOS/CoreBluetooth
+  // discovery) goes in the primary AD; the SMP/NUS UUID stays in the scan response.
+  const bt_data ad[] = {
+      BT_DATA(BT_DATA_NAME_COMPLETE, device_name.c_str(), device_name.size()),
+  };
+
+  rc = bt_le_adv_start(ADV_PARAM, ad, ARRAY_SIZE(ad), SD, ARRAY_SIZE(SD));
+  advertise_rc = rc;
   if (rc) {
     ESP_LOGE(TAG, "Advertising failed to start (rc %d)", rc);
     return;
   }
-  ESP_LOGI(TAG, "Advertising successfully started");
+  ESP_LOGI(TAG, "Advertising successfully started as '%s'", device_name.c_str());
 }
 
 void BLEServer::connected(bt_conn *conn, uint8_t err) {
@@ -236,6 +272,22 @@ void BLEServer::setup() {
     ESP_LOGE(TAG, "Cannot load settings, err: %d", err);
   }
 #endif
+  // Capture the runtime name (with the name_add_mac_suffix tail) before the
+  // first advertise. Also push it to the GAP Device Name characteristic so a
+  // connected central reads the same per-device name (needs
+  // CONFIG_BT_DEVICE_NAME_DYNAMIC); the advertised name uses device_name
+  // directly, so it is correct even if bt_set_name() is unavailable.
+  device_name = App.get_name();
+  err = bt_set_name(device_name.c_str());
+  if (err) {
+    ESP_LOGW(TAG, "Failed to set GAP device name to '%s' (err %d)", device_name.c_str(), err);
+  }
+#ifdef USE_OTA_STATE_LISTENER
+  // Observe OTA across all transports so disconnect-on-stop can stand down while a
+  // firmware update is in flight (defense-in-depth; the ble_policy predicate also
+  // keeps advertising up during OTA).
+  ota::get_global_ota_callback()->add_global_state_listener(this);
+#endif
   k_work_submit(&advertise_work);
 }
 
@@ -288,12 +340,23 @@ void BLEServer::dump_config() {
                 "  name: %s\n"
                 "  appearance: %u\n"
                 "  ready: %s\n"
+                "  last advertise rc: %d (-255 = advertise() never ran)\n"
+                "  id0 addr: %s\n"
 #ifdef CONFIG_BT_SMP
                 "  security manager: YES",
 #else
                 "  security manager: NO",
 #endif
-                YESNO(this->conn_), bt_get_name(), bt_get_appearance(), YESNO(bt_is_ready()));
+                YESNO(this->conn_), bt_get_name(), bt_get_appearance(), YESNO(bt_is_ready()), (int) advertise_rc,
+                ([]() -> const char * {
+                  static char s[BT_ADDR_LE_STR_LEN] = "none";
+                  bt_addr_le_t ids[CONFIG_BT_ID_MAX];
+                  size_t n = CONFIG_BT_ID_MAX;
+                  bt_id_get(ids, &n);
+                  if (n > 0)
+                    bt_addr_le_to_str(&ids[0], s, sizeof(s));
+                  return s;
+                })());
 
 #ifdef ESPHOME_LOG_HAS_DEBUG
   bt_conn_foreach(BT_CONN_TYPE_ALL, connection_info, nullptr);
@@ -302,6 +365,45 @@ void BLEServer::dump_config() {
 #endif
 #endif
 }
+
+void BLEServer::set_advertising_enabled(bool enabled) {
+  // Runs on the main loop (driven from an ESPHome action), the same context that
+  // mutates conn_ via defer(), so reading conn_ here is race-free.
+  if (this->advertising_wanted_ == enabled) {
+    ESP_LOGD(TAG, "Advertising already %s", enabled ? "enabled" : "disabled");
+    return;
+  }
+  this->advertising_wanted_ = enabled;
+  // Re-run advertise() on the BT workqueue either way: it starts when wanted, or
+  // stops-and-stays-down when not (see the latch check at the top of advertise()).
+  k_work_submit(&advertise_work);
+  if (enabled) {
+    ESP_LOGI(TAG, "Advertising enabled (link-gated on)");
+    return;
+  }
+  ESP_LOGI(TAG, "Advertising disabled (link-gated off)");
+  // Disconnect-on-stop: drop an active central so "off" closes the surface, mirroring
+  // wifi.disable tearing down the AP. Skip while an OTA is mid-flight so a remote
+  // firmware update is never interrupted (the connection, not the advert, carries it).
+  if (this->conn_ == nullptr)
+    return;
+  if (this->ota_in_progress_) {
+    ESP_LOGW(TAG, "Advertising off requested during OTA; keeping the BLE connection up");
+    return;
+  }
+  ESP_LOGI(TAG, "Disconnecting active central (advertising off)");
+  bt_conn_disconnect(this->conn_, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+}
+
+#ifdef USE_OTA_STATE_LISTENER
+void BLEServer::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
+  if (state == ota::OTA_STARTED) {
+    this->ota_in_progress_ = true;
+  } else if (state == ota::OTA_COMPLETED || state == ota::OTA_ERROR || state == ota::OTA_ABORT) {
+    this->ota_in_progress_ = false;
+  }
+}
+#endif
 
 void BLEServer::numeric_comparison_reply(bool accept) {
   if (this->conn_ == nullptr) {
