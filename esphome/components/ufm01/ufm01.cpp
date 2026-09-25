@@ -406,6 +406,9 @@ SoftwareVersionReadResult UFM01Component::continue_software_version_read_() {
     uint8_t byte;
     if (!this->read_byte(&byte))
       break;
+    // The tail of an in-flight active-stream frame can arrive before the reply
+    if (this->software_version_index_ == 0 && byte != COMMAND_ACK)
+      continue;
     this->software_version_frame_[this->software_version_index_++] = byte;
   }
 

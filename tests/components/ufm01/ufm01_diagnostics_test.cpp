@@ -65,6 +65,20 @@ TEST_F(UFM01Test, SoftwareVersionResponseDecoded) {
   EXPECT_STREQ(this->software_version_text_sensor_.state.c_str(), "23380315");
 }
 
+TEST_F(UFM01Test, SoftwareVersionReadSkipsLeftoverStreamBytes) {
+  this->attach_diagnostic_text_sensors();
+  this->ufm01_.start_software_version_read();
+  // Tail of an active frame that was still on the wire when the command was sent
+  auto frame = make_active_frame();
+  this->mock_uart_.enqueue(std::vector<uint8_t>(frame.begin() + 20, frame.end()));
+  auto response = make_software_version_response();
+  this->mock_uart_.enqueue(std::vector<uint8_t>(response.begin(), response.end()));
+
+  EXPECT_EQ(this->ufm01_.continue_software_version_read(),
+            SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_SUCCESS);
+  EXPECT_STREQ(this->software_version_text_sensor_.state.c_str(), "23380315");
+}
+
 TEST_F(UFM01Test, InvalidSoftwareVersionBcdFails) {
   this->attach_diagnostic_text_sensors();
   this->ufm01_.start_software_version_read();
