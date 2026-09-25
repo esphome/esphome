@@ -65,6 +65,7 @@ esphome/components/bedjet/climate/* @jhansche
 esphome/components/bedjet/fan/* @jhansche
 esphome/components/bedjet/sensor/* @javawizard @jhansche
 esphome/components/beken_spi_led_strip/* @Mat931
+esphome/components/bh1730/* @enwi
 esphome/components/bh1750/* @OttoWinter
 esphome/components/bh1900nux/* @B48D81EFCC
 esphome/components/binary_sensor/* @esphome/core
