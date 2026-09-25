@@ -2116,6 +2116,7 @@ def test_upload_program_ota_success(
         OTA_TYPE_UPDATE_APP,
         None,
         plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
@@ -2154,7 +2155,73 @@ def test_upload_program_ota_encryption_key(
         OTA_TYPE_UPDATE_APP,
         key,
         plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
+
+
+def test_upload_program_bare_encryption_block_never_falls_back(
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """A bare `ota: encryption:` (the api key inherited by final validate, no
+    option) fails closed against a device that does not offer encryption."""
+    from esphome.components.esphome.ota import ota_esphome_final_validate
+    import esphome.final_validate as fv
+
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    config = {
+        CONF_API: {CONF_ENCRYPTION: {CONF_KEY: key}},
+        CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232, CONF_ENCRYPTION: {}}],
+    }
+    token = fv.full_config.set(config)
+    try:
+        ota_esphome_final_validate({})
+        config = fv.full_config.get()
+    finally:
+        fv.full_config.reset(token)
+    assert config[CONF_OTA][0][CONF_ENCRYPTION] == {CONF_KEY: key}
+
+    with patch("esphome.espota2.run_ota", return_value=(0, "192.168.1.100")) as run_ota:
+        upload_program(config, MockArgs(), ["192.168.1.100"])
+    assert run_ota.call_args.args[5] == key
+    assert run_ota.call_args.kwargs == {
+        "plaintext_fallback": False,
+        "allow_plaintext_upload": False,
+    }
+
+
+def test_upload_program_ota_allow_plaintext_upload(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """The uploader side opt in reaches run_ota without the removed fallback."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_PASSWORD: "pw",
+                CONF_ENCRYPTION: {CONF_KEY: key, "allow_plaintext_upload": True},
+            }
+        ]
+    }
+    exit_code, _ = upload_program(config, MockArgs(), ["192.168.1.100"])
+
+    assert exit_code == 0
+    assert mock_run_ota.call_args.args[2] == "pw"
+    assert mock_run_ota.call_args.args[5] == key
+    assert mock_run_ota.call_args.kwargs == {
+        "plaintext_fallback": False,
+        "allow_plaintext_upload": True,
+    }
 
 
 def test_upload_program_ota_api_key_opportunistic(
@@ -2187,6 +2254,7 @@ def test_upload_program_ota_api_key_opportunistic(
         OTA_TYPE_UPDATE_APP,
         key,
         plaintext_fallback=True,
+        allow_plaintext_upload=False,
     )
 
 
@@ -2215,7 +2283,10 @@ def test_upload_program_ota_no_usable_api_key_stays_plaintext(
 
     assert exit_code == 0
     assert mock_run_ota.call_args.args[5] is None
-    assert mock_run_ota.call_args.kwargs == {"plaintext_fallback": False}
+    assert mock_run_ota.call_args.kwargs == {
+        "plaintext_fallback": False,
+        "allow_plaintext_upload": False,
+    }
 
 
 def test_upload_program_ota_encryption_without_key_fails_closed(
@@ -2275,6 +2346,7 @@ def test_upload_program_ota_with_file_arg(
         OTA_TYPE_UPDATE_APP,
         None,
         plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
@@ -2331,6 +2403,7 @@ def test_upload_program_ota_partition_table_with_file_arg(
         OTA_TYPE_UPDATE_PARTITION_TABLE,
         None,
         plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
@@ -2394,6 +2467,7 @@ def test_upload_program_ota_partition_table_mqttip(
         OTA_TYPE_UPDATE_PARTITION_TABLE,
         None,
         plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
@@ -2583,6 +2657,7 @@ def test_upload_program_ota_bootloader_with_file_arg(
         OTA_TYPE_UPDATE_BOOTLOADER,
         None,
         plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
@@ -3078,6 +3153,7 @@ def test_upload_program_ota_with_mqtt_resolution(
         OTA_TYPE_UPDATE_APP,
         None,
         plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
@@ -3134,6 +3210,7 @@ def test_upload_program_ota_with_mqtt_empty_broker(
         OTA_TYPE_UPDATE_APP,
         None,
         plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
     # Verify warning was logged
     assert "MQTT IP discovery failed" in caplog.text
@@ -5307,6 +5384,7 @@ def test_upload_program_ota_static_ip_with_mqttip(
         OTA_TYPE_UPDATE_APP,
         None,
         plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
@@ -5358,6 +5436,7 @@ def test_upload_program_ota_multiple_mqttip_resolves_once(
         OTA_TYPE_UPDATE_APP,
         None,
         plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
@@ -5542,6 +5621,7 @@ def test_upload_program_ota_mqtt_timeout_fallback(
         OTA_TYPE_UPDATE_APP,
         None,
         plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
