@@ -182,6 +182,8 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   uint8_t firmware_unreadable_len_{0};
   bool identity_started_{false};
   bool serial_first_half_seen_{false};
+  // A frame with the half marker arrived, so the serial number comes in two halves.
+  bool serial_split_{false};
   bool transfer_answer_pending_{false};
   bool firmware_unreadable_{false};
   char serial_number_[27]{};

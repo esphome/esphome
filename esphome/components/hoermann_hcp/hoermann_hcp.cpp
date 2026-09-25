@@ -86,6 +86,8 @@ static constexpr size_t TRANSFER_PAYLOAD_REG = 2;
 static constexpr uint8_t COUNTER_FIRST_HALF = 0x80;
 static constexpr size_t SERIAL_FIRST_HALF_REGS = 7;
 static constexpr size_t SERIAL_SECOND_HALF_REGS = 6;
+// Older motors (index B1 seen) send the whole serial number in one frame, without the half marker.
+static constexpr size_t SERIAL_SINGLE_FRAME_REGS = 6;
 static constexpr size_t FIRMWARE_REGS = 6;
 
 // Registers hold two payload bytes each, high byte first.
@@ -316,6 +318,7 @@ void HoermannHcp::arm_identity_request_(uint8_t request) {
   this->identity_request_ = request;
   this->identity_attempts_ = 0;
   this->serial_first_half_seen_ = false;
+  this->serial_split_ = false;
 }
 
 bool HoermannHcp::take_identity_request_(uint32_t now) {
@@ -377,10 +380,20 @@ void HoermannHcp::take_identity_transfer_(const modbus::RegisterValues &register
   if (this->identity_request_ != REQUEST_SERIAL)
     return;
   if ((counter & COUNTER_FIRST_HALF) != 0) {
+    this->serial_split_ = true;
     if (payload_regs >= SERIAL_FIRST_HALF_REGS) {
       copy_payload(registers, SERIAL_FIRST_HALF_REGS, this->serial_number_);
       this->serial_first_half_seen_ = true;
     }
+    return;
+  }
+  // Without a half marker seen, the frame is the whole number; after one, it can only be the second half.
+  if (!this->serial_split_) {
+    if (payload_regs < SERIAL_SINGLE_FRAME_REGS)
+      return;
+    copy_payload(registers, SERIAL_SINGLE_FRAME_REGS, this->serial_number_);
+    terminate_text(this->serial_number_, 2 * SERIAL_SINGLE_FRAME_REGS);
+    this->arm_identity_request_(REQUEST_FIRMWARE);
     return;
   }
   if (!this->serial_first_half_seen_ || payload_regs < SERIAL_SECOND_HALF_REGS)
@@ -408,11 +421,17 @@ void HoermannHcp::publish_identity_() {
   }
   // Before the version is published: the buffer holds the bytes as they came, not text.
   if (this->firmware_unreadable_) {
-    char hex[2 * sizeof(this->firmware_version_) + 1];
-    ESP_LOGW(
-        TAG, "Motor sent a firmware version that could not be read (%u bytes): %s", this->firmware_unreadable_len_,
-        format_hex_to(hex, reinterpret_cast<const uint8_t *>(this->firmware_version_), this->firmware_unreadable_len_));
     this->firmware_unreadable_ = false;
+    const uint8_t len = this->firmware_unreadable_len_;
+    // All zeros is how a motor that does not report its version says so (index B1 seen).
+    if (len == 2 * FIRMWARE_REGS &&
+        std::all_of(this->firmware_version_, this->firmware_version_ + len, [](char c) { return c == '\0'; })) {
+      ESP_LOGD(TAG, "Motor does not report its firmware version");
+    } else {
+      char hex[2 * sizeof(this->firmware_version_) + 1];
+      ESP_LOGW(TAG, "Motor sent a firmware version that could not be read (%u bytes): %s", len,
+               format_hex_to(hex, reinterpret_cast<const uint8_t *>(this->firmware_version_), len));
+    }
     this->firmware_version_[0] = '\0';
   }
   if (this->version_text_sensor_ != nullptr && this->firmware_version_[0] != '\0') {

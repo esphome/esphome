@@ -226,13 +226,33 @@ TEST(HoermannHcpTextSensorTest, UnusableSerialHalvesAreNotKept) {
     EXPECT_EQ(fixture.serial_shown(), "");
     EXPECT_EQ(door.identity_request_, 0x05);
   }
-  {
-    IdentityFixture fixture;
-    auto &door = fixture.door;
-    status_poll(door);
-    EXPECT_EQ(transfer(door, 0x06, SUB_SERIAL, SERIAL + 14, 12)[1], 0x04FD);
-    EXPECT_EQ(fixture.serial_shown(), "");
-  }
+}
+
+// Older motors (index B1 seen) send the whole serial number in one frame, without the half marker. The bytes are
+// the ones a B1 sent, with the serial number made up.
+TEST(HoermannHcpTextSensorTest, SerialNumberInOneFrameThenTheFirmwareVersion) {
+  IdentityFixture fixture;
+  auto &door = fixture.door;
+  status_poll(door);
+  status_poll(door, 0x03);
+  const char one_frame[12] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', 'B', '1', 0};
+  EXPECT_EQ(transfer(door, 0x05, SUB_SERIAL, one_frame, 12)[1], 0x04FD);
+  EXPECT_EQ(door.identity_request_, 0x06);
+  EXPECT_EQ(fixture.serial_shown(), "123456789B1");
+  auto answer = status_poll(door, 0x06);
+  EXPECT_EQ(answer[1], 0x0322);
+  EXPECT_EQ(answer[2], 0x0600);
+}
+
+// After a frame with the half marker, one without it can only be the second half, even if the first was unusable.
+TEST(HoermannHcpTextSensorTest, ASecondHalfIsNeverTakenForTheWholeNumber) {
+  IdentityFixture fixture;
+  auto &door = fixture.door;
+  status_poll(door);
+  transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, SERIAL, 12);
+  transfer(door, 0x06, SUB_SERIAL, SERIAL + 14, 12);
+  EXPECT_EQ(fixture.serial_shown(), "");
+  EXPECT_EQ(door.identity_request_, 0x05);
 }
 
 // Nor is a firmware version too short.
@@ -274,6 +294,20 @@ TEST(HoermannHcpTextSensorTest, ReadableFirmwareVersionAfterAShortOneIsShown) {
   transfer(door, 0x09, SUB_FIRMWARE, FIRMWARE, 12);
   EXPECT_FALSE(door.firmware_unreadable_);
   EXPECT_EQ(fixture.version_shown(), "FW-TEST 1.0");
+}
+
+// All zeros is how a motor that does not report its version says so: nothing shown, not asked for again.
+TEST(HoermannHcpTextSensorTest, AllZeroFirmwareVersionMeansNoneIsReported) {
+  IdentityFixture fixture;
+  auto &door = fixture.door;
+  status_poll(door);
+  send_serial(door);
+  status_poll(door, 0x07);
+  const char zeros[12] = {};
+  transfer(door, 0x08, SUB_FIRMWARE, zeros, 12);
+  EXPECT_EQ(fixture.version_shown(), "");
+  EXPECT_FALSE(door.firmware_unreadable_);
+  EXPECT_EQ(door.identity_request_, 0);
 }
 
 // A firmware version that is not text is not shown, is logged, and is not asked for again: it would come back
