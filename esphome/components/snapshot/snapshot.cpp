@@ -192,8 +192,11 @@ bool write_snapshot_file(const uint8_t *pixels, int width, int height, size_t ro
 
 }  // namespace
 
-// helper function since ESP_LOGW is disallowed in a header file
-void Snapshot::log_action_failed() { ESP_LOGW(TAG, "snapshot.take did not write a file"); }
+void Snapshot::take_snapshot_or_log(const char *filename) {
+  if (!this->take_snapshot(filename[0] != '\0' ? filename : nullptr)) {
+    ESP_LOGW(TAG, "snapshot.take did not write a file");
+  }
+}
 
 bool Snapshot::take_snapshot(const char *filename) {
   const int width = this->snapshot_width();
