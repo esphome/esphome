@@ -361,7 +361,9 @@ def _apply_function(
 ) -> MockObj:
     """Emit the generated function and declare ``id_`` as the ``ApplyAction`` or
     ``ApplyCondition`` templated on it, so ``play()`` calls it directly."""
-    fn = cg.static_function(f"{id_.id}_fn", return_type, lambda_args, statements)
+    fn = cg.static_function(
+        f"esphome__{id_.id}__fn", return_type, lambda_args, statements
+    )
     return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
 
 

@@ -671,11 +671,11 @@ async def test_register_apply_action_entry(
     mock_cg.get_variable.assert_awaited_once_with(PARENT_ID)
     action_id, template_arg = mock_cg.new_pvariable.call_args.args
     assert action_id == ID("obj_1")
-    assert str(template_arg) == "<obj_1_fn, int32_t>"
+    assert str(template_arg) == "<esphome__obj_1__fn, int32_t>"
     # The definition must precede the storage line that names the function.
     assert [c[0] for c in mock_cg.calls.mock_calls] == ["add_global", "new_pvariable"]
     assert _apply_definition(mock_cg).startswith(
-        "static void obj_1_fn(const std::remove_cvref_t<int32_t> & x) {"
+        "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x) {"
     )
 
 
@@ -760,7 +760,7 @@ async def test_apply_lambdas(
     await _run_apply_action(registries, fields, config, args=[(cg.int32, "x")])
     text = _apply_definition(mock_cg)
     assert text.startswith(
-        "static void obj_1_fn(const std::remove_cvref_t<int32_t> & x) {"
+        "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x) {"
     )
     # The parent is global-scope qualified, so an arg named like the id cannot shadow it.
     assert f"::{PARENT_OBJ}->set_kp(" in text
@@ -931,10 +931,10 @@ async def test_register_apply_condition_predicate(
     assert entry.type_id is ApplyCondition
     condition_id, template_arg = mock_cg.new_pvariable.call_args.args
     assert condition_id == ID("obj_1")
-    assert str(template_arg) == "<obj_1_fn, int32_t>"
+    assert str(template_arg) == "<esphome__obj_1__fn, int32_t>"
     text = _apply_definition(mock_cg)
     assert text.startswith(
-        "static bool obj_1_fn(const std::remove_cvref_t<int32_t> & x) {"
+        "static bool esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x) {"
     )
     assert f"return ::{PARENT_OBJ}->is_playing();" in text
 
