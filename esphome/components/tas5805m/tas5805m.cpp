@@ -78,6 +78,9 @@ static const uint8_t STARTUP_SEQUENCE[][2] PROGMEM = {
 // The clock fault is left out of the log and have_fault: it is set whenever the I2S clock stops, which is normal.
 static constexpr uint32_t TAS5805M_FAULT_ERROR_MASKS = 0x0001C30F;
 static constexpr uint32_t TAS5805M_FAULT_WARNING_MASKS = 0x04000000;
+// DC and over current faults keep the output off until cleared (datasheet 7.5.3.3.1, 7.5.3.3.2). They are not
+// cleared automatically: a DC fault re-trips only after 570 ms, so a clear on every poll would pass DC to the speaker.
+static constexpr uint32_t TAS5805M_FAULT_OUTPUT_OFF_MASKS = 0x0000000F;
 static constexpr uint8_t TAS5805M_GLOBAL_FAULT1_CLOCK_BIT = 2;
 
 // An if chain rather than a switch: a switch table would land in rodata, which is RAM on ESP8266.
@@ -171,6 +174,10 @@ void TAS5805M::activate() {
   if (this->is_failed())
     return;
   ESP_LOGD(TAG, "Activating");
+  // Also the way to restart the output after a DC or over current fault
+  if (!this->write_byte(TAS5805M_FAULT_CLEAR, TAS5805M_FAULT_CLEAR_ANALOG)) {
+    ESP_LOGW(TAG, "Failed to clear faults");
+  }
   const bool muted = this->is_muted_;
   // Leaving deep sleep needs this sequence to reset the internal state machine, see datasheet 7.4.5
   if (this->ctrl_state_ == TAS5805M_CTRL_STATE_DEEP_SLEEP &&
@@ -231,6 +238,9 @@ bool TAS5805M::read_faults_() {
       ESP_LOGW(TAG, "%s", LOG_STR_ARG(name));
     }
   }
+  if (changed & active & TAS5805M_FAULT_OUTPUT_OFF_MASKS) {
+    ESP_LOGW(TAG, "Output stays off until tas5805m.activate is called");
+  }
   this->logged_faults_ = active;
 
 #ifdef USE_BINARY_SENSOR
@@ -249,10 +259,12 @@ bool TAS5805M::read_faults_() {
   publish_fault(this->over_temp_warning_binary_sensor_, faults, 3, 2);
 #endif
 
-  // Fault bits stay set until cleared, even after the condition is gone; a DC fault also keeps the output off
-  // until then (datasheet 7.5.3.3). Clearing the clock fault too keeps every bit a reflection of the current state.
+  // Every other fault bit stays set after the condition is gone and only reports it; clear those so the bits, and
+  // the sensors, follow the current state. The clear register resets all faults at once, so hold off while the
+  // output is off.
   const bool clock_fault = faults[1] & (1 << TAS5805M_GLOBAL_FAULT1_CLOCK_BIT);
-  if ((active != 0 || clock_fault) && !this->write_byte(TAS5805M_FAULT_CLEAR, TAS5805M_FAULT_CLEAR_ANALOG)) {
+  if ((active != 0 || clock_fault) && !(active & TAS5805M_FAULT_OUTPUT_OFF_MASKS) &&
+      !this->write_byte(TAS5805M_FAULT_CLEAR, TAS5805M_FAULT_CLEAR_ANALOG)) {
     ESP_LOGW(TAG, "Failed to clear faults");
   }
   return true;

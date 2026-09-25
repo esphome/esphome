@@ -31,7 +31,8 @@ class TAS5805M : public audio_dac::AudioDac, public PollingComponent, public i2c
   float get_setup_priority() const override { return setup_priority::IO; }
   void update() override;
 
-  /// Leave deep sleep and switch to play; the device waits in Hi-Z until an I2S clock is present.
+  /// Clear faults, leave deep sleep and switch to play; the device waits in Hi-Z until an I2S clock is present.
+  /// This is also how the output is restarted after a DC or over current fault.
   void activate();
   /// Switch to deep sleep, the lowest power state that keeps I2C and the DSP running.
   void deactivate();
