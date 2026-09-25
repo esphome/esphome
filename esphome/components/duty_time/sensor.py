@@ -1,5 +1,5 @@
 from esphome import automation
-from esphome.automation import Action, Condition, maybe_simple_id, register_condition
+from esphome.automation import Action, Condition, maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import binary_sensor, sensor
 import esphome.config_validation as cv
@@ -112,7 +112,7 @@ automation.register_parented_action(
 )
 
 
-@register_condition(
+@automation.register_condition(
     "sensor.duty_time.is_running", RunningCondition, DUTY_TIME_ID_SCHEMA
 )
 async def duty_time_is_running_to_code(
@@ -125,7 +125,7 @@ async def duty_time_is_running_to_code(
     return cg.new_Pvariable(condition_id, template_arg, paren, True)
 
 
-@register_condition(
+@automation.register_condition(
     "sensor.duty_time.is_not_running", RunningCondition, DUTY_TIME_ID_SCHEMA
 )
 async def duty_time_is_not_running_to_code(
