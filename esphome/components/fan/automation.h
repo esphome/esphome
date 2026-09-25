@@ -50,16 +50,6 @@ template<typename... Ts> class CycleSpeedAction final : public Action<Ts...> {
   Fan *state_;
 };
 
-class FanStateTrigger final : public Trigger<Fan *> {
- public:
-  FanStateTrigger(Fan *state) : fan_(state) {
-    state->add_on_state_callback([this]() { this->trigger(this->fan_); });
-  }
-
- protected:
-  Fan *fan_;
-};
-
 class FanTurnOnTrigger final : public Trigger<> {
  public:
   FanTurnOnTrigger(Fan *state) : fan_(state) {
