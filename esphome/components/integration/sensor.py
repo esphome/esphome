@@ -106,7 +106,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_restore(config[CONF_RESTORE]))
 
 
-@automation.register_action(
+automation.register_parented_action(
     "sensor.integration.reset",
     ResetAction,
     automation.maybe_simple_id(
@@ -116,15 +116,6 @@ async def to_code(config: ConfigType) -> None:
     ),
     synchronous=True,
 )
-async def sensor_integration_reset_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 @automation.register_action(

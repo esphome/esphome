@@ -286,45 +286,44 @@ NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_parented_action(
     "sx127x.run_image_cal",
     RunImageCalAction,
     NO_ARGS_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_parented_action(
     "sx127x.set_mode_tx",
     SetModeTxAction,
     NO_ARGS_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_parented_action(
     "sx127x.set_mode_rx",
     SetModeRxAction,
     NO_ARGS_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_parented_action(
     "sx127x.set_mode_sleep",
     SetModeSleepAction,
     NO_ARGS_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_parented_action(
     "sx127x.set_mode_standby",
     SetModeStandbyAction,
     NO_ARGS_ACTION_SCHEMA,
     synchronous=True,
 )
-async def no_args_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(

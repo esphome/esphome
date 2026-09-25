@@ -105,26 +105,20 @@ PMWCS3_CALIBRATION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_simple_action(
     "pmwcs3.air_calibration",
     PMWCS3AirCalibrationAction,
     PMWCS3_CALIBRATION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_simple_action(
     "pmwcs3.water_calibration",
     PMWCS3WaterCalibrationAction,
     PMWCS3_CALIBRATION_SCHEMA,
     synchronous=True,
 )
-async def pmwcs3_calibration_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 PMWCS3_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(

@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from esphome import automation, core
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import only_on_variant
 from esphome.components.esp32.const import (
@@ -298,18 +298,9 @@ FactoryResetAction = zigbee_ns.class_(
 )
 
 
-@automation.register_action(
+automation.register_parented_action(
     "zigbee.factory_reset",
     FactoryResetAction,
     ZIGBEE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def reset_zigbee_to_code(
-    config: ConfigType,
-    action_id: core.ID,
-    template_arg: cg.TemplateArguments,
-    args: list[tuple],
-) -> cg.Pvariable:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

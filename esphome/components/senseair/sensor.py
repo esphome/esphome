@@ -11,8 +11,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
@@ -82,41 +80,41 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_simple_action(
     "senseair.background_calibration",
     SenseAirBackgroundCalibrationAction,
     CALIBRATION_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_simple_action(
     "senseair.background_calibration_result",
     SenseAirBackgroundCalibrationResultAction,
     CALIBRATION_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_simple_action(
     "senseair.abc_enable",
     SenseAirABCEnableAction,
     CALIBRATION_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_simple_action(
     "senseair.abc_disable",
     SenseAirABCDisableAction,
     CALIBRATION_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_simple_action(
     "senseair.abc_get_period",
     SenseAirABCGetPeriodAction,
     CALIBRATION_ACTION_SCHEMA,
     synchronous=True,
 )
-async def senseair_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)

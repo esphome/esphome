@@ -446,26 +446,20 @@ automation.register_apply_action(
 )
 
 
-@automation.register_action(
+automation.register_simple_action(
     "sprinkler.start_from_queue",
     StartFromQueueAction,
     SPRINKLER_ACTION_SCHEMA,
     synchronous=True,
 )
-async def sprinkler_start_from_queue_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
+automation.register_simple_action(
     "sprinkler.start_full_cycle",
     StartFullCycleAction,
     SPRINKLER_ACTION_SCHEMA,
     synchronous=True,
 )
-async def sprinkler_start_full_cycle_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -485,45 +479,60 @@ async def sprinkler_start_single_valve_to_code(config, action_id, template_arg, 
     return var
 
 
-@automation.register_action(
+automation.register_simple_action(
     "sprinkler.clear_queued_valves",
     ClearQueuedValvesAction,
     SPRINKLER_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_simple_action(
     "sprinkler.next_valve",
     NextValveAction,
     SPRINKLER_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_simple_action(
     "sprinkler.previous_valve",
     PreviousValveAction,
     SPRINKLER_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
-    "sprinkler.pause", PauseAction, SPRINKLER_ACTION_SCHEMA, synchronous=True
+
+
+automation.register_simple_action(
+    "sprinkler.pause",
+    PauseAction,
+    SPRINKLER_ACTION_SCHEMA,
+    synchronous=True,
 )
-@automation.register_action(
-    "sprinkler.resume", ResumeAction, SPRINKLER_ACTION_SCHEMA, synchronous=True
+
+
+automation.register_simple_action(
+    "sprinkler.resume",
+    ResumeAction,
+    SPRINKLER_ACTION_SCHEMA,
+    synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_simple_action(
     "sprinkler.resume_or_start_full_cycle",
     ResumeOrStartAction,
     SPRINKLER_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_simple_action(
     "sprinkler.shutdown",
     ShutdownAction,
     SPRINKLER_ACTION_SCHEMA,
     synchronous=True,
 )
-async def sprinkler_simple_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 async def to_code(config):
