@@ -197,16 +197,8 @@ async def to_code(config: ConfigType) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-SendspinImageTransitionFinishedAction = sendspin_ns.class_(
-    "SendspinImageTransitionFinishedAction",
-    automation.Action,
-    cg.Parented.template(SendspinImageSlot),
-)
-
-
-automation.register_parented_action(
+automation.register_apply_action(
     "sendspin.image.transition_finished",
-    SendspinImageTransitionFinishedAction,
     automation.maybe_simple_id(
         cv.Schema(
             {
@@ -214,5 +206,5 @@ automation.register_parented_action(
             }
         )
     ),
-    synchronous=True,
+    automation.ApplyCall("transition_finished()"),
 )

@@ -22,7 +22,6 @@ CONF_ON_SAFE_MODE = "on_safe_mode"
 
 safe_mode_ns = cg.esphome_ns.namespace("safe_mode")
 SafeModeComponent = safe_mode_ns.class_("SafeModeComponent", cg.Component)
-MarkSuccessfulAction = safe_mode_ns.class_("MarkSuccessfulAction", automation.Action)
 
 
 def _remove_id_if_disabled(value: ConfigType) -> ConfigType:
@@ -53,15 +52,14 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-automation.register_parented_action(
+automation.register_apply_action(
     "safe_mode.mark_successful",
-    MarkSuccessfulAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(SafeModeComponent),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("mark_successful()"),
 )
 
 

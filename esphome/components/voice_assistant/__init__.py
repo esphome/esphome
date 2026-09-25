@@ -1,5 +1,4 @@
 from esphome import automation
-from esphome.automation import register_action
 import esphome.codegen as cg
 from esphome.components import media_player, micro_wake_word, microphone, speaker
 import esphome.config_validation as cv
@@ -14,8 +13,6 @@ from esphome.const import (
     CONF_ON_START,
     CONF_SPEAKER,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["audio", "ring_buffer", "socket"]
@@ -62,15 +59,6 @@ MAX_MICROPHONE_SOURCES = 2
 voice_assistant_ns = cg.esphome_ns.namespace("voice_assistant")
 VoiceAssistant = voice_assistant_ns.class_("VoiceAssistant", cg.Component)
 
-StartAction = voice_assistant_ns.class_(
-    "StartAction", automation.Action, cg.Parented.template(VoiceAssistant)
-)
-StartContinuousAction = voice_assistant_ns.class_(
-    "StartContinuousAction", automation.Action, cg.Parented.template(VoiceAssistant)
-)
-StopAction = voice_assistant_ns.class_(
-    "StopAction", automation.Action, cg.Parented.template(VoiceAssistant)
-)
 IsRunningCondition = voice_assistant_ns.class_(
     "IsRunningCondition", automation.Condition, cg.Parented.template(VoiceAssistant)
 )
@@ -406,44 +394,30 @@ async def to_code(config: ConfigType) -> None:
 VOICE_ASSISTANT_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(VoiceAssistant)})
 
 
-@register_action(
+automation.register_apply_action(
     "voice_assistant.start_continuous",
-    StartContinuousAction,
     VOICE_ASSISTANT_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("request_start(true, true)"),
 )
-@register_action(
+# wake_word defaults to "" so a start without one clears the previous wake word,
+# as the old action did.
+automation.register_apply_action(
     "voice_assistant.start",
-    StartAction,
     VOICE_ASSISTANT_ACTION_SCHEMA.extend(
         {
             cv.Optional(CONF_SILENCE_DETECTION, default=True): cv.boolean,
-            cv.Optional(CONF_WAKE_WORD): cv.templatable(cv.string),
+            cv.Optional(CONF_WAKE_WORD, default=""): cv.templatable(cv.string),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_WAKE_WORD, "set_wake_word", cg.std_string),
+    automation.ApplyCall(
+        "request_start(false, {})", ((CONF_SILENCE_DETECTION, cg.bool_),)
+    ),
 )
-async def voice_assistant_listen_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    if CONF_SILENCE_DETECTION in config:
-        cg.add(var.set_silence_detection(config[CONF_SILENCE_DETECTION]))
-    if wake_word := config.get(CONF_WAKE_WORD):
-        templ = await cg.templatable(wake_word, args, cg.std_string)
-        cg.add(var.set_wake_word(templ))
-    return var
-
-
-automation.register_parented_action(
+automation.register_apply_action(
     "voice_assistant.stop",
-    StopAction,
     VOICE_ASSISTANT_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("request_stop()"),
 )
 
 

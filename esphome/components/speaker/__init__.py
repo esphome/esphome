@@ -18,25 +18,6 @@ Speaker = speaker_ns.class_("Speaker")
 PlayAction = speaker_ns.class_(
     "PlayAction", automation.Action, cg.Parented.template(Speaker)
 )
-StopAction = speaker_ns.class_(
-    "StopAction", automation.Action, cg.Parented.template(Speaker)
-)
-FinishAction = speaker_ns.class_(
-    "FinishAction", automation.Action, cg.Parented.template(Speaker)
-)
-VolumeSetAction = speaker_ns.class_(
-    "VolumeSetAction", automation.Action, cg.Parented.template(Speaker)
-)
-MuteOnAction = speaker_ns.class_(
-    "MuteOnAction", automation.Action, cg.Parented.template(Speaker)
-)
-MuteOffAction = speaker_ns.class_(
-    "MuteOffAction", automation.Action, cg.Parented.template(Speaker)
-)
-
-
-IsPlayingCondition = speaker_ns.class_("IsPlayingCondition", automation.Condition)
-IsStoppedCondition = speaker_ns.class_("IsStoppedCondition", automation.Condition)
 
 
 async def setup_speaker_core_(var, config):
@@ -90,35 +71,26 @@ async def speaker_play_action(config, action_id, template_arg, args):
     return var
 
 
-automation.register_parented_action(
-    "speaker.stop",
-    StopAction,
-    SPEAKER_AUTOMATION_SCHEMA,
-    synchronous=True,
-)
-automation.register_parented_action(
-    "speaker.finish",
-    FinishAction,
-    SPEAKER_AUTOMATION_SCHEMA,
-    synchronous=True,
-)
+for _name, _call in (
+    ("speaker.stop", "stop()"),
+    ("speaker.finish", "finish()"),
+    ("speaker.mute_on", "set_mute_state(true)"),
+    ("speaker.mute_off", "set_mute_state(false)"),
+):
+    automation.register_apply_action(
+        _name, SPEAKER_AUTOMATION_SCHEMA, automation.ApplyCall(_call)
+    )
 
-automation.register_parented_condition(
-    "speaker.is_playing",
-    IsPlayingCondition,
-    SPEAKER_AUTOMATION_SCHEMA,
+automation.register_apply_condition(
+    "speaker.is_playing", SPEAKER_AUTOMATION_SCHEMA, "is_running()"
 )
-
-automation.register_parented_condition(
-    "speaker.is_stopped",
-    IsStoppedCondition,
-    SPEAKER_AUTOMATION_SCHEMA,
+automation.register_apply_condition(
+    "speaker.is_stopped", SPEAKER_AUTOMATION_SCHEMA, "is_stopped()"
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "speaker.volume_set",
-    VolumeSetAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(Speaker),
@@ -126,29 +98,7 @@ automation.register_parented_condition(
         },
         key=CONF_VOLUME,
     ),
-    synchronous=True,
-)
-async def speaker_volume_set_action(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    volume = await cg.templatable(config[CONF_VOLUME], args, cg.float_)
-    cg.add(var.set_volume(volume))
-    return var
-
-
-automation.register_simple_action(
-    "speaker.mute_off",
-    MuteOffAction,
-    SPEAKER_AUTOMATION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "speaker.mute_on",
-    MuteOnAction,
-    SPEAKER_AUTOMATION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_VOLUME, "set_volume", cg.float_),
 )
 
 

@@ -40,8 +40,6 @@ button_ns = cg.esphome_ns.namespace("button")
 Button = button_ns.class_("Button", cg.EntityBase)
 ButtonPtr = Button.operator("ptr")
 
-PressAction = button_ns.class_("PressAction", automation.Action)
-
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 
@@ -123,11 +121,8 @@ BUTTON_PRESS_SCHEMA = maybe_simple_id(
 )
 
 
-automation.register_simple_action(
-    "button.press",
-    PressAction,
-    BUTTON_PRESS_SCHEMA,
-    synchronous=True,
+automation.register_apply_action(
+    "button.press", BUTTON_PRESS_SCHEMA, automation.ApplyCall("press()")
 )
 
 

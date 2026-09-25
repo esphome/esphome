@@ -27,11 +27,6 @@ HlkFm22xComponent = hlk_fm22x_ns.class_(
     "HlkFm22xComponent", cg.PollingComponent, uart.UARTDevice
 )
 
-EnrollmentAction = hlk_fm22x_ns.class_("EnrollmentAction", automation.Action)
-DeleteAction = hlk_fm22x_ns.class_("DeleteAction", automation.Action)
-DeleteAllAction = hlk_fm22x_ns.class_("DeleteAllAction", automation.Action)
-ScanAction = hlk_fm22x_ns.class_("ScanAction", automation.Action)
-ResetAction = hlk_fm22x_ns.class_("ResetAction", automation.Action)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -101,9 +96,8 @@ async def to_code(config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "hlk_fm22x.enroll",
-    EnrollmentAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(HlkFm22xComponent),
@@ -112,22 +106,14 @@ async def to_code(config):
         },
         key=CONF_NAME,
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "enroll_face({}, static_cast<hlk_fm22x::HlkFm22xFaceDirection>({}))",
+        ((CONF_NAME, cg.std_string), (CONF_DIRECTION, cg.uint8)),
+    ),
 )
-async def hlk_fm22x_enroll_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
 
-    template_ = await cg.templatable(config[CONF_NAME], args, cg.std_string)
-    cg.add(var.set_name(template_))
-    template_ = await cg.templatable(config[CONF_DIRECTION], args, cg.uint8)
-    cg.add(var.set_direction(template_))
-    return var
-
-
-@automation.register_action(
+automation.register_apply_action(
     "hlk_fm22x.delete",
-    DeleteAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(HlkFm22xComponent),
@@ -135,48 +121,37 @@ async def hlk_fm22x_enroll_to_code(config, action_id, template_arg, args):
         },
         key=CONF_FACE_ID,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_FACE_ID, "delete_face", cg.int16),
 )
-async def hlk_fm22x_delete_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
 
-    template_ = await cg.templatable(config[CONF_FACE_ID], args, cg.int16)
-    cg.add(var.set_face_id(template_))
-    return var
-
-
-automation.register_parented_action(
+automation.register_apply_action(
     "hlk_fm22x.delete_all",
-    DeleteAllAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(HlkFm22xComponent),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("delete_all_faces()"),
 )
 
 
-automation.register_parented_action(
+automation.register_apply_action(
     "hlk_fm22x.scan",
-    ScanAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(HlkFm22xComponent),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("scan_face()"),
 )
 
 
-automation.register_parented_action(
+automation.register_apply_action(
     "hlk_fm22x.reset",
-    ResetAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(HlkFm22xComponent),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("reset()"),
 )

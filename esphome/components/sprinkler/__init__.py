@@ -66,14 +66,9 @@ SprinklerControllerSwitch = sprinkler_ns.class_(
     "SprinklerControllerSwitch", switch.Switch, cg.Component
 )
 
-SetDividerAction = sprinkler_ns.class_("SetDividerAction", automation.Action)
-SetMultiplierAction = sprinkler_ns.class_("SetMultiplierAction", automation.Action)
-QueueValveAction = sprinkler_ns.class_("QueueValveAction", automation.Action)
 ClearQueuedValvesAction = sprinkler_ns.class_(
     "ClearQueuedValvesAction", automation.Action
 )
-SetRepeatAction = sprinkler_ns.class_("SetRepeatAction", automation.Action)
-SetRunDurationAction = sprinkler_ns.class_("SetRunDurationAction", automation.Action)
 StartFromQueueAction = sprinkler_ns.class_("StartFromQueueAction", automation.Action)
 StartFullCycleAction = sprinkler_ns.class_("StartFullCycleAction", automation.Action)
 StartSingleValveAction = sprinkler_ns.class_(
@@ -418,80 +413,37 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@automation.register_action(
+_VALVE_AND_DURATION = ((CONF_VALVE_NUMBER, cg.size_t), (CONF_RUN_DURATION, cg.uint32))
+
+automation.register_apply_action(
     "sprinkler.set_divider",
-    SetDividerAction,
     SPRINKLER_ACTION_SET_DIVIDER_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_DIVIDER, "set_divider", cg.uint32),
 )
-async def sprinkler_set_divider_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_DIVIDER], args, cg.uint32)
-    cg.add(var.set_divider(template_))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "sprinkler.set_multiplier",
-    SetMultiplierAction,
     SPRINKLER_ACTION_SET_MULTIPLIER_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_MULTIPLIER, "set_multiplier", cg.float_),
 )
-async def sprinkler_set_multiplier_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_MULTIPLIER], args, cg.float_)
-    cg.add(var.set_multiplier(template_))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "sprinkler.queue_valve",
-    QueueValveAction,
     SPRINKLER_ACTION_QUEUE_VALVE_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("queue_valve({}, {})", _VALVE_AND_DURATION),
 )
-async def sprinkler_set_queued_valve_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALVE_NUMBER], args, cg.size_t)
-    cg.add(var.set_valve_number(template_))
-    template_ = await cg.templatable(config[CONF_RUN_DURATION], args, cg.uint32)
-    cg.add(var.set_valve_run_duration(template_))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "sprinkler.set_repeat",
-    SetRepeatAction,
     SPRINKLER_ACTION_REPEAT_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_REPEAT, "set_repeat", cg.uint32),
 )
-async def sprinkler_set_repeat_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_REPEAT], args, cg.uint32)
-    cg.add(var.set_repeat(template_))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "sprinkler.set_valve_run_duration",
-    SetRunDurationAction,
     SPRINKLER_ACTION_SET_RUN_DURATION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("set_valve_run_duration({}, {})", _VALVE_AND_DURATION),
 )
-async def sprinkler_set_valve_run_duration_to_code(
-    config, action_id, template_arg, args
-):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALVE_NUMBER], args, cg.size_t)
-    cg.add(var.set_valve_number(template_))
-    template_ = await cg.templatable(config[CONF_RUN_DURATION], args, cg.uint32)
-    cg.add(var.set_valve_run_duration(template_))
-    return var
 
 
 automation.register_simple_action(

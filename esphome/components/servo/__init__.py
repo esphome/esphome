@@ -13,14 +13,10 @@ from esphome.const import (
     CONF_RESTORE,
     CONF_TRANSITION_LENGTH,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 servo_ns = cg.esphome_ns.namespace("servo")
 Servo = servo_ns.class_("Servo", cg.Component)
-ServoWriteAction = servo_ns.class_("ServoWriteAction", automation.Action)
-ServoDetachAction = servo_ns.class_("ServoDetachAction", automation.Action)
 
 CONF_AUTO_DETACH_TIME = "auto_detach_time"
 MULTI_CONF = True
@@ -56,37 +52,23 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_transition_length(config[CONF_TRANSITION_LENGTH]))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "servo.write",
-    ServoWriteAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(Servo),
             cv.Required(CONF_LEVEL): cv.templatable(cv.possibly_negative_percentage),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_LEVEL, "write", cg.float_),
 )
-async def servo_write_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_LEVEL], args, cg.float_)
-    cg.add(var.set_value(template_))
-    return var
 
-
-automation.register_simple_action(
+automation.register_apply_action(
     "servo.detach",
-    ServoDetachAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(Servo),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("detach()"),
 )

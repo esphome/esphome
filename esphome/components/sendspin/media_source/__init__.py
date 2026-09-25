@@ -39,18 +39,6 @@ SendspinMediaSource = sendspin_ns.class_(
     media_source.MediaSource,
 )
 
-EnableStaticDelayAdjustmentAction = sendspin_ns.class_(
-    "EnableStaticDelayAdjustmentAction",
-    automation.Action,
-    cg.Parented.template(SendspinMediaSource),
-)
-
-DisableStaticDelayAdjustmentAction = sendspin_ns.class_(
-    "DisableStaticDelayAdjustmentAction",
-    automation.Action,
-    cg.Parented.template(SendspinMediaSource),
-)
-
 
 def _resolve_codecs(config: ConfigType) -> ConfigType:
     """Validate the codec preference list, filling in the default when it is not set."""
@@ -142,18 +130,16 @@ SENDSPIN_MEDIA_SOURCE_ACTION_SCHEMA = automation.maybe_simple_id(
     )
 )
 
-
-automation.register_parented_action(
-    "sendspin.media_source.enable_static_delay_adjustment",
-    EnableStaticDelayAdjustmentAction,
-    SENDSPIN_MEDIA_SOURCE_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_parented_action(
-    "sendspin.media_source.disable_static_delay_adjustment",
-    DisableStaticDelayAdjustmentAction,
-    SENDSPIN_MEDIA_SOURCE_ACTION_SCHEMA,
-    synchronous=True,
-)
+for _name, _call in (
+    (
+        "sendspin.media_source.enable_static_delay_adjustment",
+        "set_static_delay_adjustable(true)",
+    ),
+    (
+        "sendspin.media_source.disable_static_delay_adjustment",
+        "set_static_delay_adjustable(false)",
+    ),
+):
+    automation.register_apply_action(
+        _name, SENDSPIN_MEDIA_SOURCE_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )

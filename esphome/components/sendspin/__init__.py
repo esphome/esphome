@@ -109,13 +109,6 @@ SendspinHub = sendspin_ns.class_(
 )
 
 
-SendspinSwitchCommandAction = sendspin_ns.class_(
-    "SendspinSwitchCommandAction",
-    automation.Action,
-    cg.Parented.template(SendspinHub),
-)
-
-
 @dataclass
 class SendspinConfiguration:
     artwork_support: bool = False
@@ -240,11 +233,10 @@ SENDSPIN_SIMPLE_ACTION_SCHEMA = cv.All(
 )
 
 
-automation.register_parented_action(
+automation.register_apply_action(
     "sendspin.switch",
-    SendspinSwitchCommandAction,
     SENDSPIN_SIMPLE_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("switch_client()"),
 )
 
 
