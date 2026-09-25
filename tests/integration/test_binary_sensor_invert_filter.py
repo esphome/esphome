@@ -126,3 +126,36 @@ async def test_binary_sensor_invert_filter(
         assert lambda_states[-1] is True, (
             f"lambda condition should invert published False to True, got {lambda_states}"
         )
+
+
+@pytest.mark.asyncio
+async def test_binary_sensor_invert_filter_boot(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """A condition that only becomes valid after setup is applied in the first loop."""
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+        key_to_sensor = build_key_to_entity_mapping(
+            entities, ["invert_switch_sensor", "invert_lambda_sensor"]
+        )
+
+        initial_state_helper = InitialStateHelper(entities)
+        client.subscribe_states(initial_state_helper.on_state_wrapper(lambda _: None))
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial states")
+
+        # The switch restores to ON after the sensors were first published as True,
+        # so the settled state must be the inverted value.
+        assert len(key_to_sensor) == 2
+        for key, name in key_to_sensor.items():
+            state = initial_state_helper.initial_states[key]
+            assert isinstance(state, BinarySensorState), name
+            assert state.missing_state is False, name
+            assert state.state is False, f"{name} was not re-evaluated after setup"

@@ -146,7 +146,7 @@ DelayedOnOffFilter = binary_sensor_ns.class_("DelayedOnOffFilter", Filter)
 DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter)
 DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter)
 InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
-AlwaysInvertCondition = binary_sensor_ns.class_("AlwaysInvertCondition")
+ConditionalInvertFilter = binary_sensor_ns.class_("ConditionalInvertFilter", Filter)
 TemplatableFn = cg.esphome_ns.class_("TemplatableFn")
 AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter)
 LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
@@ -187,19 +187,17 @@ def validate_invert_filter(value):
 
 @register_filter("invert", InvertFilter, validate_invert_filter)
 async def invert_filter_to_code(config, filter_id):
-    filter_id = filter_id.copy()
     if config is True:
-        # Degenerates to the pre-templated implementation -- no condition to store or evaluate.
-        filter_id.type = InvertFilter.template(AlwaysInvertCondition)
         return cg.new_Pvariable(filter_id)
+    filter_id = filter_id.copy()
     if isinstance(config, dict):
         condition = await automation.build_condition(config, cg.TemplateArguments(), [])
-        filter_id.type = InvertFilter.template(
+        filter_id.type = ConditionalInvertFilter.template(
             automation.Condition.template().operator("ptr")
         )
     else:
         condition = await cg.templatable(config, [], bool)
-        filter_id.type = InvertFilter.template(TemplatableFn.template(bool))
+        filter_id.type = ConditionalInvertFilter.template(TemplatableFn.template(bool))
     return cg.new_Pvariable(filter_id, condition)
 
 
@@ -642,7 +640,10 @@ async def setup_binary_sensor_core_(var, config):
     cg.add(var.set_trigger_on_initial_state(trigger))
     if inverted := config.get(CONF_INVERTED):
         cg.add(var.set_inverted(inverted))
-    if filters_config := config.get(CONF_FILTERS):
+    # `invert: false` passes every value through unchanged, so it needs no filter
+    if filters_config := [
+        f for f in config.get(CONF_FILTERS, []) if f.get("invert") is not False
+    ]:
         cg.add_define("USE_BINARY_SENSOR_FILTER")
         filters = await cg.build_registry_list(FILTER_REGISTRY, filters_config)
         cg.add(var.add_filters(filters))

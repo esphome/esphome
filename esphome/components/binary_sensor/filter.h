@@ -77,28 +77,29 @@ class DelayedOffFilter : public Filter {
   TemplatableFn<uint32_t> delay_{};
 };
 
-// Tag type selecting the always-invert specialization below. Bare `invert` (no condition) has
-// nothing to store or evaluate, so it degenerates to exactly the pre-templated implementation.
-struct AlwaysInvertCondition {};
-
-// T is `AlwaysInvertCondition` (bare `invert` -- see the specialization below),
-// `TemplatableFn<bool>` (a plain constant/lambda condition, stored as a function pointer with
-// no heap allocation), or `Condition<> *` (a full automation condition, e.g.
-// `switch.is_on: my_switch`, `and: [...]`). The condition is required and never changes after
-// construction, so it's a constructor parameter rather than a setter.
-template<typename T> class InvertFilter : public Filter {
+class InvertFilter : public Filter {
  public:
-  explicit InvertFilter(T condition) : condition_(condition) {}
+  optional<bool> new_value(bool value) override { return !value; }
+};
+
+// Inverts only while the condition is true. T is `TemplatableFn<bool>` (a lambda, stored as a
+// function pointer) or `Condition<> *` (an automation condition, e.g. `switch.is_on: my_switch`).
+// The condition may depend on components that are not ready during setup, so it is checked again
+// once in the first loop, and the output is republished if the result changed.
+template<typename T> class ConditionalInvertFilter : public Filter {
+ public:
+  explicit ConditionalInvertFilter(T condition) : condition_(condition) {}
 
   optional<bool> new_value(bool value) override;
 
  protected:
-  T condition_;
-};
+  bool should_invert_();
+  void recheck_();
 
-template<> class InvertFilter<AlwaysInvertCondition> : public Filter {
- public:
-  optional<bool> new_value(bool value) override { return !value; }
+  T condition_;
+  bool last_input_{false};
+  bool last_invert_{false};
+  bool rechecked_{false};
 };
 
 struct AutorepeatFilterTiming {

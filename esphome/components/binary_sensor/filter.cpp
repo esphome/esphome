@@ -63,18 +63,34 @@ optional<bool> DelayedOffFilter::new_value(bool value) {
   }
 }
 
-template<typename T> optional<bool> InvertFilter<T>::new_value(bool value) {
-  bool invert;
+template<typename T> bool ConditionalInvertFilter<T>::should_invert_() {
   if constexpr (std::is_pointer_v<T>) {
-    invert = this->condition_->check();
+    return this->condition_->check();
   } else {
-    invert = this->condition_.value();
+    return this->condition_.value();
   }
-  return invert ? !value : value;
 }
 
-template class InvertFilter<TemplatableFn<bool>>;
-template class InvertFilter<Condition<> *>;
+template<typename T> optional<bool> ConditionalInvertFilter<T>::new_value(bool value) {
+  this->last_input_ = value;
+  this->last_invert_ = this->should_invert_();
+  if (!this->rechecked_) {
+    this->rechecked_ = true;
+    App.scheduler.set_timeout(this, 0, [this]() { this->recheck_(); });
+  }
+  return this->last_invert_ ? !value : value;
+}
+
+template<typename T> void ConditionalInvertFilter<T>::recheck_() {
+  bool invert = this->should_invert_();
+  if (invert == this->last_invert_)
+    return;
+  this->last_invert_ = invert;
+  this->output(invert ? !this->last_input_ : this->last_input_);
+}
+
+template class ConditionalInvertFilter<TemplatableFn<bool>>;
+template class ConditionalInvertFilter<Condition<> *>;
 
 // AutorepeatFilterBase
 // Two independent timers per instance, keyed off two stable addresses inside

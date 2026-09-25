@@ -1,0 +1,40 @@
+esphome:
+  name: test-invert-filter-boot
+  # Publish before the template switch (setup priority 798) has restored its state,
+  # so the invert condition is not yet valid when the filter sees its first input.
+  on_boot:
+    priority: 900
+    then:
+      - binary_sensor.template.publish:
+          id: invert_switch_sensor
+          state: true
+      - binary_sensor.template.publish:
+          id: invert_lambda_sensor
+          state: true
+
+host:
+api:
+  batch_delay: 0ms
+logger:
+  level: DEBUG
+
+switch:
+  - platform: template
+    name: "Invert Switch"
+    id: invert_switch
+    optimistic: true
+    restore_mode: ALWAYS_ON
+
+binary_sensor:
+  - platform: template
+    name: "Invert Switch Sensor"
+    id: invert_switch_sensor
+    filters:
+      - invert:
+          switch.is_on: invert_switch
+
+  - platform: template
+    name: "Invert Lambda Sensor"
+    id: invert_lambda_sensor
+    filters:
+      - invert: !lambda "return id(invert_switch).state;"
