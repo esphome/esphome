@@ -23,6 +23,18 @@ climate:
       - "OFF"
       - HEAT
 
+  # A configured initial state is a state, so this one starts out known
+  - platform: template
+    name: "Initial Climate"
+    id: initial_climate
+    optimistic: true
+    restore_mode: NO_RESTORE
+    supported_modes:
+      - "OFF"
+      - HEAT
+    initial_state:
+      mode: HEAT
+
 globals:
   - id: lambda_mode_known
     type: bool

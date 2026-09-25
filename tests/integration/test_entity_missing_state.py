@@ -65,6 +65,7 @@ async def test_entity_missing_state(
 
         switch_info = require_entity(entities, "test_switch", SwitchInfo)
         climate_info = require_entity(entities, "test_climate", ClimateInfo)
+        initial_climate_info = require_entity(entities, "initial_climate", ClimateInfo)
         water_heater_info = require_entity(
             entities, "test_water_heater", WaterHeaterInfo
         )
@@ -97,6 +98,14 @@ async def test_entity_missing_state(
                 f"Initial state for {info.object_id} should have "
                 f"missing_state=True, got {state}"
             )
+
+        # A configured initial_state must not start out unknown
+        initial_climate_state = initial_state_helper.initial_states.get(
+            initial_climate_info.key
+        )
+        assert isinstance(initial_climate_state, ClimateState)
+        assert initial_climate_state.missing_state is False
+        assert initial_climate_state.mode is ClimateMode.HEAT
 
         # Publishing a state on each one clears missing_state
         futures = {info.key: loop.create_future() for info in stateful}
