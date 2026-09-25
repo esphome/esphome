@@ -229,9 +229,9 @@ void SNTPComponent::fetch_timezone_() {
   // The zone only holds characters checked by is_valid_zone(), so it needs no escaping
   char body[80];
   if (this->zone_[0] != '\0') {
-    snprintf(body, sizeof(body), "{\"zone\":\"%s\"}", this->zone_);
+    snprintf(body, sizeof(body), R"({"zone":"%s"})", this->zone_);
   } else {
-    snprintf(body, sizeof(body), "{\"latitude\":%.6f,\"longitude\":%.6f}", this->latitude_, this->longitude_);
+    snprintf(body, sizeof(body), R"({"latitude":%.6f,"longitude":%.6f})", this->latitude_, this->longitude_);
   }
   ESP_LOGD(TAG, "Fetching timezone for %s", body);
 
