@@ -45,14 +45,11 @@ class TestableMk2PVRouter : public Mk2PVRouter {
  public:
   using Mk2PVRouter::Mk2PVRouter;
   using Mk2PVRouter::State;
-  using Mk2PVRouter::buf_;
   using Mk2PVRouter::buf_index_;
   using Mk2PVRouter::calculate_crc_;
   using Mk2PVRouter::check_crc_;
   using Mk2PVRouter::process_group_;
   using Mk2PVRouter::state_;
-  using Mk2PVRouter::tag_;
-  using Mk2PVRouter::val_;
 };
 
 }  // namespace esphome::mk2pvrouter::testing

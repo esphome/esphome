@@ -24,9 +24,6 @@ void Mk2PVRouterSensor::publish_val(const char *val) {
 void Mk2PVRouterSensor::dump_config() {
   LOG_SENSOR("  ", "Mk2PVRouter Sensor", this);
   ESP_LOGCONFIG(TAG, "  Tag: %s", this->get_tag());
-  if (this->scale_centi_) {
-    ESP_LOGCONFIG(TAG, "  Scale: x0.01");
-  }
 }
 
 }  // namespace esphome::mk2pvrouter

@@ -1,52 +1,84 @@
-"""Tests for mk2pvrouter sensor tag defaults driven through the real CONFIG_SCHEMA."""
+"""Tag-based sensor defaults, driven through the real CONFIG_SCHEMA."""
+
+import pytest
 
 from esphome.components import sensor
-from esphome.components.mk2pvrouter.sensor import CONFIG_SCHEMA
+from esphome.components.mk2pvrouter.sensor import CONFIG_SCHEMA, tag_kind
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
+    CONF_DEVICE_CLASS,
     CONF_STATE_CLASS,
+    CONF_UNIT_OF_MEASUREMENT,
+    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_TOTAL_INCREASING,
 )
+from esphome.types import ConfigType
 
 
-def _resolve_via_config_schema(tag: str) -> dict:
-    """Run a minimal config through the real CONFIG_SCHEMA pipeline, the
-    same path a user's YAML goes through."""
+def _sensor(tag: str, **extra: object) -> ConfigType:
     return CONFIG_SCHEMA(
-        {"tag": tag, "mk2pvrouter_id": "my_mk2pvrouter", "name": f"{tag} sensor"}
+        {"tag": tag, "mk2pvrouter_id": "hub", "name": f"{tag} sensor", **extra}
     )
 
 
-def test_config_schema_applies_tag_default_state_class():
-    """If sensor_schema(state_class=...) is reintroduced, the schema-level
-    default wins over apply_tag_defaults' per-tag value, and E would resolve
-    to measurement instead of total_increasing. Driving the real
-    CONFIG_SCHEMA (not just apply_tag_defaults) catches that, since
-    sensor_schema() runs before apply_tag_defaults in the cv.All() chain.
-    """
-    result = _resolve_via_config_schema("E")
-    assert result[CONF_STATE_CLASS] == sensor.validate_state_class(
-        STATE_CLASS_TOTAL_INCREASING
-    )
+@pytest.mark.parametrize(
+    ("tag", "unit", "device_class", "state_class", "decimals"),
+    [
+        ("P", "W", "power", "measurement", 0),
+        ("P1", "W", "power", "measurement", 0),
+        ("D", "W", "power", "measurement", 0),
+        ("D1", "%", "", "measurement", 0),
+        ("V", "V", "voltage", "measurement", 2),
+        ("v1", "V", "voltage", "measurement", 2),
+        ("E", "Wh", "energy", "total_increasing", 0),
+        ("T1", "°C", "temperature", "measurement", 2),
+        ("R", "W", "power", "measurement", 0),
+        ("R1", "", "", "", 0),
+        ("R10", "", "", "", 0),
+    ],
+)
+def test_tag_defaults(
+    tag: str, unit: str, device_class: str, state_class: str, decimals: int
+) -> None:
+    config = _sensor(tag)
+    assert config[CONF_UNIT_OF_MEASUREMENT] == unit
+    assert config[CONF_DEVICE_CLASS] == device_class
+    assert config[CONF_STATE_CLASS] == sensor.validate_state_class(state_class)
+    assert config[CONF_ACCURACY_DECIMALS] == decimals
 
 
-def test_config_schema_applies_tag_default_accuracy_decimals():
-    """Same root cause as the state_class regression: reintroducing
-    sensor_schema(accuracy_decimals=...) would make V resolve to the
-    schema-level default instead of the tag-specific value of 2.
-    """
-    result = _resolve_via_config_schema("V")
-    assert result[CONF_ACCURACY_DECIMALS] == 2
-
-
-def test_config_schema_uppercases_tag_before_defaults_are_applied():
-    """The schema uppercases the tag (see MK2PVROUTER_LISTENER_SCHEMA) before
-    apply_tag_defaults runs, so a lowercase tag from YAML still resolves to
-    the correct defaults through the real pipeline (not just when calling
-    apply_tag_defaults directly)."""
-    result = _resolve_via_config_schema("v")
-    assert result[CONF_STATE_CLASS] == sensor.validate_state_class(
+@pytest.mark.parametrize("tag", ["S_MC", "STATUS", "X9", "Z", "T", "E1"])
+def test_unknown_tag_gets_only_the_schema_defaults(tag: str) -> None:
+    config = _sensor(tag)
+    assert CONF_UNIT_OF_MEASUREMENT not in config
+    assert CONF_DEVICE_CLASS not in config
+    assert config[CONF_STATE_CLASS] == sensor.validate_state_class(
         STATE_CLASS_MEASUREMENT
     )
-    assert result[CONF_ACCURACY_DECIMALS] == 2
+    assert config[CONF_ACCURACY_DECIMALS] == 0
+
+
+def test_explicit_values_win_over_tag_defaults() -> None:
+    config = _sensor("P", device_class=DEVICE_CLASS_EMPTY, accuracy_decimals=3)
+    assert config[CONF_DEVICE_CLASS] == DEVICE_CLASS_EMPTY
+    assert config[CONF_ACCURACY_DECIMALS] == 3
+    assert config[CONF_UNIT_OF_MEASUREMENT] == "W"
+
+
+@pytest.mark.parametrize(
+    ("tag", "scale_centi"),
+    [
+        ("V", True),
+        ("V1", True),
+        ("v2", True),
+        ("T1", True),
+        ("P", False),
+        ("D1", False),
+        ("E", False),
+        ("T", False),
+        ("X9", False),
+    ],
+)
+def test_centi_scale_follows_the_tag(tag: str, scale_centi: bool) -> None:
+    kind = tag_kind(tag)
+    assert (kind is not None and kind.scale_centi) is scale_centi
