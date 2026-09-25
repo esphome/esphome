@@ -1,5 +1,5 @@
 from esphome import automation
-from esphome.automation import Condition, maybe_simple_id
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
@@ -62,13 +62,7 @@ VALVE_OPERATIONS = {
 validate_valve_operation = cv.enum(VALVE_OPERATIONS, upper=True)
 
 # Actions
-OpenAction = valve_ns.class_("OpenAction", automation.Action)
-CloseAction = valve_ns.class_("CloseAction", automation.Action)
-StopAction = valve_ns.class_("StopAction", automation.Action)
-ToggleAction = valve_ns.class_("ToggleAction", automation.Action)
 ValvePublishAction = valve_ns.class_("ValvePublishAction", automation.Action)
-ValveIsOpenCondition = valve_ns.class_("ValveIsOpenCondition", Condition)
-ValveIsClosedCondition = valve_ns.class_("ValveIsClosedCondition", Condition)
 
 # Triggers
 ValveOpenTrigger = valve_ns.class_("ValveOpenTrigger", automation.Trigger.template())
@@ -182,36 +176,15 @@ VALVE_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-automation.register_simple_action(
-    "valve.open",
-    OpenAction,
-    VALVE_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "valve.close",
-    CloseAction,
-    VALVE_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "valve.stop",
-    StopAction,
-    VALVE_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "valve.toggle",
-    ToggleAction,
-    VALVE_ACTION_SCHEMA,
-    synchronous=True,
-)
+for _name, _command in (
+    ("valve.open", "set_command_open()"),
+    ("valve.close", "set_command_close()"),
+    ("valve.stop", "set_command_stop()"),
+    ("valve.toggle", "set_command_toggle()"),
+):
+    automation.register_apply_action(
+        _name, VALVE_ACTION_SCHEMA, automation.ApplyCall(_command), call="make_call"
+    )
 
 
 VALVE_CONTROL_ACTION_SCHEMA = cv.Schema(
