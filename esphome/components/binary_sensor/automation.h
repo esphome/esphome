@@ -18,26 +18,6 @@ struct MultiClickTriggerEvent {
   uint32_t max_length;
 };
 
-class PressTrigger final : public Trigger<> {
- public:
-  explicit PressTrigger(BinarySensor *parent) {
-    parent->add_on_state_callback([this](bool state) {
-      if (state)
-        this->trigger();
-    });
-  }
-};
-
-class ReleaseTrigger final : public Trigger<> {
- public:
-  explicit ReleaseTrigger(BinarySensor *parent) {
-    parent->add_on_state_callback([this](bool state) {
-      if (!state)
-        this->trigger();
-    });
-  }
-};
-
 bool match_interval(uint32_t min_length, uint32_t max_length, uint32_t length);
 
 class ClickTrigger final : public Trigger<> {
@@ -138,31 +118,6 @@ template<size_t N> class MultiClickTrigger final : public MultiClickTriggerBase 
 
  protected:
   std::array<MultiClickTriggerEvent, N> timing_storage_{};
-};
-
-class StateTrigger final : public Trigger<bool> {
- public:
-  explicit StateTrigger(BinarySensor *parent) {
-    parent->add_on_state_callback([this](bool state) { this->trigger(state); });
-  }
-};
-
-class StateChangeTrigger final : public Trigger<optional<bool>, optional<bool> > {
- public:
-  explicit StateChangeTrigger(BinarySensor *parent) {
-    parent->add_full_state_callback(
-        [this](optional<bool> old_state, optional<bool> state) { this->trigger(old_state, state); });
-  }
-};
-
-template<typename... Ts> class BinarySensorCondition final : public Condition<Ts...> {
- public:
-  BinarySensorCondition(BinarySensor *parent, bool state) : parent_(parent), state_(state) {}
-  bool check(const Ts &...x) override { return this->parent_->state == this->state_; }
-
- protected:
-  BinarySensor *parent_;
-  bool state_;
 };
 
 template<typename... Ts> class BinarySensorInvalidateAction final : public Action<Ts...> {

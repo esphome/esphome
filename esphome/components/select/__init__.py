@@ -142,7 +142,12 @@ automation.register_apply_action(
             cv.Required(CONF_OPTION): cv.templatable(cv.string_strict),
         }
     ),
-    automation.ApplyField(CONF_OPTION, "set_option", cg.std_string),
+    automation.ApplyField(
+        CONF_OPTION,
+        "set_option",
+        cg.std_string,
+        const_fn=automation.literal_with_length,
+    ),
     call="make_call",
 )
 
