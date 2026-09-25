@@ -38,6 +38,9 @@ class SystaBus : public uart::UARTDevice, public Component {
 #endif
 
  protected:
+  void handle_byte_(uint8_t c);
+  void resync_();
+
 #ifdef SYSTA_BUS_LISTENER_COUNT
   StaticVector<SystaBusListener *, SYSTA_BUS_LISTENER_COUNT> listeners_;
 #endif
