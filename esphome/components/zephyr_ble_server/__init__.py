@@ -29,7 +29,7 @@ def _get_data() -> _BLEServerData:
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _emit_ble_mtu() -> None:
     mtu = _get_data().requested_l2cap_mtu
-    if mtu > 23:
+    if mtu > 0:
         zephyr_add_prj_conf("BT_L2CAP_TX_MTU", mtu)
         zephyr_add_prj_conf("BT_BUF_ACL_TX_SIZE", min(mtu + 4, _DLE_MAX_PDU))
         zephyr_add_prj_conf("BT_BUF_ACL_RX_SIZE", mtu + 4)
