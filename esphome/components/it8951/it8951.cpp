@@ -250,6 +250,11 @@ void IT8951Display::advance_phase_() {
       this->initialised_ = true;
       this->recovery_attempts_ = 0;
       ESP_LOGCONFIG(TAG, "IT8951 setup complete");
+      // Lets the direct-draw subclass queue its initial clear: controller image
+      // RAM holds whatever was in it at power-on, and there is no framebuffer
+      // to fill. Runs before the IDLE transition so the pending update it marks
+      // is picked up by the advance_phase_ below.
+      this->on_initialised();
       this->set_phase_(Phase::IDLE);
       this->advance_phase_();
       break;
@@ -264,12 +269,20 @@ void IT8951Display::advance_phase_() {
         return;
       }
       this->active_mode_ = mode;
+      if (!this->needs_transfer()) {
+        // Direct draw: the pixels were streamed into controller RAM as they
+        // were drawn, so go straight to the waveform.
+        this->set_phase_(Phase::UPDATE_REFRESH);
+        this->enqueue_update_refresh_();
+        break;
+      }
       this->set_phase_(Phase::UPDATE_TRANSFER);
       this->enqueue_update_transfer_();
       break;
     }
 
     case Phase::UPDATE_TRANSFER:
+      this->on_transfer_done();
       this->set_phase_(Phase::UPDATE_REFRESH);
       this->enqueue_update_refresh_();
       break;
@@ -326,17 +339,23 @@ void IT8951Display::setup() {
   // init. LVGL (and other writers) can push pixels via draw_pixels_at as soon
   // as the component is set up — before init completes — and without a buffer
   // those writes would dereference a null pointer and crash.
+  //
+  // The direct-draw subclass has no framebuffer: it streams into controller RAM
+  // instead, and clears that RAM from on_initialised() once the handshake is
+  // done. Its needs_transfer() is false, so nothing reads buffer_.
   this->row_width_ = this->compute_row_width_();
-  this->buffer_length_ = static_cast<size_t>(this->row_width_) * static_cast<size_t>(this->height_);
-  RAMAllocator<uint8_t> allocator{};
-  this->buffer_ = allocator.allocate(this->buffer_length_);
-  if (this->buffer_ == nullptr) {
-    this->mark_failed(LOG_STR("Failed to allocate IT8951 framebuffer"));
-    return;
+  if (this->uses_framebuffer()) {
+    this->buffer_length_ = static_cast<size_t>(this->row_width_) * static_cast<size_t>(this->height_);
+    RAMAllocator<uint8_t> allocator{};
+    this->buffer_ = allocator.allocate(this->buffer_length_);
+    if (this->buffer_ == nullptr) {
+      this->mark_failed(LOG_STR("Failed to allocate IT8951 framebuffer"));
+      return;
+    }
+    // The allocator does not zero memory; start blank (white) so undrawn regions
+    // (e.g. with auto_clear disabled) don't show garbage on the first update.
+    this->fill(Color::WHITE);
   }
-  // The allocator does not zero memory; start blank (white) so undrawn regions
-  // (e.g. with auto_clear disabled) don't show garbage on the first update.
-  this->fill(Color::WHITE);
 
   // Kick off async init via the queue. Reset pulse + boot delay + wake +
   // packed-write enable; everything blocking lives as DELAY_MS Ops gated by
@@ -403,18 +422,22 @@ void IT8951Display::enqueue_init_temp_() {
 
 // --- Update op enqueuers -----------------------------------------------------
 
-void IT8951Display::enqueue_update_transfer_() {
+void IT8951Display::enqueue_wake_if_asleep_() {
   // If the controller was put to sleep after the previous update, wake it
   // before touching the display engine. TCON_SLEEP gates off all clocks; a
   // register read (e.g. the LUTAFSR poll in UPDATE_REFRESH) returns a frozen
   // value while asleep, so without this the next update stalls forever in
   // op_check_lut_idle_(). SRAM/registers (packed-write mode, VCOM, LUT) are
   // retained across sleep, so SYS_RUN + a short settle is all that's needed.
-  if (this->asleep_) {
-    this->enqueue_(OpType::CMD, TCON_SYS_RUN);
-    this->enqueue_(OpType::DELAY_MS, 10);  // clocks settle after SYS_RUN
-    this->asleep_ = false;
-  }
+  if (!this->asleep_)
+    return;
+  this->enqueue_(OpType::CMD, TCON_SYS_RUN);
+  this->enqueue_(OpType::DELAY_MS, 10);  // clocks settle after SYS_RUN
+  this->asleep_ = false;
+}
+
+void IT8951Display::enqueue_update_transfer_() {
+  this->enqueue_wake_if_asleep_();
   this->transfer_row_ = 0;
   // Open a single LD_IMG_AREA load for the whole region. XFER_ROWS streams into
   // it across as many time-sliced passes as needed and emits the one matching
@@ -427,6 +450,9 @@ void IT8951Display::enqueue_update_transfer_() {
 
 void IT8951Display::enqueue_update_refresh_() {
   ESP_LOGV(TAG, "Enqueueing refresh ops: grayscale=%u", this->grayscale_);
+  // Direct draw reaches this phase without a transfer, which is where a
+  // sleeping controller would otherwise have been woken.
+  this->enqueue_wake_if_asleep_();
   // Poll LUT idle: CMD(REG_RD) → WRITE_W(LUTAFSR) → READ_WORD → CHECK_LUT_IDLE
   this->enqueue_(OpType::CMD, TCON_REG_RD);
   this->enqueue_(OpType::WRITE_W, LUTAFSR);
@@ -592,18 +618,15 @@ void IT8951Display::op_xfer_area_end_() { this->spi_cmd_(TCON_LD_IMG_END); }
 
 bool IT8951Display::op_xfer_rows_() {
   const uint32_t start_time = millis();
-  const uint16_t area_y = this->area_y_;
   const uint16_t area_h = this->area_h_;
 
-  // Bytes per source row, and the byte offset of area_x within a row, in the
-  // framebuffer's native packing. These match the per-row byte count the
-  // controller expects from op_xfer_area_args_: area_w/2 for 4bpp grayscale,
-  // area_w/8 for the 1bpp-packed monochrome trick. area_x / area_w are
-  // 16-pixel aligned (see prepare_update_region_), so both divisions are exact.
+  // Bytes per source row in the native packing. This matches the per-row byte
+  // count the controller expects from op_xfer_area_args_: area_w/2 for 4bpp
+  // grayscale, area_w/8 for the 1bpp-packed monochrome trick. area_x / area_w
+  // are 16-pixel aligned (see prepare_update_region_), so both divisions are
+  // exact.
   const uint16_t bytes_per_row =
       this->grayscale_ ? static_cast<uint16_t>(this->area_w_ >> 1) : static_cast<uint16_t>(this->area_w_ >> 3);
-  const uint16_t row_x_bytes =
-      this->grayscale_ ? static_cast<uint16_t>(this->area_x_ >> 1) : static_cast<uint16_t>(this->area_x_ >> 3);
 
   // Single CS write transaction — HW_RDY was confirmed high by the loop gate.
   this->enable();
@@ -614,8 +637,7 @@ bool IT8951Display::op_xfer_rows_() {
   // the buffer already holds the wire bytes — so stream it straight to SPI with
   // no per-pixel packing or temporary buffer.
   while (this->transfer_row_ < area_h) {
-    const uint32_t offset = (static_cast<uint32_t>(area_y) + this->transfer_row_) * this->row_width_ + row_x_bytes;
-    this->write_array(&this->buffer_[offset], bytes_per_row);
+    this->write_array(this->transfer_row_data(this->transfer_row_), bytes_per_row);
     this->transfer_row_++;
     if (millis() - start_time >= MAX_TRANSFER_TIME_MS)
       break;
@@ -623,6 +645,13 @@ bool IT8951Display::op_xfer_rows_() {
 
   this->disable();
   return this->transfer_row_ >= area_h;
+}
+
+const uint8_t *IT8951Display::transfer_row_data(uint16_t row) const {
+  const uint16_t row_x_bytes =
+      this->grayscale_ ? static_cast<uint16_t>(this->area_x_ >> 1) : static_cast<uint16_t>(this->area_x_ >> 3);
+  const uint32_t offset = (static_cast<uint32_t>(this->area_y_) + row) * this->row_width_ + row_x_bytes;
+  return &this->buffer_[offset];
 }
 
 void IT8951Display::op_dpy_buf_args_() {
@@ -751,7 +780,52 @@ void IT8951Display::reset_dirty_region_() {
   this->y_high_ = 0;
 }
 
+void IT8951Display::set_refresh_paused(bool paused, UpdateMode mode) {
+  if (paused) {
+    if (!this->refresh_paused_) {
+      this->refresh_paused_ = true;
+      ESP_LOGD(TAG, "Refresh paused");
+    }
+    return;
+  }
+  if (this->refresh_paused_) {
+    this->refresh_paused_ = false;
+    ESP_LOGD(TAG, "Refresh resumed");
+  }
+  if (this->paused_mode_ == UPDATE_MODE_NONE)
+    return;
+  // Present what was composed while paused. An explicit mode replaces the one
+  // the swallowed request carried.
+  const UpdateMode present = mode != UPDATE_MODE_NONE ? mode : this->paused_mode_;
+  this->paused_mode_ = UPDATE_MODE_NONE;
+  this->start_update_(present);
+}
+
+void IT8951Display::refresh_now(UpdateMode mode) {
+  if (!this->initialised_)
+    return;
+  if (mode == UPDATE_MODE_NONE)
+    mode = UPDATE_MODE_GC16;
+  // Mark the whole panel dirty so prepare_update_region_ yields a full-screen
+  // area. Direct draw has nothing to transfer, so this is a waveform only; the
+  // buffered class re-streams its framebuffer, which is equally correct.
+  this->x_low_ = 0;
+  this->y_low_ = 0;
+  this->x_high_ = this->width_;
+  this->y_high_ = this->height_;
+  this->refresh_paused_ = false;
+  this->paused_mode_ = UPDATE_MODE_NONE;
+  this->start_update_(mode);
+}
+
 void IT8951Display::start_update_(UpdateMode mode) {
+  if (this->refresh_paused_) {
+    // Remember the request; the dirty region keeps accumulating because we
+    // never reach prepare_update_region_, which is what resets it.
+    this->paused_mode_ = mode;
+    ESP_LOGV(TAG, "Update deferred (refresh paused), mode=%u", static_cast<unsigned>(mode));
+    return;
+  }
   if (this->phase_ == Phase::IDLE && this->initialised_) {
     this->update_started_at_ = millis();
     this->active_mode_ = mode;
@@ -891,6 +965,27 @@ static uint8_t color_to_nibble(const Color &color) {
   // against white/black where the 16 panel levels are hard to tell apart.
   auto luma = static_cast<uint8_t>((77u * color.r + 150u * color.g + 29u * color.b + 128u) >> 8);
   return quantize_8bit_to_nibble(luma);
+}
+
+// Rec.601 luma straight from a 5/6/5 pixel, skipping the expansion to 8-bit
+// channels and the Color round-trip. The weights are the usual 0.299/0.587/0.114
+// pre-scaled so a full-white pixel lands on exactly 15, and the +2048 matches the
+// rounding quantize_8bit_to_nibble applies one byte further up.
+// Place a 4bpp pixel in a packed row. The row always starts on a 4-pixel
+// boundary, so a pixel's nibble parity is just the parity of its column.
+static inline void write_nibble(uint8_t *row, uint16_t column, uint8_t nibble) {
+  uint8_t &byte = row[column >> 1];
+  byte =
+      (column & 1) ? static_cast<uint8_t>((byte & 0xF0) | nibble) : static_cast<uint8_t>((byte & 0x0F) | (nibble << 4));
+}
+
+static inline uint8_t rgb565_to_nibble(uint16_t value) {
+  const uint32_t r = (value >> 11) & 0x1F;
+  const uint32_t g = (value >> 5) & 0x3F;
+  const uint32_t b = value & 0x1F;
+  const uint32_t luma = 634u * r + 607u * g + 239u * b;  // 0..65304
+  const uint8_t nibble = static_cast<uint8_t>((luma + 2048u) >> 12);
+  return nibble > 0x0F ? 0x0F : nibble;
 }
 
 // 4x4 ordered (Bayer) dither threshold over the weighted-luma range (0..65535).
@@ -1063,31 +1158,291 @@ void IT8951Display::dump_config() {
     strncpy(force_temperature, "(controller default)", sizeof(force_temperature));
     force_temperature[sizeof(force_temperature) - 1] = '\0';
   }
-  ESP_LOGCONFIG(
-      TAG,
-      "  Model preset: %s"
-      "\n  Dimensions: %dx%d"
-      "\n  Buffer: %u bytes"
-      "\n  Image buffer addr: 0x%04X%04X"
-      "\n  VCOM: %.02fV (set selector 0x%04X)"
-      "\n  Force temperature: %s"
-      "\n  Display command: %s"
-      "\n  Sleep when done: %s"
-      "\n  Full update every: %u"
-      "\n  Inverted colors: %s"
-      "\n  Pixel format: %s"
-      "\n  Reset duration: %" PRIu32 "ms",
-      this->name_ != nullptr ? this->name_ : LOG_STR_LITERAL("(unknown)"), this->get_width_internal(),
-      this->get_height_internal(), static_cast<unsigned>(this->buffer_length_), this->img_buf_addr_h_,
-      this->img_buf_addr_l_, static_cast<float>(this->vcom_) / 1000.0f, this->vcom_register_, force_temperature,
-      this->use_legacy_dpy_area_ ? LOG_STR_LITERAL("DPY_AREA (0x0034, legacy)")
-                                 : LOG_STR_LITERAL("DPY_BUF_AREA (0x0037)"),
-      YESNO(this->sleep_when_done_), this->full_update_every_, YESNO(this->invert_colors_),
-      this->grayscale_ ? LOG_STR_LITERAL("4bpp grayscale") : LOG_STR_LITERAL("1bpp monochrome"), this->reset_duration_);
+  // buffer_length_ is sized from the geometry in the constructor whether or not
+  // anything is allocated, so report what actually exists: the direct-draw
+  // variant streams into controller memory and has no framebuffer at all.
+  char framebuffer[24];
+  if (this->buffer_ != nullptr) {
+    snprintf(framebuffer, sizeof(framebuffer), "%u bytes", static_cast<unsigned>(this->buffer_length_));
+  } else {
+    strncpy(framebuffer, "none (direct draw)", sizeof(framebuffer));
+    framebuffer[sizeof(framebuffer) - 1] = '\0';
+  }
+  ESP_LOGCONFIG(TAG,
+                "  Model preset: %s"
+                "\n  Dimensions: %dx%d"
+                "\n  Framebuffer: %s"
+                "\n  Image buffer addr: 0x%04X%04X"
+                "\n  VCOM: %.02fV (set selector 0x%04X)"
+                "\n  Force temperature: %s"
+                "\n  Display command: %s"
+                "\n  Sleep when done: %s"
+                "\n  Full update every: %u"
+                "\n  Inverted colors: %s"
+                "\n  Pixel format: %s"
+                "\n  Reset duration: %" PRIu32 "ms",
+                this->name_ != nullptr ? this->name_ : LOG_STR_LITERAL("(unknown)"), this->get_width_internal(),
+                this->get_height_internal(), framebuffer, this->img_buf_addr_h_, this->img_buf_addr_l_,
+                static_cast<float>(this->vcom_) / 1000.0f, this->vcom_register_, force_temperature,
+                this->use_legacy_dpy_area_ ? LOG_STR_LITERAL("DPY_AREA (0x0034, legacy)")
+                                           : LOG_STR_LITERAL("DPY_BUF_AREA (0x0037)"),
+                YESNO(this->sleep_when_done_), this->full_update_every_, YESNO(this->invert_colors_),
+                this->grayscale_ ? LOG_STR_LITERAL("4bpp grayscale") : LOG_STR_LITERAL("1bpp monochrome"),
+                this->reset_duration_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
+}
+
+// --- Direct-draw variant ------------------------------------------------------
+
+void IT8951DirectDisplay::setup() {
+  // One native-format row of the widest possible flush rectangle, plus a
+  // constant row for the whole-screen fill path. Both are a few hundred bytes
+  // rather than the ~1.25 MiB framebuffer the buffered class allocates.
+  const uint16_t max_row_bytes = this->row_bytes_for_(this->width_);
+  this->row_buf_ = std::make_unique<uint8_t[]>(max_row_bytes);
+  this->fill_row_ = std::make_unique<uint8_t[]>(max_row_bytes);
+  IT8951Display::setup();
+}
+
+void IT8951DirectDisplay::on_initialised() {
+  // Controller image RAM holds whatever survived power-on and there is no
+  // framebuffer standing in for it, so clear it before the first waveform can
+  // present undrawn regions as garbage.
+  this->fill(Color::WHITE);
+}
+
+void IT8951DirectDisplay::fill(Color color) {
+  uint8_t packed = color_to_nibble(color);
+  if (this->invert_colors_)
+    packed = static_cast<uint8_t>(0x0F - packed);
+  const uint8_t fill_byte = this->grayscale_ ? static_cast<uint8_t>((packed << 4) | packed)
+                                             : static_cast<uint8_t>((packed <= 0x07) ? 0xFF : 0x00);
+  std::memset(this->fill_row_.get(), fill_byte, this->row_bytes_for_(this->width_));
+  // A fill covers the panel, so let the normal (time-sliced) transfer phase
+  // stream the constant row for every line rather than blocking here.
+  this->fill_pending_ = true;
+  this->x_low_ = 0;
+  this->y_low_ = 0;
+  this->x_high_ = this->width_;
+  this->y_high_ = this->height_;
+  this->update();
+}
+
+bool IT8951DirectDisplay::prepare_direct_write_() {
+  // Writing image RAM while the LUT engine is reading it corrupts the frame the
+  // panel is drawing. LVGL's update_when_display_idle option withholds
+  // rendering while the display is busy, which is the supported way to avoid
+  // this; the check here is a backstop for anything else that draws.
+  if (this->phase_ != Phase::IDLE) {
+    ESP_LOGW(TAG, "Dropping flush: controller busy in phase %u. Set 'update_when_display_idle: true' on lvgl.",
+             static_cast<unsigned>(this->phase_));
+    return false;
+  }
+  if (this->asleep_) {
+    this->spi_cmd_(TCON_SYS_RUN);
+    delay(10);  // clocks settle after SYS_RUN
+    this->asleep_ = false;
+  }
+  return true;
+}
+
+void HOT IT8951DirectDisplay::pack_row_(uint16_t x, uint16_t y, uint16_t w, size_t source_index,
+                                        const FlushSource &src) {
+  uint8_t *out = this->row_buf_.get();
+  std::memset(out, 0, this->row_bytes_for_(w));
+
+  // Column c of the clipped rectangle is column clip_left + c of the source,
+  // which reads from the far end when mirrored in X.
+  const uint16_t first = src.clip_left;
+  const auto source_column = [&](uint16_t c) -> size_t {
+    const uint16_t column = static_cast<uint16_t>(first + c);
+    return src.mirror_x ? static_cast<size_t>(src.width - 1 - column) : column;
+  };
+
+  // LVGL is the only writer that reaches this class (anything drawing pixel by
+  // pixel routes to the buffered one), and it passes a compile-time-constant
+  // bitness with a fixed colour order and endianness. So for the whole flush the
+  // decode is one known shape: decide it once here rather than per pixel.
+  if (this->grayscale_ && src.bitness == COLOR_BITNESS_565 && src.order == COLOR_ORDER_RGB) {
+    const uint8_t *base = src.ptr + source_index * 2;
+    for (uint16_t c = 0; c < w; c++) {
+      const size_t i = source_column(c) * 2;
+      const uint16_t value = src.big_endian
+                                 ? static_cast<uint16_t>((static_cast<uint16_t>(base[i]) << 8) | base[i + 1])
+                                 : static_cast<uint16_t>(base[i] | (static_cast<uint16_t>(base[i + 1]) << 8));
+      uint8_t nibble = rgb565_to_nibble(value);
+      if (this->invert_colors_)
+        nibble = static_cast<uint8_t>(0x0F - nibble);
+      write_nibble(out, c, nibble);
+    }
+    return;
+  }
+
+  for (uint16_t c = 0; c < w; c++) {
+    const size_t index = source_index + source_column(c);
+    uint32_t color_value;
+    switch (src.bitness) {
+      case COLOR_BITNESS_565: {
+        const size_t i = index * 2;
+        color_value = src.big_endian ? (static_cast<uint32_t>(src.ptr[i]) << 8) | src.ptr[i + 1]
+                                     : src.ptr[i] | (static_cast<uint32_t>(src.ptr[i + 1]) << 8);
+        break;
+      }
+      case COLOR_BITNESS_888: {
+        const size_t i = index * 3;
+        color_value = src.big_endian ? (static_cast<uint32_t>(src.ptr[i]) << 16) |
+                                           (static_cast<uint32_t>(src.ptr[i + 1]) << 8) | src.ptr[i + 2]
+                                     : src.ptr[i] | (static_cast<uint32_t>(src.ptr[i + 1]) << 8) |
+                                           (static_cast<uint32_t>(src.ptr[i + 2]) << 16);
+        break;
+      }
+      default:
+        color_value = src.ptr[index];
+        break;
+    }
+    const Color color = ColorUtil::to_color(color_value, src.order, src.bitness);
+    if (this->grayscale_) {
+      uint8_t nibble = color_to_nibble(color);
+      if (this->invert_colors_)
+        nibble = static_cast<uint8_t>(0x0F - nibble);
+      write_nibble(out, c, nibble);
+    } else {
+      // Rec.601 luma, matching write_pixel_native_.
+      auto lum = static_cast<uint16_t>(77u * color.r + 151u * color.g + 29u * color.b);
+      if (this->invert_colors_)
+        lum = static_cast<uint16_t>(65535u - lum);
+      // Threshold from absolute panel coordinates so the dither pattern stays
+      // continuous across flush-rectangle boundaries.
+      const uint16_t threshold = this->dithering_ ? dither_threshold(static_cast<uint16_t>(x + c), y) : 32768;
+      if (lum < threshold) {
+        // 16-pixel groups; on the wire the high byte (pixels 8..15) precedes
+        // the low byte (pixels 0..7). See set_mono_pixel_.
+        const uint8_t sub = static_cast<uint8_t>(c & 0x0F);
+        const uint16_t byte_index = static_cast<uint16_t>((c >> 4) * 2u + (sub < 8u ? 1u : 0u));
+        out[byte_index] = static_cast<uint8_t>(out[byte_index] | (1u << (sub & 0x07)));
+      }
+    }
+  }
+}
+
+void IT8951DirectDisplay::write_area_(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const FlushSource &src) {
+  // Point the load at the image buffer, then open one LD_IMG_AREA for this
+  // rectangle. Unlike the buffered path (one area per update) direct draw opens
+  // one per flush, since each flush is an independent rectangle.
+  this->spi_cmd_(TCON_REG_WR);
+  this->spi_write_reg_(static_cast<uint16_t>(LISAR + 2), this->img_buf_addr_h_);
+  this->spi_cmd_(TCON_REG_WR);
+  this->spi_write_reg_(LISAR, this->img_buf_addr_l_);
+
+  uint16_t args[5];
+  if (this->grayscale_) {
+    args[0] = static_cast<uint16_t>((LDIMG_B_ENDIAN << 8) | (PIXEL_4BPP << 4));
+    args[1] = x;
+    args[2] = y;
+    args[3] = w;
+    args[4] = h;
+  } else {
+    // Monochrome uses the 8bpp-packed trick: x and width are in bytes.
+    args[0] = static_cast<uint16_t>((LDIMG_L_ENDIAN << 8) | (PIXEL_8BPP << 4));
+    args[1] = static_cast<uint16_t>(x / 8);
+    args[2] = y;
+    args[3] = static_cast<uint16_t>(w / 8);
+    args[4] = h;
+  }
+  this->spi_cmd_(TCON_LD_IMG_AREA);
+  this->spi_write_args_(args, 5);
+
+  const uint16_t bytes_per_row = this->row_bytes_for_(w);
+
+  // One CS-asserted burst for the whole rectangle, matching op_xfer_rows_.
+  this->enable();
+  this->write_byte16(PACKET_TYPE_WRITE);
+  wait_for_hardware_ready(this->busy_pin_);
+  for (uint16_t row = 0; row < h; row++) {
+    App.feed_wdt();
+    // Row `row` of the clipped rectangle is row clip_top + row of the source
+    // rectangle, which reads from the far end when mirrored in Y.
+    const uint16_t line = static_cast<uint16_t>(src.clip_top + row);
+    const size_t source_row = src.mirror_y ? static_cast<size_t>(src.height - 1 - line) : line;
+    const size_t source_index = (static_cast<size_t>(src.y_offset) + source_row) * src.line_stride + src.x_offset;
+    this->pack_row_(x, static_cast<uint16_t>(y + row), w, source_index, src);
+    this->write_array(this->row_buf_.get(), bytes_per_row);
+  }
+  this->disable();
+
+  this->spi_cmd_(TCON_LD_IMG_END);
+}
+
+void HOT IT8951DirectDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                             ColorOrder order, ColorBitness bitness, bool big_endian, int x_offset,
+                                             int y_offset, int x_pad) {
+  // Pixels pushed before the controller handshake completes have nowhere to go;
+  // LVGL redraws everything once the display reports ready.
+  if (!this->initialised_ || this->row_buf_ == nullptr)
+    return;
+
+  const bool mirror_x = (this->effective_transform_ & TRANSFORM_MIRROR_X) != 0;
+  const bool mirror_y = (this->effective_transform_ & TRANSFORM_MIRROR_Y) != 0;
+
+  // Native (panel) top-left of this rectangle. Mirroring keeps an axis-aligned
+  // rectangle axis-aligned; swap_xy is rejected for this class at config time,
+  // because transposing a flush would need a chunk-sized scratch buffer —
+  // exactly what LVGL's own rotation already provides.
+  const int nx = mirror_x ? this->width_ - x_start - w : x_start;
+  const int ny = mirror_y ? this->height_ - y_start - h : y_start;
+
+  // LVGL rounds redraw areas up to draw_rounding, and neither panel dimension
+  // is a multiple of 32 (1872 = 58.5*32, 1404 = 43.875*32), so the last stripe
+  // of a redraw always overhangs. Clip it rather than dropping the flush; the
+  // buffered path gets the same effect from its per-pixel bounds test.
+  const int clip_left = std::max(0, -nx);
+  const int clip_top = std::max(0, -ny);
+  const int clipped_w = std::min(nx + w, static_cast<int>(this->width_)) - std::max(nx, 0);
+  const int clipped_h = std::min(ny + h, static_cast<int>(this->height_)) - std::max(ny, 0);
+  if (clipped_w <= 0 || clipped_h <= 0)
+    return;
+  const int cx = nx + clip_left;
+  const int cy = ny + clip_top;
+
+  // The controller loads on a 4-pixel boundary in 4bpp, or a 16-pixel boundary
+  // for the 8bpp-packed monochrome trick. Both panel widths are multiples of
+  // 16, so clipping a 32-aligned rectangle against them leaves it 16-aligned.
+  const uint16_t align = this->grayscale_ ? 4 : 16;
+  if ((cx % align) != 0 || (clipped_w % align) != 0) {
+    if (!this->alignment_warned_) {
+      this->alignment_warned_ = true;
+      ESP_LOGE(TAG, "Flush rect x=%d w=%d is not %u-pixel aligned; dropping", cx, clipped_w, align);
+    }
+    return;
+  }
+
+  if (!this->prepare_direct_write_())
+    return;
+
+  const FlushSource src{ptr,
+                        order,
+                        bitness,
+                        big_endian,
+                        static_cast<size_t>(x_offset) + w + x_pad,
+                        x_offset,
+                        y_offset,
+                        static_cast<uint16_t>(w),
+                        static_cast<uint16_t>(h),
+                        static_cast<uint16_t>(clip_left),
+                        static_cast<uint16_t>(clip_top),
+                        mirror_x,
+                        mirror_y};
+  this->write_area_(static_cast<uint16_t>(cx), static_cast<uint16_t>(cy), static_cast<uint16_t>(clipped_w),
+                    static_cast<uint16_t>(clipped_h), src);
+
+  // Accumulate the region the next waveform has to present.
+  this->x_low_ = clamp_at_most(this->x_low_, cx);
+  this->x_high_ = clamp_at_least(this->x_high_, cx + clipped_w);
+  this->y_low_ = clamp_at_most(this->y_low_, cy);
+  this->y_high_ = clamp_at_least(this->y_high_, cy + clipped_h);
 }
 
 }  // namespace esphome::it8951
