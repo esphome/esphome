@@ -14,13 +14,11 @@
 extern "C" {
 #include <esp_hosted.h>
 #ifndef CONFIG_ESP_HOSTED_HOST_FEAT_BT
-// esp_hosted 2.x
 #include <esp_hosted_misc.h>
 #include <esp_hosted_bluedroid.h>
 #endif
 }
 #ifdef CONFIG_ESP_HOSTED_HOST_FEAT_BT
-// esp_hosted 3.x
 #include <esp_hosted_bt_host_stack.h>
 #endif
 #endif
