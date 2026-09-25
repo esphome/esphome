@@ -1,0 +1,30 @@
+display:
+  - platform: mipi_dsi
+    model: WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-3.4C
+    id: panel
+    color_depth: 24
+    pixel_mode: 24bit
+    pclk_frequency: 48MHz
+    auto_clear_enabled: false
+
+image:
+  - platform: file
+    id: logo
+    file: logo-text.svg
+    type: AUTO
+    target_display: panel
+    resize: 100x100
+    transparency: alpha_channel
+
+lvgl:
+  color_depth: 24
+  rotation: 90
+  widgets:
+    - image:
+        src: logo
+
+psram:
+
+esp_ldo:
+  - channel: 3
+    voltage: 2.5V

@@ -296,15 +296,11 @@ void MipiDsi::draw_pixel_at(int x, int y, Color color) {
       break;
     }
     case display::COLOR_BITNESS_888:
-      if (this->color_mode_ == display::COLOR_ORDER_BGR) {
-        this->buffer_[pos * 3] = color.b;
-        this->buffer_[pos * 3 + 1] = color.g;
-        this->buffer_[pos * 3 + 2] = color.r;
-      } else {
-        this->buffer_[pos * 3] = color.r;
-        this->buffer_[pos * 3 + 1] = color.g;
-        this->buffer_[pos * 3 + 2] = color.b;
-      }
+      // ESP-IDF and LVGL use B, G, R bytes for packed RGB888. Panel colour
+      // order is configured by MADCTL, independently of framebuffer layout.
+      this->buffer_[pos * 3] = color.b;
+      this->buffer_[pos * 3 + 1] = color.g;
+      this->buffer_[pos * 3 + 2] = color.r;
       break;
     case display::COLOR_BITNESS_332:
       break;
@@ -340,19 +336,12 @@ void MipiDsi::fill(Color color) {
     }
 
     case display::COLOR_BITNESS_888:
-      if (this->color_mode_ == display::COLOR_ORDER_BGR) {
-        for (size_t i = 0; i != this->width_ * this->height_; i++) {
-          this->buffer_[i * 3 + 0] = color.b;
-          this->buffer_[i * 3 + 1] = color.g;
-          this->buffer_[i * 3 + 2] = color.r;
-        }
-      } else {
-        for (size_t i = 0; i != this->width_ * this->height_; i++) {
-          this->buffer_[i * 3 + 0] = color.r;
-          this->buffer_[i * 3 + 1] = color.g;
-          this->buffer_[i * 3 + 2] = color.b;
-        }
+      for (size_t i = 0; i != this->width_ * this->height_; i++) {
+        this->buffer_[i * 3 + 0] = color.b;
+        this->buffer_[i * 3 + 1] = color.g;
+        this->buffer_[i * 3 + 2] = color.r;
       }
+      break;
 
     default:
       break;

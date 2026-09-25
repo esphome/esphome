@@ -36,6 +36,8 @@ _capture_legacy_entry, _warn_legacy_animation = (
 
 CONFIG_SCHEMA = cv.All(_capture_legacy_entry, ANIMATION_CONFIG_SCHEMA)
 
-FINAL_VALIDATE_SCHEMA = _warn_legacy_animation
+FINAL_VALIDATE_SCHEMA = cv.All(
+    _warn_legacy_animation, animation_image.FINAL_VALIDATE_SCHEMA
+)
 
 to_code = setup_animation

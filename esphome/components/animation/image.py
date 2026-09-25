@@ -3,9 +3,9 @@ import esphome.codegen as cg
 from esphome.components.const import CONF_LOOP
 from esphome.components.file import image as file_image
 from esphome.components.file.image import image_schema, write_image
-from esphome.components.image import Image_, validate_settings
+from esphome.components.image import CONF_TRANSPARENCY, Image_, add_metadata
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_REPEAT
+from esphome.const import CONF_ID, CONF_REPEAT, CONF_TYPE
 from esphome.core import ID
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
@@ -51,7 +51,9 @@ ANIMATION_SCHEMA = image_schema(Animation_).extend(
 
 # Shared schema used by both the (deprecated) top-level `animation:` key and the
 # `image:` `platform: animation` entry.
-ANIMATION_CONFIG_SCHEMA = cv.All(ANIMATION_SCHEMA, validate_settings)
+ANIMATION_CONFIG_SCHEMA = cv.All(
+    ANIMATION_SCHEMA, file_image.validate_file_image_settings
+)
 
 
 NEXT_FRAME_SCHEMA = automation.maybe_simple_id(
@@ -115,12 +117,17 @@ async def setup_animation(config: ConfigType) -> None:
         image_type,
         trans_value,
     )
+    add_metadata(
+        config[CONF_ID], width, height, config[CONF_TYPE], config[CONF_TRANSPARENCY]
+    )
     if loop_config := config.get(CONF_LOOP):
         start = loop_config[CONF_START_FRAME]
         end = loop_config.get(CONF_END_FRAME, frame_count)
         count = loop_config.get(CONF_REPEAT, -1)
         cg.add(var.set_loop(start, end, count))
 
+
+FINAL_VALIDATE_SCHEMA = file_image.validate_image_final
 
 CONFIG_SCHEMA = ANIMATION_CONFIG_SCHEMA
 

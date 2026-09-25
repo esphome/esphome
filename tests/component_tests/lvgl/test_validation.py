@@ -175,3 +175,30 @@ class TestDrawRoundingMerge:
         configs = [_make_lvgl_config(["my_disp"])]
         final_validation(configs)
         assert configs[0]["draw_rounding"] == 2
+
+
+@pytest.mark.parametrize("native_depth", [None, 16])
+def test_rgb888_rejects_unverified_or_lossy_display(native_depth: int | None) -> None:
+    add_metadata(ID("panel"), 320, 240, native_color_depth=native_depth)
+    config = _make_lvgl_config(["panel"])
+    config["color_depth"] = 24
+    with pytest.raises(Invalid, match="Display 'panel'.*RGB888 LVGL"):
+        final_validation([config])
+
+
+def test_rgb888_accepts_native_little_endian_display() -> None:
+    add_metadata(
+        ID("panel"), 320, 240, native_color_depth=24, byte_order=BYTE_ORDER_LITTLE
+    )
+    config = _make_lvgl_config(["panel"])
+    config["color_depth"] = 24
+    final_validation([config])
+    assert config[CONF_BYTE_ORDER] == BYTE_ORDER_LITTLE
+
+
+def test_rgb888_rejects_big_endian() -> None:
+    add_metadata(ID("panel"), 320, 240, native_color_depth=24)
+    config = _make_lvgl_config(["panel"])
+    config["color_depth"] = 24
+    with pytest.raises(Invalid, match="RGB888 LVGL requires little_endian"):
+        final_validation([config])

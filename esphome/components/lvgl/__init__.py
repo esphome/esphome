@@ -243,6 +243,28 @@ def final_validation(config_list):
     # Resolve byte_order from display metadata before multi-config validation
     for config in config_list:
         metas = [get_display_metadata(disp) for disp in config[df.CONF_DISPLAYS]]
+        if config[CONF_COLOR_DEPTH] == 24:
+            for display_id, meta in zip(config[df.CONF_DISPLAYS], metas, strict=True):
+                if meta.native_color_depth != 24:
+                    capability = (
+                        "has not declared RGB888 support"
+                        if meta.native_color_depth is None
+                        else f"preserves only {meta.native_color_depth}-bit colour in this configuration"
+                    )
+                    raise cv.Invalid(
+                        f"Display '{display_id}' {capability}. RGB888 LVGL requires a "
+                        "24-bit framebuffer and panel path; configure a compatible display "
+                        "or set lvgl color_depth to 16.",
+                        [CONF_COLOR_DEPTH],
+                    )
+            if config.get(CONF_BYTE_ORDER, "little_endian") != "little_endian" or any(
+                m.byte_order not in ("little_endian", cv.UNDEFINED) for m in metas
+            ):
+                raise cv.Invalid(
+                    "RGB888 LVGL requires little_endian byte order (B, G, R bytes).",
+                    [CONF_BYTE_ORDER],
+                )
+            config[CONF_BYTE_ORDER] = "little_endian"
         if any(m.has_writer for m in metas):
             raise cv.Invalid(
                 "Using lambda:, pages:, auto_clear_enabled: true, or show_test_card: true in display config is not compatible with LVGL"
@@ -496,8 +518,11 @@ async def to_code(configs):
     if configs[0].get(df.CONF_THEME, {}).get(df.CONF_DARK_MODE):
         df.add_define("LV_THEME_DEFAULT_DARK", "1")
 
-    # Currently always need RGB565 for the display buffer, and ARGB8888 is used for layer blending
-    lv_image_formats = {"RGB565", "ARGB8888"}
+    # Layer blending uses ARGB8888 independently of the display colour depth.
+    lv_image_formats = {
+        "RGB565" if config_0[CONF_COLOR_DEPTH] == 16 else "RGB888",
+        "ARGB8888",
+    }
 
     for image_id in get_lv_images_used():
         await cg.get_variable(image_id)
@@ -511,7 +536,7 @@ async def to_code(configs):
         if image_type == ImageRGB565:
             lv_image_formats.add("RGB565A8" if transparent else "RGB565")
         if image_type == ImageRGB:
-            lv_image_formats.add("ARGB8888" if transparent else "RGB8888")
+            lv_image_formats.add("ARGB8888" if transparent else "RGB888")
     if df.is_defined("LV_GRADIENT_MAX_STOPS"):
         lv_image_formats.add("RGB888")
     for fmt in lv_image_formats:
@@ -576,7 +601,7 @@ LVGL_TOP_LEVEL_SCHEMA = (
             cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
             cv.GenerateID(CONF_ALIGN_TO_LAMBDA_ID): cv.declare_id(lv_lambda_t),
             cv.GenerateID(df.CONF_DISPLAYS): display_schema,
-            cv.Optional(CONF_COLOR_DEPTH, default=16): cv.one_of(16),
+            cv.Optional(CONF_COLOR_DEPTH, default=16): cv.one_of(16, 24),
             cv.Optional(df.CONF_DEFAULT_FONT, default="montserrat_14"): lvalid.lv_font,
             cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
             cv.Optional(df.CONF_UPDATE_WHEN_DISPLAY_IDLE, default=False): cv.boolean,
