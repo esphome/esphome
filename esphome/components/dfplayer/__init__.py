@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
@@ -16,6 +18,7 @@ DFPlayerIsPlayingCondition = dfplayer_ns.class_(
 
 MULTI_CONF = True
 CONF_FOLDER = "folder"
+CONF_ENABLE = "enable"
 CONF_EQ_PRESET = "eq_preset"
 CONF_ON_FINISHED_PLAYBACK = "on_finished_playback"
 
@@ -33,23 +36,6 @@ DEVICE = {
     "USB": Device.USB,
     "TF_CARD": Device.TF_CARD,
 }
-
-NextAction = dfplayer_ns.class_("NextAction", automation.Action)
-PreviousAction = dfplayer_ns.class_("PreviousAction", automation.Action)
-PlayMp3Action = dfplayer_ns.class_("PlayMp3Action", automation.Action)
-PlayFileAction = dfplayer_ns.class_("PlayFileAction", automation.Action)
-PlayFolderAction = dfplayer_ns.class_("PlayFolderAction", automation.Action)
-SetVolumeAction = dfplayer_ns.class_("SetVolumeAction", automation.Action)
-VolumeUpAction = dfplayer_ns.class_("VolumeUpAction", automation.Action)
-VolumeDownAction = dfplayer_ns.class_("VolumeDownAction", automation.Action)
-SetEqAction = dfplayer_ns.class_("SetEqAction", automation.Action)
-SleepAction = dfplayer_ns.class_("SleepAction", automation.Action)
-ResetAction = dfplayer_ns.class_("ResetAction", automation.Action)
-StartAction = dfplayer_ns.class_("StartAction", automation.Action)
-PauseAction = dfplayer_ns.class_("PauseAction", automation.Action)
-StopAction = dfplayer_ns.class_("StopAction", automation.Action)
-RandomAction = dfplayer_ns.class_("RandomAction", automation.Action)
-SetDeviceAction = dfplayer_ns.class_("SetDeviceAction", automation.Action)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -84,41 +70,30 @@ async def to_code(config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-@automation.register_action(
-    "dfplayer.play_next",
-    NextAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(DFPlayer),
-        }
-    ),
-    synchronous=True,
+DFPLAYER_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(DFPlayer),
+    }
 )
-async def dfplayer_next_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
+for _name, _call in (
+    ("dfplayer.play_next", "next()"),
+    ("dfplayer.play_previous", "previous()"),
+    ("dfplayer.volume_up", "volume_up()"),
+    ("dfplayer.volume_down", "volume_down()"),
+    ("dfplayer.sleep", "sleep()"),
+    ("dfplayer.reset", "reset()"),
+    ("dfplayer.start", "start()"),
+    ("dfplayer.pause", "pause()"),
+    ("dfplayer.stop", "stop()"),
+    ("dfplayer.random", "random()"),
+):
+    automation.register_apply_action(
+        _name, DFPLAYER_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
 
-@automation.register_action(
-    "dfplayer.play_previous",
-    PreviousAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(DFPlayer),
-        }
-    ),
-    synchronous=True,
-)
-async def dfplayer_previous_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
+automation.register_apply_action(
     "dfplayer.play_mp3",
-    PlayMp3Action,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(DFPlayer),
@@ -126,70 +101,43 @@ async def dfplayer_previous_to_code(config, action_id, template_arg, args):
         },
         key=CONF_FILE,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_FILE, "play_mp3", cg.uint16),
 )
-async def dfplayer_play_mp3_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_FILE], args, cg.uint16)
-    cg.add(var.set_file(template_))
-    return var
 
-
-@automation.register_action(
+# loop and file default to what the old action's unset templatable values evaluated to
+automation.register_apply_action(
     "dfplayer.play",
-    PlayFileAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(DFPlayer),
             cv.Required(CONF_FILE): cv.templatable(cv.int_),
-            cv.Optional(CONF_LOOP): cv.templatable(cv.boolean),
+            cv.Optional(CONF_LOOP, default=False): cv.templatable(cv.boolean),
         },
         key=CONF_FILE,
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "play_file({}, {})", ((CONF_FILE, cg.uint16), (CONF_LOOP, cg.bool_))
+    ),
 )
-async def dfplayer_play_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_FILE], args, cg.uint16)
-    cg.add(var.set_file(template_))
-    if CONF_LOOP in config:
-        template_ = await cg.templatable(config[CONF_LOOP], args, cg.bool_)
-        cg.add(var.set_loop(template_))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "dfplayer.play_folder",
-    PlayFolderAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(DFPlayer),
             cv.Required(CONF_FOLDER): cv.templatable(cv.int_),
-            cv.Optional(CONF_FILE): cv.templatable(cv.int_),
-            cv.Optional(CONF_LOOP): cv.templatable(cv.boolean),
+            cv.Optional(CONF_FILE, default=0): cv.templatable(cv.int_),
+            cv.Optional(CONF_LOOP, default=False): cv.templatable(cv.boolean),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "play_folder({}, {}, {})",
+        ((CONF_FOLDER, cg.uint16), (CONF_FILE, cg.uint16), (CONF_LOOP, cg.bool_)),
+    ),
 )
-async def dfplayer_play_folder_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_FOLDER], args, cg.uint16)
-    cg.add(var.set_folder(template_))
-    if CONF_FILE in config:
-        template_ = await cg.templatable(config[CONF_FILE], args, cg.uint16)
-        cg.add(var.set_file(template_))
-    if CONF_LOOP in config:
-        template_ = await cg.templatable(config[CONF_LOOP], args, cg.bool_)
-        cg.add(var.set_loop(template_))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "dfplayer.set_device",
-    SetDeviceAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(DFPlayer),
@@ -197,19 +145,11 @@ async def dfplayer_play_folder_to_code(config, action_id, template_arg, args):
         },
         key=CONF_DEVICE,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_DEVICE, "set_device", Device),
 )
-async def dfplayer_set_device_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_DEVICE], args, Device)
-    cg.add(var.set_device(template_))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "dfplayer.set_volume",
-    SetVolumeAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(DFPlayer),
@@ -217,51 +157,11 @@ async def dfplayer_set_device_to_code(config, action_id, template_arg, args):
         },
         key=CONF_VOLUME,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VOLUME, "set_volume", cg.uint8),
 )
-async def dfplayer_set_volume_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_VOLUME], args, cg.uint8)
-    cg.add(var.set_volume(template_))
-    return var
 
-
-@automation.register_action(
-    "dfplayer.volume_up",
-    VolumeUpAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(DFPlayer),
-        }
-    ),
-    synchronous=True,
-)
-async def dfplayer_volume_up_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
-    "dfplayer.volume_down",
-    VolumeDownAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(DFPlayer),
-        }
-    ),
-    synchronous=True,
-)
-async def dfplayer_volume_down_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
+automation.register_apply_action(
     "dfplayer.set_eq",
-    SetEqAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(DFPlayer),
@@ -269,113 +169,37 @@ async def dfplayer_volume_down_to_code(config, action_id, template_arg, args):
         },
         key=CONF_EQ_PRESET,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_EQ_PRESET, "set_eq", EqPreset),
 )
-async def dfplayer_set_eq_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_EQ_PRESET], args, EqPreset)
-    cg.add(var.set_eq(template_))
-    return var
 
 
-@automation.register_action(
-    "dfplayer.sleep",
-    SleepAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(DFPlayer),
-        }
+def _default_enable(value: Any) -> Any:
+    """Fill in ``enable: true`` for a bare action or a mapping that only picks the player.
+
+    Done before ``maybe_simple_value`` so neither form is wrapped as the ``enable`` value.
+    """
+    if value is None or isinstance(value, dict):
+        return {CONF_ENABLE: True, **(value or {})}
+    return value
+
+
+automation.register_apply_action(
+    "dfplayer.set_current_track_repeat",
+    cv.All(
+        _default_enable,
+        cv.maybe_simple_value(
+            {
+                cv.GenerateID(): cv.use_id(DFPlayer),
+                cv.Optional(CONF_ENABLE, default=True): cv.templatable(cv.boolean),
+            },
+            key=CONF_ENABLE,
+        ),
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_ENABLE, "set_current_track_repeat", cg.bool_),
 )
-async def dfplayer_sleep_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_action(
-    "dfplayer.reset",
-    ResetAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(DFPlayer),
-        }
-    ),
-    synchronous=True,
-)
-async def dfplayer_reset_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
-    "dfplayer.start",
-    StartAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(DFPlayer),
-        }
-    ),
-    synchronous=True,
-)
-async def dfplayer_start_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
-    "dfplayer.pause",
-    PauseAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(DFPlayer),
-        }
-    ),
-    synchronous=True,
-)
-async def dfplayer_pause_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
-    "dfplayer.stop",
-    StopAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(DFPlayer),
-        }
-    ),
-    synchronous=True,
-)
-async def dfplayer_stop_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
-    "dfplayer.random",
-    RandomAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(DFPlayer),
-        }
-    ),
-    synchronous=True,
-)
-async def dfplayer_random_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_condition(
+automation.register_parented_condition(
     "dfplayer.is_playing",
     DFPlayerIsPlayingCondition,
     cv.Schema(
@@ -384,7 +208,3 @@ async def dfplayer_random_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-async def dfplayer_is_playing_to_code(config, condition_id, template_arg, args):
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

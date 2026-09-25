@@ -28,7 +28,7 @@ CONFIG_SCHEMA = (
 )
 
 
-@automation.register_action(
+automation.register_parented_action(
     "bm8563.write_time",
     WriteAction,
     automation.maybe_simple_id(
@@ -38,15 +38,6 @@ CONFIG_SCHEMA = (
     ),
     synchronous=True,
 )
-async def bm8563_write_time_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 @automation.register_action(
@@ -73,7 +64,7 @@ async def bm8563_start_timer_to_code(
     return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "bm8563.read_time",
     ReadAction,
     automation.maybe_simple_id(
@@ -83,15 +74,6 @@ async def bm8563_start_timer_to_code(
     ),
     synchronous=True,
 )
-async def bm8563_read_time_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 async def to_code(config: ConfigType) -> None:

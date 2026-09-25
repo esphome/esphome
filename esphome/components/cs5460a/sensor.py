@@ -17,8 +17,6 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@balrog-kun"]
@@ -131,7 +129,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_power_sensor(sens))
 
 
-@automation.register_action(
+automation.register_simple_action(
     "cs5460a.restart",
     CS5460ARestartAction,
     maybe_simple_id(
@@ -141,11 +139,3 @@ async def to_code(config: ConfigType) -> None:
     ),
     synchronous=True,
 )
-async def restart_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)

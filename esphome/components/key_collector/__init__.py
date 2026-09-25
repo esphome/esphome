@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
 )
-from esphome.core import ID
 from esphome.cpp_generator import MockObj, literal
 from esphome.types import ConfigType, TemplateArgsType
 
@@ -135,7 +134,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_enabled(config[CONF_ENABLE_ON_BOOT]))
 
 
-@automation.register_action(
+automation.register_parented_action(
     "key_collector.enable",
     EnableAction,
     automation.maybe_simple_id(
@@ -145,18 +144,9 @@ async def to_code(config: ConfigType) -> None:
     ),
     synchronous=True,
 )
-async def enable_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "key_collector.disable",
     DisableAction,
     automation.maybe_simple_id(
@@ -166,12 +156,3 @@ async def enable_to_code(
     ),
     synchronous=True,
 )
-async def disable_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

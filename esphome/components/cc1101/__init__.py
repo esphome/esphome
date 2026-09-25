@@ -364,22 +364,36 @@ CC1101_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
-    "cc1101.begin_tx", BeginTxAction, CC1101_ACTION_SCHEMA, synchronous=True
+automation.register_parented_action(
+    "cc1101.begin_tx",
+    BeginTxAction,
+    CC1101_ACTION_SCHEMA,
+    synchronous=True,
 )
-@automation.register_action(
-    "cc1101.begin_rx", BeginRxAction, CC1101_ACTION_SCHEMA, synchronous=True
+
+
+automation.register_parented_action(
+    "cc1101.begin_rx",
+    BeginRxAction,
+    CC1101_ACTION_SCHEMA,
+    synchronous=True,
 )
-@automation.register_action(
-    "cc1101.reset", ResetAction, CC1101_ACTION_SCHEMA, synchronous=True
+
+
+automation.register_parented_action(
+    "cc1101.reset",
+    ResetAction,
+    CC1101_ACTION_SCHEMA,
+    synchronous=True,
 )
-@automation.register_action(
-    "cc1101.set_idle", SetIdleAction, CC1101_ACTION_SCHEMA, synchronous=True
+
+
+automation.register_parented_action(
+    "cc1101.set_idle",
+    SetIdleAction,
+    CC1101_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def cc1101_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 def validate_raw_data(value):
@@ -424,91 +438,41 @@ async def send_packet_action_to_code(config, action_id, template_arg, args):
     return var
 
 
-# Setter action definitions: (setter_name, validator, template_type, enum_map)
-_SETTER_ACTIONS = [
-    (
-        "set_frequency",
-        cv.All(cv.frequency, cv.float_range(min=300.0e6, max=928.0e6)),
-        float,
-        None,
-    ),
-    ("set_output_power", cv.float_range(min=-30.0, max=11.0), float, None),
-    ("set_modulation_type", cv.enum(MODULATION, upper=False), Modulation, MODULATION),
-    ("set_symbol_rate", cv.float_range(min=600, max=500000), float, None),
-    (
-        "set_rx_attenuation",
-        cv.enum(RX_ATTENUATION, upper=False),
-        RxAttenuation,
-        RX_ATTENUATION,
-    ),
-    ("set_dc_blocking_filter", cv.boolean, bool, None),
-    ("set_manchester", cv.boolean, bool, None),
-    (
-        "set_filter_bandwidth",
-        cv.All(cv.frequency, cv.float_range(min=58000, max=812000)),
-        float,
-        None,
-    ),
-    (
-        "set_fsk_deviation",
-        cv.All(cv.frequency, cv.float_range(min=1500, max=381000)),
-        float,
-        None,
-    ),
-    ("set_msk_deviation", cv.int_range(min=1, max=8), cg.uint8, None),
-    ("set_channel", cv.uint8_t, cg.uint8, None),
-    (
-        "set_channel_spacing",
-        cv.All(cv.frequency, cv.float_range(min=25000, max=405000)),
-        float,
-        None,
-    ),
-    (
-        "set_if_frequency",
-        cv.All(cv.frequency, cv.float_range(min=25000, max=788000)),
-        float,
-        None,
-    ),
-]
+_CONFIG_VALIDATORS = {opt.schema: validator for opt, validator in CONFIG_MAP.items()}
+
+# Each key has a set_<key> action validated exactly like the config option.
+_SETTER_ACTIONS = (
+    (CONF_FREQUENCY, cg.float_),
+    (CONF_OUTPUT_POWER, cg.float_),
+    (CONF_MODULATION_TYPE, Modulation),
+    (CONF_SYMBOL_RATE, cg.float_),
+    (CONF_RX_ATTENUATION, RxAttenuation),
+    (CONF_DC_BLOCKING_FILTER, cg.bool_),
+    (CONF_MANCHESTER, cg.bool_),
+    (CONF_FILTER_BANDWIDTH, cg.float_),
+    (CONF_FSK_DEVIATION, cg.float_),
+    (CONF_MSK_DEVIATION, cg.uint8),
+    (CONF_CHANNEL, cg.uint8),
+    (CONF_CHANNEL_SPACING, cg.float_),
+    (CONF_IF_FREQUENCY, cg.float_),
+)
 
 
-def _register_setter_actions():
-    for setter_name, validator, templ_type, enum_map in _SETTER_ACTIONS:
-        class_name = (
-            "".join(word.capitalize() for word in setter_name.split("_")) + "Action"
+def _register_setter_actions() -> None:
+    for conf_key, value_type in _SETTER_ACTIONS:
+        automation.register_apply_action(
+            f"cc1101.set_{conf_key}",
+            cv.maybe_simple_value(
+                {
+                    cv.GenerateID(): cv.use_id(CC1101Component),
+                    cv.Required(CONF_VALUE): cv.templatable(
+                        _CONFIG_VALIDATORS[conf_key]
+                    ),
+                },
+                key=CONF_VALUE,
+            ),
+            automation.ApplyField(CONF_VALUE, f"set_{conf_key}", value_type),
         )
-        action_cls = ns.class_(
-            class_name, automation.Action, cg.Parented.template(CC1101Component)
-        )
-        schema = cv.maybe_simple_value(
-            {
-                cv.GenerateID(): cv.use_id(CC1101Component),
-                cv.Required(CONF_VALUE): cv.templatable(validator),
-            },
-            key=CONF_VALUE,
-        )
-
-        async def _setter_action_to_code(
-            config,
-            action_id,
-            template_arg,
-            args,
-            _setter=setter_name,
-            _type=templ_type,
-            _map=enum_map,
-        ):
-            var = cg.new_Pvariable(action_id, template_arg)
-            await cg.register_parented(var, config[CONF_ID])
-            data = config[CONF_VALUE]
-            if _map and not cg.is_template(data):
-                data = _map[data]
-            templ_ = await cg.templatable(data, args, _type)
-            cg.add(getattr(var, _setter)(templ_))
-            return var
-
-        automation.register_action(
-            f"cc1101.{setter_name}", action_cls, schema, synchronous=True
-        )(_setter_action_to_code)
 
 
 _register_setter_actions()
