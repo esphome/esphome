@@ -212,6 +212,18 @@ VERSION_H_TARGET = "esphome/core/version.h"
 BUILD_INFO_DATA_H_TARGET = "esphome/core/build_info_data.h"
 BUILD_INFO_DATA_CPP_TARGET = "esphome/core/build_info_data.cpp"
 ENTITY_TYPES_H_TARGET = "esphome/core/entity_types.h"
+# Headers that must not be included bare from esphome.h or the clang-tidy
+# all-headers file: X-macro files, headers main.cpp includes itself, and
+# deprecated headers that only resolve when their new component is loaded.
+ESPHOME_H_EXCLUDE = {
+    Path(ENTITY_TYPES_H_TARGET),
+    # main.cpp includes it after defining esphome_controllers()
+    Path("esphome/core/controller_dispatch.h"),
+    # moved to components/ring_buffer/, removed in 2026.11.0
+    Path("esphome/core/ring_buffer.h"),
+    # build machinery, not user API
+    Path(PCH_PREFIX_HEADER),
+}
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
@@ -237,21 +249,9 @@ def copy_src_tree():
     source_files_l.sort()
 
     # Build #include list for esphome.h
-    # X-macro files are included multiple times with different macro definitions
-    # and must not be included bare in esphome.h
-    # Deprecated headers that re-export from a relocated component must not be
-    # auto-included, since their #include of the new path only resolves when the
-    # new component is loaded by a consumer.
-    esphome_h_exclude = {
-        Path(ENTITY_TYPES_H_TARGET),
-        Path(
-            "esphome/core/ring_buffer.h"
-        ),  # moved to components/ring_buffer/, removed in 2026.11.0
-        Path(PCH_PREFIX_HEADER),  # build machinery, not user API
-    }
     include_l = []
     for target, _ in source_files_l:
-        if target.suffix in HEADER_FILE_EXTENSIONS and target not in esphome_h_exclude:
+        if target.suffix in HEADER_FILE_EXTENSIONS and target not in ESPHOME_H_EXCLUDE:
             include_l.append(f'#include "{target}"')
     include_l.append("")
     include_s = "\n".join(include_l)
