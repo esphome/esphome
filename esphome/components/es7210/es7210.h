@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include "esphome/components/audio_adc/audio_adc.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
@@ -28,9 +30,11 @@ class ES7210 final : public audio_adc::AudioAdc, public Component, public i2c::I
 
   void set_bits_per_sample(ES7210BitsPerSample bits_per_sample) { this->bits_per_sample_ = bits_per_sample; }
   bool set_mic_gain(float mic_gain) override;
+  void set_channel_gain(uint8_t channel, float gain);
   void set_sample_rate(uint32_t sample_rate) { this->sample_rate_ = sample_rate; }
+  void set_tdm(bool enable_tdm) { this->enable_tdm_ = enable_tdm; }
 
-  float mic_gain() override { return this->mic_gain_; };
+  float mic_gain() override { return this->channel_gains_[0]; };
 
  protected:
   /// @brief Updates an I2C registry address by modifying the current state
@@ -50,8 +54,8 @@ class ES7210 final : public audio_adc::AudioAdc, public Component, public i2c::I
   bool configure_sample_rate_();
 
   bool setup_complete_{false};
-  bool enable_tdm_{false};  // TDM is unsupported in ESPHome as of version 2024.12
-  float mic_gain_{0};
+  bool enable_tdm_{false};
+  std::array<float, 4> channel_gains_{{0.0f, 0.0f, 0.0f, 0.0f}};
   ES7210BitsPerSample bits_per_sample_{ES7210_BITS_PER_SAMPLE_16};
   uint32_t sample_rate_{0};
 };
