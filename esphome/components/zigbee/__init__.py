@@ -43,6 +43,7 @@ from .zigbee_esp32 import (
     final_validate_esp32,
     validate_binary_sensor_esp32,
     validate_sensor_esp32,
+    validate_switch_esp32,
     zigbee_require_vfs_select,
 )
 from .zigbee_zephyr import (
@@ -89,7 +90,7 @@ BASE_SCHEMA = cv.Schema(
 )
 BINARY_SENSOR_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_binary_sensor)
 SENSOR_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_sensor)
-SWITCH_SCHEMA = cv.Schema({}).extend(zephyr_switch)
+SWITCH_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_switch)
 NUMBER_SCHEMA = cv.Schema({}).extend(zephyr_number)
 
 
@@ -273,7 +274,7 @@ def validate_switch(config: ConfigType) -> ConfigType:
     if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return config
     if CORE.is_esp32:
-        return config
+        return validate_switch_esp32(config)
     return consume_endpoint(config)
 
 
