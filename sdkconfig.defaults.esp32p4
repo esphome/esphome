@@ -4,25 +4,30 @@
 # codegen via add_idf_sdkconfig_option, which the stub tidy build skips).
 
 # esp32_hosted (P4 has no native Wi-Fi; it drives a co-processor over SDIO/SPI).
-# Mirrors a default SDIO 4-bit setup (slot 1, ESP32-C6 slave) so the esp_hosted
+# Mirrors a default SDIO 4-bit setup (slot 1, ESP32-C6 co-processor) on the
+# esp_hosted 3.x host line pinned in esphome/idf_component.yml, so the esp_hosted
 # code paths compile under static analysis.
-CONFIG_SLAVE_IDF_TARGET_ESP32C6=y
+CONFIG_ESP_HOSTED_CP_TARGET_ESP32C6=y
+CONFIG_ESP_HOSTED_HOST_TRANSPORT_BUS_SDIO=y
 CONFIG_ESP_HOSTED_SDIO_SLOT_1=y
-CONFIG_ESP_HOSTED_SDIO_4_BIT_BUS=y
-CONFIG_ESP_HOSTED_CUSTOM_SDIO_PINS=y
-CONFIG_ESP_HOSTED_SDIO_CLOCK_FREQ_KHZ=40000
-CONFIG_ESP_HOSTED_SDIO_RESET_ACTIVE_HIGH=y
-CONFIG_ESP_HOSTED_SDIO_GPIO_RESET_SLAVE=54
-CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_CLK_SLOT_1=18
-CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_CMD_SLOT_1=19
-CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D0_SLOT_1=14
-CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D1_4BIT_BUS_SLOT_1=15
-CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D2_4BIT_BUS_SLOT_1=16
-CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D3_4BIT_BUS_SLOT_1=17
+CONFIG_ESP_HOSTED_HOST_SDIO_BUS_WIDTH_4=y
+CONFIG_ESP_HOSTED_HOST_SDIO_CLK_KHZ=40000
+CONFIG_ESP_HOSTED_SDIO_RESET_ACTIVE_LOW=y
+CONFIG_ESP_HOSTED_HOST_RESET_GPIO=54
+CONFIG_ESP_HOSTED_HOST_SDIO_PIN_CLK=18
+CONFIG_ESP_HOSTED_HOST_SDIO_PIN_CMD=19
+CONFIG_ESP_HOSTED_HOST_SDIO_PIN_D0=14
+CONFIG_ESP_HOSTED_HOST_SDIO_PIN_D1=15
+CONFIG_ESP_HOSTED_HOST_SDIO_PIN_D2=16
+CONFIG_ESP_HOSTED_HOST_SDIO_PIN_D3=17
+
+# ESP-NOW-over-hosted shim (esp_now_hosted.cpp) uses the peer-data feature.
+CONFIG_ESP_HOSTED_HOST_FEAT_PEER_DATA=y
+CONFIG_ESP_HOSTED_HOST_FEAT_PEER_DATA_MAX_CUSTOM_MSG_HANDLERS=8
 
 # BLE runs over the hosted co-processor on P4 (no native BT controller), so
-# esp32_ble_tracker must take the hosted bluedroid path instead of <esp_bt.h>.
-CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID=y
+# the esp32_ble components must take the hosted bluedroid path instead of <esp_bt.h>.
+CONFIG_ESP_HOSTED_HOST_FEAT_BT=y
 
 # tinyusb CDC (usb_cdc_acm), same as esp32s3
 CONFIG_TINYUSB_CDC_ENABLED=y

@@ -7,7 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifndef USE_ESP32_HOSTED
+#ifndef ESP32_BLE_HOSTED
 #include <esp_bt.h>
 #endif
 #include <esp_bt_defs.h>
@@ -635,7 +635,7 @@ void ESP32BLETracker::log_unexpected_state_(const char *operation, ScannerState 
 
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
 void ESP32BLETracker::update_coex_preference_(bool force_ble) {
-#ifndef USE_ESP32_HOSTED
+#ifndef ESP32_BLE_HOSTED
   if (force_ble && !this->coex_prefer_ble_) {
     ESP_LOGD(TAG, "Setting coexistence to Bluetooth to make connection.");
     this->coex_prefer_ble_ = true;
@@ -645,7 +645,7 @@ void ESP32BLETracker::update_coex_preference_(bool force_ble) {
     this->coex_prefer_ble_ = false;
     esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);  // Reset to default
   }
-#endif  // USE_ESP32_HOSTED
+#endif  // ESP32_BLE_HOSTED
 }
 #endif
 
