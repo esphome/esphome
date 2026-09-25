@@ -46,17 +46,11 @@ water_heater::WaterHeaterTraits TemplateWaterHeater::traits() {
 
 void TemplateWaterHeater::loop() {
   bool changed = false;
-  // Whether any source produced a value at all. The first one always publishes: until then the
-  // entity has no state, which is not the same as holding a value that happens to equal the
-  // default, so a source whose first value is the default (mode OFF, say) would otherwise leave
-  // the entity reporting unknown forever.
-  bool has_value = false;
 
   // NAN is passed through so a source that has no value yet shows as unknown, but NAN never
   // equals NAN, so an already-NAN value must not count as a change or it would republish forever.
   auto curr_temp = this->current_temperature_f_.call();
   if (curr_temp.has_value()) {
-    has_value = true;
     if (*curr_temp != this->current_temperature_ &&
         !(std::isnan(*curr_temp) && std::isnan(this->current_temperature_))) {
       this->current_temperature_ = *curr_temp;
@@ -66,7 +60,6 @@ void TemplateWaterHeater::loop() {
 
   auto target_temp = this->target_temperature_f_.call();
   if (target_temp.has_value()) {
-    has_value = true;
     if (*target_temp != this->target_temperature_ &&
         !(std::isnan(*target_temp) && std::isnan(this->target_temperature_))) {
       this->target_temperature_ = *target_temp;
@@ -76,7 +69,6 @@ void TemplateWaterHeater::loop() {
 
   auto new_mode = this->mode_f_.call();
   if (new_mode.has_value()) {
-    has_value = true;
     if (*new_mode != this->mode_) {
       this->mode_ = *new_mode;
       changed = true;
@@ -85,7 +77,6 @@ void TemplateWaterHeater::loop() {
 
   auto away = this->away_f_.call();
   if (away.has_value()) {
-    has_value = true;
     if (*away != this->is_away()) {
       this->set_state_flag_(water_heater::WATER_HEATER_STATE_AWAY, *away);
       changed = true;
@@ -94,13 +85,16 @@ void TemplateWaterHeater::loop() {
 
   auto is_on = this->is_on_f_.call();
   if (is_on.has_value()) {
-    has_value = true;
     if (*is_on != this->is_on()) {
       this->set_state_flag_(water_heater::WATER_HEATER_STATE_ON, *is_on);
       changed = true;
     }
   }
 
+  // The first value always publishes, even one equal to the default (mode OFF, say), or the
+  // entity would report unknown forever.
+  const bool has_value =
+      curr_temp.has_value() || target_temp.has_value() || new_mode.has_value() || away.has_value() || is_on.has_value();
   if (changed || (has_value && !this->has_state())) {
     this->publish_state();
   }

@@ -27,13 +27,6 @@ import pytest
 from .state_utils import InitialStateHelper, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
-# The device sends the field either way; this only reads it back. Drop the skip once
-# requirements.txt pins an aioesphomeapi that carries it on these three state models.
-pytestmark = pytest.mark.skipif(
-    "missing_state" not in SwitchState.__dataclass_fields__,
-    reason="aioesphomeapi does not carry missing_state on these states yet",
-)
-
 
 @pytest.mark.asyncio
 async def test_entity_missing_state(
