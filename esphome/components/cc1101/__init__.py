@@ -351,10 +351,6 @@ async def to_code(config):
 
 
 # Actions
-BeginTxAction = ns.class_("BeginTxAction", automation.Action)
-BeginRxAction = ns.class_("BeginRxAction", automation.Action)
-ResetAction = ns.class_("ResetAction", automation.Action)
-SetIdleAction = ns.class_("SetIdleAction", automation.Action)
 SendPacketAction = ns.class_(
     "SendPacketAction", automation.Action, cg.Parented.template(CC1101Component)
 )
@@ -364,36 +360,15 @@ CC1101_ACTION_SCHEMA = cv.Schema(
 )
 
 
-automation.register_parented_action(
-    "cc1101.begin_tx",
-    BeginTxAction,
-    CC1101_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_parented_action(
-    "cc1101.begin_rx",
-    BeginRxAction,
-    CC1101_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_parented_action(
-    "cc1101.reset",
-    ResetAction,
-    CC1101_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_parented_action(
-    "cc1101.set_idle",
-    SetIdleAction,
-    CC1101_ACTION_SCHEMA,
-    synchronous=True,
-)
+for _name, _call in (
+    ("cc1101.begin_tx", "begin_tx()"),
+    ("cc1101.begin_rx", "begin_rx()"),
+    ("cc1101.reset", "reset()"),
+    ("cc1101.set_idle", "set_idle()"),
+):
+    automation.register_apply_action(
+        _name, CC1101_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 
 def validate_raw_data(value):
