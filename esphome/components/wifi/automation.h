@@ -21,21 +21,6 @@ template<typename... Ts> class WiFiAPActiveCondition final : public Condition<Ts
   bool check(const Ts &...x) override { return global_wifi_component->is_ap_active(); }
 };
 
-template<typename... Ts> class WiFiEnableAction final : public Action<Ts...> {
- public:
-  void play(const Ts &...x) override { global_wifi_component->enable(); }
-};
-
-template<typename... Ts> class WiFiDisableAction final : public Action<Ts...> {
- public:
-  void play(const Ts &...x) override { global_wifi_component->disable(); }
-};
-
-template<typename... Ts> class WiFiRoamAction final : public Action<Ts...> {
- public:
-  void play(const Ts &...x) override { global_wifi_component->force_roam_check(); }
-};
-
 template<typename... Ts> class WiFiConfigureAction final : public Action<Ts...>, public Component {
  public:
   TEMPLATABLE_VALUE(std::string, ssid)
