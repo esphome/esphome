@@ -446,6 +446,14 @@ def _apply_default_restore_mode(
     return validator
 
 
+_BASE_SCHEMAS: dict[LightType, cv.Schema] = {
+    LightType.BINARY: BINARY_LIGHT_SCHEMA,
+    LightType.BRIGHTNESS_ONLY: BRIGHTNESS_ONLY_LIGHT_SCHEMA,
+    LightType.RGB: RGB_LIGHT_SCHEMA,
+    LightType.ADDRESSABLE: ADDRESSABLE_LIGHT_SCHEMA,
+}
+
+
 def light_schema(
     class_: MockObjClass,
     type_: LightType,
@@ -465,18 +473,7 @@ def light_schema(
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
-    if type_ == LightType.BINARY:
-        base_schema = BINARY_LIGHT_SCHEMA
-    elif type_ == LightType.BRIGHTNESS_ONLY:
-        base_schema = BRIGHTNESS_ONLY_LIGHT_SCHEMA
-    elif type_ == LightType.RGB:
-        base_schema = RGB_LIGHT_SCHEMA
-    elif type_ == LightType.ADDRESSABLE:
-        base_schema = ADDRESSABLE_LIGHT_SCHEMA
-    else:
-        raise ValueError(f"Invalid light type: {type_}")
-
-    result = base_schema.extend(schema)
+    result = _BASE_SCHEMAS[type_].extend(schema)
     if default_restore_mode is not cv.UNDEFINED:
         result.add_extra(_apply_default_restore_mode(default_restore_mode))
     return result

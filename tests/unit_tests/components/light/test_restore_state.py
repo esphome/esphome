@@ -471,24 +471,26 @@ async def test_restore_state_initial_resolves_templated_non_boolean_field() -> N
     assert statements == [("brightness", "s.brightness = static_cast<float>(0.75);")]
 
 
+def _mask(*modes: str) -> str:
+    casts = " | ".join(f"static_cast<uint8_t>(light::ColorMode::{m})" for m in modes)
+    return f"static_cast<light::ColorMode>({casts})"
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("initial_state_config", "expected"),
     [
         ({CONF_STATE: True}, None),
-        ({"red": 0.3}, "light::ColorMode::RGB"),
-        ({"red": 0.3, "green": 0.0, "color_brightness": 0.5}, "light::ColorMode::RGB"),
-        ({"brightness": 0.5}, "light::ColorMode::BRIGHTNESS"),
-        ({"white": 0.5}, "light::ColorMode::WHITE"),
-        ({"cold_white": 0.5, "warm_white": 0.5}, "light::ColorMode::COLD_WARM_WHITE"),
+        ({"red": 0.3}, _mask("RGB")),
+        ({"red": 0.3, "green": 0.0, "color_brightness": 0.5}, _mask("RGB")),
+        ({"brightness": 0.5}, _mask("BRIGHTNESS")),
+        ({"white": 0.5}, _mask("WHITE")),
+        ({"cold_white": 0.5, "warm_white": 0.5}, _mask("COLD_WARM_WHITE")),
         (
             {"red": 0.3, "white": 0.5},
-            (
-                "static_cast<light::ColorMode>(static_cast<uint8_t>(light::ColorMode::RGB)"
-                " | static_cast<uint8_t>(light::ColorMode::WHITE))"
-            ),
+            _mask("RGB", "WHITE"),
         ),
-        ({"red": Lambda("return 0.3;")}, "light::ColorMode::RGB"),
+        ({"red": Lambda("return 0.3;")}, _mask("RGB")),
     ],
 )
 async def test_initial_state_infers_color_mode_from_colour_fields(
@@ -513,4 +515,4 @@ async def test_initial_state_explicit_color_mode_is_not_inferred() -> None:
 async def test_restore_state_initial_color_mode_uses_inferred_mode() -> None:
     restore_state_config = RESTORE_STATE_SCHEMA({"color_mode": "initial"})
     statements = await _restore_state_statements(restore_state_config, {"red": 0.3})
-    assert statements == [("color_mode", "s.color_mode = light::ColorMode::RGB;")]
+    assert statements == [("color_mode", f"s.color_mode = {_mask('RGB')};")]

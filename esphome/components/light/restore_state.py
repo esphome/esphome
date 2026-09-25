@@ -9,26 +9,14 @@ from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BLUE,
-    CONF_BRIGHTNESS,
-    CONF_COLD_WHITE,
-    CONF_COLOR_BRIGHTNESS,
-    CONF_COLOR_MODE,
-    CONF_COLOR_TEMPERATURE,
-    CONF_GREEN,
-    CONF_RED,
-    CONF_STATE,
-    CONF_WARM_WHITE,
-    CONF_WHITE,
-)
+from esphome.const import CONF_COLOR_MODE, CONF_STATE
 from esphome.core import Lambda
-from esphome.cpp_generator import MockObj, call_lambda
+from esphome.cpp_generator import call_lambda
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
-from .automation import validate_light_state
-from .types import COLOR_MODES, ColorMode, LightStateRTCState
+from .automation import LIGHT_STATE_FIELDS, validate_light_state
+from .types import ColorMode, LightStateRTCState
 
 RESTORE_STATE_KEEP = "KEEP"
 RESTORE_STATE_INVERT = "INVERT"
@@ -57,23 +45,14 @@ LEGACY_RESTORE_MODES: dict[str, LegacyRestoreMode] = {
     "RESTORE_AND_ON": LegacyRestoreMode(True, True, True),
 }
 
-# Config key -> LightStateRTCState member, for every field other than `state`
-# (config key differs from the struct member only for color_temperature -> color_temp).
-_STATE_STRUCT_FIELDS: tuple[tuple[str, str], ...] = (
-    (CONF_COLOR_MODE, "color_mode"),
-    (CONF_BRIGHTNESS, "brightness"),
-    (CONF_COLOR_BRIGHTNESS, "color_brightness"),
-    (CONF_RED, "red"),
-    (CONF_GREEN, "green"),
-    (CONF_BLUE, "blue"),
-    (CONF_WHITE, "white"),
-    (CONF_COLOR_TEMPERATURE, "color_temp"),
-    (CONF_COLD_WHITE, "cold_white"),
-    (CONF_WARM_WHITE, "warm_white"),
+# (config key, LightStateRTCState member) for every field, and for every field but `state`.
+_ALL_STATE_FIELDS: tuple[tuple[str, str], ...] = tuple(
+    (field.conf_key, field.member) for field in LIGHT_STATE_FIELDS
 )
-_ALL_STATE_FIELDS: tuple[tuple[str, str], ...] = (
-    (CONF_STATE, "state"),
-    *_STATE_STRUCT_FIELDS,
+_STATE_STRUCT_FIELDS: tuple[tuple[str, str], ...] = tuple(
+    (conf_key, member)
+    for conf_key, member in _ALL_STATE_FIELDS
+    if conf_key != CONF_STATE
 )
 # Canonical struct-member order, used only to make generated code deterministic --
 # these are independent field assignments, so the actual order never affects behavior.
@@ -81,20 +60,6 @@ _MEMBER_ORDER: tuple[str, ...] = tuple(member for _, member in _ALL_STATE_FIELDS
 
 # A pending `s.<member> = <value>;` statement, tagged with the member it writes.
 StateStatement = tuple[str, str]
-
-# The colour mode that provides each colour-related field, used to infer a colour mode
-# when `initial_state:` sets such fields without naming one.
-_FIELD_COLOR_MODES: dict[str, MockObj] = {
-    CONF_BRIGHTNESS: ColorMode.BRIGHTNESS,
-    CONF_COLOR_BRIGHTNESS: ColorMode.RGB,
-    CONF_RED: ColorMode.RGB,
-    CONF_GREEN: ColorMode.RGB,
-    CONF_BLUE: ColorMode.RGB,
-    CONF_WHITE: ColorMode.WHITE,
-    CONF_COLOR_TEMPERATURE: ColorMode.COLOR_TEMPERATURE,
-    CONF_COLD_WHITE: ColorMode.COLD_WARM_WHITE,
-    CONF_WARM_WHITE: ColorMode.COLD_WARM_WHITE,
-}
 
 
 def _inferred_color_mode(initial_state_config: ConfigType | None) -> str | None:
@@ -107,16 +72,17 @@ def _inferred_color_mode(initial_state_config: ConfigType | None) -> str | None:
     """
     if not initial_state_config or CONF_COLOR_MODE in initial_state_config:
         return None
-    modes = {
-        str(mode)
-        for conf_key, mode in _FIELD_COLOR_MODES.items()
-        if initial_state_config.get(conf_key) is not None
-    }
+    modes = sorted(
+        {
+            str(field.color_mode)
+            for field in LIGHT_STATE_FIELDS
+            if field.color_mode is not None
+            and initial_state_config.get(field.conf_key) is not None
+        }
+    )
     if not modes:
         return None
-    if len(modes) == 1:
-        return modes.pop()
-    mask = " | ".join(f"static_cast<uint8_t>({mode})" for mode in sorted(modes))
+    mask = " | ".join(f"static_cast<uint8_t>({mode})" for mode in modes)
     return f"static_cast<{ColorMode}>({mask})"
 
 
@@ -342,31 +308,12 @@ def _validate_restore_state_state(value: Any) -> str | bool:
 
 _RESTORE_STATE_FIELDS_SCHEMA = cv.Schema(
     {
-        cv.Optional(
-            CONF_STATE, default=RESTORE_STATE_KEEP
-        ): _validate_restore_state_state,
-        cv.Optional(CONF_COLOR_MODE, default=RESTORE_STATE_KEEP): _keep_or(
-            cv.enum(COLOR_MODES, upper=True, space="_")
-        ),
-        cv.Optional(CONF_BRIGHTNESS, default=RESTORE_STATE_KEEP): _keep_or(
-            cv.percentage
-        ),
-        cv.Optional(CONF_COLOR_BRIGHTNESS, default=RESTORE_STATE_KEEP): _keep_or(
-            cv.percentage
-        ),
-        cv.Optional(CONF_RED, default=RESTORE_STATE_KEEP): _keep_or(cv.percentage),
-        cv.Optional(CONF_GREEN, default=RESTORE_STATE_KEEP): _keep_or(cv.percentage),
-        cv.Optional(CONF_BLUE, default=RESTORE_STATE_KEEP): _keep_or(cv.percentage),
-        cv.Optional(CONF_WHITE, default=RESTORE_STATE_KEEP): _keep_or(cv.percentage),
-        cv.Optional(CONF_COLOR_TEMPERATURE, default=RESTORE_STATE_KEEP): _keep_or(
-            cv.color_temperature
-        ),
-        cv.Optional(CONF_COLD_WHITE, default=RESTORE_STATE_KEEP): _keep_or(
-            cv.percentage
-        ),
-        cv.Optional(CONF_WARM_WHITE, default=RESTORE_STATE_KEEP): _keep_or(
-            cv.percentage
-        ),
+        cv.Optional(field.conf_key, default=RESTORE_STATE_KEEP): (
+            _validate_restore_state_state
+            if field.conf_key == CONF_STATE
+            else _keep_or(field.validator)
+        )
+        for field in LIGHT_STATE_FIELDS
     }
 )
 
