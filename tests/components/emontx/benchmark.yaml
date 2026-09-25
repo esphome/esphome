@@ -1,0 +1,18 @@
+# Declares the component graph the C++ unit test build needs so that the
+# emontx component's sources compile. to_code is suppressed by the test
+# harness; this only pulls the emontx source/include paths in.
+# Loaded with plain yaml.safe_load, so avoid lambdas / ESPHome-tagged values here.
+#
+# emontx declares DEPENDENCIES = ["uart"] and extends uart.UART_DEVICE_SCHEMA,
+# so a real uart bus config is required here: validate_config() runs before
+# the harness adds transitive dependency stubs, and emontx's final_validate
+# requires rx_buffer_size >= 2048 on the referenced uart bus.
+uart:
+  id: test_emontx_uart
+  baud_rate: 115200
+  rx_buffer_size: 2048
+  port: /dev/null
+
+emontx:
+  id: test_emontx
+  uart_id: test_emontx_uart
