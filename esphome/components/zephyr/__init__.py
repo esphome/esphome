@@ -1645,7 +1645,12 @@ def run_compile(args, config: ConfigType) -> bool:
         commander_dir = commander_install(commander_version)
         west_env["PATH"] = f"{commander_dir}{os.pathsep}{west_env['PATH']}"
     cross_toolchain = variant_data.toolchain
-    sdk_dir = sdk_install(framework_path, toolchain=cross_toolchain)
+    # None only for native_sim, which uses the host compiler and needs no SDK setup.sh.
+    sdk_dir = (
+        sdk_install(framework_path, toolchain=cross_toolchain)
+        if cross_toolchain
+        else None
+    )
     blob_specs = list(zephyr_data()["blobs"])
     if variant_data.blobs:
         blob_specs.append(variant_data.blobs)
@@ -1672,11 +1677,7 @@ def run_compile(args, config: ConfigType) -> bool:
     # West can't detect a missing CMake cache itself -- its pristine modes read
     # ZEPHYR_BASE from the very cache that was dropped. build_dir here must match
     # run_west_build()'s own build_dir selection exactly.
-    build_dir = (
-        CORE.relative_build_path(".west_build")
-        if sdk_dir is not None
-        else CORE.relative_pioenvs_path(CORE.name)
-    )
+    build_dir = CORE.relative_build_path(".west_build")
     if (
         cmake_lists_changed or not (build_dir / "CMakeCache.txt").is_file()
     ) and build_dir.is_dir():

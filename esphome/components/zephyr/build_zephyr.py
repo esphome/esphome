@@ -276,19 +276,13 @@ def run_west_build(
 ) -> None:
     """Run west build for a Zephyr native build.
 
-    When sdk_install_dir is provided, sets ZEPHYR_SDK_INSTALL_DIR and
-    ZEPHYR_TOOLCHAIN_VARIANT and outputs to .west_build/.
+    ZEPHYR_TOOLCHAIN_VARIANT is always set -- CMake auto-locates an SDK when it's
+    undefined, which fails for native_sim (no SDK installed).
     """
+    build_dir = CORE.relative_build_path(".west_build")
+    run_env = {**env, "ZEPHYR_TOOLCHAIN_VARIANT": zephyr_toolchain_variant}
     if sdk_install_dir is not None:
-        build_dir = CORE.relative_build_path(".west_build")
-        run_env = {
-            **env,
-            "ZEPHYR_SDK_INSTALL_DIR": str(sdk_install_dir),
-            "ZEPHYR_TOOLCHAIN_VARIANT": zephyr_toolchain_variant,
-        }
-    else:
-        build_dir = CORE.relative_pioenvs_path(CORE.name)
-        run_env = env
+        run_env["ZEPHYR_SDK_INSTALL_DIR"] = str(sdk_install_dir)
     source_dir = CORE.relative_build_path("zephyr")
 
     west_cmd = [
