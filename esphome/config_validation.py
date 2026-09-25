@@ -2464,6 +2464,7 @@ def maybe_simple_value(*validators, **kwargs):
             return validator(value)
         return validator({key: value})
 
+    validate.inner_schema = validator
     return validate
 
 

@@ -529,21 +529,67 @@ def lint_conf_matches(fname, match):
 CONF_RE = r'^(CONF_[a-zA-Z0-9_]+)\s*=\s*[\'"].*?[\'"]\s*?$'
 with codecs.open("esphome/const.py", "r", encoding="utf-8") as const_f_handle:
     constants_content = const_f_handle.read()
+with codecs.open(
+    "esphome/components/const/__init__.py", "r", encoding="utf-8"
+) as component_const_f_handle:
+    component_constants_content = component_const_f_handle.read()
+
+# The two canonical homes for shared constants: esphome/const.py (core, frozen) and
+# esphome/components/const/__init__.py (shared by components). A constant defined in
+# either must be imported from there rather than redefined in a component.
+CONST_HOMES = ["esphome/const.py", "esphome/components/const/__init__.py"]
+
 CONSTANTS = [m.group(1) for m in re.finditer(CONF_RE, constants_content, re.MULTILINE)]
+COMPONENT_CONSTANTS = [
+    m.group(1) for m in re.finditer(CONF_RE, component_constants_content, re.MULTILINE)
+]
 
 CONSTANTS_USES = collections.defaultdict(list)
 
 
-@lint_re_check(CONF_RE, include=["*.py"], exclude=["esphome/const.py"])
+def _const_home_error(name, core_constants, component_constants):
+    """Return an error if the constant already lives in one of the canonical homes."""
+    if name in core_constants:
+        return (
+            f"Constant {highlight(name)} has already been defined in const.py - "
+            "please import the constant from const.py directly."
+        )
+    if name in component_constants:
+        return (
+            f"Constant {highlight(name)} has already been defined in "
+            "esphome/components/const/__init__.py - please import the constant from "
+            "esphome.components.const directly."
+        )
+    return None
+
+
+@lint_re_check(CONF_RE, include=["*.py"], exclude=CONST_HOMES)
 def lint_conf_from_const_py(fname, match):
     name = match.group(1)
-    if name not in CONSTANTS:
+    err = _const_home_error(name, CONSTANTS, COMPONENT_CONSTANTS)
+    if err is None:
         CONSTANTS_USES[name].append(fname)
-        return None
-    return (
-        f"Constant {highlight(name)} has already been defined in const.py - "
-        "please import the constant from const.py directly."
-    )
+    return err
+
+
+UNIT_RE = r'^(UNIT_[a-zA-Z0-9_]+)\s*=\s*[\'"].*?[\'"]\s*?$'
+UNIT_CONSTANTS = [
+    m.group(1) for m in re.finditer(UNIT_RE, constants_content, re.MULTILINE)
+]
+COMPONENT_UNIT_CONSTANTS = [
+    m.group(1) for m in re.finditer(UNIT_RE, component_constants_content, re.MULTILINE)
+]
+
+UNIT_CONSTANTS_USES = collections.defaultdict(list)
+
+
+@lint_re_check(UNIT_RE, include=["*.py"], exclude=CONST_HOMES)
+def lint_unit_from_const_py(fname, match):
+    name = match.group(1)
+    err = _const_home_error(name, UNIT_CONSTANTS, COMPONENT_UNIT_CONSTANTS)
+    if err is None:
+        UNIT_CONSTANTS_USES[name].append(fname)
+    return err
 
 
 RAW_PIN_ACCESS_RE = (
@@ -701,6 +747,20 @@ def lint_no_components_const_outside_components(fname, match):
 def lint_constants_usage():
     errs = []
     for constant, uses in CONSTANTS_USES.items():
+        if len(uses) < 3:
+            continue
+        errs.append(
+            f"Constant {highlight(constant)} is defined in {len(uses)} files. Please move all definitions of the "
+            f"constant to esphome/components/const/__init__.py (Uses: {', '.join(str(u) for u in uses)}) in a separate PR. "
+            "See https://developers.esphome.io/contributing/code/#python"
+        )
+    return errs
+
+
+@lint_post_check
+def lint_unit_constants_usage():
+    errs = []
+    for constant, uses in UNIT_CONSTANTS_USES.items():
         if len(uses) < 3:
             continue
         errs.append(

@@ -299,8 +299,8 @@ BASE_PROPS = {
         "LV_TEXT_DECOR_", "NONE", "UNDERLINE", "STRIKETHROUGH"
     ).several_of,
     "text_font": lv_font,
-    "text_letter_space": lvalid.lv_positive_int,
-    "text_line_space": lvalid.lv_positive_int,
+    "text_letter_space": lvalid.lv_int,
+    "text_line_space": lvalid.lv_int,
     "text_opa": lvalid.opacity,
     "text_outline_stroke_color": lvalid.lv_color,
     "text_outline_stroke_opa": lvalid.opacity,

@@ -1,3 +1,10 @@
+esphome:
+  on_boot:
+    then:
+      - display.page.show_next: page_display
+      - display.page.show_previous:
+          id: page_display
+
 display:
   - platform: mipi_spi
     spi_16: true
@@ -32,7 +39,11 @@ display:
     bus_mode: single
 
   - platform: mipi_spi
+    id: page_display
     model: WAVESHARE-1.83-V2
+    pages:
+      - lambda: it.rectangle(0, 0, 10, 10);
+      - lambda: it.rectangle(10, 10, 10, 10);
     dc_pin:
       allow_other_uses: true
       number: ${dc_pin}
