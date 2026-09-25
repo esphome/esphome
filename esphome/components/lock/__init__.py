@@ -1,5 +1,5 @@
 from esphome import automation
-from esphome.automation import Condition, maybe_simple_id
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
@@ -34,7 +34,6 @@ LockAction = lock_ns.class_("LockAction", automation.Action)
 OpenAction = lock_ns.class_("OpenAction", automation.Action)
 LockPublishAction = lock_ns.class_("LockPublishAction", automation.Action)
 
-LockCondition = lock_ns.class_("LockCondition", Condition)
 LockStateForwarder = lock_ns.class_("LockStateForwarder")
 
 LockState = lock_ns.enum("LockState")
@@ -154,26 +153,14 @@ async def lock_action_to_code(
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_condition("lock.is_locked", LockCondition, LOCK_ACTION_SCHEMA)
-async def lock_is_on_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren, True)
-
-
-@automation.register_condition("lock.is_unlocked", LockCondition, LOCK_ACTION_SCHEMA)
-async def lock_is_off_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren, False)
+automation.register_apply_condition(
+    "lock.is_locked", LOCK_ACTION_SCHEMA, f"state == {LockState.LOCK_STATE_LOCKED}"
+)
+automation.register_apply_condition(
+    "lock.is_unlocked",
+    LOCK_ACTION_SCHEMA,
+    f"state == {LockState.LOCK_STATE_UNLOCKED}",
+)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

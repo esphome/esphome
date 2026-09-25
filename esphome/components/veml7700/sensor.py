@@ -2,6 +2,7 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import UNIT_COUNTS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTUAL_GAIN,
@@ -31,7 +32,6 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["i2c"]
 
-UNIT_COUNTS = "#"
 ICON_MULTIPLICATION = "mdi:multiplication"
 ICON_BRIGHTNESS_7 = "mdi:brightness-7"
 
