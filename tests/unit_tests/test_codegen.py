@@ -70,7 +70,6 @@ from esphome.cpp_generator import _extract_component_ns
         "arduino_json_ns",
         "JsonObject",
         "JsonObjectConst",
-        "Controller",
         "GPIOPin",
     ),
 )

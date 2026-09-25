@@ -1,5 +1,5 @@
 #include "ota_esphome.h"
-#ifdef USE_OTA_ENCRYPTION_FROM_API
+#ifdef USE_OTA_ENCRYPTION_PROVISIONED
 #include "esphome/components/api/api_server.h"
 #endif
 #ifdef USE_OTA
@@ -32,11 +32,13 @@ static const char *const TAG = "esphome.ota";
 
 #ifdef USE_OTA_ENCRYPTION
 const noise::NoiseContext &ESPHomeOTAComponent::noise_context_() const {
-#ifdef USE_OTA_ENCRYPTION_FROM_API
-  return api::global_api_server->get_noise_ctx();
-#else
-  return this->noise_ctx_;
+#ifdef USE_OTA_ENCRYPTION_PROVISIONED
+  // The api server holds the live key; safe mode never constructs it, and then
+  // noise_ctx_ holds the saved key setup() found, if any
+  if (api::global_api_server != nullptr)
+    return api::global_api_server->get_noise_ctx();
 #endif
+  return this->noise_ctx_;
 }
 #endif
 static constexpr uint16_t OTA_BLOCK_SIZE = 8192;
@@ -58,6 +60,16 @@ extern "C" void esphome_wake_ota_component_any_context() {
 }
 
 void ESPHomeOTAComponent::setup() {
+#ifdef USE_OTA_ENCRYPTION_PROVISIONED
+  // Safe mode never constructs the api server, so read the key it saved
+  noise::psk_t psk;
+  if (api::global_api_server == nullptr && api::load_saved_noise_psk(psk)) {
+    this->saved_psk_ = RAMAllocator<noise::psk_t>().make_unique(psk);
+    if (this->saved_psk_ != nullptr) {
+      this->noise_ctx_.set_psk(this->saved_psk_->data());
+    }
+  }
+#endif
   this->server_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
   if (this->server_ == nullptr) {
     this->server_failed_(LOG_STR("creation"));
@@ -455,6 +467,8 @@ void ESPHomeOTAComponent::handle_data_() {
   if (this->extended_proto_()) {
     // Read ota type, 1 byte
     if (!this->data_readall_(buf, 1)) {
+      if (this->client_left_before_start_())
+        return;
       this->log_read_error_(LOG_STR("OTA type"));
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
@@ -464,6 +478,9 @@ void ESPHomeOTAComponent::handle_data_() {
 
   // Read size, 4 bytes MSB first
   if (!this->data_readall_(buf, 4)) {
+    // The first request byte is the type on the extended protocol; a close after it was a cut-off request
+    if (!this->extended_proto_() && this->client_left_before_start_())
+      return;
     this->log_read_error_(LOG_STR("size"));
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
@@ -530,6 +547,8 @@ void ESPHomeOTAComponent::handle_data_() {
       // there is no would-block retry here and failures are already logged.
       read = this->noise_read_data_(buf, requested);
       if (read <= 0) {
+        if (this->remote_closed_)
+          this->log_remote_closed_(LOG_STR("data"));
         error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
         goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
       }
@@ -654,7 +673,11 @@ bool ESPHomeOTAComponent::readall_(uint8_t *buf, size_t len) {
         return false;
       }
     } else if (read == 0) {
-      ESP_LOGW(TAG, "Remote closed");
+      // A partial message is a cut-off request, not a clean close; the caller reports the clean one
+      this->remote_closed_ = at == 0;
+      if (at > 0) {
+        ESP_LOGW(TAG, "Remote closed after %u of %zu bytes", (unsigned) at, len);
+      }
       return false;
     } else {
       at += read;
@@ -700,7 +723,22 @@ void ESPHomeOTAComponent::log_socket_error_(const LogString *msg) {
   ESP_LOGW(TAG, "Socket %s: errno %d", LOG_STR_ARG(msg), errno);
 }
 
-void ESPHomeOTAComponent::log_read_error_(const LogString *what) { ESP_LOGW(TAG, "Read %s failed", LOG_STR_ARG(what)); }
+bool ESPHomeOTAComponent::client_left_before_start_() {
+  // Key probes and scanners hang up right after the handshake; nothing started, so no error status or callback
+  if (!this->remote_closed_)
+    return false;
+  ESP_LOGD(TAG, "Client left after the handshake");
+  this->cleanup_connection_();
+  return true;
+}
+
+void ESPHomeOTAComponent::log_read_error_(const LogString *what) {
+  if (this->remote_closed_) {
+    this->log_remote_closed_(what);
+    return;
+  }
+  ESP_LOGW(TAG, "Read %s failed", LOG_STR_ARG(what));
+}
 
 void ESPHomeOTAComponent::log_start_(const LogString *phase) {
   char peername[socket::SOCKADDR_STR_LEN];
@@ -781,6 +819,7 @@ void ESPHomeOTAComponent::cleanup_connection_() {
   this->handshake_buf_pos_ = 0;
   this->ota_state_ = OTAState::IDLE;
   this->ota_features_ = 0;
+  this->remote_closed_ = false;
   this->backend_ = nullptr;
 #ifdef USE_OTA_PASSWORD
   this->cleanup_auth_();
