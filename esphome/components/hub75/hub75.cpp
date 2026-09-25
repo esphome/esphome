@@ -1,5 +1,6 @@
 #include "hub75_component.h"
-#include "esphome/core/application.h"
+
+#include <cinttypes>
 
 #ifdef USE_ESP32
 
@@ -58,7 +59,7 @@ void HUB75Display::dump_config() {
                 config_.pins.oe, config_.pins.clk);
 
   ESP_LOGCONFIG(TAG,
-                "  Clock Speed: %u MHz\n"
+                "  Clock Speed: %" PRIu32 " MHz\n"
                 "  Latch Blanking: %i\n"
                 "  Clock Phase: %s\n"
                 "  Min Refresh Rate: %i Hz\n"
@@ -122,11 +123,11 @@ void HOT HUB75Display::draw_pixel_at(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) [[unlikely]]
     return;
 
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return;
 
   driver_->set_pixel(x, y, color.r, color.g, color.b);
-  App.feed_wdt();
+  this->feed_wdt_per_pixel_();
 }
 
 void HOT HUB75Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,

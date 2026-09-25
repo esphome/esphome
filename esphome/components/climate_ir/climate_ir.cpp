@@ -1,8 +1,7 @@
 #include "climate_ir.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace climate_ir {
+namespace esphome::climate_ir {
 
 static const char *const TAG = "climate_ir";
 
@@ -14,15 +13,7 @@ climate::ClimateTraits ClimateIR::traits() {
   if (this->humidity_sensor_ != nullptr) {
     traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
   }
-  traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_HEAT_COOL});
-  if (this->supports_cool_)
-    traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
-  if (this->supports_heat_)
-    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
-  if (this->supports_dry_)
-    traits.add_supported_mode(climate::CLIMATE_MODE_DRY);
-  if (this->supports_fan_only_)
-    traits.add_supported_mode(climate::CLIMATE_MODE_FAN_ONLY);
+  traits.set_supported_modes(this->modes_);
 
   traits.set_visual_min_temperature(this->minimum_temperature_);
   traits.set_visual_max_temperature(this->maximum_temperature_);
@@ -95,10 +86,12 @@ void ClimateIR::dump_config() {
                 "  Min. Temperature: %.1f°C\n"
                 "  Max. Temperature: %.1f°C\n"
                 "  Supports HEAT: %s\n"
-                "  Supports COOL: %s",
-                this->minimum_temperature_, this->maximum_temperature_, YESNO(this->supports_heat_),
-                YESNO(this->supports_cool_));
+                "  Supports COOL: %s\n"
+                "  Supports HEAT_COOL: %s",
+                this->minimum_temperature_, this->maximum_temperature_,
+                YESNO(this->modes_.count(climate::CLIMATE_MODE_HEAT)),
+                YESNO(this->modes_.count(climate::CLIMATE_MODE_COOL)),
+                YESNO(this->modes_.count(climate::CLIMATE_MODE_HEAT_COOL)));
 }
 
-}  // namespace climate_ir
-}  // namespace esphome
+}  // namespace esphome::climate_ir

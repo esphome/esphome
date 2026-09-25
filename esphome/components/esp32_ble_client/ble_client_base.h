@@ -41,8 +41,15 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void connect() override;
   esp_err_t pair();
   void disconnect() override;
+  void ble_before_disabled_event_handler() override;
   void unconditional_disconnect();
   void release_services();
+
+  /// Register for notifications, holding the service release until the registration completes.
+  esp_err_t register_for_notify(uint16_t char_handle);
+
+  /// True while a register_for_notify() request has not completed.
+  bool notify_registration_pending() const { return this->pending_notify_regs_ > 0; }
 
   bool connected() { return this->state() == espbt::ClientState::ESTABLISHED; }
 
@@ -86,6 +93,8 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   uint16_t get_conn_id() const { return this->conn_id_; }
   uint64_t get_address() const { return this->address_; }
   bool is_paired() const { return this->paired_; }
+  // The proxy clears this when a bond is removed while the link is up.
+  void set_unpaired() { this->paired_ = false; }
 
   uint8_t get_connection_index() const { return this->connection_index_; }
 
@@ -106,7 +115,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
 #endif
 
   // Group 3: 4-byte types
-  int gattc_if_;
+  int gattc_if_{ESP_GATT_IF_NONE};
   esp_gatt_status_t status_{ESP_GATT_OK};
 
   // Group 4: Arrays
@@ -125,9 +134,15 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   espbt::ConnectionType connection_type_{espbt::ConnectionType::V1};
   uint8_t connection_index_;
   uint8_t service_count_{0};  // ESP32 has max handles < 255, typical devices have < 50 services
+  // Outstanding register_for_notify() requests
+  // A count, not per-request state, so a raw esp_ble_gattc_register_for_notify() on the same client can retire one
+  // services_released_ is the backstop if that ever lets the release run early
+  uint8_t pending_notify_regs_{0};
   bool auto_connect_{false};
   bool paired_{false};
-  // 6 bytes used, 2 bytes padding
+  // Set by release_services() on RAM-cache builds; the stack's GATT database must not be walked after it
+  bool services_released_{false};
+  // 8 bytes used, no padding
 
   void log_event_(const char *name);
   void log_gattc_lifecycle_event_(const char *name);
@@ -140,6 +155,13 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void log_gattc_warning_(const char *operation, esp_err_t err);
   void log_connection_params_(const char *param_type);
   void handle_connection_result_(esp_err_t ret);
+  /// Hook called once a connection has been fully torn down (after release_services() and
+  /// set_idle_()): CLOSE_EVT, the DISCONNECTING safety timeout, or the BLE stack going down.
+  /// Subclasses with extra per-connection accounting (e.g. bluetooth_proxy slot state)
+  /// override this to release that state. `reason` is the controller reason code,
+  /// ESP_GATT_CONN_TIMEOUT for the safety timeout, or ESP_GATT_CONN_TERMINATE_LOCAL_HOST
+  /// for the stack going down.
+  virtual void on_disconnect_complete(esp_err_t reason) {}
   /// Transition to IDLE and reset conn_id — call when the connection is fully dead.
   void set_idle_() {
     this->set_state(espbt::ClientState::IDLE);
@@ -149,6 +171,10 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void set_disconnecting_() {
     this->disconnecting_started_ = millis();
     this->set_state(espbt::ClientState::DISCONNECTING);
+    // BluetoothConnection::loop() disables the component loop after service discovery
+    // completes, so the DISCONNECTING timeout check in loop() would never run if CLOSE_EVT
+    // gets lost. Re-enable the loop so the 10s safety timeout can force IDLE.
+    this->enable_loop();
   }
   // Compact error logging helpers to reduce flash usage
   void log_error_(const char *message);

@@ -8,8 +8,6 @@
 
 namespace esphome {
 
-uint32_t random_uint32() { return rand(); }
-
 bool random_bytes(uint8_t *data, size_t len) {
   lt_rand_bytes(data, len);
   return true;

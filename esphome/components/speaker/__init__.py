@@ -18,25 +18,6 @@ Speaker = speaker_ns.class_("Speaker")
 PlayAction = speaker_ns.class_(
     "PlayAction", automation.Action, cg.Parented.template(Speaker)
 )
-StopAction = speaker_ns.class_(
-    "StopAction", automation.Action, cg.Parented.template(Speaker)
-)
-FinishAction = speaker_ns.class_(
-    "FinishAction", automation.Action, cg.Parented.template(Speaker)
-)
-VolumeSetAction = speaker_ns.class_(
-    "VolumeSetAction", automation.Action, cg.Parented.template(Speaker)
-)
-MuteOnAction = speaker_ns.class_(
-    "MuteOnAction", automation.Action, cg.Parented.template(Speaker)
-)
-MuteOffAction = speaker_ns.class_(
-    "MuteOffAction", automation.Action, cg.Parented.template(Speaker)
-)
-
-
-IsPlayingCondition = speaker_ns.class_("IsPlayingCondition", automation.Condition)
-IsStoppedCondition = speaker_ns.class_("IsStoppedCondition", automation.Condition)
 
 
 async def setup_speaker_core_(var, config):
@@ -60,12 +41,6 @@ SPEAKER_SCHEMA = cv.Schema.extend(audio.AUDIO_COMPONENT_SCHEMA).extend(
 SPEAKER_AUTOMATION_SCHEMA = automation.maybe_simple_id(
     {cv.GenerateID(): cv.use_id(Speaker)}
 )
-
-
-async def speaker_action(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 @automation.register_action(
@@ -96,25 +71,26 @@ async def speaker_play_action(config, action_id, template_arg, args):
     return var
 
 
-automation.register_action(
-    "speaker.stop", StopAction, SPEAKER_AUTOMATION_SCHEMA, synchronous=True
-)(speaker_action)
-automation.register_action(
-    "speaker.finish", FinishAction, SPEAKER_AUTOMATION_SCHEMA, synchronous=True
-)(speaker_action)
+for _name, _call in (
+    ("speaker.stop", "stop()"),
+    ("speaker.finish", "finish()"),
+    ("speaker.mute_on", "set_mute_state(true)"),
+    ("speaker.mute_off", "set_mute_state(false)"),
+):
+    automation.register_apply_action(
+        _name, SPEAKER_AUTOMATION_SCHEMA, automation.ApplyCall(_call)
+    )
 
-automation.register_condition(
-    "speaker.is_playing", IsPlayingCondition, SPEAKER_AUTOMATION_SCHEMA
-)(speaker_action)
+automation.register_apply_condition(
+    "speaker.is_playing", SPEAKER_AUTOMATION_SCHEMA, "is_running()"
+)
+automation.register_apply_condition(
+    "speaker.is_stopped", SPEAKER_AUTOMATION_SCHEMA, "is_stopped()"
+)
 
-automation.register_condition(
-    "speaker.is_stopped", IsStoppedCondition, SPEAKER_AUTOMATION_SCHEMA
-)(speaker_action)
 
-
-@automation.register_action(
+automation.register_apply_action(
     "speaker.volume_set",
-    VolumeSetAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(Speaker),
@@ -122,28 +98,8 @@ automation.register_condition(
         },
         key=CONF_VOLUME,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VOLUME, "set_volume", cg.float_),
 )
-async def speaker_volume_set_action(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    volume = await cg.templatable(config[CONF_VOLUME], args, float)
-    cg.add(var.set_volume(volume))
-    return var
-
-
-@automation.register_action(
-    "speaker.mute_off",
-    MuteOffAction,
-    SPEAKER_AUTOMATION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "speaker.mute_on", MuteOnAction, SPEAKER_AUTOMATION_SCHEMA, synchronous=True
-)
-async def speaker_mute_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

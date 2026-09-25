@@ -1,0 +1,72 @@
+name: Close PR From Fork Default Branch
+
+on:
+  # pull_request_target is required so we have permission to comment and close PRs from forks.
+  pull_request_target:
+    types: [opened, reopened]
+
+permissions:
+  pull-requests: write  # pulls.update to close the PR opened from a fork's default branch
+  issues: write         # issues.createComment to explain to the contributor why the PR was closed
+
+jobs:
+  close:
+    name: Close PR opened from fork's default branch
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
+      && github.event.pull_request.head.ref == github.event.repository.default_branch
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const prNumber = context.payload.pull_request.number;
+            const author = context.payload.pull_request.user.login;
+            const defaultBranch = context.payload.repository.default_branch;
+            const headRepo = context.payload.pull_request.head.repo.full_name;
+
+            const body = [
+              `Hi @${author}, thanks for opening a pull request! :tada:`,
+              ``,
+              `It looks like this PR was opened from the \`${defaultBranch}\` branch of your fork (\`${headRepo}\`), which is the same name as this repository's default branch. Working directly on \`${defaultBranch}\` in your fork causes a few problems:`,
+              ``,
+              `- Your fork's \`${defaultBranch}\` branch will permanently diverge from \`esphome/esphome:${defaultBranch}\`, making it hard to keep your fork up to date.`,
+              `- Any additional commits you push to \`${defaultBranch}\` will be added to this PR, so you can't easily work on multiple changes at once.`,
+              `- Pushing maintainer fixes to your branch is awkward, since it means committing directly to your fork's default branch.`,
+              `- It makes local collaboration painful — \`${defaultBranch}\` in a checkout becomes ambiguous between upstream and your fork, and maintainers end up with naming collisions when fetching your branch.`,
+              ``,
+              `Please re-open this as a new PR from a dedicated feature branch. The usual flow looks like:`,
+              ``,
+              `\`\`\`bash`,
+              `# Make sure your fork's ${defaultBranch} is up to date with upstream`,
+              `git remote add upstream https://github.com/${owner}/${repo}.git  # if you haven't already`,
+              `git fetch upstream`,
+              `git checkout ${defaultBranch}`,
+              `git reset --hard upstream/${defaultBranch}`,
+              `git push --force-with-lease origin ${defaultBranch}`,
+              ``,
+              `# Create a new branch for your change and cherry-pick / re-apply your commits there`,
+              `git checkout -b my-feature-branch upstream/${defaultBranch}`,
+              `# ...re-apply your changes, then:`,
+              `git push origin my-feature-branch`,
+              `\`\`\``,
+              ``,
+              `Then open a new pull request from \`my-feature-branch\` into \`${owner}/${repo}:${defaultBranch}\`.`,
+              ``,
+              `Closing this PR for now — sorry for the friction, and thanks again for contributing! :heart:`,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: prNumber,
+              body,
+            });
+
+            await github.rest.pulls.update({
+              owner,
+              repo,
+              pull_number: prNumber,
+              state: 'closed',
+            });

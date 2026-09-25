@@ -1,8 +1,7 @@
 #include "pioneer_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.pioneer";
 
@@ -152,5 +151,4 @@ void PioneerProtocol::dump(const PioneerData &data) {
   }
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

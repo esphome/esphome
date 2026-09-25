@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct Beo4Data {
   uint8_t source;   // beoSource, e.g. video, audio, light...
@@ -17,9 +16,9 @@ struct Beo4Data {
 
 class Beo4Protocol : public RemoteProtocol<Beo4Data> {
  public:
-  void encode(RemoteTransmitData *dst, const Beo4Data &data) override;
-  optional<Beo4Data> decode(RemoteReceiveData src) override;
-  void dump(const Beo4Data &data) override;
+  void encode(RemoteTransmitData *dst, const Beo4Data &data);
+  optional<Beo4Data> decode(RemoteReceiveData src);
+  void dump(const Beo4Data &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Beo4)
@@ -39,5 +38,4 @@ template<typename... Ts> class Beo4Action : public RemoteTransmitterActionBase<T
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

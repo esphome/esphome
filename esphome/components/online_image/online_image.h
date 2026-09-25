@@ -21,9 +21,9 @@ using t_http_codes = enum {
  * The image will then be stored in a buffer, so that it can be re-displayed without the
  * need to re-download or re-decode.
  */
-class OnlineImage : public PollingComponent,
-                    public runtime_image::RuntimeImage,
-                    public Parented<esphome::http_request::HttpRequestComponent> {
+class OnlineImage final : public PollingComponent,
+                          public runtime_image::RuntimeImage,
+                          public Parented<esphome::http_request::HttpRequestComponent> {
  public:
   /**
    * @brief Construct a new OnlineImage object.
@@ -43,6 +43,11 @@ class OnlineImage : public PollingComponent,
               bool is_big_endian = false);
 
   void update() override;
+  /** Download now when `update` is true (the `update` flag of `online_image.set_url`). */
+  void update_if(bool update) {
+    if (update)
+      this->update();
+  }
   void loop() override;
 
   /** Set the URL to download the image from. */
@@ -65,8 +70,12 @@ class OnlineImage : public PollingComponent,
    */
   void release();
 
-  void add_on_finished_callback(std::function<void(bool)> &&callback);
-  void add_on_error_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_finished_callback(F &&callback) {
+    this->download_finished_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_error_callback(F &&callback) {
+    this->download_error_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   bool validate_url_(const std::string &url);
@@ -84,59 +93,20 @@ class OnlineImage : public PollingComponent,
    */
   size_t download_buffer_initial_size_;
 
-  std::string url_{""};
+  std::string url_;
 
   std::vector<std::pair<std::string, TemplatableValue<std::string>>> request_headers_;
 
   /**
    * The value of the ETag HTTP header provided in the last response.
    */
-  std::string etag_ = "";
+  std::string etag_;
   /**
    * The value of the Last-Modified HTTP header provided in the last response.
    */
-  std::string last_modified_ = "";
+  std::string last_modified_;
 
   uint32_t start_time_{0};
-};
-
-template<typename... Ts> class OnlineImageSetUrlAction : public Action<Ts...> {
- public:
-  OnlineImageSetUrlAction(OnlineImage *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, url)
-  TEMPLATABLE_VALUE(bool, update)
-  void play(const Ts &...x) override {
-    this->parent_->set_url(this->url_.value(x...));
-    if (this->update_.value(x...)) {
-      this->parent_->update();
-    }
-  }
-
- protected:
-  OnlineImage *parent_;
-};
-
-template<typename... Ts> class OnlineImageReleaseAction : public Action<Ts...> {
- public:
-  OnlineImageReleaseAction(OnlineImage *parent) : parent_(parent) {}
-  void play(const Ts &...x) override { this->parent_->release(); }
-
- protected:
-  OnlineImage *parent_;
-};
-
-class DownloadFinishedTrigger : public Trigger<bool> {
- public:
-  explicit DownloadFinishedTrigger(OnlineImage *parent) {
-    parent->add_on_finished_callback([this](bool cached) { this->trigger(cached); });
-  }
-};
-
-class DownloadErrorTrigger : public Trigger<> {
- public:
-  explicit DownloadErrorTrigger(OnlineImage *parent) {
-    parent->add_on_error_callback([this]() { this->trigger(); });
-  }
 };
 
 }  // namespace esphome::online_image

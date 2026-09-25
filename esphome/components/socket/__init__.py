@@ -4,8 +4,10 @@ from enum import StrEnum
 import logging
 
 import esphome.codegen as cg
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,9 +32,6 @@ MIN_TCP_SOCKETS = 8
 MIN_UDP_SOCKETS = 6
 # Minimum listening sockets — at least api + ota baseline.
 MIN_TCP_LISTEN_SOCKETS = 2
-
-# Wake loop threadsafe support tracking
-KEY_WAKE_LOOP_THREADSAFE_REQUIRED = "wake_loop_threadsafe_required"
 
 
 class SocketType(StrEnum):
@@ -123,37 +122,22 @@ def get_socket_counts() -> SocketCounts:
 
 
 def require_wake_loop_threadsafe() -> None:
-    """Mark that wake_loop_threadsafe support is required by a component.
+    """Deprecated: wake loop support is now always available on all platforms.
 
-    Call this from components that need to wake the main event loop from background threads.
-    This enables the shared UDP loopback socket mechanism (~208 bytes RAM).
-    The socket is shared across all components that use this feature.
-
-    This call is a no-op if networking is not enabled in the configuration.
-
-    IMPORTANT: This is for background thread context only, NOT ISR context.
-    Socket operations are not safe to call from ISR handlers.
-
-    On ESP32, FreeRTOS task notifications are used instead (no socket needed).
-
-    Example:
-        from esphome.components import socket
-
-        async def to_code(config):
-            socket.require_wake_loop_threadsafe()
+    This function adds backward-compatible defines so external components
+    that check #ifdef USE_WAKE_LOOP_THREADSAFE / USE_SOCKET_SELECT_SUPPORT
+    continue to compile. Remove before 2026.12.0.
     """
-
-    # Only set up once (idempotent - multiple components can call this)
-    if CORE.has_networking and not CORE.data.get(
-        KEY_WAKE_LOOP_THREADSAFE_REQUIRED, False
-    ):
-        CORE.data[KEY_WAKE_LOOP_THREADSAFE_REQUIRED] = True
-        cg.add_define("USE_WAKE_LOOP_THREADSAFE")
-        if not CORE.is_esp32 and not CORE.is_libretiny:
-            # Only platforms without fast select need a UDP socket for wake
-            # notifications. ESP32 and LibreTiny use FreeRTOS task notifications
-            # instead (no socket needed).
-            consume_sockets(1, "socket.wake_loop_threadsafe", SocketType.UDP)({})
+    # Remove before 2026.12.0
+    _LOGGER.warning(
+        "require_wake_loop_threadsafe() is deprecated and no longer needed. "
+        "Wake loop support is now always available. Remove this call and any "
+        "#ifdef USE_SOCKET_SELECT_SUPPORT / USE_WAKE_LOOP_THREADSAFE guards. "
+        "This will be removed in 2026.12.0."
+    )
+    # Add deprecated defines for backward compat with external component C++ code
+    cg.add_define("USE_WAKE_LOOP_THREADSAFE")
+    cg.add_define("USE_SOCKET_SELECT_SUPPORT")
 
 
 CONFIG_SCHEMA = cv.Schema(
@@ -162,11 +146,12 @@ CONFIG_SCHEMA = cv.Schema(
             CONF_IMPLEMENTATION,
             esp8266=IMPLEMENTATION_LWIP_TCP,
             esp32=IMPLEMENTATION_BSD_SOCKETS,
-            rp2040=IMPLEMENTATION_LWIP_TCP,
+            rp2=IMPLEMENTATION_LWIP_TCP,
             bk72xx=IMPLEMENTATION_LWIP_SOCKETS,
             ln882x=IMPLEMENTATION_LWIP_SOCKETS,
             rtl87xx=IMPLEMENTATION_LWIP_SOCKETS,
             host=IMPLEMENTATION_BSD_SOCKETS,
+            nrf52=IMPLEMENTATION_BSD_SOCKETS,
         ): cv.one_of(
             IMPLEMENTATION_LWIP_TCP,
             IMPLEMENTATION_LWIP_SOCKETS,
@@ -178,16 +163,19 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     impl = config[CONF_IMPLEMENTATION]
     if impl == IMPLEMENTATION_LWIP_TCP:
         cg.add_define("USE_SOCKET_IMPL_LWIP_TCP")
     elif impl == IMPLEMENTATION_LWIP_SOCKETS:
         cg.add_define("USE_SOCKET_IMPL_LWIP_SOCKETS")
-        cg.add_define("USE_SOCKET_SELECT_SUPPORT")
     elif impl == IMPLEMENTATION_BSD_SOCKETS:
         cg.add_define("USE_SOCKET_IMPL_BSD_SOCKETS")
-        cg.add_define("USE_SOCKET_SELECT_SUPPORT")
+        if CORE.using_zephyr:
+            from esphome.components.zephyr import zephyr_add_prj_conf
+
+            zephyr_add_prj_conf("NET_SOCKETS", True)
+            zephyr_add_prj_conf("POSIX_API", True)
     # ESP32 and LibreTiny both have LwIP >= 2.1.3 with lwip_socket_dbg_get_socket()
     # and FreeRTOS task notifications — enable fast select to bypass lwip_select().
     # Only when not using lwip_tcp, which does not provide select() support.
@@ -195,16 +183,12 @@ async def to_code(config):
         cg.add_build_flag("-DUSE_LWIP_FAST_SELECT")
 
 
-def FILTER_SOURCE_FILES() -> list[str]:
-    """Return list of socket implementation files that aren't selected by the user."""
-    impl = CORE.config["socket"][CONF_IMPLEMENTATION]
-
-    # Build list of files to exclude based on selected implementation
-    excluded = []
-    if impl != IMPLEMENTATION_LWIP_TCP:
-        excluded.append("lwip_raw_tcp_impl.cpp")
-    if impl != IMPLEMENTATION_BSD_SOCKETS:
-        excluded.append("bsd_sockets_impl.cpp")
-    if impl != IMPLEMENTATION_LWIP_SOCKETS:
-        excluded.append("lwip_sockets_impl.cpp")
-    return excluded
+# Each implementation file is fully #ifdef'd on the define set in to_code
+# for the selected implementation.
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {
+        "lwip_raw_tcp_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
+        "bsd_sockets_impl.cpp": "USE_SOCKET_IMPL_BSD_SOCKETS",
+        "lwip_sockets_impl.cpp": "USE_SOCKET_IMPL_LWIP_SOCKETS",
+    }
+)

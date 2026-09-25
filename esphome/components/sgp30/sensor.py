@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
+from esphome.components.const import CONF_HUMIDITY_SOURCE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BASELINE,
@@ -18,6 +19,7 @@ from esphome.const import (
     UNIT_PARTS_PER_BILLION,
     UNIT_PARTS_PER_MILLION,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
@@ -30,7 +32,6 @@ SGP30Component = sgp30_ns.class_(
 CONF_ECO2_BASELINE = "eco2_baseline"
 CONF_TVOC_BASELINE = "tvoc_baseline"
 CONF_UPTIME = "uptime"
-CONF_HUMIDITY_SOURCE = "humidity_source"
 
 
 CONFIG_SCHEMA = (
@@ -81,7 +82,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

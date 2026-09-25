@@ -18,17 +18,25 @@ _ESP32C6_SPI_PSRAM_PINS = {
     30: "SPID",
 }
 
-_ESP32C6_STRAPPING_PINS = {8, 9, 15}
+_ESP32C6_USB_JTAG_PINS = {12, 13}
+
+_ESP32C6_STRAPPING_PINS = {4, 5, 8, 9, 15}
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def esp32_c6_validate_gpio_pin(value: int) -> int:
-    if value < 0 or value > 23:
-        raise cv.Invalid(f"Invalid pin number: {value} (must be 0-23)")
+    if value < 0 or value > 30:
+        raise cv.Invalid(f"Invalid pin number: {value} (must be 0-30)")
     if value in _ESP32C6_SPI_PSRAM_PINS:
         raise cv.Invalid(
             f"This pin cannot be used on ESP32-C6s and is already used by the SPI/PSRAM interface (function: {_ESP32C6_SPI_PSRAM_PINS[value]})"
+        )
+    if value in _ESP32C6_USB_JTAG_PINS:
+        _LOGGER.warning(
+            "GPIO%d is used by the USB-Serial-JTAG interface."
+            " Using this pin as GPIO will conflict with USB-Serial-JTAG.",
+            value,
         )
 
     return value
@@ -39,8 +47,8 @@ def esp32_c6_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     mode = value[CONF_MODE]
     is_input = mode[CONF_INPUT]
 
-    if num < 0 or num > 23:
-        raise cv.Invalid(f"Invalid pin number: {num} (must be 0-23)")
+    if num < 0 or num > 30:
+        raise cv.Invalid(f"Invalid pin number: {num} (must be 0-30)")
     if is_input:
         # All ESP32 pins support input mode
         pass

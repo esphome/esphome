@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import sensor
@@ -20,6 +22,7 @@ from esphome.const import (
     UNIT_PULSES_PER_MINUTE,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 CONF_USE_PCNT = "use_pcnt"
 
@@ -37,12 +40,8 @@ PulseCounterSensor = pulse_counter_ns.class_(
     "PulseCounterSensor", sensor.Sensor, cg.PollingComponent
 )
 
-SetTotalPulsesAction = pulse_counter_ns.class_(
-    "SetTotalPulsesAction", automation.Action
-)
 
-
-def validate_internal_filter(value):
+def validate_internal_filter(value: ConfigType) -> ConfigType:
     use_pcnt = value.get(CONF_USE_PCNT)
     if CORE.is_esp8266 and use_pcnt:
         raise cv.Invalid(
@@ -63,7 +62,7 @@ def validate_internal_filter(value):
     return value
 
 
-def validate_pulse_counter_pin(value):
+def validate_pulse_counter_pin(value: Any) -> ConfigType:
     value = pins.internal_gpio_input_pin_schema(value)
     if CORE.is_esp8266 and value[CONF_NUMBER] >= 16:
         raise cv.Invalid(
@@ -72,7 +71,7 @@ def validate_pulse_counter_pin(value):
     return value
 
 
-def validate_count_mode(value):
+def validate_count_mode(value: ConfigType) -> ConfigType:
     rising_edge = value[CONF_RISING_EDGE]
     falling_edge = value[CONF_FALLING_EDGE]
     if rising_edge == "DISABLE" and falling_edge == "DISABLE":
@@ -126,7 +125,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     use_pcnt = config.get(CONF_USE_PCNT)
     if CORE.is_esp32 and use_pcnt:
         include_builtin_idf_component("esp_driver_pcnt")
@@ -146,20 +145,13 @@ async def to_code(config):
         cg.add(var.set_total_sensor(sens))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "pulse_counter.set_total_pulses",
-    SetTotalPulsesAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(PulseCounterSensor),
             cv.Required(CONF_VALUE): cv.templatable(cv.uint32_t),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "set_total_pulses", cg.uint32),
 )
-async def set_total_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALUE], args, int)
-    cg.add(var.set_total_pulses(template_))
-    return var

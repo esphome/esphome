@@ -1,12 +1,9 @@
 #pragma once
 #include "esphome/components/image/image.h"
 
-#include "esphome/core/automation.h"
+namespace esphome::animation {
 
-namespace esphome {
-namespace animation {
-
-class Animation : public image::Image {
+class Animation final : public image::Image {
  public:
   Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, image::ImageType type,
             image::Transparency transparent);
@@ -36,33 +33,4 @@ class Animation : public image::Image {
   int loop_current_iteration_;
 };
 
-template<typename... Ts> class AnimationNextFrameAction : public Action<Ts...> {
- public:
-  AnimationNextFrameAction(Animation *parent) : parent_(parent) {}
-  void play(const Ts &...x) override { this->parent_->next_frame(); }
-
- protected:
-  Animation *parent_;
-};
-
-template<typename... Ts> class AnimationPrevFrameAction : public Action<Ts...> {
- public:
-  AnimationPrevFrameAction(Animation *parent) : parent_(parent) {}
-  void play(const Ts &...x) override { this->parent_->prev_frame(); }
-
- protected:
-  Animation *parent_;
-};
-
-template<typename... Ts> class AnimationSetFrameAction : public Action<Ts...> {
- public:
-  AnimationSetFrameAction(Animation *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(uint16_t, frame)
-  void play(const Ts &...x) override { this->parent_->set_frame(this->frame_.value(x...)); }
-
- protected:
-  Animation *parent_;
-};
-
-}  // namespace animation
-}  // namespace esphome
+}  // namespace esphome::animation

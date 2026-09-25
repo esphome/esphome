@@ -10,11 +10,14 @@ from esphome.const import (
     CONF_ID,
     CONF_MQTT_ID,
     CONF_ON_STATE,
-    CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@grahambrown11", "@hwstar"]
@@ -34,48 +37,10 @@ CONF_ON_READY = "on_ready"
 alarm_control_panel_ns = cg.esphome_ns.namespace("alarm_control_panel")
 AlarmControlPanel = alarm_control_panel_ns.class_("AlarmControlPanel", cg.EntityBase)
 
-StateTrigger = alarm_control_panel_ns.class_(
-    "StateTrigger", automation.Trigger.template()
-)
-TriggeredTrigger = alarm_control_panel_ns.class_(
-    "TriggeredTrigger", automation.Trigger.template()
-)
-ClearedTrigger = alarm_control_panel_ns.class_(
-    "ClearedTrigger", automation.Trigger.template()
-)
-ArmingTrigger = alarm_control_panel_ns.class_(
-    "ArmingTrigger", automation.Trigger.template()
-)
-PendingTrigger = alarm_control_panel_ns.class_(
-    "PendingTrigger", automation.Trigger.template()
-)
-ArmedHomeTrigger = alarm_control_panel_ns.class_(
-    "ArmedHomeTrigger", automation.Trigger.template()
-)
-ArmedNightTrigger = alarm_control_panel_ns.class_(
-    "ArmedNightTrigger", automation.Trigger.template()
-)
-ArmedAwayTrigger = alarm_control_panel_ns.class_(
-    "ArmedAwayTrigger", automation.Trigger.template()
-)
-DisarmedTrigger = alarm_control_panel_ns.class_(
-    "DisarmedTrigger", automation.Trigger.template()
-)
-ChimeTrigger = alarm_control_panel_ns.class_(
-    "ChimeTrigger", automation.Trigger.template()
-)
-ReadyTrigger = alarm_control_panel_ns.class_(
-    "ReadyTrigger", automation.Trigger.template()
-)
+StateAnyForwarder = alarm_control_panel_ns.class_("StateAnyForwarder")
+StateEnterForwarder = alarm_control_panel_ns.class_("StateEnterForwarder")
+AlarmControlPanelState = alarm_control_panel_ns.enum("AlarmControlPanelState")
 
-ArmAwayAction = alarm_control_panel_ns.class_("ArmAwayAction", automation.Action)
-ArmHomeAction = alarm_control_panel_ns.class_("ArmHomeAction", automation.Action)
-ArmNightAction = alarm_control_panel_ns.class_("ArmNightAction", automation.Action)
-DisarmAction = alarm_control_panel_ns.class_("DisarmAction", automation.Action)
-PendingAction = alarm_control_panel_ns.class_("PendingAction", automation.Action)
-TriggeredAction = alarm_control_panel_ns.class_("TriggeredAction", automation.Action)
-ChimeAction = alarm_control_panel_ns.class_("ChimeAction", automation.Action)
-ReadyAction = alarm_control_panel_ns.class_("ReadyAction", automation.Action)
 
 AlarmControlPanelCondition = alarm_control_panel_ns.class_(
     "AlarmControlPanelCondition", automation.Condition
@@ -89,61 +54,17 @@ _ALARM_CONTROL_PANEL_SCHEMA = (
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
                 mqtt.MQTTAlarmControlPanelComponent
             ),
-            cv.Optional(CONF_ON_STATE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_TRIGGERED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TriggeredTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_ARMING): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ArmingTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_PENDING): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PendingTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_ARMED_HOME): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ArmedHomeTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_ARMED_NIGHT): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ArmedNightTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_ARMED_AWAY): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ArmedAwayTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_DISARMED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DisarmedTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_CLEARED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ClearedTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_CHIME): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ChimeTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_READY): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ReadyTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_TRIGGERED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ARMING): automation.validate_automation({}),
+            cv.Optional(CONF_ON_PENDING): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ARMED_HOME): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ARMED_NIGHT): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ARMED_AWAY): automation.validate_automation({}),
+            cv.Optional(CONF_ON_DISARMED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CLEARED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CHIME): automation.validate_automation({}),
+            cv.Optional(CONF_ON_READY): automation.validate_automation({}),
         }
     )
 )
@@ -186,41 +107,66 @@ ALARM_CONTROL_PANEL_CONDITION_SCHEMA = maybe_simple_id(
 )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_STATE, "add_on_state_callback", forwarder=StateAnyForwarder
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_TRIGGERED,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(
+            AlarmControlPanelState.ACP_STATE_TRIGGERED
+        ),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ARMING,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(AlarmControlPanelState.ACP_STATE_ARMING),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_PENDING,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(
+            AlarmControlPanelState.ACP_STATE_PENDING
+        ),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ARMED_HOME,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(
+            AlarmControlPanelState.ACP_STATE_ARMED_HOME
+        ),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ARMED_NIGHT,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(
+            AlarmControlPanelState.ACP_STATE_ARMED_NIGHT
+        ),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ARMED_AWAY,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(
+            AlarmControlPanelState.ACP_STATE_ARMED_AWAY
+        ),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_DISARMED,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(
+            AlarmControlPanelState.ACP_STATE_DISARMED
+        ),
+    ),
+    automation.CallbackAutomation(CONF_ON_CLEARED, "add_on_cleared_callback"),
+    automation.CallbackAutomation(CONF_ON_CHIME, "add_on_chime_callback"),
+    automation.CallbackAutomation(CONF_ON_READY, "add_on_ready_callback"),
+)
+
+
 @setup_entity("alarm_control_panel")
 async def setup_alarm_control_panel_core_(var, config):
-    for conf in config.get(CONF_ON_STATE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_TRIGGERED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_ARMING, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_PENDING, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_ARMED_HOME, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_ARMED_NIGHT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_ARMED_AWAY, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_DISARMED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_CLEARED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_CHIME, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_READY, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     if web_server_config := config.get(CONF_WEB_SERVER):
         await web_server.add_entity_config(var, web_server_config)
     if mqtt_id := config.get(CONF_MQTT_ID):
@@ -231,7 +177,7 @@ async def setup_alarm_control_panel_core_(var, config):
 async def register_alarm_control_panel(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_alarm_control_panel(var))
+    queue_entity_register("alarm_control_panel", config)
     CORE.register_platform_component("alarm_control_panel", var)
     await setup_alarm_control_panel_core_(var, config)
 
@@ -242,125 +188,46 @@ async def new_alarm_control_panel(config, *args):
     return var
 
 
-@automation.register_action(
-    "alarm_control_panel.arm_away",
-    ArmAwayAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def alarm_action_arm_away_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if code_config := config.get(CONF_CODE):
-        templatable_ = await cg.templatable(code_config, args, cg.std_string)
-        cg.add(var.set_code(templatable_))
-    return var
+# Mirrors AlarmControlPanel::arm_with_code_: arm first, set the code only when given.
+for _name, _arm in (
+    ("alarm_control_panel.arm_away", "arm_away()"),
+    ("alarm_control_panel.arm_home", "arm_home()"),
+    ("alarm_control_panel.arm_night", "arm_night()"),
+    ("alarm_control_panel.disarm", "disarm()"),
+):
+    automation.register_apply_action(
+        _name,
+        ALARM_CONTROL_PANEL_ACTION_SCHEMA,
+        automation.ApplyCall(_arm),
+        automation.ApplyField(CONF_CODE, "set_code", cg.std_string),
+        call="make_call",
+    )
 
 
-@automation.register_action(
-    "alarm_control_panel.arm_home",
-    ArmHomeAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def alarm_action_arm_home_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if code_config := config.get(CONF_CODE):
-        templatable_ = await cg.templatable(code_config, args, cg.std_string)
-        cg.add(var.set_code(templatable_))
-    return var
+for _name, _call in (
+    ("alarm_control_panel.pending", "pending()"),
+    ("alarm_control_panel.triggered", "triggered()"),
+):
+    automation.register_apply_action(
+        _name,
+        ALARM_CONTROL_PANEL_ACTION_SCHEMA,
+        automation.ApplyCall(_call),
+        call="make_call",
+    )
 
 
-@automation.register_action(
-    "alarm_control_panel.arm_night",
-    ArmNightAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def alarm_action_arm_night_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_CODE in config:
-        templatable_ = await cg.templatable(config[CONF_CODE], args, cg.std_string)
-        cg.add(var.set_code(templatable_))
-    return var
-
-
-@automation.register_action(
-    "alarm_control_panel.disarm",
-    DisarmAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def alarm_action_disarm_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if code_config := config.get(CONF_CODE):
-        templatable_ = await cg.templatable(code_config, args, cg.std_string)
-        cg.add(var.set_code(templatable_))
-    return var
-
-
-@automation.register_action(
-    "alarm_control_panel.pending",
-    PendingAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def alarm_action_pending_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "alarm_control_panel.triggered",
-    TriggeredAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def alarm_action_trigger_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "alarm_control_panel.chime",
-    ChimeAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def alarm_action_chime_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "alarm_control_panel.ready",
-    ReadyAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_condition(
+automation.register_simple_condition(
     "alarm_control_panel.ready",
     AlarmControlPanelCondition,
     ALARM_CONTROL_PANEL_CONDITION_SCHEMA,
 )
-async def alarm_action_ready_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_condition(
+automation.register_simple_condition(
     "alarm_control_panel.is_armed",
     AlarmControlPanelCondition,
     ALARM_CONTROL_PANEL_CONDITION_SCHEMA,
 )
-async def alarm_control_panel_is_armed_to_code(
-    config, condition_id, template_arg, args
-):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

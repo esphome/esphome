@@ -1,6 +1,5 @@
 #include "version_text_sensor.h"
 #include "esphome/core/application.h"
-#include "esphome/core/build_info_data.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
@@ -36,7 +35,9 @@ void VersionTextSensor::setup() {
   if (!this->hide_timestamp_) {
     size_t len = strlen(version_str);
     ESPHOME_strncat_P(version_str, BUILT_STR, sizeof(version_str) - len - 1);
-    ESPHOME_strncat_P(version_str, ESPHOME_BUILD_TIME_STR, sizeof(version_str) - strlen(version_str) - 1);
+    char build_time_buf[Application::BUILD_TIME_STR_SIZE];
+    App.get_build_time_string(build_time_buf);
+    strncat(version_str, build_time_buf, sizeof(version_str) - strlen(version_str) - 1);
   }
 
   // The closing parenthesis is part of the config-hash suffix and must
@@ -47,8 +48,6 @@ void VersionTextSensor::setup() {
   version_str[sizeof(version_str) - 1] = '\0';
   this->publish_state(version_str);
 }
-void VersionTextSensor::set_hide_hash(bool hide_hash) { this->hide_hash_ = hide_hash; }
-void VersionTextSensor::set_hide_timestamp(bool hide_timestamp) { this->hide_timestamp_ = hide_timestamp; }
 void VersionTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Version Text Sensor", this); }
 
 }  // namespace esphome::version

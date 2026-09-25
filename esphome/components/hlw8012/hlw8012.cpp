@@ -1,8 +1,7 @@
 #include "hlw8012.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace hlw8012 {
+namespace esphome::hlw8012 {
 
 static const char *const TAG = "hlw8012";
 
@@ -73,13 +72,13 @@ void HLW8012Component::update() {
     // Only read cf1 after one cycle. Apparently it's quite unstable after being changed.
     if (this->current_mode_) {
       float current = cf1_hz * this->current_multiplier_;
-      ESP_LOGD(TAG, "Got power=%.1fW, current=%.1fA", power, current);
+      ESP_LOGV(TAG, "Got power=%.1fW, current=%.1fA", power, current);
       if (this->current_sensor_ != nullptr) {
         this->current_sensor_->publish_state(current);
       }
     } else {
       float voltage = cf1_hz * this->voltage_multiplier_;
-      ESP_LOGD(TAG, "Got power=%.1fW, voltage=%.1fV", power, voltage);
+      ESP_LOGV(TAG, "Got power=%.1fW, voltage=%.1fV", power, voltage);
       if (this->voltage_sensor_ != nullptr) {
         this->voltage_sensor_->publish_state(voltage);
       }
@@ -98,11 +97,11 @@ void HLW8012Component::update() {
 
   if (this->change_mode_every_ != 0 && this->change_mode_at_++ == this->change_mode_every_) {
     this->current_mode_ = !this->current_mode_;
-    ESP_LOGV(TAG, "Changing mode to %s mode", this->current_mode_ ? "CURRENT" : "VOLTAGE");
+    ESP_LOGV(TAG, "Changing mode to %s mode",
+             this->current_mode_ ? LOG_STR_LITERAL("CURRENT") : LOG_STR_LITERAL("VOLTAGE"));
     this->change_mode_at_ = 0;
     this->sel_pin_->digital_write(this->current_mode_);
   }
 }
 
-}  // namespace hlw8012
-}  // namespace esphome
+}  // namespace esphome::hlw8012

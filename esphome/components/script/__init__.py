@@ -9,9 +9,7 @@ CODEOWNERS = ["@esphome/core"]
 script_ns = cg.esphome_ns.namespace("script")
 Script = script_ns.class_("Script", automation.Trigger.template())
 ScriptExecuteAction = script_ns.class_("ScriptExecuteAction", automation.Action)
-ScriptStopAction = script_ns.class_("ScriptStopAction", automation.Action)
 ScriptWaitAction = script_ns.class_("ScriptWaitAction", automation.Action, cg.Component)
-IsRunningCondition = script_ns.class_("IsRunningCondition", automation.Condition)
 SingleScript = script_ns.class_("SingleScript", Script)
 RestartScript = script_ns.class_("RestartScript", Script)
 QueueingScript = script_ns.class_("QueueingScript", Script, cg.Component)
@@ -169,6 +167,8 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
                 return value
             if type == "bool":
                 return cg.RawExpression(str(value).lower())
+            if isinstance(value, (list, tuple)):
+                return cg.ArrayInitializer(*value)
             return cg.RawExpression(str(value))
 
         return converter
@@ -205,16 +205,11 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
+automation.register_apply_action(
     "script.stop",
-    ScriptStopAction,
     maybe_simple_id({cv.Required(CONF_ID): cv.use_id(Script)}),
-    synchronous=True,
+    automation.ApplyCall("stop()"),
 )
-async def script_stop_action_to_code(config, action_id, template_arg, args):
-    full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
-    template_arg = cg.TemplateArguments(full_id.type, *template_arg)
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -231,12 +226,8 @@ async def script_wait_action_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_condition(
+automation.register_apply_condition(
     "script.is_running",
-    IsRunningCondition,
     automation.maybe_simple_id({cv.Required(CONF_ID): cv.use_id(Script)}),
+    "is_running()",
 )
-async def script_is_running_to_code(config, condition_id, template_arg, args):
-    full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
-    template_arg = cg.TemplateArguments(full_id.type, *template_arg)
-    return cg.new_Pvariable(condition_id, template_arg, paren)

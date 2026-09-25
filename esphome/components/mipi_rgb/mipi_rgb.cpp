@@ -1,15 +1,14 @@
-#if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
+#if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S31)
 #include "mipi_rgb.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <driver/gpio.h>
-#include <esp_lcd_panel_rgb.h>
+#include <esp_lcd_panel_ops.h>
 #include <span>
 
-namespace esphome {
-namespace mipi_rgb {
+namespace esphome::mipi_rgb {
 
 static const uint8_t DELAY_FLAG = 0xFF;
 
@@ -118,15 +117,7 @@ void MipiRgbSpi::dump_config() {
   MipiRgb::dump_config();
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
-  ESP_LOGCONFIG(TAG,
-                "  SPI Data rate: %uMHz"
-                "\n  Mirror X: %s"
-                "\n  Mirror Y: %s"
-                "\n  Swap X/Y: %s"
-                "\n  Color Order: %s",
-                (unsigned) (this->data_rate_ / 1000000), YESNO(this->madctl_ & (MADCTL_XFLIP | MADCTL_MX)),
-                YESNO(this->madctl_ & (MADCTL_YFLIP | MADCTL_MY | MADCTL_ML)), YESNO(this->madctl_ & MADCTL_MV),
-                this->madctl_ & MADCTL_BGR ? "BGR" : "RGB");
+  ESP_LOGCONFIG(TAG, "  SPI Data rate: %uMHz", (unsigned) (this->data_rate_ / 1000000));
 }
 
 #endif  // USE_SPI
@@ -184,11 +175,6 @@ void MipiRgb::common_setup_() {
     this->mark_failed(LOG_STR("lcd setup failed"));
   }
   ESP_LOGCONFIG(TAG, "MipiRgb setup complete");
-}
-
-void MipiRgb::loop() {
-  if (this->handle_ != nullptr)
-    esp_lcd_rgb_panel_restart(this->handle_);
 }
 
 void MipiRgb::update() {
@@ -252,8 +238,9 @@ void MipiRgb::write_to_display_(int x_start, int y_start, int w, int h, const ui
       ptr += stride;  // next line
     }
   }
-  if (err != ESP_OK)
+  if (err != ESP_OK) {
     ESP_LOGE(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
+  }
 }
 
 bool MipiRgb::check_buffer_() {
@@ -272,7 +259,7 @@ bool MipiRgb::check_buffer_() {
 }
 
 void MipiRgb::draw_pixel_at(int x, int y, Color color) {
-  if (!this->get_clipping().inside(x, y) || this->is_failed())
+  if (this->is_point_clipped(x, y) || this->is_failed())
     return;
 
   switch (this->rotation_) {
@@ -354,7 +341,7 @@ int MipiRgb::get_height() {
   }
 }
 
-static const char *get_pin_name(GPIOPin *pin, std::span<char, GPIO_SUMMARY_MAX_LEN> buffer) {
+[[maybe_unused]] static const char *get_pin_name(GPIOPin *pin, std::span<char, GPIO_SUMMARY_MAX_LEN> buffer) {
   if (pin == nullptr)
     return "None";
   pin->dump_summary(buffer.data(), buffer.size());
@@ -408,6 +395,6 @@ void MipiRgb::dump_config() {
   this->dump_pins_(3, 8, "Red", 0);
 }
 
-}  // namespace mipi_rgb
-}  // namespace esphome
-#endif  // defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
+}  // namespace esphome::mipi_rgb
+#endif  // defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) ||
+        // defined(USE_ESP32_VARIANT_ESP32S31)

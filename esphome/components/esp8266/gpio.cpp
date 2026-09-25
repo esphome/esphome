@@ -140,6 +140,7 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
 
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
+  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- GPIO_REG_WRITE is MMIO at a fixed address
   GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, 1UL << arg->pin);
 }
 

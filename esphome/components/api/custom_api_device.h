@@ -136,8 +136,9 @@ class CustomAPIDevice {
   template<typename T>
   void subscribe_homeassistant_state(void (T::*callback)(StringRef), const std::string &entity_id,
                                      const std::string &attribute = "") {
-    auto f = std::bind(callback, (T *) this, std::placeholders::_1);
-    global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), std::move(f));
+    auto *obj = static_cast<T *>(this);
+    global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute),
+                                                      [obj, callback](StringRef state) { (obj->*callback)(state); });
   }
 
   /** Subscribe to the state (or attribute state) of an entity from Home Assistant (legacy std::string version).
@@ -148,10 +149,12 @@ class CustomAPIDevice {
   ESPDEPRECATED("Use void callback(StringRef) instead. Will be removed in 2027.1.0.", "2026.1.0")
   void subscribe_homeassistant_state(void (T::*callback)(std::string), const std::string &entity_id,
                                      const std::string &attribute = "") {
-    auto f = std::bind(callback, (T *) this, std::placeholders::_1);
+    auto *obj = static_cast<T *>(this);
     // Explicit type to disambiguate overload resolution
-    global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute),
-                                                      std::function<void(const std::string &)>(f));
+    global_api_server->subscribe_home_assistant_state(
+        entity_id, optional<std::string>(attribute),
+        std::function<void(const std::string &)>(
+            [obj, callback](const std::string &state) { (obj->*callback)(state); }));
   }
 
   /** Subscribe to the state (or attribute state) of an entity from Home Assistant.
@@ -176,8 +179,10 @@ class CustomAPIDevice {
   template<typename T>
   void subscribe_homeassistant_state(void (T::*callback)(const std::string &, StringRef), const std::string &entity_id,
                                      const std::string &attribute = "") {
-    auto f = std::bind(callback, (T *) this, entity_id, std::placeholders::_1);
-    global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), std::move(f));
+    auto *obj = static_cast<T *>(this);
+    global_api_server->subscribe_home_assistant_state(
+        entity_id, optional<std::string>(attribute),
+        [obj, callback, entity_id](StringRef state) { (obj->*callback)(entity_id, state); });
   }
 
   /** Subscribe to the state (or attribute state) of an entity from Home Assistant (legacy std::string version).
@@ -188,10 +193,12 @@ class CustomAPIDevice {
   ESPDEPRECATED("Use void callback(const std::string &, StringRef) instead. Will be removed in 2027.1.0.", "2026.1.0")
   void subscribe_homeassistant_state(void (T::*callback)(std::string, std::string), const std::string &entity_id,
                                      const std::string &attribute = "") {
-    auto f = std::bind(callback, (T *) this, entity_id, std::placeholders::_1);
+    auto *obj = static_cast<T *>(this);
     // Explicit type to disambiguate overload resolution
-    global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute),
-                                                      std::function<void(const std::string &)>(f));
+    global_api_server->subscribe_home_assistant_state(
+        entity_id, optional<std::string>(attribute),
+        std::function<void(const std::string &)>(
+            [obj, callback, entity_id](const std::string &state) { (obj->*callback)(entity_id, state); }));
   }
 #else
   template<typename T>

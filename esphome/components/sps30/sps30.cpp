@@ -2,8 +2,9 @@
 #include "esphome/core/log.h"
 #include "sps30.h"
 
-namespace esphome {
-namespace sps30 {
+#include <cinttypes>
+
+namespace esphome::sps30 {
 
 static const char *const TAG = "sps30";
 
@@ -105,7 +106,7 @@ void SPS30Component::dump_config() {
                 "  Firmware version v%0d.%0d",
                 this->serial_number_, this->raw_firmware_version_ >> 8, this->raw_firmware_version_ & 0xFF);
   if (this->idle_interval_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Idle interval: %us", this->idle_interval_.value() / 1000);
+    ESP_LOGCONFIG(TAG, "  Idle interval: %" PRIu32 "s", this->idle_interval_.value() / 1000);
   }
   LOG_SENSOR("  ", "PM1.0 Weight Concentration", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM2.5 Weight Concentration", this->pm_2_5_sensor_);
@@ -142,8 +143,8 @@ void SPS30Component::update() {
   // If its not time to take an action, do nothing.
   const uint32_t update_start_ms = millis();
   if (this->next_state_ != NONE && (int32_t) (this->next_state_ms_ - update_start_ms) > 0) {
-    ESP_LOGD(TAG, "Sensor waiting for %ums before transitioning to state %d.", (this->next_state_ms_ - update_start_ms),
-             this->next_state_);
+    ESP_LOGD(TAG, "Sensor waiting for %" PRIu32 "ms before transitioning to state %d.",
+             (this->next_state_ms_ - update_start_ms), this->next_state_);
     return;
   }
 
@@ -289,5 +290,4 @@ bool SPS30Component::start_fan_cleaning() {
   return true;
 }
 
-}  // namespace sps30
-}  // namespace esphome
+}  // namespace esphome::sps30

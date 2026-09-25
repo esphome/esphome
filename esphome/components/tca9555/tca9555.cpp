@@ -10,8 +10,7 @@ static const uint8_t TCA9555_POLARITY_REGISTER_1 = 0x05;
 static const uint8_t TCA9555_CONFIGURATION_PORT_0 = 0x06;
 static const uint8_t TCA9555_CONFIGURATION_PORT_1 = 0x07;
 
-namespace esphome {
-namespace tca9555 {
+namespace esphome::tca9555 {
 
 static const char *const TAG = "tca9555";
 
@@ -24,9 +23,18 @@ void TCA9555Component::setup() {
     this->mark_failed();
     return;
   }
+
+  if (this->interrupt_pin_ != nullptr) {
+    this->interrupt_pin_->setup();
+    this->interrupt_pin_->attach_interrupt(&TCA9555Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    this->set_invalidate_on_read_(false);
+  }
+  this->disable_loop();
 }
+void IRAM_ATTR TCA9555Component::gpio_intr(TCA9555Component *arg) { arg->enable_loop_soon_any_context(); }
 void TCA9555Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TCA9555:");
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -36,6 +44,9 @@ void TCA9555Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT) {
     // Set mode mask bit
     this->mode_mask_ |= 1 << pin;
+    if (this->interrupt_pin_ == nullptr) {
+      this->enable_loop();
+    }
   } else if (flags == gpio::FLAG_OUTPUT) {
     // Clear mode mask bit
     this->mode_mask_ &= ~(1 << pin);
@@ -43,7 +54,15 @@ void TCA9555Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   // Write GPIO to enable input mode
   this->write_gpio_modes_();
 }
-void TCA9555Component::loop() { this->reset_pin_cache_(); }
+void TCA9555Component::loop() {
+  this->reset_pin_cache_();
+  // Only disable the loop once INT has actually gone HIGH. Input transitions that straddle the
+  // I2C read leave INT asserted without re-firing a falling edge, which would strand us with
+  // stale state forever; keep looping until the line is released so we self-heal.
+  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
+    this->disable_loop();
+  }
+}
 
 bool TCA9555Component::read_gpio_outputs_() {
   if (this->is_failed())
@@ -142,5 +161,4 @@ size_t TCA9555GPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "%u via TCA9555", this->pin_);
 }
 
-}  // namespace tca9555
-}  // namespace esphome
+}  // namespace esphome::tca9555

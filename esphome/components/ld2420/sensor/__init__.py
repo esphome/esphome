@@ -5,8 +5,10 @@ from esphome.const import (
     CONF_ID,
     CONF_MOVING_DISTANCE,
     DEVICE_CLASS_DISTANCE,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CENTIMETER,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_LD2420_ID, LD2420Component, ld2420_ns
 
@@ -20,14 +22,16 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(LD2420Sensor),
             cv.GenerateID(CONF_LD2420_ID): cv.use_id(LD2420Component),
             cv.Optional(CONF_MOVING_DISTANCE): sensor.sensor_schema(
-                device_class=DEVICE_CLASS_DISTANCE, unit_of_measurement=UNIT_CENTIMETER
+                device_class=DEVICE_CLASS_DISTANCE,
+                unit_of_measurement=UNIT_CENTIMETER,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     ),
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     if CONF_MOVING_DISTANCE in config:

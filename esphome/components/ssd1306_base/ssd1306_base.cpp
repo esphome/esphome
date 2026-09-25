@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-namespace esphome {
-namespace ssd1306_base {
+namespace esphome::ssd1306_base {
 
 static const char *const TAG = "ssd1306";
 
@@ -376,5 +375,4 @@ const LogString *SSD1306::model_str_() {
   return ModelStrings::get_log_str(static_cast<uint8_t>(this->model_), ModelStrings::LAST_INDEX);
 }
 
-}  // namespace ssd1306_base
-}  // namespace esphome
+}  // namespace esphome::ssd1306_base

@@ -34,7 +34,9 @@ class Button : public EntityBase {
    *
    * @param callback The void() callback.
    */
-  void add_on_press_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_press_callback(F &&callback) {
+    this->press_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   /** You should implement this virtual method if you want to create your own button.

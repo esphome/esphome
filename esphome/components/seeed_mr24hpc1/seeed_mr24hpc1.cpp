@@ -5,8 +5,7 @@
 
 #include <utility>
 
-namespace esphome {
-namespace seeed_mr24hpc1 {
+namespace esphome::seeed_mr24hpc1 {
 
 static const char *const TAG = "seeed_mr24hpc1";
 
@@ -62,8 +61,6 @@ void MR24HPC1Component::dump_config() {
 
 // Initialisation functions
 void MR24HPC1Component::setup() {
-  this->check_uart_settings(115200);
-
 #ifdef USE_NUMBER
   if (this->custom_mode_number_ != nullptr) {
     this->custom_mode_number_->publish_state(0);  // Zero out the custom mode
@@ -1004,5 +1001,4 @@ void MR24HPC1Component::set_custom_unman_time(uint16_t value) {
   this->get_custom_unman_time();
 }
 
-}  // namespace seeed_mr24hpc1
-}  // namespace esphome
+}  // namespace esphome::seeed_mr24hpc1

@@ -3,8 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/light/addressable_light_effect.h"
 #ifdef USE_NETWORK
-namespace esphome {
-namespace e131 {
+
+namespace esphome::e131 {
 
 class E131Component;
 struct E131Packet;
@@ -40,6 +40,6 @@ class E131AddressableLightEffect : public light::AddressableLightEffect {
   friend class E131Component;
 };
 
-}  // namespace e131
-}  // namespace esphome
+}  // namespace esphome::e131
+
 #endif

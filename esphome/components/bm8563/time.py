@@ -3,6 +3,9 @@ import esphome.codegen as cg
 from esphome.components import i2c, time
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_ID
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -25,7 +28,7 @@ CONFIG_SCHEMA = (
 )
 
 
-@automation.register_action(
+automation.register_parented_action(
     "bm8563.write_time",
     WriteAction,
     automation.maybe_simple_id(
@@ -35,10 +38,6 @@ CONFIG_SCHEMA = (
     ),
     synchronous=True,
 )
-async def bm8563_write_time_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 @automation.register_action(
@@ -52,7 +51,12 @@ async def bm8563_write_time_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def bm8563_start_timer_to_code(config, action_id, template_arg, args):
+async def bm8563_start_timer_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_DURATION], args, cg.uint32)
@@ -60,7 +64,7 @@ async def bm8563_start_timer_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "bm8563.read_time",
     ReadAction,
     automation.maybe_simple_id(
@@ -70,13 +74,9 @@ async def bm8563_start_timer_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def bm8563_read_time_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

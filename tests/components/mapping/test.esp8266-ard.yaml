@@ -4,7 +4,7 @@ packages:
 
 display:
   spi_id: spi_bus
-  platform: ili9xxx
+  platform: mipi_spi
   id: main_lcd
   model: ili9342
   cs_pin: 5

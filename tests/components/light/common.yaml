@@ -68,6 +68,17 @@ esphome:
 
       - light.toggle: test_binary_light
       - light.turn_off: test_rgb_light
+      - if:
+          condition:
+            light.is_on: test_binary_light
+          then:
+            - logger.log: binary light is on
+      - if:
+          condition:
+            light.is_off:
+              id: test_rgb_light
+          then:
+            - logger.log: rgb light is off
       - light.turn_on:
           id: test_rgb_light
           brightness: 100%
@@ -77,6 +88,16 @@ esphome:
       - light.control:
           id: test_monochromatic_light
           state: on
+      # flash_length and a turn_off with its own transition
+      - light.turn_on:
+          id: test_rgb_light
+          flash_length: 750ms
+      - light.turn_on:
+          id: test_rgb_light
+          flash_length: !lambda return 250;
+      - light.turn_off:
+          id: test_rgb_light
+          transition_length: 300ms
       # Test static effect name resolution at codegen time
       - light.turn_on:
           id: test_monochromatic_light
@@ -103,11 +124,25 @@ esphome:
             - light.turn_on:
                 id: test_monochromatic_light
                 effect: !lambda 'return iteration > 1 ? "Strobe" : "none";'
+      # Cycle through configured effects (skip "None")
+      - light.effect.next: test_monochromatic_light
+      - light.effect.previous: test_monochromatic_light
+      # Cycle through effects including "None"
+      - light.effect.next:
+          id: test_monochromatic_light
+          include_none: true
+      - light.effect.previous:
+          id: test_monochromatic_light
+          include_none: true
       - light.dim_relative:
           id: test_monochromatic_light
           relative_brightness: 5%
           brightness_limits:
             max_brightness: 90%
+      - light.dim_relative:
+          id: test_monochromatic_light
+          relative_brightness: -5%
+          transition_length: 250ms
       - light.turn_on:
           id: test_addressable_transition
           brightness: 50%
@@ -123,11 +158,26 @@ esphome:
           blue: 0%
           transition_length: 1s
 
+# Exercise light actions inside a trigger with non-empty Ts (number on_value
+# passes float).
+number:
+  - platform: template
+    id: test_number_brightness
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+    on_value:
+      then:
+        - light.turn_on:
+            id: test_monochromatic_light
+            brightness: !lambda "return x / 100.0;"
+
 light:
   - platform: binary
     id: test_binary_light
     name: Binary Light
-    output: test_binary
+    output: light_test_binary
     effects:
       - strobe:
     on_state:
@@ -137,6 +187,7 @@ light:
     name: Monochromatic Light
     output: test_ledc_1
     gamma_correct: 2.8
+    transition_state_publish_interval: 200ms
     default_transition_length: 2s
     effects:
       - strobe:
@@ -153,6 +204,9 @@ light:
             state += 1;
             if (state == 4)
               state = 0;
+            if (initial_run) {
+              ESP_LOGD("custom_effect", "Effect %s started", it.get_name().c_str());
+            }
       - pulse:
           transition_length: 10s
           update_interval: 20s

@@ -1,8 +1,7 @@
 #include "display_menu_base.h"
 #include <algorithm>
 
-namespace esphome {
-namespace display_menu_base {
+namespace esphome::display_menu_base {
 
 void DisplayMenuComponent::up() {
   if (this->check_healthy_and_active_()) {
@@ -325,5 +324,4 @@ void DisplayMenuComponent::draw_menu() {
   }
 }
 
-}  // namespace display_menu_base
-}  // namespace esphome
+}  // namespace esphome::display_menu_base

@@ -20,7 +20,6 @@ RestoringGlobalsComponent = globals_ns.class_(
 RestoringGlobalStringComponent = globals_ns.class_(
     "RestoringGlobalStringComponent", cg.PollingComponent
 )
-GlobalVarSetAction = globals_ns.class_("GlobalVarSetAction", automation.Action)
 
 CONF_MAX_RESTORE_DATA_LENGTH = "max_restore_data_length"
 
@@ -62,7 +61,7 @@ CONFIG_SCHEMA = _globals_schema
 
 # Run with low priority so that namespaces are registered first
 @coroutine_with_priority(CoroPriority.LATE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     type_ = cg.RawExpression(config[CONF_TYPE])
     restore = config[CONF_RESTORE_VALUE]
 
@@ -93,23 +92,19 @@ async def to_code(config):
         cg.add(glob.set_name_hash(hash_))
 
 
-@automation.register_action(
+# A lambda returns the global's own type so `return 42;` reduces to a cast; the value
+# itself is raw C++ text.
+_VALUE_TYPE = "std::remove_reference_t<decltype({parent}->value())>"
+
+automation.register_apply_action(
     "globals.set",
-    GlobalVarSetAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(GlobalsComponent),
             cv.Required(CONF_VALUE): cv.templatable(cv.string_strict),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(
+        CONF_VALUE, "value() = {}", _VALUE_TYPE, const_fn=lambda _, value: value
+    ),
 )
-async def globals_set_to_code(config, action_id, template_arg, args):
-    full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
-    template_arg = cg.TemplateArguments(full_id.type, *template_arg)
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    templ = await cg.templatable(
-        config[CONF_VALUE], args, None, to_exp=cg.RawExpression
-    )
-    cg.add(var.set_value(templ))
-    return var

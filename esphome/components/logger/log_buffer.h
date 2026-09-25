@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -8,8 +9,8 @@ namespace esphome::logger {
 // Maximum header size: 35 bytes fixed + 32 bytes tag + 16 bytes thread name = 83 bytes (45 byte safety margin)
 static constexpr uint16_t MAX_HEADER_SIZE = 128;
 
-// ANSI color code last digit (30-38 range, store only last digit to save RAM)
-static constexpr char LOG_LEVEL_COLOR_DIGIT[] = {
+// ANSI color code last digit (30-38 range, store only last digit to save RAM on ESP8266)
+static const char LOG_LEVEL_COLOR_DIGIT[] PROGMEM = {
     '\0',  // NONE
     '1',   // ERROR (31 = red)
     '3',   // WARNING (33 = yellow)
@@ -20,7 +21,7 @@ static constexpr char LOG_LEVEL_COLOR_DIGIT[] = {
     '8',   // VERY_VERBOSE (38 = white)
 };
 
-static constexpr char LOG_LEVEL_LETTER_CHARS[] = {
+static const char LOG_LEVEL_LETTER_CHARS[] PROGMEM = {
     '\0',  // NONE
     'E',   // ERROR
     'W',   // WARNING
@@ -64,7 +65,7 @@ struct LogBuffer {
         *p++ = 'V';  // VERY_VERBOSE = "VV"
         *p++ = 'V';
       } else {
-        *p++ = LOG_LEVEL_LETTER_CHARS[level];
+        *p++ = static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(&LOG_LEVEL_LETTER_CHARS[level])));
       }
     }
     *p++ = ']';
@@ -104,9 +105,9 @@ struct LogBuffer {
     this->format_vsnprintf_(format, args);
     this->finalize_();
   }
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  void HOT format_body_P(PGM_P format, va_list args) {
-    this->format_vsnprintf_P_(format, args);
+#ifdef USE_ESP8266
+  void HOT format_body_p(PGM_P format, va_list args) {
+    this->format_vsnprintf_p_(format, args);
     this->finalize_();
   }
 #endif
@@ -157,8 +158,8 @@ struct LogBuffer {
       return;
     this->process_vsnprintf_result_(vsnprintf(this->current_(), this->remaining_(), format, args));
   }
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  void format_vsnprintf_P_(PGM_P format, va_list args) {
+#ifdef USE_ESP8266
+  void format_vsnprintf_p_(PGM_P format, va_list args) {
     if (this->full_())
       return;
     this->process_vsnprintf_result_(vsnprintf_P(this->current_(), this->remaining_(), format, args));
@@ -184,7 +185,7 @@ struct LogBuffer {
     *p++ = (level == 1) ? '1' : '0';  // Only ERROR is bold
     *p++ = ';';
     *p++ = '3';
-    *p++ = LOG_LEVEL_COLOR_DIGIT[level];
+    *p++ = static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(&LOG_LEVEL_COLOR_DIGIT[level])));
     *p++ = 'm';
   }
   // Copy string without null terminator, updates pointer in place

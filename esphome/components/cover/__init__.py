@@ -1,7 +1,7 @@
 import logging
 
 from esphome import automation
-from esphome.automation import Condition, maybe_simple_id
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
@@ -36,14 +36,15 @@ from esphome.const import (
     DEVICE_CLASS_SHUTTER,
     DEVICE_CLASS_WINDOW,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
 )
 from esphome.cpp_generator import MockObj, MockObjClass
-from esphome.types import ConfigType, TemplateArgsType
+from esphome.types import ConfigType, SafeExpType
 
 IS_PLATFORM_COMPONENT = True
 
@@ -86,14 +87,6 @@ COVER_OPERATIONS = {
 validate_cover_operation = cv.enum(COVER_OPERATIONS, upper=True)
 
 # Actions
-OpenAction = cover_ns.class_("OpenAction", automation.Action)
-CloseAction = cover_ns.class_("CloseAction", automation.Action)
-StopAction = cover_ns.class_("StopAction", automation.Action)
-ToggleAction = cover_ns.class_("ToggleAction", automation.Action)
-ControlAction = cover_ns.class_("ControlAction", automation.Action)
-CoverPublishAction = cover_ns.class_("CoverPublishAction", automation.Action)
-CoverIsOpenCondition = cover_ns.class_("CoverIsOpenCondition", Condition)
-CoverIsClosedCondition = cover_ns.class_("CoverIsClosedCondition", Condition)
 CoverOpenedTrigger = cover_ns.class_(
     "CoverOpenedTrigger", automation.Trigger.template()
 )
@@ -127,7 +120,9 @@ _COVER_SCHEMA = (
             cv.Optional(CONF_MQTT_JSON_STATE_PAYLOAD): cv.All(
                 cv.requires_component("mqtt"), cv.boolean
             ),
-            cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): cv.one_of(*DEVICE_CLASSES, lower=True),
             cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.subscribe_topic
             ),
@@ -156,7 +151,7 @@ _COVER_SCHEMA = (
 _COVER_SCHEMA.add_extra(entity_duplicate_validator("cover"))
 
 
-def _validate_mqtt_state_topics(config):
+def _validate_mqtt_state_topics(config: ConfigType) -> ConfigType:
     if config.get(CONF_MQTT_JSON_STATE_PAYLOAD):
         if CONF_POSITION_STATE_TOPIC in config:
             raise cv.Invalid(
@@ -195,7 +190,7 @@ def cover_schema(
 
 
 @setup_entity("cover")
-async def setup_cover_core_(var, config):
+async def setup_cover_core_(var: MockObj, config: ConfigType) -> None:
     setup_device_class(config)
 
     if CONF_ON_OPEN in config:
@@ -229,15 +224,15 @@ async def setup_cover_core_(var, config):
         await web_server.add_entity_config(var, web_server_config)
 
 
-async def register_cover(var, config):
+async def register_cover(var: MockObj, config: ConfigType) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_cover(var))
+    queue_entity_register("cover", config)
     CORE.register_platform_component("cover", var)
     await setup_cover_core_(var, config)
 
 
-async def new_cover(config, *args):
+async def new_cover(config: ConfigType, *args: SafeExpType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_cover(var, config)
     return var
@@ -250,36 +245,15 @@ COVER_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "cover.open", OpenAction, COVER_ACTION_SCHEMA, synchronous=True
-)
-async def cover_open_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "cover.close", CloseAction, COVER_ACTION_SCHEMA, synchronous=True
-)
-async def cover_close_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "cover.stop", StopAction, COVER_ACTION_SCHEMA, synchronous=True
-)
-async def cover_stop_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "cover.toggle", ToggleAction, COVER_ACTION_SCHEMA, synchronous=True
-)
-async def cover_toggle_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+for _name, _command in (
+    ("cover.open", "set_command_open()"),
+    ("cover.close", "set_command_close()"),
+    ("cover.stop", "set_command_stop()"),
+    ("cover.toggle", "set_command_toggle()"),
+):
+    automation.register_apply_action(
+        _name, COVER_ACTION_SCHEMA, automation.ApplyCall(_command), call="make_call"
+    )
 
 
 COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
@@ -293,25 +267,17 @@ COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
-    "cover.control", ControlAction, COVER_CONTROL_ACTION_SCHEMA, synchronous=True
+# CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
+# one is present and both dispatch to set_position.
+automation.register_apply_action(
+    "cover.control",
+    COVER_CONTROL_ACTION_SCHEMA,
+    automation.ApplyField(CONF_STOP, "set_stop", cg.bool_),
+    automation.ApplyField(CONF_STATE, "set_position", cg.float_),
+    automation.ApplyField(CONF_POSITION, "set_position", cg.float_),
+    automation.ApplyField(CONF_TILT, "set_tilt", cg.float_),
+    call="make_call",
 )
-async def cover_control_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if (stop := config.get(CONF_STOP)) is not None:
-        template_ = await cg.templatable(stop, args, bool)
-        cg.add(var.set_stop(template_))
-    if (state := config.get(CONF_STATE)) is not None:
-        template_ = await cg.templatable(state, args, float)
-        cg.add(var.set_position(template_))
-    if (position := config.get(CONF_POSITION)) is not None:
-        template_ = await cg.templatable(position, args, float)
-        cg.add(var.set_position(template_))
-    if (tilt := config.get(CONF_TILT)) is not None:
-        template_ = await cg.templatable(tilt, args, float)
-        cg.add(var.set_tilt(template_))
-    return var
 
 
 COVER_CONDITION_SCHEMA = cv.maybe_simple_value(
@@ -319,21 +285,14 @@ COVER_CONDITION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-async def cover_condition_to_code(
-    config: ConfigType, condition_id: ID, template_arg: MockObj, args: TemplateArgsType
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
-
-
-automation.register_condition(
-    "cover.is_open", CoverIsOpenCondition, COVER_CONDITION_SCHEMA
-)(cover_condition_to_code)
-automation.register_condition(
-    "cover.is_closed", CoverIsClosedCondition, COVER_CONDITION_SCHEMA
-)(cover_condition_to_code)
+automation.register_apply_condition(
+    "cover.is_open", COVER_CONDITION_SCHEMA, f"position == {COVER_OPEN}"
+)
+automation.register_apply_condition(
+    "cover.is_closed", COVER_CONDITION_SCHEMA, f"position == {COVER_CLOSED}"
+)
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(cover_ns.using)

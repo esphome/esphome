@@ -2,12 +2,16 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp23xxx_base {
+namespace esphome::mcp23xxx_base {
 
 template<uint8_t N> void MCP23XXXGPIOPin<N>::setup() {
   this->pin_mode(flags_);
-  this->parent_->pin_interrupt_mode(this->pin_, this->interrupt_mode_);
+  // When interrupt_pin is configured, pin_mode() already auto-enables CHANGE
+  // interrupt for input pins, so skip the explicit call if the user didn't
+  // override the default (NO_INTERRUPT)
+  if (this->interrupt_mode_ != MCP23XXX_NO_INTERRUPT || this->parent_->get_interrupt_pin() == nullptr) {
+    this->parent_->pin_interrupt_mode(this->pin_, this->interrupt_mode_);
+  }
 }
 template<uint8_t N> void MCP23XXXGPIOPin<N>::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 template<uint8_t N> bool MCP23XXXGPIOPin<N>::digital_read() {
@@ -23,5 +27,4 @@ template<uint8_t N> size_t MCP23XXXGPIOPin<N>::dump_summary(char *buffer, size_t
 template class MCP23XXXGPIOPin<8>;
 template class MCP23XXXGPIOPin<16>;
 
-}  // namespace mcp23xxx_base
-}  // namespace esphome
+}  // namespace esphome::mcp23xxx_base

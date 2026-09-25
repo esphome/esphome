@@ -3,32 +3,24 @@
 #include <list>
 #include <memory>
 #include <tuple>
+#include "esphome/core/application.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-namespace esphome {
-namespace script {
+#include "esphome/core/progmem.h"
+
+namespace esphome::script {
 
 class ScriptLogger {
  protected:
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  void esp_logw_(int line, const __FlashStringHelper *format, const char *param) {
+  void esp_logw_(int line, ProgmemStr format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
   }
-  void esp_logd_(int line, const __FlashStringHelper *format, const char *param) {
+  void esp_logd_(int line, ProgmemStr format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
   }
-  void esp_log_(int level, int line, const __FlashStringHelper *format, const char *param);
-#else
-  void esp_logw_(int line, const char *format, const char *param) {
-    esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
-  }
-  void esp_logd_(int line, const char *format, const char *param) {
-    esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
-  }
-  void esp_log_(int level, int line, const char *format, const char *param);
-#endif
+  void esp_log_(int level, int line, ProgmemStr format, const char *param);
 };
 
 /// The abstract base class for all script types.
@@ -57,6 +49,14 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
     this->execute(std::get<S>(tuple)...);
   }
 
+  // Run the action chain with this script's name published as the current source (RAII save/restore,
+  // so nesting composes), so deferred work inside the script is attributed to it in blocking
+  // warnings. Force-inlined to fold into the always-inlined trigger chain (no extra stack frame).
+  inline void run_actions_(const Ts &...x) ESPHOME_ALWAYS_INLINE {
+    ScopedSourceGuard source_guard{this->name_};
+    this->trigger(x...);
+  }
+
   const LogString *name_{nullptr};
 };
 
@@ -74,7 +74,7 @@ template<typename... Ts> class SingleScript : public Script<Ts...> {
       return;
     }
 
-    this->trigger(x...);
+    this->run_actions_(x...);
   }
 };
 
@@ -91,7 +91,7 @@ template<typename... Ts> class RestartScript : public Script<Ts...> {
       this->stop_action();
     }
 
-    this->trigger(x...);
+    this->run_actions_(x...);
   }
 };
 
@@ -133,10 +133,13 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
       // Use std::make_unique to replace the unique_ptr
       this->var_queue_[write_pos] = std::make_unique<std::tuple<Ts...>>(x...);
       this->num_queued_++;
+      // Enable loop now that there is something to dequeue - don't call loop()
+      // synchronously! Let the event loop call it to avoid reentrancy issues
+      this->enable_loop();
       return;
     }
 
-    this->trigger(x...);
+    this->run_actions_(x...);
     // Check if the trigger was immediate and we can continue right away.
     this->loop();
   }
@@ -159,6 +162,15 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
       this->queue_front_ = (this->queue_front_ + 1) % queue_capacity;
       this->trigger_tuple_(*tuple_ptr, std::make_index_sequence<sizeof...(Ts)>{});
     }
+    if (this->num_queued_ == 0 && !this->is_idle()) {
+      // Queue is now empty - disable loop until the next execute() queues an
+      // instance. The inline is_idle() check skips the out-of-line call when
+      // the loop is already disabled (execute() calls loop() synchronously).
+      // This can run before this component's setup() (execute() from on_boot),
+      // which leaves the state machine in LOOP_DONE and skips call_setup();
+      // this class therefore must not rely on a setup() override.
+      this->disable_loop();
+    }
   }
 
   void set_max_runs(int max_runs) { max_runs_ = max_runs; }
@@ -175,7 +187,7 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   }
 
   template<size_t... S> void trigger_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
-    this->trigger(std::get<S>(tuple)...);
+    this->run_actions_(std::get<S>(tuple)...);
   }
 
   int num_queued_ = 0;      // Number of queued instances (not including currently running)
@@ -197,7 +209,7 @@ template<typename... Ts> class ParallelScript : public Script<Ts...> {
                       LOG_STR_ARG(this->name_));
       return;
     }
-    this->trigger(x...);
+    this->run_actions_(x...);
   }
   void set_max_runs(int max_runs) { max_runs_ = max_runs; }
 
@@ -207,11 +219,11 @@ template<typename... Ts> class ParallelScript : public Script<Ts...> {
 
 template<class S, typename... Ts> class ScriptExecuteAction;
 
-template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, Ts...> : public Action<Ts...> {
+template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, Ts...> final : public Action<Ts...> {
  public:
   ScriptExecuteAction(Script<As...> *script) : script_(script) {}
 
-  using Args = std::tuple<TemplatableValue<As, Ts...>...>;
+  using Args = std::tuple<TemplatableFn<As, Ts...>...>;
 
   template<typename... F> void set_args(F... x) { args_ = Args{x...}; }
 
@@ -245,26 +257,6 @@ template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, T
   Args args_;
 };
 
-template<class C, typename... Ts> class ScriptStopAction : public Action<Ts...> {
- public:
-  ScriptStopAction(C *script) : script_(script) {}
-
-  void play(const Ts &...x) override { this->script_->stop(); }
-
- protected:
-  C *script_;
-};
-
-template<class C, typename... Ts> class IsRunningCondition : public Condition<Ts...> {
- public:
-  explicit IsRunningCondition(C *parent) : parent_(parent) {}
-
-  bool check(const Ts &...x) override { return this->parent_->is_running(); }
-
- protected:
-  C *parent_;
-};
-
 /** Wait for a script to finish before continuing.
  *
  * Uses queue-based storage to safely handle concurrent executions.
@@ -272,7 +264,7 @@ template<class C, typename... Ts> class IsRunningCondition : public Condition<Ts
  * (e.g., rapid button presses, high-frequency sensor updates), so we use
  * queue-based storage for correctness.
  */
-template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>, public Component {
+template<class C, typename... Ts> class ScriptWaitAction final : public Action<Ts...>, public Component {
  public:
   ScriptWaitAction(C *script) : script_(script) {}
 
@@ -338,5 +330,4 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
   std::list<std::tuple<Ts...>> param_queue_;
 };
 
-}  // namespace script
-}  // namespace esphome
+}  // namespace esphome::script

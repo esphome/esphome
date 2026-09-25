@@ -1,0 +1,36 @@
+esphome:
+  name: test-script-array-params
+
+host:
+
+api:
+  actions:
+    - action: run_array_script
+      then:
+        - script.execute:
+            id: array_script
+            ints: [42, 100]
+            floats: [1.5, 2.5]
+            bools: [true, false]
+            strings: ["hello", "world"]
+
+logger:
+  level: DEBUG
+
+script:
+  - id: array_script
+    parameters:
+      ints: int[]
+      floats: float[]
+      bools: bool[]
+      strings: string[]
+    then:
+      - lambda: |-
+          ESP_LOGI("test", "ints size=%u [0]=%d [1]=%d",
+                   (unsigned) ints.size(), ints[0], ints[1]);
+          ESP_LOGI("test", "floats size=%u [0]=%.2f [1]=%.2f",
+                   (unsigned) floats.size(), floats[0], floats[1]);
+          ESP_LOGI("test", "bools size=%u [0]=%d [1]=%d",
+                   (unsigned) bools.size(), (int) bools[0], (int) bools[1]);
+          ESP_LOGI("test", "strings size=%u [0]=%s [1]=%s",
+                   (unsigned) strings.size(), strings[0].c_str(), strings[1].c_str());

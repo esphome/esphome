@@ -22,6 +22,10 @@ namespace esphome {
  * pointer.  When it is default constructed, it has empty string.  You can freely copy or move around this struct, but
  * never free its pointer.  str() function can be used to export the content as std::string. StringRef is adopted from
  * <https://github.com/nghttp2/nghttp2/blob/29cbf8b83ff78faf405d1086b16adc09a8772eca/src/template.h#L376>
+ *
+ * A StringRef may carry a null pointer while its length is zero (the generated api messages start their encode only
+ * string fields that way). Every member treats that as the empty string: the iterators form an empty range, and
+ * c_str() and byte() return the null pointer, so callers that print or copy through those must check empty() first.
  */
 class StringRef {
  public:
@@ -76,14 +80,31 @@ class StringRef {
   constexpr bool empty() const { return len_ == 0; }
   constexpr const_reference operator[](size_type pos) const { return *(base_ + pos); }
 
-  std::string str() const { return std::string(base_, len_); }
+  /// True if the view begins with the given prefix (std::string::starts_with-like)
+  bool starts_with(const StringRef &prefix) const {
+    return len_ >= prefix.len_ && (prefix.len_ == 0 || std::memcmp(base_, prefix.base_, prefix.len_) == 0);
+  }
+  bool starts_with(const char *prefix) const { return this->starts_with(StringRef(prefix)); }
+  bool starts_with(const std::string &prefix) const { return this->starts_with(StringRef(prefix)); }
+
+  /// Copy characters to destination buffer (std::string::copy-like, but returns 0 instead of throwing on out-of-range)
+  size_type copy(char *dest, size_type count, size_type pos = 0) const {
+    if (pos >= len_)
+      return 0;
+    size_type actual = (count > len_ - pos) ? len_ - pos : count;
+    std::memcpy(dest, base_ + pos, actual);
+    return actual;
+  }
+
+  std::string str() const { return std::string(base_, len_); }  // fine for {nullptr, 0}: nothing is read
   const uint8_t *byte() const { return reinterpret_cast<const uint8_t *>(base_); }
 
   operator std::string() const { return str(); }
 
   /// Compare (compatible with std::string::compare)
   int compare(const StringRef &other) const {
-    int result = std::memcmp(base_, other.base_, std::min(len_, other.len_));
+    size_type common = std::min(len_, other.len_);
+    int result = common == 0 ? 0 : std::memcmp(base_, other.base_, common);
     if (result != 0)
       return result;
     if (len_ < other.len_)
@@ -206,6 +227,11 @@ inline std::string operator+(const std::string &lhs, const StringRef &rhs) {
 namespace internal {
 // NOLINTBEGIN(google-runtime-int)
 template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, F conv) {
+  if (str.empty()) {  // nothing to parse, and a null view must not reach the C library
+    if (pos)
+      *pos = 0;
+    return R{};
+  }
   char *end;
   R result = conv(str.c_str(), &end);
   // Set pos to 0 on conversion failure (when no characters consumed), otherwise index after number
@@ -214,6 +240,11 @@ template<typename R, typename F> inline R parse_number(const StringRef &str, siz
   return result;
 }
 template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, int base, F conv) {
+  if (str.empty()) {  // nothing to parse, and a null view must not reach the C library
+    if (pos)
+      *pos = 0;
+    return R{};
+  }
   char *end;
   R result = conv(str.c_str(), &end, base);
   // Set pos to 0 on conversion failure (when no characters consumed), otherwise index after number
@@ -223,7 +254,9 @@ template<typename R, typename F> inline R parse_number(const StringRef &str, siz
 }
 // NOLINTEND(google-runtime-int)
 }  // namespace internal
-// NOLINTBEGIN(readability-identifier-naming,google-runtime-int)
+// readability-non-const-parameter: `pos` is written through by internal::parse_number, one call
+// frame away; the check only inspects these bodies, so it wrongly proposes `const size_t *`.
+// NOLINTBEGIN(readability-identifier-naming,google-runtime-int,readability-non-const-parameter)
 inline int stoi(const StringRef &str, size_t *pos = nullptr, int base = 10) {
   return static_cast<int>(internal::parse_number<long>(str, pos, base, std::strtol));
 }
@@ -236,11 +269,18 @@ inline float stof(const StringRef &str, size_t *pos = nullptr) {
 inline double stod(const StringRef &str, size_t *pos = nullptr) {
   return internal::parse_number<double>(str, pos, std::strtod);
 }
-// NOLINTEND(readability-identifier-naming,google-runtime-int)
+// NOLINTEND(readability-identifier-naming,google-runtime-int,readability-non-const-parameter)
 
 #ifdef USE_JSON
 // NOLINTNEXTLINE(readability-identifier-naming)
-inline void convertToJson(const StringRef &src, JsonVariant dst) { dst.set(src.c_str()); }
+inline void convertToJson(const StringRef &src, JsonVariant dst) {
+  // Bounded by the view length; a null, empty view becomes "" rather than JSON null
+  if (src.empty()) {
+    dst.set("");
+    return;
+  }
+  dst.set(JsonString(src.c_str(), src.size()));
+}
 #endif  // USE_JSON
 
 }  // namespace esphome

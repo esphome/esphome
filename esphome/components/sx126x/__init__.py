@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
@@ -5,6 +7,8 @@ from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET
 import esphome.config_validation as cv
 from esphome.const import CONF_BUSY_PIN, CONF_DATA, CONF_FREQUENCY, CONF_ID
 from esphome.core import ID, TimePeriod
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType, TemplateArgsType
 
 MULTI_CONF = True
 CODEOWNERS = ["@swoboda1337"]
@@ -15,6 +19,7 @@ CONF_SX126X_ID = "sx126x_id"
 CONF_BANDWIDTH = "bandwidth"
 CONF_BITRATE = "bitrate"
 CONF_CODING_RATE = "coding_rate"
+CONF_COLD = "cold"
 CONF_CRC_INVERTED = "crc_inverted"
 CONF_CRC_SIZE = "crc_size"
 CONF_CRC_POLYNOMIAL = "crc_polynomial"
@@ -36,6 +41,8 @@ CONF_SPREADING_FACTOR = "spreading_factor"
 CONF_SYNC_VALUE = "sync_value"
 CONF_TCXO_VOLTAGE = "tcxo_voltage"
 CONF_TCXO_DELAY = "tcxo_delay"
+CONF_WHITENING_ENABLE = "whitening_enable"
+CONF_WHITENING_INITIAL = "whitening_initial"
 
 sx126x_ns = cg.esphome_ns.namespace("sx126x")
 SX126x = sx126x_ns.class_("SX126x", cg.Component, spi.SPIDevice)
@@ -124,27 +131,12 @@ SHAPING = {
     "NONE": SX126xPulseShape.NO_FILTER,
 }
 
-RunImageCalAction = sx126x_ns.class_(
-    "RunImageCalAction", automation.Action, cg.Parented.template(SX126x)
-)
 SendPacketAction = sx126x_ns.class_(
     "SendPacketAction", automation.Action, cg.Parented.template(SX126x)
 )
-SetModeTxAction = sx126x_ns.class_(
-    "SetModeTxAction", automation.Action, cg.Parented.template(SX126x)
-)
-SetModeRxAction = sx126x_ns.class_(
-    "SetModeRxAction", automation.Action, cg.Parented.template(SX126x)
-)
-SetModeSleepAction = sx126x_ns.class_(
-    "SetModeSleepAction", automation.Action, cg.Parented.template(SX126x)
-)
-SetModeStandbyAction = sx126x_ns.class_(
-    "SetModeStandbyAction", automation.Action, cg.Parented.template(SX126x)
-)
 
 
-def validate_raw_data(value):
+def validate_raw_data(value: Any) -> bytes | list[int]:
     if isinstance(value, str):
         return value.encode("utf-8")
     if isinstance(value, list):
@@ -154,7 +146,7 @@ def validate_raw_data(value):
     )
 
 
-def validate_config(config):
+def validate_config(config: ConfigType) -> ConfigType:
     lora_bws = [
         "7_8kHz",
         "10_4kHz",
@@ -200,11 +192,11 @@ CONFIG_SCHEMA = (
                 cv.hex_int, cv.Range(min=0, max=0xFFFF)
             ),
             cv.Optional(CONF_DEVIATION, default="5kHz"): cv.All(
-                cv.frequency, cv.float_range(min=0, max=100000)
+                cv.frequency, cv.int_range(min=0, max=100000)
             ),
             cv.Required(CONF_DIO1_PIN): pins.gpio_input_pin_schema,
             cv.Required(CONF_FREQUENCY): cv.All(
-                cv.frequency, cv.float_range(min=137.0e6, max=1020.0e6)
+                cv.frequency, cv.int_range(min=int(137e6), max=int(1020e6))
             ),
             cv.Required(CONF_HW_VERSION): cv.one_of(
                 "sx1261", "sx1262", "sx1268", "llcc68", lower=True
@@ -227,6 +219,10 @@ CONFIG_SCHEMA = (
                 cv.positive_time_period_microseconds,
                 cv.Range(max=TimePeriod(microseconds=262144000)),
             ),
+            cv.Optional(CONF_WHITENING_ENABLE, default=False): cv.boolean,
+            cv.Optional(CONF_WHITENING_INITIAL, default=0x0100): cv.All(
+                cv.hex_int, cv.Range(min=0, max=0x1FF)
+            ),
         },
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -235,7 +231,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
@@ -280,6 +276,8 @@ async def to_code(config):
     cg.add(var.set_rf_switch(config[CONF_RF_SWITCH]))
     cg.add(var.set_tcxo_voltage(config[CONF_TCXO_VOLTAGE]))
     cg.add(var.set_tcxo_delay(config[CONF_TCXO_DELAY]))
+    cg.add(var.set_whitening_enable(config[CONF_WHITENING_ENABLE]))
+    cg.add(var.set_whitening_initial(config[CONF_WHITENING_INITIAL]))
 
 
 NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(
@@ -289,40 +287,28 @@ NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "sx126x.run_image_cal",
-    RunImageCalAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
+for _name, _call in (
+    ("sx126x.run_image_cal", "run_image_cal()"),
+    ("sx126x.set_mode_tx", "set_mode_tx()"),
+    ("sx126x.set_mode_rx", "set_mode_rx()"),
+    ("sx126x.set_mode_standby", "set_mode_standby(sx126x::STDBY_XOSC)"),
+):
+    automation.register_apply_action(
+        _name, NO_ARGS_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
+
+SET_MODE_SLEEP_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(SX126x),
+        cv.Optional(CONF_COLD, default=False): cv.templatable(cv.boolean),
+    }
 )
-@automation.register_action(
-    "sx126x.set_mode_tx",
-    SetModeTxAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "sx126x.set_mode_rx",
-    SetModeRxAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
+
+automation.register_apply_action(
     "sx126x.set_mode_sleep",
-    SetModeSleepAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
+    SET_MODE_SLEEP_ACTION_SCHEMA,
+    automation.ApplyField(CONF_COLD, "set_mode_sleep", cg.bool_),
 )
-@automation.register_action(
-    "sx126x.set_mode_standby",
-    SetModeStandbyAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def no_args_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
@@ -340,7 +326,12 @@ SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
     SEND_PACKET_ACTION_SCHEMA,
     synchronous=True,
 )
-async def send_packet_action_to_code(config, action_id, template_arg, args):
+async def send_packet_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     data = config[CONF_DATA]

@@ -1,5 +1,8 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_TIME_TRIGGERS
+
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/time.h"
@@ -10,7 +13,7 @@
 
 namespace esphome::time {
 
-class CronTrigger : public Trigger<>, public Component {
+class CronTrigger final : public Trigger<>, public Component {
  public:
   explicit CronTrigger(RealTimeClock *rtc);
   void add_second(uint8_t second);
@@ -26,10 +29,11 @@ class CronTrigger : public Trigger<>, public Component {
   void add_day_of_week(uint8_t day_of_week);
   void add_days_of_week(const std::vector<uint8_t> &days_of_week);
   bool matches(const ESPTime &time);
-  void loop() override;
+  void setup() override;
   float get_setup_priority() const override;
 
  protected:
+  void check_time_();
   std::bitset<61> seconds_;
   std::bitset<60> minutes_;
   std::bitset<24> hours_;
@@ -40,7 +44,7 @@ class CronTrigger : public Trigger<>, public Component {
   optional<ESPTime> last_check_;
 };
 
-class SyncTrigger : public Trigger<>, public Component {
+class SyncTrigger final : public Trigger<>, public Component {
  public:
   explicit SyncTrigger(RealTimeClock *rtc);
 
@@ -48,3 +52,5 @@ class SyncTrigger : public Trigger<>, public Component {
   RealTimeClock *rtc_;
 };
 }  // namespace esphome::time
+
+#endif  // USE_TIME_TRIGGERS

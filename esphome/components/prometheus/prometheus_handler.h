@@ -1,21 +1,21 @@
 #pragma once
 #include "esphome/core/defines.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
 #include <map>
 #include <utility>
 
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/component.h"
-#include "esphome/core/controller.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/entity_includes.h"
+#include "esphome/core/progmem.h"
 #ifdef USE_CLIMATE
 #include "esphome/core/log.h"
 #endif
 
-namespace esphome {
-namespace prometheus {
+namespace esphome::prometheus {
 
-class PrometheusHandler : public AsyncWebHandler, public Component {
+class PrometheusHandler final : public AsyncWebHandler, public Component {
  public:
   PrometheusHandler(web_server_base::WebServerBase *base) : base_(base) {}
 
@@ -69,13 +69,8 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   void add_node_label_(AsyncResponseStream *stream, std::string &node);
   void add_friendly_name_label_(AsyncResponseStream *stream, std::string &friendly_name);
   /// Print metric name and common labels (id, area, node, friendly_name, name)
-#ifdef USE_ESP8266
-  void print_metric_labels_(AsyncResponseStream *stream, const __FlashStringHelper *metric_name, EntityBase *obj,
-                            std::string &area, std::string &node, std::string &friendly_name);
-#else
-  void print_metric_labels_(AsyncResponseStream *stream, const char *metric_name, EntityBase *obj, std::string &area,
+  void print_metric_labels_(AsyncResponseStream *stream, ProgmemStr metric_name, EntityBase *obj, std::string &area,
                             std::string &node, std::string &friendly_name);
-#endif
 
 #ifdef USE_SENSOR
   /// Return the type for prometheus
@@ -218,6 +213,6 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   std::map<EntityBase *, std::string> relabel_map_name_;
 };
 
-}  // namespace prometheus
-}  // namespace esphome
-#endif
+}  // namespace esphome::prometheus
+
+#endif  // USE_NETWORK && !USE_ZEPHYR

@@ -28,9 +28,9 @@ class ESP8266SoftwareSerial {
  protected:
   static void gpio_intr(ESP8266SoftwareSerial *arg);
 
-  void wait_(uint32_t *wait, const uint32_t &start);
-  bool read_bit_(uint32_t *wait, const uint32_t &start);
-  void write_bit_(bool bit, uint32_t *wait, const uint32_t &start);
+  void wait_(uint32_t *wait, const uint32_t &start, uint32_t bit_time);
+  bool read_bit_(uint32_t *wait, const uint32_t &start, uint32_t bit_time);
+  void write_bit_(bool bit, uint32_t *wait, const uint32_t &start, uint32_t bit_time);
 
   uint32_t bit_time_{0};
   uint8_t *rx_buffer_{nullptr};
@@ -46,7 +46,7 @@ class ESP8266SoftwareSerial {
   ISRInternalGPIOPin rx_pin_;
 };
 
-class ESP8266UartComponent : public UARTComponent, public Component {
+class ESP8266UartComponent final : public UARTComponent, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -58,7 +58,7 @@ class ESP8266UartComponent : public UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
 
   size_t available() override;
-  FlushResult flush() override;
+  UARTFlushResult flush() override;
 
   uint32_t get_config();
 
@@ -75,7 +75,7 @@ class ESP8266UartComponent : public UARTComponent, public Component {
    * This will load the current UART interface with the latest settings (baud_rate, parity, etc).
    */
   void load_settings(bool dump_config) override;
-  void load_settings() override { this->load_settings(true); }
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
 
  protected:
   void check_logger_conflict() override;

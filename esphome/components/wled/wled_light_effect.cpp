@@ -13,12 +13,11 @@
 #include <WiFiUdp.h>
 #endif
 
-#ifdef USE_BK72XX
+#ifdef USE_LIBRETINY
 #include <WiFiUdp.h>
 #endif
 
-namespace esphome {
-namespace wled {
+namespace esphome::wled {
 
 // Description of protocols:
 // https://github.com/Aircoookie/WLED/wiki/UDP-Realtime-Control
@@ -284,7 +283,6 @@ bool WLEDLightEffect::parse_dnrgb_frame_(light::AddressableLight &it, const uint
   return true;
 }
 
-}  // namespace wled
-}  // namespace esphome
+}  // namespace esphome::wled
 
 #endif  // USE_ARDUINO

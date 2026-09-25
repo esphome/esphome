@@ -70,7 +70,7 @@ void UptimeTextSensor::update() {
   if (show_seconds)
     append_unit(buf, sizeof(buf), pos, this->separator_, seconds, this->seconds_text_);
 
-  this->publish_state(buf);
+  this->publish_state(buf, pos);
 }
 
 float UptimeTextSensor::get_setup_priority() const { return setup_priority::HARDWARE; }

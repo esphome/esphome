@@ -1,7 +1,11 @@
 packages:
-  spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
+  i2c: !include ../../test_build_components/common/i2c/esp32-s3-idf.yaml
 
 psram:
   mode: octal
 
-<<: !include common.yaml
+ch422g:
+
+display:
+  - platform: mipi_rgb
+    model: WAVESHARE-5-1024X600

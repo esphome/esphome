@@ -1,5 +1,5 @@
 from esphome import automation
-from esphome.automation import Condition, maybe_simple_id
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
@@ -24,6 +24,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
 )
@@ -61,14 +62,7 @@ VALVE_OPERATIONS = {
 validate_valve_operation = cv.enum(VALVE_OPERATIONS, upper=True)
 
 # Actions
-OpenAction = valve_ns.class_("OpenAction", automation.Action)
-CloseAction = valve_ns.class_("CloseAction", automation.Action)
-StopAction = valve_ns.class_("StopAction", automation.Action)
-ToggleAction = valve_ns.class_("ToggleAction", automation.Action)
-ControlAction = valve_ns.class_("ControlAction", automation.Action)
 ValvePublishAction = valve_ns.class_("ValvePublishAction", automation.Action)
-ValveIsOpenCondition = valve_ns.class_("ValveIsOpenCondition", Condition)
-ValveIsClosedCondition = valve_ns.class_("ValveIsClosedCondition", Condition)
 
 # Triggers
 ValveOpenTrigger = valve_ns.class_("ValveOpenTrigger", automation.Trigger.template())
@@ -85,7 +79,9 @@ _VALVE_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(Valve),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTValveComponent),
-            cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): cv.one_of(*DEVICE_CLASSES, lower=True),
             cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.subscribe_topic
             ),
@@ -162,7 +158,7 @@ async def _setup_valve_core(var, config):
 async def register_valve(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_valve(var))
+    queue_entity_register("valve", config)
     CORE.register_platform_component("valve", var)
     await _setup_valve_core(var, config)
 
@@ -180,36 +176,15 @@ VALVE_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "valve.open", OpenAction, VALVE_ACTION_SCHEMA, synchronous=True
-)
-async def valve_open_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "valve.close", CloseAction, VALVE_ACTION_SCHEMA, synchronous=True
-)
-async def valve_close_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "valve.stop", StopAction, VALVE_ACTION_SCHEMA, synchronous=True
-)
-async def valve_stop_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "valve.toggle", ToggleAction, VALVE_ACTION_SCHEMA, synchronous=True
-)
-async def valve_toggle_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+for _name, _command in (
+    ("valve.open", "set_command_open()"),
+    ("valve.close", "set_command_close()"),
+    ("valve.stop", "set_command_stop()"),
+    ("valve.toggle", "set_command_toggle()"),
+):
+    automation.register_apply_action(
+        _name, VALVE_ACTION_SCHEMA, automation.ApplyCall(_command), call="make_call"
+    )
 
 
 VALVE_CONTROL_ACTION_SCHEMA = cv.Schema(
@@ -222,22 +197,16 @@ VALVE_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
-    "valve.control", ControlAction, VALVE_CONTROL_ACTION_SCHEMA, synchronous=True
+# CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
+# one is present and both dispatch to set_position.
+automation.register_apply_action(
+    "valve.control",
+    VALVE_CONTROL_ACTION_SCHEMA,
+    automation.ApplyField(CONF_STOP, "set_stop", cg.bool_),
+    automation.ApplyField(CONF_STATE, "set_position", cg.float_),
+    automation.ApplyField(CONF_POSITION, "set_position", cg.float_),
+    call="make_call",
 )
-async def valve_control_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if stop_config := config.get(CONF_STOP):
-        template_ = await cg.templatable(stop_config, args, bool)
-        cg.add(var.set_stop(template_))
-    if state_config := config.get(CONF_STATE):
-        template_ = await cg.templatable(state_config, args, float)
-        cg.add(var.set_position(template_))
-    if (position_config := config.get(CONF_POSITION)) is not None:
-        template_ = await cg.templatable(position_config, args, float)
-        cg.add(var.set_position(template_))
-    return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)

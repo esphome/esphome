@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 from functools import partial
+import os
 from pathlib import Path
 import sys
 
@@ -35,6 +36,8 @@ PLATFORMIO_OPTIONS = {
 
 
 def run_tests(selected_components: list[str]) -> int:
+    # allocator_may_return_null: an oversized request must come back empty, not abort the run
+    os.environ["ASAN_OPTIONS"] = "detect_leaks=0:allocator_may_return_null=1"
     return build_and_run(
         selected_components=selected_components,
         tests_dir=COMPONENTS_TESTS_DIR,

@@ -6,8 +6,9 @@
 #include "esphome/components/web_server_base/web_server_base.h"
 #ifdef USE_WEBSERVER
 #include "esphome/core/component.h"
-#include "esphome/core/controller.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/entity_includes.h"
+#include "esphome/core/progmem.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -36,12 +37,8 @@ extern const size_t ESPHOME_WEBSERVER_JS_INCLUDE_SIZE;
 
 namespace esphome::web_server {
 
-// Type for parameter names that can be stored in flash on ESP8266
-#ifdef USE_ESP8266
-using ParamNameType = const __FlashStringHelper *;
-#else
-using ParamNameType = const char *;
-#endif
+// Parameter names live in flash on ESP8266
+using ParamNameType = ProgmemStr;
 
 // All platforms need to defer actions to main loop thread.
 // Multi-core platforms need this for thread safety.
@@ -76,7 +73,7 @@ struct UrlMatch {
   bool method_equals(const __FlashStringHelper *str) const { return this->method == str; }
 #endif
 
-  /// Match entity by name first, then fall back to object_id with deprecation warning
+  /// Match entity by name
   /// Returns EntityMatchResult with match status and whether action segment is empty
   EntityMatchResult match_entity(EntityBase *entity) const;
 };
@@ -160,7 +157,8 @@ class DeferredUpdateEventSource final : public AsyncEventSource {
   void loop();
 
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
 };
 
 class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEventSource *> {
@@ -169,10 +167,12 @@ class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEvent
   void on_client_disconnect_(DeferredUpdateEventSource *source);
 
  public:
-  void loop();
+  /// Returns true if there are event sources remaining (including pending cleanup).
+  bool loop();
 
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
 
   void add_new_client(WebServer *ws, AsyncWebServerRequest *request);
 };
@@ -187,7 +187,7 @@ class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEvent
  * under the '/light/...', '/sensor/...', ... URLs. A full documentation for this API
  * can be found under https://esphome.io/web-api/.
  */
-class WebServer final : public Controller, public Component, public AsyncWebHandler {
+class WebServer final : public Component, public AsyncWebHandler {
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
   friend class DeferredUpdateEventSourceList;
 #endif
@@ -201,14 +201,14 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    *
    * @param css_url The url to the web server stylesheet.
    */
-  void set_css_url(const char *css_url);
+  void set_css_url(const char *css_url) { this->css_url_ = css_url; }
 
   /** Set the URL to the script that's embedded in the index page. Defaults to
    * https://oi.esphome.io/v1/webserver-v1.min.js
    *
    * @param js_url The url to the web server script.
    */
-  void set_js_url(const char *js_url);
+  void set_js_url(const char *js_url) { this->js_url_ = js_url; }
 #endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
@@ -216,7 +216,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    *
    * @param css_include Local path to web server script.
    */
-  void set_css_include(const char *css_include);
+  void set_css_include(const char *css_include) { this->css_include_ = css_include; }
 #endif
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
@@ -224,7 +224,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    *
    * @param js_include Local path to web server script.
    */
-  void set_js_include(const char *js_include);
+  void set_js_include(const char *js_include) { this->js_include_ = js_include; }
 #endif
 
   /** Determine whether internal components should be displayed on the web server.
@@ -238,6 +238,22 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    * @param expose_log.
    */
   void set_expose_log(bool expose_log) { this->expose_log_ = expose_log; }
+
+#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
+  /** Set the origins that browsers are allowed to make cross-origin requests from.
+   *
+   * Requests without an `Origin` header (e.g. non-browser clients like curl or the native API)
+   * are always allowed. Requests whose `Origin` matches the address the device is served on
+   * (same-origin) are always allowed. Any other browser origin must appear in this list, or the
+   * request is rejected. A single "*" entry allows any origin. Each other entry must exactly match
+   * the requesting page's `Origin` header (e.g. "https://example.com").
+   *
+   * This list is also used to authorize Private Network Access requests when that feature is enabled.
+   *
+   * @param origins The list of allowed origins.
+   */
+  void set_allowed_origins(std::initializer_list<const char *> origins) { this->allowed_origins_ = origins; }
+#endif
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -276,7 +292,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_SENSOR
-  void on_sensor_update(sensor::Sensor *obj) override;
+  void on_sensor_update(sensor::Sensor *obj);
   /// Handle a sensor request under '/sensor/<id>'.
   void handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -285,7 +301,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_SWITCH
-  void on_switch_update(switch_::Switch *obj) override;
+  void on_switch_update(switch_::Switch *obj);
 
   /// Handle a switch request under '/switch/<id>/</turn_on/turn_off/toggle>'.
   void handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match);
@@ -303,7 +319,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_BINARY_SENSOR
-  void on_binary_sensor_update(binary_sensor::BinarySensor *obj) override;
+  void on_binary_sensor_update(binary_sensor::BinarySensor *obj);
 
   /// Handle a binary sensor request under '/binary_sensor/<id>'.
   void handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
@@ -313,7 +329,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_FAN
-  void on_fan_update(fan::Fan *obj) override;
+  void on_fan_update(fan::Fan *obj);
 
   /// Handle a fan request under '/fan/<id>/</turn_on/turn_off/toggle>'.
   void handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match);
@@ -323,7 +339,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_LIGHT
-  void on_light_update(light::LightState *obj) override;
+  void on_light_update(light::LightState *obj);
 
   /// Handle a light request under '/light/<id>/</turn_on/turn_off/toggle>'.
   void handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match);
@@ -333,7 +349,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  void on_text_sensor_update(text_sensor::TextSensor *obj) override;
+  void on_text_sensor_update(text_sensor::TextSensor *obj);
 
   /// Handle a text sensor request under '/text_sensor/<id>'.
   void handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
@@ -343,7 +359,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_COVER
-  void on_cover_update(cover::Cover *obj) override;
+  void on_cover_update(cover::Cover *obj);
 
   /// Handle a cover request under '/cover/<id>/<open/close/stop/set>'.
   void handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match);
@@ -353,7 +369,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_NUMBER
-  void on_number_update(number::Number *obj) override;
+  void on_number_update(number::Number *obj);
   /// Handle a number request under '/number/<id>'.
   void handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -362,7 +378,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_DATETIME_DATE
-  void on_date_update(datetime::DateEntity *obj) override;
+  void on_date_update(datetime::DateEntity *obj);
   /// Handle a date request under '/date/<id>'.
   void handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -371,7 +387,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_DATETIME_TIME
-  void on_time_update(datetime::TimeEntity *obj) override;
+  void on_time_update(datetime::TimeEntity *obj);
   /// Handle a time request under '/time/<id>'.
   void handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -380,7 +396,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_DATETIME_DATETIME
-  void on_datetime_update(datetime::DateTimeEntity *obj) override;
+  void on_datetime_update(datetime::DateTimeEntity *obj);
   /// Handle a datetime request under '/datetime/<id>'.
   void handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -389,7 +405,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_TEXT
-  void on_text_update(text::Text *obj) override;
+  void on_text_update(text::Text *obj);
   /// Handle a text input request under '/text/<id>'.
   void handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -398,7 +414,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_SELECT
-  void on_select_update(select::Select *obj) override;
+  void on_select_update(select::Select *obj);
   /// Handle a select request under '/select/<id>'.
   void handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -407,7 +423,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_CLIMATE
-  void on_climate_update(climate::Climate *obj) override;
+  void on_climate_update(climate::Climate *obj);
   /// Handle a climate request under '/climate/<id>'.
   void handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -416,7 +432,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_LOCK
-  void on_lock_update(lock::Lock *obj) override;
+  void on_lock_update(lock::Lock *obj);
 
   /// Handle a lock request under '/lock/<id>/</lock/unlock/open>'.
   void handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match);
@@ -426,7 +442,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_VALVE
-  void on_valve_update(valve::Valve *obj) override;
+  void on_valve_update(valve::Valve *obj);
 
   /// Handle a valve request under '/valve/<id>/<open/close/stop/set>'.
   void handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match);
@@ -436,7 +452,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
-  void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
+  void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj);
 
   /// Handle a alarm_control_panel request under '/alarm_control_panel/<id>'.
   void handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match);
@@ -446,7 +462,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_WATER_HEATER
-  void on_water_heater_update(water_heater::WaterHeater *obj) override;
+  void on_water_heater_update(water_heater::WaterHeater *obj);
 
   /// Handle a water_heater request under '/water_heater/<id>/<mode/set>'.
   void handle_water_heater_request(AsyncWebServerRequest *request, const UrlMatch &match);
@@ -461,9 +477,20 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 
   static json::SerializationBuffer<> infrared_all_json_generator(WebServer *web_server, void *source);
 #endif
+#ifdef USE_RADIO_FREQUENCY
+  /// Handle a radio frequency request under '/radio_frequency/<id>/transmit'.
+  void handle_radio_frequency_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  static json::SerializationBuffer<> radio_frequency_all_json_generator(WebServer *web_server, void *source);
+#endif
+
+#ifdef USE_MEDIA_PLAYER
+  // Not exposed over HTTP; the stub only satisfies ControllerContract
+  void on_media_player_update(media_player::MediaPlayer *) {}
+#endif
 
 #ifdef USE_EVENT
-  void on_event(event::Event *obj) override;
+  void on_event(event::Event *obj);
 
   static json::SerializationBuffer<> event_state_json_generator(WebServer *web_server, void *source);
   static json::SerializationBuffer<> event_all_json_generator(WebServer *web_server, void *source);
@@ -473,7 +500,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_UPDATE
-  void on_update(update::UpdateEntity *obj) override;
+  void on_update(update::UpdateEntity *obj);
 
   /// Handle a update request under '/update/<id>'.
   void handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match);
@@ -568,7 +595,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 
   web_server_base::WebServerBase *base_;
 #ifdef USE_ESP32
-  AsyncEventSource events_{"/events", this};
+  AsyncEventSource events_{StringRef::from_lit("/events"), this};
 #elif USE_ARDUINO
   DeferredUpdateEventSourceList events_;
 #endif
@@ -584,6 +611,16 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
   const char *js_include_{nullptr};
 #endif
   bool expose_log_{true};
+#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
+  // Extra origins allowed to make cross-origin browser requests ("*" means any origin).
+  // Only compiled when allowed_origins is configured; same-origin is always allowed regardless.
+  FixedVector<const char *> allowed_origins_;
+#endif
+
+  /// Check whether the given request Origin is permitted. Same-origin (matching the Host the
+  /// request was sent to) and requests without an Origin header are always allowed; any other
+  /// origin must be listed in allowed_origins. The caller passes the already-read Origin header.
+  bool is_request_origin_allowed_(AsyncWebServerRequest *request, const std::string &origin);
 
  private:
 #ifdef USE_SENSOR
@@ -652,6 +689,9 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 #ifdef USE_INFRARED
   json::SerializationBuffer<> infrared_json_(infrared::Infrared *obj, JsonDetail start_config);
+#endif
+#ifdef USE_RADIO_FREQUENCY
+  json::SerializationBuffer<> radio_frequency_json_(radio_frequency::RadioFrequency *obj, JsonDetail start_config);
 #endif
 #ifdef USE_UPDATE
   json::SerializationBuffer<> update_json_(update::UpdateEntity *obj, JsonDetail start_config);

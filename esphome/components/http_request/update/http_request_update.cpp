@@ -1,13 +1,14 @@
 #include "http_request_update.h"
 
+#include <cstring>
+
 #include "esphome/core/application.h"
 #include "esphome/core/version.h"
 
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 // The update function runs in a task only on ESP32s.
 #ifdef USE_ESP32
@@ -74,6 +75,10 @@ void HttpRequestUpdate::update() {
   }
   this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
 #ifdef USE_ESP32
+  if (this->update_task_handle_ != nullptr) {
+    ESP_LOGW(TAG, "Update check already in progress");
+    return;
+  }
   xTaskCreate(HttpRequestUpdate::update_task, "update_task", 8192, (void *) this, 1, &this->update_task_handle_);
 #else
   this->update_task(this);
@@ -91,7 +96,7 @@ void HttpRequestUpdate::update_task(void *params) {
   auto container = this_update->request_parent_->get(this_update->source_url_);
 
   if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
-    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this_update->source_url_.c_str());
+    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this_update->source_url_);
     if (container != nullptr)
       container->end();
     result->error_str = LOG_STR("Failed to fetch manifest");
@@ -171,21 +176,26 @@ void HttpRequestUpdate::update_task(void *params) {
     allocator.deallocate(data, content_length);
 
     if (!valid) {
-      ESP_LOGE(TAG, "Failed to parse JSON from %s", this_update->source_url_.c_str());
+      ESP_LOGE(TAG, "Failed to parse JSON from %s", this_update->source_url_);
       result->error_str = LOG_STR("Failed to parse manifest JSON");
       goto defer;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
 
     // Merge source_url_ and firmware_url
     if (!info->firmware_url.empty() && info->firmware_url.find("http") == std::string::npos) {
-      std::string path = info->firmware_url;
-      if (path[0] == '/') {
-        std::string domain = this_update->source_url_.substr(0, this_update->source_url_.find('/', 8));
-        info->firmware_url = domain + path;
+      const char *source = this_update->source_url_;
+      const size_t source_len = strlen(source);
+      size_t prefix_len;
+      if (info->firmware_url[0] == '/') {
+        // scheme and host, up to the first slash after "https://"
+        const char *host_end = source_len > 8 ? strchr(source + 8, '/') : nullptr;
+        prefix_len = host_end != nullptr ? host_end - source : source_len;
       } else {
-        std::string domain = this_update->source_url_.substr(0, this_update->source_url_.rfind('/') + 1);
-        info->firmware_url = domain + path;
+        // directory of the manifest, up to and including its last slash
+        const char *dir_end = strrchr(source, '/');
+        prefix_len = dir_end != nullptr ? dir_end - source + 1 : 0;
       }
+      info->firmware_url.insert(0, source, prefix_len);
     }
 
 #ifdef ESPHOME_PROJECT_VERSION
@@ -204,6 +214,9 @@ defer:
   // both success and error paths to avoid multiple std::function instantiations.
   // Lambda captures only 2 pointers (8 bytes) — fits in std::function SBO on supported toolchains.
   this_update->defer([this_update, result]() {
+#ifdef USE_ESP32
+    this_update->update_task_handle_ = nullptr;
+#endif
     if (result->error_str != nullptr) {
       this_update->status_set_error(result->error_str);
       delete result;
@@ -251,5 +264,4 @@ void HttpRequestUpdate::perform(bool force) {
   this->defer([this]() { this->ota_parent_->flash(); });
 }
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request

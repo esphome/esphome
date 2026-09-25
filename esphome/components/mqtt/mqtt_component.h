@@ -108,11 +108,11 @@ class MQTTComponent : public Component {
 
   /// Set QOS for state messages.
   void set_qos(uint8_t qos);
-  uint8_t get_qos() const;
+  uint8_t get_qos() const { return this->qos_; }
 
   /// Set whether state message should be retained.
   void set_retain(bool retain);
-  bool get_retain() const;
+  bool get_retain() const { return this->retain_; }
 
   /// Disable discovery. Sets friendly name to "".
   void disable_discovery();
@@ -146,6 +146,9 @@ class MQTTComponent : public Component {
 
   /// Internal method for the MQTT client base to schedule a resend of the state on reconnect.
   void schedule_resend_state();
+
+  /// Check if a resend is pending (called by MQTTClientComponent to rate-limit work)
+  bool is_resend_pending() const { return this->resend_state_; }
 
   /// Process pending resend if needed (called by MQTTClientComponent)
   void process_resend();

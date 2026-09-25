@@ -2,15 +2,14 @@
 #include "tuya_light.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 static const char *const TAG = "tuya.light";
 
 void TuyaLight::setup() {
   if (this->color_temperature_id_.has_value()) {
     this->parent_->register_listener(*this->color_temperature_id_, [this](const TuyaDatapoint &datapoint) {
-      if (this->state_->current_values != this->state_->remote_values) {
+      if (this->state_->is_transitioning()) {
         ESP_LOGD(TAG, "Light is transitioning, datapoint change ignored");
         return;
       }
@@ -28,7 +27,7 @@ void TuyaLight::setup() {
   }
   if (this->dimmer_id_.has_value()) {
     this->parent_->register_listener(*this->dimmer_id_, [this](const TuyaDatapoint &datapoint) {
-      if (this->state_->current_values != this->state_->remote_values) {
+      if (this->state_->is_transitioning()) {
         ESP_LOGD(TAG, "Light is transitioning, datapoint change ignored");
         return;
       }
@@ -40,7 +39,7 @@ void TuyaLight::setup() {
   }
   if (switch_id_.has_value()) {
     this->parent_->register_listener(*this->switch_id_, [this](const TuyaDatapoint &datapoint) {
-      if (this->state_->current_values != this->state_->remote_values) {
+      if (this->state_->is_transitioning()) {
         ESP_LOGD(TAG, "Light is transitioning, datapoint change ignored");
         return;
       }
@@ -52,7 +51,7 @@ void TuyaLight::setup() {
   }
   if (color_id_.has_value()) {
     this->parent_->register_listener(*this->color_id_, [this](const TuyaDatapoint &datapoint) {
-      if (this->state_->current_values != this->state_->remote_values) {
+      if (this->state_->is_transitioning()) {
         ESP_LOGD(TAG, "Light is transitioning, datapoint change ignored");
         return;
       }
@@ -228,5 +227,4 @@ void TuyaLight::write_state(light::LightState *state) {
   }
 }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

@@ -1,6 +1,8 @@
 #include "vl53l0x_sensor.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 /*
  * Most of the code in this integration is based on the VL53L0x library
  * by Pololu (Pololu Corporation), which in turn is based on the VL53L0X
@@ -10,8 +12,7 @@
  * in the vl53l0x integration directory.
  */
 
-namespace esphome {
-namespace vl53l0x {
+namespace esphome::vl53l0x {
 
 static const char *const TAG = "vl53l0x";
 
@@ -28,9 +29,10 @@ void VL53L0XSensor::dump_config() {
     LOG_PIN("  Enable Pin: ", this->enable_pin_);
   }
   ESP_LOGCONFIG(TAG,
-                "  Timeout: %u%s\n"
-                "  Timing Budget %uus ",
-                this->timeout_us_, this->timeout_us_ > 0 ? "us" : " (no timeout)", this->measurement_timing_budget_us_);
+                "  Timeout: %" PRIu32 "%s\n"
+                "  Timing Budget %" PRIu32 "us ",
+                this->timeout_us_, this->timeout_us_ > 0 ? LOG_STR_LITERAL("us") : LOG_STR_LITERAL(" (no timeout)"),
+                this->measurement_timing_budget_us_);
 }
 
 void VL53L0XSensor::setup() {
@@ -533,5 +535,4 @@ bool VL53L0XSensor::perform_single_ref_calibration_(uint8_t vhv_init_byte) {
   return true;
 }
 
-}  // namespace vl53l0x
-}  // namespace esphome
+}  // namespace esphome::vl53l0x

@@ -1,6 +1,9 @@
 #include "light_state.h"
 #include "esp_color_correction.h"
 #include "esphome/core/defines.h"
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+#include "esphome/core/application.h"
+#endif
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 #include "light_output.h"
@@ -37,8 +40,9 @@ void LightState::setup() {
 
   auto call = this->make_call();
   LightStateRTCState recovered{};
-  if (this->initial_state_.has_value()) {
-    recovered = *this->initial_state_;
+  if (this->initial_state_callback_) {
+    this->initial_state_callback_(recovered);
+    this->initial_state_callback_ = nullptr;  // One-shot — no longer needed
   }
   switch (this->restore_mode_) {
     case LIGHT_RESTORE_DEFAULT_OFF:
@@ -70,6 +74,14 @@ void LightState::setup() {
       break;
   }
 
+  // A light coming up on boot must never end up on-but-invisible: if the resolved restore
+  // state is on but its brightness is zero (e.g. a stale/persisted value from before a
+  // forced-on restore mode, or an inverted restore flipping a dim-to-0 off state to on),
+  // reset it to full brightness.
+  if (recovered.state && recovered.brightness == 0.0f) {
+    recovered.brightness = 1.0f;
+  }
+
   call.set_color_mode_if_supported(recovered.color_mode);
   call.set_state(recovered.state);
   call.set_brightness_if_supported(recovered.brightness);
@@ -96,6 +108,13 @@ void LightState::dump_config() {
                   "  Default Transition Length: %.1fs\n"
                   "  Gamma Correct: %.2f",
                   this->default_transition_length_ / 1e3f, this->gamma_correct_);
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+    // The define is build wide; only lights that set the option have an interval
+    if (this->transition_state_publish_interval_ != 0) {
+      ESP_LOGCONFIG(TAG, "  Transition State Publish Interval: %" PRIu32 "ms",
+                    this->transition_state_publish_interval_);
+    }
+#endif
   }
   if (traits.supports_color_capability(ColorCapability::COLOR_TEMPERATURE)) {
     ESP_LOGCONFIG(TAG,
@@ -121,13 +140,30 @@ void LightState::loop() {
       this->next_write_ = true;
     }
 
-    if (this->transformer_->is_finished()) {
+    const bool finished = this->transformer_->is_finished();
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+    if (this->transition_publish_enabled_ && !finished) {
+      const uint32_t now = App.get_loop_component_start_time();
+      if (now - this->last_transition_state_publish_ >= this->transition_state_publish_interval_) {
+        this->publish_state();
+        this->last_transition_state_publish_ = now;
+      }
+    }
+#endif
+
+    if (finished) {
       // if the transition has written directly to the output, current_values is outdated, so update it
       this->current_values = this->transformer_->get_target_values();
-
       this->transformer_->stop();
       this->is_transformer_active_ = false;
       this->transformer_ = nullptr;
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+      if (this->transition_publish_enabled_) {
+        // Report the end state from remote_values; a flash's stop() left publishing to us
+        this->transition_publish_enabled_ = false;
+        this->publish_state();
+      }
+#endif
       if (this->target_state_reached_listeners_) {
         for (auto *listener : *this->target_state_reached_listeners_) {
           listener->on_light_target_state_reached();
@@ -147,8 +183,6 @@ void LightState::loop() {
     this->disable_loop_if_idle_();
   }
 }
-
-float LightState::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
 
 void LightState::publish_state() {
   if (this->remote_values_listeners_) {
@@ -185,25 +219,11 @@ void LightState::add_target_state_reached_listener(LightTargetStateReachedListen
   this->target_state_reached_listeners_->push_back(listener);
 }
 
-void LightState::set_default_transition_length(uint32_t default_transition_length) {
-  this->default_transition_length_ = default_transition_length;
-}
-uint32_t LightState::get_default_transition_length() const { return this->default_transition_length_; }
-void LightState::set_flash_transition_length(uint32_t flash_transition_length) {
-  this->flash_transition_length_ = flash_transition_length;
-}
-uint32_t LightState::get_flash_transition_length() const { return this->flash_transition_length_; }
-void LightState::set_gamma_correct(float gamma_correct) { this->gamma_correct_ = gamma_correct; }
-void LightState::set_restore_mode(LightRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
-void LightState::set_initial_state(const LightStateRTCState &initial_state) { this->initial_state_ = initial_state; }
-bool LightState::supports_effects() { return !this->effects_.empty(); }
-const FixedVector<LightEffect *> &LightState::get_effects() const { return this->effects_; }
 void LightState::add_effects(const std::initializer_list<LightEffect *> &effects) {
   // Called once from Python codegen during setup with all effects from YAML config
   this->effects_ = effects;
 }
 
-void LightState::current_values_as_binary(bool *binary) { this->current_values.as_binary(binary); }
 void LightState::current_values_as_brightness(float *brightness) {
   this->current_values.as_brightness(brightness);
   *brightness = this->gamma_correct_lut(*brightness);
@@ -223,12 +243,11 @@ void LightState::current_values_as_rgbw(float *red, float *green, float *blue, f
 }
 void LightState::current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
                                          bool constant_brightness) {
-  this->current_values.as_rgbww(red, green, blue, cold_white, warm_white, constant_brightness);
+  this->current_values.as_rgb(red, green, blue);
   *red = this->gamma_correct_lut(*red);
   *green = this->gamma_correct_lut(*green);
   *blue = this->gamma_correct_lut(*blue);
-  *cold_white = this->gamma_correct_lut(*cold_white);
-  *warm_white = this->gamma_correct_lut(*warm_white);
+  this->current_values_as_cwww(cold_white, warm_white, constant_brightness);
 }
 void LightState::current_values_as_rgbct(float *red, float *green, float *blue, float *color_temperature,
                                          float *white_brightness) {
@@ -241,9 +260,45 @@ void LightState::current_values_as_rgbct(float *red, float *green, float *blue, 
   *white_brightness = this->gamma_correct_lut(*white_brightness);
 }
 void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness) {
-  this->current_values.as_cwww(cold_white, warm_white, constant_brightness);
-  *cold_white = this->gamma_correct_lut(*cold_white);
-  *warm_white = this->gamma_correct_lut(*warm_white);
+  if (!constant_brightness) {
+    // Without constant_brightness, gamma commutes with simple multiplication:
+    //   gamma(white_level * cw) = gamma(white_level) * gamma(cw)
+    // (since gamma(a*b) = (a*b)^g = a^g * b^g = gamma(a) * gamma(b))
+    // so applying gamma after is mathematically equivalent and simpler.
+    this->current_values.as_cwww(cold_white, warm_white, false);
+    *cold_white = this->gamma_correct_lut(*cold_white);
+    *warm_white = this->gamma_correct_lut(*warm_white);
+    return;
+  }
+
+  // For constant_brightness mode, gamma MUST be applied to the individual
+  // channel values BEFORE the balancing formula (max/sum ratio), not after.
+  //
+  // Why: The cold_white_ and warm_white_ values stored in LightColorValues
+  // are gamma-uncorrected (see transform_parameters_() which applies
+  // gamma_uncorrect to the linear CW/WW fractions derived from color
+  // temperature). Applying gamma_correct here recovers the original linear
+  // fractions, which the constant_brightness formula then uses to distribute
+  // power evenly. The max/sum formula ensures cold+warm PWM output sums to
+  // a constant, keeping total power (and perceived brightness) the same
+  // across all color temperatures.
+  //
+  // Applying gamma AFTER the formula would be incorrect because gamma is
+  // nonlinear: gamma(a/b) != gamma(a)/gamma(b), so the carefully balanced
+  // ratio would be distorted, causing a severe brightness dip at mid-range
+  // color temperatures.
+  const auto &v = this->current_values;
+  if (!(v.get_color_mode() & ColorCapability::COLD_WARM_WHITE)) {
+    *cold_white = *warm_white = 0;
+    return;
+  }
+
+  const float cw_level = this->gamma_correct_lut(v.get_cold_white());
+  const float ww_level = this->gamma_correct_lut(v.get_warm_white());
+  const float white_level = this->gamma_correct_lut(v.get_state() * v.get_brightness());
+  const float sum = cw_level > 0 || ww_level > 0 ? cw_level + ww_level : 1;  // Don't divide by zero.
+  *cold_white = white_level * std::max(cw_level, ww_level) * cw_level / sum;
+  *warm_white = white_level * std::max(cw_level, ww_level) * ww_level / sum;
 }
 void LightState::current_values_as_ct(float *color_temperature, float *white_brightness) {
   auto traits = this->get_traits();
@@ -289,8 +344,6 @@ float LightState::gamma_uncorrect_lut(float value) const {
 }
 #endif  // USE_LIGHT_GAMMA_LUT
 
-bool LightState::is_transformer_active() { return this->is_transformer_active_; }
-
 void LightState::start_effect_(uint32_t effect_index) {
   this->stop_effect_();
   if (effect_index == 0)
@@ -322,10 +375,7 @@ void LightState::stop_effect_() {
 void LightState::start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values) {
   this->transformer_ = this->output_->create_default_transition();
   this->transformer_->setup(this->current_values, target, length);
-
-  if (set_remote_values) {
-    this->remote_values = target;
-  }
+  this->set_transformer_remote_values_(target, set_remote_values);
   // Enable loop while transition is active
   this->enable_loop();
 }
@@ -339,10 +389,7 @@ void LightState::start_flash_(const LightColorValues &target, uint32_t length, b
 
   this->transformer_ = make_unique<LightFlashTransformer>(*this);
   this->transformer_->setup(end_colors, target, length);
-
-  if (set_remote_values) {
-    this->remote_values = target;
-  };
+  this->set_transformer_remote_values_(target, set_remote_values);
   // Enable loop while flash is active
   this->enable_loop();
 }
@@ -350,6 +397,9 @@ void LightState::start_flash_(const LightColorValues &target, uint32_t length, b
 void LightState::set_immediately_(const LightColorValues &target, bool set_remote_values) {
   this->is_transformer_active_ = false;
   this->transformer_ = nullptr;
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  this->transition_publish_enabled_ = false;
+#endif
   this->current_values = target;
   if (set_remote_values) {
     this->remote_values = target;
@@ -364,6 +414,18 @@ void LightState::disable_loop_if_idle_() {
     this->disable_loop();
   }
 }
+
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+void LightState::set_transformer_remote_values_(const LightColorValues &target, bool set_remote_values) {
+  this->transition_publish_enabled_ = set_remote_values && this->transition_state_publish_interval_ > 0;
+  if (this->transition_publish_enabled_) {
+    this->last_transition_state_publish_ = App.get_loop_component_start_time();
+  }
+  if (set_remote_values) {
+    this->remote_values = target;
+  }
+}
+#endif
 
 void LightState::save_remote_values_() {
   LightStateRTCState saved;

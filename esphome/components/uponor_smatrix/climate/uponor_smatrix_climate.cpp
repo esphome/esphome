@@ -3,14 +3,15 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace uponor_smatrix {
+#include <cinttypes>
+
+namespace esphome::uponor_smatrix {
 
 static const char *const TAG = "uponor_smatrix.climate";
 
 void UponorSmatrixClimate::dump_config() {
   LOG_CLIMATE("", "Uponor Smatrix Climate", this);
-  ESP_LOGCONFIG(TAG, "  Device address: 0x%08X", this->address_);
+  ESP_LOGCONFIG(TAG, "  Device address: 0x%08" PRIX32, this->address_);
 }
 
 void UponorSmatrixClimate::loop() {
@@ -98,5 +99,4 @@ void UponorSmatrixClimate::on_device_data(const UponorSmatrixData *data, size_t 
   this->last_data_ = millis();
 }
 
-}  // namespace uponor_smatrix
-}  // namespace esphome
+}  // namespace esphome::uponor_smatrix

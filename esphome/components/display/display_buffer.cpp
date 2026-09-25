@@ -2,11 +2,9 @@
 
 #include <utility>
 
-#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace display {
+namespace esphome::display {
 
 static const char *const TAG = "display";
 
@@ -45,7 +43,7 @@ int DisplayBuffer::get_height() {
 }
 
 void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return;  // NOLINT
 
   switch (this->rotation_) {
@@ -65,8 +63,7 @@ void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
       break;
   }
   this->draw_absolute_pixel_internal(x, y, color);
-  App.feed_wdt();
+  this->feed_wdt_per_pixel_();
 }
 
-}  // namespace display
-}  // namespace esphome
+}  // namespace esphome::display

@@ -1,4 +1,7 @@
 #include "infrared.h"
+
+#include <cinttypes>
+
 #include "esphome/core/log.h"
 
 #ifdef USE_API
@@ -56,11 +59,6 @@ void Infrared::setup() {
   // Set up traits based on configuration
   this->traits_.set_supports_transmitter(this->has_transmitter());
   this->traits_.set_supports_receiver(this->has_receiver());
-
-  // Register as listener for received IR data
-  if (this->receiver_ != nullptr) {
-    this->receiver_->register_listener(this);
-  }
 }
 
 void Infrared::dump_config() {
@@ -71,8 +69,6 @@ void Infrared::dump_config() {
                 this->get_name().c_str(), YESNO(this->traits_.get_supports_transmitter()),
                 YESNO(this->traits_.get_supports_receiver()));
 }
-
-InfraredCall Infrared::make_call() { return InfraredCall(this); }
 
 void Infrared::control(const InfraredCall &call) {
   if (this->transmitter_ == nullptr) {
@@ -100,7 +96,7 @@ void Infrared::control(const InfraredCall &call) {
     // Zero-copy from packed protobuf data
     transmit_data->set_data_from_packed_sint32(call.get_packed_data(), call.get_packed_length(),
                                                call.get_packed_count());
-    ESP_LOGD(TAG, "Transmitting packed raw timings: count=%u, repeat=%u", call.get_packed_count(),
+    ESP_LOGD(TAG, "Transmitting packed raw timings: count=%" PRIu16 ", repeat=%" PRIu32, call.get_packed_count(),
              call.get_repeat_count());
   } else if (call.is_base64url()) {
     // Decode base64url (URL-safe) into transmit buffer
@@ -113,16 +109,16 @@ void Infrared::control(const InfraredCall &call) {
     for (int32_t timing : transmit_data->get_data()) {
       int32_t abs_timing = timing < 0 ? -timing : timing;
       if (abs_timing > max_timing_us) {
-        ESP_LOGE(TAG, "Invalid timing value: %d µs (max %d)", timing, max_timing_us);
+        ESP_LOGE(TAG, "Invalid timing value: %" PRId32 " µs (max %" PRId32 ")", timing, max_timing_us);
         return;
       }
     }
-    ESP_LOGD(TAG, "Transmitting base64url raw timings: count=%zu, repeat=%u", transmit_data->get_data().size(),
+    ESP_LOGD(TAG, "Transmitting base64url raw timings: count=%zu, repeat=%" PRIu32, transmit_data->get_data().size(),
              call.get_repeat_count());
   } else {
     // From vector (lambdas/automations)
     transmit_data->set_data(call.get_raw_timings());
-    ESP_LOGD(TAG, "Transmitting raw timings: count=%zu, repeat=%u", call.get_raw_timings().size(),
+    ESP_LOGD(TAG, "Transmitting raw timings: count=%zu, repeat=%" PRIu32, call.get_raw_timings().size(),
              call.get_repeat_count());
   }
 

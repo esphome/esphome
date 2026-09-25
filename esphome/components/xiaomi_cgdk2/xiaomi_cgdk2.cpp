@@ -2,10 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
-namespace esphome {
-namespace xiaomi_cgdk2 {
+namespace esphome::xiaomi_cgdk2 {
 
 static const char *const TAG = "xiaomi_cgdk2";
 
@@ -22,7 +19,7 @@ void XiaomiCGDK2::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
-bool XiaomiCGDK2::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiCGDK2::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -65,7 +62,4 @@ bool XiaomiCGDK2::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 
 void XiaomiCGDK2::set_bindkey(const char *bindkey) { parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_)); }
 
-}  // namespace xiaomi_cgdk2
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::xiaomi_cgdk2

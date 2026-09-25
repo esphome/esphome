@@ -6,8 +6,7 @@
 #include "esphome/core/application.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace bedjet {
+namespace esphome::bedjet {
 
 static const LogString *bedjet_button_to_string(BedjetButton button) {
   switch (button) {
@@ -551,7 +550,6 @@ void BedJetHub::register_child(BedJetClient *obj) {
   obj->set_parent(this);
 }
 
-}  // namespace bedjet
-}  // namespace esphome
+}  // namespace esphome::bedjet
 
 #endif

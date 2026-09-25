@@ -41,7 +41,7 @@ def _lookup_board_pins(board):
     board_pins = component.board_pins.get(board, {})
     # Resolve aliased board pins (shorthand when two boards have the same pin configuration)
     while isinstance(board_pins, str):
-        board_pins = board_pins[board_pins]
+        board_pins = component.board_pins[board_pins]
     return board_pins
 
 
