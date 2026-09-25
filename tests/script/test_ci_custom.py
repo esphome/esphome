@@ -1,4 +1,6 @@
-"""Unit tests for the ESP_LOG-needs-braces lint rule in script/ci-custom.py.
+"""Unit tests for the ESP_LOG-needs-braces and std::nothrow lint rules in script/ci-custom.py.
+
+The nothrow rule is a masked lint_re_check, so its tests also pin the decorator's mask option.
 
 The rule flags an if/else/for/while whose only body is an unbraced ESP_LOG*() call (which becomes an
 empty statement -- and a -Wempty-body warning -- once the log level compiles the macro out). These
@@ -149,6 +151,43 @@ def test_nolint_at_end_of_log_line_suppresses() -> None:
 
 def test_nolint_on_control_line_suppresses() -> None:
     assert not _lint("if (x)  // NOLINT\n  ESP_LOGD(t);\n")
+
+
+# --- std::nothrow ---
+
+
+def _lint_nothrow(content: str) -> list:
+    return ci_custom.lint_no_std_nothrow("test.cpp", content)
+
+
+def test_nothrow_is_reported_at_its_line_and_column_and_points_at_ramallocator() -> (
+    None
+):
+    errors = _lint_nothrow(
+        "int a;\nint b;\n  auto *p = new (std::nothrow) uint8_t[n];\n"
+    )
+    assert [(line, col) for line, col, _msg in errors] == [(3, 18)]
+    assert "RAMAllocator" in errors[0][2]
+
+
+def test_nothrow_spacing_and_the_nothrow_t_type() -> None:
+    assert len(_lint_nothrow("auto *p = new (std :: nothrow) Foo;\n")) == 1
+    assert not _lint_nothrow(
+        "void *operator new(size_t n, const std::nothrow_t &) noexcept;\n"
+    )
+
+
+def test_nothrow_in_comments_and_strings_is_masked() -> None:
+    assert not _lint_nothrow("// new (std::nothrow) aborts on ESP-IDF\n")
+    assert not _lint_nothrow('ESP_LOGD(TAG, "std::nothrow");\n')
+
+
+def test_nothrow_nolint_suppresses() -> None:
+    assert not _lint_nothrow("auto *p = new (std::nothrow) Foo;  // NOLINT\n")
+
+
+def test_nothrow_nolint_inside_a_string_does_not_suppress() -> None:
+    assert len(_lint_nothrow('auto *p = new (std::nothrow) Foo; log("NOLINT");\n')) == 1
 
 
 # --- rule: UNIT_ constants must not be redefined (mirror of the CONF_ check) ---

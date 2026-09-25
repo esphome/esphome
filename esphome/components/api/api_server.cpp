@@ -5,7 +5,6 @@
 #include "api_connection.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
-#include "esphome/core/controller_registry.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -100,8 +99,6 @@ bool APIServer::create_listen_socket_() {
 }
 
 void APIServer::setup() {
-  ControllerRegistry::register_controller(this);
-
 #ifdef USE_API_NOISE
   // Always reserve the slot: flash preferences are positional on esp8266, so
   // a yaml key build must keep the layout of a runtime key build

@@ -11,8 +11,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_DECIBEL,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["audio"]
@@ -27,8 +25,6 @@ CONF_RMS = "rms"
 sound_level_ns = cg.esphome_ns.namespace("sound_level")
 SoundLevelComponent = sound_level_ns.class_("SoundLevelComponent", cg.Component)
 
-StartAction = sound_level_ns.class_("StartAction", automation.Action)
-StopAction = sound_level_ns.class_("StopAction", automation.Action)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -92,18 +88,9 @@ SOUND_LEVEL_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "sound_level.start", StartAction, SOUND_LEVEL_ACTION_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "sound_level.start", SOUND_LEVEL_ACTION_SCHEMA, automation.ApplyCall("start()")
 )
-@automation.register_action(
-    "sound_level.stop", StopAction, SOUND_LEVEL_ACTION_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "sound_level.stop", SOUND_LEVEL_ACTION_SCHEMA, automation.ApplyCall("stop()")
 )
-async def sound_level_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

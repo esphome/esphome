@@ -1115,11 +1115,12 @@ class ListEntitiesSwitchResponse final : public InfoResponseProtoMessage {
 class SwitchStateResponse final : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 26;
-  static constexpr uint8_t ESTIMATED_SIZE = 11;
+  static constexpr uint8_t ESTIMATED_SIZE = 13;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("switch_state_response"); }
 #endif
   bool state{false};
+  bool missing_state{false};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
@@ -1696,7 +1697,7 @@ class ListEntitiesClimateResponse final : public InfoResponseProtoMessage {
 class ClimateStateResponse final : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 47;
-  static constexpr uint8_t ESTIMATED_SIZE = 68;
+  static constexpr uint8_t ESTIMATED_SIZE = 71;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("climate_state_response"); }
 #endif
@@ -1713,6 +1714,7 @@ class ClimateStateResponse final : public StateResponseProtoMessage {
   StringRef custom_preset{nullptr, 0};  // null until set, encode only
   float current_humidity{0.0f};
   float target_humidity{0.0f};
+  bool missing_state{false};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
@@ -1792,7 +1794,7 @@ class ListEntitiesWaterHeaterResponse final : public InfoResponseProtoMessage {
 class WaterHeaterStateResponse final : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 133;
-  static constexpr uint8_t ESTIMATED_SIZE = 35;
+  static constexpr uint8_t ESTIMATED_SIZE = 37;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("water_heater_state_response"); }
 #endif
@@ -1802,6 +1804,7 @@ class WaterHeaterStateResponse final : public StateResponseProtoMessage {
   uint32_t state{0};
   float target_temperature_low{0.0f};
   float target_temperature_high{0.0f};
+  bool missing_state{false};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
