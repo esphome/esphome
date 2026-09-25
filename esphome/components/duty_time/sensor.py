@@ -1,5 +1,4 @@
 from esphome import automation
-from esphome.automation import Action, Condition, maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import binary_sensor, sensor
 import esphome.config_validation as cv
@@ -24,13 +23,13 @@ duty_time_sensor_ns = cg.esphome_ns.namespace("duty_time_sensor")
 DutyTimeSensor = duty_time_sensor_ns.class_(
     "DutyTimeSensor", sensor.Sensor, cg.PollingComponent
 )
-BaseAction = duty_time_sensor_ns.class_("BaseAction", Action, cg.Parented)
+BaseAction = duty_time_sensor_ns.class_("BaseAction", automation.Action, cg.Parented)
 StartAction = duty_time_sensor_ns.class_("StartAction", BaseAction)
 StopAction = duty_time_sensor_ns.class_("StopAction", BaseAction)
 ResetAction = duty_time_sensor_ns.class_("ResetAction", BaseAction)
 SetAction = duty_time_sensor_ns.class_("SetAction", BaseAction)
 RunningCondition = duty_time_sensor_ns.class_(
-    "RunningCondition", Condition, cg.Parented
+    "RunningCondition", automation.Condition, cg.Parented
 )
 
 
@@ -81,7 +80,7 @@ async def to_code(config: ConfigType) -> None:
 
 # AUTOMATIONS
 
-DUTY_TIME_ID_SCHEMA = maybe_simple_id(
+DUTY_TIME_ID_SCHEMA = automation.maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(DutyTimeSensor),
     }
