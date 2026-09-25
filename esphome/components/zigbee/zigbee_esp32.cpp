@@ -36,9 +36,21 @@ uint8_t *get_zcl_string(const char *str, uint8_t max_size, bool use_max_size) {
   return zcl_str;
 }
 
+void ZigbeeComponent::factory_reset() {
+  esp_zigbee_lock_acquire(portMAX_DELAY);
+  if (this->joined_) {
+    // send leave request and trigger EZB_ZDO_SIGNAL_LEAVE
+    ezb_bdb_reset_via_local_action();
+  } else {
+    esp_zigbee_factory_reset();  // triggers a reboot
+  }
+  esp_zigbee_lock_release();
+}
+
 void ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(ezb_bdb_comm_mode_mask_t mode) {
   if (!esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
-    global_zigbee->set_timeout("zb_init", 10, [mode]() { ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(mode); });
+    global_zigbee->set_timeout("zb_init", 100, [mode]() { ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(mode); });
+    App.wake_loop_threadsafe();
     return;
   }
   if (ezb_bdb_start_top_level_commissioning(mode) != EZB_ERR_NONE) {
@@ -53,6 +65,8 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
   switch (signal_type) {
     case EZB_ZDO_SIGNAL_SKIP_STARTUP:
       ESP_LOGD(TAG, "Zigbee stack initialized");
+      global_zigbee->started_ = true;
+      global_zigbee->enable_loop_soon_any_context();
       ezb_bdb_start_top_level_commissioning(EZB_BDB_MODE_INITIALIZATION);
       break;
     case EZB_BDB_SIGNAL_DEVICE_FIRST_START:
@@ -60,14 +74,14 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
       ezb_bdb_comm_status_t status = *((ezb_bdb_comm_status_t *) ezb_app_signal_get_params(app_signal));
       if (status == EZB_BDB_STATUS_SUCCESS) {
         ESP_LOGD(TAG, "Device started up in %sfactory-reset mode", ezb_bdb_is_factory_new() ? "" : "non ");
-        global_zigbee->started = true;
         if (ezb_bdb_is_factory_new()) {
-          global_zigbee->factory_new = true;
+          global_zigbee->factory_new_ = true;
           ESP_LOGD(TAG, "Start network steering");
           ezb_bdb_start_top_level_commissioning(EZB_BDB_MODE_NETWORK_STEERING);
         } else {
           ESP_LOGD(TAG, "Device rebooted");
-          global_zigbee->joined = true;
+          global_zigbee->joined_ = true;
+          global_zigbee->join_pending_ = true;
           global_zigbee->enable_loop_soon_any_context();
         }
       } else {
@@ -75,6 +89,7 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
         global_zigbee->set_timeout("zb_init", 1000, []() {
           ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(EZB_BDB_MODE_INITIALIZATION);
         });
+        App.wake_loop_threadsafe();
       }
     } break;
     case EZB_BDB_SIGNAL_STEERING: {
@@ -85,7 +100,8 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
         ezb_nwk_get_extended_panid(&extended_pan_id);
         ESP_LOGD(TAG, "Joined network successfully: PAN ID(0x%04hx, EXT: 0x%llx), Channel(%d), Short Address(0x%04hx)",
                  ezb_nwk_get_panid(), extended_pan_id.u64, ezb_nwk_get_current_channel(), ezb_nwk_get_short_address());
-        global_zigbee->joined = true;
+        global_zigbee->joined_ = true;
+        global_zigbee->join_pending_ = true;
         global_zigbee->enable_loop_soon_any_context();
       } else {
         ESP_LOGD(TAG, "Failed to join network with status(0x%02x)", status);
@@ -99,13 +115,36 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
             ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(EZB_BDB_MODE_NETWORK_STEERING);
           });
         }
+        App.wake_loop_threadsafe();
       }
     } break;
     case EZB_ZDO_SIGNAL_LEAVE: {
       const ezb_zdo_signal_leave_params_t *leave_params =
           (const ezb_zdo_signal_leave_params_t *) ezb_app_signal_get_params(app_signal);
       if (leave_params->leave_type == EZB_ZDO_LEAVE_TYPE_RESET) {
-        esp_zigbee_factory_reset();
+        esp_zigbee_factory_reset();  // triggers a reboot
+      }
+      global_zigbee->joined_ = false;
+    } break;
+    case EZB_NWK_SIGNAL_NETWORK_STATUS: {
+      const ezb_nwk_signal_network_status_params_t *network_status_params =
+          (const ezb_nwk_signal_network_status_params_t *) ezb_app_signal_get_params(app_signal);
+      if (network_status_params->status == EZB_NWK_NETWORK_STATUS_PARENT_LINK_FAILURE) {
+        global_zigbee->joined_ = false;
+        ESP_LOGW(TAG, "Parent link failure, attempting rejoin");
+        ezb_zdo_nwk_mgmt_leave_req_t leave_req = {
+            .dst_nwk_addr = ezb_nwk_get_short_address(),
+            .field =
+                {
+                    .remove_children = false,
+                    .rejoin = true,
+                },
+        };
+        // Send leave request to the network to rejoin
+        // triggers EZB_ZDO_SIGNAL_LEAVE signal first, then EZB_BDB_SIGNAL_DEVICE_REBOOT
+        ezb_zdo_nwk_mgmt_leave_req(&leave_req);
+      } else {
+        ESP_LOGD(TAG, "Zigbee APP Signal NETWORK_STATUS: 0x%02x", network_status_params->status);
       }
     } break;
     default:
@@ -233,7 +272,9 @@ static void ezb_task(void *pv_parameters) {
   vTaskDelete(NULL);
 }
 
-ZigbeeComponent::ZigbeeComponent() {
+void ZigbeeComponent::setup() {
+  global_zigbee = this;
+
   esp_zigbee_platform_config_t platform_config = {
       .storage_partition_name = "nvs",
       .radio_config = EZB_DEFAULT_RADIO_CONFIG(),
@@ -260,17 +301,18 @@ ZigbeeComponent::ZigbeeComponent() {
     this->mark_failed();
     return;
   }
-  this->dev_desc_ = ezb_af_create_device_desc();
-}
 
-void ZigbeeComponent::setup() {
-  global_zigbee = this;
 #ifdef USE_WIFI
   if (esp_coex_wifi_i154_enable() != ESP_OK) {
     this->mark_failed();
     return;
   }
 #endif
+
+#ifdef CONFIG_ZB_ZCZR
+  ezb_bdb_set_router_rejoin_required(true);
+#endif
+
   ezb_aps_secur_enable_distributed_security(false);
   ezb_nwk_set_min_join_lqi(32);
   if (ezb_app_signal_add_handler(ZigbeeComponent::app_signal_handler) != ESP_OK) {
@@ -297,15 +339,28 @@ void ZigbeeComponent::setup() {
   };
   ezb_af_set_node_power_desc(&desc);
 
+  // Finish zigbee data model
+  for (auto &attr_value : this->attr_values_) {
+    ezb_zcl_attr_desc_t attr_desc = attr_value.attr_desc;
+    void *value_p = &attr_value.value;
+    ezb_zcl_attr_desc_set_value(attr_desc, value_p);
+  }
+  // free memory
+  std::vector<AttrValue>().swap(this->attr_values_);
+
   // Start the Zigbee task with priority 1 to ensure main loop can still run even if Zigbee is busy
   xTaskCreate(ezb_task, "Zigbee_main", 4096, NULL, 1, NULL);
   this->disable_loop();  // loop is only needed for processing events, so disable until we join a network
 }
 
 void ZigbeeComponent::loop() {
-  if (this->joined.exchange(false)) {
-    this->connected_ = true;
-    this->join_cb_.call(this->factory_new);
+  if (!this->start_reported_ && this->started_) {
+    this->start_cb_.call();
+    this->start_reported_ = true;
+  }
+  if (this->join_pending_.exchange(false)) {
+    this->join_cb_.call(this->factory_new_);
+    this->factory_new_ = false;
   }
   this->disable_loop();
 }
@@ -334,6 +389,23 @@ void ZigbeeComponent::dump_config() {
                   reinterpret_cast<const char *>(this->basic_cluster_data_.model + 1),
                   YESNO(this->device_role_ == EZB_NWK_DEVICE_TYPE_ROUTER));
   }
+}
+
+bool ZigbeeComponent::string_attr_exists_(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id) {
+  ezb_af_ep_desc_t ep_desc = ezb_af_device_get_endpoint_desc(this->dev_desc_, endpoint_id);
+  if (ep_desc == NULL) {
+    return false;
+  }
+  ezb_zcl_cluster_desc_t cluster_desc = ezb_af_endpoint_get_cluster_desc(ep_desc, cluster_id, role);
+  if (cluster_desc == NULL) {
+    return false;
+  }
+  if (ezb_zcl_cluster_get_attr_desc(cluster_desc, attr_id, EZB_ZCL_STD_MANUF_CODE) == NULL) {
+    return false;
+  }
+  ESP_LOGW(TAG, "Attribute 0x%04X already exists in endpoint %u cluster 0x%04X. Can't add new value", attr_id,
+           endpoint_id, cluster_id);
+  return true;
 }
 }  // namespace esphome::zigbee
 

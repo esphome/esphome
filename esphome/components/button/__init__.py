@@ -23,7 +23,8 @@ from esphome.core.entity_helpers import (
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -38,8 +39,6 @@ DEVICE_CLASSES = [
 button_ns = cg.esphome_ns.namespace("button")
 Button = button_ns.class_("Button", cg.EntityBase)
 ButtonPtr = Button.operator("ptr")
-
-PressAction = button_ns.class_("PressAction", automation.Action)
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
@@ -88,7 +87,7 @@ _CALLBACK_AUTOMATIONS = (
 
 
 @setup_entity("button")
-async def setup_button_core_(var, config):
+async def setup_button_core_(var: MockObj, config: ConfigType) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     setup_device_class(config)
@@ -101,7 +100,7 @@ async def setup_button_core_(var, config):
         await web_server.add_entity_config(var, web_server_config)
 
 
-async def register_button(var, config):
+async def register_button(var: MockObj, config: ConfigType) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     queue_entity_register("button", config)
@@ -109,7 +108,7 @@ async def register_button(var, config):
     await setup_button_core_(var, config)
 
 
-async def new_button(config, *args):
+async def new_button(config: ConfigType, *args: SafeExpType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_button(var, config)
     return var
@@ -122,14 +121,11 @@ BUTTON_PRESS_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "button.press", PressAction, BUTTON_PRESS_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "button.press", BUTTON_PRESS_SCHEMA, automation.ApplyCall("press()")
 )
-async def button_press_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(button_ns.using)

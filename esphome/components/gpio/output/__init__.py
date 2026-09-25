@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PIN
+from esphome.types import ConfigType
 
 from .. import gpio_ns
 
@@ -16,7 +17,7 @@ CONFIG_SCHEMA = output.BINARY_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await output.register_output(var, config)
     await cg.register_component(var, config)

@@ -1,0 +1,6 @@
+button:
+  - platform: template
+    name: Alarm Calls
+    on_press:
+      - alarm_control_panel.pending: alarmcontrolpanel1
+      - alarm_control_panel.triggered: alarmcontrolpanel1

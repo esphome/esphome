@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from esphome import automation, core
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import only_on_variant
 from esphome.components.esp32.const import (
@@ -13,7 +13,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S31,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MODEL, CONF_NAME
+from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MODEL, CONF_NAME, CONF_ON_START
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
@@ -108,6 +108,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ROUTER, default=False): cv.boolean,
             cv.Optional(CONF_ON_JOIN): automation.validate_automation({}),
+            cv.Optional(CONF_ON_START): automation.validate_automation({}),
             cv.OnlyWith(CONF_WIPE_ON_BOOT, "nrf52", default=False): cv.All(
                 cv.Any(
                     cv.boolean,
@@ -175,6 +176,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 _CALLBACK_AUTOMATIONS = [
     automation.CallbackAutomation(CONF_ON_JOIN, "add_on_join_callback", [(bool, "x")]),
+    automation.CallbackAutomation(CONF_ON_START, "add_on_start_callback", []),
 ]
 
 
@@ -296,18 +298,9 @@ FactoryResetAction = zigbee_ns.class_(
 )
 
 
-@automation.register_action(
+automation.register_parented_action(
     "zigbee.factory_reset",
     FactoryResetAction,
     ZIGBEE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def reset_zigbee_to_code(
-    config: ConfigType,
-    action_id: core.ID,
-    template_arg: cg.TemplateArguments,
-    args: list[tuple],
-) -> cg.Pvariable:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

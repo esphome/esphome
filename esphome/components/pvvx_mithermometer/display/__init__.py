@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_TIME_ID,
     CONF_VALIDITY_PERIOD,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["ble_client"]
 
@@ -36,7 +37,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
     await ble_client.register_ble_node(var, config)
