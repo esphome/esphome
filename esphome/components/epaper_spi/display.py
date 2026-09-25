@@ -77,13 +77,11 @@ def model_schema(config):
         model.get_default(CONF_MINIMUM_UPDATE_INTERVAL, "1s")
     )
     cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
-    return (
-        display.FULL_DISPLAY_SCHEMA.extend(
-            spi.spi_device_schema(
-                cs_pin_required=False,
-                default_mode="MODE0",
-                default_data_rate=model.get_default(CONF_DATA_RATE, 10_000_000),
-            )
+    return display.FULL_DISPLAY_SCHEMA.extend(
+        spi.spi_device_schema(
+            cs_pin_required=False,
+            default_mode="MODE0",
+            default_data_rate=model.get_default(CONF_DATA_RATE, 10_000_000),
         )
     ).extend(
         {
