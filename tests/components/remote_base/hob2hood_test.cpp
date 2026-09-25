@@ -21,6 +21,16 @@ optional<Hob2HoodData> decode(const RawTimings &timings, uint32_t tolerance = 25
   return Hob2HoodProtocol().decode(RemoteReceiveData(timings, tolerance, mode));
 }
 
+void expect_decodes_to(const RawTimings &timings, Hob2HoodCommand command, uint32_t tolerance = 25,
+                       ToleranceMode mode = TOLERANCE_MODE_PERCENTAGE) {
+  auto decoded = decode(timings, tolerance, mode);
+  ASSERT_TRUE(decoded.has_value()) << "command 0x" << std::hex << int(command);
+  // clang-tidy's unchecked-optional-access models neither gtest's ASSERT_TRUE nor value() as a check
+  if (decoded.has_value()) {
+    EXPECT_EQ(decoded->command, command);
+  }
+}
+
 }  // namespace
 
 // light_on is 0xd2: the bits 0 11010010 11010011 11010100 form 17 runs. A run of n zero bits is a mark of
@@ -40,9 +50,7 @@ TEST(Hob2HoodProtocolTest, LongestFrameFitsTheReservedLength) {
 
 TEST(Hob2HoodProtocolTest, RoundTripsEveryCommand) {
   for (auto command : ALL_COMMANDS) {
-    auto decoded = decode(encode(command));
-    ASSERT_TRUE(decoded.has_value()) << "command 0x" << std::hex << int(command);
-    EXPECT_EQ(decoded->command, command);
+    expect_decodes_to(encode(command), command);
   }
 }
 
@@ -52,9 +60,7 @@ TEST(Hob2HoodProtocolTest, DecodesWithoutTheTrailingSpace) {
     auto timings = encode(command);
     if (timings.back() < 0)
       timings.pop_back();
-    auto decoded = decode(timings);
-    ASSERT_TRUE(decoded.has_value()) << "command 0x" << std::hex << int(command);
-    EXPECT_EQ(decoded->command, command);
+    expect_decodes_to(timings, command);
   }
 }
 
@@ -65,9 +71,7 @@ TEST(Hob2HoodProtocolTest, DecodesSkewedTimingsWithinTheRecommendedTolerance) {
   for (auto &t : timings) {
     t += t > 0 ? -240 : -230;
   }
-  auto decoded = decode(timings, 350, TOLERANCE_MODE_TIME);
-  ASSERT_TRUE(decoded.has_value());
-  EXPECT_EQ(decoded->command, HOB2HOOD_COMMAND_FAN_HIGH);
+  expect_decodes_to(timings, HOB2HOOD_COMMAND_FAN_HIGH, 350, TOLERANCE_MODE_TIME);
 }
 
 TEST(Hob2HoodProtocolTest, RejectsAForeignFrame) {
