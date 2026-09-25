@@ -4,6 +4,7 @@ import esphome.codegen as cg
 from esphome.components import modbus, sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADDRESS,
     CONF_FREQUENCY,
     CONF_ID,
     DEVICE_CLASS_APPARENT_POWER,
@@ -150,6 +151,12 @@ _SENSORS = {
     for phase in "abc"
 } | _COMBINED_QUANTITIES
 
+# The meter answers unit addresses 1 to 247; 0 is the Modbus broadcast address and 248 to 255 are reserved.
+_ADDRESS_SCHEMA = cv.All(
+    cv.hex_uint8_t,
+    cv.Range(min=1, max=247, msg="The PZEM-6L24 answers unit addresses 1 to 247 only"),
+)
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -159,6 +166,7 @@ CONFIG_SCHEMA = (
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(modbus.modbus_device_schema(0x01))
+    .extend({cv.Optional(CONF_ADDRESS, default=0x01): _ADDRESS_SCHEMA})
 )
 
 
