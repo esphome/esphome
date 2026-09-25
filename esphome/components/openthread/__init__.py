@@ -246,7 +246,12 @@ CONFIG_SCHEMA = cv.All(
                 cv.decibel,
                 _validate_txpower,
             ),
-            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_POLL_PERIOD): cv.All(
+                cv.positive_time_period_milliseconds,
+                # OpenThread's own cap: values above kMaxExternalPeriod (0x3FFFFFF ms, ~18.6h)
+                # are silently clamped by otLinkSetPollPeriod() (data_poll_sender.hpp).
+                cv.Range(max=TimePeriodMilliseconds(milliseconds=0x3FFFFFF)),
+            ),
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
