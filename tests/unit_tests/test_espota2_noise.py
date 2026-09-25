@@ -218,6 +218,7 @@ def _upload(
     firmware: bytes,
     noise_psk: str | None,
     plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
 ) -> None:
     device.start()
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -231,13 +232,18 @@ def _upload(
             Path("firmware.bin"),
             noise_psk=noise_psk,
             plaintext_fallback=plaintext_fallback,
+            allow_plaintext_upload=allow_plaintext_upload,
         )
     finally:
         sock.close()
 
 
 def _run_ota(
-    device: FakeEncryptedDevice, firmware: bytes, tmp_path: Path, noise_psk: str
+    device: FakeEncryptedDevice,
+    firmware: bytes,
+    tmp_path: Path,
+    noise_psk: str,
+    plaintext_fallback: bool = True,
 ) -> int:
     """Drive the retry loop, which is where the plaintext fallback reconnects."""
     path = tmp_path / "firmware.bin"
@@ -249,7 +255,7 @@ def _run_ota(
         None,
         path,
         noise_psk=noise_psk,
-        plaintext_fallback=True,
+        plaintext_fallback=plaintext_fallback,
     )
     return rc
 
@@ -299,9 +305,67 @@ def test_tampered_negotiation_breaks_handshake() -> None:
 def test_client_fails_closed_when_device_lacks_encryption() -> None:
     """With a key configured, a device not offering noise aborts the upload."""
     device = FakeEncryptedDevice(offer_noise=False, require_noise=False)
-    with pytest.raises(espota2.OTAError, match="refusing to send the image"):
+    with pytest.raises(
+        espota2.OTAError, match="refusing to send the image.*allow_plaintext_upload"
+    ):
         _upload(device, b"firmware", PSK)
     device.join_and_check()
+
+
+def test_allow_plaintext_upload_when_device_does_not_offer(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The explicit opt in sends the image in plaintext to a device that
+    cannot encrypt, naming the option in the warning."""
+    firmware = b"firmware"
+    device = FakeEncryptedDevice(offer_noise=False, require_noise=False)
+    with patch("time.sleep"), caplog.at_level(logging.WARNING):
+        _upload(device, firmware, PSK, allow_plaintext_upload=True)
+    device.join_and_check()
+    assert device.received == firmware
+    assert any("'allow_plaintext_upload' is set" in r.message for r in caplog.records)
+    assert not any("2027.3.0" in r.message for r in caplog.records)
+    assert not any(
+        "Remove it from the configuration" in r.message for r in caplog.records
+    )
+
+
+def test_allow_plaintext_upload_warns_once_device_encrypts(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The removal warning appears exactly when it is safe to act on: the
+    device offered encryption and accepted the key with the option still set."""
+    pytest.importorskip("aioesphomeapi.noise")
+    firmware = b"firmware"
+    device = FakeEncryptedDevice()
+    with caplog.at_level(logging.WARNING):
+        _upload(device, firmware, PSK, allow_plaintext_upload=True)
+    device.join_and_check()
+    assert device.received == firmware
+    assert any(
+        "Remove it from the configuration now" in r.message for r in caplog.records
+    )
+    with caplog.at_level(logging.WARNING):
+        caplog.clear()
+        _upload(FakeEncryptedDevice(), firmware, PSK)
+    assert not caplog.records
+
+
+def test_allow_plaintext_upload_keeps_wrong_key_failing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The opt in only covers a device that does not offer; a rejected key
+    never turns into a plaintext upload."""
+    pytest.importorskip("aioesphomeapi.noise")
+    device = FakeEncryptedDevice(psk=OTHER_PSK, require_noise=False)
+    with (
+        caplog.at_level(logging.WARNING),
+        pytest.raises(espota2.OTAError, match="encryption key correct"),
+    ):
+        _upload(device, b"firmware", PSK, allow_plaintext_upload=True)
+    device.join_and_check()
+    assert device.received != b"firmware"
+    assert not any("plaintext" in r.message for r in caplog.records)
 
 
 # Remove before 2027.3.0
@@ -519,3 +583,18 @@ def test_recv_serves_buffered_plaintext_without_new_frame() -> None:
     assert wrapper.recv(1) == b"A"  # reads and decrypts one frame
     assert wrapper.recv(1) == b"B"  # served from the buffer, no new frame
     wrapper._decrypt.decrypt.assert_called_once()
+
+
+def test_bare_block_refuses_a_device_that_cannot_encrypt(
+    caplog: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
+    """What the CLI sends for a bare `encryption:` block: a key with neither
+    fallback. The retry loop never reconnects in plaintext."""
+    device = FakeEncryptedDevice(offer_noise=False, require_noise=False)
+    with patch("time.sleep"), caplog.at_level(logging.WARNING):
+        rc = _run_ota(device, b"firmware", tmp_path, PSK, plaintext_fallback=False)
+    device.join_and_check()
+    assert rc == 1
+    assert device.received != b"firmware"
+    assert any("refusing to send the image" in r.message for r in caplog.records)
+    assert not any("Retrying in plaintext" in r.message for r in caplog.records)
