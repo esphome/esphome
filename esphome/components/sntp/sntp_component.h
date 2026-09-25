@@ -41,18 +41,25 @@ class SNTPComponent final : public time::RealTimeClock {
   /// Longest zone name accepted, e.g. "America/Argentina/ComodRivadavia" is 32 characters.
   static constexpr size_t MAX_ZONE_LENGTH = 47;
 
-  /// Fetch the timezone from the time.now service.
-  /// @param zone A Region/City name, or "ip" to look up the zone from the device's public IP address.
-  /// @param update_interval How often to fetch it again, in milliseconds, so daylight saving changes are applied.
-  void set_timezone_service(http_request::HttpRequestComponent *http_request, const char *zone,
+  /// Fetch the timezone and its daylight saving rules from a timezone service.
+  /// @param url The service's `/v1/timezone` endpoint.
+  /// @param zone A Region/City name, "ip" to look up the zone from the device's public IP address,
+  ///   or "" to look it up from the location given to set_timezone_location().
+  /// @param update_interval How often to fetch it again, in milliseconds, to pick up changed rules.
+  void set_timezone_service(http_request::HttpRequestComponent *http_request, const char *url, const char *zone,
                             uint32_t update_interval) {
     this->http_request_ = http_request;
+    this->timezone_url_ = url;
     this->config_zone_ = zone;
     this->timezone_update_interval_ = update_interval;
   }
+  void set_timezone_location(float latitude, float longitude) {
+    this->latitude_ = latitude;
+    this->longitude_ = longitude;
+  }
 
   /// Change the zone at runtime and fetch it now. The new zone is kept across reboots until the
-  /// zone in the configuration is changed. Returns false if the name is not a valid zone name.
+  /// zone or location in the configuration is changed. Returns false if the name is not a valid zone name.
   bool set_timezone(StringRef zone);
 
 #ifdef USE_TEXT_SENSOR
@@ -74,13 +81,24 @@ class SNTPComponent final : public time::RealTimeClock {
   bool apply_timezone_response_(const uint8_t *data, size_t len);
 
   http_request::HttpRequestComponent *http_request_{nullptr};
+  const char *timezone_url_{""};
   const char *config_zone_{""};
+  float latitude_{0};
+  float longitude_{0};
   uint32_t timezone_update_interval_{0};
   ESPPreferenceObject zone_pref_;
   char zone_[MAX_ZONE_LENGTH + 1]{};
   bool timezone_fetched_{false};
 #ifdef USE_TEXT_SENSOR
+  /// Publish the abbreviation for standard or daylight saving time, whichever is in effect.
+  /// Unless `force` is set, only publish when that has changed since the last time.
+  void publish_abbreviation_(bool force);
+
+  static constexpr size_t MAX_ABBREVIATION_LENGTH = 15;
   text_sensor::TextSensor *abbreviation_text_sensor_{nullptr};
+  char std_abbreviation_[MAX_ABBREVIATION_LENGTH + 1]{};
+  char dst_abbreviation_[MAX_ABBREVIATION_LENGTH + 1]{};
+  bool abbreviation_is_dst_{false};
 #endif
 #endif
 

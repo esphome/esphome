@@ -6,7 +6,12 @@ from pathlib import Path
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.sntp.time import ZONE_IP, validate_zone
+from esphome.components.sntp.time import (
+    DEFAULT_SERVICE_URL,
+    TIMEZONE_SERVICE_SCHEMA,
+    ZONE_IP,
+    validate_zone,
+)
 from esphome.core import CORE, EsphomeError
 
 CONFIG_DIR = Path(__file__).parent / "config"
@@ -41,9 +46,10 @@ def test_timezone_service_codegen(
     assert "USE_SNTP_TIMEZONE_SERVICE" in defines
     assert "USE_TIME_TIMEZONE" in defines
     assert (
-        'set_timezone_service(http_request_httprequestidf_id, "Europe/London", 1800000);'
-        in main_cpp
+        f'set_timezone_service(http_request_httprequestidf_id, "{DEFAULT_SERVICE_URL}", '
+        '"Europe/London", 1800000);' in main_cpp
     )
+    assert "set_timezone_location" not in main_cpp
     # The rules for the configured zone apply until the service answers
     assert "time::set_global_tz(tz);" in main_cpp
     assert 'set_zone(ESPHOME_F("Australia/Sydney"));' in main_cpp
@@ -64,5 +70,35 @@ def test_timezone_service_ip(
 ) -> None:
     main_cpp = generate_main(CONFIG_DIR / "timezone_service_ip.yaml")
 
-    assert '"ip", 3600000);' in main_cpp
+    # Rules rarely change, so the default is to fetch them once a day
+    assert '"ip", 86400000);' in main_cpp
     assert "USE_SNTP_TIMEZONE_SERVICE" in {d.name for d in CORE.defines}
+
+
+def test_timezone_service_location(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    main_cpp = generate_main(CONFIG_DIR / "timezone_service_location.yaml")
+
+    assert (
+        "set_timezone_service(http_request_httprequestidf_id, "
+        '"https://timezone.example.com/v1/timezone", "", 86400000);' in main_cpp
+    )
+    assert "sntp_time->set_timezone_location(51.5f, -0.12f);" in main_cpp
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {},
+        {"zone": "ip", "latitude": 1, "longitude": 2},
+        {"latitude": 1},
+        {"longitude": 2},
+        {"latitude": 91, "longitude": 0},
+        {"zone": "ip", "service": "ftp://example.com"},
+    ],
+)
+def test_timezone_service_schema_rejects(config: dict) -> None:
+    with pytest.raises(cv.Invalid):
+        # Everything except the platform check, which needs a target platform
+        cv.All(*TIMEZONE_SERVICE_SCHEMA.validators[:-1])(config)

@@ -6,6 +6,7 @@
 #include "esphome/components/time/posix_tz.h"
 #include <cctype>
 #include <cinttypes>
+#include <cstdlib>
 #include <cstring>
 #endif
 
@@ -22,13 +23,19 @@ namespace esphome::sntp {
 static const char *const TAG = "sntp";
 
 #ifdef USE_SNTP_TIMEZONE_SERVICE
-static constexpr const char *TIME_NOW_API_URL = "https://time.now/developer/api/";
-static constexpr const char *ZONE_IP = "ip";
 static constexpr const char *TIMEZONE_REFRESH = "tz_refresh";
 static constexpr const char *TIMEZONE_FETCH = "tz_fetch";
 static constexpr uint32_t TIMEZONE_RETRY_MS = 60000;
-// The service returns a few hundred bytes
-static constexpr size_t TIMEZONE_RESPONSE_MAX = 768;
+// The service returns about 550 bytes
+static constexpr size_t TIMEZONE_RESPONSE_MAX = 1024;
+// Transition times are local seconds after midnight; POSIX allows -167 to +167 hours
+static constexpr int32_t MAX_TRANSITION_SECONDS = 167 * 3600;
+static constexpr int32_t MAX_OFFSET_SECONDS = 25 * 3600;
+#ifdef USE_TEXT_SENSOR
+static constexpr const char *TIMEZONE_ABBREVIATION = "tz_abbr";
+// Daylight saving changes happen on a minute boundary, so checking each minute is enough
+static constexpr uint32_t ABBREVIATION_CHECK_MS = 60000;
+#endif
 
 struct ZonePreference {
   char zone[SNTPComponent::MAX_ZONE_LENGTH + 1];
@@ -44,6 +51,34 @@ static bool is_valid_zone(StringRef zone) {
   }
   return true;
 }
+
+// Read one daylight saving rule from the service's response, checking every field is in range.
+static bool read_dst_rule(JsonObjectConst obj, time::DSTRule &rule) {
+  int type = obj["type"] | -1;
+  int month = obj["month"] | -1;
+  int week = obj["week"] | -1;
+  int day_of_week = obj["day_of_week"] | -1;
+  int day = obj["day"] | -1;
+  JsonVariantConst time_seconds = obj["time_seconds"];
+  if (type < 0 || type > static_cast<int>(time::DSTRuleType::DAY_OF_YEAR) || month < 0 || month > 12 || week < 0 ||
+      week > 5 || day_of_week < 0 || day_of_week > 6 || day < 0 || day > 365 || !time_seconds.is<int32_t>() ||
+      std::abs(time_seconds.as<int32_t>()) > MAX_TRANSITION_SECONDS)
+    return false;
+  rule.type = static_cast<time::DSTRuleType>(type);
+  rule.month = month;
+  rule.week = week;
+  rule.day_of_week = day_of_week;
+  rule.day = day;
+  rule.time_seconds = time_seconds.as<int32_t>();
+  return true;
+}
+
+static bool read_offset(JsonVariantConst value, int32_t &offset) {
+  if (!value.is<int32_t>() || std::abs(value.as<int32_t>()) > MAX_OFFSET_SECONDS)
+    return false;
+  offset = value.as<int32_t>();
+  return true;
+}
 #endif
 
 #if defined(USE_ESP32)
@@ -52,9 +87,12 @@ SNTPComponent *SNTPComponent::instance = nullptr;  // NOLINT(cppcoreguidelines-a
 
 void SNTPComponent::setup() {
 #ifdef USE_SNTP_TIMEZONE_SERVICE
-  // The key includes the configured zone, so a zone set at runtime is dropped when the configuration changes
-  this->zone_pref_ = global_preferences->make_preference<ZonePreference>(
-      fnv1_hash_extend(fnv1_hash("sntp_timezone"), this->config_zone_), true);
+  // The key includes the configured zone and location, so a zone set at runtime is dropped when the
+  // configuration changes
+  uint32_t key = fnv1_hash_extend(fnv1_hash("sntp_timezone"), this->config_zone_);
+  key = fnv1_hash_extend(key, static_cast<int32_t>(this->latitude_ * 1e6f));
+  key = fnv1_hash_extend(key, static_cast<int32_t>(this->longitude_ * 1e6f));
+  this->zone_pref_ = global_preferences->make_preference<ZonePreference>(key, true);
   ZonePreference saved{};
   if (this->zone_pref_.load(&saved) && memchr(saved.zone, '\0', sizeof(saved.zone)) != nullptr &&
       is_valid_zone(StringRef(saved.zone))) {
@@ -64,6 +102,10 @@ void SNTPComponent::setup() {
     this->zone_[MAX_ZONE_LENGTH] = '\0';
   }
   this->set_interval(TIMEZONE_REFRESH, this->timezone_update_interval_, [this]() { this->fetch_timezone_(); });
+#ifdef USE_TEXT_SENSOR
+  if (this->abbreviation_text_sensor_ != nullptr)
+    this->set_interval(TIMEZONE_ABBREVIATION, ABBREVIATION_CHECK_MS, [this]() { this->publish_abbreviation_(false); });
+#endif
 #endif
 #if defined(USE_ESP32)
   SNTPComponent::instance = this;
@@ -108,11 +150,13 @@ void SNTPComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Server %zu: '%s'", i++, server);
   }
 #ifdef USE_SNTP_TIMEZONE_SERVICE
-  ESP_LOGCONFIG(TAG,
-                "  Timezone service: time.now\n"
-                "  Zone: %s\n"
-                "  Timezone update interval: %" PRIu32 "s",
-                this->zone_, this->timezone_update_interval_ / 1000);
+  ESP_LOGCONFIG(TAG, "  Timezone service: %s", this->timezone_url_);
+  if (this->zone_[0] != '\0') {
+    ESP_LOGCONFIG(TAG, "  Zone: %s", this->zone_);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Location: %.4f, %.4f", this->latitude_, this->longitude_);
+  }
+  ESP_LOGCONFIG(TAG, "  Timezone update interval: %" PRIu32 "s", this->timezone_update_interval_ / 1000);
 #endif
   RealTimeClock::dump_config();
 }
@@ -182,16 +226,18 @@ void SNTPComponent::fetch_timezone_() {
     this->set_timeout(TIMEZONE_FETCH, TIMEZONE_RETRY_MS, [this]() { this->fetch_timezone_(); });
     return;
   }
-  char url[96];
-  if (strcmp(this->zone_, ZONE_IP) == 0) {
-    snprintf(url, sizeof(url), "%sip", TIME_NOW_API_URL);
+  // The zone only holds characters checked by is_valid_zone(), so it needs no escaping
+  char body[80];
+  if (this->zone_[0] != '\0') {
+    snprintf(body, sizeof(body), "{\"zone\":\"%s\"}", this->zone_);
   } else {
-    snprintf(url, sizeof(url), "%stimezone/%s", TIME_NOW_API_URL, this->zone_);
+    snprintf(body, sizeof(body), "{\"latitude\":%.6f,\"longitude\":%.6f}", this->latitude_, this->longitude_);
   }
-  ESP_LOGD(TAG, "Fetching timezone from %s", url);
+  ESP_LOGD(TAG, "Fetching timezone for %s", body);
 
   bool ok = false;
-  auto container = this->http_request_->get(url);
+  auto container = this->http_request_->post(this->timezone_url_, std::string(body),
+                                             {http_request::Header{"Content-Type", "application/json"}});
   if (container == nullptr) {
     ESP_LOGW(TAG, "Timezone request failed");
   } else if (!http_request::is_success(container->status_code)) {
@@ -236,32 +282,39 @@ void SNTPComponent::fetch_timezone_() {
 
 bool SNTPComponent::apply_timezone_response_(const uint8_t *data, size_t len) {
   return json::parse_json(data, len, [this](JsonObject root) -> bool {
-    if (!root["raw_offset"].is<int>() || !root["dst_offset"].is<int>() || !root["dst"].is<bool>()) {
-      ESP_LOGW(TAG, "Timezone response has no valid raw_offset, dst_offset or dst");
+    time::ParsedTimezone tz{};
+    if (!read_offset(root["std_offset_seconds"], tz.std_offset_seconds) ||
+        !read_offset(root["dst_offset_seconds"], tz.dst_offset_seconds) ||
+        !read_dst_rule(root["dst_start"], tz.dst_start) || !read_dst_rule(root["dst_end"], tz.dst_end)) {
+      ESP_LOGW(TAG, "Timezone response has missing or invalid rules");
       return false;
     }
-    int32_t raw_offset = root["raw_offset"];
-    int32_t dst_offset = root["dst"].as<bool>() ? root["dst_offset"].as<int32_t>() : 0;
-    // Both offsets are seconds east of UTC; POSIX offsets are positive west, so negate.
-    // The service gives only the current offset, not daylight saving rules; the periodic
-    // refresh picks up the new offset after a daylight saving change.
-    int32_t offset_seconds = -(raw_offset + dst_offset);
-    time::ParsedTimezone tz{};
-    tz.std_offset_seconds = offset_seconds;
-    tz.dst_offset_seconds = offset_seconds;
     time::set_global_tz(tz);
+    ESP_LOGI(TAG, "Timezone %s (%s)", root["zone"] | "", root["posix"] | "");
 
-    const char *abbreviation = root["abbreviation"] | "";
 #ifdef USE_TEXT_SENSOR
-    if (this->abbreviation_text_sensor_ != nullptr)
-      this->abbreviation_text_sensor_->publish_state(abbreviation);
+    strncpy(this->std_abbreviation_, root["std_abbreviation"] | "", MAX_ABBREVIATION_LENGTH);
+    this->std_abbreviation_[MAX_ABBREVIATION_LENGTH] = '\0';
+    strncpy(this->dst_abbreviation_, root["dst_abbreviation"] | "", MAX_ABBREVIATION_LENGTH);
+    this->dst_abbreviation_[MAX_ABBREVIATION_LENGTH] = '\0';
+    this->publish_abbreviation_(true);
 #endif
-
-    ESP_LOGI(TAG, "Timezone %s, offset %" PRId32 "s, abbreviation %s", root["timezone"] | "", -offset_seconds,
-             abbreviation);
     return true;
   });
 }
+
+#ifdef USE_TEXT_SENSOR
+void SNTPComponent::publish_abbreviation_(bool force) {
+  // Nothing to publish until the service has given the abbreviations
+  if (this->abbreviation_text_sensor_ == nullptr || (!force && !this->timezone_fetched_))
+    return;
+  bool is_dst = time::is_in_dst(this->timestamp_now(), time::get_global_tz());
+  if (!force && is_dst == this->abbreviation_is_dst_)
+    return;
+  this->abbreviation_is_dst_ = is_dst;
+  this->abbreviation_text_sensor_->publish_state(is_dst ? this->dst_abbreviation_ : this->std_abbreviation_);
+}
+#endif
 #endif
 
 }  // namespace esphome::sntp

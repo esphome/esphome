@@ -3,11 +3,18 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import time as time_
-from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
+from esphome.components.http_request import (
+    CONF_HTTP_REQUEST_ID,
+    HttpRequestComponent,
+    validate_url,
+)
+from esphome.components.sun import parse_latlon
 from esphome.config_helpers import merge_config
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_LATITUDE,
+    CONF_LONGITUDE,
     CONF_PLATFORM,
     CONF_SERVERS,
     CONF_SERVICE,
@@ -42,7 +49,8 @@ SetTimezoneAction = sntp_ns.class_(
 DEFAULT_SERVERS = ["0.pool.ntp.org", "1.pool.ntp.org", "2.pool.ntp.org"]
 
 CONF_ZONE = "zone"
-SERVICE_TIME_NOW = "time.now"
+# The esphome-timezone-worker endpoint
+DEFAULT_SERVICE_URL = "https://esphome-timezone.clyde-beb.workers.dev/v1/timezone"
 ZONE_IP = "ip"
 # Must match SNTPComponent::MAX_ZONE_LENGTH
 MAX_ZONE_LENGTH = 47
@@ -67,16 +75,22 @@ TIMEZONE_SERVICE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
-            cv.Optional(CONF_SERVICE, default=SERVICE_TIME_NOW): cv.one_of(
-                SERVICE_TIME_NOW, lower=True
+            cv.Optional(CONF_SERVICE, default=DEFAULT_SERVICE_URL): validate_url,
+            cv.Optional(CONF_ZONE): validate_zone,
+            cv.Inclusive(CONF_LATITUDE, "location"): cv.All(
+                parse_latlon, cv.float_range(min=-90, max=90)
             ),
-            cv.Required(CONF_ZONE): validate_zone,
-            cv.Optional(CONF_UPDATE_INTERVAL, default="1h"): cv.All(
+            cv.Inclusive(CONF_LONGITUDE, "location"): cv.All(
+                parse_latlon, cv.float_range(min=-180, max=180)
+            ),
+            # The rules rarely change, so a daily fetch is plenty
+            cv.Optional(CONF_UPDATE_INTERVAL, default="24h"): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(min=cv.TimePeriod(minutes=1)),
             ),
         }
     ),
+    cv.has_exactly_one_key(CONF_ZONE, CONF_LATITUDE),
     # The platforms http_request supports
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2]),
 )
@@ -190,15 +204,24 @@ async def to_code(config: ConfigType) -> None:
         # Needed by the runtime zone, even if no build time zone is available below
         cg.add_define("USE_TIME_TIMEZONE")
         http_request = await cg.get_variable(tz_config[CONF_HTTP_REQUEST_ID])
-        zone = tz_config[CONF_ZONE]
+        zone = tz_config.get(CONF_ZONE, "")
         cg.add(
             var.set_timezone_service(
-                http_request, zone, tz_config[CONF_UPDATE_INTERVAL]
+                http_request,
+                tz_config[CONF_SERVICE],
+                zone,
+                tz_config[CONF_UPDATE_INTERVAL],
             )
         )
+        if CONF_LATITUDE in tz_config:
+            cg.add(
+                var.set_timezone_location(
+                    tz_config[CONF_LATITUDE], tz_config[CONF_LONGITUDE]
+                )
+            )
         # Until the service answers, use the rules for the configured zone, or for the
-        # zone of the build machine when looking it up by IP address
-        if zone == ZONE_IP:
+        # zone of the build machine when looking it up by IP address or location
+        if zone in ("", ZONE_IP):
             try:
                 initial_tz = time_.detect_tz() or ""
             except EsphomeError:

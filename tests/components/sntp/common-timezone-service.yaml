@@ -6,7 +6,7 @@ time:
   - platform: sntp
     id: sntp_time
     timezone:
-      service: time.now
+      service: https://timezone.example.com/v1/timezone
       zone: Europe/London
       update_interval: 30min
 
