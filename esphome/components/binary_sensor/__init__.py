@@ -134,9 +134,6 @@ MultiClickTriggerBase = binary_sensor_ns.class_(
 MultiClickTrigger = binary_sensor_ns.class_("MultiClickTrigger", MultiClickTriggerBase)
 MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 
-BinarySensorInvalidateAction = binary_sensor_ns.class_(
-    "BinarySensorInvalidateAction", automation.Action
-)
 
 # Filters
 Filter = binary_sensor_ns.class_("Filter")
@@ -655,16 +652,15 @@ async def to_code(config):
     cg.add_global(binary_sensor_ns.using)
 
 
-automation.register_simple_action(
+automation.register_apply_action(
     "binary_sensor.invalidate_state",
-    BinarySensorInvalidateAction,
     cv.maybe_simple_value(
         {
             cv.Required(CONF_ID): cv.use_id(BinarySensor),
         },
         key=CONF_ID,
     ),
-    synchronous=True,
+    automation.ApplyCall("invalidate_state()"),
 )
 
 
