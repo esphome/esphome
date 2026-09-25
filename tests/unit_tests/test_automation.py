@@ -509,6 +509,7 @@ class MockCodegen(NamedTuple):
     get_variable: AsyncMock
     new_pvariable: MagicMock
     register_parented: AsyncMock
+    add_global: MagicMock
 
 
 @pytest.fixture
@@ -520,10 +521,11 @@ def mock_cg() -> Generator[MockCodegen]:
         patch(
             "esphome.codegen.register_parented", new_callable=AsyncMock
         ) as register_parented,
+        patch("esphome.codegen.add_global") as add_global,
     ):
         get_variable.return_value = PARENT_OBJ
         new_pvariable.return_value = NEW_OBJ
-        yield MockCodegen(get_variable, new_pvariable, register_parented)
+        yield MockCodegen(get_variable, new_pvariable, register_parented, add_global)
 
 
 @pytest.fixture
@@ -650,7 +652,8 @@ async def _run_apply_condition(
 
 
 def _apply_lambda(mock_cg: MockCodegen) -> str:
-    return str(mock_cg.new_pvariable.call_args.args[2])
+    """The generated function definition, the last statement added at global scope."""
+    return str(mock_cg.add_global.call_args.args[0])
 
 
 @pytest.mark.asyncio
@@ -661,9 +664,17 @@ async def test_register_apply_action_entry(
     assert entry.type_id is ApplyAction
     assert entry.synchronous is True
     mock_cg.get_variable.assert_awaited_once_with(PARENT_ID)
-    action_id, template_arg, _ = mock_cg.new_pvariable.call_args.args
+    action_id, template_arg = mock_cg.new_pvariable.call_args.args
     assert action_id == ID("obj_1")
-    assert str(template_arg) == "<int32_t>"
+    assert str(template_arg) == "<obj_1_fn, int32_t>"
+    declaration, definition = (c.args[0] for c in mock_cg.add_global.call_args_list)
+    assert (
+        str(declaration)
+        == "static void obj_1_fn(const std::remove_cvref_t<int32_t> & x);"
+    )
+    assert str(definition).startswith(
+        "static void obj_1_fn(const std::remove_cvref_t<int32_t> & x) {"
+    )
 
 
 @pytest.mark.asyncio
@@ -746,7 +757,9 @@ async def test_apply_lambdas(
     }
     await _run_apply_action(registries, fields, config, args=[(cg.int32, "x")])
     text = _apply_lambda(mock_cg)
-    assert text.startswith("[](const std::remove_cvref_t<int32_t> & x) -> void {")
+    assert text.startswith(
+        "static void obj_1_fn(const std::remove_cvref_t<int32_t> & x) {"
+    )
     # The parent is global-scope qualified, so an arg named like the id cannot shadow it.
     assert f"::{PARENT_OBJ}->set_kp(" in text
     assert f"::{PARENT_OBJ}->set_kp(static_cast<float>(x * 2));" in text
@@ -913,11 +926,13 @@ async def test_register_apply_condition_predicate(
         registries, "is_playing()", {}, args=[(cg.int32, "x")]
     )
     assert entry.type_id is ApplyCondition
-    condition_id, template_arg, check = mock_cg.new_pvariable.call_args.args
+    condition_id, template_arg = mock_cg.new_pvariable.call_args.args
     assert condition_id == ID("obj_1")
-    assert str(template_arg) == "<int32_t>"
-    text = str(check)
-    assert text.startswith("[](const std::remove_cvref_t<int32_t> & x) -> bool {")
+    assert str(template_arg) == "<obj_1_fn, int32_t>"
+    text = _apply_lambda(mock_cg)
+    assert text.startswith(
+        "static bool obj_1_fn(const std::remove_cvref_t<int32_t> & x) {"
+    )
     assert f"return ::{PARENT_OBJ}->is_playing();" in text
 
 
