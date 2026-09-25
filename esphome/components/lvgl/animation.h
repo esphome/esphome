@@ -140,6 +140,7 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
   }
 
   void loop() override {
+    bool stop = false;
     if (this->state_ == AnimationState::STOPPED)
       return;
     uint32_t elapsed = millis() - this->start_time_;
@@ -155,9 +156,7 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
       case AnimationState::RUNNING:
         if (progress >= 1.0f) {
           progress = 1.0f;
-          this->stop();
-          if (this->loop_)
-            this->start();
+          stop = true;
         }
         break;
       default:
@@ -168,11 +167,18 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
       progress = timing->map_progress(progress);
     }
     lv_coord_t data[DATA_SIZE];
-    for (size_t i = 0; i != DATA_SIZE; i++) {
+    for (size_t i = 0; i < DATA_SIZE; i++) {
       data[i] = static_cast<lv_coord_t>(
           roundf(this->data_from_[i] + static_cast<lv_coord_t>(this->data_to_[i] - this->data_from_[i]) * progress));
     }
     this->update_callback_(data);
+    if (stop) {
+      this->stop();
+      if (this->loop_) {
+        // Current sequence is done, so restart the loop
+        this->start();
+      }
+    }
   }
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR - 20.0; }
