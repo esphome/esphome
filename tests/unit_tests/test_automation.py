@@ -510,6 +510,7 @@ class MockCodegen(NamedTuple):
     new_pvariable: MagicMock
     register_parented: AsyncMock
     add_global: MagicMock
+    calls: MagicMock  # new_pvariable and add_global attached, to check their order
 
 
 @pytest.fixture
@@ -525,7 +526,12 @@ def mock_cg() -> Generator[MockCodegen]:
     ):
         get_variable.return_value = PARENT_OBJ
         new_pvariable.return_value = NEW_OBJ
-        yield MockCodegen(get_variable, new_pvariable, register_parented, add_global)
+        calls = MagicMock()
+        calls.attach_mock(new_pvariable, "new_pvariable")
+        calls.attach_mock(add_global, "add_global")
+        yield MockCodegen(
+            get_variable, new_pvariable, register_parented, add_global, calls
+        )
 
 
 @pytest.fixture
@@ -666,7 +672,8 @@ async def test_register_apply_action_entry(
     action_id, template_arg = mock_cg.new_pvariable.call_args.args
     assert action_id == ID("obj_1")
     assert str(template_arg) == "<obj_1_fn, int32_t>"
-    mock_cg.add_global.assert_called_once()
+    # The definition must precede the storage line that names the function.
+    assert [c[0] for c in mock_cg.calls.mock_calls] == ["add_global", "new_pvariable"]
     assert _apply_definition(mock_cg).startswith(
         "static void obj_1_fn(const std::remove_cvref_t<int32_t> & x) {"
     )
