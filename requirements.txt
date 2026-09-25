@@ -12,7 +12,7 @@ pyserial==3.5
 platformio==6.2.0
 esptool==5.4.0
 click==8.5.0
-aioesphomeapi==46.5.0
+aioesphomeapi==46.6.0
 aiohappyeyeballs==2.7.1  # Happy Eyeballs for requests downloads; already pulled in by aioesphomeapi
 zeroconf==0.151.3
 puremagic==2.2.0
