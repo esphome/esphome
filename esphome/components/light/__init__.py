@@ -1,9 +1,13 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import enum
+import logging
 
 import esphome.automation as auto
 import esphome.codegen as cg
 from esphome.components import mqtt, power_supply, web_server
+from esphome.components.const import CONF_CHANNEL_COLORS, CONF_IS_WRGB
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BLUE,
@@ -23,6 +27,7 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_INITIAL_STATE,
+    CONF_IS_RGBW,
     CONF_MQTT_ID,
     CONF_NAME,
     CONF_ON_STATE,
@@ -32,6 +37,7 @@ from esphome.const import (
     CONF_POWER_SUPPLY,
     CONF_RED,
     CONF_RESTORE_MODE,
+    CONF_RGB_ORDER,
     CONF_STATE,
     CONF_TRIGGER_ID,
     CONF_WARM_WHITE,
@@ -61,6 +67,7 @@ from .effects import (
 from .types import (  # noqa: F401
     AddressableLight,
     AddressableLightState,
+    ChannelColors,
     ColorMode,
     LightOutput,
     LightState,
@@ -70,6 +77,8 @@ from .types import (  # noqa: F401
     LightTurnOnTrigger,
     light_ns,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -165,7 +174,105 @@ def available_effects_str(effects: list) -> str:
     return ", ".join(f"'{name}'" for name in available) if available else "none"
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+# Accepted values of the deprecated `rgb_order` key.
+RGB_ORDERS = ("RGB", "RBG", "GRB", "GBR", "BGR", "BRG")
+
+_RGB_CHANNELS = frozenset("RGB")
+_RGBW_CHANNELS = frozenset("RGBW")
+
+
+def validate_channel_colors(value: str) -> str:
+    """Validate the channel order of an addressable strip, e.g. "GRB" or "WRGB"."""
+    value = cv.string_strict(value).upper()
+    channels = frozenset(value)
+    if len(channels) != len(value) or channels not in (_RGB_CHANNELS, _RGBW_CHANNELS):
+        raise cv.Invalid(
+            f"'{value}' is not a valid channel order. List each of R, G and B exactly "
+            "once, optionally with a single W, in the order the strip expects them "
+            "(for example GRB, GRBW or WRGB)"
+        )
+    return value
+
+
+def channel_colors_struct(value: str) -> cg.StructInitializer:
+    """Build the C++ `light::ChannelColors` for a validated channel order string."""
+    return cg.StructInitializer(
+        ChannelColors,
+        ("r", value.index("R")),
+        ("g", value.index("G")),
+        ("b", value.index("B")),
+        (
+            "w",
+            value.index("W")
+            if "W" in value
+            else cg.RawExpression(f"{ChannelColors}::NO_WHITE"),
+        ),
+    )
+
+
+def _quote_and_join(keys: list[str]) -> str:
+    """Quote each key and join them into a readable list, e.g. "'a', 'b' and 'c'"."""
+    quoted = [f"'{key}'" for key in keys]
+    if len(quoted) == 1:
+        return quoted[0]
+    return f"{', '.join(quoted[:-1])} and {quoted[-1]}"
+
+
+def migrate_channel_colors(
+    *, removed_in: str, component: str
+) -> Callable[[ConfigType], ConfigType]:
+    """Fold the deprecated `rgb_order`, `is_rgbw` and `is_wrgb` keys into `channel_colors`.
+
+    This also enforces that `channel_colors` is set, which the schema cannot do on its
+    own while the deprecated keys are still accepted. After this runs, `to_code` only
+    ever sees `channel_colors`.
+    """
+
+    def validator(config: ConfigType) -> ConfigType:
+        config = config.copy()
+        deprecated = [
+            key for key in (CONF_RGB_ORDER, CONF_IS_RGBW, CONF_IS_WRGB) if key in config
+        ]
+        if CONF_CHANNEL_COLORS in config:
+            if deprecated:
+                raise cv.Invalid(
+                    f"'{CONF_CHANNEL_COLORS}' cannot be combined with "
+                    f"{_quote_and_join(deprecated)}"
+                )
+            return config
+        if CONF_RGB_ORDER not in config:
+            raise cv.Invalid(
+                f"'{CONF_CHANNEL_COLORS}' is required", path=[CONF_CHANNEL_COLORS]
+            )
+        rgb_order = config.pop(CONF_RGB_ORDER)
+        is_rgbw = config.pop(CONF_IS_RGBW, False)
+        is_wrgb = config.pop(CONF_IS_WRGB, False)
+        if is_rgbw and is_wrgb:
+            raise cv.Invalid(
+                f"'{CONF_IS_RGBW}' and '{CONF_IS_WRGB}' cannot both be enabled"
+            )
+        if is_wrgb:
+            channel_colors = f"W{rgb_order}"
+        elif is_rgbw:
+            channel_colors = f"{rgb_order}W"
+        else:
+            channel_colors = rgb_order
+        _LOGGER.warning(
+            "[%s] %s %s deprecated, use '%s: %s'. Will be removed in %s",
+            component,
+            _quote_and_join(deprecated),
+            "are" if len(deprecated) > 1 else "is",
+            CONF_CHANNEL_COLORS,
+            channel_colors,
+            removed_in,
+        )
+        config[CONF_CHANNEL_COLORS] = channel_colors
+        return config
+
+    return validator
+
+
+def _final_validate(config: ConfigType) -> None:
     """Validate all recorded effect name references against their target lights.
 
     This runs once per light platform instance. If no light platform is configured,
@@ -173,7 +280,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
     """
     data = _get_data()
     if not data.effect_refs and not data.effect_cycle_refs:
-        return config
+        return
 
     # Drain the lists so we only validate once even though
     # FINAL_VALIDATE_SCHEMA runs for each light platform instance.
@@ -217,8 +324,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
                 path=[cv.ROOT_CONFIG_PATH] + ref.component_path,
             )
 
-    return config
-
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
@@ -234,6 +339,11 @@ RESTORE_MODES = {
     "RESTORE_AND_OFF": LightRestoreMode.LIGHT_RESTORE_AND_OFF,
     "RESTORE_AND_ON": LightRestoreMode.LIGHT_RESTORE_AND_ON,
 }
+
+# Schema default that also matches the C++ initializer in light_state.h; codegen
+# skips the setter when the config equals it.
+DEFAULT_FLASH_TRANSITION_LENGTH = "0s"
+CONF_TRANSITION_STATE_PUBLISH_INTERVAL = "transition_state_publish_interval"
 
 LIGHT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
@@ -282,8 +392,13 @@ BRIGHTNESS_ONLY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
             CONF_DEFAULT_TRANSITION_LENGTH, default="1s"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(
-            CONF_FLASH_TRANSITION_LENGTH, default="0s"
+            CONF_FLASH_TRANSITION_LENGTH, default=DEFAULT_FLASH_TRANSITION_LENGTH
         ): cv.positive_time_period_milliseconds,
+        # Below 150ms a device cannot publish any faster and only spends CPU and traffic
+        cv.Optional(CONF_TRANSITION_STATE_PUBLISH_INTERVAL): cv.All(
+            cv.positive_time_period_milliseconds,
+            cv.Range(min=cv.TimePeriod(milliseconds=150)),
+        ),
         cv.Optional(CONF_EFFECTS): validate_effects(MONOCHROMATIC_EFFECTS),
     }
 )
@@ -297,6 +412,11 @@ RGB_LIGHT_SCHEMA = BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
 ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(AddressableLightState),
+        # The addressable transformer writes the LED buffer directly, so there is no
+        # intermediate state to publish
+        cv.Optional(CONF_TRANSITION_STATE_PUBLISH_INTERVAL): cv.invalid(
+            "transition_state_publish_interval is not supported on addressable lights"
+        ),
         cv.Optional(CONF_EFFECTS): validate_effects(ADDRESSABLE_EFFECTS),
         cv.Optional(CONF_COLOR_CORRECT): cv.All(
             [cv.percentage], cv.Length(min=3, max=4)
@@ -397,10 +517,17 @@ async def setup_light_core_(light_var, config, output_var):
         default_transition_length := config.get(CONF_DEFAULT_TRANSITION_LENGTH)
     ) is not None:
         cg.add(light_var.set_default_transition_length(default_transition_length))
+    # Skip the setter when the config matches the C++ initializer.
     if (
         flash_transition_length := config.get(CONF_FLASH_TRANSITION_LENGTH)
-    ) is not None:
+    ) is not None and flash_transition_length != cv.time_period(
+        DEFAULT_FLASH_TRANSITION_LENGTH
+    ):
         cg.add(light_var.set_flash_transition_length(flash_transition_length))
+    # Setting an interval opts this light in and compiles the feature in
+    if (interval := config.get(CONF_TRANSITION_STATE_PUBLISH_INTERVAL)) is not None:
+        cg.add(light_var.set_transition_state_publish_interval(interval))
+        cg.add_define("USE_LIGHT_TRANSITION_PUBLISH_INTERVAL")
     if (gamma_correct := config.get(CONF_GAMMA_CORRECT)) is not None:
         cg.add(light_var.set_gamma_correct(gamma_correct))
         fwd_arr = _get_or_create_gamma_table(gamma_correct)
@@ -409,7 +536,8 @@ async def setup_light_core_(light_var, config, output_var):
     effects = await cg.build_registry_list(
         EFFECTS_REGISTRY, config.get(CONF_EFFECTS, [])
     )
-    cg.add(light_var.add_effects(effects))
+    if effects:
+        cg.add(light_var.add_effects(effects))
 
     for conf in config.get(CONF_ON_TURN_ON, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
@@ -453,3 +581,10 @@ async def new_light(config, *args):
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(light_ns.using)
+
+
+# light_json_schema.cpp is only used by mqtt and web_server, which both
+# auto load json; USE_JSON alone is too broad since other components load it.
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"light_json_schema.cpp": ("USE_MQTT", "USE_WEBSERVER")}
+)

@@ -126,7 +126,7 @@ async def grove_tb6612fng_stop_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "grove_tb6612fng.standby",
     GROVETB6612FNGMotorStandbyAction,
     cv.Schema(
@@ -136,14 +136,9 @@ async def grove_tb6612fng_stop_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def grove_tb6612fng_standby_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-
-    return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "grove_tb6612fng.no_standby",
     GROVETB6612FNGMotorNoStandbyAction,
     cv.Schema(
@@ -153,11 +148,6 @@ async def grove_tb6612fng_standby_to_code(config, action_id, template_arg, args)
     ),
     synchronous=True,
 )
-async def grove_tb6612fng_no_standby_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-
-    return var
 
 
 @automation.register_action(

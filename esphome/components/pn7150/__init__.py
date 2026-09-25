@@ -12,6 +12,9 @@ from esphome.const import (
     CONF_ON_TAG_REMOVED,
     CONF_TRIGGER_ID,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["binary_sensor", "nfc"]
 CODEOWNERS = ["@kbx81", "@jesserockz"]
@@ -107,7 +110,12 @@ PN7150_SCHEMA = cv.Schema(
     SET_MESSAGE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def pn7150_set_message_to_code(config, action_id, template_arg, args):
+async def pn7150_set_message_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_MESSAGE], args, cg.std_string)
@@ -119,49 +127,68 @@ async def pn7150_set_message_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "tag.emulation_off",
     EmulationOffAction,
     SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
-    "tag.emulation_on", EmulationOnAction, SIMPLE_ACTION_SCHEMA, synchronous=True
+
+
+automation.register_parented_action(
+    "tag.emulation_on",
+    EmulationOnAction,
+    SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
 )
-@automation.register_action(
-    "tag.polling_off", PollingOffAction, SIMPLE_ACTION_SCHEMA, synchronous=True
+
+
+automation.register_parented_action(
+    "tag.polling_off",
+    PollingOffAction,
+    SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
 )
-@automation.register_action(
-    "tag.polling_on", PollingOnAction, SIMPLE_ACTION_SCHEMA, synchronous=True
+
+
+automation.register_parented_action(
+    "tag.polling_on",
+    PollingOnAction,
+    SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_parented_action(
     "tag.set_clean_mode",
     SetCleanModeAction,
     SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_parented_action(
     "tag.set_format_mode",
     SetFormatModeAction,
     SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_parented_action(
     "tag.set_read_mode",
     SetReadModeAction,
     SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_parented_action(
     "tag.set_write_mode",
     SetWriteModeAction,
     SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def pn7150_simple_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 _CALLBACK_AUTOMATIONS = (
@@ -174,7 +201,7 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-async def setup_pn7150(var, config):
+async def setup_pn7150(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     pin = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])
@@ -207,7 +234,7 @@ async def setup_pn7150(var, config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-@automation.register_condition(
+automation.register_parented_condition(
     "pn7150.is_writing",
     PN7150IsWritingCondition,
     cv.Schema(
@@ -216,7 +243,3 @@ async def setup_pn7150(var, config):
         }
     ),
 )
-async def pn7150_is_writing_to_code(config, condition_id, template_arg, args):
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

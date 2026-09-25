@@ -26,6 +26,7 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@sjtrny", "@martgras"]
 DEPENDENCIES = ["i2c"]
@@ -43,12 +44,6 @@ MEASUREMENT_MODE_OPTIONS = {
     "single_shot_rht_only": MeasurementMode.SINGLE_SHOT_RHT_ONLY,
 }
 
-
-# Actions
-PerformForcedCalibrationAction = scd4x_ns.class_(
-    "PerformForcedCalibrationAction", automation.Action
-)
-FactoryResetAction = scd4x_ns.class_("FactoryResetAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -108,7 +103,7 @@ SETTING_MAP = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -137,18 +132,11 @@ SCD4X_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "scd4x.perform_forced_calibration",
-    PerformForcedCalibrationAction,
     SCD4X_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "perform_forced_calibration", cg.uint16),
 )
-async def scd4x_frc_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
-    cg.add(var.set_value(template_))
-    return var
 
 
 SCD4X_RESET_ACTION_SCHEMA = maybe_simple_id(
@@ -158,13 +146,8 @@ SCD4X_RESET_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "scd4x.factory_reset",
-    FactoryResetAction,
     SCD4X_RESET_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("factory_reset()"),
 )
-async def scd4x_reset_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

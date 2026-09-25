@@ -1,5 +1,4 @@
 from esphome import automation
-from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components import logger, socket
 from esphome.components.esp32 import (
@@ -8,7 +7,10 @@ from esphome.components.esp32 import (
     idf_version,
     include_builtin_idf_component,
 )
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    filter_source_files_from_platform,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AVAILABILITY,
@@ -63,7 +65,6 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import ObjectIdEntity, validate_no_object_id_conflicts
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
@@ -116,10 +117,7 @@ mqtt_ns = cg.esphome_ns.namespace("mqtt")
 MQTTMessage = mqtt_ns.struct("MQTTMessage")
 MQTTClientDisconnectReason = mqtt_ns.enum("MQTTClientDisconnectReason")
 MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
-MQTTPublishAction = mqtt_ns.class_("MQTTPublishAction", automation.Action)
 MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
-MQTTEnableAction = mqtt_ns.class_("MQTTEnableAction", automation.Action)
-MQTTDisableAction = mqtt_ns.class_("MQTTDisableAction", automation.Action)
 MQTTMessageTrigger = mqtt_ns.class_(
     "MQTTMessageTrigger", automation.Trigger.template(cg.std_string), cg.Component
 )
@@ -133,7 +131,6 @@ MQTTDisconnectTrigger = mqtt_ns.class_(
     "MQTTDisconnectTrigger", automation.Trigger.template(MQTTClientDisconnectReason)
 )
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
-MQTTConnectedCondition = mqtt_ns.class_("MQTTConnectedCondition", Condition)
 
 MQTTAlarmControlPanelComponent = mqtt_ns.class_(
     "MQTTAlarmControlPanelComponent", MQTTComponent
@@ -333,68 +330,6 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-# Platforms whose MQTT components subscribe to an object_id-derived command topic.
-# Keep in sync with the platforms extending cv.MQTT_COMMAND_COMPONENT_SCHEMA, plus
-# text, whose MQTT component subscribes a command topic that cannot be overridden.
-_COMMAND_TOPIC_PLATFORMS = frozenset(
-    {
-        "alarm_control_panel",
-        "button",
-        "climate",
-        "cover",
-        "datetime",
-        "fan",
-        "light",
-        "lock",
-        "number",
-        "select",
-        "switch",
-        "text",
-        "update",
-        "valve",
-    }
-)
-
-
-# Platforms whose MQTT components derive extra sub-topics (position/command,
-# mode/command, speed/command, ...) from the object_id, each with its own config
-# key; custom state and command topics cannot exempt them from conflicting.
-_SUB_TOPIC_PLATFORMS = frozenset({"climate", "cover", "fan", "valve"})
-
-
-def _topics_conflict(entities: list[ObjectIdEntity], config: ConfigType) -> bool:
-    """Check whether more than one entity actually uses an object_id-derived topic.
-
-    An empty topic_prefix disables default topics entirely, custom state and
-    command topics avoid the default topics, and disabling discovery (globally
-    or per entity) avoids the discovery config topic.
-    """
-    if config[CONF_TOPIC_PREFIX]:
-        platform = entities[0].platform
-        if platform in _SUB_TOPIC_PLATFORMS:
-            return True
-        if sum(CONF_STATE_TOPIC not in entity.config for entity in entities) > 1:
-            return True
-        if (
-            platform in _COMMAND_TOPIC_PLATFORMS
-            and sum(CONF_COMMAND_TOPIC not in entity.config for entity in entities) > 1
-        ):
-            return True
-    if not config[CONF_DISCOVERY]:
-        return False
-    discovery_entities = sum(
-        entity.config.get(CONF_DISCOVERY, True) for entity in entities
-    )
-    return discovery_entities > 1
-
-
-FINAL_VALIDATE_SCHEMA = validate_no_object_id_conflicts(
-    "mqtt builds default topics and discovery topics from the entity object_id, "
-    "which is the name converted to ASCII",
-    conflict_filter=_topics_conflict,
-)
-
-
 def exp_mqtt_message(config):
     if config is None:
         return cg.optional(cg.TemplateArguments(MQTTMessage))
@@ -424,6 +359,8 @@ async def to_code(config):
             add_idf_component(name="espressif/mqtt", ref="1.0.0")
         else:
             include_builtin_idf_component("mqtt")
+        # mqtt_client.h drags in esp_tls types; esp-tls is excluded by default
+        include_builtin_idf_component("esp-tls")
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
@@ -563,22 +500,26 @@ MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
-    "mqtt.publish", MQTTPublishAction, MQTT_PUBLISH_ACTION_SCHEMA, synchronous=True
-)
-async def mqtt_publish_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_TOPIC], args, cg.std_string)
-    cg.add(var.set_topic(template_))
+# A bare literal is ambiguous between the std::string and (const char *, size_t) publish
+# overloads, so constants and inlined `return "...";` lambdas are both spelled as std::string.
+def _std_string(config: ConfigType, value: str) -> str:
+    rendered = automation.flash_string(config, value)
+    return rendered if CORE.is_esp8266 else f"std::string({rendered})"
 
-    template_ = await cg.templatable(config[CONF_PAYLOAD], args, cg.std_string)
-    cg.add(var.set_payload(template_))
-    template_ = await cg.templatable(config[CONF_QOS], args, cg.uint8)
-    cg.add(var.set_qos(template_))
-    template_ = await cg.templatable(config[CONF_RETAIN], args, cg.bool_)
-    cg.add(var.set_retain(template_))
-    return var
+
+automation.register_apply_action(
+    "mqtt.publish",
+    MQTT_PUBLISH_ACTION_SCHEMA,
+    automation.ApplyCall(
+        "publish({}, {}, {}, {})",
+        (
+            (CONF_TOPIC, "std::string", _std_string),
+            (CONF_PAYLOAD, "std::string", _std_string),
+            (CONF_QOS, cg.uint8),
+            (CONF_RETAIN, cg.bool_),
+        ),
+    ),
+)
 
 
 MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema(
@@ -657,51 +598,30 @@ async def register_mqtt_component(var, config):
             )
 
 
-@automation.register_condition(
+automation.register_apply_condition(
     "mqtt.connected",
-    MQTTConnectedCondition,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(MQTTClientComponent),
         }
     ),
+    "is_connected()",
 )
-async def mqtt_connected_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
-@automation.register_action(
-    "mqtt.enable",
-    MQTTEnableAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(MQTTClientComponent),
-        }
-    ),
-    synchronous=True,
-)
-async def mqtt_enable_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+for _name, _call in (("mqtt.enable", "enable()"), ("mqtt.disable", "disable()")):
+    automation.register_apply_action(
+        _name,
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.use_id(MQTTClientComponent),
+            }
+        ),
+        automation.ApplyCall(_call),
+    )
 
 
-@automation.register_action(
-    "mqtt.disable",
-    MQTTDisableAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(MQTTClientComponent),
-        }
-    ),
-    synchronous=True,
-)
-async def mqtt_disable_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_platform_filter = filter_source_files_from_platform(
     {
         "mqtt_backend_esp32.cpp": {
             PlatformFramework.ESP32_ARDUINO,
@@ -709,3 +629,34 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
     }
 )
+
+# Each entity file is fully #ifdef'd on the USE_<ENTITY> define the core
+# emits for entity platforms present in the config.
+_define_filter = filter_source_files_from_defines(
+    {
+        "mqtt_alarm_control_panel.cpp": "USE_ALARM_CONTROL_PANEL",
+        "mqtt_binary_sensor.cpp": "USE_BINARY_SENSOR",
+        "mqtt_button.cpp": "USE_BUTTON",
+        "mqtt_climate.cpp": "USE_CLIMATE",
+        "mqtt_cover.cpp": "USE_COVER",
+        "mqtt_date.cpp": "USE_DATETIME_DATE",
+        "mqtt_datetime.cpp": "USE_DATETIME_DATETIME",
+        "mqtt_event.cpp": "USE_EVENT",
+        "mqtt_fan.cpp": "USE_FAN",
+        "mqtt_light.cpp": "USE_LIGHT",
+        "mqtt_lock.cpp": "USE_LOCK",
+        "mqtt_number.cpp": "USE_NUMBER",
+        "mqtt_select.cpp": "USE_SELECT",
+        "mqtt_sensor.cpp": "USE_SENSOR",
+        "mqtt_switch.cpp": "USE_SWITCH",
+        "mqtt_text.cpp": "USE_TEXT",
+        "mqtt_text_sensor.cpp": "USE_TEXT_SENSOR",
+        "mqtt_time.cpp": "USE_DATETIME_TIME",
+        "mqtt_update.cpp": "USE_UPDATE",
+        "mqtt_valve.cpp": "USE_VALVE",
+    }
+)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    return _platform_filter() + _define_filter()

@@ -347,31 +347,6 @@ class VoiceAssistant final : public Component {
 #endif
 };
 
-template<typename... Ts> class StartAction final : public Action<Ts...>, public Parented<VoiceAssistant> {
-  TEMPLATABLE_VALUE(std::string, wake_word);
-
- public:
-  void play(const Ts &...x) override {
-    this->parent_->set_wake_word(this->wake_word_.value(x...));
-    this->parent_->request_start(false, this->silence_detection_);
-  }
-
-  void set_silence_detection(bool silence_detection) { this->silence_detection_ = silence_detection; }
-
- protected:
-  bool silence_detection_;
-};
-
-template<typename... Ts> class StartContinuousAction final : public Action<Ts...>, public Parented<VoiceAssistant> {
- public:
-  void play(const Ts &...x) override { this->parent_->request_start(true, true); }
-};
-
-template<typename... Ts> class StopAction final : public Action<Ts...>, public Parented<VoiceAssistant> {
- public:
-  void play(const Ts &...x) override { this->parent_->request_stop(); }
-};
-
 template<typename... Ts> class IsRunningCondition final : public Condition<Ts...>, public Parented<VoiceAssistant> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_running() || this->parent_->is_continuous(); }

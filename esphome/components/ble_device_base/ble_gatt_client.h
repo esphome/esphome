@@ -5,10 +5,11 @@
 // Exactly one GATT backend exists per build, so BLEGattConnection is a
 // compile-time alias (bluetooth_connection_gatt_backend.h), not an abstract
 // interface.
-// The hub BluetoothConnection wrapper drives it and receives completions
-// through its event-sink methods, which the backend calls directly. All sink
-// calls are delivered on the ESPHome main loop; borrowed data pointers are
-// valid only for the duration of the call.
+// A consumer - the hub wrapper streaming the raw database, or a direct
+// consumer owning a dedicated backend and resolving handles by UUID -
+// drives it and receives completions through the GattClientListener
+// interface. All listener calls are delivered on the ESPHome main loop;
+// borrowed data pointers are valid only for the duration of the call.
 //
 // Error domain (plain int, forwarded to the API without translation):
 //   0            success
@@ -78,27 +79,55 @@ struct GattServiceTable {
   uint16_t descriptor_count{0};
 };
 
+/// The event surface a backend delivers completions through - the one place
+/// with genuine runtime polymorphism (several consumer types, one non-virtual
+/// backend). Methods default to no-ops; consumers override what they consume.
+/// No destructor: components are never destroyed.
+/// on_connection_state carries the negotiated MTU and an HCI status/reason.
+/// Codegen wires the listener before setup(), so backends skip null checks.
+class GattClientListener {
+ public:
+  virtual void on_connection_state(bool connected, uint16_t mtu, int error) {}
+  virtual void on_service_discovery_done(int error) {}
+  virtual void on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) {}
+  virtual void on_write_result(uint16_t handle, int error) {}
+  virtual void on_notify_state(uint16_t handle, bool enabled, int error) {}
+  virtual void on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len) {}
+  virtual void on_pairing_result(int status) {}
+};
+
 // The BLEGattConnection op surface, asserted where the alias binds
 // (bluetooth_connection_gatt_backend.h). Operations return 0 when accepted (completion arrives
-// through the sink) or a synchronous error (busy, not connected, stack
+// through the listener) or a synchronous error (busy, not connected, stack
 // rejection); one operation may be outstanding at a time. Semantics beyond
 // the signatures:
 // - connect: addr_type is a BLE_ADDR_TYPE_* constant (ble_device.h).
-// - disconnect: also cancels a connect in progress.
+// - gatt_disconnect: also cancels a connect in progress (named to coexist
+//   with a platform stack's own void disconnect() on one backend class).
+//   Nonzero means nothing to tear down and no completion will follow; an
+//   accepted teardown (0) always reaches a terminal on_connection_state.
+// - cancel_gatt_disconnect: true cancels a scheduled teardown that has not
+//   started closing - the in-flight connect resumes and completes normally.
+//   False once the teardown owns the link (or nothing was scheduled).
 // - notify_characteristic: local registration only; the CCCD write is the
 //   API client's responsibility (a plain write_descriptor).
 // - get_service_table/release_services: backend-owned transient storage,
-//   released after streaming (release is idempotent).
-// - completions: connect and disconnect land in on_connection_state,
+//   released after streaming (release is idempotent). A backend may
+//   additionally provide its own service streamer (stream_service_batch on
+//   the concrete type, detected by the consumer at compile time) for
+//   arbitrary-size databases; the table then materializes only for consumers
+//   that ask for it.
+// - completions: connect and gatt_disconnect land in on_connection_state,
 //   discover_services in on_service_discovery_done, pair in
 //   on_pairing_result, reads in on_read_result, notify_characteristic in
-//   on_notify_state, characteristic writes with response and descriptor
-//   writes in on_write_result.
-template<typename T, typename Sink>
-concept BLEGattConnectionContract = requires(T conn, Sink *sink, const uint8_t *data) {
-  conn.set_listener(sink);
+//   on_notify_state, characteristic writes (with and without response) and
+//   descriptor writes in on_write_result.
+template<typename T>
+concept BLEGattConnectionContract = requires(T conn, GattClientListener *listener, const uint8_t *data) {
+  conn.set_listener(listener);
   { conn.connect(uint64_t{}, uint8_t{}) } -> std::same_as<int>;
-  { conn.disconnect() } -> std::same_as<int>;
+  { conn.gatt_disconnect() } -> std::same_as<int>;
+  { conn.cancel_gatt_disconnect() } -> std::same_as<bool>;
   { conn.discover_services() } -> std::same_as<int>;
   { conn.read_characteristic(uint16_t{}) } -> std::same_as<int>;
   { conn.write_characteristic(uint16_t{}, data, uint16_t{}, true) } -> std::same_as<int>;
@@ -109,22 +138,9 @@ concept BLEGattConnectionContract = requires(T conn, Sink *sink, const uint8_t *
   { conn.update_connection_params(uint16_t{}, uint16_t{}, uint16_t{}, uint16_t{}) } -> std::same_as<int>;
   { conn.get_service_table() } -> std::same_as<GattServiceTable>;
   { conn.release_services() } -> std::same_as<void>;
-};
-
-// The event sink the backend calls directly (the hub BluetoothConnection
-// wrapper), asserted where the wrapper is defined: on_connection_state
-// carries the negotiated MTU and an HCI status/disconnect reason. The
-// requirements check call validity, not exact parameter types; keep sink
-// parameters at the documented widths (uint16_t handles and lengths).
-template<typename S>
-concept GattClientEventSinkContract = requires(S sink, const uint8_t *data) {
-  { sink.on_connection_state(true, uint16_t{}, int{}) } -> std::same_as<void>;
-  { sink.on_service_discovery_done(int{}) } -> std::same_as<void>;
-  { sink.on_read_result(uint16_t{}, data, uint16_t{}, int{}) } -> std::same_as<void>;
-  { sink.on_write_result(uint16_t{}, int{}) } -> std::same_as<void>;
-  { sink.on_notify_state(uint16_t{}, true, int{}) } -> std::same_as<void>;
-  { sink.on_notify_data(uint16_t{}, data, uint16_t{}) } -> std::same_as<void>;
-  { sink.on_pairing_result(int{}) } -> std::same_as<void>;
+  // Connection-type hint for backends that tune parameters by it; others
+  // carry an inline no-op.
+  { conn.set_connection_type(ConnectionType{}) } -> std::same_as<void>;
 };
 
 }  // namespace esphome::ble_device_base

@@ -3,6 +3,7 @@
 #if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
 #include "esphome/components/button/button.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #include "esphome/components/socket/socket.h"
 #else
@@ -27,7 +28,7 @@ class WakeOnLanButton final : public button::Button, public Component {
 #endif
   void press_action() override;
   uint16_t port_{9};
-  uint8_t macaddr_[6];
+  uint8_t macaddr_[MAC_ADDRESS_SIZE];
 };
 
 }  // namespace esphome::wake_on_lan
