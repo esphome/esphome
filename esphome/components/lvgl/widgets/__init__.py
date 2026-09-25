@@ -21,6 +21,7 @@ from esphome.schema_extractors import EnableSchemaExtraction
 from esphome.types import Expression
 
 from ..defines import (
+    CONF_DEBUG_BORDERS,
     CONF_FLEX_ALIGN_CROSS,
     CONF_FLEX_ALIGN_MAIN,
     CONF_FLEX_ALIGN_TRACK,
@@ -42,12 +43,14 @@ from ..defines import (
     STATES,
     LValidator,
     add_lv_use,
+    get_options,
     get_styles_used,
     get_theme_widget_map,
     get_widget_map,
     get_widgets_completed,
     join_enums,
     literal,
+    next_debug_border_color,
 )
 from ..lv_validation import lv_int
 from ..lvcode import (
@@ -191,6 +194,7 @@ class WidgetType:
         w = Widget.create(wid, var, self, config)
         apply_theme_styles(w)
         await set_obj_properties(w, config)
+        apply_debug_border(w)
         await add_widgets(w, config)
         await self.to_code(w, config)
         return w
@@ -268,6 +272,20 @@ def apply_theme_styles(w: "Widget") -> None:
             else:
                 lv_state = join_enums((state, part))
             w.add_style(style, lv_state)
+
+
+def apply_debug_border(w: "Widget") -> None:
+    """
+    When `debug_borders` is set, give this widget a border in the next palette colour.
+    Called after the user's own styles so that the debug border is always the one shown.
+    """
+    if not get_options().get(CONF_DEBUG_BORDERS):
+        return
+    r, g, b = next_debug_border_color()
+    w.set_style("border_width", 1)
+    w.set_style("border_color", f"lv_color_make({r}, {g}, {b})")
+    w.set_style("border_opa", "LV_OPA_COVER")
+    w.set_style("border_post", True)
 
 
 class Widget:

@@ -1,0 +1,35 @@
+esphome:
+  name: test-debug-borders
+
+esp32:
+  board: lolin_c3_mini
+
+spi:
+  mosi_pin:
+    number: GPIO2
+    ignore_strapping_warning: true
+  clk_pin: GPIO1
+
+display:
+  - platform: mipi_spi
+    data_rate: 20MHz
+    model: st7735
+    cs_pin:
+      number: GPIO8
+      ignore_strapping_warning: true
+    dc_pin:
+      number: GPIO3
+
+lvgl:
+  widgets:
+    - obj:
+        id: root_obj
+        widgets:
+          - label:
+              id: title_label
+              text: Title
+          - button:
+              id: ok_button
+              widgets:
+                - label:
+                    text: OK

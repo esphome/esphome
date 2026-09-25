@@ -48,6 +48,7 @@ lvgl:
   log_level: debug
   resume_on_input: true
   paused: true
+  debug_borders: true
   update_when_display_idle: true
   refresh_interval: 30ms
   on_pause:

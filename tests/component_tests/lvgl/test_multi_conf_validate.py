@@ -9,13 +9,16 @@ from esphome.components.lvgl.schemas import theme_schema
 from esphome.config_validation import Invalid
 
 
-def _config(displays: list[str], theme: dict | None = None) -> dict:
+def _config(
+    displays: list[str], theme: dict | None = None, debug_borders: bool = False
+) -> dict:
     config = {
         df.CONF_DISPLAYS: displays,
         "log_level": "WARN",
         "color_depth": 16,
         "byte_order": "big_endian",
         df.CONF_TRANSPARENCY_KEY: 0x000400,
+        df.CONF_DEBUG_BORDERS: debug_borders,
     }
     if theme is not None:
         config[df.CONF_THEME] = theme
@@ -52,4 +55,21 @@ class TestThemeOnMultipleInstances:
 
     def test_passes_when_no_instance_has_theme(self) -> None:
         configs = [_config(["disp_a"]), _config(["disp_b"])]
+        multi_conf_validate(configs)
+
+
+class TestDebugBordersOnMultipleInstances:
+    def test_raises_when_instances_differ(self) -> None:
+        configs = [
+            _config(["disp_a"], debug_borders=True),
+            _config(["disp_b"], debug_borders=False),
+        ]
+        with pytest.raises(Invalid, match="'debug_borders' must be the same"):
+            multi_conf_validate(configs)
+
+    def test_passes_when_instances_match(self) -> None:
+        configs = [
+            _config(["disp_a"], debug_borders=True),
+            _config(["disp_b"], debug_borders=True),
+        ]
         multi_conf_validate(configs)

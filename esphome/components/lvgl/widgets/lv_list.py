@@ -57,6 +57,7 @@ from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t
 from . import (
     Widget,
     WidgetType,
+    apply_debug_border,
     apply_theme_styles,
     collect_parts,
     get_widgets,
@@ -445,6 +446,7 @@ async def _finish_dynamic_widget(
     await w.type.on_create(w.obj, w_conf)
     apply_theme_styles(w)
     await set_obj_properties(w, w_conf)
+    apply_debug_border(w)
     await w.type.to_code(w, w_conf)
     await _wire_dynamic_triggers(w, w_conf)
     for child in w_conf.get(CONF_WIDGETS, ()):
