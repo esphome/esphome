@@ -157,7 +157,8 @@ def uses_esp_hosted_3x(config: ConfigType | None = None) -> bool:
 
     3.x requires ESP-IDF 5.5. Its SDIO Kconfig also hides the D1 pin in 1-bit
     mode while the port config still requires it (the interrupt line), which
-    breaks the build, so 1-bit SDIO stays on the 2.x line for now.
+    breaks the build (espressif/esp-hosted#765), so 1-bit SDIO stays on the
+    2.x line for now.
     """
     if esp32.idf_version() < cv.Version(5, 5, 0):
         return False
