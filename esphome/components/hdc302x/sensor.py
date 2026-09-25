@@ -139,18 +139,9 @@ async def hdc302x_heater_on_to_code(
     return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "hdc302x.heater_off",
     HeaterOffAction,
     HDC302X_ACTION_SCHEMA,
     synchronous=True,
 )
-async def hdc302x_heater_off_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

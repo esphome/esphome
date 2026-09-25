@@ -26,8 +26,6 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["modbus"]
@@ -85,7 +83,7 @@ CONFIG_SCHEMA = (
 )
 
 
-@automation.register_action(
+automation.register_simple_action(
     "pzemac.reset_energy",
     ResetEnergyAction,
     maybe_simple_id(
@@ -95,14 +93,6 @@ CONFIG_SCHEMA = (
     ),
     synchronous=True,
 )
-async def reset_energy_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 def _final_validate(config: ConfigType) -> None:
