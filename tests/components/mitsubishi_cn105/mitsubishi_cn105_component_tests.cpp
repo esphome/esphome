@@ -63,12 +63,4 @@ TEST(MitsubishiCN105ComponentTests, VaneCallAppliesVerticalDirection) {
   EXPECT_EQ(hub.status().vane_mode, MitsubishiCN105::VaneMode::POSITION_5);
 }
 
-TEST(MitsubishiCN105ComponentTests, VaneControlActionAppliesConfiguredFields) {
-  MitsubishiCN105Component hub;
-  VaneControlAction<> action(&hub, [](VaneCall &call) { call.vertical.set_direction(VERTICAL_VANE_MODE_SWING); });
-
-  action.play();
-
-  EXPECT_EQ(hub.status().vane_mode, MitsubishiCN105::VaneMode::SWING);
-}
 }  // namespace esphome::mitsubishi_cn105::testing

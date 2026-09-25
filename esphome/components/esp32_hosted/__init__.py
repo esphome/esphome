@@ -313,7 +313,7 @@ async def to_code(config: ConfigType) -> None:
     esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.6.3")
     esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.3")
     esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
-    esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.12")
+    esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.13")
     esp32.add_extra_script(
         "post",
         "esp32_hosted.py",

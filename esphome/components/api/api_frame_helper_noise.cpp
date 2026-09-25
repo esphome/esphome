@@ -5,15 +5,12 @@
 #include "esphome/components/noise/noise.h"
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "proto.h"
 #include <cstring>
 #include <cinttypes>
-
-#ifdef USE_ESP8266
-#include <pgmspace.h>
-#endif
 
 namespace esphome::api {
 
@@ -26,11 +23,7 @@ static_assert(MAX_HANDSHAKE_SIZE == noise::MAX_HANDSHAKE_SIZE,
               "api and noise component handshake size limits must match");
 
 static const char *const TAG = "api.noise";
-#ifdef USE_ESP8266
 static constexpr char PROLOGUE_INIT[] PROGMEM = "NoiseAPIInit";
-#else
-static const char *const PROLOGUE_INIT = "NoiseAPIInit";
-#endif
 static constexpr size_t PROLOGUE_INIT_LEN = 12;  // strlen("NoiseAPIInit")
 
 // Maximum bytes to log in hex format (168 * 3 = 504, under TX buffer size of 512)
@@ -72,11 +65,7 @@ APIError APINoiseFrameHelper::init() {
     state_ = State::FAILED;
     return APIError::OUT_OF_MEMORY;
   }
-#ifdef USE_ESP8266
-  memcpy_P(dst, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
-#else
-  std::memcpy(dst, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
-#endif
+  progmem_memcpy(dst, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
 
   state_ = State::CLIENT_HELLO;
   return APIError::OK;
