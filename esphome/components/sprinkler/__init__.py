@@ -66,19 +66,10 @@ SprinklerControllerSwitch = sprinkler_ns.class_(
     "SprinklerControllerSwitch", switch.Switch, cg.Component
 )
 
-ClearQueuedValvesAction = sprinkler_ns.class_(
-    "ClearQueuedValvesAction", automation.Action
-)
-StartFromQueueAction = sprinkler_ns.class_("StartFromQueueAction", automation.Action)
-StartFullCycleAction = sprinkler_ns.class_("StartFullCycleAction", automation.Action)
 StartSingleValveAction = sprinkler_ns.class_(
     "StartSingleValveAction", automation.Action
 )
 ShutdownAction = sprinkler_ns.class_("ShutdownAction", automation.Action)
-NextValveAction = sprinkler_ns.class_("NextValveAction", automation.Action)
-PreviousValveAction = sprinkler_ns.class_("PreviousValveAction", automation.Action)
-PauseAction = sprinkler_ns.class_("PauseAction", automation.Action)
-ResumeAction = sprinkler_ns.class_("ResumeAction", automation.Action)
 ResumeOrStartAction = sprinkler_ns.class_("ResumeOrStartAction", automation.Action)
 
 
@@ -415,51 +406,61 @@ CONFIG_SCHEMA = cv.All(
 
 _VALVE_AND_DURATION = ((CONF_VALVE_NUMBER, cg.size_t), (CONF_RUN_DURATION, cg.uint32))
 
-automation.register_apply_action(
-    "sprinkler.set_divider",
-    SPRINKLER_ACTION_SET_DIVIDER_SCHEMA,
-    automation.ApplyField(CONF_DIVIDER, "set_divider", cg.uint32),
-)
-
-automation.register_apply_action(
-    "sprinkler.set_multiplier",
-    SPRINKLER_ACTION_SET_MULTIPLIER_SCHEMA,
-    automation.ApplyField(CONF_MULTIPLIER, "set_multiplier", cg.float_),
-)
-
-automation.register_apply_action(
-    "sprinkler.queue_valve",
-    SPRINKLER_ACTION_QUEUE_VALVE_SCHEMA,
-    automation.ApplyCall("queue_valve({}, {})", _VALVE_AND_DURATION),
-)
-
-automation.register_apply_action(
-    "sprinkler.set_repeat",
-    SPRINKLER_ACTION_REPEAT_SCHEMA,
-    automation.ApplyField(CONF_REPEAT, "set_repeat", cg.uint32),
-)
-
-automation.register_apply_action(
-    "sprinkler.set_valve_run_duration",
-    SPRINKLER_ACTION_SET_RUN_DURATION_SCHEMA,
-    automation.ApplyCall("set_valve_run_duration({}, {})", _VALVE_AND_DURATION),
-)
-
-
-automation.register_simple_action(
-    "sprinkler.start_from_queue",
-    StartFromQueueAction,
-    SPRINKLER_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "sprinkler.start_full_cycle",
-    StartFullCycleAction,
-    SPRINKLER_ACTION_SCHEMA,
-    synchronous=True,
-)
+for _name, _schema, _apply in (
+    (
+        "sprinkler.set_divider",
+        SPRINKLER_ACTION_SET_DIVIDER_SCHEMA,
+        automation.ApplyField(CONF_DIVIDER, "set_divider", cg.uint32),
+    ),
+    (
+        "sprinkler.set_multiplier",
+        SPRINKLER_ACTION_SET_MULTIPLIER_SCHEMA,
+        automation.ApplyField(CONF_MULTIPLIER, "set_multiplier", cg.float_),
+    ),
+    (
+        "sprinkler.queue_valve",
+        SPRINKLER_ACTION_QUEUE_VALVE_SCHEMA,
+        automation.ApplyCall("queue_valve({}, {})", _VALVE_AND_DURATION),
+    ),
+    (
+        "sprinkler.set_repeat",
+        SPRINKLER_ACTION_REPEAT_SCHEMA,
+        automation.ApplyField(CONF_REPEAT, "set_repeat", cg.uint32),
+    ),
+    (
+        "sprinkler.set_valve_run_duration",
+        SPRINKLER_ACTION_SET_RUN_DURATION_SCHEMA,
+        automation.ApplyCall("set_valve_run_duration({}, {})", _VALVE_AND_DURATION),
+    ),
+    (
+        "sprinkler.start_from_queue",
+        SPRINKLER_ACTION_SCHEMA,
+        automation.ApplyCall("start_from_queue()"),
+    ),
+    (
+        "sprinkler.start_full_cycle",
+        SPRINKLER_ACTION_SCHEMA,
+        automation.ApplyCall("start_full_cycle()"),
+    ),
+    (
+        "sprinkler.clear_queued_valves",
+        SPRINKLER_ACTION_SCHEMA,
+        automation.ApplyCall("clear_queued_valves()"),
+    ),
+    (
+        "sprinkler.next_valve",
+        SPRINKLER_ACTION_SCHEMA,
+        automation.ApplyCall("next_valve()"),
+    ),
+    (
+        "sprinkler.previous_valve",
+        SPRINKLER_ACTION_SCHEMA,
+        automation.ApplyCall("previous_valve()"),
+    ),
+    ("sprinkler.pause", SPRINKLER_ACTION_SCHEMA, automation.ApplyCall("pause()")),
+    ("sprinkler.resume", SPRINKLER_ACTION_SCHEMA, automation.ApplyCall("resume()")),
+):
+    automation.register_apply_action(_name, _schema, _apply)
 
 
 @automation.register_action(
@@ -477,46 +478,6 @@ async def sprinkler_start_single_valve_to_code(config, action_id, template_arg, 
         template_ = await cg.templatable(config[CONF_RUN_DURATION], args, cg.uint32)
         cg.add(var.set_valve_run_duration(template_))
     return var
-
-
-automation.register_simple_action(
-    "sprinkler.clear_queued_valves",
-    ClearQueuedValvesAction,
-    SPRINKLER_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "sprinkler.next_valve",
-    NextValveAction,
-    SPRINKLER_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "sprinkler.previous_valve",
-    PreviousValveAction,
-    SPRINKLER_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "sprinkler.pause",
-    PauseAction,
-    SPRINKLER_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "sprinkler.resume",
-    ResumeAction,
-    SPRINKLER_ACTION_SCHEMA,
-    synchronous=True,
-)
 
 
 automation.register_simple_action(
