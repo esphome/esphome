@@ -10,11 +10,7 @@ class GPIOBinaryOutput final : public output::BinaryOutput, public Component {
  public:
   void set_pin(GPIOPin *pin) { pin_ = pin; }
 
-  void setup() override {
-    this->turn_off();
-    this->pin_->setup();
-    this->turn_off();
-  }
+  void setup() override { this->pin_->setup(); }
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
