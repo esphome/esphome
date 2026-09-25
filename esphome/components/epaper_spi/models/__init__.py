@@ -39,10 +39,6 @@ class EpaperModel:
     def get_constructor_args(self, config) -> tuple:
         return ()
 
-    def get_config_schema(self) -> dict:
-        """Return additional config schema entries specific to this model."""
-        return {}
-
     def get_config_options(self) -> dict:
         """
         Return model-specific configuration schema options.

@@ -32,7 +32,7 @@ class UC8179BWR(EpaperModel):
             (0x61, width // 256, width % 256, height // 256, height % 256),
         )
 
-    def get_config_schema(self) -> dict:
+    def get_config_options(self) -> dict:
         return {
             cv.Optional(
                 CONF_INVERT_RED,
