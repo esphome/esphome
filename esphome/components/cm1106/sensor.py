@@ -6,7 +6,9 @@ import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BASELINE,
     CONF_CO2,
+    CONF_CYCLE,
     CONF_ID,
     DEVICE_CLASS_CARBON_DIOXIDE,
     ICON_MOLECULE_CO2,
@@ -20,6 +22,29 @@ from esphome.types import ConfigType
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@andrewjswan"]
 
+
+CONF_AUTOMATIC_BASELINE_CALIBRATION = "automatic_baseline_calibration"
+
+
+def _validate_abc(value):
+    """Validate the automatic_baseline_calibration option.
+
+    Accepts ``false`` (disable ABC), ``true`` (enable with defaults) or a dict
+    customizing the calibration cycle (days, 1-90, default 15) and baseline
+    (ppm, minimum 400, default 400).
+    """
+    if isinstance(value, str):
+        value = cv.boolean(value)
+    if isinstance(value, bool):
+        return value
+    return cv.Schema(
+        {
+            cv.Optional(CONF_CYCLE, default=15): cv.int_range(min=1, max=90),
+            cv.Optional(CONF_BASELINE, default=400): cv.int_range(min=400, max=10000),
+        }
+    )(value)
+
+
 cm1106_ns = cg.esphome_ns.namespace("cm1106")
 CM1106Component = cm1106_ns.class_(
     "CM1106Component", cg.PollingComponent, uart.UARTDevice
@@ -28,6 +53,7 @@ CM1106CalibrateZeroAction = cm1106_ns.class_(
     "CM1106CalibrateZeroAction",
     automation.Action,
 )
+
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -40,6 +66,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_CARBON_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_AUTOMATIC_BASELINE_CALIBRATION): _validate_abc,
         },
     )
     .extend(cv.polling_component_schema("60s"))
@@ -60,9 +87,22 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+
     if co2_config := config.get(CONF_CO2):
         sens = await sensor.new_sensor(co2_config)
         cg.add(var.set_co2_sensor(sens))
+
+    if (
+        automatic_baseline_calibration := config.get(
+            CONF_AUTOMATIC_BASELINE_CALIBRATION
+        )
+    ) is not None:
+        if isinstance(automatic_baseline_calibration, dict):
+            cg.add(var.set_abc_enabled(True))
+            cg.add(var.set_abc_cycle(automatic_baseline_calibration[CONF_CYCLE]))
+            cg.add(var.set_abc_baseline(automatic_baseline_calibration[CONF_BASELINE]))
+        else:
+            cg.add(var.set_abc_enabled(automatic_baseline_calibration))
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
@@ -87,3 +127,12 @@ async def cm1106_calibration_to_code(
     """Service code generation entry point."""
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+for _name, _call in (
+    ("cm1106.abc_enable", "abc_enable()"),
+    ("cm1106.abc_disable", "abc_disable()"),
+):
+    automation.register_apply_action(
+        _name, CALIBRATION_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
