@@ -309,8 +309,6 @@ def _configure_spi_2x(config: ConfigType) -> None:
 
 def _configure_spi_3x(config: ConfigType) -> None:
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_TRANSPORT_BUS_SPI", True)
-    # P4/H2 hosts don't have VSPI
-    esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_SPI_CONTROLLER_HSPI", True)
     esp32.add_idf_sdkconfig_option(
         "CONFIG_ESP_HOSTED_HOST_SPI_MODE", config[CONF_SPI_MODE]
     )
