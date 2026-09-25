@@ -211,23 +211,31 @@ bool TAS5805M::read_faults_() {
   uint8_t faults[TAS5805M_FAULT_REGISTER_COUNT];
   if (!this->read_bytes(TAS5805M_CHAN_FAULT, faults, sizeof(faults)))
     return false;
-  bool any_fault = false;
-  for (uint8_t reg = 0; reg < TAS5805M_FAULT_REGISTER_COUNT; reg++) {
-    uint8_t errors = faults[reg] & (TAS5805M_FAULT_ERROR_MASKS >> (reg * 8));
-    uint8_t warnings = faults[reg] & (TAS5805M_FAULT_WARNING_MASKS >> (reg * 8));
-    any_fault |= (errors | warnings) != 0;
-    for (uint8_t bit = 0; bit < 8; bit++) {
-      if (errors & (1 << bit)) {
-        ESP_LOGE(TAG, "%s", LOG_STR_ARG(fault_name(reg, bit)));
-      } else if (warnings & (1 << bit)) {
-        ESP_LOGW(TAG, "%s", LOG_STR_ARG(fault_name(reg, bit)));
-      }
+  uint32_t active = 0;
+  for (uint8_t reg = 0; reg < TAS5805M_FAULT_REGISTER_COUNT; reg++)
+    active |= uint32_t{faults[reg]} << (reg * 8);
+  active &= TAS5805M_FAULT_ERROR_MASKS | TAS5805M_FAULT_WARNING_MASKS;
+
+  // Clearing makes a lasting condition latch again on every poll, so only log changes
+  const uint32_t changed = active ^ this->logged_faults_;
+  for (uint8_t index = 0; index < 32; index++) {
+    const uint32_t mask = uint32_t{1} << index;
+    if (!(changed & mask))
+      continue;
+    const LogString *name = fault_name(index / 8, index % 8);
+    if (!(active & mask)) {
+      ESP_LOGI(TAG, "%s cleared", LOG_STR_ARG(name));
+    } else if (TAS5805M_FAULT_ERROR_MASKS & mask) {
+      ESP_LOGE(TAG, "%s", LOG_STR_ARG(name));
+    } else {
+      ESP_LOGW(TAG, "%s", LOG_STR_ARG(name));
     }
   }
-  bool clear = any_fault;
+  this->logged_faults_ = active;
+
 #ifdef USE_BINARY_SENSOR
   if (this->have_fault_binary_sensor_ != nullptr)
-    this->have_fault_binary_sensor_->publish_state(any_fault);
+    this->have_fault_binary_sensor_->publish_state(active != 0);
   publish_fault(this->right_channel_over_current_binary_sensor_, faults, 0, 0);
   publish_fault(this->left_channel_over_current_binary_sensor_, faults, 0, 1);
   publish_fault(this->right_channel_dc_fault_binary_sensor_, faults, 0, 2);
@@ -239,12 +247,12 @@ bool TAS5805M::read_faults_() {
   publish_fault(this->otp_crc_check_binary_sensor_, faults, 1, 7);
   publish_fault(this->over_temp_shutdown_binary_sensor_, faults, 2, 0);
   publish_fault(this->over_temp_warning_binary_sensor_, faults, 3, 2);
-  // The clock fault stays latched after the clock returns; clear it so the sensor follows the clock
-  if (this->clock_fault_binary_sensor_ != nullptr && (faults[1] & (1 << TAS5805M_GLOBAL_FAULT1_CLOCK_BIT)))
-    clear = true;
 #endif
-  // Faults are latched and keep the output stage off until cleared
-  if (clear && !this->write_byte(TAS5805M_FAULT_CLEAR, TAS5805M_FAULT_CLEAR_ANALOG)) {
+
+  // Fault bits stay set until cleared, even after the condition is gone; a DC fault also keeps the output off
+  // until then (datasheet 7.5.3.3). Clearing the clock fault too keeps every bit a reflection of the current state.
+  const bool clock_fault = faults[1] & (1 << TAS5805M_GLOBAL_FAULT1_CLOCK_BIT);
+  if ((active != 0 || clock_fault) && !this->write_byte(TAS5805M_FAULT_CLEAR, TAS5805M_FAULT_CLEAR_ANALOG)) {
     ESP_LOGW(TAG, "Failed to clear faults");
   }
   return true;

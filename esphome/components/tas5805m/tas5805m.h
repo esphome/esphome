@@ -79,6 +79,7 @@ class TAS5805M : public audio_dac::AudioDac, public PollingComponent, public i2c
   float analog_gain_db_{-15.5f};
   float volume_min_db_{-103.0f};
   float volume_max_db_{24.0f};
+  uint32_t logged_faults_{0};  // Fault bits as last logged, packed like the fault masks
   DacMode dac_mode_{DAC_MODE_BTL};
   MixerMode mixer_mode_{MIXER_MODE_STEREO};
   uint8_t ctrl_state_{0};
