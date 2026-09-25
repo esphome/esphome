@@ -259,7 +259,9 @@ class MQTTComponent : public Component {
    * @param callback The callback that will be called when a message with matching topic is received.
    * @param qos The MQTT quality of service. Defaults to 0.
    */
-  void subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos = 0);
+  template<typename F> void subscribe(std::string topic, F &&callback, uint8_t qos = 0) {
+    global_mqtt_client->subscribe(std::move(topic), std::forward<F>(callback), qos);
+  }
 
   /** Subscribe to a MQTT topic and automatically parse JSON payload.
    *
@@ -270,7 +272,9 @@ class MQTTComponent : public Component {
    * received.
    * @param qos The MQTT quality of service. Defaults to 0.
    */
-  void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
+  template<typename F> void subscribe_json(std::string topic, F &&callback, uint8_t qos = 0) {
+    global_mqtt_client->subscribe_json(std::move(topic), std::forward<F>(callback), qos);
+  }
 
  protected:
   /// Helper method to get the discovery topic for this component into a buffer.
