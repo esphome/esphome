@@ -3,8 +3,6 @@ import esphome.codegen as cg
 from esphome.components import i2c, time
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_ID
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -13,9 +11,6 @@ I2C_ADDR = 0x51
 
 bm8563_ns = cg.esphome_ns.namespace("bm8563")
 BM8563 = bm8563_ns.class_("BM8563", time.RealTimeClock, i2c.I2CDevice)
-WriteAction = bm8563_ns.class_("WriteAction", automation.Action)
-ReadAction = bm8563_ns.class_("ReadAction", automation.Action)
-TimerAction = bm8563_ns.class_("TimerAction", automation.Action)
 
 CONFIG_SCHEMA = (
     time.TIME_SCHEMA.extend(
@@ -28,51 +23,29 @@ CONFIG_SCHEMA = (
 )
 
 
-automation.register_parented_action(
-    "bm8563.write_time",
-    WriteAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(BM8563),
-        }
-    ),
-    synchronous=True,
+BM8563_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(BM8563),
+    }
 )
 
+automation.register_apply_action(
+    "bm8563.write_time", BM8563_ACTION_SCHEMA, automation.ApplyCall("write_time()")
+)
 
-@automation.register_action(
+automation.register_apply_action(
+    "bm8563.read_time", BM8563_ACTION_SCHEMA, automation.ApplyCall("read_time()")
+)
+
+automation.register_apply_action(
     "bm8563.start_timer",
-    TimerAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(BM8563),
             cv.Required(CONF_DURATION): cv.templatable(cv.positive_time_period_seconds),
         }
     ),
-    synchronous=True,
-)
-async def bm8563_start_timer_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_DURATION], args, cg.uint32)
-    cg.add(var.set_duration(template_))
-    return var
-
-
-automation.register_parented_action(
-    "bm8563.read_time",
-    ReadAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(BM8563),
-        }
-    ),
-    synchronous=True,
+    automation.ApplyField(CONF_DURATION, "start_timer", cg.uint32),
 )
 
 
