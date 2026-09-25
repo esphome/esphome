@@ -629,7 +629,6 @@
 #define USE_DASHBOARD_IMPORT
 
 // Default counts for static analysis
-#define CONTROLLER_REGISTRY_MAX 2
 #define ESPHOME_AREA_COUNT 10
 #define ESPHOME_COMPONENT_COUNT 50
 #define ESPHOME_DEVICE_COUNT 10

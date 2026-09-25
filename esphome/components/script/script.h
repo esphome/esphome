@@ -257,16 +257,6 @@ template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, T
   Args args_;
 };
 
-template<class C, typename... Ts> class ScriptStopAction final : public Action<Ts...> {
- public:
-  ScriptStopAction(C *script) : script_(script) {}
-
-  void play(const Ts &...x) override { this->script_->stop(); }
-
- protected:
-  C *script_;
-};
-
 /** Wait for a script to finish before continuing.
  *
  * Uses queue-based storage to safely handle concurrent executions.
