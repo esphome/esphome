@@ -353,7 +353,7 @@ def _configure_spi_3x(config: ConfigType) -> None:
         )
 
 
-def _configure_reset_and_variant_2x(config: ConfigType) -> None:
+def _configure_2x(config: ConfigType) -> None:
     transport_prefix = "SDIO" if config[CONF_TYPE] == "sdio" else "SPI"
     # Reset polarity
     if config[CONF_ACTIVE_HIGH]:
@@ -374,9 +374,26 @@ def _configure_reset_and_variant_2x(config: ConfigType) -> None:
         f"CONFIG_SLAVE_IDF_TARGET_{config[CONF_VARIANT]}",  # NOLINT
         True,
     )
+    if config[CONF_TYPE] == "sdio":
+        _configure_sdio_2x(config)
+    else:
+        _configure_spi_2x(config)
+    if esp32.get_esp32_variant() == esp32.VARIANT_ESP32P4:
+        # esp-hosted's CustomRpc ("peer data transfer") path — off by default.
+        esp32.add_idf_sdkconfig_option(
+            "CONFIG_ESP_HOSTED_ENABLE_PEER_DATA_TRANSFER", True
+        )
+        esp32.add_idf_sdkconfig_option(
+            "CONFIG_ESP_HOSTED_MAX_CUSTOM_MSG_HANDLERS", _MAX_CUSTOM_MSG_HANDLERS
+        )
+    # Place the transport mempool in PSRAM. Required on memory-tight host
+    # configurations (e.g. P4 with a large LVGL UI) where the internal-RAM
+    # mempool allocation fails at boot with `sdio_mempool_create` assert.
+    if config[CONF_USE_PSRAM]:
+        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM", True)
 
 
-def _configure_reset_and_variant_3x(config: ConfigType) -> None:
+def _configure_3x(config: ConfigType) -> None:
     # Reset GPIO and polarity. active_high keeps its 2.x meaning (the reset
     # line parks high and a low pulse resets the co-processor); 3.x names the
     # polarity after the pulse level, so active_high maps to RESET_ACTIVE_LOW.
@@ -401,70 +418,44 @@ def _configure_reset_and_variant_3x(config: ConfigType) -> None:
         f"CONFIG_ESP_HOSTED_CP_TARGET_{config[CONF_VARIANT]}",
         True,
     )
+    if config[CONF_TYPE] == "sdio":
+        _configure_sdio_3x(config)
+    else:
+        _configure_spi_3x(config)
+    if esp32.get_esp32_variant() == esp32.VARIANT_ESP32P4:
+        # esp-hosted's CustomRpc ("peer data transfer") feature — off by default.
+        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_PEER_DATA", True)
+        esp32.add_idf_sdkconfig_option(
+            "CONFIG_ESP_HOSTED_HOST_FEAT_PEER_DATA_MAX_CUSTOM_MSG_HANDLERS",
+            _MAX_CUSTOM_MSG_HANDLERS,
+        )
+    # Place Hosted task stacks in PSRAM to relieve internal RAM on
+    # memory-tight host configurations (e.g. P4 with a large LVGL UI).
+    if config[CONF_USE_PSRAM]:
+        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_DFLT_TASK_FROM_SPIRAM", True)
 
 
 async def to_code(config: ConfigType) -> None:
     add_define("USE_ESP32_HOSTED")
     use_3x = uses_esp_hosted_3x(config)
-    transport = config[CONF_TYPE]
 
     if use_3x:
-        _configure_reset_and_variant_3x(config)
+        _configure_3x(config)
     else:
-        _configure_reset_and_variant_2x(config)
-
-    # Transport-specific configuration
-    if transport == "sdio":
-        if use_3x:
-            _configure_sdio_3x(config)
-        else:
-            _configure_sdio_2x(config)
-    elif use_3x:
-        _configure_spi_3x(config)
-    else:
-        _configure_spi_2x(config)
+        _configure_2x(config)
 
     # ESP-NOW-over-hosted shim: only the radio-less ESP32-P4 host needs it (see
     # the note by _MAX_CUSTOM_MSG_HANDLERS). Enabled for every P4 host, not
     # gated on the `espnow` component being present: the shim is tiny and the
-    # esp_now_* symbols/CustomRpc calls it defines require these Kconfig options
-    # to link whenever esp_now_hosted.cpp compiles (which is on any P4 host), so
-    # coupling the two keeps the build consistent. When `espnow` is absent the
-    # symbols are simply unused and never register a callback at runtime.
+    # esp_now_* symbols/CustomRpc calls it defines require the peer-data Kconfig
+    # options (set above) to link whenever esp_now_hosted.cpp compiles (which is
+    # on any P4 host), so coupling the two keeps the build consistent. When
+    # `espnow` is absent the symbols are simply unused and never register a
+    # callback at runtime.
     if esp32.get_esp32_variant() == esp32.VARIANT_ESP32P4:
         add_define("USE_ESP_NOW_HOSTED")
         # esp_now_hosted.cpp includes esp_now.h, which esp_wifi provides
         esp32.include_builtin_idf_component("esp_wifi")
-        # esp-hosted's CustomRpc ("peer data transfer") feature — off by default.
-        if use_3x:
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_ESP_HOSTED_HOST_FEAT_PEER_DATA", True
-            )
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_ESP_HOSTED_HOST_FEAT_PEER_DATA_MAX_CUSTOM_MSG_HANDLERS",
-                _MAX_CUSTOM_MSG_HANDLERS,
-            )
-        else:
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_ESP_HOSTED_ENABLE_PEER_DATA_TRANSFER", True
-            )
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_ESP_HOSTED_MAX_CUSTOM_MSG_HANDLERS", _MAX_CUSTOM_MSG_HANDLERS
-            )
-
-    # Relieve internal RAM on memory-tight host configurations (e.g. P4 with a
-    # large LVGL UI): 2.x can place the transport mempool in PSRAM (otherwise
-    # its allocation fails at boot with a `sdio_mempool_create` assert), 3.x
-    # can place the Hosted task stacks there.
-    if config[CONF_USE_PSRAM]:
-        if use_3x:
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_ESP_HOSTED_DFLT_TASK_FROM_SPIRAM", True
-            )
-        else:
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM", True
-            )
 
     # Library versions; this component set requires ESP-IDF 5.3 or newer,
     # which is enforced at validation time.
