@@ -155,15 +155,21 @@ CONFIG_SCHEMA = cv.typed_schema(
 def uses_esp_hosted_3x(config: ConfigType | None = None) -> bool:
     """Whether the build uses the esp_hosted 3.x line.
 
-    3.x requires ESP-IDF 5.5. Its SDIO Kconfig also hides the D1 pin in 1-bit
-    mode while the port config still requires it (the interrupt line), which
-    breaks the build (espressif/esp-hosted#765), so 1-bit SDIO stays on the
-    2.x line for now.
+    3.x requires ESP-IDF 5.5. Two configurations stay on the 2.x line:
+
+    - 1-bit SDIO: the 3.0.8 SDIO Kconfig hides the D1 pin in 1-bit mode while
+      the port config still requires it (the interrupt line), which breaks the
+      build (espressif/esp-hosted#765).
+    - active_high: false: 3.0.8 removed the reset polarity options and always
+      parks the reset line high with a low pulse, which is what active_high:
+      true means here.
     """
     if esp32.idf_version() < cv.Version(5, 5, 0):
         return False
     if config is None:
         config = fv.full_config.get()["esp32_hosted"]
+    if not config[CONF_ACTIVE_HIGH]:
+        return False
     return config[CONF_TYPE] != "sdio" or config[CONF_BUS_WIDTH] != 1
 
 
@@ -393,25 +399,10 @@ def _configure_2x(config: ConfigType) -> None:
 
 
 def _configure_3x(config: ConfigType) -> None:
-    # Reset GPIO and polarity. active_high keeps its 2.x meaning (the reset
-    # line parks high and a low pulse resets the co-processor); 3.x names the
-    # polarity after the pulse level, so active_high maps to RESET_ACTIVE_LOW.
+    # Reset GPIO; 3.x has no polarity option (see uses_esp_hosted_3x)
     esp32.add_idf_sdkconfig_option(
         "CONFIG_ESP_HOSTED_HOST_RESET_GPIO", config[CONF_RESET_PIN]
     )
-    if config[CONF_TYPE] == "sdio":
-        if config[CONF_ACTIVE_HIGH]:
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_ESP_HOSTED_SDIO_RESET_ACTIVE_LOW", True
-            )
-        else:
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_ESP_HOSTED_SDIO_RESET_ACTIVE_HIGH", True
-            )
-    else:
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_ESP_HOSTED_HOST_RESET_ACTIVE_LOW", config[CONF_ACTIVE_HIGH]
-        )
     # Co-processor variant
     esp32.add_idf_sdkconfig_option(
         f"CONFIG_ESP_HOSTED_CP_TARGET_{config[CONF_VARIANT]}",
@@ -428,9 +419,11 @@ def _configure_3x(config: ConfigType) -> None:
             "CONFIG_ESP_HOSTED_HOST_FEAT_PEER_DATA_MAX_CUSTOM_MSG_HANDLERS",
             _MAX_CUSTOM_MSG_HANDLERS,
         )
-    # Place Hosted task stacks in PSRAM to relieve internal RAM on
-    # memory-tight host configurations (e.g. P4 with a large LVGL UI).
+    # Place the DMA transport buffers (the 2.x mempool) and the Hosted task
+    # stacks in PSRAM to relieve internal RAM on memory-tight host
+    # configurations (e.g. P4 with a large LVGL UI).
     if config[CONF_USE_PSRAM]:
+        esp32.add_idf_sdkconfig_option("CONFIG_EH_HOST_PORT_DMA_PREFER_SPIRAM", True)
         esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_DFLT_TASK_FROM_SPIRAM", True)
 
 
