@@ -42,8 +42,6 @@ from .types import (
     ColorMode,
     DimRelativeAction,
     LightEffectCycleAction,
-    LightIsOffCondition,
-    LightIsOnCondition,
     LightState,
     ToggleAction,
 )
@@ -444,24 +442,15 @@ async def light_addressable_set_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_condition(
-    "light.is_on",
-    LightIsOnCondition,
-    automation.maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(LightState),
-        }
-    ),
+LIGHT_CONDITION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(LightState),
+    }
 )
-@automation.register_condition(
-    "light.is_off",
-    LightIsOffCondition,
-    automation.maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(LightState),
-        }
-    ),
+
+automation.register_apply_condition(
+    "light.is_on", LIGHT_CONDITION_SCHEMA, "current_values.is_on()"
 )
-async def light_is_on_off_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
+automation.register_apply_condition(
+    "light.is_off", LIGHT_CONDITION_SCHEMA, "current_values.is_on() == false"
+)
