@@ -391,17 +391,21 @@ void ZigbeeComponent::dump_config() {
   }
 }
 
-ezb_zcl_attr_desc_t ZigbeeComponent::get_attr_desc_(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
-                                                    uint16_t attr_id) {
+bool ZigbeeComponent::string_attr_exists_(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id) {
   ezb_af_ep_desc_t ep_desc = ezb_af_device_get_endpoint_desc(this->dev_desc_, endpoint_id);
   if (ep_desc == NULL) {
-    return NULL;
+    return false;
   }
   ezb_zcl_cluster_desc_t cluster_desc = ezb_af_endpoint_get_cluster_desc(ep_desc, cluster_id, role);
   if (cluster_desc == NULL) {
-    return NULL;
+    return false;
   }
-  return ezb_zcl_cluster_get_attr_desc(cluster_desc, attr_id, EZB_ZCL_STD_MANUF_CODE);
+  if (ezb_zcl_cluster_get_attr_desc(cluster_desc, attr_id, EZB_ZCL_STD_MANUF_CODE) == NULL) {
+    return false;
+  }
+  ESP_LOGW(TAG, "Attribute 0x%04X already exists in endpoint %u cluster 0x%04X. Can't add new value", attr_id,
+           endpoint_id, cluster_id);
+  return true;
 }
 }  // namespace esphome::zigbee
 
