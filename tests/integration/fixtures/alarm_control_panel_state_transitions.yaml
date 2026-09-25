@@ -93,6 +93,24 @@ alarm_control_panel:
       - logger.log: "Alarm armed night"
     on_pending:
       - logger.log: "Alarm pending"
+      - if:
+          condition:
+            alarm_control_panel.is_armed_home:
+              id: test_alarm
+          then:
+            - logger.log: "Condition is_armed_home true during pending"
+      - if:
+          condition:
+            alarm_control_panel.is_armed_night:
+              id: test_alarm
+          then:
+            - logger.log: "Condition is_armed_night true during pending"
+      - if:
+          condition:
+            alarm_control_panel.is_armed_away:
+              id: test_alarm
+          then:
+            - logger.log: "Condition is_armed_away true during pending"
     on_triggered:
       - logger.log: "Alarm triggered"
     on_cleared:
