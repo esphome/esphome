@@ -315,11 +315,11 @@ _OUTGOING_CONNECTION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_HOST): cv.ipaddress,
         cv.Optional(CONF_PORT, default=6054): cv.port,
-        # Bounded to half the device's uint32 millisecond range so the wait
-        # always elapses under a wrapping clock
+        # Waiting past the default reboot_timeout would let the watchdog
+        # reboot the device before it ever dials
         cv.Optional(CONF_DELAY, default="60s"): cv.All(
             cv.positive_time_period_milliseconds,
-            cv.Range(max=cv.TimePeriod(milliseconds=2147483647)),
+            cv.Range(max=cv.time_period(DEFAULT_REBOOT_TIMEOUT)),
         ),
     }
 )
