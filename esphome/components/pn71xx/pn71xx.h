@@ -14,9 +14,11 @@
 
 namespace esphome::pn71xx {
 
-static constexpr uint16_t NFCC_DEFAULT_TIMEOUT = 10;
+// Time to wait for the NFCC to answer. NXP's reference stack waits 1 s for a response; 10 ms was short enough
+// that a slow RF_DEACTIVATE_RSP, for example when a tag leaves the field, caused a full NFCC reset.
+static constexpr uint16_t NFCC_DEFAULT_TIMEOUT = 100;
 static constexpr uint16_t NFCC_INIT_TIMEOUT = 50;
-static constexpr uint16_t NFCC_TAG_WRITE_TIMEOUT = 15;
+static constexpr uint16_t NFCC_TAG_WRITE_TIMEOUT = 100;
 // Time to wait before resending a frame the NFCC refused, e.g. while waking from standby
 static constexpr uint16_t NFCC_WRITE_RETRY_DELAY = 5;
 // Longest time the FSM may wait for a notification that ends a transitional state before resetting the NFCC
