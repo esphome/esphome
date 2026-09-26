@@ -15,6 +15,9 @@
 // LibreTiny families that need it share the same .sram.text input section
 // name; how that section is routed into RAM differs per family:
 //   RTL8720C: stock linker consumes *(.sram.text*) into .ram.code_text.
+//   RTL8720D: patch_linker.py.script injects KEEP(*(.sram.text*)) at the
+//             top of .ram_image2.text; the AmebaD image packer extracts that
+//             output section (unlike AmebaZ, see RTL8710B below).
 //   RTL8710B: patch_linker.py.script injects KEEP(*(.sram.text*)) at the
 //             top of .ram_image2.data (which IS in ltchiptool's
 //             sections_ram). The stock linker has KEEP(*(.image2.ram.text*))
@@ -76,7 +79,7 @@ __attribute__((always_inline)) inline bool in_isr_context() {
   // BK72xx is ARM968E-S (ARM9); see extern declaration above.
   return platform_is_in_interrupt_context() != 0;
 #else
-  // Cortex-M (AmebaZ, AmebaZ2, LN882H). IPSR is the active exception number;
+  // Cortex-M (AmebaZ, AmebaZ2, AmebaD, LN882H). IPSR is the active exception number;
   // non-zero means we're in a handler.
   uint32_t ipsr;
   __asm__ volatile("mrs %0, ipsr" : "=r"(ipsr));
