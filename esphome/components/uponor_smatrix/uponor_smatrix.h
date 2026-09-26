@@ -23,12 +23,12 @@ static const uint8_t UPONOR_ID_DATETIME1 = 0x08;
 static const uint8_t UPONOR_ID_DATETIME2 = 0x09;
 /// Date/Time Part 3 (seconds)
 static const uint8_t UPONOR_ID_DATETIME3 = 0x0A;
-/// Unknown (observed values: 0x0342, 0x0024)
-static const uint8_t UPONOR_ID_UNKNOWN1 = 0x0C;
+/// Heating/Cooling Offset
+static const uint8_t UPONOR_ID_HEATING_COOLING_OFFSET = 0x0C;
 /// Outdoor Temperature? (sent by controller)
 static const uint8_t UPONOR_ID_OUTDOOR_TEMP = 0x2D;
 /// Unknown (observed values: 0x8000)
-static const uint8_t UPONOR_ID_UNKNOWN2 = 0x35;
+static const uint8_t UPONOR_ID_UNKNOWN = 0x35;
 /// Room Temperature Setpoint Minimum
 static const uint8_t UPONOR_ID_TARGET_TEMP_MIN = 0x37;
 /// Room Temperature Setpoint Maximum
