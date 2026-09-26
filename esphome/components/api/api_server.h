@@ -272,9 +272,9 @@ class APIServer final : public Component
  protected:
   // Accept incoming socket connections. Only called when socket has pending connections.
   void __attribute__((noinline)) accept_new_connections_();
-  // Insert a constructed connection into the client slots and start it.
-  // Takes ownership; deletes the connection and returns false at the limit
-  bool add_client_(APIConnection *conn);
+  /// Takes the socket into a new connection and starts it; callers must have
+  /// checked at_client_limit_() first
+  APIConnection *add_client_(std::unique_ptr<socket::Socket> sock);
   bool at_client_limit_() const { return this->api_connection_count_ >= MAX_API_CONNECTIONS; }
 #ifdef USE_API_OUTGOING_CONNECTION
   // Returns the new connection, or nullptr (socket dropped) when at the limit
@@ -322,8 +322,9 @@ class APIServer final : public Component
     delete this->socket_;
     this->socket_ = nullptr;
   }
+  /// Log the failure, drop the listen socket, and mark the component failed
+  /// unless this build can still dial out
   void socket_failed_(const LogString *msg);
-  bool create_listen_socket_();
   // Pointers and pointer-like types first (4 bytes each)
   socket::ListenSocket *socket_{nullptr};
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
@@ -376,11 +377,7 @@ class APIServer final : public Component
   // Connection limits - these defaults will be overridden by config values
   // from cv.SplitDefault in __init__.py which sets platform-specific defaults.
   uint8_t listen_backlog_{4};
-  // Bit-packed so the two flags share one byte
-  bool shutting_down_ : 1 = false;
-  // For the reboot log: whether any removal since the last watchdog refresh
-  // was an unauthenticated session (e.g. a wrong-key peer)
-  bool saw_unauthenticated_client_ : 1 = false;
+  bool shutting_down_ = false;
   uint8_t api_connection_count_{0};
 #ifdef USE_API_OUTGOING_CONNECTION
   // Connected clients whose hello declared them a dial-back target

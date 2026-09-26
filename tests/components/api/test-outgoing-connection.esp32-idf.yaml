@@ -1,5 +1,5 @@
 packages:
-  common: !include common-base.yaml
+  common: !include common.yaml
 
 wifi:
   ssid: MySSID
@@ -8,8 +8,6 @@ wifi:
 # Outgoing connection: the device dials out when no dial-back client is
 # connected. Requires encryption so the peer is verified by key.
 api:
-  encryption:
-    key: bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU=
   outgoing_connection:
     host: 192.168.1.2
     port: 6054

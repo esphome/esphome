@@ -17,11 +17,10 @@ namespace esphome::api {
 static const char *const TAG = "api.outgoing";
 
 #ifndef API_OUTGOING_CONNECTION_HOST
-#if USE_NETWORK_IPV6
-// A dual-stack listener reports an IPv4 peer as ::ffff:a.b.c.d
-static constexpr uint8_t V4_MAPPED_PREFIX[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF};
+static constexpr uint32_t OUTGOING_TARGET_PREF_HASH = 629847102UL;
 #endif
 
+#ifndef API_OUTGOING_CONNECTION_HOST
 // Read the connection's peer address into target; false when unavailable or
 // of a family this build cannot dial
 static bool peer_to_target(APIConnection *conn, SavedOutgoingTarget &target) {
@@ -35,9 +34,12 @@ static bool peer_to_target(APIConnection *conn, SavedOutgoingTarget &target) {
   if (family == AF_INET6) {
     const auto *addr6 = reinterpret_cast<const struct sockaddr_in6 *>(&peer);
     const auto *bytes = reinterpret_cast<const uint8_t *>(&addr6->sin6_addr);
-    if (memcmp(bytes, V4_MAPPED_PREFIX, sizeof(V4_MAPPED_PREFIX)) == 0) {
+    uint32_t prefix[3];
+    memcpy(prefix, bytes, sizeof(prefix));
+    // A dual-stack listener reports an IPv4 peer as ::ffff:a.b.c.d
+    if (prefix[0] == 0 && prefix[1] == 0 && prefix[2] == htonl(0xFFFFUL)) {
       target.family = AF_INET;
-      memcpy(target.addr, bytes + sizeof(V4_MAPPED_PREFIX), 4);
+      memcpy(target.addr, bytes + sizeof(prefix), 4);
       return true;
     }
     target.family = AF_INET6;
@@ -83,26 +85,28 @@ socklen_t OutgoingConnectionManager::target_sockaddr_(struct sockaddr_storage *a
 #endif
 }
 
+#ifndef API_OUTGOING_CONNECTION_HOST
 void OutgoingConnectionManager::format_target_(std::span<char, socket::SOCKADDR_STR_LEN> buf) const {
   struct sockaddr_storage addr;
   socklen_t addr_len = this->target_sockaddr_(&addr);
-  if (addr_len == 0 || socket::format_sockaddr_to((struct sockaddr *) &addr, addr_len, buf) == 0) {
+  if (addr_len == 0) {
     buf[0] = '\0';
+    return;
   }
+  // Clears buf itself if it cannot format the address
+  socket::format_sockaddr_to((struct sockaddr *) &addr, addr_len, buf);
 }
+#endif
 
 void OutgoingConnectionManager::setup() {
 #ifndef API_OUTGOING_CONNECTION_HOST
-  this->target_pref_ = global_preferences->make_preference<SavedOutgoingTarget>(629847102UL, true);
+  this->target_pref_ = global_preferences->make_preference<SavedOutgoingTarget>(OUTGOING_TARGET_PREF_HASH, true);
   struct sockaddr_storage addr;
+  // dump_config() prints whichever target this leaves in place
   if (this->target_pref_.load(&this->saved_) && this->target_sockaddr_(&addr) != 0) {
     this->host_persisted_ = true;
-    char host[socket::SOCKADDR_STR_LEN];
-    this->format_target_(host);
-    ESP_LOGD(TAG, "Loaded target %s", host);
   } else {
     // Never saved, failed its size or CRC check, or holds an unknown family
-    ESP_LOGD(TAG, "No saved target");
     this->saved_ = {};
   }
 #endif
@@ -120,13 +124,8 @@ void OutgoingConnectionManager::loop(APIServer *server) {
   const uint32_t now = App.get_loop_component_start_time();
   switch (this->state_) {
     case DialState::DIAL_STATE_IDLE:
-#ifdef USE_DEEP_SLEEP
-      // A deep sleep wake window is too short to spend on the delay
-      this->schedule_wait_(now, BACKOFF_MIN_MS);
-#else
       // Target went away; give it the configured delay to reconnect first
-      this->schedule_wait_(now, API_OUTGOING_CONNECTION_DELAY);
-#endif
+      this->schedule_wait_(now, IDLE_WAIT_MS);
       break;
     case DialState::DIAL_STATE_WAITING:
       if (now - this->state_ts_ >= this->wait_) {
@@ -148,15 +147,13 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
   }
   struct sockaddr_storage addr;
   socklen_t addr_len = this->target_sockaddr_(&addr);
-  if (addr_len == 0) {
-    // The steady state until a dial-back client has ever connected
-    ESP_LOGV(TAG, "Not dialing: no target");
-    this->schedule_wait_(now, PRECONDITION_RETRY_MS);
-    return;
-  }
   const bool at_limit = server->at_client_limit_();
-  if (at_limit || !server->noise_ctx_.has_psk()) {
-    ESP_LOGD(TAG, "Not dialing: %s", at_limit ? LOG_STR_LITERAL("max connections") : LOG_STR_LITERAL("no key"));
+  // No target is the steady state until a dial-back client has ever connected
+  if (addr_len == 0 || at_limit || !server->noise_ctx_.has_psk()) {
+    // Repeats for as long as the reason holds, so keep it out of debug logs
+    ESP_LOGV(TAG, "Not dialing: %s",
+             addr_len == 0 ? LOG_STR_LITERAL("no target")
+                           : (at_limit ? LOG_STR_LITERAL("max connections") : LOG_STR_LITERAL("no key")));
     // Not a dial failure; retry without escalating the backoff
     this->schedule_wait_(now, PRECONDITION_RETRY_MS);
     return;
@@ -168,9 +165,13 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
     this->schedule_retry_(now);
     return;
   }
+#ifdef API_OUTGOING_CONNECTION_HOST
+  ESP_LOGD(TAG, "Dialing " API_OUTGOING_CONNECTION_HOST ":%u", API_OUTGOING_CONNECTION_PORT);
+#else
   char host[socket::SOCKADDR_STR_LEN];
-  this->format_target_(host);
+  socket::format_sockaddr_to((struct sockaddr *) &addr, addr_len, host);
   ESP_LOGD(TAG, "Dialing %s:%u", host, API_OUTGOING_CONNECTION_PORT);
+#endif
   int err = this->dial_socket_->connect((struct sockaddr *) &addr, addr_len);
   if (err == 0) {
     // Immediate success (possible for localhost)
@@ -178,7 +179,7 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
     return;
   }
   if (errno != EINPROGRESS) {
-    ESP_LOGW(TAG, "Connect failed: errno %d", errno);
+    ESP_LOGW(TAG, "Connect failed: %d", errno);
     this->schedule_retry_(now);
     return;
   }
@@ -279,21 +280,29 @@ void OutgoingConnectionManager::on_target_client(APIConnection *conn) {
   }
   char host[socket::SOCKADDR_STR_LEN];
   this->format_target_(host);
-  ESP_LOGD(TAG, "Saved %s as outgoing connection target", host);
+  ESP_LOGD(TAG, "Remembered %s as the dial target", host);
 #endif
 }
 
 void OutgoingConnectionManager::dump_config() const {
-  char buf[socket::SOCKADDR_STR_LEN];
-  this->format_target_(buf);
-  const char *host = buf[0] != '\0' ? buf : "none remembered yet";
   // The boot delay differs from delay: on deep sleep builds, so print the
   // value that actually applies
   ESP_LOGCONFIG(TAG,
                 "  Outgoing connection port: %u\n"
-                "  Outgoing connection host: %s\n"
                 "  Outgoing connection boot delay: %" PRIu32 "ms",
-                API_OUTGOING_CONNECTION_PORT, host, BOOT_WAIT_MS);
+                API_OUTGOING_CONNECTION_PORT, BOOT_WAIT_MS);
+  // The text stays in the format string so ESP8266 holds it in flash, not RAM
+#ifdef API_OUTGOING_CONNECTION_HOST
+  ESP_LOGCONFIG(TAG, "  Outgoing connection host: " API_OUTGOING_CONNECTION_HOST);
+#else
+  char buf[socket::SOCKADDR_STR_LEN];
+  this->format_target_(buf);
+  if (buf[0] == '\0') {
+    ESP_LOGCONFIG(TAG, "  Outgoing connection host: none remembered yet");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Outgoing connection host: %s", buf);
+  }
+#endif
 }
 
 }  // namespace esphome::api

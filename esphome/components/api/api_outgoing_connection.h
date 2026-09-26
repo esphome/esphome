@@ -59,12 +59,14 @@ class OutgoingConnectionManager {
   static constexpr uint32_t CONNECT_POLL_INTERVAL_MS = 250;
   static constexpr uint32_t NETWORK_RETRY_MS = 500;
   static constexpr uint32_t PRECONDITION_RETRY_MS = 5000;
-  // Boot waits for the client to connect in first; a deep sleep wake window
-  // is short, so connecting out immediately is the wake state
+  // A deep sleep wake window is too short to spend on the delay, so those
+  // builds dial out as soon as the target is gone
 #ifdef USE_DEEP_SLEEP
   static constexpr uint32_t BOOT_WAIT_MS = 0;
+  static constexpr uint32_t IDLE_WAIT_MS = BACKOFF_MIN_MS;
 #else
   static constexpr uint32_t BOOT_WAIT_MS = API_OUTGOING_CONNECTION_DELAY;
+  static constexpr uint32_t IDLE_WAIT_MS = API_OUTGOING_CONNECTION_DELAY;
 #endif
 
   void try_dial_(APIServer *server, uint32_t now);
@@ -75,17 +77,17 @@ class OutgoingConnectionManager {
   void schedule_retry_(uint32_t now);
   // Wait without escalating the backoff (used for unmet preconditions)
   void schedule_wait_(uint32_t now, uint32_t wait);
+  /// Fill addr with the target and return its length, or 0 when there is none
+  socklen_t target_sockaddr_(struct sockaddr_storage *addr) const;
 #ifndef API_OUTGOING_CONNECTION_HOST
   // Write saved_ to flash, tracking success in host_persisted_
   bool persist_target_() {
     this->host_persisted_ = this->target_pref_.save(&this->saved_) && global_preferences->sync();
     return this->host_persisted_;
   }
-#endif
-  /// Fill addr with the target and return its length, or 0 when there is none
-  socklen_t target_sockaddr_(struct sockaddr_storage *addr) const;
-  /// Format the target for a log line; empty when there is none
+  /// Format the remembered target for a log line; empty when there is none
   void format_target_(std::span<char, socket::SOCKADDR_STR_LEN> buf) const;
+#endif
 
   // Pointers first (4 bytes each on 32-bit)
   std::unique_ptr<socket::Socket> dial_socket_;

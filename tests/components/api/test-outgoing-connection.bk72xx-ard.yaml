@@ -1,5 +1,5 @@
 packages:
-  common: !include common-base.yaml
+  common: !include common.yaml
 
 wifi:
   ssid: MySSID
@@ -7,7 +7,5 @@ wifi:
 
 # Outgoing connection on the lwip_sockets implementation used by LibreTiny
 api:
-  encryption:
-    key: bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU=
   outgoing_connection:
     host: 192.168.1.2

@@ -52,6 +52,7 @@ from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_pr
 from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.helpers import fnv1_hash
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigFragmentType, ConfigType
 
 # Compat alias: downstream consumers (e.g. device-builder) referenced the
@@ -325,9 +326,13 @@ _OUTGOING_CONNECTION_SCHEMA = cv.Schema(
 )
 
 
+@schema_extractor("schema")
 def _outgoing_connection_schema(config: ConfigType | None) -> ConfigType:
     # A bare `outgoing_connection:` block is valid; without a host the device
     # dials the remembered last dial-back client
+    if config is SCHEMA_EXTRACT:
+        # Let the language-schema dumper walk host, port and delay
+        return _OUTGOING_CONNECTION_SCHEMA
     if config is None:
         config = {}
     return _OUTGOING_CONNECTION_SCHEMA(config)
