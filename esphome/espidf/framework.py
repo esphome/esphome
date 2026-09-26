@@ -703,7 +703,7 @@ def _prefetch_idf_tool_archives(
     targets_str: str,
     tools: list[str],
     env: dict[str, str] | None,
-) -> None:
+) -> bool:
     """Pre-download the tool archives ``idf_tools.py install`` would fetch.
 
     ``idf_tools.py``'s own downloader restarts from byte zero on every retry,
@@ -719,6 +719,9 @@ def _prefetch_idf_tool_archives(
     ``idf_tools.py install`` to download whatever is missing exactly as
     before. Leftover ``.part`` files live in ``dist/`` and are removed by the
     post-install cache prune.
+
+    Returns whether every archive in the list went through verification here,
+    which is what lets the pre-extraction trust ``dist/``.
     """
     try:
         success, stdout, stderr = _run_idf_tools_script(
@@ -733,7 +736,7 @@ def _prefetch_idf_tool_archives(
                 "Could not determine ESP-IDF tool downloads: %s",
                 (stderr or "").strip(),
             )
-            return
+            return False
         dist_path = get_idf_tools_path() / "dist"
         entries = []
         seen_dests: set[str] = set()
@@ -758,7 +761,7 @@ def _prefetch_idf_tool_archives(
             seen_dests.add(entry["dest"])
             entries.append(entry)
         if not entries:
-            return
+            return False
         cached = sum((dist_path / entry["dest"]).is_file() for entry in entries)
         _LOGGER.info(
             "Downloading %d ESP-IDF tool archive(s)%s: %s",
@@ -795,11 +798,15 @@ def _prefetch_idf_tool_archives(
                 "Every ESP-IDF tool prefetch failed; the installer will "
                 "download without resume"
             )
+        # A failed download leaves no archive at its final name, so the
+        # list was fully verified either way
+        return True
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # The installer downloads anything missing itself; never let the
         # prefetch become a new way for the install to fail.
         _LOGGER.warning("ESP-IDF tool prefetch failed: %s", failure_reason(e))
         _LOGGER.debug("Prefetch failure detail", exc_info=True)
+    return False
 
 
 def _preinstall_idf_tool_archives(
@@ -983,8 +990,10 @@ def _check_esphome_idf_framework_install(
     if install:
         _LOGGER.info("Installing ESP-IDF %s framework ...", version)
         targets_str = ",".join(targets)
-        _prefetch_idf_tool_archives(framework_path, targets_str, tools, env)
-        _preinstall_idf_tool_archives(framework_path, targets_str, tools, env)
+        if _prefetch_idf_tool_archives(framework_path, targets_str, tools, env):
+            # Only a prefetch that ran proves the archives in dist/ were
+            # verified this run
+            _preinstall_idf_tool_archives(framework_path, targets_str, tools, env)
         cmd = [
             get_system_python_path(),
             str(idf_tools_path),

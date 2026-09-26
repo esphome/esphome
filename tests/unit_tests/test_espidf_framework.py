@@ -966,7 +966,7 @@ def test_prefetch_all_entries_unverifiable_is_a_noop(tmp_path: Path) -> None:
         patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
     ):
-        _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
+        assert not _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
     download.assert_not_called()
 
 
@@ -1002,7 +1002,7 @@ def test_prefetch_downloads_each_archive_with_resume(tmp_path: Path) -> None:
     ):
         # Materialize the lazy mock before threads race its first creation
         tracker = progress_cls.return_value.tracker.return_value
-        _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
+        assert _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
 
     dist = get_idf_tools_path() / "dist"
     # Archives download concurrently, so the call order is not fixed.
@@ -1107,9 +1107,12 @@ def test_prefetch_failures_never_raise(
         ),
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
     ):
-        _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
+        ran = _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
 
     assert expected_log in caplog.text
+    # A download that failed still leaves nothing to extract, but the list
+    # was verified; a failure before that point did not verify anything
+    assert ran == (download_error is not None)
 
 
 def test_prefetch_total_failure_logs_error(
@@ -1219,7 +1222,7 @@ def test_framework_install_prefetches_before_installer(
     with (
         patch(
             "esphome.espidf.framework._prefetch_idf_tool_archives",
-            side_effect=lambda *a, **k: calls.append("prefetch"),
+            side_effect=lambda *a, **k: calls.append("prefetch") or True,
         ),
         patch(
             "esphome.espidf.framework._preinstall_idf_tool_archives",
@@ -1232,6 +1235,23 @@ def test_framework_install_prefetches_before_installer(
         check_esp_idf_install(_IDF_VERSION, force=True)
 
     assert calls.index("prefetch") < calls.index("preinstall") < calls.index("install")
+
+
+def test_framework_install_skips_preextraction_when_prefetch_did_not_run(
+    espidf_mocks: SimpleNamespace,
+) -> None:
+    """Without a prefetch nothing verified the archives in dist/, so the
+    installer alone decides what to trust."""
+    with (
+        patch(
+            "esphome.espidf.framework._prefetch_idf_tool_archives",
+            return_value=False,
+        ),
+        patch("esphome.espidf.framework._preinstall_idf_tool_archives") as preinstall,
+    ):
+        check_esp_idf_install(_IDF_VERSION, force=True)
+
+    preinstall.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

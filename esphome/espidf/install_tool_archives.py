@@ -40,8 +40,8 @@ def collect_pending(
         # Mirror the prefetch: an entry it could not verify is never trusted
         if not (download.sha256 and download.size):
             continue
-        # Trusted as-is: the prefetch verifies archives at their final name,
-        # and the installer redoes anything this pass fails on
+        # Trusted as-is: the caller only runs this pass after a prefetch
+        # that verified every archive at its final name
         if (dist_path / archive_name(download)).is_file():
             pending[(name, version)] = tool
     return pending
