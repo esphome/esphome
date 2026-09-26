@@ -70,6 +70,7 @@ from .types import (  # noqa: F401
     AddressableLightState,
     ChannelColors,
     ColorMode,
+    GammaTable,
     LightOutput,
     LightState,
     LightStateRTCState,
@@ -85,6 +86,7 @@ CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
 DOMAIN = "light"
+CONF_GAMMA_TABLE_ID = "gamma_table_id"
 
 
 @dataclass
@@ -147,20 +149,20 @@ def gamma_table_initializer(gamma_correct: float) -> str:
     return f"{{{{{lut}}}, {min(0xFFFF, round(gamma_correct * 100))}}}"
 
 
-def _get_or_create_gamma_table(gamma_correct):
+def _get_or_create_gamma_table(gamma_correct: float, table_id: ID) -> cg.RawExpression:
     data = _get_data()
     if gamma_correct in data.gamma_tables:
         return data.gamma_tables[gamma_correct]
 
-    # Numbered, since a float's text form (1e-05) is not always a valid identifier
-    name = f"gamma_table_{len(data.gamma_tables)}"
+    # table_id is generated and resolved against every declared ID, so it can't collide with a
+    # YAML ID; lights sharing a gamma reuse the first light's table.
     cg.add(
         cg.RawStatement(
-            f"static constexpr light::GammaTable {name} PROGMEM = "
+            f"static constexpr light::GammaTable {table_id} PROGMEM = "
             f"{gamma_table_initializer(gamma_correct)};"
         )
     )
-    table = cg.RawExpression(f"&{name}")
+    table = cg.RawExpression(f"&{table_id}")
     data.gamma_tables[gamma_correct] = table
     return table
 
@@ -368,6 +370,7 @@ LIGHT_SCHEMA = (
     .extend(
         {
             cv.GenerateID(): cv.declare_id(LightState),
+            cv.GenerateID(CONF_GAMMA_TABLE_ID): cv.declare_id(GammaTable),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
                 mqtt.MQTTJSONLightComponent
             ),
@@ -571,7 +574,7 @@ async def setup_light_core_(light_var, config, output_var):
         cg.add(light_var.set_transition_state_publish_interval(interval))
         cg.add_define("USE_LIGHT_TRANSITION_PUBLISH_INTERVAL")
     if (gamma_correct := config.get(CONF_GAMMA_CORRECT)) is not None:
-        fwd_arr = _get_or_create_gamma_table(gamma_correct)
+        fwd_arr = _get_or_create_gamma_table(gamma_correct, config[CONF_GAMMA_TABLE_ID])
         cg.add(light_var.set_gamma_table(fwd_arr))
         cg.add_define("USE_LIGHT_GAMMA_LUT")
     effects = await cg.build_registry_list(

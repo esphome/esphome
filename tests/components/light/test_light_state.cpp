@@ -48,4 +48,21 @@ TEST(LightStateEffect, IndexAboveUint16IsIgnoredAndKeepsTheActiveEffect) {
   EXPECT_EQ(state.get_current_effect_index(), 1u);
 }
 
+// get_gamma_correct() reads the gamma codegen stores after the lookup table, rounded to two decimals.
+TEST(LightStateGamma, ReadsTheGammaStoredWithTheTable) {
+  static constexpr GammaTable TABLE{{}, 280};
+  BrightnessOutput output;
+  LightState state(&output);
+  state.set_gamma_table(&TABLE);
+  EXPECT_FLOAT_EQ(state.get_gamma_correct(), 2.8f);
+  EXPECT_EQ(state.get_gamma_table(), TABLE.lut);
+}
+
+TEST(LightStateGamma, IsZeroWithoutATable) {
+  BrightnessOutput output;
+  LightState state(&output);
+  EXPECT_FLOAT_EQ(state.get_gamma_correct(), 0.0f);
+  EXPECT_EQ(state.get_gamma_table(), nullptr);
+}
+
 }  // namespace esphome::light::testing
