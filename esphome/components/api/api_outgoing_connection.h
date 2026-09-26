@@ -17,19 +17,16 @@ namespace esphome::api {
 class APIServer;
 class APIConnection;
 
-// Follows the build's address family: toggling enable_ipv6 changes the blob
-// size, load() rejects the old blob, and the target is simply relearned
-#if USE_NETWORK_IPV6
-static constexpr size_t SAVED_TARGET_ADDR_LEN = 16;
-#else
-static constexpr size_t SAVED_TARGET_ADDR_LEN = 4;
-#endif
-
+// Room for an IPv6 address in every build, so a remembered IPv4 target is
+// still dialed after enable_ipv6 is turned on. A size that followed the build
+// would also shift every preference registered after this one on ESP8266,
+// where slots are positional. An IPv6 target on a build without IPv6 is
+// dropped by target_sockaddr_() and relearned.
 struct SavedOutgoingTarget {
   // 0 when none is remembered, else AF_INET or AF_INET6
   uint8_t family;
-  // Network order, IPv4 in the first four bytes
-  uint8_t addr[SAVED_TARGET_ADDR_LEN];
+  // Network order, IPv4 in the first four bytes and the rest zero
+  uint8_t addr[16];
 } PACKED;  // NOLINT
 
 /// Dials out when no dial-back target client is connected. Only the TCP
