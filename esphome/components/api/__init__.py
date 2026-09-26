@@ -470,29 +470,6 @@ def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_outgoing_socket_implementation(config: ConfigType) -> ConfigType:
-    """Reject the raw lwip_tcp socket, the only option on ESP8266 and RP2040.
-
-    Checked against the resolved implementation so an explicit selection on
-    another platform is caught the same way as the platform default.
-    """
-    if CONF_OUTGOING_CONNECTION not in config:
-        return config
-    from esphome.components import socket
-
-    socket_conf = fv.full_config.get().get("socket") or {}
-    if (
-        impl := socket_conf.get(socket.CONF_IMPLEMENTATION)
-    ) in socket.IMPLEMENTATIONS_WITHOUT_CONNECT:
-        raise cv.Invalid(
-            f"outgoing_connection is not supported with the {impl} socket "
-            "implementation (the only one on ESP8266 and RP2040) because it "
-            "cannot make outgoing connections",
-            path=[CONF_OUTGOING_CONNECTION],
-        )
-    return config
-
-
 def _validate_outgoing_host_ipv6(config: ConfigType) -> ConfigType:
     """An IPv6 host can never be parsed, so never dialed, without IPv6."""
     if (
@@ -513,7 +490,6 @@ def _validate_outgoing_host_ipv6(config: ConfigType) -> ConfigType:
 
 FINAL_VALIDATE_SCHEMA = cv.All(
     _validate_esp8266_action_strings,
-    _validate_outgoing_socket_implementation,
     _validate_outgoing_host_ipv6,
 )
 

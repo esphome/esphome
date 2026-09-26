@@ -3,9 +3,6 @@
 #include "esphome/core/defines.h"
 #if defined(USE_API) && defined(USE_API_OUTGOING_CONNECTION)
 
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
-#error "api outgoing_connection needs a socket implementation that can make outgoing connections"
-#endif
 #ifndef USE_API_NOISE
 #error "api outgoing_connection needs noise encryption so the peer is verified by key"
 #endif

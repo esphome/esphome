@@ -8,8 +8,8 @@ import pytest
 from esphome.components import socket
 from esphome.components.api import (
     CONFIG_SCHEMA,
+    FINAL_VALIDATE_SCHEMA,
     _validate_outgoing_host_ipv6,
-    _validate_outgoing_socket_implementation,
 )
 from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
 import esphome.config_validation as cv
@@ -83,31 +83,18 @@ def test_outgoing_connection_requires_encryption(
 
 
 @pytest.mark.parametrize(
-    ("platform_framework", "platform_data", "socket_conf"),
-    [
-        # The platform default on these two, resolved like AUTO_LOAD does
-        (PlatformFramework.ESP8266_ARDUINO, None, None),
-        (PlatformFramework.RP2040_ARDUINO, None, None),
-        # An explicit selection elsewhere
-        (
-            PlatformFramework.ESP32_IDF,
-            ESP32_PLATFORM_DATA,
-            {"implementation": "lwip_tcp"},
-        ),
-    ],
+    "platform_framework",
+    [PlatformFramework.ESP8266_ARDUINO, PlatformFramework.RP2040_ARDUINO],
 )
-def test_outgoing_connection_rejects_lwip_tcp(
+def test_outgoing_connection_accepts_raw_lwip(
     set_core_config: SetCoreConfigCallable,
     platform_framework: PlatformFramework,
-    platform_data: ConfigType | None,
-    socket_conf: ConfigType | None,
 ) -> None:
-    """The resolved lwip_tcp socket is rejected at final validate."""
-    set_core_config(platform_framework, platform_data=platform_data)
-    fv.full_config.set({"socket": socket_conf or socket.CONFIG_SCHEMA({})})
+    """The raw lwip_tcp socket these platforms default to can dial out."""
+    set_core_config(platform_framework)
+    fv.full_config.set({"socket": socket.CONFIG_SCHEMA({})})
     config = CONFIG_SCHEMA(_api_config({"host": "192.168.1.2"}))
-    with pytest.raises(cv.Invalid, match="lwip_tcp"):
-        _validate_outgoing_socket_implementation(config)
+    assert FINAL_VALIDATE_SCHEMA(config) is not None
 
 
 def test_outgoing_connection_rejects_hostnames(

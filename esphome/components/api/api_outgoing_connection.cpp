@@ -136,12 +136,12 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
   this->last_poll_ = now;
   int err = 0;
   switch (socket::poll_connect(*this->dial_socket_, err)) {
-    case socket::ConnectPollResult::CONNECT_POLL_PENDING:
+    case socket::ConnectPollResult::CONNECT_POLL_RESULT_PENDING:
       break;
-    case socket::ConnectPollResult::CONNECT_POLL_CONNECTED:
+    case socket::ConnectPollResult::CONNECT_POLL_RESULT_CONNECTED:
       this->handoff_(server, now);
       break;
-    case socket::ConnectPollResult::CONNECT_POLL_ERROR:
+    case socket::ConnectPollResult::CONNECT_POLL_RESULT_ERROR:
       ESP_LOGW(TAG, "Connect failed: %d", err);
       this->schedule_retry_(now);
       break;
