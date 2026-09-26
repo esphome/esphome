@@ -43,16 +43,17 @@ void EPaperInkplate2::fill(Color color) {
   // Plane encoding: B/W plane 1=white, 0=black; red plane 0=red, 1=no-red.
   uint8_t bw_byte;
   uint8_t red_byte;
-  switch (color_to_bwr<BwrColor>(color, BwrColor::BLACK, BwrColor::WHITE, BwrColor::RED)) {
-    case BwrColor::BLACK:
+  switch (
+      color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED)) {
+    case BwrColor::BWR_COLOR_BLACK:
       bw_byte = 0x00;
       red_byte = 0xFF;
       break;
-    case BwrColor::RED:
+    case BwrColor::BWR_COLOR_RED:
       bw_byte = 0xFF;
       red_byte = 0x00;
       break;
-    case BwrColor::WHITE:
+    case BwrColor::BWR_COLOR_WHITE:
     default:
       bw_byte = 0xFF;
       red_byte = 0xFF;
@@ -80,16 +81,17 @@ void HOT EPaperInkplate2::draw_pixel_at(int x, int y, Color color) {
   const size_t pos = y * this->row_width_ + x / 8;
   const uint8_t mask = 0x80 >> (x & 0x07);  // MSB first; see fill() for plane encoding
 
-  switch (color_to_bwr<BwrColor>(color, BwrColor::BLACK, BwrColor::WHITE, BwrColor::RED)) {
-    case BwrColor::BLACK:
+  switch (
+      color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED)) {
+    case BwrColor::BWR_COLOR_BLACK:
       this->buffer_[pos] &= ~mask;
       this->buffer_[pos + half_buffer] |= mask;
       break;
-    case BwrColor::RED:
+    case BwrColor::BWR_COLOR_RED:
       this->buffer_[pos] |= mask;
       this->buffer_[pos + half_buffer] &= ~mask;
       break;
-    case BwrColor::WHITE:
+    case BwrColor::BWR_COLOR_WHITE:
     default:
       this->buffer_[pos] |= mask;
       this->buffer_[pos + half_buffer] |= mask;

@@ -14,11 +14,12 @@ void HOT EPaperUC8179BWR::draw_pixel_at(int x, int y, Color color) {
   const uint8_t bit = 0x80 >> (x & 0x07);
   const uint32_t red_offset = this->buffer_length_ / 2u;
 
-  auto bwr = color_to_bwr<BwrColor>(color, BwrColor::BLACK, BwrColor::WHITE, BwrColor::RED);
+  auto bwr =
+      color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED);
 
   // Update black/white plane (first half of buffer)
   // 0 = black, 1 = white
-  if (bwr == BwrColor::WHITE) {
+  if (bwr == BwrColor::BWR_COLOR_WHITE) {
     this->buffer_[pos] |= bit;
   } else {
     this->buffer_[pos] &= ~bit;
@@ -27,7 +28,7 @@ void HOT EPaperUC8179BWR::draw_pixel_at(int x, int y, Color color) {
   // Update red plane (second half of buffer)
   // invert_red_: when true, 0 = red (required by some panels with DDX=11)
   //              when false, 1 = red (standard polarity)
-  bool red_active = (bwr == BwrColor::RED) != this->invert_red_;
+  bool red_active = (bwr == BwrColor::BWR_COLOR_RED) != this->invert_red_;
   if (red_active) {
     this->buffer_[red_offset + pos] |= bit;
   } else {
@@ -42,17 +43,18 @@ void EPaperUC8179BWR::fill(Color color) {
   }
 
   const size_t half_buffer = this->buffer_length_ / 2u;
-  auto bwr = color_to_bwr<BwrColor>(color, BwrColor::BLACK, BwrColor::WHITE, BwrColor::RED);
+  auto bwr =
+      color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED);
 
   const uint8_t red_off = this->invert_red_ ? 0xFF : 0x00;
   const uint8_t red_on = this->invert_red_ ? 0x00 : 0xFF;
 
-  if (bwr == BwrColor::BLACK) {
+  if (bwr == BwrColor::BWR_COLOR_BLACK) {
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[i] = 0x00;
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[half_buffer + i] = red_off;
-  } else if (bwr == BwrColor::RED) {
+  } else if (bwr == BwrColor::BWR_COLOR_RED) {
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[i] = 0x00;
     for (size_t i = 0; i < half_buffer; i++)

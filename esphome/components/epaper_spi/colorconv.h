@@ -18,9 +18,9 @@ static constexpr uint8_t COLORCONV_GRAY_THRESHOLD = 50;
 
 /** Native color keys for black/white/red panels, for use with color_to_bwr */
 enum class BwrColor : uint8_t {
-  BLACK,
-  WHITE,
-  RED,
+  BWR_COLOR_BLACK,
+  BWR_COLOR_WHITE,
+  BWR_COLOR_RED,
 };
 
 /** Map RGB color to discrete BWYR hex 4 color key
