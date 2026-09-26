@@ -140,7 +140,7 @@ using UltralightReadBuffer = StaticVector<uint8_t, 272>;
 /// Longest NDEF message accepted from a MIFARE Classic tag (the capacity of a 4K tag)
 static constexpr uint32_t MIFARE_CLASSIC_MAX_NDEF_SIZE = 3440;
 /// Tags tracked at once. A device with a random UID looks like a new tag on every activation, but each entry
-/// expires after tag_ttl, so a handful is enough.
+/// expires after tag_ttl, so a handful is enough; when the cache is full the entry seen longest ago is evicted.
 static constexpr size_t MAX_DISCOVERED_ENDPOINTS = 8;
 
 struct DiscoveredEndpoint {
@@ -241,8 +241,8 @@ class PN71xx : public nfc::Nfcc, public Component {
   /// Reads the UID from the RF technology parameters of a discovery or activation notification
   bool parse_uid_(uint8_t mode_tech, std::span<const uint8_t> rf_tech_params, nfc::NfcTagUid &uid);
   std::unique_ptr<nfc::NfcTag> build_tag_(uint8_t protocol, const nfc::NfcTagUid &uid);
-  /// Finds a cached endpoint by UID, or caches a new one; returns nullopt if the cache is full
-  optional<size_t> find_or_add_tag_(uint8_t protocol, const nfc::NfcTagUid &uid);
+  /// Finds a cached endpoint by UID, or caches a new one, evicting the entry seen longest ago if the cache is full
+  size_t find_or_add_tag_(uint8_t protocol, const nfc::NfcTagUid &uid);
   optional<size_t> find_tag_uid_(const nfc::NfcTagUid &uid);
   void purge_old_tags_();
   void erase_tag_(uint8_t tag_index);
