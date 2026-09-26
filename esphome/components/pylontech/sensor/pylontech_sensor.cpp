@@ -57,4 +57,27 @@ void PylontechSensor::on_line_read(PylontechListener::LineContents *line) {
   }
 }
 
+PylontechCellSensor::PylontechCellSensor(int8_t bat_num, int8_t cell_num) {
+  this->bat_num_ = bat_num;
+  this->cell_num_ = cell_num;
+}
+
+void PylontechCellSensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "Pylontech Cell Sensor: Battery %d Cell %d", this->bat_num_, this->cell_num_);
+  LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+}
+
+void PylontechCellSensor::on_cell_line_read(PylontechListener::CellLineContents *line) {
+  if (this->bat_num_ != line->bat_num || this->cell_num_ != line->cell_num) {
+    return;
+  }
+  if (this->voltage_sensor_ != nullptr) {
+    this->voltage_sensor_->publish_state(((float) line->volt) / 1000.0f);
+  }
+  if (this->temperature_sensor_ != nullptr) {
+    this->temperature_sensor_->publish_state(((float) line->tempr) / 1000.0f);
+  }
+}
+
 }  // namespace esphome::pylontech

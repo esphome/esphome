@@ -1,7 +1,9 @@
 import logging
 
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.const import CONF_ENABLED
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
@@ -47,6 +49,18 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     data_bits=8,
     parity="NONE",
     stop_bits=1,
+)
+
+
+automation.register_apply_action(
+    "pylontech.set_cell_polling",
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(PylontechComponent),
+            cv.Required(CONF_ENABLED): cv.templatable(cv.boolean),
+        }
+    ),
+    automation.ApplyField(CONF_ENABLED, "set_cell_polling_enabled", cg.bool_),
 )
 
 
