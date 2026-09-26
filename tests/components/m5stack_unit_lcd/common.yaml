@@ -1,0 +1,32 @@
+display:
+  - platform: m5stack_unit_lcd
+    i2c_id: i2c_bus
+    id: m5stack_unit_lcd_display
+    address: 0x3E
+    update_interval: 5s
+    rotation: 90
+    brightness: 80%
+    invert_colors: false
+    pages:
+      - id: m5stack_unit_lcd_page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+          it.filled_rectangle(10, 10, 40, 20, Color(255, 0, 0));
+      - id: m5stack_unit_lcd_page2
+        lambda: |-
+          it.rectangle(0, 0, 10, 10);
+          id(m5stack_unit_lcd_display).set_brightness(0.5f);
+    on_page_change:
+      from: m5stack_unit_lcd_page1
+      to: m5stack_unit_lcd_page2
+      then:
+        lambda: |-
+          ESP_LOGD("display", "1 -> 2");
+          id(m5stack_unit_lcd_display).set_sleep(false);
+
+light:
+  - platform: m5stack_unit_lcd
+    m5stack_unit_lcd_id: m5stack_unit_lcd_display
+    id: m5stack_unit_lcd_backlight
+    name: Backlight
+    restore_mode: RESTORE_DEFAULT_ON
