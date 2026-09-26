@@ -146,31 +146,44 @@ LIGHT_STATE_FIELDS: tuple[LightStateField, ...] = (
     ),
 )
 
-COLOR_NAME_SCHEMA: dict[cv.Optional, Any] = {
-    cv.Optional(CONF_COLOR): cv.one_of(*CSS_COLORS, lower=True)
-}
+
+@schema_extractor("one_of")
+def validate_color(value: Any) -> str | int:
+    """Validate a CSS color name or a 0xRRGGBB value."""
+    if value == SCHEMA_EXTRACT:
+        return ["CSS color name", "hex color value"]
+    if isinstance(value, int) or (
+        isinstance(value, str) and value.lower().startswith("0x")
+    ):
+        return cv.hex_int_range(0, 0xFFFFFF)(value)
+    return cv.one_of(*CSS_COLORS, lower=True)(value)
 
 
-def color_name_to_rgb(config: ConfigType) -> ConfigType:
-    """Replace a `color` CSS name with the equivalent red, green and blue values.
+COLOR_SCHEMA: dict[cv.Optional, Any] = {cv.Optional(CONF_COLOR): validate_color}
+
+
+def color_to_rgb(config: ConfigType) -> ConfigType:
+    """Replace a `color` CSS name or 0xRRGGBB value with red, green and blue values.
 
     The light scales its color so the brightest channel is at full level, so a dark
     color is given as a full-level color plus a color brightness.
     """
-    if (name := config.pop(CONF_COLOR, None)) is None:
+    if (color := config.pop(CONF_COLOR, None)) is None:
         return config
     if any(key in config for key in (CONF_RED, CONF_GREEN, CONF_BLUE)):
         raise cv.Invalid(
             f"'{CONF_COLOR}' cannot be used with '{CONF_RED}', '{CONF_GREEN}' or '{CONF_BLUE}'"
         )
-    rgb = CSS_COLORS[name]
+    rgb = color if isinstance(color, int) else CSS_COLORS[color]
     channels = (rgb >> 16 & 0xFF, rgb >> 8 & 0xFF, rgb & 0xFF)
     peak = max(channels)
     if CONF_COLOR_BRIGHTNESS not in config:
         config[CONF_COLOR_BRIGHTNESS] = peak / 255
     elif peak < 0xFF:
         _LOGGER.warning(
-            "'%s' overrides the brightness of color '%s'", CONF_COLOR_BRIGHTNESS, name
+            "'%s' overrides the brightness of color '%s'",
+            CONF_COLOR_BRIGHTNESS,
+            f"0x{color:06X}" if isinstance(color, int) else color,
         )
     for key, value in zip((CONF_RED, CONF_GREEN, CONF_BLUE), channels, strict=True):
         config[key] = value / peak if peak else 0.0
@@ -184,8 +197,8 @@ LIGHT_STATE_SCHEMA = cv.Schema(
         )
         for field in LIGHT_STATE_FIELDS
     }
-).extend(COLOR_NAME_SCHEMA)
-LIGHT_STATE_SCHEMA.add_extra(color_name_to_rgb)
+).extend(COLOR_SCHEMA)
+LIGHT_STATE_SCHEMA.add_extra(color_to_rgb)
 
 LIGHT_CONTROL_ACTION_SCHEMA = LIGHT_STATE_SCHEMA.extend(
     {
@@ -442,8 +455,8 @@ LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_BLUE): cv.templatable(cv.percentage),
         cv.Optional(CONF_WHITE): cv.templatable(cv.percentage),
     }
-).extend(COLOR_NAME_SCHEMA)
-LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA.add_extra(color_name_to_rgb)
+).extend(COLOR_SCHEMA)
+LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA.add_extra(color_to_rgb)
 
 
 @automation.register_action(
