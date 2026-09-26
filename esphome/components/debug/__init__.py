@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.components.nrf52.framework import include_west_project
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -51,7 +52,8 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("HWINFO", True)
         # gdb thread support
         zephyr_add_prj_conf("DEBUG_THREAD_INFO", True)
-        # RTT
+        # RTT; its sources come from the segger west project
+        include_west_project("segger")
         zephyr_add_prj_conf("USE_SEGGER_RTT", True)
         zephyr_add_prj_conf("RTT_CONSOLE", True)
         zephyr_add_prj_conf("LOG", True)
