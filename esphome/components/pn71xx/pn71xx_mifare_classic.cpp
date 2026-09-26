@@ -1,14 +1,14 @@
 #include <array>
 #include <memory>
 
-#include "pn7160.h"
+#include "pn71xx.h"
 #include "esphome/core/log.h"
 
-namespace esphome::pn7160 {
+namespace esphome::pn71xx {
 
-static const char *const TAG = "pn7160.mifare_classic";
+static const char *const TAG = "pn71xx.mifare_classic";
 
-uint8_t PN7160::read_mifare_classic_tag_(nfc::NfcTag &tag) {
+uint8_t PN71xx::read_mifare_classic_tag_(nfc::NfcTag &tag) {
   uint8_t current_block = 4;
   uint8_t message_start_index = 0;
   uint32_t message_length = 0;
@@ -66,7 +66,7 @@ uint8_t PN7160::read_mifare_classic_tag_(nfc::NfcTag &tag) {
   return nfc::STATUS_OK;
 }
 
-uint8_t PN7160::read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data) {
+uint8_t PN71xx::read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data) {
   nfc::NciMessage rx;
   nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {XCHG_DATA_OID, nfc::MIFARE_CMD_READ, block_num});
   char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
@@ -90,7 +90,7 @@ uint8_t PN7160::read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_
   return nfc::STATUS_OK;
 }
 
-uint8_t PN7160::auth_mifare_classic_block_(uint8_t block_num, uint8_t key_num, const uint8_t *key) {
+uint8_t PN71xx::auth_mifare_classic_block_(uint8_t block_num, uint8_t key_num, const uint8_t *key) {
   nfc::NciMessage rx;
   nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {MFC_AUTHENTICATE_OID, this->sect_to_auth_(block_num), key_num});
 
@@ -129,7 +129,7 @@ uint8_t PN7160::auth_mifare_classic_block_(uint8_t block_num, uint8_t key_num, c
   return nfc::STATUS_OK;
 }
 
-uint8_t PN7160::sect_to_auth_(const uint8_t block_num) {
+uint8_t PN71xx::sect_to_auth_(const uint8_t block_num) {
   const uint8_t first_high_block = nfc::MIFARE_CLASSIC_BLOCKS_PER_SECT_LOW * nfc::MIFARE_CLASSIC_16BLOCK_SECT_START;
   if (block_num >= first_high_block) {
     return ((block_num - first_high_block) / nfc::MIFARE_CLASSIC_BLOCKS_PER_SECT_HIGH) +
@@ -138,7 +138,7 @@ uint8_t PN7160::sect_to_auth_(const uint8_t block_num) {
   return block_num / nfc::MIFARE_CLASSIC_BLOCKS_PER_SECT_LOW;
 }
 
-uint8_t PN7160::format_mifare_classic_mifare_() {
+uint8_t PN71xx::format_mifare_classic_mifare_() {
   static constexpr std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> BLANK_BUFFER = {
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   static constexpr std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> TRAILER_BUFFER = {
@@ -173,7 +173,7 @@ uint8_t PN7160::format_mifare_classic_mifare_() {
   return status;
 }
 
-uint8_t PN7160::format_mifare_classic_ndef_() {
+uint8_t PN71xx::format_mifare_classic_ndef_() {
   static constexpr std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> EMPTY_NDEF_MESSAGE = {
       0x03, 0x03, 0xD0, 0x00, 0x00, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   static constexpr std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> BLANK_BLOCK = {
@@ -237,7 +237,7 @@ uint8_t PN7160::format_mifare_classic_ndef_() {
   return status;
 }
 
-uint8_t PN7160::write_mifare_classic_block_(uint8_t block_num, const uint8_t *data, size_t len) {
+uint8_t PN71xx::write_mifare_classic_block_(uint8_t block_num, const uint8_t *data, size_t len) {
   nfc::NciMessage rx;
   nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {XCHG_DATA_OID, nfc::MIFARE_CMD_WRITE, block_num});
   char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
@@ -267,7 +267,7 @@ uint8_t PN7160::write_mifare_classic_block_(uint8_t block_num, const uint8_t *da
   return nfc::STATUS_OK;
 }
 
-uint8_t PN7160::write_mifare_classic_tag_(const std::shared_ptr<nfc::NdefMessage> &message) {
+uint8_t PN71xx::write_mifare_classic_tag_(const std::shared_ptr<nfc::NdefMessage> &message) {
   auto encoded = message->encode();
 
   uint32_t message_length = encoded.size();
@@ -310,7 +310,7 @@ uint8_t PN7160::write_mifare_classic_tag_(const std::shared_ptr<nfc::NdefMessage
   return nfc::STATUS_OK;
 }
 
-uint8_t PN7160::halt_mifare_classic_tag_() {
+uint8_t PN71xx::halt_mifare_classic_tag_() {
   nfc::NciMessage rx;
   nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {XCHG_DATA_OID, nfc::MIFARE_CMD_HALT, 0});
 
@@ -323,4 +323,4 @@ uint8_t PN7160::halt_mifare_classic_tag_() {
   return nfc::STATUS_OK;
 }
 
-}  // namespace esphome::pn7160
+}  // namespace esphome::pn71xx

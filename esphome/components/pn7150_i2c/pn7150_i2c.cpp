@@ -24,10 +24,10 @@ uint8_t PN7150I2C::read_nfcc(nfc::NciMessage &rx, const uint16_t timeout) {
       return nfc::STATUS_FAILED;
     }
   }
-  // semaphore to ensure transaction is complete before returning
-  if (this->wait_for_irq_(pn7150::NFCC_DEFAULT_TIMEOUT, false) != nfc::STATUS_OK) {
-    ESP_LOGW(TAG, "read_nfcc_() post-read timeout waiting for IRQ line to clear");
-    return nfc::STATUS_FAILED;
+  // IRQ normally drops at the end of the read. If another message is queued it rises again at once, and the short
+  // low pulse may be missed; that means more data is waiting, not that this read failed (UM10936, 3.4).
+  if (this->wait_for_irq_(pn71xx::NFCC_IRQ_CLEAR_TIMEOUT, false) != nfc::STATUS_OK) {
+    ESP_LOGVV(TAG, "IRQ still active after read; another message is pending");
   }
   return nfc::STATUS_OK;
 }
