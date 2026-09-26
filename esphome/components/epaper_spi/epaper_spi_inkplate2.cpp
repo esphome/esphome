@@ -71,8 +71,6 @@ void EPaperInkplate2::fill(Color color) {
   this->y_high_ = this->height_;
 }
 
-void EPaperInkplate2::clear() { this->fill(COLOR_ON); }
-
 void HOT EPaperInkplate2::draw_pixel_at(int x, int y, Color color) {
   if (!this->rotate_coordinates_(x, y))
     return;

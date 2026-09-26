@@ -15,7 +15,6 @@ class EPaperInkplate2 final : public EPaperBase {
   }
 
   void fill(Color color) override;
-  void clear() override;
   void draw_pixel_at(int x, int y, Color color) override;
 
  protected:
