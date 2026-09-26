@@ -3,13 +3,13 @@ import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_VALUE
+from esphome.types import ConfigType
 
 from .. import CONF_PIPSOLAR_ID, PIPSOLAR_COMPONENT_SCHEMA, pipsolar_ns
 
 DEPENDENCIES = ["pipsolar"]
 
 PipsolarOutput = pipsolar_ns.class_("PipsolarOutput", output.FloatOutput)
-SetOutputAction = pipsolar_ns.class_("SetOutputAction", automation.Action)
 
 CONF_POSSIBLE_VALUES = "possible_values"
 
@@ -75,7 +75,7 @@ CONFIG_SCHEMA = PIPSOLAR_COMPONENT_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     paren = await cg.get_variable(config[CONF_PIPSOLAR_ID])
 
     for type, (_, command) in TYPES.items():
@@ -89,20 +89,13 @@ async def to_code(config):
                 cg.add(var.set_possible_values(conf[CONF_POSSIBLE_VALUES]))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "output.pipsolar.set_level",
-    SetOutputAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(PipsolarOutput),
             cv.Required(CONF_VALUE): cv.templatable(cv.positive_float),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "set_value", cg.float_),
 )
-async def output_pipsolar_set_level_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.float_)
-    cg.add(var.set_level(template_))
-    return var

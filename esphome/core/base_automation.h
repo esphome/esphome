@@ -11,6 +11,7 @@
 
 #include <array>
 #include <list>
+#include <type_traits>
 #include <vector>
 
 namespace esphome {
@@ -180,7 +181,9 @@ class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
 
 template<typename... Ts> class DelayAction : public Action<Ts...> {
  public:
-  explicit DelayAction() = default;
+  // User provided, not "= default": `new(p) DelayAction()` would zero-fill .bss that is already zero.
+  // constexpr and noexcept keep the rest of the implicit constructor's contract.
+  constexpr explicit DelayAction() noexcept {}
 
   TEMPLATABLE_VALUE(uint32_t, delay)
 
@@ -248,6 +251,32 @@ template<typename... Ts> class StatelessLambdaAction : public Action<Ts...> {
 
  protected:
   void (*f_)(Ts...);
+};
+
+/// Runs one codegen-generated function that has the parent and every field baked in, so the
+/// action holds one pointer. Args pass by const reference so a std::string arg is never copied;
+/// StatelessLambdaAction keeps by-value parameters because user `lambda:` code owns them.
+template<typename... Ts> class ApplyAction final : public Action<Ts...> {
+ public:
+  using ApplyFn = void (*)(const std::remove_cvref_t<Ts> &...);
+  explicit ApplyAction(ApplyFn apply) : apply_(apply) {}
+
+  void play(const Ts &...x) override { this->apply_(x...); }
+
+ protected:
+  ApplyFn apply_;
+};
+
+/// Condition counterpart of ApplyAction: one codegen-generated predicate with the parent baked in.
+template<typename... Ts> class ApplyCondition final : public Condition<Ts...> {
+ public:
+  using CheckFn = bool (*)(const std::remove_cvref_t<Ts> &...);
+  explicit ApplyCondition(CheckFn check) : check_(check) {}
+
+  bool check(const Ts &...x) override { return this->check_(x...); }
+
+ protected:
+  CheckFn check_;
 };
 
 /// Simple continuation action that calls play_next_ on a parent action.

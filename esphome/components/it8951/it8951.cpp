@@ -740,7 +740,7 @@ bool IT8951Display::prepare_update_region_(UpdateMode &mode) {
   this->reset_dirty_region_();
 
   ESP_LOGV(TAG, "Update: %ux%u@%u,%u mode=%u (%s)", width, height, x, y, static_cast<unsigned>(mode),
-           this->grayscale_ ? "grayscale" : "mono");
+           this->grayscale_ ? LOG_STR_LITERAL("grayscale") : LOG_STR_LITERAL("mono"));
   return true;
 }
 
@@ -777,12 +777,12 @@ void IT8951Display::update() {
 }
 
 void IT8951Display::update_mode(UpdateMode mode) {
-  if (!this->is_ready())
-    return;
   if (mode == UPDATE_MODE_NONE) {
-    ESP_LOGW(TAG, "Unknown update mode");
+    this->update();
     return;
   }
+  if (!this->is_ready())
+    return;
   this->start_update_(mode);
 }
 
@@ -855,7 +855,7 @@ void IT8951Display::apply_transform_(int &x, int &y) const {
 }
 
 bool IT8951Display::rotate_coordinates_(int &x, int &y) {
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return false;
   this->apply_transform_(x, y);
   if (x >= this->width_ || y >= this->height_ || x < 0 || y < 0)
@@ -929,7 +929,7 @@ void IT8951Display::fill(Color color) {
 void HOT IT8951Display::draw_pixel_at(int x, int y, Color color) {
   if (this->buffer_ == nullptr)
     return;
-  App.feed_wdt();
+  this->feed_wdt_per_pixel_();
   if (!this->rotate_coordinates_(x, y))
     return;
   this->write_pixel_native_(static_cast<uint16_t>(x), static_cast<uint16_t>(y), color);
@@ -1063,25 +1063,27 @@ void IT8951Display::dump_config() {
     strncpy(force_temperature, "(controller default)", sizeof(force_temperature));
     force_temperature[sizeof(force_temperature) - 1] = '\0';
   }
-  ESP_LOGCONFIG(TAG,
-                "  Model preset: %s"
-                "\n  Dimensions: %dx%d"
-                "\n  Buffer: %u bytes"
-                "\n  Image buffer addr: 0x%04X%04X"
-                "\n  VCOM: %.02fV (set selector 0x%04X)"
-                "\n  Force temperature: %s"
-                "\n  Display command: %s"
-                "\n  Sleep when done: %s"
-                "\n  Full update every: %u"
-                "\n  Inverted colors: %s"
-                "\n  Pixel format: %s"
-                "\n  Reset duration: %" PRIu32 "ms",
-                this->name_ != nullptr ? this->name_ : "(unknown)", this->get_width_internal(),
-                this->get_height_internal(), static_cast<unsigned>(this->buffer_length_), this->img_buf_addr_h_,
-                this->img_buf_addr_l_, static_cast<float>(this->vcom_) / 1000.0f, this->vcom_register_,
-                force_temperature, this->use_legacy_dpy_area_ ? "DPY_AREA (0x0034, legacy)" : "DPY_BUF_AREA (0x0037)",
-                YESNO(this->sleep_when_done_), this->full_update_every_, YESNO(this->invert_colors_),
-                this->grayscale_ ? "4bpp grayscale" : "1bpp monochrome", this->reset_duration_);
+  ESP_LOGCONFIG(
+      TAG,
+      "  Model preset: %s"
+      "\n  Dimensions: %dx%d"
+      "\n  Buffer: %u bytes"
+      "\n  Image buffer addr: 0x%04X%04X"
+      "\n  VCOM: %.02fV (set selector 0x%04X)"
+      "\n  Force temperature: %s"
+      "\n  Display command: %s"
+      "\n  Sleep when done: %s"
+      "\n  Full update every: %u"
+      "\n  Inverted colors: %s"
+      "\n  Pixel format: %s"
+      "\n  Reset duration: %" PRIu32 "ms",
+      this->name_ != nullptr ? this->name_ : LOG_STR_LITERAL("(unknown)"), this->get_width_internal(),
+      this->get_height_internal(), static_cast<unsigned>(this->buffer_length_), this->img_buf_addr_h_,
+      this->img_buf_addr_l_, static_cast<float>(this->vcom_) / 1000.0f, this->vcom_register_, force_temperature,
+      this->use_legacy_dpy_area_ ? LOG_STR_LITERAL("DPY_AREA (0x0034, legacy)")
+                                 : LOG_STR_LITERAL("DPY_BUF_AREA (0x0037)"),
+      YESNO(this->sleep_when_done_), this->full_update_every_, YESNO(this->invert_colors_),
+      this->grayscale_ ? LOG_STR_LITERAL("4bpp grayscale") : LOG_STR_LITERAL("1bpp monochrome"), this->reset_duration_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_PIN("  CS Pin: ", this->cs_);

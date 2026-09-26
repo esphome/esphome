@@ -53,11 +53,11 @@ void log_dropped_message(const char *tag, int line, const LogString *what);
 
 // Keepalive timeout in milliseconds
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
-// Maximum number of entities to process in a single batch during initial state/info sending
-static constexpr size_t MAX_INITIAL_PER_BATCH = 34;
+// Deferred batch size cap during initial state/info sync
+static constexpr size_t MAX_INITIAL_BATCH_SIZE = 34;
 // Verify MAX_MESSAGES_PER_BATCH (defined in api_frame_helper.h) can hold the initial batch
-static_assert(MAX_MESSAGES_PER_BATCH >= MAX_INITIAL_PER_BATCH,
-              "MAX_MESSAGES_PER_BATCH must be >= MAX_INITIAL_PER_BATCH");
+static_assert(MAX_MESSAGES_PER_BATCH >= MAX_INITIAL_BATCH_SIZE,
+              "MAX_MESSAGES_PER_BATCH must be >= MAX_INITIAL_BATCH_SIZE");
 
 #ifdef USE_BENCHMARK
 class APIConnection;
@@ -244,6 +244,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg);
   void on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg);
   void on_serial_proxy_request(const SerialProxyRequest &msg);
+  void on_serial_proxy_set_mode_request(const SerialProxySetModeRequest &msg);
   void send_serial_proxy_data(const SerialProxyDataReceived &msg);
 #endif
 
@@ -326,8 +327,10 @@ class APIConnection final : public APIServerConnectionBase {
   bool is_marked_for_removal() const { return this->flags_.remove; }
   uint8_t get_log_subscription_level() const { return this->flags_.log_subscription; }
 
-  // Get client API version for feature detection
-  bool client_supports_api_version(uint16_t major, uint16_t minor) const {
+  // Get client API version for feature detection.
+  // Stored versions saturate at 255 (see send_hello_response_), so requesting
+  // a minimum above that can never match.
+  bool client_supports_api_version(uint8_t major, uint8_t minor) const {
     return this->client_api_version_major_ > major ||
            (this->client_api_version_major_ == major && this->client_api_version_minor_ >= minor);
   }
@@ -343,29 +346,16 @@ class APIConnection final : public APIServerConnectionBase {
   /// Returns false as soon as the TCP buffer is full. Marked nodiscard so we
   /// have no silent failures: every caller must handle (or log) a refusal.
   template<typename T> [[nodiscard]] bool send_message(const T &msg) {
-    if constexpr (T::ESTIMATED_SIZE == 0) {
-      return this->send_message_(0, T::MESSAGE_TYPE, &encode_msg_noop, &msg);
-    } else {
-      return this->send_message_(msg.calculate_size(), T::MESSAGE_TYPE, &proto_encode_msg<T>, &msg);
-    }
+    return this->send_message_(T::calc_size_msg(&msg), T::MESSAGE_TYPE, &T::encode_msg, &msg);
   }
 
-  void prepare_first_message_buffer(APIBuffer &shared_buf, size_t header_padding, size_t total_size) {
-    shared_buf.clear();
-    // Reserve space for header padding + message + footer
-    // - Header padding: space for protocol headers (7 bytes for Noise, 6 for Plaintext)
-    // - Footer: space for MAC (16 bytes for Noise, 0 for Plaintext)
-    // Reserve full size but only set initial size to header padding
-    // so message encoding starts at the correct position
-    shared_buf.reserve_and_resize(total_size, header_padding);
-  }
+  /// Clear the shared write buffer and reserve space for the first message.
+  /// Returns false if the allocation fails (out of memory).
+  /// Defined in api_connection_buffer.h (needs APIServer complete).
+  [[nodiscard]] bool prepare_first_message_buffer(size_t header_padding, size_t total_size);
 
   // Convenience overload - computes frame overhead internally
-  void prepare_first_message_buffer(APIBuffer &shared_buf, size_t payload_size) {
-    const uint8_t header_padding = this->helper_->frame_header_padding();
-    const uint8_t footer_size = this->helper_->frame_footer_size();
-    this->prepare_first_message_buffer(shared_buf, header_padding, payload_size + header_padding + footer_size);
-  }
+  [[nodiscard]] bool prepare_first_message_buffer(size_t payload_size);
 
   bool try_to_clear_buffer(bool log_out_of_space) {
     if (this->flags_.remove)
@@ -374,7 +364,7 @@ class APIConnection final : public APIServerConnectionBase {
       return true;
     return this->try_to_clear_buffer_slow_(log_out_of_space);
   }
-  bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type);
+  bool send_buffer(ProtoWriteBuffer buffer, uint16_t message_type);
 
   const char *get_name() const { return this->helper_->get_client_name(); }
   /// Get peer name (IP address) into caller-provided buffer, returns buf for convenience
@@ -412,18 +402,8 @@ class APIConnection final : public APIServerConnectionBase {
   void process_state_subscriptions_();
 #endif
 
-  // Size thunk — converts void* back to concrete type for direct calculate_size() call
-  template<typename T> static uint32_t calc_size(const void *msg) {
-    return static_cast<const T *>(msg)->calculate_size();
-  }
-
-  // Shared no-op encode thunk for empty messages (ESTIMATED_SIZE == 0)
-  static uint8_t *encode_msg_noop(const void *, ProtoWriteBuffer &buf PROTO_ENCODE_DEBUG_PARAM) {
-    return buf.get_pos();
-  }
-
   // Non-template buffer management for send_message
-  bool send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn, const void *msg);
+  bool send_message_(uint32_t payload_size, uint16_t message_type, MessageEncodeFn encode_fn, const void *msg);
 
   // Core batch encoding logic. ALWAYS_INLINE so encode_fn devirtualizes at hot call sites.
   // Defined in api_connection_buffer.h (needs APIServer complete).
@@ -440,11 +420,7 @@ class APIConnection final : public APIServerConnectionBase {
   // Hot paths (state/info) go through fill_and_encode_entity_state/info instead.
   // batch_message_type_ is already set by dispatch_message_ before reaching here.
   template<typename T> static uint16_t encode_message_to_buffer(T &msg, APIConnection *conn, uint32_t remaining_size) {
-    if constexpr (T::ESTIMATED_SIZE == 0) {
-      return encode_to_buffer_slow(0, &encode_msg_noop, &msg, conn, remaining_size);
-    } else {
-      return encode_to_buffer_slow(msg.calculate_size(), &proto_encode_msg<T>, &msg, conn, remaining_size);
-    }
+    return encode_to_buffer_slow(T::calc_size_msg(&msg), &T::encode_msg, &msg, conn, remaining_size);
   }
 
   // Non-template core — fills state fields and encodes
@@ -456,7 +432,7 @@ class APIConnection final : public APIServerConnectionBase {
   template<typename T>
   static uint16_t fill_and_encode_entity_state(EntityBase *entity, T &msg, APIConnection *conn,
                                                uint32_t remaining_size) {
-    return fill_and_encode_entity_state(entity, msg, &calc_size<T>, &proto_encode_msg<T>, conn, remaining_size);
+    return fill_and_encode_entity_state(entity, msg, &T::calc_size_msg, &T::encode_msg, conn, remaining_size);
   }
 
   // Non-template core — fills info fields, allocates buffers, and encodes
@@ -468,7 +444,7 @@ class APIConnection final : public APIServerConnectionBase {
   template<typename T>
   static uint16_t fill_and_encode_entity_info(EntityBase *entity, T &msg, APIConnection *conn,
                                               uint32_t remaining_size) {
-    return fill_and_encode_entity_info(entity, msg, &calc_size<T>, &proto_encode_msg<T>, conn, remaining_size);
+    return fill_and_encode_entity_info(entity, msg, &T::calc_size_msg, &T::encode_msg, conn, remaining_size);
   }
 
   // Non-template core — fills device_class, then delegates to fill_and_encode_entity_info
@@ -482,8 +458,8 @@ class APIConnection final : public APIServerConnectionBase {
   static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, T &msg,
                                                                 StringRef &device_class_field, APIConnection *conn,
                                                                 uint32_t remaining_size) {
-    return fill_and_encode_entity_info_with_device_class(entity, msg, device_class_field, &calc_size<T>,
-                                                         &proto_encode_msg<T>, conn, remaining_size);
+    return fill_and_encode_entity_info_with_device_class(entity, msg, device_class_field, &T::calc_size_msg,
+                                                         &T::encode_msg, conn, remaining_size);
   }
 
 #ifdef USE_VOICE_ASSISTANT
@@ -664,10 +640,9 @@ class APIConnection final : public APIServerConnectionBase {
 
     struct BatchItem {
       EntityBase *entity;                       // 4 bytes - Entity pointer
-      uint8_t message_type;                     // 1 byte - Message type for protocol and dispatch
+      uint16_t message_type;                    // 2 bytes - Message type for protocol and dispatch
       uint8_t estimated_size;                   // 1 byte - Estimated message size (max 255 bytes)
       uint8_t aux_data_index{AUX_DATA_UNUSED};  // 1 byte - For events: index into entity's event_types
-      // 1 byte padding
     };
 
     std::vector<BatchItem> items;
@@ -677,7 +652,7 @@ class APIConnection final : public APIServerConnectionBase {
     // connections that do, buffers are released after initial sync anyway
 
     // Add item to the batch (with deduplication)
-    void add_item(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
+    void add_item(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
                   uint8_t aux_data_index = AUX_DATA_UNUSED) {
       // Dedup: O(n) scan but optimized for RAM over performance
       // Skip deduplication for events - they are edge-triggered, every occurrence matters
@@ -693,7 +668,7 @@ class APIConnection final : public APIServerConnectionBase {
       this->items.push_back({entity, message_type, estimated_size, aux_data_index});
     }
     // Add item to the front of the batch (for high priority messages like ping)
-    void add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
+    void add_item_front(EntityBase *entity, uint16_t message_type, uint8_t estimated_size) {
       // Swap to front avoids expensive vector::insert which shifts all elements
       this->items.push_back({entity, message_type, estimated_size, AUX_DATA_UNUSED});
       if (this->items.size() > 1) {
@@ -758,13 +733,15 @@ class APIConnection final : public APIServerConnectionBase {
 #endif
   } flags_{};  // 2 bytes total
 
-  // 2-byte types immediately after flags_ (no padding between them)
-  uint16_t client_api_version_major_{0};
-  uint16_t client_api_version_minor_{0};
+  // 2-byte type immediately after flags_ (no padding between them)
+  uint16_t batch_message_type_{0};  // Current message type during batch encoding
   // 1-byte types to fill remaining space before next 4-byte boundary
+  // Client API versions are clamped to 255 on receive (see send_hello_response_)
+  uint8_t client_api_version_major_{0};
+  uint8_t client_api_version_minor_{0};
   ActiveIterator active_iterator_{ActiveIterator::NONE};
-  uint8_t batch_message_type_{0};  // Current message type during batch encoding
-  // Total: 2 (flags) + 2 + 2 + 1 + 1 = 8 bytes, aligned to 4-byte boundary
+  // Total: 2 (flags) + 2 + 1 + 1 + 1 + 1 (batch_header_size_ below) = 8 bytes,
+  // aligned to 4-byte boundary
 
   // Actual header size used by encode_to_buffer for the current message.
   // Read by process_batch_multi_ to pass into MessageInfo.
@@ -813,7 +790,7 @@ class APIConnection final : public APIServerConnectionBase {
   // 2. It's an EventResponse (events are edge-triggered - every occurrence matters)
   // 3. OR: User has opted into immediate sending (should_try_send_immediately = true
   //    AND batch_delay = 0)
-  inline bool should_send_immediately_(uint8_t message_type) const {
+  inline bool should_send_immediately_(uint16_t message_type) const {
     return (
 #ifdef USE_UPDATE
         message_type == UpdateStateResponse::MESSAGE_TYPE ||
@@ -827,11 +804,11 @@ class APIConnection final : public APIServerConnectionBase {
   // Helper method to send a message either immediately or via batching
   // Tries immediate send if should_send_immediately_() returns true and buffer has space
   // Falls back to batching if immediate send fails or isn't applicable
-  bool send_message_smart_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
+  bool send_message_smart_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
                            uint8_t aux_data_index = DeferredBatch::AUX_DATA_UNUSED);
 
   // Helper function to schedule a deferred message with known message type
-  bool schedule_message_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
+  bool schedule_message_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
                          uint8_t aux_data_index = DeferredBatch::AUX_DATA_UNUSED) {
     this->deferred_batch_.add_item(entity, message_type, estimated_size, aux_data_index);
     return this->schedule_batch_();
@@ -839,7 +816,7 @@ class APIConnection final : public APIServerConnectionBase {
 
   // Helper function to schedule a high priority message at the front of the batch
   // Out-of-line: callers (on_shutdown, check_keepalive_) are cold paths
-  bool schedule_message_front_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size);
+  bool schedule_message_front_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size);
 
   // Helper function to log client messages with name and peername
   void log_client_(int level, const LogString *message);
@@ -850,6 +827,9 @@ class APIConnection final : public APIServerConnectionBase {
     this->on_fatal_error();
     this->log_warning_(message, err);
   }
+  // Shared cold path for buffer allocation failures — noinline keeps the
+  // OOM handling out of the hot send paths
+  void __attribute__((noinline)) fatal_out_of_memory_();
 };
 
 }  // namespace esphome::api

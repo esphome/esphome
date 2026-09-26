@@ -2,6 +2,9 @@
 ESPHome configuration for the IT8951 e-paper controller.
 """
 
+from collections.abc import Callable
+from typing import Any
+
 from esphome import automation, core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
@@ -35,6 +38,7 @@ from esphome.const import (
 )
 from esphome.cpp_generator import RawExpression
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
@@ -56,7 +60,6 @@ VCOM_REGISTER_OPTIONS = (VCOM_REGISTER_DEFAULT, VCOM_REGISTER_ALT)
 
 it8951_ns = cg.esphome_ns.namespace("it8951")
 IT8951Display = it8951_ns.class_("IT8951Display", display.Display, spi.SPIDevice)
-IT8951UpdateAction = it8951_ns.class_("IT8951UpdateAction", automation.Action)
 
 # Hardware waveform modes exposed to YAML. Strings are mapped to the C++
 # UpdateMode enum so the runtime can store the mode as a uint16_t rather
@@ -75,6 +78,7 @@ UPDATE_MODE_OPTIONS = {
     "A2": UpdateMode.UPDATE_MODE_A2,
     "FAST": UpdateMode.UPDATE_MODE_DU,
     "FULL": UpdateMode.UPDATE_MODE_GC16,
+    "DEFAULT": UpdateMode.UPDATE_MODE_NONE,
 }
 # Maps the YAML mode string directly to the C++ UpdateMode enum value, so the
 # config option and the it8951.update action share one validator.
@@ -97,16 +101,16 @@ class IT8951Model:
 
     models: dict[str, "IT8951Model"] = {}
 
-    def __init__(self, name: str, **defaults):
+    def __init__(self, name: str, **defaults: Any) -> None:
         name = name.upper()
         self.name = name
         self.defaults = defaults
         IT8951Model.models[name] = self
 
-    def get_default(self, key, fallback=None):
+    def get_default(self, key: str, fallback: Any = None) -> Any:
         return self.defaults.get(key, fallback)
 
-    def get_dimensions(self, config) -> tuple[int, int]:
+    def get_dimensions(self, config: ConfigType) -> tuple[int, int]:
         # If dimensions are in config, use them; otherwise fall back to model defaults.
         if CONF_DIMENSIONS in config:
             dimensions = config[CONF_DIMENSIONS]
@@ -181,14 +185,16 @@ DIMENSION_SCHEMA = cv.Schema(
 )
 
 
-def _model_pin_option(model, key, schema):
+def _model_pin_option(
+    model: IT8951Model, key: str, schema: Callable[[Any], Any]
+) -> tuple[cv.Optional | cv.Required, Callable[[Any], Any]]:
     default = model.get_default(key)
     if default is None:
         return cv.Required(key), schema
     return cv.Optional(key, default=default), schema
 
 
-def _model_schema(config):
+def _model_schema(config: ConfigType) -> cv.Schema:
     model = IT8951Model.models[config[CONF_MODEL]]
     has_default_dimensions = (
         model.get_default(CONF_WIDTH) is not None
@@ -293,7 +299,7 @@ def _model_schema(config):
     return schema.extend(pin_extra)
 
 
-def _customise_schema(config):
+def _customise_schema(config: ConfigType) -> ConfigType:
     config = cv.Schema(
         {
             cv.Required(CONF_MODEL): cv.one_of(
@@ -336,7 +342,7 @@ def _customise_schema(config):
 CONFIG_SCHEMA = _customise_schema
 
 
-def _final_validate(config) -> None:
+def _final_validate(config: ConfigType) -> None:
     # IT8951 reads from SPI (DevInfo, VCOM, register reads) so MISO is required.
     spi.final_validate_device_schema("it8951", require_miso=True, require_mosi=True)(
         config
@@ -356,7 +362,7 @@ def _final_validate(config) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     model = IT8951Model.models[config[CONF_MODEL]]
     width, height = model.get_dimensions(config)
 
@@ -412,21 +418,13 @@ async def to_code(config):
         cg.add(var.set_transform(RawExpression(str(transform_value))))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "it8951.update",
-    IT8951UpdateAction,
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(IT8951Display),
-            cv.Optional(CONF_MODE): cv.templatable(update_mode),
+            cv.Optional(CONF_MODE, default="DEFAULT"): cv.templatable(update_mode),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_MODE, "update_mode", UpdateMode),
 )
-async def it8951_update_action_to_code(config, action_id, template_arg, args):
-    display_var = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, display_var)
-    if mode := config.get(CONF_MODE):
-        mode = await cg.templatable(mode, args, UpdateMode)
-        cg.add(var.set_mode(mode))
-    return var

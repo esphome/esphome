@@ -33,9 +33,6 @@ AUTO_LOAD = ["modbus"]
 pzemac_ns = cg.esphome_ns.namespace("pzemac")
 PZEMAC = pzemac_ns.class_("PZEMAC", cg.PollingComponent, modbus.ModbusClientDevice)
 
-# Actions
-ResetEnergyAction = pzemac_ns.class_("ResetEnergyAction", automation.Action)
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -83,19 +80,15 @@ CONFIG_SCHEMA = (
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "pzemac.reset_energy",
-    ResetEnergyAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(PZEMAC),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("reset_energy()"),
 )
-async def reset_energy_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 def _final_validate(config: ConfigType) -> None:
@@ -105,7 +98,7 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await modbus.register_modbus_client_device(var, config)

@@ -300,7 +300,7 @@ FRAMEWORK_SCHEMA = cv.All(
     _check_debug_order,
 )
 
-CONFIG_SCHEMA = cv.All(_notify_old_style)
+CONFIG_SCHEMA = cv.All(_notify_old_style, cv.require_platformio_toolchain("LibreTiny"))
 
 BASE_SCHEMA = cv.Schema(
     {
@@ -314,6 +314,7 @@ BASE_SCHEMA = cv.Schema(
 )
 
 BASE_SCHEMA.add_extra(_detect_variant)
+BASE_SCHEMA.add_extra(cv.require_platformio_toolchain("LibreTiny"))
 BASE_SCHEMA.add_extra(_update_core_data)
 
 
@@ -512,6 +513,8 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
+    # Must run before the platform's builder scripts are loaded; see the script.
+    cg.add_platformio_option("extra_scripts", ["pre:scons_dont_inherit.py"])
     cg.add_platformio_option("extra_scripts", ["pre:ccache.py"])
     # IRAM_ATTR is a no-op on BK72xx (SDK masks FIQ+IRQ around flash ops).
     # On other families, patch_linker.py routes .sram.text into the right
@@ -616,5 +619,9 @@ def copy_files() -> None:
     copy_file_if_changed(
         patch_linker_file,
         CORE.relative_build_path("patch_linker.py"),
+    )
+    copy_file_if_changed(
+        script_dir / "scons_dont_inherit.py.script",
+        CORE.relative_build_path("scons_dont_inherit.py"),
     )
     copy_ccache_script()

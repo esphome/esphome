@@ -18,8 +18,7 @@ from esphome.const import (
     CONF_ROTATION,
     CONF_UPDATE_INTERVAL,
 )
-from esphome.core import ID, EnumValue
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import EnumValue
 import esphome.final_validate as fv
 from esphome.helpers import add_class_to_obj
 from esphome.types import ConfigType
@@ -131,7 +130,7 @@ SCAN_WIRINGS = {
 }
 
 
-def _validate_scan_wiring(value):
+def _validate_scan_wiring(value: Any) -> str:
     """Validate scan_wiring against the allowed names."""
     value = cv.string(value).upper().replace(" ", "_")
 
@@ -167,7 +166,6 @@ ROTATIONS = {
 HUB75Display = hub75_ns.class_("HUB75Display", cg.PollingComponent, display.Display)
 Hub75Config = cg.global_ns.struct("Hub75Config")
 Hub75Pins = cg.global_ns.struct("Hub75Pins")
-SetBrightnessAction = hub75_ns.class_("SetBrightnessAction", automation.Action)
 
 
 def _merge_board_pins(config: ConfigType) -> ConfigType:
@@ -477,7 +475,7 @@ def _build_pins_struct(
 ) -> cg.StructInitializer:
     """Build Hub75Pins struct from pin expressions."""
 
-    def pin_cast(pin):
+    def pin_cast(pin: Any) -> cg.RawExpression:
         return cg.RawExpression(f"static_cast<int8_t>({pin.get_pin()})")
 
     return cg.StructInitializer(
@@ -619,9 +617,8 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_writer(lambda_))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "hub75.set_brightness",
-    SetBrightnessAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(HUB75Display),
@@ -629,16 +626,5 @@ async def to_code(config: ConfigType) -> None:
         },
         key=CONF_BRIGHTNESS,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_BRIGHTNESS, "set_brightness", cg.uint8),
 )
-async def hub75_set_brightness_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, cg.uint8)
-    cg.add(var.set_brightness(template_))
-    return var

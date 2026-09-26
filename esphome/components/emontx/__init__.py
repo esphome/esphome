@@ -22,9 +22,6 @@ DEPENDENCIES = ["uart"]
 emontx_ns = cg.esphome_ns.namespace("emontx")
 EmonTx = emontx_ns.class_("EmonTx", cg.Component, uart.UARTDevice)
 
-# Action to send command to emonTx
-EmonTxSendCommandAction = emontx_ns.class_("EmonTxSendCommandAction", automation.Action)
-
 CONF_EMONTX_ID = "emontx_id"
 CONF_TAG_NAME = "tag_name"
 CONF_ON_JSON = "on_json"
@@ -115,14 +112,16 @@ _CALLBACK_AUTOMATIONS = (
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
 
-    # Initialize sensor storage with count from final_validate
+    # Initialize sensor storage with count from final_validate before any
+    # await, so platform to_code() calls always see it initialized
+    # regardless of YAML key order.
     sensor_count = _get_data().sensor_counts.get(str(config[CONF_ID]), 0)
     if sensor_count > 0:
         cg.add(var.init_sensors(sensor_count))
 
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
@@ -136,17 +135,16 @@ EMONTX_SEND_COMMAND_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+def _plain_literal(config: ConfigType, value: str) -> str:
+    return str(cg.safe_exp(value))
+
+
+automation.register_apply_action(
     "emontx.send_command",
-    EmonTxSendCommandAction,
     EMONTX_SEND_COMMAND_ACTION_SCHEMA,
-    synchronous=True,
+    # A constant is a plain literal for the const char * overload; a lambda returns a
+    # std::string and takes the inline overload.
+    automation.ApplyField(
+        CONF_COMMAND, "send_command", cg.std_string, const_fn=_plain_literal
+    ),
 )
-async def emontx_send_command_action_to_code(
-    config: ConfigType, action_id, template_arg, args
-) -> None:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.std_string)
-    cg.add(var.set_command(template_))
-    return var
