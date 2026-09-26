@@ -270,7 +270,8 @@ TEST(ModbusSniffer, DropsResponseWithMismatchedFunctionCode) {
   EXPECT_TRUE(f.captured.empty());
 }
 
-// Documented limitation: address 0 is the broadcast address and is never answered.
+// Documented limitation: address 0 is the broadcast address and is never answered, so the hub
+// ignores broadcasts entirely: neither trigger fires for a request to address 0.
 TEST(ModbusSniffer, DoesNotPairAddressZero) {
   SnifferFixture f;
   const uint16_t registers[] = {0x0001};
@@ -280,6 +281,7 @@ TEST(ModbusSniffer, DoesNotPairAddressZero) {
   f.run();
 
   EXPECT_TRUE(f.captured.empty());
+  EXPECT_TRUE(f.seen_requests.empty());
 }
 
 }  // namespace esphome::modbus::testing
