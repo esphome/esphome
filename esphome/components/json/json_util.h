@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+#include <cstddef>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -165,11 +167,88 @@ inline JsonDocument parse_json(const std::string &data) {
   return parse_json(reinterpret_cast<const uint8_t *>(data.c_str()), data.size());
 }
 
+/// The allocator a JsonBuilder uses by default (PSRAM first when available)
+ArduinoJson::Allocator *heap_json_allocator();
+
+#ifdef USE_JSON_ARENA
+/// Size of one ArduinoJson slot pool, the first allocation every document makes (1 KB on 32 bit targets)
+constexpr size_t JSON_POOL_BYTES = ARDUINOJSON_POOL_CAPACITY * sizeof(ArduinoJson::detail::VariantData);
+/// One pool plus room for copied string nodes; a 40 option select with linked options fits
+constexpr size_t JSON_ARENA_SIZE = JSON_POOL_BYTES + 1152;
+static_assert(sizeof(void *) != 4 || JSON_ARENA_SIZE == 2176, "the arena was sized for a 1 KB pool");
+
+/// Bump allocator over a fixed buffer for a document built and serialized in one scope. What the
+/// buffer cannot hold goes to the heap allocator; nothing is freed until the arena goes away.
+template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
+ public:
+  // Takes what the buffer cannot hold
+  explicit JsonArena(ArduinoJson::Allocator *fallback = heap_json_allocator()) : fallback_(fallback) {}
+  // The document points into buf_
+  JsonArena(const JsonArena &) = delete;
+  JsonArena &operator=(const JsonArena &) = delete;
+
+  void *allocate(size_t size) override {
+    if (size > N) {
+      return this->fallback_->allocate(size);  // also keeps the rounding below from wrapping
+    }
+    size = (size + ALIGN - 1) & ~(ALIGN - 1);
+    if (size > N - this->used_) {
+      return this->fallback_->allocate(size);
+    }
+    this->last_ = this->used_;
+    this->used_ += size;
+    return this->buf_ + this->last_;
+  }
+  void deallocate(void *ptr) override {
+    if (!this->owns_(ptr)) {
+      this->fallback_->deallocate(ptr);
+    }
+  }
+  void *reallocate(void *ptr, size_t new_size) override {
+    if (!this->owns_(ptr)) {
+      return this->fallback_->reallocate(ptr, new_size);
+    }
+    const size_t off = static_cast<uint8_t *>(ptr) - this->buf_;
+    const size_t size = new_size > N ? N + ALIGN : (new_size + ALIGN - 1) & ~(ALIGN - 1);
+    const bool newest = off == this->last_;
+    if (newest && size <= N - off) {
+      this->used_ = off + size;  // the newest block grows or shrinks in place
+      return ptr;
+    }
+    // An older block's size is unknown; copying to the end of the buffer stays in bounds
+    const size_t old_size = newest ? this->used_ - off : N - off;
+    void *moved = this->fallback_->allocate(new_size);
+    if (moved == nullptr) {
+      return nullptr;  // the caller keeps ptr, so its arena space stays reserved
+    }
+    std::memcpy(moved, ptr, std::min(new_size, old_size));
+    if (newest) {
+      this->used_ = off;  // it moved to the heap, so its arena space is free again
+    }
+    return moved;
+  }
+  /// Bytes of the buffer handed out so far
+  size_t used() const { return this->used_; }
+
+ private:
+  static constexpr size_t ALIGN = alignof(std::max_align_t);
+  bool owns_(const void *ptr) const { return ptr >= this->buf_ && ptr < this->buf_ + N; }
+  ArduinoJson::Allocator *fallback_;
+  alignas(ALIGN) uint8_t buf_[N];
+  size_t used_{0};
+  size_t last_{0};
+};
+#endif  // USE_JSON_ARENA
+
 /// Builder class for creating JSON documents without lambdas
 class JsonBuilder {
  public:
   // Out of line: inlining the JsonDocument constructor duplicates it at every call site
   JsonBuilder();
+#ifdef USE_JSON_ARENA
+  // The builder must not outlive the allocator
+  explicit JsonBuilder(ArduinoJson::Allocator *allocator);
+#endif
 
   JsonObject root() {
     if (!root_created_) {
@@ -188,12 +267,7 @@ class JsonBuilder {
   SerializationBuffer<> serialize();
 
  private:
-#ifdef USE_PSRAM
-  SpiRamAllocator allocator_;
-  JsonDocument doc_{&allocator_};
-#else
   JsonDocument doc_;
-#endif
   JsonObject root_;
   bool root_created_{false};
 };

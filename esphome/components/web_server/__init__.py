@@ -8,6 +8,7 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
+from esphome.components.json import enable_arena
 from esphome.components.logger import request_log_listener
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
@@ -387,6 +388,9 @@ async def to_code(config: ConfigType) -> None:
         cg.add(paren.set_port(port))
     cg.add_define("USE_WEBSERVER")
     cg.add_define("USE_WEBSERVER_PORT", port)
+    if CORE.is_esp32:
+        # The ESP-IDF event source builds state documents in a stack arena
+        enable_arena()
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if version >= 2:
         # Don't compress the index HTML as the data sizes are almost the same.
