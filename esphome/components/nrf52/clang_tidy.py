@@ -166,6 +166,7 @@ def _setup_core(work_dir: Path) -> None:
     from esphome.core import CORE
 
     from . import RECOMMENDED_SDK_NRF_VERSION
+    from .framework import include_west_project
 
     CORE.name = TIDY_PROJECT_NAME
     # config_path's parent is the data-dir root for per-run artifacts. The
@@ -178,6 +179,9 @@ def _setup_core(work_dir: Path) -> None:
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         RECOMMENDED_SDK_NRF_VERSION
     )
+    # The west projects behind the _TIDY_PRJ_CONF subsystems beyond the defaults
+    for project in ("mcuboot", "tinycrypt", "zcbor"):
+        include_west_project(project)
 
 
 def generate_compile_commands(work_dir: Path, platformio_ini: Path) -> Path:

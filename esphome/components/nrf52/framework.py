@@ -247,21 +247,63 @@ def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
     tmp.replace(uf2conv)
 
 
-def _west_update(env_python_path: Path, framework_path: Path) -> bool:
-    cmd = [
-        str(env_python_path),
-        "-m",
-        "west",
-        "update",
-        "--narrow",
-        "--fetch-opt=--depth=1",
-    ]
+# nRF Connect SDK west projects every build needs; the SDK manifest has about
+# 50 more (2.2 GB in all) that are left out of the download. A component whose
+# code needs another one calls include_west_project() from to_code().
+DEFAULT_WEST_PROJECTS = ("cmsis", "hal_nordic", "nrfxlib", "zephyr")
+
+_KEY_NRF52 = "nrf52"
+_KEY_WEST_PROJECTS = "west_projects"
+# Records which projects a finished install fetched, so a later build that
+# needs another one fetches it
+_WEST_PROJECTS_FILE = ".west_projects"
+
+
+def _west_projects() -> set[str]:
+    return CORE.data.setdefault(_KEY_NRF52, {}).setdefault(
+        _KEY_WEST_PROJECTS, set(DEFAULT_WEST_PROJECTS)
+    )
+
+
+def include_west_project(name: str) -> None:
+    """Fetch an nRF Connect SDK west project left out by default.
+
+    Call from to_code() of a component whose code needs the project.
+    """
+    _west_projects().add(name)
+
+
+def _installed_west_projects(framework_path: Path) -> set[str] | None:
+    """The projects a finished install fetched; None when it has all of them."""
+    stamp = framework_path / _WEST_PROJECTS_FILE
+    if not stamp.is_file():
+        # An install from before the filter
+        return None
+    return set(stamp.read_text(encoding="utf-8").split())
+
+
+def _west_update(
+    env_python_path: Path, framework_path: Path, projects: set[str]
+) -> bool:
+    west = [str(env_python_path), "-m", "west"]
+    # Leave every project out, then bring back the wanted ones; the value starts
+    # with "-", so "--" keeps west from reading it as options
+    project_filter = ",".join(["-.*", *(f"+{p}" for p in sorted(projects))])
+    config = ["config", "manifest.project-filter", "--", project_filter]
+    if not run_command_ok(west + config, cwd=framework_path):
+        return False
+    cmd = [*west, "update", "--narrow", "--fetch-opt=--depth=1"]
     # Streamed so the per-project progress of the long clone reaches the log
-    return run_command_ok(cmd, cwd=framework_path, stream_output=True)
+    if not run_command_ok(cmd, cwd=framework_path, stream_output=True):
+        return False
+    (framework_path / _WEST_PROJECTS_FILE).write_text(
+        "\n".join(sorted(projects)), encoding="utf-8"
+    )
+    return True
 
 
 def _install_framework(
-    env_python_path: Path, framework_path: Path, version: str
+    env_python_path: Path, framework_path: Path, version: str, projects: set[str]
 ) -> None:
     """Clone the nRF Connect SDK into ``framework_path`` with west.
 
@@ -278,7 +320,7 @@ def _install_framework(
     initialized = (framework_path / ".west" / "config").is_file()
     if initialized and not (framework_path / ".ready").exists():
         _LOGGER.info("Resuming the nRF Connect SDK %s download ...", version)
-        if _west_update(env_python_path, framework_path):
+        if _west_update(env_python_path, framework_path, projects):
             resume_failed.unlink(missing_ok=True)
             return
         if not resume_failed.exists():
@@ -307,7 +349,7 @@ def _install_framework(
     if not run_command_ok(cmd, stream_output=True):
         raise EsphomeError(f"Can't initialize nRF Connect SDK {version}")
     _LOGGER.info("Updating nRF Connect SDK %s (this may take a while) ...", version)
-    if not _west_update(env_python_path, framework_path):
+    if not _west_update(env_python_path, framework_path, projects):
         raise EsphomeError(f"Can't update nRF Connect SDK {version}")
 
 
@@ -343,12 +385,24 @@ def check_and_install() -> None:
     framework_path = _get_framework_path(version)
     sentinel = framework_path / ".ready"
     zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
+    projects = _west_projects()
     if not sentinel.exists() or not zephyr_reqs.exists():
-        _install_framework(env_python_path, framework_path, version)
+        _install_framework(env_python_path, framework_path, version, projects)
         framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
         if framework_ver < cv.Version(2, 9, 2):
             _patch_uf2conv_escape_sequences(framework_path)
         sentinel.touch()
+    elif (installed := _installed_west_projects(framework_path)) is not None and (
+        missing := projects - installed
+    ):
+        # The install is shared by every config, so it only ever gains projects
+        _LOGGER.info(
+            "Fetching nRF Connect SDK %s projects: %s",
+            version,
+            ", ".join(sorted(missing)),
+        )
+        if not _west_update(env_python_path, framework_path, installed | projects):
+            raise EsphomeError(f"Can't update nRF Connect SDK {version}")
 
     zephyr_sentinel = python_env_path / ".zephyr_reqs_ready"
     if (
