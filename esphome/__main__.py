@@ -1363,6 +1363,7 @@ def _upload_via_native_api(
     # Fail closed: an encryption block whose key did not resolve must never
     # fall back to a plaintext upload
     noise_psk = None
+    old_noise_psk = None
     plaintext_fallback = False
     allow_plaintext_upload = False
     if ota_key := getattr(args, "ota_key", None):
@@ -1383,6 +1384,8 @@ def _upload_via_native_api(
         # Ensure the key is a string, as required by the underlying OTA implementation.
         # It arrives here as a SensitiveStr which aioesphomeapi rejects.
         noise_psk = str(noise_psk)
+        if old_key := encryption_conf.get(espota2.CONF_OLD_KEY):
+            old_noise_psk = str(old_key)
     elif api_key := static_encryption_key(config.get(CONF_API) or {}):
         # Remove before 2027.3.0: the api key is tried, falling back to plaintext
         noise_psk = str(api_key)
@@ -1426,7 +1429,20 @@ def _upload_via_native_api(
         noise_psk,
         plaintext_fallback=plaintext_fallback,
         allow_plaintext_upload=allow_plaintext_upload,
+        old_noise_psk=old_noise_psk,
     )
+
+
+def _old_key_notice(config: ConfigType) -> None:
+    """After `run`, whose image was just built from this config; a plain
+    `upload` may send a stale image that still carries the previous key."""
+    from esphome import espota2
+
+    for item in config.get(CONF_OTA, []):
+        if item.get(CONF_PLATFORM) == CONF_ESPHOME and (
+            item.get(CONF_ENCRYPTION) or {}
+        ).get(espota2.CONF_OLD_KEY):
+            _LOGGER.warning(espota2.OLD_KEY_REMOVE_NOTICE)
 
 
 def _upload_via_web_server(
@@ -1873,6 +1889,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     exit_code, successful_device = upload_program(config, args, devices)
     if exit_code == 0:
         _LOGGER.info("Successfully uploaded program.")
+        _old_key_notice(config)
     else:
         _LOGGER.warning("Failed to upload to %s", devices)
         return exit_code

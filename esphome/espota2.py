@@ -206,14 +206,14 @@ class OTANetworkError(OTAError):
     """Network-level OTA failure (timeout, reset, closed connection); retrying may succeed."""
 
 
-# Remove before 2027.3.0
-class OTAEncryptionFallback(OTAError):
-    """The encrypted attempt failed and the caller may retry in plaintext."""
+class OTAKeyRejected(OTAError):
+    """The Noise handshake failed on the key; another key may succeed."""
 
 
-# Uploader side option under `ota: encryption:`; the ota component imports the
-# name so the upload path never loads the component module
+# Uploader side options under `ota: encryption:`; the ota component imports
+# the names so the upload path never loads the component module
 CONF_ALLOW_PLAINTEXT_UPLOAD = "allow_plaintext_upload"
+CONF_OLD_KEY = "old_key"
 ALLOW_PLAINTEXT_UPLOAD_NOTICE = (
     f"'{CONF_ALLOW_PLAINTEXT_UPLOAD}' is set; expected once, on the install that "
     "migrates a device which never encrypted. If this device encrypted before, "
@@ -240,20 +240,43 @@ PLAINTEXT_FALLBACK_NOTICE = (
 )
 
 
-# Remove before 2027.3.0
-class _EncryptionAttempt:
-    """The key an upload tries and whether it may fall back to plaintext;
-    a rejected handshake falls back at once, a transport fault only on repeat."""
+OLD_KEY_REMOVE_NOTICE = (
+    "Once the device has booted this firmware it runs the current key; remove "
+    f"'{CONF_OLD_KEY}' from 'ota: encryption:'"
+)
 
-    def __init__(self, noise_psk: str | None, plaintext_fallback: bool) -> None:
+
+class _EncryptionAttempt:
+    """The key an upload tries, the previous key to retry with once, and
+    (until 2027.3.0) whether it may fall back to plaintext."""
+
+    def __init__(
+        self, noise_psk: str | None, plaintext_fallback: bool, old_noise_psk: str | None
+    ) -> None:
         self.noise_psk = noise_psk
+        self.old_noise_psk = old_noise_psk
+        self.tried_old_key = False
         self.plaintext_fallback = plaintext_fallback
         self.handshake_faults = 0
 
+    def retry_with_old_key(self) -> bool:
+        """Swap in the previous key once; the device may not run the new one yet."""
+        if not self.old_noise_psk:
+            return False
+        _LOGGER.warning(
+            "Device rejected the OTA encryption key; retrying with '%s'", CONF_OLD_KEY
+        )
+        self.noise_psk = self.old_noise_psk
+        self.old_noise_psk = None
+        self.tried_old_key = True
+        return True
+
+    # Remove before 2027.3.0
     def handshake_fault_falls_back(self) -> bool:
         self.handshake_faults += 1
         return self.plaintext_fallback and self.handshake_faults >= 2
 
+    # Remove before 2027.3.0
     def downgrade(self, reason: str) -> None:
         _LOGGER.warning(
             "%s. Retrying in plaintext; a device that requires encryption "
@@ -450,18 +473,20 @@ class NoiseSocketWrapper:
         if payload[0] != NOISE_HANDSHAKE_OK:
             reason = payload[1:].decode("utf-8", "replace")
             if reason == NOISE_MAC_FAILURE_REASON:
-                raise OTAError(
+                raise OTAKeyRejected(
                     "Device rejected the handshake; is the OTA encryption key correct?"
                 )
             raise OTAError(f"Device rejected the noise handshake: {reason}")
         try:
             self._handshake.read_message(payload[1:])
-        except (ValueError, self._invalid_tag) as err:
-            # InvalidTag is a wrong key; ValueError covers a device sending an
-            # invalid curve point, which cryptography rejects during the DH
-            raise OTAError(
+        except self._invalid_tag as err:
+            raise OTAKeyRejected(
                 "Noise handshake failed; is the OTA encryption key correct?"
             ) from err
+        except ValueError as err:
+            # An invalid curve point, rejected by cryptography during the DH;
+            # the device is broken, not the key
+            raise OTAError(f"Noise handshake failed: {err}") from err
         self._encrypt, self._decrypt = self._handshake.get_ciphers()
 
     def sendall(self, data: bytes) -> None:
@@ -642,11 +667,6 @@ def perform_ota(
         except OTANetworkError as err:
             # A transport fault: retry encrypted before considering plaintext
             raise OTAHandshakeNetworkError(str(err)) from err
-        except OTAError as err:
-            # Remove before 2027.3.0
-            if plaintext_fallback:
-                raise OTAEncryptionFallback(str(err)) from err
-            raise
         _LOGGER.info("Encrypted connection established")
         if allow_plaintext_upload:
             _LOGGER.warning(ALLOW_PLAINTEXT_UPLOAD_REMOVE_WARNING)
@@ -856,6 +876,7 @@ def run_ota_impl_(
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
     allow_plaintext_upload: bool = False,
+    old_noise_psk: str | None = None,
 ) -> tuple[int, str | None]:
     from esphome.core import CORE
 
@@ -894,11 +915,12 @@ def run_ota_impl_(
     total_attempts = len(res) + EXTRA_UPLOAD_ATTEMPTS
     last_error = ""
     reached_device = False
+    reconnect = False  # the device closed on purpose; nothing to wait for
     attempt = 0
-    encryption = _EncryptionAttempt(noise_psk, plaintext_fallback)
+    encryption = _EncryptionAttempt(noise_psk, plaintext_fallback, old_noise_psk)
     while attempt < total_attempts:
         af, socktype, _, _, sa = res[attempt % len(res)]
-        if reached_device or attempt >= len(res):
+        if not reconnect and (reached_device or attempt >= len(res)):
             _LOGGER.info(
                 "Retrying in %.0f seconds (attempt %d of %d)...",
                 UPLOAD_RETRY_DELAY,
@@ -907,6 +929,7 @@ def run_ota_impl_(
             )
             time.sleep(UPLOAD_RETRY_DELAY)
         reached_device = False
+        reconnect = False
         _LOGGER.info("Connecting to %s port %s...", sa[0], sa[1])
         sock = socket.socket(af, socktype)
         sock.settimeout(20.0)
@@ -933,11 +956,22 @@ def run_ota_impl_(
                     encryption.plaintext_fallback,
                     allow_plaintext_upload=allow_plaintext_upload,
                 )
-            except OTAEncryptionFallback as err:
-                # Same address and attempt budget: not a network retry
+            except OTAKeyRejected as err:
+                # The device sent a reject and closed on its own, so reconnect
+                # at once, on the same address and attempt budget
                 last_error = str(err)
-                encryption.downgrade(last_error)
-                continue
+                reconnect = True
+                if encryption.retry_with_old_key():
+                    continue
+                # Remove before 2027.3.0
+                if encryption.plaintext_fallback:
+                    encryption.downgrade(last_error)
+                    continue
+                if encryption.tried_old_key:
+                    raise OTAKeyRejected(
+                        f"The device rejected both 'key' and '{CONF_OLD_KEY}'"
+                    ) from err
+                raise
             except OTAHandshakeNetworkError as err:
                 last_error = str(err)
                 if encryption.handshake_fault_falls_back():
@@ -958,7 +992,13 @@ def run_ota_impl_(
                 _LOGGER.error(str(err))
                 return 1, None
 
-        # Successfully uploaded to sa[0]
+        if encryption.tried_old_key:
+            # Kept next to the result: a device that should already run the
+            # current key but answered to the previous one is worth a look
+            _LOGGER.warning(
+                "The device accepted '%s'; it was still running the previous key",
+                CONF_OLD_KEY,
+            )
         return 0, sa[0]
 
     _LOGGER.error("Upload failed after %d attempts: %s", total_attempts, last_error)
@@ -974,6 +1014,7 @@ def run_ota(
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
     allow_plaintext_upload: bool = False,
+    old_noise_psk: str | None = None,
 ) -> tuple[int, str | None]:
     try:
         return run_ota_impl_(
@@ -985,6 +1026,7 @@ def run_ota(
             noise_psk,
             plaintext_fallback,
             allow_plaintext_upload,
+            old_noise_psk,
         )
     except OTAError as err:
         _LOGGER.error(err)
