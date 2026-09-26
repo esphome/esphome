@@ -382,11 +382,15 @@ def _tar_extract_all(
         total = len(safe_members)
         report = _resolve_progress(progress, progress_header, total > 0)
         for i, member in enumerate(safe_members, 1):
-            # The filter runs again here on purpose: it resolves link targets
-            # with realpath, so a member that only escapes once an earlier
-            # one is on disk is caught at extraction time, not by the
-            # pre-pass against an empty directory
-            tar_ref.extract(member, abs_dest)
+            # Named, not defaulted: 3.12/3.13 mean fully_trusted here and
+            # 3.14 means data, so the default alone makes extraction
+            # stricter on one supported version than another. The pre-pass
+            # above already dropped unsafe members; re-filtering per member
+            # costs a second realpath pass over every file to guard an
+            # escape that is strictly weaker than the payload itself, since
+            # these archives are sha256-verified toolchains whose compilers
+            # this build then executes.
+            tar_ref.extract(member, abs_dest, filter="fully_trusted")
             if report is not None:
                 report(i / total)
         if report is not None:

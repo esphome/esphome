@@ -843,6 +843,30 @@ def test_install_packages_single_archive_stays_sequential(tmp_path: Path) -> Non
         assert "extract_progress" not in c[1]
 
 
+def test_batched_download_progress_announces_a_real_download_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A batched archive that fails verification streams again behind a bar
+    that cannot move, so it says so once; a verified archive credits itself
+    in one tick and stays quiet."""
+    ticks: list[float] = []
+    with caplog.at_level(logging.INFO):
+        progress = registry._batched_download_progress("pkg", "1.0.0", ticks.append)
+        progress(0)
+        progress(4096)
+    assert caplog.text.count("Re-downloading pkg 1.0.0") == 1
+    # The shared bar never moves for a download; it tracks extraction
+    assert ticks == [0.0, 0.0]
+
+    caplog.clear()
+    ticks.clear()
+    with caplog.at_level(logging.INFO):
+        verified = registry._batched_download_progress("pkg", "1.0.0", ticks.append)
+        verified(42)
+    assert "Re-downloading" not in caplog.text
+    assert ticks == [0.0]
+
+
 def test_install_packages_no_batch_logs_no_header(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
