@@ -113,7 +113,18 @@ async def test_light_resume_effect(
             "An effect dropped on an earlier cycle must not return"
         )
 
-        # Test 10: Turn on effect, then off, then on without effect — should not restore Pulse Effect
+        # Test 10: a plain turn-on sent to a light that is already on never starts the
+        # remembered effect
+        state = await send_and_wait(light_resume, state=True, effect="Pulse Effect")
+        state = await send_and_wait(light_resume, state=False)
+        state = await send_and_wait(light_resume, state=True, brightness=0.5)
+        assert state.effect == "None"
+        state = await send_and_wait(light_resume, state=True)
+        assert state.effect == "None", (
+            "A lit light must not pick up the remembered effect"
+        )
+
+        # Test 11: Turn on effect, then off, then on without effect — should not restore Pulse Effect
         state = await send_and_wait(light_no_resume, state=True, effect="Pulse Effect")
         assert state.state is True
         assert state.effect == "Pulse Effect"
