@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 import hashlib
 import logging
 import os
@@ -7,6 +8,7 @@ import shutil
 import sys
 
 from esphome.build_helpers.tools_cache import SDK_NRF_TOOLS_CACHE, tools_cache_path
+from esphome.components.zephyr.const import KEY_SYSBUILD, KEY_ZEPHYR
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
@@ -253,33 +255,37 @@ def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
 DEFAULT_WEST_PROJECTS = ("cmsis", "hal_nordic", "nrfxlib", "zephyr")
 
 _KEY_NRF52 = "nrf52"
-_KEY_WEST_PROJECTS = "west_projects"
 # Records which projects a finished install fetched, so a later build that
 # needs another one fetches it
 _WEST_PROJECTS_FILE = ".west_projects"
 
 
-def _west_projects() -> set[str]:
-    return CORE.data.setdefault(_KEY_NRF52, {}).setdefault(
-        _KEY_WEST_PROJECTS, set(DEFAULT_WEST_PROJECTS)
-    )
+@dataclass
+class _Nrf52Data:
+    west_projects: set[str] = field(default_factory=lambda: set(DEFAULT_WEST_PROJECTS))
+
+
+def _get_data() -> _Nrf52Data:
+    if _KEY_NRF52 not in CORE.data:
+        CORE.data[_KEY_NRF52] = _Nrf52Data()
+    return CORE.data[_KEY_NRF52]
 
 
 def include_west_project(name: str) -> None:
     """Fetch an nRF Connect SDK west project left out by default.
 
-    Call from to_code() of a component whose code needs the project.
+    Call from to_code() of a component whose code needs the project; the set
+    is only complete after codegen, so an upload alone keeps to the defaults.
     """
-    _west_projects().add(name)
+    _get_data().west_projects.add(name)
 
 
-def _installed_west_projects(framework_path: Path) -> set[str] | None:
-    """The projects a finished install fetched; None when it has all of them."""
-    stamp = framework_path / _WEST_PROJECTS_FILE
-    if not stamp.is_file():
-        # An install from before the filter
-        return None
-    return set(stamp.read_text(encoding="utf-8").split())
+def _wanted_west_projects() -> set[str]:
+    projects = set(_get_data().west_projects)
+    # Sysbuild always builds the MCUboot image, whatever the bootloader
+    if CORE.data.get(KEY_ZEPHYR, {}).get(KEY_SYSBUILD):
+        projects.add("mcuboot")
+    return projects
 
 
 def _west_update(
@@ -300,6 +306,31 @@ def _west_update(
         "\n".join(sorted(projects)), encoding="utf-8"
     )
     return True
+
+
+def _fetch_missing_west_projects(
+    env_python_path: Path, framework_path: Path, version: str, projects: set[str]
+) -> None:
+    """Fetch the wanted projects a finished install lacks.
+
+    The install is shared by every config, so it only ever gains projects.
+    """
+    # Every install has the defaults, so there is nothing to check
+    if projects <= set(DEFAULT_WEST_PROJECTS):
+        return
+    try:
+        stamp = (framework_path / _WEST_PROJECTS_FILE).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        # An install from before the filter has every project
+        return
+    installed = set(stamp.split())
+    if not (missing := projects - installed):
+        return
+    _LOGGER.info(
+        "Fetching nRF Connect SDK %s projects: %s", version, ", ".join(sorted(missing))
+    )
+    if not _west_update(env_python_path, framework_path, installed | projects):
+        raise EsphomeError(f"Can't update nRF Connect SDK {version}")
 
 
 def _install_framework(
@@ -385,24 +416,15 @@ def check_and_install() -> None:
     framework_path = _get_framework_path(version)
     sentinel = framework_path / ".ready"
     zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
-    projects = _west_projects()
+    projects = _wanted_west_projects()
     if not sentinel.exists() or not zephyr_reqs.exists():
         _install_framework(env_python_path, framework_path, version, projects)
         framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
         if framework_ver < cv.Version(2, 9, 2):
             _patch_uf2conv_escape_sequences(framework_path)
         sentinel.touch()
-    elif (installed := _installed_west_projects(framework_path)) is not None and (
-        missing := projects - installed
-    ):
-        # The install is shared by every config, so it only ever gains projects
-        _LOGGER.info(
-            "Fetching nRF Connect SDK %s projects: %s",
-            version,
-            ", ".join(sorted(missing)),
-        )
-        if not _west_update(env_python_path, framework_path, installed | projects):
-            raise EsphomeError(f"Can't update nRF Connect SDK {version}")
+    else:
+        _fetch_missing_west_projects(env_python_path, framework_path, version, projects)
 
     zephyr_sentinel = python_env_path / ".zephyr_reqs_ready"
     if (

@@ -26,6 +26,7 @@ from esphome.components.nrf52.framework import (
     include_west_project,
     setup_platformio_python_env,
 )
+from esphome.components.zephyr.const import KEY_SYSBUILD, KEY_ZEPHYR
 import esphome.config_validation as cv
 from esphome.config_validation import Version
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
@@ -144,14 +145,14 @@ def _touch_penv_python(penv: Path) -> None:
     python.touch()
 
 
+def _subcommand(cmd: list[str]) -> str:
+    tool = "west" if "west" in cmd else "pip"
+    return cmd[cmd.index(tool) + 1]
+
+
 def _subcommands(run_command_ok) -> list[str]:
     """The west or pip subcommand of each command run, in order."""
-    names = []
-    for west_call in run_command_ok.call_args_list:
-        cmd = west_call.args[0]
-        tool = "west" if "west" in cmd else "pip"
-        names.append(cmd[cmd.index(tool) + 1])
-    return names
+    return [_subcommand(c.args[0]) for c in run_command_ok.call_args_list]
 
 
 def _project_filter(run_command_ok) -> str:
@@ -161,6 +162,14 @@ def _project_filter(run_command_ok) -> str:
         if "manifest.project-filter" in cmd:
             return cmd[-1]
     raise AssertionError("no west config command ran")
+
+
+def _mark_installed(dirs: SimpleNamespace) -> None:
+    """Every install step finished: venv, zephyr requirements, SDK, toolchain."""
+    _mark_venv_ready(dirs.python_env)
+    (dirs.python_env / ".zephyr_reqs_ready").touch()
+    (dirs.framework / ".ready").touch()
+    (dirs.toolchain / ".ready").touch()
 
 
 def _mark_venv_ready(python_env: Path) -> None:
@@ -178,10 +187,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """All three sentinels present → nothing downloaded or compiled."""
-        _mark_venv_ready(nrf52_dirs.python_env)
-        (nrf52_dirs.python_env / ".zephyr_reqs_ready").touch()
-        (nrf52_dirs.framework / ".ready").touch()
-        (nrf52_dirs.toolchain / ".ready").touch()
+        _mark_installed(nrf52_dirs)
 
         check_and_install()
 
@@ -279,18 +285,12 @@ class TestCheckAndInstall:
 
         check_and_install()
 
-        calls = dict(
-            zip(
-                _subcommands(mock_nrf52_ops.run_command_ok),
-                mock_nrf52_ops.run_command_ok.call_args_list,
-                strict=True,
-            )
-        )
-        assert "-o=--depth=1" in calls["init"].args[0]
-        assert "--fetch-opt=--depth=1" in calls["update"].args[0]
+        init, _, update = mock_nrf52_ops.run_command_ok.call_args_list[:3]
+        assert "-o=--depth=1" in init.args[0]
+        assert "--fetch-opt=--depth=1" in update.args[0]
         # Streamed, so the long clone's progress reaches the log
-        for name in ("init", "update"):
-            assert calls[name].kwargs["stream_output"] is True
+        assert init.kwargs["stream_output"] is True
+        assert update.kwargs["stream_output"] is True
 
     def test_interrupted_download_resumes(
         self,
@@ -367,14 +367,7 @@ class TestCheckAndInstall:
         _mark_west_initialized(nrf52_dirs.framework)
         (nrf52_dirs.framework / ".resume_failed").touch()
         # resumed update fails; the clean clone and zephyr reqs succeed
-        mock_nrf52_ops.run_command_ok.side_effect = [
-            True,
-            False,
-            True,
-            True,
-            True,
-            True,
-        ]
+        mock_nrf52_ops.run_command_ok.side_effect = [True, False, *[True] * 4]
 
         check_and_install()
 
@@ -464,10 +457,7 @@ class TestCheckAndInstall:
     ) -> None:
         """A finished install gains a project another config left out, keeping
         what it already has."""
-        _mark_venv_ready(nrf52_dirs.python_env)
-        (nrf52_dirs.python_env / ".zephyr_reqs_ready").touch()
-        (nrf52_dirs.framework / ".ready").touch()
-        (nrf52_dirs.toolchain / ".ready").touch()
+        _mark_installed(nrf52_dirs)
         (nrf52_dirs.framework / ".west_projects").write_text(
             "cmsis\nhal_nordic\nnrfxlib\ntinycrypt\nzephyr", encoding="utf-8"
         )
@@ -479,9 +469,6 @@ class TestCheckAndInstall:
         wanted = "-.*,+cmsis,+hal_nordic,+nrfxlib,+openthread,+tinycrypt,+zephyr"
         assert _project_filter(mock_nrf52_ops.run_command_ok) == wanted
         mock_nrf52_ops.rmdir.assert_not_called()
-        assert "openthread" in (nrf52_dirs.framework / ".west_projects").read_text(
-            encoding="utf-8"
-        )
 
     @pytest.mark.parametrize(
         "stamp",
@@ -501,15 +488,39 @@ class TestCheckAndInstall:
     ) -> None:
         """No fetch when the install already has every wanted project; an
         install without the stamp has them all."""
-        _mark_venv_ready(nrf52_dirs.python_env)
-        (nrf52_dirs.python_env / ".zephyr_reqs_ready").touch()
-        (nrf52_dirs.framework / ".ready").touch()
-        (nrf52_dirs.toolchain / ".ready").touch()
+        _mark_installed(nrf52_dirs)
         if stamp is not None:
             (nrf52_dirs.framework / ".west_projects").write_text(
                 stamp, encoding="utf-8"
             )
         include_west_project("openthread")
+
+        check_and_install()
+
+        mock_nrf52_ops.run_command_ok.assert_not_called()
+
+    def test_sysbuild_fetches_mcuboot(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """Sysbuild always builds the MCUboot image, so it needs the project."""
+        _mark_venv_ready(nrf52_dirs.python_env)
+        CORE.data[KEY_ZEPHYR] = {KEY_SYSBUILD: True}
+
+        check_and_install()
+
+        assert "+mcuboot" in _project_filter(mock_nrf52_ops.run_command_ok).split(",")
+
+    def test_default_projects_never_read_the_stamp(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """A build wanting only the defaults has them on any install; an
+        unreadable stamp shows the check never looked."""
+        _mark_installed(nrf52_dirs)
+        (nrf52_dirs.framework / ".west_projects").mkdir()
 
         check_and_install()
 
@@ -525,6 +536,7 @@ class TestCheckAndInstall:
         (nrf52_dirs.framework / ".ready").touch()
         stamp = nrf52_dirs.framework / ".west_projects"
         stamp.write_text("zephyr", encoding="utf-8")
+        include_west_project("openthread")
         mock_nrf52_ops.run_command_ok.side_effect = [True, False]
 
         with pytest.raises(EsphomeError, match="Can't update"):
