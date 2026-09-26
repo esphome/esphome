@@ -272,7 +272,11 @@ def _install_framework(
     build; only a second failure in a row starts over clean.
     """
     resume_failed = framework_path / ".resume_failed"
-    if (framework_path / ".west").is_dir() and not (framework_path / ".ready").exists():
+    # Resume only a workspace whose ``west init`` finished (it writes the
+    # config last). ``.ready`` with missing requirements is a damaged install,
+    # not an interrupted one, so it goes the clean way.
+    initialized = (framework_path / ".west" / "config").is_file()
+    if initialized and not (framework_path / ".ready").exists():
         _LOGGER.info("Resuming the nRF Connect SDK %s download ...", version)
         if _west_update(env_python_path, framework_path):
             resume_failed.unlink(missing_ok=True)

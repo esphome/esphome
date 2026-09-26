@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import sys
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import ANY, call, patch
 
 import platformdirs
 import pytest
@@ -129,6 +129,12 @@ def mock_nrf52_ops():
 # ---------------------------------------------------------------------------
 
 
+def _mark_west_initialized(framework: Path) -> None:
+    """What a finished ``west init`` leaves behind."""
+    (framework / ".west").mkdir()
+    (framework / ".west" / "config").touch()
+
+
 def _touch_penv_python(penv: Path) -> None:
     """Create the interpreter file so the rebuild gate sees a live venv."""
     python = get_python_env_executable_path(penv, "python")
@@ -250,19 +256,9 @@ class TestCheckAndInstall:
         assert "-o=--depth=1" in init_cmd
         assert "update" in update_cmd
         assert "--fetch-opt=--depth=1" in update_cmd
-
-    def test_west_output_is_streamed(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        """The long clone's progress reaches the log instead of being captured."""
-        _mark_venv_ready(nrf52_dirs.python_env)
-
-        check_and_install()
-
-        for call in mock_nrf52_ops.run_command_ok.call_args_list[:2]:
-            assert call.kwargs["stream_output"] is True
+        # Streamed, so the long clone's progress reaches the log
+        for west_call in mock_nrf52_ops.run_command_ok.call_args_list[:2]:
+            assert west_call.kwargs["stream_output"] is True
 
     def test_interrupted_download_resumes(
         self,
@@ -272,12 +268,18 @@ class TestCheckAndInstall:
         """A workspace left by a cut-short download is updated in place, not
         wiped and cloned again."""
         _mark_venv_ready(nrf52_dirs.python_env)
-        (nrf52_dirs.framework / ".west").mkdir()
+        _mark_west_initialized(nrf52_dirs.framework)
+
+        # A marker left by an earlier failed resume
+        (nrf52_dirs.framework / ".resume_failed").touch()
 
         check_and_install()
 
-        wiped = [c.args[0] for c in mock_nrf52_ops.rmdir.call_args_list]
-        assert nrf52_dirs.framework not in wiped
+        assert (
+            call(nrf52_dirs.framework, msg=ANY)
+            not in mock_nrf52_ops.rmdir.call_args_list
+        )
+        assert not (nrf52_dirs.framework / ".resume_failed").exists()
         # west update (no init), then pip install zephyr reqs
         first = mock_nrf52_ops.run_command_ok.call_args_list[0]
         assert "update" in first.args[0]
@@ -294,15 +296,32 @@ class TestCheckAndInstall:
         """A first failed resume keeps what was fetched (the network likely
         dropped again) and is retried on the next build."""
         _mark_venv_ready(nrf52_dirs.python_env)
-        (nrf52_dirs.framework / ".west").mkdir()
+        _mark_west_initialized(nrf52_dirs.framework)
         mock_nrf52_ops.run_command_ok.return_value = False
 
         with pytest.raises(EsphomeError, match="Can't resume"):
             check_and_install()
 
-        wiped = [c.args[0] for c in mock_nrf52_ops.rmdir.call_args_list]
-        assert nrf52_dirs.framework not in wiped
+        assert (
+            call(nrf52_dirs.framework, msg=ANY)
+            not in mock_nrf52_ops.rmdir.call_args_list
+        )
         assert (nrf52_dirs.framework / ".resume_failed").exists()
+
+    def test_cut_short_init_starts_over(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """A ``.west`` without its config (init cut short) clones clean."""
+        _mark_venv_ready(nrf52_dirs.python_env)
+        (nrf52_dirs.framework / ".west").mkdir()
+
+        check_and_install()
+
+        mock_nrf52_ops.rmdir.assert_any_call(nrf52_dirs.framework, msg=ANY)
+        first = mock_nrf52_ops.run_command_ok.call_args_list[0]
+        assert "init" in first.args[0]
 
     def test_second_failed_resume_starts_over(
         self,
@@ -311,32 +330,18 @@ class TestCheckAndInstall:
     ) -> None:
         """A resume failing twice in a row wipes the workspace and clones clean."""
         _mark_venv_ready(nrf52_dirs.python_env)
-        (nrf52_dirs.framework / ".west").mkdir()
+        _mark_west_initialized(nrf52_dirs.framework)
         (nrf52_dirs.framework / ".resume_failed").touch()
         # resumed update fails; clean init, update and zephyr reqs succeed
         mock_nrf52_ops.run_command_ok.side_effect = [False, True, True, True]
 
         check_and_install()
 
-        wiped = [c.args[0] for c in mock_nrf52_ops.rmdir.call_args_list]
-        assert nrf52_dirs.framework in wiped
+        mock_nrf52_ops.rmdir.assert_any_call(nrf52_dirs.framework, msg=ANY)
         commands = [c.args[0] for c in mock_nrf52_ops.run_command_ok.call_args_list]
         assert "update" in commands[0]
         assert "init" in commands[1]
         assert "update" in commands[2]
-
-    def test_successful_resume_clears_the_failure_marker(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        _mark_venv_ready(nrf52_dirs.python_env)
-        (nrf52_dirs.framework / ".west").mkdir()
-        (nrf52_dirs.framework / ".resume_failed").touch()
-
-        check_and_install()
-
-        assert not (nrf52_dirs.framework / ".resume_failed").exists()
 
     def test_requirements_install_failure_raises(
         self,
