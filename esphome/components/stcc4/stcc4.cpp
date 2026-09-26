@@ -1,3 +1,5 @@
+#include <cstdint>
+
 #include "stcc4.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -19,6 +21,28 @@ static const uint16_t STCC4_CMD_SET_PRESSURE_COMPENSATION = 0xe016;
 static const uint8_t STCC4_CMD_EXIT_SLEEP_MODE = 0x00;
 
 static const uint32_t STCC4_PRODUCT_ID = 0x0901018a;
+
+constexpr uint16_t temperature_in_c_to_ticks(float temperature_in_c) {
+  return uint16_t((std::clamp(temperature_in_c, -45.f, 130.f) + 45.f) * 65535.f / 175.f);
+}
+
+constexpr float temperature_in_ticks_to_c(uint16_t temperature_in_ticks) {
+  return temperature_in_ticks * 175.f / 65535.f - 45.f;
+}
+
+constexpr uint16_t humidity_in_percent_to_ticks(float humidity_in_percent) {
+  return uint16_t((std::clamp(humidity_in_percent, 0.f, 100.f) + 6.f) * 65535.f / 125.f);
+}
+
+constexpr float humidity_in_ticks_to_percent(uint16_t humidity_in_ticks) {
+  return humidity_in_ticks * 125.f / 65535.f - 6.f;
+}
+
+constexpr uint16_t pressure_in_hpa_to_pa_2(float pressure_in_hpa) {
+  return uint16_t(std::clamp(pressure_in_hpa, 700.f, 1100.f) * 50.f);
+}
+
+constexpr float pressure_in_pa_2_to_hpa(uint16_t pressure_in_pa_2) { return pressure_in_pa_2 / 50.f; }
 
 void STCC4Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up STCC4...");
@@ -55,7 +79,7 @@ void STCC4Component::setup() {
 
         // Set static ambient pressure compensation if configured
         if (this->ambient_pressure_in_pa_2_ != 0) {
-          if (!this->write_ambient_pressure_compensation_()) {
+          if (!this->write_ambient_pressure_compensation_(this->ambient_pressure_in_pa_2_)) {
             this->mark_failed();
             return;
           }
@@ -110,7 +134,8 @@ void STCC4Component::dump_config() {
     ESP_LOGCONFIG(TAG, "  Dynamic ambient pressure compensation using '%s'",
                   this->ambient_pressure_source_->get_name().c_str());
   } else if (this->ambient_pressure_in_pa_2_ != 0) {
-    ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %f hPa", this->ambient_pressure_in_pa_2_ / 50.f);
+    ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %f hPa",
+                  pressure_in_pa_2_to_hpa(this->ambient_pressure_in_pa_2_));
   }
   if (this->temperature_source_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Temperature compensation using '%s'", this->temperature_source_->get_name().c_str());
@@ -152,68 +177,79 @@ void STCC4Component::read_measurement_() {
   }
 
   // CO2 value is in ppm as int16 (ignore negative values during warm-up)
-  int16_t co2_raw = int16_t(raw_data[0]);
+  const int16_t co2_raw = int16_t(raw_data[0]);
   if (this->co2_sensor_ != nullptr && co2_raw >= 0) {
     this->co2_sensor_->publish_state(co2_raw);
   }
 
   if (this->temperature_sensor_ != nullptr) {
-    float temperature = (175.0f * raw_data[1]) / 65535.0f - 45.0f;
-    this->temperature_sensor_->publish_state(temperature);
+    this->temperature_sensor_->publish_state(temperature_in_ticks_to_c(raw_data[1]));
   }
 
   if (this->humidity_sensor_ != nullptr) {
-    float humidity = (125.0f * raw_data[2]) / 65535.0f - 6.0f;
-    this->humidity_sensor_->publish_state(humidity);
+    this->humidity_sensor_->publish_state(humidity_in_ticks_to_percent(raw_data[2]));
   }
 
   this->status_clear_warning();
 }
 
 void STCC4Component::update_rht_compensation_from_source_() {
-  const float temperature = this->temperature_source_->state;
-  const float humidity = this->humidity_source_->state;
-  if (std::isnan(temperature) || std::isnan(humidity))
+  const float temperature_in_c = this->temperature_source_->state;
+  const float humidity_in_percent = this->humidity_source_->state;
+  if (std::isnan(temperature_in_c) || std::isnan(humidity_in_percent))
     return;
 
-  const uint16_t temperature_ticks = uint16_t(((temperature + 45.0f) / 175.0f) * 65535.0f);
-  const uint16_t humidity_ticks = uint16_t(((humidity + 6.0f) / 125.0f) * 65535.0f);
-  if (this->temperature_ticks_ != temperature_ticks || this->humidity_ticks_ != humidity_ticks) {
-    this->temperature_ticks_ = temperature_ticks;
-    this->humidity_ticks_ = humidity_ticks;
-    ESP_LOGVV(TAG, "Set RHT compensation: %f °C, %f %%RH", temperature, humidity);
-    const uint16_t data[2] = {temperature_ticks, humidity_ticks};
-    if (!this->write_command(STCC4_CMD_SET_RHT_COMPENSATION, data, 2)) {
-      ESP_LOGE(TAG, "Failed to set RHT compensation");
-    }
+  const uint16_t temperature_in_ticks = temperature_in_c_to_ticks(temperature_in_c);
+  const uint16_t humidity_in_ticks = humidity_in_percent_to_ticks(humidity_in_percent);
+  if ((this->temperature_in_ticks_ != temperature_in_ticks || this->humidity_in_ticks_ != humidity_in_ticks) &&
+      this->write_rht_compensation_(temperature_in_ticks, humidity_in_ticks)) {
+    this->temperature_in_ticks_ = temperature_in_ticks;
+    this->humidity_in_ticks_ = humidity_in_ticks;
   }
 }
 
 void STCC4Component::set_ambient_pressure_compensation(float pressure_in_hpa) {
-  this->ambient_pressure_in_pa_2_ = uint16_t(std::clamp(pressure_in_hpa, 700.f, 1100.f) * 50);
+  this->ambient_pressure_in_pa_2_ = pressure_in_hpa_to_pa_2(pressure_in_hpa);
 }
 
 void STCC4Component::update_ambient_pressure_compensation_from_source_() {
-  const float pressure = this->ambient_pressure_source_->state;
-  if (std::isnan(pressure))
+  const float pressure_in_hpa = this->ambient_pressure_source_->state;
+  if (std::isnan(pressure_in_hpa))
     return;
 
-  if (pressure < 100.f || pressure > 10000.f) {
+  if (pressure_in_hpa < 100.f || pressure_in_hpa > 10000.f) {
     // Some pressure sensors report values in Pa instead of hPa and there's no way to check at compile time.
     // Warn if the value seems far outside of the expected range.
-    ESP_LOGW(TAG, "Ambient pressure compensation sensor might have incompatible units: got %f hPa", pressure);
+    if (!this->ambient_pressure_unit_warning_logged_) {
+      this->ambient_pressure_unit_warning_logged_ = true;
+      ESP_LOGW(TAG, "Ambient pressure compensation sensor might have incompatible units: got %f hPa", pressure_in_hpa);
+    }
+    return;  // skip this update
+  } else {
+    this->ambient_pressure_unit_warning_logged_ = false;
   }
 
-  uint16_t old_ambient_pressure_in_pa_2 = this->ambient_pressure_in_pa_2_;
-  this->set_ambient_pressure_compensation(pressure);
-  if (this->ambient_pressure_in_pa_2_ != old_ambient_pressure_in_pa_2) {
-    write_ambient_pressure_compensation_();
+  const uint16_t ambient_pressure_in_pa_2 = pressure_in_hpa_to_pa_2(pressure_in_hpa);
+  if (this->ambient_pressure_in_pa_2_ != ambient_pressure_in_pa_2 &&
+      this->write_ambient_pressure_compensation_(ambient_pressure_in_pa_2)) {
+    this->ambient_pressure_in_pa_2_ = ambient_pressure_in_pa_2;
   }
 }
 
-bool STCC4Component::write_ambient_pressure_compensation_() {
-  ESP_LOGVV(TAG, "Set pressure compensation: %f", this->ambient_pressure_in_pa_2_ / 50.f);
-  if (!this->write_command(STCC4_CMD_SET_PRESSURE_COMPENSATION, this->ambient_pressure_in_pa_2_)) {
+bool STCC4Component::write_rht_compensation_(uint16_t temperature_in_ticks, uint16_t humidity_in_ticks) {
+  ESP_LOGVV(TAG, "Set RHT compensation: %f °C, %f %%RH", temperature_in_ticks_to_c(temperature_in_ticks),
+            humidity_in_ticks_to_percent(humidity_in_ticks));
+  const uint16_t data[2] = {temperature_in_ticks, humidity_in_ticks};
+  if (!this->write_command(STCC4_CMD_SET_RHT_COMPENSATION, data, 2)) {
+    ESP_LOGE(TAG, "Failed to set RHT compensation");
+    return false;
+  }
+  return true;
+}
+
+bool STCC4Component::write_ambient_pressure_compensation_(uint16_t pressure_in_pa_2) {
+  ESP_LOGVV(TAG, "Set pressure compensation: %f hPa", pressure_in_pa_2_to_hpa(pressure_in_pa_2));
+  if (!this->write_command(STCC4_CMD_SET_PRESSURE_COMPENSATION, pressure_in_pa_2)) {
     ESP_LOGE(TAG, "Failed to set ambient pressure compensation");
     return false;
   }

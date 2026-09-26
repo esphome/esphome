@@ -31,7 +31,8 @@ class STCC4Component final : public PollingComponent, public sensirion_common::S
   void read_measurement_();
   void update_rht_compensation_from_source_();
   void update_ambient_pressure_compensation_from_source_();
-  bool write_ambient_pressure_compensation_();
+  bool write_rht_compensation_(uint16_t temperature_in_ticks, uint16_t humidity_in_ticks);
+  bool write_ambient_pressure_compensation_(uint16_t pressure_in_pa_2);
 
   sensor::Sensor *co2_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
@@ -42,10 +43,11 @@ class STCC4Component final : public PollingComponent, public sensirion_common::S
 
   MeasurementMode measurement_mode_{MeasurementMode::CONTINUOUS};
 
-  bool ready_{false};
-  uint16_t temperature_ticks_{0};
-  uint16_t humidity_ticks_{0};
+  uint16_t temperature_in_ticks_{0};
+  uint16_t humidity_in_ticks_{0};
   uint16_t ambient_pressure_in_pa_2_{0};
+  bool ambient_pressure_unit_warning_logged_{false};
+  bool ready_{false};
 };
 
 }  // namespace esphome::stcc4

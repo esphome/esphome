@@ -64,12 +64,19 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_TEMPERATURE_SOURCE): cv.use_id(sensor.Sensor),
-            cv.Optional(CONF_HUMIDITY_SOURCE): cv.use_id(sensor.Sensor),
-            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.pressure,
-            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
+            cv.Inclusive(CONF_TEMPERATURE_SOURCE, "rht_compensation"): cv.use_id(
                 sensor.Sensor
             ),
+            cv.Inclusive(CONF_HUMIDITY_SOURCE, "rht_compensation"): cv.use_id(
+                sensor.Sensor
+            ),
+            cv.Exclusive(
+                CONF_AMBIENT_PRESSURE_COMPENSATION, "ambient_pressure_compensation"
+            ): cv.pressure,
+            cv.Exclusive(
+                CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE,
+                "ambient_pressure_compensation",
+            ): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_MEASUREMENT_MODE, default="continuous"): cv.enum(
                 MEASUREMENT_MODE_OPTIONS, lower=True
             ),
