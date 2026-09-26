@@ -5,7 +5,7 @@
 
 namespace esphome::ld2450 {
 
-class MultiTargetSwitch : public switch_::Switch, public Parented<LD2450Component> {
+class MultiTargetSwitch final : public switch_::Switch, public Parented<LD2450Component> {
  public:
   // User provided, not "= default": `new(p) MultiTargetSwitch()` would zero-fill .bss that is already zero.
   MultiTargetSwitch() {}
