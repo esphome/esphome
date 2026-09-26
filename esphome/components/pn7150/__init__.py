@@ -127,54 +127,68 @@ async def pn7150_set_message_to_code(
     return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "tag.emulation_off",
     EmulationOffAction,
     SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
-    "tag.emulation_on", EmulationOnAction, SIMPLE_ACTION_SCHEMA, synchronous=True
+
+
+automation.register_parented_action(
+    "tag.emulation_on",
+    EmulationOnAction,
+    SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
 )
-@automation.register_action(
-    "tag.polling_off", PollingOffAction, SIMPLE_ACTION_SCHEMA, synchronous=True
+
+
+automation.register_parented_action(
+    "tag.polling_off",
+    PollingOffAction,
+    SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
 )
-@automation.register_action(
-    "tag.polling_on", PollingOnAction, SIMPLE_ACTION_SCHEMA, synchronous=True
+
+
+automation.register_parented_action(
+    "tag.polling_on",
+    PollingOnAction,
+    SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_parented_action(
     "tag.set_clean_mode",
     SetCleanModeAction,
     SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_parented_action(
     "tag.set_format_mode",
     SetFormatModeAction,
     SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_parented_action(
     "tag.set_read_mode",
     SetReadModeAction,
     SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_parented_action(
     "tag.set_write_mode",
     SetWriteModeAction,
     SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def pn7150_simple_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 _CALLBACK_AUTOMATIONS = (
@@ -220,7 +234,7 @@ async def setup_pn7150(var: MockObj, config: ConfigType) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-@automation.register_condition(
+automation.register_parented_condition(
     "pn7150.is_writing",
     PN7150IsWritingCondition,
     cv.Schema(
@@ -229,12 +243,3 @@ async def setup_pn7150(var: MockObj, config: ConfigType) -> None:
         }
     ),
 )
-async def pn7150_is_writing_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

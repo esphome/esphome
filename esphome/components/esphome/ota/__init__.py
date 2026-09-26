@@ -2,7 +2,7 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components.noise import (
-    encryption_schema,
+    ENCRYPTION_SCHEMA,
     new_psk_progmem,
     static_encryption_key,
 )
@@ -27,6 +27,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -231,15 +232,38 @@ def _resolve_encryption_key(encryption_conf: ConfigType, api_conf: ConfigType) -
         encryption_conf[CONF_KEY] = api_key
 
 
+# Uploader side options live only on the ota block; the api block keeps the
+# shared schema
+_ENCRYPTION_SCHEMA = ENCRYPTION_SCHEMA.extend(
+    {
+        cv.Optional(CONF_ALLOW_PLAINTEXT_UPLOAD): cv.boolean,
+    }
+)
+
+
+def _encryption_schema(config: ConfigType | None) -> ConfigType:
+    # Only a bare `encryption:` block is keyless; `false` or a list must fail
+    return _ENCRYPTION_SCHEMA({} if config is None else config)
+
+
 # Also called on merged same-port configs in final validate, where schemas
 # do not run
 def _validate_no_password_with_encryption(config: ConfigType) -> ConfigType:
-    if CONF_PASSWORD in config and CONF_ENCRYPTION in config:
-        raise cv.Invalid(
-            f"'{CONF_PASSWORD}' cannot be combined with '{CONF_ENCRYPTION}'; the "
-            f"encryption key already authenticates the uploader, remove '{CONF_PASSWORD}'"
-        )
-    return config
+    if (
+        CONF_PASSWORD not in config
+        or (encryption := config.get(CONF_ENCRYPTION)) is None
+    ):
+        return config
+    # The migration install may still have to answer the old firmware's
+    # password prompt on the plaintext leg; the password is not built in
+    if encryption.get(CONF_ALLOW_PLAINTEXT_UPLOAD):
+        return config
+    raise cv.Invalid(
+        f"'{CONF_PASSWORD}' cannot be combined with '{CONF_ENCRYPTION}'; the "
+        f"encryption key already authenticates the uploader, remove '{CONF_PASSWORD}' "
+        f"(or set '{CONF_ALLOW_PLAINTEXT_UPLOAD}: true' for the one install that "
+        f"migrates a device still asking for it)"
+    )
 
 
 def _consume_ota_sockets(config: ConfigType) -> ConfigType:
@@ -269,7 +293,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.port,
             cv.Optional(CONF_ALLOW_PARTITION_ACCESS, default=False): cv.boolean,
             cv.Optional(CONF_PASSWORD): cv.sensitive(),
-            cv.Optional(CONF_ENCRYPTION): encryption_schema,
+            cv.Optional(CONF_ENCRYPTION): _encryption_schema,
             cv.Optional(CONF_NUM_ATTEMPTS): cv.invalid(
                 f"'{CONF_SAFE_MODE}' (and its related configuration variables) has moved from 'ota' to its own component. See https://esphome.io/components/safe_mode"
             ),
@@ -304,7 +328,10 @@ async def to_code(config: ConfigType) -> None:
     # An empty password opts in to the auth code path so set_auth_password() can be
     # called at runtime (e.g. to rotate the password from a lambda). When `password:`
     # is omitted entirely, the auth path is excluded to save flash on small devices.
-    if CONF_PASSWORD in config:
+    # A password is never built in next to encryption: validation only lets
+    # the two coexist for the migration install, where the password answers
+    # the running firmware and the build is authenticated by the key
+    if CONF_PASSWORD in config and CONF_ENCRYPTION not in config:
         cg.add_define("USE_OTA_PASSWORD")
         if config[CONF_PASSWORD]:
             cg.add(var.set_auth_password(config[CONF_PASSWORD]))
