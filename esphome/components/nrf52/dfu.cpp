@@ -14,6 +14,10 @@ static const char *const TAG = "dfu";
 
 static const uint32_t DFU_DBL_RESET_MAGIC = 0x5A1AD5;  // SALADS
 static const uint8_t DFU_MAGIC_UF2_RESET = 0x57;       // Adafruit nRF52 bootloader UF2 magic
+static const uint8_t DFU_MAGIC_SKIP = 0x6d;            // Adafruit nRF52 bootloader: start the app, skip DFU
+// Host-side baud rates that trigger an action; see DeviceFirmwareUpdate::setup().
+static const uint32_t DFU_TOUCH_BAUD_RATE = 1200;    // reboot into the bootloader (DFU)
+static const uint32_t RESET_TOUCH_BAUD_RATE = 2001;  // plain reboot back into the application
 
 void DeviceFirmwareUpdate::setup() {
   if (this->reset_pin_ != nullptr) {
@@ -21,13 +25,20 @@ void DeviceFirmwareUpdate::setup() {
   }
 #if defined(CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT)
   zephyr::global_cdc_acm->add_on_rate_callback([this](const device *, uint32_t rate) {
-    if (rate == 1200) {
+    if (rate == RESET_TOUCH_BAUD_RATE) {
+      // A plain reboot for host tools (a logs view's Reset device): the USB CDC has no
+      // reset line, and the bootloader, once entered, has no host command back to the app.
+      NRF_POWER->GPREGRET = DFU_MAGIC_SKIP;
+      arch_feed_wdt();
+      App.reboot();
+    } else if (rate == DFU_TOUCH_BAUD_RATE) {
       volatile uint32_t *dbl_reset_mem = (volatile uint32_t *) 0x20007F7C;
       (*dbl_reset_mem) = DFU_DBL_RESET_MAGIC;
       if (this->reset_pin_ != nullptr) {
         this->reset_pin_->digital_write(true);
       } else {
         NRF_POWER->GPREGRET = DFU_MAGIC_UF2_RESET;
+        arch_feed_wdt();
         App.reboot();
       }
     }

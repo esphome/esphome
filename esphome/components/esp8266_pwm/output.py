@@ -4,8 +4,6 @@ from esphome.components import output
 from esphome.components.esp8266.const import require_waveform
 import esphome.config_validation as cv
 from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_NUMBER, CONF_PIN
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["esp8266"]
@@ -19,8 +17,11 @@ def valid_pwm_pin(value: ConfigType) -> ConfigType:
 
 esp8266_pwm_ns = cg.esphome_ns.namespace("esp8266_pwm")
 ESP8266PWM = esp8266_pwm_ns.class_("ESP8266PWM", output.FloatOutput, cg.Component)
-SetFrequencyAction = esp8266_pwm_ns.class_("SetFrequencyAction", automation.Action)
 validate_frequency = cv.All(cv.frequency, cv.float_range(min=1.0e-6))
+
+# Schema default that also matches the C++ initializer in esp8266_pwm.h; codegen
+# skips the setter when the config equals it.
+DEFAULT_FREQUENCY = 1000.0
 
 CONFIG_SCHEMA = cv.All(
     output.FLOAT_OUTPUT_SCHEMA.extend(
@@ -29,7 +30,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_PIN): cv.All(
                 pins.internal_gpio_output_pin_schema, valid_pwm_pin
             ),
-            cv.Optional(CONF_FREQUENCY, default="1kHz"): validate_frequency,
+            cv.Optional(CONF_FREQUENCY, default=DEFAULT_FREQUENCY): validate_frequency,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(
@@ -48,28 +49,18 @@ async def to_code(config: ConfigType) -> None:
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
 
-    cg.add(var.set_frequency(config[CONF_FREQUENCY]))
+    # Skip the setter when the config matches the C++ initializer (DEFAULT_FREQUENCY).
+    if (frequency := config[CONF_FREQUENCY]) != DEFAULT_FREQUENCY:
+        cg.add(var.set_frequency(frequency))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "output.esp8266_pwm.set_frequency",
-    SetFrequencyAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(ESP8266PWM),
             cv.Required(CONF_FREQUENCY): cv.templatable(validate_frequency),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_FREQUENCY, "update_frequency", cg.float_),
 )
-async def esp8266_set_frequency_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_FREQUENCY], args, cg.float_)
-    cg.add(var.set_frequency(template_))
-    return var

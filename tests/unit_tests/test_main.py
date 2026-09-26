@@ -13,7 +13,7 @@ import sys
 import time
 from types import SimpleNamespace
 from typing import Any, Self
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, PropertyMock, patch
 
 import pytest
 from pytest import CaptureFixture
@@ -2110,7 +2110,14 @@ def test_upload_program_ota_success(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, "secret", expected_firmware, OTA_TYPE_UPDATE_APP, None
+        ["192.168.1.100"],
+        3232,
+        "secret",
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
+        None,
+        plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
@@ -2142,8 +2149,145 @@ def test_upload_program_ota_encryption_key(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP, key
+        ["192.168.1.100"],
+        3232,
+        None,
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
+        key,
+        plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
+
+
+def test_upload_program_bare_encryption_block_never_falls_back(
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """A bare `ota: encryption:` (the api key inherited by final validate, no
+    option) fails closed against a device that does not offer encryption."""
+    from esphome.components.esphome.ota import ota_esphome_final_validate
+    import esphome.final_validate as fv
+
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    config = {
+        CONF_API: {CONF_ENCRYPTION: {CONF_KEY: key}},
+        CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232, CONF_ENCRYPTION: {}}],
+    }
+    token = fv.full_config.set(config)
+    try:
+        ota_esphome_final_validate({})
+        config = fv.full_config.get()
+    finally:
+        fv.full_config.reset(token)
+    assert config[CONF_OTA][0][CONF_ENCRYPTION] == {CONF_KEY: key}
+
+    with patch("esphome.espota2.run_ota", return_value=(0, "192.168.1.100")) as run_ota:
+        upload_program(config, MockArgs(), ["192.168.1.100"])
+    assert run_ota.call_args.args[5] == key
+    assert run_ota.call_args.kwargs == {
+        "plaintext_fallback": False,
+        "allow_plaintext_upload": False,
+    }
+
+
+def test_upload_program_ota_allow_plaintext_upload(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """The uploader side opt in reaches run_ota without the removed fallback."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_PASSWORD: "pw",
+                CONF_ENCRYPTION: {CONF_KEY: key, "allow_plaintext_upload": True},
+            }
+        ]
+    }
+    exit_code, _ = upload_program(config, MockArgs(), ["192.168.1.100"])
+
+    assert exit_code == 0
+    assert mock_run_ota.call_args.args[2] == "pw"
+    assert mock_run_ota.call_args.args[5] == key
+    assert mock_run_ota.call_args.kwargs == {
+        "plaintext_fallback": False,
+        "allow_plaintext_upload": True,
+    }
+
+
+def test_upload_program_ota_api_key_opportunistic(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Without an ota encryption block the api key is tried with a plaintext
+    fallback (removed in 2027.3.0)."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    config = {
+        CONF_API: {CONF_ENCRYPTION: {CONF_KEY: key}},
+        CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232}],
+    }
+    exit_code, _ = upload_program(config, MockArgs(), ["192.168.1.100"])
+
+    assert exit_code == 0
+    expected_firmware = (
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"],
+        3232,
+        None,
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
+        key,
+        plaintext_fallback=True,
+        allow_plaintext_upload=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "api_conf",
+    [{}, {CONF_ENCRYPTION: {}}],
+    ids=["no_encryption", "runtime_key"],
+)
+def test_upload_program_ota_no_usable_api_key_stays_plaintext(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+    api_conf: dict[str, Any],
+) -> None:
+    """A missing or runtime provisioned api key gives the uploader nothing
+    to try."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_API: api_conf,
+        CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232}],
+    }
+    exit_code, _ = upload_program(config, MockArgs(), ["192.168.1.100"])
+
+    assert exit_code == 0
+    assert mock_run_ota.call_args.args[5] is None
+    assert mock_run_ota.call_args.kwargs == {
+        "plaintext_fallback": False,
+        "allow_plaintext_upload": False,
+    }
 
 
 def test_upload_program_ota_encryption_without_key_fails_closed(
@@ -2196,7 +2340,14 @@ def test_upload_program_ota_with_file_arg(
     assert exit_code == 0
     assert host == "192.168.1.100"
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, Path("custom.bin"), OTA_TYPE_UPDATE_APP, None
+        ["192.168.1.100"],
+        3232,
+        None,
+        Path("custom.bin"),
+        OTA_TYPE_UPDATE_APP,
+        None,
+        plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
@@ -2252,6 +2403,8 @@ def test_upload_program_ota_partition_table_with_file_arg(
         partition_file,
         OTA_TYPE_UPDATE_PARTITION_TABLE,
         None,
+        plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
@@ -2314,6 +2467,8 @@ def test_upload_program_ota_partition_table_mqttip(
         partition_file,
         OTA_TYPE_UPDATE_PARTITION_TABLE,
         None,
+        plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
@@ -2502,6 +2657,8 @@ def test_upload_program_ota_bootloader_with_file_arg(
         bootloader_file,
         OTA_TYPE_UPDATE_BOOTLOADER,
         None,
+        plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
@@ -2990,7 +3147,14 @@ def test_upload_program_ota_with_mqtt_resolution(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP, None
+        ["192.168.1.100"],
+        3232,
+        None,
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
+        None,
+        plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
@@ -3040,7 +3204,14 @@ def test_upload_program_ota_with_mqtt_empty_broker(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.50"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP, None
+        ["192.168.1.50"],
+        3232,
+        None,
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
+        None,
+        plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
     # Verify warning was logged
     assert "MQTT IP discovery failed" in caplog.text
@@ -5259,6 +5430,8 @@ def test_upload_program_ota_static_ip_with_mqttip(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         None,
+        plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
@@ -5309,6 +5482,8 @@ def test_upload_program_ota_multiple_mqttip_resolves_once(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         None,
+        plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
@@ -5486,7 +5661,14 @@ def test_upload_program_ota_mqtt_timeout_fallback(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP, None
+        ["192.168.1.100"],
+        3232,
+        None,
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
+        None,
+        plaintext_fallback=False,
+        allow_plaintext_upload=False,
     )
 
 
@@ -7078,7 +7260,7 @@ def test_command_run_rp2040_bootsel_redetects_serial_port() -> None:
 
 def test_command_idedata_esp_idf_prints_json(capsys: CaptureFixture) -> None:
     """Under the native ESP-IDF toolchain, idedata is emitted as JSON."""
-    setup_core()
+    setup_core(platform=PLATFORM_ESP32)
     CORE.toolchain = Toolchain.ESP_IDF
     data = {"cxx_path": "g++", "prog_path": "/build/firmware.elf"}
 
@@ -7092,7 +7274,7 @@ def test_command_idedata_esp_idf_prints_json(capsys: CaptureFixture) -> None:
 
 def test_command_idedata_esp_idf_no_build_errors() -> None:
     """Under ESP-IDF, a missing build (no idedata) returns an error, not a crash."""
-    setup_core()
+    setup_core(platform=PLATFORM_ESP32)
     CORE.toolchain = Toolchain.ESP_IDF
 
     with patch("esphome.espidf.toolchain.get_idedata", return_value=None):
@@ -7266,6 +7448,201 @@ def test_warn_source_tree_mismatch_falls_back_when_stat_fails(
     assert not caplog.text
 
 
+def test_upload_using_esptool_arduino_toolchain(
+    tmp_path: Path,
+    mock_run_external_command_main: Mock,
+) -> None:
+    """The native ESP8266 Arduino toolchain flashes its factory image at
+    0x0, resolved from the toolchain-keyed backend table (deliberately not
+    the platform hook: that import would break the upload fast path)."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
+    CORE.toolchain = Toolchain.ARDUINO
+    from esphome.arduino8266 import toolchain as native
+
+    factory = native.get_factory_firmware_path()
+    factory.parent.mkdir(parents=True, exist_ok=True)
+    factory.touch()
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+    result = upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+    assert result == 0
+    cmd_list = list(mock_run_external_command_main.call_args[0][1:])
+    firmware_offset_idx = cmd_list.index("write-flash") + 4
+    assert cmd_list[firmware_offset_idx] == "0x0"
+    assert cmd_list[firmware_offset_idx + 1] == str(factory)
+
+
+@pytest.mark.parametrize(
+    ("toolchain", "pio_project_written"),
+    [
+        # The native toolchain generates its project at compile time, so
+        # write_cpp_file must not write a platformio.ini; the default
+        # toolchain writes the PlatformIO project files.
+        (Toolchain.ARDUINO, False),
+        (None, True),
+    ],
+)
+def test_write_cpp_file_project_generation_follows_toolchain(
+    tmp_path: Path, toolchain: Toolchain | None, pio_project_written: bool
+) -> None:
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
+    CORE.toolchain = toolchain
+
+    with (
+        patch("esphome.writer.write_cpp") as mock_write_cpp,
+        patch("esphome.build_gen.platformio.write_project") as mock_pio_project,
+        patch.object(
+            type(CORE), "cpp_main_section", new_callable=PropertyMock
+        ) as mock_section,
+    ):
+        mock_section.return_value = ""
+        assert main.write_cpp_file() == 0
+
+    mock_write_cpp.assert_called_once()
+    assert mock_pio_project.called is pio_project_written
+
+
+def test_command_idedata_arduino_prints_json(
+    tmp_path: Path, capsys: CaptureFixture
+) -> None:
+    """Under the native ESP8266 Arduino toolchain, idedata is emitted as JSON."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path)
+    CORE.toolchain = Toolchain.ARDUINO
+    data = {"cxx_path": "g++", "prog_path": "/build/firmware.elf"}
+
+    with patch(
+        "esphome.arduino8266.toolchain.get_idedata", return_value=data
+    ) as mock_get:
+        result = command_idedata(MagicMock(), CORE.config)
+
+    assert result == 0
+    mock_get.assert_called_once_with()
+    assert json.loads(capsys.readouterr().out) == data
+
+
+def test_command_idedata_arduino_no_build_errors(tmp_path: Path) -> None:
+    """A missing native build (no idedata) returns an error, not a crash."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path)
+    CORE.toolchain = Toolchain.ARDUINO
+
+    with patch("esphome.arduino8266.toolchain.get_idedata", return_value=None):
+        result = command_idedata(MagicMock(), CORE.config)
+
+    assert result == 1
+
+
+@pytest.mark.parametrize(
+    ("platform", "toolchain", "module"),
+    [
+        (PLATFORM_ESP8266, Toolchain.ARDUINO, "esphome.arduino8266.toolchain"),
+        (PLATFORM_ESP32, Toolchain.ESP_IDF, "esphome.espidf.toolchain"),
+    ],
+)
+def test_command_analyze_memory_native_toolchains(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    mock_get_esphome_components: Mock,
+    mock_memory_analyzer_cli: Mock,
+    mock_ram_strings_analyzer: Mock,
+    platform: str,
+    toolchain: Toolchain,
+    module: str,
+) -> None:
+    """analyze-memory uses the native toolchain's binutils instead of
+    falling into the PlatformIO branch."""
+    setup_core(platform=platform, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = toolchain
+
+    config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    # The tools must exist: a missing binutils now fails by name instead of
+    # silently falling back to host tools
+    objdump = tmp_path / "objdump"
+    readelf = tmp_path / "readelf"
+    objdump.write_text("")
+    readelf.write_text("")
+    # The ELF must exist too: the analyzer swallows tool failures, so a
+    # missing image would report zeroes with exit 0
+    firmware_elf = tmp_path / "firmware.elf"
+    firmware_elf.write_text("")
+    with (
+        patch(f"{module}.get_objdump_path", return_value=objdump),
+        patch(f"{module}.get_readelf_path", return_value=readelf),
+        patch(f"{module}.get_elf_path", return_value=firmware_elf),
+    ):
+        result = command_analyze_memory(MockArgs(), config)
+
+    assert result == 0
+    mock_memory_analyzer_cli.assert_called_once_with(
+        str(firmware_elf),
+        str(objdump),
+        str(readelf),
+        set(),
+        idedata=None,
+    )
+
+
+def test_command_analyze_memory_native_missing_elf_fails(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    mock_get_esphome_components: Mock,
+    mock_memory_analyzer_cli: Mock,
+    mock_ram_strings_analyzer: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A missing firmware.elf fails by name instead of an exit-0 zeroed
+    report."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.ARDUINO
+
+    config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    objdump = tmp_path / "objdump"
+    readelf = tmp_path / "readelf"
+    objdump.write_text("")
+    readelf.write_text("")
+    module = "esphome.arduino8266.toolchain"
+    with (
+        patch(f"{module}.get_objdump_path", return_value=objdump),
+        patch(f"{module}.get_readelf_path", return_value=readelf),
+        patch(f"{module}.get_elf_path", return_value=tmp_path / "missing.elf"),
+    ):
+        result = command_analyze_memory(MockArgs(), config)
+
+    assert result == 1
+    assert "compile the configuration first" in caplog.text
+    mock_memory_analyzer_cli.assert_not_called()
+
+
+def test_command_analyze_memory_missing_binutils_fails_by_name(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A truncated toolchain install fails naming the missing tool instead
+    of silently analyzing with host binutils."""
+    setup_core(platform="esp8266", tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.ARDUINO
+    config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    module = "esphome.arduino8266.toolchain"
+    with (
+        patch(f"{module}.get_objdump_path", return_value=tmp_path / "missing-objdump"),
+        patch(f"{module}.get_readelf_path", return_value=tmp_path / "readelf"),
+        patch("esphome.__main__.write_cpp", return_value=0),
+        patch("esphome.__main__.compile_program", return_value=0),
+    ):
+        assert command_analyze_memory(MockArgs(), config) == 1
+    assert "missing-objdump" in caplog.text
+    assert "toolchain install may be incomplete" in caplog.text
+
+
+def test_command_idedata_incompatible_toolchain(tmp_path: Path) -> None:
+    """A non-native, non-platformio toolchain errors out cleanly."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    CORE.toolchain = Toolchain.SDK_NRF
+
+    assert command_idedata(MagicMock(), CORE.config) == 1
+
+
 @pytest.mark.parametrize(
     "error",
     [
@@ -7342,6 +7719,49 @@ def test_compile_program_espidf_idedata_none_warns(
     assert "No idedata was generated" in caplog.text
 
 
+def test_native_toolchain_table_serves_every_native_toolchain() -> None:
+    """Every member of NATIVE_TOOLCHAINS has a backend entry; a gap would
+    surface as a targeted EsphomeError on the one affected config, and this
+    pin keeps the table from drifting when a toolchain is added."""
+    from esphome.build_helpers.native import NATIVE_TOOLCHAIN_MODULES
+    from esphome.const import NATIVE_TOOLCHAINS
+
+    assert {tc for _, tc in NATIVE_TOOLCHAIN_MODULES} == set(NATIVE_TOOLCHAINS)
+
+
+def test_native_toolchain_module_missing_backend_raises(tmp_path: Path) -> None:
+    """A native toolchain missing from the backend table is a bug and must
+    fail, not silently degrade to the PlatformIO path."""
+    from esphome.build_helpers import native
+
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.ARDUINO
+    with (
+        patch.dict(native.NATIVE_TOOLCHAIN_MODULES, clear=True),
+        pytest.raises(EsphomeError, match="no native build backend"),
+    ):
+        native.native_backend()
+
+
+def test_command_analyze_memory_unsupported_toolchain(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A hook-less non-PlatformIO toolchain is refused by name, never routed
+    into the PlatformIO branch."""
+    setup_core(platform=PLATFORM_NRF52, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.SDK_NRF
+    mock_write_cpp.return_value = 0
+    mock_compile_program.return_value = 0
+
+    result = command_analyze_memory(MockArgs(), {CONF_ESPHOME: {CONF_NAME: "t"}})
+
+    assert result == 1
+    assert "analyze-memory is not supported" in caplog.text
+
+
 def test_cli_toolchain_skips_the_validated_config_cache(tmp_path: Path) -> None:
     """An explicit --toolchain must run the per-platform validators, so the
     upload/logs fast path becomes a cache miss."""
@@ -7355,6 +7775,29 @@ def test_cli_toolchain_skips_the_validated_config_cache(tmp_path: Path) -> None:
         assert run_esphome(argv) == 2
     mock_cache.assert_not_called()
     mock_read.assert_called_once()
+
+
+def test_upload_using_esptool_native_missing_firmware_raises(
+    tmp_path: Path,
+) -> None:
+    """A stale or absent firmware.bin fails by name instead of flashing air."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(EsphomeError, match="compile the configuration first"):
+        upload_using_esptool(
+            {CONF_ESPHOME: {"platformio_options": {}}}, "/dev/ttyUSB0", None, None
+        )
+
+
+def test_compile_program_unclaimed_native_toolchain_raises(
+    tmp_path: Path,
+) -> None:
+    """A resolved native toolchain no platform backend claims must fail,
+    never fall through to the PlatformIO project path."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.ARDUINO  # esp32 has no arduino-native backend
+    with pytest.raises(EsphomeError, match="no platform backend claimed"):
+        compile_program(MockArgs(), {})
 
 
 def test_cli_toolchain_still_refreshes_the_validated_config_cache(

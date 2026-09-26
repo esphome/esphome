@@ -13,6 +13,8 @@ from esphome.components.esp32 import (
     get_esp32_variant,
     include_builtin_idf_component,
     only_on_variant,
+    require_mbedtls_tls_extras,
+    require_mbedtls_tls_server,
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
@@ -33,12 +35,10 @@ from esphome.const import (
 )
 from esphome.core import (
     CORE,
-    ID,
     CoroPriority,
     TimePeriodMilliseconds,
     coroutine_with_priority,
 )
-from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -108,6 +108,14 @@ def set_sdkconfig_options(config: ConfigType) -> None:
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DIAG", False)
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_ENABLED", True)
+
+    # OpenThread's DTLS commissioner is a TLS server, and its crypto platform
+    # uses AES-CCM and deterministic ECDSA directly. Keep the esp32 component
+    # from trimming them out of mbedTLS.
+    require_mbedtls_tls_server()
+    require_mbedtls_tls_extras(
+        ("CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC")
+    )
 
     if not config.get(CONF_TLV):
         if pan_id := config.get(CONF_PAN_ID):
@@ -318,12 +326,6 @@ async def to_code(config: ConfigType) -> None:
 
 
 # Actions
-OpenThreadComponentPollPeriodAction = openthread_ns.class_(
-    "OpenThreadComponentPollPeriodAction",
-    automation.Action,
-    cg.Parented.template(OpenThreadComponent),
-)
-
 POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
     CONF_POLL_PERIOD,
     cv.Schema(
@@ -337,20 +339,8 @@ POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "openthread.set_poll_period",
-    OpenThreadComponentPollPeriodAction,
     POLL_PERIOD_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_POLL_PERIOD, "apply_poll_period", cg.uint32),
 )
-async def openthread_poll_period_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_POLL_PERIOD], args, cg.uint32)
-    cg.add(var.set_poll_period(template_))
-    return var

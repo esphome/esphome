@@ -1,4 +1,7 @@
 #include "ota_esphome.h"
+#ifdef USE_OTA_ENCRYPTION_PROVISIONED
+#include "esphome/components/api/api_server.h"
+#endif
 #ifdef USE_OTA
 #ifdef USE_OTA_PASSWORD
 #include "esphome/components/sha256/sha256.h"
@@ -26,9 +29,24 @@
 namespace esphome {
 
 static const char *const TAG = "esphome.ota";
+
+#ifdef USE_OTA_ENCRYPTION
+const noise::NoiseContext &ESPHomeOTAComponent::noise_context_() const {
+#ifdef USE_OTA_ENCRYPTION_PROVISIONED
+  // The api server holds the live key; safe mode never constructs it, and then
+  // noise_ctx_ holds the saved key setup() found, if any
+  if (api::global_api_server != nullptr)
+    return api::global_api_server->get_noise_ctx();
+#endif
+  return this->noise_ctx_;
+}
+#endif
 static constexpr uint16_t OTA_BLOCK_SIZE = 8192;
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 20000;  // milliseconds for initial handshake
-static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 90000;       // milliseconds for data transfer
+// Milliseconds for data transfer. Covers the lwIP retransmit run seen in
+// practice for a lost chunk ack (1.5 + 3 + 6 + 12 + 24 + 48 s); the CLI waits
+// longer (espota2.DATA_PHASE_TIMEOUT) so the device is free before it retries
+static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 105000;
 
 // Single-instance pointer — multi-port configs are rejected in final_validate.
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
@@ -42,6 +60,16 @@ extern "C" void esphome_wake_ota_component_any_context() {
 }
 
 void ESPHomeOTAComponent::setup() {
+#ifdef USE_OTA_ENCRYPTION_PROVISIONED
+  // Safe mode never constructs the api server, so read the key it saved
+  noise::psk_t psk;
+  if (api::global_api_server == nullptr && api::load_saved_noise_psk(psk)) {
+    this->saved_psk_ = RAMAllocator<noise::psk_t>().make_unique(psk);
+    if (this->saved_psk_ != nullptr) {
+      this->noise_ctx_.set_psk(this->saved_psk_->data());
+    }
+  }
+#endif
   this->server_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
   if (this->server_ == nullptr) {
     this->server_failed_(LOG_STR("creation"));
@@ -97,16 +125,28 @@ void ESPHomeOTAComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Over-The-Air updates:\n"
                 "  Address: %s:%u\n"
-                "  Version: %d",
-                network::get_use_address_to(addr_buf), this->port_, USE_OTA_VERSION);
+                "  Version: %d"
+#ifdef USE_OTA_ENCRYPTION
+                "\n  Encryption: %s"
+#endif
+                ,
+                network::get_use_address_to(addr_buf), this->port_, USE_OTA_VERSION
+#ifdef USE_OTA_ENCRYPTION_REQUIRED
+                ,
+                LOG_STR_LITERAL("required")
+#elif defined(USE_OTA_ENCRYPTION_PROVISIONED)
+                // A runtime provisioned key may not exist yet
+                ,
+                this->noise_context_().has_psk() ? LOG_STR_LITERAL("offered, plaintext accepted")
+                                                 : LOG_STR_LITERAL("offered once the api key is provisioned")
+#elif defined(USE_OTA_ENCRYPTION)
+                ,
+                LOG_STR_LITERAL("offered, plaintext accepted")
+#endif
+  );
 #ifdef USE_OTA_PASSWORD
   if (!this->password_.empty()) {
     ESP_LOGCONFIG(TAG, "  Password configured");
-  }
-#endif
-#ifdef USE_OTA_ENCRYPTION
-  if (this->noise_ctx_.has_psk()) {
-    ESP_LOGCONFIG(TAG, "  Encryption configured");
   }
 #endif
 #ifdef USE_OTA_PARTITIONS
@@ -154,9 +194,21 @@ static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_NOISE = 0x08;
+// Noise needs the extended protocol: the prologue binds the 2-byte feature ack
+static constexpr uint8_t CLIENT_NOISE_FEATURES =
+    CLIENT_FEATURE_SUPPORTS_NOISE | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_NOISE = 0x04;
+
+inline bool ESPHomeOTAComponent::extended_proto_() const {
+#ifdef USE_OTA_ENCRYPTION_REQUIRED
+  // FEATURE_READ already refused every client without the extended protocol
+  return true;
+#else
+  return (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL) != 0;
+#endif
+}
 
 void ESPHomeOTAComponent::handle_handshake_() {
   /// Handle the OTA handshake and authentication.
@@ -241,12 +293,9 @@ void ESPHomeOTAComponent::handle_handshake_() {
       this->ota_features_ = this->handshake_buf_[0];
       ESP_LOGV(TAG, "Features: 0x%02X", this->ota_features_);
 
-#ifdef USE_OTA_ENCRYPTION
-      // Fail closed: with a PSK configured the client must negotiate encryption
-      // (which requires the extended protocol); refuse plaintext uploads.
-      static constexpr uint8_t NOISE_REQUIRED_FEATURES =
-          CLIENT_FEATURE_SUPPORTS_NOISE | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL;
-      if (this->noise_ctx_.has_psk() && (this->ota_features_ & NOISE_REQUIRED_FEATURES) != NOISE_REQUIRED_FEATURES) {
+#ifdef USE_OTA_ENCRYPTION_REQUIRED
+      // `ota: encryption:` requires the client to negotiate encryption
+      if ((this->ota_features_ & CLIENT_NOISE_FEATURES) != CLIENT_NOISE_FEATURES) {
         ESP_LOGW(TAG, "Client does not support encryption");
         this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_ENCRYPTION_REQUIRED);
         return;
@@ -261,18 +310,21 @@ void ESPHomeOTAComponent::handle_handshake_() {
       // Compose the feature-ack response. When the client negotiates the extended protocol we emit
       // a 2-byte response (marker + server feature flags); otherwise we emit the single-byte
       // legacy response.
-      this->extended_proto_ = (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL) != 0;
-      if (this->extended_proto_) {
+      if (this->extended_proto_()) {
         static_assert(HANDSHAKE_BUF_SIZE >= 2, "handshake_buf_ must hold the 2-byte extended-protocol feature ack");
         this->handshake_buf_[0] = ota::OTA_RESPONSE_FEATURE_FLAGS;
         this->handshake_buf_[1] = (supports_compression ? SERVER_FEATURE_SUPPORTS_COMPRESSION : 0);
 #ifdef USE_OTA_PARTITIONS
         this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS;
 #endif
-#ifdef USE_OTA_ENCRYPTION
-        if (this->noise_ctx_.has_psk()) {
+#ifdef USE_OTA_ENCRYPTION_PROVISIONED
+        // A runtime provisioned key may not exist yet
+        if (this->noise_context_().has_psk()) {
           this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_NOISE;
         }
+#elif defined(USE_OTA_ENCRYPTION)
+        // A yaml key always exists: validation rejects the all-zeros key
+        this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_NOISE;
 #endif
       } else {
         this->handshake_buf_[0] =
@@ -284,15 +336,15 @@ void ESPHomeOTAComponent::handle_handshake_() {
     case OTAState::FEATURE_ACK: {
       static constexpr size_t STANDARD_PROTO_ACK_SIZE = 1;
       static constexpr size_t EXTENDED_PROTO_ACK_SIZE = 2;
-      const size_t ack_size = this->extended_proto_ ? EXTENDED_PROTO_ACK_SIZE : STANDARD_PROTO_ACK_SIZE;
+      const size_t ack_size = this->extended_proto_() ? EXTENDED_PROTO_ACK_SIZE : STANDARD_PROTO_ACK_SIZE;
       if (!this->try_write_(ack_size, LOG_STR("ack feature"))) {
         return;
       }
 #ifdef USE_OTA_ENCRYPTION
-      // With a PSK configured the rest of the session runs inside the noise
-      // transport; the client sends the first handshake frame next, so there
-      // is nothing to do until data arrives.
-      if (this->noise_ctx_.has_psk()) {
+      // Latch the offer actually sent: a key activating between the two
+      // states must not start a session the client never expects
+      if ((this->handshake_buf_[1] & SERVER_FEATURE_SUPPORTS_NOISE) != 0 &&
+          (this->ota_features_ & CLIENT_NOISE_FEATURES) == CLIENT_NOISE_FEATURES) {
         // handshake_buf_ still holds the feature ack composed above; a
         // would-block re-entry lands here without rebuilding it
         if (!this->noise_start_session_(this->handshake_buf_[1])) {
@@ -407,14 +459,19 @@ void ESPHomeOTAComponent::handle_data_() {
   tv.tv_usec = 0;
   this->client_->setsockopt(SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
   this->client_->setsockopt(SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-  this->client_->setblocking(true);
+  if (this->client_->setblocking(true) != 0) {
+    this->log_socket_error_(LOG_STR("blocking"));
+    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+  }
 
   // Acknowledge auth OK - 1 byte
   this->data_write_byte_(ota::OTA_RESPONSE_AUTH_OK);
 
-  if (this->extended_proto_) {
+  if (this->extended_proto_()) {
     // Read ota type, 1 byte
     if (!this->data_readall_(buf, 1)) {
+      if (this->client_left_before_start_())
+        return;
       this->log_read_error_(LOG_STR("OTA type"));
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
@@ -424,6 +481,9 @@ void ESPHomeOTAComponent::handle_data_() {
 
   // Read size, 4 bytes MSB first
   if (!this->data_readall_(buf, 4)) {
+    // The first request byte is the type on the extended protocol; a close after it was a cut-off request
+    if (!this->extended_proto_() && this->client_left_before_start_())
+      return;
     this->log_read_error_(LOG_STR("size"));
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
@@ -490,6 +550,8 @@ void ESPHomeOTAComponent::handle_data_() {
       // there is no would-block retry here and failures are already logged.
       read = this->noise_read_data_(buf, requested);
       if (read <= 0) {
+        if (this->remote_closed_)
+          this->log_remote_closed_(LOG_STR("data"));
         error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
         goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
       }
@@ -614,7 +676,11 @@ bool ESPHomeOTAComponent::readall_(uint8_t *buf, size_t len) {
         return false;
       }
     } else if (read == 0) {
-      ESP_LOGW(TAG, "Remote closed");
+      // A partial message is a cut-off request, not a clean close; the caller reports the clean one
+      this->remote_closed_ = at == 0;
+      if (at > 0) {
+        ESP_LOGW(TAG, "Remote closed after %u of %zu bytes", (unsigned) at, len);
+      }
       return false;
     } else {
       at += read;
@@ -660,7 +726,22 @@ void ESPHomeOTAComponent::log_socket_error_(const LogString *msg) {
   ESP_LOGW(TAG, "Socket %s: errno %d", LOG_STR_ARG(msg), errno);
 }
 
-void ESPHomeOTAComponent::log_read_error_(const LogString *what) { ESP_LOGW(TAG, "Read %s failed", LOG_STR_ARG(what)); }
+bool ESPHomeOTAComponent::client_left_before_start_() {
+  // Key probes and scanners hang up right after the handshake; nothing started, so no error status or callback
+  if (!this->remote_closed_)
+    return false;
+  ESP_LOGD(TAG, "Client left after the handshake");
+  this->cleanup_connection_();
+  return true;
+}
+
+void ESPHomeOTAComponent::log_read_error_(const LogString *what) {
+  if (this->remote_closed_) {
+    this->log_remote_closed_(what);
+    return;
+  }
+  ESP_LOGW(TAG, "Read %s failed", LOG_STR_ARG(what));
+}
 
 void ESPHomeOTAComponent::log_start_(const LogString *phase) {
   char peername[socket::SOCKADDR_STR_LEN];
@@ -741,6 +822,7 @@ void ESPHomeOTAComponent::cleanup_connection_() {
   this->handshake_buf_pos_ = 0;
   this->ota_state_ = OTAState::IDLE;
   this->ota_features_ = 0;
+  this->remote_closed_ = false;
   this->backend_ = nullptr;
 #ifdef USE_OTA_PASSWORD
   this->cleanup_auth_();
@@ -802,7 +884,14 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
     const size_t hex_size = hasher.get_size() * 2;
     const size_t nonce_len = hasher.get_size() / 4;
     const size_t auth_buf_size = 1 + 3 * hex_size;
-    this->auth_buf_ = std::make_unique<uint8_t[]>(auth_buf_size);
+    // Internal RAM first: 128 of these bytes go straight into the hardware SHA engine
+    this->auth_buf_ =
+        RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::PREFER_INTERNAL).make_unique_array_for_overwrite(auth_buf_size);
+    if (!this->auth_buf_) {
+      this->log_auth_warning_(LOG_STR("No memory"));
+      this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_UNKNOWN);
+      return false;
+    }
     this->auth_buf_pos_ = 0;
 
     char *buf = reinterpret_cast<char *>(this->auth_buf_.get() + 1);

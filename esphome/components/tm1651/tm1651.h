@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
@@ -54,46 +53,6 @@ class TM1651Display final : public Component {
   bool display_on_{true};
   uint8_t brightness_{};
   uint8_t level_{0};
-};
-
-template<typename... Ts> class SetBrightnessAction final : public Action<Ts...>, public Parented<TM1651Display> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, brightness)
-
-  void play(const Ts &...x) override {
-    auto brightness = this->brightness_.value(x...);
-    this->parent_->set_brightness(brightness);
-  }
-};
-
-template<typename... Ts> class SetLevelAction final : public Action<Ts...>, public Parented<TM1651Display> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, level)
-
-  void play(const Ts &...x) override {
-    auto level = this->level_.value(x...);
-    this->parent_->set_level(level);
-  }
-};
-
-template<typename... Ts> class SetLevelPercentAction final : public Action<Ts...>, public Parented<TM1651Display> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, level_percent)
-
-  void play(const Ts &...x) override {
-    auto level_percent = this->level_percent_.value(x...);
-    this->parent_->set_level_percent(level_percent);
-  }
-};
-
-template<typename... Ts> class TurnOnAction final : public Action<Ts...>, public Parented<TM1651Display> {
- public:
-  void play(const Ts &...x) override { this->parent_->turn_on(); }
-};
-
-template<typename... Ts> class TurnOffAction final : public Action<Ts...>, public Parented<TM1651Display> {
- public:
-  void play(const Ts &...x) override { this->parent_->turn_off(); }
 };
 
 }  // namespace esphome::tm1651
