@@ -286,14 +286,33 @@ class TestCheckAndInstall:
         assert mock_nrf52_ops.run_command_ok.call_count == 2
         assert (nrf52_dirs.framework / ".ready").exists()
 
-    def test_failed_resume_starts_over(
+    def test_failed_resume_keeps_the_download_once(
         self,
         nrf52_dirs: SimpleNamespace,
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
-        """A resumed update that fails wipes the workspace and clones clean."""
+        """A first failed resume keeps what was fetched (the network likely
+        dropped again) and is retried on the next build."""
         _mark_venv_ready(nrf52_dirs.python_env)
         (nrf52_dirs.framework / ".west").mkdir()
+        mock_nrf52_ops.run_command_ok.return_value = False
+
+        with pytest.raises(EsphomeError, match="Can't resume"):
+            check_and_install()
+
+        wiped = [c.args[0] for c in mock_nrf52_ops.rmdir.call_args_list]
+        assert nrf52_dirs.framework not in wiped
+        assert (nrf52_dirs.framework / ".resume_failed").exists()
+
+    def test_second_failed_resume_starts_over(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """A resume failing twice in a row wipes the workspace and clones clean."""
+        _mark_venv_ready(nrf52_dirs.python_env)
+        (nrf52_dirs.framework / ".west").mkdir()
+        (nrf52_dirs.framework / ".resume_failed").touch()
         # resumed update fails; clean init, update and zephyr reqs succeed
         mock_nrf52_ops.run_command_ok.side_effect = [False, True, True, True]
 
@@ -305,6 +324,19 @@ class TestCheckAndInstall:
         assert "update" in commands[0]
         assert "init" in commands[1]
         assert "update" in commands[2]
+
+    def test_successful_resume_clears_the_failure_marker(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        _mark_venv_ready(nrf52_dirs.python_env)
+        (nrf52_dirs.framework / ".west").mkdir()
+        (nrf52_dirs.framework / ".resume_failed").touch()
+
+        check_and_install()
+
+        assert not (nrf52_dirs.framework / ".resume_failed").exists()
 
     def test_requirements_install_failure_raises(
         self,

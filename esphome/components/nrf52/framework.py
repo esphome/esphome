@@ -267,14 +267,24 @@ def _install_framework(
 
     A download cut short after ``west init`` leaves the workspace behind;
     rerunning ``west update`` there only fetches what is missing, so it resumes
-    instead of cloning about 2 GB again. A resume that fails starts over clean.
+    instead of cloning about 2 GB again. A resume that fails keeps what was
+    fetched (a flaky network is the likely cause) and is retried on the next
+    build; only a second failure in a row starts over clean.
     """
+    resume_failed = framework_path / ".resume_failed"
     if (framework_path / ".west").is_dir() and not (framework_path / ".ready").exists():
         _LOGGER.info("Resuming the nRF Connect SDK %s download ...", version)
         if _west_update(env_python_path, framework_path):
+            resume_failed.unlink(missing_ok=True)
             return
+        if not resume_failed.exists():
+            resume_failed.touch()
+            raise EsphomeError(
+                f"Can't resume the nRF Connect SDK {version} download; "
+                "the next build retries it"
+            )
         _LOGGER.warning(
-            "Resuming failed; downloading nRF Connect SDK %s again", version
+            "Resuming failed again; downloading nRF Connect SDK %s anew", version
         )
     rmdir(framework_path, msg=f"Clean up {version} framework environment")
     _LOGGER.info("Initializing nRF Connect SDK %s ...", version)
