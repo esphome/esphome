@@ -1,0 +1,39 @@
+seesaw:
+  - id: ss_id
+    address: 0x30
+
+sensor:
+  - platform: seesaw
+    id: encoder
+    type: encoder
+    name: "Seesaw encoder"
+    number: 1
+  - platform: seesaw
+    id: temp
+    type: temperature
+  - platform: seesaw
+    id: touch
+    type: touch
+    channel: 0
+  - platform: seesaw
+    seesaw_id: ss_id
+    id: slider
+    type: adc
+    pin: 14
+
+binary_sensor:
+  - platform: gpio
+    id: button
+    name: "Seesaw encoder button"
+    pin:
+      seesaw: ss_id
+      number: 2
+      mode: input_pullup
+      inverted: true
+
+light:
+  - platform: seesaw
+    id: pixel
+    name: "Seesaw neopixel LED"
+    pin: 14
+    num_leds: 4
