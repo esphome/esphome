@@ -18,6 +18,7 @@ from esphome.components.sendspin import (
     request_color_support,
     request_visualizer_support,
 )
+import esphome.config_validation as cv
 from esphome.core import CORE
 
 ROLES = pytest.mark.parametrize(
@@ -75,3 +76,26 @@ def test_role_enabled_on_request(
 
     assert define in _defines()
     assert sdkconfig_option not in _sdkconfig()
+
+
+def test_visualizer_role_rejects_a_second_consumer() -> None:
+    """The visualizer role has a single consumer, so a second request fails validation."""
+    request_visualizer_support()
+
+    with pytest.raises(
+        cv.Invalid,
+        match="Only one component can consume the sendspin visualizer role",
+    ):
+        request_visualizer_support()
+
+
+def test_color_role_accepts_several_consumers(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The hub fans the color role out, so any number of components may request it."""
+    request_color_support()
+    request_color_support()
+    generate_main(component_config_path("hub_only.yaml"))
+
+    assert "USE_SENDSPIN_COLOR" in _defines()

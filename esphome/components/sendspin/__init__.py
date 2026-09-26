@@ -154,8 +154,14 @@ def request_player_support() -> None:
 
 
 def request_visualizer_support() -> None:
-    """Request visualizer role support for Sendspin."""
-    _get_data().visualizer_support = True
+    """Request visualizer role support for Sendspin.
+
+    The visualizer role has a single consumer, so only one component may request it.
+    """
+    data = _get_data()
+    if data.visualizer_support:
+        raise cv.Invalid("Only one component can consume the sendspin visualizer role")
+    data.visualizer_support = True
 
 
 def register_artwork_preference(config: ConfigType) -> int:
