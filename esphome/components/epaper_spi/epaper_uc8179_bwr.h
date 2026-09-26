@@ -13,13 +13,14 @@ namespace esphome::epaper_spi {
  * Color scheme: Black, White, Red (BWR)
  * Buffer layout: 1 bit per pixel, separate planes
  * - Buffer first half: Black/White plane (0=black, 1=white)
- * - Buffer second half: Red plane (polarity depends on invert_red setting)
+ * - Buffer second half: Red plane (1=red, 0=no red; 0=red, 1=no red when invert_red is set)
  * - Total buffer: width * height / 4 bytes (2 * width * height / 8)
+ * Both planes are sent as is.
  *
  * Commands:
+ * - 0x04: Power on
  * - 0x10: B/W data transmission
  * - 0x13: Red data transmission
- * - 0x04: Power on
  * - 0x12: Display refresh
  * - 0x02: Power off
  * - 0x07: Deep sleep (with 0xA5 parameter)
@@ -34,7 +35,6 @@ class EPaperUC8179BWR : public EPaperBase {
   }
 
   void fill(Color color) override;
-  void loop() override;
 
  protected:
   bool initialise(bool partial) override;
@@ -45,7 +45,7 @@ class EPaperUC8179BWR : public EPaperBase {
   void draw_pixel_at(int x, int y, Color color) override;
   bool transfer_data() override;
 
-  bool invert_red_{false};
+  bool invert_red_;
 };
 
 }  // namespace esphome::epaper_spi

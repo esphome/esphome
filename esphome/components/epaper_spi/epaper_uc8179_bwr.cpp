@@ -1,4 +1,7 @@
 #include "epaper_uc8179_bwr.h"
+
+#include <algorithm>
+
 #include "colorconv.h"
 #include "esphome/core/log.h"
 
@@ -9,9 +12,7 @@ static constexpr const char *const TAG = "epaper_spi.uc8179_bwr";
 bool EPaperUC8179BWR::initialise(bool partial) {
   EPaperBase::initialise(partial);  // send the model init sequence
   ESP_LOGV(TAG, "Power on");
-  // POWER ON must precede the waveform/mode registers and the data transfer
-  // (the original driver powers on and busy-waits before writing them).
-  // The state machine busy-waits before entering TRANSFER_DATA.
+  // Power on before the data transfer; the state machine busy-waits for it before TRANSFER_DATA
   this->command(0x04);
   // Give the busy line time to assert before the state machine polls it
   this->next_delay_ = 100;
@@ -38,10 +39,8 @@ void HOT EPaperUC8179BWR::draw_pixel_at(int x, int y, Color color) {
   }
 
   // Update red plane (second half of buffer)
-  // invert_red_: when true, 0 = red (required by some panels with DDX=11)
-  //              when false, 1 = red (standard polarity)
-  bool red_active = (bwr == BwrColor::BWR_COLOR_RED) != this->invert_red_;
-  if (red_active) {
+  // 1 = red, or 0 = red when invert_red_ is set (as panels with DDX=11 need)
+  if ((bwr == BwrColor::BWR_COLOR_RED) != this->invert_red_) {
     this->buffer_[red_offset + pos] |= bit;
   } else {
     this->buffer_[red_offset + pos] &= ~bit;
@@ -50,7 +49,7 @@ void HOT EPaperUC8179BWR::draw_pixel_at(int x, int y, Color color) {
 
 void EPaperUC8179BWR::fill(Color color) {
   if (this->get_clipping().is_set()) {
-    esphome::epaper_spi::EPaperBase::fill(color);
+    EPaperBase::fill(color);
     return;
   }
 
@@ -58,43 +57,25 @@ void EPaperUC8179BWR::fill(Color color) {
   auto bwr =
       color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED);
 
-  const uint8_t red_off = this->invert_red_ ? 0xFF : 0x00;
-  const uint8_t red_on = this->invert_red_ ? 0x00 : 0xFF;
-
+  // B/W plane: 0 = black, 1 = white. Red plane: see draw_pixel_at().
+  uint8_t bw_byte = 0xFF;
+  bool red = false;
   if (bwr == BwrColor::BWR_COLOR_BLACK) {
-    for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[i] = 0x00;
-    for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[half_buffer + i] = red_off;
+    bw_byte = 0x00;
   } else if (bwr == BwrColor::BWR_COLOR_RED) {
-    for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[i] = 0x00;
-    for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[half_buffer + i] = red_on;
-  } else {
-    for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[i] = 0xFF;
-    for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[half_buffer + i] = red_off;
+    bw_byte = 0x00;
+    red = true;
   }
+  const uint8_t red_byte = red != this->invert_red_ ? 0xFF : 0x00;
+  for (size_t i = 0; i < half_buffer; i++)
+    this->buffer_[i] = bw_byte;
+  for (size_t i = 0; i < half_buffer; i++)
+    this->buffer_[half_buffer + i] = red_byte;
 
   this->x_high_ = this->width_;
   this->y_high_ = this->height_;
   this->x_low_ = 0;
   this->y_low_ = 0;
-}
-
-void EPaperUC8179BWR::loop() {
-  if (this->waiting_for_idle_) {
-    if (this->state_ == EPaperState::POWER_OFF || this->state_ == EPaperState::DEEP_SLEEP) {
-      // BWR refresh takes ~30s but the display refreshes autonomously after
-      // the refresh command (0x12). Don't wait - just proceed with shutdown.
-      // The old waveshare driver always timed out here (~1s) and moved on
-      // otherwise we're stuck waiting for the busy pin to go idle, which never happens after refresh.
-      this->waiting_for_idle_ = false;
-    }
-  }
-  EPaperBase::loop();
 }
 
 bool HOT EPaperUC8179BWR::transfer_data() {
@@ -104,46 +85,22 @@ bool HOT EPaperUC8179BWR::transfer_data() {
 
   uint8_t bytes_to_send[MAX_TRANSFER_SIZE];
 
-  // First: send B/W data (command 0x10)
-  if (this->current_data_index_ < half_buffer) {
+  // The B/W plane (first half) is sent with 0x10, then the red plane (second half) with 0x13
+  while (this->current_data_index_ < buffer_length) {
     if (this->current_data_index_ == 0) {
       ESP_LOGV(TAG, "Sending B/W data (0x10)");
       this->command(0x10);
-    }
-
-    this->start_data_();
-    while (this->current_data_index_ < half_buffer) {
-      size_t bytes_to_copy = std::min(MAX_TRANSFER_SIZE, half_buffer - this->current_data_index_);
-
-      for (size_t i = 0; i < bytes_to_copy; i++) {
-        bytes_to_send[i] = this->buffer_[this->current_data_index_ + i];
-      }
-      this->write_array(bytes_to_send, bytes_to_copy);
-      this->current_data_index_ += bytes_to_copy;
-
-      if (millis() - start_time > MAX_TRANSFER_TIME) {
-        this->disable();
-        return false;
-      }
-    }
-    this->disable();
-  }
-
-  // Second: send Red data (command 0x13)
-  if (this->current_data_index_ < buffer_length) {
-    if (this->current_data_index_ == half_buffer) {
+    } else if (this->current_data_index_ == half_buffer) {
       ESP_LOGV(TAG, "Sending Red data (0x13)");
       this->command(0x13);
     }
+    const size_t plane_end = this->current_data_index_ < half_buffer ? half_buffer : buffer_length;
 
     this->start_data_();
-    while (this->current_data_index_ < buffer_length) {
-      size_t remaining = buffer_length - this->current_data_index_;
-      size_t bytes_to_copy = std::min(MAX_TRANSFER_SIZE, remaining);
-
-      size_t buffer_offset = this->current_data_index_;
+    while (this->current_data_index_ < plane_end) {
+      const size_t bytes_to_copy = std::min(MAX_TRANSFER_SIZE, plane_end - this->current_data_index_);
       for (size_t i = 0; i < bytes_to_copy; i++) {
-        bytes_to_send[i] = this->buffer_[buffer_offset + i];
+        bytes_to_send[i] = this->buffer_[this->current_data_index_ + i];
       }
       this->write_array(bytes_to_send, bytes_to_copy);
       this->current_data_index_ += bytes_to_copy;
@@ -161,8 +118,7 @@ bool HOT EPaperUC8179BWR::transfer_data() {
 }
 
 void EPaperUC8179BWR::power_on() {
-  // Power-on is sent at the end of initialise() instead, because the
-  // waveform/mode registers and the data transfer must follow it
+  // Power-on is sent at the end of initialise() instead, so that it comes before the data transfer
 }
 
 void EPaperUC8179BWR::refresh_screen(bool /* partial */) {
@@ -172,8 +128,8 @@ void EPaperUC8179BWR::refresh_screen(bool /* partial */) {
 }
 
 void EPaperUC8179BWR::power_off() {
-  // UC8179: skip power off command (0x02) - deep_sleep handles shutdown.
-  // Sending 0x02 causes the busy pin to remain asserted, blocking the state machine.
+  ESP_LOGV(TAG, "Power off");
+  this->command(0x02);
 }
 
 void EPaperUC8179BWR::deep_sleep() {
