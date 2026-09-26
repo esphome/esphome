@@ -28,7 +28,13 @@ XiaomiBodyScaleS400::XiaomiBodyScaleS400(uint64_t address, const char *bindkey) 
 }
 
 void XiaomiBodyScaleS400::dump_config() {
-  ESP_LOGCONFIG(TAG, "Xiaomi Body Composition Scale S400");
+  uint8_t mac[MAC_ADDRESS_SIZE];
+  ble_device_base::uint64_to_mac_msb_first(this->address_, mac);
+  char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  ESP_LOGCONFIG(TAG,
+                "Xiaomi Body Composition Scale S400\n"
+                "  MAC Address: %s",
+                format_mac_addr_upper(mac, mac_buf));
   LOG_SENSOR("  ", "Weight", this->weight_);
   LOG_SENSOR("  ", "Impedance Low (50 kHz)", this->impedance_low_);
   LOG_SENSOR("  ", "Impedance High (250 kHz)", this->impedance_high_);
