@@ -69,11 +69,10 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
-from .framework import (  # noqa: F401
+from .framework import (
     check_and_install,
     get_build_env,
     get_build_paths,
-    include_west_project,
     setup_platformio_python_env,
 )
 

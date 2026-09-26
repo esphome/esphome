@@ -69,6 +69,10 @@ CONFIG_SETTINGS=y
 #zigbee end
 """
 
+# The west projects behind the _TIDY_PRJ_CONF subsystems beyond the defaults;
+# keep in sync with it
+_TIDY_WEST_PROJECTS = ("mcuboot", "tinycrypt", "zcbor")
+
 
 def _tidy_cmakelists(library_include_dirs: str) -> str:
     # The defines a real ESPHome nrf52 build puts on the app target.
@@ -179,8 +183,7 @@ def _setup_core(work_dir: Path) -> None:
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         RECOMMENDED_SDK_NRF_VERSION
     )
-    # The west projects behind the _TIDY_PRJ_CONF subsystems beyond the defaults
-    for project in ("mcuboot", "tinycrypt", "zcbor"):
+    for project in _TIDY_WEST_PROJECTS:
         include_west_project(project)
 
 
