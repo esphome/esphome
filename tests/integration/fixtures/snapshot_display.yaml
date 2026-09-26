@@ -14,6 +14,47 @@ api:
             id: snapshot_display
             filename: !lambda return name;
 
+    - action: take_animation
+      variables:
+        name: string
+      then:
+        - snapshot.take:
+            id: snapshot_display
+            filename: !lambda return name;
+            frames: 5
+            frame_rate: 20fps
+
+    - action: take_noise_snapshot
+      variables:
+        name: string
+      then:
+        - snapshot.take:
+            id: noise_display
+            filename: !lambda return name;
+
+    # A busy picture needs more compression codes than a GIF dictionary holds, so recording it makes
+    # the encoder widen its codes and start the dictionary over.
+    - action: take_noise_animation
+      variables:
+        name: string
+      then:
+        - snapshot.take:
+            id: noise_display
+            filename: !lambda return name;
+            frames: 3
+            frame_rate: 20fps
+
+    # Slow enough that a second request arrives while this one is still recording.
+    - action: take_slow_animation
+      variables:
+        name: string
+      then:
+        - snapshot.take:
+            id: snapshot_display
+            filename: !lambda return name;
+            frames: 3
+            frame_rate: 2fps
+
 logger:
   level: DEBUG
 
@@ -26,3 +67,23 @@ display:
     dimensions:
       width: 101
       height: 64
+
+  # Every pixel is one of 256 colours picked by a hash of its position, so the picture is
+  # effectively random but fits a GIF palette exactly.
+  - platform: snapshot
+    id: noise_display
+    update_interval: 1s
+    dimensions:
+      width: 200
+      height: 150
+    lambda: |-
+      for (int y = 0; y != it.get_height(); y++) {
+        for (int x = 0; x != it.get_width(); x++) {
+          uint32_t h = static_cast<uint32_t>(x) * 73856093u ^ static_cast<uint32_t>(y) * 19349663u;
+          h ^= h >> 13;
+          h *= 0x5bd1e995u;
+          h ^= h >> 15;
+          uint8_t c = h & 0xFF;
+          it.draw_pixel_at(x, y, Color(c & 0xE0, (c << 3) & 0xE0, (c << 6) & 0xC0));
+        }
+      }
