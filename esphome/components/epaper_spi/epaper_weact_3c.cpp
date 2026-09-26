@@ -73,11 +73,6 @@ void EPaperWeAct3C::fill(Color color) {
   }
 }
 
-void EPaperWeAct3C::clear() {
-  // Clear buffer to white, just like real paper.
-  this->fill(COLOR_ON);
-}
-
 void EPaperWeAct3C::set_window_() {
   // For full screen refresh, we always start from (0,0)
   // The y_low_/y_high_ values track the dirty region for optimization,
