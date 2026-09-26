@@ -142,7 +142,7 @@ TEST(HoermannHcpTextSensorTest, GivesUpAfterThreeAttemptsEach) {
     door.identity_asked_at_ -= 31000;
   }
   EXPECT_EQ(status_poll(door)[1], 0x0301);
-  EXPECT_EQ(door.identity_request_, 0);
+  EXPECT_EQ(door.identity_request_(), 0);
 }
 
 // A first half left behind by a serial number that never completed is not shown.
@@ -194,7 +194,7 @@ TEST(HoermannHcpTextSensorTest, FinishedExchangeStaysFinished) {
 
   door.identity_asked_at_ -= 31000;
   EXPECT_EQ(status_poll(door)[1], 0x0301);
-  EXPECT_EQ(door.identity_request_, 0);
+  EXPECT_EQ(door.identity_request_(), 0);
 }
 
 // The text ends at the first byte that is not printable. 0xFF is below the printable range where char is signed,
@@ -222,7 +222,7 @@ TEST(HoermannHcpTextSensorTest, UnusableSerialHalvesAreNotKept) {
     EXPECT_EQ(transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, SERIAL, 12)[1], 0x04FD);
     transfer(door, 0x06, SUB_SERIAL, SERIAL + 14, 12);
     EXPECT_EQ(fixture.serial_shown(), "");
-    EXPECT_EQ(door.identity_request_, 0x05);
+    EXPECT_EQ(door.identity_request_(), 0x05);
   }
   {
     IdentityFixture fixture;
@@ -231,7 +231,7 @@ TEST(HoermannHcpTextSensorTest, UnusableSerialHalvesAreNotKept) {
     transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, SERIAL, 14);
     transfer(door, 0x06, SUB_SERIAL, SERIAL + 14, 10);
     EXPECT_EQ(fixture.serial_shown(), "");
-    EXPECT_EQ(door.identity_request_, 0x05);
+    EXPECT_EQ(door.identity_request_(), 0x05);
   }
 }
 
@@ -243,7 +243,7 @@ TEST(HoermannHcpTextSensorTest, SerialNumberInOneFrameThenTheFirmwareVersion) {
   request_serial(door);
   const char one_frame[12] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', 'B', '1', 0};
   EXPECT_EQ(transfer(door, 0x05, SUB_SERIAL, one_frame, 12)[1], 0x04FD);
-  EXPECT_EQ(door.identity_request_, 0x06);
+  EXPECT_EQ(door.identity_request_(), 0x06);
   EXPECT_EQ(fixture.serial_shown(), "123456789B1");
   auto answer = status_poll(door, 0x06);
   EXPECT_EQ(answer[1], 0x0322);
@@ -263,7 +263,7 @@ TEST(HoermannHcpTextSensorTest, ExchangeWithTheFrameSizesOfAB1) {
   const char zeros[12] = {};
   EXPECT_THAT(transfer(door, 0x07, SUB_FIRMWARE, zeros, 12, 2), ::testing::ElementsAre(0x0700, 0x04FD));
 
-  EXPECT_EQ(door.identity_request_, 0);
+  EXPECT_EQ(door.identity_request_(), 0);
   EXPECT_EQ(fixture.serial_shown(), "123456789B1");
   EXPECT_EQ(fixture.version_shown(), "");
   EXPECT_EQ(status_poll(door, 0x08)[1], 0x0301);
@@ -275,7 +275,7 @@ TEST(HoermannHcpTextSensorTest, TheValueNotAskedForIsNotKept) {
   auto &door = fixture.door;
   request_serial(door);
   EXPECT_EQ(transfer(door, 0x05, SUB_FIRMWARE, FIRMWARE, 12)[1], 0x04FD);
-  EXPECT_EQ(door.identity_request_, 0x05);
+  EXPECT_EQ(door.identity_request_(), 0x05);
   EXPECT_EQ(fixture.version_shown(), "");
 
   send_serial(door);
@@ -284,7 +284,7 @@ TEST(HoermannHcpTextSensorTest, TheValueNotAskedForIsNotKept) {
   const char other[14] = {'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z'};
   EXPECT_EQ(transfer(door, FIRST_HALF | 0x08, SUB_SERIAL, other, 14)[1], 0x04FD);
   EXPECT_EQ(transfer(door, 0x09, SUB_SERIAL, other, 12)[1], 0x04FD);
-  EXPECT_EQ(door.identity_request_, 0x06);
+  EXPECT_EQ(door.identity_request_(), 0x06);
   EXPECT_EQ(fixture.serial_shown(), SERIAL);
 }
 
@@ -296,7 +296,7 @@ TEST(HoermannHcpTextSensorTest, ATransferBeforeTheRequestIsNotKept) {
   status_poll(door);
   const char one_frame[12] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', 'B', '1', 0};
   EXPECT_EQ(transfer(door, 0x04, SUB_SERIAL, one_frame, 12)[1], 0x04FD);
-  EXPECT_EQ(door.identity_request_, 0x05);
+  EXPECT_EQ(door.identity_request_(), 0x05);
   EXPECT_EQ(fixture.serial_shown(), "");
   EXPECT_EQ(status_poll(door, 0x05)[1], 0x0322);
 }
@@ -309,7 +309,7 @@ TEST(HoermannHcpTextSensorTest, ASecondHalfIsNeverTakenForTheWholeNumber) {
   transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, SERIAL, 12);
   transfer(door, 0x06, SUB_SERIAL, SERIAL + 14, 12);
   EXPECT_EQ(fixture.serial_shown(), "");
-  EXPECT_EQ(door.identity_request_, 0x05);
+  EXPECT_EQ(door.identity_request_(), 0x05);
 }
 
 // A serial number without any text at its start is not shown but logged, in one frame or in two halves. The
@@ -322,7 +322,7 @@ TEST(HoermannHcpTextSensorTest, SerialNumberThatIsNotTextIsLoggedNotShown) {
     request_serial(door);
     transfer(door, 0x05, SUB_SERIAL, zeros, 12);
     EXPECT_TRUE(door.serial_unreadable_);  // kept for the log
-    EXPECT_EQ(door.identity_request_, 0x06);
+    EXPECT_EQ(door.identity_request_(), 0x06);
     EXPECT_EQ(fixture.serial_shown(), "");
     EXPECT_FALSE(door.serial_unreadable_);  // logged once
   }
@@ -333,7 +333,7 @@ TEST(HoermannHcpTextSensorTest, SerialNumberThatIsNotTextIsLoggedNotShown) {
     transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, zeros, 14);
     transfer(door, 0x06, SUB_SERIAL, zeros, 12);
     EXPECT_TRUE(door.serial_unreadable_);
-    EXPECT_EQ(door.identity_request_, 0x06);
+    EXPECT_EQ(door.identity_request_(), 0x06);
     EXPECT_EQ(fixture.serial_shown(), "");
     EXPECT_FALSE(door.serial_unreadable_);
   }
@@ -350,7 +350,7 @@ TEST(HoermannHcpTextSensorTest, ShortFirmwareVersionIsNotKept) {
   EXPECT_TRUE(door.firmware_unreadable_);  // kept for the log
   EXPECT_EQ(fixture.version_shown(), "");
   EXPECT_FALSE(door.firmware_unreadable_);  // logged once
-  EXPECT_EQ(door.identity_request_, 0x06);
+  EXPECT_EQ(door.identity_request_(), 0x06);
 }
 
 // A firmware version without any payload is logged, not shown.
@@ -364,7 +364,7 @@ TEST(HoermannHcpTextSensorTest, EmptyFirmwareVersionIsLoggedNotShown) {
   EXPECT_TRUE(door.firmware_unreadable_);
   EXPECT_EQ(fixture.version_shown(), "");
   EXPECT_FALSE(door.firmware_unreadable_);
-  EXPECT_EQ(door.identity_request_, 0x06);
+  EXPECT_EQ(door.identity_request_(), 0x06);
 }
 
 // A readable firmware version right after a short one, before the loop has turned, is still shown.
@@ -391,7 +391,7 @@ TEST(HoermannHcpTextSensorTest, AllZeroFirmwareVersionMeansNoneIsReported) {
   transfer(door, 0x08, SUB_FIRMWARE, zeros, 12);
   EXPECT_EQ(fixture.version_shown(), "");
   EXPECT_FALSE(door.firmware_unreadable_);
-  EXPECT_EQ(door.identity_request_, 0);
+  EXPECT_EQ(door.identity_request_(), 0);
 }
 
 // A firmware version that is not text is not shown, is logged, and is not asked for again: it would come back
@@ -407,7 +407,7 @@ TEST(HoermannHcpTextSensorTest, FirmwareVersionThatIsNotTextIsLoggedNotShown) {
   EXPECT_TRUE(door.firmware_unreadable_);
   EXPECT_EQ(fixture.version_shown(), "");  // the raw bytes are not published
   EXPECT_FALSE(door.firmware_unreadable_);
-  EXPECT_EQ(door.identity_request_, 0);
+  EXPECT_EQ(door.identity_request_(), 0);
 }
 
 // A repeat of a transfer already taken, as after a lost acknowledgement, is acknowledged again. Answered as a

@@ -83,8 +83,10 @@ static constexpr uint8_t TRANSFER_ACK = 0xFD;
 static constexpr size_t TRANSFER_PAYLOAD_REG = 2;
 // Marks the first half of the serial number in the counter byte, and is not part of the count.
 static constexpr uint8_t COUNTER_FIRST_HALF = 0x80;
-// Older motors (index B1 seen) send the whole serial number in one frame, without the half marker.
+// Older motors (index B1 seen) send the whole serial number in one frame, without the half marker. It is as long
+// as a second half, so one copy path serves both.
 static constexpr size_t SERIAL_SINGLE_FRAME_REGS = 6;
+static_assert(SERIAL_SINGLE_FRAME_REGS == SERIAL_SECOND_HALF_REGS, "one copy path serves both serial frames");
 
 // Registers hold two payload bytes each, high byte first.
 static void copy_payload(const modbus::RegisterValues &registers, size_t count, char *out) {
@@ -180,7 +182,7 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
 
 #ifdef USE_HOERMANN_HCP_TEXT_SENSOR
   // Acknowledge the transfer taken by the write half of this frame.
-  if (this->transfer_answer_pending_) {
+  if (this->transfer_answer_counter_ != NO_TRANSFER_ANSWER) {
     this->push_transfer_answer_(registers, number_of_registers);
     return {};
   }
@@ -233,8 +235,7 @@ modbus::ResponseStatus HoermannHcp::on_write_registers(uint16_t start_address,
     this->record_response_();
     this->command_reg_value_ = registers[0];
 #ifdef USE_HOERMANN_HCP_TEXT_SENSOR
-    this->transfer_answer_pending_ = false;
-    this->take_identity_transfer_(registers);
+    this->transfer_answer_counter_ = this->take_identity_transfer_(registers);
 #endif
     return {};
   }
@@ -302,40 +303,38 @@ void HoermannHcp::add_identity_request_(modbus::RegisterValues &registers, uint1
   if (static_cast<uint8_t>(this->command_reg_value_) != STATUS_COMMAND)
     return;
   // Like Hoermann's own bus accessory, only after one ordinary answer.
-  if (!this->identity_started_) {
-    if (this->serial_number_text_sensor_ != nullptr || this->version_text_sensor_ != nullptr) {
-      this->identity_started_ = true;
-      this->arm_identity_request_(REQUEST_SERIAL);
-    }
+  if (this->identity_phase_ == IdentityPhase::IDENTITY_PHASE_IDLE) {
+    if (this->serial_number_text_sensor_ != nullptr || this->version_text_sensor_ != nullptr)
+      this->arm_identity_request_(IdentityPhase::IDENTITY_PHASE_SERIAL);
     return;
   }
   // Uses the registers of a key press, so it waits while one is pending.
-  if (this->next_command_ != nullptr || registers[2] != 0 || registers[3] != 0 ||
-      !this->take_identity_request_(millis()))
+  if (this->next_command_ != nullptr || registers[2] != 0 || registers[3] != 0 || !this->take_identity_request_())
     return;
   registers[1] = static_cast<uint16_t>(ANSWER_REQUEST | command);
-  registers[2] = static_cast<uint16_t>(this->identity_request_ << 8);
+  registers[2] = encode_uint16(this->identity_request_(), 0);
 }
 
-void HoermannHcp::arm_identity_request_(uint8_t request) {
-  this->identity_request_ = request;
+void HoermannHcp::arm_identity_request_(IdentityPhase phase) {
+  this->identity_phase_ = phase;
   this->identity_attempts_ = 0;
-  this->serial_first_half_seen_ = false;
-  this->serial_split_ = false;
 }
 
-bool HoermannHcp::take_identity_request_(uint32_t now) {
-  if (this->identity_request_ == 0)
+bool HoermannHcp::take_identity_request_() {
+  const uint8_t request = this->identity_request_();
+  if (request == 0)
     return false;
+  const uint32_t now = millis();
   if (this->identity_attempts_ != 0 && now - this->identity_asked_at_ <= IDENTITY_RETRY_MS)
     return false;
   if (this->identity_attempts_ >= IDENTITY_MAX_ATTEMPTS) {
-    this->identity_unanswered_ = this->identity_request_;
-    this->identity_request_ = 0;
-    // Still ask for the firmware version, and drop a leftover first half.
-    if (this->identity_unanswered_ == REQUEST_SERIAL) {
+    this->identity_unanswered_ = request;
+    if (request == REQUEST_SERIAL) {
+      // Still ask for the firmware version, and drop a leftover first half.
       this->serial_number_[0] = '\0';
-      this->arm_identity_request_(REQUEST_FIRMWARE);
+      this->arm_identity_request_(IdentityPhase::IDENTITY_PHASE_FIRMWARE);
+    } else {
+      this->identity_phase_ = IdentityPhase::IDENTITY_PHASE_DONE;
     }
     return false;
   }
@@ -344,74 +343,66 @@ bool HoermannHcp::take_identity_request_(uint32_t now) {
   return true;
 }
 
-void HoermannHcp::take_identity_transfer_(const modbus::RegisterValues &registers) {
-  if (!this->identity_started_ || registers.size() < TRANSFER_PAYLOAD_REG ||
+uint8_t HoermannHcp::take_identity_transfer_(const modbus::RegisterValues &registers) {
+  if (this->identity_phase_ == IdentityPhase::IDENTITY_PHASE_IDLE || registers.size() < TRANSFER_PAYLOAD_REG ||
       static_cast<uint8_t>(registers[0]) != TRANSFER_COMMAND)
-    return;
+    return NO_TRANSFER_ANSWER;
   const uint8_t counter = static_cast<uint8_t>(registers[0] >> 8);
   const uint8_t sub_code = static_cast<uint8_t>(registers[1] >> 8);
   if (sub_code != TRANSFER_SUB_SERIAL && sub_code != TRANSFER_SUB_FIRMWARE)
-    return;
+    return NO_TRANSFER_ANSWER;
   // Acknowledged whether kept or not, as Hoermann's own bus accessory does. What was not kept is asked for again.
-  this->transfer_answer_counter_ = counter & ~COUNTER_FIRST_HALF;
-  this->transfer_answer_pending_ = true;
-  // Only an answer to a request that went out is kept.
-  if (this->identity_attempts_ == 0)
-    return;
+  const uint8_t answer = counter & ~COUNTER_FIRST_HALF;
+  // Only an answer to the request that went out is kept.
+  const uint8_t request = sub_code == TRANSFER_SUB_SERIAL ? REQUEST_SERIAL : REQUEST_FIRMWARE;
+  if (this->identity_attempts_ == 0 || this->identity_request_() != request)
+    return answer;
 
   const size_t payload_regs = registers.size() - TRANSFER_PAYLOAD_REG;
-  if (sub_code == TRANSFER_SUB_FIRMWARE) {
-    if (this->identity_request_ != REQUEST_FIRMWARE)
-      return;
+  if (request == REQUEST_FIRMWARE) {
     const size_t regs = std::min(payload_regs, FIRMWARE_REGS);
     copy_payload(registers, regs, this->firmware_version_);
     if (regs == FIRMWARE_REGS && text_length(this->firmware_version_, 2 * regs) != 0) {
       terminate_text(this->firmware_version_, 2 * regs);
       // Clear an earlier unreadable answer, so this one is shown.
       this->firmware_unreadable_ = false;
-      this->identity_request_ = 0;
-      return;
+      this->identity_phase_ = IdentityPhase::IDENTITY_PHASE_DONE;
+      return answer;
     }
     // Left as received for update() to log.
     this->firmware_unreadable_ = true;
     this->firmware_unreadable_len_ = 2 * regs;
     // A short answer is asked for again; unreadable text would come back the same.
     if (regs == FIRMWARE_REGS)
-      this->identity_request_ = 0;
-    return;
+      this->identity_phase_ = IdentityPhase::IDENTITY_PHASE_DONE;
+    return answer;
   }
-  if (this->identity_request_ != REQUEST_SERIAL)
-    return;
   if ((counter & COUNTER_FIRST_HALF) != 0) {
-    this->serial_split_ = true;
+    // Even a half too short to keep says the number comes in two halves; a first half already kept stays kept.
+    if (this->identity_phase_ == IdentityPhase::IDENTITY_PHASE_SERIAL)
+      this->identity_phase_ = IdentityPhase::IDENTITY_PHASE_SERIAL_SPLIT;
     if (payload_regs >= SERIAL_FIRST_HALF_REGS) {
       copy_payload(registers, SERIAL_FIRST_HALF_REGS, this->serial_number_);
-      this->serial_first_half_seen_ = true;
+      this->identity_phase_ = IdentityPhase::IDENTITY_PHASE_SERIAL_SECOND_HALF;
     }
-    return;
+    return answer;
   }
   // Without a half marker seen, the frame is the whole number; after one, it can only be the second half.
-  if (!this->serial_split_) {
-    if (payload_regs < SERIAL_SINGLE_FRAME_REGS)
-      return;
-    copy_payload(registers, SERIAL_SINGLE_FRAME_REGS, this->serial_number_);
-    terminate_text(this->serial_number_, 2 * SERIAL_SINGLE_FRAME_REGS);
-    this->serial_unreadable_ = this->serial_number_[0] == '\0';
-    this->arm_identity_request_(REQUEST_FIRMWARE);
-    return;
-  }
-  if (!this->serial_first_half_seen_ || payload_regs < SERIAL_SECOND_HALF_REGS)
-    return;
-  copy_payload(registers, SERIAL_SECOND_HALF_REGS, this->serial_number_ + 2 * SERIAL_FIRST_HALF_REGS);
-  terminate_text(this->serial_number_, 2 * (SERIAL_FIRST_HALF_REGS + SERIAL_SECOND_HALF_REGS));
+  if (this->identity_phase_ == IdentityPhase::IDENTITY_PHASE_SERIAL_SPLIT || payload_regs < SERIAL_SINGLE_FRAME_REGS)
+    return answer;
+  const size_t at =
+      this->identity_phase_ == IdentityPhase::IDENTITY_PHASE_SERIAL_SECOND_HALF ? 2 * SERIAL_FIRST_HALF_REGS : 0;
+  copy_payload(registers, SERIAL_SINGLE_FRAME_REGS, this->serial_number_ + at);
+  terminate_text(this->serial_number_, at + 2 * SERIAL_SINGLE_FRAME_REGS);
   this->serial_unreadable_ = this->serial_number_[0] == '\0';
-  this->arm_identity_request_(REQUEST_FIRMWARE);
+  this->arm_identity_request_(IdentityPhase::IDENTITY_PHASE_FIRMWARE);
+  return answer;
 }
 
 void HoermannHcp::push_transfer_answer_(modbus::RegisterValues &registers, uint16_t number_of_registers) {
-  this->transfer_answer_pending_ = false;
-  const uint16_t answer[] = {static_cast<uint16_t>(this->transfer_answer_counter_ << 8),
-                             static_cast<uint16_t>((TRANSFER_COMMAND << 8) | TRANSFER_ACK)};
+  const uint16_t answer[] = {encode_uint16(this->transfer_answer_counter_, 0),
+                             encode_uint16(TRANSFER_COMMAND, TRANSFER_ACK)};
+  this->transfer_answer_counter_ = NO_TRANSFER_ANSWER;
   for (uint16_t i = 0; i < number_of_registers; i++)
     registers.push_back(i < 2 ? answer[i] : 0x0000);
 }
@@ -419,7 +410,7 @@ void HoermannHcp::push_transfer_answer_(modbus::RegisterValues &registers, uint1
 void HoermannHcp::publish_identity_() {
   // Buffers are cleared once published, so each value goes out once. The serial number is whole once the firmware
   // version is requested.
-  if (this->serial_number_text_sensor_ != nullptr && this->identity_request_ != REQUEST_SERIAL &&
+  if (this->serial_number_text_sensor_ != nullptr && this->identity_request_() != REQUEST_SERIAL &&
       this->serial_number_[0] != '\0') {
     this->serial_number_text_sensor_->publish_state(this->serial_number_);
     this->serial_number_[0] = '\0';
