@@ -14,14 +14,14 @@ from esphome.const import (
     DEVICE_CLASS_FIRMWARE,
     ENTITY_CATEGORY_CONFIG,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass, TemplateArgsType
+from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
@@ -31,13 +31,6 @@ update_ns = cg.esphome_ns.namespace("update")
 UpdateEntity = update_ns.class_("UpdateEntity", cg.EntityBase)
 
 UpdateInfo = update_ns.struct("UpdateInfo")
-
-CheckAction = update_ns.class_(
-    "CheckAction", automation.Action, cg.Parented.template(UpdateEntity)
-)
-IsAvailableCondition = update_ns.class_(
-    "IsAvailableCondition", automation.Condition, cg.Parented.template(UpdateEntity)
-)
 
 DEVICE_CLASSES = [
     DEVICE_CLASS_EMPTY,
@@ -144,42 +137,17 @@ automation.register_apply_action(
 )
 
 
-@automation.register_action(
-    "update.check",
-    CheckAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(UpdateEntity),
-        }
-    ),
-    synchronous=True,
+UPDATE_AUTOMATION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(UpdateEntity),
+    }
 )
-async def update_check_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
-
-@automation.register_condition(
+automation.register_apply_action(
+    "update.check", UPDATE_AUTOMATION_SCHEMA, automation.ApplyCall("check()")
+)
+automation.register_apply_condition(
     "update.is_available",
-    IsAvailableCondition,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(UpdateEntity),
-        }
-    ),
+    UPDATE_AUTOMATION_SCHEMA,
+    "state == update::UPDATE_STATE_AVAILABLE",
 )
-async def update_is_available_condition_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

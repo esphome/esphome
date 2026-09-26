@@ -374,6 +374,7 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_preset(v))
         if (v := initial_state.get(CONF_CUSTOM_PRESET)) is not None:
             cg.add(var.set_custom_preset(v))
+        cg.add(var.set_has_state(True))
 
 
 CLIMATE_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.All(

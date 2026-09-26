@@ -182,6 +182,8 @@ class VoiceAssistant final : public Component {
   bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
   bool is_continuous() const { return this->continuous_; }
+  /// The voice_assistant.is_running condition: a pipeline is running or continuous mode keeps one coming.
+  bool is_running_or_continuous() const { return this->is_running() || this->is_continuous(); }
 
   void set_use_wake_word(bool use_wake_word) { this->use_wake_word_ = use_wake_word; }
 
@@ -345,16 +347,6 @@ class VoiceAssistant final : public Component {
 #ifdef USE_MICRO_WAKE_WORD
   micro_wake_word::MicroWakeWord *micro_wake_word_{nullptr};
 #endif
-};
-
-template<typename... Ts> class IsRunningCondition final : public Condition<Ts...>, public Parented<VoiceAssistant> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->is_running() || this->parent_->is_continuous(); }
-};
-
-template<typename... Ts> class ConnectedCondition final : public Condition<Ts...>, public Parented<VoiceAssistant> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->get_api_connection() != nullptr; }
 };
 
 extern VoiceAssistant *global_voice_assistant;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

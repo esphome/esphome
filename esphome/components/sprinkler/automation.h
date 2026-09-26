@@ -6,36 +6,6 @@
 
 namespace esphome::sprinkler {
 
-template<typename... Ts> class ClearQueuedValvesAction final : public Action<Ts...> {
- public:
-  explicit ClearQueuedValvesAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
-
-  void play(const Ts &...x) override { this->sprinkler_->clear_queued_valves(); }
-
- protected:
-  Sprinkler *sprinkler_;
-};
-
-template<typename... Ts> class StartFromQueueAction final : public Action<Ts...> {
- public:
-  explicit StartFromQueueAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
-
-  void play(const Ts &...x) override { this->sprinkler_->start_from_queue(); }
-
- protected:
-  Sprinkler *sprinkler_;
-};
-
-template<typename... Ts> class StartFullCycleAction final : public Action<Ts...> {
- public:
-  explicit StartFullCycleAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
-
-  void play(const Ts &...x) override { this->sprinkler_->start_full_cycle(); }
-
- protected:
-  Sprinkler *sprinkler_;
-};
-
 template<typename... Ts> class StartSingleValveAction final : public Action<Ts...> {
  public:
   explicit StartSingleValveAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
@@ -59,46 +29,6 @@ template<typename... Ts> class ShutdownAction final : public Action<Ts...> {
   explicit ShutdownAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
 
   void play(const Ts &...x) override { this->sprinkler_->shutdown(); }
-
- protected:
-  Sprinkler *sprinkler_;
-};
-
-template<typename... Ts> class NextValveAction final : public Action<Ts...> {
- public:
-  explicit NextValveAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
-
-  void play(const Ts &...x) override { this->sprinkler_->next_valve(); }
-
- protected:
-  Sprinkler *sprinkler_;
-};
-
-template<typename... Ts> class PreviousValveAction final : public Action<Ts...> {
- public:
-  explicit PreviousValveAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
-
-  void play(const Ts &...x) override { this->sprinkler_->previous_valve(); }
-
- protected:
-  Sprinkler *sprinkler_;
-};
-
-template<typename... Ts> class PauseAction final : public Action<Ts...> {
- public:
-  explicit PauseAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
-
-  void play(const Ts &...x) override { this->sprinkler_->pause(); }
-
- protected:
-  Sprinkler *sprinkler_;
-};
-
-template<typename... Ts> class ResumeAction final : public Action<Ts...> {
- public:
-  explicit ResumeAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
-
-  void play(const Ts &...x) override { this->sprinkler_->resume(); }
 
  protected:
   Sprinkler *sprinkler_;

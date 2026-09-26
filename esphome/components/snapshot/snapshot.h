@@ -1,7 +1,6 @@
 #pragma once
 
 #ifdef USE_HOST
-#include "esphome/core/automation.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -34,8 +33,10 @@ class Snapshot {
   /// already there is never written over. Returns true if a file was written.
   bool take_snapshot(const char *filename);
 
-  /// Log that an action-triggered snapshot did not write a file.
-  static void log_action_failed();
+  /// Take a snapshot for an automation: an empty name means a generated one, and a snapshot
+  /// that wrote nothing is logged.
+  void take_snapshot_or_log(const char *filename);
+  void take_snapshot_or_log(const std::string &filename) { this->take_snapshot_or_log(filename.c_str()); }
 
  protected:
   /// Width of the picture in pixels.
@@ -48,23 +49,6 @@ class Snapshot {
   virtual bool capture_bgr(uint8_t *dest, size_t row_stride) = 0;
 
   const char *snapshot_prefix_{"snapshot"};
-};
-
-template<typename... Ts> class SnapshotAction final : public Action<Ts...>, public Parented<Snapshot> {
- public:
-  TEMPLATABLE_VALUE(std::string, filename)
-
- protected:
-  void play(const Ts &...x) override {
-    bool ok;
-    if (this->filename_.has_value()) {
-      ok = this->parent_->take_snapshot(this->filename_.value(x...).c_str());
-    } else {
-      ok = this->parent_->take_snapshot(nullptr);
-    }
-    if (!ok)
-      this->parent_->log_action_failed();
-  }
 };
 
 }  // namespace esphome::snapshot
