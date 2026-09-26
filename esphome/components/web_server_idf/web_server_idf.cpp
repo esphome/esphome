@@ -1,7 +1,9 @@
 #ifdef USE_ESP32
 
+#include <algorithm>
 #include <cstdarg>
 #include <memory>
+#include <cstdio>
 #include <cstring>
 #include <cctype>
 #include <cinttypes>
@@ -15,6 +17,7 @@
 #include <freertos/task.h>
 
 #include "utils.h"
+#include "sse_chunk.h"
 #include "web_server_idf.h"
 
 #ifdef USE_WEBSERVER_AUTH_DIGEST
@@ -740,7 +743,8 @@ bool AsyncEventSource::loop() {
       ++i;
     }
   }
-  return !this->sessions_.empty();
+  // A session still waiting for httpd to commit its context keeps the loop alive too
+  return !this->sessions_.empty() || this->has_pending_sessions_.load(std::memory_order_acquire);
 }
 
 void AsyncEventSource::adopt_pending_sessions_main_loop_() {
@@ -754,6 +758,14 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
     // Already disconnected? Drop it; skip on_connect_/session start on a dead session.
     if (rsp->safe_to_delete_()) {
       delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
+      continue;
+    }
+    // httpd commits the session context only after the creating handler returns, so stay
+    // pending until then; httpd_req_cleanup() always commits it or calls destroy()
+    if (httpd_sess_get_ctx(rsp->hd_, rsp->fd_.load()) != rsp) {
+      LockGuard guard{this->pending_mutex_};
+      this->pending_sessions_.push_back(rsp);
+      this->has_pending_sessions_.store(true, std::memory_order_release);
       continue;
     }
     this->sessions_.push_back(rsp);
@@ -792,7 +804,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
                                                    esphome::web_server_idf::AsyncEventSource *server,
                                                    esphome::web_server::WebServer *ws)
     : server_(server), web_server_(ws), entities_iterator_(ws, server) {
-  // Httpd task only. start_session_main_loop_() handles event_buffer_ / iterator setup.
+  // Httpd task only. start_session_main_loop_() sends the greeting and starts the iterator.
   httpd_req_t *req = *request;
 
   httpd_resp_set_status(req, HTTPD_200);
@@ -820,9 +832,14 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 void AsyncEventSourceResponse::start_session_main_loop_() {
   auto *ws = this->web_server_;
 
-  // tcp send buffer is empty on connect, so these should always go through
+  // The tcp send buffer is empty on connect. A refusal is a closing session or a failed tail
+  // allocation; nothing retries the greeting, so close and let the client reconnect.
   auto message = ws->get_config_json();
-  this->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000);
+  if (!this->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000)) {
+    ESP_LOGW(TAG, "Config not sent to fd %d", this->fd_.load());
+    this->request_close_();
+    return;
+  }
 
 #ifdef USE_WEBSERVER_SORTING
   for (auto &group : ws->sorting_groups_) {
@@ -833,8 +850,13 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
     message = builder.serialize();
 
     // a (very) large number of these should be able to be queued initially without defer
-    // since the only thing in the send buffer at this point is the initial ping/config
-    this->try_send_nodefer(message.c_str(), message.size(), "sorting_group");
+    // since the only thing in the send buffer at this point is the initial ping/config.
+    // A refusal means the socket is full or closing; the remaining groups are not sent. The
+    // session stays up on purpose: partial grouping beats a reconnect loop on a slow link.
+    if (!this->try_send_nodefer(message.c_str(), message.size(), "sorting_group")) {
+      ESP_LOGW(TAG, "Sorting groups not sent to fd %d", this->fd_.load());
+      break;
+    }
   }
 #endif
 
@@ -871,8 +893,9 @@ void AsyncEventSourceResponse::process_deferred_queue_() {
   }
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
-    auto message = de.message_generator_(web_server_, de.source_);
-    if (this->try_send_nodefer(message.c_str(), message.size(), "state")) {
+    json::JsonBuilder builder;
+    de.message_generator_(web_server_, de.source_, builder);
+    if (this->send_json_(builder)) {
       if (this->close_requested_ || deferred_queue_.empty()) {
         return;
       }
@@ -888,8 +911,10 @@ void AsyncEventSourceResponse::request_close_() {
   if (!this->close_requested_) {
     this->close_requested_ = true;
     this->deferred_queue_.clear();
-    this->event_buffer_.clear();
-    this->event_bytes_sent_ = 0;
+    this->tail_.reset();
+    this->tail_cap_ = 0;
+    this->tail_len_ = 0;
+    this->tail_sent_ = 0;
     this->next_close_attempt_ms_ = App.get_loop_component_start_time();
   }
 
@@ -940,21 +965,43 @@ void AsyncEventSourceResponse::close_session_work(void *arg) {
   response->close_work_queued_.store(false, std::memory_order_release);
 }
 
-void AsyncEventSourceResponse::process_buffer_() {
-  if (this->close_requested_ || event_buffer_.empty()) {
-    return;
+ssize_t AsyncEventSourceResponse::send_(struct iovec *iov, int iovcnt) {
+  // httpd frees a session before closing its socket, so the fd may already be a new client's.
+  // Treated as would-block; the stall timer ends a session that never becomes ours again.
+  const int fd = this->fd_.load();
+  if (httpd_sess_get_ctx(this->hd_, fd) != this) {
+    return 0;
   }
-  if (event_bytes_sent_ == event_buffer_.size()) {
-    event_buffer_.resize(0);
-    event_bytes_sent_ = 0;
-    return;
+  struct msghdr msg {};
+  msg.msg_iov = iov;
+  msg.msg_iovlen = iovcnt;
+  const ssize_t sent = sendmsg(fd, &msg, MSG_DONTWAIT);
+  if (sent >= 0) {
+    return sent;
   }
+  const int err = errno;
+  if (err == EAGAIN || err == EWOULDBLOCK) {
+    return 0;
+  }
+  ESP_LOGD(TAG, "send error: errno %d", err);
+  this->request_close_();
+  return -1;
+}
 
-  size_t remaining = event_buffer_.size() - event_bytes_sent_;
-  int bytes_sent =
-      httpd_socket_send(this->hd_, this->fd_.load(), event_buffer_.c_str() + event_bytes_sent_, remaining, 0);
-  if (bytes_sent == HTTPD_SOCK_ERR_TIMEOUT) {
-    // EAGAIN/EWOULDBLOCK - socket buffer full, try again later
+void AsyncEventSourceResponse::drain_tail_() {
+  if (this->sending_ || this->close_requested_ || this->tail_len_ == 0) {
+    return;
+  }
+  SendGuard guard{*this};
+
+  const size_t remaining = this->tail_len_ - this->tail_sent_;
+  struct iovec iov = {this->tail_.get() + this->tail_sent_, remaining};
+  const ssize_t sent = this->send_(&iov, 1);
+  if (sent < 0) {
+    return;
+  }
+  if (sent == 0) {
+    // Socket buffer full, try again later
     // NOTE: Similar logic exists in web_server/web_server.cpp in DeferredUpdateEventSource::process_deferred_queue_().
     // The IDF path is intentionally time-based and closes through HTTPD to preserve session ownership.
     const uint32_t now = App.get_loop_component_start_time();
@@ -968,32 +1015,62 @@ void AsyncEventSourceResponse::process_buffer_() {
     }
     return;
   }
-  if (bytes_sent == HTTPD_SOCK_ERR_FAIL) {
-    // Low-level asynchronous sends do not make HTTPD close the session automatically.
-    this->request_close_();
-    return;
-  }
-  if (bytes_sent <= 0) {
-    // Unexpected error or zero bytes sent
-    ESP_LOGW(TAG, "Unexpected send result: %d", bytes_sent);
-    this->request_close_();
-    return;
-  }
 
-  // Successful send - reset stall tracking
   this->send_failure_started_ms_ = 0;
-  event_bytes_sent_ += bytes_sent;
-
-  // Log partial sends for debugging
-  if (event_bytes_sent_ < event_buffer_.size()) {
-    ESP_LOGV(TAG, "Partial send: %d/%zu bytes (total: %zu/%zu)", bytes_sent, remaining, event_bytes_sent_,
-             event_buffer_.size());
+  this->tail_sent_ += sent;
+  if (this->tail_sent_ < this->tail_len_) {
+    ESP_LOGV(TAG, "Partial send: %zd/%zu bytes (total: %u/%u)", sent, remaining, this->tail_sent_, this->tail_len_);
+    return;
   }
+  // Fully sent; the storage stays for the next stall
+  this->tail_len_ = 0;
+}
 
-  if (event_bytes_sent_ == event_buffer_.size()) {
-    event_buffer_.resize(0);
-    event_bytes_sent_ = 0;
+bool AsyncEventSourceResponse::reserve_tail_(size_t len) {
+  if (this->tail_cap_ >= len) {
+    return true;
   }
+  if (len > TAIL_MAX_SIZE) {
+    return false;
+  }
+  // Nothing is pending while the tail grows, so free the old block first. PREFER_INTERNAL keeps
+  // the tail where plain new put it.
+  this->tail_.reset();
+  this->tail_ = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::PREFER_INTERNAL).make_unique_array_for_overwrite(len);
+  this->tail_cap_ = this->tail_ ? len : 0;
+  return this->tail_cap_ != 0;
+}
+
+bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_len, const char *message,
+                                            size_t message_len, size_t total, size_t sent) {
+  // A log event of nothing but line breaks is the largest chunk; reserve_tail_() must never
+  // refuse it for size, only for memory
+  static_assert(SSE_SEP_LEN * web_server::LOG_EVENT_MAX_LEN + PREFIX_BUF_SIZE + SSE_SUFFIX_LEN <= TAIL_MAX_SIZE,
+                "the log cut in web_server.h must keep a worst case log event inside the tail ceiling");
+  if (!this->reserve_tail_(total)) {
+    if (sent != 0) {
+      // Part of the chunk is on the wire, so the stream is broken and the client has to go
+      ESP_LOGW(TAG, "Cannot buffer a %zu byte chunk, closing", total);
+      this->request_close_();
+    } else {
+      this->tail_alloc_failed_(total);  // nothing on the wire, the caller retries on the stall clock
+    }
+    return false;
+  }
+  uint8_t *dst = this->tail_.get();
+  std::memcpy(dst, prefix, prefix_len);
+  dst += prefix_len;
+  for_each_chunk_piece(
+      message, message_len,
+      [](void *ctx, const char *piece, size_t len) {
+        auto &out = *static_cast<uint8_t **>(ctx);
+        std::memcpy(out, piece, len);
+        out += len;
+      },
+      &dst);
+  this->tail_len_ = total;
+  this->tail_sent_ = sent;
+  return true;
 }
 
 void AsyncEventSourceResponse::loop() {
@@ -1001,7 +1078,7 @@ void AsyncEventSourceResponse::loop() {
     this->process_close_();
     return;
   }
-  process_buffer_();
+  drain_tail_();
   process_deferred_queue_();
   if (this->close_requested_)
     return;
@@ -1009,142 +1086,138 @@ void AsyncEventSourceResponse::loop() {
   this->entities_iterator_.try_advance(1);
 }
 
+bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
+  char buf[JSON_BUF_SIZE];
+  const size_t len = builder.serialize_to(buf, sizeof(buf));
+  if (len < sizeof(buf)) {
+    return this->try_send_nodefer(buf, len, "state");
+  }
+
+  // Too large for the stack: the tail holds the whole chunk and loop() drains it. Serialized
+  // JSON has no raw line break, so the body is one data line.
+  if (!this->ready_to_send_()) {
+    return false;
+  }
+  {
+    SendGuard guard{*this};
+    char prefix[PREFIX_BUF_SIZE];
+    const size_t prefix_len = build_chunk_prefix(prefix, sizeof(prefix), "state", 0, 0, true);
+
+    // Grow the tail until the document fits. Nothing has reached the wire, so a document that
+    // cannot be held costs only this event, and the tail grown for it is released.
+    size_t json_len = 0;
+    size_t cap = std::max<size_t>(JSON_BUF_SIZE * 2, this->tail_cap_);
+    for (;;) {
+      if (!this->reserve_tail_(cap)) {
+        this->tail_alloc_failed_(cap);
+        return false;  // stays deferred, retried on a later pass
+      }
+      const size_t room = cap - prefix_len - SSE_SUFFIX_LEN;
+      json_len = builder.serialize_to(reinterpret_cast<char *>(this->tail_.get()) + prefix_len, room);
+      if (json_len < room) {
+        break;
+      }
+      if (cap >= TAIL_MAX_SIZE) {
+        ESP_LOGW(TAG, "State event does not fit %zu bytes, dropped", room);
+        this->tail_.reset();
+        this->tail_cap_ = 0;
+        this->send_failure_started_ms_ = 0;
+        return true;  // would never fit, reported as sent
+      }
+      cap = std::min<size_t>(cap * 2, TAIL_MAX_SIZE);
+    }
+
+    const size_t total = prefix_len + json_len + SSE_SUFFIX_LEN;
+    write_chunk_header(prefix, total - CHUNK_HDR_LEN - CHUNK_END_LEN);
+    uint8_t *dst = this->tail_.get();
+    std::memcpy(dst, prefix, prefix_len);
+    std::memcpy(dst + prefix_len + json_len, SSE_SUFFIX, SSE_SUFFIX_LEN);
+    this->tail_len_ = total;
+    this->tail_sent_ = 0;
+  }
+  drain_tail_();
+  return true;
+}
+
+void AsyncEventSourceResponse::tail_alloc_failed_(size_t cap) {
+  // Same stall clock as a socket that stops draining, so a session cannot retry forever
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->send_failure_started_ms_ == 0) {
+    this->send_failure_started_ms_ = now != 0 ? now : 1;  // Reserve zero for no stall.
+    ESP_LOGW(TAG, "No memory for a %zu byte chunk", cap);
+    return;
+  }
+  if (static_cast<int32_t>(now - (this->send_failure_started_ms_ + SEND_STALL_TIMEOUT_MS)) >= 0) {
+    ESP_LOGW(TAG, "Closing EventSource after %" PRIu32 " ms without memory", now - this->send_failure_started_ms_);
+    this->request_close_();
+  }
+}
+
+bool AsyncEventSourceResponse::ready_to_send_() {
+  if (this->sending_ || this->fd_.load() == 0 || this->close_requested_) {
+    return false;
+  }
+  drain_tail_();
+  return !this->close_requested_ && this->tail_len_ == 0;
+}
+
 bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
                                                 uint32_t reconnect) {
-  if (this->fd_.load() == 0 || this->close_requested_) {
+  if (!this->ready_to_send_()) {
     return false;
   }
+  SendGuard guard{*this};
 
-  process_buffer_();
-  if (this->close_requested_ || !event_buffer_.empty()) {
-    // there is still pending event data to send first
-    return false;
+  // Everything after the prefix goes out straight from the caller's buffer
+  char prefix[PREFIX_BUF_SIZE];
+  const size_t prefix_len = build_chunk_prefix(prefix, sizeof(prefix), event, id, reconnect, message != nullptr);
+  if (message == nullptr && prefix_len == CHUNK_HDR_LEN) {
+    return true;  // Match ESPAsyncWebServer: nothing to send
   }
-
-  // 8 spaces are standing in for the hexidecimal chunk length to print later
-  const char chunk_len_header[] = "        " CRLF_STR;
-  const int chunk_len_header_len = sizeof(chunk_len_header) - 1;
-
-  event_buffer_.append(chunk_len_header);
-
-  // Use stack buffer for formatting numeric fields to avoid temporary string allocations
-  // Size: "retry: " (7) + max uint32 (10 digits) + CRLF (2) + null (1) = 20 bytes, use 32 for safety
-  constexpr size_t num_buf_size = 32;
-  char num_buf[num_buf_size];
-
-  if (reconnect) {
-    int len = snprintf(num_buf, num_buf_size, "retry: %" PRIu32 CRLF_STR, reconnect);
-    event_buffer_.append(num_buf, len);
-  }
-
-  if (id) {
-    int len = snprintf(num_buf, num_buf_size, "id: %" PRIu32 CRLF_STR, id);
-    event_buffer_.append(num_buf, len);
-  }
-
-  if (event && *event) {
-    event_buffer_.append("event: ", sizeof("event: ") - 1);
-    event_buffer_.append(event);
-    event_buffer_.append(CRLF_STR, CRLF_LEN);
-  }
-
-  // Match ESPAsyncWebServer: null message means no data lines and no terminating blank line
-  if (message) {
-    // SSE spec requires each line of a multi-line message to have its own "data:" prefix
-    // Handle \n, \r, and \r\n line endings (matching ESPAsyncWebServer behavior)
-
-    // Fast path: check if message contains any newlines at all
-    // Most SSE messages (JSON state updates) have no newlines
-    const char *first_n = static_cast<const char *>(memchr(message, '\n', message_len));
-    const char *first_r = static_cast<const char *>(memchr(message, '\r', message_len));
-
-    if (first_n == nullptr && first_r == nullptr) {
-      // No newlines - fast path (most common case)
-      event_buffer_.append("data: ", sizeof("data: ") - 1);
-      event_buffer_.append(message, message_len);
-      event_buffer_.append(CRLF_STR CRLF_STR, CRLF_LEN * 2);  // data line + blank line terminator
-    } else {
-      // Has newlines - handle multi-line message
-      const char *line_start = message;
-      const char *msg_end = message + message_len;
-
-      // Reuse the first search results
-      const char *next_n = first_n;
-      const char *next_r = first_r;
-
-      while (line_start <= msg_end) {
-        const char *line_end;
-        const char *next_line;
-
-        if (next_n == nullptr && next_r == nullptr) {
-          // No more line breaks - output remaining text as final line
-          event_buffer_.append("data: ", sizeof("data: ") - 1);
-          event_buffer_.append(line_start, msg_end - line_start);
-          event_buffer_.append(CRLF_STR, CRLF_LEN);
-          break;
-        }
-
-        // Determine line ending type and next line start
-        if (next_n != nullptr && next_r != nullptr) {
-          if (next_r + 1 == next_n) {
-            // \r\n sequence
-            line_end = next_r;
-            next_line = next_n + 1;
-          } else {
-            // Mixed \n and \r - use whichever comes first
-            line_end = (next_r < next_n) ? next_r : next_n;
-            next_line = line_end + 1;
-          }
-        } else if (next_n != nullptr) {
-          // Unix LF
-          line_end = next_n;
-          next_line = next_n + 1;
-        } else {
-          // Old Mac CR
-          line_end = next_r;
-          next_line = next_r + 1;
-        }
-
-        // Output this line
-        event_buffer_.append("data: ", sizeof("data: ") - 1);
-        event_buffer_.append(line_start, line_end - line_start);
-        event_buffer_.append(CRLF_STR, CRLF_LEN);
-
-        line_start = next_line;
-
-        // Check if we've consumed all content
-        if (line_start >= msg_end) {
-          break;
-        }
-
-        // Search for next newlines only in remaining string
-        next_n = static_cast<const char *>(memchr(line_start, '\n', msg_end - line_start));
-        next_r = static_cast<const char *>(memchr(line_start, '\r', msg_end - line_start));
-      }
-
-      // Terminate message with blank line
-      event_buffer_.append(CRLF_STR, CRLF_LEN);
-    }
-  }
-
-  if (event_buffer_.size() == static_cast<size_t>(chunk_len_header_len)) {
-    // Nothing was added, reset buffer
-    event_buffer_.resize(0);
+  if (prefix_len >= PREFIX_BUF_SIZE - 1) {
+    // The appenders truncate silently, which would put a malformed event on the wire
+    ESP_LOGW(TAG, "Event name too long, dropped");
     return true;
   }
 
-  event_buffer_.append(CRLF_STR, CRLF_LEN);
+  // Gather list: the prefix, then the data lines and their separators from the message
+  struct Gather {
+    struct iovec iov[MAX_SEND_IOV];  // left uninitialized on purpose
+    int iovcnt{1};
+    size_t total{0};
+    bool fits{true};
+  } g;
+  g.total = prefix_len;
+  for_each_chunk_piece(
+      message, message_len,
+      [](void *ctx, const char *piece, size_t len) {
+        auto &g = *static_cast<Gather *>(ctx);
+        g.total += len;
+        if (len == 0) {
+          return;
+        }
+        if (g.iovcnt == MAX_SEND_IOV) {
+          g.fits = false;
+          return;
+        }
+        g.iov[g.iovcnt++] = {const_cast<char *>(piece), len};
+      },
+      &g);
+  // The header and the terminator are not part of the chunk length
+  write_chunk_header(prefix, g.total - CHUNK_HDR_LEN - CHUNK_END_LEN);
+  g.iov[0] = {prefix, prefix_len};
 
-  // chunk length header itself and the final chunk terminating CRLF are not counted as part of the chunk
-  int chunk_len = event_buffer_.size() - CRLF_LEN - chunk_len_header_len;
-  char chunk_len_str[9];
-  snprintf(chunk_len_str, 9, "%08x", chunk_len);
-  std::memcpy(&event_buffer_[0], chunk_len_str, 8);
-
-  event_bytes_sent_ = 0;
-  process_buffer_();
-
-  return true;
+  // A message with more lines than the list holds skips straight to the tail
+  const ssize_t sent = g.fits ? this->send_(g.iov, g.iovcnt) : 0;
+  if (sent < 0) {
+    return false;
+  }
+  if (static_cast<size_t>(sent) == g.total) {
+    this->send_failure_started_ms_ = 0;  // progress, whichever stall clock was running
+    return true;
+  }
+  // The caller's buffers do not outlive this call, so keep the chunk and continue from loop()
+  return this->stash_chunk_(prefix, prefix_len, message, message_len, g.total, sent);
 }
 
 void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *event_type,
@@ -1165,20 +1238,22 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
     ESP_LOGE(TAG, "Can't defer non-state event");
   }
 
-  process_buffer_();
+  drain_tail_();
   process_deferred_queue_();
 
   if (this->close_requested_) {
     return;
   }
 
-  if (!event_buffer_.empty() || !deferred_queue_.empty()) {
+  if (this->tail_len_ != 0 || !deferred_queue_.empty()) {
     // outgoing event buffer or deferred queue still not empty which means downstream tcp send buffer full, no point
     // trying to send first
     deq_push_back_with_dedup_(source, message_generator);
   } else {
-    auto message = message_generator(web_server_, source);
-    if (!this->try_send_nodefer(message.c_str(), message.size(), "state")) {
+    json::JsonBuilder builder;
+    message_generator(web_server_, source, builder);
+    // A send error closes the session and clears the queue; nothing is queued after that
+    if (!this->send_json_(builder) && !this->close_requested_) {
       deq_push_back_with_dedup_(source, message_generator);
     }
   }
