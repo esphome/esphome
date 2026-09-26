@@ -15,9 +15,7 @@ from esphome.const import (
     CONF_TIMEOUT,
     PLATFORM_ESP32,
 )
-from esphome.core import ID
 from esphome.core.entity_helpers import inherit_property_from
-from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -31,10 +29,6 @@ SourceSpeaker = mixer_speaker_ns.class_("SourceSpeaker", cg.Component, speaker.S
 CONF_DECIBEL_REDUCTION = "decibel_reduction"
 CONF_QUEUE_MODE = "queue_mode"
 CONF_SOURCE_SPEAKERS = "source_speakers"
-
-DuckingApplyAction = mixer_speaker_ns.class_(
-    "DuckingApplyAction", automation.Action, cg.Parented.template(SourceSpeaker)
-)
 
 
 SOURCE_SPEAKER_SCHEMA = speaker.SPEAKER_SCHEMA.extend(
@@ -148,9 +142,8 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.add_source_speaker(source_speaker))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "mixer_speaker.apply_ducking",
-    DuckingApplyAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(SourceSpeaker),
@@ -162,20 +155,8 @@ async def to_code(config: ConfigType) -> None:
             ),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "apply_ducking({}, {})",
+        ((CONF_DECIBEL_REDUCTION, cg.uint8), (CONF_DURATION, cg.uint32)),
+    ),
 )
-async def ducking_set_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    decibel_reduction = await cg.templatable(
-        config[CONF_DECIBEL_REDUCTION], args, cg.uint8
-    )
-    cg.add(var.set_decibel_reduction(decibel_reduction))
-    duration = await cg.templatable(config[CONF_DURATION], args, cg.uint32)
-    cg.add(var.set_duration(duration))
-    return var
