@@ -25,7 +25,6 @@ from esphome.__main__ import (
     Purpose,
     _get_configured_xtal_freq,
     _make_crystal_freq_callback,
-    _native_toolchain_module,
     _redact_with_legacy_fallback,
     _resolve_network_devices,
     _should_subscribe_states,
@@ -7676,21 +7675,24 @@ def test_native_toolchain_table_serves_every_native_toolchain() -> None:
     """Every member of NATIVE_TOOLCHAINS has a backend entry; a gap would
     surface as a targeted EsphomeError on the one affected config, and this
     pin keeps the table from drifting when a toolchain is added."""
+    from esphome.build_helpers.native import NATIVE_TOOLCHAIN_MODULES
     from esphome.const import NATIVE_TOOLCHAINS
 
-    assert {tc for _, tc in main._NATIVE_TOOLCHAIN_MODULES} == set(NATIVE_TOOLCHAINS)
+    assert {tc for _, tc in NATIVE_TOOLCHAIN_MODULES} == set(NATIVE_TOOLCHAINS)
 
 
 def test_native_toolchain_module_missing_backend_raises(tmp_path: Path) -> None:
     """A native toolchain missing from the backend table is a bug and must
     fail, not silently degrade to the PlatformIO path."""
+    from esphome.build_helpers import native
+
     setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
     CORE.toolchain = Toolchain.ARDUINO
     with (
-        patch.dict(main._NATIVE_TOOLCHAIN_MODULES, clear=True),
+        patch.dict(native.NATIVE_TOOLCHAIN_MODULES, clear=True),
         pytest.raises(EsphomeError, match="no native build backend"),
     ):
-        _native_toolchain_module()
+        native.native_backend()
 
 
 def test_command_analyze_memory_unsupported_toolchain(
