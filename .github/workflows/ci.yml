@@ -193,9 +193,10 @@ jobs:
     needs:
       - common
     # PR-branch cache saves are invisible to other PRs, so dev pushes seed
-    # the shared entry test-esp8266-native restores. Only dev: the composite
-    # action saves nowhere else, so a beta/release push would download the
-    # toolchain and discard it.
+    # the shared entry the component matrix, the memory impact jobs and
+    # test-esp8266-native restore. Only dev: the composite action saves
+    # nowhere else, so a beta/release push would download the toolchain and
+    # discard it.
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     timeout-minutes: 15
     steps:

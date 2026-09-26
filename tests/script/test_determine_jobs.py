@@ -253,6 +253,81 @@ def test_main_all_tests_should_run(
         assert isinstance(batch["needs_arduino8266"], bool)
 
 
+def test_main_batch_flags_count_variant_tests(
+    mock_determine_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_esp32_platformio_components_to_test: Mock,
+    mock_esp8266_native_components_to_test: Mock,
+    mock_changed_files: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The compile stage builds test-<variant>.<platform>.yaml too, so a
+    component tested on esp8266 only by a variant still needs the toolchain."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    mock_determine_integration_tests.return_value = (False, [])
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_esp32_platformio_components_to_test.return_value = []
+    mock_esp8266_native_components_to_test.return_value = []
+    mock_determine_cpp_unit_tests.return_value = (False, [])
+    mock_changed_files.return_value = ["esphome/components/safe_mode/__init__.py"]
+
+    def platforms(component: str, *, base_only: bool = True) -> set[str]:
+        return set() if base_only else {"esp8266-ard"}
+
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
+        patch.object(
+            determine_jobs, "get_changed_components", return_value=["safe_mode"]
+        ),
+        patch.object(
+            determine_jobs,
+            "filter_component_and_test_files",
+            side_effect=lambda f: f.startswith("esphome/components/"),
+        ),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            return_value=["safe_mode"],
+        ),
+        patch.object(determine_jobs, "_component_has_tests", return_value=True),
+        patch.object(
+            determine_jobs,
+            "detect_memory_impact_config",
+            return_value={"should_run": "false"},
+        ),
+        patch.object(
+            determine_jobs,
+            "create_intelligent_batches",
+            return_value=([["safe_mode"]], {}),
+        ),
+        patch.object(
+            determine_jobs, "get_component_test_platforms", side_effect=platforms
+        ),
+    ):
+        determine_jobs.main()
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["component_test_batches"] == [
+        {
+            "components": "safe_mode",
+            "needs_idf": False,
+            "needs_nrf": False,
+            "needs_arduino8266": True,
+        }
+    ]
+
+
 def test_main_no_tests_should_run(
     mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
