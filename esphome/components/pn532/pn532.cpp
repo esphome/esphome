@@ -1,6 +1,7 @@
 #include "pn532.h"
 
 #include <memory>
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
@@ -425,6 +426,8 @@ bool PN532::write_tag_(nfc::NfcTagUid &uid, const uint8_t tag_type, nfc::NdefMes
 }
 
 bool PN532::in_data_exchange_(const std::vector<uint8_t> &command, std::vector<uint8_t> &response) {
+  // formatting a tag takes seconds of back-to-back exchanges inside loop(), longer than the task watchdog allows
+  App.feed_wdt();
   if (!this->write_command_(command)) {
     return false;
   }
