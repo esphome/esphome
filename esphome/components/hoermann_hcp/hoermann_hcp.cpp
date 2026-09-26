@@ -115,8 +115,10 @@ static void terminate_text(char *text, size_t len) { text[text_length(text, len)
 
 // Replayed when a log subscriber connects, which is how a remote log sees the outcome of the exchange at boot.
 static void log_identity_value(text_sensor::TextSensor *sensor) {
-  if (sensor != nullptr)
-    ESP_LOGCONFIG(TAG, "    Value: %s", sensor->has_state() ? sensor->get_state().c_str() : "not received");
+  if (sensor != nullptr) {
+    ESP_LOGCONFIG(TAG, "    Value: %s",
+                  sensor->has_state() ? sensor->get_state().c_str() : LOG_STR_LITERAL("not received"));
+  }
 }
 #endif
 
