@@ -214,16 +214,6 @@ def _validate_sleep_duration(value: core.TimePeriod) -> core.TimePeriod:
 deep_sleep_ns = cg.esphome_ns.namespace("deep_sleep")
 DeepSleepComponent = deep_sleep_ns.class_("DeepSleepComponent", cg.Component)
 EnterDeepSleepAction = deep_sleep_ns.class_("EnterDeepSleepAction", automation.Action)
-PreventDeepSleepAction = deep_sleep_ns.class_(
-    "PreventDeepSleepAction",
-    automation.Action,
-    cg.Parented.template(DeepSleepComponent),
-)
-AllowDeepSleepAction = deep_sleep_ns.class_(
-    "AllowDeepSleepAction",
-    automation.Action,
-    cg.Parented.template(DeepSleepComponent),
-)
 
 WakeupPinMode = deep_sleep_ns.enum("WakeupPinMode")
 WAKEUP_PIN_MODES = {
@@ -422,8 +412,12 @@ async def to_code(config: ConfigType) -> None:
 
     if CONF_TOUCH_WAKEUP in config:
         cg.add(var.set_touch_wakeup(config[CONF_TOUCH_WAKEUP]))
-    if CORE.using_zephyr and "zigbee" not in CORE.loaded_integrations:
-        zephyr_add_prj_conf("POWEROFF", True)
+    if CORE.using_zephyr:
+        # Devices are suspended when CPU is entering a low power state
+        # https://github.com/nrfconnect/sdk-zephyr/blob/v3.7.99-ncs2-2/doc/services/pm/device.rst#system-managed-device-power-management
+        zephyr_add_prj_conf("PM_DEVICE", True)
+        if "zigbee" not in CORE.loaded_integrations:
+            zephyr_add_prj_conf("POWEROFF", True)
 
     cg.add_define("USE_DEEP_SLEEP")
 
@@ -486,27 +480,15 @@ async def deep_sleep_enter_to_code(
     return var
 
 
-@automation.register_action(
-    "deep_sleep.prevent",
-    PreventDeepSleepAction,
-    automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
-    synchronous=True,
-)
-@automation.register_action(
-    "deep_sleep.allow",
-    AllowDeepSleepAction,
-    automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
-    synchronous=True,
-)
-async def deep_sleep_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
+for _name, _call in (
+    ("deep_sleep.prevent", "prevent_deep_sleep()"),
+    ("deep_sleep.allow", "allow_deep_sleep()"),
+):
+    automation.register_apply_action(
+        _name,
+        automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
+        automation.ApplyCall(_call),
+    )
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(

@@ -1,5 +1,6 @@
 #ifdef USE_ESP8266
 #include "uart_component_esp8266.h"
+#include <esp8266_peri.h>
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -251,23 +252,35 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
     gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
   }
 }
+// A byte can arrive while a CpuFrequencyBoost has an 80 MHz build at 160 MHz; the clock select bit doubles
+// the bit time then. The whole byte is read inside the ISR, so the clock cannot change partway through.
+__attribute__((always_inline)) static inline uint32_t rx_bit_time(uint32_t bit_time) {
+#if F_CPU != 160000000L
+  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- CPU2X is MMIO at a fixed address
+  return bit_time << (CPU2X & 1);
+#else
+  return bit_time;
+#endif
+}
+
 void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
-  uint32_t wait = arg->bit_time_ + arg->bit_time_ / 3 - 500;
+  const uint32_t bit_time = rx_bit_time(arg->bit_time_);
+  uint32_t wait = bit_time + bit_time / 3 - 500;
   const uint32_t start = arch_get_cpu_cycle_count();
   uint8_t rec = 0;
   // Manually unroll the loop
   for (int i = 0; i < arg->data_bits_; i++)
-    rec |= arg->read_bit_(&wait, start) << i;
+    rec |= arg->read_bit_(&wait, start, bit_time) << i;
 
   /* If parity is enabled, just read it and ignore it. */
   /* TODO: Should we check parity? Or is it too slow for nothing added..*/
   if (arg->parity_ == UART_CONFIG_PARITY_EVEN || arg->parity_ == UART_CONFIG_PARITY_ODD)
-    arg->read_bit_(&wait, start);
+    arg->read_bit_(&wait, start, bit_time);
 
   // Stop bit
-  arg->wait_(&wait, start);
+  arg->wait_(&wait, start, bit_time);
   if (arg->stop_bits_ == 2)
-    arg->wait_(&wait, start);
+    arg->wait_(&wait, start, bit_time);
 
   arg->rx_buffer_[arg->rx_in_pos_] = rec;
   arg->rx_in_pos_ = (arg->rx_in_pos_ + 1) % arg->rx_buffer_size_;
@@ -296,37 +309,39 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   }
 
   {
+    // Transmit runs from the main loop and never overlaps a CpuFrequencyBoost
     InterruptLock lock;
-    uint32_t wait = this->bit_time_;
+    const uint32_t bit_time = this->bit_time_;
+    uint32_t wait = bit_time;
     const uint32_t start = arch_get_cpu_cycle_count();
     // Start bit
-    this->write_bit_(false, &wait, start);
+    this->write_bit_(false, &wait, start, bit_time);
     for (int i = 0; i < this->data_bits_; i++) {
       bool bit = data & (1 << i);
-      this->write_bit_(bit, &wait, start);
+      this->write_bit_(bit, &wait, start, bit_time);
       if (need_parity_bit)
         parity_bit ^= bit;
     }
     if (need_parity_bit)
-      this->write_bit_(parity_bit, &wait, start);
+      this->write_bit_(parity_bit, &wait, start, bit_time);
     // Stop bit
-    this->write_bit_(true, &wait, start);
+    this->write_bit_(true, &wait, start, bit_time);
     if (this->stop_bits_ == 2)
-      this->wait_(&wait, start);
+      this->wait_(&wait, start, bit_time);
   }
 }
-void IRAM_ATTR ESP8266SoftwareSerial::wait_(uint32_t *wait, const uint32_t &start) {
+void IRAM_ATTR ESP8266SoftwareSerial::wait_(uint32_t *wait, const uint32_t &start, uint32_t bit_time) {
   while (arch_get_cpu_cycle_count() - start < *wait)
     ;
-  *wait += this->bit_time_;
+  *wait += bit_time;
 }
-bool IRAM_ATTR ESP8266SoftwareSerial::read_bit_(uint32_t *wait, const uint32_t &start) {
-  this->wait_(wait, start);
+bool IRAM_ATTR ESP8266SoftwareSerial::read_bit_(uint32_t *wait, const uint32_t &start, uint32_t bit_time) {
+  this->wait_(wait, start, bit_time);
   return this->rx_pin_.digital_read();
 }
-void IRAM_ATTR ESP8266SoftwareSerial::write_bit_(bool bit, uint32_t *wait, const uint32_t &start) {
+void IRAM_ATTR ESP8266SoftwareSerial::write_bit_(bool bit, uint32_t *wait, const uint32_t &start, uint32_t bit_time) {
   this->tx_pin_.digital_write(bit);
-  this->wait_(wait, start);
+  this->wait_(wait, start, bit_time);
 }
 uint8_t ESP8266SoftwareSerial::read_byte() {
   if (this->rx_in_pos_ == this->rx_out_pos_)

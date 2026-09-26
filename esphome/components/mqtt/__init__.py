@@ -117,10 +117,7 @@ mqtt_ns = cg.esphome_ns.namespace("mqtt")
 MQTTMessage = mqtt_ns.struct("MQTTMessage")
 MQTTClientDisconnectReason = mqtt_ns.enum("MQTTClientDisconnectReason")
 MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
-MQTTPublishAction = mqtt_ns.class_("MQTTPublishAction", automation.Action)
 MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
-MQTTEnableAction = mqtt_ns.class_("MQTTEnableAction", automation.Action)
-MQTTDisableAction = mqtt_ns.class_("MQTTDisableAction", automation.Action)
 MQTTMessageTrigger = mqtt_ns.class_(
     "MQTTMessageTrigger", automation.Trigger.template(cg.std_string), cg.Component
 )
@@ -246,8 +243,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Inclusive(CONF_CLIENT_CERTIFICATE, "cert-key-pair"): cv.All(
                 cv.string, cv.only_on_esp32
             ),
-            cv.Inclusive(CONF_CLIENT_CERTIFICATE_KEY, "cert-key-pair"): cv.All(
-                cv.string, cv.only_on_esp32
+            cv.Inclusive(CONF_CLIENT_CERTIFICATE_KEY, "cert-key-pair"): cv.sensitive(
+                cv.All(cv.string, cv.only_on_esp32)
             ),
             cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
@@ -503,22 +500,26 @@ MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
-    "mqtt.publish", MQTTPublishAction, MQTT_PUBLISH_ACTION_SCHEMA, synchronous=True
-)
-async def mqtt_publish_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_TOPIC], args, cg.std_string)
-    cg.add(var.set_topic(template_))
+# A bare literal is ambiguous between the std::string and (const char *, size_t) publish
+# overloads, so constants and inlined `return "...";` lambdas are both spelled as std::string.
+def _std_string(config: ConfigType, value: str) -> str:
+    rendered = automation.flash_string(config, value)
+    return rendered if CORE.is_esp8266 else f"std::string({rendered})"
 
-    template_ = await cg.templatable(config[CONF_PAYLOAD], args, cg.std_string)
-    cg.add(var.set_payload(template_))
-    template_ = await cg.templatable(config[CONF_QOS], args, cg.uint8)
-    cg.add(var.set_qos(template_))
-    template_ = await cg.templatable(config[CONF_RETAIN], args, cg.bool_)
-    cg.add(var.set_retain(template_))
-    return var
+
+automation.register_apply_action(
+    "mqtt.publish",
+    MQTT_PUBLISH_ACTION_SCHEMA,
+    automation.ApplyCall(
+        "publish({}, {}, {}, {})",
+        (
+            (CONF_TOPIC, "std::string", _std_string),
+            (CONF_PAYLOAD, "std::string", _std_string),
+            (CONF_QOS, cg.uint8),
+            (CONF_RETAIN, cg.bool_),
+        ),
+    ),
+)
 
 
 MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema(
@@ -608,34 +609,16 @@ automation.register_apply_condition(
 )
 
 
-@automation.register_action(
-    "mqtt.enable",
-    MQTTEnableAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(MQTTClientComponent),
-        }
-    ),
-    synchronous=True,
-)
-async def mqtt_enable_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "mqtt.disable",
-    MQTTDisableAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(MQTTClientComponent),
-        }
-    ),
-    synchronous=True,
-)
-async def mqtt_disable_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+for _name, _call in (("mqtt.enable", "enable()"), ("mqtt.disable", "disable()")):
+    automation.register_apply_action(
+        _name,
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.use_id(MQTTClientComponent),
+            }
+        ),
+        automation.ApplyCall(_call),
+    )
 
 
 _platform_filter = filter_source_files_from_platform(
