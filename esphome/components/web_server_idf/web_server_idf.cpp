@@ -10,7 +10,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include "esp_tls_crypto.h"
+#include <mbedtls/base64.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -545,14 +545,18 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
   constexpr size_t max_digest_len = 350;
   char digest[max_digest_len];
   size_t out;
-  esp_crypto_base64_encode(reinterpret_cast<uint8_t *>(digest), max_digest_len, &out,
-                           reinterpret_cast<const uint8_t *>(user_info), user_info_len);
+  // The buffer bound above makes failure unreachable; reject rather than
+  // compare against an unwritten digest if that ever changes.
+  if (mbedtls_base64_encode(reinterpret_cast<uint8_t *>(digest), max_digest_len, &out,
+                            reinterpret_cast<const uint8_t *>(user_info), user_info_len) != 0) {
+    return false;
+  }
 
   // Constant-time comparison to avoid timing side channels.
   // No early return on length mismatch — the length difference is folded
   // into the accumulator so any mismatch is rejected.
   const char *provided = auth_str + auth_prefix_len;
-  size_t digest_len = out;  // length from esp_crypto_base64_encode
+  size_t digest_len = out;
   // Derive provided_len from the already-sized std::string rather than
   // rescanning with strlen (avoids attacker-controlled scan length).
   size_t provided_len = auth.value().size() - auth_prefix_len;
