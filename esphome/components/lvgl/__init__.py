@@ -32,7 +32,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
     CONF_ESPHOME,
-    CONF_GROUP,
     CONF_ID,
     CONF_LOG_LEVEL,
     CONF_ON_IDLE,
@@ -56,22 +55,18 @@ from .automation import layers_to_code, lvgl_update
 from .defines import (
     CONF_ALIGN_TO_LAMBDA_ID,
     CONF_ANIMATIONS,
+    CONF_DEFAULT_GROUP,
     LOGGER,
     get_focused_widgets,
     get_lv_images_used,
     get_refreshed_widgets,
     set_widgets_completed,
 )
-from .encoders import (
-    ENCODERS_CONFIG,
-    encoders_to_code,
-    get_default_group,
-    initial_focus_to_code,
-)
+from .encoders import ENCODERS_CONFIG, encoders_to_code, initial_focus_to_code
 from .gradient import GRADIENT_SCHEMA, gradients_to_code
 from .keypads import KEYPADS_CONFIG, keypads_to_code
 from .lv_validation import lv_bool
-from .lvcode import LvContext, LvglComponent, lv_event_t_ptr, lvgl_static
+from .lvcode import LvContext, LvglComponent, lv_event_t_ptr, lv_expr, lvgl_static
 from .schemas import (
     DISP_BG_SCHEMA,
     FULL_STYLE_SCHEMA,
@@ -205,13 +200,6 @@ def multi_conf_validate(configs: list[dict]):
     display_list = [disp for disps in displays for disp in disps]
     if len(display_list) != len(set(display_list)):
         raise cv.Invalid("A display ID may be used in only one LVGL instance")
-    for config in configs:
-        for item in (df.CONF_ENCODERS, df.CONF_KEYPADS):
-            for enc in config.get(item, ()):
-                if CONF_GROUP not in enc:
-                    raise cv.Invalid(
-                        f"'{item}' must have an explicit group set when using multiple LVGL instances"
-                    )
     # The hidden styles a `theme:` block creates are tracked in a single map shared
     # by all LVGL instances (keyed only by widget type, not by instance), so a
     # second instance's `theme:` would silently lose to whichever instance is
@@ -385,7 +373,6 @@ async def to_code(configs):
     else:
         df.add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
     cg.add(lvgl_static.esphome_lvgl_init())
-    default_group = get_default_group(config_0)
 
     for config in configs:
         frac = config[CONF_BUFFER_SIZE]
@@ -433,6 +420,12 @@ async def to_code(configs):
             cg.add(lv_component.set_refresh_interval(refr_time.total_milliseconds))
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
 
+        # Build the default group for this lvgl instance. This CONF_DEFAULT_GROUP is not
+        # intended to be used in configurations
+        default_group = cg.Pvariable(config[CONF_DEFAULT_GROUP], lv_expr.group_create())
+        cg.add(lv_component.set_def_group(default_group))
+        cg.add(lv_expr.group_set_default(default_group))
+
         lv_scr_act = get_screen_active(lv_component)
         async with LvContext():
             cg.add(lv_component.set_big_endian(config[CONF_BYTE_ORDER] == "big_endian"))
@@ -444,10 +437,13 @@ async def to_code(configs):
             await styles_to_code(config)
             await set_obj_properties(lv_scr_act, config)
             await add_widgets(lv_scr_act, config)
-            await add_pages(lv_component, config)
+            # layers_to_code may change the lvgl default group, be careful adding widgets after this call
             await layers_to_code(lv_component, config)
+            # add_pages will change the lvgl default group, be careful adding widgets after this call
+            await add_pages(lv_component, config)
             await lvgl_update(lv_component, config)
-            await msgboxes_to_code(lv_component, config)
+            # msgboxes_to_code will change the lvgl default group, be careful adding widgets after this call
+            await msgboxes_to_code(lv_component, config, default_group)
             await animations_to_code(config.get(CONF_ANIMATIONS, []))
 
     # Mark all widgets as completed so awaiters of ``wait_for_widgets`` proceed.
@@ -616,8 +612,18 @@ LVGL_TOP_LEVEL_SCHEMA = (
             cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
             cv.Optional(df.CONF_ANIMATIONS): cv.ensure_list(ANIMATION_SCHEMA),
             cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
-            cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
-            cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(obj_spec),
+            cv.Optional(df.CONF_TOP_LAYER): container_schema(
+                obj_spec,
+                extras={
+                    cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t)
+                },
+            ),
+            cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(
+                obj_spec,
+                extras={
+                    cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t)
+                },
+            ),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
             cv.Optional(df.CONF_THEME): theme_schema,
             cv.Optional(df.CONF_GRADIENTS): GRADIENT_SCHEMA,

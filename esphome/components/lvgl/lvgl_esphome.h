@@ -161,7 +161,7 @@ class LvglComponent;
 
 class LvPageType : public Parented<LvglComponent> {
  public:
-  LvPageType(bool skip) : skip(skip) {}
+  LvPageType(bool skip, lv_group_t *def_group) : skip(skip), def_group(def_group) {}
 
   void setup(size_t index) {
     this->index = index;
@@ -173,6 +173,9 @@ class LvPageType : public Parented<LvglComponent> {
   lv_obj_t *obj{};
   size_t index{};
   bool skip;
+  lv_group_t *def_group;
+  lv_group_t *top_group;
+  lv_group_t *bottom_group;
 };
 
 using event_callback_t = void(lv_event_t *);
@@ -299,8 +302,14 @@ class LvglComponent final : public PollingComponent {
   }
 #endif
 
+  void add_input(lv_indev_t *input);
+  void set_def_group(lv_group_t *group);
+  void set_top_group(lv_group_t *group);
+  void set_bottom_group(lv_group_t *group);
   void add_page(LvPageType *page);
   void show_page(size_t index, lv_screen_load_anim_t anim, uint32_t time);
+  void set_indev_group(lv_group_t *group);
+  void restore_indev_group(lv_group_t *group);
   void show_next_page(lv_screen_load_anim_t anim, uint32_t time);
   void show_prev_page(lv_screen_load_anim_t anim, uint32_t time);
   void set_page_wrap(bool wrap) { this->page_wrap_ = wrap; }
@@ -392,6 +401,14 @@ class LvglComponent final : public PollingComponent {
 #ifdef USE_ESP32_VARIANT_ESP32P4
   ppa_client_handle_t ppa_client_{};
 #endif
+
+  std::vector<lv_indev_t *> inputs_{};
+  lv_group_t *def_group_;
+  lv_group_t *top_group_;
+  lv_group_t *bottom_group_;
+  std::vector<lv_obj_t *> def_objs_{};
+  std::vector<lv_obj_t *> top_layer_objs_{};
+  std::vector<lv_obj_t *> bottom_layer_objs_{};
 };
 
 class IdleTrigger final : public Trigger<> {
