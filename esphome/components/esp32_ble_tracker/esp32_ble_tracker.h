@@ -135,7 +135,7 @@ class ESPBTClient : public ESPBTDeviceListener {
   void set_tracker_state_version(uint8_t *version) { this->tracker_state_version_ = version; }
 
   // Memory optimized layout
-  uint8_t app_id;  // App IDs are small integers assigned sequentially
+  uint8_t app_id{0};  // App IDs are small integers assigned sequentially
 
  protected:
   /// Set state without IDLE handling - use for direct state transitions.
@@ -218,6 +218,12 @@ class ESP32BLETracker final : public Component,
 #endif
 
   void start_scan();
+  // For the start_scan action: in any other state the state machine returns to IDLE on its own
+  // and loop() restarts scanning when scan_continuous_ is set, so only an idle scanner starts here.
+  void start_scan_if_idle() {
+    if (this->scanner_state_ == ScannerState::IDLE)
+      this->start_scan();
+  }
   void stop_scan();
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);

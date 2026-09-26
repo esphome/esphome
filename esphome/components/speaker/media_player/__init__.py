@@ -1,7 +1,5 @@
 """Speaker Media Player Setup."""
 
-import logging
-
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import (
@@ -24,7 +22,6 @@ from esphome.const import (
     CONF_BUFFER_SIZE,
     CONF_FILES,
     CONF_FORMAT,
-    CONF_ID,
     CONF_NUM_CHANNELS,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
@@ -32,9 +29,6 @@ from esphome.const import (
     CONF_SPEAKER,
     CONF_TASK_STACK_IN_PSRAM,
 )
-
-_LOGGER = logging.getLogger(__name__)
-
 
 AUTO_LOAD = ["audio"]
 DEPENDENCIES = ["network"]
@@ -44,7 +38,7 @@ DOMAIN = "media_player"
 
 CONF_ANNOUNCEMENT = "announcement"
 CONF_ANNOUNCEMENT_PIPELINE = "announcement_pipeline"
-CONF_CODEC_SUPPORT_ENABLED = "codec_support_enabled"  # Remove before 2026.10.0
+CONF_CODEC_SUPPORT_ENABLED = "codec_support_enabled"  # Remove before 2027.4.0
 CONF_ENQUEUE = "enqueue"
 CONF_MEDIA_FILE = "media_file"
 CONF_MEDIA_PIPELINE = "media_pipeline"
@@ -68,11 +62,6 @@ AUDIO_PIPELINE_TYPE_ENUM = {
     "ANNOUNCEMENT": AudioPipelineType.ANNOUNCEMENT,
 }
 
-PlayOnDeviceMediaAction = speaker_ns.class_(
-    "PlayOnDeviceMediaAction",
-    automation.Action,
-    cg.Parented.template(SpeakerMediaPlayer),
-)
 StopStreamAction = speaker_ns.class_(
     "StopStreamAction", automation.Action, cg.Parented.template(SpeakerMediaPlayer)
 )
@@ -103,15 +92,6 @@ def _validate_repeated_speaker(config):
 
 
 def _final_validate(config):
-    # Remove before 2026.10.0
-    if CONF_CODEC_SUPPORT_ENABLED in config:
-        _LOGGER.warning(
-            "'%s' is deprecated and will be removed in 2026.10.0. "
-            "Codec support is now automatically determined from the pipeline "
-            "'format' setting. Set format to 'NONE' to enable all codecs.",
-            CONF_CODEC_SUPPORT_ENABLED,
-        )
-
     # Request codecs based on pipeline formats. Codecs needed by local files are
     # already requested during CONFIG_SCHEMA validation (via audio_files_schema).
     media_player.request_codecs_for_format_configs(
@@ -151,8 +131,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BUFFER_SIZE, default=1000000): cv.int_range(
                 min=4000, max=4000000
             ),
-            # Remove before 2026.10.0
-            cv.Optional(CONF_CODEC_SUPPORT_ENABLED): cv.Any(cv.boolean, cv.string),
+            # Removed in 2026.10.0 - kept to provide helpful error message
+            cv.Optional(CONF_CODEC_SUPPORT_ENABLED): cv.invalid(
+                "The 'codec_support_enabled' option has been removed in ESPHome 2026.10.0.\n"
+                "Codec support is now determined from the pipeline 'format' setting.\n"
+                "Set 'format: NONE' on the pipeline to enable all codecs."
+            ),
             cv.Optional(CONF_FILES): audio_file.audio_files_schema(),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
             cv.Optional(CONF_VOLUME_INCREMENT, default=0.05): cv.percentage,
@@ -249,9 +233,8 @@ async def to_code(config):
         audio_file.generate_audio_file_code(file_config)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "media_player.speaker.play_on_device_media_file",
-    PlayOnDeviceMediaAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(SpeakerMediaPlayer),
@@ -261,17 +244,18 @@ async def to_code(config):
         },
         key=CONF_MEDIA_FILE,
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "play_file({}, {}, {})",
+        (
+            # The file is a use_id of a global AudioFile pointer; global-scope qualified
+            # so a trigger arg with the same name cannot shadow it.
+            (
+                CONF_MEDIA_FILE,
+                audio.AudioFile.operator("ptr"),
+                lambda _, value: f"::{value}",
+            ),
+            (CONF_ANNOUNCEMENT, cg.bool_),
+            (CONF_ENQUEUE, cg.bool_),
+        ),
+    ),
 )
-async def play_on_device_media_media_action(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    media_file = await cg.get_variable(config[CONF_MEDIA_FILE])
-    announcement = await cg.templatable(config[CONF_ANNOUNCEMENT], args, cg.bool_)
-    enqueue = await cg.templatable(config[CONF_ENQUEUE], args, cg.bool_)
-
-    template_ = await cg.templatable(media_file, args, audio.AudioFile.operator("ptr"))
-    cg.add(var.set_audio_file(template_))
-    cg.add(var.set_announcement(announcement))
-    cg.add(var.set_enqueue(enqueue))
-    return var
