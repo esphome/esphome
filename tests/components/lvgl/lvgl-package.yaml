@@ -567,6 +567,8 @@ lvgl:
               #endif
               return std::string(buf);
             align: top_left
+            text_letter_space: -4
+            text_line_space: -4
         - container:
             align: center
             anim_duration: 1s

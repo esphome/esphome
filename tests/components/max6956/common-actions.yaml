@@ -1,0 +1,14 @@
+button:
+  - platform: template
+    name: MAX6956 Actions
+    on_press:
+      - max6956.set_brightness_global: 10
+      - max6956.set_brightness_global:
+          id: max6956_1
+          brightness_global: !lambda return 5;
+      - max6956.set_brightness_mode:
+          id: max6956_1
+          brightness_mode: segment
+      - max6956.set_brightness_mode:
+          id: max6956_1
+          brightness_mode: !lambda return max6956::GLOBAL;
