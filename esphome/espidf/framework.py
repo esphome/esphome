@@ -773,7 +773,7 @@ def _prefetch_idf_tool_archives(
                 for entry in entries
             ],
         )
-        warn_batch_failures(failures)
+        warn_batch_failures(failures, "Could not prefetch %s: %s")
         if len(failures) == len(entries):
             # A systematic fault, not one flaky mirror: the resume
             # workaround (#17703) is off for this whole install

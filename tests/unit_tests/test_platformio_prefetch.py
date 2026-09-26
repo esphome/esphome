@@ -1727,7 +1727,7 @@ def test_preinstall_uses_distinct_managers_in_parallel(tmp_path: Path) -> None:
             barrier.wait()
 
     seed = _WaveManager(str(tmp_path))
-    with patch.object(pf, "get_usable_cpu_count", return_value=2):
+    with patch("esphome.framework_helpers.get_usable_cpu_count", return_value=2):
         pf._preinstall(
             seed,
             [
@@ -1890,20 +1890,3 @@ def test_platformio_private_api_contract() -> None:
     derived = PackageSpec("https://x/y/archive/master.zip")
     assert derived.name and not derived.has_custom_name()
     assert PackageSpec("Foo=https://x/y/archive/master.zip").has_custom_name()
-
-
-def test_preinstall_caps_workers(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A high core count is capped; the workers share one disk."""
-    with (
-        caplog.at_level(logging.INFO),
-        patch.object(pf, "get_usable_cpu_count", return_value=64),
-    ):
-        pf._preinstall(
-            _fake_manager(tmp_path),
-            [(f"p{i}@1", _FakeSpec(name=f"p{i}")) for i in range(11)],
-        )
-    assert "Installing 11 PlatformIO package(s) with 10 extraction worker(s)" in (
-        caplog.text
-    )

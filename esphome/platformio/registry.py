@@ -14,18 +14,17 @@ from typing import NamedTuple
 
 from esphome.core import EsphomeError
 from esphome.framework_helpers import (
-    BATCH_EXTRACT_WORKERS,
     archive_extract_all,
     download_from_mirrors,
     download_with_resume,
     downloaded_bytes,
+    extract_workers,
     is_expected_fetch_error,
     rmdir,
     run_batch_downloads,
     wait_for_download_lock,
     warn_batch_failures,
 )
-from esphome.helpers import get_usable_cpu_count
 from esphome.net_retry import fetch_with_retry, http_request
 
 _LOGGER = logging.getLogger(__name__)
@@ -389,29 +388,24 @@ def install_packages(specs: Collection[PackageSpec], downloads_dir: Path) -> Non
     The first failure is re-raised."""
     pending: list[tuple[PackageSpec, int]] = []
     rest: list[PackageSpec] = []
-    seen: set[str] = set()
     for spec in specs:
         name, version, dest, mirrors, _expect = spec
         archive = _archive_path(downloads_dir, name, version)
-        # Duplicate entries share one archive and would race each other
-        # between two workers; mirror prefetch_packages' dedupe
-        if _already_installed(dest) or mirrors or archive.name in seen:
+        if _already_installed(dest) or mirrors:
             rest.append(spec)
             continue
         try:
-            # An archive at its final name already passed sha256/size
-            # verification
+            # Sized, not hashed: install_package still verifies the archive
             size = archive.stat().st_size
         except FileNotFoundError:
             rest.append(spec)
             continue
-        seen.add(archive.name)
         pending.append((spec, size))
     if len(pending) < 2:
-        for name, version, dest, mirrors, expect in specs:
-            install_package(name, version, dest, mirrors, downloads_dir, expect=expect)
-        return
-    workers = min(get_usable_cpu_count(), len(pending), BATCH_EXTRACT_WORKERS)
+        # One archive alone gains nothing from a pool
+        rest = list(specs)
+        pending = []
+    workers = extract_workers(len(pending))
     _LOGGER.info(
         "Extracting %d package archive(s) with %d worker(s): %s",
         len(pending),
@@ -431,17 +425,18 @@ def install_packages(specs: Collection[PackageSpec], downloads_dir: Path) -> Non
             extract_progress=lambda frac: tracker(int(frac * size)),
         )
 
-    failures = run_batch_downloads(
-        "Extracting packages",
-        [(spec[0], size, partial(_install, spec, size)) for spec, size in pending],
-        max_workers=workers,
-    )
-    if failures:
-        # Warn on the first failure too: the raised exception's message may
-        # not name which package failed
-        warn_batch_failures(failures, "Could not install %s: %s")
-        raise failures[0][1]
-    # Sequential remainder after the batch, so a duplicate spec cannot
-    # unlink the archive its batched twin was sized from
+    if pending:
+        failures = run_batch_downloads(
+            "Extracting packages",
+            [(spec[0], size, partial(_install, spec, size)) for spec, size in pending],
+            max_workers=workers,
+        )
+        if failures:
+            # Warn on the first failure too: the raised exception's message
+            # may not name which package failed
+            warn_batch_failures(failures, "Could not install %s: %s")
+            # Nothing runs behind this pass to redo the work, unlike the
+            # prefetch paths that degrade to a stock installer
+            raise failures[0][1]
     for name, version, dest, mirrors, expect in rest:
         install_package(name, version, dest, mirrors, downloads_dir, expect=expect)

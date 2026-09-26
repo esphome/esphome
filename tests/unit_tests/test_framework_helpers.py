@@ -2351,10 +2351,24 @@ def test_warn_batch_failures_names_each_failure(
     """The shared failure loop warns per job with the failure reason."""
     from esphome.framework_helpers import warn_batch_failures
 
-    warn_batch_failures([("toolchain-x@1", OSError("down"))])
+    warn_batch_failures(
+        [("toolchain-x@1", OSError("down"))], "Could not prefetch %s: %s"
+    )
     assert "Could not prefetch toolchain-x@1: down" in caplog.text
     warn_batch_failures([("lib", OSError("gone"))], "Prefetch of %s failed: %s")
     assert "Prefetch of lib failed: gone" in caplog.text
+
+
+def test_extract_workers_caps_and_clamps() -> None:
+    """Extraction stops scaling well before high core counts, and a batch
+    never asks for more workers than it has archives."""
+    from esphome.framework_helpers import BATCH_EXTRACT_WORKERS, extract_workers
+
+    with patch("esphome.framework_helpers.get_usable_cpu_count", return_value=64):
+        assert extract_workers() == BATCH_EXTRACT_WORKERS
+        assert extract_workers(2) == 2
+    with patch("esphome.framework_helpers.get_usable_cpu_count", return_value=1):
+        assert extract_workers(8) == 1
 
 
 def test_warn_batch_failures_unexpected_error_keeps_traceback(

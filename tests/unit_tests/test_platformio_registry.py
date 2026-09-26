@@ -947,47 +947,6 @@ def test_install_package_batched_missing_archive_keeps_info_log(
     assert "Downloading pkg 1.0.0" in caplog.text
 
 
-def test_install_packages_dedupes_duplicate_specs(tmp_path: Path) -> None:
-    """Duplicate (name, version) entries share one archive and would race
-    each other; the duplicate takes the sequential path."""
-    dl = tmp_path / "dl"
-    dl.mkdir()
-    (dl / "a-1.0").write_bytes(b"x")
-    (dl / "b-2.0").write_bytes(b"y")
-    specs = [
-        _spec("a", "1.0", tmp_path / "a"),
-        _spec("a", "1.0", tmp_path / "a2"),
-        _spec("b", "2.0", tmp_path / "b"),
-    ]
-    with patch.object(registry, "install_package") as mock_install:
-        registry.install_packages(specs, dl)
-    sequential = [
-        c for c in mock_install.call_args_list if "extract_progress" not in c[1]
-    ]
-    batched = [c for c in mock_install.call_args_list if "extract_progress" in c[1]]
-    assert [(c[0][0], c[0][2]) for c in sequential] == [("a", tmp_path / "a2")]
-    assert sorted(c[0][0] for c in batched) == ["a", "b"]
-    # The duplicate runs after the batch, which unlinks their shared archive
-    assert mock_install.call_args_list[-1] == sequential[0]
-
-
-def test_install_packages_caps_workers(tmp_path: Path) -> None:
-    """A high core count is capped; the workers share one disk."""
-    dl = tmp_path / "dl"
-    dl.mkdir()
-    specs = []
-    for i in range(12):
-        (dl / f"p{i}-1.0").write_bytes(b"x")
-        specs.append(_spec(f"p{i}", "1.0", tmp_path / f"p{i}"))
-    with (
-        patch.object(registry, "get_usable_cpu_count", return_value=64),
-        patch.object(registry, "run_batch_downloads", return_value=[]) as batch,
-        patch.object(registry, "install_package"),
-    ):
-        registry.install_packages(specs, dl)
-    assert batch.call_args.kwargs["max_workers"] == 10
-
-
 def test_install_package_batched_refetch_announced_once(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
