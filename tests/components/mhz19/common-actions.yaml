@@ -1,0 +1,10 @@
+button:
+  - platform: template
+    name: MH-Z19 Actions
+    on_press:
+      - mhz19.calibrate_zero: mhz19_sensor
+      - mhz19.abc_enable: mhz19_sensor
+      - mhz19.abc_disable: mhz19_sensor
+      - mhz19.detection_range_set:
+          id: mhz19_sensor
+          detection_range: 2000ppm
