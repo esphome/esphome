@@ -6,7 +6,6 @@
 #include "esphome/components/network/util.h"
 #include "esphome/core/log.h"
 #include <cerrno>
-#include <sys/select.h>
 
 namespace esphome::async_tcp {
 
@@ -43,11 +42,10 @@ bool AsyncClient::connect(const char *host, uint16_t port) {
   }
 
   if (socket_->setblocking(false) != 0) {
-    // Capture before the log and reset() below can clobber errno; a blocking
-    // connect()/read() would otherwise stall the whole loop
+    // Capture before the log and close() clobber errno
     const int saved_errno = errno;
     ESP_LOGE(TAG, "Failed to set nonblocking: errno %d", saved_errno);
-    socket_.reset();
+    close();
     if (error_cb_)
       error_cb_(error_arg_, this, saved_errno);
     return false;
@@ -108,15 +106,15 @@ void AsyncClient::loop() {
   if (connecting_) {
     int err = 0;
     switch (socket::poll_connect(*socket_, err)) {
-      case socket::ConnectPollResult::CONNECT_POLL_PENDING:
+      case socket::ConnectPollResult::CONNECT_POLL_RESULT_PENDING:
         break;
-      case socket::ConnectPollResult::CONNECT_POLL_CONNECTED:
+      case socket::ConnectPollResult::CONNECT_POLL_RESULT_CONNECTED:
         connecting_ = false;
         connected_ = true;
         if (connect_cb_)
           connect_cb_(connect_arg_, this);
         break;
-      case socket::ConnectPollResult::CONNECT_POLL_ERROR:
+      case socket::ConnectPollResult::CONNECT_POLL_RESULT_ERROR:
         ESP_LOGW(TAG, "Connection failed: %d", err);
         close();
         if (error_cb_)

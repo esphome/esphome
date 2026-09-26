@@ -145,16 +145,11 @@ inline socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const st
 /// Set a sockaddr to the any address and specified port for the IP version used by socket_ip().
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);
 
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-enum class ConnectPollResult : uint8_t {
-  CONNECT_POLL_PENDING,
-  CONNECT_POLL_CONNECTED,
-  CONNECT_POLL_ERROR,
-};
-
-/// Check a non-blocking connect() for completion without blocking. On
-/// CONNECT_POLL_ERROR, err_out holds the socket's SO_ERROR, or errno when the
-/// poll itself failed.
+/// Poll a connect() that returned EINPROGRESS. On error, err_out is SO_ERROR (or
+/// errno) on fd implementations and the failure the callbacks recorded on raw lwip.
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+inline ConnectPollResult poll_connect(Socket &sock, int &err_out) { return sock.poll_connect(err_out); }
+#else
 ConnectPollResult poll_connect(Socket &sock, int &err_out);
 #endif
 
