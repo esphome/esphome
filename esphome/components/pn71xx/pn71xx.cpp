@@ -1157,6 +1157,26 @@ uint8_t PN71xx::transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, const uint
   return nfc::STATUS_OK;
 }
 
+void PN71xx::fill_ndef_tlv_(const std::vector<uint8_t> &message, const uint32_t buffer_length,
+                            FixedVector<uint8_t> &buffer) {
+  buffer.init(buffer_length);
+  buffer.push_back(0x03);
+  if (message.size() < 255) {
+    buffer.push_back(message.size());
+  } else {
+    buffer.push_back(0xFF);
+    buffer.push_back((message.size() >> 8) & 0xFF);
+    buffer.push_back(message.size() & 0xFF);
+  }
+  for (const uint8_t byte : message) {
+    buffer.push_back(byte);
+  }
+  buffer.push_back(0xFE);
+  while (buffer.size() < buffer_length) {
+    buffer.push_back(0x00);
+  }
+}
+
 uint8_t PN71xx::wait_for_irq_(uint16_t timeout, bool pin_state) {
   auto start_time = millis();
 

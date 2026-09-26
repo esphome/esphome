@@ -9,6 +9,7 @@
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 
+#include <array>
 #include <functional>
 #include <span>
 
@@ -134,6 +135,10 @@ enum class TestMode : uint8_t {
 
 /// A card emulation reply; the CC limits reads so every reply fits one NCI data packet
 using CardEmuResponse = StaticVector<uint8_t, nfc::NCI_PKT_MAX_PAYLOAD_SIZE>;
+/// Holds pages 3 to 6 (16 bytes) plus an NDEF message of up to 255 bytes and its TLV header, rounded up to whole reads
+using UltralightReadBuffer = StaticVector<uint8_t, 272>;
+/// Longest NDEF message accepted from a MIFARE Classic tag (the capacity of a 4K tag)
+static constexpr uint32_t MIFARE_CLASSIC_MAX_NDEF_SIZE = 3440;
 
 struct DiscoveredEndpoint {
   uint32_t last_seen;
@@ -256,7 +261,7 @@ class PN71xx : public nfc::Nfcc, public Component {
   uint8_t wait_for_irq_(uint16_t timeout = NFCC_DEFAULT_TIMEOUT, bool pin_state = true);
 
   uint8_t read_mifare_classic_tag_(nfc::NfcTag &tag);
-  uint8_t read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
+  uint8_t read_mifare_classic_block_(uint8_t block_num, std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> &data);
   uint8_t write_mifare_classic_block_(uint8_t block_num, const uint8_t *data, size_t len);
   uint8_t auth_mifare_classic_block_(uint8_t block_num, uint8_t key_num, const uint8_t *key);
   uint8_t sect_to_auth_(uint8_t block_num);
@@ -266,11 +271,13 @@ class PN71xx : public nfc::Nfcc, public Component {
   uint8_t halt_mifare_classic_tag_();
 
   uint8_t read_mifare_ultralight_tag_(nfc::NfcTag &tag);
-  uint8_t read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, std::vector<uint8_t> &data);
-  bool is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_3_to_6);
+  uint8_t read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, UltralightReadBuffer &data);
+  bool is_mifare_ultralight_formatted_(std::span<const uint8_t> page_3_to_6);
   uint16_t read_mifare_ultralight_capacity_();
-  uint8_t find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6, uint8_t &message_length,
+  uint8_t find_mifare_ultralight_ndef_(std::span<const uint8_t> page_3_to_6, uint8_t &message_length,
                                        uint8_t &message_start_index);
+  /// Fills `buffer` with the NDEF TLV (type, length, message, terminator) padded with zeros to `buffer_length`
+  static void fill_ndef_tlv_(const std::vector<uint8_t> &message, uint32_t buffer_length, FixedVector<uint8_t> &buffer);
   uint8_t write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write_data, size_t len);
   uint8_t write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, const std::shared_ptr<nfc::NdefMessage> &message);
   uint8_t clean_mifare_ultralight_();

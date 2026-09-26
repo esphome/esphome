@@ -23,7 +23,7 @@ uint8_t guess_tag_type(uint8_t uid_length) {
   }
 }
 
-int8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data) {
+int8_t get_mifare_classic_ndef_start_index(const std::span<const uint8_t> data) {
   for (uint8_t i = 0; i < MIFARE_CLASSIC_BLOCK_SIZE; i++) {
     if (data[i] == 0x00) {
       // Do nothing, skip
@@ -36,7 +36,8 @@ int8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data) {
   return -1;
 }
 
-bool decode_mifare_classic_tlv(std::vector<uint8_t> &data, uint32_t &message_length, uint8_t &message_start_index) {
+bool decode_mifare_classic_tlv(const std::span<const uint8_t> data, uint32_t &message_length,
+                               uint8_t &message_start_index) {
   if (data.size() < MIFARE_CLASSIC_BLOCK_SIZE) {
     ESP_LOGE(TAG, "Error, data too short for NDEF detection.");
     return false;
