@@ -8,13 +8,6 @@ namespace esphome::epaper_spi {
 
 static constexpr const char *const TAG = "epaper_spi.inkplate2";
 
-// Map RGB to the panel's black/white/red via the shared converter.
-enum class Inkplate2Color : uint8_t { BLACK, WHITE, RED };
-
-static Inkplate2Color to_inkplate2_color(Color color) {
-  return color_to_bwr<Inkplate2Color>(color, Inkplate2Color::BLACK, Inkplate2Color::WHITE, Inkplate2Color::RED);
-}
-
 void EPaperInkplate2::power_on() {
   // Power-on (0x04) leads the init sequence, so there is nothing to do here.
   ESP_LOGV(TAG, "Power on");
@@ -50,16 +43,17 @@ void EPaperInkplate2::fill(Color color) {
   // Plane encoding: B/W plane 1=white, 0=black; red plane 0=red, 1=no-red.
   uint8_t bw_byte;
   uint8_t red_byte;
-  switch (to_inkplate2_color(color)) {
-    case Inkplate2Color::BLACK:
+  switch (
+      color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED)) {
+    case BwrColor::BWR_COLOR_BLACK:
       bw_byte = 0x00;
       red_byte = 0xFF;
       break;
-    case Inkplate2Color::RED:
+    case BwrColor::BWR_COLOR_RED:
       bw_byte = 0xFF;
       red_byte = 0x00;
       break;
-    case Inkplate2Color::WHITE:
+    case BwrColor::BWR_COLOR_WHITE:
     default:
       bw_byte = 0xFF;
       red_byte = 0xFF;
@@ -77,8 +71,6 @@ void EPaperInkplate2::fill(Color color) {
   this->y_high_ = this->height_;
 }
 
-void EPaperInkplate2::clear() { this->fill(COLOR_ON); }
-
 void HOT EPaperInkplate2::draw_pixel_at(int x, int y, Color color) {
   if (!this->rotate_coordinates_(x, y))
     return;
@@ -87,16 +79,17 @@ void HOT EPaperInkplate2::draw_pixel_at(int x, int y, Color color) {
   const size_t pos = y * this->row_width_ + x / 8;
   const uint8_t mask = 0x80 >> (x & 0x07);  // MSB first; see fill() for plane encoding
 
-  switch (to_inkplate2_color(color)) {
-    case Inkplate2Color::BLACK:
+  switch (
+      color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED)) {
+    case BwrColor::BWR_COLOR_BLACK:
       this->buffer_[pos] &= ~mask;
       this->buffer_[pos + half_buffer] |= mask;
       break;
-    case Inkplate2Color::RED:
+    case BwrColor::BWR_COLOR_RED:
       this->buffer_[pos] |= mask;
       this->buffer_[pos + half_buffer] &= ~mask;
       break;
-    case Inkplate2Color::WHITE:
+    case BwrColor::BWR_COLOR_WHITE:
     default:
       this->buffer_[pos] |= mask;
       this->buffer_[pos + half_buffer] |= mask;
