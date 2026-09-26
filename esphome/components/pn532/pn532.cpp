@@ -93,7 +93,7 @@ bool PN532::powerdown() {
     return false;
   }
   if (response.empty() || response[0] != 0x00) {
-    ESP_LOGE(TAG, "Error on PN532 powerdown: %02x", response.empty() ? 0xFF : response[0]);
+    ESP_LOGE(TAG, "Error on powerdown: %02x", response.empty() ? 0xFF : response[0]);
     return false;
   }
   ESP_LOGV(TAG, "Powerdown successful");
