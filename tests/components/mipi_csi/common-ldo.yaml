@@ -1,0 +1,19 @@
+# The camera's supply rail is brought up by an esp_ldo entry here, as a board with a MIPI-DSI
+# display would do. init_ldo must be turned off explicitly so the camera does not try to claim
+# the same channel again.
+esp_ldo:
+  - channel: 3
+    voltage: 2.5V
+
+psram:
+  speed: 100MHz
+
+mipi_csi:
+  name: MIPI CSI Camera
+  sensor: SC2336
+  resolution: 1280x720
+  pixel_format: RGB565
+  framerate: 10 fps
+  sccb_frequency: 100kHz
+  init_ldo: false
+  reset_pin: GPIO21
