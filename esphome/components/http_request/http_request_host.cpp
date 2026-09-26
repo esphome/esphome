@@ -5,6 +5,8 @@
 #include "httplib.h"
 #include "http_request_host.h"
 
+#include <cstring>
+
 #include <regex>
 #include "esphome/components/network/util.h"
 #include "esphome/components/watchdog/watchdog.h"
@@ -16,8 +18,7 @@ namespace esphome::http_request {
 
 static const char *const TAG = "http_request";
 
-std::shared_ptr<HttpContainer> HttpRequestHost::perform(const std::string &url, const std::string &method,
-                                                        const std::string &body,
+std::shared_ptr<HttpContainer> HttpRequestHost::perform(const char *url, const char *method, const std::string &body,
                                                         const std::vector<Header> &request_headers,
                                                         const std::vector<std::string> &lower_case_collect_headers) {
   if (!network::is_connected()) {
@@ -27,10 +28,10 @@ std::shared_ptr<HttpContainer> HttpRequestHost::perform(const std::string &url, 
   }
 
   std::regex url_regex(R"(^(([^:\/?#]+):)?(//([^\/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?)", std::regex::extended);
-  std::smatch url_match_result;
+  std::cmatch url_match_result;
 
   if (!std::regex_match(url, url_match_result, url_regex) || url_match_result.length() < 7) {
-    ESP_LOGE(TAG, "HTTP Request failed; Malformed URL: %s", url.c_str());
+    ESP_LOGE(TAG, "HTTP Request failed; Malformed URL: %s", url);
     return nullptr;
   }
   auto host = url_match_result[4].str();
@@ -54,7 +55,7 @@ std::shared_ptr<HttpContainer> HttpRequestHost::perform(const std::string &url, 
   }
   httplib::Client client(scheme_host.c_str());
   if (!client.is_valid()) {
-    ESP_LOGE(TAG, "HTTP Request failed; Invalid URL: %s", url.c_str());
+    ESP_LOGE(TAG, "HTTP Request failed; Invalid URL: %s", url);
     return nullptr;
   }
   client.set_follow_location(this->follow_redirects_);
@@ -64,41 +65,41 @@ std::shared_ptr<HttpContainer> HttpRequestHost::perform(const std::string &url, 
 #endif
 
   httplib::Result result;
-  if (method == "GET") {
+  if (strcmp(method, "GET") == 0) {
     result = client.Get(path, h_headers, [&](const char *data, size_t data_length) {
       ESP_LOGV(TAG, "Got data length: %zu", data_length);
       container->response_body_.insert(container->response_body_.end(), (const uint8_t *) data,
                                        (const uint8_t *) data + data_length);
       return true;
     });
-  } else if (method == "HEAD") {
+  } else if (strcmp(method, "HEAD") == 0) {
     result = client.Head(path, h_headers);
-  } else if (method == "PUT") {
+  } else if (strcmp(method, "PUT") == 0) {
     result = client.Put(path, h_headers, body, "");
     if (result) {
       auto data = std::vector<uint8_t>(result->body.begin(), result->body.end());
       container->response_body_.insert(container->response_body_.end(), data.begin(), data.end());
     }
-  } else if (method == "PATCH") {
+  } else if (strcmp(method, "PATCH") == 0) {
     result = client.Patch(path, h_headers, body, "");
     if (result) {
       auto data = std::vector<uint8_t>(result->body.begin(), result->body.end());
       container->response_body_.insert(container->response_body_.end(), data.begin(), data.end());
     }
-  } else if (method == "POST") {
+  } else if (strcmp(method, "POST") == 0) {
     result = client.Post(path, h_headers, body, "");
     if (result) {
       auto data = std::vector<uint8_t>(result->body.begin(), result->body.end());
       container->response_body_.insert(container->response_body_.end(), data.begin(), data.end());
     }
   } else {
-    ESP_LOGW(TAG, "HTTP Request failed - unsupported method %s; URL: %s", method.c_str(), url.c_str());
+    ESP_LOGW(TAG, "HTTP Request failed - unsupported method %s; URL: %s", method, url);
     container->end();
     return nullptr;
   }
   App.feed_wdt();
   if (!result) {
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s, error code: %u", url.c_str(), (unsigned) result.error());
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s, error code: %u", url, (unsigned) result.error());
     container->end();
     this->status_momentary_error("failed", 1000);
     return nullptr;
@@ -107,7 +108,7 @@ std::shared_ptr<HttpContainer> HttpRequestHost::perform(const std::string &url, 
   auto response = *result;
   container->status_code = response.status;
   if (!is_success(response.status)) {
-    ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url.c_str(), response.status);
+    ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url, response.status);
     this->status_momentary_error("failed", 1000);
     // Still return the container, so it can be used to get the status code and error message
   }

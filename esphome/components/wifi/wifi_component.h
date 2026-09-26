@@ -797,7 +797,7 @@ class WiFiComponent final : public Component {
   network::IPAddress wifi_dns_ip_(int num);
 
   bool is_captive_portal_active_();
-  bool is_esp32_improv_active_();
+  bool is_improv_ble_active_();
 
 #ifdef USE_WIFI_FAST_CONNECT
   bool load_fast_connect_settings_(WiFiAP &params);

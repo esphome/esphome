@@ -25,7 +25,8 @@ void PN532Spi::setup() {
 bool PN532Spi::is_read_ready() {
   this->enable();
   this->write_byte(0x02);
-  bool ready = this->read_byte() == 0x01;
+  // only bit 0 (RDY) of the status byte is defined (UM0701-02, 6.2.5)
+  const bool ready = this->read_byte() & 0x01;
   this->disable();
   return ready;
 }

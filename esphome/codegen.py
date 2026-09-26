@@ -64,7 +64,6 @@ from esphome.cpp_types import (  # noqa: F401
     Application,
     Component,
     ComponentPtr,
-    Controller,
     EntityBase,
     EntityCategory,
     ESPTime,

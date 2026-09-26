@@ -70,14 +70,26 @@ void SendspinHub::setup() {
   this->client_->add_visualizer(this->visualizer_config_).set_listener(this->visualizer_listener_);
 #endif
 
-  if (!this->client_->start_server()) {
-    ESP_LOGE(TAG, "Failed to start Sendspin server");
-    this->mark_failed();
-    return;
-  }
+#ifndef USE_SENDSPIN_SWITCH
+  this->enabled_ = true;
+#endif
 }
 
-void SendspinHub::loop() { this->client_->loop(); }
+void SendspinHub::loop() {
+  if (this->enabled_.has_value() && this->enabled_.value() != this->client_->is_started() &&
+      !this->status_has_error()) {
+    if (!this->enabled_.value()) {
+      this->client_->stop();
+    } else if (!this->client_->start()) {
+      this->status_set_error(LOG_STR("Failed to start Sendspin client"));
+    }
+  }
+  this->client_->loop();
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  this->update_mdns_service_();
+#endif
+}
 
 void SendspinHub::dump_config() {
   char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -104,25 +116,54 @@ void SendspinHub::dump_config() {
 #endif
 }
 
+// THREAD CONTEXT: Main loop (invoked from Sendspin components)
+void SendspinHub::set_enabled(bool enabled) {
+  if (this->status_has_error()) {
+    ESP_LOGE(TAG, "Cannot %s: Sendspin failed to start, reboot to retry",
+             enabled ? LOG_STR_LITERAL("enable") : LOG_STR_LITERAL("disable"));
+    return;
+  }
+  this->enabled_ = enabled;
+}
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+// THREAD CONTEXT: Main loop
+void SendspinHub::update_mdns_service_() {
+  // Synced from loop() because mdns sets up after this hub and only builds its service list then.
+  if (!this->mdns_->is_ready()) {
+    return;
+  }
+  bool advertise = this->client_->is_started();
+  if (advertise == this->mdns_advertised_) {
+    return;
+  }
+  // One attempt per change
+  this->mdns_advertised_ = advertise;
+  if (!this->mdns_->set_service_enabled("_sendspin", "_tcp", advertise)) {
+    ESP_LOGE(TAG, "Failed to %s mDNS service", advertise ? LOG_STR_LITERAL("enable") : LOG_STR_LITERAL("disable"));
+  }
+}
+#endif
+
 // --- Delegating methods ---
 
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
 void SendspinHub::connect_to_server(const std::string &url) {
-  if (this->is_ready()) {
+  if (this->is_client_running()) {
     this->client_->connect_to(url);
   }
 }
 
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
 void SendspinHub::disconnect_from_server(sendspin::SendspinGoodbyeReason reason) {
-  if (this->is_ready()) {
+  if (this->is_client_running()) {
     this->client_->disconnect(reason);
   }
 }
 
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
 void SendspinHub::update_state(sendspin::SendspinClientState state) {
-  if (this->is_ready()) {
+  if (this->is_client_running()) {
     this->client_->update_state(state);
   }
 }
@@ -252,7 +293,7 @@ void SendspinHub::on_color_clear() { this->color_callbacks_.call(sendspin::Serve
 // THREAD CONTEXT: Main loop (invoked from ESPHome actions / other components)
 void SendspinHub::send_client_command(sendspin::SendspinControllerCommand command, std::optional<uint8_t> volume,
                                       std::optional<bool> mute) {
-  if (this->is_ready()) {
+  if (this->is_client_running()) {
     sendspin::ClientCommandControllerObject obj = {
         .command = command,
         .volume = volume,
@@ -260,6 +301,13 @@ void SendspinHub::send_client_command(sendspin::SendspinControllerCommand comman
     };
     this->controller_role_->send_command(obj);
   }
+}
+
+// THREAD CONTEXT: Main loop (invoked from the sendspin.switch action)
+void SendspinHub::switch_client() {
+  // Clear any EXTERNAL_SOURCE state so the switch command is followed
+  this->update_state(sendspin::SendspinClientState::SYNCHRONIZED);
+  this->send_client_command(sendspin::SendspinControllerCommand::SWITCH);
 }
 
 // THREAD CONTEXT: Main loop (ControllerRoleListener override, fired from client_->loop())

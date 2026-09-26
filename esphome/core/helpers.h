@@ -242,8 +242,9 @@ template<typename T, size_t N> class StaticVector {
   size_t count_{0};
 
  public:
-  // Default constructor
-  StaticVector() = default;
+  // User provided, not "= default": otherwise `StaticVector<...> x_{}` members
+  // value-initialize and memset data_, defeating the comment above.
+  constexpr StaticVector() noexcept {}
 
   // Iterator range constructor
   template<typename InputIt> StaticVector(InputIt first, InputIt last) {
@@ -2062,6 +2063,32 @@ class LwIPLock {
   // to prevent clang-tidy unused-variable warnings at call sites)
   LwIPLock() {}
   ~LwIPLock() {}
+#endif
+};
+
+#if defined(USE_ESP8266) && F_CPU != 160000000L
+// Forward decl from <user_interface.h>
+// NOLINTNEXTLINE(readability-redundant-declaration)
+extern "C" bool system_update_cpu_freq(uint8_t freq);
+#endif
+
+/** Runs the CPU at 160 MHz while alive. ESP8266 built for 80 MHz only; elsewhere it compiles to nothing.
+ *
+ * The core resets the clock before every loop() pass, so a scope must stay within one pass, must not nest and
+ * must not yield to the main loop. Peripheral clocks are unchanged, but the cycle counter runs twice as fast, so
+ * code that times itself against F_CPU, including ISRs that fire while a scope is open, must read CPU2X.
+ */
+class CpuFrequencyBoost {
+ public:
+  CpuFrequencyBoost(const CpuFrequencyBoost &) = delete;
+  CpuFrequencyBoost &operator=(const CpuFrequencyBoost &) = delete;
+#if defined(USE_ESP8266) && F_CPU != 160000000L
+  CpuFrequencyBoost() { system_update_cpu_freq(160); }
+  ~CpuFrequencyBoost() { system_update_cpu_freq(80); }
+#else
+  // Not = default, so clang-tidy does not flag unused variables at call sites
+  CpuFrequencyBoost() {}
+  ~CpuFrequencyBoost() {}
 #endif
 };
 

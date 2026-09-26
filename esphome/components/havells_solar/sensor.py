@@ -23,6 +23,7 @@ from esphome.const import (
     UNIT_AMPERE,
     UNIT_DEGREES,
     UNIT_HERTZ,
+    UNIT_KILOWATT_HOURS,
     UNIT_MINUTE,
     UNIT_VOLT,
     UNIT_VOLT_AMPS_REACTIVE,
@@ -36,7 +37,6 @@ CONF_TOTAL_GENERATION_TIME = "total_generation_time"
 CONF_TODAY_GENERATION_TIME = "today_generation_time"
 CONF_PV1 = "pv1"
 CONF_PV2 = "pv2"
-UNIT_KILOWATT_HOURS = "kWh"
 UNIT_HOURS = "h"
 UNIT_KOHM = "kΩ"
 UNIT_MILLIAMPERE = "mA"

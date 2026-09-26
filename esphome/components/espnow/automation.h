@@ -86,39 +86,6 @@ template<typename... Ts> class SendAction final : public Action<Ts...>, public P
   } flags_{0};
 };
 
-template<typename... Ts> class AddPeerAction final : public Action<Ts...>, public Parented<ESPNowComponent> {
-  TEMPLATABLE_VALUE(peer_address_t, address);
-
- protected:
-  void play(const Ts &...x) override {
-    peer_address_t address = this->address_.value(x...);
-    this->parent_->add_peer(address.data());
-  }
-};
-
-template<typename... Ts> class DeletePeerAction final : public Action<Ts...>, public Parented<ESPNowComponent> {
-  TEMPLATABLE_VALUE(peer_address_t, address);
-
- protected:
-  void play(const Ts &...x) override {
-    peer_address_t address = this->address_.value(x...);
-    this->parent_->del_peer(address.data());
-  }
-};
-
-template<typename... Ts> class SetChannelAction final : public Action<Ts...>, public Parented<ESPNowComponent> {
-  TEMPLATABLE_VALUE(uint8_t, channel)
-
- protected:
-  void play(const Ts &...x) override {
-    if (this->parent_->is_wifi_enabled()) {
-      return;
-    }
-    this->parent_->set_wifi_channel(this->channel_.value(x...));
-    this->parent_->apply_wifi_channel();
-  }
-};
-
 class OnReceiveTrigger final : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint16_t>,
                                public ESPNowReceivedPacketHandler {
  public:
