@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from esphome import config_validation as cv
@@ -16,6 +18,8 @@ from esphome.const import (
     CONF_ID,
     CONF_RED,
 )
+
+LOGGER_NAME = "esphome.components.light.automation"
 
 
 def test_color_name_sets_rgb() -> None:
@@ -57,7 +61,8 @@ def test_black_sets_zero_color_brightness() -> None:
 
 
 def test_explicit_color_brightness_wins(caplog: pytest.LogCaptureFixture) -> None:
-    result = LIGHT_STATE_SCHEMA({"color": "darkred", CONF_COLOR_BRIGHTNESS: 0.25})
+    with caplog.at_level(logging.WARNING, logger=LOGGER_NAME):
+        result = LIGHT_STATE_SCHEMA({"color": "darkred", CONF_COLOR_BRIGHTNESS: 0.25})
     assert result[CONF_COLOR_BRIGHTNESS] == 0.25
     assert "overrides the brightness of color 'darkred'" in caplog.text
 
@@ -65,6 +70,7 @@ def test_explicit_color_brightness_wins(caplog: pytest.LogCaptureFixture) -> Non
 def test_explicit_color_brightness_full_color(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    result = LIGHT_STATE_SCHEMA({"color": "red", CONF_COLOR_BRIGHTNESS: 0.25})
+    with caplog.at_level(logging.WARNING, logger=LOGGER_NAME):
+        result = LIGHT_STATE_SCHEMA({"color": "red", CONF_COLOR_BRIGHTNESS: 0.25})
     assert result[CONF_COLOR_BRIGHTNESS] == 0.25
-    assert not caplog.text
+    assert not [r for r in caplog.records if r.name == LOGGER_NAME]
