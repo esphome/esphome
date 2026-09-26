@@ -56,7 +56,10 @@ void PN71xx::set_tag_emulation_message(const std::shared_ptr<nfc::NdefMessage> &
     ESP_LOGE(TAG, "Tag emulation message too long: %zu > %u bytes", encoded.size(), CARD_EMU_T4T_MAX_NDEF_SIZE);
     return;
   }
-  this->card_emulation_ndef_ = std::move(encoded);
+  this->card_emulation_ndef_.init(encoded.size());
+  for (const uint8_t byte : encoded) {
+    this->card_emulation_ndef_.push_back(byte);
+  }
   ESP_LOGD(TAG, "Tag emulation message set");
 }
 
@@ -77,7 +80,7 @@ void PN71xx::set_tag_emulation_off() {
 }
 
 void PN71xx::set_tag_emulation_on() {
-  if (this->card_emulation_ndef_.empty()) {
+  if (this->card_emulation_ndef_.size() == 0) {
     ESP_LOGE(TAG, "No NDEF message is set; tag emulation cannot be enabled");
     return;
   }
@@ -969,16 +972,11 @@ void PN71xx::process_data_message_(nfc::NciMessage &rx) {
   char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
   ESP_LOGVV(TAG, "Received data message: %s", nfc::format_bytes_to(buf, rx.get_message()));
 
-  std::vector<uint8_t> ndef_response;
+  CardEmuResponse ndef_response;
   this->card_emu_t4t_get_response_(rx.get_message(), ndef_response);
 
   if (ndef_response.empty()) {
     return;  // no message returned, we cannot respond
-  }
-  // the CC limits MLe so every response fits in a single data packet (payload length is one byte)
-  if (ndef_response.size() > UINT8_MAX) {
-    ESP_LOGE(TAG, "Card emulation response too long: %zu bytes", ndef_response.size());
-    return;
   }
 
   nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, ndef_response);
@@ -988,12 +986,14 @@ void PN71xx::process_data_message_(nfc::NciMessage &rx) {
   }
 }
 
-bool PN71xx::card_emu_t4t_read_ndef_(const uint16_t offset, const uint8_t length, std::vector<uint8_t> &ndef_response) {
+bool PN71xx::card_emu_t4t_read_ndef_(const uint16_t offset, const uint8_t length, CardEmuResponse &ndef_response) {
   const auto &ndef_message = this->card_emulation_ndef_;
   // the NDEF file is a two-byte big-endian length (NLEN) followed by the message
   const uint16_t ndef_msg_size = ndef_message.size();
   const uint32_t file_size = ndef_msg_size + 2;
-  if (offset + static_cast<uint32_t>(length) > file_size) {
+  // the reply must also hold the two status bytes; the CC's MLe keeps well-behaved readers below this
+  if (offset + static_cast<uint32_t>(length) > file_size ||
+      length + sizeof(CARD_EMU_T4T_OK) > ndef_response.capacity()) {
     return false;
   }
   for (uint32_t i = offset; i < offset + static_cast<uint32_t>(length); i++) {
@@ -1012,9 +1012,9 @@ bool PN71xx::card_emu_t4t_read_ndef_(const uint16_t offset, const uint8_t length
   return true;
 }
 
-void PN71xx::card_emu_t4t_get_response_(const std::span<const uint8_t> response, std::vector<uint8_t> &ndef_response) {
+void PN71xx::card_emu_t4t_get_response_(const std::span<const uint8_t> response, CardEmuResponse &ndef_response) {
   ndef_response.clear();
-  if (this->card_emulation_ndef_.empty()) {
+  if (this->card_emulation_ndef_.size() == 0) {
     ESP_LOGE(TAG, "No NDEF message is set; tag emulation not possible");
     return;
   }
@@ -1029,6 +1029,11 @@ void PN71xx::card_emu_t4t_get_response_(const std::span<const uint8_t> response,
   };
   auto apdu_starts_with = [&](const uint8_t *cmd, size_t cmd_size) {
     return apdu_size >= cmd_size && std::equal(cmd, cmd + cmd_size, apdu_begin);
+  };
+  auto append = [&](std::span<const uint8_t> bytes) {
+    for (const uint8_t byte : bytes) {
+      ndef_response.push_back(byte);
+    }
   };
   bool ok = false;
 
@@ -1054,8 +1059,7 @@ void PN71xx::card_emu_t4t_get_response_(const std::span<const uint8_t> response,
     if (this->ce_state_ == CardEmulationState::CARD_EMU_CC_SELECTED) {
       ESP_LOGVV(TAG, "CARD_EMU_T4T_READ with CARD_EMU_CC_SELECTED");
       if (offset + static_cast<uint32_t>(length) <= sizeof(CARD_EMU_T4T_CC)) {
-        ndef_response.insert(ndef_response.end(), std::begin(CARD_EMU_T4T_CC) + offset,
-                             std::begin(CARD_EMU_T4T_CC) + offset + length);
+        append(std::span<const uint8_t>(CARD_EMU_T4T_CC).subspan(offset, length));
         ok = true;
       }
     } else if (this->ce_state_ == CardEmulationState::CARD_EMU_NDEF_SELECTED) {
@@ -1067,18 +1071,18 @@ void PN71xx::card_emu_t4t_get_response_(const std::span<const uint8_t> response,
     const uint8_t length = apdu_begin[4];
     if (this->ce_state_ == CardEmulationState::CARD_EMU_NDEF_SELECTED && apdu_size >= 5u + length) {
       ESP_LOGVV(TAG, "CARD_EMU_T4T_WRITE");
-      std::vector<uint8_t> ndef_msg_written(apdu_begin + 5, apdu_begin + 5 + length);
       char write_buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
-      ESP_LOGD(TAG, "Received %u-byte NDEF message: %s", length, nfc::format_bytes_to(write_buf, ndef_msg_written));
+      ESP_LOGD(TAG, "Received %u-byte NDEF message: %s", length,
+               nfc::format_bytes_to(write_buf, response.subspan(nfc::NCI_PKT_HEADER_SIZE + 5, length)));
       ok = true;
     }
   }
 
   if (ok) {
-    ndef_response.insert(ndef_response.end(), std::begin(CARD_EMU_T4T_OK), std::end(CARD_EMU_T4T_OK));
+    append(CARD_EMU_T4T_OK);
   } else {
     ndef_response.clear();
-    ndef_response.insert(ndef_response.end(), std::begin(CARD_EMU_T4T_NOK), std::end(CARD_EMU_T4T_NOK));
+    append(CARD_EMU_T4T_NOK);
     this->ce_state_ = CardEmulationState::CARD_EMU_IDLE;
   }
 }

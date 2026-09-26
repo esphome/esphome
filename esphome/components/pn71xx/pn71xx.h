@@ -132,6 +132,9 @@ enum class TestMode : uint8_t {
   TEST_GET_REGISTER,
 };
 
+/// A card emulation reply; the CC limits reads so every reply fits one NCI data packet
+using CardEmuResponse = StaticVector<uint8_t, nfc::NCI_PKT_MAX_PAYLOAD_SIZE>;
+
 struct DiscoveredEndpoint {
   uint32_t last_seen;
   std::unique_ptr<nfc::NfcTag> tag;
@@ -242,8 +245,8 @@ class PN71xx : public nfc::Nfcc, public Component {
   void process_rf_deactivate_oid_(nfc::NciMessage &rx);
   void process_data_message_(nfc::NciMessage &rx);
 
-  void card_emu_t4t_get_response_(std::span<const uint8_t> response, std::vector<uint8_t> &ndef_response);
-  bool card_emu_t4t_read_ndef_(uint16_t offset, uint8_t length, std::vector<uint8_t> &ndef_response);
+  void card_emu_t4t_get_response_(std::span<const uint8_t> response, CardEmuResponse &ndef_response);
+  bool card_emu_t4t_read_ndef_(uint16_t offset, uint8_t length, CardEmuResponse &ndef_response);
 
   uint8_t transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, uint16_t timeout = NFCC_DEFAULT_TIMEOUT,
                       bool expect_notification = true);
@@ -284,7 +287,7 @@ class PN71xx : public nfc::Nfcc, public Component {
   CallbackManager<void()> on_finished_write_callback_;
 
   std::vector<DiscoveredEndpoint> discovered_endpoint_;
-  std::vector<uint8_t> card_emulation_ndef_;  // encoded emulation message; empty when none is set
+  FixedVector<uint8_t> card_emulation_ndef_;  // encoded emulation message; empty when none is set
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
   std::shared_ptr<nfc::NdefMessage> next_task_message_to_write_;

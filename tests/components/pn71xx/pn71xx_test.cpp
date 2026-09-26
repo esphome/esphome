@@ -49,9 +49,9 @@ std::vector<uint8_t> apdu(std::initializer_list<uint8_t> bytes) {
 }
 
 std::vector<uint8_t> respond(FakePN71xx &nfcc, std::initializer_list<uint8_t> bytes) {
-  std::vector<uint8_t> response;
+  CardEmuResponse response;
   nfcc.card_emu_t4t_get_response_(apdu(bytes), response);
-  return response;
+  return {response.begin(), response.end()};
 }
 
 void select_ndef_file(FakePN71xx &nfcc) {
