@@ -26,7 +26,7 @@ class T133A01Model(EpaperModel):
     manages_cs = True
 
     def __init__(self, name, class_name="EPaperT133A01", **defaults):
-        super().__init__(name, class_name, **defaults)
+        super().__init__(name, class_name=class_name, **defaults)
 
     def get_config_options(self) -> dict:
         # CS1 is the second chip-select required by the dual-CS architecture.
