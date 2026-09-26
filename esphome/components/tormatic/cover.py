@@ -1,7 +1,8 @@
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import cover, uart
 import esphome.config_validation as cv
-from esphome.const import CONF_CLOSE_DURATION, CONF_OPEN_DURATION
+from esphome.const import CONF_CLOSE_DURATION, CONF_ID, CONF_OPEN_DURATION
 from esphome.types import ConfigType
 
 tormatic_ns = cg.esphome_ns.namespace("tormatic")
@@ -41,3 +42,15 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_close_duration(config[CONF_CLOSE_DURATION]))
     cg.add(var.set_open_duration(config[CONF_OPEN_DURATION]))
+
+
+TORMATIC_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(Tormatic),
+    }
+)
+
+
+automation.register_apply_action(
+    "tormatic.ventilate", TORMATIC_ACTION_SCHEMA, automation.ApplyCall("ventilate()")
+)
