@@ -728,7 +728,9 @@ async def test_apply_id_constant_is_the_named_object(
     fields = (ApplyField("target", "switch_to_output", cg.RawExpression("Speaker *")),)
     await _run_apply_action(registries, fields, {"target": ID("speaker_b")})
     mock_cg.get_variable.assert_any_await(ID("speaker_b"))
-    assert f"::{PARENT_OBJ}->switch_to_output(::speaker_b);" in _apply_lambda(mock_cg)
+    assert f"::{PARENT_OBJ}->switch_to_output(::speaker_b);" in str(
+        _apply_definition(mock_cg)
+    )
 
 
 @pytest.mark.asyncio
@@ -741,7 +743,9 @@ async def test_apply_condition_id_constant_is_the_named_object(
     check = ApplyCall("is_output({})", (("target", cg.RawExpression("Speaker *")),))
     await _run_apply_condition(registries, check, {"target": ID("speaker_b")})
     mock_cg.get_variable.assert_any_await(ID("speaker_b"))
-    assert f"return ::{PARENT_OBJ}->is_output(::speaker_b);" in _apply_lambda(mock_cg)
+    assert f"return ::{PARENT_OBJ}->is_output(::speaker_b);" in str(
+        _apply_definition(mock_cg)
+    )
 
 
 @pytest.mark.asyncio
