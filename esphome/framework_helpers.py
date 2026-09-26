@@ -15,7 +15,7 @@ import threading
 import time
 from typing import IO, TYPE_CHECKING
 
-from esphome.helpers import ProgressBar, rmtree
+from esphome.helpers import ProgressBar, get_usable_cpu_count, rmtree
 from esphome.net_retry import (
     NETWORK_MAX_ATTEMPTS,
     http_request,
@@ -382,7 +382,9 @@ def _tar_extract_all(
         total = len(safe_members)
         report = _resolve_progress(progress, progress_header, total > 0)
         for i, member in enumerate(safe_members, 1):
-            tar_ref.extract(member, abs_dest)
+            # Already sanitized by data_filter above; extract() would
+            # otherwise re-run it per member (two lstat passes per file)
+            tar_ref.extract(member, abs_dest, filter="fully_trusted")
             if report is not None:
                 report(i / total)
         if report is not None:
@@ -785,9 +787,19 @@ def _stream_response_to_file(
 # hammering the host or the mirrors.
 BATCH_DOWNLOAD_WORKERS = 4
 
-# Concurrent archive extractions per batch; unpacking stops scaling well
-# before high core counts since the workers share one disk.
-BATCH_EXTRACT_WORKERS = 10
+# Concurrent archive extractions per batch. Measured on 42 MB gz and
+# 29 MB xz archives: gz is filesystem-metadata bound and peaks near 2
+# workers (8 workers is slower than serial), xz is decompression bound
+# and plateaus by 4. Four xz workers also hold ~205 MB of decompressor
+# dictionaries, where ten hold ~515 MB and can push a small host into
+# swap, so the cap stays where both formats still gain.
+BATCH_EXTRACT_WORKERS = 4
+
+
+def extract_workers(jobs: int | None = None) -> int:
+    """Worker count for an extraction batch of ``jobs`` archives."""
+    workers = min(get_usable_cpu_count(), BATCH_EXTRACT_WORKERS)
+    return workers if jobs is None else min(workers, jobs)
 
 
 def run_batch_downloads(
@@ -1034,7 +1046,7 @@ def is_expected_fetch_error(err: BaseException) -> bool:
 
 def warn_batch_failures(
     failures: list[tuple[str, BaseException]],
-    message: str = "Could not prefetch %s: %s",
+    message: str,
 ) -> None:
     """Warn per failed batch job, keeping the traceback of unexpected errors."""
     for name, err in failures:
