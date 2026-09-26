@@ -52,8 +52,9 @@ class MotionComponent : public PollingComponent {
   bool calibrate_heading();
   /// Save the current matrix to NVS.
   bool save_calibration();
-  /// Restore the build-time (axis_map / transform_matrix) base, discarding calibration.
-  void clear_calibration();
+  /// Restore the build-time (axis_map / transform_matrix) base, discarding calibration,
+  /// and persist that base when `save` is set.
+  void clear_calibration(bool save = false);
 
   template<typename F> void add_listener(F &&cb) { this->motion_data_callback_.add(std::forward<F>(cb)); }
 
@@ -132,22 +133,6 @@ template<typename... Ts> class CalibrateHeadingAction final : public Action<Ts..
   MotionComponent *parent_;
   Trigger<> success_trigger_;
   Trigger<> error_trigger_;
-  bool save_{false};
-};
-
-template<typename... Ts> class ClearCalibrationAction final : public Action<Ts...> {
- public:
-  explicit ClearCalibrationAction(MotionComponent *parent) : parent_(parent) {}
-  void set_save(bool save) { this->save_ = save; }
-
- protected:
-  void play(const Ts &...) override {
-    this->parent_->clear_calibration();
-    if (this->save_)
-      this->parent_->save_calibration();
-  }
-
-  MotionComponent *parent_;
   bool save_{false};
 };
 

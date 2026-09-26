@@ -5,7 +5,10 @@ esphome:
       - audio_dac.mute_on:
       - audio_dac.set_volume:
           volume: 50%
+      - audio_dac.set_volume:
+          volume: !lambda return id(aic3204_dac).volume() * 0.5f;
 
 audio_dac:
   - platform: aic3204
+    id: aic3204_dac
     i2c_id: i2c_bus

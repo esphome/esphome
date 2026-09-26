@@ -8,8 +8,6 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     CONF_TASK_STACK_IN_PSRAM,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 from .. import (
@@ -39,18 +37,6 @@ SendspinMediaSource = sendspin_ns.class_(
     "SendspinMediaSource",
     cg.Component,
     media_source.MediaSource,
-)
-
-EnableStaticDelayAdjustmentAction = sendspin_ns.class_(
-    "EnableStaticDelayAdjustmentAction",
-    automation.Action,
-    cg.Parented.template(SendspinMediaSource),
-)
-
-DisableStaticDelayAdjustmentAction = sendspin_ns.class_(
-    "DisableStaticDelayAdjustmentAction",
-    automation.Action,
-    cg.Parented.template(SendspinMediaSource),
 )
 
 
@@ -144,25 +130,16 @@ SENDSPIN_MEDIA_SOURCE_ACTION_SCHEMA = automation.maybe_simple_id(
     )
 )
 
-
-@automation.register_action(
-    "sendspin.media_source.enable_static_delay_adjustment",
-    EnableStaticDelayAdjustmentAction,
-    SENDSPIN_MEDIA_SOURCE_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "sendspin.media_source.disable_static_delay_adjustment",
-    DisableStaticDelayAdjustmentAction,
-    SENDSPIN_MEDIA_SOURCE_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def sendspin_static_delay_adjustment_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
+for _name, _call in (
+    (
+        "sendspin.media_source.enable_static_delay_adjustment",
+        "set_static_delay_adjustable(true)",
+    ),
+    (
+        "sendspin.media_source.disable_static_delay_adjustment",
+        "set_static_delay_adjustable(false)",
+    ),
+):
+    automation.register_apply_action(
+        _name, SENDSPIN_MEDIA_SOURCE_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
