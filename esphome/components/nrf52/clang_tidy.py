@@ -244,6 +244,8 @@ def generate_compile_commands(work_dir: Path, platformio_ini: Path) -> Path:
         "zephyr_generated_headers",
         "--",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+        # Same build type as a real build, so the compile commands carry NDEBUG
+        "-DCMAKE_BUILD_TYPE=MinSizeRel",
     ]
     if not run_command_ok(
         west_cmd,

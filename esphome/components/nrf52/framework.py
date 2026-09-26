@@ -288,22 +288,36 @@ def _wanted_west_projects() -> set[str]:
     return projects
 
 
-def _west_update(
+def _set_project_filter(
     env_python_path: Path, framework_path: Path, projects: set[str]
 ) -> bool:
-    west = [str(env_python_path), "-m", "west"]
     # Leave every project out, then bring back the wanted ones; the value starts
     # with "-", so "--" keeps west from reading it as options
     project_filter = ",".join(["-.*", *(f"+{p}" for p in sorted(projects))])
-    config = ["config", "manifest.project-filter", "--", project_filter]
-    if not run_command_ok(west + config, cwd=framework_path):
+    cmd = [str(env_python_path), "-m", "west", "config", "manifest.project-filter"]
+    return run_command_ok([*cmd, "--", project_filter], cwd=framework_path)
+
+
+def _west_update(
+    env_python_path: Path, framework_path: Path, version: str, projects: set[str]
+) -> bool:
+    """Fetch ``projects``; False when the fetch fails, so the caller decides."""
+    west = [str(env_python_path), "-m", "west"]
+    # west accepts a filter naming a project the manifest lacks and quietly
+    # fetches nothing, which would then count as installed; list fails on it
+    names = sorted(projects)
+    if not run_command_ok([*west, "list", "-f", "{name}", *names], cwd=framework_path):
+        raise EsphomeError(
+            f"A requested nRF Connect SDK {version} west project does not exist"
+        )
+    if not _set_project_filter(env_python_path, framework_path, projects):
         return False
     cmd = [*west, "update", "--narrow", "--fetch-opt=--depth=1"]
     # Streamed so the per-project progress of the long clone reaches the log
     if not run_command_ok(cmd, cwd=framework_path, stream_output=True):
         return False
     (framework_path / _WEST_PROJECTS_FILE).write_text(
-        "\n".join(sorted(projects)), encoding="utf-8"
+        "\n".join(names), encoding="utf-8"
     )
     return True
 
@@ -329,7 +343,9 @@ def _fetch_missing_west_projects(
     _LOGGER.info(
         "Fetching nRF Connect SDK %s projects: %s", version, ", ".join(sorted(missing))
     )
-    if not _west_update(env_python_path, framework_path, installed | projects):
+    if not _west_update(env_python_path, framework_path, version, installed | projects):
+        # Keep the workspace filter in step with what the stamp says is fetched
+        _set_project_filter(env_python_path, framework_path, installed)
         raise EsphomeError(f"Can't update nRF Connect SDK {version}")
 
 
@@ -351,7 +367,7 @@ def _install_framework(
     initialized = (framework_path / ".west" / "config").is_file()
     if initialized and not (framework_path / ".ready").exists():
         _LOGGER.info("Resuming the nRF Connect SDK %s download ...", version)
-        if _west_update(env_python_path, framework_path, projects):
+        if _west_update(env_python_path, framework_path, version, projects):
             resume_failed.unlink(missing_ok=True)
             return
         if not resume_failed.exists():
@@ -380,7 +396,7 @@ def _install_framework(
     if not run_command_ok(cmd, stream_output=True):
         raise EsphomeError(f"Can't initialize nRF Connect SDK {version}")
     _LOGGER.info("Updating nRF Connect SDK %s (this may take a while) ...", version)
-    if not _west_update(env_python_path, framework_path, projects):
+    if not _west_update(env_python_path, framework_path, version, projects):
         raise EsphomeError(f"Can't update nRF Connect SDK {version}")
 
 
