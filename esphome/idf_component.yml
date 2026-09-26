@@ -106,3 +106,11 @@ dependencies:
     version: d44c800a9e876a8394caefc2ce4915dd96dac77b
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 1"
+  zakery292/esp_tsdb:
+    version: "2.4.3"
+    rules:
+      - if: "idf_version >=6.0.0"
+  joltwallet/littlefs:
+    version: "1.22.3"
+    rules:
+      - if: "idf_version >=6.0.0"

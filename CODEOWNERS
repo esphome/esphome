@@ -583,6 +583,7 @@ esphome/components/tof10120/* @wstrzalka
 esphome/components/tormatic/* @ti-mo
 esphome/components/toshiba/* @kbx81
 esphome/components/touchscreen/* @jesserockz @nielsnl68
+esphome/components/tsdb/* @nliaudat
 esphome/components/tsl2591/* @wjcarpenter
 esphome/components/tt21100/* @kroimon
 esphome/components/tuya/binary_sensor/* @jesserockz
