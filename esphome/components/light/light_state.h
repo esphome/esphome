@@ -6,6 +6,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/string_ref.h"
 #include "light_call.h"
+#include "esp_color_correction.h"
 #include "light_color_values.h"
 #include "light_effect.h"
 #include "light_traits.h"
@@ -43,9 +44,6 @@ class LightTargetStateReachedListener {
  public:
   virtual void on_light_target_state_reached() = 0;
 };
-
-/// Entries in a gamma lookup table; codegen stores gamma * 100 in one extra entry after them
-static constexpr size_t GAMMA_TABLE_SIZE = 256;
 
 struct LightStateRTCState {
   // Group 4-byte aligned members first
@@ -162,16 +160,16 @@ class LightState : public EntityBase, public Component {
   uint32_t get_flash_transition_length() const { return this->flash_transition_length_; }
 #else
   // Remove before 2027.4.0
-  ESPDEPRECATED("set_flash_transition_length() does nothing unless flash_transition_length is set in YAML. Will be "
-                "removed in 2027.4.0.",
+  ESPDEPRECATED("set_flash_transition_length() does nothing unless flash_transition_length is set in YAML. Removed in "
+                "2027.4.0",
                 "2026.10.0")
   void set_flash_transition_length(uint32_t flash_transition_length) {}
   uint32_t get_flash_transition_length() const { return 0; }
 #endif
 
   // Remove before 2027.4.0
-  ESPDEPRECATED("set_gamma_correct() does nothing; gamma is fixed at build time by gamma_correct in YAML. Will be "
-                "removed in 2027.4.0.",
+  ESPDEPRECATED("set_gamma_correct() does nothing; gamma is fixed at build time by gamma_correct in YAML. Removed in "
+                "2027.4.0",
                 "2026.10.0")
   void set_gamma_correct(float gamma_correct) {}
   /// The gamma correction factor, read from the entry after the gamma lookup table; 0 without one
@@ -185,11 +183,11 @@ class LightState : public EntityBase, public Component {
 #endif
 
 #ifdef USE_LIGHT_GAMMA_LUT
-  /// Set pre-computed gamma forward lookup table (256-entry uint16 PROGMEM array)
-  void set_gamma_table(const uint16_t *forward) { this->gamma_table_ = forward; }
+  /// Set the pre-computed PROGMEM gamma curve
+  void set_gamma_table(const GammaTable *table) { this->gamma_table_ = table; }
 
-  /// Get the forward gamma lookup table
-  const uint16_t *get_gamma_table() const { return this->gamma_table_; }
+  /// Get the forward gamma lookup table, 256 PROGMEM entries
+  const uint16_t *get_gamma_table() const { return this->gamma_table_ != nullptr ? this->gamma_table_->lut : nullptr; }
 
   /// Apply gamma correction using the pre-computed forward LUT
   float gamma_correct_lut(float value) const;
@@ -380,8 +378,8 @@ class LightState : public EntityBase, public Component {
 
   /// Default transition length for all transitions in ms.
   uint32_t default_transition_length_{};
-  /// Transition length to use for flash transitions.
 #ifdef USE_LIGHT_FLASH_TRANSITION_LENGTH
+  /// Transition length to use for flash transitions.
   uint32_t flash_transition_length_{};  // Keep in sync with DEFAULT_FLASH_TRANSITION_LENGTH in __init__.py
 #endif
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
@@ -389,14 +387,13 @@ class LightState : public EntityBase, public Component {
   uint32_t last_transition_state_publish_{0};
 #endif
 #ifdef USE_LIGHT_GAMMA_LUT
-  const uint16_t *gamma_table_{nullptr};
+  const GammaTable *gamma_table_{nullptr};
 #endif  // USE_LIGHT_GAMMA_LUT
 
   /// 1-based index of the active effect, 0 if none; codegen caps effects at MAX_EFFECTS in effects.py
   uint16_t active_effect_index_{};
-  // The flags are bitfields so they share one byte with the index above
   /// Whether the light value should be written in the next cycle.
-  bool next_write_ : 1 {true};
+  bool next_write_{true};  // a plain bool: it is the most written flag, and still shares the index's word
   // for effects, true if a transformer (transition) is active.
   bool is_transformer_active_ : 1 {false};
   /// Whether this light persists its state to preferences at all.

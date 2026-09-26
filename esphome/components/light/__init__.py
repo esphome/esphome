@@ -140,21 +140,27 @@ def generate_gamma_table(gamma_correct: float) -> list[HexInt]:
     return [HexInt(int(round(i / 255.0 * 65535))) for i in range(256)]
 
 
+def gamma_table_initializer(gamma_correct: float) -> str:
+    """C++ initializer for a light::GammaTable: the lookup table, then gamma * 100."""
+    lut = ", ".join(f"0x{int(v):04X}" for v in generate_gamma_table(gamma_correct))
+    return f"{{{{{lut}}}, {min(65535, round(gamma_correct * 100))}}}"
+
+
 def _get_or_create_gamma_table(gamma_correct):
     data = _get_data()
     if gamma_correct in data.gamma_tables:
         return data.gamma_tables[gamma_correct]
 
-    # One extra entry after the table holds gamma * 100, so get_gamma_correct() needs no RAM
-    forward = generate_gamma_table(gamma_correct) + [
-        HexInt(min(65535, round(gamma_correct * 100)))
-    ]
-
-    gamma_str = f"{gamma_correct}".replace(".", "_")
-    fwd_id = ID(f"gamma_{gamma_str}_fwd", is_declaration=True, type=cg.uint16)
-    fwd_arr = cg.progmem_array(fwd_id, forward)
-    data.gamma_tables[gamma_correct] = fwd_arr
-    return fwd_arr
+    name = f"gamma_{gamma_correct}_table".replace(".", "_")
+    cg.add(
+        cg.RawStatement(
+            f"static constexpr light::GammaTable {name} PROGMEM = "
+            f"{gamma_table_initializer(gamma_correct)};"
+        )
+    )
+    table = cg.RawExpression(f"&{name}")
+    data.gamma_tables[gamma_correct] = table
+    return table
 
 
 def find_effect_index(effects: list, effect_name: str) -> int | None:
