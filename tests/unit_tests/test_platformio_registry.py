@@ -572,8 +572,8 @@ def test_prefetch_packages_downloads_pending_in_parallel(tmp_path: Path) -> None
     ):
         registry.prefetch_packages(
             [
-                ("a", "1.0", tmp_path / "a", []),
-                ("b", "2.0", tmp_path / "b", []),
+                ("a", "1.0", tmp_path / "a", [], ()),
+                ("b", "2.0", tmp_path / "b", [], ()),
             ],
             tmp_path / "dl",
         )
@@ -631,7 +631,7 @@ def test_prefetch_packages_skips_freshly_installed_dest(tmp_path: Path) -> None:
             registry, "registry_download", side_effect=_resolve_for({"a": 10})
         ),
     ):
-        registry.prefetch_packages([("a", "1.0", dest, [])], tmp_path / "dl")
+        registry.prefetch_packages([("a", "1.0", dest, [], ())], tmp_path / "dl")
     mock_download.assert_not_called()
 
 
@@ -671,7 +671,7 @@ def test_prefetch_packages_waits_with_the_holders_progress(
         ),
     ):
         registry.prefetch_packages(
-            [("a", "1.0", dest, []), ("b", "2.0", tmp_path / "b", [])],
+            [("a", "1.0", dest, [], ()), ("b", "2.0", tmp_path / "b", [], ())],
             tmp_path / "dl",
         )
     assert ticks == [0, 3, 10, 10]
@@ -692,7 +692,10 @@ def test_prefetch_packages_leaves_a_long_held_lock_to_its_holder(
         ),
     ):
         registry.prefetch_packages(
-            [("a", "1.0", tmp_path / "a", []), ("b", "2.0", tmp_path / "b", [])],
+            [
+                ("a", "1.0", tmp_path / "a", [], ()),
+                ("b", "2.0", tmp_path / "b", [], ()),
+            ],
             tmp_path / "dl",
         )
     mock_download.assert_not_called()
@@ -718,8 +721,8 @@ def test_prefetch_packages_dedupes_duplicate_entries(tmp_path: Path) -> None:
     ):
         registry.prefetch_packages(
             [
-                ("a", "1.0", tmp_path / "a", []),
-                ("a", "1.0", tmp_path / "a", []),
+                ("a", "1.0", tmp_path / "a", [], ()),
+                ("a", "1.0", tmp_path / "a", [], ()),
             ],
             tmp_path / "dl",
         )
@@ -740,8 +743,8 @@ def test_prefetch_packages_single_pending_skips(tmp_path: Path) -> None:
     ):
         registry.prefetch_packages(
             [
-                ("a", "1.0", marker_dest, []),
-                ("b", "2.0", tmp_path / "b", []),
+                ("a", "1.0", marker_dest, [], ()),
+                ("b", "2.0", tmp_path / "b", [], ()),
             ],
             tmp_path / "dl",
         )
@@ -763,9 +766,9 @@ def test_prefetch_packages_mirror_and_sizeless_stay_sequential(
     ):
         registry.prefetch_packages(
             [
-                ("a", "1.0", tmp_path / "a", ["http://mirror/{VERSION}"]),
-                ("b", "2.0", tmp_path / "b", []),
-                ("c", "3.0", tmp_path / "c", []),
+                ("a", "1.0", tmp_path / "a", ["http://mirror/{VERSION}"], ()),
+                ("b", "2.0", tmp_path / "b", [], ()),
+                ("c", "3.0", tmp_path / "c", [], ()),
             ],
             tmp_path / "dl",
         )
@@ -786,8 +789,8 @@ def test_prefetch_packages_resolve_failure_defers_to_install(
     ):
         registry.prefetch_packages(
             [
-                ("a", "1.0", tmp_path / "a", []),
-                ("b", "2.0", tmp_path / "b", []),
+                ("a", "1.0", tmp_path / "a", [], ()),
+                ("b", "2.0", tmp_path / "b", [], ()),
             ],
             tmp_path / "dl",
         )
@@ -808,8 +811,8 @@ def test_prefetch_packages_complete_archive_skipped(tmp_path: Path) -> None:
     ):
         registry.prefetch_packages(
             [
-                ("a", "1.0", tmp_path / "a", []),
-                ("b", "2.0", tmp_path / "b", []),
+                ("a", "1.0", tmp_path / "a", [], ()),
+                ("b", "2.0", tmp_path / "b", [], ()),
             ],
             dl,
         )
@@ -831,8 +834,8 @@ def test_prefetch_packages_download_failure_is_debug(
     ):
         registry.prefetch_packages(
             [
-                ("a", "1.0", tmp_path / "a", []),
-                ("b", "2.0", tmp_path / "b", []),
+                ("a", "1.0", tmp_path / "a", [], ()),
+                ("b", "2.0", tmp_path / "b", [], ()),
             ],
             tmp_path / "dl",
         )
@@ -856,8 +859,8 @@ def test_prefetch_packages_unexpected_failure_warns(
     ):
         registry.prefetch_packages(
             [
-                ("a", "1.0", tmp_path / "a", []),
-                ("b", "2.0", tmp_path / "b", []),
+                ("a", "1.0", tmp_path / "a", [], ()),
+                ("b", "2.0", tmp_path / "b", [], ()),
             ],
             tmp_path / "dl",
         )
@@ -1018,58 +1021,3 @@ def test_install_package_batched_missing_archive_keeps_info_log(
     ):
         pass
     assert "Downloading pkg 1.0.0" in caplog.text
-
-
-def test_install_package_batched_refetch_announced_once(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A batched archive that fails verification and refetches is announced;
-    a verify no-op (full size credited immediately) stays silent."""
-    with (
-        caplog.at_level(logging.INFO),
-        _batched_install(tmp_path, lambda _frac: None) as (mock_download, _),
-    ):
-        progress = mock_download.call_args[1]["progress"]
-        progress(42)
-        assert "Re-downloading pkg 1.0.0" not in caplog.text
-        progress(10)
-        progress(20)
-    assert caplog.text.count("Re-downloading pkg 1.0.0") == 1
-
-
-def test_install_package_batched_refetch_announced_without_size(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A size-less registry entry still announces its refetch on the first
-    streaming tick."""
-    with (
-        caplog.at_level(logging.INFO),
-        patch.object(registry, "download_with_resume") as mock_download,
-        patch.object(registry, "archive_extract_all") as mock_extract,
-        patch.object(
-            registry,
-            "registry_download",
-            return_value=("http://x/pkg.tar.gz", "abc123", None),
-        ),
-    ):
-        dest = tmp_path / "pkg"
-        (tmp_path / "dl").mkdir()
-        (tmp_path / "dl" / "pkg-1.0.0").write_bytes(b"x")
-        mock_extract.side_effect = lambda *_a, **_kw: (dest / "payload").mkdir(
-            parents=True
-        )
-        registry.install_package(
-            "pkg",
-            "1.0.0",
-            dest,
-            [],
-            tmp_path / "dl",
-            expect=("payload",),
-            extract_progress=lambda _frac: None,
-        )
-        progress = mock_download.call_args[1]["progress"]
-        # A verify no-op credits the whole (nonempty) file in one tick
-        progress(1)
-        assert "Re-downloading pkg 1.0.0" not in caplog.text
-        progress(0)
-    assert "Re-downloading pkg 1.0.0" in caplog.text

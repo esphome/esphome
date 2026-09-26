@@ -177,8 +177,14 @@ def _check_layout(name: str, dest: Path, expect: Collection[str]) -> None:
             )
 
 
-# (name, version, dest, mirrors, expect) as accepted by install_packages
-PackageSpec = tuple[str, str, Path, list[str], Collection[str]]
+class PackageSpec(NamedTuple):
+    """One registry package to install."""
+
+    name: str
+    version: str
+    dest: Path
+    mirrors: list[str]
+    expect: Collection[str] = ()
 
 
 class _PendingArchive(NamedTuple):
@@ -201,35 +207,15 @@ def is_installed(dest: Path) -> bool:
     return (dest / ".esphome_extracted").is_file()
 
 
-def _batched_download_progress(
-    name: str, version: str, size: int | None, extract_progress: Callable[[float], None]
-) -> Callable[[int], None]:
-    """Download tracker for a batched install: no private bar, no bytes (the
-    shared bar must never run backwards); the zero tick keeps cancellation
-    observable and a real refetch is announced once."""
-    announced = False
-
-    def progress(done: int) -> None:
-        nonlocal announced
-        # size-less registry entries still announce: streaming starts at
-        # done=0, while a verify no-op credits the full file in one tick
-        if not announced and done < (size or 1):
-            _LOGGER.info("Re-downloading %s %s ...", name, version)
-            announced = True
-        extract_progress(0.0)
-
-    return progress
-
-
 def prefetch_packages(
-    packages: list[tuple[str, str, Path, list[str]]],
+    packages: Collection[PackageSpec],
     downloads_dir: Path,
     resolvers: dict[str, Resolver] | None = None,
 ) -> None:
     """Download pending package archives in parallel under one combined bar.
 
-    ``packages`` holds ``(name, version, dest, mirrors)`` per package;
-    ``resolvers`` replaces the registry lookup by name. Purely
+    ``expect`` is unused here; ``resolvers`` replaces the registry lookup
+    by name. Purely
     an optimization: ``install_package`` verifies every archive and
     re-downloads anything this pass left unfinished. Mirror overrides and
     registry entries without a size stay on the sequential path so its
@@ -241,7 +227,7 @@ def prefetch_packages(
 
     pending: list[_PendingArchive] = []
     seen: set[Path] = set()
-    for name, version, dest, mirrors in packages:
+    for name, version, dest, mirrors, _expect in packages:
         if mirrors or is_installed(dest):
             continue
         archive = _archive_path(downloads_dir, name, version)
@@ -389,9 +375,11 @@ def install_package(
                 archive,
                 sha256=sha256,
                 size=size,
+                # Zero ticks only: the shared bar must never run backwards,
+                # but run_batch_downloads observes cancellation on a tick
                 progress=None
                 if extract_progress is None
-                else _batched_download_progress(name, version, size, extract_progress),
+                else lambda _done: extract_progress(0.0),
             )
         log("Extracting %s ...", name)
         archive_extract_all(
@@ -419,7 +407,7 @@ def install_packages(
     for spec in specs:
         name, version, dest, mirrors, _expect = spec
         archive = _archive_path(downloads_dir, name, version)
-        if _already_installed(dest) or mirrors:
+        if is_installed(dest) or mirrors:
             rest.append(spec)
             continue
         try:

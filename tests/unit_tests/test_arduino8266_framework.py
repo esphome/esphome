@@ -175,28 +175,8 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
             framework.TOOLCHAIN_PACKAGE: framework.toolchain_download,
         },
     )
-    # The prefetch sees the same package specs as the installs
-    assert mock_prefetch.call_args.args == (
-        [
-            (
-                framework.FRAMEWORK_PACKAGE,
-                _recommended().tag,
-                tmp_path / "frameworks" / _recommended().tag,
-                framework.ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
-            ),
-            (
-                framework.TOOLCHAIN_PACKAGE,
-                framework.TOOLCHAIN_VERSION,
-                tmp_path / "toolchains" / framework.TOOLCHAIN_VERSION,
-                framework.ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS,
-            ),
-        ],
-        tmp_path / "downloads",
-        {
-            framework.FRAMEWORK_PACKAGE: _recommended().download,
-            framework.TOOLCHAIN_PACKAGE: framework.toolchain_download,
-        },
-    )
+    # One spec list feeds both phases, so they cannot drift
+    assert mock_prefetch.call_args.args == mock_install.call_args.args
 
 
 def test_get_build_env_prepends_toolchain_bin(tmp_path: Path) -> None:
