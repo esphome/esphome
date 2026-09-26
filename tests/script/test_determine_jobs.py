@@ -1017,6 +1017,9 @@ _ESP32_PLATFORMIO_FULL_LIST_FILES = [
     # Workflow / harness files
     ["script/test_build_components.py"],
     [".github/workflows/ci.yml"],
+    # The base config and bus packages every generated build includes
+    ["tests/test_build_components/build_components_base.esp32-idf.yaml"],
+    ["tests/test_build_components/common/uart/esp32-idf.yaml"],
 ]
 
 
@@ -3187,6 +3190,9 @@ def test_memory_impact_elf_layouts_are_found(tmp_path: Path) -> None:
         "esphome/platformio/toolchain.py",
         # The composite cache action must not ship unexercised
         ".github/actions/cache-arduino8266/action.yml",
+        # The base config and bus packages every generated build includes
+        "tests/test_build_components/build_components_base.esp8266-ard.yaml",
+        "tests/test_build_components/common/uart/esp8266-ard.yaml",
     ],
 )
 def test_esp8266_native_components_full_list_on_infra_change(changed: str) -> None:
