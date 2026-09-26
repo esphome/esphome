@@ -6,6 +6,21 @@ namespace esphome::sy6970 {
 
 static const char *const TAG = "sy6970";
 
+static const char *i2c_watchdog_timeout_to_string(I2CWatchdogTimeout timeout) {
+  switch (timeout) {
+    case I2C_WATCHDOG_DISABLED:
+      return "Disabled";
+    case I2C_WATCHDOG_40S:
+      return "40s";
+    case I2C_WATCHDOG_80S:
+      return "80s";
+    case I2C_WATCHDOG_160S:
+      return "160s";
+    default:
+      return "Unknown";
+  }
+}
+
 bool SY6970Component::read_all_registers_() {
   // Read all registers from 0x00 to 0x14 in one transaction (21 bytes)
   // This includes unused registers 0x0F, 0x10 for performance
@@ -73,6 +88,9 @@ void SY6970Component::setup() {
   ESP_LOGV(TAG, "Setting ADC measurements to %s", ONOFF(this->enable_adc_));
   this->set_enable_adc_measure(this->enable_adc_);
 
+  ESP_LOGV(TAG, "Setting I2C watchdog timeout to %u", static_cast<unsigned>(this->i2c_watchdog_timeout_));
+  this->set_i2c_watchdog_timeout(this->i2c_watchdog_timeout_);
+
   ESP_LOGV(TAG, "SY6970 initialized successfully");
 }
 
@@ -85,9 +103,11 @@ void SY6970Component::dump_config() {
                 "  Charge Current: %u mA\n"
                 "  Precharge Current: %u mA\n"
                 "  Charge Enabled: %s\n"
-                "  ADC Enabled: %s",
+                "  ADC Enabled: %s\n"
+                "  I2C Watchdog Timeout: %s",
                 ONOFF(this->led_enabled_), this->input_current_limit_, this->charge_voltage_, this->charge_current_,
-                this->precharge_current_, ONOFF(this->charge_enabled_), ONOFF(this->enable_adc_));
+                this->precharge_current_, ONOFF(this->charge_enabled_), ONOFF(this->enable_adc_),
+                i2c_watchdog_timeout_to_string(this->i2c_watchdog_timeout_));
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   if (this->is_failed()) {
@@ -108,6 +128,13 @@ void SY6970Component::update() {
   }
 
   this->status_clear_warning();
+
+  // If the I2C watchdog is enabled, it must be kicked on every poll or the
+  // chip will silently revert charge_enabled and the STAT LED setting back
+  // to power-on defaults once the timeout elapses.
+  if (this->i2c_watchdog_timeout_ != I2C_WATCHDOG_DISABLED) {
+    this->reset_i2c_watchdog();
+  }
 
   // Notify all listeners with the new data
   for (auto *listener : this->listeners_) {
@@ -196,6 +223,22 @@ void SY6970Component::set_enable_adc_measure(bool enabled) {
 
   // Set bits to enable ADC conversion
   this->update_register_(SY6970_REG_ADC_CONTROL, 0xC0, enabled ? 0xC0 : 0x00);
+}
+
+void SY6970Component::set_i2c_watchdog_timeout(I2CWatchdogTimeout timeout) {
+  if (this->is_failed())
+    return;
+
+  // REG07 bits 5:4 (WATCHDOG[1:0])
+  this->update_register_(SY6970_REG_TIMER_CONTROL, 0x30, static_cast<uint8_t>(timeout) << 4);
+}
+
+void SY6970Component::reset_i2c_watchdog() {
+  if (this->is_failed())
+    return;
+
+  // REG03 bit 6 (WD_RST): self-clearing, writing 1 kicks the watchdog timer.
+  this->update_register_(SY6970_REG_SYS_CONTROL, 0x40, 0x40);
 }
 
 }  // namespace esphome::sy6970

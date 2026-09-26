@@ -62,6 +62,18 @@ enum ChargeStatus {
   CHARGE_STATUS_CHARGE_DONE = 3,
 };
 
+// I2C watchdog timeout values (REG07[5:4]). The chip resets several other
+// registers - including CHG_CONFIG (REG03) and STAT_DIS (REG07) - back to
+// power-on defaults once this timer elapses without being reset, so a
+// watchdog left running has to be kicked on every update() or it will
+// silently re-enable charging and the STAT LED.
+enum I2CWatchdogTimeout {
+  I2C_WATCHDOG_DISABLED = 0,
+  I2C_WATCHDOG_40S = 1,
+  I2C_WATCHDOG_80S = 2,
+  I2C_WATCHDOG_160S = 3,
+};
+
 // Structure to hold all register data read in one transaction
 struct SY6970Data {
   uint8_t registers[21];  // Registers 0x00-0x14 (includes unused 0x0F, 0x10)
@@ -76,14 +88,16 @@ class SY6970Listener {
 class SY6970Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   SY6970Component(bool led_enabled, uint16_t input_current_limit, uint16_t charge_voltage, uint16_t charge_current,
-                  uint16_t precharge_current, bool charge_enabled, bool enable_adc)
+                  uint16_t precharge_current, bool charge_enabled, bool enable_adc,
+                  I2CWatchdogTimeout i2c_watchdog_timeout)
       : led_enabled_(led_enabled),
         input_current_limit_(input_current_limit),
         charge_voltage_(charge_voltage),
         charge_current_(charge_current),
         precharge_current_(precharge_current),
         charge_enabled_(charge_enabled),
-        enable_adc_(enable_adc) {}
+        enable_adc_(enable_adc),
+        i2c_watchdog_timeout_(i2c_watchdog_timeout) {}
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -99,6 +113,12 @@ class SY6970Component final : public PollingComponent, public i2c::I2CDevice {
   void set_charge_enabled(bool enabled);
   void set_led_enabled(bool enabled);
   void set_enable_adc_measure(bool enabled = true);
+  void set_i2c_watchdog_timeout(I2CWatchdogTimeout timeout);
+
+  // Resets (kicks) the I2C watchdog timer (REG03 bit 6, self-clearing). Called
+  // automatically from update() whenever the watchdog is enabled; exposed
+  // publicly so a lambda can also call it directly if needed.
+  void reset_i2c_watchdog();
 
  protected:
   bool read_all_registers_();
@@ -116,6 +136,7 @@ class SY6970Component final : public PollingComponent, public i2c::I2CDevice {
   uint16_t precharge_current_;
   bool charge_enabled_;
   bool enable_adc_;
+  I2CWatchdogTimeout i2c_watchdog_timeout_;
 };
 
 }  // namespace esphome::sy6970
