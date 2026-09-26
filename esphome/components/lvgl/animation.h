@@ -111,17 +111,8 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
   }
 
   void start() {
-    if (this->state_ > AnimationState::STOPPED)
-      this->stop();
-    if (this->duration_ == 0)
+    if (!this->prepare_())
       return;
-    // evaluate any lambdas
-    for (size_t i = 0; i != DATA_SIZE; i++) {
-      this->data_from_[i] = this->from_[i].value();
-      this->data_to_[i] = this->to_[i].value();
-    }
-    this->start_time_ = millis();
-    this->state_ = AnimationState::STARTED;
     this->loop();
     this->start_callback_.call();
   }
@@ -173,10 +164,9 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
     this->update_callback_(data);
     if (elapsed >= this->duration_) {
       this->stop();
-      if (this->loop_) {
-        // Current sequence is done, so restart the loop
-        this->start();
-      }
+      // Restart without drawing the first frame now, so the final frame is not overwritten before it is shown
+      if (this->loop_ && this->prepare_())
+        this->start_callback_.call();
     }
   }
 
@@ -192,6 +182,22 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
   template<typename F> void add_on_stop_callback(F &&callback) { this->stop_callback_.add(std::forward<F>(callback)); }
 
  protected:
+  // Arms a new run. Returns false if there is nothing to run.
+  bool prepare_() {
+    if (this->state_ > AnimationState::STOPPED)
+      this->stop();
+    if (this->duration_ == 0)
+      return false;
+    // evaluate any lambdas
+    for (size_t i = 0; i != DATA_SIZE; i++) {
+      this->data_from_[i] = this->from_[i].value();
+      this->data_to_[i] = this->to_[i].value();
+    }
+    this->start_time_ = millis();
+    this->state_ = AnimationState::STARTED;
+    return true;
+  }
+
   void (*const update_callback_)(const lv_coord_t *data);
   LazyCallbackManager<void()> start_callback_{};
   LazyCallbackManager<void()> stop_callback_{};

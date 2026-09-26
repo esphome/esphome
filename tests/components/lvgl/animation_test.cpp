@@ -1,4 +1,7 @@
 #include <gtest/gtest.h>
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <vector>
 #include "esphome/components/lvgl/animation.h"
 
@@ -6,7 +9,8 @@ namespace esphome::lvgl::testing {
 
 namespace {
 
-std::vector<lv_coord_t> updates;
+// The update callback is a plain function pointer, so it cannot capture; results go to a global.
+std::vector<lv_coord_t> updates;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void record_update(const lv_coord_t *data) { updates.push_back(data[0]); }
 
@@ -147,6 +151,22 @@ TEST_F(LvAnimationTest, LoopRestartsOnlyAfterReachingEnd) {
     if (updates[i] < updates[i - 1])
       EXPECT_EQ(updates[i - 1], 100) << "update " << i << " restarted before the end was reached";
   }
+}
+
+// The first frame of the next cycle must not be drawn in the same pass as the final frame of the last one.
+TEST_F(LvAnimationTest, LoopRestartKeepsFinalFrame) {
+  TestAnimation anim(0, 100, 20);
+  anim.set_loop(true);
+  anim.start();
+  const uint32_t begin = millis();
+  while (millis() - begin < 100) {
+    const size_t before = updates.size();
+    anim.loop();
+    ASSERT_LE(updates.size() - before, 1u);
+    delay(1);
+  }
+  anim.stop();
+  EXPECT_GE(anim.start_count, 2);
 }
 
 TEST_F(LvAnimationTest, LoopWithRoundTripKeepsCycling) {
