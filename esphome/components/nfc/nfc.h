@@ -64,8 +64,8 @@ static constexpr size_t FORMAT_BYTES_BUFFER_SIZE = 192;
 char *format_bytes_to(char *buffer, std::span<const uint8_t> bytes);
 
 uint8_t guess_tag_type(uint8_t uid_length);
-int8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data);
-bool decode_mifare_classic_tlv(std::vector<uint8_t> &data, uint32_t &message_length, uint8_t &message_start_index);
+int8_t get_mifare_classic_ndef_start_index(std::span<const uint8_t> data);
+bool decode_mifare_classic_tlv(std::span<const uint8_t> data, uint32_t &message_length, uint8_t &message_start_index);
 uint32_t get_mifare_classic_buffer_size(uint32_t message_length);
 
 bool mifare_classic_is_first_block(uint8_t block_num);

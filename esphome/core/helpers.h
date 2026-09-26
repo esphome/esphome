@@ -276,6 +276,9 @@ template<typename T, size_t N> class StaticVector {
 
   // Clear all elements
   void clear() { count_ = 0; }
+  // Set the element count, capped at N. Elements are neither initialized when growing nor destroyed when
+  // shrinking; release owning elements before shrinking past them.
+  void resize(size_t n) { count_ = n < N ? n : N; }
 
   // Assign from iterator range
   template<typename InputIt> void assign(InputIt first, InputIt last) {

@@ -9,6 +9,7 @@
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 
+#include <array>
 #include <functional>
 #include <span>
 
@@ -68,7 +69,8 @@ static constexpr uint8_t CORE_CONFIG_RW_CE[] = {0x01,   // Number of parameter f
                                                 0xF8,   // TOTAL_DURATION (low)...
                                                 0x02};  // TOTAL_DURATION (high): 760 ms
 
-static constexpr uint8_t RF_DISCOVER_MAP_CONFIG[] = {  // poll modes
+static constexpr uint8_t RF_DISCOVER_MAP_CONFIG[] = {
+    // poll modes
     nfc::PROT_T1T,    nfc::RF_DISCOVER_MAP_MODE_POLL,
     nfc::INTF_FRAME,  // poll mode
     nfc::PROT_T2T,    nfc::RF_DISCOVER_MAP_MODE_POLL,
@@ -131,6 +133,16 @@ enum class TestMode : uint8_t {
   TEST_GET_REGISTER,
 };
 
+/// A card emulation reply; the CC limits reads so every reply fits one NCI data packet
+using CardEmuResponse = StaticVector<uint8_t, nfc::NCI_PKT_MAX_PAYLOAD_SIZE>;
+/// Holds pages 3 to 6 (16 bytes) plus an NDEF message of up to 255 bytes and its TLV header, rounded up to whole reads
+using UltralightReadBuffer = StaticVector<uint8_t, 272>;
+/// Longest NDEF message accepted from a MIFARE Classic tag (the capacity of a 4K tag)
+static constexpr uint32_t MIFARE_CLASSIC_MAX_NDEF_SIZE = 3440;
+/// Tags tracked at once. A device with a random UID looks like a new tag on every activation, but each entry
+/// expires after tag_ttl, so a handful is enough; when the cache is full the entry seen longest ago is evicted.
+static constexpr size_t MAX_DISCOVERED_ENDPOINTS = 8;
+
 struct DiscoveredEndpoint {
   uint32_t last_seen;
   std::unique_ptr<nfc::NfcTag> tag;
@@ -138,6 +150,9 @@ struct DiscoveredEndpoint {
   uint8_t protocol;
   bool trig_called;
 };
+
+/// Fills `buffer` with the NDEF TLV (type, length, message, terminator) padded with zeros to `buffer_length`
+void fill_ndef_tlv(const std::vector<uint8_t> &message, uint32_t buffer_length, FixedVector<uint8_t> &buffer);
 
 /// Common driver for the NXP PN71xx family of NCI NFC controllers. The chip classes (PN7150, PN7160) supply the parts
 /// that differ between chips; the bus classes supply read_nfcc() and write_nfcc().
@@ -162,8 +177,12 @@ class PN71xx : public nfc::Nfcc, public Component {
   void set_polling_on();
   bool polling_enabled() { return this->polling_enabled_; }
 
+#ifdef PN71XX_ON_TAG_TRIGGER_COUNT
   void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
+#endif
+#ifdef PN71XX_ON_TAG_REMOVED_TRIGGER_COUNT
   void register_ontagremoved_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
+#endif
 
   template<typename F> void add_on_emulated_tag_scan_callback(F &&callback) {
     this->on_emulated_tag_scan_callback_.add(std::forward<F>(callback));
@@ -219,7 +238,11 @@ class PN71xx : public nfc::Nfcc, public Component {
   uint8_t format_endpoint_(uint8_t protocol);
   uint8_t write_endpoint_(uint8_t protocol, nfc::NfcTagUid &uid, std::shared_ptr<nfc::NdefMessage> &message);
 
-  std::unique_ptr<nfc::NfcTag> build_tag_(uint8_t mode_tech, uint8_t protocol, const std::vector<uint8_t> &data);
+  /// Reads the UID from the RF technology parameters of a discovery or activation notification
+  bool parse_uid_(uint8_t mode_tech, std::span<const uint8_t> rf_tech_params, nfc::NfcTagUid &uid);
+  std::unique_ptr<nfc::NfcTag> build_tag_(uint8_t protocol, const nfc::NfcTagUid &uid);
+  /// Finds a cached endpoint by UID, or caches a new one, evicting the entry seen longest ago if the cache is full
+  size_t find_or_add_tag_(uint8_t protocol, const nfc::NfcTagUid &uid);
   optional<size_t> find_tag_uid_(const nfc::NfcTagUid &uid);
   void purge_old_tags_();
   void erase_tag_(uint8_t tag_index);
@@ -237,8 +260,8 @@ class PN71xx : public nfc::Nfcc, public Component {
   void process_rf_deactivate_oid_(nfc::NciMessage &rx);
   void process_data_message_(nfc::NciMessage &rx);
 
-  void card_emu_t4t_get_response_(const std::vector<uint8_t> &response, std::vector<uint8_t> &ndef_response);
-  bool card_emu_t4t_read_ndef_(uint16_t offset, uint8_t length, std::vector<uint8_t> &ndef_response);
+  void card_emu_t4t_get_response_(std::span<const uint8_t> response, CardEmuResponse &ndef_response);
+  bool card_emu_t4t_read_ndef_(uint16_t offset, uint8_t length, CardEmuResponse &ndef_response);
 
   uint8_t transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, uint16_t timeout = NFCC_DEFAULT_TIMEOUT,
                       bool expect_notification = true);
@@ -248,7 +271,7 @@ class PN71xx : public nfc::Nfcc, public Component {
   uint8_t wait_for_irq_(uint16_t timeout = NFCC_DEFAULT_TIMEOUT, bool pin_state = true);
 
   uint8_t read_mifare_classic_tag_(nfc::NfcTag &tag);
-  uint8_t read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
+  uint8_t read_mifare_classic_block_(uint8_t block_num, std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> &data);
   uint8_t write_mifare_classic_block_(uint8_t block_num, const uint8_t *data, size_t len);
   uint8_t auth_mifare_classic_block_(uint8_t block_num, uint8_t key_num, const uint8_t *key);
   uint8_t sect_to_auth_(uint8_t block_num);
@@ -258,10 +281,10 @@ class PN71xx : public nfc::Nfcc, public Component {
   uint8_t halt_mifare_classic_tag_();
 
   uint8_t read_mifare_ultralight_tag_(nfc::NfcTag &tag);
-  uint8_t read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, std::vector<uint8_t> &data);
-  bool is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_3_to_6);
+  uint8_t read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, UltralightReadBuffer &data);
+  bool is_mifare_ultralight_formatted_(std::span<const uint8_t> page_3_to_6);
   uint16_t read_mifare_ultralight_capacity_();
-  uint8_t find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6, uint8_t &message_length,
+  uint8_t find_mifare_ultralight_ndef_(std::span<const uint8_t> page_3_to_6, uint8_t &message_length,
                                        uint8_t &message_start_index);
   uint8_t write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write_data, size_t len);
   uint8_t write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, const std::shared_ptr<nfc::NdefMessage> &message);
@@ -275,13 +298,17 @@ class PN71xx : public nfc::Nfcc, public Component {
   };
 
   // members are ordered by alignment, widest first, to minimize padding
-  CallbackManager<void()> on_emulated_tag_scan_callback_;
-  CallbackManager<void()> on_finished_write_callback_;
+  LazyCallbackManager<void()> on_emulated_tag_scan_callback_;
+  LazyCallbackManager<void()> on_finished_write_callback_;
 
-  std::vector<DiscoveredEndpoint> discovered_endpoint_;
-  std::vector<uint8_t> card_emulation_ndef_;  // encoded emulation message; empty when none is set
-  std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
-  std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
+  StaticVector<DiscoveredEndpoint, MAX_DISCOVERED_ENDPOINTS> discovered_endpoint_;
+  FixedVector<uint8_t> card_emulation_ndef_;  // encoded emulation message; empty when none is set
+#ifdef PN71XX_ON_TAG_TRIGGER_COUNT
+  StaticVector<nfc::NfcOnTagTrigger *, PN71XX_ON_TAG_TRIGGER_COUNT> triggers_ontag_;
+#endif
+#ifdef PN71XX_ON_TAG_REMOVED_TRIGGER_COUNT
+  StaticVector<nfc::NfcOnTagTrigger *, PN71XX_ON_TAG_REMOVED_TRIGGER_COUNT> triggers_ontagremoved_;
+#endif
   std::shared_ptr<nfc::NdefMessage> next_task_message_to_write_;
 
   GPIOPin *irq_pin_{nullptr};
