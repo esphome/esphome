@@ -1,24 +1,9 @@
 #include "epaper_waveshare_bwr.h"
+#include "colorconv.h"
 
 #include <algorithm>
 
 namespace esphome::epaper_spi {
-
-enum class BwrState : uint8_t {
-  BWR_BLACK,
-  BWR_WHITE,
-  BWR_RED,
-};
-
-static BwrState color_to_bwr(Color color) {
-  if (color.r > color.g + color.b && color.r > 127) {
-    return BwrState::BWR_RED;
-  }
-  if (color.r + color.g + color.b >= 382) {
-    return BwrState::BWR_WHITE;
-  }
-  return BwrState::BWR_BLACK;
-}
 
 // UC8179 3-color display buffer layout:
 // - 1 bit per pixel, 8 pixels per byte
@@ -34,15 +19,16 @@ void EPaperWaveshareBWR::draw_pixel_at(int x, int y, Color color) {
   const uint8_t bit = 0x80 >> (x & 0x07);
   const uint32_t red_offset = this->buffer_length_ / 2u;
 
-  const auto bwr = color_to_bwr(color);
+  const auto bwr =
+      color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED);
 
-  if (bwr == BwrState::BWR_BLACK) {
+  if (bwr == BwrColor::BWR_COLOR_BLACK) {
     this->buffer_[pos] |= bit;
   } else {
     this->buffer_[pos] &= ~bit;
   }
 
-  if (bwr == BwrState::BWR_RED) {
+  if (bwr == BwrColor::BWR_COLOR_RED) {
     this->buffer_[red_offset + pos] |= bit;
   } else {
     this->buffer_[red_offset + pos] &= ~bit;
@@ -51,15 +37,16 @@ void EPaperWaveshareBWR::draw_pixel_at(int x, int y, Color color) {
 
 void EPaperWaveshareBWR::fill(Color color) {
   const size_t half_buffer = this->buffer_length_ / 2u;
-  const auto bwr = color_to_bwr(color);
+  const auto bwr =
+      color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED);
 
-  if (bwr == BwrState::BWR_BLACK) {
+  if (bwr == BwrColor::BWR_COLOR_BLACK) {
     // Black plane: 0xFF (black), Red plane: 0x00 (no red)
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[i] = 0xFF;
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[half_buffer + i] = 0x00;
-  } else if (bwr == BwrState::BWR_RED) {
+  } else if (bwr == BwrColor::BWR_COLOR_RED) {
     // Black plane: 0x00 (no black), Red plane: 0xFF (red)
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[i] = 0x00;
