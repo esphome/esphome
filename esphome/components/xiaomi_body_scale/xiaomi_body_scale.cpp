@@ -3,9 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <algorithm>
 #include <cstring>
-#include <iterator>
 
 namespace esphome::xiaomi_body_scale {
 
@@ -20,15 +18,11 @@ static constexpr size_t COUNTER_POS = CIPHER_POS + CIPHER_SIZE;
 static constexpr size_t TAG_POS = COUNTER_POS + 3;
 static constexpr size_t TAG_SIZE = 4;
 static constexpr size_t FRAME_SIZE = TAG_POS + TAG_SIZE;
-static constexpr uint8_t FRAME_HAS_DATA = 0x40;
+// Frame control: has data (0x40) and encrypted (0x08)
+static constexpr uint8_t FRAME_ENCRYPTED_DATA = 0x48;
 static constexpr uint8_t OBJECT_SIZE = 9;
 static constexpr uint16_t OBJECT_S200_MEASUREMENT = 0x4E16;
 static constexpr uint16_t OBJECT_S400_MEASUREMENT = 0x6E16;
-static constexpr uint16_t DEVICE_IDS[] = {
-    0x45C9, 0x4C04, 0x4DCB,          // S200 (MJTZC02YM)
-    0x30D9, 0x3BD5, 0x48CF, 0x4B05,  // S400 (MJTZC01YM, MJTZC03YM)
-};
-static constexpr uint8_t FRAME_ENCRYPTED = 0x08;
 static constexpr uint32_t STABILIZED_RESET_ID = 0;
 static constexpr uint32_t STABILIZED_RESET_MS = 1000;
 
@@ -86,7 +80,7 @@ void XiaomiBodyScale::publish_s400_(uint32_t packed) {
     this->heart_rate_->publish_state(heart_rate + 50.0f);
 
   if (weight == 0 && heart_rate == 0) {
-    // All zero: stepped off the scale. Otherwise the final 250 kHz packet (bare feet).
+    // Impedance only: the final 250 kHz packet (bare feet); all zero: stepped off
     if (impedance != 0 && this->impedance_high_ != nullptr)
       this->impedance_high_->publish_state(impedance / 10.0f);
     this->publish_stabilized_(impedance != 0);
@@ -109,12 +103,9 @@ bool XiaomiBodyScale::parse_device(const ble_device_base::ESPBTDevice &device) {
       continue;
     const uint8_t *frame = service_data.data.data();
     // The bindkey is required, so plaintext frames are never trusted
-    if ((frame[0] & (FRAME_HAS_DATA | FRAME_ENCRYPTED)) != (FRAME_HAS_DATA | FRAME_ENCRYPTED))
+    if ((frame[0] & FRAME_ENCRYPTED_DATA) != FRAME_ENCRYPTED_DATA)
       continue;
 
-    const uint16_t device_id = encode_uint16(frame[DEVICE_ID_POS + 1], frame[DEVICE_ID_POS]);
-    if (std::find(std::begin(DEVICE_IDS), std::end(DEVICE_IDS), device_id) == std::end(DEVICE_IDS))
-      continue;
     if (frame[FRAME_COUNT_POS] == this->last_frame_count_)
       continue;
     uint8_t object[CIPHER_SIZE];
@@ -125,21 +116,23 @@ bool XiaomiBodyScale::parse_device(const ble_device_base::ESPBTDevice &device) {
     // Only an authenticated frame may advance the duplicate filter
     this->last_frame_count_ = frame[FRAME_COUNT_POS];
 
+    // Both objects hold the profile ID, a packed uint32 (LE) and a timestamp (not published)
     const uint16_t value_type = encode_uint16(object[1], object[0]);
-    if (object[2] != OBJECT_SIZE || (value_type != OBJECT_S400_MEASUREMENT && value_type != OBJECT_S200_MEASUREMENT)) {
+    const uint8_t *data = object + 3;
+    const uint32_t packed = encode_uint32(data[4], data[3], data[2], data[1]);
+    const bool sized = object[2] == OBJECT_SIZE;
+    if (sized && value_type == OBJECT_S400_MEASUREMENT) {
+      this->publish_s400_(packed);
+    } else if (sized && value_type == OBJECT_S200_MEASUREMENT) {
+      // Weight x100 only
+      if (packed != 0 && this->weight_ != nullptr)
+        this->weight_->publish_state(packed / 100.0f);
+    } else {
       ESP_LOGVV(TAG, "Unknown object 0x%04X, length %u", value_type, object[2]);
       continue;
     }
-    // Both objects start with the profile ID and a packed uint32 (LE); a timestamp follows (not published)
-    const uint8_t *data = object + 3;
-    const uint32_t packed = encode_uint32(data[4], data[3], data[2], data[1]);
     if (this->profile_id_ != nullptr)
       this->profile_id_->publish_state(data[0]);
-    if (value_type == OBJECT_S400_MEASUREMENT) {
-      this->publish_s400_(packed);
-    } else if (packed != 0 && this->weight_ != nullptr) {
-      this->weight_->publish_state(packed / 100.0f);  // S200: weight x100 only
-    }
     return true;
   }
   return false;
