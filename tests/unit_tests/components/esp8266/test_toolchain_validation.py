@@ -32,10 +32,9 @@ from esphome.types import ConfigType
 @pytest.fixture(autouse=True)
 def _arduino_toolchain() -> Generator[None]:
     # The suite-wide reset_core fixture clears CORE.toolchain after each test
+    # The decode-tool cache lives in CORE.data, which reset_core clears
     CORE.toolchain = Toolchain.ARDUINO
-    esp8266._DECODE_WARNED_AT.clear()
     yield
-    esp8266._DECODE_WARNED_AT.clear()
 
 
 def _config(
