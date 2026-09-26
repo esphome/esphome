@@ -17,7 +17,7 @@ class SmlListener {
   virtual void publish_val(const ObisInfo &obis_info){};
 };
 
-class Sml : public Component, public uart::UARTDevice {
+class Sml final : public Component, public uart::UARTDevice {
  public:
   void register_sml_listener(SmlListener *listener);
   void loop() override;

@@ -10,10 +10,10 @@
 
 namespace esphome::ads1118 {
 
-class ADS1118Sensor : public PollingComponent,
-                      public sensor::Sensor,
-                      public voltage_sampler::VoltageSampler,
-                      public Parented<ADS1118> {
+class ADS1118Sensor final : public PollingComponent,
+                            public sensor::Sensor,
+                            public voltage_sampler::VoltageSampler,
+                            public Parented<ADS1118> {
  public:
   void update() override;
 

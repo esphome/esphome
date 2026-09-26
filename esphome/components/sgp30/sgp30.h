@@ -16,7 +16,7 @@ struct SGP30Baselines {
 } PACKED;
 
 /// This class implements support for the Sensirion SGP30 i2c GAS (VOC and CO2eq) sensors.
-class SGP30Component : public PollingComponent, public sensirion_common::SensirionI2CDevice {
+class SGP30Component final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
   void set_eco2_sensor(sensor::Sensor *eco2) { eco2_sensor_ = eco2; }
   void set_tvoc_sensor(sensor::Sensor *tvoc) { tvoc_sensor_ = tvoc; }

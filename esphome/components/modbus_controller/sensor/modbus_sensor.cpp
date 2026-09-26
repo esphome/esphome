@@ -8,8 +8,8 @@ static const char *const TAG = "modbus_controller.sensor";
 
 void ModbusSensor::dump_config() { LOG_SENSOR(TAG, "Modbus Controller Sensor", this); }
 
-void ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
-  float result = payload_to_float(data, *this);
+void ModbusSensor::parse_and_publish(std::span<const uint8_t> data) {
+  float result = payload_to_float(data, *this, this->offset);
 
   // Is there a lambda registered
   // call it with the pre converted value and the raw data array
@@ -22,7 +22,6 @@ void ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
     }
   }
   ESP_LOGD(TAG, "Sensor new state: %.02f", result);
-  // this->sensor_->raw_state = result;
   this->publish_state(result);
 }
 

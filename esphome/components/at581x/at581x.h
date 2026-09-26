@@ -12,7 +12,7 @@
 
 namespace esphome::at581x {
 
-class AT581XComponent : public Component, public i2c::I2CDevice {
+class AT581XComponent final : public Component, public i2c::I2CDevice {
  public:
 #ifdef USE_SWITCH
   void set_rf_power_switch(switch_::Switch *s) {
@@ -38,6 +38,10 @@ class AT581XComponent : public Component, public i2c::I2CDevice {
 
   bool i2c_write_config();
   bool reset_hardware_frontend();
+  void reset_hardware_frontend_if(bool reset) {
+    if (reset)
+      this->reset_hardware_frontend();
+  }
   bool i2c_write_reg(uint8_t addr, uint8_t data);
   bool i2c_write_reg(uint8_t addr, uint32_t data);
   bool i2c_write_reg(uint8_t addr, uint16_t data);

@@ -44,33 +44,7 @@ class LightTargetStateReachedListener {
   virtual void on_light_target_state_reached() = 0;
 };
 
-enum LightRestoreMode : uint8_t {
-  LIGHT_RESTORE_DEFAULT_OFF,
-  LIGHT_RESTORE_DEFAULT_ON,
-  LIGHT_ALWAYS_OFF,
-  LIGHT_ALWAYS_ON,
-  LIGHT_RESTORE_INVERTED_DEFAULT_OFF,
-  LIGHT_RESTORE_INVERTED_DEFAULT_ON,
-  LIGHT_RESTORE_AND_OFF,
-  LIGHT_RESTORE_AND_ON,
-};
-
 struct LightStateRTCState {
-  LightStateRTCState(ColorMode color_mode, bool state, float brightness, float color_brightness, float red, float green,
-                     float blue, float white, float color_temp, float cold_white, float warm_white)
-      : brightness(brightness),
-        color_brightness(color_brightness),
-        red(red),
-        green(green),
-        blue(blue),
-        white(white),
-        color_temp(color_temp),
-        cold_white(cold_white),
-        warm_white(warm_white),
-        effect(0),
-        color_mode(color_mode),
-        state(state) {}
-  LightStateRTCState() = default;
   // Group 4-byte aligned members first
   float brightness{1.0f};
   float color_brightness{1.0f};
@@ -100,6 +74,21 @@ class LightState : public EntityBase, public Component {
   LightCall turn_on();
   LightCall turn_off();
   LightCall toggle();
+
+  /// The values reported to the frontend: current_values while a light publishes intermediate
+  /// states on an interval, otherwise remote_values. Each interval sample is a publish_state(),
+  /// so on_state automations run on every sample as well.
+  const LightColorValues &get_reported_values() const {
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+    if (this->transition_publish_enabled_) {
+      return this->current_values;
+    }
+#endif
+    return this->remote_values;
+  }
+
+  /// True from the call that starts a transition or flash until it reaches its target.
+  bool is_transitioning() const { return this->transformer_ != nullptr; }
   LightCall make_call();
 
   // ========== INTERNAL METHODS ==========
@@ -109,7 +98,7 @@ class LightState : public EntityBase, public Component {
   void dump_config() override;
   void loop() override;
   /// Shortly after HARDWARE.
-  float get_setup_priority() const override;
+  float get_setup_priority() const override { return setup_priority::HARDWARE - 1.0f; }
 
   /** The current values of the light as outputted to the light.
    *
@@ -157,16 +146,27 @@ class LightState : public EntityBase, public Component {
   void add_target_state_reached_listener(LightTargetStateReachedListener *listener);
 
   /// Set the default transition length, i.e. the transition length when no transition is provided.
-  void set_default_transition_length(uint32_t default_transition_length);
-  uint32_t get_default_transition_length() const;
+  void set_default_transition_length(uint32_t default_transition_length) {
+    this->default_transition_length_ = default_transition_length;
+  }
+  uint32_t get_default_transition_length() const { return this->default_transition_length_; }
 
   /// Set the flash transition length
-  void set_flash_transition_length(uint32_t flash_transition_length);
-  uint32_t get_flash_transition_length() const;
+  void set_flash_transition_length(uint32_t flash_transition_length) {
+    this->flash_transition_length_ = flash_transition_length;
+  }
+  uint32_t get_flash_transition_length() const { return this->flash_transition_length_; }
 
   /// Set the gamma correction factor
-  void set_gamma_correct(float gamma_correct);
+  void set_gamma_correct(float gamma_correct) { this->gamma_correct_ = gamma_correct; }
   float get_gamma_correct() const { return this->gamma_correct_; }
+
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  void set_transition_state_publish_interval(uint32_t transition_state_publish_interval) {
+    this->transition_state_publish_interval_ = transition_state_publish_interval;
+  }
+  uint32_t get_transition_state_publish_interval() const { return this->transition_state_publish_interval_; }
+#endif
 
 #ifdef USE_LIGHT_GAMMA_LUT
   /// Set pre-computed gamma forward lookup table (256-entry uint16 PROGMEM array)
@@ -185,18 +185,20 @@ class LightState : public EntityBase, public Component {
   float gamma_uncorrect_lut(float value) const { return value; }
 #endif  // USE_LIGHT_GAMMA_LUT
 
-  /// Set the restore mode of this light
-  void set_restore_mode(LightRestoreMode restore_mode);
+  /// Set the callback that resolves the boot-time state, called once during setup then
+  /// cleared. `restored` is true only when a persisted state actually loaded, in which
+  /// case the state argument already holds the loaded values; otherwise it is freshly
+  /// default-constructed. Values live in flash as code.
+  void set_state_callback(void (*callback)(LightStateRTCState &, bool restored)) { this->state_callback_ = callback; }
 
-  /// Set a callback to populate the initial state defaults during setup.
-  /// The callback is called once, then cleared. Values live in flash as code.
-  void set_initial_state(void (*callback)(LightStateRTCState &));
+  /// Set whether this light persists its state to preferences at all.
+  void set_save_enabled(bool save_enabled) { this->save_enabled_ = save_enabled; }
 
   /// Return whether the light has any effects that meet the trait requirements.
-  bool supports_effects();
+  bool supports_effects() const { return !this->effects_.empty(); }
 
   /// Get all effects for this light state.
-  const FixedVector<LightEffect *> &get_effects() const;
+  const FixedVector<LightEffect *> &get_effects() const { return this->effects_; }
 
   /// Add effects for this light state.
   void add_effects(const std::initializer_list<LightEffect *> &effects);
@@ -254,7 +256,7 @@ class LightState : public EntityBase, public Component {
   }
 
   /// The result of all the current_values_as_* methods have gamma correction applied.
-  void current_values_as_binary(bool *binary);
+  void current_values_as_binary(bool *binary) { this->current_values.as_binary(binary); }
 
   void current_values_as_brightness(float *brightness);
 
@@ -281,12 +283,13 @@ class LightState : public EntityBase, public Component {
    *   return;
    * }
    */
-  bool is_transformer_active();
+  bool is_transformer_active() const { return this->is_transformer_active_; }
 
  protected:
   friend LightOutput;
   friend LightCall;
   friend class AddressableLight;
+  friend class LightFlashTransformer;
 
   /// Internal method to start an effect with the given index
   void start_effect_(uint32_t effect_index);
@@ -302,6 +305,18 @@ class LightState : public EntityBase, public Component {
 
   /// Internal method to set the color values to target immediately (with no transition).
   void set_immediately_(const LightColorValues &target, bool set_remote_values);
+
+  /// Point remote_values at the new transformer's target and, when this light publishes
+  /// intermediate states on an interval, start the interval clock.
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  void set_transformer_remote_values_(const LightColorValues &target, bool set_remote_values);
+#else
+  void set_transformer_remote_values_(const LightColorValues &target, bool set_remote_values) {
+    if (set_remote_values) {
+      this->remote_values = target;
+    }
+  }
+#endif
 
   /// Internal method to save the current remote_values to the preferences
   void save_remote_values_();
@@ -343,16 +358,20 @@ class LightState : public EntityBase, public Component {
    */
   std::unique_ptr<std::vector<LightTargetStateReachedListener *>> target_state_reached_listeners_;
 
-  /// Callback to populate initial state defaults — called once during setup, then cleared.
+  /// Callback that resolves the boot-time state — called once during setup, then cleared.
   /// Values live in flash as function body; no per-instance data storage beyond this pointer.
-  void (*initial_state_callback_)(LightStateRTCState &){nullptr};
+  void (*state_callback_)(LightStateRTCState &, bool restored){nullptr};
 
   /// Value for storing the index of the currently active effect. 0 if no effect is active
   uint32_t active_effect_index_{};
   /// Default transition length for all transitions in ms.
   uint32_t default_transition_length_{};
   /// Transition length to use for flash transitions.
-  uint32_t flash_transition_length_{};
+  uint32_t flash_transition_length_{};  // Keep in sync with DEFAULT_FLASH_TRANSITION_LENGTH in __init__.py
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  uint32_t transition_state_publish_interval_{0};
+  uint32_t last_transition_state_publish_{0};
+#endif
   /// Gamma correction factor for the light.
   float gamma_correct_{};
 #ifdef USE_LIGHT_GAMMA_LUT
@@ -363,8 +382,12 @@ class LightState : public EntityBase, public Component {
   bool next_write_{true};
   // for effects, true if a transformer (transition) is active.
   bool is_transformer_active_{false};
-  /// Restore mode of the light.
-  LightRestoreMode restore_mode_;
+  /// Whether this light persists its state to preferences at all.
+  bool save_enabled_{false};
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  /// True while the active transformer publishes current_values on an interval from loop().
+  bool transition_publish_enabled_{false};
+#endif
 };
 
 }  // namespace esphome::light

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable
 import importlib.util
 import json
 from pathlib import Path
 import subprocess
 import sys
+from typing import Any
 
 import pytest
 
@@ -139,6 +141,28 @@ def test_convert_walks_callable_schema_extractor() -> None:
     assert "foo" in config_var["schema"]["config_vars"]
 
 
+def test_convert_emits_variant_enum() -> None:
+    """A per-variant enum is dumped with each value tagged by its variants."""
+    from esphome.components.esp32 import (
+        VARIANT_ESP32,
+        VARIANT_ESP32S3,
+        variant_filtered_enum,
+    )
+
+    validator = variant_filtered_enum(
+        {VARIANT_ESP32: ("quad",), VARIANT_ESP32S3: ("quad", "octal")},
+        lower=True,
+    )
+    config_var: dict = {}
+    _bls.convert(validator, config_var, "/test")
+
+    assert config_var["type"] == "enum"
+    assert config_var["values"] == {
+        "quad": {"variants": [VARIANT_ESP32, VARIANT_ESP32S3]},
+        "octal": {"variants": [VARIANT_ESP32S3]},
+    }
+
+
 def test_convert_keys_emits_heuristic_sensitive_marker() -> None:
     converted: dict = {}
     _bls.convert_keys(converted, {cv.Optional("password"): cv.string}, "/root")
@@ -183,6 +207,82 @@ def test_convert_keys_no_marker_for_non_sensitive_field() -> None:
     assert "sensitive_source" not in entry
 
 
+def _wildcard_validator(value: Any) -> Any:
+    return value
+
+
+def test_convert_keys_marker_wrapped_callable_key_normalizes() -> None:
+    converted: dict = {}
+    _bls.convert_keys(converted, {cv.Optional(_wildcard_validator): cv.string}, "/root")
+
+    config_vars = converted["schema"]["config_vars"]
+    assert set(config_vars) == {"string"}
+    assert config_vars["string"]["key"] == "Optional"
+    assert config_vars["string"]["key_type"] == "_wildcard_validator"
+
+
+def test_convert_keys_marker_wrapped_callable_beside_fixed_keys() -> None:
+    converted: dict = {}
+    _bls.convert_keys(
+        converted,
+        {cv.Required("id"): cv.string, cv.Optional(_wildcard_validator): cv.string},
+        "/root",
+    )
+
+    assert set(converted["schema"]["config_vars"]) == {"id", "string"}
+
+
+def test_convert_keys_bare_callable_dotted_qualname() -> None:
+    def make_validator() -> Callable[[Any], Any]:
+        def validator(value: Any) -> Any:
+            return value
+
+        return validator
+
+    converted: dict = {}
+    _bls.convert_keys(converted, {make_validator(): cv.string}, "/root")
+
+    assert converted["key"] == "String"
+    assert converted["key_type"].endswith("make_validator.<locals>.validator")
+    assert "at 0x" not in converted["key_type"]
+    assert set(converted["schema"]["config_vars"]) == {"string"}
+
+
+@pytest.fixture(scope="module")
+def language_schema_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Run the full language-schema build once and return the output directory.
+
+    The build must run in a fresh interpreter: ``build_language_schema.py``
+    enables schema extraction *before* importing any esphome component, and the
+    extraction hooks are no-ops if the components were already imported (as they
+    are inside the pytest session). Running it as a subprocess mirrors how CI
+    generates the schema and keeps these tests isolated from import order.
+    """
+    out_dir = tmp_path_factory.mktemp("language_schema")
+    subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), "--output-path", str(out_dir)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return out_dir
+
+
+def test_uart_clock_source_preserves_variant_metadata(
+    language_schema_dir: Path,
+) -> None:
+    """UART clock choices retain chip restrictions in the editor schema."""
+    uart_schema = json.loads((language_schema_dir / "uart.json").read_text())
+    clock_source = uart_schema["uart"]["schemas"]["CONFIG_SCHEMA"]["schema"][
+        "config_vars"
+    ]["clock_source"]
+
+    assert clock_source["type"] == "enum"
+    assert clock_source["values"]["REF_TICK"] == {"variants": ["ESP32", "ESP32S2"]}
+    assert "ESP32C6" in clock_source["values"]["XTAL"]["variants"]
+    assert "ESP32C6" not in clock_source["values"]["APB"]["variants"]
+
+
 # ---------------------------------------------------------------------------
 # Regression tests for the lvgl schema dump.
 #
@@ -196,23 +296,8 @@ def test_convert_keys_no_marker_for_non_sensitive_field() -> None:
 
 
 @pytest.fixture(scope="module")
-def lvgl_schema(tmp_path_factory: pytest.TempPathFactory) -> dict:
-    """Run the full language-schema build once and return parsed lvgl.json.
-
-    The build must run in a fresh interpreter: ``build_language_schema.py``
-    enables schema extraction *before* importing any esphome component, and the
-    extraction hooks are no-ops if the components were already imported (as they
-    are inside the pytest session). Running it as a subprocess mirrors how CI
-    generates the schema and keeps this test isolated from import order.
-    """
-    out_dir = tmp_path_factory.mktemp("language_schema")
-    subprocess.run(
-        [sys.executable, str(SCRIPT_PATH), "--output-path", str(out_dir)],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return json.loads((out_dir / "lvgl.json").read_text())
+def lvgl_schema(language_schema_dir: Path) -> dict:
+    return json.loads((language_schema_dir / "lvgl.json").read_text())
 
 
 def _lvgl_config_vars(lvgl_schema: dict) -> dict:

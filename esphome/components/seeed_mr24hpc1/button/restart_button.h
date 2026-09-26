@@ -5,7 +5,7 @@
 
 namespace esphome::seeed_mr24hpc1 {
 
-class RestartButton : public button::Button, public Parented<MR24HPC1Component> {
+class RestartButton final : public button::Button, public Parented<MR24HPC1Component> {
  public:
   RestartButton() = default;
 

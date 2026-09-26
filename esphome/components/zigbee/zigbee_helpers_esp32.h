@@ -8,15 +8,14 @@
 extern "C" {
 #endif
 
-#include "esp_zigbee_core.h"
+#include "esp_zigbee.h"
 
-esp_err_t esphome_zb_cluster_list_add_or_update_cluster(uint16_t cluster_id, esp_zb_cluster_list_t *cluster_list,
-                                                        esp_zb_attribute_list_t *attr_list, uint8_t role_mask);
-esp_zb_attribute_list_t *esphome_zb_default_attr_list_create(uint16_t cluster_id);
-esp_err_t esphome_zb_cluster_add_attr(uint16_t cluster_id, esp_zb_attribute_list_t *attr_list, uint16_t attr_id,
-                                      void *value_p);
-esp_err_t esphome_zb_cluster_add_or_update_attr(uint16_t cluster_id, esp_zb_attribute_list_t *attr_list,
+ezb_err_t esphome_zb_cluster_add_or_update_attr(uint16_t cluster_id, ezb_zcl_cluster_desc_t cluster_desc,
                                                 uint16_t attr_id, void *value_p);
+ezb_err_t esphome_zb_add_or_update_cluster(uint16_t cluster_id, ezb_af_ep_desc_t ep_desc, uint8_t role_mask);
+ezb_zcl_cluster_desc_t esphome_zb_default_cluster_dscr_create(uint16_t cluster_id, uint8_t role_mask);
+ezb_err_t esphome_zb_cluster_add_attr(uint16_t cluster_id, ezb_zcl_cluster_desc_t cluster_desc, uint16_t attr_id,
+                                      void *value_p);
 
 #ifdef __cplusplus
 }

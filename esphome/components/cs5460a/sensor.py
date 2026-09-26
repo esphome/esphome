@@ -17,6 +17,7 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@balrog-kun"]
 DEPENDENCIES = ["spi"]
@@ -29,7 +30,6 @@ PGA_GAIN_OPTIONS = {
 }
 
 CS5460AComponent = cs5460a_ns.class_("CS5460AComponent", spi.SPIDevice, cg.Component)
-CS5460ARestartAction = cs5460a_ns.class_("CS5460ARestartAction", automation.Action)
 
 CONF_SAMPLES = "samples"
 CONF_PHASE_OFFSET = "phase_offset"
@@ -40,7 +40,7 @@ CONF_VOLTAGE_HPF = "voltage_hpf"
 CONF_PULSE_ENERGY = "pulse_energy"
 
 
-def validate_config(config):
+def validate_config(config: ConfigType) -> ConfigType:
     current_gain = abs(config[CONF_CURRENT_GAIN]) * (
         1.0 if config[CONF_PGA_GAIN] == "10X" else 5.0
     )
@@ -105,7 +105,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
@@ -128,16 +128,12 @@ async def to_code(config):
         cg.add(var.set_power_sensor(sens))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "cs5460a.restart",
-    CS5460ARestartAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(CS5460AComponent),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("restart()"),
 )
-async def restart_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)

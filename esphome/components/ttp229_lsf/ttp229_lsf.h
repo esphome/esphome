@@ -8,7 +8,7 @@
 
 namespace esphome::ttp229_lsf {
 
-class TTP229Channel : public binary_sensor::BinarySensor {
+class TTP229Channel final : public binary_sensor::BinarySensor {
  public:
   void set_channel(uint8_t channel) { channel_ = channel; }
   void process(uint16_t data) { this->publish_state(data & (1 << this->channel_)); }
@@ -17,7 +17,7 @@ class TTP229Channel : public binary_sensor::BinarySensor {
   uint8_t channel_;
 };
 
-class TTP229LSFComponent : public Component, public i2c::I2CDevice {
+class TTP229LSFComponent final : public Component, public i2c::I2CDevice {
  public:
   void register_channel(TTP229Channel *channel) { this->channels_.push_back(channel); }
   void setup() override;

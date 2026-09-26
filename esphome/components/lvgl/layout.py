@@ -34,6 +34,7 @@ from .defines import (
     TYPE_GRID,
     TYPE_NONE,
     LvConstant,
+    add_lv_use,
 )
 from .lv_validation import padding, size
 
@@ -399,6 +400,61 @@ LAYOUT_CLASSES = (
     DirectionalLayout("vertical", "column"),
 )
 LAYOUT_CHOICES = [x.get_type() for x in LAYOUT_CLASSES]
+
+
+# Layout properties that may be changed at runtime via an update action. These
+# are limited to simple style properties (set via ``lv_obj_set_style_...``).
+# Structural properties are deliberately excluded:
+#  - the layout ``type``, which determines which options are available to child
+#    widgets, and
+#  - the grid ``grid_rows``/``grid_columns`` descriptors, which define the cells
+#    that child widgets are placed into.
+# Both are fixed at widget creation.
+_GRID_LAYOUT_KEYS = (
+    CONF_GRID_COLUMN_ALIGN,
+    CONF_GRID_ROW_ALIGN,
+)
+_FLEX_LAYOUT_KEYS = (
+    CONF_FLEX_FLOW,
+    CONF_FLEX_ALIGN_MAIN,
+    CONF_FLEX_ALIGN_CROSS,
+    CONF_FLEX_ALIGN_TRACK,
+)
+
+LAYOUT_UPDATE_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_FLEX_FLOW): FLEX_FLOWS.one_of,
+        cv.Optional(CONF_FLEX_ALIGN_MAIN): flex_alignments,
+        cv.Optional(CONF_FLEX_ALIGN_CROSS): LV_FLEX_CROSS_ALIGNMENTS.one_of,
+        cv.Optional(CONF_FLEX_ALIGN_TRACK): flex_alignments,
+        cv.Optional(CONF_GRID_COLUMN_ALIGN): grid_alignments,
+        cv.Optional(CONF_GRID_ROW_ALIGN): grid_alignments,
+        cv.Optional(CONF_PAD_ROW): padding,
+        cv.Optional(CONF_PAD_COLUMN): padding,
+    }
+)
+
+
+def layout_validator(value):
+    """
+    Validate a ``layout:`` value for an update action. Only the layout options
+    may be changed (not the layout ``type``, which is fixed at widget creation).
+    :param value: The value of the ``layout:`` key
+    :return: The validated layout options dict
+    """
+    result = LAYOUT_UPDATE_SCHEMA(value)
+    if not result:
+        raise cv.Invalid(
+            "A layout update must specify at least one layout option", [CONF_LAYOUT]
+        )
+    # Register the relevant layout feature so its LV_USE_* define is emitted even
+    # when the option is set solely via an update action (whose code generation
+    # may run after LVGL has finished collecting its used features).
+    if any(key in result for key in _GRID_LAYOUT_KEYS):
+        add_lv_use(TYPE_GRID)
+    if any(key in result for key in _FLEX_LAYOUT_KEYS):
+        add_lv_use(TYPE_FLEX)
+    return result
 
 
 def append_layout_schema(schema, config: dict):

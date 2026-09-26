@@ -35,7 +35,6 @@ class ListEntitiesIterator final : public ComponentIterator {
 #undef ENTITY_TYPE_
 #undef ENTITY_CONTROLLER_TYPE_
   // NOLINTEND(bugprone-macro-parentheses)
-  bool completed() { return this->state_ == IteratorState::NONE; }
 
  protected:
   const WebServer *web_server_;

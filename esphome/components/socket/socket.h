@@ -60,11 +60,11 @@ inline struct lwip_sock *hook_fd_for_fast_select(int fd) {
   }
   return sock;
 }
-#elif defined(USE_HOST)
+#elif defined(USE_HOST) || defined(USE_ZEPHYR)
 /// Shared ready() helper for fd-based socket implementations.
 /// Checks if the Application's select() loop has marked this fd as ready.
 bool socket_ready_fd(int fd, bool loop_monitored);
-#endif
+#endif  // USE_LWIP_FAST_SELECT
 
 // Inline ready() — defined here because it depends on socket_ready/socket_ready_fd
 // declared above, while the impl headers are included before those declarations.
@@ -144,6 +144,14 @@ inline socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const st
 
 /// Set a sockaddr to the any address and specified port for the IP version used by socket_ip().
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);
+
+/// Poll a connect() that returned EINPROGRESS. On error, err_out is SO_ERROR (or
+/// errno) on fd implementations and the failure the callbacks recorded on raw lwip.
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+inline ConnectPollResult poll_connect(Socket &sock, int &err_out) { return sock.poll_connect(err_out); }
+#else
+ConnectPollResult poll_connect(Socket &sock, int &err_out);
+#endif
 
 /// Format sockaddr into caller-provided buffer, returns length written (excluding null)
 size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf);

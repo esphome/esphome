@@ -12,7 +12,7 @@
 
 namespace esphome::shelly_dimmer {
 
-class ShellyDimmer : public PollingComponent, public light::LightOutput, public uart::UARTDevice {
+class ShellyDimmer final : public PollingComponent, public light::LightOutput, public uart::UARTDevice {
  private:
   static constexpr uint16_t SHELLY_DIMMER_BUFFER_SIZE = 256;
 

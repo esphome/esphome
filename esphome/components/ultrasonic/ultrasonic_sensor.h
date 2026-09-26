@@ -18,7 +18,7 @@ struct UltrasonicSensorStore {
   volatile bool echo_end{false};
 };
 
-class UltrasonicSensorComponent : public sensor::Sensor, public PollingComponent {
+class UltrasonicSensorComponent final : public sensor::Sensor, public PollingComponent {
  public:
   void set_trigger_pin(InternalGPIOPin *trigger_pin) { this->trigger_pin_ = trigger_pin; }
   void set_echo_pin(InternalGPIOPin *echo_pin) { this->echo_pin_ = echo_pin; }

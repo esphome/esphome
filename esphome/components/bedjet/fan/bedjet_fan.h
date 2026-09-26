@@ -12,7 +12,7 @@
 
 namespace esphome::bedjet {
 
-class BedJetFan : public fan::Fan, public BedJetClient, public PollingComponent {
+class BedJetFan final : public fan::Fan, public BedJetClient, public PollingComponent {
  public:
   void update() override;
   void dump_config() override;

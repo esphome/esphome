@@ -16,14 +16,8 @@
 namespace esphome {
 
 class Component;
-struct RetryArgs;
-
-// Forward declaration of retry_handler - needs to be non-static for friend declaration
-void retry_handler(const std::shared_ptr<RetryArgs> &args);
 
 class Scheduler {
-  // Allow retry_handler to access protected members for internal retry mechanism
-  friend void ::esphome::retry_handler(const std::shared_ptr<RetryArgs> &args);
   // Allow DelayAction to call set_timer_common_ with skip_cancel=true for parallel script delays.
   // This is needed to fix issue #10264 where parallel scripts with delays interfere with each other.
   // We use friend instead of a public API because skip_cancel is dangerous - it can cause delays
@@ -31,11 +25,6 @@ class Scheduler {
   template<typename... Ts> friend class DelayAction;
 
  public:
-  // std::string overload - deprecated, use const char* or uint32_t instead
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> &&func);
-
   /** Set a timeout with a const char* name.
    *
    * IMPORTANT: The provided name pointer must remain valid for the lifetime of the scheduler item.
@@ -53,17 +42,12 @@ class Scheduler {
                             static_cast<uint32_t>(id), timeout, std::move(func));
   }
 
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  bool cancel_timeout(Component *component, const std::string &name);
   bool cancel_timeout(Component *component, const char *name);
   bool cancel_timeout(Component *component, uint32_t id);
   bool cancel_timeout(Component *component, InternalSchedulerID id) {
     return this->cancel_item_(component, NameType::NUMERIC_ID_INTERNAL, nullptr, static_cast<uint32_t>(id),
                               SchedulerItem::TIMEOUT);
   }
-
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> &&func);
 
   /** Set an interval with a const char* name.
    *
@@ -82,40 +66,12 @@ class Scheduler {
                             static_cast<uint32_t>(id), interval, std::move(func));
   }
 
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  bool cancel_interval(Component *component, const std::string &name);
   bool cancel_interval(Component *component, const char *name);
   bool cancel_interval(Component *component, uint32_t id);
   bool cancel_interval(Component *component, InternalSchedulerID id) {
     return this->cancel_item_(component, NameType::NUMERIC_ID_INTERNAL, nullptr, static_cast<uint32_t>(id),
                               SchedulerItem::INTERVAL);
   }
-
-  // Remove before 2026.8.0
-  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
-                "2026.2.0")
-  void set_retry(Component *component, const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,
-                 std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
-  // Remove before 2026.8.0
-  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
-                "2026.2.0")
-  void set_retry(Component *component, const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
-                 std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
-  // Remove before 2026.8.0
-  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
-                "2026.2.0")
-  void set_retry(Component *component, uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,
-                 std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
-
-  // Remove before 2026.8.0
-  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
-  bool cancel_retry(Component *component, const std::string &name);
-  // Remove before 2026.8.0
-  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
-  bool cancel_retry(Component *component, const char *name);
-  // Remove before 2026.8.0
-  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
-  bool cancel_retry(Component *component, uint32_t id);
 
   /// Get 64-bit millisecond timestamp (handles 32-bit millis() rollover)
   uint64_t millis_64() { return esphome::millis_64(); }
@@ -183,11 +139,12 @@ class Scheduler {
 
  protected:
   struct SchedulerItem {
-    // Ordered by size to minimize padding.
-    // `component` while live; `next_free` while in scheduler_item_pool_head_ (mutually exclusive).
+    // Ordered by size to minimize padding. Mutually exclusive by state; read the component via
+    // get_component() so SELF_POINTER items read as component-less.
     union {
-      Component *component;
-      SchedulerItem *next_free;
+      Component *component;          // live, non-SELF_POINTER: owning component
+      const LogString *source_name;  // live SELF_POINTER: owning script name (log attribution)
+      SchedulerItem *next_free;      // while pooled
     };
     // Optimized name storage using tagged union - zero heap allocation
     union {
@@ -213,19 +170,17 @@ class Scheduler {
     // std::atomic<uint8_t> inlines correctly on all platforms.
     std::atomic<uint8_t> remove{0};
 
-    // Bit-packed fields (5 bits used, 3 bits padding in 1 byte)
+    // Bit-packed fields (4 bits used, 4 bits padding in 1 byte)
     enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
     NameType name_type_ : 3;  // Discriminator for name_ union (0–4, see NameType enum)
-    bool is_retry : 1;        // True if this is a retry timeout
-                              // 3 bits padding
+                              // 4 bits padding
 #else
     // Single-threaded or multi-threaded without atomics: can pack all fields together
-    // Bit-packed fields (6 bits used, 2 bits padding in 1 byte)
+    // Bit-packed fields (5 bits used, 3 bits padding in 1 byte)
     enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
     bool remove : 1;
     NameType name_type_ : 3;  // Discriminator for name_ union (0–4, see NameType enum)
-    bool is_retry : 1;        // True if this is a retry timeout
-                              // 2 bits padding
+                              // 3 bits padding
 #endif
 
     // Constructor
@@ -237,13 +192,11 @@ class Scheduler {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
           // remove is initialized in the member declaration
           type(TIMEOUT),
-          name_type_(NameType::STATIC_STRING),
-          is_retry(false) {
+          name_type_(NameType::STATIC_STRING) {
 #else
           type(TIMEOUT),
           remove(false),
-          name_type_(NameType::STATIC_STRING),
-          is_retry(false) {
+          name_type_(NameType::STATIC_STRING) {
 #endif
       name_.static_name = nullptr;
     }
@@ -301,26 +254,24 @@ class Scheduler {
       // This is correct because millis_major_ that creates these values is also 16 bits.
       next_execution_high_ = static_cast<uint16_t>(value >> 32);
     }
-    constexpr const char *get_type_str() const { return (type == TIMEOUT) ? "timeout" : "interval"; }
-    const LogString *get_source() const { return component ? component->get_component_log_str() : LOG_STR("unknown"); }
+    const LogString *get_type_str() const { return (type == TIMEOUT) ? LOG_STR("timeout") : LOG_STR("interval"); }
+    // The owning component, or nullptr for SELF_POINTER items (whose slot holds source_name instead).
+    // All component access goes through this so SELF_POINTER items read as component-less.
+    Component *get_component() const { return name_type_ == NameType::SELF_POINTER ? nullptr : component; }
+    const LogString *get_source() const {
+      // Same no-source label as warn_blocking, for consistent log vocabulary.
+      if (name_type_ == NameType::SELF_POINTER)
+        return source_name != nullptr ? source_name : LOG_STR("a scheduled task");
+      return component != nullptr ? component->get_component_log_str() : LOG_STR("unknown");
+    }
   };
 
   // Common implementation for both timeout and interval
   // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
+  // `source` is stored (in the union slot) only for SELF_POINTER items; ignored otherwise.
   void set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type, const char *static_name,
-                         uint32_t hash_or_id, uint32_t delay, std::function<void()> &&func, bool is_retry = false,
-                         bool skip_cancel = false);
-
-  // Common implementation for retry - Remove before 2026.8.0
-  // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  void set_retry_common_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
-                         uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> func,
-                         float backoff_increase_factor);
-#pragma GCC diagnostic pop
-  // Common implementation for cancel_retry
-  bool cancel_retry_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id);
+                         uint32_t hash_or_id, uint32_t delay, std::function<void()> &&func, bool skip_cancel = false,
+                         const LogString *source = nullptr);
 
   // Extend a 32-bit millis() value to 64-bit. Use when the caller already has a fresh now.
   // On platforms with native 64-bit time (ESP32, Host, Zephyr, RP2040 — see
@@ -376,18 +327,18 @@ class Scheduler {
   // mode where skip_cancel=true allows multiple items with the same key).
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
   bool cancel_item_locked_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
-                           SchedulerItem::Type type, bool match_retry = false, bool find_first = false);
+                           SchedulerItem::Type type, bool find_first = false);
 
   // Common implementation for cancel operations - handles locking
   bool cancel_item_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
-                    SchedulerItem::Type type, bool match_retry = false);
+                    SchedulerItem::Type type);
 
   // Helper to check if two static string names match
   inline bool HOT names_match_static_(const char *name1, const char *name2) const {
     // Check pointer equality first (common for static strings), then string contents
     // The core ESPHome codebase uses static strings (const char*) for component names,
-    // making pointer comparison effective. The std::string overloads exist only for
-    // compatibility with external components but are rarely used in practice.
+    // making pointer comparison effective. The strcmp fallback covers distinct pointers
+    // with identical content (e.g. names built into separate static buffers).
     return (name1 != nullptr && name2 != nullptr) && ((name1 == name2) || (strcmp(name1, name2) == 0));
   }
 
@@ -396,14 +347,16 @@ class Scheduler {
   // IMPORTANT: Must be called with scheduler lock held
   inline bool HOT matches_item_locked_(SchedulerItem *item, Component *component, NameType name_type,
                                        const char *static_name, uint32_t hash_or_id, SchedulerItem::Type type,
-                                       bool match_retry, bool skip_removed = true) const {
+                                       bool skip_removed = true) const {
     // THREAD SAFETY: Check for nullptr first to prevent LoadProhibited crashes. On multi-threaded
     // platforms, items can be nulled in defer_queue_ during processing.
     // Fixes: https://github.com/esphome/esphome/issues/11940
     if (item == nullptr)
       return false;
-    if (item->component != component || item->type != type || (skip_removed && this->is_item_removed_locked_(item)) ||
-        (match_retry && !item->is_retry)) {
+    // get_component() is nullptr for SELF_POINTER items (their cancels pass nullptr too), so they
+    // match by the `this` key alone.
+    if (item->get_component() != component || item->type != type ||
+        (skip_removed && this->is_item_removed_locked_(item))) {
       return false;
     }
     // Name type must match
@@ -423,10 +376,15 @@ class Scheduler {
   // Helper to execute a scheduler item
   uint32_t execute_item_(SchedulerItem *item, uint32_t now);
 
-  // Helper to check if item should be skipped
-  bool should_skip_item_(SchedulerItem *item) const {
-    return is_item_removed_(item) || (item->component != nullptr && item->component->is_failed());
+  // True if the item's component is failed (so it must not run). SELF_POINTER delays have no
+  // component (get_component() == nullptr) and always fire.
+  bool is_item_failed_(SchedulerItem *item) const {
+    Component *component = item->get_component();
+    return component != nullptr && component->is_failed();
   }
+
+  // Helper to check if item should be skipped
+  bool should_skip_item_(SchedulerItem *item) const { return is_item_removed_(item) || this->is_item_failed_(item); }
 
   // Helper to recycle a SchedulerItem back to the pool.
   // Takes a raw pointer — caller transfers ownership. The item is either added to the
@@ -443,17 +401,10 @@ class Scheduler {
   // IMPORTANT: Must not be inlined - called only for intervals, keeping it out of the hot path saves flash.
   uint32_t __attribute__((noinline)) calculate_interval_offset_(uint32_t delay);
 
-  // Helper to check if a retry was already cancelled - extracted to reduce code size of set_timer_common_
-  // Remove before 2026.8.0 along with all retry code.
-  // IMPORTANT: Must not be inlined - retry path is cold and deprecated.
-  // IMPORTANT: Caller must hold the scheduler lock before calling this function.
-  bool __attribute__((noinline))
-  is_retry_cancelled_locked_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id);
-
 #ifdef ESPHOME_DEBUG_SCHEDULER
   // Helper for debug logging in set_timer_common_ - extracted to reduce code size
   void debug_log_timer_(const SchedulerItem *item, NameType name_type, const char *static_name, uint32_t hash_or_id,
-                        SchedulerItem::Type type, uint32_t delay, uint64_t now);
+                        uint32_t delay, uint64_t now);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
 #ifndef ESPHOME_THREAD_SINGLE
@@ -551,19 +502,21 @@ class Scheduler {
   // Inlined: the fast path (empty container) avoids calling the out-of-line scan.
   inline size_t HOT mark_matching_items_removed_locked_(std::vector<SchedulerItem *> &container, Component *component,
                                                         NameType name_type, const char *static_name,
-                                                        uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry,
+                                                        uint32_t hash_or_id, SchedulerItem::Type type,
                                                         bool find_first = false) {
     if (container.empty())
       return 0;
     return this->mark_matching_items_removed_slow_locked_(container, component, name_type, static_name, hash_or_id,
-                                                          type, match_retry, find_first);
+                                                          type, find_first);
   }
 
   // Out-of-line slow path for mark_matching_items_removed_locked_ when container is non-empty.
   // IMPORTANT: Must be called with scheduler lock held
-  __attribute__((noinline)) size_t mark_matching_items_removed_slow_locked_(
-      std::vector<SchedulerItem *> &container, Component *component, NameType name_type, const char *static_name,
-      uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry, bool find_first);
+  __attribute__((noinline)) size_t mark_matching_items_removed_slow_locked_(std::vector<SchedulerItem *> &container,
+                                                                            Component *component, NameType name_type,
+                                                                            const char *static_name,
+                                                                            uint32_t hash_or_id,
+                                                                            SchedulerItem::Type type, bool find_first);
 
   Mutex lock_;
   std::vector<SchedulerItem *> items_;

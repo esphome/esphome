@@ -3,6 +3,6 @@ substitutions:
   rx_pin: GPIO5
 
 packages:
-  uart: !include ../../test_build_components/common/uart/rp2040-ard.yaml
+  uart_4800: !include ../../test_build_components/common/uart_4800/rp2040-ard.yaml
 
 <<: !include common.yaml

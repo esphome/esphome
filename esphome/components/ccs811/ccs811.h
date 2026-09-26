@@ -8,7 +8,7 @@
 
 namespace esphome::ccs811 {
 
-class CCS811Component : public PollingComponent, public i2c::I2CDevice {
+class CCS811Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_co2(sensor::Sensor *co2) { co2_ = co2; }
   void set_tvoc(sensor::Sensor *tvoc) { tvoc_ = tvoc; }

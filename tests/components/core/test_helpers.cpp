@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
+#include <cmath>
 #include <cstring>
 
+#include "esphome/core/alloc_helpers.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::core::testing {
@@ -211,6 +213,210 @@ TEST(BufAppendSepStr, Truncation) {
   *end = '\0';
   EXPECT_STREQ(buf, "val lon");
   EXPECT_EQ(end - buf, 7);
+}
+
+// --- base64 encode/decode ---
+
+static const char BASE64_ALPHABET[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+// Pack 6-bit indices 0..63 into 48 bytes so encoding yields the full alphabet in order
+TEST(Base64, EncodeProducesCanonicalAlphabet) {
+  uint8_t bytes[48];
+  size_t n = 0;
+  for (uint8_t i = 0; i < 64; i += 4) {
+    bytes[n++] = (i << 2) | ((i + 1) >> 4);
+    bytes[n++] = ((i + 1) & 0x0F) << 4 | ((i + 2) >> 2);
+    bytes[n++] = ((i + 2) & 0x03) << 6 | (i + 3);
+  }
+  std::string encoded = base64_encode(bytes, sizeof(bytes));  // NOLINT(esphome-heap-allocation) - host test
+  EXPECT_EQ(encoded, BASE64_ALPHABET);
+}
+
+// Decode the alphabet then re-encode: locks the encode and decode mappings together
+TEST(Base64, DecodeCanonicalAlphabetRoundTrip) {
+  uint8_t buf[48];
+  size_t len = base64_decode(std::string(BASE64_ALPHABET), buf, sizeof(buf));
+  EXPECT_EQ(len, 48u);
+  std::string reencoded = base64_encode(buf, len);  // NOLINT(esphome-heap-allocation) - host test
+  EXPECT_EQ(reencoded, BASE64_ALPHABET);
+}
+
+TEST(Base64, DecodeBase64UrlMatchesStandard) {
+  std::string url = BASE64_ALPHABET;
+  for (char &c : url) {
+    if (c == '+')
+      c = '-';
+    if (c == '/')
+      c = '_';
+  }
+  uint8_t standard[48], urlsafe[48];
+  size_t len_standard = base64_decode(std::string(BASE64_ALPHABET), standard, sizeof(standard));
+  size_t len_url = base64_decode(url, urlsafe, sizeof(urlsafe));
+  EXPECT_EQ(len_standard, len_url);
+  EXPECT_EQ(memcmp(standard, urlsafe, len_standard), 0);
+}
+
+// RFC 4648 vectors cover both padding cases (len % 3 == 1 and len % 3 == 2)
+TEST(Base64, Rfc4648Vectors) {
+  const struct {
+    const char *plain;
+    const char *encoded;
+  } vectors[] = {
+      {"", ""},
+      {"f", "Zg=="},
+      {"fo", "Zm8="},
+      {"foo", "Zm9v"},
+      {"foob", "Zm9vYg=="},
+      {"fooba", "Zm9vYmE="},
+      {"foobar", "Zm9vYmFy"},
+  };
+  for (const auto &v : vectors) {
+    const auto *plain = reinterpret_cast<const uint8_t *>(v.plain);
+    std::string encoded = base64_encode(plain, strlen(v.plain));  // NOLINT(esphome-heap-allocation) - host test
+    EXPECT_EQ(encoded, v.encoded);
+    uint8_t buf[8];
+    size_t len = base64_decode(reinterpret_cast<const uint8_t *>(v.encoded), strlen(v.encoded), buf, sizeof(buf));
+    EXPECT_EQ(len, strlen(v.plain));
+    EXPECT_EQ(memcmp(buf, v.plain, len), 0);
+  }
+}
+
+// --- step_to_accuracy_decimals() ---
+
+TEST(StepToAccuracyDecimals, TypicalSteps) {
+  EXPECT_EQ(step_to_accuracy_decimals(0.001f), 3);
+  EXPECT_EQ(step_to_accuracy_decimals(0.005f), 3);
+  EXPECT_EQ(step_to_accuracy_decimals(0.01f), 2);
+  EXPECT_EQ(step_to_accuracy_decimals(0.025f), 3);
+  EXPECT_EQ(step_to_accuracy_decimals(0.05f), 2);
+  EXPECT_EQ(step_to_accuracy_decimals(0.1f), 1);
+  EXPECT_EQ(step_to_accuracy_decimals(0.25f), 2);
+  EXPECT_EQ(step_to_accuracy_decimals(0.5f), 1);
+  EXPECT_EQ(step_to_accuracy_decimals(1.5f), 1);
+  EXPECT_EQ(step_to_accuracy_decimals(2.5f), 1);
+}
+
+TEST(StepToAccuracyDecimals, WholeSteps) {
+  EXPECT_EQ(step_to_accuracy_decimals(1.0f), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(2.0f), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(5.0f), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(10.0f), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(100.0f), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(1000.0f), 0);
+}
+
+TEST(StepToAccuracyDecimals, FiveSignificantDigits) {
+  EXPECT_EQ(step_to_accuracy_decimals(1.23456f), 4);
+  EXPECT_EQ(step_to_accuracy_decimals(12.345f), 3);
+  EXPECT_EQ(step_to_accuracy_decimals(123.45f), 2);
+  EXPECT_EQ(step_to_accuracy_decimals(1234.5f), 1);
+  EXPECT_EQ(step_to_accuracy_decimals(12345.0f), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(0.33333f), 5);
+  EXPECT_EQ(step_to_accuracy_decimals(0.0001f), 4);
+}
+
+TEST(StepToAccuracyDecimals, TrailingZerosDropped) {
+  EXPECT_EQ(step_to_accuracy_decimals(0.3f), 1);
+  EXPECT_EQ(step_to_accuracy_decimals(0.7f), 1);
+  EXPECT_EQ(step_to_accuracy_decimals(0.125f), 3);
+  EXPECT_EQ(step_to_accuracy_decimals(0.0625f), 4);
+}
+
+TEST(StepToAccuracyDecimals, RoundsUpToWholeNumber) {
+  // Rounds to five significant digits first, so this becomes 10 with no decimals.
+  EXPECT_EQ(step_to_accuracy_decimals(9.999999f), 0);
+}
+
+TEST(StepToAccuracyDecimals, OutsideFixedNotationRange) {
+  // %.5g would print these in exponent form; the count is now the real one rather than a parse of "1e-05".
+  EXPECT_EQ(step_to_accuracy_decimals(0.00001f), 5);
+  EXPECT_EQ(step_to_accuracy_decimals(0.000125f), 6);
+  EXPECT_EQ(step_to_accuracy_decimals(123456.0f), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(1000000.0f), 0);
+}
+
+TEST(StepToAccuracyDecimals, SignIgnored) {
+  EXPECT_EQ(step_to_accuracy_decimals(-0.1f), 1);
+  EXPECT_EQ(step_to_accuracy_decimals(-0.25f), 2);
+  EXPECT_EQ(step_to_accuracy_decimals(-1.0f), 0);
+}
+
+TEST(StepToAccuracyDecimals, NonFiniteAndZero) {
+  EXPECT_EQ(step_to_accuracy_decimals(0.0f), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(NAN), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(INFINITY), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(-INFINITY), 0);
+}
+
+// --- FixedVector::try_init() ---
+
+// Keeps the block observable, else the compiler may drop the malloc and free pair and fold the check
+static void escape(const void *p) { asm volatile("" : : "g"(p) : "memory"); }
+
+TEST(FixedVectorTryInit, ReportsExhaustionAndStaysEmpty) {
+  FixedVector<uint32_t> v;
+  const bool ok = v.try_init(SIZE_MAX / sizeof(uint32_t));
+  escape(&v);
+  EXPECT_FALSE(ok);
+  EXPECT_EQ(v.capacity(), 0u);
+  EXPECT_FALSE(v.try_init(SIZE_MAX / sizeof(uint32_t) + 1));  // byte count would wrap
+  EXPECT_EQ(v.capacity(), 0u);
+  EXPECT_TRUE(v.try_init(0));
+  EXPECT_TRUE(v.try_init(4));
+  v.push_back(7);
+  EXPECT_EQ(v.size(), 1u);
+}
+
+// --- RAMAllocator::make_unique() ---
+
+namespace {
+struct Probe {
+  static inline int live = 0;
+  int a;
+  int b;
+  Probe(int a, int b) : a(a), b(b) { live++; }
+  ~Probe() { live--; }
+};
+}  // namespace
+
+static_assert(sizeof(RAMUniquePtr<Probe>) == sizeof(Probe *), "the deleter must not add storage");
+
+TEST(RAMAllocatorMakeUnique, ForwardsArgsAndDestroysOnce) {
+  auto p = RAMAllocator<Probe>().make_unique(3, 4);
+  ASSERT_NE(p, nullptr);
+  EXPECT_EQ(p->a, 3);
+  EXPECT_EQ(p->b, 4);
+  EXPECT_EQ(Probe::live, 1);
+  p.reset();
+  EXPECT_EQ(Probe::live, 0);
+}
+
+TEST(RAMAllocatorMakeUnique, ValueInitializesLikeMakeUnique) {
+  struct Plain {
+    uint32_t words[8];
+  };
+  // Dirty a block of the same size first so a recycled allocation is not zero by chance
+  auto dirty = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(sizeof(Plain));
+  std::memset(dirty.get(), 0xFF, sizeof(Plain));
+  dirty.reset();
+  auto p = RAMAllocator<Plain>().make_unique();
+  ASSERT_NE(p, nullptr);
+  // Under ASan fresh blocks are filled with 0xbe, so this holds even when the dirtied block is not reused
+  EXPECT_TRUE(std::all_of(std::begin(p->words), std::end(p->words), [](uint32_t w) { return w == 0; }));
+}
+
+TEST(RAMAllocatorMakeUnique, ArrayFormRejectsOverflowAndZero) {
+  EXPECT_EQ(RAMAllocator<uint32_t>().make_unique_array_for_overwrite(SIZE_MAX / sizeof(uint32_t) + 1), nullptr);
+  EXPECT_EQ(RAMAllocator<uint32_t>().make_unique_array_for_overwrite(0), nullptr);
+  EXPECT_NE(RAMAllocator<uint32_t>().make_unique_array_for_overwrite(1), nullptr);
+}
+
+TEST(RAMAllocatorMakeUnique, ArrayFormAllocatesElements) {
+  RAMUniquePtr<uint8_t[]> buf = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(256);
+  ASSERT_NE(buf, nullptr);
+  std::memset(buf.get(), 0xA5, 256);
+  EXPECT_EQ(buf[0], 0xA5);
+  EXPECT_EQ(buf[255], 0xA5);
 }
 
 }  // namespace esphome::core::testing

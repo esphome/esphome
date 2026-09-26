@@ -32,6 +32,7 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
+from esphome.types import ConfigType
 
 # Import ICONS not included in esphome's const.py, from the local components const.py
 from .const import ICON_ENERGY, ICON_FREQUENCY, ICON_VOLTAGE
@@ -42,7 +43,6 @@ CONF_TOTAL_ENERGY = "total_energy"
 
 bl0906_ns = cg.esphome_ns.namespace("bl0906")
 BL0906 = bl0906_ns.class_("BL0906", cg.PollingComponent, uart.UARTDevice)
-ResetEnergyAction = bl0906_ns.class_("ResetEnergyAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -135,23 +135,18 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "bl0906.reset_energy",
-    ResetEnergyAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(BL0906),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("reset_energy()"),
 )
-async def reset_energy_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

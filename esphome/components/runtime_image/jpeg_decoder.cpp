@@ -52,12 +52,6 @@ static int draw_callback(JPEGDRAW *jpeg) {
   return 1;
 }
 
-int JpegDecoder::prepare(size_t expected_size) {
-  ImageDecoder::prepare(expected_size);
-  // JPEG decoder needs complete data before decoding
-  return 0;
-}
-
 int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   // JPEG decoder requires complete data
   // If we know the expected size, wait for it
@@ -89,9 +83,21 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
     return DECODE_ERROR_OUT_OF_MEMORY;
   }
   if (!this->jpeg_.decode(0, 0, 0)) {
-    ESP_LOGE(TAG, "Error while decoding.");
+    auto error = this->jpeg_.getLastError();
+    ESP_LOGE(TAG, "Error while decoding: %d", error);
     this->jpeg_.close();
-    return DECODE_ERROR_UNSUPPORTED_FORMAT;
+    switch (error) {
+      case JPEG_ERROR_MEMORY:
+        return DECODE_ERROR_OUT_OF_MEMORY;
+      case JPEG_UNSUPPORTED_FEATURE:
+        return DECODE_ERROR_UNSUPPORTED_FORMAT;
+      case JPEG_INVALID_FILE:
+      case JPEG_INVALID_PARAMETER:
+        return DECODE_ERROR_INVALID_TYPE;
+      case JPEG_DECODE_ERROR:
+      default:
+        return DECODE_ERROR_INTERNAL_DECODER_ERROR;
+    }
   }
   this->decoded_bytes_ = size;
   this->jpeg_.close();

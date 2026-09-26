@@ -1,0 +1,15 @@
+packages:
+  remote_transmitter: !include ../../test_build_components/common/remote_transmitter/esp32-idf.yaml
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+  midea: !include common.yaml
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+# Regression test for https://github.com/esphome/esphome/issues/18054: the
+# MideaUART ESP-IDF shims must not make unqualified millis() ambiguous
+interval:
+  - interval: 10s
+    then:
+      - lambda: ESP_LOGD("test", "%u", millis());

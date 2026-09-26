@@ -3,13 +3,13 @@ light:
     id: led_strip1
     pin: ${pin1}
     num_leds: 60
-    rgb_order: GRB
+    channel_colors: GRB
     chipset: ws2812
   - platform: esp32_rmt_led_strip
     id: led_strip2
     pin: ${pin2}
     num_leds: 60
-    rgb_order: RGB
+    channel_colors: RWGB
     bit0_high: 100us
     bit0_low: 100us
     bit1_high: 100us

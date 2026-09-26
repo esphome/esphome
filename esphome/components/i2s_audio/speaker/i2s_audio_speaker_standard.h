@@ -14,7 +14,7 @@ enum class I2SCommFmt : uint8_t {
 
 /// @brief Standard I2S speaker implementation.
 /// Outputs PCM audio data directly to an I2S DAC using the standard I2S protocol.
-class I2SAudioSpeaker : public I2SAudioSpeakerBase {
+class I2SAudioSpeaker final : public I2SAudioSpeakerBase {
  public:
   void dump_config() override;
 

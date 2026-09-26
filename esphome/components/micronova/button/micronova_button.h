@@ -6,7 +6,7 @@
 
 namespace esphome::micronova {
 
-class MicroNovaButton : public Component, public button::Button, public MicroNovaBaseListener {
+class MicroNovaButton final : public Component, public button::Button, public MicroNovaBaseListener {
  public:
   MicroNovaButton(MicroNova *m) : MicroNovaBaseListener(m) {}
   void dump_config() override;

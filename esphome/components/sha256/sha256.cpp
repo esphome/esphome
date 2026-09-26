@@ -1,7 +1,7 @@
 #include "sha256.h"
 
 // Only compile SHA256 implementation on platforms that support it
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_HOST)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_HOST)
 
 #include "esphome/core/helpers.h"
 #include <cstring>
@@ -76,7 +76,7 @@ void SHA256::add(const uint8_t *data, size_t len) { mbedtls_sha256_update(&this-
 
 void SHA256::calculate() { mbedtls_sha256_finish(&this->ctx_, this->digest_); }
 
-#elif defined(USE_ESP8266) || defined(USE_RP2040)
+#elif defined(USE_ESP8266) || defined(USE_RP2)
 
 SHA256::~SHA256() = default;
 

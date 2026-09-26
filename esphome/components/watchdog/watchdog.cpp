@@ -9,7 +9,7 @@
 #include "esp_idf_version.h"
 #include "esp_task_wdt.h"
 #endif
-#ifdef USE_RP2040
+#ifdef USE_RP2
 #include "hardware/watchdog.h"
 #include "pico/stdlib.h"
 #endif
@@ -53,7 +53,7 @@ void WatchdogManager::set_timeout_(uint32_t timeout_ms) {
   esp_task_wdt_reconfigure(&wdt_config);
 #endif  // USE_ESP32
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
   watchdog_enable(timeout_ms, true);
 #endif
 }
@@ -65,7 +65,7 @@ uint32_t WatchdogManager::get_timeout_() {
   timeout_ms = (uint32_t) CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
 #endif  // USE_ESP32
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
   timeout_ms = watchdog_get_count() / 1000;
 #endif
 

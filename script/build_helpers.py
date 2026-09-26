@@ -10,7 +10,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from helpers import get_all_dependencies, root_path as _root_path
+from helpers import get_all_dependencies, has_cpp_unit_tests, root_path as _root_path
 import yaml
 
 # Ensure the repo root is on sys.path so that ``tests.testing_helpers`` and
@@ -70,12 +70,15 @@ def populate_dependency_config(
 
     * ``domain.platform`` form (e.g. ``sensor.gpio``) appends
       ``{platform: <name>}`` to ``config[domain]``, creating the list if needed.
-    * Bare components are looked up via ``get_component_fn``. Platform
-      components (``IS_PLATFORM_COMPONENT``) and ``MULTI_CONF`` components are
-      initialised as ``[]`` so the sibling ``domain.platform`` branch can
-      ``append`` into them. Everything else is populated by running the
-      component's schema with ``{}`` so defaults exist; if the schema requires
-      explicit input, an empty ``{}`` is used as a fallback.
+    * Bare components are looked up via ``get_component_fn``. Target-platform
+      components (``is_target_platform``, e.g. ``esp32``) are skipped entirely:
+      a host build targets ``host``, so a foreign target platform's sources are
+      guarded out and its schema must not run here (it would mutate global CORE
+      state as a side effect). Platform components (``IS_PLATFORM_COMPONENT``)
+      and ``MULTI_CONF`` components are initialised as ``[]`` so the sibling
+      ``domain.platform`` branch can ``append`` into them. Everything else is
+      populated by running the component's schema with ``{}`` so defaults exist;
+      if the schema requires explicit input, an empty ``{}`` is used as a fallback.
 
     Platform components must always be a list here even when no
     ``domain.platform`` entry follows, because the ``domain.platform`` branch
@@ -95,6 +98,12 @@ def populate_dependency_config(
         # system, not a real loadable component (get_component returns None)
         component = get_component_fn(component_name)
         if component is None:
+            continue
+        # Skip target platforms (e.g. esp32): a host build targets `host`, so a
+        # foreign target's sources are guarded out, and running its schema with
+        # {} leaks global CORE state (esp32 pins CORE.toolchain to ESP-IDF),
+        # crashing the host compile. See #17035.
+        if component.is_target_platform:
             continue
         if component.multi_conf or component.is_platform_component:
             config.setdefault(component_name, [])
@@ -122,14 +131,11 @@ def filter_components_with_files(components: list[str], tests_dir: Path) -> list
     """
     filtered_components: list[str] = []
     for component in components:
-        test_dir = tests_dir / component
-        if test_dir.is_dir() and (
-            any(test_dir.glob("*.cpp")) or any(test_dir.glob("*.h"))
-        ):
+        if has_cpp_unit_tests(component, tests_dir):
             filtered_components.append(component)
         else:
             print(
-                f"WARNING: No files found for component '{component}' in {test_dir}, skipping.",
+                f"WARNING: No files found for component '{component}' in {tests_dir / component}, skipping.",
                 file=sys.stderr,
             )
     return filtered_components

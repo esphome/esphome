@@ -7,7 +7,7 @@ namespace esphome::bl0940 {
 
 class BL0940;  // Forward declaration of BL0940 class
 
-class CalibrationResetButton : public button::Button, public Component, public Parented<BL0940> {
+class CalibrationResetButton final : public button::Button, public Component, public Parented<BL0940> {
  public:
   void dump_config() override;
 

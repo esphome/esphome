@@ -78,12 +78,13 @@ void ST7701S::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
         break;
     }
   }
-  if (err != ESP_OK)
+  if (err != ESP_OK) {
     esph_log_e(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
+  }
 }
 
 void ST7701S::draw_pixel_at(int x, int y, Color color) {
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return;  // NOLINT
 
   switch (this->rotation_) {
@@ -106,7 +107,7 @@ void ST7701S::draw_pixel_at(int x, int y, Color color) {
 
   this->draw_pixels_at(x, y, 1, 1, (const uint8_t *) &pixel, display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, true,
                        0, 0, 0);
-  App.feed_wdt();
+  this->feed_wdt_per_pixel_();
 }
 
 void ST7701S::write_command_(uint8_t value) {

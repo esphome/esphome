@@ -99,7 +99,7 @@ async def test_scheduler_string_test(
             timeout_count += 1
 
         # Check for cancel test
-        elif "Cancelled timeout using different string object" in clean_line:
+        elif "Cancelled timeout using different buffer with same content" in clean_line:
             cancel_test_done.set()
 
         # Check for final results

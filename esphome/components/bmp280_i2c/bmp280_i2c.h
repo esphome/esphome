@@ -8,7 +8,7 @@ namespace esphome::bmp280_i2c {
 static const char *const TAG = "bmp280_i2c.sensor";
 
 /// This class implements support for the BMP280 Temperature+Pressure i2c sensor.
-class BMP280I2CComponent : public esphome::bmp280_base::BMP280Component, public i2c::I2CDevice {
+class BMP280I2CComponent final : public esphome::bmp280_base::BMP280Component, public i2c::I2CDevice {
  public:
   bool bmp_read_byte(uint8_t a_register, uint8_t *data) override { return read_byte(a_register, data); }
   bool bmp_write_byte(uint8_t a_register, uint8_t data) override { return write_byte(a_register, data); }

@@ -64,8 +64,9 @@ void OtaHttpRequestComponent::flash() {
   }
 }
 
-void OtaHttpRequestComponent::cleanup_(ota::OTABackendPtr backend, const std::shared_ptr<HttpContainer> &container) {
-  if (this->update_started_) {
+void OtaHttpRequestComponent::cleanup_(ota::OTABackendPtr backend, const std::shared_ptr<HttpContainer> &container,
+                                       bool abort_backend) {
+  if (abort_backend) {
     ESP_LOGV(TAG, "Aborting OTA backend");
     backend->abort();
   }
@@ -106,7 +107,8 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   auto error_code = backend->begin(container->content_length);
   if (error_code != ota::OTA_RESPONSE_OK) {
     ESP_LOGW(TAG, "backend->begin error: %d", error_code);
-    this->cleanup_(std::move(backend), container);
+    // Nothing to abort: begin() failed, so no OTA handle was opened
+    this->cleanup_(std::move(backend), container, /*abort_backend=*/false);
     return error_code;
   }
 
@@ -140,7 +142,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
       } else {
         ESP_LOGE(TAG, "Error reading data: %d", bufsize_or_error);
       }
-      this->cleanup_(std::move(backend), container);
+      this->cleanup_(std::move(backend), container, /*abort_backend=*/true);
       return OTA_CONNECTION_ERROR;
     }
 
@@ -150,14 +152,13 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
       md5_receive.add(buf, bufsize_or_error);
 
       // write bytes to OTA backend
-      this->update_started_ = true;
       error_code = backend->write(buf, bufsize_or_error);
       if (error_code != ota::OTA_RESPONSE_OK) {
         // error code explanation available at
         // https://github.com/esphome/esphome/blob/dev/esphome/components/ota/ota_backend.h
         ESP_LOGE(TAG, "Error code (%02X) writing binary data to flash at offset %d and size %d", error_code,
                  container->get_bytes_read() - bufsize_or_error, container->content_length);
-        this->cleanup_(std::move(backend), container);
+        this->cleanup_(std::move(backend), container, /*abort_backend=*/true);
         return error_code;
       }
     }
@@ -181,7 +182,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   this->md5_computed_ = md5_receive_str;
   if (strncmp(this->md5_computed_.c_str(), this->md5_expected_.c_str(), MD5_SIZE) != 0) {
     ESP_LOGE(TAG, "MD5 computed: %s - Aborting due to MD5 mismatch", this->md5_computed_.c_str());
-    this->cleanup_(std::move(backend), container);
+    this->cleanup_(std::move(backend), container, /*abort_backend=*/true);
     return ota::OTA_RESPONSE_ERROR_MD5_MISMATCH;
   } else {
     backend->set_update_md5(md5_receive_str);
@@ -197,7 +198,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   error_code = backend->end();
   if (error_code != ota::OTA_RESPONSE_OK) {
     ESP_LOGW(TAG, "Error ending update! error_code: %d", error_code);
-    this->cleanup_(std::move(backend), container);
+    this->cleanup_(std::move(backend), container, /*abort_backend=*/true);
     return error_code;
   }
 

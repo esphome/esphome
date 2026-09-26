@@ -98,7 +98,7 @@ struct CustomPattern {
   std::optional<std::array<uint8_t, 6>> default_obis;
 };
 
-class DlmsMeterComponent : public Component, public uart::UARTDevice {
+class DlmsMeterComponent final : public Component, public uart::UARTDevice {
  public:
   DlmsMeterComponent(uint32_t receive_timeout_ms, bool skip_crc_check,
                      std::optional<std::array<uint8_t, 16>> decryption_key,

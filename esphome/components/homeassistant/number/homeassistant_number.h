@@ -6,7 +6,7 @@
 
 namespace esphome::homeassistant {
 
-class HomeassistantNumber : public number::Number, public Component {
+class HomeassistantNumber final : public number::Number, public Component {
  public:
   void set_entity_id(const char *entity_id) { this->entity_id_ = entity_id; }
 

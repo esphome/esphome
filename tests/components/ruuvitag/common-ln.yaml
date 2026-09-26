@@ -1,0 +1,7 @@
+sensor:
+  - platform: ruuvitag
+    mac_address: FF:56:D3:2F:7D:E8
+    humidity:
+      name: RuuviTag Humidity
+    temperature:
+      name: RuuviTag Temperature

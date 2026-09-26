@@ -33,13 +33,13 @@ struct MenuItemValueArguments {
   bool is_menu_editing;
 };
 
-class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
+class GraphicalDisplayMenu final : public display_menu_base::DisplayMenuComponent {
  public:
   void setup() override;
   void dump_config() override;
 
-  void set_display(display::Display *display);
-  void set_font(display::BaseFont *font);
+  void set_display(display::Display *display) { this->display_ = display; }
+  void set_font(display::BaseFont *font) { this->font_ = font; }
   template<typename V> void set_menu_item_value(V menu_item_value) { this->menu_item_value_ = menu_item_value; }
   void set_foreground_color(Color foreground_color);
   void set_background_color(Color background_color);
@@ -53,10 +53,10 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
   void draw_menu() override;
   void draw_menu_internal_(display::Display *display, const display::Rect *bounds);
   void draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected) override;
-  virtual display::Rect measure_item(display::Display *display, const display_menu_base::MenuItem *item,
-                                     const display::Rect *bounds, bool selected);
-  virtual void draw_item(display::Display *display, const display_menu_base::MenuItem *item,
-                         const display::Rect *bounds, bool selected);
+  display::Rect measure_item_(display::Display *display, const display_menu_base::MenuItem *item,
+                              const display::Rect *bounds, bool selected);
+  void draw_item_(display::Display *display, const display_menu_base::MenuItem *item, const display::Rect *bounds,
+                  bool selected);
   void update() override;
 
   void on_before_show() override;
@@ -73,7 +73,7 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
   CallbackManager<void()> on_redraw_callbacks_{};
 };
 
-class GraphicalDisplayMenuOnRedrawTrigger : public Trigger<const GraphicalDisplayMenu *> {
+class GraphicalDisplayMenuOnRedrawTrigger final : public Trigger<const GraphicalDisplayMenu *> {
  public:
   explicit GraphicalDisplayMenuOnRedrawTrigger(GraphicalDisplayMenu *parent) : parent_(parent) {
     parent->add_on_redraw_callback([this]() { this->trigger(this->parent_); });

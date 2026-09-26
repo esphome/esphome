@@ -7,7 +7,7 @@
 
 namespace esphome::ble_client {
 
-class BLESensorNotifyTrigger : public Trigger<float>, public BLESensor {
+class BLESensorNotifyTrigger final : public Trigger<float>, public BLESensor {
  public:
   explicit BLESensorNotifyTrigger(BLESensor *sensor) { sensor_ = sensor; }
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,

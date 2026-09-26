@@ -18,9 +18,9 @@ class MatrixKeypadListener {
   virtual void key_released(uint8_t key){};
 };
 
-class MatrixKeyTrigger : public Trigger<uint8_t> {};
+class MatrixKeyTrigger final : public Trigger<uint8_t> {};
 
-class MatrixKeypad : public key_provider::KeyProvider, public Component {
+class MatrixKeypad final : public key_provider::KeyProvider, public Component {
  public:
   void setup() override;
   void loop() override;

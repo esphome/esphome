@@ -5,7 +5,7 @@
 
 namespace esphome::http_request {
 
-template<typename... Ts> class OtaHttpRequestComponentFlashAction : public Action<Ts...> {
+template<typename... Ts> class OtaHttpRequestComponentFlashAction final : public Action<Ts...> {
  public:
   OtaHttpRequestComponentFlashAction(OtaHttpRequestComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, md5_url)

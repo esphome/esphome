@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTFanComponent : public mqtt::MQTTComponent {
+class MQTTFanComponent final : public mqtt::MQTTComponent {
  public:
   explicit MQTTFanComponent(fan::Fan *state);
 

@@ -5,7 +5,7 @@
 
 namespace esphome::ld2420 {
 
-class LD2420Sensor : public LD2420Listener, public Component, sensor::Sensor {
+class LD2420Sensor final : public LD2420Listener, public Component, public sensor::Sensor {
  public:
   void dump_config() override;
   void set_distance_sensor(sensor::Sensor *sensor) { this->distance_sensor_ = sensor; }

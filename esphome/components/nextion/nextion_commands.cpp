@@ -176,7 +176,7 @@ void Nextion::goto_page(const char *page) { this->add_no_result_to_queue_with_pr
 void Nextion::goto_page(uint8_t page) { this->add_no_result_to_queue_with_printf_("page", "page %i", page); }
 
 void Nextion::set_backlight_brightness(float brightness) {
-  if (brightness < 0 || brightness > 1.0) {
+  if (brightness < 0 || brightness > 1.0f) {
     ESP_LOGD(TAG, "Brightness out of bounds (0-1.0)");
     return;
   }
@@ -217,7 +217,6 @@ void Nextion::set_component_value(const char *component, int32_t value) {
   this->add_no_result_to_queue_with_printf_(".val", "%s.val=%" PRId32, component, value);
 }
 
-#ifdef USE_NEXTION_WAVEFORM
 void Nextion::add_waveform_data(uint8_t component_id, uint8_t channel_number, uint8_t value) {
   this->add_no_result_to_queue_with_printf_("add", "add %" PRIu8 ",%" PRIu8 ",%" PRIu8, component_id, channel_number,
                                             value);
@@ -227,7 +226,6 @@ void Nextion::open_waveform_channel(uint8_t component_id, uint8_t channel_number
   this->add_no_result_to_queue_with_printf_("addt", "addt %" PRIu8 ",%" PRIu8 ",%" PRIu8, component_id, channel_number,
                                             value);
 }
-#endif  // USE_NEXTION_WAVEFORM
 
 void Nextion::set_component_coordinates(const char *component, uint16_t x, uint16_t y) {
   this->add_no_result_to_queue_with_printf_(".xcen", "%s.xcen=%" PRIu16, component, x);

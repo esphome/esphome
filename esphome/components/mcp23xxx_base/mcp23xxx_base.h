@@ -56,7 +56,7 @@ template<uint8_t N> class MCP23XXXBase : public Component, public gpio_expander:
   InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
-template<uint8_t N> class MCP23XXXGPIOPin : public GPIOPin {
+template<uint8_t N> class MCP23XXXGPIOPin final : public GPIOPin {
  public:
   void setup() override;
   void pin_mode(gpio::Flags flags) override;

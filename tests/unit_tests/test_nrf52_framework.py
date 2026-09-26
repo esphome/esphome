@@ -1,19 +1,49 @@
 """Tests for esphome.components.nrf52.framework helpers."""
 
+import hashlib
+import os
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import platformdirs
 import pytest
 
+from esphome.components.nrf52 import _resolve_toolchain
 from esphome.components.nrf52.framework import (
-    _TOOLCHAIN_VERSION,
+    _PLATFORMIO_PENV_REQUIREMENTS,
+    _REQUIREMENTS,
+    TOOLCHAIN_VERSION,
+    _get_penv_site_packages,
+    _get_platformio_penv_path,
     _get_toolchain_platform_info,
+    _needs_venv_rebuild,
     check_and_install,
+    get_build_env,
+    get_sdk_nrf_tools_path,
+    setup_platformio_python_env,
 )
+import esphome.config_validation as cv
 from esphome.config_validation import Version
-from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
 from esphome.core import CORE, EsphomeError
+from esphome.framework_helpers import get_python_env_executable_path
+
+
+@pytest.fixture(autouse=True)
+def _isolate_sdk_nrf_install_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pin the sdk-nrf install root to a tmp dir for every test.
+
+    The default location is the OS user cache dir, so without this any test
+    that builds framework paths or pre-creates the install dir would touch
+    the real ``~/.cache/esphome`` on the developer's machine. Tests that need
+    to exercise the override or default-resolution logic clear/override the
+    env themselves.
+    """
+    monkeypatch.setenv("ESPHOME_SDK_NRF_PREFIX", str(tmp_path / "sdk_nrf_install"))
 
 
 @pytest.mark.parametrize(
@@ -52,12 +82,15 @@ _TEST_SDK_VERSION = "2.9.0"
 def nrf52_dirs(setup_core: Path) -> SimpleNamespace:
     """Populate CORE and pre-create SDK directories so sentinel.touch() succeeds."""
     CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: Version.parse(_TEST_SDK_VERSION)}
-    tools = CORE.data_dir / "sdk-nrf"
+    tools = get_sdk_nrf_tools_path()
     python_env = tools / "penvs" / f"v{_TEST_SDK_VERSION}"
     framework = tools / "frameworks" / f"v{_TEST_SDK_VERSION}"
-    toolchain_dir = tools / "toolchains" / _TOOLCHAIN_VERSION
+    toolchain_dir = tools / "toolchains" / TOOLCHAIN_VERSION
     for d in (python_env, framework, toolchain_dir):
         d.mkdir(parents=True, exist_ok=True)
+    zephyr_scripts = framework / "zephyr" / "scripts"
+    zephyr_scripts.mkdir(parents=True, exist_ok=True)
+    (zephyr_scripts / "requirements.txt").touch()
     return SimpleNamespace(
         python_env=python_env,
         framework=framework,
@@ -74,11 +107,13 @@ def mock_nrf52_ops():
         patch(
             "esphome.components.nrf52.framework.run_command_ok", return_value=True
         ) as mock_run_cmd,
+        # download_and_extract resolves its internals in framework_helpers,
+        # so the download/extract seams are patched there.
         patch(
-            "esphome.components.nrf52.framework.download_from_mirrors",
+            "esphome.framework_helpers.download_from_mirrors",
             return_value="https://example.com/tc.tar.xz",
         ) as mock_download,
-        patch("esphome.components.nrf52.framework.archive_extract_all") as mock_extract,
+        patch("esphome.framework_helpers.archive_extract_all") as mock_extract,
     ):
         yield SimpleNamespace(
             rmdir=mock_rmdir,
@@ -94,6 +129,21 @@ def mock_nrf52_ops():
 # ---------------------------------------------------------------------------
 
 
+def _touch_penv_python(penv: Path) -> None:
+    """Create the interpreter file so the rebuild gate sees a live venv."""
+    python = get_python_env_executable_path(penv, "python")
+    python.parent.mkdir(parents=True, exist_ok=True)
+    python.touch()
+
+
+def _mark_venv_ready(python_env: Path) -> None:
+    """Write the venv sentinel with the current requirements hash and a
+    present interpreter so the rebuild gate passes."""
+    requirements_hash = hashlib.sha256(_REQUIREMENTS.read_bytes()).hexdigest()
+    (python_env / ".ready").write_text(requirements_hash, encoding="utf-8")
+    _touch_penv_python(python_env)
+
+
 class TestCheckAndInstall:
     def test_all_installed_skips_all_steps(
         self,
@@ -101,7 +151,8 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """All three sentinels present → nothing downloaded or compiled."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
+        (nrf52_dirs.python_env / ".zephyr_reqs_ready").touch()
         (nrf52_dirs.framework / ".ready").touch()
         (nrf52_dirs.toolchain / ".ready").touch()
 
@@ -112,6 +163,23 @@ class TestCheckAndInstall:
         mock_nrf52_ops.download_from_mirrors.assert_not_called()
         mock_nrf52_ops.archive_extract_all.assert_not_called()
 
+    def test_missing_interpreter_rebuilds_venv(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """A valid sentinel must not mask a missing interpreter (a cached venv
+        restored after a host interpreter upgrade)."""
+        requirements_hash = hashlib.sha256(_REQUIREMENTS.read_bytes()).hexdigest()
+        (nrf52_dirs.python_env / ".ready").write_text(
+            requirements_hash, encoding="utf-8"
+        )
+        # no interpreter on disk
+
+        check_and_install()
+
+        mock_nrf52_ops.create_venv.assert_called_once()
+
     def test_fresh_install_runs_all_steps(
         self,
         nrf52_dirs: SimpleNamespace,
@@ -121,11 +189,13 @@ class TestCheckAndInstall:
         check_and_install()
 
         mock_nrf52_ops.create_venv.assert_called_once()
-        # pip install west, west init, west update
-        assert mock_nrf52_ops.run_command_ok.call_count == 3
-        mock_nrf52_ops.download_from_mirrors.assert_called_once()
-        mock_nrf52_ops.archive_extract_all.assert_called_once()
+        # pip install requirements, west init, west update, pip install zephyr reqs
+        assert mock_nrf52_ops.run_command_ok.call_count == 4
+        # minimal SDK + per-arch toolchain
+        assert mock_nrf52_ops.download_from_mirrors.call_count == 2
+        assert mock_nrf52_ops.archive_extract_all.call_count == 2
         assert (nrf52_dirs.python_env / ".ready").exists()
+        assert (nrf52_dirs.python_env / ".zephyr_reqs_ready").exists()
         assert (nrf52_dirs.framework / ".ready").exists()
         assert (nrf52_dirs.toolchain / ".ready").exists()
 
@@ -135,14 +205,15 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """Venv ready but framework missing → skip venv creation, run SDK init+update."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
 
         check_and_install()
 
         mock_nrf52_ops.create_venv.assert_not_called()
-        # west init + west update only (no pip install)
-        assert mock_nrf52_ops.run_command_ok.call_count == 2
-        mock_nrf52_ops.download_from_mirrors.assert_called_once()
+        # west init, west update, pip install zephyr reqs
+        assert mock_nrf52_ops.run_command_ok.call_count == 3
+        # minimal SDK + per-arch toolchain
+        assert mock_nrf52_ops.download_from_mirrors.call_count == 2
 
     def test_toolchain_only_missing(
         self,
@@ -150,25 +221,45 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """Venv and framework ready → only toolchain downloaded and extracted."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
+        (nrf52_dirs.python_env / ".zephyr_reqs_ready").touch()
         (nrf52_dirs.framework / ".ready").touch()
 
         check_and_install()
 
         mock_nrf52_ops.create_venv.assert_not_called()
         mock_nrf52_ops.run_command_ok.assert_not_called()
-        mock_nrf52_ops.download_from_mirrors.assert_called_once()
-        mock_nrf52_ops.archive_extract_all.assert_called_once()
+        # minimal SDK + per-arch toolchain
+        assert mock_nrf52_ops.download_from_mirrors.call_count == 2
+        assert mock_nrf52_ops.archive_extract_all.call_count == 2
 
-    def test_west_install_failure_raises(
+    def test_framework_clone_is_shallow(
         self,
         nrf52_dirs: SimpleNamespace,
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
-        """Failing pip install west raises EsphomeError."""
+        """Both the manifest repository and every project are fetched at depth 1."""
+        _mark_venv_ready(nrf52_dirs.python_env)
+
+        check_and_install()
+
+        init_cmd, update_cmd = (
+            call.args[0] for call in mock_nrf52_ops.run_command_ok.call_args_list[:2]
+        )
+        assert "init" in init_cmd
+        assert "-o=--depth=1" in init_cmd
+        assert "update" in update_cmd
+        assert "--fetch-opt=--depth=1" in update_cmd
+
+    def test_requirements_install_failure_raises(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """Failing pip install -r requirements.txt raises EsphomeError."""
         mock_nrf52_ops.run_command_ok.return_value = False
 
-        with pytest.raises(EsphomeError, match="Install west"):
+        with pytest.raises(EsphomeError, match="Install requirements"):
             check_and_install()
 
     def test_framework_init_failure_raises(
@@ -177,7 +268,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """Failing west init raises EsphomeError."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
         mock_nrf52_ops.run_command_ok.return_value = False
 
         with pytest.raises(EsphomeError, match="Can't initialize"):
@@ -189,7 +280,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """Failing west update raises EsphomeError."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
         # init succeeds, update fails
         mock_nrf52_ops.run_command_ok.side_effect = [True, False]
 
@@ -202,7 +293,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """download_from_mirrors receives VERSION + platform triple from _get_toolchain_platform_info."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
         (nrf52_dirs.framework / ".ready").touch()
 
         with patch(
@@ -213,7 +304,329 @@ class TestCheckAndInstall:
 
         args, _ = mock_nrf52_ops.download_from_mirrors.call_args
         substitutions = args[1]
-        assert substitutions["VERSION"] == _TOOLCHAIN_VERSION
+        assert substitutions["VERSION"] == TOOLCHAIN_VERSION
         assert substitutions["sysname"] == "linux"
         assert substitutions["machine"] == "x86_64"
         assert substitutions["extension"] == "tar.xz"
+
+
+# ---------------------------------------------------------------------------
+# setup_platformio_python_env tests
+# ---------------------------------------------------------------------------
+
+
+def _platformio_requirements_hash() -> str:
+    return hashlib.sha256(
+        _REQUIREMENTS.read_bytes()
+        + "\n".join(_PLATFORMIO_PENV_REQUIREMENTS).encode()
+        + f"python{sys.version_info.major}.{sys.version_info.minor}".encode()
+    ).hexdigest()
+
+
+@pytest.fixture
+def platformio_penv_dir() -> Path:
+    """Pre-create the PlatformIO penv dir so sentinel writes succeed.
+
+    create_venv is mocked in these tests, so the directory it would have
+    created must exist for ``sentinel.write_text`` to work.
+    """
+    penv_path = _get_platformio_penv_path()
+    penv_path.mkdir(parents=True, exist_ok=True)
+    return penv_path
+
+
+class TestSetupPlatformioPythonEnv:
+    def test_fresh_install_creates_venv_and_sets_env(
+        self,
+        platformio_penv_dir: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """No sentinel → venv created, requirements installed, env exported."""
+        with patch.dict(os.environ):
+            os.environ.pop("PYTHONPATH", None)
+
+            setup_platformio_python_env()
+
+            mock_nrf52_ops.rmdir.assert_called_once()
+            mock_nrf52_ops.create_venv.assert_called_once_with(
+                platformio_penv_dir, msg="PlatformIO toolchain"
+            )
+            mock_nrf52_ops.run_command_ok.assert_called_once()
+            cmd = mock_nrf52_ops.run_command_ok.call_args[0][0]
+            assert cmd[1:4] == ["-m", "pip", "install"]
+            assert "-r" in cmd
+            assert str(_REQUIREMENTS) in cmd
+            for requirement in _PLATFORMIO_PENV_REQUIREMENTS:
+                assert requirement in cmd
+            sentinel = platformio_penv_dir / ".ready"
+            assert sentinel.read_text(encoding="utf-8") == (
+                _platformio_requirements_hash()
+            )
+
+            assert os.environ["VIRTUAL_ENV"] == str(platformio_penv_dir)
+            site_packages = str(_get_penv_site_packages(platformio_penv_dir))
+            assert os.environ["PYTHONPATH"] == site_packages
+            bin_dir = str(
+                get_python_env_executable_path(platformio_penv_dir, "python").parent
+            )
+            assert os.environ["PATH"].split(os.pathsep)[0] == bin_dir
+
+    def test_ready_sentinel_skips_install_but_sets_env(
+        self,
+        platformio_penv_dir: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """Current sentinel → no install work, env vars still exported."""
+        (platformio_penv_dir / ".ready").write_text(
+            _platformio_requirements_hash(), encoding="utf-8"
+        )
+        _touch_penv_python(platformio_penv_dir)
+
+        with patch.dict(os.environ):
+            setup_platformio_python_env()
+
+            mock_nrf52_ops.rmdir.assert_not_called()
+            mock_nrf52_ops.create_venv.assert_not_called()
+            mock_nrf52_ops.run_command_ok.assert_not_called()
+            assert os.environ["VIRTUAL_ENV"] == str(platformio_penv_dir)
+
+    def test_stale_sentinel_reinstalls(
+        self,
+        platformio_penv_dir: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """A sentinel from different requirements → venv rebuilt from scratch."""
+        sentinel = platformio_penv_dir / ".ready"
+        sentinel.write_text("stale-hash", encoding="utf-8")
+
+        with patch.dict(os.environ):
+            setup_platformio_python_env()
+
+        mock_nrf52_ops.rmdir.assert_called_once()
+        mock_nrf52_ops.create_venv.assert_called_once()
+        mock_nrf52_ops.run_command_ok.assert_called_once()
+        assert sentinel.read_text(encoding="utf-8") == _platformio_requirements_hash()
+
+    def test_install_failure_raises(
+        self,
+        platformio_penv_dir: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """Failing pip install raises EsphomeError and writes no sentinel."""
+        mock_nrf52_ops.run_command_ok.return_value = False
+
+        with (
+            patch.dict(os.environ),
+            pytest.raises(
+                EsphomeError, match="Install requirements for PlatformIO toolchain"
+            ),
+        ):
+            setup_platformio_python_env()
+
+        assert not (platformio_penv_dir / ".ready").exists()
+
+    def test_missing_interpreter_reinstalls(
+        self,
+        platformio_penv_dir: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """A valid sentinel must not mask a missing interpreter."""
+        (platformio_penv_dir / ".ready").write_text(
+            _platformio_requirements_hash(), encoding="utf-8"
+        )
+        # no interpreter on disk
+
+        with patch.dict(os.environ):
+            setup_platformio_python_env()
+
+        mock_nrf52_ops.create_venv.assert_called_once()
+
+    def test_repeated_calls_do_not_duplicate_env_entries(
+        self,
+        platformio_penv_dir: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """Compile then upload in one process must not grow PYTHONPATH/PATH."""
+        (platformio_penv_dir / ".ready").write_text(
+            _platformio_requirements_hash(), encoding="utf-8"
+        )
+        _touch_penv_python(platformio_penv_dir)
+        site_packages = str(_get_penv_site_packages(platformio_penv_dir))
+        bin_dir = str(
+            get_python_env_executable_path(platformio_penv_dir, "python").parent
+        )
+
+        with patch.dict(os.environ):
+            setup_platformio_python_env()
+            setup_platformio_python_env()
+
+            assert os.environ["PYTHONPATH"].split(os.pathsep).count(site_packages) == 1
+            assert os.environ["PATH"].split(os.pathsep).count(bin_dir) == 1
+
+    def test_existing_pythonpath_preserved(
+        self,
+        platformio_penv_dir: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """A pre-existing PYTHONPATH keeps its entries after the venv entry."""
+        (platformio_penv_dir / ".ready").write_text(
+            _platformio_requirements_hash(), encoding="utf-8"
+        )
+        _touch_penv_python(platformio_penv_dir)
+        site_packages = str(_get_penv_site_packages(platformio_penv_dir))
+
+        with patch.dict(os.environ, {"PYTHONPATH": "/existing/path"}):
+            setup_platformio_python_env()
+
+            assert os.environ["PYTHONPATH"] == os.pathsep.join(
+                [site_packages, "/existing/path"]
+            )
+
+
+@pytest.mark.parametrize(
+    ("os_name", "expected_parts"),
+    [
+        (
+            "posix",
+            (
+                "lib",
+                f"python{sys.version_info.major}.{sys.version_info.minor}",
+                "site-packages",
+            ),
+        ),
+        ("nt", ("Lib", "site-packages")),
+    ],
+)
+def test_get_penv_site_packages(
+    tmp_path: Path, os_name: str, expected_parts: tuple[str, ...]
+) -> None:
+    penv_path = tmp_path / "penv"
+    with patch("os.name", os_name):
+        assert _get_penv_site_packages(penv_path) == penv_path.joinpath(*expected_parts)
+
+
+# ---------------------------------------------------------------------------
+# get_build_env tests
+# ---------------------------------------------------------------------------
+
+
+def test_get_build_env(
+    nrf52_dirs: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """get_build_env exposes ZEPHYR_SDK_INSTALL_DIR pointing at the toolchain root.
+
+    ZEPHYR_SDK_INSTALL_DIR is the variable Zephyr's FindZephyr-sdk.cmake
+    explicitly consumes (from the environment) and uses as a find_package
+    HINT. The old Zephyr-sdk_DIR environment hint proved unreliable in
+    containerized non-root builds and was removed.
+    """
+    monkeypatch.setenv("SOME_PREEXISTING_VAR", "kept")
+
+    env = get_build_env()
+
+    tools = get_sdk_nrf_tools_path()
+    venv_bin_dir = get_python_env_executable_path(
+        tools / "penvs" / f"v{_TEST_SDK_VERSION}", "python"
+    ).parent
+    assert env["PATH"].startswith(str(venv_bin_dir) + os.pathsep)
+    assert env["ZEPHYR_BASE"] == str(
+        tools / "frameworks" / f"v{_TEST_SDK_VERSION}" / "zephyr"
+    )
+    # Toolchain root, not the cmake/ subdir
+    assert env["ZEPHYR_SDK_INSTALL_DIR"] == str(
+        tools / "toolchains" / TOOLCHAIN_VERSION
+    )
+    assert "Zephyr-sdk_DIR" not in env
+    # The rest of the process environment is inherited
+    assert env["SOME_PREEXISTING_VAR"] == "kept"
+
+
+# ---------------------------------------------------------------------------
+# get_sdk_nrf_tools_path tests
+# ---------------------------------------------------------------------------
+
+
+def testget_tools_path_env_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    override = tmp_path / "custom" / "sdk-nrf"
+    monkeypatch.setenv("ESPHOME_SDK_NRF_PREFIX", str(override))
+    assert get_sdk_nrf_tools_path() == override.resolve()
+
+
+@pytest.mark.parametrize("value", ["", "   "])
+def testget_tools_path_blank_env_falls_back_to_default(
+    value: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A blank ESPHOME_SDK_NRF_PREFIX is treated as unset, not as CWD.
+
+    Path("") would resolve to the working directory, which clean-all could
+    then delete by accident.
+    """
+
+    monkeypatch.setenv("ESPHOME_SDK_NRF_PREFIX", value)
+    expected = (
+        Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-nrf"
+    ).resolve()
+    assert get_sdk_nrf_tools_path() == expected
+
+
+def testget_tools_path_default_is_global_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+
+    monkeypatch.delenv("ESPHOME_SDK_NRF_PREFIX", raising=False)
+    expected = (
+        Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-nrf"
+    ).resolve()
+    assert get_sdk_nrf_tools_path() == expected
+
+
+def test_needs_venv_rebuild_gates(tmp_path: Path) -> None:
+    """The shared penv gate rebuilds on any missing or stale piece."""
+    penv = tmp_path / "penv"
+    penv.mkdir()
+    python = penv / "python"
+    sentinel = penv / ".ready"
+    good_hash = "abc123"
+
+    # Nothing in place yet
+    assert _needs_venv_rebuild(python, sentinel, good_hash)
+
+    python.write_text("")
+    # Interpreter present but no sentinel
+    assert _needs_venv_rebuild(python, sentinel, good_hash)
+
+    sentinel.write_text(good_hash, encoding="utf-8")
+    # Everything in place
+    assert not _needs_venv_rebuild(python, sentinel, good_hash)
+
+    # Stale requirements hash
+    assert _needs_venv_rebuild(python, sentinel, "otherhash")
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="symlink creation needs privileges on Windows"
+)
+def test_needs_venv_rebuild_on_dangling_interpreter_symlink(tmp_path: Path) -> None:
+    """A cached venv restored after a host interpreter upgrade has a
+    bin/python symlink whose target is gone; the valid sentinel must not
+    mask it."""
+    penv = tmp_path / "penv"
+    penv.mkdir()
+    python = penv / "python"
+    sentinel = penv / ".ready"
+    sentinel.write_text("abc123", encoding="utf-8")
+    python.symlink_to(tmp_path / "hostedtoolcache" / "3.12.14" / "python3")
+    assert python.is_symlink()
+    assert not python.exists()
+
+    assert _needs_venv_rebuild(python, sentinel, "abc123")
+
+
+def test_resolve_toolchain_rejects_unsupported() -> None:
+    """A --toolchain nRF52 cannot serve fails instead of degrading silently."""
+
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
+        _resolve_toolchain({})

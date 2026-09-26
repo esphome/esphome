@@ -81,12 +81,6 @@ struct Timer {
              this->id.c_str(), this->name.c_str(), this->total_seconds, this->seconds_left, YESNO(this->is_active));
     return buffer.data();
   }
-  // Remove before 2026.8.0
-  ESPDEPRECATED("Use to_str() instead. Removed in 2026.8.0", "2026.2.0")
-  std::string to_string() const {  // NOLINT
-    char buffer[TO_STR_BUFFER_SIZE];
-    return this->to_str(buffer);
-  }
 };
 
 struct WakeWord {
@@ -110,7 +104,7 @@ enum class MediaPlayerResponseState {
 };
 #endif
 
-class VoiceAssistant : public Component {
+class VoiceAssistant final : public Component {
  public:
   VoiceAssistant();
 
@@ -188,6 +182,8 @@ class VoiceAssistant : public Component {
   bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
   bool is_continuous() const { return this->continuous_; }
+  /// The voice_assistant.is_running condition: a pipeline is running or continuous mode keeps one coming.
+  bool is_running_or_continuous() const { return this->is_running() || this->is_continuous(); }
 
   void set_use_wake_word(bool use_wake_word) { this->use_wake_word_ = use_wake_word; }
 
@@ -351,41 +347,6 @@ class VoiceAssistant : public Component {
 #ifdef USE_MICRO_WAKE_WORD
   micro_wake_word::MicroWakeWord *micro_wake_word_{nullptr};
 #endif
-};
-
-template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<VoiceAssistant> {
-  TEMPLATABLE_VALUE(std::string, wake_word);
-
- public:
-  void play(const Ts &...x) override {
-    this->parent_->set_wake_word(this->wake_word_.value(x...));
-    this->parent_->request_start(false, this->silence_detection_);
-  }
-
-  void set_silence_detection(bool silence_detection) { this->silence_detection_ = silence_detection; }
-
- protected:
-  bool silence_detection_;
-};
-
-template<typename... Ts> class StartContinuousAction : public Action<Ts...>, public Parented<VoiceAssistant> {
- public:
-  void play(const Ts &...x) override { this->parent_->request_start(true, true); }
-};
-
-template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<VoiceAssistant> {
- public:
-  void play(const Ts &...x) override { this->parent_->request_stop(); }
-};
-
-template<typename... Ts> class IsRunningCondition : public Condition<Ts...>, public Parented<VoiceAssistant> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->is_running() || this->parent_->is_continuous(); }
-};
-
-template<typename... Ts> class ConnectedCondition : public Condition<Ts...>, public Parented<VoiceAssistant> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->get_api_connection() != nullptr; }
 };
 
 extern VoiceAssistant *global_voice_assistant;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

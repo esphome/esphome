@@ -3,12 +3,13 @@ import esphome.codegen as cg
 from esphome.components import nfc
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_ON_FINISHED_WRITE,
     CONF_ON_TAG,
     CONF_ON_TAG_REMOVED,
     CONF_TRIGGER_ID,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@OttoWinter", "@jesserockz"]
 AUTO_LOAD = ["binary_sensor", "nfc"]
@@ -18,10 +19,6 @@ CONF_PN532_ID = "pn532_id"
 
 pn532_ns = cg.esphome_ns.namespace("pn532")
 PN532 = pn532_ns.class_("PN532", cg.PollingComponent)
-
-PN532IsWritingCondition = pn532_ns.class_(
-    "PN532IsWritingCondition", automation.Condition
-)
 
 PN532_SCHEMA = cv.Schema(
     {
@@ -41,7 +38,7 @@ PN532_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("1s"))
 
 
-def CONFIG_SCHEMA(conf):
+def CONFIG_SCHEMA(conf: ConfigType) -> None:
     if conf:
         raise cv.Invalid(
             "This component has been moved in 1.16, please see the docs for updated "
@@ -56,7 +53,7 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-async def setup_pn532(var, config):
+async def setup_pn532(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     for conf in config.get(CONF_ON_TAG, []):
@@ -76,16 +73,12 @@ async def setup_pn532(var, config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-@automation.register_condition(
+automation.register_apply_condition(
     "pn532.is_writing",
-    PN532IsWritingCondition,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(PN532),
         }
     ),
+    "is_writing()",
 )
-async def pn532_is_writing_to_code(config, condition_id, template_arg, args):
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

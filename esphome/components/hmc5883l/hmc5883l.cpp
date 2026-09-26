@@ -2,6 +2,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
+#include <numbers>
+
 namespace esphome::hmc5883l {
 
 static const char *const TAG = "hmc5883l";
@@ -126,7 +128,7 @@ void HMC5883LComponent::update() {
   const float y = int16_t(raw_y) * mg_per_bit * 0.1f;
   const float z = int16_t(raw_z) * mg_per_bit * 0.1f;
 
-  float heading = atan2f(0.0f - x, y) * 180.0f / M_PI;
+  float heading = atan2f(0.0f - x, y) * 180.0f / std::numbers::pi_v<float>;
   ESP_LOGD(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f°", x, y, z, heading);
 
   if (this->x_sensor_ != nullptr)

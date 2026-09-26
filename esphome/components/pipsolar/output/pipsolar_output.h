@@ -10,7 +10,7 @@ namespace esphome::pipsolar {
 
 class Pipsolar;
 
-class PipsolarOutput : public output::FloatOutput {
+class PipsolarOutput final : public output::FloatOutput {
  public:
   PipsolarOutput() {}
   void set_parent(Pipsolar *parent) { this->parent_ = parent; }
@@ -25,18 +25,6 @@ class PipsolarOutput : public output::FloatOutput {
   const char *set_command_{nullptr};
   Pipsolar *parent_;
   std::vector<float> possible_values_;
-};
-
-template<typename... Ts> class SetOutputAction : public Action<Ts...> {
- public:
-  SetOutputAction(PipsolarOutput *output) : output_(output) {}
-
-  TEMPLATABLE_VALUE(float, level)
-
-  void play(const Ts &...x) override { this->output_->set_value(this->level_.value(x...)); }
-
- protected:
-  PipsolarOutput *output_;
 };
 
 }  // namespace esphome::pipsolar

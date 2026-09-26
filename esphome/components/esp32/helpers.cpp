@@ -71,23 +71,32 @@ static bool read_valid_mac(uint8_t *mac, esp_err_t err) { return err == ESP_OK &
 
 static constexpr size_t MAC_ADDRESS_SIZE_BITS = MAC_ADDRESS_SIZE * 8;  // 48 bits
 
+// Must not use the ESPHome logger (may run before it exists, e.g. from app_main()).
+bool get_custom_mac_address(uint8_t *mac) {
+  // has_custom_mac_address() checks the raw eFuse field, while the reads below select their
+  // method differently and may still fail (CRC), so the result must be validated again.
+  if (!has_custom_mac_address())
+    return false;
+#if defined(CONFIG_SOC_IEEE802154_SUPPORTED)
+  return read_valid_mac(mac, esp_efuse_read_field_blob(ESP_EFUSE_MAC_CUSTOM, mac, MAC_ADDRESS_SIZE_BITS));
+#else
+  return read_valid_mac(mac, esp_efuse_mac_get_custom(mac));
+#endif
+}
+
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
+  if (get_custom_mac_address(mac)) {
+    return;
+  }
 #if defined(CONFIG_SOC_IEEE802154_SUPPORTED)
   // When CONFIG_SOC_IEEE802154_SUPPORTED is defined, esp_efuse_mac_get_default
   // returns the 802.15.4 EUI-64 address, so we read directly from eFuse instead.
-  // Both paths already read raw eFuse bytes, so there is no CRC-bypass fallback
+  // This already reads raw eFuse bytes, so there is no CRC-bypass fallback
   // (unlike the non-IEEE802154 path where esp_efuse_mac_get_default does CRC checks).
-  if (has_custom_mac_address() &&
-      read_valid_mac(mac, esp_efuse_read_field_blob(ESP_EFUSE_MAC_CUSTOM, mac, MAC_ADDRESS_SIZE_BITS))) {
-    return;
-  }
   if (read_valid_mac(mac, esp_efuse_read_field_blob(ESP_EFUSE_MAC_FACTORY, mac, MAC_ADDRESS_SIZE_BITS))) {
     return;
   }
 #else
-  if (has_custom_mac_address() && read_valid_mac(mac, esp_efuse_mac_get_custom(mac))) {
-    return;
-  }
   if (read_valid_mac(mac, esp_efuse_mac_get_default(mac))) {
     return;
   }
@@ -109,7 +118,7 @@ void set_mac_address(uint8_t *mac) { esp_base_mac_addr_set(mac); }
 
 bool has_custom_mac_address() {
 #if !defined(USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC)
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   // do not use 'esp_efuse_mac_get_custom(mac)' because it drops an error in the logs whenever it fails
 #ifndef USE_ESP32_VARIANT_ESP32
   return (esp_efuse_read_field_blob(ESP_EFUSE_USER_DATA_MAC_CUSTOM, mac, MAC_ADDRESS_SIZE_BITS) == ESP_OK) &&

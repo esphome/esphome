@@ -137,3 +137,77 @@ def test_process_stacktrace_esp32_crash_handler(
     state = process_stacktrace(config, line_bt1, False)
     mock_esp32_decode_pc.assert_called_once_with(config, "42005ABC")
     assert state is False
+
+    mock_esp32_decode_pc.reset_mock()
+
+    # Reason line carries no address, must not trigger a decode
+    line_reason = "[E][esp32.crash:079]:   Reason: Fault - LoadProhibited (cause 28)"
+    state = process_stacktrace(config, line_reason, False)
+    mock_esp32_decode_pc.assert_not_called()
+    assert state is False
+
+    mock_esp32_decode_pc.reset_mock()
+
+    # EXCVADDR pointing at code (e.g. jumping through a corrupted pointer) decodes
+    line_excvaddr = "[E][esp32.crash:081]:   EXCVADDR: 0x400D9ABC  (faulting address)"
+    state = process_stacktrace(config, line_excvaddr, False)
+    mock_esp32_decode_pc.assert_called_once_with(config, "400D9ABC")
+    assert state is False
+
+    mock_esp32_decode_pc.reset_mock()
+
+    # EXCVADDR pointing at data (heap/null) is not a code address, must be ignored
+    line_excvaddr_data = (
+        "[E][esp32.crash:081]:   EXCVADDR: 0x0000001C  (faulting address)"
+    )
+    state = process_stacktrace(config, line_excvaddr_data, False)
+    mock_esp32_decode_pc.assert_not_called()
+    assert state is False
+
+    mock_esp32_decode_pc.reset_mock()
+
+    # RISC-V MTVAL pointing at code decodes
+    line_mtval = "[E][esp32.crash:081]:   MTVAL: 0x42001234  (faulting address)"
+    state = process_stacktrace(config, line_mtval, False)
+    mock_esp32_decode_pc.assert_called_once_with(config, "42001234")
+    assert state is False
+
+    mock_esp32_decode_pc.reset_mock()
+
+    # RISC-V MTVAL pointing at data must be ignored
+    line_mtval_data = "[E][esp32.crash:081]:   MTVAL: 0x3FC80123  (faulting address)"
+    state = process_stacktrace(config, line_mtval_data, False)
+    mock_esp32_decode_pc.assert_not_called()
+    assert state is False
+
+
+def test_process_stacktrace_esp32_foreign_crash(
+    setup_core: Path, mock_esp32_decode_pc: Mock
+) -> None:
+    """Crash records from a different firmware build must not be decoded."""
+    from esphome.components.esp32 import process_stacktrace
+
+    config = {"name": "test"}
+
+    line_note = (
+        "[E][esp32.crash:390]:   Captured by a different firmware build; "
+        "addresses belong to that build's ELF"
+    )
+    state = process_stacktrace(config, line_note, False)
+    mock_esp32_decode_pc.assert_not_called()
+    assert state is False
+
+    # Lowercase labels are deliberately not matched by any decoder regex,
+    # since symbols would come from the wrong ELF
+    lines_addrs = [
+        "[E][esp32.crash:391]:   pc: 0x400D1234",
+        "[E][esp32.crash:392]:   excvaddr: 0x400D5678",
+        "[E][esp32.crash:392]:   mtval: 0x42001234",
+        "[E][esp32.crash:393]:   bt0: 0x400F19A6",
+        "[E][esp32.crash:394]:   other core (0):",
+        "[E][esp32.crash:395]:   bt15: 0x42005ABC",
+    ]
+    for line in lines_addrs:
+        state = process_stacktrace(config, line, False)
+        mock_esp32_decode_pc.assert_not_called()
+        assert state is False

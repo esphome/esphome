@@ -31,19 +31,17 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import LambdaExpression
 
 IS_PLATFORM_COMPONENT = True
 
 fan_ns = cg.esphome_ns.namespace("fan")
 Fan = fan_ns.class_("Fan", cg.EntityBase)
-FanCall = fan_ns.class_("FanCall")
 
 FanDirection = fan_ns.enum("FanDirection", is_class=True)
 FAN_DIRECTION_ENUM = {
@@ -63,9 +61,6 @@ RESTORE_MODES = {
 }
 
 # Actions
-TurnOnAction = fan_ns.class_("TurnOnAction", automation.Action)
-TurnOffAction = fan_ns.class_("TurnOffAction", automation.Action)
-ToggleAction = fan_ns.class_("ToggleAction", automation.Action)
 CycleSpeedAction = fan_ns.class_("CycleSpeedAction", automation.Action)
 
 FanStateTrigger = fan_ns.class_(
@@ -85,9 +80,6 @@ FanSpeedSetTrigger = fan_ns.class_(
 FanPresetSetTrigger = fan_ns.class_(
     "FanPresetSetTrigger", automation.Trigger.template(cg.StringRef)
 )
-
-FanIsOnCondition = fan_ns.class_("FanIsOnCondition", automation.Condition.template())
-FanIsOffCondition = fan_ns.class_("FanIsOffCondition", automation.Condition.template())
 
 _FAN_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
@@ -316,25 +308,11 @@ FAN_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "fan.toggle", ToggleAction, FAN_ACTION_SCHEMA, synchronous=True
-)
-async def fan_toggle_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+automation.register_apply_action("fan.toggle", FAN_ACTION_SCHEMA, call="toggle")
+automation.register_apply_action("fan.turn_off", FAN_ACTION_SCHEMA, call="turn_off")
 
-
-@automation.register_action(
-    "fan.turn_off", TurnOffAction, FAN_ACTION_SCHEMA, synchronous=True
-)
-async def fan_turn_off_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
+automation.register_apply_action(
     "fan.turn_on",
-    TurnOnAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(Fan),
@@ -345,50 +323,11 @@ async def fan_turn_off_to_code(config, action_id, template_arg, args):
             ),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_OSCILLATING, "set_oscillating", cg.bool_),
+    automation.ApplyField(CONF_SPEED, "set_speed", cg.int_),
+    automation.ApplyField(CONF_DIRECTION, "set_direction", FanDirection),
+    call="turn_on",
 )
-async def fan_turn_on_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-
-    # All configured fields are folded into a single stateless lambda whose
-    # constants live in flash; the action stores only a function pointer.
-    FIELDS = (
-        (CONF_OSCILLATING, "set_oscillating", cg.bool_),
-        (CONF_SPEED, "set_speed", cg.int_),
-        (CONF_DIRECTION, "set_direction", FanDirection),
-    )
-
-    # Normalize trigger args to `const std::remove_cvref_t<T> &` so the
-    # apply lambda and any inner field lambdas (generated below via
-    # `process_lambda`) share one parameter spelling that's well-formed for
-    # any T (value, ref, or const-ref). Matches TurnOnAction::ApplyFn.
-    normalized_args = [
-        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), n)
-        for t, n in args
-    ]
-
-    fwd_args = ", ".join(name for _, name in args)
-    body_lines: list[str] = []
-    for conf_key, setter, type_ in FIELDS:
-        if (value := config.get(conf_key)) is None:
-            continue
-        if isinstance(value, Lambda):
-            inner = await cg.process_lambda(value, normalized_args, return_type=type_)
-            body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
-        else:
-            body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
-
-    apply_args = [
-        (FanCall.operator("ref"), "call"),
-        *normalized_args,
-    ]
-    apply_lambda = LambdaExpression(
-        ["\n".join(body_lines)],
-        apply_args,
-        capture="",
-        return_type=cg.void,
-    )
-    return cg.new_Pvariable(action_id, template_arg, paren, apply_lambda)
 
 
 @automation.register_action(
@@ -410,27 +349,16 @@ async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_condition(
-    "fan.is_on",
-    FanIsOnCondition,
-    automation.maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(Fan),
-        }
-    ),
+FAN_CONDITION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(Fan),
+    }
 )
-@automation.register_condition(
-    "fan.is_off",
-    FanIsOffCondition,
-    automation.maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(Fan),
-        }
-    ),
+
+automation.register_apply_condition("fan.is_on", FAN_CONDITION_SCHEMA, "state")
+automation.register_apply_condition(
+    "fan.is_off", FAN_CONDITION_SCHEMA, "state == false"
 )
-async def fan_is_on_off_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

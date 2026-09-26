@@ -48,10 +48,11 @@ static esp_err_t spdif_write_cb(void *user_ctx, uint32_t *data, size_t size, Tic
   auto *speaker = static_cast<I2SAudioSpeakerSPDIF *>(user_ctx);
   size_t bytes_written = 0;
   esp_err_t err = i2s_channel_write(speaker->get_tx_handle(), data, size, &bytes_written, ticks_to_wait);
-  if (err != ESP_OK) {
+  if (err != ESP_OK || bytes_written != size) {
     ESP_LOGV(TAG, "I2S write failed: %s (wrote %zu/%zu bytes)", esp_err_to_name(err), bytes_written, size);
+    return (err != ESP_OK) ? err : ESP_FAIL;
   }
-  return err;
+  return ESP_OK;
 }
 
 void I2SAudioSpeakerSPDIF::setup() {
@@ -167,33 +168,44 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
     }
   }
 
-  if (!successful_setup) {
-    xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::ERR_ESP_NO_MEM);
-  } else {
-    // Preload DMA buffers with SPDIF-encoded silence before enabling the channel.
-    // This ensures the first data transmitted is valid SPDIF (not raw zeros from
-    // auto_clear) and prevents phantom DMA events before real audio is available.
-    // Each preloaded block pushes a 0-real-frame record so that the corresponding
-    // on_sent events drain in lockstep without crediting any audio frames.
+  // Preload DMA buffers with SPDIF-encoded silence before enabling the channel.
+  // This ensures the first data transmitted is valid SPDIF (not raw zeros from
+  // auto_clear) and prevents phantom DMA events before real audio is available.
+  // Each preloaded block pushes a 0-real-frame record so that the corresponding
+  // on_sent events drain in lockstep without crediting any audio frames. Runs with
+  // the channel disabled: at startup and after a resync.
+  auto preload_silence = [&]() -> bool {
+    bool ok = true;
     this->spdif_encoder_->set_preload_mode(true);
     for (size_t i = 0; i < SPDIF_DMA_BUFFERS_COUNT; i++) {
       // i2s_channel_preload_data is non-blocking (returns immediately when the preload buffer fills), so no wait.
-      esp_err_t preload_err = this->spdif_encoder_->flush_with_silence(0);
-      if (preload_err != ESP_OK) {
-        break;  // DMA preload buffer full or error
-      }
       const uint32_t silence_record = 0;
-      xQueueSendToBack(this->write_records_queue_, &silence_record, 0);
+      if ((this->spdif_encoder_->flush_with_silence(0) != ESP_OK) ||
+          (xQueueSendToBack(this->write_records_queue_, &silence_record, 0) != pdTRUE)) {
+        ok = false;
+        break;
+      }
     }
     this->spdif_encoder_->set_preload_mode(false);
     this->spdif_encoder_->reset();  // Clean encoder state for the main loop
+    return ok;
+  };
 
-    // Now register the callback and enable the channel
+  if (successful_setup) {
+    successful_setup = preload_silence();
+  }
+
+  if (successful_setup) {
+    // Register the callback before enabling so the first transmitted block generates a queued event.
     xQueueReset(this->i2s_event_queue_);
     const i2s_event_callbacks_t callbacks = {.on_sent = i2s_on_sent_cb};
     i2s_channel_register_event_callback(this->tx_handle_, &callbacks, this);
-    i2s_channel_enable(this->tx_handle_);
+    successful_setup = i2s_channel_enable(this->tx_handle_) == ESP_OK;
+  }
 
+  if (!successful_setup) {
+    xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::ERR_ESP_NO_MEM);
+  } else {
     // Always-fill model: each iteration produces exactly one SPDIF block (= one DMA buffer).
     // We drain real PCM up to one block from the ring buffer and silence-pad any remainder.
     // Blocking writes pace the loop at the DMA consumption rate. This mirrors the standard
@@ -210,24 +222,20 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
     uint32_t spdif_pending_frames = 0;
     int64_t spdif_pending_timestamp = 0;
     uint32_t spdif_dma_event_count = 0;
+    bool resync_needed = false;
+    // Real frames consumed from the ring buffer that never reached a write record
+    uint32_t unrecorded_frames = 0;
 
     xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::TASK_RUNNING);
 
     // SPDIF continuous mode: loop runs indefinitely, outputting silence when no audio data
     // to keep the receiver synced. Exits only via break (stream info change, silence timeout,
-    // lockstep desync, dropped event, or partial-write failure).
+    // or a failed lockstep resync).
     while (true) {
       uint32_t event_group_bits = xEventGroupGetBits(this->event_group_);
 
       if (event_group_bits & SpeakerEventGroupBits::COMMAND_STOP) {
         xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::COMMAND_STOP);
-        // The ISR pairs COMMAND_STOP with ERR_DROPPED_EVENT when it has to discard a completion
-        // event; that desyncs the lockstep queues permanently and the only safe recovery is a full
-        // task restart.
-        if (event_group_bits & SpeakerEventGroupBits::ERR_DROPPED_EVENT) {
-          ESP_LOGV(TAG, "Exiting: ISR dropped event, restarting to recover lockstep");
-          break;
-        }
         // User-initiated stop. In SPDIF continuous mode, transition to silence output rather
         // than tearing the task down.
         this->spdif_silence_start_ = millis();
@@ -244,6 +252,30 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
         break;
       }
 
+      if (event_group_bits & SpeakerEventGroupBits::ERR_DROPPED_EVENT) {
+        ESP_LOGE(TAG, "ISR event queue overflow, resyncing DMA lockstep");
+        resync_needed = true;
+      }
+      if (resync_needed) {
+        // Rebuild the lockstep in place. Frames held back by decimation are credited too, since their
+        // blocks are discarded with the rest of the DMA contents.
+        this->spdif_encoder_->reset();
+        const uint32_t credited_frames = unrecorded_frames + spdif_pending_frames;
+        const bool resynced = this->resync_lockstep_(credited_frames, preload_silence);
+        unrecorded_frames = 0;
+        spdif_pending_frames = 0;
+        spdif_dma_event_count = 0;
+        resync_needed = false;
+        if (credited_frames > 0) {
+          // Real audio was dropped, so the silence timer's start no longer reflects the stream
+          this->spdif_silence_start_ = 0;
+        }
+        if (!resynced) {
+          ESP_LOGE(TAG, "DMA lockstep resync failed, restarting speaker task");
+          break;
+        }
+      }
+
       // Drain ISR completion events, popping a matching record for each.
       int64_t write_timestamp;
       bool lockstep_broken = false;
@@ -253,8 +285,7 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
         // order matches DMA completion order. Empty records queue here means lockstep broke.
         uint32_t real_frames = 0;
         if (xQueueReceive(this->write_records_queue_, &real_frames, 0) != pdTRUE) {
-          ESP_LOGV(TAG, "Event without matching write record");
-          xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::ERR_LOCKSTEP_DESYNC);
+          ESP_LOGE(TAG, "Event without matching write record, resyncing DMA lockstep");
           lockstep_broken = true;
           break;
         }
@@ -290,8 +321,8 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
         }
       }
       if (lockstep_broken) {
-        ESP_LOGV(TAG, "Exiting: lockstep desync, restarting task");
-        break;
+        resync_needed = true;
+        continue;
       }
 
       // Always-fill: produce exactly one SPDIF block this iteration. The blocking encoder write
@@ -322,9 +353,8 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
                                                       &blocks_sent, &pcm_consumed);
           if (err != ESP_OK) {
             // A failed (or timed-out) send leaves an unsent block in the encoder's stitch buffer;
-            // resuming would credit the next iteration's bytes against an old block. Bail and
-            // let loop() restart the task with a clean encoder.
-            xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::ERR_PARTIAL_WRITE);
+            // resuming would credit the next iteration's bytes against an old block.
+            ESP_LOGE(TAG, "SPDIF block send failed, resyncing DMA lockstep");
             partial_write_failure = true;
             break;
           }
@@ -341,7 +371,9 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
       }
 
       if (partial_write_failure) {
-        break;
+        unrecorded_frames += real_frames_in_block;
+        resync_needed = true;
+        continue;
       }
 
       if (!block_committed) {
@@ -349,16 +381,20 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
         // or emit a full silence block if the encoder is empty.
         esp_err_t err = this->spdif_encoder_->flush_with_silence(write_timeout_ticks);
         if (err != ESP_OK) {
-          xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::ERR_PARTIAL_WRITE);
-          break;
+          ESP_LOGE(TAG, "SPDIF block send failed, resyncing DMA lockstep");
+          unrecorded_frames += real_frames_in_block;
+          resync_needed = true;
+          continue;
         }
       }
 
       // One block committed to DMA; push exactly one record carrying its real-audio frame count.
       // Failure here means the records queue is full, which violates the lockstep invariant.
       if (xQueueSendToBack(this->write_records_queue_, &real_frames_in_block, 0) != pdTRUE) {
-        xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::ERR_LOCKSTEP_DESYNC);
-        break;
+        ESP_LOGE(TAG, "Write records queue full, resyncing DMA lockstep");
+        unrecorded_frames += real_frames_in_block;
+        resync_needed = true;
+        continue;
       }
 
       // Silence-timeout tracking and graceful-stop reset.
@@ -404,6 +440,8 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
 
 esp_err_t I2SAudioSpeakerSPDIF::start_i2s_driver(audio::AudioStreamInfo &audio_stream_info) {
   this->current_stream_info_ = audio_stream_info;
+  // SPDIF never narrows the bit depth; the encoder consumes the input format directly.
+  this->output_stream_info_ = audio_stream_info;
 
   // SPDIF mode validation
   if (this->sample_rate_ != audio_stream_info.get_sample_rate()) {

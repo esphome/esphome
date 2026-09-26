@@ -31,7 +31,7 @@ static constexpr uint8_t LUTB[16] = {0xFF, 0xFD, 0xF7, 0xF5, 0xDF, 0xDD, 0xD7, 0
 static constexpr uint8_t PIXEL_MASK_LUT[8] = {0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80};
 static constexpr uint8_t PIXEL_MASK_GLUT[2] = {0x0F, 0xF0};
 
-class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
+class Inkplate final : public display::DisplayBuffer, public i2c::I2CDevice {
  public:
   void set_greyscale(bool greyscale) {
     this->greyscale_ = greyscale;

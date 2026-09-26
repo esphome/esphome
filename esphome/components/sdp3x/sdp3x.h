@@ -8,7 +8,9 @@ namespace esphome::sdp3x {
 
 enum MeasurementMode { MASS_FLOW_AVG, DP_AVG };
 
-class SDP3XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice, public sensor::Sensor {
+class SDP3XComponent final : public PollingComponent,
+                             public sensirion_common::SensirionI2CDevice,
+                             public sensor::Sensor {
  public:
   /// Schedule temperature+pressure readings.
   void update() override;
