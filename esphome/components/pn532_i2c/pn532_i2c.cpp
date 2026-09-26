@@ -12,11 +12,12 @@ namespace esphome::pn532_i2c {
 static const char *const TAG = "pn532_i2c";
 
 bool PN532I2C::is_read_ready() {
-  uint8_t ready;
-  if (!this->read_bytes_raw(&ready, 1)) {
+  uint8_t status;
+  if (!this->read_bytes_raw(&status, 1)) {
     return false;
   }
-  return ready == 0x01;
+  // only bit 0 (RDY) of the status byte is defined (UM0701-02, 6.2.4)
+  return status & 0x01;
 }
 
 bool PN532I2C::write_data(const std::vector<uint8_t> &data) {
@@ -30,9 +31,9 @@ bool PN532I2C::read_data(std::vector<uint8_t> &data, uint8_t len) {
     return false;
   }
 
+  // the PN532 prefixes every frame with a status byte
   data.resize(len + 1);
-  this->read_bytes_raw(data.data(), len + 1);
-  return true;
+  return this->read_bytes_raw(data.data(), len + 1);
 }
 
 bool PN532I2C::read_response(uint8_t command, std::vector<uint8_t> &data) {
@@ -73,7 +74,7 @@ bool PN532I2C::read_response(uint8_t command, std::vector<uint8_t> &data) {
   checksum = ~checksum + 1;
 
   if (data[len + 1] != checksum) {
-    ESP_LOGV(TAG, "read data invalid checksum! %02X != %02X", data[len], checksum);
+    ESP_LOGV(TAG, "read data invalid checksum! %02X != %02X", data[len + 1], checksum);
     return false;
   }
 
