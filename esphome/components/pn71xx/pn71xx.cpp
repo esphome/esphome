@@ -475,31 +475,47 @@ uint8_t PN71xx::write_endpoint_(const uint8_t protocol, nfc::NfcTagUid &uid,
   return nfc::STATUS_FAILED;
 }
 
-std::unique_ptr<nfc::NfcTag> PN71xx::build_tag_(const uint8_t mode_tech, const uint8_t protocol,
-                                                const std::vector<uint8_t> &data) {
-  switch (mode_tech) {
-    case (nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCA): {
-      // RF technology parameters: SENS_RES (2 bytes), NFCID1 length, NFCID1, ...
-      if (data.size() < 3) {
-        ESP_LOGE(TAG, "NFC-A parameters too short");
-        return nullptr;
-      }
-      uint8_t uid_length = data[2];
-      if (uid_length == 0 || uid_length > nfc::NFC_UID_MAX_LENGTH || data.size() < 3u + uid_length) {
-        ESP_LOGE(TAG, "Invalid UID length: %u", uid_length);
-        return nullptr;
-      }
-      nfc::NfcTagUid uid(data.begin() + 3, data.begin() + 3 + uid_length);
-      if (protocol == nfc::PROT_MIFARE) {
-        return make_unique<nfc::NfcTag>(uid, nfc::MIFARE_CLASSIC);
-      }
-      if (protocol == nfc::PROT_T2T) {
-        return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2);
-      }
-      return make_unique<nfc::NfcTag>(uid);
-    }
+bool PN71xx::parse_uid_(const uint8_t mode_tech, const std::span<const uint8_t> rf_tech_params, nfc::NfcTagUid &uid) {
+  if (mode_tech != (nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCA)) {
+    return false;
   }
-  return nullptr;
+  // RF technology parameters: SENS_RES (2 bytes), NFCID1 length, NFCID1, ...
+  if (rf_tech_params.size() < 3) {
+    ESP_LOGE(TAG, "NFC-A parameters too short");
+    return false;
+  }
+  const uint8_t uid_length = rf_tech_params[2];
+  if (uid_length == 0 || uid_length > nfc::NFC_UID_MAX_LENGTH || rf_tech_params.size() < 3u + uid_length) {
+    ESP_LOGE(TAG, "Invalid UID length: %u", uid_length);
+    return false;
+  }
+  uid.assign(rf_tech_params.begin() + 3, rf_tech_params.begin() + 3 + uid_length);
+  return true;
+}
+
+std::unique_ptr<nfc::NfcTag> PN71xx::build_tag_(const uint8_t protocol, const nfc::NfcTagUid &uid) {
+  if (protocol == nfc::PROT_MIFARE) {
+    return make_unique<nfc::NfcTag>(uid, nfc::MIFARE_CLASSIC);
+  }
+  if (protocol == nfc::PROT_T2T) {
+    return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2);
+  }
+  return make_unique<nfc::NfcTag>(uid);
+}
+
+optional<size_t> PN71xx::find_or_add_tag_(const uint8_t protocol, const nfc::NfcTagUid &uid) {
+  auto tag_loc = this->find_tag_uid_(uid);
+  if (tag_loc.has_value()) {
+    ESP_LOGVV(TAG, "Tag cache updated");
+    return tag_loc;
+  }
+  this->discovered_endpoint_.emplace_back(DiscoveredEndpoint{.last_seen = App.get_loop_component_start_time(),
+                                                             .tag = this->build_tag_(protocol, uid),
+                                                             .id = 0,
+                                                             .protocol = protocol,
+                                                             .trig_called = false});
+  ESP_LOGVV(TAG, "Tag added to cache");
+  return this->discovered_endpoint_.size() - 1;
 }
 
 optional<size_t> PN71xx::find_tag_uid_(const nfc::NfcTagUid &uid) {
@@ -799,31 +815,20 @@ void PN71xx::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
     this->nci_fsm_set_state_(NCIState::EP_DEACTIVATING);
     return;
   }
-  auto incoming_tag =
-      this->build_tag_(mode_tech, protocol,
-                       std::vector<uint8_t>(rx.get_message().begin() + nfc::RF_INTF_ACTIVATED_NTF_RF_TECH_PARAMS,
-                                            rx.get_message().end()));
+  nfc::NfcTagUid uid;
+  const auto tag_loc =
+      this->parse_uid_(
+          mode_tech, std::span<const uint8_t>(rx.get_message()).subspan(nfc::RF_INTF_ACTIVATED_NTF_RF_TECH_PARAMS), uid)
+          ? this->find_or_add_tag_(protocol, uid)
+          : nullopt;
 
-  if (incoming_tag == nullptr) {
+  if (!tag_loc.has_value()) {
     ESP_LOGE(TAG, "Could not build tag");
   } else {
-    auto tag_loc = this->find_tag_uid_(incoming_tag->get_uid());
-    if (tag_loc.has_value()) {
-      this->discovered_endpoint_[tag_loc.value()].id = discovery_id;
-      this->discovered_endpoint_[tag_loc.value()].protocol = protocol;
-      this->discovered_endpoint_[tag_loc.value()].last_seen = App.get_loop_component_start_time();
-      ESP_LOGVV(TAG, "Tag cache updated");
-    } else {
-      this->discovered_endpoint_.emplace_back(DiscoveredEndpoint{.last_seen = App.get_loop_component_start_time(),
-                                                                 .tag = std::move(incoming_tag),
-                                                                 .id = discovery_id,
-                                                                 .protocol = protocol,
-                                                                 .trig_called = false});
-      tag_loc = this->discovered_endpoint_.size() - 1;
-      ESP_LOGVV(TAG, "Tag added to cache");
-    }
-
     auto &working_endpoint = this->discovered_endpoint_[tag_loc.value()];
+    working_endpoint.id = discovery_id;
+    working_endpoint.protocol = protocol;
+    working_endpoint.last_seen = App.get_loop_component_start_time();
 
     switch (this->next_task_) {
       case EP_CLEAN:
@@ -870,8 +875,8 @@ void PN71xx::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
           if (this->read_endpoint_data_(working_endpoint.protocol, *working_endpoint.tag) != nfc::STATUS_OK) {
             ESP_LOGW(TAG, "  Unable to read NDEF record(s)");
           } else if (working_endpoint.tag->has_ndef_message()) {
-            const auto message = working_endpoint.tag->get_ndef_message();
-            const auto records = message->get_records();
+            const auto &message = working_endpoint.tag->get_ndef_message();
+            const auto &records = message->get_records();
             ESP_LOGD(TAG, "  NDEF record(s):");
             for (const auto &record : records) {
               ESP_LOGD(TAG, "    %s - %s", record->get_type().c_str(), record->get_payload().c_str());
@@ -908,28 +913,21 @@ void PN71xx::process_rf_discover_oid_(nfc::NciMessage &rx) {
     ESP_LOGE(TAG, "RF_DISCOVER_NTF too short");
     return;
   }
-  auto incoming_tag = this->build_tag_(
-      rx.get_message_byte(nfc::RF_DISCOVER_NTF_MODE_TECH), rx.get_message_byte(nfc::RF_DISCOVER_NTF_PROTOCOL),
-      std::vector<uint8_t>(rx.get_message().begin() + nfc::RF_DISCOVER_NTF_RF_TECH_PARAMS, rx.get_message().end()));
+  const uint8_t protocol = rx.get_message_byte(nfc::RF_DISCOVER_NTF_PROTOCOL);
+  nfc::NfcTagUid uid;
+  const auto tag_loc =
+      this->parse_uid_(rx.get_message_byte(nfc::RF_DISCOVER_NTF_MODE_TECH),
+                       std::span<const uint8_t>(rx.get_message()).subspan(nfc::RF_DISCOVER_NTF_RF_TECH_PARAMS), uid)
+          ? this->find_or_add_tag_(protocol, uid)
+          : nullopt;
 
-  if (incoming_tag == nullptr) {
+  if (!tag_loc.has_value()) {
     ESP_LOGE(TAG, "Could not build tag!");
   } else {
-    auto tag_loc = this->find_tag_uid_(incoming_tag->get_uid());
-    if (tag_loc.has_value()) {
-      this->discovered_endpoint_[tag_loc.value()].id = rx.get_message_byte(nfc::RF_DISCOVER_NTF_DISCOVERY_ID);
-      this->discovered_endpoint_[tag_loc.value()].protocol = rx.get_message_byte(nfc::RF_DISCOVER_NTF_PROTOCOL);
-      this->discovered_endpoint_[tag_loc.value()].last_seen = App.get_loop_component_start_time();
-      ESP_LOGVV(TAG, "Tag found & updated");
-    } else {
-      this->discovered_endpoint_.emplace_back(
-          DiscoveredEndpoint{.last_seen = App.get_loop_component_start_time(),
-                             .tag = std::move(incoming_tag),
-                             .id = rx.get_message_byte(nfc::RF_DISCOVER_NTF_DISCOVERY_ID),
-                             .protocol = rx.get_message_byte(nfc::RF_DISCOVER_NTF_PROTOCOL),
-                             .trig_called = false});
-      ESP_LOGVV(TAG, "Tag saved");
-    }
+    auto &endpoint = this->discovered_endpoint_[tag_loc.value()];
+    endpoint.id = rx.get_message_byte(nfc::RF_DISCOVER_NTF_DISCOVERY_ID);
+    endpoint.protocol = protocol;
+    endpoint.last_seen = App.get_loop_component_start_time();
   }
 
   const auto &ntf = rx.get_message();

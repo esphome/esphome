@@ -220,7 +220,11 @@ class PN71xx : public nfc::Nfcc, public Component {
   uint8_t format_endpoint_(uint8_t protocol);
   uint8_t write_endpoint_(uint8_t protocol, nfc::NfcTagUid &uid, std::shared_ptr<nfc::NdefMessage> &message);
 
-  std::unique_ptr<nfc::NfcTag> build_tag_(uint8_t mode_tech, uint8_t protocol, const std::vector<uint8_t> &data);
+  /// Reads the UID from the RF technology parameters of a discovery or activation notification
+  bool parse_uid_(uint8_t mode_tech, std::span<const uint8_t> rf_tech_params, nfc::NfcTagUid &uid);
+  std::unique_ptr<nfc::NfcTag> build_tag_(uint8_t protocol, const nfc::NfcTagUid &uid);
+  /// Finds a cached endpoint by UID, or caches a new one; returns nullopt if the cache is full
+  optional<size_t> find_or_add_tag_(uint8_t protocol, const nfc::NfcTagUid &uid);
   optional<size_t> find_tag_uid_(const nfc::NfcTagUid &uid);
   void purge_old_tags_();
   void erase_tag_(uint8_t tag_index);
