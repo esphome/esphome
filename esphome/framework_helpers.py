@@ -382,9 +382,11 @@ def _tar_extract_all(
         total = len(safe_members)
         report = _resolve_progress(progress, progress_header, total > 0)
         for i, member in enumerate(safe_members, 1):
-            # Already sanitized by data_filter above; extract() would
-            # otherwise re-run it per member (two lstat passes per file)
-            tar_ref.extract(member, abs_dest, filter="fully_trusted")
+            # The filter runs again here on purpose: it resolves link targets
+            # with realpath, so a member that only escapes once an earlier
+            # one is on disk is caught at extraction time, not by the
+            # pre-pass against an empty directory
+            tar_ref.extract(member, abs_dest)
             if report is not None:
                 report(i / total)
         if report is not None:
