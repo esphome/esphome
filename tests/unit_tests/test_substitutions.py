@@ -917,6 +917,68 @@ def test_resolve_include_error_shows_expanded_from_when_substituted(
     assert "expanded from '${device}.yaml'" in msg
 
 
+def test_resolve_include_empty_defaults_names_file(tmp_path: Path) -> None:
+    """An empty `defaults:` in an included file surfaces as cv.Invalid naming that file.
+
+    add_context() raises EsphomeError, so resolve_include's existing handler can
+    wrap it with the filename and document path. A bare TypeError would escape
+    that handler and reach the user as an unhandled traceback.
+    """
+    parent = tmp_path / "main.yaml"
+    parent.write_text("")
+
+    def loader(_path: Path) -> dict[str, Any]:
+        return {"defaults": None, "ota": [{"platform": "esphome"}]}
+
+    include = yaml_util.IncludeFile(parent, "_network/ota.yaml", None, loader)
+
+    with pytest.raises(cv.Invalid) as exc_info:
+        substitutions.resolve_include(include, [], substitutions.ContextVars())
+
+    msg = str(exc_info.value)
+    assert "_network/ota.yaml" in msg
+    assert "'defaults' is empty" in msg
+
+
+def test_do_packages_pass_nested_empty_defaults_names_file(tmp_path: Path) -> None:
+    """An empty `defaults:` two package levels deep still names the offending file.
+
+    Mirrors a real layout: the top-level config includes a network package whose
+    own `packages:` block includes the file with the empty `defaults:`.
+    """
+    parent = tmp_path / "main.yaml"
+    parent.write_text("")
+
+    def inner_loader(_path: Path) -> dict[str, Any]:
+        return {"defaults": None, "ota": [{"platform": "esphome"}]}
+
+    def outer_loader(_path: Path) -> dict[str, Any]:
+        return {
+            "packages": {
+                "otas": yaml_util.IncludeFile(
+                    parent, "_network/ota.yaml", None, inner_loader
+                )
+            }
+        }
+
+    config = OrderedDict(
+        {
+            "packages": {
+                "wifis": yaml_util.IncludeFile(
+                    parent, "network.yaml", None, outer_loader
+                )
+            }
+        }
+    )
+
+    with pytest.raises(cv.Invalid) as exc_info:
+        do_packages_pass(config)
+
+    msg = str(exc_info.value)
+    assert "_network/ota.yaml" in msg
+    assert "'defaults' is empty" in msg
+
+
 def test_resolve_include_error_no_expanded_from_for_literal_filename(
     tmp_path: Path,
 ) -> None:

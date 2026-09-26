@@ -557,6 +557,29 @@ def test_config_context_defaults_explicit_vars_override() -> None:
     assert "defaults" not in tagged
 
 
+def test_config_context_defaults_empty_raises() -> None:
+    """Test that an empty defaults: key raises EsphomeError, not a bare TypeError.
+
+    A ``defaults:`` block with an empty (or comments-only) body parses as None.
+    Unpacking it used to fail with ``TypeError: 'NoneType' object is not a
+    mapping``, which escapes the EsphomeError handler in resolve_include and
+    reaches the user as an unhandled traceback naming no file.
+    """
+    data = {"defaults": None, "key": "value"}
+
+    with pytest.raises(EsphomeError, match="'defaults' is empty"):
+        yaml_util.add_context(data, None)
+
+
+@pytest.mark.parametrize("defaults", ["oops", ["a", "b"], 42])
+def test_config_context_defaults_non_mapping_raises(defaults) -> None:
+    """Test that a non-mapping defaults: value raises EsphomeError naming the type."""
+    data = {"defaults": defaults, "key": "value"}
+
+    with pytest.raises(EsphomeError, match="'defaults' must be a key to value mapping"):
+        yaml_util.add_context(data, None)
+
+
 def test_represent_extend() -> None:
     """Test that Extend objects are dumped as plain !extend scalars."""
     assert yaml_util.dump({"key": Extend("my_id")}) == "key: !extend 'my_id'\n"
