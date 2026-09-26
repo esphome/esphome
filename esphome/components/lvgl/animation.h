@@ -140,7 +140,6 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
   }
 
   void loop() override {
-    bool stop = false;
     if (this->state_ == AnimationState::STOPPED)
       return;
     uint32_t elapsed = millis() - this->start_time_;
@@ -156,7 +155,6 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
       case AnimationState::RUNNING:
         if (progress >= 1.0f) {
           progress = 1.0f;
-          stop = true;
         }
         break;
       default:
@@ -172,7 +170,7 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
           roundf(this->data_from_[i] + static_cast<lv_coord_t>(this->data_to_[i] - this->data_from_[i]) * progress));
     }
     this->update_callback_(data);
-    if (stop) {
+    if (progress == 1.0f) {
       this->stop();
       if (this->loop_) {
         // Current sequence is done, so restart the loop
