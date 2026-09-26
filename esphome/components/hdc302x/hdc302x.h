@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
@@ -46,23 +45,6 @@ class HDC302XComponent final : public PollingComponent, public i2c::I2CDevice {
   bool disable_heater_();
   void read_data_();
   uint32_t conversion_delay_ms_();
-};
-
-template<typename... Ts> class HeaterOnAction final : public Action<Ts...>, public Parented<HDC302XComponent> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, power)
-  TEMPLATABLE_VALUE(uint32_t, duration)
-
-  void play(const Ts &...x) override {
-    auto power_val = this->power_.value(x...);
-    auto duration_val = this->duration_.value(x...);
-    this->parent_->start_heater(power_val, duration_val);
-  }
-};
-
-template<typename... Ts> class HeaterOffAction final : public Action<Ts...>, public Parented<HDC302XComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->stop_heater(); }
 };
 
 }  // namespace esphome::hdc302x
