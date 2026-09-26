@@ -545,12 +545,18 @@ async def addressable_flicker_effect_to_code(config, effect_id):
     return var
 
 
+# LightState stores the active effect index in a uint16_t
+MAX_EFFECTS = 65535
+
+
 def validate_effects(allowed_effects):
     @schema_extractor("effects")
     def validator(value):
         if value == SCHEMA_EXTRACT:
             return (allowed_effects, EFFECTS_REGISTRY)
 
+        if isinstance(value, list) and len(value) > MAX_EFFECTS:
+            raise cv.Invalid(f"A light supports at most {MAX_EFFECTS} effects")
         value = cv.validate_registry("effect", EFFECTS_REGISTRY)(value)
         errors = []
         names = set()
