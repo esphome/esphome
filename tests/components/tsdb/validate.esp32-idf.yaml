@@ -1,0 +1,95 @@
+# Config-only: the options a compile test does not have to build - the
+# aggregation mirrors, the page allocator, a custom retention budget and
+# `require_time: false`, which accepts a clock that is not set yet.
+tsdb:
+  id: tsdb_validate
+  file: events.tsdb
+  partition_size: 1MB
+  max_file_size: 768KB
+  min_free_bytes: 64KB
+  index_stride: 190
+  buffer_pool_size: 8KB
+  memory: internal
+  paged_allocation: true
+  page_size: 4KB
+  sync_interval: 0s
+  require_time: false
+  on_missing: hold
+  update_interval: 30s
+  aggregate_window: 15min
+  aggregate_interval: 60s
+  dump_rows: 120
+  columns:
+    - sensor: tsdb_validate_value
+      name: value
+      scale: 100.0
+      offset: -40.0
+      average_sensor: tsdb_validate_average
+      min_sensor: tsdb_validate_min
+      max_sensor: tsdb_validate_max
+  records_sensor: tsdb_validate_records
+  used_sensor: tsdb_validate_used
+  free_sensor: tsdb_validate_free
+  oldest_sensor: tsdb_validate_oldest
+  newest_sensor: tsdb_validate_newest
+  errors_sensor: tsdb_validate_errors
+  log_sensor: tsdb_validate_log
+
+sensor:
+  - platform: template
+    id: tsdb_validate_value
+    name: TSDB validate value
+    lambda: return 21.4f;
+    update_interval: 60s
+  - platform: template
+    id: tsdb_validate_average
+    name: TSDB validate average
+    lambda: return 21.4f;
+    update_interval: 60s
+  - platform: template
+    id: tsdb_validate_min
+    name: TSDB validate min
+    lambda: return 21.4f;
+    update_interval: 60s
+  - platform: template
+    id: tsdb_validate_max
+    name: TSDB validate max
+    lambda: return 21.4f;
+    update_interval: 60s
+  - platform: template
+    id: tsdb_validate_records
+    name: TSDB validate records
+    lambda: return 0.0f;
+    update_interval: 60s
+  - platform: template
+    id: tsdb_validate_used
+    name: TSDB validate used
+    lambda: return 0.0f;
+    update_interval: 60s
+  - platform: template
+    id: tsdb_validate_free
+    name: TSDB validate free
+    lambda: return 0.0f;
+    update_interval: 60s
+  - platform: template
+    id: tsdb_validate_oldest
+    name: TSDB validate oldest
+    lambda: return 0.0f;
+    update_interval: 60s
+  - platform: template
+    id: tsdb_validate_newest
+    name: TSDB validate newest
+    lambda: return 0.0f;
+    update_interval: 60s
+  - platform: template
+    id: tsdb_validate_errors
+    name: TSDB validate errors
+    lambda: return 0.0f;
+    update_interval: 60s
+
+text_sensor:
+  - platform: template
+    id: tsdb_validate_log
+    name: TSDB validate log
+    lambda: return {"ok"};
+    update_interval: 60s
