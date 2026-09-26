@@ -1,6 +1,6 @@
 #pragma once
 
-#include "epaper_spi.h"
+#include "epaper_spi_bwr.h"
 
 namespace esphome::epaper_spi {
 
@@ -12,10 +12,10 @@ namespace esphome::epaper_spi {
  *
  * Color scheme: Black, White, Red (BWR)
  * Buffer layout: 1 bit per pixel, separate planes
- * - Buffer first half: Black/White plane (0=black, 1=white)
- * - Buffer second half: Red plane (1=red, 0=no red; 0=red, 1=no red when invert_red is set)
+ * - Buffer first half: Black/White plane (1=black, 0=white or red)
+ * - Buffer second half: Red plane (1=red, 0=no red)
  * - Total buffer: width * height / 4 bytes (2 * width * height / 8)
- * Both planes are sent as is.
+ * Panels with DDX=11 (as set by the model init sequence) need invert_red, which sends the red plane inverted.
  *
  * Commands:
  * - 0x04: Power on
@@ -25,16 +25,11 @@ namespace esphome::epaper_spi {
  * - 0x02: Power off
  * - 0x07: Deep sleep (with 0xA5 parameter)
  */
-class EPaperUC8179BWR : public EPaperBase {
+class EPaperUC8179BWR : public EPaperBWR {
  public:
   EPaperUC8179BWR(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
                   size_t init_sequence_length, bool invert_red)
-      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_BINARY),
-        invert_red_(invert_red) {
-    this->buffer_length_ = this->row_width_ * height * 2;
-  }
-
-  void fill(Color color) override;
+      : EPaperBWR(name, width, height, init_sequence, init_sequence_length, invert_red) {}
 
  protected:
   bool initialise(bool partial) override;
@@ -42,10 +37,6 @@ class EPaperUC8179BWR : public EPaperBase {
   void power_on() override;
   void power_off() override;
   void deep_sleep() override;
-  void draw_pixel_at(int x, int y, Color color) override;
-  bool transfer_data() override;
-
-  bool invert_red_;
 };
 
 }  // namespace esphome::epaper_spi
