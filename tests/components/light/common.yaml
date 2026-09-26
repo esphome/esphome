@@ -200,6 +200,7 @@ light:
     name: Binary Light
     output: light_test_binary
     restore_mode: RESTORE_AND_ON
+    restore_effect: true
     effects:
       - strobe:
     on_state:

@@ -211,8 +211,8 @@ LightColorValues LightCall::validate_() {
 
   // Business logic adjustments before validation
 #ifdef USE_LIGHT_RESTORE_EFFECT
-  // Preserve the original request flags so we can detect a plain turn-on call.
-  uint16_t original_flags = this->flags_;
+  // Snapshot before the adjustments below add flags of their own
+  const bool plain_turn_on = this->has_state() && this->state_ && (this->flags_ & ~STATE_ONLY_FLAGS_MASK) == 0;
 #endif  // USE_LIGHT_RESTORE_EFFECT
   // Flag whether an explicit turn off was requested, in which case we'll also stop the effect.
   bool explicit_turn_off_request = this->has_state() && !this->state_;
@@ -338,6 +338,15 @@ LightColorValues LightCall::validate_() {
   // validate transition length/flash length/effect not used at the same time
   bool supports_transition = color_mode & ColorCapability::BRIGHTNESS;
 
+#ifdef USE_LIGHT_RESTORE_EFFECT
+  // A plain turn-on from off brings back the effect that was running when the light was turned off
+  if (this->parent_->restore_effect_ && plain_turn_on && !this->parent_->remote_values.is_on() &&
+      this->parent_->previous_effect_index_ != 0) {
+    this->effect_ = this->parent_->previous_effect_index_;
+    this->set_flag_(FLAG_HAS_EFFECT);
+  }
+#endif  // USE_LIGHT_RESTORE_EFFECT
+
   // If effect is already active, remove effect start
   if (this->has_effect_() && this->effect_ == this->parent_->active_effect_index_) {
     this->clear_flag_(FLAG_HAS_EFFECT);
@@ -348,29 +357,6 @@ LightColorValues LightCall::validate_() {
     ESP_LOGW(TAG, "'%s': invalid effect index %" PRIu32, name, this->effect_);
     this->clear_flag_(FLAG_HAS_EFFECT);
   }
-
-#ifdef USE_LIGHT_RESTORE_EFFECT
-  if (this->parent_->restore_effect_) {
-    if (this->has_effect_()) {
-      if (this->effect_ == 0 && !explicit_turn_off_request) {
-        // Explicit effect: None requests also clear any previously stored effect unless
-        // the light is explicitly being turned off and we're preserving the prior effect.
-        this->parent_->previous_effect_index_ = 0;
-      }
-    } else {
-      if (this->has_state() && this->state_) {
-        // A plain state-only turn-on call is still internally annotated with
-        // FLAG_HAS_COLOR_MODE by validate_(), so treat that as part of the normal
-        // state-only path rather than as an explicit color/effect request.
-        const uint16_t only_state_flags = FLAG_HAS_STATE | FLAG_HAS_COLOR_MODE | FLAG_PUBLISH | FLAG_SAVE;
-        if ((original_flags & ~only_state_flags) == 0 && this->parent_->previous_effect_index_ != 0) {
-          this->effect_ = this->parent_->previous_effect_index_;
-          this->set_flag_(FLAG_HAS_EFFECT);
-        }
-      }
-    }
-  }
-#endif  // USE_LIGHT_RESTORE_EFFECT
 
   if (this->has_effect_() && (this->has_transition_() || this->has_flash_())) {
     log_invalid_parameter(name, LOG_STR("effect cannot be used with transition/flash"));
@@ -403,17 +389,15 @@ LightColorValues LightCall::validate_() {
   // Reason: When user turns off the light in frontend, the effect should also stop
   bool target_state = this->has_state() ? this->state_ : v.is_on();
   if (!this->has_flash_() && !target_state) {
+#ifdef USE_LIGHT_RESTORE_EFFECT
+    // Remember what was running, including no effect, when a lit light is explicitly turned off
+    if (this->parent_->restore_effect_ && explicit_turn_off_request && this->parent_->remote_values.is_on())
+      this->parent_->previous_effect_index_ = this->parent_->active_effect_index_;
+#endif  // USE_LIGHT_RESTORE_EFFECT
     if (this->has_effect_()) {
       log_invalid_parameter(name, LOG_STR("cannot start effect when turning off"));
       this->clear_flag_(FLAG_HAS_EFFECT);
     } else if (this->parent_->active_effect_index_ != 0 && explicit_turn_off_request) {
-#ifdef USE_LIGHT_RESTORE_EFFECT
-      // Store the current effect index before turning off the light, so it can be restored later.
-      if (this->parent_->restore_effect_) {
-        this->parent_->previous_effect_index_ = this->parent_->active_effect_index_;
-      }
-#endif  // USE_LIGHT_RESTORE_EFFECT
-
       // Auto turn off effect
       this->effect_ = 0;
       this->set_flag_(FLAG_HAS_EFFECT);

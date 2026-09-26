@@ -196,7 +196,7 @@ class LightState : public EntityBase, public Component {
 
 #ifdef USE_LIGHT_RESTORE_EFFECT
   /// Set whether a plain turn-on restores the effect that was active when the light was turned off.
-  void set_restore_effect(bool restore_effect);
+  void set_restore_effect(bool restore_effect) { this->restore_effect_ = restore_effect; }
 #endif  // USE_LIGHT_RESTORE_EFFECT
 
   /// Return whether the light has any effects that meet the trait requirements.

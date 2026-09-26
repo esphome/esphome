@@ -101,7 +101,19 @@ async def test_light_restore_effect(
         state = await send_and_wait(light_restore, state=True, effect="Pulse Effect")
         assert state.effect == "Pulse Effect"
 
-        # Test 9: Turn on effect, then off, then on without effect — should not restore Pulse Effect
+        # Test 9: a turn-on that asks for something specific does not restore, and the
+        # effect it replaced must not come back on a later plain off/on
+        state = await send_and_wait(light_restore, state=False)
+        assert state.state is False
+        state = await send_and_wait(light_restore, state=True, brightness=0.5)
+        assert state.effect == "None", "A turn-on with brightness should not restore"
+        state = await send_and_wait(light_restore, state=False)
+        state = await send_and_wait(light_restore, state=True)
+        assert state.effect == "None", (
+            "An effect dropped on an earlier cycle must not return"
+        )
+
+        # Test 10: Turn on effect, then off, then on without effect — should not restore Pulse Effect
         state = await send_and_wait(light_no_restore, state=True, effect="Pulse Effect")
         assert state.state is True
         assert state.effect == "Pulse Effect"

@@ -215,6 +215,8 @@ class LightCall {
     FLAG_SAVE = 1 << 15,
   };
   static constexpr uint16_t CLAMP_FLAGS_MASK = 0x00FFu;  // bits 0-7
+  // Flags a plain turn-on may carry; any other flag means the caller asked for something specific
+  static constexpr uint16_t STATE_ONLY_FLAGS_MASK = FLAG_HAS_STATE | FLAG_HAS_COLOR_MODE | FLAG_PUBLISH | FLAG_SAVE;
 
   inline bool has_transition_() { return (this->flags_ & FLAG_HAS_TRANSITION) != 0; }
   inline bool has_flash_() { return (this->flags_ & FLAG_HAS_FLASH) != 0; }
