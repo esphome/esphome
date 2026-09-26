@@ -1,0 +1,39 @@
+name: Cache Arduino ESP8266
+description: >
+  Resolve the pinned Arduino core and xtensa toolchain versions and cache the
+  native ESP8266 install (~110 MB framework + toolchain; no ccache store, the
+  seed job saves before any compile runs). Exports
+  ESPHOME_ARDUINO8266_PREFIX to the job so every later step installs into
+  the cached path; the Python venv must already be restored. Mirrors
+  cache-esp-idf: only dev-branch pushes write the shared cache, everything
+  else restores.
+runs:
+  using: composite
+  steps:
+    - name: Resolve the native toolchain cache key
+      # Versions are pinned in code, not a hashable file; resolve them so a
+      # bump changes the cache key. Assignment form so errexit catches a
+      # resolver failure.
+      id: version
+      shell: bash
+      run: |
+        # One owner for the install prefix: exported here and referenced by
+        # the cache steps below via env, so the caller's install and the
+        # cached path cannot diverge.
+        echo "ESPHOME_ARDUINO8266_PREFIX=$HOME/.esphome-arduino8266" >> "$GITHUB_ENV"
+        . venv/bin/activate
+        key=$(python -c 'from esphome.components.esp8266 import RECOMMENDED_ARDUINO_FRAMEWORK_VERSION as f; from esphome.arduino8266.framework import TOOLCHAIN_VERSION as t; print(f"{f}-{t}")')
+        [ -n "$key" ] || exit 1
+        echo "key=$key" >> "$GITHUB_OUTPUT"
+    - name: Cache the native toolchain (write on dev)
+      if: github.ref == 'refs/heads/dev'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ env.ESPHOME_ARDUINO8266_PREFIX }}
+        key: ${{ runner.os }}-esp8266-native-${{ steps.version.outputs.key }}
+    - name: Restore the native toolchain (off dev)
+      if: github.ref != 'refs/heads/dev'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ env.ESPHOME_ARDUINO8266_PREFIX }}
+        key: ${{ runner.os }}-esp8266-native-${{ steps.version.outputs.key }}
