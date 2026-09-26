@@ -69,6 +69,86 @@ def test_setup_core_sets_arduino_env(
     assert os.environ["ESPHOME_ARDUINO_COMPONENT"] == expected
 
 
+def test_espidf_only_deps_are_tsdb_engines() -> None:
+    """The idf envs get tsdb's registry engines, pinned as tsdb pins them."""
+    from esphome.components.tsdb import (
+        ESP_LITTLEFS_COMPONENT,
+        ESP_LITTLEFS_VERSION,
+        ESP_TSDB_COMPONENT,
+        ESP_TSDB_VERSION,
+    )
+
+    assert clang_tidy._espidf_only_deps() == {
+        ESP_TSDB_COMPONENT: {"version": ESP_TSDB_VERSION},
+        ESP_LITTLEFS_COMPONENT: {"version": ESP_LITTLEFS_VERSION},
+    }
+
+
+@pytest.mark.parametrize(
+    ("target_framework", "expects_engines"),
+    [("espidf", True), ("arduino", False)],
+)
+def test_generate_compile_commands_scopes_engines_to_idf(
+    tmp_path: Path, target_framework: str, expects_engines: bool
+) -> None:
+    """Only the idf envs get tsdb's engines; the arduino envs get the stubs.
+
+    littlefs is one of the components the arduino envs stub out, so the real
+    dependency cannot be added alongside that stub.
+    """
+    written: list[dict] = []
+
+    with (
+        patch.object(clang_tidy, "_setup_core"),
+        patch.object(clang_tidy, "_convert_pio_libs", return_value={}),
+        patch.object(
+            clang_tidy, "_arduino_excluded_stubs", return_value={"stub/x": {}}
+        ),
+        patch.object(
+            clang_tidy,
+            "_write_tidy_project",
+            side_effect=lambda *a: written.append(a[2]),
+        ),
+        patch("esphome.espidf.toolchain.run_reconfigure", return_value=0),
+        patch("esphome.build_gen.espidf.get_available_components", return_value=[]),
+    ):
+        clang_tidy._generate_compile_commands(
+            tmp_path, _settings(target_framework=target_framework), tmp_path / "pio.ini"
+        )
+
+    # Both phases of the two-phase configure see the same deps.
+    assert len(written) == 2
+    engines = set(clang_tidy._espidf_only_deps())
+    for deps in written:
+        if expects_engines:
+            assert engines <= set(deps)
+            assert "stub/x" not in deps
+        else:
+            assert not engines & set(deps)
+            assert "stub/x" in deps
+
+
+def test_write_tidy_project_merges_espidf_only_deps(tmp_path: Path) -> None:
+    """Those engines land in the written manifest as plain (unruled) deps.
+
+    A rule that the tidy project's IDF version doesn't satisfy would leave tsdb
+    without its engine headers again, which is what the manifest entries did.
+    """
+    import yaml
+
+    from esphome.components.tsdb import ESP_TSDB_COMPONENT, ESP_TSDB_VERSION
+
+    _write_tidy_project(tmp_path, [], clang_tidy._espidf_only_deps(), _settings())
+
+    manifest = yaml.safe_load(
+        (tmp_path / "main" / "idf_component.yml").read_text(encoding="utf-8")
+    )
+    deps = manifest["dependencies"]
+    assert deps[ESP_TSDB_COMPONENT] == {"version": ESP_TSDB_VERSION}
+    # ESPHome's own dependencies survive the merge.
+    assert "bblanchon/arduinojson" in deps
+
+
 def test_idedata_from_tidy_project(tmp_path) -> None:
     """The tidy TU's compile entry is assembled into consumer-shaped idedata."""
     compile_commands = tmp_path / "compile_commands.json"

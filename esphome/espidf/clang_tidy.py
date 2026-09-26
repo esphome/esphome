@@ -4,7 +4,9 @@ Produces idedata for clang-tidy **without an ESPHome YAML config**. Instead of
 running codegen on a config, it generates a minimal ESP-IDF CMake project:
 
 * the managed-component dependencies come from ESPHome's own
-  ``idf_component.yml`` (arduinojson, lvgl, mdns, ...);
+  ``idf_component.yml`` (arduinojson, lvgl, mdns, ...), plus the registry
+  components an ESP-IDF-only component adds from ``to_code()`` (tsdb's esp_tsdb
+  and littlefs) -- no config is loaded here, so ``to_code()`` never runs;
 * the PlatformIO ``lib_deps`` (qr-code, mlx90393, ...) are converted to local
   IDF components via the ESPHome PlatformIO->IDF converter;
 * the ``main`` component ``REQUIRES`` every target-available builtin IDF
@@ -125,6 +127,27 @@ def _arduino_framework_deps(version: str) -> dict[str, dict]:
     from esphome.components.esp32 import ARDUINO_ESP32_COMPONENT_NAME
 
     return {ARDUINO_ESP32_COMPONENT_NAME: {"version": version}}
+
+
+def _espidf_only_deps() -> dict[str, dict]:
+    """Registry engines of the ESP-IDF-only components, for the ``idf`` envs.
+
+    A component that only builds for ESP-IDF adds its managed components from
+    ``to_code()``; the tidy project loads no config, so nothing does that here
+    and its sources cannot find the engine headers. The versions come from the
+    component itself -- the database file format belongs to them.
+    """
+    from esphome.components.tsdb import (
+        ESP_LITTLEFS_COMPONENT,
+        ESP_LITTLEFS_VERSION,
+        ESP_TSDB_COMPONENT,
+        ESP_TSDB_VERSION,
+    )
+
+    return {
+        ESP_TSDB_COMPONENT: {"version": ESP_TSDB_VERSION},
+        ESP_LITTLEFS_COMPONENT: {"version": ESP_LITTLEFS_VERSION},
+    }
 
 
 _TOP_CMAKELISTS = """\
@@ -394,6 +417,12 @@ def _generate_compile_commands(
         # Stub the arduino-bundled components ESPHome doesn't use (avoids the
         # libsodium clash with noise-c and ~26 unused heavy downloads).
         extra_deps.update(_arduino_excluded_stubs(work_dir))
+    else:
+        # tsdb is ESP-IDF only and adds its engines from to_code(), which never
+        # runs here. The arduino envs must not get them: littlefs is one of the
+        # components they stub out (_arduino_excluded_stubs), and a real dep
+        # alongside that stub does not resolve.
+        extra_deps.update(_espidf_only_deps())
 
     # Phase 1: discover the components available for this target.
     _write_tidy_project(work_dir, [], extra_deps, settings)
