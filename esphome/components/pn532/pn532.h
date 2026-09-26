@@ -19,11 +19,27 @@ static const uint8_t PN532_COMMAND_INDATAEXCHANGE = 0x40;
 static const uint8_t PN532_COMMAND_INLISTPASSIVETARGET = 0x4A;
 static const uint8_t PN532_COMMAND_POWERDOWN = 0x16;
 
-enum PN532ReadReady {
+enum PN532ReadReady : uint8_t {
   WOULDBLOCK = 0,
   TIMEOUT,
   READY,
 };
+
+// SEL_RES (SAK) bits, as reported by InListPassiveTarget for ISO/IEC 14443 type A targets (NXP AN10833)
+static constexpr uint8_t SEL_RES_MIFARE_CLASSIC = 0x08;
+static constexpr uint8_t SEL_RES_ISO_DEP = 0x20;
+static constexpr uint8_t SEL_RES_TNP3XXX = 0x01;  // MIFARE Classic 1K compatible
+
+/// Tag type (nfc::TAG_TYPE_*) from a type A target's SEL_RES byte
+inline uint8_t tag_type_from_sel_res(uint8_t sel_res) {
+  if ((sel_res & SEL_RES_MIFARE_CLASSIC) || sel_res == SEL_RES_TNP3XXX)
+    return nfc::TAG_TYPE_MIFARE_CLASSIC;
+  if (sel_res & SEL_RES_ISO_DEP)
+    return nfc::TAG_TYPE_4;
+  if (sel_res == 0x00)
+    return nfc::TAG_TYPE_2;
+  return nfc::TAG_TYPE_UNKNOWN;
+}
 
 class PN532BinarySensor;
 
@@ -67,11 +83,14 @@ class PN532 : public PollingComponent {
   virtual bool read_data(std::vector<uint8_t> &data, uint8_t len) = 0;
   virtual bool read_response(uint8_t command, std::vector<uint8_t> &data) = 0;
 
-  std::unique_ptr<nfc::NfcTag> read_tag_(nfc::NfcTagUid &uid);
+  std::unique_ptr<nfc::NfcTag> read_tag_(nfc::NfcTagUid &uid, uint8_t tag_type);
 
-  bool format_tag_(nfc::NfcTagUid &uid);
-  bool clean_tag_(nfc::NfcTagUid &uid);
-  bool write_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message);
+  bool format_tag_(nfc::NfcTagUid &uid, uint8_t tag_type);
+  bool clean_tag_(nfc::NfcTagUid &uid, uint8_t tag_type);
+  bool write_tag_(nfc::NfcTagUid &uid, uint8_t tag_type, nfc::NdefMessage *message);
+  /// Sends an InDataExchange command and reads the response; returns false unless the status byte reports success.
+  /// On success, `response` holds the data returned by the target, without the status byte.
+  bool in_data_exchange_(const std::vector<uint8_t> &command, std::vector<uint8_t> &response);
 
   std::unique_ptr<nfc::NfcTag> read_mifare_classic_tag_(nfc::NfcTagUid &uid);
   bool read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
@@ -91,27 +110,32 @@ class PN532 : public PollingComponent {
   bool write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message);
   bool clean_mifare_ultralight_();
 
-  bool updates_enabled_{true};
-  bool requested_read_{false};
-  std::vector<PN532BinarySensor *> binary_sensors_;
-  std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
-  std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
-  nfc::NfcTagUid current_uid_;
-  nfc::NdefMessage *next_task_message_to_write_;
-  optional<uint32_t> rd_start_time_{};
-  enum PN532ReadReady rd_ready_ { WOULDBLOCK };
-  enum NfcTask {
+  enum NfcTask : uint8_t {
     READ = 0,
     CLEAN,
     FORMAT,
     WRITE,
-  } next_task_{READ};
-  enum PN532Error {
+  };
+  enum PN532Error : uint8_t {
     NONE = 0,
     WAKEUP_FAILED,
     SAM_COMMAND_FAILED,
-  } error_code_{NONE};
+  };
+
+  // members are ordered by alignment, widest first, to minimize padding
   CallbackManager<void()> on_finished_write_callback_;
+  std::vector<PN532BinarySensor *> binary_sensors_;
+  std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
+  std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
+  std::unique_ptr<nfc::NdefMessage> next_task_message_to_write_;
+  nfc::NfcTagUid current_uid_;
+  uint32_t rd_start_time_{0};  // valid only while rd_started_ is set
+  PN532ReadReady rd_ready_{WOULDBLOCK};
+  NfcTask next_task_{READ};
+  PN532Error error_code_{NONE};
+  bool rd_started_{false};
+  bool updates_enabled_{true};
+  bool requested_read_{false};
 };
 
 class PN532BinarySensor final : public binary_sensor::BinarySensor {
