@@ -9,8 +9,7 @@ namespace esphome::xiaomi_body_scale_s400 {
 
 class XiaomiBodyScaleS400 final : public Component, public ble_device_base::ESPBTDeviceListener {
  public:
-  void set_address(uint64_t address) { this->address_ = address; }
-  void set_bindkey(const char *bindkey);
+  XiaomiBodyScaleS400(uint64_t address, const char *bindkey);
 
   bool parse_device(const ble_device_base::ESPBTDevice &device) override;
   void dump_config() override;
@@ -23,14 +22,14 @@ class XiaomiBodyScaleS400 final : public Component, public ble_device_base::ESPB
   void set_stabilized(binary_sensor::BinarySensor *stabilized) { this->stabilized_ = stabilized; }
 
  protected:
-  bool decrypt_(uint8_t *raw) const;
-  void publish_stabilized_();
+  bool decrypt_(const uint8_t *frame, uint8_t *plaintext) const;
+  void publish_stabilized_(bool stabilized);
 
   uint64_t address_;
   uint8_t bindkey_[16];
   sensor::Sensor *weight_{nullptr};
-  sensor::Sensor *impedance_low_{nullptr};   // 50 kHz, the larger value
-  sensor::Sensor *impedance_high_{nullptr};  // 250 kHz, the smaller value
+  sensor::Sensor *impedance_low_{nullptr};
+  sensor::Sensor *impedance_high_{nullptr};
   sensor::Sensor *heart_rate_{nullptr};
   sensor::Sensor *profile_id_{nullptr};
   binary_sensor::BinarySensor *stabilized_{nullptr};

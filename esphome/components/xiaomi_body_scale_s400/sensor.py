@@ -17,8 +17,8 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-CONF_IMPEDANCE_LOW = "impedance_low"  # 50 kHz, the larger value
-CONF_IMPEDANCE_HIGH = "impedance_high"  # 250 kHz, the smaller value
+CONF_IMPEDANCE_LOW = "impedance_low"
+CONF_IMPEDANCE_HIGH = "impedance_high"
 CONF_HEART_RATE = "heart_rate"
 CONF_PROFILE_ID = "profile_id"
 CONF_STABILIZED = "stabilized"
@@ -37,8 +37,7 @@ IMPEDANCE_SCHEMA = sensor.sensor_schema(
     state_class=STATE_CLASS_MEASUREMENT,
 )
 
-CONFIG_SCHEMA = cv.All(
-    ble_device_base.rename_legacy_hub_id("xiaomi_body_scale_s400"),
+CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(XiaomiBodyScaleS400),
@@ -68,17 +67,16 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    .extend(ble_device_base.BLE_DEVICE_SCHEMA)
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = cg.new_Pvariable(
+        config[CONF_ID], config[CONF_MAC_ADDRESS].as_hex, config[CONF_BINDKEY]
+    )
     await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)
-
-    cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
-    cg.add(var.set_bindkey(config[CONF_BINDKEY]))
 
     for key, setter in (
         (CONF_WEIGHT, var.set_weight),
