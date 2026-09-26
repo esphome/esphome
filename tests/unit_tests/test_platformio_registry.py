@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, contextmanager
 import json
 import logging
 import os
@@ -46,7 +47,7 @@ def test_registry_download_resolves_once_per_process() -> None:
 
 
 @pytest.fixture(autouse=True)
-def _fresh_registry_cache():
+def _fresh_registry_cache() -> Iterator[None]:
     # registry_download memoizes per process; tests reuse package names
     registry.registry_download.cache_clear()
     yield
@@ -113,7 +114,7 @@ def _http_response(text: str) -> MagicMock:
     return resp
 
 
-def _registry_response(files: list[dict]):
+def _registry_response(files: list[dict]) -> AbstractContextManager[MagicMock]:
     """Patch the consolidated HTTP path to serve a canned registry response."""
     payload = {"versions": [{"name": "1.0.0", "files": files}]}
     return patch.object(
@@ -501,8 +502,10 @@ def test_registry_download_non_list_system_is_named() -> None:
         registry.registry_download("pkg", "1.0.0")
 
 
-def _resolve_for(sizes: dict[str, int | None]):
-    def resolve(name: str, version: str):
+def _resolve_for(
+    sizes: dict[str, int | None],
+) -> Callable[[str, str], tuple[str, str, int | None]]:
+    def resolve(name: str, version: str) -> tuple[str, str, int | None]:
         size = sizes[name]
         if size == -1:
             raise EsphomeError("registry down")
@@ -794,8 +797,14 @@ def test_prefetch_packages_unexpected_failure_warns(
     assert "TypeError" in caplog.text
 
 
-def _spec(name: str, version: str, dest: Path, mirrors=None, expect=("payload",)):
-    return (name, version, dest, mirrors or [], expect)
+def _spec(
+    name: str,
+    version: str,
+    dest: Path,
+    mirrors: list[str] | None = None,
+    expect: tuple[str, ...] = ("payload",),
+) -> registry.PackageSpec:
+    return registry.PackageSpec(name, version, dest, mirrors or [], expect)
 
 
 def test_install_packages_extracts_verified_archives_in_parallel(
@@ -886,7 +895,11 @@ def test_install_packages_first_failure_reraised(
 
 
 @contextmanager
-def _batched_install(tmp_path: Path, extract_progress, prefill_archive: bool = True):
+def _batched_install(
+    tmp_path: Path,
+    extract_progress: Callable[[float], None] | None,
+    prefill_archive: bool = True,
+) -> Iterator[MagicMock]:
     """Run a batched install_package of pkg@1.0.0; yields the download mock."""
     dest = tmp_path / "pkg"
     if prefill_archive:
