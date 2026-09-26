@@ -60,7 +60,6 @@ from .defines import (
     get_focused_widgets,
     get_lv_images_used,
     get_refreshed_widgets,
-    set_widgets_completed,
 )
 from .encoders import (
     ENCODERS_CONFIG,
@@ -107,6 +106,7 @@ from .widgets import (
     get_screen_active,
     set_obj_properties,
 )
+from .widgets.keyboard import attach_textareas
 
 # Import only what we actually use directly in this file
 from .widgets.msgbox import MSGBOX_SCHEMA, msgboxes_to_code
@@ -387,6 +387,11 @@ async def to_code(configs):
     cg.add(lvgl_static.esphome_lvgl_init())
     default_group = get_default_group(config_0)
 
+    # Create theme lambdas before any widgets.
+    async with LvContext():
+        for config in configs:
+            await theme_to_code(config)
+
     for config in configs:
         frac = config[CONF_BUFFER_SIZE]
         if frac >= 0.75:
@@ -439,7 +444,6 @@ async def to_code(configs):
             await touchscreens_to_code(lv_component, config)
             await encoders_to_code(lv_component, config, default_group)
             await keypads_to_code(lv_component, config, default_group)
-            await theme_to_code(config)
             await gradients_to_code(config)
             await styles_to_code(config)
             await set_obj_properties(lv_scr_act, config)
@@ -450,8 +454,6 @@ async def to_code(configs):
             await msgboxes_to_code(lv_component, config)
             await animations_to_code(config.get(CONF_ANIMATIONS, []))
 
-    # Mark all widgets as completed so awaiters of ``wait_for_widgets`` proceed.
-    set_widgets_completed(True)
     async with LvContext():
         # Local import: lv_list imports meter, which imports obj_spec/set_obj_properties
         # from this module's own namespace - a top-level import here would be circular.
@@ -464,6 +466,7 @@ async def to_code(configs):
         await finish_list_triggers()
         await generate_triggers()
         await generate_align_tos(configs[0])
+        await attach_textareas()
         for config in configs:
             lv_component = await cg.get_variable(config[CONF_ID])
             await add_animation_triggers(config.get(CONF_ANIMATIONS, []))

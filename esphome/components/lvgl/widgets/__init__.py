@@ -4,7 +4,7 @@ from typing import Any
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.automation import register_action
-from esphome.config_validation import Invalid, Schema
+from esphome.config_validation import Schema
 from esphome.const import (
     CONF_DEFAULT,
     CONF_GROUP,
@@ -42,10 +42,9 @@ from ..defines import (
     STATES,
     LValidator,
     add_lv_use,
+    get_part_state_selector,
     get_styles_used,
-    get_theme_widget_map,
     get_widget_map,
-    get_widgets_completed,
     join_enums,
     literal,
 )
@@ -195,12 +194,20 @@ class WidgetType:
         await self.to_code(w, config)
         return w
 
-    async def to_code(self, w: "Widget", config: dict):
+    async def to_code(self, w: "Widget", config: dict) -> None:
         """
-        Update a widget, also called when creating
+        Generate code for widget properties and actions.
         :param config:
         :return:
         """
+
+    async def update_to_code(self, w: "Widget", config: dict) -> None:
+        """
+        Update a widget. Defaults to calling to_code, but can be overridden
+        :param w: The widget to update
+        :param config: The configuration for the update
+        """
+        await self.to_code(w, config)
 
     async def obj_creator(self, parent: MockObj, config: dict):
         """
@@ -257,17 +264,10 @@ class WidgetType:
 
 def apply_theme_styles(w: "Widget") -> None:
     """Apply the current theme's styles for this widget's type"""
-    for part, states in get_theme_widget_map().get(w.type.name, {}).items():
-        part = "LV_PART_" + part.upper()
-        for state, style in states.items():
-            state = "LV_STATE_" + state.upper()
-            if state == "LV_STATE_DEFAULT":
-                lv_state = literal(part)
-            elif part == "LV_PART_MAIN":
-                lv_state = literal(state)
-            else:
-                lv_state = join_enums((state, part))
-            w.add_style(style, lv_state)
+    from ..styles import get_widget_theme_styles
+
+    for style, lv_state in get_widget_theme_styles(w.type.name):
+        w.add_style(style, lv_state)
 
 
 class Widget:
@@ -323,8 +323,6 @@ class Widget:
         return lv_obj.remove_flag(self.obj, literal(flag))
 
     def add_style(self, style_id, state=LV_STATE.DEFAULT):
-        if "|" in state:
-            state = f"(lv_state_t)({state})"
         lv_obj.add_style(self.obj, MockObj(style_id), literal(state))
 
     async def set_property(
@@ -457,10 +455,6 @@ def get_widget_generator(wid):
     while True:
         if obj := widget_map.get(wid):
             return obj
-        if get_widgets_completed():
-            raise Invalid(
-                f"Widget {wid} not found, yet all widgets should be defined by now"
-            )
         yield
 
 
@@ -468,19 +462,6 @@ async def get_widget_(wid):
     if obj := get_widget_map().get(wid):
         return obj
     return await FakeAwaitable(get_widget_generator(wid))
-
-
-def widgets_wait_generator():
-    while True:
-        if get_widgets_completed():
-            return
-        yield
-
-
-async def wait_for_widgets():
-    if get_widgets_completed():
-        return
-    await FakeAwaitable(widgets_wait_generator())
 
 
 async def get_widgets(config: dict | list, id: str = CONF_ID) -> list[Widget]:
@@ -615,15 +596,8 @@ async def set_obj_properties(w: Widget, config):
         _set_layout_options(w, layout, base_name)
     parts = collect_parts(config)
     for part, states in parts.items():
-        part = "LV_PART_" + part.upper()
         for state, props in states.items():
-            state = "LV_STATE_" + state.upper()
-            if state == "LV_STATE_DEFAULT":
-                lv_state = literal(part)
-            elif part == "LV_PART_MAIN":
-                lv_state = literal(state)
-            else:
-                lv_state = join_enums((state, part))
+            lv_state = get_part_state_selector(part, state)
             for style_id in props.get(CONF_STYLES, ()):
                 w.add_style(style_id, lv_state)
             for prop, value in {
