@@ -58,6 +58,12 @@ struct Harness {
     this->scale.set_stabilized(&this->stabilized);
   }
 
+  ~Harness() {
+    // Drop the pending stabilized reset (id 0) while the scale is alive; App outlives each test
+    App.scheduler.cancel_timeout(&this->scale, 0u);
+    App.scheduler.call(millis());
+  }
+
   XiaomiBodyScaleS400 scale;
   sensor::Sensor weight, impedance_low, impedance_high, heart_rate, profile_id;
   binary_sensor::BinarySensor stabilized;
