@@ -100,6 +100,7 @@ void STCC4Component::setup() {
         }
 
         if (this->measurement_mode_ == MeasurementMode::SINGLE_SHOT) {
+          this->start_poller();
           this->finish_setup_();
           return;
         }
@@ -110,16 +111,14 @@ void STCC4Component::setup() {
           this->mark_failed();
           return;
         }
-        this->set_timeout(1200, [this]() { this->finish_setup_(); });
+        this->schedule_continuous_update_(false);
+        this->finish_setup_();
       });
     });
   });
 }
 
-void STCC4Component::finish_setup_() {
-  this->ready_ = true;
-  this->start_poller();
-}
+void STCC4Component::finish_setup_() { this->ready_ = true; }
 
 void STCC4Component::dump_config() {
   ESP_LOGCONFIG(TAG, "STCC4:");
@@ -150,13 +149,8 @@ void STCC4Component::dump_config() {
 }
 
 void STCC4Component::update() {
-  if (!this->ready_)
+  if (!this->ready_ || this->measurement_mode_ != MeasurementMode::SINGLE_SHOT)
     return;
-
-  if (this->measurement_mode_ == MeasurementMode::CONTINUOUS) {
-    this->read_measurement_();
-    return;
-  }
 
   // Perform single-shot measurement, wait 500 ms for the measurement to be ready
   if (!this->write_command(STCC4_CMD_MEASURE_SINGLE_SHOT)) {
@@ -164,16 +158,38 @@ void STCC4Component::update() {
     this->status_set_warning();
     return;
   }
-  this->set_timeout(500, [this]() { this->read_measurement_(); });
+  this->set_timeout(500, [this]() {
+    if (this->read_measurement_(0)) {
+      this->status_clear_warning();
+    } else {
+      ESP_LOGW(TAG, "Failed to read measurement data");
+      this->status_set_warning();
+    }
+  });
 }
 
-void STCC4Component::read_measurement_() {
+void STCC4Component::schedule_continuous_update_(bool retry_for_clock_drift) {
+  // In continuous measurement mode, the STCC4 produces a sample every 1000 ms according to its
+  // internal clock.  The datasheet recommends retrying 150 ms after a failed read to compensate
+  // for clock drift between the host and the device.
+  this->set_timeout(retry_for_clock_drift ? 150 : 1000, [this, retry_for_clock_drift]() {
+    if (read_measurement_(retry_for_clock_drift ? 0 : sensirion_common::SENSIRION_OPTION_READ_MAY_NACK)) {
+      this->status_clear_warning();
+      this->schedule_continuous_update_(false);
+    } else if (!retry_for_clock_drift) {
+      this->schedule_continuous_update_(true);
+    } else {
+      this->status_set_warning();
+      this->schedule_continuous_update_(false);
+    }
+  });
+}
+
+bool STCC4Component::read_measurement_(uint8_t sensirion_options) {
   // Read measurement data: 4 words (CO2, temperature, humidity, status)
   uint16_t raw_data[4];
-  if (!this->get_register(STCC4_CMD_READ_MEASUREMENT, raw_data, 4, 1)) {
-    ESP_LOGW(TAG, "Failed to read measurement data");
-    this->status_set_warning();
-    return;
+  if (!this->get_register_(STCC4_CMD_READ_MEASUREMENT, ADDR_16_BIT, raw_data, 4, 1, sensirion_options)) {
+    return false;
   }
 
   // CO2 value is in ppm as int16 (ignore negative values during warm-up)
@@ -189,8 +205,7 @@ void STCC4Component::read_measurement_() {
   if (this->humidity_sensor_ != nullptr) {
     this->humidity_sensor_->publish_state(humidity_in_ticks_to_percent(raw_data[2]));
   }
-
-  this->status_clear_warning();
+  return true;
 }
 
 void STCC4Component::update_rht_compensation_from_source_() {

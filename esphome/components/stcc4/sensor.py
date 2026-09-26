@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_MEASUREMENT_MODE,
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_SOURCE,
+    CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
@@ -22,6 +23,7 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@will-tm", "@j9brown"]
 DEPENDENCIES = ["i2c"]
@@ -38,6 +40,18 @@ MEASUREMENT_MODE_OPTIONS = {
     "continuous": MeasurementMode.CONTINUOUS,
     "single_shot": MeasurementMode.SINGLE_SHOT,
 }
+
+
+def validate_config(config: ConfigType) -> ConfigType:
+    if config[CONF_MEASUREMENT_MODE] == "continuous":
+        if CONF_UPDATE_INTERVAL in config:
+            raise cv.Invalid(
+                "update_interval must not be specified in continuous measurement mode"
+            )
+    elif CONF_UPDATE_INTERVAL not in config:
+        config[CONF_UPDATE_INTERVAL] = cv.update_interval("60s")
+    return config
+
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -80,10 +94,12 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MEASUREMENT_MODE, default="continuous"): cv.enum(
                 MEASUREMENT_MODE_OPTIONS, lower=True
             ),
+            cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
         }
     )
-    .extend(cv.polling_component_schema("60s"))
+    .extend(cv.COMPONENT_SCHEMA)
     .extend(i2c.i2c_device_schema(0x64))
+    .add_extra(validate_config)
 )
 
 SENSOR_MAP = {

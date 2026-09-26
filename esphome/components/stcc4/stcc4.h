@@ -28,7 +28,8 @@ class STCC4Component final : public PollingComponent, public sensirion_common::S
 
  protected:
   void finish_setup_();
-  void read_measurement_();
+  void schedule_continuous_update_(bool retry_for_clock_drift);
+  bool read_measurement_(uint8_t sensirion_options);
   void update_rht_compensation_from_source_();
   void update_ambient_pressure_compensation_from_source_();
   bool write_rht_compensation_(uint16_t temperature_in_ticks, uint16_t humidity_in_ticks);
