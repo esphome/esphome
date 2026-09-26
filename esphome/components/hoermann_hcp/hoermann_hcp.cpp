@@ -112,6 +112,12 @@ static size_t text_length(const char *text, size_t len) {
 
 // Works in place.
 static void terminate_text(char *text, size_t len) { text[text_length(text, len)] = '\0'; }
+
+// Replayed when a log subscriber connects, which is how a remote log sees the outcome of the exchange at boot.
+static void log_identity_value(text_sensor::TextSensor *sensor) {
+  if (sensor != nullptr)
+    ESP_LOGCONFIG(TAG, "    Value: %s", sensor->has_state() ? sensor->get_state().c_str() : "not received");
+}
 #endif
 
 void HoermannHcp::update() {
@@ -161,7 +167,9 @@ void HoermannHcp::dump_config() {
                 this->get_address());
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Serial Number", this->serial_number_text_sensor_);
+  log_identity_value(this->serial_number_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Firmware Version", this->version_text_sensor_);
+  log_identity_value(this->version_text_sensor_);
 #endif
 }
 
@@ -393,6 +401,7 @@ void HoermannHcp::take_identity_transfer_(const modbus::RegisterValues &register
       return;
     copy_payload(registers, SERIAL_SINGLE_FRAME_REGS, this->serial_number_);
     terminate_text(this->serial_number_, 2 * SERIAL_SINGLE_FRAME_REGS);
+    this->serial_unreadable_ = this->serial_number_[0] == '\0';
     this->arm_identity_request_(REQUEST_FIRMWARE);
     return;
   }
@@ -400,6 +409,7 @@ void HoermannHcp::take_identity_transfer_(const modbus::RegisterValues &register
     return;
   copy_payload(registers, SERIAL_SECOND_HALF_REGS, this->serial_number_ + 2 * SERIAL_FIRST_HALF_REGS);
   terminate_text(this->serial_number_, 2 * (SERIAL_FIRST_HALF_REGS + SERIAL_SECOND_HALF_REGS));
+  this->serial_unreadable_ = this->serial_number_[0] == '\0';
   this->arm_identity_request_(REQUEST_FIRMWARE);
 }
 
@@ -418,6 +428,10 @@ void HoermannHcp::publish_identity_() {
       this->serial_number_[0] != '\0') {
     this->serial_number_text_sensor_->publish_state(this->serial_number_);
     this->serial_number_[0] = '\0';
+  }
+  if (this->serial_unreadable_) {
+    this->serial_unreadable_ = false;
+    ESP_LOGW(TAG, "Motor sent a serial number that could not be read");
   }
   // Before the version is published: the buffer holds the bytes as they came, not text.
   if (this->firmware_unreadable_) {

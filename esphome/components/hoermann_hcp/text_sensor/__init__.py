@@ -15,7 +15,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(CONF_HOERMANN_HCP_ID): cv.use_id(HoermannHcp),
             cv.Optional(CONF_SERIAL_NUMBER): text_sensor.text_sensor_schema(
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+                icon="mdi:data-matrix", entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_VERSION): text_sensor.text_sensor_schema(
                 icon=ICON_CHIP, entity_category=ENTITY_CATEGORY_DIAGNOSTIC

@@ -255,6 +255,33 @@ TEST(HoermannHcpTextSensorTest, ASecondHalfIsNeverTakenForTheWholeNumber) {
   EXPECT_EQ(door.identity_request_, 0x05);
 }
 
+// A serial number without any text at its start is not shown but logged, in one frame or in two halves. The
+// firmware version is still asked for.
+TEST(HoermannHcpTextSensorTest, SerialNumberThatIsNotTextIsLoggedNotShown) {
+  const char zeros[14] = {};
+  {
+    IdentityFixture fixture;
+    auto &door = fixture.door;
+    status_poll(door);
+    transfer(door, 0x05, SUB_SERIAL, zeros, 12);
+    EXPECT_TRUE(door.serial_unreadable_);  // kept for the log
+    EXPECT_EQ(door.identity_request_, 0x06);
+    EXPECT_EQ(fixture.serial_shown(), "");
+    EXPECT_FALSE(door.serial_unreadable_);  // logged once
+  }
+  {
+    IdentityFixture fixture;
+    auto &door = fixture.door;
+    status_poll(door);
+    transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, zeros, 14);
+    transfer(door, 0x06, SUB_SERIAL, zeros, 12);
+    EXPECT_TRUE(door.serial_unreadable_);
+    EXPECT_EQ(door.identity_request_, 0x06);
+    EXPECT_EQ(fixture.serial_shown(), "");
+    EXPECT_FALSE(door.serial_unreadable_);
+  }
+}
+
 // Nor is a firmware version too short.
 TEST(HoermannHcpTextSensorTest, ShortFirmwareVersionIsNotKept) {
   IdentityFixture fixture;
