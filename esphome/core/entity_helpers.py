@@ -476,7 +476,10 @@ async def new_sub_entity(
     *args: SafeExpType,
     **kwargs: Any,
 ) -> MockObj | None:
-    """Create the entity configured under key, if any, and pass it to setter."""
+    """Create the entity configured under key, if any, and pass it to setter.
+
+    Returns None only when key is not configured, so the result can be used directly as a condition.
+    """
     if (conf := config.get(key)) is None:
         return None
     var = await new_entity(conf, *args, **kwargs)
