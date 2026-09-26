@@ -239,9 +239,9 @@ class ApplyCall:
 
     Each arg is ``(conf_key, type_)`` or ``(conf_key, type_, const_fn)``. A ``conf_key`` may be a
     path into nested sections. A plain ``str`` ``type_`` is raw C++ type text and may use
-    ``{parent}``. ``const_fn(config, value)`` renders a constant's argument text; a lambda bypasses
-    it. The statement is skipped when none of its keys is set, always emitted when it has no
-    keys, and a partial set is a config error.
+    ``{parent}``. ``const_fn(config, value)`` renders a constant's argument text; a lambda or an
+    id bypasses it. The statement is skipped when none of its keys is set, always emitted when it
+    has no keys, and a partial set is a config error.
     """
 
     target: str
@@ -280,8 +280,8 @@ class ApplyField:
     Double a literal brace in a template. ``conf_key`` may be a path into nested sections.
     ``type_`` may be a C++ type string using ``{parent}`` when the type is only known per
     instance. ``const_fn(config, value)`` renders a constant's argument text when ``cg.safe_exp``
-    is not the right spelling (unit conversion belongs in the validator); a lambda bypasses it,
-    so the target must also take a plain ``type_``. An absent key emits nothing.
+    is not the right spelling (unit conversion belongs in the validator); a lambda or an id
+    bypasses it, so the target must also take a plain ``type_``. An absent key emits nothing.
     """
 
     conf_key: str | tuple[str, ...]
@@ -380,6 +380,9 @@ async def _render_values(
             expr = call_lambda(inner)
             bare = compare and isinstance(expr, cg.RawExpression)
             exprs.append(f"({expr})" if bare else str(expr))
+        elif isinstance(value, ID):
+            # Qualified like the parent, so a trigger arg named like the id cannot shadow it.
+            exprs.append(f"::{await cg.get_variable(value)}")
         elif const_fn is not None:
             exprs.append(const_fn(config, value))
         else:
@@ -402,6 +405,7 @@ def register_apply_action(
 
     Generates one stateless function for ``ApplyAction<Ts...>``: the parent (read from
     ``id_key``) and constants are baked in, lambdas are called inline with the trigger args.
+    A constant that is an id (``cv.use_id`` under ``cv.templatable``) is the object it names.
     With ``call`` every statement targets the call object ``auto apply_call = parent->call()``,
     and ``apply_call.perform()`` is appended.
     """

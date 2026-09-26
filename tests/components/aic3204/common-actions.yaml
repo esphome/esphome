@@ -1,0 +1,8 @@
+button:
+  - platform: template
+    name: AIC3204 Auto Mute
+    on_press:
+      - aic3204.set_auto_mute_mode: 3
+      - aic3204.set_auto_mute_mode:
+          id: aic3204_dac
+          mode: !lambda return 7;
