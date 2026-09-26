@@ -1,0 +1,2 @@
+packages:
+  mq_gas_sensors: !include common.yaml

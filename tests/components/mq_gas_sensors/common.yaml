@@ -1,0 +1,75 @@
+# MQ-8 hydrogen sensor on a pin owned by the component: the internal ADC is
+# created from `pin:`/`adc_samples`, the divider documents the 10k/20k wiring and
+# the ambient temperature/humidity sensors switch the compensation on by being
+# linked. The diagnostics and the log mirror exercise the optional entities.
+sensor:
+  - platform: mq_gas_sensors
+    id: mq8_hydrogen
+    name: MQ-8 hydrogen
+    sensor_type: MQ-8
+    gas: H2
+    pin: GPIO34
+    adc_attenuation: 12db
+    adc_samples: 4
+    divider:
+      r1: 10.0
+      r2: 20.0
+    adc_input_max: 3.34
+    rl: 10.0
+    vcc: 5.0
+    warmup_time: 30s
+    samples: 4
+    sample_interval: 20ms
+    min_ppm: 0.0
+    max_ppm: 10000.0
+    log_ppm: true
+    calibration:
+      delay: 10s
+      samples: 5
+    temperature: mq8_air_temperature
+    humidity: mq8_air_humidity
+    ratio_sensor: mq8_ratio
+    rs_sensor: mq8_rs
+    voltage_sensor: mq8_voltage
+    correction_sensor: mq8_correction
+    log_sensor: mq8_logs
+
+  - platform: template
+    id: mq8_air_temperature
+    name: Air temperature
+    accuracy_decimals: 2
+    update_interval: 60s
+
+  - platform: template
+    id: mq8_air_humidity
+    name: Air humidity
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+    update_interval: 60s
+
+  - platform: template
+    id: mq8_ratio
+    name: MQ-8 RS-R0 ratio
+    accuracy_decimals: 3
+
+  - platform: template
+    id: mq8_rs
+    name: MQ-8 RS
+    unit_of_measurement: kOhm
+    accuracy_decimals: 3
+
+  - platform: template
+    id: mq8_voltage
+    name: MQ-8 voltage
+    unit_of_measurement: V
+    accuracy_decimals: 4
+
+  - platform: template
+    id: mq8_correction
+    name: MQ-8 T-RH correction
+    accuracy_decimals: 4
+
+text_sensor:
+  - platform: template
+    id: mq8_logs
+    name: MQ-8 logs
