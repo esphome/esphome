@@ -39,7 +39,7 @@ static bool peer_to_target(APIConnection *conn, SavedOutgoingTarget &target) {
     // A dual-stack listener reports an IPv4 peer as ::ffff:a.b.c.d
     if (prefix[0] == 0 && prefix[1] == 0 && prefix[2] == htonl(0xFFFFUL)) {
       target.family = AF_INET;
-      memcpy(target.addr, bytes + sizeof(prefix), 4);
+      memcpy(target.addr, bytes + sizeof(prefix), sizeof(struct in_addr));
       return true;
     }
     target.family = AF_INET6;
@@ -52,7 +52,7 @@ static bool peer_to_target(APIConnection *conn, SavedOutgoingTarget &target) {
   }
   const auto *addr4 = reinterpret_cast<const struct sockaddr_in *>(&peer);
   target.family = AF_INET;
-  memcpy(target.addr, &addr4->sin_addr, 4);
+  memcpy(target.addr, &addr4->sin_addr, sizeof(addr4->sin_addr));
   return true;
 }
 #endif
@@ -80,7 +80,7 @@ socklen_t OutgoingConnectionManager::target_sockaddr_(struct sockaddr_storage *a
   memset(addr4, 0, sizeof(*addr4));
   addr4->sin_family = AF_INET;
   addr4->sin_port = htons(API_OUTGOING_CONNECTION_PORT);
-  memcpy(&addr4->sin_addr, this->saved_.addr, 4);
+  memcpy(&addr4->sin_addr, this->saved_.addr, sizeof(addr4->sin_addr));
   return sizeof(*addr4);
 #endif
 }

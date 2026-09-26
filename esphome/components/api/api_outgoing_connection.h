@@ -22,11 +22,14 @@ class APIConnection;
 // would also shift every preference registered after this one on ESP8266,
 // where slots are positional. An IPv6 target on a build without IPv6 is
 // dropped by target_sockaddr_() and relearned.
+// Bytes in an IPv6 address
+static constexpr size_t TARGET_ADDR_LEN = 16;
+
 struct SavedOutgoingTarget {
   // 0 when none is remembered, else AF_INET or AF_INET6
   uint8_t family;
   // Network order, IPv4 in the first four bytes and the rest zero
-  uint8_t addr[16];
+  uint8_t addr[TARGET_ADDR_LEN];
 } PACKED;  // NOLINT
 
 /// Dials out when no dial-back target client is connected. Only the TCP
