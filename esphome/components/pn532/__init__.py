@@ -20,10 +20,6 @@ CONF_PN532_ID = "pn532_id"
 pn532_ns = cg.esphome_ns.namespace("pn532")
 PN532 = pn532_ns.class_("PN532", cg.PollingComponent)
 
-PN532IsWritingCondition = pn532_ns.class_(
-    "PN532IsWritingCondition", automation.Condition
-)
-
 PN532_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(PN532),
@@ -77,12 +73,12 @@ async def setup_pn532(var: MockObj, config: ConfigType) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-automation.register_parented_condition(
+automation.register_apply_condition(
     "pn532.is_writing",
-    PN532IsWritingCondition,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(PN532),
         }
     ),
+    "is_writing()",
 )
