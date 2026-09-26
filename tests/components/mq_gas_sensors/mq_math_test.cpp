@@ -74,8 +74,7 @@ TEST(MQMathPpm, LinearRegression) {
   // MQ-131 O3.
   const float a = 0.41195f;
   const float b = -0.4708f;
-  EXPECT_NEAR(ppm_from_ratio(a, b, 1.0f, REGRESSION_LINEAR), std::pow(10.0, (std::log10(1.0) + 0.4708) / 0.41195),
-              EPS);
+  EXPECT_NEAR(ppm_from_ratio(a, b, 1.0f, REGRESSION_LINEAR), std::pow(10.0, (std::log10(1.0) + 0.4708) / 0.41195), EPS);
   EXPECT_NEAR(ppm_from_ratio(a, b, 1.0f, REGRESSION_LINEAR), 13.9, 0.1);
 }
 

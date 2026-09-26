@@ -390,9 +390,8 @@ void MQGasSensor::process_calibration_() {
   }
 
   const bool samples_done = this->calibration_attempts_ >= this->calibration_samples_;
-  const bool timed_out =
-      this->calibration_duration_ > 0 &&
-      (App.get_loop_component_start_time() - this->calibration_start_) >= this->calibration_duration_;
+  const bool timed_out = this->calibration_duration_ > 0 && (App.get_loop_component_start_time() -
+                                                             this->calibration_start_) >= this->calibration_duration_;
   if (samples_done || timed_out)
     this->finish_calibration_();
 }
