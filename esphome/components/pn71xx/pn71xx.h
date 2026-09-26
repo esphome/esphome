@@ -139,6 +139,9 @@ using CardEmuResponse = StaticVector<uint8_t, nfc::NCI_PKT_MAX_PAYLOAD_SIZE>;
 using UltralightReadBuffer = StaticVector<uint8_t, 272>;
 /// Longest NDEF message accepted from a MIFARE Classic tag (the capacity of a 4K tag)
 static constexpr uint32_t MIFARE_CLASSIC_MAX_NDEF_SIZE = 3440;
+/// Tags tracked at once. A device with a random UID looks like a new tag on every activation, but each entry
+/// expires after tag_ttl, so a handful is enough.
+static constexpr size_t MAX_DISCOVERED_ENDPOINTS = 8;
 
 struct DiscoveredEndpoint {
   uint32_t last_seen;
@@ -171,8 +174,12 @@ class PN71xx : public nfc::Nfcc, public Component {
   void set_polling_on();
   bool polling_enabled() { return this->polling_enabled_; }
 
+#ifdef PN71XX_ON_TAG_TRIGGER_COUNT
   void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
+#endif
+#ifdef PN71XX_ON_TAG_REMOVED_TRIGGER_COUNT
   void register_ontagremoved_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
+#endif
 
   template<typename F> void add_on_emulated_tag_scan_callback(F &&callback) {
     this->on_emulated_tag_scan_callback_.add(std::forward<F>(callback));
@@ -290,13 +297,17 @@ class PN71xx : public nfc::Nfcc, public Component {
   };
 
   // members are ordered by alignment, widest first, to minimize padding
-  CallbackManager<void()> on_emulated_tag_scan_callback_;
-  CallbackManager<void()> on_finished_write_callback_;
+  LazyCallbackManager<void()> on_emulated_tag_scan_callback_;
+  LazyCallbackManager<void()> on_finished_write_callback_;
 
-  std::vector<DiscoveredEndpoint> discovered_endpoint_;
+  StaticVector<DiscoveredEndpoint, MAX_DISCOVERED_ENDPOINTS> discovered_endpoint_;
   FixedVector<uint8_t> card_emulation_ndef_;  // encoded emulation message; empty when none is set
-  std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
-  std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
+#ifdef PN71XX_ON_TAG_TRIGGER_COUNT
+  StaticVector<nfc::NfcOnTagTrigger *, PN71XX_ON_TAG_TRIGGER_COUNT> triggers_ontag_;
+#endif
+#ifdef PN71XX_ON_TAG_REMOVED_TRIGGER_COUNT
+  StaticVector<nfc::NfcOnTagTrigger *, PN71XX_ON_TAG_REMOVED_TRIGGER_COUNT> triggers_ontagremoved_;
+#endif
   std::shared_ptr<nfc::NdefMessage> next_task_message_to_write_;
 
   GPIOPin *irq_pin_{nullptr};

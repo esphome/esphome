@@ -512,11 +512,15 @@ optional<size_t> PN71xx::find_or_add_tag_(const uint8_t protocol, const nfc::Nfc
     ESP_LOGVV(TAG, "Tag cache updated");
     return tag_loc;
   }
-  this->discovered_endpoint_.emplace_back(DiscoveredEndpoint{.last_seen = App.get_loop_component_start_time(),
-                                                             .tag = this->build_tag_(protocol, uid),
-                                                             .id = 0,
-                                                             .protocol = protocol,
-                                                             .trig_called = false});
+  if (this->discovered_endpoint_.size() >= this->discovered_endpoint_.capacity()) {
+    ESP_LOGV(TAG, "Tag cache full");
+    return nullopt;
+  }
+  this->discovered_endpoint_.emplace_next() = DiscoveredEndpoint{.last_seen = App.get_loop_component_start_time(),
+                                                                 .tag = this->build_tag_(protocol, uid),
+                                                                 .id = 0,
+                                                                 .protocol = protocol,
+                                                                 .trig_called = false};
   ESP_LOGVV(TAG, "Tag added to cache");
   return this->discovered_endpoint_.size() - 1;
 }
@@ -552,15 +556,21 @@ void PN71xx::purge_old_tags_() {
 
 void PN71xx::erase_tag_(const uint8_t tag_index) {
   if (tag_index < this->discovered_endpoint_.size()) {
+#ifdef PN71XX_ON_TAG_REMOVED_TRIGGER_COUNT
     for (auto *trigger : this->triggers_ontagremoved_) {
       trigger->process(this->discovered_endpoint_[tag_index].tag);
     }
+#endif
     for (auto *listener : this->tag_listeners_) {
       listener->tag_off(*this->discovered_endpoint_[tag_index].tag);
     }
     char uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
     ESP_LOGI(TAG, "Tag %s removed", nfc::format_uid_to(uid_buf, this->discovered_endpoint_[tag_index].tag->get_uid()));
-    this->discovered_endpoint_.erase(this->discovered_endpoint_.begin() + tag_index);
+    // keep the remaining entries in order; selecting_endpoint_ indexes into this list
+    for (size_t i = tag_index; i + 1 < this->discovered_endpoint_.size(); i++) {
+      this->discovered_endpoint_[i] = std::move(this->discovered_endpoint_[i + 1]);
+    }
+    this->discovered_endpoint_.resize(this->discovered_endpoint_.size() - 1);
   }
 }
 
@@ -887,9 +897,11 @@ void PN71xx::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
           } else {
             ESP_LOGW(TAG, "  No NDEF records found");
           }
+#ifdef PN71XX_ON_TAG_TRIGGER_COUNT
           for (auto *trigger : this->triggers_ontag_) {
             trigger->process(working_endpoint.tag);
           }
+#endif
           for (auto *listener : this->tag_listeners_) {
             listener->tag_on(*working_endpoint.tag);
           }
