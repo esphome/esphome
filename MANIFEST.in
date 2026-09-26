@@ -2,6 +2,7 @@ include LICENSE
 include README.md
 include requirements.txt
 recursive-include esphome *.yaml
+recursive-include esphome *.json
 recursive-include esphome *.cpp *.h *.tcc *.c
 recursive-include esphome *.py.script
 recursive-include esphome *.jinja
