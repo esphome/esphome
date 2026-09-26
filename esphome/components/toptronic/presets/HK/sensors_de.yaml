@@ -1,0 +1,936 @@
+sensor:
+  - platform: toptronic
+    name: "AF1 - Aussenf\xFChler 1"
+    device_type: HKW
+    function_group: 0
+    function_number: 0
+    datapoint: 0
+    id: HKW_0_0_0
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Normal-Raumtemperatur Heizbetrieb (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 3051
+    id: HKW_1_0_3051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Spar-Raumtemperatur Heizbetrieb (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 3053
+    id: HKW_1_0_3053
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Normal-Raumtemperatur Heizbetrieb (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 3051
+    id: HKW_1_1_3051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Spar-Raumtemperatur Heizbetrieb (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 3053
+    id: HKW_1_1_3053
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Normal-Raumtemperatur Heizbetrieb (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 3051
+    id: HKW_1_2_3051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Spar-Raumtemperatur Heizbetrieb (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 3053
+    id: HKW_1_2_3053
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Raum-Soll (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 1001
+    id: HKW_1_0_1001
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Raum-Soll (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 1001
+    id: HKW_1_1_1001
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Raum-Soll (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 1001
+    id: HKW_1_2_1001
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Solltemperatur Handbetrieb (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 7009
+    id: HKW_1_0_7009
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Solltemperatur Handbetrieb (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 7009
+    id: HKW_1_1_7009
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Solltemperatur Handbetrieb (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 7009
+    id: HKW_1_2_7009
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Vorlauf Soll Konstantanf. Heizen (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 7036
+    id: HKW_1_0_7036
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Vorlauf Soll Konstantanf. Heizen (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 7036
+    id: HKW_1_1_7036
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Vorlauf Soll Konstantanf. Heizen (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 7036
+    id: HKW_1_2_7036
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Normal-Warmwassertemperatur
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 5051
+    id: HKW_2_0_5051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Spar-Warmwassertemperatur
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 5086
+    id: HKW_2_0_5086
+    type: U8
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Warmwasser-Soll
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 1004
+    id: HKW_2_0_1004
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Warmwasser-Ist SF
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 4
+    id: HKW_2_0_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: SLP Warmwasser-Ladepumpe
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 1066
+    id: HKW_2_0_1066
+    type: U8
+  - platform: toptronic
+    name: "AF2 - Aussenf\xFChler 2"
+    device_type: HKW
+    function_group: 0
+    function_number: 0
+    datapoint: 21100
+    id: HKW_0_0_21100
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Raum-Ist (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 1
+    id: HKW_1_0_1
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Raum-Ist (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 1
+    id: HKW_1_1_1
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Raum-Ist (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 1
+    id: HKW_1_2_1
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Vorlauf-Ist (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 2
+    id: HKW_1_0_2
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Vorlauf-Ist (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 2
+    id: HKW_1_1_2
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Vorlauf-Ist (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 2
+    id: HKW_1_2_2
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: FAV Vorlauf-Solltemp.
+    device_type: HKW
+    function_group: 0
+    function_number: 0
+    datapoint: 22021
+    id: HKW_0_0_22021
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: FAV Vorlauf-Ist Temp.
+    device_type: HKW
+    function_group: 0
+    function_number: 0
+    datapoint: 21059
+    id: HKW_0_0_21059
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: AVP Pumpe
+    device_type: HKW
+    function_group: 0
+    function_number: 0
+    datapoint: 22055
+    id: HKW_0_0_22055
+    type: U8
+  - platform: toptronic
+    name: YAV Mischer
+    device_type: HKW
+    function_group: 0
+    function_number: 0
+    datapoint: 22056
+    id: HKW_0_0_22056
+    type: S8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: "R\xFCcklauf-Ist (1)"
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 3
+    id: HKW_1_0_3
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "R\xFCcklauf-Ist (2)"
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 3
+    id: HKW_1_1_3
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "R\xFCcklauf-Ist (3)"
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 3
+    id: HKW_1_2_3
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Mischer (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 1021
+    id: HKW_1_0_1021
+    type: S8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Mischer (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 1021
+    id: HKW_1_1_1021
+    type: S8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Mischer (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 1021
+    id: HKW_1_2_1021
+    type: S8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Pumpe (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 1020
+    id: HKW_1_0_1020
+    type: U8
+  - platform: toptronic
+    name: Pumpe (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 1020
+    id: HKW_1_1_1020
+    type: U8
+  - platform: toptronic
+    name: Pumpe (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 1020
+    id: HKW_1_2_1020
+    type: U8
+  - platform: toptronic
+    name: Zirkulationskreistemperatur
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 118
+    id: HKW_2_0_118
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Warmwasser-Zirkulationspumpe
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 1065
+    id: HKW_2_0_1065
+    type: U8
+  - platform: toptronic
+    name: Vorlauf-Soll (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 1002
+    id: HKW_1_0_1002
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Vorlauf-Soll (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 1002
+    id: HKW_1_1_1002
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Vorlauf-Soll (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 1002
+    id: HKW_1_2_1002
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Vorlauf Soll Konstantanf. K\xFChlen (1)"
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 7047
+    id: HKW_1_0_7047
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "Vorlauf Soll Konstantanf. K\xFChlen (2)"
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 7047
+    id: HKW_1_1_7047
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "Vorlauf Soll Konstantanf. K\xFChlen (3)"
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 7047
+    id: HKW_1_2_7047
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+text_sensor:
+  - platform: toptronic
+    name: Betriebswahl Heizung (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 3050
+    id: HKW_1_0_3050
+    options:
+      - Standby
+      - Woche 1
+      - Woche 2
+      - Konstant
+      - Sparbetrieb
+      - Handbetrieb Heizen
+      - "Handbetrieb K\xFChlen"
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Betriebswahl Heizung (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 3050
+    id: HKW_1_1_3050
+    options:
+      - Standby
+      - Woche 1
+      - Woche 2
+      - Konstant
+      - Sparbetrieb
+      - Handbetrieb Heizen
+      - "Handbetrieb K\xFChlen"
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Betriebswahl Heizung (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 3050
+    id: HKW_1_2_3050
+    options:
+      - Standby
+      - Woche 1
+      - Woche 2
+      - Konstant
+      - Sparbetrieb
+      - Handbetrieb Heizen
+      - "Handbetrieb K\xFChlen"
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Betriebswahl Warmwasser
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 5050
+    id: HKW_2_0_5050
+    options:
+      - Standby
+      - Woche 1
+      - Woche 2
+      - Konstant
+      - Sparbetrieb
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6
+  - platform: toptronic
+    name: Status Heizkreisregelung (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 2051
+    id: HKW_1_0_2051
+    options:
+      - Abgeschaltet
+      - Heizen normal
+      - Heizen Komfort
+      - Heizen Eco
+      - Frostschutz
+      - Ferien
+      - Party
+      - "K\xFChlen normal"
+      - "K\xFChlen Komfort"
+      - "K\xFChlen Eco"
+      - "ST\xD6RUNG"
+      - Handbetrieb
+      - "Schutz-K\xFChlbetrieb"
+      - "K\xFChlen extern/konstant"
+      - Heizen extern/konstant
+      - SmartGrid-Vorzug
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
+      - 13
+      - 14
+      - 22
+      - 23
+      - 26
+  - platform: toptronic
+    name: Status Heizkreisregelung (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 2051
+    id: HKW_1_1_2051
+    options:
+      - Abgeschaltet
+      - Heizen normal
+      - Heizen Komfort
+      - Heizen Eco
+      - Frostschutz
+      - Ferien
+      - Party
+      - "K\xFChlen normal"
+      - "K\xFChlen Komfort"
+      - "K\xFChlen Eco"
+      - "ST\xD6RUNG"
+      - Handbetrieb
+      - "Schutz-K\xFChlbetrieb"
+      - "K\xFChlen extern/konstant"
+      - Heizen extern/konstant
+      - SmartGrid-Vorzug
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
+      - 13
+      - 14
+      - 22
+      - 23
+      - 26
+  - platform: toptronic
+    name: Status Heizkreisregelung (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 2051
+    id: HKW_1_2_2051
+    options:
+      - Abgeschaltet
+      - Heizen normal
+      - Heizen Komfort
+      - Heizen Eco
+      - Frostschutz
+      - Ferien
+      - Party
+      - "K\xFChlen normal"
+      - "K\xFChlen Komfort"
+      - "K\xFChlen Eco"
+      - "ST\xD6RUNG"
+      - Handbetrieb
+      - "Schutz-K\xFChlbetrieb"
+      - "K\xFChlen extern/konstant"
+      - Heizen extern/konstant
+      - SmartGrid-Vorzug
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
+      - 13
+      - 14
+      - 22
+      - 23
+      - 26
+  - platform: toptronic
+    name: Status Warmwasserregelung
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 2052
+    id: HKW_2_0_2052
+    options:
+      - Aus
+      - Laden normal
+      - Laden Komfort
+      - "ST\xD6RUNG"
+      - Zapfung
+      - Laden reduziert
+      - SmartGrid-Vorzug
+      - SmartGrid-Zwang
+    values:
+      - 0
+      - 1
+      - 2
+      - 5
+      - 6
+      - 8
+      - 12
+      - 13

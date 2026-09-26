@@ -1,0 +1,11 @@
+button:
+  - platform: toptronic
+    name: Conferma manutenzione filtro
+    device_type: HV
+    function_group: 0
+    function_number: 0
+    datapoint: 21054
+    id: HV_0_0_21054_ack
+    type: U8
+    value: 7
+    icon: mdi:air-filter
