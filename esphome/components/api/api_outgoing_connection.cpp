@@ -16,16 +16,92 @@ namespace esphome::api {
 
 static const char *const TAG = "api.outgoing";
 
+#ifndef API_OUTGOING_CONNECTION_HOST
+#if USE_NETWORK_IPV6
+// A dual-stack listener reports an IPv4 peer as ::ffff:a.b.c.d
+static constexpr uint8_t V4_MAPPED_PREFIX[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF};
+#endif
+
+// Read the connection's peer address into target; false when unavailable or
+// of a family this build cannot dial
+static bool peer_to_target(APIConnection *conn, SavedOutgoingTarget &target) {
+  struct sockaddr_storage peer;
+  socklen_t peer_len = sizeof(peer);
+  if (conn->getpeername((struct sockaddr *) &peer, &peer_len) != 0) {
+    return false;
+  }
+  const sa_family_t family = ((struct sockaddr *) &peer)->sa_family;
+#if USE_NETWORK_IPV6
+  if (family == AF_INET6) {
+    const auto *addr6 = reinterpret_cast<const struct sockaddr_in6 *>(&peer);
+    const auto *bytes = reinterpret_cast<const uint8_t *>(&addr6->sin6_addr);
+    if (memcmp(bytes, V4_MAPPED_PREFIX, sizeof(V4_MAPPED_PREFIX)) == 0) {
+      target.family = AF_INET;
+      memcpy(target.addr, bytes + sizeof(V4_MAPPED_PREFIX), 4);
+      return true;
+    }
+    target.family = AF_INET6;
+    memcpy(target.addr, bytes, sizeof(target.addr));
+    return true;
+  }
+#endif
+  if (family != AF_INET) {
+    return false;
+  }
+  const auto *addr4 = reinterpret_cast<const struct sockaddr_in *>(&peer);
+  target.family = AF_INET;
+  memcpy(target.addr, &addr4->sin_addr, 4);
+  return true;
+}
+#endif
+
+socklen_t OutgoingConnectionManager::target_sockaddr_(struct sockaddr_storage *addr) const {
+#ifdef API_OUTGOING_CONNECTION_HOST
+  // Validated as an IP literal at build time, so this cannot fail
+  return socket::set_sockaddr((struct sockaddr *) addr, sizeof(*addr), API_OUTGOING_CONNECTION_HOST,
+                              API_OUTGOING_CONNECTION_PORT);
+#else
+#if USE_NETWORK_IPV6
+  if (this->saved_.family == AF_INET6) {
+    auto *addr6 = reinterpret_cast<struct sockaddr_in6 *>(addr);
+    memset(addr6, 0, sizeof(*addr6));
+    addr6->sin6_family = AF_INET6;
+    addr6->sin6_port = htons(API_OUTGOING_CONNECTION_PORT);
+    memcpy(&addr6->sin6_addr, this->saved_.addr, sizeof(this->saved_.addr));
+    return sizeof(*addr6);
+  }
+#endif
+  if (this->saved_.family != AF_INET) {
+    return 0;
+  }
+  auto *addr4 = reinterpret_cast<struct sockaddr_in *>(addr);
+  memset(addr4, 0, sizeof(*addr4));
+  addr4->sin_family = AF_INET;
+  addr4->sin_port = htons(API_OUTGOING_CONNECTION_PORT);
+  memcpy(&addr4->sin_addr, this->saved_.addr, 4);
+  return sizeof(*addr4);
+#endif
+}
+
+void OutgoingConnectionManager::format_target_(std::span<char, socket::SOCKADDR_STR_LEN> buf) const {
+  struct sockaddr_storage addr;
+  socklen_t addr_len = this->target_sockaddr_(&addr);
+  if (addr_len == 0 || socket::format_sockaddr_to((struct sockaddr *) &addr, addr_len, buf) == 0) {
+    buf[0] = '\0';
+  }
+}
+
 void OutgoingConnectionManager::setup() {
 #ifndef API_OUTGOING_CONNECTION_HOST
   this->target_pref_ = global_preferences->make_preference<SavedOutgoingTarget>(629847102UL, true);
-  if (this->target_pref_.load(&this->saved_)) {
-    // Defend against a corrupt or truncated blob before the first read
-    this->saved_.host[sizeof(this->saved_.host) - 1] = '\0';
+  struct sockaddr_storage addr;
+  if (this->target_pref_.load(&this->saved_) && this->target_sockaddr_(&addr) != 0) {
     this->host_persisted_ = true;
-    ESP_LOGD(TAG, "Loaded target %s", this->saved_.host);
+    char host[socket::SOCKADDR_STR_LEN];
+    this->format_target_(host);
+    ESP_LOGD(TAG, "Loaded target %s", host);
   } else {
-    // Never saved, or the blob failed its size/CRC check
+    // Never saved, failed its size or CRC check, or holds an unknown family
     ESP_LOGD(TAG, "No saved target");
     this->saved_ = {};
   }
@@ -70,8 +146,9 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
     this->schedule_wait_(now, NETWORK_RETRY_MS);
     return;
   }
-  const char *host = this->target_host_();
-  if (host == nullptr) {
+  struct sockaddr_storage addr;
+  socklen_t addr_len = this->target_sockaddr_(&addr);
+  if (addr_len == 0) {
     // The steady state until a dial-back client has ever connected
     ESP_LOGV(TAG, "Not dialing: no target");
     this->schedule_wait_(now, PRECONDITION_RETRY_MS);
@@ -84,22 +161,6 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
     this->schedule_wait_(now, PRECONDITION_RETRY_MS);
     return;
   }
-  struct sockaddr_storage addr;
-  socklen_t addr_len =
-      socket::set_sockaddr((struct sockaddr *) &addr, sizeof(addr), host, API_OUTGOING_CONNECTION_PORT);
-  if (addr_len == 0) {
-    ESP_LOGW(TAG, "Invalid target %s", host);
-#ifndef API_OUTGOING_CONNECTION_HOST
-    // A corrupt remembered value can never become dialable; forget it
-    // (covers an IPv6 literal left by an earlier enable_ipv6 build too)
-    this->saved_ = {};
-    if (!this->persist_target_()) {
-      ESP_LOGW(TAG, "Failed to clear target");
-    }
-#endif
-    this->schedule_retry_(now);
-    return;
-  }
   this->dial_socket_ = socket::socket_loop_monitored(((struct sockaddr *) &addr)->sa_family, SOCK_STREAM, IPPROTO_TCP);
   if (!this->dial_socket_ || this->dial_socket_->setblocking(false) != 0) {
     ESP_LOGW(TAG, "Socket %s failed: errno %d",
@@ -107,6 +168,8 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
     this->schedule_retry_(now);
     return;
   }
+  char host[socket::SOCKADDR_STR_LEN];
+  this->format_target_(host);
   ESP_LOGD(TAG, "Dialing %s:%u", host, API_OUTGOING_CONNECTION_PORT);
   int err = this->dial_socket_->connect((struct sockaddr *) &addr, addr_len);
   if (err == 0) {
@@ -200,12 +263,11 @@ void OutgoingConnectionManager::on_target_client(APIConnection *conn) {
   this->backoff_ = BACKOFF_MIN_MS;
 #ifndef API_OUTGOING_CONNECTION_HOST
   SavedOutgoingTarget target{};
-  conn->get_peername_to(target.host);
-  if (target.host[0] == '\0') {
+  if (!peer_to_target(conn, target)) {
     ESP_LOGW(TAG, "Could not read peer address; not remembering target");
     return;
   }
-  if (this->host_persisted_ && strcmp(target.host, this->saved_.host) == 0) {
+  if (this->host_persisted_ && memcmp(&target, &this->saved_, sizeof(target)) == 0) {
     return;  // unchanged and already on flash; avoid flash wear
   }
   // Use the fresh address this boot even if the flash write fails; a failed
@@ -215,15 +277,16 @@ void OutgoingConnectionManager::on_target_client(APIConnection *conn) {
     ESP_LOGW(TAG, "Failed to save target");
     return;
   }
-  ESP_LOGD(TAG, "Saved %s as outgoing connection target", this->saved_.host);
+  char host[socket::SOCKADDR_STR_LEN];
+  this->format_target_(host);
+  ESP_LOGD(TAG, "Saved %s as outgoing connection target", host);
 #endif
 }
 
 void OutgoingConnectionManager::dump_config() const {
-  const char *host = this->target_host_();
-  if (host == nullptr) {
-    host = "none remembered yet";
-  }
+  char buf[socket::SOCKADDR_STR_LEN];
+  this->format_target_(buf);
+  const char *host = buf[0] != '\0' ? buf : "none remembered yet";
   // The boot delay differs from delay: on deep sleep builds, so print the
   // value that actually applies
   ESP_LOGCONFIG(TAG,

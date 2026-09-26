@@ -17,15 +17,19 @@ namespace esphome::api {
 class APIServer;
 class APIConnection;
 
-// Follows the build's address family (ifdef'd in socket/headers.h): toggling
-// enable_ipv6 changes the blob size, load() rejects the old blob, and the
-// target is simply relearned
-static constexpr size_t SAVED_TARGET_HOST_LEN = socket::SOCKADDR_STR_LEN;
+// Follows the build's address family: toggling enable_ipv6 changes the blob
+// size, load() rejects the old blob, and the target is simply relearned
+#if USE_NETWORK_IPV6
+static constexpr size_t SAVED_TARGET_ADDR_LEN = 16;
+#else
+static constexpr size_t SAVED_TARGET_ADDR_LEN = 4;
+#endif
 
 struct SavedOutgoingTarget {
-  // IP as text so the socket component's v4-mapped-IPv6 normalization is
-  // reused on both ends; empty = none remembered
-  char host[SAVED_TARGET_HOST_LEN];
+  // 0 when none is remembered, else AF_INET or AF_INET6
+  uint8_t family;
+  // Network order, IPv4 in the first four bytes
+  uint8_t addr[SAVED_TARGET_ADDR_LEN];
 } PACKED;  // NOLINT
 
 /// Dials out when no dial-back target client is connected. Only the TCP
@@ -78,13 +82,10 @@ class OutgoingConnectionManager {
     return this->host_persisted_;
   }
 #endif
-  const char *target_host_() const {
-#ifdef API_OUTGOING_CONNECTION_HOST
-    return API_OUTGOING_CONNECTION_HOST;
-#else
-    return this->saved_.host[0] != '\0' ? this->saved_.host : nullptr;
-#endif
-  }
+  /// Fill addr with the target and return its length, or 0 when there is none
+  socklen_t target_sockaddr_(struct sockaddr_storage *addr) const;
+  /// Format the target for a log line; empty when there is none
+  void format_target_(std::span<char, socket::SOCKADDR_STR_LEN> buf) const;
 
   // Pointers first (4 bytes each on 32-bit)
   std::unique_ptr<socket::Socket> dial_socket_;
