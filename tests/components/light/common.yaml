@@ -85,6 +85,9 @@ esphome:
           red: 100%
           green: 100%
           blue: 1.0
+      - light.turn_on:
+          id: test_rgb_light
+          color: Tomato
       - light.control:
           id: test_monochromatic_light
           state: on

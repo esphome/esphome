@@ -1,8 +1,10 @@
 from collections.abc import Callable
+import logging
 from typing import Any, NamedTuple
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const.css_colors import CSS_COLORS
 from esphome.config import path_context
 import esphome.config_validation as cv
 from esphome.const import (
@@ -10,6 +12,7 @@ from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_BRIGHTNESS_LIMITS,
     CONF_COLD_WHITE,
+    CONF_COLOR,
     CONF_COLOR_BRIGHTNESS,
     CONF_COLOR_MODE,
     CONF_COLOR_TEMPERATURE,
@@ -45,6 +48,8 @@ from .types import (
     LightState,
     ToggleAction,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 CONF_INCLUDE_NONE = "include_none"
 
@@ -141,6 +146,35 @@ LIGHT_STATE_FIELDS: tuple[LightStateField, ...] = (
     ),
 )
 
+COLOR_NAME_SCHEMA = {cv.Optional(CONF_COLOR): cv.one_of(*CSS_COLORS, lower=True)}
+
+
+def color_name_to_rgb(config: ConfigType) -> ConfigType:
+    """Replace a `color` CSS name with the equivalent red, green and blue values.
+
+    The light scales its color so the brightest channel is at full level, so a dark
+    color is given as a full-level color plus a color brightness.
+    """
+    if (name := config.pop(CONF_COLOR, None)) is None:
+        return config
+    if any(key in config for key in (CONF_RED, CONF_GREEN, CONF_BLUE)):
+        raise cv.Invalid(
+            f"'{CONF_COLOR}' cannot be used with '{CONF_RED}', '{CONF_GREEN}' or '{CONF_BLUE}'"
+        )
+    rgb = CSS_COLORS[name]
+    channels = (rgb >> 16 & 0xFF, rgb >> 8 & 0xFF, rgb & 0xFF)
+    peak = max(channels)
+    if CONF_COLOR_BRIGHTNESS not in config:
+        config[CONF_COLOR_BRIGHTNESS] = peak / 255
+    elif peak < 0xFF:
+        _LOGGER.warning(
+            "'%s' overrides the brightness of color '%s'", CONF_COLOR_BRIGHTNESS, name
+        )
+    for key, value in zip((CONF_RED, CONF_GREEN, CONF_BLUE), channels, strict=True):
+        config[key] = value / peak if peak else 0.0
+    return config
+
+
 LIGHT_STATE_SCHEMA = cv.Schema(
     {
         cv.Optional(field.conf_key): (
@@ -148,7 +182,8 @@ LIGHT_STATE_SCHEMA = cv.Schema(
         )
         for field in LIGHT_STATE_FIELDS
     }
-)
+).extend(COLOR_NAME_SCHEMA)
+LIGHT_STATE_SCHEMA.add_extra(color_name_to_rgb)
 
 LIGHT_CONTROL_ACTION_SCHEMA = LIGHT_STATE_SCHEMA.extend(
     {
@@ -405,7 +440,8 @@ LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_BLUE): cv.templatable(cv.percentage),
         cv.Optional(CONF_WHITE): cv.templatable(cv.percentage),
     }
-)
+).extend(COLOR_NAME_SCHEMA)
+LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA.add_extra(color_name_to_rgb)
 
 
 @automation.register_action(
