@@ -31,6 +31,7 @@ from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
+    CONF_BUILD_FLAGS,
     CONF_ESPHOME,
     CONF_GROUP,
     CONF_ID,
@@ -169,11 +170,15 @@ def generate_lv_conf_h():
     all_defines = set(
         df.LV_DEFINES + tuple(f"LV_USE_{w.upper()}" for w in WIDGET_TYPES)
     )
-    build_flags = (
-        CORE.config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS).get("build_flags", [])
+    esphome_config = CORE.config[CONF_ESPHOME]
+    # User build flags come from esphome->build_flags and from the deprecated
+    # esphome->platformio_options->build_flags (a string or a list).
+    pio_build_flags = esphome_config.get(CONF_PLATFORMIO_OPTIONS, {}).get(
+        CONF_BUILD_FLAGS, []
     )
-    if not isinstance(build_flags, list):
-        build_flags = [build_flags]
+    if not isinstance(pio_build_flags, list):
+        pio_build_flags = [pio_build_flags]
+    build_flags = [*esphome_config.get(CONF_BUILD_FLAGS, []), *pio_build_flags]
     # Extract define names from build flags like '-DLV_USE_CHART=1', '-D LV_USE_CHART',
     # or multiple defines in one string.
     define_pattern = r'-D\s*([A-Z_][A-Z0-9_]*)(?:=[^\s\'"\]]*)?'
