@@ -11,6 +11,7 @@
 #endif
 #include "api_pb2.h"
 #include "api_pb2_service.h"
+#include "api_outgoing_connection.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
@@ -90,6 +91,10 @@ class APIServer final : public Component
   void set_noise_psk(const uint8_t *psk) { this->noise_ctx_.set_psk(psk); }
   noise::NoiseContext &get_noise_ctx() { return this->noise_ctx_; }
 #endif  // USE_API_NOISE
+#ifdef USE_API_OUTGOING_CONNECTION
+  // Called by APIConnection when a client declares itself a dial-back target in its hello
+  void on_outgoing_target_client(APIConnection *conn);
+#endif
 
   void handle_disconnect(APIConnection *conn);
 #ifdef USE_BINARY_SENSOR
@@ -267,6 +272,16 @@ class APIServer final : public Component
  protected:
   // Accept incoming socket connections. Only called when socket has pending connections.
   void __attribute__((noinline)) accept_new_connections_();
+  /// Takes the socket into a new connection and starts it; callers must have
+  /// checked at_client_limit_() first
+  APIConnection *add_client_(std::unique_ptr<socket::Socket> sock);
+  bool at_client_limit_() const { return this->api_connection_count_ >= MAX_API_CONNECTIONS; }
+#ifdef USE_API_OUTGOING_CONNECTION
+  // Returns the new connection, or nullptr (socket dropped) when at the limit
+  APIConnection *add_outgoing_client_(std::unique_ptr<socket::Socket> sock);
+  bool has_outgoing_target_client_() const { return this->outgoing_target_count_ != 0; }
+  friend class OutgoingConnectionManager;
+#endif
   // Remove a disconnected client by index. Swaps with the last populated slot and resets it.
   void __attribute__((noinline)) remove_client_(uint8_t client_index);
 
@@ -307,6 +322,8 @@ class APIServer final : public Component
     delete this->socket_;
     this->socket_ = nullptr;
   }
+  /// Log the failure, drop the listen socket, and mark the component failed
+  /// unless this build can still dial out
   void socket_failed_(const LogString *msg);
   // Pointers and pointer-like types first (4 bytes each)
   socket::ListenSocket *socket_{nullptr};
@@ -362,6 +379,10 @@ class APIServer final : public Component
   uint8_t listen_backlog_{4};
   bool shutting_down_ = false;
   uint8_t api_connection_count_{0};
+#ifdef USE_API_OUTGOING_CONNECTION
+  // Connected clients whose hello declared them a dial-back target
+  uint8_t outgoing_target_count_{0};
+#endif
 #if defined(USE_PROVISIONING) && defined(USE_API_NOISE)
   // Index assigned by the provisioning manager for reporting this transport's state.
   uint8_t provisioning_source_{0};
@@ -374,6 +395,9 @@ class APIServer final : public Component
 #endif
   ESPPreferenceObject noise_pref_;
 #endif  // USE_API_NOISE
+#ifdef USE_API_OUTGOING_CONNECTION
+  OutgoingConnectionManager outgoing_conn_;
+#endif
 };
 
 extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

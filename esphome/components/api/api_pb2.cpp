@@ -20,6 +20,11 @@ void HelloRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, p
     case proto_tag(3, WIRE_TYPE_VARINT):
       msg.api_version_minor = value.as_varint();
       break;
+#ifdef USE_API_OUTGOING_CONNECTION
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.outgoing_connection_target = value.as_bool();
+      break;
+#endif
   }
 }
 uint8_t *HelloResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
@@ -177,6 +182,9 @@ uint8_t *DeviceInfoResponse::encode_msg(const void *self, ProtoWriteBuffer &buff
 #ifdef USE_API_NOISE
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.api_encryption_provisionable);
 #endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 27, msg.api_outgoing_connection_supported);
+#endif
   return pos;
 }
 uint32_t DeviceInfoResponse::calc_size_msg(const void *self) {
@@ -242,6 +250,9 @@ uint32_t DeviceInfoResponse::calc_size_msg(const void *self) {
 #endif
 #ifdef USE_API_NOISE
   size += ProtoSize::calc_bool(2, msg.api_encryption_provisionable);
+#endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  size += ProtoSize::calc_bool(2, msg.api_outgoing_connection_supported);
 #endif
   return size;
 }

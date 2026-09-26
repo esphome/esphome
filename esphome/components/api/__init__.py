@@ -1,3 +1,4 @@
+from ipaddress import IPv4Address, IPv6Address
 import logging
 import re
 from typing import Any
@@ -5,7 +6,7 @@ from typing import Any
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
-from esphome.components.const import CONF_DESCRIPTION
+from esphome.components.const import CONF_DESCRIPTION, CONF_HOST
 from esphome.components.logger import request_log_listener
 
 # ENCRYPTION_SCHEMA and validate_encryption_key are re-exported for external
@@ -25,6 +26,8 @@ from esphome.const import (
     CONF_CAPTURE_RESPONSE,
     CONF_DATA,
     CONF_DATA_TEMPLATE,
+    CONF_DELAY,
+    CONF_ENABLE_IPV6,
     CONF_ENCRYPTION,
     CONF_EVENT,
     CONF_ID,
@@ -48,7 +51,9 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.helpers import fnv1_hash
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigFragmentType, ConfigType
 
 # Compat alias: downstream consumers (e.g. device-builder) referenced the
@@ -134,6 +139,7 @@ CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
 CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
 CONF_MAX_SEND_QUEUE = "max_send_queue"
+CONF_OUTGOING_CONNECTION = "outgoing_connection"
 CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
 
 # Schema defaults that also match the C++ initializers in api_server.h; codegen
@@ -291,7 +297,70 @@ def _consume_api_sockets(config: ConfigType) -> ConfigType:
     # (not max_connections, which is the upper limit rarely reached)
     socket.consume_sockets(3, "api")(config)
     socket.consume_sockets(1, "api", socket.SocketType.TCP_LISTEN)(config)
+    if CONF_OUTGOING_CONNECTION in config:
+        socket.consume_sockets(1, "api_outgoing_connection")(config)
     return config
+
+
+def _validate_outgoing_connection(config: ConfigType) -> ConfigType:
+    if (outgoing := config.get(CONF_OUTGOING_CONNECTION)) is None:
+        return config
+    if CONF_ENCRYPTION not in config:
+        raise cv.Invalid(
+            "outgoing_connection requires 'encryption' so the peer is verified by key",
+            path=[CONF_OUTGOING_CONNECTION],
+        )
+    # A device with no client reboots once reboot_timeout passes, so a delay that
+    # reaches it would reboot the device before it ever dials
+    reboot_timeout = config[CONF_REBOOT_TIMEOUT]
+    delay = outgoing[CONF_DELAY]
+    if reboot_timeout.total_milliseconds and delay >= reboot_timeout:
+        raise cv.Invalid(
+            f"delay must be shorter than reboot_timeout ({reboot_timeout}), "
+            "otherwise the device reboots before it dials",
+            path=[CONF_OUTGOING_CONNECTION, CONF_DELAY],
+        )
+    return config
+
+
+def _validate_outgoing_host(value: str) -> IPv4Address | IPv6Address:
+    """Only accept an address the device itself can parse.
+
+    Python accepts a scope id, which neither `inet_pton` nor lwIP's `inet6_aton`
+    takes, and a v4-mapped address is dialed as plain IPv4, needing no IPv6 build.
+    """
+    address = cv.ipaddress(value)
+    if isinstance(address, IPv6Address):
+        if address.scope_id is not None:
+            raise cv.Invalid(
+                f"{value} carries a scope id, which the device cannot parse; "
+                "give the address without the '%' part"
+            )
+        if (mapped := address.ipv4_mapped) is not None:
+            return mapped
+    return address
+
+
+_OUTGOING_CONNECTION_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_HOST): _validate_outgoing_host,
+        cv.Optional(CONF_PORT, default=6054): cv.port,
+        # Bounded against reboot_timeout in _validate_outgoing_connection
+        cv.Optional(CONF_DELAY, default="60s"): cv.positive_time_period_milliseconds,
+    }
+)
+
+
+@schema_extractor("schema")
+def _outgoing_connection_schema(config: ConfigType | None) -> ConfigType:
+    # A bare `outgoing_connection:` block is valid; without a host the device
+    # dials the remembered last dial-back client
+    if config is SCHEMA_EXTRACT:
+        # Let the language-schema dumper walk host, port and delay
+        return _OUTGOING_CONNECTION_SCHEMA
+    if config is None:
+        config = {}
+    return _OUTGOING_CONNECTION_SCHEMA(config)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -318,6 +387,7 @@ CONFIG_SCHEMA = cv.All(
             ): ACTIONS_SCHEMA,
             cv.Exclusive(CONF_ACTIONS, group_of_exclusion=CONF_ACTIONS): ACTIONS_SCHEMA,
             cv.Optional(CONF_ENCRYPTION): encryption_schema,
+            cv.Optional(CONF_OUTGOING_CONNECTION): _outgoing_connection_schema,
             cv.Optional(CONF_BATCH_DELAY, default=DEFAULT_BATCH_DELAY): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
@@ -373,6 +443,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
+    _validate_outgoing_connection,
     _consume_api_sockets,
     _register_provisioning_source,
 )
@@ -429,7 +500,28 @@ def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _validate_esp8266_action_strings
+def _validate_outgoing_host_ipv6(config: ConfigType) -> ConfigType:
+    """An IPv6 host can never be parsed, so never dialed, without IPv6."""
+    if (
+        (outgoing := config.get(CONF_OUTGOING_CONNECTION)) is None
+        or (host := outgoing.get(CONF_HOST)) is None
+        or host.version != 6
+    ):
+        return config
+    network_conf = fv.full_config.get().get("network") or {}
+    if not network_conf.get(CONF_ENABLE_IPV6):
+        raise cv.Invalid(
+            "outgoing_connection host is an IPv6 address but IPv6 is not "
+            "enabled; set 'network: enable_ipv6: true'",
+            path=[CONF_OUTGOING_CONNECTION, CONF_HOST],
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    _validate_esp8266_action_strings,
+    _validate_outgoing_host_ipv6,
+)
 
 
 def _add_action_strings(
@@ -615,6 +707,13 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_API_NOISE")
     else:
         cg.add_define("USE_API_PLAINTEXT")
+
+    if (outgoing := config.get(CONF_OUTGOING_CONNECTION)) is not None:
+        cg.add_define("USE_API_OUTGOING_CONNECTION")
+        if (host := outgoing.get(CONF_HOST)) is not None:
+            cg.add_define("API_OUTGOING_CONNECTION_HOST", str(host))
+        cg.add_define("API_OUTGOING_CONNECTION_PORT", outgoing[CONF_PORT])
+        cg.add_define("API_OUTGOING_CONNECTION_DELAY", outgoing[CONF_DELAY])
 
     cg.add_define("USE_API")
     cg.add_global(api_ns.using)
@@ -1002,6 +1101,7 @@ _define_filter = filter_source_files_from_defines(
         "user_services.cpp": "USE_API_USER_DEFINED_ACTIONS",
         "api_frame_helper_noise.cpp": "USE_API_NOISE",
         "api_frame_helper_plaintext.cpp": "USE_API_PLAINTEXT",
+        "api_outgoing_connection.cpp": "USE_API_OUTGOING_CONNECTION",
     }
 )
 
