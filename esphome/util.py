@@ -346,6 +346,10 @@ def run_external_command(
     return retval
 
 
+# How a command starts another esphome, as a child of this one
+ESPHOME_COMMAND = [sys.executable, "-m", "esphome"]
+
+
 def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
     # Deferred: an OTA upload/logs run never spawns an external process.
     import subprocess

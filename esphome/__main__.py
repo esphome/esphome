@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, Protocol
 # in the built-in version being used instead of the external component one.
 from esphome import const, platform_hooks
 from esphome.const import (
-    ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
     BUNDLE_EXTENSION,
     CONF_API,
@@ -35,7 +34,6 @@ from esphome.const import (
     CONF_LOGGER,
     CONF_MDNS,
     CONF_MQTT,
-    CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
     CONF_OTA,
     CONF_PASSWORD,
@@ -61,6 +59,7 @@ from esphome.stacktrace import LogLineProcessor
 from esphome.types import ConfigType
 from esphome.upload_targets import PortType, get_port_type
 from esphome.util import (
+    ESPHOME_COMMAND,
     PICOTOOL_PACKAGE,
     FlashImage,
     detect_rp2040_bootsel,
@@ -84,7 +83,6 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-ESPHOME_COMMAND = [sys.executable, "-m", "esphome"]
 
 # Maximum buffer size for serial log reading to prevent unbounded memory growth
 SERIAL_BUFFER_MAX_SIZE = 65536
@@ -2085,155 +2083,9 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
 
 
 def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
-    from esphome import yaml_util
+    from esphome.cli.rename import command_rename as run
 
-    new_name = args.name
-    for c in new_name:
-        if c not in ALLOWED_NAME_CHARS:
-            safe_print(
-                color(
-                    AnsiFore.BOLD_RED,
-                    f"'{c}' is an invalid character for names. Valid characters are: "
-                    f"{ALLOWED_NAME_CHARS} (lowercase, no spaces)",
-                )
-            )
-            return 1
-    # Load existing yaml file
-    raw_contents = CORE.config_path.read_text(encoding="utf-8")
-
-    yaml = yaml_util.load_yaml(CORE.config_path)
-    if CONF_ESPHOME not in yaml or CONF_NAME not in yaml[CONF_ESPHOME]:
-        safe_print(
-            color(
-                AnsiFore.BOLD_RED, "Complex YAML files cannot be automatically renamed."
-            )
-        )
-        return 1
-    old_name = yaml[CONF_ESPHOME][CONF_NAME]
-    match = re.match(r"^\$\{?([a-zA-Z0-9_]+)\}?$", old_name)
-    if match is None:
-        # Only swap the ``name:`` line that sits directly under the
-        # top-level ``esphome:`` block. A naked ``re.sub`` would
-        # also clobber any other ``name:`` line whose value happens
-        # to match (e.g. a sensor / output / wifi entry sharing the
-        # device's hostname), silently rewriting unrelated user
-        # configuration. The pattern anchors:
-        # - at the start of the line so ``friendly_name:``,
-        #   ``device_name:`` etc. don't match the trailing ``name:``
-        #   substring; and
-        # - at the end of the value (lookahead for whitespace +
-        #   comment + EOL) so ``old_name`` doesn't match as a
-        #   prefix of a longer value (``kitchen`` vs ``kitchen2``).
-        name_pattern = re.compile(
-            rf"^(\s*)name:\s+[\"']?{re.escape(old_name)}[\"']?(?=\s*(?:#|$))"
-        )
-        out_lines: list[str] = []
-        in_esphome_block = False
-        for line in raw_contents.splitlines(keepends=True):
-            if line and not line[0].isspace() and line.strip():
-                in_esphome_block = line.lstrip().startswith("esphome:")
-                out_lines.append(line)
-                continue
-            if in_esphome_block:
-                line = name_pattern.sub(rf'\1name: "{new_name}"', line, count=1)
-            out_lines.append(line)
-        new_raw = "".join(out_lines)
-    else:
-        old_name = yaml[CONF_SUBSTITUTIONS][match.group(1)]
-        if (
-            len(
-                re.findall(
-                    rf"^\s+{match.group(1)}:\s+[\"']?{old_name}[\"']?",
-                    raw_contents,
-                    flags=re.MULTILINE,
-                )
-            )
-            > 1
-        ):
-            safe_print(
-                color(AnsiFore.BOLD_RED, "Too many matches in YAML to safely rename")
-            )
-            return 1
-
-        new_raw = re.sub(
-            rf"^(\s+{match.group(1)}):\s+[\"']?{old_name}[\"']?",
-            f'\\1: "{new_name}"',
-            raw_contents,
-            flags=re.MULTILINE,
-        )
-
-    # ``new_name == old_name`` (after substitution resolution) is
-    # a no-op rewrite that would still queue a pointless re-flash.
-    # Catch it before the path-equality check below — covers the
-    # case where the config filename doesn't match the device name
-    # (e.g. ``weird-file.yaml`` whose ``esphome.name`` is
-    # ``kitchen``; running ``esphome rename weird-file.yaml kitchen``
-    # would otherwise just re-flash the same hostname).
-    if new_name == old_name:
-        safe_print(
-            color(
-                AnsiFore.BOLD_RED,
-                f"'{new_name}' is already the device's name.",
-            )
-        )
-        return 1
-
-    new_path: Path = CORE.config_dir / (new_name + ".yaml")
-    if new_path.resolve() == CORE.config_path.resolve():
-        safe_print(
-            color(
-                AnsiFore.BOLD_RED,
-                f"'{new_name}' is already the device's name.",
-            )
-        )
-        return 1
-    if new_path.exists():
-        safe_print(
-            color(
-                AnsiFore.BOLD_RED,
-                f"Cannot rename: {new_path} already exists. "
-                "Refusing to overwrite an existing configuration.",
-            )
-        )
-        return 1
-    safe_print(
-        f"Updating {color(AnsiFore.CYAN, str(CORE.config_path))} to {color(AnsiFore.CYAN, str(new_path))}"
-    )
-    print()
-
-    new_path.write_text(new_raw, encoding="utf-8")
-
-    rc = run_external_process(*ESPHOME_COMMAND, "config", str(new_path))
-    if rc != 0:
-        safe_print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
-        new_path.unlink()
-        return 1
-
-    cli_args = [
-        "run",
-        str(new_path),
-        "--no-logs",
-        "--device",
-        CORE.address,
-    ]
-
-    if args.dashboard:
-        cli_args.insert(0, "--dashboard")
-
-    try:
-        rc = run_external_process(*ESPHOME_COMMAND, *cli_args)
-    except KeyboardInterrupt:
-        rc = 1
-    if rc != 0:
-        new_path.unlink()
-        return 1
-
-    if CORE.config_path != new_path:
-        CORE.config_path.unlink()
-
-    safe_print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
-    print()
-    return 0
+    return run(args, config)
 
 
 PRE_CONFIG_ACTIONS = {
