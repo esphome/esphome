@@ -133,6 +133,9 @@ def get_build_paths() -> dict:
     env_path = _get_python_env_path(version)
     return {
         "python_executable": get_python_env_executable_path(env_path, "python"),
+        "codechecker_executable": get_python_env_executable_path(
+            env_path, "CodeChecker"
+        ),
         "framework_path": _get_framework_path(version),
     }
 
