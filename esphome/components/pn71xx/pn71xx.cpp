@@ -80,7 +80,7 @@ void PN71xx::set_tag_emulation_off() {
 }
 
 void PN71xx::set_tag_emulation_on() {
-  if (this->card_emulation_ndef_.size() == 0) {
+  if (this->card_emulation_ndef_.empty()) {
     ESP_LOGE(TAG, "No NDEF message is set; tag emulation cannot be enabled");
     return;
   }
@@ -514,7 +514,7 @@ size_t PN71xx::find_or_add_tag_(const uint8_t protocol, const nfc::NfcTagUid &ui
     ESP_LOGVV(TAG, "Tag cache updated");
     return tag_loc.value();
   }
-  if (this->discovered_endpoint_.size() >= this->discovered_endpoint_.capacity()) {
+  if (this->discovered_endpoint_.size() >= MAX_DISCOVERED_ENDPOINTS) {
     size_t oldest = 0;
     for (size_t i = 1; i < this->discovered_endpoint_.size(); i++) {
       if (this->discovered_endpoint_[i].last_seen < this->discovered_endpoint_[oldest].last_seen) {
@@ -1006,7 +1006,7 @@ bool PN71xx::card_emu_t4t_read_ndef_(const uint16_t offset, const uint8_t length
   const uint32_t file_size = ndef_msg_size + 2;
   // the reply must also hold the two status bytes; the CC's MLe keeps well-behaved readers below this
   if (offset + static_cast<uint32_t>(length) > file_size ||
-      length + sizeof(CARD_EMU_T4T_OK) > ndef_response.capacity()) {
+      length + sizeof(CARD_EMU_T4T_OK) > CardEmuResponse::capacity()) {
     return false;
   }
   for (uint32_t i = offset; i < offset + static_cast<uint32_t>(length); i++) {
@@ -1027,7 +1027,7 @@ bool PN71xx::card_emu_t4t_read_ndef_(const uint16_t offset, const uint8_t length
 
 void PN71xx::card_emu_t4t_get_response_(const std::span<const uint8_t> response, CardEmuResponse &ndef_response) {
   ndef_response.clear();
-  if (this->card_emulation_ndef_.size() == 0) {
+  if (this->card_emulation_ndef_.empty()) {
     ESP_LOGE(TAG, "No NDEF message is set; tag emulation not possible");
     return;
   }
