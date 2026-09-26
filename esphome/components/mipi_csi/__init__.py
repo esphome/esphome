@@ -103,8 +103,8 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_FRAME_BUFFER_COUNT, default=2): cv.int_range(min=1, max=3),
             cv.Optional(CONF_INIT_LDO, default=True): cv.boolean,
-            cv.Optional(CONF_HORIZONTAL_FLIP, default=False): cv.boolean,
-            cv.Optional(CONF_VERTICAL_FLIP, default=False): cv.boolean,
+            cv.Optional(CONF_HORIZONTAL_FLIP): cv.boolean,
+            cv.Optional(CONF_VERTICAL_FLIP): cv.boolean,
             cv.GenerateID(CONF_I2C_ID): cv.use_id(i2c.InternalI2CBus),
             cv.Required(CONF_SCCB_FREQUENCY): cv.All(
                 cv.frequency, cv.Range(min=10000, max=1000000)
