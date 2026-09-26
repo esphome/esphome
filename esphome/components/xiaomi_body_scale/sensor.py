@@ -25,9 +25,9 @@ CONF_STABILIZED = "stabilized"
 
 AUTO_LOAD = ["ble_device_base", "binary_sensor"]
 
-xiaomi_body_scale_s400_ns = cg.esphome_ns.namespace("xiaomi_body_scale_s400")
-XiaomiBodyScaleS400 = xiaomi_body_scale_s400_ns.class_(
-    "XiaomiBodyScaleS400", ble_device_base.ESPBTDeviceListener, cg.Component
+xiaomi_body_scale_ns = cg.esphome_ns.namespace("xiaomi_body_scale")
+XiaomiBodyScale = xiaomi_body_scale_ns.class_(
+    "XiaomiBodyScale", ble_device_base.ESPBTDeviceListener, cg.Component
 )
 
 IMPEDANCE_SCHEMA = sensor.sensor_schema(
@@ -40,12 +40,12 @@ IMPEDANCE_SCHEMA = sensor.sensor_schema(
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(XiaomiBodyScaleS400),
+            cv.GenerateID(): cv.declare_id(XiaomiBodyScale),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Required(CONF_BINDKEY): cv.bind_key,
             cv.Optional(CONF_WEIGHT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOGRAM,
-                accuracy_decimals=1,
+                accuracy_decimals=2,
                 device_class=DEVICE_CLASS_WEIGHT,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),

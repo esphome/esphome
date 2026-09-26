@@ -1,12 +1,12 @@
 #pragma once
 
-#include "esphome/components/xiaomi_body_scale_s400/xiaomi_body_scale_s400.h"
+#include "esphome/components/xiaomi_body_scale/xiaomi_body_scale.h"
 #include "esphome/core/application.h"
 
 #include <array>
 #include <vector>
 
-namespace esphome::xiaomi_body_scale_s400::testing {
+namespace esphome::xiaomi_body_scale::testing {
 
 using Frame = std::array<uint8_t, 24>;
 
@@ -44,12 +44,18 @@ inline ble_device_base::ESPBTDevice advert(uint64_t address, const Frame &frame)
   return device;
 }
 
+// S200: weight only, 62.25 kg for profile 1
+static constexpr uint64_t SCALE_S200 = 0xD07B6F27D729ULL;
+static constexpr const char *KEY_S200 = "653b1b10e1cb35e4ac5e60fa45f3bf29";
+static constexpr Frame S200_WEIGHT = {0x48, 0x59, 0x04, 0x4c, 0x01, 0x9a, 0x80, 0xa2, 0x75, 0x93, 0x90, 0x10,
+                                      0xf0, 0xab, 0xc4, 0xfa, 0xdc, 0x06, 0x00, 0x00, 0x3d, 0x29, 0xc0, 0x44};
+
 struct Harness {
   Harness(uint64_t address, const char *key) : scale(address, key) {
     // The test main does not construct App as generated code does; the stabilized reset needs its scheduler
     static const bool app_constructed = (new (&App) Application(), true);
     (void) app_constructed;
-    App.pre_setup("test_s400", 9, "", 0);
+    App.pre_setup("test_scale", 10, "", 0);
     this->scale.set_weight(&this->weight);
     this->scale.set_impedance_low(&this->impedance_low);
     this->scale.set_impedance_high(&this->impedance_high);
@@ -64,9 +70,9 @@ struct Harness {
     App.scheduler.call(millis());
   }
 
-  XiaomiBodyScaleS400 scale;
+  XiaomiBodyScale scale;
   sensor::Sensor weight, impedance_low, impedance_high, heart_rate, profile_id;
   binary_sensor::BinarySensor stabilized;
 };
 
-}  // namespace esphome::xiaomi_body_scale_s400::testing
+}  // namespace esphome::xiaomi_body_scale::testing

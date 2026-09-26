@@ -5,11 +5,11 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/ble_device_base/ble_device.h"
 
-namespace esphome::xiaomi_body_scale_s400 {
+namespace esphome::xiaomi_body_scale {
 
-class XiaomiBodyScaleS400 final : public Component, public ble_device_base::ESPBTDeviceListener {
+class XiaomiBodyScale final : public Component, public ble_device_base::ESPBTDeviceListener {
  public:
-  XiaomiBodyScaleS400(uint64_t address, const char *bindkey);
+  XiaomiBodyScale(uint64_t address, const char *bindkey);
 
   bool parse_device(const ble_device_base::ESPBTDevice &device) override;
   void dump_config() override;
@@ -23,6 +23,7 @@ class XiaomiBodyScaleS400 final : public Component, public ble_device_base::ESPB
 
  protected:
   bool decrypt_(const uint8_t *frame, uint8_t *plaintext) const;
+  void publish_s400_(uint32_t packed);
   void publish_stabilized_(bool stabilized);
 
   uint64_t address_;
@@ -36,4 +37,4 @@ class XiaomiBodyScaleS400 final : public Component, public ble_device_base::ESPB
   uint16_t last_frame_count_{0x100};  // outside the 8-bit range, so the first frame always passes
 };
 
-}  // namespace esphome::xiaomi_body_scale_s400
+}  // namespace esphome::xiaomi_body_scale

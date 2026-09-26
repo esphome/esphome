@@ -1,5 +1,5 @@
 sensor:
-  - platform: xiaomi_body_scale_s400
+  - platform: xiaomi_body_scale
     mac_address: "AA:BB:CC:DD:EE:FF"
     bindkey: "00112233445566778899aabbccddeeff"
     weight:

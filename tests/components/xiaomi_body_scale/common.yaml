@@ -1,10 +1,9 @@
-# Config-only: the CI bk72xx board cannot compile the BLE 5.x tracker
-bk72xx_ble_tracker:
+esp32_ble_tracker:
   id: ble_tracker_hub
 
 sensor:
   # Explicit ble_hub_id: pins the neutral binding as a declared key.
-  - platform: xiaomi_body_scale_s400
+  - platform: xiaomi_body_scale
     ble_hub_id: ble_tracker_hub
     mac_address: "AA:BB:CC:DD:EE:FF"
     bindkey: "00112233445566778899aabbccddeeff"
@@ -21,7 +20,7 @@ sensor:
     stabilized:
       name: "Scale Stabilized"
   # No ble_hub_id: exercises the generated binding real configs use.
-  - platform: xiaomi_body_scale_s400
+  - platform: xiaomi_body_scale
     mac_address: "AA:BB:CC:DD:EE:00"
     bindkey: "ffeeddccbbaa99887766554433221100"
     weight:

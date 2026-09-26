@@ -5,9 +5,9 @@
 #include <chrono>
 #include <thread>
 
-namespace esphome::xiaomi_body_scale_s400::testing {
+namespace esphome::xiaomi_body_scale::testing {
 
-TEST(XiaomiBodyScaleS400, DecodesWeightHeartRateAndLowImpedance) {
+TEST(XiaomiBodyScale, DecodesWeightHeartRateAndLowImpedance) {
   Harness h(SCALE_A, KEY_A);
   ASSERT_TRUE(h.scale.parse_device(advert(SCALE_A, PACKET_1)));
   EXPECT_FLOAT_EQ(h.weight.state, 69.9f);
@@ -18,7 +18,7 @@ TEST(XiaomiBodyScaleS400, DecodesWeightHeartRateAndLowImpedance) {
   EXPECT_FALSE(h.stabilized.state);
 }
 
-TEST(XiaomiBodyScaleS400, HighImpedancePacketCompletesTheMeasurement) {
+TEST(XiaomiBodyScale, HighImpedancePacketCompletesTheMeasurement) {
   Harness h(SCALE_A, KEY_A);
   ASSERT_TRUE(h.scale.parse_device(advert(SCALE_A, PACKET_2)));
   EXPECT_FLOAT_EQ(h.impedance_high.state, 497.6f);
@@ -27,7 +27,7 @@ TEST(XiaomiBodyScaleS400, HighImpedancePacketCompletesTheMeasurement) {
   EXPECT_TRUE(h.stabilized.state);
 }
 
-TEST(XiaomiBodyScaleS400, StabilizedClearsAfterOneSecond) {
+TEST(XiaomiBodyScale, StabilizedClearsAfterOneSecond) {
   Harness h(SCALE_A, KEY_A);
   ASSERT_TRUE(h.scale.parse_device(advert(SCALE_A, PACKET_2)));
   ASSERT_TRUE(h.stabilized.state);
@@ -40,7 +40,7 @@ TEST(XiaomiBodyScaleS400, StabilizedClearsAfterOneSecond) {
   EXPECT_GE(millis() - start, 900u);
 }
 
-TEST(XiaomiBodyScaleS400, WeightWithoutImpedanceCompletesTheMeasurement) {
+TEST(XiaomiBodyScale, WeightWithoutImpedanceCompletesTheMeasurement) {
   Harness h(SCALE_B, KEY_B);
   ASSERT_TRUE(h.scale.parse_device(advert(SCALE_B, SOCKS)));
   EXPECT_FLOAT_EQ(h.weight.state, 74.7f);
@@ -49,7 +49,7 @@ TEST(XiaomiBodyScaleS400, WeightWithoutImpedanceCompletesTheMeasurement) {
   EXPECT_TRUE(h.stabilized.state);
 }
 
-TEST(XiaomiBodyScaleS400, SteppingOffClearsStabilized) {
+TEST(XiaomiBodyScale, SteppingOffClearsStabilized) {
   Harness h(SCALE_B, KEY_B);
   ASSERT_TRUE(h.scale.parse_device(advert(SCALE_B, SOCKS)));
   ASSERT_TRUE(h.scale.parse_device(advert(SCALE_B, STEP_OFF)));
@@ -57,19 +57,31 @@ TEST(XiaomiBodyScaleS400, SteppingOffClearsStabilized) {
   EXPECT_FLOAT_EQ(h.weight.state, 74.7f);  // a zero weight is not published
 }
 
-TEST(XiaomiBodyScaleS400, IgnoresOtherAddresses) {
+TEST(XiaomiBodyScale, DecodesS200Weight) {
+  Harness h(SCALE_S200, KEY_S200);
+  ASSERT_TRUE(h.scale.parse_device(advert(SCALE_S200, S200_WEIGHT)));
+  EXPECT_FLOAT_EQ(h.weight.state, 62.25f);
+  EXPECT_FLOAT_EQ(h.profile_id.state, 1.0f);
+  // The S200 has no impedance or heart rate, and does not drive stabilized
+  EXPECT_FALSE(h.impedance_low.has_state());
+  EXPECT_FALSE(h.impedance_high.has_state());
+  EXPECT_FALSE(h.heart_rate.has_state());
+  EXPECT_FALSE(h.stabilized.has_state());
+}
+
+TEST(XiaomiBodyScale, IgnoresOtherAddresses) {
   Harness h(SCALE_A, KEY_A);
   EXPECT_FALSE(h.scale.parse_device(advert(SCALE_B, PACKET_1)));
   EXPECT_FALSE(h.weight.has_state());
 }
 
-TEST(XiaomiBodyScaleS400, RejectsAWrongBindkey) {
+TEST(XiaomiBodyScale, RejectsAWrongBindkey) {
   Harness h(SCALE_A, KEY_B);
   EXPECT_FALSE(h.scale.parse_device(advert(SCALE_A, PACKET_1)));
   EXPECT_FALSE(h.weight.has_state());
 }
 
-TEST(XiaomiBodyScaleS400, RejectsAPlaintextFrame) {
+TEST(XiaomiBodyScale, RejectsAPlaintextFrame) {
   Harness h(SCALE_A, KEY_A);
   Frame plain = PACKET_1;
   plain[0] &= ~0x08;
@@ -77,19 +89,19 @@ TEST(XiaomiBodyScaleS400, RejectsAPlaintextFrame) {
   EXPECT_FALSE(h.weight.has_state());
 }
 
-TEST(XiaomiBodyScaleS400, IgnoresARepeatedFrame) {
+TEST(XiaomiBodyScale, IgnoresARepeatedFrame) {
   Harness h(SCALE_A, KEY_A);
   ASSERT_TRUE(h.scale.parse_device(advert(SCALE_A, PACKET_1)));
   EXPECT_FALSE(h.scale.parse_device(advert(SCALE_A, PACKET_1)));
 }
 
-TEST(XiaomiBodyScaleS400, AcceptsFrameCountFFAsTheFirstFrame) {
+TEST(XiaomiBodyScale, AcceptsFrameCountFFAsTheFirstFrame) {
   Harness h(SCALE_A, KEY_A);
   ASSERT_TRUE(h.scale.parse_device(advert(SCALE_A, PACKET_1_COUNT_FF)));
   EXPECT_FLOAT_EQ(h.weight.state, 69.9f);
 }
 
-TEST(XiaomiBodyScaleS400, AFailedFrameDoesNotBlockTheRealOne) {
+TEST(XiaomiBodyScale, AFailedFrameDoesNotBlockTheRealOne) {
   Harness h(SCALE_A, KEY_A);
   Frame forged = PACKET_1;
   forged[23] ^= 0xFF;  // corrupt the tag, same frame count
@@ -97,4 +109,4 @@ TEST(XiaomiBodyScaleS400, AFailedFrameDoesNotBlockTheRealOne) {
   EXPECT_TRUE(h.scale.parse_device(advert(SCALE_A, PACKET_1)));
 }
 
-}  // namespace esphome::xiaomi_body_scale_s400::testing
+}  // namespace esphome::xiaomi_body_scale::testing
