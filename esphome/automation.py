@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 import logging
 import string
@@ -23,7 +23,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, EsphomeError, Lambda
 from esphome.cpp_generator import (
-    FlashStringLiteral,
+    Expression,
     LambdaExpression,
     MockObj,
     MockObjClass,
@@ -219,9 +219,7 @@ ApplyCondition = cg.esphome_ns.class_("ApplyCondition", Condition)
 
 def flash_string(config: ConfigType, value: str) -> str:
     """Default renderer for ``std::string`` constants; copies the literal out of flash on ESP8266."""
-    if CORE.is_esp8266:
-        return f"progmem_string({FlashStringLiteral(value)})"
-    return str(cg.safe_exp(value))
+    return str(cg.progmem_string(value))
 
 
 def literal_with_length(config: ConfigType, value: str) -> str:
@@ -231,6 +229,13 @@ def literal_with_length(config: ConfigType, value: str) -> str:
     the PROGMEM rendering on ESP8266, and the length saves a strlen.
     """
     return f"{cg.safe_exp(value)}, {len(value.encode('utf-8'))}"
+
+
+def string_ref_literal(config: ConfigType, value: str) -> str:
+    """Renderer for a ``StringRef`` comparison: a flash literal on ESP8266, else ``StringRef(literal, length)``."""
+    if CORE.is_esp8266:
+        return str(cg.FlashStringLiteral(value))
+    return f"StringRef({literal_with_length(config, value)})"
 
 
 @dataclass(frozen=True)
@@ -339,9 +344,16 @@ def _check_key_in_schema(
         schema = schema.schema[markers[part]]
 
 
+def parent_ref(var: MockObj) -> MockObj:
+    """``var`` named from global scope, so a trigger argument cannot shadow it.
+
+    Also how a generated callback names its Automation.
+    """
+    return MockObj(f"::{var}", "->")
+
+
 async def _apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
-    # Global-scope qualified so a trigger arg named like the id cannot shadow it.
-    return f"::{await cg.get_variable(config[id_key])}"
+    return str(parent_ref(await cg.get_variable(config[id_key])))
 
 
 def _apply_lambda_args(args: TemplateArgsType) -> TemplateArgsType:
@@ -359,7 +371,7 @@ async def _render_values(
     members: list[tuple[Any, Any, Any]],
     values: list[Any],
     config: ConfigType,
-    parent: str,
+    parent: str | None,
     lambda_args: TemplateArgsType,
     compare: bool = False,
 ) -> list[str]:
@@ -437,7 +449,7 @@ def register_apply_action(
         statements: list[str] = []
         for target, members in statements_spec:
             values = _apply_values(config, members)
-            if members and all(value is None for value in values):
+            if not _apply_call_active(members, values):
                 continue
             exprs = await _render_values(
                 name, target, members, values, config, parent, lambda_args
@@ -455,6 +467,27 @@ def register_apply_action(
         return cg.new_Pvariable(action_id, template_arg, apply_lambda)
 
     register_action(name, ApplyAction, schema, synchronous=True)(builder)
+
+
+def _apply_call_active(members: list[tuple[Any, Any, Any]], values: list[Any]) -> bool:
+    """An ``ApplyCall`` is emitted unless it has keys and none of them is set."""
+    return not members or any(value is not None for value in values)
+
+
+async def _render_check(
+    name: str,
+    target: str,
+    members: list[tuple[Any, Any, Any]],
+    values: list[Any],
+    config: ConfigType,
+    parent: str | None,
+    lambda_args: TemplateArgsType,
+) -> str:
+    """Render a boolean check with ``values`` compared against config."""
+    exprs = await _render_values(
+        name, target, members, values, config, parent, lambda_args, compare=True
+    )
+    return target.format(*exprs)
 
 
 def register_apply_condition(
@@ -482,18 +515,12 @@ def register_apply_condition(
     ) -> MockObj:
         parent = await _apply_parent(config, id_key)
         lambda_args = _apply_lambda_args(args)
-        exprs = await _render_values(
-            name,
-            call.target,
-            members,
-            _apply_values(config, members),
-            config,
-            parent,
-            lambda_args,
-            compare=True,
+        values = _apply_values(config, members)
+        check = await _render_check(
+            name, call.target, members, values, config, parent, lambda_args
         )
         check_lambda = LambdaExpression(
-            [f"return {parent}->{call.target.format(*exprs)};"],
+            [f"return {parent}->{check};"],
             lambda_args,
             capture="",
             return_type=cg.bool_,
@@ -1017,15 +1044,66 @@ def has_non_synchronous_actions(actions: ConfigType) -> bool:
     return False
 
 
-async def build_automation(
-    trigger: MockObj, args: TemplateArgsType, config: ConfigType
+async def _new_automation(
+    args: TemplateArgsType, config: ConfigType, *ctor_args: MockObj
 ) -> MockObj:
-    arg_types = [arg[0] for arg in args]
-    templ = cg.TemplateArguments(*arg_types)
-    obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ, trigger)
+    """Create the Automation for ``config`` with its actions."""
+    templ = cg.TemplateArguments(*(arg[0] for arg in args))
+    obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ, *ctor_args)
     actions = await build_action_list(config[CONF_THEN], templ, args)
     cg.add(obj.add_actions(actions))
     return obj
+
+
+async def build_automation(
+    trigger: MockObj, args: TemplateArgsType, config: ConfigType
+) -> MockObj:
+    return await _new_automation(args, config, trigger)
+
+
+async def build_trigger_callback(
+    args: TemplateArgsType,
+    config: ConfigType,
+    params: TemplateArgsType,
+    forward: Sequence[str | Expression] | None = None,
+    when: str | ApplyCall | None = None,
+) -> LambdaExpression:
+    """Build the Automation for ``config`` and return a stateless callback that triggers it.
+
+    ``params`` are the parent callback's parameters, ``forward`` the expressions passed to
+    ``trigger()`` (default: the parameter names; write the parent as ``parent_ref(var)``),
+    ``when`` a filter the callback returns early on, skipped like any ``ApplyCall`` when none
+    of its keys is set.
+    """
+    members: list[tuple[Any, Any, Any]] = []
+    if when is not None:
+        call = when if isinstance(when, ApplyCall) else ApplyCall(when)
+        members = call.members
+        # A trigger callback has no parent for a str type to name.
+        if any(isinstance(t, str) and "{parent}" in t for _, t, _ in members):
+            raise ValueError(f"trigger filter {call.target!r}: a type names {{parent}}")
+    obj = await _new_automation(args, config)
+    lambda_args = _apply_lambda_args(params)
+    statements: list[str] = []
+    if when is not None:
+        values = _apply_values(config, members)
+        if _apply_call_active(members, values):
+            check = await _render_check(
+                "trigger filter",
+                call.target,
+                members,
+                values,
+                config,
+                None,
+                lambda_args,
+            )
+            statements.append(f"if (!({check}))\n  return;")
+    if forward is None:
+        forward = [name for _, name in params]
+    statements.append(f"{parent_ref(obj)}->trigger({', '.join(map(str, forward))});")
+    return LambdaExpression(
+        ["\n".join(statements)], lambda_args, capture="", return_type=cg.void
+    )
 
 
 async def build_callback_automation(
@@ -1034,6 +1112,9 @@ async def build_callback_automation(
     args: TemplateArgsType,
     config: ConfigType,
     forwarder: MockObj | MockObjClass | None = None,
+    params: TemplateArgsType | None = None,
+    forward: Sequence[str | Expression] | None = None,
+    when: str | ApplyCall | None = None,
 ) -> None:
     """Build an Automation and register it as a callback on the parent.
 
@@ -1045,6 +1126,9 @@ async def build_callback_automation(
     pointer-sized (single Automation* field) to fit inline in Callback::ctx_
     and avoid heap allocation.
 
+    With ``params``, ``forward`` or ``when`` the callback is instead the stateless
+    lambda of ``build_trigger_callback``; ``forwarder`` cannot be combined with them.
+
     :param parent: The component object (e.g., button, sensor).
     :param callback_method: Name of the callback method (e.g., "add_on_press_callback").
     :param args: Automation template args as list of (type, name) tuples.
@@ -1053,20 +1137,54 @@ async def build_callback_automation(
         TriggerForwarder<Ts...>. Pass any struct type whose aggregate init takes
         a single Automation pointer (e.g., TriggerOnTrueForwarder).
     """
-    arg_types = [arg[0] for arg in args]
-    templ = cg.TemplateArguments(*arg_types)
-    obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ)
-    actions = await build_action_list(config[CONF_THEN], templ, args)
-    cg.add(obj.add_actions(actions))
+    if params is not None or forward is not None or when is not None:
+        if forwarder is not None:
+            raise ValueError(
+                "forwarder cannot be combined with params, forward or when"
+            )
+        callback = await build_trigger_callback(
+            args, config, args if params is None else params, forward, when
+        )
+        cg.add(getattr(parent, callback_method)(callback))
+        return
+    obj = await _new_automation(args, config)
     # Use template forwarder structs for deduplication. The compiler generates
     # one operator() per forwarder type; different automation pointers are just
     # data in the struct.
     if forwarder is None:
-        forwarder = TriggerForwarder.template(templ)
+        forwarder = TriggerForwarder.template(*(arg[0] for arg in args))
     # RawExpression for aggregate init — both forwarder and obj are codegen
     # MockObjs (not user input), and there's no Expression type for positional
     # aggregate initialization (StructInitializer uses named fields).
     cg.add(getattr(parent, callback_method)(cg.RawExpression(f"{forwarder}{{{obj}}}")))
+
+
+async def build_parent_callback_automation(
+    parent: MockObj, callback_method: str, arg: tuple[Any, str], config: ConfigType
+) -> None:
+    """Register an Automation that receives ``parent`` from a callback that carries nothing.
+
+    ``arg`` is the automation's ``(type, name)``, e.g. ``(Fan.operator("ptr"), "x")``.
+    """
+    await build_callback_automation(
+        parent, callback_method, [arg], config, params=[], forward=[parent_ref(parent)]
+    )
+
+
+async def build_trigger_automations(
+    parent: MockObj | None,
+    config: ConfigType,
+    entries: tuple[tuple[str, TemplateArgsType], ...],
+) -> None:
+    """Instantiate each entry's Trigger class, with ``parent`` when given, and build its automations.
+
+    ``entries`` are ``(conf_key, args)`` pairs; the class comes from the entry's ``CONF_TRIGGER_ID``.
+    """
+    ctor_args = () if parent is None else (parent,)
+    for conf_key, args in entries:
+        for conf in config.get(conf_key, []):
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], *ctor_args)
+            await build_automation(trigger, args, conf)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1077,6 +1195,9 @@ class CallbackAutomation:
     callback_method: str
     args: TemplateArgsType = field(default_factory=list)
     forwarder: MockObj | MockObjClass | None = None
+    params: TemplateArgsType | None = None
+    forward: Sequence[str | Expression] | None = None
+    when: str | ApplyCall | None = None
 
 
 async def build_callback_automations(
@@ -1098,4 +1219,7 @@ async def build_callback_automations(
                 entry.args,
                 conf,
                 forwarder=entry.forwarder,
+                params=entry.params,
+                forward=entry.forward,
+                when=entry.when,
             )

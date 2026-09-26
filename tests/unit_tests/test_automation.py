@@ -16,10 +16,15 @@ from esphome.automation import (
     TriggerForwarder,
     TriggerOnFalseForwarder,
     TriggerOnTrueForwarder,
+    build_callback_automation,
     build_callback_automations,
+    build_parent_callback_automation,
+    build_trigger_automations,
+    build_trigger_callback,
     has_non_synchronous_actions,
     literal_with_length,
     maybe_simple_id,
+    parent_ref,
     register_apply_action,
     register_apply_condition,
     register_bare_action,
@@ -28,10 +33,11 @@ from esphome.automation import (
     register_parented_condition,
     register_simple_action,
     register_simple_condition,
+    string_ref_literal,
 )
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_AUTOMATION_ID, CONF_ID, CONF_THEN
 from esphome.core import CORE, ID, KEY_CORE, KEY_TARGET_PLATFORM, EsphomeError, Lambda
 from esphome.cpp_generator import MockObj, RawExpression
 from esphome.util import Registry, RegistryEntry
@@ -325,7 +331,14 @@ async def test_build_callback_automations_single_entry(
         (CallbackAutomation("on_state", "add_on_state_callback", [(bool, "x")]),),
     )
     mock_build_callback.assert_called_once_with(
-        parent, "add_on_state_callback", [(bool, "x")], conf, forwarder=None
+        parent,
+        "add_on_state_callback",
+        [(bool, "x")],
+        conf,
+        forwarder=None,
+        params=None,
+        forward=None,
+        when=None,
     )
 
 
@@ -345,10 +358,24 @@ async def test_build_callback_automations_multiple_configs(
     )
     assert mock_build_callback.call_count == 2
     mock_build_callback.assert_any_call(
-        parent, "add_on_state_callback", [(bool, "x")], conf1, forwarder=None
+        parent,
+        "add_on_state_callback",
+        [(bool, "x")],
+        conf1,
+        forwarder=None,
+        params=None,
+        forward=None,
+        when=None,
     )
     mock_build_callback.assert_any_call(
-        parent, "add_on_state_callback", [(bool, "x")], conf2, forwarder=None
+        parent,
+        "add_on_state_callback",
+        [(bool, "x")],
+        conf2,
+        forwarder=None,
+        params=None,
+        forward=None,
+        when=None,
     )
 
 
@@ -376,9 +403,25 @@ async def test_build_callback_automations_multiple_entries(
     )
     assert mock_build_callback.call_count == 2
     assert mock_build_callback.call_args_list == [
-        call(parent, "add_on_value_callback", [(float, "x")], conf_a, forwarder=None),
         call(
-            parent, "add_on_raw_value_callback", [(float, "x")], conf_b, forwarder=None
+            parent,
+            "add_on_value_callback",
+            [(float, "x")],
+            conf_a,
+            forwarder=None,
+            params=None,
+            forward=None,
+            when=None,
+        ),
+        call(
+            parent,
+            "add_on_raw_value_callback",
+            [(float, "x")],
+            conf_b,
+            forwarder=None,
+            params=None,
+            forward=None,
+            when=None,
         ),
     ]
 
@@ -401,7 +444,14 @@ async def test_build_callback_automations_with_forwarder(
         ),
     )
     mock_build_callback.assert_called_once_with(
-        parent, "add_on_state_callback", [], conf, forwarder=TriggerOnTrueForwarder
+        parent,
+        "add_on_state_callback",
+        [],
+        conf,
+        forwarder=TriggerOnTrueForwarder,
+        params=None,
+        forward=None,
+        when=None,
     )
 
 
@@ -435,7 +485,14 @@ async def test_build_callback_automations_mixed_entries(
     assert mock_build_callback.call_count == 3
     assert mock_build_callback.call_args_list == [
         call(
-            parent, "add_on_state_callback", [(bool, "x")], conf_state, forwarder=None
+            parent,
+            "add_on_state_callback",
+            [(bool, "x")],
+            conf_state,
+            forwarder=None,
+            params=None,
+            forward=None,
+            when=None,
         ),
         call(
             parent,
@@ -443,6 +500,9 @@ async def test_build_callback_automations_mixed_entries(
             [],
             conf_press,
             forwarder=TriggerOnTrueForwarder,
+            params=None,
+            forward=None,
+            when=None,
         ),
         call(
             parent,
@@ -450,6 +510,9 @@ async def test_build_callback_automations_mixed_entries(
             [],
             conf_release,
             forwarder=TriggerOnFalseForwarder,
+            params=None,
+            forward=None,
+            when=None,
         ),
     ]
 
@@ -475,7 +538,14 @@ async def test_build_callback_automations_skips_missing_keys(
         ),
     )
     mock_build_callback.assert_called_once_with(
-        parent, "add_on_state_callback", [], conf, forwarder=TriggerOnTrueForwarder
+        parent,
+        "add_on_state_callback",
+        [],
+        conf,
+        forwarder=TriggerOnTrueForwarder,
+        params=None,
+        forward=None,
+        when=None,
     )
 
 
@@ -493,7 +563,14 @@ async def test_build_callback_automations_defaults(
         (CallbackAutomation("on_press", "add_on_press_callback"),),
     )
     mock_build_callback.assert_called_once_with(
-        parent, "add_on_press_callback", [], conf, forwarder=None
+        parent,
+        "add_on_press_callback",
+        [],
+        conf,
+        forwarder=None,
+        params=None,
+        forward=None,
+        when=None,
     )
 
 
@@ -509,6 +586,56 @@ class MockCodegen(NamedTuple):
     get_variable: AsyncMock
     new_pvariable: MagicMock
     register_parented: AsyncMock
+    add: MagicMock
+
+
+@pytest.fixture
+def mock_build_automation() -> Generator[AsyncMock]:
+    with patch("esphome.automation.build_automation", new_callable=AsyncMock) as mock:
+        yield mock
+
+
+@pytest.mark.asyncio
+async def test_build_trigger_automations_with_parent(
+    mock_build_automation: AsyncMock,
+) -> None:
+    """Each entry's Trigger class is instantiated with the parent and built with its args."""
+    parent = MockObj("var", "->")
+    on_conf = {"trigger_id": ID("trig_1"), "then": []}
+    set_conf = {"trigger_id": ID("trig_2"), "then": []}
+    config = {"on_turn_on": [on_conf], "on_speed_set": [set_conf]}
+    with patch("esphome.codegen.new_Pvariable") as new_pvariable:
+        new_pvariable.side_effect = lambda id_, *args: MockObj(str(id_), "->")
+        await build_trigger_automations(
+            parent,
+            config,
+            (
+                ("on_turn_on", []),
+                ("on_turn_off", []),
+                ("on_speed_set", [(cg.int_, "x")]),
+            ),
+        )
+    assert [c.args for c in new_pvariable.call_args_list] == [
+        (ID("trig_1"), parent),
+        (ID("trig_2"), parent),
+    ]
+    calls = mock_build_automation.call_args_list
+    assert [(str(c.args[0]), c.args[1], c.args[2]) for c in calls] == [
+        ("trig_1", [], on_conf),
+        ("trig_2", [(cg.int_, "x")], set_conf),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_build_trigger_automations_without_parent(
+    mock_build_automation: AsyncMock,
+) -> None:
+    """A None parent instantiates the Trigger class with no constructor arguments."""
+    conf = {"trigger_id": ID("trig_1"), "then": []}
+    with patch("esphome.codegen.new_Pvariable") as new_pvariable:
+        await build_trigger_automations(None, {"on_boot": [conf]}, (("on_boot", []),))
+    new_pvariable.assert_called_once_with(ID("trig_1"))
+    mock_build_automation.assert_awaited_once()
 
 
 @pytest.fixture
@@ -520,10 +647,11 @@ def mock_cg() -> Generator[MockCodegen]:
         patch(
             "esphome.codegen.register_parented", new_callable=AsyncMock
         ) as register_parented,
+        patch("esphome.codegen.add") as add,
     ):
         get_variable.return_value = PARENT_OBJ
         new_pvariable.return_value = NEW_OBJ
-        yield MockCodegen(get_variable, new_pvariable, register_parented)
+        yield MockCodegen(get_variable, new_pvariable, register_parented, add)
 
 
 @pytest.fixture
@@ -906,6 +1034,26 @@ async def test_apply_literal_with_length_is_plain_on_every_platform(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("platform", "rendered"),
+    [("esp32", 'StringRef("ON", 2)'), ("esp8266", 'ESPHOME_F("ON")')],
+)
+async def test_apply_string_ref_literal_stays_in_flash_on_esp8266(
+    registries: tuple[Registry, Registry],
+    mock_cg: MockCodegen,
+    platform: str,
+    rendered: str,
+) -> None:
+    fields = (
+        ApplyField(
+            "payload", "set_payload", cg.std_string, const_fn=string_ref_literal
+        ),
+    )
+    await _run_apply_action(registries, fields, {"payload": "ON"}, platform=platform)
+    assert f"::{PARENT_OBJ}->set_payload({rendered});" in _apply_lambda(mock_cg)
+
+
+@pytest.mark.asyncio
 async def test_register_apply_condition_predicate(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
@@ -967,3 +1115,120 @@ async def test_apply_condition_string_lambda_paths(
     text = _apply_lambda(mock_cg)
     assert expected in text
     assert ("-> std::string {" in text) is called
+
+
+TRIGGER_CONF = {CONF_AUTOMATION_ID: ID("automation_1"), CONF_THEN: []}
+
+
+def _squash(expr: object) -> str:
+    """Generated text with its whitespace folded, for one-line assertions."""
+    return " ".join(str(expr).split())
+
+
+def test_parent_ref_is_global_scoped() -> None:
+    """A parent named through parent_ref cannot be shadowed by a trigger argument."""
+    assert (
+        str(parent_ref(MockObj("sel", "->")).option_at(RawExpression("i")))
+        == "::sel->option_at(i)"
+    )
+
+
+@pytest.mark.asyncio
+async def test_trigger_callback_forwards_params(mock_cg: MockCodegen) -> None:
+    """Without forward or when the callback passes its parameters straight to trigger()."""
+    text = str(
+        await build_trigger_callback(
+            [(cg.bool_, "state")], TRIGGER_CONF, [(cg.bool_, "state")]
+        )
+    )
+    assert text.startswith("[](const std::remove_cvref_t<bool> & state) -> void {")
+    assert f"::{NEW_OBJ}->trigger(state);" in text
+    assert "if (" not in text
+
+
+@pytest.mark.asyncio
+async def test_trigger_callback_reshapes_and_filters(mock_cg: MockCodegen) -> None:
+    """A filter returns early, forward picks the trigger args, a string constant is a plain literal."""
+    when = ApplyCall("payload == {}", (("payload", cg.std_string),))
+    params = [(cg.std_string, "topic"), (cg.std_string, "payload")]
+    text = _squash(
+        await build_trigger_callback(
+            [(cg.std_string, "x")],
+            {**TRIGGER_CONF, "payload": "hi"},
+            params,
+            forward=["payload"],
+            when=when,
+        )
+    )
+    assert "& topic, const std::remove_cvref_t<std::string> & payload) -> void" in text
+    assert f'if (!(payload == "hi")) return; ::{NEW_OBJ}->trigger(payload);' in text
+    # An absent optional key skips the filter, as for any ApplyCall.
+    text = str(
+        await build_trigger_callback(
+            [(cg.std_string, "x")], TRIGGER_CONF, params, forward=["payload"], when=when
+        )
+    )
+    assert "if (" not in text
+
+
+@pytest.mark.asyncio
+async def test_trigger_callback_filter_has_no_parent(mock_cg: MockCodegen) -> None:
+    """A filter type that names {parent} is rejected up front, a trigger callback has none."""
+    when = ApplyCall("mode == {}", (("mode", "{parent}::Mode"),))
+    with pytest.raises(ValueError, match="names {parent}"):
+        await build_trigger_callback(
+            [], {**TRIGGER_CONF, "mode": 1}, [(cg.int_, "mode")], forward=[], when=when
+        )
+
+
+@pytest.mark.asyncio
+async def test_build_parent_callback_automation(mock_cg: MockCodegen) -> None:
+    """A no-argument callback registers a lambda that hands the parent to the automation."""
+    parent = MockObj("fan", "->")
+    await build_parent_callback_automation(
+        parent,
+        "add_on_state_callback",
+        (cg.RawExpression("Fan *"), "x"),
+        TRIGGER_CONF,
+    )
+    assert _squash(mock_cg.add.call_args.args[0]) == (
+        f"fan->add_on_state_callback([]() -> void {{ ::{NEW_OBJ}->trigger(::fan); }})"
+    )
+
+
+@pytest.mark.asyncio
+async def test_build_callback_automation_lambda(mock_cg: MockCodegen) -> None:
+    """Reshaping keywords switch the registration to the lambda; forwarder cannot join them."""
+    parent = MockObj("sel", "->")
+    await build_callback_automation(
+        parent,
+        "add_cb",
+        [(cg.std_string, "x"), (cg.size_t, "i")],
+        TRIGGER_CONF,
+        params=[(cg.size_t, "index")],
+        forward=[parent_ref(parent).option_at(RawExpression("index")), "index"],
+    )
+    assert _squash(mock_cg.add.call_args.args[0]) == (
+        "sel->add_cb([](const std::remove_cvref_t<size_t> & index) -> void { "
+        f"::{NEW_OBJ}->trigger(::sel->option_at(index), index); }})"
+    )
+    with pytest.raises(ValueError, match="forwarder"):
+        await build_callback_automation(
+            parent,
+            "add_cb",
+            [],
+            TRIGGER_CONF,
+            forwarder=TriggerOnTrueForwarder,
+            when="x",
+        )
+
+
+@pytest.mark.asyncio
+async def test_build_callback_automation_forwarder(mock_cg: MockCodegen) -> None:
+    """The forwarder path registers a pointer-sized TriggerForwarder, not a lambda."""
+    await build_callback_automation(
+        MockObj("parent", "->"), "add_cb", [(cg.bool_, "x")], TRIGGER_CONF
+    )
+    assert str(mock_cg.add.call_args.args[0]) == (
+        f"parent->add_cb(TriggerForwarder<bool>{{{NEW_OBJ}}})"
+    )

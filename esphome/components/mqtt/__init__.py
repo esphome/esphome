@@ -53,7 +53,6 @@ from esphome.const import (
     CONF_SUBSCRIBE_QOS,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
-    CONF_TRIGGER_ID,
     CONF_USE_ABBREVIATIONS,
     CONF_USERNAME,
     CONF_WILL_MESSAGE,
@@ -118,18 +117,6 @@ MQTTMessage = mqtt_ns.struct("MQTTMessage")
 MQTTClientDisconnectReason = mqtt_ns.enum("MQTTClientDisconnectReason")
 MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
 MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
-MQTTMessageTrigger = mqtt_ns.class_(
-    "MQTTMessageTrigger", automation.Trigger.template(cg.std_string), cg.Component
-)
-MQTTJsonMessageTrigger = mqtt_ns.class_(
-    "MQTTJsonMessageTrigger", automation.Trigger.template(cg.JsonObjectConst)
-)
-MQTTConnectTrigger = mqtt_ns.class_(
-    "MQTTConnectTrigger", automation.Trigger.template(cg.bool_)
-)
-MQTTDisconnectTrigger = mqtt_ns.class_(
-    "MQTTDisconnectTrigger", automation.Trigger.template(MQTTClientDisconnectReason)
-)
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
 
 MQTTAlarmControlPanelComponent = mqtt_ns.class_(
@@ -283,21 +270,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_ON_CONNECT): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTConnectTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        MQTTDisconnectTrigger
-                    ),
-                }
-            ),
+            cv.Optional(CONF_ON_CONNECT): automation.validate_automation(),
+            cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(),
             cv.Optional(CONF_ON_MESSAGE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTMessageTrigger),
                     cv.Required(CONF_TOPIC): cv.subscribe_topic,
                     cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
                     cv.Optional(CONF_PAYLOAD): cv.string_strict,
@@ -305,9 +281,6 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ON_JSON_MESSAGE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        MQTTJsonMessageTrigger
-                    ),
                     cv.Required(CONF_TOPIC): cv.subscribe_topic,
                     cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
                 }
@@ -340,6 +313,18 @@ def exp_mqtt_message(config):
         ("qos", config[CONF_QOS]),
         ("retain", config[CONF_RETAIN]),
     )
+
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_CONNECT, "set_on_connect", [(cg.bool_, "session_present")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_DISCONNECT,
+        "set_on_disconnect",
+        [(MQTTClientDisconnectReason, "reason")],
+    ),
+)
 
 
 @coroutine_with_priority(CoroPriority.WEB)
@@ -460,29 +445,37 @@ async def to_code(config):
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
     # end esp-idf
 
+    # The client queues subscriptions until it connects, so they can be made at construction.
     for conf in config.get(CONF_ON_MESSAGE, []):
-        trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC])
-        cg.add(trig.set_qos(conf[CONF_QOS]))
-        if CONF_PAYLOAD in conf:
-            cg.add(trig.set_payload(conf[CONF_PAYLOAD]))
-        await cg.register_component(trig, conf)
-        await automation.build_automation(trig, [(cg.std_string, "x")], conf)
+        callback = await automation.build_trigger_callback(
+            [(cg.std_string, "x")],
+            conf,
+            params=[(cg.std_string, "topic"), (cg.std_string, "payload")],
+            forward=["payload"],
+            # The length is compared first; the literal stays in flash on ESP8266.
+            when=automation.ApplyCall(
+                "StringRef(payload) == {}",
+                ((CONF_PAYLOAD, cg.std_string, automation.string_ref_literal),),
+            ),
+        )
+        cg.add(
+            var.subscribe(cg.progmem_string(conf[CONF_TOPIC]), callback, conf[CONF_QOS])
+        )
 
     for conf in config.get(CONF_ON_JSON_MESSAGE, []):
-        trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC], conf[CONF_QOS])
-        await automation.build_automation(trig, [(cg.JsonObjectConst, "x")], conf)
-
-    for conf in config.get(CONF_ON_CONNECT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.bool_, "session_present")], conf
+        callback = await automation.build_trigger_callback(
+            [(cg.JsonObjectConst, "x")],
+            conf,
+            params=[(cg.std_string, "topic"), (cg.JsonObject, "root")],
+            forward=["root"],
+        )
+        cg.add(
+            var.subscribe_json(
+                cg.progmem_string(conf[CONF_TOPIC]), callback, conf[CONF_QOS]
+            )
         )
 
-    for conf in config.get(CONF_ON_DISCONNECT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(MQTTClientDisconnectReason, "reason")], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     cg.add(var.set_publish_nan_as_none(config[CONF_PUBLISH_NAN_AS_NONE]))
 

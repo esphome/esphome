@@ -365,6 +365,22 @@ file does, and it is the authority when they disagree. The most useful starting 
                 )
         ```
 
+        When the parent callback's parameters are not the automation's arguments, or the trigger should only fire for some values, pass `params`, `forward` and `when`; the helper then generates a capture-less lambda instead of a forwarder (stored inline by `Callback` and `std::function`, nothing is allocated). `params` are the callback's parameters as `[(type, name)]`, `forward` the expressions passed to `trigger()` (default: the parameter names; name the parent with `automation.parent_ref(var)`), `when` a filter: a string, or an `ApplyCall` compared against config values that is skipped when its keys are absent. Compose `forward` from `MockObj` calls, not from f-strings of C++:
+        ```python
+        # select: the callback carries the index, the automation also gets the option text
+        parent = automation.parent_ref(var)
+        index = cg.RawExpression("index")
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [(cg.StringRef, "x"), (cg.size_t, "i")],
+            conf,
+            params=[(cg.size_t, "index")],
+            forward=[cg.StringRef(parent.option_at(index)), index],
+        )
+        ```
+        A callback with no arguments whose automation receives the parent is one line, `automation.build_parent_callback_automation(var, "add_on_state_callback", (Fan.operator("ptr"), "x"), conf)`. When the registration takes extra arguments (mqtt's topic and qos), `automation.build_trigger_callback(args, conf, params=..., forward=..., when=...)` returns the lambda for the component to register itself. Several callbacks on one parent go in a module-level `_CALLBACK_AUTOMATIONS` tuple of `automation.CallbackAutomation(conf_key, callback_method, args, ...)` entries, applied with `automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)`; each entry takes the same optional `forwarder`, `params`, `forward` and `when`.
+
         **C++ -- no trigger class needed.** The callback registration method must be templatized to accept both `std::function` and lightweight forwarder structs (which avoid heap allocation):
         ```cpp
         class MyComponent : public Component {
@@ -385,6 +401,8 @@ file does, and it is the authority when they disagree. The most useful starting 
     *   **Triggers -- Trigger class method:**
 
         Use `build_automation()` with a `Trigger<Ts...>` subclass only when the forwarder needs **mutable state beyond a single `Automation*` pointer** (e.g. edge detection tracking previous state, timing logic).
+
+        Several such triggers on one parent go in a module-level `_TRIGGER_AUTOMATIONS` tuple of `(conf_key, args)` pairs applied with `automation.build_trigger_automations(var, config, _TRIGGER_AUTOMATIONS)`; it instantiates each entry's class from its `CONF_TRIGGER_ID` with `var` (or nothing when `var` is `None`) and builds the automations.
 
         **Python:**
         ```python
