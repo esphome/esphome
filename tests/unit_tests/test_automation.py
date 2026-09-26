@@ -706,6 +706,32 @@ async def test_apply_constants(
 
 
 @pytest.mark.asyncio
+async def test_apply_id_constant_is_the_named_object(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """A templatable use_id given as a plain id renders the object it names."""
+    target = MockObj("speaker_b", "->")
+    mock_cg.get_variable.side_effect = [PARENT_OBJ, target]
+    fields = (ApplyField("target", "switch_to_output", cg.RawExpression("Speaker *")),)
+    await _run_apply_action(registries, fields, {"target": ID("speaker_b")})
+    mock_cg.get_variable.assert_any_await(ID("speaker_b"))
+    assert f"::{PARENT_OBJ}->switch_to_output(::speaker_b);" in _apply_lambda(mock_cg)
+
+
+@pytest.mark.asyncio
+async def test_apply_condition_id_constant_is_the_named_object(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """The condition path resolves and qualifies an id constant the same way."""
+    target = MockObj("speaker_b", "->")
+    mock_cg.get_variable.side_effect = [PARENT_OBJ, target]
+    check = ApplyCall("is_output({})", (("target", cg.RawExpression("Speaker *")),))
+    await _run_apply_condition(registries, check, {"target": ID("speaker_b")})
+    mock_cg.get_variable.assert_any_await(ID("speaker_b"))
+    assert f"return ::{PARENT_OBJ}->is_output(::speaker_b);" in _apply_lambda(mock_cg)
+
+
+@pytest.mark.asyncio
 async def test_apply_lambdas(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
