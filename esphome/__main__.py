@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Protocol
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
 from esphome import const, platform_hooks
+from esphome.build_helpers.native import native_backend
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
@@ -971,7 +972,7 @@ def upload_using_esptool(
 
     if file is not None:
         flash_images = [FlashImage(path=file, offset="0x0")]
-    elif (native := _native_toolchain_module()) is not None:
+    elif (native := native_backend()) is not None:
         # Every native backend supplies its own 0x0 flash image (bootloader
         # and partitions included where the target needs them)
         image = native.get_factory_firmware_path()
@@ -1966,32 +1967,10 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     return run_multiple_configs(files, build_command)
 
 
-# Native build backend per (target platform, toolchain); keyed here so
-# the serial upload/logs fast path never imports the platform package
-_NATIVE_TOOLCHAIN_MODULES = {
-    ("esp32", Toolchain.ESP_IDF): "esphome.espidf.toolchain",
-    ("esp8266", Toolchain.ARDUINO): "esphome.arduino8266.toolchain",
-}
-
-
-def _native_toolchain_module():
-    """The native build backend module for the resolved toolchain."""
-    if not CORE.using_native_toolchain:
-        return None
-    key = (CORE.target_platform, CORE.toolchain)
-    if (module_path := _NATIVE_TOOLCHAIN_MODULES.get(key)) is None:
-        # Degrading to the PlatformIO path would build with the wrong backend
-        raise EsphomeError(
-            f"Toolchain '{CORE.toolchain.value}' has no native build backend "
-            f"module for platform {CORE.target_platform}"
-        )
-    return importlib.import_module(module_path)
-
-
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     import json
 
-    native_toolchain = _native_toolchain_module()
+    native_toolchain = native_backend()
 
     if native_toolchain is not None:
         # Native toolchains derive idedata from the build's
@@ -2036,7 +2015,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     from esphome.analyze_memory.ram_strings import RamStringsAnalyzer
 
     # Refuse an unsupported toolchain before paying for a full compile
-    native_toolchain = _native_toolchain_module()
+    native_toolchain = native_backend()
     if native_toolchain is None and not CORE.using_toolchain_platformio:
         _LOGGER.error(
             "analyze-memory is not supported with the '%s' toolchain on %s; "

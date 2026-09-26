@@ -5,6 +5,7 @@ import re
 import subprocess
 from typing import Any
 
+from esphome.build_helpers.native import native_backend
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -310,15 +311,6 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def native_toolchain_module():
-    """The native build backend for the resolved toolchain, if any."""
-    if not CORE.using_toolchain_arduino:
-        return None
-    from esphome.arduino8266 import toolchain
-
-    return toolchain
-
-
 def check_rosetta() -> None:
     """Fail fast when the x86_64 ESP8266 toolchain cannot run on this Mac.
 
@@ -516,7 +508,7 @@ async def finalize_serial_config() -> None:
 # PlatformIO toolchain.
 def run_compile(args, config: ConfigType) -> bool:
     # Positive check: the native backend only runs when explicitly resolved
-    toolchain = native_toolchain_module()
+    toolchain = native_backend()
     if toolchain is None:
         return False
     if toolchain.run_compile(config, CORE.verbose) != 0:
@@ -588,7 +580,7 @@ ESP8266_EXCEPTION_CODES = {
 
 def _resolve_decode_tools(config: ConfigType) -> tuple[str, str] | None:
     """``(addr2line, elf)`` for this build, or None after warning why."""
-    if (native_toolchain := native_toolchain_module()) is not None:
+    if (native_toolchain := native_backend()) is not None:
         addr2line = native_toolchain.get_addr2line_path()
         elf = native_toolchain.get_elf_path()
         for path in (addr2line, elf):
