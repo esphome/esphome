@@ -236,8 +236,9 @@ void ModelHandler::log_input_stats() const {
   const int total_elements = this->get_input_width() * this->get_input_height() * this->get_input_channels();
   const int sample_size = std::min(20, total_elements);  // Show first 20 values
 
-  ESP_LOGD(TAG, "First %d %s inputs (%s):", sample_size, input->type == kTfLiteFloat32 ? "float32" : "uint8",
-           this->image_config_.normalize ? "normalized" : "raw");
+  ESP_LOGD(TAG, "First %d %s inputs (%s):", sample_size,
+           input->type == kTfLiteFloat32 ? LOG_STR_LITERAL("float32") : LOG_STR_LITERAL("uint8"),
+           this->image_config_.normalize ? LOG_STR_LITERAL("normalized") : LOG_STR_LITERAL("raw"));
 
   if (input->type == kTfLiteFloat32) {
     const float *data = input->data.f;
@@ -316,8 +317,10 @@ void ModelHandler::debug_input_pattern() const {
   }
 
   ESP_LOGD(TAG, "Data range analysis:");
-  ESP_LOGD(TAG, "  Looks like 0-1 normalized: %s", looks_normalized_0_1 ? "YES" : "NO");
-  ESP_LOGD(TAG, "  Looks like -1 to 1 normalized: %s", looks_normalized_neg1_1 ? "YES" : "NO");
+  ESP_LOGD(TAG, "  Looks like 0-1 normalized: %s",
+           looks_normalized_0_1 ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"));
+  ESP_LOGD(TAG, "  Looks like -1 to 1 normalized: %s",
+           looks_normalized_neg1_1 ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"));
 }
 
 ProcessedOutput ModelHandler::process_output(TfLiteTensor *output_tensor) const {
@@ -520,8 +523,9 @@ ProcessedOutput ModelHandler::process_output(const float *output_data) const {
     bool looks_like_logits_ad = !looks_like_probs_ad && !looks_like_one_hot_ad;
 
     ESP_LOGI(TAG, "AUTO-DETECT: min=%.3f max=%.3f sum=%.3f nz=%d => probs=%s one_hot=%s logits=%s", min_val_ad,
-             max_val_ad, sum_ad, non_zero_ad, looks_like_probs_ad ? "YES" : "NO", looks_like_one_hot_ad ? "YES" : "NO",
-             looks_like_logits_ad ? "YES" : "NO");
+             max_val_ad, sum_ad, non_zero_ad, looks_like_probs_ad ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"),
+             looks_like_one_hot_ad ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"),
+             looks_like_logits_ad ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"));
 
     if (looks_like_probs_ad) {
       int max_idx_ad = 0;
