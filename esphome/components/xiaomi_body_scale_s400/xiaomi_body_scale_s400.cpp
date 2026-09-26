@@ -1,204 +1,141 @@
 #include "xiaomi_body_scale_s400.h"
+#include "esphome/components/ble_device_base/ble_aes_ccm.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "mbedtls/ccm.h"
 
-#ifdef USE_ESP32
+#include <cstring>
 
 namespace esphome::xiaomi_body_scale_s400 {
 
 static const char *const TAG = "xiaomi_body_scale_s400";
 
-// Inline AES-CCM decryption for S400 24-byte payload
-// cipher_pos=5, datasize=12 (matches xiaomi_miscale component logic)
-static bool decrypt_s400(std::vector<uint8_t> &raw, const uint8_t *bindkey, const uint64_t address) {
-  if (raw.size() != 24)
-    return false;
+// Encrypted MiBeacon frame: header (5), cipher (12), counter (3), tag (4)
+static constexpr size_t FRAME_SIZE = 24;
+static constexpr size_t CIPHER_POS = 5;
+static constexpr size_t CIPHER_SIZE = 12;
+static constexpr size_t COUNTER_POS = 17;
+static constexpr size_t TAG_POS = 20;
+static constexpr size_t TAG_SIZE = 4;
+static constexpr uint8_t FRAME_HAS_DATA = 0x40;
+static constexpr uint8_t FRAME_ENCRYPTED = 0x08;
+static constexpr uint32_t STABILIZED_RESET_ID = 0;
+static constexpr uint32_t STABILIZED_RESET_MS = 1000;
 
-  uint8_t mac[6];
-  mac[5] = (uint8_t) (address >> 40);
-  mac[4] = (uint8_t) (address >> 32);
-  mac[3] = (uint8_t) (address >> 24);
-  mac[2] = (uint8_t) (address >> 16);
-  mac[1] = (uint8_t) (address >> 8);
-  mac[0] = (uint8_t) (address >> 0);
-
-  const uint8_t *v = raw.data();
-  const int cipher_pos = 5;
-  const int datasize = 12;
-
-  uint8_t iv[12];
-  memcpy(iv, mac, 6);
-  memcpy(iv + 6, v + 2, 3);
-  memcpy(iv + 9, v + 17, 3);
-
-  uint8_t authdata[1] = {0x11};
-  uint8_t ciphertext[12] = {0};
-  uint8_t plaintext[12] = {0};
-  uint8_t tag[4] = {0};
-
-  memcpy(ciphertext, v + cipher_pos, datasize);
-  memcpy(tag, v + 20, 4);
-
-  mbedtls_ccm_context ctx;
-  mbedtls_ccm_init(&ctx);
-
-  int ret = mbedtls_ccm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, bindkey, 128);
-  if (ret) {
-    mbedtls_ccm_free(&ctx);
-    return false;
-  }
-
-  ret = mbedtls_ccm_auth_decrypt(&ctx, datasize, iv, sizeof(iv), authdata, sizeof(authdata), ciphertext, plaintext, tag,
-                                 sizeof(tag));
-  mbedtls_ccm_free(&ctx);
-  if (ret)
-    return false;
-
-  for (int i = 0; i < datasize; i++)
-    raw[cipher_pos + i] = plaintext[i];
-
-  raw[0] &= ~0x08;
-  return true;
-}
-
-void XiaomiBodyScaleS400::set_bindkey(const std::string &bindkey) {
-  memset(this->bindkey_, 0, 16);
-  if (bindkey.size() != 32)
-    return;
-  char temp[3] = {0};
-  for (int i = 0; i < 16; i++) {
-    strncpy(temp, &(bindkey.c_str()[i * 2]), 2);
-    this->bindkey_[i] = std::strtoul(temp, nullptr, 16);
-  }
+void XiaomiBodyScaleS400::set_bindkey(const char *bindkey) {
+  parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_));
 }
 
 void XiaomiBodyScaleS400::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi Body Composition Scale S400");
   LOG_SENSOR("  ", "Weight", this->weight_);
-  LOG_SENSOR("  ", "Impedance", this->impedance_);
   LOG_SENSOR("  ", "Impedance Low (50 kHz)", this->impedance_low_);
   LOG_SENSOR("  ", "Impedance High (250 kHz)", this->impedance_high_);
   LOG_SENSOR("  ", "Heart Rate", this->heart_rate_);
   LOG_SENSOR("  ", "Profile ID", this->profile_id_);
+  LOG_BINARY_SENSOR("  ", "Stabilized", this->stabilized_);
 }
 
-bool XiaomiBodyScaleS400::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+// Decrypts the cipher bytes of `raw` in place; false if the tag does not verify
+bool XiaomiBodyScaleS400::decrypt_(uint8_t *raw) const {
+  uint8_t nonce[12];
+  for (size_t i = 0; i < 6; i++)
+    nonce[i] = static_cast<uint8_t>(this->address_ >> (i * 8));  // MAC, reversed
+  memcpy(nonce + 6, raw + 2, 3);                                 // device id + frame count
+  memcpy(nonce + 9, raw + COUNTER_POS, 3);
+  static constexpr uint8_t AUTH_DATA[1] = {0x11};
+  uint8_t plaintext[CIPHER_SIZE];
+  if (!ble_device_base::aes_ccm_auth_decrypt(this->bindkey_, nonce, sizeof(nonce), AUTH_DATA, sizeof(AUTH_DATA),
+                                             raw + CIPHER_POS, CIPHER_SIZE, plaintext, raw + TAG_POS, TAG_SIZE))
+    return false;
+  memcpy(raw + CIPHER_POS, plaintext, CIPHER_SIZE);
+  return true;
+}
+
+void XiaomiBodyScaleS400::publish_stabilized_() {
+  if (this->stabilized_ == nullptr)
+    return;
+  this->stabilized_->publish_state(true);
+  // Clear it again so the next measurement is seen as a new one
+  this->set_timeout(STABILIZED_RESET_ID, STABILIZED_RESET_MS, [this]() { this->stabilized_->publish_state(false); });
+}
+
+bool XiaomiBodyScaleS400::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_)
     return false;
 
-  for (auto &service_data : device.get_service_datas()) {
-    std::vector<uint8_t> raw = service_data.data;
-
-    if (raw.size() != 24)
+  for (const auto &service_data : device.get_service_datas()) {
+    if (service_data.data.size() != FRAME_SIZE || !service_data.uuid.contains(0x95, 0xFE))
       continue;
-    if (!service_data.uuid.contains(0x95, 0xFE))
-      continue;
-    if (!(raw[0] & 0x40))
+    uint8_t raw[FRAME_SIZE];
+    memcpy(raw, service_data.data.data(), FRAME_SIZE);
+    // The bindkey is required, so plaintext frames are never trusted
+    if ((raw[0] & (FRAME_HAS_DATA | FRAME_ENCRYPTED)) != (FRAME_HAS_DATA | FRAME_ENCRYPTED))
       continue;
 
     const uint16_t device_id = encode_uint16(raw[3], raw[2]);
     if (device_id != 0x3BD5 && device_id != 0x4B05 && device_id != 0x30D9 && device_id != 0x48CF)
       continue;
-
-    static uint8_t last_frame_count = 0xFF;
-    if (last_frame_count == raw[4])
+    if (raw[4] == this->last_frame_count_)
       continue;
-    last_frame_count = raw[4];
-
-    if (raw[0] & 0x08) {
-      if (!decrypt_s400(raw, this->bindkey_, this->address_)) {
-        ESP_LOGW(TAG, "Decryption failed — wrong bindkey?");
-        continue;
-      }
+    if (!this->decrypt_(raw)) {
+      ESP_LOGW(TAG, "Decryption failed, wrong bindkey?");
+      continue;
     }
+    // Only an authenticated frame may advance the duplicate filter
+    this->last_frame_count_ = raw[4];
 
-    const uint8_t raw_offset = 5;
-    const uint16_t value_type = encode_uint16(raw[raw_offset + 1], raw[raw_offset + 0]);
-    if (value_type != 0x6E16) {
-      ESP_LOGVV(TAG, "Unknown object ID: 0x%04X", value_type);
+    const uint8_t *object = raw + CIPHER_POS;
+    const uint16_t value_type = encode_uint16(object[1], object[0]);
+    if (value_type != 0x6E16 || object[2] != 9) {
+      ESP_LOGVV(TAG, "Unknown object 0x%04X, length %u", value_type, object[2]);
       continue;
     }
 
-    const uint8_t value_length = raw[raw_offset + 2];
-    if (value_length != 9) {
-      ESP_LOGVV(TAG, "Wrong payload length: %d (expected 9)", value_length);
-      continue;
-    }
-
-    const uint8_t *data = raw.data() + raw_offset + 3;
-
-    // data[0]   : profile ID (uint8, 1-5)
-    // data[1-4] : compressed metrics (uint32 LE)
-    //   bits  0-10 : weight × 10      (0.1 kg)
-    //   bits 11-17 : heart_rate − 50  (1 bpm)
-    //   bits 18-31 : impedance × 10   (0.1 Ω)
+    // data[0]   : profile ID (1-5)
+    // data[1-4] : packed metrics (uint32 LE)
+    //   bits  0-10 : weight x 10      (0.1 kg)
+    //   bits 11-17 : heart rate - 50  (1 bpm)
+    //   bits 18-31 : impedance x 10   (0.1 Ohm)
+    // data[5-8] : UNIX timestamp (not published)
     //
-    // Impedance frequency convention (aligned with bodymiscale / BIA standard):
-    //   impedance_low  = low frequency  50 kHz  → numerically LARGER  value (~558 Ω)
-    //                    packet WITH weight and heart_rate
-    //   impedance_high = high frequency 250 kHz → numerically SMALLER value (~503 Ω)
-    //                    packet WITHOUT weight and heart_rate
-    //
-    // data[5-8] : UNIX timestamp (not published — requires Xiaomi Home app)
-
+    // A measurement sends a packet with weight, heart rate and the 50 kHz impedance (the larger value),
+    // then a packet with only the 250 kHz impedance (the smaller value).
+    const uint8_t *data = object + 3;
     const uint32_t data_int = encode_uint32(data[4], data[3], data[2], data[1]);
     const uint16_t weight = data_int & 0x7FF;
     const uint8_t heart_rate = (data_int >> 11) & 0x7F;
     const uint16_t impedance = data_int >> 18;
 
-    ESP_LOGD(TAG, "profile=%d weight=%u heart_rate=%u impedance=%u", data[0], weight, heart_rate, impedance);
+    ESP_LOGD(TAG, "profile=%u weight=%u heart_rate=%u impedance=%u", data[0], weight, heart_rate, impedance);
 
     if (this->profile_id_ != nullptr)
-      this->profile_id_->publish_state((float) data[0]);
-
+      this->profile_id_->publish_state(data[0]);
     if (weight != 0 && this->weight_ != nullptr)
       this->weight_->publish_state(weight / 10.0f);
-
     if (heart_rate > 0 && heart_rate < 127 && this->heart_rate_ != nullptr)
-      this->heart_rate_->publish_state((float) heart_rate + 50.0f);
+      this->heart_rate_->publish_state(heart_rate + 50.0f);
 
     if (weight == 0 && heart_rate == 0 && impedance == 0) {
-      // Person stepped off the scale → reset
+      // Stepped off the scale
       if (this->stabilized_ != nullptr)
         this->stabilized_->publish_state(false);
     } else if (weight == 0 && heart_rate == 0) {
-      // Last packet, impedance_high only → measurement complete (bare feet)
+      // Final packet with the 250 kHz impedance: measurement complete (bare feet)
       if (this->impedance_high_ != nullptr)
         this->impedance_high_->publish_state(impedance / 10.0f);
-      if (this->stabilized_ != nullptr) {
-        this->stabilized_->publish_state(true);
-        // Reset after 1s so the next measurement cycle is detected
-        this->set_timeout("stabilized_reset", 1000, [this]() {
-          if (this->stabilized_ != nullptr)
-            this->stabilized_->publish_state(false);
-        });
-      }
+      this->publish_stabilized_();
     } else if (impedance != 0) {
-      // Packet with weight/heart_rate + impedance → low frequency 50 kHz → impedance_low
       if (this->impedance_low_ != nullptr)
         this->impedance_low_->publish_state(impedance / 10.0f);
-      if (this->impedance_ != nullptr)
-        this->impedance_->publish_state(impedance / 10.0f);
       if (this->stabilized_ != nullptr)
         this->stabilized_->publish_state(false);
     } else {
-      // Packet with weight only → measurement complete (with socks)
-      if (this->stabilized_ != nullptr) {
-        this->stabilized_->publish_state(true);
-        // Reset after 1s so the next measurement cycle is detected
-        this->set_timeout("stabilized_reset", 1000, [this]() {
-          if (this->stabilized_ != nullptr)
-            this->stabilized_->publish_state(false);
-        });
-      }
+      // Weight without impedance: measurement complete (with socks)
+      this->publish_stabilized_();
     }
-
     return true;
   }
   return false;
 }
 
 }  // namespace esphome::xiaomi_body_scale_s400
-
-#endif

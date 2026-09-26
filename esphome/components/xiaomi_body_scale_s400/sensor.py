@@ -1,40 +1,44 @@
 import esphome.codegen as cg
-from esphome.components import binary_sensor, esp32_ble_tracker, sensor
+from esphome.components import binary_sensor, ble_device_base, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BINDKEY,
     CONF_ID,
-    CONF_IMPEDANCE,
     CONF_MAC_ADDRESS,
     CONF_WEIGHT,
     DEVICE_CLASS_WEIGHT,
+    ICON_HEART_PULSE,
+    ICON_OMEGA,
+    ICON_SCALE_BATHROOM,
     STATE_CLASS_MEASUREMENT,
+    UNIT_BEATS_PER_MINUTE,
     UNIT_KILOGRAM,
+    UNIT_OHM,
 )
+from esphome.types import ConfigType
 
-CONF_IMPEDANCE_LOW = "impedance_low"  # low frequency  50 kHz — larger value
-CONF_IMPEDANCE_HIGH = "impedance_high"  # high frequency 250 kHz — smaller value
+CONF_IMPEDANCE_LOW = "impedance_low"  # 50 kHz, the larger value
+CONF_IMPEDANCE_HIGH = "impedance_high"  # 250 kHz, the smaller value
 CONF_HEART_RATE = "heart_rate"
 CONF_PROFILE_ID = "profile_id"
-UNIT_OHM = "Ω"
-UNIT_BPM = "bpm"
+CONF_STABILIZED = "stabilized"
 
-DEPENDENCIES = ["esp32_ble_tracker"]
-AUTO_LOAD = ["xiaomi_ble", "binary_sensor"]
+AUTO_LOAD = ["ble_device_base", "binary_sensor"]
 
 xiaomi_body_scale_s400_ns = cg.esphome_ns.namespace("xiaomi_body_scale_s400")
 XiaomiBodyScaleS400 = xiaomi_body_scale_s400_ns.class_(
-    "XiaomiBodyScaleS400", esp32_ble_tracker.ESPBTDeviceListener, cg.Component
+    "XiaomiBodyScaleS400", ble_device_base.ESPBTDeviceListener, cg.Component
 )
 
 IMPEDANCE_SCHEMA = sensor.sensor_schema(
     unit_of_measurement=UNIT_OHM,
+    icon=ICON_OMEGA,
     accuracy_decimals=1,
     state_class=STATE_CLASS_MEASUREMENT,
-    icon="mdi:omega",
 )
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
+    ble_device_base.rename_legacy_hub_id("xiaomi_body_scale_s400"),
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(XiaomiBodyScaleS400),
@@ -46,57 +50,46 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_WEIGHT,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_IMPEDANCE): IMPEDANCE_SCHEMA,
-            cv.Optional(CONF_IMPEDANCE_LOW): IMPEDANCE_SCHEMA,  # 50 kHz  — larger value
-            cv.Optional(
-                CONF_IMPEDANCE_HIGH
-            ): IMPEDANCE_SCHEMA,  # 250 kHz — smaller value
+            cv.Optional(CONF_IMPEDANCE_LOW): IMPEDANCE_SCHEMA,
+            cv.Optional(CONF_IMPEDANCE_HIGH): IMPEDANCE_SCHEMA,
             cv.Optional(CONF_HEART_RATE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_BPM,
+                unit_of_measurement=UNIT_BEATS_PER_MINUTE,
+                icon=ICON_HEART_PULSE,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
-                icon="mdi:heart-pulse",
             ),
             cv.Optional(CONF_PROFILE_ID): sensor.sensor_schema(
-                accuracy_decimals=0,
                 icon="mdi:identifier",
+                accuracy_decimals=0,
             ),
-            cv.Optional("stabilized"): binary_sensor.binary_sensor_schema(
-                icon="mdi:scale-bathroom",
+            cv.Optional(CONF_STABILIZED): binary_sensor.binary_sensor_schema(
+                icon=ICON_SCALE_BATHROOM,
             ),
         }
     )
-    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
+    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await esp32_ble_tracker.register_ble_device(var, config)
+    await ble_device_base.register_ble_device(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_bindkey(config[CONF_BINDKEY]))
 
-    if CONF_WEIGHT in config:
-        sens = await sensor.new_sensor(config[CONF_WEIGHT])
-        cg.add(var.set_weight(sens))
-    if CONF_IMPEDANCE in config:
-        sens = await sensor.new_sensor(config[CONF_IMPEDANCE])
-        cg.add(var.set_impedance(sens))
-    if CONF_IMPEDANCE_LOW in config:
-        sens = await sensor.new_sensor(config[CONF_IMPEDANCE_LOW])
-        cg.add(var.set_impedance_low(sens))
-    if CONF_IMPEDANCE_HIGH in config:
-        sens = await sensor.new_sensor(config[CONF_IMPEDANCE_HIGH])
-        cg.add(var.set_impedance_high(sens))
-    if CONF_HEART_RATE in config:
-        sens = await sensor.new_sensor(config[CONF_HEART_RATE])
-        cg.add(var.set_heart_rate(sens))
-    if CONF_PROFILE_ID in config:
-        sens = await sensor.new_sensor(config[CONF_PROFILE_ID])
-        cg.add(var.set_profile_id(sens))
-    if "stabilized" in config:
-        sens = await binary_sensor.new_binary_sensor(config["stabilized"])
+    for key, setter in (
+        (CONF_WEIGHT, var.set_weight),
+        (CONF_IMPEDANCE_LOW, var.set_impedance_low),
+        (CONF_IMPEDANCE_HIGH, var.set_impedance_high),
+        (CONF_HEART_RATE, var.set_heart_rate),
+        (CONF_PROFILE_ID, var.set_profile_id),
+    ):
+        if (conf := config.get(key)) is not None:
+            sens = await sensor.new_sensor(conf)
+            cg.add(setter(sens))
+    if (conf := config.get(CONF_STABILIZED)) is not None:
+        sens = await binary_sensor.new_binary_sensor(conf)
         cg.add(var.set_stabilized(sens))

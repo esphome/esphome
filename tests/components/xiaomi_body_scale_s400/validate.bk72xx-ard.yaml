@@ -1,0 +1,19 @@
+# Config-only: the CI bk72xx board cannot compile the BLE 5.x tracker
+bk72xx_ble_tracker:
+
+sensor:
+  - platform: xiaomi_body_scale_s400
+    mac_address: "AA:BB:CC:DD:EE:FF"
+    bindkey: "00112233445566778899aabbccddeeff"
+    weight:
+      name: "Scale Weight"
+    impedance_low:
+      name: "Scale Impedance Low"
+    impedance_high:
+      name: "Scale Impedance High"
+    heart_rate:
+      name: "Scale Heart Rate"
+    profile_id:
+      name: "Scale Profile ID"
+    stabilized:
+      name: "Scale Stabilized"
