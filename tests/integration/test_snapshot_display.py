@@ -10,7 +10,7 @@ from aioesphomeapi import LogLevel
 from PIL import Image, UnidentifiedImageError
 import pytest
 
-from .bmp_utils import capture_when_drawn, wait_for_bmp
+from .bmp_utils import Bmp, capture_when_drawn, wait_for_bmp
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 WIDTH = 101
@@ -20,8 +20,14 @@ ANIMATION_FRAMES = 5
 # The fixture asks for 20 frames a second, and a GIF counts time in milliseconds here.
 ANIMATION_FRAME_MS = 50
 
+NOISE_WIDTH = 200
+NOISE_HEIGHT = 150
+NOISE_FRAMES = 3
+
 # Part of the message the writer logs when it will not write over a file that is already there.
 REFUSAL_MESSAGE = b"not overwriting"
+# Part of the message logged when an animation is asked for while another is still being recorded.
+BUSY_MESSAGE = b"Already recording"
 
 
 async def wait_for_gif(path: Path, frames: int, timeout: float = 5.0) -> Image.Image:
@@ -49,6 +55,13 @@ async def wait_for_gif(path: Path, frames: int, timeout: float = 5.0) -> Image.I
         await asyncio.sleep(0.05)
     raise AssertionError(
         f"no complete {frames} frame GIF appeared at {path} within {timeout}s"
+    )
+
+
+def bmp_as_image(bmp: Bmp) -> Image.Image:
+    """The picture in a decoded BMP, as an RGB image."""
+    return Image.frombytes(
+        "RGB", (bmp.width, bmp.height), bmp.pixels, "raw", "BGR", 0, -1
     )
 
 
@@ -87,13 +100,35 @@ async def test_snapshot_display(
         await client.execute_service(animation_service, {"name": "movie"})
         movie = await wait_for_gif(snapshot_dir / "movie.gif", ANIMATION_FRAMES)
         assert movie.size == (WIDTH, HEIGHT)
-        expected = Image.frombytes(
-            "RGB", (WIDTH, HEIGHT), image.pixels, "raw", "BGR", 0, -1
-        )
+        expected = bmp_as_image(image)
         for frame in range(ANIMATION_FRAMES):
             movie.seek(frame)
             assert movie.info["duration"] == ANIMATION_FRAME_MS
             assert movie.convert("RGB").tobytes() == expected.tobytes()
+
+        # A picture of 256 colours in no pattern makes a long run of compression codes, so recording
+        # it passes the point where the code width grows and where the dictionary is started over.
+        # The picture uses no more than 256 colours, so it is stored exactly and every frame must
+        # come back identical to the one captured as a BMP.
+        noise_service = next(s for s in services if s.name == "take_noise_snapshot")
+        noise_animation = next(s for s in services if s.name == "take_noise_animation")
+
+        async def take_noise(name: str) -> None:
+            await client.execute_service(noise_service, {"name": name})
+
+        noise, _ = await capture_when_drawn(take_noise, snapshot_dir, "noisedrawn")
+        assert (noise.width, noise.height) == (NOISE_WIDTH, NOISE_HEIGHT)
+        noise_expected = bmp_as_image(noise)
+        assert (
+            len(noise_expected.getcolors(NOISE_WIDTH * NOISE_HEIGHT)) > 200
+        )  # a busy picture
+        await client.execute_service(noise_animation, {"name": "noise"})
+        noise_movie = await wait_for_gif(
+            snapshot_dir / "noise.gif", NOISE_FRAMES, timeout=15.0
+        )
+        for frame in range(NOISE_FRAMES):
+            noise_movie.seek(frame)
+            assert noise_movie.convert("RGB").tobytes() == noise_expected.tobytes()
 
         # An extension is only added when there is not one already, whatever its case.
         await take("UPPER.BMP")
@@ -104,18 +139,30 @@ async def test_snapshot_display(
         await take("../escape")
         await wait_for_bmp(snapshot_dir / ".._escape.bmp")
 
-        # A second capture under a name already used must fail rather than write over the first.
-        # Wait for the device to report the refusal: on its own, an unchanged file cannot tell a
-        # refusal apart from a request the device has not got to yet, so a regression that wrote
-        # over the file could still pass on a busy machine.
+        # The device says so when it refuses a request. Waiting for that message is the only way to
+        # tell a refusal from a request the device has not got to yet: an unchanged file, or a file
+        # that never appears, would look the same on a busy machine.
         refused = asyncio.Event()
+        busy = asyncio.Event()
 
         def on_log(msg) -> None:
             if REFUSAL_MESSAGE in msg.message:
                 refused.set()
+            if BUSY_MESSAGE in msg.message:
+                busy.set()
 
         client.subscribe_logs(on_log, log_level=LogLevel.LOG_LEVEL_DEBUG)
 
+        # A display records one animation at a time. A second request made while the first is still
+        # running is refused and leaves no file, and the first one carries on to the end.
+        slow_animation = next(s for s in services if s.name == "take_slow_animation")
+        await client.execute_service(slow_animation, {"name": "slow"})
+        await client.execute_service(slow_animation, {"name": "second"})
+        await asyncio.wait_for(busy.wait(), timeout=10.0)
+        assert not (snapshot_dir / "second.gif").exists()
+        await wait_for_gif(snapshot_dir / "slow.gif", 3)
+
+        # A second capture under a name already used must fail rather than write over the first.
         before = capture.read_bytes()
         await take(capture.name)
         await asyncio.wait_for(refused.wait(), timeout=10.0)
@@ -123,6 +170,12 @@ async def test_snapshot_display(
         # Nothing beyond what was asked for, leaving out however many captures it took to wait
         # for the first frame.
         written = sorted(
-            p.name for p in snapshot_dir.iterdir() if not p.name.startswith("drawn-")
+            p.name for p in snapshot_dir.iterdir() if "drawn-" not in p.name
         )
-        assert written == [".._escape.bmp", "UPPER.BMP", "movie.gif"]
+        assert written == [
+            ".._escape.bmp",
+            "UPPER.BMP",
+            "movie.gif",
+            "noise.gif",
+            "slow.gif",
+        ]
