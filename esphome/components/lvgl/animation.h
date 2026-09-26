@@ -4,6 +4,7 @@
 #ifdef USE_LVGL_ANIMATION
 #include "lvgl_esphome.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::lvgl {
 
@@ -143,26 +144,26 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
     if (this->state_ == AnimationState::STOPPED)
       return;
     uint32_t elapsed = millis() - this->start_time_;
-    float progress = static_cast<float>(elapsed) / static_cast<float>(this->duration_);
+    float progress = clamp_at_most(elapsed / static_cast<float>(this->duration_), 1.0f);
     switch (this->state_) {
       case AnimationState::STARTED:
         if (elapsed < this->start_delay_)
           return;
         this->state_ = AnimationState::RUNNING;
         this->start_time_ = millis();
+        elapsed = 0;
         progress = 0.0f;
         break;
       case AnimationState::RUNNING:
-        if (progress >= 1.0f) {
-          progress = 1.0f;
-        }
         break;
       default:
         return;
     }
 
+    // state here is RUNNING.
     for (auto *timing : this->timings_) {
-      progress = timing->map_progress(progress);
+      // avoid overshooting
+      progress = clamp_at_most(timing->map_progress(progress), 1.0f);
     }
     lv_coord_t data[DATA_SIZE];
     for (size_t i = 0; i != DATA_SIZE; i++) {
@@ -170,7 +171,7 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
           roundf(this->data_from_[i] + static_cast<lv_coord_t>(this->data_to_[i] - this->data_from_[i]) * progress));
     }
     this->update_callback_(data);
-    if (progress == 1.0f) {
+    if (elapsed >= this->duration_) {
       this->stop();
       if (this->loop_) {
         // Current sequence is done, so restart the loop
