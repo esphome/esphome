@@ -237,6 +237,7 @@ light:
       state: INITIAL
       brightness: INITIAL
   - platform: monochromatic
+    flash_transition_length: 100ms
     id: test_monochromatic_light
     name: Monochromatic Light
     output: test_ledc_1

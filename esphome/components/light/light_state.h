@@ -44,6 +44,9 @@ class LightTargetStateReachedListener {
   virtual void on_light_target_state_reached() = 0;
 };
 
+/// Entries in a gamma lookup table; codegen stores gamma * 100 in one extra entry after them
+static constexpr size_t GAMMA_TABLE_SIZE = 256;
+
 struct LightStateRTCState {
   // Group 4-byte aligned members first
   float brightness{1.0f};
@@ -151,15 +154,28 @@ class LightState : public EntityBase, public Component {
   }
   uint32_t get_default_transition_length() const { return this->default_transition_length_; }
 
-  /// Set the flash transition length
+#ifdef USE_LIGHT_FLASH_TRANSITION_LENGTH
+  /// Set the flash transition length; only compiled in when a light configures one
   void set_flash_transition_length(uint32_t flash_transition_length) {
     this->flash_transition_length_ = flash_transition_length;
   }
   uint32_t get_flash_transition_length() const { return this->flash_transition_length_; }
+#else
+  // Remove before 2027.4.0
+  ESPDEPRECATED("set_flash_transition_length() does nothing unless flash_transition_length is set in YAML. Will be "
+                "removed in 2027.4.0.",
+                "2026.10.0")
+  void set_flash_transition_length(uint32_t flash_transition_length) {}
+  uint32_t get_flash_transition_length() const { return 0; }
+#endif
 
-  /// Set the gamma correction factor
-  void set_gamma_correct(float gamma_correct) { this->gamma_correct_ = gamma_correct; }
-  float get_gamma_correct() const { return this->gamma_correct_; }
+  // Remove before 2027.4.0
+  ESPDEPRECATED("set_gamma_correct() does nothing; gamma is fixed at build time by gamma_correct in YAML. Will be "
+                "removed in 2027.4.0.",
+                "2026.10.0")
+  void set_gamma_correct(float gamma_correct) {}
+  /// The gamma correction factor, read from the entry after the gamma lookup table; 0 without one
+  float get_gamma_correct() const;
 
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   void set_transition_state_publish_interval(uint32_t transition_state_publish_interval) {
@@ -365,28 +381,29 @@ class LightState : public EntityBase, public Component {
   /// Default transition length for all transitions in ms.
   uint32_t default_transition_length_{};
   /// Transition length to use for flash transitions.
+#ifdef USE_LIGHT_FLASH_TRANSITION_LENGTH
   uint32_t flash_transition_length_{};  // Keep in sync with DEFAULT_FLASH_TRANSITION_LENGTH in __init__.py
+#endif
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   uint32_t transition_state_publish_interval_{0};
   uint32_t last_transition_state_publish_{0};
 #endif
-  /// Gamma correction factor for the light.
-  float gamma_correct_{};
 #ifdef USE_LIGHT_GAMMA_LUT
   const uint16_t *gamma_table_{nullptr};
 #endif  // USE_LIGHT_GAMMA_LUT
 
   /// 1-based index of the active effect, 0 if none; codegen caps effects at MAX_EFFECTS in effects.py
   uint16_t active_effect_index_{};
+  // The flags are bitfields so they share one byte with the index above
   /// Whether the light value should be written in the next cycle.
-  bool next_write_{true};
+  bool next_write_ : 1 {true};
   // for effects, true if a transformer (transition) is active.
-  bool is_transformer_active_{false};
+  bool is_transformer_active_ : 1 {false};
   /// Whether this light persists its state to preferences at all.
-  bool save_enabled_{false};
+  bool save_enabled_ : 1 {false};
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   /// True while the active transformer publishes current_values on an interval from loop().
-  bool transition_publish_enabled_{false};
+  bool transition_publish_enabled_ : 1 {false};
 #endif
 };
 

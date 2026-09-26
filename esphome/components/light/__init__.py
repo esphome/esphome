@@ -145,7 +145,10 @@ def _get_or_create_gamma_table(gamma_correct):
     if gamma_correct in data.gamma_tables:
         return data.gamma_tables[gamma_correct]
 
-    forward = generate_gamma_table(gamma_correct)
+    # One extra entry after the table holds gamma * 100, so get_gamma_correct() needs no RAM
+    forward = generate_gamma_table(gamma_correct) + [
+        HexInt(min(65535, round(gamma_correct * 100)))
+    ]
 
     gamma_str = f"{gamma_correct}".replace(".", "_")
     fwd_id = ID(f"gamma_{gamma_str}_fwd", is_declaration=True, type=cg.uint16)
@@ -553,13 +556,13 @@ async def setup_light_core_(light_var, config, output_var):
     ) is not None and flash_transition_length != cv.time_period(
         DEFAULT_FLASH_TRANSITION_LENGTH
     ):
+        cg.add_define("USE_LIGHT_FLASH_TRANSITION_LENGTH")
         cg.add(light_var.set_flash_transition_length(flash_transition_length))
     # Setting an interval opts this light in and compiles the feature in
     if (interval := config.get(CONF_TRANSITION_STATE_PUBLISH_INTERVAL)) is not None:
         cg.add(light_var.set_transition_state_publish_interval(interval))
         cg.add_define("USE_LIGHT_TRANSITION_PUBLISH_INTERVAL")
     if (gamma_correct := config.get(CONF_GAMMA_CORRECT)) is not None:
-        cg.add(light_var.set_gamma_correct(gamma_correct))
         fwd_arr = _get_or_create_gamma_table(gamma_correct)
         cg.add(light_var.set_gamma_table(fwd_arr))
         cg.add_define("USE_LIGHT_GAMMA_LUT")

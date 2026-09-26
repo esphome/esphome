@@ -14,13 +14,15 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_define("USE_LIGHT_GAMMA_LUT")
         # Use the light component's own generate_gamma_table() so the
         # benchmark stays in sync with any formula changes.
-        forward = generate_gamma_table(2.8)
+        forward = generate_gamma_table(2.8) + [
+            280
+        ]  # the light's layout: table, then gamma * 100
         values = ", ".join(f"0x{int(v):04X}" for v in forward)
         # Use extern-visible (non-static) array so the benchmark .cpp
         # can reference it via extern declaration.
         cg.add_global(
             cg.RawStatement(
-                f"extern const uint16_t bench_gamma_2_8_fwd[256] PROGMEM = {{{values}}};"
+                f"extern const uint16_t bench_gamma_2_8_fwd[257] PROGMEM = {{{values}}};"
             )
         )
 

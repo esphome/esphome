@@ -97,7 +97,7 @@ void LightState::dump_config() {
     ESP_LOGCONFIG(TAG,
                   "  Default Transition Length: %.1fs\n"
                   "  Gamma Correct: %.2f",
-                  this->default_transition_length_ / 1e3f, this->gamma_correct_);
+                  this->default_transition_length_ / 1e3f, this->get_gamma_correct());
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
     // The define is build wide; only lights that set the option have an interval
     if (this->transition_state_publish_interval_ != 0) {
@@ -296,6 +296,14 @@ void LightState::current_values_as_ct(float *color_temperature, float *white_bri
   *white_brightness = this->gamma_correct_lut(*white_brightness);
 }
 
+float LightState::get_gamma_correct() const {
+#ifdef USE_LIGHT_GAMMA_LUT
+  if (this->gamma_table_ != nullptr)
+    return progmem_read_uint16(&this->gamma_table_[GAMMA_TABLE_SIZE]) / 100.0f;
+#endif  // USE_LIGHT_GAMMA_LUT
+  return 0.0f;
+}
+
 #ifdef USE_LIGHT_GAMMA_LUT
 float LightState::gamma_correct_lut(float value) const {
   if (value <= 0.0f)
@@ -435,7 +443,7 @@ void LightState::save_remote_values_() {
   saved.color_temp = this->remote_values.get_color_temperature();
   saved.cold_white = this->remote_values.get_cold_white();
   saved.warm_white = this->remote_values.get_warm_white();
-  saved.effect = this->active_effect_index_;
+  saved.effect = static_cast<uint32_t>(this->active_effect_index_);  // the saved layout stays uint32_t
   this->rtc_.save(&saved);
 }
 
