@@ -198,9 +198,8 @@ def _already_installed(dest: Path) -> bool:
 def _batched_download_progress(
     name: str, version: str, extract_progress: Callable[[float], None]
 ) -> Callable[[int], None]:
-    """Zero-tick tracker for a batched install. A verified archive credits
-    itself in one tick; anything else is a real download behind a bar that
-    cannot move, so say so once."""
+    """Zero-tick tracker for a batched install; announces a real download
+    once, since the shared bar cannot move for it."""
     announced = False
 
     def progress(done: int) -> None:
@@ -345,8 +344,7 @@ def install_package(
         # Persistent location so an interrupted download resumes across runs.
         downloads_dir.mkdir(parents=True, exist_ok=True)
         archive = _archive_path(downloads_dir, name, version)
-        # Batched runs are announced by the batch header; a real
-        # download there is announced by the tracker below instead
+        # Batched runs are announced by the batch header
         batched = extract_progress is not None and archive.is_file()
         if not batched:
             _LOGGER.info("Downloading %s %s ...", name, version)
@@ -366,9 +364,7 @@ def install_package(
                 archive,
                 sha256=sha256,
                 size=size,
-                # Zero ticks only: the shared bar must never run
-                # backwards, but run_batch_downloads observes cancellation
-                # on a tick
+                # Zero ticks: the shared bar must never run backwards
                 progress=None
                 if extract_progress is None
                 else _batched_download_progress(name, version, extract_progress),
@@ -435,11 +431,9 @@ def install_packages(specs: Collection[PackageSpec], downloads_dir: Path) -> Non
             max_workers=workers,
         )
         if failures:
-            # Warn on the first failure too: the raised exception's message
-            # may not name which package failed
+            # The raised exception may not name the package; nothing runs
+            # behind this pass to redo the work
             warn_batch_failures(failures, "Could not install %s: %s")
-            # Nothing runs behind this pass to redo the work, unlike the
-            # prefetch paths that degrade to a stock installer
             raise failures[0][1]
     for name, version, dest, mirrors, expect in rest:
         install_package(name, version, dest, mirrors, downloads_dir, expect=expect)
