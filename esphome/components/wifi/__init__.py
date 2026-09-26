@@ -738,6 +738,10 @@ async def to_code(config):
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
+        # Route the SDK's management frame allocator through the wrapper in
+        # wifi_component_esp8266.cpp so an empty small frame pool does not hang
+        # the device in pm_send_nullfunc.
+        cg.add_build_flag("-Wl,--wrap=ieee80211_getmgtframe")
         if CONF_PHY_MODE in config:
             cg.add_define("USE_WIFI_PHY_MODE")
             cg.add(var.set_phy_mode(config[CONF_PHY_MODE]))

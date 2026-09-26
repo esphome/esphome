@@ -38,6 +38,34 @@ extern "C" {
 #include "esphome/core/progmem.h"
 #include "esphome/core/util.h"
 
+// Management frames of 64 bytes or less come from a fixed pool of eight SDK buffers.
+// Larger frames are allocated from the heap and freed on completion.
+static constexpr int SMALL_MGMT_FRAME_MAX = 64;
+// Times the small pool was empty and a heap buffer was handed out instead.
+static uint8_t s_small_mgmt_pool_exhausted_count = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static uint32_t s_small_mgmt_pool_last_log = 0;        // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static constexpr uint32_t SMALL_MGMT_POOL_LOG_INTERVAL_MS = 10000;
+
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+extern "C" {
+void *__real_ieee80211_getmgtframe(void **frm, int headroom, int pktlen);
+
+// When the small pool is empty the SDK returns nullptr and pm_send_nullfunc spins in an
+// assert until the soft watchdog resets the device (#19371). Retry with a size just above
+// the pool limit so the SDK takes the heap backed path it already uses for larger frames.
+// Only null frames (no body) get the retry; every other caller drops its frame on nullptr.
+void *__wrap_ieee80211_getmgtframe(void **frm, int headroom, int pktlen) {
+  void *buf = __real_ieee80211_getmgtframe(frm, headroom, pktlen);
+  if (buf != nullptr || pktlen != 0 || headroom > SMALL_MGMT_FRAME_MAX)
+    return buf;
+  buf = __real_ieee80211_getmgtframe(frm, headroom, SMALL_MGMT_FRAME_MAX + 1 - headroom);
+  if (buf != nullptr && s_small_mgmt_pool_exhausted_count != UINT8_MAX)
+    s_small_mgmt_pool_exhausted_count++;
+  return buf;
+}
+}
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+
 namespace esphome::wifi {
 
 static const char *const TAG = "wifi_esp8266";
@@ -980,6 +1008,16 @@ void WiFiComponent::process_pending_callbacks_() {
   // Process callbacks deferred from ESP8266 SDK system context (~2KB stack)
   // to main loop context (full stack). Connect state listeners are handled
   // by notify_connect_state_listeners_() in the shared state machine code.
+
+  if (s_small_mgmt_pool_exhausted_count != 0) {
+    const uint32_t now = App.get_loop_component_start_time();
+    if (now - s_small_mgmt_pool_last_log >= SMALL_MGMT_POOL_LOG_INTERVAL_MS) {
+      s_small_mgmt_pool_last_log = now;
+      ESP_LOGW(TAG, "SDK small management frame pool empty %u times, used heap instead",
+               s_small_mgmt_pool_exhausted_count);
+      s_small_mgmt_pool_exhausted_count = 0;
+    }
+  }
 
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
   if (this->pending_.disconnect) {
