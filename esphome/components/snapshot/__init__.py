@@ -12,9 +12,9 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from esphome.core import CORE, ID
+from esphome.core import CORE
 from esphome.cpp_generator import MockObj
-from esphome.types import ConfigType, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
 
@@ -24,31 +24,18 @@ CONF_FILENAME = "filename"
 
 snapshot_ns = cg.esphome_ns.namespace("snapshot")
 Snapshot = snapshot_ns.class_("Snapshot")
-SnapshotAction = snapshot_ns.class_("SnapshotAction", automation.Action)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "snapshot.take",
-    SnapshotAction,
     automation.maybe_simple_id(
         {
             cv.GenerateID(): cv.use_id(Snapshot),
-            cv.Optional(CONF_FILENAME): cv.templatable(cv.string),
+            cv.Optional(CONF_FILENAME, default=""): cv.templatable(cv.string),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_FILENAME, "take_snapshot_or_log", cg.std_string),
 )
-async def snapshot_take_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    if (filename := config.get(CONF_FILENAME)) is not None:
-        cg.add(var.set_filename(await cg.templatable(filename, args, cg.std_string)))
-    return var
 
 
 @dataclass

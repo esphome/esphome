@@ -13,6 +13,20 @@ namespace esphome::light {
 
 static const char *const TAG = "light";
 
+// Colour modes are bitmasks of capabilities. A mode the light doesn't support may be a bare set of
+// required capabilities (see restore_state.py's colour mode inference): use the first supported
+// mode that provides all of them, or leave it unchanged if there is none.
+static ColorMode resolve_color_mode(const LightTraits &traits, ColorMode requested) {
+  if (requested == ColorMode::UNKNOWN || traits.supports_color_mode(requested))
+    return requested;
+  auto wanted = static_cast<uint8_t>(requested);
+  for (ColorMode mode : traits.get_supported_color_modes()) {
+    if ((static_cast<uint8_t>(mode) & wanted) == wanted)
+      return mode;
+  }
+  return requested;
+}
+
 LightState::LightState(LightOutput *output) : output_(output) {}
 
 LightTraits LightState::get_traits() { return this->output_->get_traits(); }
@@ -40,38 +54,14 @@ void LightState::setup() {
 
   auto call = this->make_call();
   LightStateRTCState recovered{};
-  if (this->initial_state_callback_) {
-    this->initial_state_callback_(recovered);
-    this->initial_state_callback_ = nullptr;  // One-shot — no longer needed
+  bool restored = false;
+  if (this->save_enabled_) {
+    this->rtc_ = this->make_entity_preference<LightStateRTCState>();
+    restored = this->rtc_.load(&recovered);
   }
-  switch (this->restore_mode_) {
-    case LIGHT_RESTORE_DEFAULT_OFF:
-    case LIGHT_RESTORE_DEFAULT_ON:
-    case LIGHT_RESTORE_INVERTED_DEFAULT_OFF:
-    case LIGHT_RESTORE_INVERTED_DEFAULT_ON:
-      this->rtc_ = this->make_entity_preference<LightStateRTCState>();
-      // Attempt to load from preferences, else fall back to default values
-      if (!this->rtc_.load(&recovered)) {
-        recovered.state = (this->restore_mode_ == LIGHT_RESTORE_DEFAULT_ON ||
-                           this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_ON);
-      } else if (this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_OFF ||
-                 this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_ON) {
-        // Inverted restore state
-        recovered.state = !recovered.state;
-      }
-      break;
-    case LIGHT_RESTORE_AND_OFF:
-    case LIGHT_RESTORE_AND_ON:
-      this->rtc_ = this->make_entity_preference<LightStateRTCState>();
-      this->rtc_.load(&recovered);
-      recovered.state = (this->restore_mode_ == LIGHT_RESTORE_AND_ON);
-      break;
-    case LIGHT_ALWAYS_OFF:
-      recovered.state = false;
-      break;
-    case LIGHT_ALWAYS_ON:
-      recovered.state = true;
-      break;
+  if (this->state_callback_) {
+    this->state_callback_(recovered, restored);
+    this->state_callback_ = nullptr;  // One-shot — no longer needed
   }
 
   // A light coming up on boot must never end up on-but-invisible: if the resolved restore
@@ -82,7 +72,7 @@ void LightState::setup() {
     recovered.brightness = 1.0f;
   }
 
-  call.set_color_mode_if_supported(recovered.color_mode);
+  call.set_color_mode_if_supported(resolve_color_mode(traits, recovered.color_mode));
   call.set_state(recovered.state);
   call.set_brightness_if_supported(recovered.brightness);
   call.set_color_brightness_if_supported(recovered.color_brightness);
@@ -428,17 +418,14 @@ void LightState::set_transformer_remote_values_(const LightColorValues &target, 
 #endif
 
 void LightState::save_remote_values_() {
+  if (!this->save_enabled_)
+    return;
   LightStateRTCState saved;
   saved.color_mode = this->remote_values.get_color_mode();
-  switch (this->restore_mode_) {
-    case LIGHT_RESTORE_AND_OFF:
-    case LIGHT_RESTORE_AND_ON:
-      saved.state = (this->restore_mode_ == LIGHT_RESTORE_AND_ON);
-      break;
-    default:
-      saved.state = this->remote_values.is_on();
-      break;
-  }
+  // Always the real on/off status (RESTORE_AND_ON/OFF used to persist a hardcoded
+  // true/false here instead; harmless, since those modes force `state` again on
+  // every load regardless of what was saved -- see _legacy_restore_statements).
+  saved.state = this->remote_values.is_on();
   saved.brightness = this->remote_values.get_brightness();
   saved.color_brightness = this->remote_values.get_color_brightness();
   saved.red = this->remote_values.get_red();
