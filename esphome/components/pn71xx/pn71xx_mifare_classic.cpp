@@ -91,25 +91,27 @@ uint8_t PN71xx::read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_
 }
 
 uint8_t PN71xx::auth_mifare_classic_block_(uint8_t block_num, uint8_t key_num, const uint8_t *key) {
-  nfc::NciMessage rx;
-  nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {MFC_AUTHENTICATE_OID, this->sect_to_auth_(block_num), key_num});
-
+  uint8_t key_select = key_num;
   switch (key_num) {
     case nfc::MIFARE_CMD_AUTH_A:
-      tx.get_message().back() = MFC_AUTHENTICATE_PARAM_KS_A;
+      key_select = MFC_AUTHENTICATE_PARAM_KS_A;
       break;
 
     case nfc::MIFARE_CMD_AUTH_B:
-      tx.get_message().back() = MFC_AUTHENTICATE_PARAM_KS_B;
+      key_select = MFC_AUTHENTICATE_PARAM_KS_B;
       break;
 
     default:
       break;
   }
-
   if (key != nullptr) {
-    tx.get_message().back() |= MFC_AUTHENTICATE_PARAM_EMBED_KEY;
-    tx.get_message().insert(tx.get_message().end(), key, key + 6);
+    key_select |= MFC_AUTHENTICATE_PARAM_EMBED_KEY;
+  }
+
+  nfc::NciMessage rx;
+  nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {MFC_AUTHENTICATE_OID, this->sect_to_auth_(block_num), key_select});
+  if (key != nullptr) {
+    tx.append(std::span<const uint8_t>(key, 6));
   }
 
   char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
@@ -249,7 +251,7 @@ uint8_t PN71xx::write_mifare_classic_block_(uint8_t block_num, const uint8_t *da
   }
   // write command part two
   tx.set_payload({XCHG_DATA_OID});
-  tx.get_message().insert(tx.get_message().end(), data, data + len);
+  tx.append(std::span<const uint8_t>(data, len));
 
   ESP_LOGVV(TAG, "Write XCHG_DATA_REQ 2: %s", nfc::format_bytes_to(buf, tx.get_message()));
   if (this->transceive_(tx, rx, NFCC_TAG_WRITE_TIMEOUT) != nfc::STATUS_OK) {

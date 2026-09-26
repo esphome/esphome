@@ -36,7 +36,8 @@ class FakePN71xx : public PN71xx {
       this->write_failures--;
       return nfc::STATUS_FAILED;
     }
-    this->written.push_back(tx.encode());
+    const auto encoded = tx.encode();
+    this->written.emplace_back(encoded.begin(), encoded.end());
     return nfc::STATUS_OK;
   }
 };
@@ -56,6 +57,10 @@ std::vector<uint8_t> respond(FakePN71xx &nfcc, std::initializer_list<uint8_t> by
 void select_ndef_file(FakePN71xx &nfcc) {
   respond(nfcc, {0x00, 0xA4, 0x04, 0x00, 0x07, 0xD2, 0x76, 0x00, 0x00, 0x85, 0x01, 0x01, 0x00});
   respond(nfcc, {0x00, 0xA4, 0x00, 0x0C, 0x02, 0xE1, 0x04});
+}
+
+std::vector<uint8_t> bytes_of(const nfc::NciMessage &msg) {
+  return {msg.get_message().begin(), msg.get_message().end()};
 }
 
 const std::vector<uint8_t> SW_OK = {0x90, 0x00};
@@ -80,7 +85,7 @@ TEST(PN71xxTransceive, SkipsNotificationAheadOfResponse) {
   nfc::NciMessage tx(nfc::NCI_PKT_MT_CTRL_COMMAND, nfc::RF_GID, nfc::RF_DEACTIVATE_OID, {0x00});
   nfc::NciMessage rx;
   EXPECT_EQ(nfcc.transceive_(tx, rx), nfc::STATUS_OK);
-  EXPECT_EQ(rx.get_message(), (std::vector<uint8_t>{0x41, 0x06, 0x01, 0x00}));
+  EXPECT_EQ(bytes_of(rx), (std::vector<uint8_t>{0x41, 0x06, 0x01, 0x00}));
   EXPECT_EQ(nfcc.written.size(), 1u);
 }
 
@@ -100,7 +105,7 @@ TEST(PN71xxTransceive, SkipsStaleResponseFromEarlierCommand) {
   nfc::NciMessage tx(nfc::NCI_PKT_MT_CTRL_COMMAND, nfc::RF_GID, nfc::RF_DISCOVER_OID, {0x00});
   nfc::NciMessage rx;
   EXPECT_EQ(nfcc.transceive_(tx, rx), nfc::STATUS_OK);
-  EXPECT_EQ(rx.get_message(), (std::vector<uint8_t>{0x41, 0x03, 0x01, 0x00}));
+  EXPECT_EQ(bytes_of(rx), (std::vector<uint8_t>{0x41, 0x03, 0x01, 0x00}));
   EXPECT_EQ(nfcc.written.size(), 1u);
 }
 

@@ -68,7 +68,8 @@ static constexpr uint8_t CORE_CONFIG_RW_CE[] = {0x01,   // Number of parameter f
                                                 0xF8,   // TOTAL_DURATION (low)...
                                                 0x02};  // TOTAL_DURATION (high): 760 ms
 
-static constexpr uint8_t RF_DISCOVER_MAP_CONFIG[] = {  // poll modes
+static constexpr uint8_t RF_DISCOVER_MAP_CONFIG[] = {
+    // poll modes
     nfc::PROT_T1T,    nfc::RF_DISCOVER_MAP_MODE_POLL,
     nfc::INTF_FRAME,  // poll mode
     nfc::PROT_T2T,    nfc::RF_DISCOVER_MAP_MODE_POLL,
@@ -237,7 +238,7 @@ class PN71xx : public nfc::Nfcc, public Component {
   void process_rf_deactivate_oid_(nfc::NciMessage &rx);
   void process_data_message_(nfc::NciMessage &rx);
 
-  void card_emu_t4t_get_response_(const std::vector<uint8_t> &response, std::vector<uint8_t> &ndef_response);
+  void card_emu_t4t_get_response_(std::span<const uint8_t> response, std::vector<uint8_t> &ndef_response);
   bool card_emu_t4t_read_ndef_(uint16_t offset, uint8_t length, std::vector<uint8_t> &ndef_response);
 
   uint8_t transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, uint16_t timeout = NFCC_DEFAULT_TIMEOUT,

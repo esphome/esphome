@@ -56,7 +56,8 @@ uint8_t PN71xx::read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_b
   nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {nfc::MIFARE_CMD_READ, start_page});
 
   for (size_t i = 0; i * read_increment < num_bytes; i++) {
-    tx.get_message().back() = i * nfc::MIFARE_ULTRALIGHT_READ_SIZE + start_page;
+    const uint8_t page = i * nfc::MIFARE_ULTRALIGHT_READ_SIZE + start_page;
+    tx.set_payload({nfc::MIFARE_CMD_READ, page});
     // a short answer (e.g. a NAK for a page beyond the end of the tag) is retried a limited number of times
     uint8_t attempts = 0;
     do {
@@ -65,7 +66,7 @@ uint8_t PN71xx::read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_b
         return nfc::STATUS_FAILED;
       }
       if (++attempts > NFCC_MAX_COMM_FAILS && rx.get_payload_size() < read_increment) {
-        ESP_LOGE(TAG, "Short read from page %u", tx.get_message().back());
+        ESP_LOGE(TAG, "Short read from page %u", page);
         return nfc::STATUS_FAILED;
       }
     } while (rx.get_payload_size() < read_increment);
@@ -175,11 +176,9 @@ uint8_t PN71xx::clean_mifare_ultralight_() {
 }
 
 uint8_t PN71xx::write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write_data, size_t len) {
-  std::vector<uint8_t> payload = {nfc::MIFARE_CMD_WRITE_ULTRALIGHT, page_num};
-  payload.insert(payload.end(), write_data, write_data + len);
-
   nfc::NciMessage rx;
-  nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, payload);
+  nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {nfc::MIFARE_CMD_WRITE_ULTRALIGHT, page_num});
+  tx.append(std::span<const uint8_t>(write_data, len));
 
   if (this->transceive_(tx, rx, NFCC_TAG_WRITE_TIMEOUT) != nfc::STATUS_OK) {
     ESP_LOGE(TAG, "Error writing page %u", page_num);
