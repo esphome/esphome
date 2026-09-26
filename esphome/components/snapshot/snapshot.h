@@ -1,7 +1,6 @@
 #pragma once
 
 #ifdef USE_HOST
-#include "esphome/core/automation.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -45,8 +44,13 @@ class Snapshot {
   /// recording can run at a time. Returns true if the recording started.
   bool take_animation(const char *filename, uint32_t frames, float frame_rate);
 
-  /// Log that an action-triggered snapshot did not write a file.
-  static void log_action_failed();
+  /// Take a snapshot for an automation: an empty name means a generated one, and a snapshot
+  /// that wrote nothing is logged. A `frames` of 0 takes a single picture; otherwise an
+  /// animation is recorded.
+  void take_snapshot_or_log(const char *filename, uint32_t frames, float frame_rate);
+  void take_snapshot_or_log(const std::string &filename, uint32_t frames, float frame_rate) {
+    this->take_snapshot_or_log(filename.c_str(), frames, frame_rate);
+  }
 
  protected:
   /// Width of the picture in pixels.
@@ -68,32 +72,6 @@ class Snapshot {
   bool record_frame_();
 
   std::unique_ptr<Recording> recording_;
-};
-
-template<typename... Ts> class SnapshotAction final : public Action<Ts...>, public Parented<Snapshot> {
- public:
-  TEMPLATABLE_VALUE(std::string, filename)
-
-  /// Make the action record an animation instead of taking a single picture.
-  void set_animation(uint32_t frames, float frame_rate) {
-    this->frames_ = frames;
-    this->frame_rate_ = frame_rate;
-  }
-
- protected:
-  void play(const Ts &...x) override {
-    std::string filename;
-    if (this->filename_.has_value())
-      filename = this->filename_.value(x...);
-    const char *name = this->filename_.has_value() ? filename.c_str() : nullptr;
-    const bool ok = this->frames_ == 0 ? this->parent_->take_snapshot(name)
-                                       : this->parent_->take_animation(name, this->frames_, this->frame_rate_);
-    if (!ok)
-      this->parent_->log_action_failed();
-  }
-
-  uint32_t frames_{0};
-  float frame_rate_{0};
 };
 
 }  // namespace esphome::snapshot

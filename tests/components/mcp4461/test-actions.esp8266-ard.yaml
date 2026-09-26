@@ -1,0 +1,4 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp8266-ard.yaml
+  mcp4461: !include common.yaml
+  actions: !include common-actions.yaml

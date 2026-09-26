@@ -214,16 +214,6 @@ def _validate_sleep_duration(value: core.TimePeriod) -> core.TimePeriod:
 deep_sleep_ns = cg.esphome_ns.namespace("deep_sleep")
 DeepSleepComponent = deep_sleep_ns.class_("DeepSleepComponent", cg.Component)
 EnterDeepSleepAction = deep_sleep_ns.class_("EnterDeepSleepAction", automation.Action)
-PreventDeepSleepAction = deep_sleep_ns.class_(
-    "PreventDeepSleepAction",
-    automation.Action,
-    cg.Parented.template(DeepSleepComponent),
-)
-AllowDeepSleepAction = deep_sleep_ns.class_(
-    "AllowDeepSleepAction",
-    automation.Action,
-    cg.Parented.template(DeepSleepComponent),
-)
 
 WakeupPinMode = deep_sleep_ns.enum("WakeupPinMode")
 WAKEUP_PIN_MODES = {
@@ -490,27 +480,15 @@ async def deep_sleep_enter_to_code(
     return var
 
 
-@automation.register_action(
-    "deep_sleep.prevent",
-    PreventDeepSleepAction,
-    automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
-    synchronous=True,
-)
-@automation.register_action(
-    "deep_sleep.allow",
-    AllowDeepSleepAction,
-    automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
-    synchronous=True,
-)
-async def deep_sleep_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
+for _name, _call in (
+    ("deep_sleep.prevent", "prevent_deep_sleep()"),
+    ("deep_sleep.allow", "allow_deep_sleep()"),
+):
+    automation.register_apply_action(
+        _name,
+        automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
+        automation.ApplyCall(_call),
+    )
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(

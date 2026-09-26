@@ -249,7 +249,6 @@ std::string choose_name(const char *filename, const char *prefix, const char *ex
 
 }  // namespace
 
-// helper function since ESP_LOGW is disallowed in a header file
 /// An animation being written: the file, and where in the timetable it has got to.
 struct Snapshot::Recording {
   Recording(FILE *file, std::string path, int width, int height, uint32_t frames, float frame_rate)
@@ -294,7 +293,14 @@ struct Snapshot::Recording {
 Snapshot::Snapshot() = default;
 Snapshot::~Snapshot() = default;
 
-void Snapshot::log_action_failed() { ESP_LOGW(TAG, "snapshot.take did not write a file"); }
+// helper function since ESP_LOGW is disallowed in a header file
+void Snapshot::take_snapshot_or_log(const char *filename, uint32_t frames, float frame_rate) {
+  const char *name = filename[0] != '\0' ? filename : nullptr;
+  const bool ok = frames == 0 ? this->take_snapshot(name) : this->take_animation(name, frames, frame_rate);
+  if (!ok) {
+    ESP_LOGW(TAG, "snapshot.take did not write a file");
+  }
+}
 
 bool Snapshot::take_snapshot(const char *filename) {
   const int width = this->snapshot_width();
