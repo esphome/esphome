@@ -97,23 +97,6 @@ void EPaperUC8179BWR::loop() {
   EPaperBase::loop();
 }
 
-bool EPaperUC8179BWR::reset() {
-  // UC8179 reset sequence: HIGH -> LOW -> HIGH with specific timings
-  if (this->reset_pin_ == nullptr)
-    return true;
-
-  if (this->state_ == EPaperState::RESET) {
-    this->reset_pin_->digital_write(true);
-    return false;  // Come back for RESET_END
-  }
-  // RESET_END state
-  this->reset_pin_->digital_write(false);
-  delay(5);
-  this->reset_pin_->digital_write(true);
-  this->next_delay_ = 200;
-  return true;
-}
-
 bool HOT EPaperUC8179BWR::transfer_data() {
   const uint32_t start_time = millis();
   const size_t buffer_length = this->buffer_length_;

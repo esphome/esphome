@@ -38,7 +38,6 @@ class EPaperUC8179BWR : public EPaperBase {
 
  protected:
   bool initialise(bool partial) override;
-  bool reset() override;
   void refresh_screen(bool partial) override;
   void power_on() override;
   void power_off() override;
