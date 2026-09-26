@@ -724,11 +724,17 @@ def _esp8266_native_path_or_file_trigger(files: list[str]) -> bool:
 
 
 def esp8266_native_components_to_test(branch: str | None = None) -> list[str]:
-    """Subset of ``ESP8266_NATIVE_TEST_COMPONENTS`` the job needs to
-    compile (same narrowing as ``esp32_platformio_components_to_test``)."""
-    return _toolchain_components_to_test(
-        branch, ESP8266_NATIVE_TEST_COMPONENTS, _esp8266_native_path_or_file_trigger
-    )
+    """The smoke set on a native-build change, nothing otherwise.
+
+    Unlike the esp32 PlatformIO job, this one does not narrow to the changed
+    components: the component matrix already compiles every esp8266 fixture
+    with this toolchain, so the only gap left is a change to the native build
+    itself that brings no component along.
+    """
+    files = changed_files(branch)
+    if core_changed(files) or _esp8266_native_path_or_file_trigger(files):
+        return sorted(ESP8266_NATIVE_TEST_COMPONENTS)
+    return []
 
 
 def determine_cpp_unit_tests(
@@ -1286,6 +1292,7 @@ def detect_memory_impact_config(
         "components": compatible_components,
         "platform": platform,
         "use_merged_config": "true",
+        "needs_arduino8266": platform.startswith("esp8266"),
     }
 
 
@@ -1516,12 +1523,20 @@ def main() -> None:
         for batch in batches:
             platforms: set[str] = set()
             for component in batch:
-                platforms.update(get_component_test_platforms(component))
+                # Variants included: the compile stage builds them, so a
+                # component tested only by test-<variant>.<platform>.yaml
+                # still needs that platform's toolchain
+                platforms.update(
+                    get_component_test_platforms(component, base_only=False)
+                )
             component_test_batches.append(
                 {
                     "components": " ".join(batch),
                     "needs_idf": any(p.startswith("esp32") for p in platforms),
                     "needs_nrf": any(p.startswith("nrf52") for p in platforms),
+                    "needs_arduino8266": any(
+                        p.startswith("esp8266") for p in platforms
+                    ),
                 }
             )
 
