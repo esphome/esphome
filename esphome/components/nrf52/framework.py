@@ -80,6 +80,11 @@ def _get_toolchain_path(version: str) -> Path:
     return get_sdk_nrf_tools_path() / "toolchains" / version
 
 
+def get_toolchain_bin_path() -> Path:
+    """The pinned Zephyr SDK's arm-zephyr-eabi binaries (objdump, readelf, ...)."""
+    return _get_toolchain_path(TOOLCHAIN_VERSION) / "arm-zephyr-eabi" / "bin"
+
+
 _SITECUSTOMIZE = """\
 import os, stat, shutil
 _orig = shutil.rmtree
