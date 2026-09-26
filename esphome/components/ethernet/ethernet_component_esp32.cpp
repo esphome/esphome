@@ -89,6 +89,13 @@ void EthernetComponent::log_error_and_mark_failed_(esp_err_t err, const char *me
   }
 
 void EthernetComponent::loop() {
+  if (this->pending_enable_) {
+    if (!this->driver_stopped_.load(std::memory_order_acquire)) {
+      return;
+    }
+    this->pending_enable_ = false;
+    this->enable();
+  }
   const uint32_t now = App.get_loop_component_start_time();
 
   switch (this->state_) {
@@ -153,6 +160,7 @@ void EthernetComponent::setup() {
       // lazy_init bailed early via ESPHL_ERROR_CHECK or mark_failed; nothing more to do.
       return;
     }
+    this->driver_stopped_.store(false, std::memory_order_release);
     esp_err_t err = esp_eth_start(this->eth_handle_);
     ESPHL_ERROR_CHECK(err, "ETH start error");
   } else {
@@ -470,6 +478,12 @@ void EthernetComponent::ethernet_lazy_init_() {
 void EthernetComponent::enable() {
   if (!this->disabled_)
     return;
+  if (!this->driver_stopped_.load(std::memory_order_acquire)) {
+    this->pending_enable_ = true;
+    this->enable_loop();
+    return;
+  }
+  this->pending_enable_ = false;
 
   ESP_LOGD(TAG, "Enabling");
   this->ethernet_lazy_init_();
@@ -477,9 +491,19 @@ void EthernetComponent::enable() {
     ESP_LOGE(TAG, "Cannot enable - init failed");
     return;
   }
+  this->state_ = EthernetComponentState::STOPPED;
+  this->connected_ = false;
+  this->started_ = false;
+  this->driver_stopped_.store(false, std::memory_order_release);
   esp_err_t err = esp_eth_start(this->eth_handle_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_eth_start failed: %s", esp_err_to_name(err));
+    // IDF changes its FSM before fallible start steps without rolling back.
+    // Only cleanup followed by STOP delivery permits another start.
+    esp_err_t stop_err = esp_eth_stop(this->eth_handle_);
+    if (stop_err != ESP_OK) {
+      ESP_LOGE(TAG, "Start cleanup failed: %s; Ethernet restart requires reboot", esp_err_to_name(stop_err));
+    }
     return;
   }
   this->disabled_ = false;
@@ -489,13 +513,15 @@ void EthernetComponent::enable() {
 }
 
 void EthernetComponent::disable() {
+  this->pending_enable_ = false;
   if (this->disabled_)
     return;
 
   ESP_LOGD(TAG, "Disabling");
   esp_err_t err = esp_eth_stop(this->eth_handle_);
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "esp_eth_stop failed: %s — disabling anyway", esp_err_to_name(err));
+    ESP_LOGW(TAG, "esp_eth_stop failed: %s", esp_err_to_name(err));
+    return;
   }
   this->disabled_ = true;
   // ETH_EVENT_STOP will clear started_; loop() will transition to STOPPED.
@@ -678,6 +704,7 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
       event_name = "ETH stopped";
       global_eth_component->started_ = false;
       global_eth_component->connected_ = false;
+      global_eth_component->driver_stopped_.store(true, std::memory_order_release);
       global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
       break;
     case ETHERNET_EVENT_CONNECTED:
