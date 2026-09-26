@@ -220,6 +220,8 @@ ESPHOME_H_EXCLUDE = {
     Path("esphome/core/controller_dispatch.h"),
     # moved to components/ring_buffer/, removed in 2026.11.0
     Path("esphome/core/ring_buffer.h"),
+    # only the esp32 sscanf wrap includes it
+    Path("esphome/core/sscanf_no_float.h"),
 }
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
