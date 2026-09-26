@@ -1,3 +1,4 @@
+import configparser
 from dataclasses import dataclass, field
 import hashlib
 import logging
@@ -303,23 +304,42 @@ def _west_update(
 ) -> bool:
     """Fetch ``projects``; False when the fetch fails, so the caller decides."""
     west = [str(env_python_path), "-m", "west"]
-    # west accepts a filter naming a project the manifest lacks and quietly
-    # fetches nothing, which would then count as installed; list fails on it
-    names = sorted(projects)
-    if not run_command_ok([*west, "list", "-f", "{name}", *names], cwd=framework_path):
-        raise EsphomeError(
-            f"A requested nRF Connect SDK {version} west project does not exist"
-        )
     if not _set_project_filter(env_python_path, framework_path, projects):
         return False
     cmd = [*west, "update", "--narrow", "--fetch-opt=--depth=1"]
     # Streamed so the per-project progress of the long clone reaches the log
     if not run_command_ok(cmd, cwd=framework_path, stream_output=True):
         return False
+    # west quietly fetches nothing for a filter naming a project the manifest
+    # lacks, which would then count as installed. list fails on such a name;
+    # it runs after the update because the manifest imports (zephyr's modules)
+    # only resolve once zephyr is cloned.
+    names = sorted(projects)
+    if not run_command_ok([*west, "list", "-f", "{name}", *names], cwd=framework_path):
+        raise EsphomeError(
+            f"A requested nRF Connect SDK {version} west project does not exist"
+        )
     (framework_path / _WEST_PROJECTS_FILE).write_text(
         "\n".join(names), encoding="utf-8"
     )
     return True
+
+
+def _installed_west_projects(framework_path: Path) -> set[str] | None:
+    """The projects a finished install fetched; None when it has all of them."""
+    try:
+        stamp = (framework_path / _WEST_PROJECTS_FILE).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        pass
+    else:
+        return set(stamp.split())
+    # A filtered install whose stamp went missing has to fetch again; an
+    # install from before the filter has no filter and every project
+    config = configparser.ConfigParser()
+    config.read(framework_path / ".west" / "config", encoding="utf-8")
+    if config.has_option("manifest", "project-filter"):
+        return set()
+    return None
 
 
 def _fetch_missing_west_projects(
@@ -332,20 +352,20 @@ def _fetch_missing_west_projects(
     # Every install has the defaults, so there is nothing to check
     if projects <= set(DEFAULT_WEST_PROJECTS):
         return
-    try:
-        stamp = (framework_path / _WEST_PROJECTS_FILE).read_text(encoding="utf-8")
-    except FileNotFoundError:
-        # An install from before the filter has every project
-        return
-    installed = set(stamp.split())
-    if not (missing := projects - installed):
+    installed = _installed_west_projects(framework_path)
+    if installed is None or not (missing := projects - installed):
         return
     _LOGGER.info(
         "Fetching nRF Connect SDK %s projects: %s", version, ", ".join(sorted(missing))
     )
     if not _west_update(env_python_path, framework_path, version, installed | projects):
         # Keep the workspace filter in step with what the stamp says is fetched
-        _set_project_filter(env_python_path, framework_path, installed)
+        if not _set_project_filter(env_python_path, framework_path, installed):
+            _LOGGER.warning(
+                "Couldn't put the nRF Connect SDK %s project filter back; "
+                "the next build that fetches a project sets it again",
+                version,
+            )
         raise EsphomeError(f"Can't update nRF Connect SDK {version}")
 
 
