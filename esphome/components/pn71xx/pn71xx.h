@@ -19,6 +19,10 @@ namespace esphome::pn71xx {
 static constexpr uint16_t NFCC_DEFAULT_TIMEOUT = 100;
 static constexpr uint16_t NFCC_INIT_TIMEOUT = 50;
 static constexpr uint16_t NFCC_TAG_WRITE_TIMEOUT = 100;
+// Time to wait for IRQ to drop after a read; it drops within microseconds unless another message is queued
+static constexpr uint16_t NFCC_IRQ_CLEAR_TIMEOUT = 5;
+// Length of the VEN and DWL_REQ pulses when resetting the NFCC
+static constexpr uint16_t NFCC_RESET_DELAY = 10;
 // Time to wait before resending a frame the NFCC refused, e.g. while waking from standby
 static constexpr uint16_t NFCC_WRITE_RETRY_DELAY = 5;
 // Longest time the FSM may wait for a notification that ends a transitional state before resetting the NFCC

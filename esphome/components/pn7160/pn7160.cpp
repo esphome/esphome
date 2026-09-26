@@ -32,7 +32,7 @@ void PN7160::prepare_reset() {
   // DWL_REQ must be low when VEN rises, or the chip starts in firmware download mode (UM11495)
   if (this->dwl_req_pin_ != nullptr) {
     this->dwl_req_pin_->digital_write(false);
-    delay(pn71xx::NFCC_DEFAULT_TIMEOUT);
+    delay(pn71xx::NFCC_RESET_DELAY);
   }
 }
 

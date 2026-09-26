@@ -205,9 +205,9 @@ uint8_t PN71xx::reset_core_(const bool reset_config, const bool power) {
 
   if (power) {
     this->ven_pin_->digital_write(true);
-    delay(NFCC_DEFAULT_TIMEOUT);
+    delay(NFCC_RESET_DELAY);
     this->ven_pin_->digital_write(false);
-    delay(NFCC_DEFAULT_TIMEOUT);
+    delay(NFCC_RESET_DELAY);
     this->ven_pin_->digital_write(true);
     delay(NFCC_INIT_TIMEOUT);
   }
