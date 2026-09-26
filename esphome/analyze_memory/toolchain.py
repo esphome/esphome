@@ -68,12 +68,16 @@ def idedata_candidates(build_path: Path) -> list[Path]:
         The candidate idedata JSON paths, most specific first
     """
     name = build_path.name
+    data_dir = build_path.parent.parent / "idedata"
+    # Native backends suffix the cache by toolchain (<name>.arduino.json)
+    suffixed = sorted(data_dir.glob(f"{name}.*.json")) if data_dir.is_dir() else []
     return [
         # In .pioenvs for test builds
         build_path / ".pioenvs" / name / "idedata.json",
         # Both toolchains cache it in the data dir, which holds this build dir:
         # <data_dir>/idedata/<name>.json next to <data_dir>/build/<name>
         build_path.parent.parent / "idedata" / f"{name}.json",
+        *suffixed,
         # Regular builds, invoked from the config dir or from anywhere
         Path.cwd() / ".esphome" / "idedata" / f"{name}.json",
         Path.home() / ".esphome" / "idedata" / f"{name}.json",

@@ -612,10 +612,7 @@ def clean_build(clear_pio_cache: bool = True, *, full: bool = False):
     # idedata caches live under the data dir, not the build path; globbed
     # so a future backend suffix cannot drift out of clean-all
     idedata_dir = CORE.relative_internal_path("idedata")
-    for idedata_cache in (
-        *idedata_dir.glob(f"{CORE.name}.json"),
-        *idedata_dir.glob(f"{CORE.name}.*.json"),
-    ):
+    for idedata_cache in idedata_dir.glob(f"{CORE.name}*.json"):
         _LOGGER.info("Deleting %s", idedata_cache)
         idedata_cache.unlink()
 
