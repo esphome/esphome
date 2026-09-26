@@ -1,25 +1,10 @@
 #include "epaper_uc8179_bwr.h"
+#include "colorconv.h"
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
 
 static constexpr const char *const TAG = "epaper_spi.uc8179_bwr";
-
-enum class BwrColor : uint8_t {
-  BLACK,
-  WHITE,
-  RED,
-};
-
-static BwrColor color_to_bwr(Color color) {
-  if (color.r > color.g + color.b && color.r > 127) {
-    return BwrColor::RED;
-  }
-  if (color.r + color.g + color.b >= 382) {
-    return BwrColor::WHITE;
-  }
-  return BwrColor::BLACK;
-}
 
 void HOT EPaperUC8179BWR::draw_pixel_at(int x, int y, Color color) {
   if (!this->rotate_coordinates_(x, y))
@@ -29,7 +14,7 @@ void HOT EPaperUC8179BWR::draw_pixel_at(int x, int y, Color color) {
   const uint8_t bit = 0x80 >> (x & 0x07);
   const uint32_t red_offset = this->buffer_length_ / 2u;
 
-  auto bwr = color_to_bwr(color);
+  auto bwr = color_to_bwr<BwrColor>(color, BwrColor::BLACK, BwrColor::WHITE, BwrColor::RED);
 
   // Update black/white plane (first half of buffer)
   // 0 = black, 1 = white
@@ -57,7 +42,7 @@ void EPaperUC8179BWR::fill(Color color) {
   }
 
   const size_t half_buffer = this->buffer_length_ / 2u;
-  auto bwr = color_to_bwr(color);
+  auto bwr = color_to_bwr<BwrColor>(color, BwrColor::BLACK, BwrColor::WHITE, BwrColor::RED);
 
   const uint8_t red_off = this->invert_red_ ? 0xFF : 0x00;
   const uint8_t red_on = this->invert_red_ ? 0x00 : 0xFF;

@@ -16,6 +16,13 @@ namespace esphome::epaper_spi {
 /** Delta for when to regard as gray */
 static constexpr uint8_t COLORCONV_GRAY_THRESHOLD = 50;
 
+/** Native color keys for black/white/red panels, for use with color_to_bwr */
+enum class BwrColor : uint8_t {
+  BLACK,
+  WHITE,
+  RED,
+};
+
 /** Map RGB color to discrete BWYR hex 4 color key
  *
  * @tparam NATIVE_COLOR  Type of native hardware color values
