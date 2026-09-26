@@ -720,8 +720,8 @@ def _prefetch_idf_tool_archives(
     before. Leftover ``.part`` files live in ``dist/`` and are removed by the
     post-install cache prune.
 
-    Returns whether every archive in the list went through verification here,
-    which is what lets the pre-extraction trust ``dist/``.
+    Returns whether every archive in the list verified here, which is what
+    lets the pre-extraction trust ``dist/``.
     """
     try:
         success, stdout, stderr = _run_idf_tools_script(
@@ -798,9 +798,10 @@ def _prefetch_idf_tool_archives(
                 "Every ESP-IDF tool prefetch failed; the installer will "
                 "download without resume"
             )
-        # A failed download leaves no archive at its final name, so the
-        # list was fully verified either way
-        return True
+        # Any failed entry may have left an archive at its final name that
+        # nothing verified: a cached file that could not be re-hashed, or
+        # one whose removal failed. The pre-extraction trusts what it finds
+        return not failures
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # The installer downloads anything missing itself; never let the
         # prefetch become a new way for the install to fail.

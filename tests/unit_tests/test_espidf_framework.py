@@ -1110,9 +1110,9 @@ def test_prefetch_failures_never_raise(
         ran = _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
 
     assert expected_log in caplog.text
-    # A download that failed still leaves nothing to extract, but the list
-    # was verified; a failure before that point did not verify anything
-    assert ran == (download_error is not None)
+    # Nothing verified the archives end to end, so the pre-extraction must
+    # not trust dist/
+    assert not ran
 
 
 def test_prefetch_total_failure_logs_error(
@@ -1134,6 +1134,31 @@ def test_prefetch_total_failure_logs_error(
     ):
         _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
     assert "Every ESP-IDF tool prefetch failed" in caplog.text
+
+
+def test_prefetch_partial_failure_does_not_claim_dist_is_verified(
+    tmp_path: Path,
+) -> None:
+    """A failed entry may leave a cached archive nobody could re-hash or
+    remove behind; the pre-extraction would extract it unchecked."""
+
+    def _fail_ninja(url: str, *args, **kwargs) -> None:
+        if "ninja" in url:
+            raise OSError("still there, unverified")
+
+    with (
+        patch(
+            "esphome.espidf.framework.run_command",
+            return_value=(True, _PREFETCH_JSON, ""),
+        ),
+        patch(
+            "esphome.framework_helpers.download_with_resume",
+            side_effect=_fail_ninja,
+        ),
+        patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
+        patch("esphome.framework_helpers._BatchDownloadProgress"),
+    ):
+        assert not _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
 
 
 def test_prefetch_one_failed_archive_does_not_stop_the_rest(
