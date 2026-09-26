@@ -496,8 +496,9 @@ class TestCheckAndInstall:
         stamp: str | None,
     ) -> None:
         """No fetch when the install already has every wanted project; an
-        install without the stamp has them all."""
+        install without the stamp (west config, no filter) has them all."""
         _mark_installed(nrf52_dirs)
+        _mark_west_initialized(nrf52_dirs.framework)
         if stamp is not None:
             (nrf52_dirs.framework / ".west_projects").write_text(
                 stamp, encoding="utf-8"
@@ -615,7 +616,7 @@ class TestCheckAndInstall:
         # init, config and update succeed, list fails
         mock_nrf52_ops.run_command_ok.side_effect = [True, True, True, False]
 
-        with pytest.raises(EsphomeError, match="does not exist"):
+        with pytest.raises(EsphomeError, match="west list failed .*no_such_project"):
             check_and_install()
 
         assert _subcommands(mock_nrf52_ops.run_command_ok) == [
@@ -626,6 +627,52 @@ class TestCheckAndInstall:
         ]
         assert "no_such_project" in mock_nrf52_ops.run_command_ok.call_args.args[0]
         assert not (nrf52_dirs.framework / ".west_projects").exists()
+
+    def test_unknown_project_on_an_installed_sdk_puts_the_filter_back(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """An unknown name found while fetching into a finished install leaves
+        the workspace filter as the stamp has it."""
+        _mark_venv_ready(nrf52_dirs.python_env)
+        (nrf52_dirs.framework / ".ready").touch()
+        (nrf52_dirs.framework / ".west_projects").write_text("zephyr", encoding="utf-8")
+        include_west_project("no_such_project")
+        # config and update succeed, list fails, the restoring config succeeds
+        mock_nrf52_ops.run_command_ok.side_effect = [True, True, False, True]
+
+        with pytest.raises(EsphomeError, match="west list failed"):
+            check_and_install()
+
+        assert _subcommands(mock_nrf52_ops.run_command_ok) == [
+            "config",
+            "update",
+            "list",
+            "config",
+        ]
+        assert _project_filter(mock_nrf52_ops.run_command_ok) == "-.*,+zephyr"
+        assert (nrf52_dirs.framework / ".west_projects").read_text(
+            encoding="utf-8"
+        ) == "zephyr"
+
+    def test_missing_stamp_and_west_config_fetches_again(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """With neither the stamp nor .west/config left, nothing says what the
+        install has, so the wanted projects are fetched rather than assumed."""
+        _mark_installed(nrf52_dirs)
+        include_west_project("openthread")
+
+        check_and_install()
+
+        assert _subcommands(mock_nrf52_ops.run_command_ok) == [
+            "config",
+            "update",
+            "list",
+        ]
 
     def test_toolchain_download_passes_platform_substitutions(
         self,
