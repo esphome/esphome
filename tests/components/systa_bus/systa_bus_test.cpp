@@ -73,7 +73,7 @@ class SystaBusTest : public ::testing::Test {
     this->bus_.set_uart_parent(&this->uart_);
     this->bus_.register_listener(&this->listener_);
   }
-  void feed(const std::vector<uint8_t> &bytes) {
+  void feed_(const std::vector<uint8_t> &bytes) {
     this->uart_.push_rx(bytes);
     this->bus_.loop();
   }
@@ -89,7 +89,7 @@ const std::vector<uint8_t> FRAME_B = aqua_frame(513, 302, -14, 701, 61);
 }  // namespace
 
 TEST_F(SystaBusTest, DecodesAValidFrame) {
-  this->feed(FRAME_A);
+  this->feed_(FRAME_A);
   ASSERT_EQ(this->listener_.messages.size(), 1u);
   EXPECT_EQ(this->listener_.messages[0], FRAME_A);
 }
@@ -97,7 +97,7 @@ TEST_F(SystaBusTest, DecodesAValidFrame) {
 TEST_F(SystaBusTest, IgnoresGarbageBeforeAFrame) {
   std::vector<uint8_t> bytes = {0x00, 0x16, 0x42, 0xfc};  // includes a stray start byte
   bytes.insert(bytes.end(), FRAME_A.begin(), FRAME_A.end());
-  this->feed(bytes);
+  this->feed_(bytes);
   ASSERT_EQ(this->listener_.messages.size(), 1u);
   EXPECT_EQ(this->listener_.messages[0], FRAME_A);
 }
@@ -105,7 +105,7 @@ TEST_F(SystaBusTest, IgnoresGarbageBeforeAFrame) {
 TEST_F(SystaBusTest, SkipsAnUnknownMessageType) {
   std::vector<uint8_t> bytes = {START_BYTE, 0x1a, 0x01, 0x02, 0x03};
   bytes.insert(bytes.end(), FRAME_A.begin(), FRAME_A.end());
-  this->feed(bytes);
+  this->feed_(bytes);
   ASSERT_EQ(this->listener_.messages.size(), 1u);
   EXPECT_EQ(this->listener_.messages[0], FRAME_A);
 }
@@ -115,7 +115,7 @@ TEST_F(SystaBusTest, RejectsACorruptedByte) {
   bad[6] ^= 0x10;
   std::vector<uint8_t> bytes = bad;
   bytes.insert(bytes.end(), FRAME_B.begin(), FRAME_B.end());
-  this->feed(bytes);
+  this->feed_(bytes);
   ASSERT_EQ(this->listener_.messages.size(), 1u);
   EXPECT_EQ(this->listener_.messages[0], FRAME_B);
 }
@@ -126,7 +126,7 @@ TEST_F(SystaBusTest, RecoversTheFrameAfterADroppedByte) {
   truncated.erase(truncated.begin() + 9);
   std::vector<uint8_t> bytes = truncated;
   bytes.insert(bytes.end(), FRAME_B.begin(), FRAME_B.end());
-  this->feed(bytes);
+  this->feed_(bytes);
   ASSERT_EQ(this->listener_.messages.size(), 1u);
   EXPECT_EQ(this->listener_.messages[0], FRAME_B);
 }
@@ -134,9 +134,9 @@ TEST_F(SystaBusTest, RecoversTheFrameAfterADroppedByte) {
 TEST_F(SystaBusTest, DecodesFramesSplitAcrossLoops) {
   std::vector<uint8_t> first(FRAME_A.begin(), FRAME_A.begin() + 10);
   std::vector<uint8_t> second(FRAME_A.begin() + 10, FRAME_A.end());
-  this->feed(first);
+  this->feed_(first);
   EXPECT_TRUE(this->listener_.messages.empty());
-  this->feed(second);
+  this->feed_(second);
   ASSERT_EQ(this->listener_.messages.size(), 1u);
   EXPECT_EQ(this->listener_.messages[0], FRAME_A);
 }
@@ -144,7 +144,7 @@ TEST_F(SystaBusTest, DecodesFramesSplitAcrossLoops) {
 TEST_F(SystaBusTest, DecodesBackToBackFrames) {
   std::vector<uint8_t> bytes = FRAME_A;
   bytes.insert(bytes.end(), FRAME_B.begin(), FRAME_B.end());
-  this->feed(bytes);
+  this->feed_(bytes);
   ASSERT_EQ(this->listener_.messages.size(), 2u);
   EXPECT_EQ(this->listener_.messages[0], FRAME_A);
   EXPECT_EQ(this->listener_.messages[1], FRAME_B);
