@@ -19,7 +19,7 @@ from esphome.const import (
     CONF_RED,
 )
 
-LOGGER_NAME = "esphome.components.light.automation"
+LOGGER_NAME: str = "esphome.components.light.automation"
 
 
 def test_color_name_sets_rgb() -> None:

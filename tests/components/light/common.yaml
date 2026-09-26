@@ -160,6 +160,14 @@ esphome:
           green: 100%
           blue: 0%
           transition_length: 1s
+      - light.addressable_set:
+          id: test_addressable_transition
+          range_from: 0
+          range_to: 4
+          color: darkred
+      - light.addressable_set:
+          id: test_addressable_transition
+          color: tomato
 
 # Exercise light actions inside a trigger with non-empty Ts (number on_value
 # passes float).
@@ -339,6 +347,15 @@ light:
       red: 100%
       green: 50%
       blue: 50%
+  # Test initial_state: with a color name (a dark color also sets color_brightness)
+  - platform: rgb
+    id: test_rgb_light_initial_state_color
+    name: RGB Light Initial State Color
+    red: test_ledc_1
+    green: test_ledc_2
+    blue: test_ledc_3
+    initial_state:
+      color: darkred
   # Test initial_state: with every templatable field set via !lambda (color_mode is
   # the only field that isn't templatable, so it's the only one left as a literal)
   - platform: rgbww

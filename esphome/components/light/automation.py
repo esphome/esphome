@@ -146,7 +146,9 @@ LIGHT_STATE_FIELDS: tuple[LightStateField, ...] = (
     ),
 )
 
-COLOR_NAME_SCHEMA = {cv.Optional(CONF_COLOR): cv.one_of(*CSS_COLORS, lower=True)}
+COLOR_NAME_SCHEMA: dict[cv.Optional, Any] = {
+    cv.Optional(CONF_COLOR): cv.one_of(*CSS_COLORS, lower=True)
+}
 
 
 def color_name_to_rgb(config: ConfigType) -> ConfigType:

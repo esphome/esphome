@@ -1,6 +1,6 @@
 """Standard CSS named colors, as 0xRRGGBB values."""
 
-CSS_COLORS = {
+CSS_COLORS: dict[str, int] = {
     "aliceblue": 0xF0F8FF,
     "antiquewhite": 0xFAEBD7,
     "aqua": 0x00FFFF,
