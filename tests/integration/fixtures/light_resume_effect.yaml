@@ -1,5 +1,5 @@
 esphome:
-  name: light-restore-effect
+  name: light-resume-effect
 
 host:
 
@@ -19,10 +19,10 @@ output:
 
 light:
   - platform: monochromatic
-    name: "Test Light Restore"
-    id: test_light_restore
+    name: "Test Light Resume"
+    id: test_light_resume
     output: light_output
-    restore_effect: true
+    resume_effect: true
     effects:
       - pulse:
           name: "Pulse Effect"
@@ -36,10 +36,10 @@ light:
             - state: false
               duration: 50ms
   - platform: monochromatic
-    name: "Test Light No Restore"
-    id: test_light_no_restore
+    name: "Test Light No Resume"
+    id: test_light_no_resume
     output: light_output
-    restore_effect: false
+    resume_effect: false
     effects:
       - pulse:
           name: "Pulse Effect"

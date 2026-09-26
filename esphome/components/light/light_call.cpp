@@ -210,10 +210,10 @@ LightColorValues LightCall::validate_() {
   this->transform_parameters_(traits);
 
   // Business logic adjustments before validation
-#ifdef USE_LIGHT_RESTORE_EFFECT
+#ifdef USE_LIGHT_RESUME_EFFECT
   // Snapshot before the adjustments below add flags of their own
   const bool plain_turn_on = this->has_state() && this->state_ && (this->flags_ & ~STATE_ONLY_FLAGS_MASK) == 0;
-#endif  // USE_LIGHT_RESTORE_EFFECT
+#endif  // USE_LIGHT_RESUME_EFFECT
   // Flag whether an explicit turn off was requested, in which case we'll also stop the effect.
   bool explicit_turn_off_request = this->has_state() && !this->state_;
 
@@ -338,14 +338,14 @@ LightColorValues LightCall::validate_() {
   // validate transition length/flash length/effect not used at the same time
   bool supports_transition = color_mode & ColorCapability::BRIGHTNESS;
 
-#ifdef USE_LIGHT_RESTORE_EFFECT
+#ifdef USE_LIGHT_RESUME_EFFECT
   // A plain turn-on from off brings back the effect that was running when the light was turned off
-  if (this->parent_->restore_effect_ && plain_turn_on && !this->parent_->remote_values.is_on() &&
+  if (this->parent_->resume_effect_ && plain_turn_on && !this->parent_->remote_values.is_on() &&
       this->parent_->previous_effect_index_ != 0) {
     this->effect_ = this->parent_->previous_effect_index_;
     this->set_flag_(FLAG_HAS_EFFECT);
   }
-#endif  // USE_LIGHT_RESTORE_EFFECT
+#endif  // USE_LIGHT_RESUME_EFFECT
 
   // If effect is already active, remove effect start
   if (this->has_effect_() && this->effect_ == this->parent_->active_effect_index_) {
@@ -389,11 +389,11 @@ LightColorValues LightCall::validate_() {
   // Reason: When user turns off the light in frontend, the effect should also stop
   bool target_state = this->has_state() ? this->state_ : v.is_on();
   if (!this->has_flash_() && !target_state) {
-#ifdef USE_LIGHT_RESTORE_EFFECT
+#ifdef USE_LIGHT_RESUME_EFFECT
     // Remember what was running, including no effect, when a lit light is explicitly turned off
-    if (this->parent_->restore_effect_ && explicit_turn_off_request && this->parent_->remote_values.is_on())
+    if (this->parent_->resume_effect_ && explicit_turn_off_request && this->parent_->remote_values.is_on())
       this->parent_->previous_effect_index_ = this->parent_->active_effect_index_;
-#endif  // USE_LIGHT_RESTORE_EFFECT
+#endif  // USE_LIGHT_RESUME_EFFECT
     if (this->has_effect_()) {
       log_invalid_parameter(name, LOG_STR("cannot start effect when turning off"));
       this->clear_flag_(FLAG_HAS_EFFECT);
