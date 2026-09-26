@@ -429,6 +429,7 @@ esphome/components/psram/* @esphome/core
 esphome/components/pulse_meter/* @cstaahl @stevebaxter @TrentHouliston
 esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/pylontech/* @functionpointer
+esphome/components/pzem6l24/* @nuttytree
 esphome/components/qmi8658/* @clydebarrow
 esphome/components/qmp6988/* @andrewpc
 esphome/components/qr_code/* @wjtje
@@ -457,6 +458,7 @@ esphome/components/rtl87xx/* @kuba2k2
 esphome/components/rtttl/* @glmnet @ximex
 esphome/components/runtime_image/* @clydebarrow @guillempages @kahrendt
 esphome/components/runtime_stats/* @bdraco
+esphome/components/rx8025t/* @remcom
 esphome/components/rx8130/* @beormund
 esphome/components/safe_mode/* @jsuanet @kbx81 @paulmonigatti
 esphome/components/scd4x/* @martgras @sjtrny
@@ -547,7 +549,9 @@ esphome/components/sx126x/* @swoboda1337
 esphome/components/sx127x/* @swoboda1337
 esphome/components/sy6970/* @linkedupbits
 esphome/components/syslog/* @clydebarrow
+esphome/components/systa_bus/* @Mat931
 esphome/components/t6615/* @tylermenezes
+esphome/components/tas2780/* @remcom
 esphome/components/tc74/* @sethgirvan
 esphome/components/tca9548a/* @andreashergert1984
 esphome/components/tca9555/* @mobrembski
@@ -560,6 +564,7 @@ esphome/components/template/datetime/* @rfdarter
 esphome/components/template/event/* @nohat
 esphome/components/template/fan/* @ssieb
 esphome/components/text/* @mauritskorse
+esphome/components/tfluna/* @candrews
 esphome/components/thermopro_ble/* @sittner
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @esphome/core

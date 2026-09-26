@@ -50,14 +50,8 @@ bool MQTTLockComponent::send_initial_state() { return this->publish_state(); }
 
 bool MQTTLockComponent::publish_state() {
   char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  char buf[LOCK_STATE_STR_SIZE];
-  strncpy_P(buf, (PGM_P) lock_state_to_string(this->lock_->state), sizeof(buf) - 1);
-  buf[sizeof(buf) - 1] = '\0';
-  return this->publish(this->get_state_topic_to_(topic_buf), buf);
-#else
-  return this->publish(this->get_state_topic_to_(topic_buf), LOG_STR_ARG(lock_state_to_string(this->lock_->state)));
-#endif
+  return this->publish(this->get_state_topic_to_(topic_buf),
+                       reinterpret_cast<ProgmemStr>(lock_state_to_string(this->lock_->state)));
 }
 
 }  // namespace esphome::mqtt
