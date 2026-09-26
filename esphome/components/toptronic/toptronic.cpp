@@ -1023,7 +1023,8 @@ void TopTronic::dump_config() {
                 (unsigned) sensor_count, (unsigned) input_count);
   ESP_LOGCONFIG(TAG, "  Boot refresh delay: %u ms", (unsigned) this->boot_refresh_delay_ms_);
   ESP_LOGCONFIG(TAG, "  Write safety: min SET interval %u ms, reject writes before read: %s",
-                (unsigned) this->write_min_interval_ms_, this->reject_writes_before_read_ ? "yes" : "no");
+                (unsigned) this->write_min_interval_ms_,
+                this->reject_writes_before_read_ ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"));
 }
 
 static void log_response_frame(const uint8_t *data, size_t len, uint32_t can_id, const std::string &sensor_name) {
