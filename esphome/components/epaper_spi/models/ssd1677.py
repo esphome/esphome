@@ -10,7 +10,7 @@ class SSD1677(EpaperModel):
     def __init__(
         self,
         name,
-        class_name="EPaperMono",
+        class_name="EPaperSSD1677",
         data_rate="20MHz",
         border_waveform=0x01,
         **defaults,
