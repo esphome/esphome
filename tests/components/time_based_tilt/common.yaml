@@ -1,0 +1,43 @@
+cover:
+  - platform: time_based_tilt
+    name: Time Based Cover with Tilt
+    id: time_based_tilt_cover_1
+    stop_action:
+      - logger.log: stop_action
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
+    open_duration: 58700ms
+    close_duration: 57700ms
+    inertia_open_time: 300ms
+    inertia_close_time: 250ms
+    tilt_open_duration: 930ms
+    tilt_close_duration: 900ms
+    interlock_wait_time: 500ms
+    recalibration_close_time: 34123ms
+    recalibration_open_time: 35123ms
+    actuator_activation_open_time: 100ms
+    actuator_activation_close_time: 100ms
+    close_sets_tilt: true
+    open_sets_tilt: false
+    assumed_state: false
+  - platform: time_based_tilt
+    name: Time Based Cover w/o Tilt
+    id: time_based_tilt_cover_2
+    stop_action:
+      - logger.log: stop_action
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
+    open_duration: 58700ms
+    close_duration: 57700ms
+    inertia_open_time: 300ms
+    inertia_close_time: 250ms
+    interlock_wait_time: 500ms
+    recalibration_close_time: 34123ms
+    recalibration_open_time: 35123ms
+    actuator_activation_open_time: 0ms
+    actuator_activation_close_time: 0ms
+    assumed_state: false
