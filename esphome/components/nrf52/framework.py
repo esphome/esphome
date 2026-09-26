@@ -247,6 +247,56 @@ def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
     tmp.replace(uf2conv)
 
 
+def _west_update(env_python_path: Path, framework_path: Path) -> bool:
+    cmd = [
+        str(env_python_path),
+        "-m",
+        "west",
+        "update",
+        "--narrow",
+        "--fetch-opt=--depth=1",
+    ]
+    # Streamed so the per-project progress of the long clone reaches the log
+    return run_command_ok(cmd, cwd=framework_path, stream_output=True)
+
+
+def _install_framework(
+    env_python_path: Path, framework_path: Path, version: str
+) -> None:
+    """Clone the nRF Connect SDK into ``framework_path`` with west.
+
+    A download cut short after ``west init`` leaves the workspace behind;
+    rerunning ``west update`` there only fetches what is missing, so it resumes
+    instead of cloning about 2 GB again. A resume that fails starts over clean.
+    """
+    if (framework_path / ".west").is_dir() and not (framework_path / ".ready").exists():
+        _LOGGER.info("Resuming the nRF Connect SDK %s download ...", version)
+        if _west_update(env_python_path, framework_path):
+            return
+        _LOGGER.warning(
+            "Resuming failed; downloading nRF Connect SDK %s again", version
+        )
+    rmdir(framework_path, msg=f"Clean up {version} framework environment")
+    _LOGGER.info("Initializing nRF Connect SDK %s ...", version)
+    cmd = [
+        str(env_python_path),
+        "-m",
+        "west",
+        "init",
+        "-m",
+        "https://github.com/nrfconnect/sdk-nrf",
+        "-o=--depth=1",
+        "--mr",
+        version,
+        str(framework_path),
+    ]
+    if not run_command_ok(cmd, stream_output=True):
+        raise EsphomeError(f"Can't initialize nRF Connect SDK {version}")
+    _LOGGER.info("Updating nRF Connect SDK %s (this may take a while) ...", version)
+    if not _west_update(env_python_path, framework_path):
+        raise EsphomeError(f"Can't update nRF Connect SDK {version}")
+
+
 def check_and_install() -> None:
     version = _get_version_str()
     python_env_path = _get_python_env_path(version)
@@ -280,33 +330,7 @@ def check_and_install() -> None:
     sentinel = framework_path / ".ready"
     zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
     if not sentinel.exists() or not zephyr_reqs.exists():
-        rmdir(framework_path, msg=f"Clean up {version} framework environment")
-        _LOGGER.info("Initializing nRF Connect SDK %s ...", version)
-        cmd = [
-            str(env_python_path),
-            "-m",
-            "west",
-            "init",
-            "-m",
-            "https://github.com/nrfconnect/sdk-nrf",
-            "-o=--depth=1",
-            "--mr",
-            version,
-            str(framework_path),
-        ]
-        if not run_command_ok(cmd):
-            raise EsphomeError(f"Can't initialize nRF Connect SDK {version}")
-        _LOGGER.info("Updating nRF Connect SDK %s (this may take a while) ...", version)
-        cmd = [
-            str(env_python_path),
-            "-m",
-            "west",
-            "update",
-            "--narrow",
-            "--fetch-opt=--depth=1",
-        ]
-        if not run_command_ok(cmd, cwd=framework_path):
-            raise EsphomeError(f"Can't update nRF Connect SDK {version}")
+        _install_framework(env_python_path, framework_path, version)
         framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
         if framework_ver < cv.Version(2, 9, 2):
             _patch_uf2conv_escape_sequences(framework_path)

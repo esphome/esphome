@@ -251,6 +251,61 @@ class TestCheckAndInstall:
         assert "update" in update_cmd
         assert "--fetch-opt=--depth=1" in update_cmd
 
+    def test_west_output_is_streamed(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """The long clone's progress reaches the log instead of being captured."""
+        _mark_venv_ready(nrf52_dirs.python_env)
+
+        check_and_install()
+
+        for call in mock_nrf52_ops.run_command_ok.call_args_list[:2]:
+            assert call.kwargs["stream_output"] is True
+
+    def test_interrupted_download_resumes(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """A workspace left by a cut-short download is updated in place, not
+        wiped and cloned again."""
+        _mark_venv_ready(nrf52_dirs.python_env)
+        (nrf52_dirs.framework / ".west").mkdir()
+
+        check_and_install()
+
+        wiped = [c.args[0] for c in mock_nrf52_ops.rmdir.call_args_list]
+        assert nrf52_dirs.framework not in wiped
+        # west update (no init), then pip install zephyr reqs
+        first = mock_nrf52_ops.run_command_ok.call_args_list[0]
+        assert "update" in first.args[0]
+        assert "init" not in first.args[0]
+        assert first.kwargs["cwd"] == nrf52_dirs.framework
+        assert mock_nrf52_ops.run_command_ok.call_count == 2
+        assert (nrf52_dirs.framework / ".ready").exists()
+
+    def test_failed_resume_starts_over(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """A resumed update that fails wipes the workspace and clones clean."""
+        _mark_venv_ready(nrf52_dirs.python_env)
+        (nrf52_dirs.framework / ".west").mkdir()
+        # resumed update fails; clean init, update and zephyr reqs succeed
+        mock_nrf52_ops.run_command_ok.side_effect = [False, True, True, True]
+
+        check_and_install()
+
+        wiped = [c.args[0] for c in mock_nrf52_ops.rmdir.call_args_list]
+        assert nrf52_dirs.framework in wiped
+        commands = [c.args[0] for c in mock_nrf52_ops.run_command_ok.call_args_list]
+        assert "update" in commands[0]
+        assert "init" in commands[1]
+        assert "update" in commands[2]
+
     def test_requirements_install_failure_raises(
         self,
         nrf52_dirs: SimpleNamespace,
