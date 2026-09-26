@@ -1,0 +1,92 @@
+esphome:
+  name: template-time-test
+host:
+api:
+logger:
+
+globals:
+  - id: valid_sync_count
+    type: int
+    initial_value: "0"
+  - id: invalid_sync_count
+    type: int
+    initial_value: "0"
+  - id: no_sync_count
+    type: int
+    initial_value: "0"
+
+time:
+  # sync enabled with a valid epoch and a fast, explicit update_interval: on_time_sync
+  # must fire repeatedly.
+  - platform: template
+    id: valid_sync_time
+    sync: true
+    update_interval: 100ms
+    lambda: |-
+      return 1700000000ULL;
+    on_time_sync:
+      - lambda: |-
+          id(valid_sync_count) += 1;
+
+  # sync enabled, but the lambda never reports a value: the epoch is always invalid
+  # (0), so on_time_sync must never fire.
+  - platform: template
+    id: invalid_sync_time
+    sync: true
+    update_interval: 100ms
+    lambda: |-
+      return {};
+    on_time_sync:
+      - lambda: |-
+          id(invalid_sync_count) += 1;
+
+  # sync disabled (the default): the lambda is still evaluated for .now(), but
+  # on_time_sync must never fire automatically, even with a fast update_interval.
+  - platform: template
+    id: no_sync_time
+    update_interval: 100ms
+    lambda: |-
+      return 1700000200ULL;
+    on_time_sync:
+      - lambda: |-
+          id(no_sync_count) += 1;
+
+text_sensor:
+  # Timestamps are exposed as text (rather than a 32-bit float sensor state,
+  # which cannot represent a UNIX epoch exactly) so the exact lambda return
+  # value can be checked.
+  - platform: template
+    name: "Valid Sync Timestamp"
+    id: valid_sync_timestamp
+    update_interval: 100ms
+    lambda: |-
+      return std::to_string(id(valid_sync_time).now().timestamp);
+
+  - platform: template
+    name: "No Sync Timestamp"
+    id: no_sync_timestamp
+    update_interval: 100ms
+    lambda: |-
+      return std::to_string(id(no_sync_time).now().timestamp);
+
+sensor:
+  - platform: template
+    name: "Valid Sync Count Sensor"
+    id: valid_sync_count_sensor
+    update_interval: 100ms
+    lambda: |-
+      return (float) id(valid_sync_count);
+
+  - platform: template
+    name: "Invalid Sync Count Sensor"
+    id: invalid_sync_count_sensor
+    update_interval: 100ms
+    lambda: |-
+      return (float) id(invalid_sync_count);
+
+  - platform: template
+    name: "No Sync Count Sensor"
+    id: no_sync_count_sensor
+    update_interval: 100ms
+    lambda: |-
+      return (float) id(no_sync_count);
