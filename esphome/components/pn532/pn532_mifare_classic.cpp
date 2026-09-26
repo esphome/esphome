@@ -36,14 +36,15 @@ std::unique_ptr<nfc::NfcTag> PN532::read_mifare_classic_tag_(nfc::NfcTagUid &uid
     if (nfc::mifare_classic_is_first_block(current_block)) {
       if (!this->auth_mifare_classic_block_(uid, current_block, nfc::MIFARE_CMD_AUTH_A, nfc::NDEF_KEY)) {
         ESP_LOGE(TAG, "Error, Block authentication failed for %d", current_block);
+        return make_unique<nfc::NfcTag>(uid, nfc::MIFARE_CLASSIC);
       }
     }
     std::vector<uint8_t> block_data;
-    if (this->read_mifare_classic_block_(current_block, block_data)) {
-      buffer.insert(buffer.end(), block_data.begin(), block_data.end());
-    } else {
+    if (!this->read_mifare_classic_block_(current_block, block_data)) {
       ESP_LOGE(TAG, "Error reading block %d", current_block);
+      return make_unique<nfc::NfcTag>(uid, nfc::MIFARE_CLASSIC);
     }
+    buffer.insert(buffer.end(), block_data.begin(), block_data.end());
 
     index += nfc::MIFARE_CLASSIC_BLOCK_SIZE;
     current_block++;
@@ -63,19 +64,17 @@ std::unique_ptr<nfc::NfcTag> PN532::read_mifare_classic_tag_(nfc::NfcTagUid &uid
 }
 
 bool PN532::read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data) {
-  if (!this->write_command_({
-          PN532_COMMAND_INDATAEXCHANGE,
-          0x01,  // One card
-          nfc::MIFARE_CMD_READ,
-          block_num,
-      })) {
+  if (!this->in_data_exchange_(
+          {
+              PN532_COMMAND_INDATAEXCHANGE,
+              0x01,  // One card
+              nfc::MIFARE_CMD_READ,
+              block_num,
+          },
+          data) ||
+      data.size() != nfc::MIFARE_CLASSIC_BLOCK_SIZE) {
     return false;
   }
-
-  if (!this->read_response(PN532_COMMAND_INDATAEXCHANGE, data) || data[0] != 0x00) {
-    return false;
-  }
-  data.erase(data.begin());
 
   char data_buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
   ESP_LOGVV(TAG, " Block %d: %s", block_num, nfc::format_bytes_to(data_buf, data));
@@ -90,14 +89,14 @@ bool PN532::auth_mifare_classic_block_(nfc::NfcTagUid &uid, uint8_t block_num, u
       block_num,  // Block number
   });
   data.insert(data.end(), key, key + 6);
-  data.insert(data.end(), uid.begin(), uid.end());
-  if (!this->write_command_(data)) {
-    ESP_LOGE(TAG, "Authentication failed - Block %d", block_num);
+  // the command takes exactly 4 UID bytes (UM0701-02, 7.3.8); for 7-byte UIDs these are the last 4, as in libnfc
+  if (uid.size() < 4) {
     return false;
   }
+  data.insert(data.end(), uid.end() - 4, uid.end());
 
   std::vector<uint8_t> response;
-  if (!this->read_response(PN532_COMMAND_INDATAEXCHANGE, response) || response[0] != 0x00) {
+  if (!this->in_data_exchange_(data, response)) {
     ESP_LOGE(TAG, "Authentication failed - Block 0x%02x", block_num);
     return false;
   }
@@ -167,6 +166,8 @@ bool PN532::format_mifare_classic_ndef_(nfc::NfcTagUid &uid) {
 
   ESP_LOGD(TAG, "Sector 0 formatted to NDEF");
 
+  bool error = false;
+
   for (int block = 4; block < 64; block += 4) {
     if (!this->auth_mifare_classic_block_(uid, block + 3, nfc::MIFARE_CMD_AUTH_B, nfc::DEFAULT_KEY)) {
       return false;
@@ -174,23 +175,28 @@ bool PN532::format_mifare_classic_ndef_(nfc::NfcTagUid &uid) {
     if (block == 4) {
       if (!this->write_mifare_classic_block_(block, EMPTY_NDEF_MESSAGE.data(), EMPTY_NDEF_MESSAGE.size())) {
         ESP_LOGE(TAG, "Unable to write block %d", block);
+        error = true;
       }
     } else {
       if (!this->write_mifare_classic_block_(block, BLANK_BLOCK.data(), BLANK_BLOCK.size())) {
         ESP_LOGE(TAG, "Unable to write block %d", block);
+        error = true;
       }
     }
     if (!this->write_mifare_classic_block_(block + 1, BLANK_BLOCK.data(), BLANK_BLOCK.size())) {
       ESP_LOGE(TAG, "Unable to write block %d", block + 1);
+      error = true;
     }
     if (!this->write_mifare_classic_block_(block + 2, BLANK_BLOCK.data(), BLANK_BLOCK.size())) {
       ESP_LOGE(TAG, "Unable to write block %d", block + 2);
+      error = true;
     }
     if (!this->write_mifare_classic_block_(block + 3, NDEF_TRAILER.data(), NDEF_TRAILER.size())) {
       ESP_LOGE(TAG, "Unable to write trailer block %d", block + 3);
+      error = true;
     }
   }
-  return true;
+  return !error;
 }
 
 bool PN532::write_mifare_classic_block_(uint8_t block_num, const uint8_t *data, size_t len) {
@@ -201,13 +207,9 @@ bool PN532::write_mifare_classic_block_(uint8_t block_num, const uint8_t *data, 
       block_num,
   });
   cmd.insert(cmd.end(), data, data + len);
-  if (!this->write_command_(cmd)) {
-    ESP_LOGE(TAG, "Error writing block %d", block_num);
-    return false;
-  }
 
   std::vector<uint8_t> response;
-  if (!this->read_response(PN532_COMMAND_INDATAEXCHANGE, response)) {
+  if (!this->in_data_exchange_(cmd, response)) {
     ESP_LOGE(TAG, "Error writing block %d", block_num);
     return false;
   }
