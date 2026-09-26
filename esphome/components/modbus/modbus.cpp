@@ -201,14 +201,9 @@ void ModbusClientHub::parse_modbus_frames() {
   }
 }
 
-void ModbusServerHub::parse_modbus_frames() {
+void ModbusPeerHub::parse_modbus_frames() {
   while (!this->rx_buffer_.empty()) {
-    if (this->deferred_payload_len_ != 0) {
-      // Another frame arrived before the deferred reply went out, so the client has moved on.
-      this->cancel_timeout("deferred_send");
-      ESP_LOGD(TAG, "Dropped deferred reply to %" PRIu8 ": a new frame arrived first", this->deferred_payload_[0]);
-      this->deferred_payload_len_ = 0;
-    }
+    this->on_frame_pending();
     size_t size = this->rx_buffer_.size();
     ESP_LOGVV(TAG, "Parsing frames buffer size = %" PRIu32, size);
     bool retry_as_client = false;
@@ -295,7 +290,7 @@ bool Modbus::parse_modbus_server_frame_() {
   return true;
 }
 
-bool ModbusServerHub::parse_modbus_client_frame_() {
+bool ModbusPeerHub::parse_modbus_client_frame_() {
   size_t size = this->rx_buffer_.size();
   uint16_t frame_length = helpers::client_frame_length(this->rx_buffer_.data(), this->rx_buffer_.size());
 
@@ -315,21 +310,20 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
       return false;
   }
 
-  // Clear before processing: process_modbus_client_frame_ dispatches to a server device which sends
+  // Clear before processing: process_modbus_client_frame dispatches to a server device which sends
   // a response immediately. We need to clear the rx buffer first so the response doesn't snag tx_blocked.
   // This requires copying the frame data to a local buffer beforehand.
-  uint8_t data_offset = helpers::client_frame_data_offset(this->rx_buffer_.data(), this->rx_buffer_.size());
-  uint16_t data_len = frame_length - 2 - data_offset;
-  uint8_t data_buffer[MAX_FRAME_SIZE] = {};
-  std::memcpy(data_buffer, this->rx_buffer_.data() + data_offset, data_len);
-  std::span<const uint8_t> data(data_buffer, data_len);
+  const uint16_t pdu_len = frame_length - 3;  // less the address byte and the CRC
+  uint8_t pdu_buffer[MAX_FRAME_SIZE] = {};
+  std::memcpy(pdu_buffer, this->rx_buffer_.data() + 1, pdu_len);
+  std::span<const uint8_t> pdu(pdu_buffer, pdu_len);
   this->clear_rx_buffer_(LOG_STR("parse succeeded"), false, frame_length);
 
   if (address == BROADCAST_ADDRESS) {
     // Keep the unicast response buffers out of the broadcast call chain.
-    this->process_broadcast_frame_(function_code, data);
+    this->process_broadcast_frame(pdu);
   } else {
-    this->process_modbus_client_frame_(address, function_code, data);
+    this->process_modbus_client_frame(address, pdu);
   }
 
   return true;
@@ -512,7 +506,9 @@ void ModbusServerHub::assemble_registers_(std::span<const uint8_t> values, Regis
   }
 }
 
-void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<const uint8_t> data) {
+void ModbusServerHub::process_broadcast_frame(std::span<const uint8_t> pdu) {
+  const uint8_t function_code = pdu[0];  // raw: masking would hide a malformed request
+  const std::span<const uint8_t> data = pdu.subspan(1);
   // Broadcasts are only meaningful for writes and are never answered (Modbus 4.1 / 6.12), so an unsupported
   // function code or a validation failure is silently dropped instead of replying with an exception. Both
   // register writes (FC 0x06/0x10) and coil writes (FC 0x05/0x0F) are broadcastable by spec, and each shares
@@ -610,8 +606,18 @@ bool ModbusServerHub::build_or_reject_read_response_(uint8_t address, uint8_t fu
   return true;
 }
 
-void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code,
-                                                   std::span<const uint8_t> data) {
+void ModbusServerHub::on_frame_pending() {
+  if (this->deferred_payload_len_ == 0)
+    return;
+  // Another frame arrived before the deferred reply went out, so the client has moved on.
+  this->cancel_timeout("deferred_send");
+  ESP_LOGD(TAG, "Dropped deferred reply to %" PRIu8 ": a new frame arrived first", this->deferred_payload_[0]);
+  this->deferred_payload_len_ = 0;
+}
+
+void ModbusServerHub::process_modbus_client_frame(uint8_t address, std::span<const uint8_t> pdu) {
+  const uint8_t function_code = pdu[0];  // raw: masking would hide a malformed request
+  const std::span<const uint8_t> data = pdu.subspan(1);
   ModbusServerDevice *device = this->find_device_(address);
   if (device == nullptr) {
     this->expecting_peer_response_ = address;
@@ -1416,5 +1422,38 @@ void ModbusClientDevice::on_custom_response(std::span<const uint8_t> request_pdu
     ESP_LOGV(TAG, "Non-standard request or response for function code 0x%X (unhandled)", function_code);
   }
 }
+
+void ModbusSnifferHub::process_modbus_client_frame(uint8_t address, std::span<const uint8_t> pdu) {
+  this->expecting_peer_response_ = address;
+  this->request_.set(pdu.data(), pdu.size());
+  this->request_trigger_.trigger(address, this->request_);
+}
+
+void ModbusSnifferHub::process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) {
+  // The armed address IS the retained request's: both come from the same client frame. Read it
+  // before clearing, which must happen on every path out.
+  const uint8_t expected_address = this->expecting_peer_response_;
+  this->expecting_peer_response_ = 0;
+
+  // request_ is never empty here: this only runs with an expectation armed, and the one place that
+  // arms it also fills request_ with a PDU of at least the function code. A reply seen with no
+  // request before it is parsed as a client frame instead, and never arrives here.
+
+  // Masked, as the client hub does: an exception reply carries the request's code with bit 7 set,
+  // and is that request's response.
+  const uint8_t function_code = pdu[0];
+  const uint8_t expected_function_code = this->request_.data()[0];
+  if (expected_address != address || expected_function_code != (function_code & FUNCTION_CODE_MASK)) {
+    ESP_LOGW(TAG, "Response address %" PRIu8 " <> %" PRIu8 " or function code 0x%X <> 0x%X", address, expected_address,
+             (function_code & FUNCTION_CODE_MASK), expected_function_code);
+    this->request_.init(0);
+    return;
+  }
+
+  this->response_trigger_.trigger(address, this->request_, pdu);
+  this->request_.init(0);
+}
+
+void ModbusSnifferHub::dump_config() { ESP_LOGCONFIG(TAG, "Modbus Sniffer Hub (passive, never transmits)"); }
 
 }  // namespace esphome::modbus

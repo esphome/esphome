@@ -1,0 +1,7 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/rp2040-ard.yaml
+
+substitutions:
+  rx_pin2: GPIO5
+
+<<: !include common.yaml

@@ -159,6 +159,8 @@ inline std::span<const uint8_t> server_pdu_payload(std::span<const uint8_t> pdu)
   return pdu.size() > offset ? pdu.subspan(offset) : std::span<const uint8_t>();
 }
 
+// Remove before 2027.2.0
+ESPDEPRECATED("The client handlers take the whole PDU; index it directly. Removed in 2027.2.0", "2026.10.0")
 inline uint8_t client_frame_data_offset(const uint8_t *, size_t) { return 2; }
 
 /** Extract data from modbus response buffer
