@@ -1,0 +1,6 @@
+substitutions:
+  cs_pin: GPIO7
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-c3-idf.yaml
+  mt6701_spi: !include common.yaml
