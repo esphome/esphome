@@ -504,10 +504,12 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
   media_source::MediaSource *active_source = ps.active_source;
   bool has_internal_playlist = (active_source != nullptr) && active_source->has_internal_playlist();
 
-  // Determine target source: prefer active, fall back to last
+  // A pending HTTP request owns commands even before its PLAYING callback.
   media_source::MediaSource *target_source = nullptr;
   if (active_source != nullptr) {
     target_source = active_source;
+  } else if (ps.pending_source != nullptr) {
+    target_source = ps.pending_source;
   } else if (ps.last_source != nullptr) {
     target_source = ps.last_source;
   }
@@ -569,7 +571,14 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
         ps.playlist_index = 0;
       }
       if (target_source != nullptr) {
+        ps.stopping_source = target_source;
         target_source->handle_command(media_source::MediaSourceCommand::STOP);
+        // A cancelled startup may already be IDLE and emit no state transition.
+        if (target_source->get_state() == media_source::MediaSourceState::IDLE) {
+          if (ps.pending_source == target_source)
+            ps.pending_source = nullptr;
+          ps.stopping_source = nullptr;
+        }
       }
       break;
     }
