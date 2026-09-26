@@ -16,6 +16,7 @@ from esphome.build_helpers.ccache import (
     parse_enable_env,
     resolve_ccache_path,
 )
+from esphome.build_helpers.pch import ccache_pch_env
 from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.core import Version
 from esphome.framework_helpers import (
@@ -1205,15 +1206,33 @@ def _ccache_env() -> dict[str, str]:
 
     Only values the user has not already set in the environment are returned, so
     a custom ``CCACHE_DIR`` / ``CCACHE_MAXSIZE`` / etc. is respected.
+    The pch settings add ``time_macros`` sloppiness process-wide; the visible
+    effect is a cached TU can keep an older ``esp_app_desc`` build timestamp.
     """
-    # IDF_CCACHE_ENABLE (the backend-native knob) wins over the shared
-    # ESPHOME_CCACHE_ENABLE.
+    if not _ccache_enabled():
+        # The raw knob value (e.g. "disable") is still inherited by idf.py
+        # via os.environ, where a non-false-constant string reads as
+        # truthy; export the canonical off spelling instead
+        return {"IDF_CCACHE_ENABLE": "0"}
+
+    env = ccache_defaults_env(get_idf_tools_path() / "ccache")
+    env.update(ccache_pch_env())
+    # Exactly one canonical spelling ever reaches idf.py, whatever the
+    # accepted input spelling was ("enable", "yes", ...)
+    env["IDF_CCACHE_ENABLE"] = "1"
+    return env
+
+
+def _ccache_enabled() -> bool:
+    """Whether ESP-IDF compiles run under ccache.
+
+    IDF_CCACHE_ENABLE (the backend-native knob) wins over the shared
+    ESPHOME_CCACHE_ENABLE; when unset, enabled iff a runnable binary is
+    on PATH.
+    """
     idf_knob = parse_enable_env("IDF_CCACHE_ENABLE")
     if idf_knob is False:
-        # The raw value (e.g. "disable") is still inherited by idf.py via
-        # os.environ, where a non-false-constant string reads as truthy;
-        # export the canonical off spelling instead
-        return {"IDF_CCACHE_ENABLE": "0"}
+        return False
     if idf_knob is True:
         # Forced on ignores the runnability verdict, but the outcome is
         # worth saying out loud. Probed directly (not via the resolver,
@@ -1233,17 +1252,8 @@ def _ccache_env() -> dict[str, str]:
                 "IDF_CCACHE_ENABLE=1 forces on the ccache at %s even though "
                 "it failed to run; idf.py will use it anyway",
             )
-    elif resolve_ccache_path() is None:
-        # ESP-IDF silently skips ccache without the binary; export the
-        # canonical off spelling so an unparsable inherited value (or a
-        # probe-rejected ccache idf.py would still find) cannot enable it
-        return {"IDF_CCACHE_ENABLE": "0"}
-
-    env = ccache_defaults_env(get_idf_tools_path() / "ccache")
-    # Exactly one canonical spelling ever reaches idf.py, whatever the
-    # accepted input spelling was ("enable", "yes", ...)
-    env["IDF_CCACHE_ENABLE"] = "1"
-    return env
+        return True
+    return resolve_ccache_path() is not None
 
 
 def get_framework_env(
