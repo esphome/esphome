@@ -115,8 +115,9 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
             ("bin", "xtensa-lx106-elf"),
         ),
     )
-    # Fetch both archives at once; the install verifies and extracts them
-    prefetch_packages([spec[:4] for spec in specs], downloads_dir)
+    # Fetch both archives at once; the install verifies and extracts them.
+    # One spec list for both, so the two phases cannot drift.
+    prefetch_packages(specs, downloads_dir)
     install_packages(specs, downloads_dir)
     return InstalledPaths(
         framework=framework_path, toolchain=toolchain_path, ninja=ninja_path
