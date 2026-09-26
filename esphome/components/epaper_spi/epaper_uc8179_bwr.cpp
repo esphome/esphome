@@ -72,8 +72,6 @@ void EPaperUC8179BWR::fill(Color color) {
   this->y_low_ = 0;
 }
 
-void EPaperUC8179BWR::clear() { this->fill(COLOR_ON); }
-
 void EPaperUC8179BWR::loop() {
   if (this->waiting_for_idle_) {
     if (this->state_ == EPaperState::POWER_OFF || this->state_ == EPaperState::DEEP_SLEEP) {

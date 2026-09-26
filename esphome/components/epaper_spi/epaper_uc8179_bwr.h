@@ -34,7 +34,6 @@ class EPaperUC8179BWR : public EPaperBase {
   }
 
   void fill(Color color) override;
-  void clear() override;
   void loop() override;
 
  protected:
