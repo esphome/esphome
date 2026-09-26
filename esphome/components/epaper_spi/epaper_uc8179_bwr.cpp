@@ -22,7 +22,6 @@ void EPaperUC8179BWR::power_on() {
 void EPaperUC8179BWR::refresh_screen(bool /* partial */) {
   ESP_LOGV(TAG, "Refresh");
   this->command(0x12);
-  this->next_delay_ = 100;
 }
 
 void EPaperUC8179BWR::power_off() {
