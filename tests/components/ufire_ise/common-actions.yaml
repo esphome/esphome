@@ -1,0 +1,10 @@
+button:
+  - platform: template
+    name: uFire ISE Actions
+    on_press:
+      - ufire_ise.calibrate_probe_high:
+          id: ufire_ise_sensor
+          solution: !lambda return 10.0;
+      - ufire_ise.calibrate_probe_low:
+          id: ufire_ise_sensor
+          solution: !lambda return 4.0;

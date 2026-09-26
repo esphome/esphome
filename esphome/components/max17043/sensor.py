@@ -14,8 +14,6 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_VOLT,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -24,9 +22,6 @@ max17043_ns = cg.esphome_ns.namespace("max17043")
 MAX17043Component = max17043_ns.class_(
     "MAX17043Component", cg.PollingComponent, i2c.I2CDevice
 )
-
-# Actions
-SleepAction = max17043_ns.class_("SleepAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -74,14 +69,6 @@ MAX17043_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "max17043.sleep_mode", SleepAction, MAX17043_ACTION_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "max17043.sleep_mode", MAX17043_ACTION_SCHEMA, automation.ApplyCall("sleep_mode()")
 )
-async def max17043_sleep_mode_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
