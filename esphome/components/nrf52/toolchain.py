@@ -4,15 +4,15 @@ from pathlib import Path
 
 from esphome.core import CORE
 
-from .framework import get_toolchain_bin_path
+from .framework import toolchain_tool
 
 
 def get_objdump_path() -> Path:
-    return get_toolchain_bin_path() / "arm-zephyr-eabi-objdump"
+    return toolchain_tool("objdump")
 
 
 def get_readelf_path() -> Path:
-    return get_toolchain_bin_path() / "arm-zephyr-eabi-readelf"
+    return toolchain_tool("readelf")
 
 
 def get_elf_path() -> Path:

@@ -1,5 +1,6 @@
 """Tests for the nRF52 sdk-nrf memory analysis hooks."""
 
+import os
 from pathlib import Path
 
 import pytest
@@ -24,8 +25,10 @@ def test_binutils_come_from_the_pinned_zephyr_sdk() -> None:
         / "arm-zephyr-eabi"
         / "bin"
     )
-    assert toolchain.get_objdump_path() == bin_path / "arm-zephyr-eabi-objdump"
-    assert toolchain.get_readelf_path() == bin_path / "arm-zephyr-eabi-readelf"
+    # Windows hosts get the .exe binaries (CI covers both)
+    suffix = ".exe" if os.name == "nt" else ""
+    assert toolchain.get_objdump_path() == bin_path / f"arm-zephyr-eabi-objdump{suffix}"
+    assert toolchain.get_readelf_path() == bin_path / f"arm-zephyr-eabi-readelf{suffix}"
 
 
 def test_elf_prefers_the_nested_sdk_layout(nrf52_build: Path) -> None:

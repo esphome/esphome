@@ -80,9 +80,15 @@ def _get_toolchain_path(version: str) -> Path:
     return get_sdk_nrf_tools_path() / "toolchains" / version
 
 
-def get_toolchain_bin_path() -> Path:
-    """The pinned Zephyr SDK's arm-zephyr-eabi binaries (objdump, readelf, ...)."""
-    return _get_toolchain_path(TOOLCHAIN_VERSION) / "arm-zephyr-eabi" / "bin"
+def toolchain_tool(name: str) -> Path:
+    """Path to one of the pinned Zephyr SDK's tools (objdump, readelf, ...).
+
+    The single owner of the ``arm-zephyr-eabi/bin/arm-zephyr-eabi-<name>``
+    layout and the Windows suffix.
+    """
+    suffix = ".exe" if os.name == "nt" else ""
+    bin_path = _get_toolchain_path(TOOLCHAIN_VERSION) / "arm-zephyr-eabi" / "bin"
+    return bin_path / f"arm-zephyr-eabi-{name}{suffix}"
 
 
 _SITECUSTOMIZE = """\
