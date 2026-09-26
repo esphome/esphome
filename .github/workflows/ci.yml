@@ -1127,6 +1127,11 @@ jobs:
         uses: ./.github/actions/cache-sdk-nrf
         with:
           restore-only: true
+      - name: Cache the native ESP8266 toolchain
+        # Only batches whose test platforms include esp8266; the action
+        # restores off dev and writes only on dev pushes.
+        if: matrix.batch.needs_arduino8266
+        uses: ./.github/actions/cache-arduino8266
       - name: Validate and compile components with intelligent grouping
         run: |
           . venv/bin/activate
@@ -1486,6 +1491,10 @@ jobs:
           path: ~/.platformio
           key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
 
+      - name: Cache the native ESP8266 toolchain
+        if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true' && startsWith(fromJSON(needs.determine-jobs.outputs.memory_impact).platform, 'esp8266')
+        uses: ./.github/actions/cache-arduino8266
+
       - name: Build, compile, and analyze memory
         if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
         id: build
@@ -1574,6 +1583,9 @@ jobs:
         with:
           path: ~/.platformio
           key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
+      - name: Cache the native ESP8266 toolchain
+        if: startsWith(fromJSON(needs.determine-jobs.outputs.memory_impact).platform, 'esp8266')
+        uses: ./.github/actions/cache-arduino8266
       - name: Build, compile, and analyze memory
         id: extract
         run: |

@@ -1522,6 +1522,9 @@ def main() -> None:
                     "components": " ".join(batch),
                     "needs_idf": any(p.startswith("esp32") for p in platforms),
                     "needs_nrf": any(p.startswith("nrf52") for p in platforms),
+                    "needs_arduino8266": any(
+                        p.startswith("esp8266") for p in platforms
+                    ),
                 }
             )
 

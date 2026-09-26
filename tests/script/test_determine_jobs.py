@@ -250,6 +250,7 @@ def test_main_all_tests_should_run(
         assert len(batch["components"]) > 0
         assert isinstance(batch["needs_idf"], bool)
         assert isinstance(batch["needs_nrf"], bool)
+        assert isinstance(batch["needs_arduino8266"], bool)
 
 
 def test_main_no_tests_should_run(
