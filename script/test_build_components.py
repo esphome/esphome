@@ -1062,6 +1062,12 @@ def test_components(
     # toolchain build.
     include_validate = esphome_command != "compile"
 
+    # A blank pattern list would slide into the reference-baseline
+    # fallback and exit green while building nothing
+    if fail_on_no_tests and not any(component_patterns):
+        print("No components requested (blank component list)")
+        return 1
+
     # Find all component tests; remember which components each pattern
     # (wildcards included) matched, for the deferred no-tests accounting
     all_tests = {}
@@ -1075,12 +1081,6 @@ def test_components(
         )
         pattern_components[pattern] = set(found)
         all_tests.update(found)
-
-    # A blank pattern list would slide into the reference-baseline
-    # fallback and exit green while building nothing
-    if fail_on_no_tests and not any(component_patterns):
-        print("No components requested (blank component list)")
-        return 1
 
     if fail_on_no_tests and not all_tests:
         # Nothing matched: fail before the synthetic baseline spends a
