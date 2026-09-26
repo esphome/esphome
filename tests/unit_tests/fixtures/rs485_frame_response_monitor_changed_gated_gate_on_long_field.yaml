@@ -1,0 +1,60 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+
+rs485_frame:
+  id: hub
+  uart_id: uart_bus
+  framing:
+    escape:
+      mode: escape_byte
+      byte: 0x00
+  crc:
+    type: sum16_big_endian
+  tx:
+    gate:
+      frame_type: [0x01, 0x01]
+  command_format:
+    preamble: [0x00, 0x83, 0x01]
+    value_element_bytes: 4
+    postamble: [0x00]
+  response_fields:
+    led_mask:
+      frame_type: [0x01, 0x02]
+      offset: 2
+      length: 4
+      endian: little
+    display_text:
+      frame_type: [0x01, 0x03]
+      offset: 2
+      length: 36
+  response_monitor:
+    # changed_gated's gate: field always decodes via decode_int (no >4-byte full-range
+    # fallback, unlike the alt itself) -- gating on display_text (36 bytes) would silently
+    # compare only its first 4 bytes. Must be rejected instead of accepted as dead config.
+    - name: lights_confirm
+      trigger:
+        button_name: "Lights"
+      window: 200ms
+      signature:
+        - field: led_mask
+          type: changed_gated
+          gate:
+            field: display_text
+            value: 0x41
+
+button:
+  - platform: rs485_frame
+    rs485_frame_id: hub
+    name: "Lights"
+    value: 0x00010000
