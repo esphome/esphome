@@ -11,8 +11,7 @@ from esphome.const import (
     CONF_RX_BUFFER_SIZE,
     CONF_UART_ID,
 )
-from esphome.core import CORE, ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -22,9 +21,6 @@ DEPENDENCIES = ["uart"]
 
 emontx_ns = cg.esphome_ns.namespace("emontx")
 EmonTx = emontx_ns.class_("EmonTx", cg.Component, uart.UARTDevice)
-
-# Action to send command to emonTx
-EmonTxSendCommandAction = emontx_ns.class_("EmonTxSendCommandAction", automation.Action)
 
 CONF_EMONTX_ID = "emontx_id"
 CONF_TAG_NAME = "tag_name"
@@ -139,20 +135,16 @@ EMONTX_SEND_COMMAND_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+def _plain_literal(config: ConfigType, value: str) -> str:
+    return str(cg.safe_exp(value))
+
+
+automation.register_apply_action(
     "emontx.send_command",
-    EmonTxSendCommandAction,
     EMONTX_SEND_COMMAND_ACTION_SCHEMA,
-    synchronous=True,
+    # A constant is a plain literal for the const char * overload; a lambda returns a
+    # std::string and takes the inline overload.
+    automation.ApplyField(
+        CONF_COMMAND, "send_command", cg.std_string, const_fn=_plain_literal
+    ),
 )
-async def emontx_send_command_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.std_string)
-    cg.add(var.set_command(template_))
-    return var

@@ -60,9 +60,6 @@ CONF_ACCELERATION_MODE = "acceleration_mode"
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
 
 
-# Actions
-StartFanAction = sen5x_ns.class_("StartFanAction", automation.Action)
-
 ACCELERATION_MODES = {
     "low": RhtAccelerationMode.LOW_ACCELERATION,
     "medium": RhtAccelerationMode.MEDIUM_ACCELERATION,
@@ -280,9 +277,8 @@ SEN5X_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-automation.register_simple_action(
+automation.register_apply_action(
     "sen5x.start_fan_autoclean",
-    StartFanAction,
     SEN5X_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("start_fan_cleaning()"),
 )
