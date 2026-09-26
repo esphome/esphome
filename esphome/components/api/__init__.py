@@ -303,12 +303,22 @@ def _consume_api_sockets(config: ConfigType) -> ConfigType:
 
 
 def _validate_outgoing_connection(config: ConfigType) -> ConfigType:
-    if CONF_OUTGOING_CONNECTION not in config:
+    if (outgoing := config.get(CONF_OUTGOING_CONNECTION)) is None:
         return config
     if CONF_ENCRYPTION not in config:
         raise cv.Invalid(
             "outgoing_connection requires 'encryption' so the peer is verified by key",
             path=[CONF_OUTGOING_CONNECTION],
+        )
+    # A device with no client reboots once reboot_timeout passes, so a delay that
+    # reaches it would reboot the device before it ever dials
+    reboot_timeout = config[CONF_REBOOT_TIMEOUT]
+    delay = outgoing[CONF_DELAY]
+    if reboot_timeout.total_milliseconds and delay >= reboot_timeout:
+        raise cv.Invalid(
+            f"delay must be shorter than reboot_timeout ({reboot_timeout}), "
+            "otherwise the device reboots before it dials",
+            path=[CONF_OUTGOING_CONNECTION, CONF_DELAY],
         )
     return config
 
@@ -335,12 +345,8 @@ _OUTGOING_CONNECTION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_HOST): _validate_outgoing_host,
         cv.Optional(CONF_PORT, default=6054): cv.port,
-        # Waiting past the default reboot_timeout would let the watchdog
-        # reboot the device before it ever dials
-        cv.Optional(CONF_DELAY, default="60s"): cv.All(
-            cv.positive_time_period_milliseconds,
-            cv.Range(max=cv.time_period(DEFAULT_REBOOT_TIMEOUT)),
-        ),
+        # Bounded against reboot_timeout in _validate_outgoing_connection
+        cv.Optional(CONF_DELAY, default="60s"): cv.positive_time_period_milliseconds,
     }
 )
 

@@ -30,6 +30,9 @@ struct SavedOutgoingTarget {
   uint8_t family;
   // Network order, IPv4 in the first four bytes and the rest zero
   uint8_t addr[TARGET_ADDR_LEN];
+  // Interface a link-local IPv6 target is reachable on, 0 when it needs none.
+  // Free in flash: the record still rounds up to the same five words.
+  uint8_t scope_id;
 } PACKED;  // NOLINT
 
 /// Dials out when no dial-back target client is connected. Only the TCP

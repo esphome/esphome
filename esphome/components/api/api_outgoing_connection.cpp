@@ -24,7 +24,8 @@ static constexpr uint32_t OUTGOING_TARGET_PREF_HASH = 629847102UL;
 // Read the connection's peer address into target; false when unavailable or
 // of a family this build cannot dial
 static bool peer_to_target(APIConnection *conn, SavedOutgoingTarget &target) {
-  struct sockaddr_storage peer;
+  // Zeroed because the raw lwIP getpeername() leaves sin6_scope_id untouched
+  struct sockaddr_storage peer = {};
   socklen_t peer_len = sizeof(peer);
   if (conn->getpeername((struct sockaddr *) &peer, &peer_len) != 0) {
     return false;
@@ -44,6 +45,8 @@ static bool peer_to_target(APIConnection *conn, SavedOutgoingTarget &target) {
     }
     target.family = AF_INET6;
     memcpy(target.addr, bytes, sizeof(target.addr));
+    // A link-local target is only reachable through the interface it came in on
+    target.scope_id = static_cast<uint8_t>(addr6->sin6_scope_id);
     return true;
   }
 #endif
@@ -71,6 +74,7 @@ socklen_t OutgoingConnectionManager::target_sockaddr_(struct sockaddr_storage *a
     addr6->sin6_family = AF_INET6;
     addr6->sin6_port = htons(API_OUTGOING_CONNECTION_PORT);
     memcpy(&addr6->sin6_addr, this->saved_.addr, sizeof(this->saved_.addr));
+    addr6->sin6_scope_id = this->saved_.scope_id;
     return sizeof(*addr6);
   }
 #endif

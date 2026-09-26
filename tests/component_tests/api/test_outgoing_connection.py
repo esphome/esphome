@@ -50,13 +50,39 @@ def test_outgoing_connection_bare_block(
     assert outgoing["port"] == 6054
 
 
+@pytest.mark.parametrize(
+    ("delay", "reboot_timeout"),
+    [("16min", None), ("30s", "30s"), ("31s", "30s")],
+)
 def test_outgoing_connection_delay_bounded(
     set_core_config: SetCoreConfigCallable,
+    delay: str,
+    reboot_timeout: str | None,
 ) -> None:
     """A delay the reboot watchdog would cut short is rejected."""
     set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
-    with pytest.raises(cv.Invalid, match="value must be at most"):
-        CONFIG_SCHEMA(_api_config({"delay": "16min"}))
+    config = _api_config({"delay": delay})
+    if reboot_timeout is not None:
+        config["reboot_timeout"] = reboot_timeout
+    with pytest.raises(cv.Invalid, match="shorter than reboot_timeout"):
+        CONFIG_SCHEMA(config)
+
+
+@pytest.mark.parametrize(
+    ("delay", "reboot_timeout"),
+    [("20min", "1h"), ("29s", "30s"), ("30min", "0s")],
+)
+def test_outgoing_connection_delay_within_timeout(
+    set_core_config: SetCoreConfigCallable,
+    delay: str,
+    reboot_timeout: str,
+) -> None:
+    """The bound follows the configured timeout, and a disabled one has none."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    config = _api_config({"delay": delay}) | {"reboot_timeout": reboot_timeout}
+    assert CONFIG_SCHEMA(config)["outgoing_connection"]["delay"] == cv.time_period(
+        delay
+    )
 
 
 def test_outgoing_connection_requires_encryption(
