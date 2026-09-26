@@ -13,14 +13,19 @@ MULTI_CONF = True
 CONF_ON_REQUEST = "on_request"
 
 # Spans, not copies, matching modbus_client. The PDUs are handed over undecoded so a lambda can
-# pass them straight to the modbus::helpers functions.
+# pass them straight to the modbus::helpers functions. The spans die when the handler returns, so
+# deferring actions are rejected, as modbus_client does.
 _PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
+_HANDLER_SCHEMA = cv.All(
+    automation.validate_automation(single=True),
+    modbus.synchronous_handler("modbus_sniffer"),
+)
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(modbus.CONF_MODBUS_ID): cv.use_id(modbus.ModbusSniffer),
-        cv.Optional(CONF_ON_REQUEST): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_REQUEST): _HANDLER_SCHEMA,
+        cv.Optional(CONF_ON_RESPONSE): _HANDLER_SCHEMA,
     }
 )
 

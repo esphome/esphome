@@ -4,7 +4,7 @@ from collections.abc import Callable
 import logging
 from typing import Any, Literal, NamedTuple
 
-from esphome import pins
+from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
@@ -161,6 +161,22 @@ def reject_broadcast_options_for_unicast(
                     path=[key],
                 )
         return config
+
+    return validator
+
+
+def synchronous_handler(component: str) -> Callable[[ConfigType], ConfigType]:
+    """Reject deferring actions in a handler: its PDU spans point into hub buffers that are reused
+    once the handler returns, and DelayAction and friends capture the trigger args for later replay."""
+
+    def validator(value: ConfigType) -> ConfigType:
+        if automation.has_non_synchronous_actions(value):
+            raise cv.Invalid(
+                f"Deferring actions (delay, wait_until, script.wait, ...) are not allowed in {component} "
+                "handlers: the request/response data is only valid while the handler runs. Copy what you "
+                "need into globals first, then defer in a separate script or automation."
+            )
+        return value
 
     return validator
 
