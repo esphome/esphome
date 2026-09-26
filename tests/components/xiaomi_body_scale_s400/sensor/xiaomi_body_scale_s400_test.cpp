@@ -83,6 +83,12 @@ TEST(XiaomiBodyScaleS400, IgnoresARepeatedFrame) {
   EXPECT_FALSE(h.scale.parse_device(advert(SCALE_A, PACKET_1)));
 }
 
+TEST(XiaomiBodyScaleS400, AcceptsFrameCountFFAsTheFirstFrame) {
+  Harness h(SCALE_A, KEY_A);
+  ASSERT_TRUE(h.scale.parse_device(advert(SCALE_A, PACKET_1_COUNT_FF)));
+  EXPECT_FLOAT_EQ(h.weight.state, 69.9f);
+}
+
 TEST(XiaomiBodyScaleS400, AFailedFrameDoesNotBlockTheRealOne) {
   Harness h(SCALE_A, KEY_A);
   Frame forged = PACKET_1;

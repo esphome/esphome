@@ -33,7 +33,7 @@ class XiaomiBodyScaleS400 final : public Component, public ble_device_base::ESPB
   sensor::Sensor *heart_rate_{nullptr};
   sensor::Sensor *profile_id_{nullptr};
   binary_sensor::BinarySensor *stabilized_{nullptr};
-  uint8_t last_frame_count_{0xFF};
+  uint16_t last_frame_count_{0x100};  // outside the 8-bit range, so the first frame always passes
 };
 
 }  // namespace esphome::xiaomi_body_scale_s400
