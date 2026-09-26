@@ -66,7 +66,7 @@ class TestableHoermannHcp : public HoermannHcp {
   TestableHoermannHcp() { this->key_press_delay_ms_ = 0; }
 
   using HoermannHcp::connection_timeout_ms_;
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
   using HoermannHcp::identity_asked_at_;
   using HoermannHcp::identity_request_;
   using HoermannHcp::firmware_unreadable_;

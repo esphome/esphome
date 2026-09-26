@@ -28,6 +28,7 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_HOERMANN_HCP_ID])
+    cg.add_define("USE_HOERMANN_HCP_TEXT_SENSOR")
     if (conf := config.get(CONF_SERIAL_NUMBER)) is not None:
         sens = await text_sensor.new_text_sensor(conf)
         cg.add(parent.set_serial_number_text_sensor(sens))

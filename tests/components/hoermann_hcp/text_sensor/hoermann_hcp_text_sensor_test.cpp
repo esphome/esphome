@@ -2,6 +2,7 @@
 
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "esphome/components/text_sensor/text_sensor.h"
 
@@ -38,12 +39,16 @@ void write_transfer(HoermannHcp &door, uint8_t counter, uint8_t sub_code, const 
 }
 
 // A whole payload transfer, returning the answer the motor reads back.
-RegisterValues transfer(HoermannHcp &door, uint8_t counter, uint8_t sub_code, const char *bytes, size_t len) {
+RegisterValues transfer(HoermannHcp &door, uint8_t counter, uint8_t sub_code, const char *bytes, size_t len,
+                        uint16_t read_registers = 8) {
   write_transfer(door, counter, sub_code, bytes, len);
   RegisterValues response;
-  door.on_read_holding_registers(STATE_REG, 8, response);
+  door.on_read_holding_registers(STATE_REG, read_registers, response);
   return response;
 }
+
+// A whole answer, for comparing it with the frame seen on the bus.
+std::vector<uint16_t> as_list(const RegisterValues &registers) { return {registers.begin(), registers.end()}; }
 
 void send_serial(HoermannHcp &door) {
   transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, SERIAL, 14);
@@ -244,6 +249,42 @@ TEST(HoermannHcpTextSensorTest, SerialNumberInOneFrameThenTheFirmwareVersion) {
   EXPECT_EQ(answer[2], 0x0600);
 }
 
+// The frames as a B1 motor sends them on the bus, which reads a transfer answer back as 2 registers. The serial
+// number is made up.
+TEST(HoermannHcpTextSensorTest, ExchangeWithTheFrameSizesOfAB1) {
+  IdentityFixture fixture;
+  auto &door = fixture.door;
+  status_poll(door);
+  status_poll(door, 0x03);
+  const char one_frame[12] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', 'B', '1', 0};
+  EXPECT_EQ(as_list(transfer(door, 0x05, SUB_SERIAL, one_frame, 12, 2)), std::vector<uint16_t>({0x0500, 0x04FD}));
+
+  EXPECT_EQ(as_list(status_poll(door, 0x06)), std::vector<uint16_t>({0x0600, 0x0322, 0x0600, 0, 0, 0, 0, 0}));
+  const char zeros[12] = {};
+  EXPECT_EQ(as_list(transfer(door, 0x07, SUB_FIRMWARE, zeros, 12, 2)), std::vector<uint16_t>({0x0700, 0x04FD}));
+
+  EXPECT_EQ(door.identity_request_, 0);
+  EXPECT_EQ(fixture.serial_shown(), "123456789B1");
+  EXPECT_EQ(fixture.version_shown(), "");
+  EXPECT_EQ(status_poll(door, 0x08)[1], 0x0301);
+}
+
+// A transfer of the value not asked for is acknowledged but not kept, and the request stays open.
+TEST(HoermannHcpTextSensorTest, TheValueNotAskedForIsNotKept) {
+  IdentityFixture fixture;
+  auto &door = fixture.door;
+  status_poll(door);
+  EXPECT_EQ(transfer(door, 0x05, SUB_FIRMWARE, FIRMWARE, 12)[1], 0x04FD);
+  EXPECT_EQ(door.identity_request_, 0x05);
+  EXPECT_EQ(fixture.version_shown(), "");
+
+  send_serial(door);
+  EXPECT_EQ(fixture.serial_shown(), SERIAL);
+  EXPECT_EQ(transfer(door, FIRST_HALF | 0x07, SUB_SERIAL, FIRMWARE, 12)[1], 0x04FD);
+  EXPECT_EQ(door.identity_request_, 0x06);
+  EXPECT_EQ(fixture.serial_shown(), SERIAL);
+}
+
 // After a frame with the half marker, one without it can only be the second half, even if the first was unusable.
 TEST(HoermannHcpTextSensorTest, ASecondHalfIsNeverTakenForTheWholeNumber) {
   IdentityFixture fixture;
@@ -435,13 +476,19 @@ TEST(HoermannHcpTextSensorTest, EachValueIsPublishedOnce) {
   EXPECT_EQ(version_publishes, 1);
 }
 
-// Configuring only the firmware version is enough to ask.
+// Configuring only one of the two is enough to ask.
 TEST(HoermannHcpTextSensorTest, OneSensorIsEnough) {
-  TestableHoermannHcp door;
+  TestableHoermannHcp version_only;
   text_sensor::TextSensor version;
-  door.set_version_text_sensor(&version);
-  run_identity_exchange(door);
+  version_only.set_version_text_sensor(&version);
+  run_identity_exchange(version_only);
   EXPECT_EQ(version.get_state(), "FW-TEST 1.0");
+
+  TestableHoermannHcp serial_only;
+  text_sensor::TextSensor serial;
+  serial_only.set_serial_number_text_sensor(&serial);
+  run_identity_exchange(serial_only);
+  EXPECT_EQ(serial.get_state(), SERIAL);
 }
 
 }  // namespace esphome::hoermann_hcp::testing

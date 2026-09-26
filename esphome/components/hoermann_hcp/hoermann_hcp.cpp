@@ -14,7 +14,6 @@ static const char *const TAG = "hoermann_hcp";
 static constexpr uint16_t COMMAND_REG = 0x9C41;    // Commands written by the bus controller
 static constexpr uint16_t STATE_REG = 0x9CB9;      // Internal state read back by the bus controller
 static constexpr uint16_t BROADCAST_REG = 0x9D31;  // Door status broadcast by the bus controller
-
 static constexpr float CLOSE_POSITION_THRESHOLD = 0.05f;
 static constexpr float OPEN_POSITION_THRESHOLD = 0.95f;
 // Only the parity of the outstanding toggles says where the lamp is heading, so the count must not run away.
@@ -64,7 +63,7 @@ static bool is_moving(DoorState state) {
   }
 }
 
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
 // The command byte of a status poll. Only its answer can carry a request.
 static constexpr uint8_t STATUS_COMMAND = 0x03;
 // A status answer with this code in the low byte of its second register asks the bus controller for a value,
@@ -72,7 +71,7 @@ static constexpr uint8_t STATUS_COMMAND = 0x03;
 static constexpr uint8_t ANSWER_REQUEST = 0x22;
 static constexpr uint8_t REQUEST_SERIAL = 0x05;
 static constexpr uint8_t REQUEST_FIRMWARE = 0x06;
-// A request is taken out of the answer after one poll. It is asked this many times, this far apart.
+// Each request goes out in one answer, up to this many times, this far apart.
 static constexpr uint8_t IDENTITY_MAX_ATTEMPTS = 3;
 static constexpr uint32_t IDENTITY_RETRY_MS = 30000;
 // The value comes back as a payload transfer: this command in the low byte of the first command register, a sub
@@ -99,8 +98,7 @@ static void copy_payload(const modbus::RegisterValues &registers, size_t count, 
   }
 }
 
-// The text at the start: up to the first byte that is not printable, since the padding behind it varies, without
-// trailing spaces.
+// Length of the printable text at the start, without trailing spaces. The padding after it varies.
 static size_t text_length(const char *text, size_t len) {
   size_t at = 0;
   while (at < len && text[at] >= 0x20 && text[at] <= 0x7E)
@@ -110,10 +108,9 @@ static size_t text_length(const char *text, size_t len) {
   return at;
 }
 
-// Works in place.
 static void terminate_text(char *text, size_t len) { text[text_length(text, len)] = '\0'; }
 
-// Replayed when a log subscriber connects, which is how a remote log sees the outcome of the exchange at boot.
+// dump_config() is replayed to remote log clients, so they see the outcome of the exchange at boot.
 static void log_identity_value(text_sensor::TextSensor *sensor) {
   if (sensor != nullptr) {
     ESP_LOGCONFIG(TAG, "    Value: %s",
@@ -153,7 +150,7 @@ void HoermannHcp::update() {
     ESP_LOGW(TAG, "Door did not report the lamp changing, giving up on the toggle");
     this->forget_light_toggles_();
   }
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
   this->publish_identity_();
 #endif
   if (this->changed_) {
@@ -167,7 +164,7 @@ void HoermannHcp::dump_config() {
                 "Hoermann HCP bridge:\n"
                 "  Modbus server address: 0x%02X",
                 this->get_address());
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Serial Number", this->serial_number_text_sensor_);
   log_identity_value(this->serial_number_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Firmware Version", this->version_text_sensor_);
@@ -184,8 +181,8 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
 
   this->record_response_();
 
-#ifdef USE_TEXT_SENSOR
-  // The payload transfer the write half of this frame took is answered instead of the usual block.
+#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+  // Acknowledge the transfer taken by the write half of this frame.
   if (this->transfer_answer_pending_) {
     this->push_transfer_answer_(registers, number_of_registers);
     return {};
@@ -204,7 +201,7 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
       registers.push_back(static_cast<uint16_t>(0x0001 | command));
       this->push_command_registers_(registers);
       push_zeros(registers, 4);
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
       this->add_identity_request_(registers, command);
 #endif
       break;
@@ -238,7 +235,7 @@ modbus::ResponseStatus HoermannHcp::on_write_registers(uint16_t start_address,
     // command byte back from STATE_REG. The hub always runs the write before the read within one request.
     this->record_response_();
     this->command_reg_value_ = registers[0];
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
     this->transfer_answer_pending_ = false;
     this->take_identity_transfer_(registers);
 #endif
@@ -303,12 +300,11 @@ void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
   registers.push_back(command->released_value_2);
 }
 
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
 void HoermannHcp::add_identity_request_(modbus::RegisterValues &registers, uint16_t command) {
   if (static_cast<uint8_t>(this->command_reg_value_) != STATUS_COMMAND)
     return;
-  // Only asked for when something shows the values, and like Hoermann's own bus accessory not before one
-  // ordinary answer has gone out.
+  // Like Hoermann's own bus accessory, only after one ordinary answer.
   if (!this->identity_started_) {
     if (this->serial_number_text_sensor_ != nullptr || this->version_text_sensor_ != nullptr) {
       this->identity_started_ = true;
@@ -316,7 +312,7 @@ void HoermannHcp::add_identity_request_(modbus::RegisterValues &registers, uint1
     }
     return;
   }
-  // A request travels in the registers a key press would, so it only goes out while none is on its way.
+  // Uses the registers of a key press, so it waits while one is pending.
   if (this->next_command_ != nullptr || registers[2] != 0 || registers[3] != 0 ||
       !this->take_identity_request_(millis()))
     return;
@@ -339,8 +335,7 @@ bool HoermannHcp::take_identity_request_(uint32_t now) {
   if (this->identity_attempts_ >= IDENTITY_MAX_ATTEMPTS) {
     this->identity_unanswered_ = this->identity_request_;
     this->identity_request_ = 0;
-    // The firmware version does not depend on the serial number, so it is still asked for. A first half left
-    // behind must not be published as the serial number.
+    // Still ask for the firmware version, and drop a leftover first half.
     if (this->identity_unanswered_ == REQUEST_SERIAL) {
       this->serial_number_[0] = '\0';
       this->arm_identity_request_(REQUEST_FIRMWARE);
@@ -353,7 +348,7 @@ bool HoermannHcp::take_identity_request_(uint32_t now) {
 }
 
 void HoermannHcp::take_identity_transfer_(const modbus::RegisterValues &registers) {
-  // Without a request ever made, a transfer is none of this device's business.
+  // Transfers are ignored until the exchange has started.
   if (!this->identity_started_ || registers.size() < TRANSFER_PAYLOAD_REG ||
       static_cast<uint8_t>(registers[0]) != TRANSFER_COMMAND)
     return;
@@ -361,8 +356,7 @@ void HoermannHcp::take_identity_transfer_(const modbus::RegisterValues &register
   const uint8_t sub_code = static_cast<uint8_t>(registers[1] >> 8);
   if (sub_code != TRANSFER_SUB_SERIAL && sub_code != TRANSFER_SUB_FIRMWARE)
     return;
-  // Acknowledged whether kept or not, as Hoermann's own bus accessory does, including a repeat of one already kept:
-  // answered as a status poll instead, it could carry a key press. What was not kept is asked for again.
+  // Acknowledged whether kept or not, as Hoermann's own bus accessory does. What was not kept is asked for again.
   this->transfer_answer_counter_ = counter & ~COUNTER_FIRST_HALF;
   this->transfer_answer_pending_ = true;
 
@@ -374,15 +368,15 @@ void HoermannHcp::take_identity_transfer_(const modbus::RegisterValues &register
     copy_payload(registers, regs, this->firmware_version_);
     if (regs == FIRMWARE_REGS && text_length(this->firmware_version_, 2 * regs) != 0) {
       terminate_text(this->firmware_version_, 2 * regs);
-      // An unreadable one before it would otherwise have this one logged instead of shown.
+      // Clear an earlier unreadable answer, so this one is shown.
       this->firmware_unreadable_ = false;
       this->identity_request_ = 0;
       return;
     }
-    // Left as it came for update() to log, since the answer path is no place for that.
+    // Left as received for update() to log.
     this->firmware_unreadable_ = true;
     this->firmware_unreadable_len_ = 2 * regs;
-    // Too short is asked for again; bytes that are not text would come back the same.
+    // A short answer is asked for again; unreadable text would come back the same.
     if (regs == FIRMWARE_REGS)
       this->identity_request_ = 0;
     return;
@@ -424,8 +418,8 @@ void HoermannHcp::push_transfer_answer_(modbus::RegisterValues &registers, uint1
 }
 
 void HoermannHcp::publish_identity_() {
-  // Each buffer is cleared once published, so a filter that drops the value cannot make it go out again on every
-  // update. The serial number is only whole once the firmware version is being asked for.
+  // Buffers are cleared once published, so each value goes out once. The serial number is whole once the firmware
+  // version is requested.
   if (this->serial_number_text_sensor_ != nullptr && this->identity_request_ != REQUEST_SERIAL &&
       this->serial_number_[0] != '\0') {
     this->serial_number_text_sensor_->publish_state(this->serial_number_);
@@ -433,19 +427,19 @@ void HoermannHcp::publish_identity_() {
   }
   if (this->serial_unreadable_) {
     this->serial_unreadable_ = false;
-    ESP_LOGW(TAG, "Motor sent a serial number that could not be read");
+    ESP_LOGW(TAG, "Unreadable serial number");
   }
-  // Before the version is published: the buffer holds the bytes as they came, not text.
+  // Checked first: the buffer then holds raw bytes, not text.
   if (this->firmware_unreadable_) {
     this->firmware_unreadable_ = false;
     const uint8_t len = this->firmware_unreadable_len_;
-    // All zeros is how a motor that does not report its version says so (index B1 seen).
+    // All zeros: the motor does not report a version (index B1 seen).
     if (len == 2 * FIRMWARE_REGS &&
         std::all_of(this->firmware_version_, this->firmware_version_ + len, [](char c) { return c == '\0'; })) {
       ESP_LOGD(TAG, "Motor does not report its firmware version");
     } else {
       char hex[2 * sizeof(this->firmware_version_) + 1];
-      ESP_LOGW(TAG, "Motor sent a firmware version that could not be read (%u bytes): %s", len,
+      ESP_LOGW(TAG, "Unreadable firmware version (%u bytes): %s", len,
                format_hex_to(hex, reinterpret_cast<const uint8_t *>(this->firmware_version_), len));
     }
     this->firmware_version_[0] = '\0';
@@ -455,7 +449,7 @@ void HoermannHcp::publish_identity_() {
     this->firmware_version_[0] = '\0';
   }
   if (this->identity_unanswered_ != 0) {
-    ESP_LOGW(TAG, "Bus controller did not send the motor's %s",
+    ESP_LOGW(TAG, "No usable %s received",
              this->identity_unanswered_ == REQUEST_SERIAL ? LOG_STR_LITERAL("serial number")
                                                           : LOG_STR_LITERAL("firmware version"));
     this->identity_unanswered_ = 0;
