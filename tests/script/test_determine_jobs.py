@@ -1531,6 +1531,7 @@ def test_detect_memory_impact_config_with_common_platform(tmp_path: Path) -> Non
     assert set(result["components"]) == {"wifi", "api"}
     assert result["platform"] == "esp32-idf"  # Common platform
     assert result["use_merged_config"] == "true"
+    assert result["needs_arduino8266"] is False
 
 
 @pytest.mark.usefixtures("mock_target_branch_dev")
@@ -1635,6 +1636,8 @@ def test_detect_memory_impact_config_no_common_platform(tmp_path: Path) -> None:
     assert result["platform"] == "esp8266-ard"
     assert result["components"] == ["logger"]
     assert result["use_merged_config"] == "true"
+    # The esp8266 build is native, so the job restores that toolchain
+    assert result["needs_arduino8266"] is True
 
 
 @pytest.mark.usefixtures("mock_target_branch_dev")
@@ -3213,13 +3216,13 @@ def test_esp8266_native_components_full_list_on_infra_change(changed: str) -> No
 @pytest.mark.parametrize(
     ("changed_files", "dependency_closure", "expected"),
     [
-        # Tested component changed -- narrow to the intersection.
+        # A tested component alone does not schedule this job: the component
+        # matrix already compiles its esp8266 fixtures with this toolchain.
         (
             ["esphome/components/mqtt/mqtt_client.cpp"],
             ["mqtt", "json"],
-            ["mqtt"],
+            [],
         ),
-        # Components outside the test set return an empty list (job skipped).
         (
             ["esphome/components/wifi/wifi_component.cpp"],
             ["wifi", "network"],
@@ -3237,7 +3240,7 @@ def test_esp8266_native_components_to_test_narrowing(
     dependency_closure: list[str],
     expected: list[str],
 ) -> None:
-    """Component changes narrow the native-ESP8266 test list."""
+    """Only a native-build change schedules the native-ESP8266 job."""
     with (
         patch.object(determine_jobs, "changed_files", return_value=changed_files),
         patch.object(
