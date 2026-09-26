@@ -339,7 +339,7 @@ void LightState::start_effect_(uint32_t effect_index) {
   if (effect_index == 0)
     return;
 
-  this->active_effect_index_ = effect_index;
+  this->active_effect_index_ = static_cast<uint16_t>(effect_index);  // validate_() range-checked it
   auto *effect = this->get_active_effect_();
   effect->start_internal();
   // Enable loop while effect is active

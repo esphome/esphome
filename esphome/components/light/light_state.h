@@ -362,8 +362,6 @@ class LightState : public EntityBase, public Component {
   /// Values live in flash as function body; no per-instance data storage beyond this pointer.
   void (*state_callback_)(LightStateRTCState &, bool restored){nullptr};
 
-  /// Value for storing the index of the currently active effect. 0 if no effect is active
-  uint32_t active_effect_index_{};
   /// Default transition length for all transitions in ms.
   uint32_t default_transition_length_{};
   /// Transition length to use for flash transitions.
@@ -378,6 +376,8 @@ class LightState : public EntityBase, public Component {
   const uint16_t *gamma_table_{nullptr};
 #endif  // USE_LIGHT_GAMMA_LUT
 
+  /// 1-based index of the active effect, 0 if none; codegen caps effects at MAX_EFFECTS in effects.py
+  uint16_t active_effect_index_{};
   /// Whether the light value should be written in the next cycle.
   bool next_write_{true};
   // for effects, true if a transformer (transition) is active.
