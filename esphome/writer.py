@@ -7,6 +7,7 @@ import re
 import time
 
 from esphome import loader
+from esphome.build_helpers.pch import PCH_ARTIFACT_NAMES
 from esphome.compiled_config import save_compiled_config
 from esphome.config import iter_component_configs, iter_components
 from esphome.const import (
@@ -608,6 +609,10 @@ def clean_build(clear_pio_cache: bool = True, *, full: bool = False):
             if idf_path.is_dir():
                 _LOGGER.info("Deleting %s", idf_path)
                 rmtree(idf_path)
+        # The PlatformIO pch artifacts live at the project root so the
+        # relative -include resolves; a partial clean must drop them too
+        for name in PCH_ARTIFACT_NAMES:
+            CORE.relative_build_path(name).unlink(missing_ok=True)
 
     # idedata caches live under the data dir, not the build path; globbed
     # so a future backend suffix cannot drift out of clean-all
