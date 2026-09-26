@@ -35,12 +35,10 @@ from esphome.const import (
 )
 from esphome.core import (
     CORE,
-    ID,
     CoroPriority,
     TimePeriodMilliseconds,
     coroutine_with_priority,
 )
-from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -328,12 +326,6 @@ async def to_code(config: ConfigType) -> None:
 
 
 # Actions
-OpenThreadComponentPollPeriodAction = openthread_ns.class_(
-    "OpenThreadComponentPollPeriodAction",
-    automation.Action,
-    cg.Parented.template(OpenThreadComponent),
-)
-
 POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
     CONF_POLL_PERIOD,
     cv.Schema(
@@ -347,20 +339,8 @@ POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "openthread.set_poll_period",
-    OpenThreadComponentPollPeriodAction,
     POLL_PERIOD_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_POLL_PERIOD, "apply_poll_period", cg.uint32),
 )
-async def openthread_poll_period_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_POLL_PERIOD], args, cg.uint32)
-    cg.add(var.set_poll_period(template_))
-    return var

@@ -1,3 +1,6 @@
+from collections.abc import Callable
+from typing import Any, NamedTuple
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.config import path_context
@@ -28,6 +31,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, EsphomeError, Lambda
 from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 from .types import (
@@ -43,6 +47,28 @@ from .types import (
 )
 
 CONF_INCLUDE_NONE = "include_none"
+
+_STATE_ON_OFF = cv.one_of("ON", "OFF", upper=True)
+
+
+@schema_extractor("one_of")
+def validate_light_state(value: Any) -> Any:
+    """Validate a light on/off state.
+
+    Documented as 'ON'/'OFF', but accepts all boolean forms for backward compatibility.
+    """
+    if value == SCHEMA_EXTRACT:
+        return ("ON", "OFF")
+    try:
+        return _STATE_ON_OFF(value) == "ON"
+    except cv.Invalid:
+        pass
+    try:
+        return cv.boolean(value)
+    except cv.Invalid as err:
+        raise cv.Invalid(
+            f"Expected 'ON', 'OFF', or a boolean value, got {value!r}"
+        ) from err
 
 
 @automation.register_action(
@@ -71,19 +97,56 @@ async def light_toggle_to_code(config, action_id, template_arg, args):
     return var
 
 
+class LightStateField(NamedTuple):
+    """One field of a light's state: the single source for the schemas and boot-time
+    codegen that deal with it."""
+
+    conf_key: str
+    # Member of LightStateRTCState holding this field.
+    member: str
+    validator: Callable[[Any], Any]
+    # The color mode providing this field, if it implies one.
+    color_mode: MockObj | None = None
+    templatable: bool = True
+
+
+# In LightStateRTCState member order.
+LIGHT_STATE_FIELDS: tuple[LightStateField, ...] = (
+    LightStateField(CONF_STATE, "state", validate_light_state),
+    LightStateField(
+        CONF_COLOR_MODE,
+        "color_mode",
+        cv.enum(COLOR_MODES, upper=True, space="_"),
+        templatable=False,
+    ),
+    LightStateField(CONF_BRIGHTNESS, "brightness", cv.percentage, ColorMode.BRIGHTNESS),
+    LightStateField(
+        CONF_COLOR_BRIGHTNESS, "color_brightness", cv.percentage, ColorMode.RGB
+    ),
+    LightStateField(CONF_RED, "red", cv.percentage, ColorMode.RGB),
+    LightStateField(CONF_GREEN, "green", cv.percentage, ColorMode.RGB),
+    LightStateField(CONF_BLUE, "blue", cv.percentage, ColorMode.RGB),
+    LightStateField(CONF_WHITE, "white", cv.percentage, ColorMode.WHITE),
+    LightStateField(
+        CONF_COLOR_TEMPERATURE,
+        "color_temp",
+        cv.color_temperature,
+        ColorMode.COLOR_TEMPERATURE,
+    ),
+    LightStateField(
+        CONF_COLD_WHITE, "cold_white", cv.percentage, ColorMode.COLD_WARM_WHITE
+    ),
+    LightStateField(
+        CONF_WARM_WHITE, "warm_white", cv.percentage, ColorMode.COLD_WARM_WHITE
+    ),
+)
+
 LIGHT_STATE_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_COLOR_MODE): cv.enum(COLOR_MODES, upper=True, space="_"),
-        cv.Optional(CONF_STATE): cv.templatable(cv.boolean),
-        cv.Optional(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
-        cv.Optional(CONF_COLOR_BRIGHTNESS): cv.templatable(cv.percentage),
-        cv.Optional(CONF_RED): cv.templatable(cv.percentage),
-        cv.Optional(CONF_GREEN): cv.templatable(cv.percentage),
-        cv.Optional(CONF_BLUE): cv.templatable(cv.percentage),
-        cv.Optional(CONF_WHITE): cv.templatable(cv.percentage),
-        cv.Optional(CONF_COLOR_TEMPERATURE): cv.templatable(cv.color_temperature),
-        cv.Optional(CONF_COLD_WHITE): cv.templatable(cv.percentage),
-        cv.Optional(CONF_WARM_WHITE): cv.templatable(cv.percentage),
+        cv.Optional(field.conf_key): (
+            cv.templatable(field.validator) if field.templatable else field.validator
+        )
+        for field in LIGHT_STATE_FIELDS
     }
 )
 
