@@ -9,6 +9,8 @@
 #include "light_output.h"
 #include "transformers.h"
 
+#include <limits>
+
 namespace esphome::light {
 
 static const char *const TAG = "light";
@@ -351,10 +353,11 @@ float LightState::gamma_uncorrect_lut(float value) const {
 
 void LightState::start_effect_(uint32_t effect_index) {
   this->stop_effect_();
-  if (effect_index == 0)
+  // An external add_effects() can exceed the codegen cap; never let the narrowing wrap
+  if (effect_index == 0 || effect_index > std::numeric_limits<uint16_t>::max())
     return;
 
-  this->active_effect_index_ = static_cast<uint16_t>(effect_index);  // codegen caps effects at MAX_EFFECTS
+  this->active_effect_index_ = static_cast<uint16_t>(effect_index);
   auto *effect = this->get_active_effect_();
   effect->start_internal();
   // Enable loop while effect is active

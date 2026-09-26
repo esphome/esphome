@@ -140,10 +140,15 @@ def generate_gamma_table(gamma_correct: float) -> list[HexInt]:
     return [HexInt(int(round(i / 255.0 * 65535))) for i in range(256)]
 
 
+# GammaTable stores gamma * 100 in a uint16_t
+MAX_GAMMA_CORRECT = 655.0
+validate_gamma_correct = cv.All(cv.positive_float, cv.Range(max=MAX_GAMMA_CORRECT))
+
+
 def gamma_table_initializer(gamma_correct: float) -> str:
     """C++ initializer for a light::GammaTable: the lookup table, then gamma * 100."""
     lut = ", ".join(f"0x{int(v):04X}" for v in generate_gamma_table(gamma_correct))
-    return f"{{{{{lut}}}, {min(65535, round(gamma_correct * 100))}}}"
+    return f"{{{{{lut}}}, {round(gamma_correct * 100)}}}"
 
 
 def _get_or_create_gamma_table(gamma_correct):
@@ -151,7 +156,8 @@ def _get_or_create_gamma_table(gamma_correct):
     if gamma_correct in data.gamma_tables:
         return data.gamma_tables[gamma_correct]
 
-    name = f"gamma_{gamma_correct}_table".replace(".", "_")
+    # Numbered, since a float's text form (1e-05) is not always a valid identifier
+    name = f"gamma_table_{len(data.gamma_tables)}"
     cg.add(
         cg.RawStatement(
             f"static constexpr light::GammaTable {name} PROGMEM = "
@@ -403,7 +409,7 @@ BINARY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
 
 BRIGHTNESS_ONLY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
     {
-        cv.Optional(CONF_GAMMA_CORRECT, default=2.8): cv.positive_float,
+        cv.Optional(CONF_GAMMA_CORRECT, default=2.8): validate_gamma_correct,
         cv.Optional(
             CONF_DEFAULT_TRANSITION_LENGTH, default="1s"
         ): cv.positive_time_period_milliseconds,
