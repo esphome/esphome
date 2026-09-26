@@ -10,6 +10,7 @@
 
 #include <cerrno>
 #include <cinttypes>
+#include <cstdint>
 #include <cstring>
 
 namespace esphome::api {
@@ -43,9 +44,15 @@ static bool peer_to_target(APIConnection *conn, SavedOutgoingTarget &target) {
       memcpy(target.addr, bytes + sizeof(prefix), sizeof(struct in_addr));
       return true;
     }
+    // A link-local target is only reachable through the interface it came in
+    // on. Device platforms number interfaces from one; a host build can hand
+    // out an index too large to store, and a truncated one dials the wrong
+    // interface, so that target is not remembered at all.
+    if (addr6->sin6_scope_id > UINT8_MAX) {
+      return false;
+    }
     target.family = AF_INET6;
     memcpy(target.addr, bytes, sizeof(target.addr));
-    // A link-local target is only reachable through the interface it came in on
     target.scope_id = static_cast<uint8_t>(addr6->sin6_scope_id);
     return true;
   }
@@ -270,7 +277,7 @@ void OutgoingConnectionManager::on_target_client(APIConnection *conn) {
 #ifndef API_OUTGOING_CONNECTION_HOST
   SavedOutgoingTarget target{};
   if (!peer_to_target(conn, target)) {
-    ESP_LOGW(TAG, "Could not read peer address; not remembering target");
+    ESP_LOGW(TAG, "Not remembering this target; its address cannot be dialed");
     return;
   }
   if (this->host_persisted_ && memcmp(&target, &this->saved_, sizeof(target)) == 0) {
