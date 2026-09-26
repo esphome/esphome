@@ -1,7 +1,8 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 import functools
 import logging
+from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -32,7 +33,7 @@ from esphome.helpers import (
     sanitize,
     snake_case,
 )
-from esphome.types import ConfigType, EntityMetadata
+from esphome.types import ConfigType, EntityMetadata, Expression, SafeExpType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -465,6 +466,25 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
         )
     # Store icon index for finalize_entity_strings
     config[_KEY_ICON_IDX] = icon_idx
+
+
+async def new_sub_entity(
+    new_entity: Callable[..., Awaitable[MockObj]],
+    config: ConfigType,
+    key: str,
+    setter: Callable[[MockObj], Expression],
+    *args: SafeExpType,
+    **kwargs: Any,
+) -> MockObj | None:
+    """Create the entity configured under key, if any, and pass it to setter.
+
+    Returns None only when key is not configured, so the result can be used directly as a condition.
+    """
+    if (conf := config.get(key)) is None:
+        return None
+    var = await new_entity(conf, *args, **kwargs)
+    add(setter(var))
+    return var
 
 
 def inherit_property_from(property_to_inherit, parent_id_property, transform=None):
