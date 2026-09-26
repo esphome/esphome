@@ -279,7 +279,7 @@ inline void convertToJson(const StringRef &src, JsonVariant dst) {
     dst.set("");
     return;
   }
-  dst.set(JsonString(src.c_str(), src.size()));
+  dst.set(JsonString(src.c_str(), src.size(), false));
 }
 #endif  // USE_JSON
 
