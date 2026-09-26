@@ -82,9 +82,9 @@ CONF_SYNC_INTERVAL = "sync_interval"
 CONF_MIN_FREE_BYTES = "min_free_bytes"
 CONF_REQUIRE_TIME = "require_time"
 CONF_ON_MISSING = "on_missing"
-#: Not in `esphome.const`: below the three-use threshold that would send it to
-#: `esphome/components/const/` (see `lint_constants_usage` in `ci-custom.py`).
-CONF_SCALE = "scale"
+#: Not `scale`: `CONF_SCALE` is defined by the `lvgl` and `qr_code` components, and a
+#: third definition fails `lint_constants_usage` (see `ci-custom.py`).
+CONF_SCALE_FACTOR = "scale_factor"
 CONF_AVERAGE_SENSOR = "average_sensor"
 CONF_MIN_SENSOR = "min_sensor"
 CONF_MAX_SENSOR = "max_sensor"
@@ -209,9 +209,9 @@ def _validate_config(config: ConfigType) -> ConfigType:
             f"duplicate column name(s): {', '.join(duplicates)} - every column needs its own name"
         )
     for column in columns:
-        if column[CONF_SCALE] == 0:
+        if column[CONF_SCALE_FACTOR] == 0:
             raise cv.Invalid(
-                f"'{column[CONF_NAME]}': scale must not be 0 - without it every reading would be stored as -32768"
+                f"'{column[CONF_NAME]}': scale_factor must not be 0 - without it every reading would be stored as -32768"
             )
 
     if config[CONF_REQUIRE_TIME] and CONF_TIME_ID not in config:
@@ -244,7 +244,7 @@ COLUMN_SCHEMA = cv.Schema(
             # char param_names[16][32] in the esp_tsdb file header
             cv.Length(min=1, max=TSDB_MAX_NAME_LENGTH),
         ),
-        cv.Optional(CONF_SCALE, default=1.0): cv.float_,
+        cv.Optional(CONF_SCALE_FACTOR, default=1.0): cv.float_,
         cv.Optional(CONF_OFFSET, default=0.0): cv.float_,
         cv.Optional(CONF_AVERAGE_SENSOR): cv.use_id(sensor.Sensor),
         cv.Optional(CONF_MIN_SENSOR): cv.use_id(sensor.Sensor),
@@ -361,7 +361,9 @@ async def to_code(config: ConfigType) -> None:
 
     for index, column in enumerate(config[CONF_COLUMNS]):
         cg.add(
-            var.add_column(column[CONF_NAME], column[CONF_SCALE], column[CONF_OFFSET])
+            var.add_column(
+                column[CONF_NAME], column[CONF_SCALE_FACTOR], column[CONF_OFFSET]
+            )
         )
         cg.add(var.set_column_source(index, await cg.get_variable(column[CONF_SENSOR])))
         if (target := column.get(CONF_AVERAGE_SENSOR)) is not None:

@@ -13,10 +13,10 @@ tsdb:
   columns:
     - sensor: tsdb_temperature
       name: temperature
-      scale: 10.0
+      scale_factor: 10.0
     - sensor: tsdb_humidity
       name: humidity
-      scale: 10.0
+      scale_factor: 10.0
       offset: 0.0
   errors_sensor: tsdb_errors
   log_sensor: tsdb_log

@@ -22,7 +22,7 @@ tsdb:
   columns:
     - sensor: tsdb_validate_value
       name: value
-      scale: 100.0
+      scale_factor: 100.0
       offset: -40.0
       average_sensor: tsdb_validate_average
       min_sensor: tsdb_validate_min

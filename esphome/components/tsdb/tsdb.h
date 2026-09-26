@@ -113,7 +113,7 @@ class TsdbComponent : public PollingComponent {
   void publish_stats_();
   void dump_csv_(uint32_t rows);
   void publish_log_(const char *message);
-  static uint64_t free_space_probe_();  // the callback shape esp_tsdb requires
+  static uint64_t free_space_probe();  // the callback shape esp_tsdb requires
 
   // ------------------------------------------------------------------ config
   std::string file_{"history.tsdb"};

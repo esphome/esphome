@@ -106,3 +106,10 @@ dependencies:
     version: d44c800a9e876a8394caefc2ce4915dd96dac77b
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 1"
+
+  # tsdb includes the LittleFS driver's public header (esp_littlefs.h). A
+  # firmware build pulls the component in through add_idf_component(), but
+  # clang-tidy lints the sources without any config, so it needs the real
+  # component here - otherwise tsdb is stubbed away (ARDUINO_EXCLUDED_IDF_COMPONENTS).
+  joltwallet/littlefs:
+    version: "1.22.3"
