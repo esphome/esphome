@@ -316,8 +316,11 @@ def _west_update(
     # only resolve once zephyr is cloned.
     names = sorted(projects)
     if not run_command_ok([*west, "list", "-f", "{name}", *names], cwd=framework_path):
+        # west named the culprit in the output logged just above
         raise EsphomeError(
-            f"A requested nRF Connect SDK {version} west project does not exist"
+            f"west list failed for the requested nRF Connect SDK {version} projects "
+            f"({', '.join(names)}); a project the manifest does not have is the "
+            "usual cause, see west's output above"
         )
     (framework_path / _WEST_PROJECTS_FILE).write_text(
         "\n".join(names), encoding="utf-8"
@@ -336,10 +339,25 @@ def _installed_west_projects(framework_path: Path) -> set[str] | None:
     # A filtered install whose stamp went missing has to fetch again; an
     # install from before the filter has no filter and every project
     config = configparser.ConfigParser()
-    config.read(framework_path / ".west" / "config", encoding="utf-8")
+    config_path = framework_path / ".west" / "config"
+    if not config.read(config_path, encoding="utf-8"):
+        # Nothing left to say what is there, so fetch again rather than assume
+        return set()
     if config.has_option("manifest", "project-filter"):
         return set()
     return None
+
+
+def _restore_project_filter(
+    env_python_path: Path, framework_path: Path, version: str, installed: set[str]
+) -> None:
+    """Put the workspace filter back in step with what the stamp says is fetched."""
+    if not _set_project_filter(env_python_path, framework_path, installed):
+        _LOGGER.warning(
+            "Couldn't put the nRF Connect SDK %s project filter back; "
+            "the next build that fetches a project sets it again",
+            version,
+        )
 
 
 def _fetch_missing_west_projects(
@@ -358,14 +376,15 @@ def _fetch_missing_west_projects(
     _LOGGER.info(
         "Fetching nRF Connect SDK %s projects: %s", version, ", ".join(sorted(missing))
     )
-    if not _west_update(env_python_path, framework_path, version, installed | projects):
-        # Keep the workspace filter in step with what the stamp says is fetched
-        if not _set_project_filter(env_python_path, framework_path, installed):
-            _LOGGER.warning(
-                "Couldn't put the nRF Connect SDK %s project filter back; "
-                "the next build that fetches a project sets it again",
-                version,
-            )
+    try:
+        fetched = _west_update(
+            env_python_path, framework_path, version, installed | projects
+        )
+    except EsphomeError:
+        _restore_project_filter(env_python_path, framework_path, version, installed)
+        raise
+    if not fetched:
+        _restore_project_filter(env_python_path, framework_path, version, installed)
         raise EsphomeError(f"Can't update nRF Connect SDK {version}")
 
 
