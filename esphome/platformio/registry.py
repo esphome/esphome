@@ -239,9 +239,9 @@ def prefetch_packages(
     verifies every archive and re-downloads anything this pass left
     unfinished. Mirror overrides and registry entries without a size stay on
     the sequential path so its per-file bars remain trustworthy. Each fetch
-    holds the same per-dest
-    lock as ``install_package``: the archive's ``.part`` file is shared, and
-    two concurrent writers would truncate each other's bytes.
+    holds the same per-dest lock as ``install_package``: the archive's
+    ``.part`` file is shared, and two concurrent writers would truncate each
+    other's bytes.
     """
     from filelock import FileLock, Timeout
 
