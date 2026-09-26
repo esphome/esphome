@@ -23,6 +23,9 @@ from esphome.const import (
     CONF_SOURCE,
     CONF_TOOLCHAIN,
     CONF_VERSION,
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
+    PLATFORM_ESP8266,
     Toolchain,
 )
 from esphome.core import CORE, EsphomeError
@@ -31,9 +34,11 @@ from esphome.types import ConfigType
 
 @pytest.fixture(autouse=True)
 def _arduino_toolchain() -> Generator[None]:
-    # The suite-wide reset_core fixture clears CORE.toolchain after each test
-    # The decode-tool cache lives in CORE.data, which reset_core clears
+    # The suite-wide reset_core fixture clears both after each test; the
+    # shared backend resolver reads the platform as well as the toolchain,
+    # and the decode-tool cache lives in CORE.data
     CORE.toolchain = Toolchain.ARDUINO
+    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = PLATFORM_ESP8266
     yield
 
 
