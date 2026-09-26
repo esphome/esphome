@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Protocol
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
 from esphome import const, platform_hooks
-from esphome.build_helpers.native import native_backend
+from esphome.build_helpers.native import analysis_backend, native_backend
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
@@ -2015,8 +2015,8 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     from esphome.analyze_memory.ram_strings import RamStringsAnalyzer
 
     # Refuse an unsupported toolchain before paying for a full compile
-    native_toolchain = native_backend()
-    if native_toolchain is None and not CORE.using_toolchain_platformio:
+    analysis_toolchain = analysis_backend()
+    if analysis_toolchain is None and not CORE.using_toolchain_platformio:
         _LOGGER.error(
             "analyze-memory is not supported with the '%s' toolchain on %s; "
             "re-run with --toolchain platformio",
@@ -2036,9 +2036,9 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
 
     # Get idedata for analysis
     idedata = None
-    if native_toolchain is not None:
-        objdump = native_toolchain.get_objdump_path()
-        readelf = native_toolchain.get_readelf_path()
+    if analysis_toolchain is not None:
+        objdump = analysis_toolchain.get_objdump_path()
+        readelf = analysis_toolchain.get_readelf_path()
         for tool in (objdump, readelf):
             if not tool.is_file():
                 # The analyzer would silently fall back to host
@@ -2052,7 +2052,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
         objdump_path = str(objdump)
         readelf_path = str(readelf)
 
-        firmware_elf = native_toolchain.get_elf_path()
+        firmware_elf = analysis_toolchain.get_elf_path()
         if not firmware_elf.is_file():
             # The analyzer swallows tool failures, so a missing ELF would
             # produce an exit-0 zeroed report
