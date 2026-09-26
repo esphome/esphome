@@ -6,6 +6,18 @@ namespace esphome::epaper_spi {
 
 static constexpr const char *const TAG = "epaper_spi.uc8179_bwr";
 
+bool EPaperUC8179BWR::initialise(bool partial) {
+  EPaperBase::initialise(partial);  // send the model init sequence
+  ESP_LOGV(TAG, "Power on");
+  // POWER ON must precede the waveform/mode registers and the data transfer
+  // (the original driver powers on and busy-waits before writing them).
+  // The state machine busy-waits before entering TRANSFER_DATA.
+  this->command(0x04);
+  // Give the busy line time to assert before the state machine polls it
+  this->next_delay_ = 100;
+  return true;
+}
+
 void HOT EPaperUC8179BWR::draw_pixel_at(int x, int y, Color color) {
   if (!this->rotate_coordinates_(x, y))
     return;
@@ -166,11 +178,11 @@ bool HOT EPaperUC8179BWR::transfer_data() {
 }
 
 void EPaperUC8179BWR::power_on() {
-  ESP_LOGV(TAG, "Power on");
-  this->command(0x04);
+  // Power-on is sent at the end of initialise() instead, because the
+  // waveform/mode registers and the data transfer must follow it
 }
 
-void EPaperUC8179BWR::refresh_screen(bool partial) {
+void EPaperUC8179BWR::refresh_screen(bool /* partial */) {
   ESP_LOGV(TAG, "Refresh");
   this->command(0x12);
   this->next_delay_ = 100;
