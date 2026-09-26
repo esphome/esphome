@@ -67,7 +67,7 @@ binary_sensor:
       return false;
 
 # Exercise fan.turn_on with various field combinations so the
-# TurnOnAction codegen paths get build coverage.
+# register_apply_action codegen paths get build coverage.
 button:
   - platform: template
     name: "Fan Speed Only"
@@ -96,6 +96,23 @@ button:
       - fan.turn_on:
           id: test_fan
           speed: !lambda 'return 1;'
+  - platform: template
+    name: "Fan Is On Off"
+    on_press:
+      - if:
+          condition:
+            fan.is_on: test_fan
+          then:
+            - fan.turn_off: test_fan
+            - fan.toggle: test_fan
+            - fan.turn_off:
+                id: test_fan
+      - if:
+          condition:
+            fan.is_off:
+              id: test_fan
+          then:
+            - fan.turn_on: test_fan
 
 # Exercise fan.turn_on inside triggers with non-empty Ts:
 #  - number.on_value: Ts = float (Python value type; previously raised
@@ -111,6 +128,10 @@ number:
     step: 1
     on_value:
       then:
-        - fan.turn_on:
-            id: test_fan
-            speed: !lambda "return (int) x;"
+        - if:
+            condition:
+              fan.is_on: test_fan
+            then:
+              - fan.turn_on:
+                  id: test_fan
+                  speed: !lambda "return (int) x;"

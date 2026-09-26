@@ -3,6 +3,7 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import UNIT_COUNTS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTUAL_GAIN,
@@ -42,7 +43,6 @@ CONF_PS_LOW_THRESHOLD = "ps_low_threshold"
 ICON_BRIGHTNESS_7 = "mdi:brightness-7"
 ICON_GAIN = "mdi:multiplication"
 ICON_PROXIMITY = "mdi:hand-wave-outline"
-UNIT_COUNTS = "#"
 
 ltr501_ns = cg.esphome_ns.namespace("ltr501")
 

@@ -1,0 +1,9 @@
+button:
+  - platform: template
+    name: Animation Actions
+    on_press:
+      - animation.next_frame: rgb_animation
+      - animation.prev_frame: rgb_animation
+      - animation.set_frame:
+          id: rgb_animation
+          frame: 2

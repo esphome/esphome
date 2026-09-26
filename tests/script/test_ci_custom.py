@@ -1,4 +1,6 @@
-"""Unit tests for the ESP_LOG-needs-braces lint rule in script/ci-custom.py.
+"""Unit tests for the ESP_LOG-needs-braces and std::nothrow lint rules in script/ci-custom.py.
+
+The nothrow rule is a masked lint_re_check, so its tests also pin the decorator's mask option.
 
 The rule flags an if/else/for/while whose only body is an unbraced ESP_LOG*() call (which becomes an
 empty statement -- and a -Wempty-body warning -- once the log level compiles the macro out). These
@@ -149,6 +151,119 @@ def test_nolint_at_end_of_log_line_suppresses() -> None:
 
 def test_nolint_on_control_line_suppresses() -> None:
     assert not _lint("if (x)  // NOLINT\n  ESP_LOGD(t);\n")
+
+
+# --- std::nothrow ---
+
+
+def _lint_nothrow(content: str) -> list:
+    return ci_custom.lint_no_std_nothrow("test.cpp", content)
+
+
+def test_nothrow_is_reported_at_its_line_and_column_and_points_at_ramallocator() -> (
+    None
+):
+    errors = _lint_nothrow(
+        "int a;\nint b;\n  auto *p = new (std::nothrow) uint8_t[n];\n"
+    )
+    assert [(line, col) for line, col, _msg in errors] == [(3, 18)]
+    assert "RAMAllocator" in errors[0][2]
+
+
+def test_nothrow_spacing_and_the_nothrow_t_type() -> None:
+    assert len(_lint_nothrow("auto *p = new (std :: nothrow) Foo;\n")) == 1
+    assert not _lint_nothrow(
+        "void *operator new(size_t n, const std::nothrow_t &) noexcept;\n"
+    )
+
+
+def test_nothrow_in_comments_and_strings_is_masked() -> None:
+    assert not _lint_nothrow("// new (std::nothrow) aborts on ESP-IDF\n")
+    assert not _lint_nothrow('ESP_LOGD(TAG, "std::nothrow");\n')
+
+
+def test_nothrow_nolint_suppresses() -> None:
+    assert not _lint_nothrow("auto *p = new (std::nothrow) Foo;  // NOLINT\n")
+
+
+def test_nothrow_nolint_inside_a_string_does_not_suppress() -> None:
+    assert len(_lint_nothrow('auto *p = new (std::nothrow) Foo; log("NOLINT");\n')) == 1
+
+
+# --- rule: UNIT_ constants must not be redefined (mirror of the CONF_ check) ---
+
+# Real UNIT_ constants that live in each canonical home.
+UNIT_IN_CONST_PY = ci_custom.UNIT_CONSTANTS[0]
+UNIT_IN_COMPONENT_CONST = ci_custom.COMPONENT_UNIT_CONSTANTS[0]
+
+
+def _unit_def(fname: str, content: str) -> list:
+    return ci_custom.lint_unit_from_const_py(fname, content)
+
+
+def test_unit_already_in_const_py_is_flagged() -> None:
+    errs = _unit_def("esphome/components/x/sensor.py", f'{UNIT_IN_CONST_PY} = "x"\n')
+    assert errs
+    assert "const.py" in errs[0][2]
+
+
+def test_unit_already_in_component_const_is_flagged() -> None:
+    errs = _unit_def(
+        "esphome/components/x/sensor.py", f'{UNIT_IN_COMPONENT_CONST} = "x"\n'
+    )
+    assert errs
+    assert "esphome.components.const" in errs[0][2]
+
+
+def test_unit_not_in_const_py_is_tracked_not_flagged() -> None:
+    ci_custom.UNIT_CONSTANTS_USES.clear()
+    assert _unit_def("a.py", 'UNIT_FOO_BAR = "fb"\n') == []
+    assert ci_custom.UNIT_CONSTANTS_USES["UNIT_FOO_BAR"] == ["a.py"]
+
+
+def test_unit_defined_in_three_files_is_flagged() -> None:
+    ci_custom.UNIT_CONSTANTS_USES.clear()
+    for fname in ("a.py", "b.py", "c.py"):
+        _unit_def(fname, 'UNIT_FOO_BAR = "fb"\n')
+    errs = ci_custom.lint_unit_constants_usage()
+    assert any("UNIT_FOO_BAR" in e and "3 files" in e for e in errs)
+
+
+def test_unit_defined_in_two_files_is_not_flagged() -> None:
+    ci_custom.UNIT_CONSTANTS_USES.clear()
+    for fname in ("a.py", "b.py"):
+        _unit_def(fname, 'UNIT_FOO_BAR = "fb"\n')
+    assert ci_custom.lint_unit_constants_usage() == []
+
+
+# --- same rule for CONF_, now also recognising the components/const home ---
+
+CONF_IN_CONST_PY = ci_custom.CONSTANTS[0]
+CONF_IN_COMPONENT_CONST = ci_custom.COMPONENT_CONSTANTS[0]
+
+
+def _conf_def(fname: str, content: str) -> list:
+    return ci_custom.lint_conf_from_const_py(fname, content)
+
+
+def test_conf_already_in_const_py_is_flagged() -> None:
+    errs = _conf_def("esphome/components/x/sensor.py", f'{CONF_IN_CONST_PY} = "x"\n')
+    assert errs
+    assert "const.py" in errs[0][2]
+
+
+def test_conf_already_in_component_const_is_flagged() -> None:
+    errs = _conf_def(
+        "esphome/components/x/sensor.py", f'{CONF_IN_COMPONENT_CONST} = "x"\n'
+    )
+    assert errs
+    assert "esphome.components.const" in errs[0][2]
+
+
+def test_conf_not_in_a_const_home_is_tracked_not_flagged() -> None:
+    ci_custom.CONSTANTS_USES.pop("CONF_FOO_BAR", None)
+    assert _conf_def("a.py", 'CONF_FOO_BAR = "foo_bar"\n') == []
+    assert ci_custom.CONSTANTS_USES["CONF_FOO_BAR"] == ["a.py"]
 
 
 # --- ESP_LOG call scanner and bare-literal-ternary lint ---
