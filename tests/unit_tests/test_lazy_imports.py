@@ -34,7 +34,12 @@ HEAVY_MODULES = (
 
 # Everything the storage fast path must keep out of sys.modules; the
 # existence guard and the leak check must watch the same list.
-FAST_PATH_HEAVY_MODULES = HEAVY_MODULES + ("esphome.components.esp32",)
+FAST_PATH_HEAVY_MODULES = HEAVY_MODULES + (
+    "esphome.components.esp32",
+    # A native backend module resolves artifact paths on this path; its
+    # framework half pulls in the whole package-download stack
+    "esphome.platformio.registry",
+)
 
 # Heavy only for modules that must not know about the API transport;
 # in the existence guard so a rename can't silently no-op its check.

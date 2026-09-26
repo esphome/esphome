@@ -938,6 +938,7 @@ uint8_t *SwitchStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buf
 #ifdef USE_DEVICES
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.device_id);
 #endif
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.missing_state);
   return pos;
 }
 uint32_t SwitchStateResponse::calc_size_msg(const void *self) {
@@ -948,6 +949,7 @@ uint32_t SwitchStateResponse::calc_size_msg(const void *self) {
 #ifdef USE_DEVICES
   size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
+  size += ProtoSize::calc_bool(1, msg.missing_state);
   return size;
 }
 void SwitchCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
@@ -1630,6 +1632,7 @@ uint8_t *ClimateStateResponse::encode_msg(const void *self, ProtoWriteBuffer &bu
 #ifdef USE_DEVICES
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 16, msg.device_id);
 #endif
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 17, msg.missing_state);
   return pos;
 }
 uint32_t ClimateStateResponse::calc_size_msg(const void *self) {
@@ -1652,6 +1655,7 @@ uint32_t ClimateStateResponse::calc_size_msg(const void *self) {
 #ifdef USE_DEVICES
   size += ProtoSize::calc_uint32(2, msg.device_id);
 #endif
+  size += ProtoSize::calc_bool(2, msg.missing_state);
   return size;
 }
 void ClimateCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
@@ -1806,6 +1810,7 @@ uint8_t *WaterHeaterStateResponse::encode_msg(const void *self, ProtoWriteBuffer
   if (uint32_t raw = float_to_raw(msg.target_temperature_high); raw != 0) [[likely]] {
     pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 69, raw);
   }
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.missing_state);
   return pos;
 }
 uint32_t WaterHeaterStateResponse::calc_size_msg(const void *self) {
@@ -1821,6 +1826,7 @@ uint32_t WaterHeaterStateResponse::calc_size_msg(const void *self) {
   size += ProtoSize::calc_uint32(1, msg.state);
   size += ProtoSize::calc_float(1, msg.target_temperature_low);
   size += ProtoSize::calc_float(1, msg.target_temperature_high);
+  size += ProtoSize::calc_bool(1, msg.missing_state);
   return size;
 }
 void WaterHeaterCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,

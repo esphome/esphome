@@ -1,0 +1,7 @@
+button:
+  - platform: template
+    name: Clear motion calibration
+    on_press:
+      - motion.clear_calibration:
+      - motion.clear_calibration:
+          save: true
