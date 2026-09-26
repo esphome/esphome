@@ -92,6 +92,18 @@ TEST(PN71xxTransceive, NotificationAloneIsNotAResponse) {
   EXPECT_NE(nfcc.transceive_(tx, rx), nfc::STATUS_OK);
 }
 
+// A late response to an earlier, timed-out command must not be taken as the response to this one.
+TEST(PN71xxTransceive, SkipsStaleResponseFromEarlierCommand) {
+  FakePN71xx nfcc;
+  nfcc.to_read.push_back({0x41, 0x06, 0x01, 0x00});  // RF_DEACTIVATE_RSP, arriving late
+  nfcc.to_read.push_back({0x41, 0x03, 0x01, 0x00});  // RF_DISCOVER_RSP
+  nfc::NciMessage tx(nfc::NCI_PKT_MT_CTRL_COMMAND, nfc::RF_GID, nfc::RF_DISCOVER_OID, {0x00});
+  nfc::NciMessage rx;
+  EXPECT_EQ(nfcc.transceive_(tx, rx), nfc::STATUS_OK);
+  EXPECT_EQ(rx.get_message(), (std::vector<uint8_t>{0x41, 0x03, 0x01, 0x00}));
+  EXPECT_EQ(nfcc.written.size(), 1u);
+}
+
 // A refused write (e.g. NFCC in standby) is sent again.
 TEST(PN71xxTransceive, RefusedWriteIsRetried) {
   FakePN71xx nfcc;

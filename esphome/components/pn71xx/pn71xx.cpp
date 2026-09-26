@@ -1118,14 +1118,16 @@ uint8_t PN71xx::transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, const uint
 
   if (!tx.message_type_is(nfc::NCI_PKT_MT_DATA)) {
     // Notifications may already be queued ahead of the response; skip them. They carry the same GID and OID
-    // as some responses (e.g. RF_DEACTIVATE_NTF), so the message type must be checked.
+    // as some responses (e.g. RF_DEACTIVATE_NTF), so the message type must be checked. A response to an earlier
+    // command whose read timed out (a tag leaving the field delays RF_DEACTIVATE_RSP) is skipped the same way.
     for (uint8_t i = 0; i < NFCC_MAX_COMM_FAILS; i++) {
       if (this->read_nfcc(rx, timeout) != nfc::STATUS_OK) {
         ESP_LOGW(TAG, "Error receiving response");
         return nfc::STATUS_FAILED;
       }
       ESP_LOGVV(TAG, "Read: %s", nfc::format_bytes_to(buf, rx.get_message()));
-      if (rx.message_type_is(nfc::NCI_PKT_MT_CTRL_RESPONSE)) {
+      if (rx.message_type_is(nfc::NCI_PKT_MT_CTRL_RESPONSE) && rx.get_gid() == tx.get_gid() &&
+          rx.get_oid() == tx.get_oid()) {
         break;
       }
       ESP_LOGW(TAG, "Discarding message received while waiting for response: %s",
