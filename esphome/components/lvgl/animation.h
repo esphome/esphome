@@ -165,7 +165,7 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
       progress = timing->map_progress(progress);
     }
     lv_coord_t data[DATA_SIZE];
-    for (size_t i = 0; i < DATA_SIZE; i++) {
+    for (size_t i = 0; i != DATA_SIZE; i++) {
       data[i] = static_cast<lv_coord_t>(
           roundf(this->data_from_[i] + static_cast<lv_coord_t>(this->data_to_[i] - this->data_from_[i]) * progress));
     }
