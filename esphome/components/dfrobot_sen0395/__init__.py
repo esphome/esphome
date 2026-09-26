@@ -20,9 +20,6 @@ DfrobotSen0395Component = dfrobot_sen0395_ns.class_(
 )
 
 # Actions
-DfrobotSen0395ResetAction = dfrobot_sen0395_ns.class_(
-    "DfrobotSen0395ResetAction", automation.Action
-)
 DfrobotSen0395SettingsAction = dfrobot_sen0395_ns.class_(
     "DfrobotSen0395SettingsAction", automation.Action
 )
@@ -49,15 +46,14 @@ async def to_code(config: ConfigType) -> None:
     await uart.register_uart_device(var, config)
 
 
-automation.register_parented_action(
+automation.register_apply_action(
     "dfrobot_sen0395.reset",
-    DfrobotSen0395ResetAction,
     maybe_simple_id(
         {
             cv.GenerateID(): cv.use_id(DfrobotSen0395Component),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("reset_system()"),
 )
 
 
