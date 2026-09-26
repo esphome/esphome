@@ -1,0 +1,82 @@
+esphome:
+  on_boot:
+    then:
+      - pzem6l24.reset_energy: pzem6l24_1
+      - pzem6l24.reset_energy:
+          id: pzem6l24_1
+          phase: b
+
+sensor:
+  - platform: pzem6l24
+    modbus_id: modbus_bus
+    id: pzem6l24_1
+    voltage_a:
+      name: PZEM6L24 Voltage A
+    voltage_b:
+      name: PZEM6L24 Voltage B
+    voltage_c:
+      name: PZEM6L24 Voltage C
+    current_a:
+      name: PZEM6L24 Current A
+    current_b:
+      name: PZEM6L24 Current B
+    current_c:
+      name: PZEM6L24 Current C
+    active_power_a:
+      name: PZEM6L24 Active Power A
+    active_power_b:
+      name: PZEM6L24 Active Power B
+    active_power_c:
+      name: PZEM6L24 Active Power C
+    reactive_power_a:
+      name: PZEM6L24 Reactive Power A
+    reactive_power_b:
+      name: PZEM6L24 Reactive Power B
+    reactive_power_c:
+      name: PZEM6L24 Reactive Power C
+    apparent_power_a:
+      name: PZEM6L24 Apparent Power A
+    apparent_power_b:
+      name: PZEM6L24 Apparent Power B
+    apparent_power_c:
+      name: PZEM6L24 Apparent Power C
+    power_factor_a:
+      name: PZEM6L24 Power Factor A
+    power_factor_b:
+      name: PZEM6L24 Power Factor B
+    power_factor_c:
+      name: PZEM6L24 Power Factor C
+    active_energy_a:
+      name: PZEM6L24 Active Energy A
+    active_energy_b:
+      name: PZEM6L24 Active Energy B
+    active_energy_c:
+      name: PZEM6L24 Active Energy C
+    reactive_energy_a:
+      name: PZEM6L24 Reactive Energy A
+    reactive_energy_b:
+      name: PZEM6L24 Reactive Energy B
+    reactive_energy_c:
+      name: PZEM6L24 Reactive Energy C
+    apparent_energy_a:
+      name: PZEM6L24 Apparent Energy A
+    apparent_energy_b:
+      name: PZEM6L24 Apparent Energy B
+    apparent_energy_c:
+      name: PZEM6L24 Apparent Energy C
+    frequency:
+      name: PZEM6L24 Frequency
+    total_active_power:
+      name: PZEM6L24 Total Active Power
+    total_reactive_power:
+      name: PZEM6L24 Total Reactive Power
+    total_apparent_power:
+      name: PZEM6L24 Total Apparent Power
+    total_power_factor:
+      name: PZEM6L24 Total Power Factor
+    total_active_energy:
+      name: PZEM6L24 Total Active Energy
+    total_reactive_energy:
+      name: PZEM6L24 Total Reactive Energy
+    total_apparent_energy:
+      name: PZEM6L24 Total Apparent Energy

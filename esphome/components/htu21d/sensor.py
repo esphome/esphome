@@ -17,8 +17,6 @@ from esphome.const import (
     UNIT_EMPTY,
     UNIT_PERCENT,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -27,8 +25,6 @@ htu21d_ns = cg.esphome_ns.namespace("htu21d")
 HTU21DComponent = htu21d_ns.class_(
     "HTU21DComponent", cg.PollingComponent, i2c.I2CDevice
 )
-SetHeaterLevelAction = htu21d_ns.class_("SetHeaterLevelAction", automation.Action)
-SetHeaterAction = htu21d_ns.class_("SetHeaterAction", automation.Action)
 HTU21DSensorModels = htu21d_ns.enum("HTU21DSensorModels")
 
 MODELS = {
@@ -86,9 +82,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_sensor_model(config[CONF_MODEL]))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "htu21d.set_heater_level",
-    SetHeaterLevelAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(HTU21DComponent),
@@ -96,24 +91,11 @@ async def to_code(config: ConfigType) -> None:
         },
         key=CONF_LEVEL,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_LEVEL, "set_heater_level", cg.uint8),
 )
-async def set_heater_level_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    level_ = await cg.templatable(config[CONF_LEVEL], args, cg.uint8)
-    cg.add(var.set_level(level_))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "htu21d.set_heater",
-    SetHeaterAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(HTU21DComponent),
@@ -121,16 +103,5 @@ async def set_heater_level_to_code(
         },
         key=CONF_STATUS,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_STATUS, "set_heater", cg.bool_),
 )
-async def set_heater_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    status_ = await cg.templatable(config[CONF_STATUS], args, cg.bool_)
-    cg.add(var.set_status(status_))
-    return var

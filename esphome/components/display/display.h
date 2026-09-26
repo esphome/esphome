@@ -848,36 +848,6 @@ template<typename... Ts> class DisplayPageShowAction final : public Action<Ts...
   }
 };
 
-template<typename... Ts> class DisplayPageShowNextAction final : public Action<Ts...> {
- public:
-  DisplayPageShowNextAction(Display *buffer) : buffer_(buffer) {}
-
-  void play(const Ts &...x) override { this->buffer_->show_next_page(); }
-
-  Display *buffer_;
-};
-
-template<typename... Ts> class DisplayPageShowPrevAction final : public Action<Ts...> {
- public:
-  DisplayPageShowPrevAction(Display *buffer) : buffer_(buffer) {}
-
-  void play(const Ts &...x) override { this->buffer_->show_prev_page(); }
-
-  Display *buffer_;
-};
-
-template<typename... Ts> class DisplayIsDisplayingPageCondition final : public Condition<Ts...> {
- public:
-  DisplayIsDisplayingPageCondition(Display *parent) : parent_(parent) {}
-
-  void set_page(DisplayPage *page) { this->page_ = page; }
-  bool check(const Ts &...x) override { return this->parent_->get_active_page() == this->page_; }
-
- protected:
-  Display *parent_;
-  DisplayPage *page_;
-};
-
 class DisplayOnPageChangeTrigger final : public Trigger<DisplayPage *, DisplayPage *> {
  public:
   explicit DisplayOnPageChangeTrigger(Display *parent) { parent->add_on_page_change_trigger(this); }
