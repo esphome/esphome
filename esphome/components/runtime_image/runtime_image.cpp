@@ -10,8 +10,12 @@
 #include "bmp_decoder.h"
 #endif
 #ifdef USE_RUNTIME_IMAGE_JPEG
+#ifdef USE_RUNTIME_IMAGE_JPEG_TURBO
+#include "jpeg_turbo_decoder.h"
+#else  // USE_RUNTIME_IMAGE_JPEG_TURBO
 #include "jpeg_decoder.h"
-#endif
+#endif  // USE_RUNTIME_IMAGE_JPEG_TURBO
+#endif  // USE_RUNTIME_IMAGE_JPEG
 #ifdef USE_RUNTIME_IMAGE_PNG
 #include "png_decoder.h"
 #endif
@@ -365,8 +369,12 @@ std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) 
 #endif
 #ifdef USE_RUNTIME_IMAGE_JPEG
     case JPEG:
+#ifdef USE_RUNTIME_IMAGE_JPEG_TURBO
+      return make_unique<JpegTurboDecoder>(this);
+#else   // USE_RUNTIME_IMAGE_JPEG_TURBO
       return make_unique<JpegDecoder>(this);
-#endif
+#endif  // USE_RUNTIME_IMAGE_JPEG_TURBO
+#endif  // USE_RUNTIME_IMAGE_JPEG
 #ifdef USE_RUNTIME_IMAGE_PNG
     case PNG:
       return make_unique<PngDecoder>(this);

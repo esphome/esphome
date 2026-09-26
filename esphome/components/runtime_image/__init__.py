@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import subprocess
 
 import esphome.codegen as cg
 from esphome.components.const import CONF_BYTE_ORDER
@@ -14,12 +15,48 @@ from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import CONF_FORMAT, CONF_ID, CONF_RESIZE, CONF_TYPE
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["image"]
 CODEOWNERS = ["@guillempages", "@clydebarrow", "@kahrendt"]
+DOMAIN = "runtime_image"
 
+CONF_JPEG_DECODER = "jpeg_decoder"
 CONF_PLACEHOLDER = "placeholder"
 CONF_TRANSPARENCY = "transparency"
+
+DECODER_JPEGDEC = "JPEGDEC"
+DECODER_LIBJPEG_TURBO = "LIBJPEG_TURBO"
+
+
+@dataclass
+class RuntimeImageData:
+    """Build-wide runtime_image settings, shared by every image in the config."""
+
+    jpeg_decoder: str = DECODER_JPEGDEC
+
+
+def _get_data() -> RuntimeImageData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = RuntimeImageData()
+    return CORE.data[DOMAIN]
+
+
+def _host_jpeg_flags() -> list[str]:
+    """Compiler and linker flags for the system libjpeg on the host platform."""
+    try:
+        return (
+            subprocess.check_output(
+                ["pkg-config", "--cflags", "--libs", "libjpeg"], close_fds=False
+            )
+            .decode()
+            .split()
+        )
+    except (OSError, subprocess.CalledProcessError):
+        # pkg-config is often not installed even where libjpeg is. Fall back to the
+        # default search paths; the linker reports a clear error if it is missing.
+        return ["-ljpeg"]
+
 
 runtime_image_ns = cg.esphome_ns.namespace("runtime_image")
 
@@ -27,6 +64,7 @@ runtime_image_ns = cg.esphome_ns.namespace("runtime_image")
 ImageDecoder = runtime_image_ns.class_("ImageDecoder")
 BmpDecoder = runtime_image_ns.class_("BmpDecoder", ImageDecoder)
 JpegDecoder = runtime_image_ns.class_("JpegDecoder", ImageDecoder)
+JpegTurboDecoder = runtime_image_ns.class_("JpegTurboDecoder", ImageDecoder)
 PngDecoder = runtime_image_ns.class_("PngDecoder", ImageDecoder)
 QoiDecoder = runtime_image_ns.class_("QoiDecoder", ImageDecoder)
 
@@ -91,6 +129,20 @@ class JPEGFormat(Format):
 
     def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
+        if _get_data().jpeg_decoder == DECODER_LIBJPEG_TURBO:
+            # libjpeg-turbo supports progressive JPEG images, which JPEGDEC
+            # does not.
+            cg.add_define("USE_RUNTIME_IMAGE_JPEG_TURBO")
+            if CORE.is_host:
+                # Host links the system libjpeg rather than building a copy.
+                for flag in _host_jpeg_flags():
+                    cg.add_build_flag(flag)
+                return
+            from esphome.components.esp32 import add_idf_component
+
+            add_idf_component(name="espressif/libjpeg-turbo", ref="3.2.0")
+            return
+        cg.add_define("USE_RUNTIME_IMAGE_JPEG_DEC")
         cg.add_library("JPEGDEC", "1.8.4", "https://github.com/bitbank2/JPEGDEC#1.8.4")
         if CORE.is_host:
             # JPEGDEC's host detection checks __MACH__/__LINUX__, but gcc only
@@ -143,13 +195,44 @@ IMAGE_FORMATS = {
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
         "bmp_decoder.cpp": "USE_RUNTIME_IMAGE_BMP",
-        "jpeg_decoder.cpp": "USE_RUNTIME_IMAGE_JPEG",
+        "jpeg_decoder.cpp": "USE_RUNTIME_IMAGE_JPEG_DEC",
+        "jpeg_turbo_decoder.cpp": "USE_RUNTIME_IMAGE_JPEG_TURBO",
         "png_decoder.cpp": "USE_RUNTIME_IMAGE_PNG",
         "qoi_decoder.cpp": "USE_RUNTIME_IMAGE_QOI",
     }
 )
 
 AUTO_FORMAT = AUTOFormat()
+
+
+def _validate_jpeg_decoder(config: ConfigType) -> ConfigType:
+    """Record the build-wide JPEG decoder so every image uses the same one."""
+    decoder = config[CONF_JPEG_DECODER]
+    # The libjpeg-turbo component is only fetched by the esp-idf build generator, so on
+    # the PlatformIO toolchain the dependency is silently dropped and the build fails
+    # later on a missing jpeglib.h. Reject it here instead.
+    if decoder == DECODER_LIBJPEG_TURBO and not (
+        (CORE.is_esp32 and CORE.using_toolchain_esp_idf) or CORE.is_host
+    ):
+        raise cv.Invalid(
+            f"'{CONF_JPEG_DECODER}: {DECODER_LIBJPEG_TURBO}' is only supported on ESP32 "
+            "with the esp-idf toolchain, and on host",
+            [CONF_JPEG_DECODER],
+        )
+    _get_data().jpeg_decoder = decoder
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_JPEG_DECODER, default=DECODER_JPEGDEC): cv.one_of(
+                DECODER_JPEGDEC, DECODER_LIBJPEG_TURBO, upper=True
+            ),
+        }
+    ),
+    _validate_jpeg_decoder,
+)
 
 
 def get_format(format_name: str) -> Format | None:
