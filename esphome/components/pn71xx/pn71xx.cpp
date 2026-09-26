@@ -538,8 +538,10 @@ optional<size_t> PN71xx::find_tag_uid_(const nfc::NfcTagUid &uid) {
 }
 
 void PN71xx::purge_old_tags_() {
+  // millis(), not the loop start time: last_seen is stamped after tag operations that may block for seconds
+  const uint32_t now = millis();
   for (size_t i = this->discovered_endpoint_.size(); i > 0; i--) {
-    if (App.get_loop_component_start_time() - this->discovered_endpoint_[i - 1].last_seen > this->tag_ttl_) {
+    if (now - this->discovered_endpoint_[i - 1].last_seen > this->tag_ttl_) {
       this->erase_tag_(i - 1);
     }
   }
@@ -903,6 +905,8 @@ void PN71xx::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
           break;
         }
     }
+    // the tag was present for the whole operation, which may have taken longer than tag_ttl
+    working_endpoint.last_seen = millis();
     if (working_endpoint.protocol == nfc::PROT_MIFARE) {
       this->halt_mifare_classic_tag_();
     }
