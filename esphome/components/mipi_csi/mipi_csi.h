@@ -150,8 +150,8 @@ class MipiCsiCamera final : public camera::Camera {
   uint16_t height_{0};
   PixelFormat pixel_format_{PixelFormat::PIXEL_FORMAT_RGB565};
   uint8_t jpeg_quality_{40};
-  bool horizontal_flip_{false};
-  bool vertical_flip_{false};
+  optional<bool> horizontal_flip_;
+  optional<bool> vertical_flip_;
   uint8_t framerate_{10};
   uint32_t idle_update_interval_{15000};
   uint8_t frame_buffer_count_{2};

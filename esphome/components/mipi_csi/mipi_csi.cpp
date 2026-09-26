@@ -289,8 +289,10 @@ bool MipiCsiCamera::configure_device_() {
     ESP_LOGW(TAG, "The sensor kept its own frame rate: %s", strerror(errno));
   }
 
-  this->apply_control_(V4L2_CID_HFLIP, this->horizontal_flip_, "horizontal flip");
-  this->apply_control_(V4L2_CID_VFLIP, this->vertical_flip_, "vertical flip");
+  if (this->horizontal_flip_.has_value())
+    this->apply_control_(V4L2_CID_HFLIP, *this->horizontal_flip_, "horizontal flip");
+  if (this->vertical_flip_.has_value())
+    this->apply_control_(V4L2_CID_VFLIP, *this->vertical_flip_, "vertical flip");
 
   if (!this->read_back_format_(mapping.fourcc, mapping.bytes_per_pixel, mapping.name))
     return false;
@@ -342,15 +344,8 @@ void MipiCsiCamera::apply_control_(uint32_t id, int32_t value, const char *name)
   controls.count = 1;
   controls.controls = &control;
 
-  if (ioctl(this->fd_, VIDIOC_S_EXT_CTRLS, &controls) == 0)
-    return;
-
-  // Sensors start up unflipped, so failing to switch a flip off changes nothing and is not worth a
-  // warning. Failing to switch one on means the picture will not look the way it was asked to.
-  if (value != 0) {
+  if (ioctl(this->fd_, VIDIOC_S_EXT_CTRLS, &controls) != 0) {
     ESP_LOGW(TAG, "The sensor does not support %s", name);
-  } else {
-    ESP_LOGD(TAG, "The sensor does not support %s, which it is not using anyway", name);
   }
 }
 
@@ -433,6 +428,12 @@ void MipiCsiCamera::teardown_() {
   this->fd_ = -1;
 }
 
+static const char *flip_state(const optional<bool> &flip) {
+  if (!flip.has_value())
+    return LOG_STR_LITERAL("default");
+  return *flip ? LOG_STR_LITERAL("on") : LOG_STR_LITERAL("off");
+}
+
 void MipiCsiCamera::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "MIPI-CSI camera '%s':\n"
@@ -445,7 +446,7 @@ void MipiCsiCamera::dump_config() {
                 "  Flip: horizontal %s, vertical %s",
                 this->get_name().c_str(), this->sensor_name_, this->width_, this->height_,
                 get_format_mapping(this->pixel_format_).name, this->jpeg_quality_, this->framerate_,
-                this->frame_buffer_count_, YESNO(this->horizontal_flip_), YESNO(this->vertical_flip_));
+                this->frame_buffer_count_, flip_state(this->horizontal_flip_), flip_state(this->vertical_flip_));
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Setup failed");
   }
