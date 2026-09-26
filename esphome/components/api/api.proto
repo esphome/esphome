@@ -76,6 +76,7 @@ service APIConnection {
   rpc serial_proxy_write(SerialProxyWriteRequest) returns (void) {}
   rpc serial_proxy_set_modem_pins(SerialProxySetModemPinsRequest) returns (void) {}
   rpc serial_proxy_get_modem_pins(SerialProxyGetModemPinsRequest) returns (void) {}
+  rpc subscribe_serial_proxy_identity(SubscribeSerialProxyIdentityRequest) returns (void) {}
   rpc serial_proxy_request(SerialProxyRequest) returns (void) {}
   rpc serial_proxy_set_mode(SerialProxySetModeRequest) returns (void) {}
 }
@@ -228,6 +229,7 @@ enum SerialProxyPortType {
   SERIAL_PROXY_PORT_TYPE_TTL = 0;
   SERIAL_PROXY_PORT_TYPE_RS232 = 1;
   SERIAL_PROXY_PORT_TYPE_RS485 = 2;
+  SERIAL_PROXY_PORT_TYPE_USB_SERIAL = 3;  // since API 1.18
 }
 
 message SerialProxyInfo {
@@ -2874,6 +2876,57 @@ message SerialProxySetModeRequest {
 
   uint32 instance = 1;
   SerialProxyMode mode = 2;
+}
+
+// Subscribe to the identity of every serial proxy port. The device answers with one
+// SerialProxyIdentity per port, then sends another whenever a port's identity changes,
+// for the life of the connection (since API 1.18).
+message SubscribeSerialProxyIdentityRequest {
+  option (id) = 154;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SERIAL_PROXY";
+}
+
+// Where a port's identity comes from
+enum SerialProxyIdentitySource {
+  SERIAL_PROXY_IDENTITY_SOURCE_NONE = 0;        // The port carries no identity
+  SERIAL_PROXY_IDENTITY_SOURCE_CONFIGURED = 1;  // Stated in the device configuration; fixed for the life of the firmware
+  SERIAL_PROXY_IDENTITY_SOURCE_USB = 2;         // Read from the descriptors of the USB device behind the port;
+                                                // changes when a device is attached or removed
+}
+
+enum SerialProxyIdentityFlag {
+  SERIAL_PROXY_IDENTITY_FLAG_NONE = 0;
+  SERIAL_PROXY_IDENTITY_FLAG_CONNECTED = 1;  // The backend believes the device is present. Always set for a
+                                             // CONFIGURED identity, which cannot observe presence
+  SERIAL_PROXY_IDENTITY_FLAG_ERROR = 2;      // The USB host stack refused the descriptor query; the strings and
+                                             // IDs below are empty
+}
+
+// The descriptor fields of a USB device as seen by the host stack
+message UsbDeviceDescriptor {
+  uint32 vendor_id = 1;
+  uint32 product_id = 2;
+  uint32 bcd_device = 3;
+  uint32 interface_number = 4;   // bInterfaceNumber the host driver binds to
+}
+
+// The identity of the device behind a port. Identifies one physical device among others of
+// the same kind, so a client matches on manufacturer and product regardless of source. The
+// strings are empty for source NONE, and for source USB while nothing is connected
+// (since API 1.18).
+message SerialProxyIdentity {
+  option (id) = 155;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;
+  SerialProxyIdentitySource source = 2;
+  uint32 flags = 3;               // Bitmask of SerialProxyIdentityFlag
+  string manufacturer = 4;
+  string product = 5;
+  string serial_number = 6;
+  UsbDeviceDescriptor usb = 7;    // Only sent for source USB
 }
 
 // ==================== BLUETOOTH CONNECTION PARAMS ====================

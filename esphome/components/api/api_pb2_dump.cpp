@@ -143,6 +143,8 @@ template<> const char *proto_enum_to_string<enums::SerialProxyPortType>(enums::S
       return ESPHOME_PSTR("SERIAL_PROXY_PORT_TYPE_RS232");
     case enums::SERIAL_PROXY_PORT_TYPE_RS485:
       return ESPHOME_PSTR("SERIAL_PROXY_PORT_TYPE_RS485");
+    case enums::SERIAL_PROXY_PORT_TYPE_USB_SERIAL:
+      return ESPHOME_PSTR("SERIAL_PROXY_PORT_TYPE_USB_SERIAL");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }
@@ -890,7 +892,31 @@ template<> const char *proto_enum_to_string<enums::SerialProxyMode>(enums::Seria
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
+template<> const char *proto_enum_to_string<enums::SerialProxyIdentitySource>(enums::SerialProxyIdentitySource value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_IDENTITY_SOURCE_NONE:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_SOURCE_NONE");
+    case enums::SERIAL_PROXY_IDENTITY_SOURCE_CONFIGURED:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_SOURCE_CONFIGURED");
+    case enums::SERIAL_PROXY_IDENTITY_SOURCE_USB:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_SOURCE_USB");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 #endif
+template<> const char *proto_enum_to_string<enums::SerialProxyIdentityFlag>(enums::SerialProxyIdentityFlag value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_IDENTITY_FLAG_NONE:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_FLAG_NONE");
+    case enums::SERIAL_PROXY_IDENTITY_FLAG_CONNECTED:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_FLAG_CONNECTED");
+    case enums::SERIAL_PROXY_IDENTITY_FLAG_ERROR:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_FLAG_ERROR");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 
 const char *HelloRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("HelloRequest"));
@@ -2824,6 +2850,27 @@ const char *SerialProxySetModeRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxySetModeRequest"));
   dump_field(out, ESPHOME_PSTR("instance"), this->instance);
   dump_field(out, ESPHOME_PSTR("mode"), static_cast<enums::SerialProxyMode>(this->mode));
+  return out.c_str();
+}
+const char *UsbDeviceDescriptor::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("UsbDeviceDescriptor"));
+  dump_field(out, ESPHOME_PSTR("vendor_id"), this->vendor_id);
+  dump_field(out, ESPHOME_PSTR("product_id"), this->product_id);
+  dump_field(out, ESPHOME_PSTR("bcd_device"), this->bcd_device);
+  dump_field(out, ESPHOME_PSTR("interface_number"), this->interface_number);
+  return out.c_str();
+}
+const char *SerialProxyIdentity::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyIdentity"));
+  dump_field(out, ESPHOME_PSTR("instance"), this->instance);
+  dump_field(out, ESPHOME_PSTR("source"), static_cast<enums::SerialProxyIdentitySource>(this->source));
+  dump_field(out, ESPHOME_PSTR("flags"), this->flags);
+  dump_field(out, ESPHOME_PSTR("manufacturer"), this->manufacturer);
+  dump_field(out, ESPHOME_PSTR("product"), this->product);
+  dump_field(out, ESPHOME_PSTR("serial_number"), this->serial_number);
+  out.append(2, ' ').append_p(ESPHOME_PSTR("usb")).append(": ");
+  this->usb.dump_to(out);
+  out.append("\n");
   return out.c_str();
 }
 #endif

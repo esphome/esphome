@@ -1,0 +1,33 @@
+# A hardware UART port alongside the USB one, so the USB identity define is exercised on a
+# port that has no USB channel, and both identity sources are compiled into one build
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+
+usb_host:
+
+usb_uart:
+  - type: CDC_ACM
+    vid: 0x303A
+    pid: 0x831A
+    channels:
+      - id: usb_serial_channel
+        baud_rate: 460800
+
+serial_proxy:
+  - id: serial_proxy_usb
+    uart_id: usb_serial_channel
+    name: USB Serial Port
+    port_type: USB_SERIAL
+  - id: serial_proxy_hw
+    uart_id: uart_bus
+    name: Hardware Serial Port
+    port_type: TTL
+    identity:
+      manufacturer: Test Vendor
+      product: Onboard Radio

@@ -243,6 +243,9 @@ class APIConnection final : public APIServerConnectionBase {
   void on_serial_proxy_write_request(const SerialProxyWriteRequest &msg);
   void on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg);
   void on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg);
+  void on_subscribe_serial_proxy_identity_request();
+  /// Forward a changed port identity to this client, if it subscribed
+  void send_serial_proxy_identity(const SerialProxyIdentity &msg);
   void on_serial_proxy_request(const SerialProxyRequest &msg);
   void on_serial_proxy_set_mode_request(const SerialProxySetModeRequest &msg);
   void send_serial_proxy_data(const SerialProxyDataReceived &msg);
@@ -728,6 +731,7 @@ class APIConnection final : public APIServerConnectionBase {
     uint8_t batch_first_message : 1;          // For batch buffer allocation
     uint8_t should_try_send_immediately : 1;  // True after initial states are sent
     uint8_t may_have_remaining_data : 1;      // Read loop hit limit, retry without ready check
+    uint8_t serial_proxy_identity_subscription : 1;
 #ifdef HAS_PROTO_MESSAGE_DUMP
     uint8_t log_only_mode : 1;
 #endif

@@ -23,6 +23,7 @@ enum SerialProxyPortType : uint32_t {
   SERIAL_PROXY_PORT_TYPE_TTL = 0,
   SERIAL_PROXY_PORT_TYPE_RS232 = 1,
   SERIAL_PROXY_PORT_TYPE_RS485 = 2,
+  SERIAL_PROXY_PORT_TYPE_USB_SERIAL = 3,
 };
 enum EntityCategory : uint32_t {
   ENTITY_CATEGORY_NONE = 0,
@@ -371,7 +372,17 @@ enum SerialProxyMode : uint32_t {
   SERIAL_PROXY_MODE_RAW = 0,
   SERIAL_PROXY_MODE_PROTOCOL = 1,
 };
+enum SerialProxyIdentitySource : uint32_t {
+  SERIAL_PROXY_IDENTITY_SOURCE_NONE = 0,
+  SERIAL_PROXY_IDENTITY_SOURCE_CONFIGURED = 1,
+  SERIAL_PROXY_IDENTITY_SOURCE_USB = 2,
+};
 #endif
+enum SerialProxyIdentityFlag : uint32_t {
+  SERIAL_PROXY_IDENTITY_FLAG_NONE = 0,
+  SERIAL_PROXY_IDENTITY_FLAG_CONNECTED = 1,
+  SERIAL_PROXY_IDENTITY_FLAG_ERROR = 2,
+};
 
 }  // namespace enums
 
@@ -3942,6 +3953,50 @@ class SerialProxySetModeRequest final : public ProtoDecodableMessage {
 
  protected:
   static void decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar);
+};
+class UsbDeviceDescriptor final : public ProtoMessage {
+ public:
+  uint32_t vendor_id{0};
+  uint32_t product_id{0};
+  uint32_t bcd_device{0};
+  uint32_t interface_number{0};
+  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+class SerialProxyIdentity final : public ProtoMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 155;
+  static constexpr uint8_t ESTIMATED_SIZE = 54;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("serial_proxy_identity"); }
+#endif
+  uint32_t instance{0};
+  enums::SerialProxyIdentitySource source{};
+  uint32_t flags{0};
+  StringRef manufacturer{nullptr, 0};   // null until set, encode only
+  StringRef product{nullptr, 0};        // null until set, encode only
+  StringRef serial_number{nullptr, 0};  // null until set, encode only
+  UsbDeviceDescriptor usb{};
+  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
 };
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS

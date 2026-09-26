@@ -723,6 +723,15 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
+#ifdef USE_SERIAL_PROXY
+    case 154 /* SubscribeSerialProxyIdentityRequest is empty */: {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_subscribe_serial_proxy_identity_request"));
+#endif
+      this->on_subscribe_serial_proxy_identity_request();
+      break;
+    }
+#endif
     default:
       break;
   }
