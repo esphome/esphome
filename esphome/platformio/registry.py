@@ -200,13 +200,15 @@ def _batched_download_progress(
 ) -> Callable[[int], None]:
     """Zero-tick tracker for a batched install; announces a real download
     once, since the shared bar cannot move for it."""
-    announced = False
+    ticks = 0
 
     def progress(done: int) -> None:
-        nonlocal announced
-        if not announced and not done:
+        nonlocal ticks
+        ticks += 1
+        # A verified archive credits itself in one tick; more than one
+        # means bytes are streaming, including a resumed .part
+        if ticks == 2:
             _LOGGER.info("Re-downloading %s %s ...", name, version)
-            announced = True
         extract_progress(0.0)
 
     return progress

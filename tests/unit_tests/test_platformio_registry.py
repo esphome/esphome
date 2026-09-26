@@ -858,6 +858,15 @@ def test_batched_download_progress_announces_a_real_download_once(
     # The shared bar never moves for a download; it tracks extraction
     assert ticks == [0.0, 0.0]
 
+    # A resumed .part starts mid-file, so the first tick is not zero
+    caplog.clear()
+    ticks.clear()
+    with caplog.at_level(logging.INFO):
+        resumed = registry._batched_download_progress("pkg", "1.0.0", ticks.append)
+        resumed(8192)
+        resumed(16384)
+    assert caplog.text.count("Re-downloading pkg 1.0.0") == 1
+
     caplog.clear()
     ticks.clear()
     with caplog.at_level(logging.INFO):
