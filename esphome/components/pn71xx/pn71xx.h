@@ -151,6 +151,9 @@ struct DiscoveredEndpoint {
   bool trig_called;
 };
 
+/// Fills `buffer` with the NDEF TLV (type, length, message, terminator) padded with zeros to `buffer_length`
+void fill_ndef_tlv(const std::vector<uint8_t> &message, uint32_t buffer_length, FixedVector<uint8_t> &buffer);
+
 /// Common driver for the NXP PN71xx family of NCI NFC controllers. The chip classes (PN7150, PN7160) supply the parts
 /// that differ between chips; the bus classes supply read_nfcc() and write_nfcc().
 class PN71xx : public nfc::Nfcc, public Component {
@@ -283,8 +286,6 @@ class PN71xx : public nfc::Nfcc, public Component {
   uint16_t read_mifare_ultralight_capacity_();
   uint8_t find_mifare_ultralight_ndef_(std::span<const uint8_t> page_3_to_6, uint8_t &message_length,
                                        uint8_t &message_start_index);
-  /// Fills `buffer` with the NDEF TLV (type, length, message, terminator) padded with zeros to `buffer_length`
-  static void fill_ndef_tlv_(const std::vector<uint8_t> &message, uint32_t buffer_length, FixedVector<uint8_t> &buffer);
   uint8_t write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write_data, size_t len);
   uint8_t write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, const std::shared_ptr<nfc::NdefMessage> &message);
   uint8_t clean_mifare_ultralight_();

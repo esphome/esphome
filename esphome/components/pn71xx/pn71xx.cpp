@@ -1169,8 +1169,7 @@ uint8_t PN71xx::transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, const uint
   return nfc::STATUS_OK;
 }
 
-void PN71xx::fill_ndef_tlv_(const std::vector<uint8_t> &message, const uint32_t buffer_length,
-                            FixedVector<uint8_t> &buffer) {
+void fill_ndef_tlv(const std::vector<uint8_t> &message, const uint32_t buffer_length, FixedVector<uint8_t> &buffer) {
   buffer.init(buffer_length);
   buffer.push_back(0x03);
   if (message.size() < 255) {

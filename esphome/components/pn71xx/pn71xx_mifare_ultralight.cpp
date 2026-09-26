@@ -136,7 +136,7 @@ uint8_t PN71xx::write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, const std::sha
   }
 
   FixedVector<uint8_t> buffer;
-  fill_ndef_tlv_(encoded, buffer_length, buffer);
+  fill_ndef_tlv(encoded, buffer_length, buffer);
 
   uint32_t index = 0;
   uint8_t current_page = nfc::MIFARE_ULTRALIGHT_DATA_START_PAGE;

@@ -276,7 +276,7 @@ uint8_t PN71xx::write_mifare_classic_tag_(const std::shared_ptr<nfc::NdefMessage
   const auto encoded = message->encode();
   const uint32_t buffer_length = nfc::get_mifare_classic_buffer_size(encoded.size());
   FixedVector<uint8_t> buffer;
-  fill_ndef_tlv_(encoded, buffer_length, buffer);
+  fill_ndef_tlv(encoded, buffer_length, buffer);
 
   uint32_t index = 0;
   uint8_t current_block = 4;
