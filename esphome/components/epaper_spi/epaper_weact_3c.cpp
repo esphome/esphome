@@ -46,9 +46,9 @@ void EPaperWeAct3C::draw_pixel_at(int x, int y, Color color) {
 
 void EPaperWeAct3C::fill(Color color) {
   // For 3-color e-paper with 1-bit buffer format:
-  // - Black buffer: 1=black, 0=white
-  // - Red buffer: 1=red, 0=no red
-  // The buffer is stored as two halves: [black plane][red plane]
+  // - Black/White plane: 0=black, 1=white
+  // - Red plane: 1=red, 0=no red
+  // The buffer is stored as two halves: [B/W plane][red plane]
   const size_t half_buffer = this->buffer_length_ / 2u;
 
   auto bits =
@@ -56,16 +56,16 @@ void EPaperWeAct3C::fill(Color color) {
 
   // Fill both planes
   if (bits == BwrColor::BWR_COLOR_BLACK) {
-    // Black - both planes = 0x00
+    // Black - B/W plane = 0x00, red plane = 0x00
     this->buffer_.fill(0x00);
   } else if (bits == BwrColor::BWR_COLOR_RED) {
-    // Red - black plane = 0x00, red plane = 0xFF
+    // Red - B/W plane = 0x00, red plane = 0xFF
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[i] = 0x00;
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[half_buffer + i] = 0xFF;
   } else {
-    // White - black plane = 0xFF, red plane = 0x00
+    // White - B/W plane = 0xFF, red plane = 0x00
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[i] = 0xFF;
     for (size_t i = 0; i < half_buffer; i++)
