@@ -352,9 +352,11 @@ float LightState::gamma_uncorrect_lut(float value) const {
 #endif  // USE_LIGHT_GAMMA_LUT
 
 void LightState::start_effect_(uint32_t effect_index) {
+  // An external add_effects() can exceed the codegen cap; ignore an index the uint16_t can't hold
+  if (effect_index > std::numeric_limits<uint16_t>::max())
+    return;
   this->stop_effect_();
-  // An external add_effects() can exceed the codegen cap; never let the narrowing wrap
-  if (effect_index == 0 || effect_index > std::numeric_limits<uint16_t>::max())
+  if (effect_index == 0)
     return;
 
   this->active_effect_index_ = static_cast<uint16_t>(effect_index);

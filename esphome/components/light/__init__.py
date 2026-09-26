@@ -140,15 +140,11 @@ def generate_gamma_table(gamma_correct: float) -> list[HexInt]:
     return [HexInt(int(round(i / 255.0 * 65535))) for i in range(256)]
 
 
-# GammaTable stores gamma * 100 in a uint16_t
-MAX_GAMMA_CORRECT = 655.0
-validate_gamma_correct = cv.All(cv.positive_float, cv.Range(max=MAX_GAMMA_CORRECT))
-
-
 def gamma_table_initializer(gamma_correct: float) -> str:
     """C++ initializer for a light::GammaTable: the lookup table, then gamma * 100."""
     lut = ", ".join(f"0x{int(v):04X}" for v in generate_gamma_table(gamma_correct))
-    return f"{{{{{lut}}}, {round(gamma_correct * 100)}}}"
+    # gamma_x100 is a uint16_t; platforms that redefine gamma_correct leave it unbounded, so saturate here
+    return f"{{{{{lut}}}, {min(0xFFFF, round(gamma_correct * 100))}}}"
 
 
 def _get_or_create_gamma_table(gamma_correct):
@@ -409,7 +405,7 @@ BINARY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
 
 BRIGHTNESS_ONLY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
     {
-        cv.Optional(CONF_GAMMA_CORRECT, default=2.8): validate_gamma_correct,
+        cv.Optional(CONF_GAMMA_CORRECT, default=2.8): cv.positive_float,
         cv.Optional(
             CONF_DEFAULT_TRANSITION_LENGTH, default="1s"
         ): cv.positive_time_period_milliseconds,

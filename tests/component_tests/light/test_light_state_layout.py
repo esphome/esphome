@@ -31,15 +31,7 @@ def test_gamma_table_initializer_holds_the_lut_then_gamma_times_100() -> None:
     assert init == f"{{{{{lut}}}, 280}}"
 
 
-@pytest.mark.parametrize("gamma", [0.0, 2.8, 655.0])
-def test_gamma_correct_accepts_values_that_fit(gamma: float) -> None:
-    from esphome.components.light import validate_gamma_correct
+def test_gamma_table_initializer_saturates_gamma_that_overflows_uint16() -> None:
+    from esphome.components.light import gamma_table_initializer
 
-    assert validate_gamma_correct(gamma) == gamma
-
-
-def test_gamma_correct_rejects_values_the_table_cannot_hold() -> None:
-    from esphome.components.light import validate_gamma_correct
-
-    with pytest.raises(cv.Invalid):
-        validate_gamma_correct(655.5)
+    assert gamma_table_initializer(1000.0).endswith(", 65535}")

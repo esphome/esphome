@@ -220,7 +220,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             # Change the default gamma_correct setting.
-            cv.Optional(CONF_GAMMA_CORRECT, default=1.0): light.validate_gamma_correct,
+            cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
         }
     )
     .extend(cv.polling_component_schema("10s"))
