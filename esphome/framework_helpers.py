@@ -382,14 +382,9 @@ def _tar_extract_all(
         total = len(safe_members)
         report = _resolve_progress(progress, progress_header, total > 0)
         for i, member in enumerate(safe_members, 1):
-            # Named, not defaulted: 3.12/3.13 mean fully_trusted here and
-            # 3.14 means data, so the default alone makes extraction
-            # stricter on one supported version than another. The pre-pass
-            # above already dropped unsafe members; re-filtering per member
-            # costs a second realpath pass over every file to guard an
-            # escape that is strictly weaker than the payload itself, since
-            # these archives are sha256-verified toolchains whose compilers
-            # this build then executes.
+            # Named: the default is fully_trusted on 3.12/3.13 and data
+            # on 3.14. The pre-pass above is the check; these are
+            # sha256-verified toolchains this build then executes.
             tar_ref.extract(member, abs_dest, filter="fully_trusted")
             if report is not None:
                 report(i / total)
@@ -793,12 +788,8 @@ def _stream_response_to_file(
 # hammering the host or the mirrors.
 BATCH_DOWNLOAD_WORKERS = 4
 
-# Concurrent archive extractions per batch. Measured on 42 MB gz and
-# 29 MB xz archives: gz is filesystem-metadata bound and peaks near 2
-# workers (8 workers is slower than serial), xz is decompression bound
-# and plateaus by 4. Four xz workers also hold ~205 MB of decompressor
-# dictionaries, where ten hold ~515 MB and can push a small host into
-# swap, so the cap stays where both formats still gain.
+# Measured: gz peaks near 2 workers (8 is slower than serial), xz
+# plateaus by 4 and holds ~50 MB of dictionary per worker.
 BATCH_EXTRACT_WORKERS = 4
 
 
