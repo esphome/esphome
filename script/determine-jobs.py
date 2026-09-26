@@ -521,12 +521,19 @@ ESP32_PLATFORMIO_TEST_COMPONENTS = frozenset(
     }
 )
 
+# Shared by every toolchain smoke-test job: the base config and the bus
+# packages each generated build includes
+_SMOKE_HARNESS_TRIGGER_PATH_PREFIXES = ("tests/test_build_components/",)
+
 # Path prefixes whose changes always trigger the PlatformIO compile test:
 # anything under esphome/platformio/ (the PlatformIO runner / toolchain that
 # drives every PlatformIO build). The esp32 platform component is already in
 # ESP32_PLATFORMIO_TEST_COMPONENTS, so its changes are covered by the normal
 # component-narrowing path.
-ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES = ("esphome/platformio/",)
+ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES = (
+    "esphome/platformio/",
+    *_SMOKE_HARNESS_TRIGGER_PATH_PREFIXES,
+)
 
 # Standalone files that, when changed, trigger the PlatformIO compile test:
 #   - esphome/build_gen/platformio.py -- the PlatformIO build generator
@@ -678,6 +685,7 @@ ESP8266_NATIVE_TRIGGER_PATH_PREFIXES = (
     "esphome/arduino8266/",
     "esphome/arduino/",
     "esphome/build_helpers/",
+    *_SMOKE_HARNESS_TRIGGER_PATH_PREFIXES,
 )
 # Shared library-conversion modules every native build imports; espidf-only
 # infra (build_gen/espidf.py) deliberately stays out of the esp8266 set.
