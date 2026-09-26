@@ -323,22 +323,64 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_type(config[CONF_TYPE]))
 
-    await sensor.new_sub_sensor(config, CONF_PM_1_0_STD, var.set_pm_1_0_std_sensor)
-    await sensor.new_sub_sensor(config, CONF_PM_2_5_STD, var.set_pm_2_5_std_sensor)
-    await sensor.new_sub_sensor(config, CONF_PM_10_0_STD, var.set_pm_10_0_std_sensor)
-    await sensor.new_sub_sensor(config, CONF_PM_1_0, var.set_pm_1_0_sensor)
-    await sensor.new_sub_sensor(config, CONF_PM_2_5, var.set_pm_2_5_sensor)
-    await sensor.new_sub_sensor(config, CONF_PM_10_0, var.set_pm_10_0_sensor)
-    await sensor.new_sub_sensor(config, CONF_PM_0_3UM, var.set_pm_particles_03um_sensor)
-    await sensor.new_sub_sensor(config, CONF_PM_0_5UM, var.set_pm_particles_05um_sensor)
-    await sensor.new_sub_sensor(config, CONF_PM_1_0UM, var.set_pm_particles_10um_sensor)
-    await sensor.new_sub_sensor(config, CONF_PM_2_5UM, var.set_pm_particles_25um_sensor)
-    await sensor.new_sub_sensor(config, CONF_PM_5_0UM, var.set_pm_particles_50um_sensor)
-    await sensor.new_sub_sensor(
-        config, CONF_PM_10_0UM, var.set_pm_particles_100um_sensor
-    )
-    await sensor.new_sub_sensor(config, CONF_FORMALDEHYDE, var.set_formaldehyde_sensor)
-    await sensor.new_sub_sensor(config, CONF_TEMPERATURE, var.set_temperature_sensor)
-    await sensor.new_sub_sensor(config, CONF_HUMIDITY, var.set_humidity_sensor)
+    if CONF_PM_1_0_STD in config:
+        sens = await sensor.new_sensor(config[CONF_PM_1_0_STD])
+        cg.add(var.set_pm_1_0_std_sensor(sens))
+
+    if CONF_PM_2_5_STD in config:
+        sens = await sensor.new_sensor(config[CONF_PM_2_5_STD])
+        cg.add(var.set_pm_2_5_std_sensor(sens))
+
+    if CONF_PM_10_0_STD in config:
+        sens = await sensor.new_sensor(config[CONF_PM_10_0_STD])
+        cg.add(var.set_pm_10_0_std_sensor(sens))
+
+    if CONF_PM_1_0 in config:
+        sens = await sensor.new_sensor(config[CONF_PM_1_0])
+        cg.add(var.set_pm_1_0_sensor(sens))
+
+    if CONF_PM_2_5 in config:
+        sens = await sensor.new_sensor(config[CONF_PM_2_5])
+        cg.add(var.set_pm_2_5_sensor(sens))
+
+    if CONF_PM_10_0 in config:
+        sens = await sensor.new_sensor(config[CONF_PM_10_0])
+        cg.add(var.set_pm_10_0_sensor(sens))
+
+    if CONF_PM_0_3UM in config:
+        sens = await sensor.new_sensor(config[CONF_PM_0_3UM])
+        cg.add(var.set_pm_particles_03um_sensor(sens))
+
+    if CONF_PM_0_5UM in config:
+        sens = await sensor.new_sensor(config[CONF_PM_0_5UM])
+        cg.add(var.set_pm_particles_05um_sensor(sens))
+
+    if CONF_PM_1_0UM in config:
+        sens = await sensor.new_sensor(config[CONF_PM_1_0UM])
+        cg.add(var.set_pm_particles_10um_sensor(sens))
+
+    if CONF_PM_2_5UM in config:
+        sens = await sensor.new_sensor(config[CONF_PM_2_5UM])
+        cg.add(var.set_pm_particles_25um_sensor(sens))
+
+    if CONF_PM_5_0UM in config:
+        sens = await sensor.new_sensor(config[CONF_PM_5_0UM])
+        cg.add(var.set_pm_particles_50um_sensor(sens))
+
+    if CONF_PM_10_0UM in config:
+        sens = await sensor.new_sensor(config[CONF_PM_10_0UM])
+        cg.add(var.set_pm_particles_100um_sensor(sens))
+
+    if CONF_FORMALDEHYDE in config:
+        sens = await sensor.new_sensor(config[CONF_FORMALDEHYDE])
+        cg.add(var.set_formaldehyde_sensor(sens))
+
+    if CONF_TEMPERATURE in config:
+        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
+        cg.add(var.set_temperature_sensor(sens))
+
+    if CONF_HUMIDITY in config:
+        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
+        cg.add(var.set_humidity_sensor(sens))
 
     cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
