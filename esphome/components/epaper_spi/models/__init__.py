@@ -2,7 +2,10 @@ from typing import Any, Self
 
 import esphome.config_validation as cv
 from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_WIDTH
+from esphome.core import CORE
 from esphome.cpp_generator import MockObj
+
+LOGGER = cv.logging.getLogger(__name__)
 
 
 class EpaperModel:
@@ -10,6 +13,11 @@ class EpaperModel:
 
     # Whether the driver manages chip-select itself instead of via the SPI bus.
     manages_cs: bool = False
+
+    # Whether the driver can do a lighter/quicker update in between full refreshes. Models that
+    # can't (e.g. a waveform that only supports a full refresh) must reject full_update_every
+    # values other than 1.
+    supports_partial_update: bool = True
 
     def __init__(
         self,
@@ -87,5 +95,37 @@ class EpaperModel:
         initsequence = list(kwargs.pop("initsequence", self.initsequence) or ())
         initsequence.extend(kwargs.pop("add_init_sequence", ()))
         defaults = self.defaults.copy()
+        class_name = kwargs.pop("class_name", self.class_name)
         defaults.update(kwargs)
-        return self.__class__(name, initsequence=tuple(initsequence), **defaults)
+        return self.__class__(
+            name, class_name=class_name, initsequence=tuple(initsequence), **defaults
+        )
+
+    def check_requirements(self) -> None:
+        """
+        Raise a friendly error if any component this model requires is not configured.
+
+        This runs during schema validation (before ID references are resolved) so that a
+        model whose default pins live on a pin expander reports the missing expander clearly
+        instead of a cryptic "Couldn't find ID" from the unresolved pin reference.
+
+        Also logs a warning if the model is deprecated.
+        """
+        if deprecation_reason := self.get_default("deprecation_reason"):
+            LOGGER.warning(
+                "Display model %s is deprecated: %s", self.name, deprecation_reason
+            )
+        if requirements := self.get_default("requires", set()):
+            # ``raw_config`` is populated before any component schema runs during a real
+            # validation, so presence of a required component is simply a top-level key.
+            # When it is absent (e.g. a unit test that invokes the schema directly) there
+            # is no config to check against, so skip.
+            global_config = CORE.raw_config
+            if global_config is None:
+                return
+            missing = {x for x in requirements if x not in global_config}
+            if missing:
+                reqstr = ", ".join(f"'{x}'" for x in sorted(missing))
+                raise cv.Invalid(
+                    f"{self.name} requires component{'s' if len(missing) > 1 else ''} {reqstr} to be configured"
+                )
