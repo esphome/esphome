@@ -389,7 +389,50 @@ def pch_compile_command(
     return [*args, "-x", "c++-header", "-c", str(header), "-o", str(gch)], cmd_dir
 
 
-def _log_pch_in_use() -> None:
+def _flags_identity(tokens: Iterable[str]) -> str:
+    """Flag string normalized for digest use: strip like ccache's rewriting
+    (user CCACHE_BASEDIR wins); the raw build path covers unresolved
+    (symlinked) spellings."""
+    from esphome.core import CORE
+
+    return (
+        " ".join(tokens)
+        .replace(effective_ccache_basedir(), "")
+        .replace(str(CORE.build_path), "")
+    )
+
+
+def pch_identity(
+    tokens: Iterable[str],
+    src_dir: Path,
+    include_headers: tuple[str, ...],
+    extra: Iterable[str],
+) -> str | None:
+    """The .sum digest naming this exact pch build: include closure, header
+    text, backend identity strings, and the normalized compile command or
+    flags (``tokens``). None (warned and degraded) when the identity
+    cannot be established."""
+    try:
+        return pch_checksum(
+            src_dir,
+            include_headers,
+            (
+                # The closure is sorted, so root order only enters via the text
+                pch_header_text(include_headers),
+                *extra,
+                _flags_identity(tokens),
+            ),
+        )
+    except (OSError, UnicodeError) as err:
+        # Identity unknown: a stale cache entry must never be served
+        _LOGGER.warning(
+            "Could not establish the pch identity; compiling without it: %s", err
+        )
+        pch_degraded(f"identity unknown: {err}")
+        return None
+
+
+def log_pch_in_use() -> None:
     # The only place a user can discover the knob; emitted only once a
     # .gch is actually fresh or being built
     _LOGGER.info(
@@ -459,31 +502,9 @@ def prepare_pch(
         pch_degraded("no usable compile command")
         return
     cmd, cmd_dir = cmd_and_dir
-    # Strip like ccache's rewriting (user CCACHE_BASEDIR wins); the raw
-    # build path covers unresolved (symlinked) spellings
-    cmd_id = (
-        " ".join(cmd)
-        .replace(effective_ccache_basedir(), "")
-        .replace(str(CORE.build_path), "")
-    )
-    try:
-        checksum = pch_checksum(
-            CORE.relative_src_path(),
-            include_headers,
-            (
-                # The closure is sorted, so root order only enters via the text
-                pch_header_text(include_headers),
-                *extra,
-                cmd_id,
-            ),
-        )
-    except (OSError, UnicodeError) as err:
-        # Identity unknown: a stale cache entry must never be served
-        _LOGGER.warning(
-            "Could not establish the pch identity; compiling without it: %s", err
-        )
+    checksum = pch_identity(cmd, CORE.relative_src_path(), include_headers, extra)
+    if checksum is None:
         discard_pch(build_dir)
-        pch_degraded(f"identity unknown: {err}")
         return
     failed_marker = Path(f"{gch}.failed")
 
@@ -566,7 +587,7 @@ def prepare_pch(
                 _fail(error, "probe cannot run at all", latch=latch)
 
     if gch.is_file() and _read_stamp(sum_path) == checksum:
-        _log_pch_in_use()
+        log_pch_in_use()
         if pch_strict():
             # Rejection is per-process, so a cached .gch must re-prove
             # loadability for the strict gate (CI-only cost); no latch,
@@ -580,7 +601,7 @@ def prepare_pch(
         )
         pch_degraded("earlier failure latched")
         return
-    _log_pch_in_use()
+    log_pch_in_use()
     result = _run(cmd, "compile")
     if result is None:
         return
