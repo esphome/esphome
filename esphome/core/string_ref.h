@@ -279,7 +279,9 @@ inline void convertToJson(const StringRef &src, JsonVariant dst) {
     dst.set("");
     return;
   }
-  dst.set(JsonString(src.c_str(), src.size(), false));
+  // The explicit isStatic is load bearing: without it clang-tidy reads size() as the bool of the two argument
+  // constructor and asks for empty() instead
+  dst.set(JsonString(src.c_str(), src.size(), /* isStatic= */ false));
 }
 #endif  // USE_JSON
 
