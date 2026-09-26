@@ -1,13 +1,12 @@
-import base64
 from pathlib import Path
 import re
-import secrets
 from typing import Any
 
 from ruamel.yaml import YAML
 
 from esphome import git
 import esphome.codegen as cg
+from esphome.components.noise import generate_encryption_key
 from esphome.components.packages import validate_source_shorthand
 import esphome.config_validation as cv
 from esphome.const import CONF_ESPHOME, CONF_PROJECT, CONF_REF, CONF_WIFI
@@ -174,8 +173,7 @@ def import_config(
             "esphome": esphome_core,
         }
         if encryption:
-            noise_psk = secrets.token_bytes(32)
-            key = base64.b64encode(noise_psk).decode()
+            key = generate_encryption_key()
             config["api"] = {"encryption": {"key": key}}
 
         output = dump(config)
