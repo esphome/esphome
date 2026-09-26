@@ -16,13 +16,13 @@ sensor:
     adc_input_max: 3.4
     r0: 100.0
     rl: 10.0
-    a: 6.3
-    b: -1.1
+    coefficient_a: 6.3
+    coefficient_b: -1.1
     min_ppm: 1.0
     max_ppm: 1000.0
     vcc: 5.0
     enable_pin: GPIO4
-    samples: 2
+    sample_count: 2
     sample_interval: 50ms
     warmup_time: 30s
     ratio_sensor: mics_5524_adc

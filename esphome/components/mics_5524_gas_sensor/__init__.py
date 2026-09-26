@@ -37,14 +37,13 @@ MiCS5524GasSensor = mics_5524_gas_sensor_ns.class_(
 # ---------------------------------------------------------------------------
 # Configuration keys
 # ---------------------------------------------------------------------------
-# The keys shared with other components (`warmup_time`, `enable_pin`) are
-# imported from esphome.const by the platform schema.
+# The keys shared with other components (`warmup_time`, `enable_pin`,
+# `voltage_divider`) are imported from esphome.const by the platform schema.
 CONF_GAS = "gas"
 CONF_CONVERSION = "conversion"
-CONF_A = "a"
-CONF_B = "b"
+CONF_COEFFICIENT_A = "coefficient_a"
+CONF_COEFFICIENT_B = "coefficient_b"
 CONF_VOLTAGE_MULTIPLIER = "voltage_multiplier"
-CONF_DIVIDER = "divider"
 CONF_R1 = "r1"
 CONF_R2 = "r2"
 CONF_ADC_INPUT_MAX = "adc_input_max"
@@ -55,7 +54,7 @@ CONF_VCC = "vcc"
 CONF_RL = "rl"
 CONF_R0 = "r0"
 CONF_AIR_REFERENCE = "air_reference"
-CONF_SAMPLES = "samples"
+CONF_SAMPLE_COUNT = "sample_count"
 CONF_SAMPLE_INTERVAL = "sample_interval"
 CONF_MIN_PPM = "min_ppm"
 CONF_MAX_PPM = "max_ppm"

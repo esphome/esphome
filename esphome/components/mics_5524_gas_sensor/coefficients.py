@@ -28,7 +28,8 @@ different ones - they are *not* interchangeable:
     Only CO ships with coefficients: ``a = 6.3``, ``b = -1.1``, derived from two
     points of the datasheet curve (10 ppm at RS/R0 = 0.5 and 1000 ppm at
     RS/R0 = 0.01) in the Home Assistant community thread "CO sensor - MICS-5524
-    or MICS-6814" (post 8).  All other gases need explicit ``a:``/``b:``.
+    or MICS-6814" (post 8).  All other gases need explicit ``coefficient_a:``/
+    ``coefficient_b:``.
 
 Both tables are resolved at code generation time, so a wrong ``gas:`` /
 ``conversion:`` combination fails the build instead of producing nonsense.
@@ -176,7 +177,10 @@ def label_for(gas_key: str) -> str:
 
 
 def datasheet_gases() -> list[str]:
-    """Gases that ship with datasheet coefficients (the rest need ``a:``/``b:``)."""
+    """Gases that ship with datasheet coefficients.
+
+    The rest need explicit ``coefficient_a:``/``coefficient_b:`` overrides.
+    """
     return [
         key for key, definition in GASES.items() if definition.datasheet is not None
     ]
@@ -234,8 +238,9 @@ def resolve_gas(
     if conversion == CONVERSION_DFROBOT:
         if explicit_coefficients:
             raise ValueError(
-                f"'a:'/'b:' are the coefficients of conversion: {CONVERSION_DATASHEET} - "
-                f"remove them or switch the conversion"
+                f"'coefficient_a:'/'coefficient_b:' are the coefficients of "
+                f"conversion: {CONVERSION_DATASHEET} - remove them or switch "
+                f"the conversion"
             )
         curve = definition.vendor
         if curve is None:  # pragma: no cover - every shipped gas has a vendor curve
@@ -262,7 +267,8 @@ def resolve_gas(
         shipped = ", ".join(datasheet_gases())
         raise ValueError(
             f"{definition.label} has no built-in 'conversion: {CONVERSION_DATASHEET}' "
-            f"coefficients (only {shipped}) - set both 'a:' and 'b:' in the configuration"
+            f"coefficients (only {shipped}) - set both 'coefficient_a:' and "
+            f"'coefficient_b:' in the configuration"
         )
     return ResolvedGas(
         gas=gas,

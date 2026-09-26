@@ -6,12 +6,12 @@ sensor:
     pin: ${mics_pin}
     # The analog breakout runs from 5 V, so the recommended 10k/20k divider keeps
     # the 3.33 V it can put out below the declared limit of the ADC input.
-    divider:
+    voltage_divider:
       r1: 10.0
       r2: 20.0
     adc_input_max: 3.4
     adc_samples: 2
-    samples: 3
+    sample_count: 3
     sample_interval: 10ms
     warmup_time: 1s
     min_ppm: 1.0
@@ -20,7 +20,7 @@ sensor:
     log_ppm: true
     calibration:
       delay: 5s
-      samples: 3
+      sample_count: 3
       persist: false
 
 text_sensor:
