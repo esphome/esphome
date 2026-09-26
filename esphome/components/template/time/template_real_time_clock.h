@@ -12,12 +12,14 @@ class TemplateRealTimeClock : public time::RealTimeClock {
 
   /// If sync_system_time_ is set, periodically push this time to the system clock so that other
   /// code reading time via ::time(nullptr) (rather than this instance) sees it too.
+  /// Values before 2019, or no value, are not synced.
   void update() override;
 
+  /// Returns 0 (an invalid time) if the lambda gives no value.
   time_t timestamp_now() override;
 
  protected:
-  TemplateLambda<uint64_t> f_;
+  TemplateLambda<int64_t> f_;
   bool sync_system_time_{false};
 };
 

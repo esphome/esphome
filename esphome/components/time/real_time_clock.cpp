@@ -61,10 +61,6 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   // Skip if time is already synchronized to avoid unnecessary writes, log spam,
   // and prevent clock jumping backwards due to network latency
   constexpr time_t min_valid_epoch = 1546300800;  // January 1, 2019
-  if (epoch < min_valid_epoch) {
-    ESP_LOGW(TAG, "Received epoch %" PRIu32 " is before January 1, 2019; ignoring", epoch);
-    return;
-  }
   // use ::time(nullptr) instead of this->timestamp_now() to avoid tautology
   time_t current_time = ::time(nullptr);
   // Check if time is valid (year >= 2019) before comparing

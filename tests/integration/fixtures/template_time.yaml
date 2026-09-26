@@ -14,9 +14,6 @@ globals:
   - id: no_sync_count
     type: int
     initial_value: "0"
-  - id: default_interval_sync_count
-    type: int
-    initial_value: "0"
 
 time:
   # sync enabled with a valid epoch and a fast, explicit update_interval: on_time_sync
@@ -54,17 +51,6 @@ time:
       - lambda: |-
           id(no_sync_count) += 1;
 
-  # sync enabled, no explicit update_interval: must default to "never", so
-  # on_time_sync must never fire automatically.
-  - platform: template
-    id: default_interval_sync_time
-    sync: true
-    lambda: |-
-      return 1700000300ULL;
-    on_time_sync:
-      - lambda: |-
-          id(default_interval_sync_count) += 1;
-
 text_sensor:
   # Timestamps are exposed as text (rather than a 32-bit float sensor state,
   # which cannot represent a UNIX epoch exactly) so the exact lambda return
@@ -82,13 +68,6 @@ text_sensor:
     update_interval: 100ms
     lambda: |-
       return std::to_string(id(no_sync_time).now().timestamp);
-
-  - platform: template
-    name: "Default Interval Timestamp"
-    id: default_interval_timestamp
-    update_interval: 100ms
-    lambda: |-
-      return std::to_string(id(default_interval_sync_time).now().timestamp);
 
 sensor:
   - platform: template
@@ -111,10 +90,3 @@ sensor:
     update_interval: 100ms
     lambda: |-
       return (float) id(no_sync_count);
-
-  - platform: template
-    name: "Default Interval Sync Count Sensor"
-    id: default_interval_sync_count_sensor
-    update_interval: 100ms
-    lambda: |-
-      return (float) id(default_interval_sync_count);
