@@ -1,3 +1,4 @@
+from esphome.components.mipi import MODE_RGB
 from esphome.const import CONF_IGNORE_STRAPPING_WARNING, CONF_NUMBER
 
 from .ili import GC9A01A, ILI9341, ILI9342, ST7789V
@@ -21,8 +22,10 @@ ST7789V.extend(
 # fmt: off
 
 ILI9342.extend(
-    # ESP32-2432S028 CYD board with USB C + Micro USB, has ILI9342 controller
+    # ESP32-2432S028 CYD board with USB C + Micro USB, has ILI9342 controller.
+    # The panel on this board is wired RGB, not the BGR default.
     "ESP32-2432S028-9342",
+    color_order=MODE_RGB,
     data_rate="40MHz",
     cs_pin={"number": 15, "ignore_strapping_warning": True},
     dc_pin={"number": 2, "ignore_strapping_warning": True},
