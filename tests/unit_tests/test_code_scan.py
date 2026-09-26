@@ -116,11 +116,15 @@ def test_includes_use_scanf_float(setup_core: Path) -> None:
 
 def test_keep_float_scanf() -> None:
     """Explicit values win; unset follows whether user code scans a float."""
-    CORE.config = {}
-    float_config: ConfigType = {"test": [Lambda('sscanf(b, "%f", &v)')]}
-    int_config: ConfigType = {"test": [Lambda('sscanf(b, "%d", &v)')]}
+    float_config: ConfigType = {
+        CONF_ESPHOME: {"on_boot": [Lambda('sscanf(b, "%f", &v)')]}
+    }
+    int_config: ConfigType = {
+        CONF_ESPHOME: {"on_boot": [Lambda('sscanf(b, "%d", &v)')]}
+    }
     assert keep_float_scanf(True, int_config, "x", "y") is True
     assert keep_float_scanf(False, float_config, "x", "y") is False
+    assert keep_float_scanf(False, int_config, "x", "y") is False
     assert keep_float_scanf(None, float_config, "x", "y") is True
     assert keep_float_scanf(None, int_config, "x", "y") is False
 
