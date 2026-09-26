@@ -225,38 +225,16 @@ async def setup_ina2xx(var: MockObj, config: ConfigType) -> None:
         cg.add(var.set_adc_time_shunt_voltage(adc_time_config))
         cg.add(var.set_adc_time_die_temperature(adc_time_config))
 
-    if conf := config.get(CONF_SHUNT_VOLTAGE):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_shunt_voltage_sensor(sens))
-
-    if conf := config.get(CONF_BUS_VOLTAGE):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_bus_voltage_sensor(sens))
-
-    if conf := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_die_temperature_sensor(sens))
-
-    if conf := config.get(CONF_CURRENT):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_current_sensor(sens))
-
-    if conf := config.get(CONF_POWER):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_power_sensor(sens))
-
-    if conf := config.get(CONF_ENERGY):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_energy_sensor_wh(sens))
-
-    if conf := config.get(CONF_ENERGY_JOULES):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_energy_sensor_j(sens))
-
-    if conf := config.get(CONF_CHARGE):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_charge_sensor_ah(sens))
-
-    if conf := config.get(CONF_CHARGE_COULOMBS):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_charge_sensor_c(sens))
+    await sensor.new_sub_sensor(
+        config, CONF_SHUNT_VOLTAGE, var.set_shunt_voltage_sensor
+    )
+    await sensor.new_sub_sensor(config, CONF_BUS_VOLTAGE, var.set_bus_voltage_sensor)
+    await sensor.new_sub_sensor(
+        config, CONF_TEMPERATURE, var.set_die_temperature_sensor
+    )
+    await sensor.new_sub_sensor(config, CONF_CURRENT, var.set_current_sensor)
+    await sensor.new_sub_sensor(config, CONF_POWER, var.set_power_sensor)
+    await sensor.new_sub_sensor(config, CONF_ENERGY, var.set_energy_sensor_wh)
+    await sensor.new_sub_sensor(config, CONF_ENERGY_JOULES, var.set_energy_sensor_j)
+    await sensor.new_sub_sensor(config, CONF_CHARGE, var.set_charge_sensor_ah)
+    await sensor.new_sub_sensor(config, CONF_CHARGE_COULOMBS, var.set_charge_sensor_c)

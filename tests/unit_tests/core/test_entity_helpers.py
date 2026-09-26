@@ -1236,3 +1236,42 @@ async def test_finalize_comment_sanitization(
     # Newline must be replaced to prevent breaking out of comment
     assert "\n" not in comment_line
     assert "INJECTED_CODE" in comment_line  # still visible but safe in comment
+
+
+@pytest.mark.asyncio
+async def test_new_sub_entity_creates_and_sets(
+    setup_test_environment: list[str],
+) -> None:
+    """A configured key, even with an empty config, creates the entity and passes it to the setter."""
+    sub_config: dict[str, Any] = {}
+    created = MockObj("child")
+    calls: list[tuple[Any, ...]] = []
+
+    async def new_entity(conf: dict[str, Any], *args: Any, **kwargs: Any) -> MockObj:
+        calls.append((conf, args, kwargs))
+        return created
+
+    parent = MockObj("parent", "->")
+    result = await entity_helpers.new_sub_entity(
+        new_entity, {"child": sub_config}, "child", parent.set_child, 1, step=2
+    )
+
+    assert result is created
+    assert calls == [(sub_config, (1,), {"step": 2})]
+    assert setup_test_environment == ["parent->set_child(child)"]
+
+
+@pytest.mark.asyncio
+async def test_new_sub_entity_missing_key(setup_test_environment: list[str]) -> None:
+    """A missing key creates nothing and emits no code."""
+
+    async def new_entity(conf: dict[str, Any], *args: Any) -> MockObj:
+        raise AssertionError("must not be called")
+
+    parent = MockObj("parent", "->")
+    result = await entity_helpers.new_sub_entity(
+        new_entity, {}, "child", parent.set_child
+    )
+
+    assert result is None
+    assert setup_test_environment == []

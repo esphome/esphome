@@ -49,15 +49,17 @@ CONFIG_SCHEMA = {
 
 async def to_code(config: ConfigType) -> None:
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
-    if has_target_config := config.get(CONF_HAS_TARGET):
-        sens = await binary_sensor.new_binary_sensor(has_target_config)
-        cg.add(ld2410_component.set_target_binary_sensor(sens))
-    if has_moving_target_config := config.get(CONF_HAS_MOVING_TARGET):
-        sens = await binary_sensor.new_binary_sensor(has_moving_target_config)
-        cg.add(ld2410_component.set_moving_target_binary_sensor(sens))
-    if has_still_target_config := config.get(CONF_HAS_STILL_TARGET):
-        sens = await binary_sensor.new_binary_sensor(has_still_target_config)
-        cg.add(ld2410_component.set_still_target_binary_sensor(sens))
-    if out_pin_presence_status_config := config.get(CONF_OUT_PIN_PRESENCE_STATUS):
-        sens = await binary_sensor.new_binary_sensor(out_pin_presence_status_config)
-        cg.add(ld2410_component.set_out_pin_presence_status_binary_sensor(sens))
+    await binary_sensor.new_sub_binary_sensor(
+        config, CONF_HAS_TARGET, ld2410_component.set_target_binary_sensor
+    )
+    await binary_sensor.new_sub_binary_sensor(
+        config, CONF_HAS_MOVING_TARGET, ld2410_component.set_moving_target_binary_sensor
+    )
+    await binary_sensor.new_sub_binary_sensor(
+        config, CONF_HAS_STILL_TARGET, ld2410_component.set_still_target_binary_sensor
+    )
+    await binary_sensor.new_sub_binary_sensor(
+        config,
+        CONF_OUT_PIN_PRESENCE_STATUS,
+        ld2410_component.set_out_pin_presence_status_binary_sensor,
+    )

@@ -158,24 +158,22 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 
 async def to_code(config: ConfigType) -> None:
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
-    if moving_distance_config := config.get(CONF_MOVING_DISTANCE):
-        sens = await sensor.new_sensor(moving_distance_config)
-        cg.add(ld2410_component.set_moving_target_distance_sensor(sens))
-    if still_distance_config := config.get(CONF_STILL_DISTANCE):
-        sens = await sensor.new_sensor(still_distance_config)
-        cg.add(ld2410_component.set_still_target_distance_sensor(sens))
-    if moving_energy_config := config.get(CONF_MOVING_ENERGY):
-        sens = await sensor.new_sensor(moving_energy_config)
-        cg.add(ld2410_component.set_moving_target_energy_sensor(sens))
-    if still_energy_config := config.get(CONF_STILL_ENERGY):
-        sens = await sensor.new_sensor(still_energy_config)
-        cg.add(ld2410_component.set_still_target_energy_sensor(sens))
-    if light_config := config.get(CONF_LIGHT):
-        sens = await sensor.new_sensor(light_config)
-        cg.add(ld2410_component.set_light_sensor(sens))
-    if detection_distance_config := config.get(CONF_DETECTION_DISTANCE):
-        sens = await sensor.new_sensor(detection_distance_config)
-        cg.add(ld2410_component.set_detection_distance_sensor(sens))
+    await sensor.new_sub_sensor(
+        config, CONF_MOVING_DISTANCE, ld2410_component.set_moving_target_distance_sensor
+    )
+    await sensor.new_sub_sensor(
+        config, CONF_STILL_DISTANCE, ld2410_component.set_still_target_distance_sensor
+    )
+    await sensor.new_sub_sensor(
+        config, CONF_MOVING_ENERGY, ld2410_component.set_moving_target_energy_sensor
+    )
+    await sensor.new_sub_sensor(
+        config, CONF_STILL_ENERGY, ld2410_component.set_still_target_energy_sensor
+    )
+    await sensor.new_sub_sensor(config, CONF_LIGHT, ld2410_component.set_light_sensor)
+    await sensor.new_sub_sensor(
+        config, CONF_DETECTION_DISTANCE, ld2410_component.set_detection_distance_sensor
+    )
     for x in range(9):
         if gate_conf := config.get(f"g{x}"):
             if move_config := gate_conf.get(CONF_MOVE_ENERGY):

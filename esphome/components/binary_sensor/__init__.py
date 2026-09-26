@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from logging import getLogger
 
 from esphome import automation, core
@@ -64,11 +65,13 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    new_sub_entity,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType, Expression, SafeExpType
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -630,6 +633,16 @@ async def new_binary_sensor(config, *args):
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_binary_sensor(var, config)
     return var
+
+
+async def new_sub_binary_sensor(
+    config: ConfigType,
+    key: str,
+    setter: Callable[[MockObj], Expression],
+    *args: SafeExpType,
+) -> MockObj | None:
+    """Create the binary sensor configured under key, if any, and pass it to setter."""
+    return await new_sub_entity(new_binary_sensor, config, key, setter, *args)
 
 
 BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id(

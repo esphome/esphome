@@ -121,45 +121,16 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_PM_1_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_1_0])
-        cg.add(var.set_pm_1_0_sensor(sens))
-
-    if CONF_PM_2_5 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_2_5])
-        cg.add(var.set_pm_2_5_sensor(sens))
-
-    if CONF_PM_4_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_4_0])
-        cg.add(var.set_pm_4_0_sensor(sens))
-
-    if CONF_PM_10_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_10_0])
-        cg.add(var.set_pm_10_0_sensor(sens))
-
-    if CONF_PMC_0_5 in config:
-        sens = await sensor.new_sensor(config[CONF_PMC_0_5])
-        cg.add(var.set_pmc_0_5_sensor(sens))
-
-    if CONF_PMC_1_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PMC_1_0])
-        cg.add(var.set_pmc_1_0_sensor(sens))
-
-    if CONF_PMC_2_5 in config:
-        sens = await sensor.new_sensor(config[CONF_PMC_2_5])
-        cg.add(var.set_pmc_2_5_sensor(sens))
-
-    if CONF_PMC_4_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PMC_4_0])
-        cg.add(var.set_pmc_4_0_sensor(sens))
-
-    if CONF_PMC_10_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PMC_10_0])
-        cg.add(var.set_pmc_10_0_sensor(sens))
-
-    if CONF_PM_SIZE in config:
-        sens = await sensor.new_sensor(config[CONF_PM_SIZE])
-        cg.add(var.set_pm_size_sensor(sens))
+    await sensor.new_sub_sensor(config, CONF_PM_1_0, var.set_pm_1_0_sensor)
+    await sensor.new_sub_sensor(config, CONF_PM_2_5, var.set_pm_2_5_sensor)
+    await sensor.new_sub_sensor(config, CONF_PM_4_0, var.set_pm_4_0_sensor)
+    await sensor.new_sub_sensor(config, CONF_PM_10_0, var.set_pm_10_0_sensor)
+    await sensor.new_sub_sensor(config, CONF_PMC_0_5, var.set_pmc_0_5_sensor)
+    await sensor.new_sub_sensor(config, CONF_PMC_1_0, var.set_pmc_1_0_sensor)
+    await sensor.new_sub_sensor(config, CONF_PMC_2_5, var.set_pmc_2_5_sensor)
+    await sensor.new_sub_sensor(config, CONF_PMC_4_0, var.set_pmc_4_0_sensor)
+    await sensor.new_sub_sensor(config, CONF_PMC_10_0, var.set_pmc_10_0_sensor)
+    await sensor.new_sub_sensor(config, CONF_PM_SIZE, var.set_pm_size_sensor)
 
     if CONF_AUTO_CLEANING_INTERVAL in config:
         cg.add(var.set_auto_cleaning_interval(config[CONF_AUTO_CLEANING_INTERVAL]))
