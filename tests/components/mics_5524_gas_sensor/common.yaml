@@ -1,0 +1,30 @@
+sensor:
+  - platform: mics_5524_gas_sensor
+    id: mics_5524_h2
+    name: MiCS-5524 H2
+    gas: H2
+    pin: ${mics_pin}
+    # The analog breakout runs from 5 V, so the recommended 10k/20k divider keeps
+    # the 3.33 V it can put out below the declared limit of the ADC input.
+    divider:
+      r1: 10.0
+      r2: 20.0
+    adc_input_max: 3.4
+    adc_samples: 2
+    samples: 3
+    sample_interval: 10ms
+    warmup_time: 1s
+    min_ppm: 1.0
+    max_ppm: 500.0
+    log_sensor: mics_5524_log
+    log_ppm: true
+    calibration:
+      delay: 5s
+      samples: 3
+      persist: false
+
+text_sensor:
+  - platform: template
+    id: mics_5524_log
+    name: MiCS-5524 log
+    internal: true
