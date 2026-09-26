@@ -25,6 +25,13 @@ enum class DoorState : uint8_t {
   STOPPED,
 };
 
+#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+// Payload registers of each value, two bytes each.
+static constexpr size_t SERIAL_FIRST_HALF_REGS = 7;
+static constexpr size_t SERIAL_SECOND_HALF_REGS = 6;
+static constexpr size_t FIRMWARE_REGS = 6;
+#endif
+
 // A HCP command is a simulated key press: the pressed value is presented to the bus controller, then after a
 // short delay the released value. Each half also carries a second register, which names the buttons that do
 // not fit into the first.
@@ -188,8 +195,8 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // A serial number arrived without text, for update() to log.
   bool serial_unreadable_{false};
   bool firmware_unreadable_{false};
-  char serial_number_[27]{};
-  char firmware_version_[13]{};
+  char serial_number_[2 * (SERIAL_FIRST_HALF_REGS + SERIAL_SECOND_HALF_REGS) + 1]{};
+  char firmware_version_[2 * FIRMWARE_REGS + 1]{};
 #endif
 };
 

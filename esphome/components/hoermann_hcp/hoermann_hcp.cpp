@@ -83,11 +83,8 @@ static constexpr uint8_t TRANSFER_ACK = 0xFD;
 static constexpr size_t TRANSFER_PAYLOAD_REG = 2;
 // Marks the first half of the serial number in the counter byte, and is not part of the count.
 static constexpr uint8_t COUNTER_FIRST_HALF = 0x80;
-static constexpr size_t SERIAL_FIRST_HALF_REGS = 7;
-static constexpr size_t SERIAL_SECOND_HALF_REGS = 6;
 // Older motors (index B1 seen) send the whole serial number in one frame, without the half marker.
 static constexpr size_t SERIAL_SINGLE_FRAME_REGS = 6;
-static constexpr size_t FIRMWARE_REGS = 6;
 
 // Registers hold two payload bytes each, high byte first.
 static void copy_payload(const modbus::RegisterValues &registers, size_t count, char *out) {
@@ -348,7 +345,6 @@ bool HoermannHcp::take_identity_request_(uint32_t now) {
 }
 
 void HoermannHcp::take_identity_transfer_(const modbus::RegisterValues &registers) {
-  // Transfers are ignored until the exchange has started.
   if (!this->identity_started_ || registers.size() < TRANSFER_PAYLOAD_REG ||
       static_cast<uint8_t>(registers[0]) != TRANSFER_COMMAND)
     return;
@@ -359,6 +355,9 @@ void HoermannHcp::take_identity_transfer_(const modbus::RegisterValues &register
   // Acknowledged whether kept or not, as Hoermann's own bus accessory does. What was not kept is asked for again.
   this->transfer_answer_counter_ = counter & ~COUNTER_FIRST_HALF;
   this->transfer_answer_pending_ = true;
+  // Only an answer to a request that went out is kept.
+  if (this->identity_attempts_ == 0)
+    return;
 
   const size_t payload_regs = registers.size() - TRANSFER_PAYLOAD_REG;
   if (sub_code == TRANSFER_SUB_FIRMWARE) {
@@ -438,7 +437,7 @@ void HoermannHcp::publish_identity_() {
         std::all_of(this->firmware_version_, this->firmware_version_ + len, [](char c) { return c == '\0'; })) {
       ESP_LOGD(TAG, "Motor does not report its firmware version");
     } else {
-      char hex[2 * sizeof(this->firmware_version_) + 1];
+      char hex[format_hex_size(2 * FIRMWARE_REGS)];
       ESP_LOGW(TAG, "Unreadable firmware version (%u bytes): %s", len,
                format_hex_to(hex, reinterpret_cast<const uint8_t *>(this->firmware_version_), len));
     }

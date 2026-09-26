@@ -1,8 +1,8 @@
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <string>
 #include <thread>
-#include <vector>
 
 #include "esphome/components/text_sensor/text_sensor.h"
 
@@ -47,8 +47,11 @@ RegisterValues transfer(HoermannHcp &door, uint8_t counter, uint8_t sub_code, co
   return response;
 }
 
-// A whole answer, for comparing it with the frame seen on the bus.
-std::vector<uint16_t> as_list(const RegisterValues &registers) { return {registers.begin(), registers.end()}; }
+// The first status poll gets an ordinary answer, the next one carries the serial number request.
+void request_serial(HoermannHcp &door) {
+  status_poll(door, 0x03);
+  status_poll(door, 0x04);
+}
 
 void send_serial(HoermannHcp &door) {
   transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, SERIAL, 14);
@@ -78,8 +81,7 @@ struct IdentityFixture {
 
 // The whole exchange as the motor runs it, with the loop turning in between as it would.
 void run_identity_exchange(HoermannHcp &door) {
-  status_poll(door, 0x03);
-  status_poll(door, 0x04);
+  request_serial(door);
   send_serial(door);
   door.update();
   status_poll(door, 0x07);
@@ -147,7 +149,7 @@ TEST(HoermannHcpTextSensorTest, GivesUpAfterThreeAttemptsEach) {
 TEST(HoermannHcpTextSensorTest, HalfASerialNumberIsNeverShown) {
   IdentityFixture fixture;
   auto &door = fixture.door;
-  status_poll(door);
+  request_serial(door);
   transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, SERIAL, 14);
   for (int attempt = 0; attempt < 4; attempt++) {
     door.identity_asked_at_ -= 31000;
@@ -161,7 +163,7 @@ TEST(HoermannHcpTextSensorTest, HalfASerialNumberIsNeverShown) {
 TEST(HoermannHcpTextSensorTest, SerialNumberInTwoHalvesThenTheFirmwareVersion) {
   IdentityFixture fixture;
   auto &door = fixture.door;
-  status_poll(door);
+  request_serial(door);
 
   RegisterValues answer = transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, SERIAL, 14);
   ASSERT_EQ(answer.size(), 8u);
@@ -201,7 +203,7 @@ TEST(HoermannHcpTextSensorTest, PaddingEndsTheText) {
   for (const char pad : {'\xFF', '\x7F'}) {
     IdentityFixture fixture;
     auto &door = fixture.door;
-    status_poll(door);
+    request_serial(door);
     const char first[] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '1', '2', '3', pad};
     const char second[] = {pad, pad, pad, pad, pad, pad, pad, pad, pad, pad, pad, pad};
     transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, first, sizeof(first));
@@ -216,7 +218,7 @@ TEST(HoermannHcpTextSensorTest, UnusableSerialHalvesAreNotKept) {
   {
     IdentityFixture fixture;
     auto &door = fixture.door;
-    status_poll(door);
+    request_serial(door);
     EXPECT_EQ(transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, SERIAL, 12)[1], 0x04FD);
     transfer(door, 0x06, SUB_SERIAL, SERIAL + 14, 12);
     EXPECT_EQ(fixture.serial_shown(), "");
@@ -225,7 +227,7 @@ TEST(HoermannHcpTextSensorTest, UnusableSerialHalvesAreNotKept) {
   {
     IdentityFixture fixture;
     auto &door = fixture.door;
-    status_poll(door);
+    request_serial(door);
     transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, SERIAL, 14);
     transfer(door, 0x06, SUB_SERIAL, SERIAL + 14, 10);
     EXPECT_EQ(fixture.serial_shown(), "");
@@ -238,8 +240,7 @@ TEST(HoermannHcpTextSensorTest, UnusableSerialHalvesAreNotKept) {
 TEST(HoermannHcpTextSensorTest, SerialNumberInOneFrameThenTheFirmwareVersion) {
   IdentityFixture fixture;
   auto &door = fixture.door;
-  status_poll(door);
-  status_poll(door, 0x03);
+  request_serial(door);
   const char one_frame[12] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', 'B', '1', 0};
   EXPECT_EQ(transfer(door, 0x05, SUB_SERIAL, one_frame, 12)[1], 0x04FD);
   EXPECT_EQ(door.identity_request_, 0x06);
@@ -254,14 +255,13 @@ TEST(HoermannHcpTextSensorTest, SerialNumberInOneFrameThenTheFirmwareVersion) {
 TEST(HoermannHcpTextSensorTest, ExchangeWithTheFrameSizesOfAB1) {
   IdentityFixture fixture;
   auto &door = fixture.door;
-  status_poll(door);
-  status_poll(door, 0x03);
+  request_serial(door);
   const char one_frame[12] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', 'B', '1', 0};
-  EXPECT_EQ(as_list(transfer(door, 0x05, SUB_SERIAL, one_frame, 12, 2)), std::vector<uint16_t>({0x0500, 0x04FD}));
+  EXPECT_THAT(transfer(door, 0x05, SUB_SERIAL, one_frame, 12, 2), ::testing::ElementsAre(0x0500, 0x04FD));
 
-  EXPECT_EQ(as_list(status_poll(door, 0x06)), std::vector<uint16_t>({0x0600, 0x0322, 0x0600, 0, 0, 0, 0, 0}));
+  EXPECT_THAT(status_poll(door, 0x06), ::testing::ElementsAre(0x0600, 0x0322, 0x0600, 0, 0, 0, 0, 0));
   const char zeros[12] = {};
-  EXPECT_EQ(as_list(transfer(door, 0x07, SUB_FIRMWARE, zeros, 12, 2)), std::vector<uint16_t>({0x0700, 0x04FD}));
+  EXPECT_THAT(transfer(door, 0x07, SUB_FIRMWARE, zeros, 12, 2), ::testing::ElementsAre(0x0700, 0x04FD));
 
   EXPECT_EQ(door.identity_request_, 0);
   EXPECT_EQ(fixture.serial_shown(), "123456789B1");
@@ -273,23 +273,39 @@ TEST(HoermannHcpTextSensorTest, ExchangeWithTheFrameSizesOfAB1) {
 TEST(HoermannHcpTextSensorTest, TheValueNotAskedForIsNotKept) {
   IdentityFixture fixture;
   auto &door = fixture.door;
-  status_poll(door);
+  request_serial(door);
   EXPECT_EQ(transfer(door, 0x05, SUB_FIRMWARE, FIRMWARE, 12)[1], 0x04FD);
   EXPECT_EQ(door.identity_request_, 0x05);
   EXPECT_EQ(fixture.version_shown(), "");
 
   send_serial(door);
   EXPECT_EQ(fixture.serial_shown(), SERIAL);
-  EXPECT_EQ(transfer(door, FIRST_HALF | 0x07, SUB_SERIAL, FIRMWARE, 12)[1], 0x04FD);
+  status_poll(door, 0x07);
+  const char other[14] = {'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z'};
+  EXPECT_EQ(transfer(door, FIRST_HALF | 0x08, SUB_SERIAL, other, 14)[1], 0x04FD);
+  EXPECT_EQ(transfer(door, 0x09, SUB_SERIAL, other, 12)[1], 0x04FD);
   EXPECT_EQ(door.identity_request_, 0x06);
   EXPECT_EQ(fixture.serial_shown(), SERIAL);
+}
+
+// A transfer before the request has gone out, as from a motor still finishing an exchange from before a restart,
+// is acknowledged but not kept.
+TEST(HoermannHcpTextSensorTest, ATransferBeforeTheRequestIsNotKept) {
+  IdentityFixture fixture;
+  auto &door = fixture.door;
+  status_poll(door);
+  const char one_frame[12] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', 'B', '1', 0};
+  EXPECT_EQ(transfer(door, 0x04, SUB_SERIAL, one_frame, 12)[1], 0x04FD);
+  EXPECT_EQ(door.identity_request_, 0x05);
+  EXPECT_EQ(fixture.serial_shown(), "");
+  EXPECT_EQ(status_poll(door, 0x05)[1], 0x0322);
 }
 
 // After a frame with the half marker, one without it can only be the second half, even if the first was unusable.
 TEST(HoermannHcpTextSensorTest, ASecondHalfIsNeverTakenForTheWholeNumber) {
   IdentityFixture fixture;
   auto &door = fixture.door;
-  status_poll(door);
+  request_serial(door);
   transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, SERIAL, 12);
   transfer(door, 0x06, SUB_SERIAL, SERIAL + 14, 12);
   EXPECT_EQ(fixture.serial_shown(), "");
@@ -303,7 +319,7 @@ TEST(HoermannHcpTextSensorTest, SerialNumberThatIsNotTextIsLoggedNotShown) {
   {
     IdentityFixture fixture;
     auto &door = fixture.door;
-    status_poll(door);
+    request_serial(door);
     transfer(door, 0x05, SUB_SERIAL, zeros, 12);
     EXPECT_TRUE(door.serial_unreadable_);  // kept for the log
     EXPECT_EQ(door.identity_request_, 0x06);
@@ -313,7 +329,7 @@ TEST(HoermannHcpTextSensorTest, SerialNumberThatIsNotTextIsLoggedNotShown) {
   {
     IdentityFixture fixture;
     auto &door = fixture.door;
-    status_poll(door);
+    request_serial(door);
     transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, zeros, 14);
     transfer(door, 0x06, SUB_SERIAL, zeros, 12);
     EXPECT_TRUE(door.serial_unreadable_);
@@ -323,11 +339,11 @@ TEST(HoermannHcpTextSensorTest, SerialNumberThatIsNotTextIsLoggedNotShown) {
   }
 }
 
-// Nor is a firmware version too short.
+// A firmware version too short is not kept, and is asked for again.
 TEST(HoermannHcpTextSensorTest, ShortFirmwareVersionIsNotKept) {
   IdentityFixture fixture;
   auto &door = fixture.door;
-  status_poll(door);
+  request_serial(door);
   send_serial(door);
   status_poll(door, 0x07);
   transfer(door, 0x08, SUB_FIRMWARE, FIRMWARE, 10);
@@ -337,11 +353,11 @@ TEST(HoermannHcpTextSensorTest, ShortFirmwareVersionIsNotKept) {
   EXPECT_EQ(door.identity_request_, 0x06);
 }
 
-// Nor is one without any payload, which is still logged.
+// A firmware version without any payload is logged, not shown.
 TEST(HoermannHcpTextSensorTest, EmptyFirmwareVersionIsLoggedNotShown) {
   IdentityFixture fixture;
   auto &door = fixture.door;
-  status_poll(door);
+  request_serial(door);
   send_serial(door);
   status_poll(door, 0x07);
   transfer(door, 0x08, SUB_FIRMWARE, FIRMWARE, 0);
@@ -355,7 +371,7 @@ TEST(HoermannHcpTextSensorTest, EmptyFirmwareVersionIsLoggedNotShown) {
 TEST(HoermannHcpTextSensorTest, ReadableFirmwareVersionAfterAShortOneIsShown) {
   IdentityFixture fixture;
   auto &door = fixture.door;
-  status_poll(door);
+  request_serial(door);
   send_serial(door);
   status_poll(door, 0x07);
   transfer(door, 0x08, SUB_FIRMWARE, FIRMWARE, 10);
@@ -368,7 +384,7 @@ TEST(HoermannHcpTextSensorTest, ReadableFirmwareVersionAfterAShortOneIsShown) {
 TEST(HoermannHcpTextSensorTest, AllZeroFirmwareVersionMeansNoneIsReported) {
   IdentityFixture fixture;
   auto &door = fixture.door;
-  status_poll(door);
+  request_serial(door);
   send_serial(door);
   status_poll(door, 0x07);
   const char zeros[12] = {};
@@ -383,7 +399,7 @@ TEST(HoermannHcpTextSensorTest, AllZeroFirmwareVersionMeansNoneIsReported) {
 TEST(HoermannHcpTextSensorTest, FirmwareVersionThatIsNotTextIsLoggedNotShown) {
   IdentityFixture fixture;
   auto &door = fixture.door;
-  status_poll(door);
+  request_serial(door);
   send_serial(door);
   status_poll(door, 0x07);
   const char binary[12] = {0x01, 0x12, 0x34, 0x00, 0, 0, 0, 0, 0, 0, 0, 0};
