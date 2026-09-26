@@ -3,7 +3,6 @@ from pathlib import Path
 import platform
 import re
 import subprocess
-import time
 from typing import Any
 
 import esphome.codegen as cg
@@ -38,7 +37,7 @@ from esphome.platformio.toolchain import copy_ccache_script
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS, ESP8266_BOARD_BUILD, board_ld_script
+from .boards import BOARDS, board_ld_script
 from .const import (
     BUILD_FLASH_MODES,
     CONF_EARLY_PIN_INIT,
@@ -46,6 +45,7 @@ from .const import (
     CONF_ENABLE_SERIAL1,
     CONF_RESTORE_FROM_FLASH,
     KEY_BOARD,
+    KEY_DECODE_TOOLS,
     KEY_ESP8266,
     KEY_PIN_INITIAL_STATES,
     KEY_SCANF_FLOAT,
@@ -141,12 +141,7 @@ def _validate_native_toolchain(config: ConfigType) -> ConfigType:
             "'toolchain: arduino' does not support a custom framework source; "
             "use 'toolchain: platformio'"
         )
-    # BOARDS is a subset of ESP8266_BOARD_BUILD today; the second clause is
-    # a drift guard for the independently regenerated tables
-    if (
-        config[CONF_BOARD] not in BOARDS
-        or config[CONF_BOARD] not in ESP8266_BOARD_BUILD
-    ):
+    if config[CONF_BOARD] not in BOARDS:
         raise cv.Invalid(
             f"Board '{config[CONF_BOARD]}' is not supported by "
             "'toolchain: arduino'; use 'toolchain: platformio'"
@@ -591,73 +586,53 @@ ESP8266_EXCEPTION_CODES = {
 }
 
 
-_DECODE_WARNED_AT: dict[str, float] = {}
+def _resolve_decode_tools(config: ConfigType) -> tuple[str, str] | None:
+    """``(addr2line, elf)`` for this build, or None after warning why."""
+    if (native_toolchain := native_toolchain_module()) is not None:
+        addr2line = native_toolchain.get_addr2line_path()
+        elf = native_toolchain.get_elf_path()
+        for path in (addr2line, elf):
+            if not path.is_file():
+                _LOGGER.warning("Cannot decode crash addresses: %s missing", path)
+                return None
+        return str(addr2line), str(elf)
+    from esphome.platformio import toolchain
+
+    idedata = toolchain.get_idedata(config)
+    if not idedata.addr2line_path or not idedata.firmware_elf_path:
+        _LOGGER.warning("Cannot decode crash addresses: no addr2line or ELF in idedata")
+        return None
+    return idedata.addr2line_path, idedata.firmware_elf_path
 
 
-def _warn_decode_problem(key: str, message: str, *args) -> bool:
-    """Warn, deduplicated briefly so a burst of stack-dump addresses warns
-    once but a later dump warns again; returns whether it warned so the
-    caller can mark suppressed addresses individually."""
-    now = time.monotonic()
-    last = _DECODE_WARNED_AT.get(key)
-    if last is not None and now - last < 30:
-        return False
-    _DECODE_WARNED_AT[key] = now
-    _LOGGER.warning(message, *args)
-    return True
+def _decode_tools(config: ConfigType) -> tuple[str, str] | None:
+    """Resolved once per run: the tools are a property of the build, not of
+    the address, so a stack dump cannot repeat the failure warning."""
+    data = CORE.data.setdefault(KEY_ESP8266, {})
+    if KEY_DECODE_TOOLS not in data:
+        data[KEY_DECODE_TOOLS] = _resolve_decode_tools(config)
+    return data[KEY_DECODE_TOOLS]
 
 
 def _decode_pc(config: ConfigType, addr: str, *, bulk: bool = False) -> None:
     """Decode one crash address. ``bulk``: the caller is scanning every
     8-hex stack word, most of which are not code addresses -- unmappable
     ones log at debug so real frames are not buried."""
-    if (native_toolchain := native_toolchain_module()) is not None:
-        addr2line = native_toolchain.get_addr2line_path()
-        elf = native_toolchain.get_elf_path()
-        for path in (addr2line, elf):
-            if not path.is_file():
-                _warn_decode_problem(
-                    str(path), "Cannot decode crash addresses: %s missing", path
-                )
-                # The detailed warning names no address; mark named
-                # registers, but bulk stack words at debug (~150 per dump)
-                log = _LOGGER.debug if bulk else _LOGGER.warning
-                log("Not decoded %s (toolchain file missing)", addr)
-                return
-        addr2line, elf = str(addr2line), str(elf)
-    else:
-        from esphome.platformio import toolchain
-
-        idedata = toolchain.get_idedata(config)
-        if not idedata.addr2line_path or not idedata.firmware_elf_path:
-            _warn_decode_problem(
-                "no-addr2line",
-                "Cannot decode crash addresses: no addr2line or ELF in idedata",
-            )
-            log = _LOGGER.debug if bulk else _LOGGER.warning
-            log("Not decoded %s (no addr2line or ELF)", addr)
-            return
-        addr2line, elf = idedata.addr2line_path, idedata.firmware_elf_path
+    # Bulk stack words are ~150 per dump; only named registers warn
+    log = _LOGGER.debug if bulk else _LOGGER.warning
+    if (tools := _decode_tools(config)) is None:
+        log("Not decoded %s (no addr2line or ELF)", addr)
+        return
+    addr2line, elf = tools
     command = [addr2line, "-pfiaC", "-e", elf, addr]
     try:
         translation = subprocess.check_output(command, close_fds=False).decode().strip()
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
-        # Warn (rate-limited across a dump); mark undecoded addresses
-        # inline or the rest read as merely unmappable
-        if not _warn_decode_problem(
-            "addr2line-failed", "Could not decode crash address %s (%s)", addr, err
-        ):
-            # The detailed warning already named this address; mark only
-            # the rate-limited ones, and bulk stack words at debug
-            log = _LOGGER.debug if bulk else _LOGGER.warning
-            log("Not decoded %s (addr2line failed)", addr)
+        log("Could not decode crash address %s (%s)", addr, err)
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
 
     if "?? ??:0" in translation:
-        # A named register that fails to decode is confusing silence; a
-        # bulk stack word failing is the expected common case
-        log = _LOGGER.debug if bulk else _LOGGER.warning
         log("Not decoded %s (address not in %s)", addr, elf)
         return
     translation = translation.replace(" at ??:?", "").replace(":?", "")

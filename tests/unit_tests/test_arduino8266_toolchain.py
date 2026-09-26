@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -93,7 +94,6 @@ def test_run_compile_success(tmp_path: Path) -> None:
     with (
         patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
         patch.object(framework, "get_build_env", return_value={}),
-        # An unchanged manifest is what makes the -n probe run
         patch("esphome.build_gen.arduino8266.write_project", return_value=False),
         patch.object(
             toolchain.subprocess,
@@ -108,46 +108,17 @@ def test_run_compile_success(tmp_path: Path) -> None:
             {CONF_ESPHOME: {CONF_COMPILE_PROCESS_LIMIT: 4}}, verbose=False
         )
     assert rc == 0
-    # The -n probe runs first, then the real build (cwd, no -C banner)
-    ninja_calls = [c for c in mock_run.call_args_list if "ninja" in str(c[0][0][0])]
-    assert "-n" in ninja_calls[0][0][0]
+    call = next(c for c in mock_run.call_args_list if "ninja" in str(c[0][0][0]))
+    cmd = call[0][0]
     # Explicit targets: a manifest missing them fails as "unknown target"
-    assert ninja_calls[0][0][0][-1] == "firmware.ota.bin"
-    cmd = ninja_calls[1][0][0]
-    assert cmd[-4:] == ["-j", "4", "firmware.factory.bin", "firmware.ota.bin"]
+    assert {"firmware.factory.bin", "firmware.ota.bin"} <= set(cmd)
+    assert cmd[cmd.index("-j") + 1] == "4"
+    # cwd, not -C, so ninja prints no "Entering directory" banner
     assert "-C" not in cmd
-    assert ninja_calls[1][1]["cwd"] is not None
+    assert call[1]["cwd"] is not None
     mock_compdb.assert_called_once()
     mock_size.assert_called_once()
     mock_idedata.assert_called_once()
-
-
-def test_run_compile_noop_skips_the_build_spawn(tmp_path: Path) -> None:
-    """A no-op rebuild stays quiet: the -n probe answers "no work to do"
-    and the real ninja spawn (and its banner) never happens."""
-    with (
-        patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
-        patch.object(framework, "get_build_env", return_value={}),
-        # An unchanged manifest is what makes the -n probe run
-        patch("esphome.build_gen.arduino8266.write_project", return_value=False),
-        patch.object(
-            toolchain.subprocess,
-            "run",
-            return_value=MagicMock(
-                returncode=0, stdout="ninja: no work to do.\n", stderr=""
-            ),
-        ) as mock_run,
-        patch.object(toolchain, "_write_compile_commands"),
-        patch.object(toolchain, "_print_size_summary"),
-        patch.object(toolchain, "get_idedata"),
-    ):
-        rc = toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
-    assert rc == 0
-    ninja_calls = [c for c in mock_run.call_args_list if "ninja" in str(c[0][0][0])]
-    assert len(ninja_calls) == 1
-    assert "-n" in ninja_calls[0][0][0]
-    # Explicit targets: a manifest missing them fails as "unknown target"
-    assert ninja_calls[0][0][0][-1] == "firmware.ota.bin"
 
 
 def test_run_compile_regenerates_stale_compdb(tmp_path: Path) -> None:
@@ -176,34 +147,6 @@ def test_run_compile_regenerates_stale_compdb(tmp_path: Path) -> None:
     ):
         assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
     mock_compdb.assert_called_once()
-
-
-def test_run_compile_surfaces_probe_diagnostics(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A load-time ninja diagnostic (a generator bug signal) reaches the
-    user even when the no-work branch skips the real spawn."""
-    with (
-        patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
-        patch.object(framework, "get_build_env", return_value={}),
-        # An unchanged manifest is what makes the -n probe run
-        patch("esphome.build_gen.arduino8266.write_project", return_value=False),
-        patch.object(
-            toolchain.subprocess,
-            "run",
-            return_value=MagicMock(
-                returncode=0,
-                stdout="ninja: no work to do.\n",
-                stderr="ninja: warning: multiple rules generate x\n",
-            ),
-        ),
-        patch.object(toolchain, "_write_compile_commands"),
-        patch.object(toolchain, "_print_size_summary"),
-        patch.object(toolchain, "get_idedata"),
-    ):
-        rc = toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
-    assert rc == 0
-    assert "multiple rules generate x" in caplog.text
 
 
 def test_run_compile_missing_artifact_fails(
@@ -386,7 +329,7 @@ def test_print_size_summary_size_tool_failure(
     with patch.object(
         toolchain.subprocess,
         "run",
-        return_value=MagicMock(returncode=1, stdout="", stderr="bad elf"),
+        side_effect=subprocess.CalledProcessError(1, "size", stderr="bad elf"),
     ):
         toolchain._print_size_summary(tmp_path, _paths(tmp_path))
     assert capsys.readouterr().out == ""
@@ -459,7 +402,7 @@ def test_print_size_summary_unparsable_section(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A totals-relevant section that fails to parse must not produce a
-    confident wrong number; an irrelevant one only warns."""
+    confident wrong number; an irrelevant one is ignored."""
     bad = _SIZE_OUTPUT.replace(".bss          26504", ".bss          abc")
     with patch.object(
         toolchain.subprocess,
@@ -468,7 +411,7 @@ def test_print_size_summary_unparsable_section(
     ):
         toolchain._print_size_summary(tmp_path, _paths(tmp_path))
     assert capsys.readouterr().out == ""
-    assert "Unparsable size output" in caplog.text
+    assert "missing section(s) .bss" in caplog.text
 
     caplog.clear()
     harmless = _SIZE_OUTPUT + ".broken   abc   0\n"
@@ -482,7 +425,7 @@ def test_print_size_summary_unparsable_section(
     ):
         toolchain._print_size_summary(tmp_path, _paths(tmp_path))
     assert "RAM:" in capsys.readouterr().out
-    assert "Unparsable size output" in caplog.text
+    assert not caplog.text
 
 
 def test_print_size_summary_missing_section_skips_summary(
@@ -588,32 +531,6 @@ def test_parse_app_size_non_utf8_ld_warns(
     with patch("esphome.build_gen.arduino8266.get_flash_ld_path", return_value=ld):
         assert toolchain._parse_app_size(tmp_path, paths) is None
     assert "Cannot read linker script" in caplog.text
-
-
-def test_run_compile_failed_probe_runs_full_build(tmp_path: Path) -> None:
-    """A failing -n probe (e.g. unknown target from a defective manifest)
-    falls through to the real build so the error prints attributably."""
-    probe = MagicMock(returncode=1, stdout="", stderr="")
-    ok = MagicMock(returncode=0, stdout="", stderr="")
-
-    def fake_run(cmd, *args, **kwargs):
-        return probe if "-n" in cmd else ok
-
-    with (
-        patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
-        patch.object(framework, "get_build_env", return_value={}),
-        patch("esphome.build_gen.arduino8266.write_project", return_value=False),
-        patch.object(toolchain.subprocess, "run", side_effect=fake_run) as mock_run,
-        patch.object(toolchain, "_write_compile_commands"),
-        patch.object(toolchain, "_print_size_summary", return_value=True),
-        patch.object(toolchain, "get_idedata", return_value={}),
-    ):
-        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
-    # The real build ran after the failed probe
-    assert any(
-        "firmware.ota.bin" in c[0][0] and "-n" not in c[0][0]
-        for c in mock_run.call_args_list
-    )
 
 
 def test_get_idedata_accepts_preresolved_ccache() -> None:

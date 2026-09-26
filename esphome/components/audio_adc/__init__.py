@@ -1,9 +1,8 @@
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_MIC_GAIN
-from esphome.core import ID, CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.const import CONF_MIC_GAIN
+from esphome.core import CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
@@ -11,8 +10,6 @@ IS_PLATFORM_COMPONENT = True
 
 audio_adc_ns = cg.esphome_ns.namespace("audio_adc")
 AudioAdc = audio_adc_ns.class_("AudioAdc")
-
-SetMicGainAction = audio_adc_ns.class_("SetMicGainAction", automation.Action)
 
 
 SET_MIC_GAIN_ACTION_SCHEMA = cv.maybe_simple_value(
@@ -24,25 +21,11 @@ SET_MIC_GAIN_ACTION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "audio_adc.set_mic_gain",
-    SetMicGainAction,
     SET_MIC_GAIN_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_MIC_GAIN, "set_mic_gain", cg.float_),
 )
-async def audio_adc_set_mic_gain_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-
-    template_ = await cg.templatable(config.get(CONF_MIC_GAIN), args, cg.float_)
-    cg.add(var.set_mic_gain(template_))
-
-    return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)
