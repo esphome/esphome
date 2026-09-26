@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/nfc/nfc_tag.h"
 #include "esphome/components/nfc/nfc.h"
@@ -154,11 +153,6 @@ class PN532BinarySensor final : public binary_sensor::BinarySensor {
  protected:
   nfc::NfcTagUid uid_;
   bool found_{false};
-};
-
-template<typename... Ts> class PN532IsWritingCondition final : public Condition<Ts...>, public Parented<PN532> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->is_writing(); }
 };
 
 }  // namespace esphome::pn532
