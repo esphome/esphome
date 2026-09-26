@@ -211,6 +211,27 @@ class OTAEncryptionFallback(OTAError):
     """The encrypted attempt failed and the caller may retry in plaintext."""
 
 
+# Uploader side option under `ota: encryption:`; the ota component imports the
+# name so the upload path never loads the component module
+CONF_ALLOW_PLAINTEXT_UPLOAD = "allow_plaintext_upload"
+ALLOW_PLAINTEXT_UPLOAD_NOTICE = (
+    f"'{CONF_ALLOW_PLAINTEXT_UPLOAD}' is set; expected once, on the install that "
+    "migrates a device which never encrypted. If this device encrypted before, "
+    "something on the network stripped the offer: remove the option and check "
+    "the network."
+)
+# Logged only once the device is seen encrypting, so the migration install
+# itself is never nagged and the user learns exactly when removal is safe
+ALLOW_PLAINTEXT_UPLOAD_REMOVE_WARNING = f"""
+******************************************************************
+*  This device offers OTA encryption and accepted the key, so
+*  '{CONF_ALLOW_PLAINTEXT_UPLOAD}' under 'ota: encryption:' has done
+*  its job. Remove it from the configuration now, together with
+*  any 'password:' on that block: leaving the option in place lets
+*  an attacker on the network strip the encryption offer and
+*  downgrade a future upload to plaintext.
+******************************************************************"""
+
 # Remove before 2027.3.0
 PLAINTEXT_FALLBACK_NOTICE = (
     "A device with an api encryption key offers encryption after this "
@@ -512,6 +533,7 @@ def perform_ota(
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
 ) -> None:
     # Validate up front; an out-of-range value would only surface as a
     # ValueError deep inside send_check, bypassing OTAError handling
@@ -577,25 +599,32 @@ def perform_ota(
         features = 0
 
     if noise_psk and not (extended_proto and features & SERVER_FEATURE_SUPPORTS_NOISE):
-        if plaintext_fallback:
-            # Remove before 2027.3.0: older firmware that cannot encrypt still
-            # gets its update on this connection
+        # Remove before 2027.3.0: drop `or plaintext_fallback` and
+        # PLAINTEXT_FALLBACK_NOTICE here; allow_plaintext_upload stays
+        if allow_plaintext_upload or plaintext_fallback:
+            # The running firmware cannot encrypt; it still gets this update,
+            # and the build being sent offers encryption for the next one
             _LOGGER.warning(
                 "The device did not offer OTA encryption; continuing in plaintext. %s",
-                PLAINTEXT_FALLBACK_NOTICE,
+                ALLOW_PLAINTEXT_UPLOAD_NOTICE
+                if allow_plaintext_upload
+                else PLAINTEXT_FALLBACK_NOTICE,
             )
             noise_psk = None
         else:
             # Fail closed: an attacker could otherwise strip the offer and
             # capture the image (wifi credentials, api key)
+            # Remove before 2027.3.0: installing without the block no longer
+            # falls back then; advise 'allow_plaintext_upload: true' instead
             raise OTAError(
                 "An OTA encryption key is configured but the device did not "
                 "offer encryption; refusing to send the image in plaintext. "
                 "The running firmware predates ESPHome 2026.9.0 or has no "
                 "'api: encryption: key'. With an api key, install once "
                 "without the 'ota: encryption:' block (that build offers "
-                "encryption), then restore it; otherwise flash by serial or "
-                "the web_server OTA platform."
+                f"encryption), then restore it; otherwise set '{CONF_ALLOW_PLAINTEXT_UPLOAD}: "
+                "true' under 'ota: encryption:' for this one install, or flash by "
+                "serial or the web_server OTA platform."
             )
     if noise_psk:
         # The prologue binds every negotiation byte both sides saw, so any
@@ -619,6 +648,8 @@ def perform_ota(
                 raise OTAEncryptionFallback(str(err)) from err
             raise
         _LOGGER.info("Encrypted connection established")
+        if allow_plaintext_upload:
+            _LOGGER.warning(ALLOW_PLAINTEXT_UPLOAD_REMOVE_WARNING)
 
     if ota_type != OTA_TYPE_UPDATE_APP:
         # Any non-app OTA type requires the extended protocol and the
@@ -824,6 +855,7 @@ def run_ota_impl_(
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
 ) -> tuple[int, str | None]:
     from esphome.core import CORE
 
@@ -899,6 +931,7 @@ def run_ota_impl_(
                     ota_type,
                     encryption.noise_psk,
                     encryption.plaintext_fallback,
+                    allow_plaintext_upload=allow_plaintext_upload,
                 )
             except OTAEncryptionFallback as err:
                 # Same address and attempt budget: not a network retry
@@ -940,6 +973,7 @@ def run_ota(
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
 ) -> tuple[int, str | None]:
     try:
         return run_ota_impl_(
@@ -950,6 +984,7 @@ def run_ota(
             ota_type,
             noise_psk,
             plaintext_fallback,
+            allow_plaintext_upload,
         )
     except OTAError as err:
         _LOGGER.error(err)
