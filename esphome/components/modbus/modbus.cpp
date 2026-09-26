@@ -1435,10 +1435,9 @@ void ModbusSnifferHub::process_modbus_server_frame(uint8_t address, std::span<co
   const uint8_t expected_address = this->expecting_peer_response_;
   this->expecting_peer_response_ = 0;
 
-  if (this->request_.empty()) {
-    ESP_LOGW(TAG, "Response from %" PRIu8 " with no retained request; its register address is unknowable", address);
-    return;
-  }
+  // request_ is never empty here: this only runs with an expectation armed, and the one place that
+  // arms it also fills request_ with a PDU of at least the function code. A reply seen with no
+  // request before it is parsed as a client frame instead, and never arrives here.
 
   // Masked, as the client hub does: an exception reply carries the request's code with bit 7 set,
   // and is that request's response.

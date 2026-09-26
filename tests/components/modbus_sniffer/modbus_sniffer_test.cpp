@@ -184,9 +184,10 @@ TEST(ModbusSniffer, PairsAnyFunctionCodeIncludingWritesAndCoils) {
   }
 }
 
-// A reply with no retained request cannot be placed, so it is dropped. Happens on the first
-// exchange after a reset, or when a request is lost to a CRC error.
-TEST(ModbusSniffer, DropsResponseWithNoRetainedRequest) {
+// A reply seen with no request before it (the sniffer booted mid-exchange, or the request was lost
+// to a CRC error) arrives with no expectation armed, so it is parsed as a request. A read response
+// is not a valid read request, so it is discarded: neither trigger fires.
+TEST(ModbusSniffer, ResponseSeenFirstFiresNeitherTrigger) {
   SnifferFixture f;
   const uint16_t registers[] = {0x0042};
 
@@ -194,6 +195,25 @@ TEST(ModbusSniffer, DropsResponseWithNoRetainedRequest) {
   f.run();
 
   EXPECT_TRUE(f.captured.empty());
+  EXPECT_TRUE(f.seen_requests.empty());
+}
+
+// The exception, pinned so it stays documented: a single-register write echo is byte-identical to
+// its request, so one seen first is indistinguishable from a request and fires on_request.
+// Nothing on the wire can tell them apart. The next real request re-synchronises the pairing.
+TEST(ModbusSniffer, WriteEchoSeenFirstIsTakenForARequest) {
+  SnifferFixture f;
+  const uint16_t registers[] = {0x0007};
+
+  f.uart.inject_frame(0x0F, write_request(1101, 1));  // the echo; its request was missed
+  f.uart.inject_frame(0x0F, read_request(FC_READ_HOLDING, 500, 1));
+  f.uart.inject_frame(0x0F, read_response(FC_READ_HOLDING, registers));
+  f.run(8);
+
+  ASSERT_EQ(f.seen_requests.size(), 2u);
+  EXPECT_EQ(f.seen_requests[0].request_pdu, write_request(1101, 1));
+  ASSERT_EQ(f.captured.size(), 1u);
+  EXPECT_EQ(f.captured[0].request_pdu, read_request(FC_READ_HOLDING, 500, 1));
 }
 
 // One request yields exactly one response; the retained request is consumed by the first reply.
