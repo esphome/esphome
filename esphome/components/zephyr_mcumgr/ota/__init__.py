@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.components.nrf52 import include_west_project
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 from esphome.components.zephyr import (
@@ -115,6 +116,7 @@ async def to_code(config: ConfigType) -> None:
 
     zephyr_add_prj_conf("NET_BUF", True)
     zephyr_add_prj_conf("ZCBOR", True)
+    include_west_project("zcbor")
     zephyr_add_prj_conf("MCUMGR", True)
 
     zephyr_add_prj_conf("MCUMGR_GRP_IMG", True)
@@ -161,6 +163,8 @@ async def to_code(config: ConfigType) -> None:
     framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if framework_ver >= cv.Version(2, 9, 2):
         zephyr_data()[KEY_SYSBUILD] = True
+        # Sysbuild builds the MCUboot image whatever the bootloader
+        include_west_project("mcuboot")
 
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader != BOOTLOADER_MCUBOOT:

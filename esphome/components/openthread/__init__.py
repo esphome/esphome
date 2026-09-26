@@ -19,6 +19,7 @@ from esphome.components.esp32 import (
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
 from esphome.components.network import add_use_address
+from esphome.components.nrf52 import include_west_project
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -317,6 +318,9 @@ async def to_code(config: ConfigType) -> None:
     if CORE.is_esp32:
         set_sdkconfig_options(config)
     elif CORE.using_zephyr:
+        # OpenThread's crypto goes through PSA, provided by mbedtls and Oberon
+        for project in ("mbedtls", "oberon-psa-crypto", "openthread"):
+            include_west_project(project)
         zephyr_add_prj_conf("NET_L2_OPENTHREAD", True)
         zephyr_add_prj_conf(
             f"OPENTHREAD_NORDIC_LIBRARY_{config.get(CONF_DEVICE_TYPE)}", True
