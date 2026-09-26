@@ -196,10 +196,15 @@ size_t SpeakerSourceMediaPlayer::handle_media_output_(uint8_t pipeline, media_so
       vTaskDelay(pdMS_TO_TICKS(timeout_ms));
       return 0;
     }
+    // Playback callbacks can run while play() waits for space. Reserve before
+    // exposing PCM to the sink, then release the portion it did not accept.
+    const uint32_t reserved_frames = stream_info.bytes_to_frames(length);
+    ps.pending_frames.fetch_add(reserved_frames, std::memory_order_relaxed);
     size_t bytes_written = ps.speaker->play(data, length, pdMS_TO_TICKS(timeout_ms));
-    if (bytes_written > 0) {
-      // Track frames sent to speaker for this source
-      ps.pending_frames.fetch_add(stream_info.bytes_to_frames(bytes_written), std::memory_order_relaxed);
+    const uint32_t unused_frames = reserved_frames - stream_info.bytes_to_frames(bytes_written);
+    uint32_t pending = ps.pending_frames.load(std::memory_order_relaxed);
+    while (!ps.pending_frames.compare_exchange_weak(pending, pending - std::min(pending, unused_frames),
+                                                    std::memory_order_relaxed)) {
     }
     return bytes_written;
   }
