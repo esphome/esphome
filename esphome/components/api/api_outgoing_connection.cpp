@@ -59,7 +59,8 @@ static bool peer_to_target(APIConnection *conn, SavedOutgoingTarget &target) {
 
 socklen_t OutgoingConnectionManager::target_sockaddr_(struct sockaddr_storage *addr) const {
 #ifdef API_OUTGOING_CONNECTION_HOST
-  // Validated as an IP literal at build time, so this cannot fail
+  // Validation only lets through a literal both inet_pton and inet6_aton
+  // accept, so this cannot fail
   return socket::set_sockaddr((struct sockaddr *) addr, sizeof(*addr), API_OUTGOING_CONNECTION_HOST,
                               API_OUTGOING_CONNECTION_PORT);
 #else

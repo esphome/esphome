@@ -1,6 +1,7 @@
 """Tests for the api outgoing_connection option."""
 
 from collections.abc import Callable
+from ipaddress import IPv4Address
 from pathlib import Path
 
 import pytest
@@ -86,6 +87,25 @@ def test_outgoing_connection_rejects_hostnames(
     set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
     with pytest.raises(cv.Invalid, match="not a valid IP address"):
         CONFIG_SCHEMA(_api_config({"host": "homeassistant.local"}))
+
+
+def test_outgoing_connection_rejects_scope_id(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A scope id passes Python's parser but not the device's."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    with pytest.raises(cv.Invalid, match="scope id"):
+        CONFIG_SCHEMA(_api_config({"host": "fe80::1%eth0"}))
+
+
+def test_outgoing_connection_folds_v4_mapped_host(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A v4-mapped host becomes plain IPv4, so it needs no IPv6 build."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    config = CONFIG_SCHEMA(_api_config({"host": "::ffff:192.168.1.2"}))
+    assert config["outgoing_connection"]["host"] == IPv4Address("192.168.1.2")
+    assert FINAL_VALIDATE_SCHEMA(config) is not None
 
 
 def test_outgoing_connection_ipv6_host_requires_ipv6(

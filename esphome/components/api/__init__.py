@@ -1,3 +1,4 @@
+from ipaddress import IPv4Address, IPv6Address
 import logging
 import re
 from typing import Any
@@ -312,9 +313,27 @@ def _validate_outgoing_connection(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_outgoing_host(value: str) -> IPv4Address | IPv6Address:
+    """Only accept an address the device itself can parse.
+
+    Python accepts a scope id, which neither `inet_pton` nor lwIP's `inet6_aton`
+    takes, and a v4-mapped address is dialed as plain IPv4, needing no IPv6 build.
+    """
+    address = cv.ipaddress(value)
+    if isinstance(address, IPv6Address):
+        if address.scope_id is not None:
+            raise cv.Invalid(
+                f"{value} carries a scope id, which the device cannot parse; "
+                "give the address without the '%' part"
+            )
+        if (mapped := address.ipv4_mapped) is not None:
+            return mapped
+    return address
+
+
 _OUTGOING_CONNECTION_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_HOST): cv.ipaddress,
+        cv.Optional(CONF_HOST): _validate_outgoing_host,
         cv.Optional(CONF_PORT, default=6054): cv.port,
         # Waiting past the default reboot_timeout would let the watchdog
         # reboot the device before it ever dials
