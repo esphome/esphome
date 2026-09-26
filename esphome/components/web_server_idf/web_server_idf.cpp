@@ -828,7 +828,7 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
   for (auto &group : ws->sorting_groups_) {
     json::JsonBuilder builder;
     JsonObject root = builder.root();
-    root["name"] = group.second.name;
+    root["name"] = json::linked(group.second.name);
     root["sorting_weight"] = group.second.weight;
     message = builder.serialize();
 
