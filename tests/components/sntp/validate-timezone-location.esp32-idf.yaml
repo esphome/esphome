@@ -1,0 +1,12 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+http_request:
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone:
+      latitude: -33.87
+      longitude: 151.21°

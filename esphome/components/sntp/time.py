@@ -1,14 +1,27 @@
+from collections.abc import Iterator
 import logging
 
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import time as time_
+from esphome.components.http_request import (
+    CONF_HTTP_REQUEST_ID,
+    HttpRequestComponent,
+    validate_url,
+)
+from esphome.components.sun import parse_latlon
 from esphome.config_helpers import merge_config
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_LATITUDE,
+    CONF_LONGITUDE,
     CONF_PLATFORM,
     CONF_SERVERS,
+    CONF_SERVICE,
     CONF_TIME,
+    CONF_TIMEZONE,
+    CONF_UPDATE_INTERVAL,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -16,23 +29,124 @@ from esphome.const import (
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID, EsphomeError
+from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
-from esphome.types import ConfigType
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import ConfigFragmentType, ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["network"]
 
 CONF_SNTP = "sntp"
+CONF_SNTP_ID = "sntp_id"
 
 sntp_ns = cg.esphome_ns.namespace("sntp")
 SNTPComponent = sntp_ns.class_("SNTPComponent", time_.RealTimeClock)
+SetTimezoneAction = sntp_ns.class_(
+    "SetTimezoneAction", automation.Action, cg.Parented.template(SNTPComponent)
+)
 
 DEFAULT_SERVERS = ["0.pool.ntp.org", "1.pool.ntp.org", "2.pool.ntp.org"]
 
+CONF_ZONE = "zone"
+# The esphome-timezone-worker endpoint
+DEFAULT_SERVICE_URL = "https://esphome-timezone.clyde-beb.workers.dev/v1/timezone"
+ZONE_IP = "ip"
+SET_TIMEZONE_ACTION = "time.sntp.set_timezone"
+# Must match SNTPComponent::MAX_ZONE_LENGTH
+MAX_ZONE_LENGTH = 47
 
-def _sntp_final_validate(config: ConfigType) -> None:
+
+def validate_zone(value: object) -> str:
+    """Validate a Region/City zone name, or the token 'ip'."""
+    value = cv.string_strict(value)
+    if value.lower() == ZONE_IP:
+        return ZONE_IP
+    if not time_.is_valid_iana_zone(value):
+        raise cv.Invalid(
+            f"Unknown zone '{value}'. Use '{ZONE_IP}' or a Region/City name from "
+            "https://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
+        )
+    if len(value) > MAX_ZONE_LENGTH:
+        raise cv.Invalid(f"Zone names can be at most {MAX_ZONE_LENGTH} characters")
+    return value
+
+
+validate_latitude = cv.All(parse_latlon, cv.float_range(min=-90, max=90))
+validate_longitude = cv.All(parse_latlon, cv.float_range(min=-180, max=180))
+
+TIMEZONE_SERVICE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
+            cv.Optional(CONF_SERVICE, default=DEFAULT_SERVICE_URL): validate_url,
+            cv.Optional(CONF_ZONE): validate_zone,
+            cv.Inclusive(CONF_LATITUDE, "location"): validate_latitude,
+            cv.Inclusive(CONF_LONGITUDE, "location"): validate_longitude,
+            # The rules rarely change, so a daily fetch is plenty
+            cv.Optional(CONF_UPDATE_INTERVAL, default="24h"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=cv.TimePeriod(minutes=1)),
+            ),
+        }
+    ),
+    cv.has_exactly_one_key(CONF_ZONE, CONF_LATITUDE),
+    # The platforms http_request supports
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2]),
+)
+
+
+def validate_timezone(value: object) -> object:
+    """A POSIX or Region/City timezone fixed at build time, or a service to fetch it from at runtime."""
+    if isinstance(value, dict):
+        return TIMEZONE_SERVICE_SCHEMA(value)
+    return cv.All(
+        cv.only_with_framework(["arduino", "esp-idf", "host"]), time_.validate_tz
+    )(value)
+
+
+def uses_timezone_service(config: ConfigType) -> bool:
+    return isinstance(config.get(CONF_TIMEZONE), dict)
+
+
+def require_timezone_service(config: ConfigType, user: str) -> ConfigType:
+    """Check an sntp time configuration gets its time zone from a service, for something that needs that."""
+    if not uses_timezone_service(config):
+        raise cv.Invalid(
+            f"{user} needs the '{CONF_TIMEZONE}' option to be set to a service, "
+            f"for example '{CONF_TIMEZONE}: {{{CONF_ZONE}: {ZONE_IP}}}'"
+        )
+    return config
+
+
+def _find_actions(items: ConfigFragmentType, name: str) -> Iterator[ConfigType]:
+    """Yield the configuration of every use of an action anywhere in the given configuration."""
+    if isinstance(items, list):
+        for item in items:
+            yield from _find_actions(item, name)
+    elif isinstance(items, dict):
+        for key, value in items.items():
+            if key == name:
+                yield value
+            else:
+                yield from _find_actions(value, name)
+
+
+def _check_set_timezone_actions() -> None:
+    full_conf = fv.full_config.get()
+    sntp_configs = {
+        conf[CONF_ID].id: conf
+        for conf in full_conf.get(CONF_TIME, [])
+        if conf.get(CONF_PLATFORM) == CONF_SNTP
+    }
+    for action in _find_actions(full_conf, SET_TIMEZONE_ACTION):
+        if (sntp_conf := sntp_configs.get(action[CONF_ID].id)) is not None:
+            require_timezone_service(sntp_conf, f"The {SET_TIMEZONE_ACTION} action")
+
+
+def _merge_sntp_configs() -> None:
     """Merge multiple SNTP instances into one, similar to OTA merging behavior."""
     full_conf = fv.full_config.get()
     time_confs = full_conf.get(CONF_TIME, [])
@@ -92,6 +206,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SERVERS, default=DEFAULT_SERVERS): cv.All(
                 cv.ensure_list(cv.Any(cv.domain, cv.hostname)), cv.Length(min=1, max=3)
             ),
+            cv.Optional(CONF_TIMEZONE): validate_timezone,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on(
@@ -106,6 +221,12 @@ CONFIG_SCHEMA = cv.All(
     ),
 )
 
+
+def _sntp_final_validate(config: ConfigType) -> None:
+    _merge_sntp_configs()
+    _check_set_timezone_actions()
+
+
 FINAL_VALIDATE_SCHEMA = _sntp_final_validate
 
 
@@ -119,8 +240,100 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], servers)
 
     await cg.register_component(var, config)
+
+    if uses_timezone_service(config):
+        tz_config = config[CONF_TIMEZONE]
+        cg.add_define("USE_SNTP_TIMEZONE_SERVICE")
+        # Needed by the runtime zone, even if no build time zone is available below
+        cg.add_define("USE_TIME_TIMEZONE")
+        http_request = await cg.get_variable(tz_config[CONF_HTTP_REQUEST_ID])
+        zone = tz_config.get(CONF_ZONE, "")
+        cg.add(
+            var.set_timezone_service(
+                http_request,
+                tz_config[CONF_SERVICE],
+                zone,
+                tz_config[CONF_UPDATE_INTERVAL],
+            )
+        )
+        if CONF_LATITUDE in tz_config:
+            cg.add(
+                var.set_timezone_location(
+                    tz_config[CONF_LATITUDE], tz_config[CONF_LONGITUDE]
+                )
+            )
+        # Until the service answers, use the rules for the configured zone, or for the
+        # zone of the build machine when looking it up by IP address or location
+        if zone in ("", ZONE_IP):
+            try:
+                initial_tz = time_.detect_tz() or ""
+            except EsphomeError:
+                _LOGGER.warning(
+                    "Could not find the time zone of this computer, so UTC is used "
+                    "until the time zone service answers"
+                )
+                initial_tz = ""
+        else:
+            initial_tz = time_.validate_tz(zone)
+        config = {**config, CONF_TIMEZONE: initial_tz}
+
     await time_.register_time(var, config)
 
     if CORE.is_esp8266 and len(servers) > 1:
         # We need LwIP features enabled to get 3 SNTP servers (not just one)
         cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_LOW_MEMORY")
+
+
+SET_TIMEZONE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(SNTPComponent),
+            cv.Optional(CONF_ZONE): cv.templatable(validate_zone),
+            cv.Inclusive(CONF_LATITUDE, "location"): cv.templatable(validate_latitude),
+            cv.Inclusive(CONF_LONGITUDE, "location"): cv.templatable(
+                validate_longitude
+            ),
+        }
+    ),
+    cv.has_exactly_one_key(CONF_ZONE, CONF_LATITUDE),
+)
+
+
+@schema_extractor("maybe")
+def validate_set_timezone(value: object) -> object:
+    """Accept the zone on its own as a shorthand for the `zone` option."""
+    if value == SCHEMA_EXTRACT:
+        return (SET_TIMEZONE_SCHEMA, CONF_ZONE)
+    if isinstance(value, dict):
+        return SET_TIMEZONE_SCHEMA(value)
+    return SET_TIMEZONE_SCHEMA({CONF_ZONE: value})
+
+
+@automation.register_action(
+    SET_TIMEZONE_ACTION,
+    SetTimezoneAction,
+    validate_set_timezone,
+    synchronous=True,
+)
+async def sntp_set_timezone_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    if (zone := config.get(CONF_ZONE)) is not None:
+        cg.add(var.set_zone(await cg.templatable(zone, args, cg.std_string)))
+    else:
+        cg.add(
+            var.set_latitude(
+                await cg.templatable(config[CONF_LATITUDE], args, cg.float_)
+            )
+        )
+        cg.add(
+            var.set_longitude(
+                await cg.templatable(config[CONF_LONGITUDE], args, cg.float_)
+            )
+        )
+    return var

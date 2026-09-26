@@ -1,0 +1,21 @@
+esphome:
+  name: sntp-timezone-location-test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: "testssid"
+  password: "testpassword"
+
+http_request:
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone:
+      service: https://timezone.example.com/v1/timezone
+      latitude: 51.5
+      longitude: -0.12
