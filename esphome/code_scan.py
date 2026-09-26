@@ -17,7 +17,7 @@ from esphome.const import (
     CONF_INCLUDES_C,
     SOURCE_FILE_EXTENSIONS,
 )
-from esphome.core import CORE, Lambda
+from esphome.core import Lambda
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -74,13 +74,13 @@ def includes_use_scanf_float(config: ConfigType) -> bool:
     return False
 
 
-def external_components_use_scanf_float() -> bool:
+def external_components_use_scanf_float(config: ConfigType) -> bool:
     """Whether a component from outside the esphome package scans a float."""
     from esphome.config import iter_components
     from esphome.loader import CORE_COMPONENTS_PATH
 
     package_root = CORE_COMPONENTS_PATH.parent
-    for _, component in iter_components(CORE.config):
+    for _, component in iter_components(config):
         package_dir = Path(component.module.__file__).resolve().parent
         if package_dir.is_relative_to(package_root):
             continue
@@ -98,7 +98,7 @@ def user_code_uses_scanf_float(config: ConfigType) -> bool:
     return (
         lambdas_use_scanf_float(config)
         or includes_use_scanf_float(config)
-        or external_components_use_scanf_float()
+        or external_components_use_scanf_float(config)
     )
 
 
@@ -106,19 +106,21 @@ def keep_float_scanf(
     option: bool | None, config: ConfigType, flash_note: str, override_note: str
 ) -> bool:
     """Resolve a tri-state float-scanf option: unset means "only if user code scans a float"."""
-    if option is None:
-        if not user_code_uses_scanf_float(config):
-            return False
-        _LOGGER.warning(
-            "Lambda, include or external component uses scanf with a float format "
-            "specifier; keeping float scanf support (%s)",
-            flash_note,
-        )
+    if option:
         return True
-    if not option and user_code_uses_scanf_float(config):
+    found = user_code_uses_scanf_float(config)
+    if option is None:
+        if found:
+            _LOGGER.warning(
+                "Lambda, include or external component uses scanf with a float format "
+                "specifier; keeping float scanf support (%s)",
+                flash_note,
+            )
+        return found
+    if found:
         _LOGGER.warning(
             "Float scanf support is disabled but a lambda, include or external "
             "component uses scanf with a float format specifier; %s",
             override_note,
         )
-    return option
+    return False

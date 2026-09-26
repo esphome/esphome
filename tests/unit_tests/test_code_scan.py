@@ -152,7 +152,7 @@ def test_external_components_use_scanf_float(setup_core: Path) -> None:
 
     with patch("esphome.config.get_component", side_effect=lookup.get):
         CORE.config = {"esphome": {}, "sensor": {}, "ext_int": {}}
-        assert external_components_use_scanf_float() is False
+        assert external_components_use_scanf_float(CORE.config) is False
         CORE.config = {"sensor": {}, "ext_float": {}}
-        assert external_components_use_scanf_float() is True
+        assert external_components_use_scanf_float(CORE.config) is True
         assert user_code_uses_scanf_float(CORE.config) is True
