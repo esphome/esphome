@@ -291,17 +291,14 @@ void OutgoingConnectionManager::dump_config() const {
                 "  Outgoing connection port: %u\n"
                 "  Outgoing connection boot delay: %" PRIu32 "ms",
                 API_OUTGOING_CONNECTION_PORT, BOOT_WAIT_MS);
-  // The text stays in the format string so ESP8266 holds it in flash, not RAM
+  // Both forms keep their text out of RAM on ESP8266: in the format string,
+  // or through LOG_STR_LITERAL
 #ifdef API_OUTGOING_CONNECTION_HOST
   ESP_LOGCONFIG(TAG, "  Outgoing connection host: " API_OUTGOING_CONNECTION_HOST);
 #else
   char buf[socket::SOCKADDR_STR_LEN];
   this->format_target_(buf);
-  if (buf[0] == '\0') {
-    ESP_LOGCONFIG(TAG, "  Outgoing connection host: none remembered yet");
-  } else {
-    ESP_LOGCONFIG(TAG, "  Outgoing connection host: %s", buf);
-  }
+  ESP_LOGCONFIG(TAG, "  Outgoing connection host: %s", buf[0] == '\0' ? LOG_STR_LITERAL("none remembered yet") : buf);
 #endif
 }
 
