@@ -19,15 +19,14 @@ from esphome.build_helpers.ccache import (
 from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.core import Version
 from esphome.framework_helpers import (
-    BATCH_EXTRACT_WORKERS,
     PathType,
     create_venv,
     download_and_extract,
     download_from_mirrors,
+    extract_workers,
     failure_reason,
     get_python_env_executable_path,
     get_system_python_path,
-    is_expected_fetch_error,
     resume_fetch_job,
     rmdir,
     run_batch_downloads,
@@ -37,7 +36,7 @@ from esphome.framework_helpers import (
     tool_version_runs,
     warn_batch_failures,
 )
-from esphome.helpers import get_usable_cpu_count, write_file_if_changed
+from esphome.helpers import write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -813,29 +812,24 @@ def _preinstall_idf_tool_archives(
     in parallel. Strictly best-effort: the sequential installer remains the
     authority (see that script's docstring)."""
     try:
-        success, _stdout, _stderr = _run_idf_tools_script(
+        success = _run_idf_tools_script(
             framework_path,
             "install_tool_archives.py",
             "ESP-IDF tool archive extraction",
             args=[
                 targets_str,
-                str(min(get_usable_cpu_count(), BATCH_EXTRACT_WORKERS)),
+                str(extract_workers()),
                 *tools,
             ],
             env=env,
             stream_output=True,
-        )
+        )[0]
         if not success:
             # Detail already streamed to the terminal by the script; a
             # surviving torn dir prints its own guidance there
             _LOGGER.warning("ESP-IDF tool pre-extraction failed; see above")
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        # A programming error keeps its traceback at WARNING
-        _LOGGER.warning(
-            "ESP-IDF tool pre-extraction failed: %s",
-            failure_reason(e),
-            exc_info=None if is_expected_fetch_error(e) else e,
-        )
+        _LOGGER.warning("ESP-IDF tool pre-extraction failed: %s", failure_reason(e))
         _LOGGER.debug("Pre-extraction failure detail", exc_info=True)
 
 

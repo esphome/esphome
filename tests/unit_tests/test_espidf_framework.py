@@ -2059,7 +2059,7 @@ def test_preinstall_streams_script_with_workers(tmp_path: Path) -> None:
             "esphome.espidf.framework._run_idf_tools_script",
             return_value=(True, None, None),
         ) as run_script,
-        patch("esphome.espidf.framework.get_usable_cpu_count", return_value=3),
+        patch("esphome.framework_helpers.get_usable_cpu_count", return_value=3),
     ):
         _preinstall_idf_tool_archives(
             tmp_path, "esp32,esp32c3", ["required", "cmake"], {"IDF_TOOLS_PATH": "x"}
@@ -2081,10 +2081,12 @@ def test_preinstall_caps_workers(tmp_path: Path) -> None:
             "esphome.espidf.framework._run_idf_tools_script",
             return_value=(True, None, None),
         ) as run_script,
-        patch("esphome.espidf.framework.get_usable_cpu_count", return_value=64),
+        patch("esphome.framework_helpers.get_usable_cpu_count", return_value=64),
     ):
         _preinstall_idf_tool_archives(tmp_path, "esp32", ["required"], None)
-    assert run_script.call_args.kwargs["args"][1] == "10"
+    from esphome.framework_helpers import BATCH_EXTRACT_WORKERS
+
+    assert run_script.call_args.kwargs["args"][1] == str(BATCH_EXTRACT_WORKERS)
 
 
 def test_preinstall_script_failure_only_warns(
@@ -2096,7 +2098,7 @@ def test_preinstall_script_failure_only_warns(
             "esphome.espidf.framework._run_idf_tools_script",
             return_value=(False, None, None),
         ),
-        patch("esphome.espidf.framework.get_usable_cpu_count", return_value=1),
+        patch("esphome.framework_helpers.get_usable_cpu_count", return_value=1),
     ):
         _preinstall_idf_tool_archives(tmp_path, "esp32", ["required"], None)
     assert "pre-extraction failed" in caplog.text
@@ -2105,18 +2107,22 @@ def test_preinstall_script_failure_only_warns(
 def test_preinstall_exception_only_warns(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """An unexpected error must not become a new way for the install to fail,
-    and keeps its traceback at WARNING."""
+    """An unexpected error must not become a new way for the install to
+    fail, and keeps its traceback at DEBUG like the prefetch sibling."""
     with (
+        caplog.at_level(logging.DEBUG),
         patch(
             "esphome.espidf.framework._run_idf_tools_script",
             side_effect=TypeError("bad call"),
         ),
-        patch("esphome.espidf.framework.get_usable_cpu_count", return_value=1),
+        patch("esphome.framework_helpers.get_usable_cpu_count", return_value=1),
     ):
         _preinstall_idf_tool_archives(tmp_path, "esp32", ["required"], None)
-    record = next(r for r in caplog.records if "pre-extraction failed" in r.message)
-    assert record.exc_info is not None
+    assert any("pre-extraction failed" in r.message for r in caplog.records)
+    detail = next(
+        r for r in caplog.records if r.message == "Pre-extraction failure detail"
+    )
+    assert detail.exc_info is not None
 
 
 # ---------------------------------------------------------------------------
@@ -2167,7 +2173,7 @@ def test_install_tool_archives_single_pending_stays_sequential(
     out = capsys.readouterr().out
     assert "Extracting" not in out
     # A resolution drift that empties pending stays observable
-    assert "1 of 2 uninstalled tool(s) have a prefetched archive" in out
+    assert "1 prefetched tool archive(s)" in out
 
 
 def test_install_tool_archives_failed_install_left_to_installer(
@@ -2175,13 +2181,16 @@ def test_install_tool_archives_failed_install_left_to_installer(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A per-tool failure warns, removes the torn dest dir so the installer
-    cannot trust it, and moves on; the other tools still install."""
+    """A per-tool failure removes the torn dest dir so the installer cannot
+    trust it, and the other tools still install; the nonzero exit lets the
+    caller point at the streamed detail."""
     _make_dist(tmp_path, "cmake.tar.gz", "ninja-v1.zip")
     monkeypatch.setenv("TEST_FAIL_INSTALL", "ninja")
-    _run_espidf_script_inprocess(
-        tmp_path, monkeypatch, "install_tool_archives.py", "esp32", "4", "required"
-    )
+    with pytest.raises(SystemExit) as excinfo:
+        _run_espidf_script_inprocess(
+            tmp_path, monkeypatch, "install_tool_archives.py", "esp32", "4", "required"
+        )
+    assert excinfo.value.code == 1
     tools = tmp_path / "tp" / "tools"
     assert (tools / "cmake" / "3.30.2" / ".installed").is_file()
     assert not (tools / "ninja" / "1.12.1").exists()
@@ -2283,6 +2292,4 @@ def test_install_tool_archives_skips_unverifiable_archives(
         tmp_path, monkeypatch, "install_tool_archives.py", "esp32", "4", "required"
     )
     assert not (tmp_path / "tp" / "tools").exists()
-    assert "0 of 2 uninstalled tool(s) have a prefetched archive" in (
-        capsys.readouterr().out
-    )
+    assert "0 prefetched tool archive(s)" in (capsys.readouterr().out)

@@ -14,6 +14,7 @@ the prefetch's sha256 verification, not re-hashed here.
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import sys
+from typing import Any
 
 from _tool_resolution import archive_name, init_idf_tools, iter_tool_downloads
 from idf_tools import ToolBinaryError, g
@@ -23,9 +24,8 @@ from esphome.helpers import rmtree
 
 def collect_pending(
     targets_csv: str, tool_specs: list[str]
-) -> tuple[dict[tuple[str, str], object], int]:
-    """The {(name, version): tool} jobs whose verified archive is on disk,
-    and how many distinct uninstalled tools were resolved overall."""
+) -> dict[tuple[str, str], Any]:
+    """The {(name, version): tool} jobs whose verified archive is on disk."""
     dist_path = Path(g.idf_tools_path) / "dist"
 
     def on_broken(name: str, e: ToolBinaryError) -> bool:
@@ -33,28 +33,22 @@ def collect_pending(
         print(f"leaving broken {name} to the installer: {e}", file=sys.stderr)
         return False
 
-    pending: dict[tuple[str, str], object] = {}
-    resolved: set[tuple[str, str]] = set()
+    pending: dict[tuple[str, str], Any] = {}
     for tool, name, version, download in iter_tool_downloads(
         targets_csv, tool_specs, on_broken
     ):
-        resolved.add((name, version))
         # Mirror the prefetch: an entry it could not verify is never trusted
         if not (download.sha256 and download.size):
             continue
         # Trusted as-is: the prefetch verifies archives at their final name,
         # and the installer redoes anything this pass fails on
-        if (name, version) in pending or not (
-            dist_path / archive_name(download)
-        ).is_file():
-            continue
-        pending[(name, version)] = tool
-    return pending, len(resolved)
+        if (dist_path / archive_name(download)).is_file():
+            pending[(name, version)] = tool
+    return pending
 
 
-def install_one(tool: object, name: str, version: str) -> bool | None:
-    """True on success, False on a cleaned-up failure, None when the torn
-    dest dir survived and could fool the installer's binary probe."""
+def install_one(tool: Any, name: str, version: str) -> bool:
+    """Whether the tool was extracted; a failure is left to the installer."""
     try:
         tool.install(version)
     # check_binary_valid exits via SystemExit; the installer redoes failures
@@ -79,7 +73,6 @@ def install_one(tool: object, name: str, version: str) -> bool | None:
                 "fails",
                 file=sys.stderr,
             )
-            return None
         return False
     # Per-tool completion keeps the multi-minute unpack phase visibly alive
     print(f"extracted {name}@{version}", flush=True)
@@ -89,13 +82,11 @@ def install_one(tool: object, name: str, version: str) -> bool | None:
 def main() -> None:
     _script, idf_framework_root, targets_csv, workers_str, *tool_specs = sys.argv
     init_idf_tools(idf_framework_root)
-    pending, resolved = collect_pending(targets_csv, tool_specs)
+    pending = collect_pending(targets_csv, tool_specs)
     if len(pending) < 2:
-        # Nothing to parallelize; the count makes a naming/resolution drift
-        # that would silently disable this pass observable
+        # Nothing to parallelize; the installer takes them
         print(
-            f"{len(pending)} of {resolved} uninstalled tool(s) have a "
-            "prefetched archive; leaving them to the installer",
+            f"{len(pending)} prefetched tool archive(s); leaving them to the installer",
             flush=True,
         )
         return
@@ -106,24 +97,20 @@ def main() -> None:
         + ", ".join(f"{name}@{version}" for name, version in pending),
         flush=True,
     )
-    with ThreadPoolExecutor(max_workers=workers) as ex:
+    ex = ThreadPoolExecutor(max_workers=workers)
+    try:
         futures = [
             ex.submit(install_one, tool, name, version)
             for (name, version), tool in pending.items()
         ]
-        try:
-            results = [future.result() for future in futures]
-        except BaseException:  # pragma: no cover
-            # Ctrl-C: drop queued extractions; in-flight ones finish whole
-            ex.shutdown(wait=True, cancel_futures=True)
-            raise
-    # A survivor could fool the installer; every job failing is systematic.
-    # Either way a nonzero exit makes the caller warn
-    failed = sum(result is not True for result in results)
-    if failed:
+        results = [future.result() for future in futures]
+    finally:
+        # Ctrl-C drops queued extractions; in-flight ones finish whole
+        ex.shutdown(wait=True, cancel_futures=True)
+    if failed := sum(not result for result in results):
+        # Nonzero exit makes the caller warn; the installer redoes these
         print(f"{failed} of {len(results)} pre-extractions failed", file=sys.stderr)
-        if None in results or failed == len(results):
-            sys.exit(1)
+        sys.exit(1)
 
 
 main()
