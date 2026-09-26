@@ -877,6 +877,11 @@ def run_compile(args, config: ConfigType) -> bool:
         "-d",
         str(build_dir),
         str(source_dir),
+        "--",
+        # Zephyr picks the optimization level through Kconfig, so the CMake build
+        # type only adds the -DNDEBUG that keeps libc assert() out of the image.
+        # The picolibc module used to force it whenever it was in the SDK.
+        "-DCMAKE_BUILD_TYPE=MinSizeRel",
     ]
 
     if not run_command_ok(

@@ -1,5 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.nrf52.framework import include_west_project
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, Framework
@@ -36,6 +37,8 @@ _CALLBACK_AUTOMATIONS = (
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     zephyr_add_prj_conf("BT", True)
+    # Bluetooth's crypto uses TinyCrypt
+    include_west_project("tinycrypt")
     zephyr_add_prj_conf("BT_PERIPHERAL", True)
     zephyr_add_prj_conf("BT_RX_STACK_SIZE", 1536)
     zephyr_add_prj_conf("BT_DEVICE_NAME", CORE.name)
