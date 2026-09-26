@@ -843,6 +843,22 @@ def test_install_packages_single_archive_stays_sequential(tmp_path: Path) -> Non
         assert "extract_progress" not in c[1]
 
 
+def test_install_packages_no_batch_logs_no_header(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The batch header must not describe a batch that never ran."""
+    dl = tmp_path / "dl"
+    dl.mkdir()
+    specs = [_spec("a", "1.0", tmp_path / "a")]
+    with (
+        caplog.at_level(logging.INFO),
+        patch.object(registry, "install_package"),
+    ):
+        registry.install_packages(specs, dl)
+    assert "Extracting 0" not in caplog.text
+    assert "package archive(s) with" not in caplog.text
+
+
 def test_install_packages_mirror_and_marker_stay_sequential(tmp_path: Path) -> None:
     """Mirror overrides and marker hits never enter the parallel batch."""
     dl = tmp_path / "dl"
@@ -899,8 +915,9 @@ def _batched_install(
     tmp_path: Path,
     extract_progress: Callable[[float], None] | None,
     prefill_archive: bool = True,
-) -> Iterator[MagicMock]:
-    """Run a batched install_package of pkg@1.0.0; yields the download mock."""
+) -> Iterator[tuple[MagicMock, MagicMock]]:
+    """Run a batched install_package of pkg@1.0.0; yields the download and
+    extract mocks."""
     dest = tmp_path / "pkg"
     if prefill_archive:
         (tmp_path / "dl").mkdir()

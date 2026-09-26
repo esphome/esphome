@@ -195,11 +195,29 @@ def _already_installed(dest: Path) -> bool:
     return (dest / ".esphome_extracted").is_file()
 
 
+def _batched_download_progress(
+    name: str, version: str, extract_progress: Callable[[float], None]
+) -> Callable[[int], None]:
+    """Zero-tick tracker for a batched install. A verified archive credits
+    itself in one tick; anything else is a real download behind a bar that
+    cannot move, so say so once."""
+    announced = False
+
+    def progress(done: int) -> None:
+        nonlocal announced
+        if not announced and not done:
+            _LOGGER.info("Re-downloading %s %s ...", name, version)
+            announced = True
+        extract_progress(0.0)
+
+    return progress
+
+
 def prefetch_packages(packages: Collection[PackageSpec], downloads_dir: Path) -> None:
     """Download pending package archives in parallel under one combined bar.
 
-    ``expect`` is unused here. Purely
-    an optimization: ``install_package`` verifies every archive and
+    ``packages`` holds one ``PackageSpec`` per package, the same list the
+    install pass takes; ``expect`` is unused here. Purely an optimization: ``install_package`` verifies every archive and
     re-downloads anything this pass left unfinished. Mirror overrides and
     registry entries without a size stay on the sequential path so its
     per-file bars remain trustworthy. Each fetch holds the same per-dest
@@ -327,14 +345,11 @@ def install_package(
         # Persistent location so an interrupted download resumes across runs.
         downloads_dir.mkdir(parents=True, exist_ok=True)
         archive = _archive_path(downloads_dir, name, version)
-        # Batch header names each package; keep INFO when an archive
-        # unexpectedly needs a real download (the shared bar won't move)
-        log = (
-            _LOGGER.debug
-            if extract_progress is not None and archive.is_file()
-            else _LOGGER.info
-        )
-        log("Downloading %s %s ...", name, version)
+        # Batched runs are announced by the batch header; a real
+        # download there is announced by the tracker below instead
+        batched = extract_progress is not None and archive.is_file()
+        if not batched:
+            _LOGGER.info("Downloading %s %s ...", name, version)
         if mirrors:
             _LOGGER.warning(
                 "Downloading %s from a mirror override; checksum verification "
@@ -351,13 +366,15 @@ def install_package(
                 archive,
                 sha256=sha256,
                 size=size,
-                # Zero ticks only: the shared bar must never run backwards,
-                # but run_batch_downloads observes cancellation on a tick
+                # Zero ticks only: the shared bar must never run
+                # backwards, but run_batch_downloads observes cancellation
+                # on a tick
                 progress=None
                 if extract_progress is None
-                else lambda _done: extract_progress(0.0),
+                else _batched_download_progress(name, version, extract_progress),
             )
-        log("Extracting %s ...", name)
+        if not batched:
+            _LOGGER.info("Extracting %s ...", name)
         archive_extract_all(
             archive, dest, progress_header="Extracting", progress=extract_progress
         )
@@ -391,13 +408,6 @@ def install_packages(specs: Collection[PackageSpec], downloads_dir: Path) -> Non
         # One archive alone gains nothing from a pool
         rest = list(specs)
         pending = []
-    workers = extract_workers(len(pending))
-    _LOGGER.info(
-        "Extracting %d package archive(s) with %d worker(s): %s",
-        len(pending),
-        workers,
-        ", ".join(spec[0] for spec, _ in pending),
-    )
 
     def _install(spec: PackageSpec, size: int, tracker: Callable[[int], None]) -> None:
         name, version, dest, mirrors, expect = spec
@@ -412,6 +422,13 @@ def install_packages(specs: Collection[PackageSpec], downloads_dir: Path) -> Non
         )
 
     if pending:
+        workers = extract_workers(len(pending))
+        _LOGGER.info(
+            "Extracting %d package archive(s) with %d worker(s): %s",
+            len(pending),
+            workers,
+            ", ".join(spec.name for spec, _ in pending),
+        )
         failures = run_batch_downloads(
             "Extracting packages",
             [(spec[0], size, partial(_install, spec, size)) for spec, size in pending],
