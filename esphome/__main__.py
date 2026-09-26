@@ -48,8 +48,11 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     ENV_NOGITIGNORE,
+    KEY_CORE,
     KEY_ESP32,
+    KEY_TARGET_PLATFORM,
     KEY_VARIANT,
+    PLATFORM_HOST,
     SECRETS_FILES,
     Toolchain,
 )
@@ -68,6 +71,7 @@ from esphome.util import (
     get_serial_ports,
     is_picotool_usb_permission_error,
     list_yaml_files,
+    read_secret_line,
     run_external_command,
     run_external_process,
     safe_print,
@@ -1219,13 +1223,27 @@ def upload_program(
     config: ConfigType, args: ArgsProtocol, devices: list[str]
 ) -> tuple[int, str | None]:
     host = devices[0]
+    port_type = get_port_type(host)
+    ota_key = getattr(args, "ota_key", None)
+    if ota_key and port_type in (PortType.SERIAL, PortType.BOOTSEL):
+        _LOGGER.warning(
+            "The presented OTA key only applies to network uploads; ignored for %s",
+            host,
+        )
+
     platform_upload = platform_hooks.get_platform_hook(
         CORE.target_platform, "upload_program"
     )
     if platform_upload is not None and platform_upload(config, args, host):
+        if ota_key and port_type not in (PortType.SERIAL, PortType.BOOTSEL):
+            # A platform's own network path (nrf52 mcumgr) has no key handshake
+            _LOGGER.warning(
+                "The presented OTA key only applies to the %s OTA platform; "
+                "ignored for %s",
+                CONF_ESPHOME,
+                host,
+            )
         return 0, host
-
-    port_type = get_port_type(host)
 
     # MQTT and MQTTIP are also OTA paths; MQTTIP gets resolved to a real IP later by
     # _resolve_network_devices(). Only SERIAL and BOOTSEL are non-OTA upload paths.
@@ -1269,6 +1287,8 @@ def upload_program(
     network_devices = _resolve_network_devices(devices, config, args)
 
     if chosen_platform == CONF_WEB_SERVER:
+        if ota_key:
+            raise EsphomeError(OTA_KEY_PLATFORM_ERROR)
         if is_partition_table or is_bootloader:
             raise EsphomeError(
                 f"{option_string} is only supported with the esphome OTA platform; "
@@ -1280,6 +1300,16 @@ def upload_program(
         return _upload_via_web_server(config, network_devices, binary)
 
     return _upload_via_native_api(config, network_devices, args)
+
+
+def _ota_upload_platforms(config: ConfigType) -> dict[str, None]:
+    """The network OTA platforms the config provides, one entry each, in
+    config order; the web_server final-validate hook merges duplicates."""
+    return {
+        platform: None
+        for ota_item in config.get(CONF_OTA, [])
+        if (platform := ota_item.get(CONF_PLATFORM)) in (CONF_ESPHOME, CONF_WEB_SERVER)
+    }
 
 
 def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
@@ -1295,16 +1325,7 @@ def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
     sent uncompressed regardless of which platform is used.) Falls back to
     ``web_server`` only when that is the only available platform.
     """
-    # Use a dict (insertion-ordered) instead of a list so error messages and
-    # membership checks see one entry per platform even if the user has
-    # multiple ``ota:`` items of the same platform; the web_server OTA
-    # platform's final-validate hook merges duplicates anyway.
-    available: dict[str, None] = {}
-    for ota_item in config.get(CONF_OTA, []):
-        platform = ota_item.get(CONF_PLATFORM)
-        if platform in (CONF_ESPHOME, CONF_WEB_SERVER):
-            available[platform] = None
-
+    available = _ota_upload_platforms(config)
     if not available:
         raise EsphomeError(
             f"Cannot upload Over the Air as the {CONF_OTA} configuration is not "
@@ -1344,7 +1365,12 @@ def _upload_via_native_api(
     noise_psk = None
     plaintext_fallback = False
     allow_plaintext_upload = False
-    if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
+    if ota_key := getattr(args, "ota_key", None):
+        # The user presents a key the device still runs instead of the
+        # configured one (a key change in progress); an explicit key never
+        # downgrades to plaintext
+        noise_psk = ota_key
+    elif (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
         noise_psk = encryption_conf.get(CONF_KEY)
         allow_plaintext_upload = bool(
             encryption_conf.get(espota2.CONF_ALLOW_PLAINTEXT_UPLOAD)
@@ -1734,7 +1760,58 @@ def _host_program_path(config: ConfigType) -> str:
     return str(get_idedata(config).firmware_elf_path)
 
 
+ENV_OTA_KEY = "ESPHOME_OTA_KEY"
+OTA_KEY_PLATFORM_ERROR = (
+    f"--prompt-ota-key and {ENV_OTA_KEY} only apply to the {CONF_ESPHOME} OTA "
+    "platform; to flash by serial instead, name the port with --device"
+)
+
+
+def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
+    """Take the key to present to the device for this upload, from the
+    prompt or from ESPHOME_OTA_KEY, before any compile so the prompt is
+    not buried in build output."""
+    prompt = getattr(args, "prompt_ota_key", False)
+    env_key = getattr(args, "env_ota_key", None)
+    if not prompt and env_key is None:
+        return
+    if CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_HOST:
+        _LOGGER.warning("A host program runs locally; the presented OTA key is ignored")
+        return
+    # The HTTP path has no key handshake; decide before prompting or
+    # compiling. A serial target is a serial flash: the key is not even
+    # asked for, and --ota-platform means nothing to it.
+    devices = getattr(args, "device", None) or []
+    serial_target = bool(devices) and (
+        devices[0] == "SERIAL"
+        or get_port_type(devices[0]) in (PortType.SERIAL, PortType.BOOTSEL)
+    )
+    chosen = (
+        _choose_ota_platform(config, getattr(args, "ota_platform", None))
+        if not serial_target and _ota_upload_platforms(config)
+        else None
+    )
+    if chosen == CONF_WEB_SERVER:
+        raise EsphomeError(OTA_KEY_PLATFORM_ERROR)
+    from esphome.components.noise import validate_encryption_key
+    from esphome.config_validation import Invalid
+
+    if serial_target:
+        _LOGGER.warning(
+            "The presented OTA key only applies to network uploads; ignored for %s",
+            devices[0],
+        )
+        return
+    key = read_secret_line("OTA encryption key: ") if prompt else env_key
+    try:
+        validate_encryption_key(key)
+    except Invalid as err:
+        raise EsphomeError(f"Invalid OTA encryption key: {err}") from err
+    args.ota_key = key
+
+
 def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
+    _read_ota_key(args, config)
     # Get devices, resolving special identifiers like OTA
     devices = choose_upload_log_host(
         default=args.device,
@@ -1770,6 +1847,7 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
+    _read_ota_key(args, config)
     exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
@@ -2291,6 +2369,15 @@ def _add_states_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+ARGUMENT_HELP_PROMPT_OTA_KEY = (
+    "Ask for the OTA encryption key to present to the device instead of using "
+    "the one in the configuration, for a device that still runs a previous key. "
+    "The key is read without echo, or as one line from stdin when that is not "
+    "a terminal; it is never taken from the command line. A calling program "
+    f"can hand the key over in the {ENV_OTA_KEY} environment variable instead."
+)
+
+
 def parse_args(argv):
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument(
@@ -2447,6 +2534,11 @@ def parse_args(argv):
         action="store_true",
     )
     parser_upload.add_argument(
+        "--prompt-ota-key",
+        action="store_true",
+        help=ARGUMENT_HELP_PROMPT_OTA_KEY,
+    )
+    parser_upload.add_argument(
         "--bootloader",
         help="Upload as bootloader (OTA).",
         action="store_true",
@@ -2524,6 +2616,11 @@ def parse_args(argv):
             f"cleartext on the wire. Falls back to '{CONF_WEB_SERVER}' "
             "(HTTP Basic auth) when that is the only configured platform."
         ),
+    )
+    parser_run.add_argument(
+        "--prompt-ota-key",
+        action="store_true",
+        help=ARGUMENT_HELP_PROMPT_OTA_KEY,
     )
 
     parser_clean = subparsers.add_parser(
@@ -2719,6 +2816,23 @@ def run_esphome(argv):
         args.log_level = "CRITICAL"
 
     setup_log(log_level=args.log_level)
+    # Taken out of the environment before any command runs, so no build
+    # tool inherits a key a calling program handed over
+    args.env_ota_key = os.environ.pop(ENV_OTA_KEY, None)
+    if args.command in ("upload", "run"):
+        # One key is one device's; several configs run in child processes
+        # that would never see it
+        if (args.env_ota_key is not None or args.prompt_ota_key) and len(
+            args.configuration
+        ) > 1:
+            raise EsphomeError(
+                f"--prompt-ota-key and {ENV_OTA_KEY} take one configuration; "
+                f"{len(args.configuration)} were given"
+            )
+    elif args.env_ota_key is not None:
+        _LOGGER.warning(
+            "%s is set but the %s command does not use it", ENV_OTA_KEY, args.command
+        )
     _warn_if_source_tree_mismatch()
 
     if args.command in PRE_CONFIG_ACTIONS:

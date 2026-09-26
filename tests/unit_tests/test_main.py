@@ -25,6 +25,7 @@ from esphome.__main__ import (
     Purpose,
     _get_configured_xtal_freq,
     _make_crystal_freq_callback,
+    _read_ota_key,
     _redact_with_legacy_fallback,
     _resolve_network_devices,
     _should_subscribe_states,
@@ -45,6 +46,7 @@ from esphome.__main__ import (
     command_rename,
     command_run,
     command_update_all,
+    command_upload,
     command_wizard,
     compile_program,
     detect_external_components,
@@ -127,6 +129,7 @@ from esphome.espota2 import (
 )
 from esphome.platformio import toolchain
 from esphome.types import ConfigType
+from esphome.upload_targets import PortType
 from esphome.util import BootselResult, FlashImage
 from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
@@ -1550,6 +1553,9 @@ class MockArgs:
     partition_table: bool = False
     bootloader: bool = False
     states: bool | None = None
+    prompt_ota_key: bool = False
+    ota_key: str | None = None
+    env_ota_key: str | None = None
 
 
 def test_upload_program_serial_esp32(
@@ -2223,6 +2229,359 @@ def test_upload_program_ota_allow_plaintext_upload(
     }
 
 
+@pytest.mark.parametrize(
+    "ota_conf",
+    [
+        {
+            CONF_ENCRYPTION: {
+                CONF_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+                "allow_plaintext_upload": True,
+            }
+        },
+        {},
+    ],
+    ids=["with_encryption_block", "without_encryption_block"],
+)
+def test_upload_program_ota_prompted_key_is_presented(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+    ota_conf: dict[str, Any],
+) -> None:
+    """A prompted key replaces whatever the config holds for this upload and
+    never downgrades, whatever the config allows."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    old_key = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
+    config = {
+        CONF_API: {
+            CONF_ENCRYPTION: {CONF_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}
+        },
+        CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232, **ota_conf}],
+    }
+    exit_code, _ = upload_program(config, MockArgs(ota_key=old_key), ["192.168.1.100"])
+
+    assert exit_code == 0
+    assert mock_run_ota.call_args.args[5] == old_key
+    assert mock_run_ota.call_args.kwargs == {
+        "plaintext_fallback": False,
+        "allow_plaintext_upload": False,
+    }
+
+
+def test_upload_program_serial_ignores_prompted_key(
+    mock_upload_using_esptool: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A serial upload has no handshake to present the key to."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = PortType.SERIAL
+    mock_upload_using_esptool.return_value = 0
+
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232}]}
+    with (
+        patch("esphome.__main__.check_permissions"),
+        caplog.at_level(logging.WARNING),
+    ):
+        exit_code, _ = upload_program(config, MockArgs(ota_key="key"), ["/dev/ttyUSB0"])
+
+    assert exit_code == 0
+    assert any("ignored for /dev/ttyUSB0" in r.message for r in caplog.records)
+
+
+def test_command_run_prompts_for_ota_key_before_compile() -> None:
+    """The prompt comes first so it is not buried in minutes of build output."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, platform=PLATFORM_ESP32
+    )
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(prompt_ota_key=True)
+    calls: list[str] = []
+
+    def read(prompt: str) -> str:
+        calls.append("prompt")
+        return key
+
+    def compile_program(*_: Any) -> int:
+        calls.append("compile")
+        assert args.ota_key == key
+        return 1  # stop before the upload
+
+    with (
+        patch("esphome.__main__.read_secret_line", side_effect=read),
+        patch("esphome.__main__.write_cpp", return_value=0),
+        patch("esphome.__main__.compile_program", side_effect=compile_program),
+    ):
+        assert command_run(args, CORE.config) == 1
+    assert calls == ["prompt", "compile"]
+
+
+def test_upload_program_platform_hook_ignores_prompted_key(
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A platform's own network upload path (nrf52 mcumgr) has no key
+    handshake; the key is dropped with a warning, never silently."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232}]}
+    with (
+        patch(
+            "esphome.__main__.platform_hooks.get_platform_hook",
+            return_value=lambda *_: True,
+        ),
+        caplog.at_level(logging.WARNING),
+    ):
+        exit_code, host = upload_program(config, MockArgs(ota_key="key"), ["dev.local"])
+
+    assert (exit_code, host) == (0, "dev.local")
+    assert any("ignored for dev.local" in r.message for r in caplog.records)
+
+
+def test_command_upload_reads_the_ota_key_first() -> None:
+    """The upload command takes the key before choosing a device, like run."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, platform=PLATFORM_ESP32
+    )
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(prompt_ota_key=True)
+    args.device = None
+    with (
+        patch("esphome.__main__.read_secret_line", return_value=key),
+        patch("esphome.__main__.choose_upload_log_host", return_value=["dev.local"]),
+        patch(
+            "esphome.__main__.upload_program", return_value=(0, "dev.local")
+        ) as upload,
+    ):
+        assert command_upload(args, CORE.config) == 0
+    assert args.ota_key == key
+    upload.assert_called_once()
+
+
+def test_read_ota_key_stores_prompted_key() -> None:
+    """The key lands on args and never in argv."""
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(prompt_ota_key=True)
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}
+    with patch("esphome.__main__.read_secret_line", return_value=key) as read:
+        _read_ota_key(args, config)
+    read.assert_called_once_with("OTA encryption key: ")
+    assert args.ota_key == key
+
+
+def test_read_ota_key_not_requested() -> None:
+    args = MockArgs()
+    with patch("esphome.__main__.read_secret_line") as read:
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    read.assert_not_called()
+    assert args.ota_key is None
+
+
+def test_read_ota_key_from_environment() -> None:
+    """A calling program hands the key over in the environment."""
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(env_ota_key=key)
+    with patch("esphome.__main__.read_secret_line") as read:
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    read.assert_not_called()
+    assert args.ota_key == key
+
+
+def test_read_ota_key_empty_environment_value_is_an_error() -> None:
+    """An exported empty value is a failed lookup upstream, not "unset"."""
+    args = MockArgs(env_ota_key="")
+    with pytest.raises(EsphomeError, match="Invalid OTA encryption key"):
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+
+
+def test_read_ota_key_prompt_wins_over_environment() -> None:
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(
+        prompt_ota_key=True, env_ota_key="AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
+    )
+    with patch("esphome.__main__.read_secret_line", return_value=key):
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    assert args.ota_key == key
+
+
+def test_read_ota_key_without_ota_block_is_left_to_the_upload() -> None:
+    """A serial flash config has no OTA; the key is ignored with a warning
+    at upload time instead of refusing here."""
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(prompt_ota_key=True)
+    with patch("esphome.__main__.read_secret_line", return_value=key):
+        _read_ota_key(args, {})
+    assert args.ota_key == key
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["esphome", "run", "--prompt-ota-key", "a.yaml", "b.yaml"],
+        ["esphome", "upload", "a.yaml", "b.yaml"],
+    ],
+    ids=["prompt", "environment"],
+)
+def test_run_esphome_refuses_one_key_for_several_configs(
+    monkeypatch: pytest.MonkeyPatch, argv: list[str]
+) -> None:
+    """Several configs run in child processes that never see the key."""
+    from esphome.__main__ import run_esphome
+
+    if "--prompt-ota-key" not in argv:
+        monkeypatch.setenv("ESPHOME_OTA_KEY", "x")
+    with pytest.raises(EsphomeError, match="take one configuration; 2 were given"):
+        run_esphome(argv)
+
+
+def test_run_esphome_only_warns_for_a_command_with_one_string_config(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The wizard takes one config as a string; only upload and run count."""
+    from esphome.__main__ import run_esphome
+
+    monkeypatch.setenv("ESPHOME_OTA_KEY", "x")
+    wizard = Mock(return_value=0)
+    with (
+        patch.dict("esphome.__main__.PRE_CONFIG_ACTIONS", {"wizard": wizard}),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert run_esphome(["esphome", "wizard", "living-room.yaml"]) == 0
+    assert any("does not use it" in r.message for r in caplog.records)
+
+
+def test_run_esphome_scrubs_the_key_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Every command takes the key out before any tool it runs could see it."""
+    from esphome.__main__ import run_esphome
+
+    monkeypatch.setenv("ESPHOME_OTA_KEY", "x")
+    version = Mock(return_value=0)
+    with (
+        patch.dict("esphome.__main__.PRE_CONFIG_ACTIONS", {"version": version}),
+        caplog.at_level(logging.WARNING),
+    ):
+        run_esphome(["esphome", "version"])
+    assert "ESPHOME_OTA_KEY" not in os.environ
+    assert version.call_args.args[0].env_ota_key == "x"
+    # A command that never uploads says so rather than dropping it silently
+    assert any("does not use it" in r.message for r in caplog.records)
+
+
+@pytest.mark.parametrize("line", ["", "not-base64"], ids=["empty", "invalid"])
+def test_read_ota_key_rejects_bad_input(line: str) -> None:
+    args = MockArgs(prompt_ota_key=True)
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}
+    with (
+        patch("esphome.__main__.read_secret_line", return_value=line),
+        pytest.raises(EsphomeError, match="Invalid OTA encryption key"),
+    ):
+        _read_ota_key(args, config)
+    assert args.ota_key is None
+
+
+@pytest.mark.parametrize(
+    ("device", "port_type", "ota_platform"),
+    [
+        ("/dev/ttyUSB0", PortType.SERIAL, None),
+        ("/dev/ttyUSB0", PortType.SERIAL, CONF_WEB_SERVER),
+        ("SERIAL", PortType.NETWORK, None),
+    ],
+    ids=["port", "port_with_ota_platform", "selector"],
+)
+def test_read_ota_key_lets_a_serial_target_through(
+    mock_get_port_type: Mock,
+    caplog: pytest.LogCaptureFixture,
+    device: str,
+    port_type: PortType,
+    ota_platform: str | None,
+) -> None:
+    """A serial flash of a web_server only config is not refused, whatever
+    --ota-platform says; the key is not asked for and the user is told it is
+    ignored. The SERIAL selector only resolves to a port later, so it counts
+    by name."""
+    mock_get_port_type.return_value = port_type
+    args = MockArgs(prompt_ota_key=True, ota_platform=ota_platform)
+    args.device = [device]
+    with (
+        patch("esphome.__main__.read_secret_line") as read,
+        caplog.at_level(logging.WARNING),
+    ):
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}]})
+    read.assert_not_called()
+    assert args.ota_key is None
+    assert any(f"ignored for {device}" in r.message for r in caplog.records)
+
+
+def test_read_ota_key_ignored_for_a_host_build(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A host run never uploads, so nothing is asked for."""
+    setup_core(platform=PLATFORM_HOST)
+    args = MockArgs(prompt_ota_key=True)
+    with (
+        patch("esphome.__main__.read_secret_line") as read,
+        caplog.at_level(logging.WARNING),
+    ):
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    read.assert_not_called()
+    assert args.ota_key is None
+    assert any("host program" in r.message for r in caplog.records)
+
+
+def test_read_ota_key_reports_a_bad_platform_before_prompting() -> None:
+    args = MockArgs(prompt_ota_key=True, ota_platform=CONF_WEB_SERVER)
+    with (
+        patch("esphome.__main__.read_secret_line") as read,
+        pytest.raises(EsphomeError, match="only provides"),
+    ):
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    read.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("ota_platform", "config"),
+    [
+        (
+            CONF_WEB_SERVER,
+            {
+                CONF_OTA: [
+                    {CONF_PLATFORM: CONF_ESPHOME},
+                    {CONF_PLATFORM: CONF_WEB_SERVER},
+                ]
+            },
+        ),
+        (None, {CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}]}),
+    ],
+    ids=["requested", "only_platform"],
+)
+@pytest.mark.parametrize("devices", [["192.168.1.100"], None], ids=["host", "chooser"])
+def test_read_ota_key_refuses_web_server_platform(
+    mock_get_port_type: Mock,
+    ota_platform: str | None,
+    config: dict[str, Any],
+    devices: list[str] | None,
+) -> None:
+    """The HTTP path has no key handshake, so the flag is refused before the
+    prompt and before any compile, whether web_server was asked for or is the
+    only platform in the config, for a network target or none named yet."""
+    mock_get_port_type.return_value = PortType.NETWORK
+    args = MockArgs(prompt_ota_key=True, ota_platform=ota_platform)
+    args.device = devices
+    with (
+        patch("esphome.__main__.read_secret_line") as read,
+        pytest.raises(EsphomeError, match="only apply to the esphome OTA"),
+    ):
+        _read_ota_key(args, config)
+    read.assert_not_called()
+
+
 def test_upload_program_ota_api_key_opportunistic(
     mock_run_ota: Mock,
     mock_get_port_type: Mock,
@@ -2887,6 +3246,22 @@ def test_upload_program_web_server_only_auto_dispatches(
         ["192.168.1.100"], 80, "admin", "pw", expected_firmware
     )
     mock_run_ota.assert_not_called()
+
+
+def test_upload_program_web_server_refuses_a_presented_key(
+    mock_run_web_server_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """A network target picked in the chooser reaches the HTTP path with the
+    key; it is refused rather than silently dropped."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}], CONF_WEB_SERVER: {}}
+    args = MockArgs(ota_key="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")
+    with pytest.raises(EsphomeError, match="only apply to the esphome OTA"):
+        upload_program(config, args, ["192.168.1.100"])
+    mock_run_web_server_ota.assert_not_called()
 
 
 def test_upload_program_web_server_no_auth(
@@ -7020,6 +7395,17 @@ def test_parse_args_run_states() -> None:
     """Test that --states is parsed for the run command."""
     args = parse_args(["esphome", "run", "--states", "device.yaml"])
     assert args.states is True
+
+
+@pytest.mark.parametrize("command", ["upload", "run"])
+def test_parse_args_prompt_ota_key(command: str) -> None:
+    """The flag takes no value: the key is never accepted on the command line."""
+    args = parse_args(["esphome", command, "--prompt-ota-key", "device.yaml"])
+    assert args.prompt_ota_key is True
+    args = parse_args(["esphome", command, "device.yaml"])
+    assert args.prompt_ota_key is False
+    with pytest.raises(SystemExit):
+        parse_args(["esphome", command, "--prompt-ota-key=abc", "device.yaml"])
 
 
 def test_parse_args_run_states_default() -> None:
