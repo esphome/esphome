@@ -26,7 +26,7 @@ from esphome.platformio.registry import (
     Download,
     Resolver,
     get_systype,
-    install_package,
+    install_packages,
     prefetch_packages,
 )
 
@@ -174,18 +174,9 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
         resolvers[FRAMEWORK_PACKAGE] = release.download
     if not ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS:
         resolvers[TOOLCHAIN_PACKAGE] = toolchain_download
-    # Fetch both archives at once; the installs below verify and extract
+    # Fetch both archives at once; the installs verify and extract them
     prefetch_packages([spec[:4] for spec in specs], downloads_dir, resolvers)
-    for name, version, dest, mirrors, expect in specs:
-        install_package(
-            name,
-            version,
-            dest,
-            mirrors,
-            downloads_dir,
-            expect=expect,
-            resolve=resolvers.get(name),
-        )
+    install_packages(specs, downloads_dir, resolvers)
     return InstalledPaths(
         framework=framework_path, toolchain=toolchain_path, ninja=ninja_path
     )
