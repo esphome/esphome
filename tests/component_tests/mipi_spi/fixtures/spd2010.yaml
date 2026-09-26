@@ -1,0 +1,23 @@
+esphome:
+  name: waveshare-spd2010
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+i2c:
+  sda: 11
+  scl: 10
+
+pca9554:
+  id: board_expander
+
+spi:
+  type: quad
+  clk_pin: 40
+  data_pins: [46, 45, 42, 41]
+
+display:
+  - platform: mipi_spi
+    model: WAVESHARE-ESP32-S3-TOUCH-LCD-1.46
