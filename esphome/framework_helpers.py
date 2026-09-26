@@ -382,9 +382,9 @@ def _tar_extract_all(
         total = len(safe_members)
         report = _resolve_progress(progress, progress_header, total > 0)
         for i, member in enumerate(safe_members, 1):
-            # Named: the default is fully_trusted on 3.12/3.13 and data
-            # on 3.14. The pre-pass above is the check; these are
-            # sha256-verified toolchains this build then executes.
+            # Named: the default is fully_trusted on 3.12/3.13, data on
+            # 3.14. The pre-pass drops unsafe members; an escape past it
+            # gains nothing, since the build runs what these archives hold.
             tar_ref.extract(member, abs_dest, filter="fully_trusted")
             if report is not None:
                 report(i / total)
