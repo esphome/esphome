@@ -32,7 +32,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_WATT,
 )
-from esphome.core import CORE, coroutine
+from esphome.core import CORE
 
 CODEOWNERS = ["@dudanov"]
 DEPENDENCIES = ["climate", "uart"]
@@ -51,25 +51,6 @@ def templatize(value):
     for key, val in value.items():
         ret[key] = cv.templatable(val)
     return cv.Schema(ret)
-
-
-def register_action(name, type_, schema):
-    validator = templatize(schema).extend(MIDEA_ACTION_BASE_SCHEMA)
-    registerer = automation.register_action(
-        f"midea_ac.{name}", type_, validator, synchronous=True
-    )
-
-    def decorator(func):
-        async def new_func(config, action_id, template_arg, args):
-            ac_ = await cg.get_variable(config[CONF_ID])
-            var = cg.new_Pvariable(action_id, template_arg)
-            cg.add(var.set_parent(ac_))
-            await coroutine(func)(var, config, args)
-            return var
-
-        return registerer(new_func)
-
-    return decorator
 
 
 ALLOWED_CLIMATE_MODES = {
@@ -161,16 +142,6 @@ CONFIG_SCHEMA = cv.All(
     ),
 )
 
-# Actions
-FollowMeAction = midea_ac_ns.class_("FollowMeAction", automation.Action)
-DisplayToggleAction = midea_ac_ns.class_("DisplayToggleAction", automation.Action)
-SwingStepAction = midea_ac_ns.class_("SwingStepAction", automation.Action)
-BeeperOnAction = midea_ac_ns.class_("BeeperOnAction", automation.Action)
-BeeperOffAction = midea_ac_ns.class_("BeeperOffAction", automation.Action)
-PowerOnAction = midea_ac_ns.class_("PowerOnAction", automation.Action)
-PowerOffAction = midea_ac_ns.class_("PowerOffAction", automation.Action)
-PowerToggleAction = midea_ac_ns.class_("PowerToggleAction", automation.Action)
-
 MIDEA_ACTION_BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.use_id(AirConditioner),
@@ -187,84 +158,31 @@ MIDEA_FOLLOW_ME_SCHEMA = cv.Schema(
 )
 
 
-@register_action("follow_me", FollowMeAction, MIDEA_FOLLOW_ME_SCHEMA)
-async def follow_me_to_code(var, config, args):
-    template_ = await cg.templatable(config[CONF_BEEPER], args, cg.bool_)
-    cg.add(var.set_beeper(template_))
-    template_ = await cg.templatable(config[CONF_USE_FAHRENHEIT], args, cg.bool_)
-    cg.add(var.set_use_fahrenheit(template_))
-    template_ = await cg.templatable(config[CONF_TEMPERATURE], args, cg.float_)
-    cg.add(var.set_temperature(template_))
-
-
-# Toggle Display action
-@register_action(
-    "display_toggle",
-    DisplayToggleAction,
-    cv.Schema({}),
+automation.register_apply_action(
+    "midea_ac.follow_me",
+    templatize(MIDEA_FOLLOW_ME_SCHEMA).extend(MIDEA_ACTION_BASE_SCHEMA),
+    automation.ApplyCall(
+        "do_follow_me({}, {}, {})",
+        (
+            (CONF_TEMPERATURE, cg.float_),
+            (CONF_USE_FAHRENHEIT, cg.bool_),
+            (CONF_BEEPER, cg.bool_),
+        ),
+    ),
 )
-async def display_toggle_to_code(var, config, args):
-    pass
 
-
-# Swing Step action
-@register_action(
-    "swing_step",
-    SwingStepAction,
-    cv.Schema({}),
-)
-async def swing_step_to_code(var, config, args):
-    pass
-
-
-# Beeper On action
-@register_action(
-    "beeper_on",
-    BeeperOnAction,
-    cv.Schema({}),
-)
-async def beeper_on_to_code(var, config, args):
-    pass
-
-
-# Beeper Off action
-@register_action(
-    "beeper_off",
-    BeeperOffAction,
-    cv.Schema({}),
-)
-async def beeper_off_to_code(var, config, args):
-    pass
-
-
-# Power On action
-@register_action(
-    "power_on",
-    PowerOnAction,
-    cv.Schema({}),
-)
-async def power_on_to_code(var, config, args):
-    pass
-
-
-# Power Off action
-@register_action(
-    "power_off",
-    PowerOffAction,
-    cv.Schema({}),
-)
-async def power_off_to_code(var, config, args):
-    pass
-
-
-# Power Toggle action
-@register_action(
-    "power_toggle",
-    PowerToggleAction,
-    cv.Schema({}),
-)
-async def power_inv_to_code(var, config, args):
-    pass
+for _name, _call in (
+    ("midea_ac.display_toggle", "do_display_toggle()"),
+    ("midea_ac.swing_step", "do_swing_step()"),
+    ("midea_ac.beeper_on", "do_beeper_on()"),
+    ("midea_ac.beeper_off", "do_beeper_off()"),
+    ("midea_ac.power_on", "do_power_on()"),
+    ("midea_ac.power_off", "do_power_off()"),
+    ("midea_ac.power_toggle", "do_power_toggle()"),
+):
+    automation.register_apply_action(
+        _name, MIDEA_ACTION_BASE_SCHEMA, automation.ApplyCall(_call)
+    )
 
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(

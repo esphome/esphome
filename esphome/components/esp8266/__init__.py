@@ -37,6 +37,7 @@ from esphome.types import ConfigType
 
 from .boards import BOARDS, board_ld_script
 from .const import (
+    BUILD_FLASH_MODES,
     CONF_EARLY_PIN_INIT,
     CONF_ENABLE_SERIAL,
     CONF_ENABLE_SERIAL1,
@@ -44,6 +45,7 @@ from .const import (
     KEY_BOARD,
     KEY_ESP8266,
     KEY_PIN_INITIAL_STATES,
+    KEY_SCANF_FLOAT,
     KEY_SERIAL1_REQUIRED,
     KEY_SERIAL_REQUIRED,
     KEY_WAVEFORM_REQUIRED,
@@ -233,7 +235,6 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
 )
 
 
-BUILD_FLASH_MODES = ["qio", "qout", "dio", "dout"]
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -315,6 +316,9 @@ async def to_code(config: ConfigType) -> None:
             "enabling scanf float support (~8KB flash)"
         )
 
+    # The native generator reads the same decision (KEY_SCANF_FLOAT)
+    CORE.data[KEY_ESP8266][KEY_SCANF_FLOAT] = bool(enable_scanf_float)
+
     extra_scripts = [
         "pre:ccache.py",
         "pre:testing_mode.py",
@@ -362,14 +366,6 @@ async def to_code(config: ConfigType) -> None:
         enable_serial()
     if config.get(CONF_ENABLE_SERIAL1):
         enable_serial1()
-
-    # Arduino 2 has a non-standards conformant new that returns a nullptr instead of failing when
-    # out of memory and exceptions are disabled. Since Arduino 2.6.0, this flag can be used to make
-    # new abort instead. Use it so that OOM fails early (on allocation) instead of on dereference of
-    # a NULL pointer (so the stacktrace makes more sense), and for consistency with Arduino 3,
-    # which always aborts if exceptions are disabled.
-    # For cases where nullptrs can be handled, use nothrow: `new (std::nothrow) T;`
-    cg.add_build_flag("-DNEW_OOM_ABORT")
 
     # Force-include inline std::__throw_* overrides so GCC dead-strips the unused
     # libstdc++ error message strings (e.g. "basic_string::_M_create") from DRAM.

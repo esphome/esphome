@@ -4,8 +4,6 @@ import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PASSWORD, CONF_THROTTLE, CONF_TIMEOUT
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["ld24xx"]
@@ -86,11 +84,6 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
 
 
 # Actions
-BluetoothPasswordSetAction = ld2410_ns.class_(
-    "BluetoothPasswordSetAction", automation.Action
-)
-
-
 BLUETOOTH_PASSWORD_SET_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(LD2410Component),
@@ -98,21 +91,8 @@ BLUETOOTH_PASSWORD_SET_SCHEMA = cv.Schema(
     }
 )
 
-
-@automation.register_action(
+automation.register_apply_action(
     "bluetooth_password.set",
-    BluetoothPasswordSetAction,
     BLUETOOTH_PASSWORD_SET_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_PASSWORD, "set_bluetooth_password", cg.std_string),
 )
-async def bluetooth_password_set_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_PASSWORD], args, cg.std_string)
-    cg.add(var.set_password(template_))
-    return var

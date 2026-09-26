@@ -46,7 +46,7 @@ from esphome.const import (
 )
 from esphome.core import (
     CORE,
-    KEY_CONTROLLER_REGISTRY_COUNT,
+    KEY_CONTROLLER_REGISTRY_CONTROLLERS,
     CoroPriority,
     coroutine_with_priority,
 )
@@ -674,12 +674,22 @@ async def _add_platform_defines() -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _add_controller_registry_define() -> None:
-    # Generate StaticVector size for ControllerRegistry
-    controller_count = CORE.data.get(KEY_CONTROLLER_REGISTRY_COUNT, 0)
-    if controller_count > 0:
-        cg.add_define("USE_CONTROLLER_REGISTRY")
-        cg.add_define("CONTROLLER_REGISTRY_MAX", controller_count)
+async def _add_controller_registry_dispatch() -> None:
+    # controller_dispatch.h defines ControllerRegistry::notify_*() as direct
+    # calls on the controllers returned by esphome_controllers(), emitted as
+    #   static auto esphome_controllers() { return std::tuple{a, b}; }
+    controllers = CORE.data.get(KEY_CONTROLLER_REGISTRY_CONTROLLERS)
+    if not controllers:
+        return
+    cg.add_define("USE_CONTROLLER_REGISTRY")
+    controllers = cg.ArrayInitializer(*controllers)
+    cg.add_global(cg.RawStatement("#include <tuple>"))
+    cg.add_global(
+        cg.RawStatement(
+            f"static auto esphome_controllers() {{ return std::tuple{controllers}; }}"
+        )
+    )
+    cg.add_global(cg.RawStatement('#include "esphome/core/controller_dispatch.h"'))
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -717,9 +727,10 @@ async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.RawExpression("using std::min"))
     cg.add_global(cg.RawExpression("using std::max"))
 
-    # Construct App via placement new — see application.cpp for storage details
+    # Construct App via placement new — see application.cpp for storage details.
+    # No parens: `Application()` would zero-fill storage that is already zero.
     cg.add_global(cg.RawStatement("#include <new>"))
-    cg.add(cg.RawExpression("new (&App) Application()"))
+    cg.add(cg.RawExpression("new (&App) Application"))
     name = config[CONF_NAME]
     friendly_name = config[CONF_FRIENDLY_NAME]
     name_add_mac_suffix = config[CONF_NAME_ADD_MAC_SUFFIX]
@@ -754,7 +765,7 @@ async def to_code(config: ConfigType) -> None:
     )
 
     CORE.add_job(_add_platform_defines)
-    CORE.add_job(_add_controller_registry_define)
+    CORE.add_job(_add_controller_registry_dispatch)
     CORE.add_job(_add_looping_components)
 
     CORE.add_job(_add_automations, config)
@@ -768,6 +779,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-Wno-unused-variable")
     cg.add_build_flag("-Wno-unused-but-set-variable")
     cg.add_build_flag("-Wno-sign-compare")
+    cg.add_build_flag("-Wno-unused-function")
     # C++20 deprecated ++/--, compound assignment, and chained assignment on
     # volatile lvalues; GCC warns via -Wvolatile, on by default at gnu++20.
     # C++23 (P2327R1) removed the deprecation for compound assignment, so the
