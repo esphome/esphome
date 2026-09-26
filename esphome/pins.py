@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Hashable
 from functools import reduce
 from logging import Logger
 import operator
@@ -6,6 +6,7 @@ from typing import Any
 
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADDRESS,
     CONF_ALLOW_OTHER_USES,
     CONF_IGNORE_STRAPPING_WARNING,
     CONF_INPUT,
@@ -17,8 +18,9 @@ from esphome.const import (
     CONF_PULLDOWN,
     CONF_PULLUP,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObjClass
+from esphome.schema_extractors import schema_extractor
 
 
 class PinRegistry(dict):
@@ -69,11 +71,14 @@ class PinRegistry(dict):
         # evaluate here so a validation failure skips the rest
         result = self[key][1](conf)
         if CONF_NUMBER in result:
-            # key maps to the pin schema
-            if key != CORE.target_platform:
-                pin_key = (key, conf[key], result[CONF_NUMBER])
-            else:
-                pin_key = (key, key, result[CONF_NUMBER])
+            # key maps to the pin schema. The bucket used here doesn't need to
+            # identify the provider precisely -- final_validate() regroups pin
+            # usage by the *resolved* provider id once IDPassValidationStep has
+            # run, so this only has to be hashable. A hub selected by
+            # match_config (e.g. address) is given as a dict, which isn't.
+            ref = conf[key] if key != CORE.target_platform else key
+            ref_key = ref if isinstance(ref, Hashable) else id(ref)
+            pin_key = (key, ref_key, result[CONF_NUMBER])
             if pin_key not in self.pins_used:
                 self.pins_used[pin_key] = []
             # client_id identifies the instance of the providing component
@@ -107,7 +112,18 @@ class PinRegistry(dict):
         Run the final validation for all pins, and check for reuse
         :param fconf: The full config
         """
-        for (key, _, _), pin_list in self.pins_used.items():
+        # Regroup by (schema key, resolved provider id, pin number) rather than
+        # the validate()-time bucket, so the same physical pin reached via an
+        # explicit id and via {address: ...} (or an omitted id) is recognized as
+        # one reuse group regardless of which syntax was used to reference the hub.
+        grouped: dict[tuple, list] = {}
+        for (key, _, number), pin_list in self.pins_used.items():
+            for entry in pin_list:
+                client_id = entry[1]
+                provider_id = client_id.id if isinstance(client_id, ID) else client_id
+                grouped.setdefault((key, provider_id, number), []).append(entry)
+
+        for (key, _, _), pin_list in grouped.items():
             count = len(pin_list)  # number of places same pin used.
             final_val_fun = self[key][2]  # final validation function
             for pin_path, client_id, pin_config in pin_list:
@@ -129,6 +145,40 @@ class PinRegistry(dict):
 
 
 PIN_SCHEMA_REGISTRY = PinRegistry()
+
+
+def use_id_or_address(hub_type, address_key=CONF_ADDRESS):
+    """Build a validator for a pin-provider hub reference.
+
+    Accepts everything `cv.use_id(hub_type)` accepts (an explicit id, or omitted to
+    auto-select the sole instance of `hub_type`), plus a mapping like
+    `{address: 0x21}` to instead select the instance of `hub_type` whose own
+    declared config has a matching `address_key`. Use this for pin schemas of
+    I2C-addressed hubs (I/O expanders) so a board with two instances of the
+    same hub type can pick one without assigning it an explicit id.
+    """
+    id_validator = cv.use_id(hub_type)
+
+    @schema_extractor("use_id")
+    def validator(value):
+        if isinstance(value, dict):
+            address = cv.Schema({cv.Required(address_key): cv.i2c_address})(value)[
+                address_key
+            ]
+            return ID(
+                None,
+                is_declaration=False,
+                type=hub_type,
+                # The user explicitly gave selection criteria (unlike the plain
+                # omitted-id auto-pick), so treat the resolved id as manual: it
+                # must survive strip_default_ids() and appear in `esphome config`
+                # output, not be silently dropped as if it were a default.
+                is_manual=True,
+                match_config={address_key: address},
+            )
+        return id_validator(value)
+
+    return validator
 
 
 def _set_mode(value, default_mode):
