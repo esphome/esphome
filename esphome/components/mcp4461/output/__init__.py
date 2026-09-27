@@ -3,8 +3,6 @@ import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID, CONF_INITIAL_VALUE
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 from .. import CONF_MCP4461_ID, Mcp4461Component, mcp4461_ns
@@ -121,13 +119,6 @@ async def to_code(config: ConfigType) -> None:
 
 
 # ---- Actions ----
-WiperIncreaseAction = mcp4461_ns.class_("WiperIncreaseAction", automation.Action)
-WiperDecreaseAction = mcp4461_ns.class_("WiperDecreaseAction", automation.Action)
-WiperStoreNonvolatileAction = mcp4461_ns.class_(
-    "WiperStoreNonvolatileAction", automation.Action
-)
-WiperSetTerminalAction = mcp4461_ns.class_("WiperSetTerminalAction", automation.Action)
-
 WIPER_ACTION_SCHEMA = automation.maybe_simple_id(
     {cv.Required(CONF_ID): cv.use_id(Mcp4461Wiper)}
 )
@@ -144,43 +135,33 @@ TERMINAL_ACTION_SCHEMA = cv.Schema(
 )
 
 
-automation.register_simple_action(
+def _char_literal(config: ConfigType, value: str) -> str:
+    return f"'{value}'"
+
+
+automation.register_apply_action(
     "mcp4461.wiper.increase",
-    WiperIncreaseAction,
     WIPER_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("increase_wiper()"),
 )
 
-
-automation.register_simple_action(
+automation.register_apply_action(
     "mcp4461.wiper.decrease",
-    WiperDecreaseAction,
     WIPER_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("decrease_wiper()"),
 )
 
-
-automation.register_simple_action(
+automation.register_apply_action(
     "mcp4461.wiper.store_nonvolatile",
-    WiperStoreNonvolatileAction,
     WIPER_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("store_nonvolatile()"),
 )
 
-
-@automation.register_action(
+automation.register_apply_action(
     "mcp4461.wiper.set_terminal",
-    WiperSetTerminalAction,
     TERMINAL_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall(
+        "set_terminal({}, {})",
+        ((CONF_TERMINAL, cg.char, _char_literal), (CONF_ENABLE, cg.bool_)),
+    ),
 )
-async def mcp4461_wiper_terminal_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    wiper = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(
-        action_id, template_arg, wiper, ord(config[CONF_TERMINAL]), config[CONF_ENABLE]
-    )

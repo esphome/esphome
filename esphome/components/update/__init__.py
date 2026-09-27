@@ -32,13 +32,6 @@ UpdateEntity = update_ns.class_("UpdateEntity", cg.EntityBase)
 
 UpdateInfo = update_ns.struct("UpdateInfo")
 
-CheckAction = update_ns.class_(
-    "CheckAction", automation.Action, cg.Parented.template(UpdateEntity)
-)
-IsAvailableCondition = update_ns.class_(
-    "IsAvailableCondition", automation.Condition, cg.Parented.template(UpdateEntity)
-)
-
 DEVICE_CLASSES = [
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_FIRMWARE,
@@ -144,24 +137,17 @@ automation.register_apply_action(
 )
 
 
-automation.register_parented_action(
-    "update.check",
-    CheckAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(UpdateEntity),
-        }
-    ),
-    synchronous=True,
+UPDATE_AUTOMATION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(UpdateEntity),
+    }
 )
 
-
-automation.register_parented_condition(
+automation.register_apply_action(
+    "update.check", UPDATE_AUTOMATION_SCHEMA, automation.ApplyCall("check()")
+)
+automation.register_apply_condition(
     "update.is_available",
-    IsAvailableCondition,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(UpdateEntity),
-        }
-    ),
+    UPDATE_AUTOMATION_SCHEMA,
+    "state == update::UPDATE_STATE_AVAILABLE",
 )

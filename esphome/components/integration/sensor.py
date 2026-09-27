@@ -11,17 +11,13 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
 )
-from esphome.core import ID
 from esphome.core.entity_helpers import inherit_property_from
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 integration_ns = cg.esphome_ns.namespace("integration")
 IntegrationSensor = integration_ns.class_(
     "IntegrationSensor", sensor.Sensor, cg.Component
 )
-ResetAction = integration_ns.class_("ResetAction", automation.Action)
-SetValueAction = integration_ns.class_("SetValueAction", automation.Action)
 
 IntegrationSensorTime = integration_ns.enum("IntegrationSensorTime")
 INTEGRATION_TIMES = {
@@ -106,37 +102,23 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_restore(config[CONF_RESTORE]))
 
 
-automation.register_parented_action(
+automation.register_apply_action(
     "sensor.integration.reset",
-    ResetAction,
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(IntegrationSensor),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("reset()"),
 )
 
-
-@automation.register_action(
+automation.register_apply_action(
     "sensor.integration.set_value",
-    SetValueAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(IntegrationSensor),
             cv.Required(CONF_VALUE): cv.templatable(cv.float_),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "set_value", cg.float_),
 )
-async def sensor_integration_set_value_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.float_)
-    cg.add(var.set_value(template_))
-    return var

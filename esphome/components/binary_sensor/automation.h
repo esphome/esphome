@@ -120,14 +120,4 @@ template<size_t N> class MultiClickTrigger final : public MultiClickTriggerBase 
   std::array<MultiClickTriggerEvent, N> timing_storage_{};
 };
 
-template<typename... Ts> class BinarySensorInvalidateAction final : public Action<Ts...> {
- public:
-  explicit BinarySensorInvalidateAction(BinarySensor *sensor) : sensor_(sensor) {}
-
-  void play(const Ts &...x) override { this->sensor_->invalidate_state(); }
-
- protected:
-  BinarySensor *sensor_;
-};
-
 }  // namespace esphome::binary_sensor

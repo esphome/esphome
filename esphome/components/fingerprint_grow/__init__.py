@@ -37,16 +37,6 @@ FingerprintGrowComponent = fingerprint_grow_ns.class_(
     "FingerprintGrowComponent", cg.PollingComponent, uart.UARTDevice
 )
 
-EnrollmentAction = fingerprint_grow_ns.class_("EnrollmentAction", automation.Action)
-CancelEnrollmentAction = fingerprint_grow_ns.class_(
-    "CancelEnrollmentAction", automation.Action
-)
-DeleteAction = fingerprint_grow_ns.class_("DeleteAction", automation.Action)
-DeleteAllAction = fingerprint_grow_ns.class_("DeleteAllAction", automation.Action)
-LEDControlAction = fingerprint_grow_ns.class_("LEDControlAction", automation.Action)
-AuraLEDControlAction = fingerprint_grow_ns.class_(
-    "AuraLEDControlAction", automation.Action
-)
 
 AuraLEDState = fingerprint_grow_ns.enum("GrowAuraLEDState", True)
 AURA_LED_STATES = {
@@ -181,103 +171,68 @@ async def to_code(config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-@automation.register_action(
-    "fingerprint_grow.enroll",
-    EnrollmentAction,
-    cv.maybe_simple_value(
-        {
-            cv.GenerateID(): cv.use_id(FingerprintGrowComponent),
-            cv.Required(CONF_FINGER_ID): cv.templatable(cv.uint16_t),
-            cv.Optional(CONF_NUM_SCANS): cv.templatable(cv.uint8_t),
-        },
-        key=CONF_FINGER_ID,
-    ),
-    synchronous=True,
-)
-async def fingerprint_grow_enroll_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-
-    template_ = await cg.templatable(config[CONF_FINGER_ID], args, cg.uint16)
-    cg.add(var.set_finger_id(template_))
-    if CONF_NUM_SCANS in config:
-        template_ = await cg.templatable(config[CONF_NUM_SCANS], args, cg.uint8)
-        cg.add(var.set_num_scans(template_))
-    return var
-
-
-automation.register_parented_action(
-    "fingerprint_grow.cancel_enroll",
-    CancelEnrollmentAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(FingerprintGrowComponent),
-        }
-    ),
-    synchronous=True,
-)
-
-
-@automation.register_action(
-    "fingerprint_grow.delete",
-    DeleteAction,
-    cv.maybe_simple_value(
-        {
-            cv.GenerateID(): cv.use_id(FingerprintGrowComponent),
-            cv.Required(CONF_FINGER_ID): cv.templatable(cv.uint16_t),
-        },
-        key=CONF_FINGER_ID,
-    ),
-    synchronous=True,
-)
-async def fingerprint_grow_delete_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-
-    template_ = await cg.templatable(config[CONF_FINGER_ID], args, cg.uint16)
-    cg.add(var.set_finger_id(template_))
-    return var
-
-
-automation.register_parented_action(
-    "fingerprint_grow.delete_all",
-    DeleteAllAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(FingerprintGrowComponent),
-        }
-    ),
-    synchronous=True,
-)
-
-
-FINGERPRINT_GROW_LED_CONTROL_ACTION_SCHEMA = cv.maybe_simple_value(
+FINGERPRINT_GROW_ID_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(FingerprintGrowComponent),
-        cv.Required(CONF_STATE): cv.templatable(cv.boolean),
-    },
-    key=CONF_STATE,
+    }
 )
 
+automation.register_apply_action(
+    "fingerprint_grow.enroll",
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(): cv.use_id(FingerprintGrowComponent),
+            cv.Required(CONF_FINGER_ID): cv.templatable(cv.uint16_t),
+            cv.Optional(CONF_NUM_SCANS, default=2): cv.templatable(
+                cv.int_range(min=1, max=255)
+            ),
+        },
+        key=CONF_FINGER_ID,
+    ),
+    automation.ApplyCall(
+        "enroll_fingerprint({}, {})",
+        ((CONF_FINGER_ID, cg.uint16), (CONF_NUM_SCANS, cg.uint8)),
+    ),
+)
 
-@automation.register_action(
+automation.register_apply_action(
+    "fingerprint_grow.cancel_enroll",
+    FINGERPRINT_GROW_ID_SCHEMA,
+    automation.ApplyCall("finish_enrollment(1)"),
+)
+
+automation.register_apply_action(
+    "fingerprint_grow.delete",
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(): cv.use_id(FingerprintGrowComponent),
+            cv.Required(CONF_FINGER_ID): cv.templatable(cv.uint16_t),
+        },
+        key=CONF_FINGER_ID,
+    ),
+    automation.ApplyField(CONF_FINGER_ID, "delete_fingerprint", cg.uint16),
+)
+
+automation.register_apply_action(
+    "fingerprint_grow.delete_all",
+    FINGERPRINT_GROW_ID_SCHEMA,
+    automation.ApplyCall("delete_all_fingerprints()"),
+)
+
+automation.register_apply_action(
     "fingerprint_grow.led_control",
-    LEDControlAction,
-    FINGERPRINT_GROW_LED_CONTROL_ACTION_SCHEMA,
-    synchronous=True,
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(): cv.use_id(FingerprintGrowComponent),
+            cv.Required(CONF_STATE): cv.templatable(cv.boolean),
+        },
+        key=CONF_STATE,
+    ),
+    automation.ApplyField(CONF_STATE, "led_control", cg.bool_),
 )
-async def fingerprint_grow_led_control_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
 
-    template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
-    cg.add(var.set_state(template_))
-    return var
-
-
-@automation.register_action(
+automation.register_apply_action(
     "fingerprint_grow.aura_led_control",
-    AuraLEDControlAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(FingerprintGrowComponent),
@@ -287,15 +242,13 @@ async def fingerprint_grow_led_control_to_code(config, action_id, template_arg, 
             cv.Required(CONF_COUNT): cv.templatable(cv.uint8_t),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "aura_led_control({}, {}, {}, {})",
+        (
+            (CONF_STATE, cg.uint8),
+            (CONF_SPEED, cg.uint8),
+            (CONF_COLOR, cg.uint8),
+            (CONF_COUNT, cg.uint8),
+        ),
+    ),
 )
-async def fingerprint_grow_aura_led_control_to_code(
-    config, action_id, template_arg, args
-):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-
-    for key in [CONF_STATE, CONF_SPEED, CONF_COLOR, CONF_COUNT]:
-        template_ = await cg.templatable(config[key], args, cg.uint8)
-        cg.add(getattr(var, f"set_{key}")(template_))
-    return var

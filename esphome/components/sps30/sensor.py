@@ -37,11 +37,6 @@ SPS30Component = sps30_ns.class_(
     "SPS30Component", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
 
-# Actions
-StartFanAction = sps30_ns.class_("StartFanAction", automation.Action)
-StartMeasurementAction = sps30_ns.class_("StartMeasurementAction", automation.Action)
-StopMeasurementAction = sps30_ns.class_("StopMeasurementAction", automation.Action)
-
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
 CONF_IDLE_INTERVAL = "idle_interval"
 
@@ -180,25 +175,11 @@ SPS30_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-automation.register_parented_action(
-    "sps30.start_fan_autoclean",
-    StartFanAction,
-    SPS30_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_parented_action(
-    "sps30.start_measurement",
-    StartMeasurementAction,
-    SPS30_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_parented_action(
-    "sps30.stop_measurement",
-    StopMeasurementAction,
-    SPS30_ACTION_SCHEMA,
-    synchronous=True,
-)
+for _name, _call in (
+    ("sps30.start_fan_autoclean", "start_fan_cleaning()"),
+    ("sps30.start_measurement", "start_measurement()"),
+    ("sps30.stop_measurement", "stop_measurement()"),
+):
+    automation.register_apply_action(
+        _name, SPS30_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )

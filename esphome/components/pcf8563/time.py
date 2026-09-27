@@ -14,8 +14,6 @@ pcf8563_ns = cg.esphome_ns.namespace("pcf8563")
 pcf8563Component = pcf8563_ns.class_(
     "PCF8563Component", time.RealTimeClock, i2c.I2CDevice
 )
-WriteAction = pcf8563_ns.class_("WriteAction", automation.Action)
-ReadAction = pcf8563_ns.class_("ReadAction", automation.Action)
 
 
 CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
@@ -25,27 +23,17 @@ CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
 ).extend(i2c.i2c_device_schema(0x51))
 
 
-automation.register_parented_action(
-    "pcf8563.write_time",
-    WriteAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(pcf8563Component),
-        }
-    ),
-    synchronous=True,
+PCF8563_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(pcf8563Component),
+    }
 )
 
-
-automation.register_parented_action(
-    "pcf8563.read_time",
-    ReadAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(pcf8563Component),
-        }
-    ),
-    synchronous=True,
+automation.register_apply_action(
+    "pcf8563.write_time", PCF8563_ACTION_SCHEMA, automation.ApplyCall("write_time()")
+)
+automation.register_apply_action(
+    "pcf8563.read_time", PCF8563_ACTION_SCHEMA, automation.ApplyCall("read_time()")
 )
 
 

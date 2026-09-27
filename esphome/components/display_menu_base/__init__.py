@@ -55,18 +55,6 @@ MenuItemSwitch = display_menu_base_ns.class_("MenuItemSwitch")
 MenuItemCommand = display_menu_base_ns.class_("MenuItemCommand")
 MenuItemCustom = display_menu_base_ns.class_("MenuItemCustom")
 
-UpAction = display_menu_base_ns.class_("UpAction", automation.Action)
-DownAction = display_menu_base_ns.class_("DownAction", automation.Action)
-LeftAction = display_menu_base_ns.class_("LeftAction", automation.Action)
-RightAction = display_menu_base_ns.class_("RightAction", automation.Action)
-EnterAction = display_menu_base_ns.class_("EnterAction", automation.Action)
-ShowAction = display_menu_base_ns.class_("ShowAction", automation.Action)
-HideAction = display_menu_base_ns.class_("HideAction", automation.Action)
-ShowMainAction = display_menu_base_ns.class_("ShowMainAction", automation.Action)
-
-IsActiveCondition = display_menu_base_ns.class_(
-    "IsActiveCondition", automation.Condition
-)
 
 MenuItemType = display_menu_base_ns.enum("MenuItemType")
 
@@ -294,78 +282,22 @@ MENU_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-automation.register_simple_action(
-    "display_menu.up",
-    UpAction,
-    MENU_ACTION_SCHEMA,
-    synchronous=True,
-)
+for _name, _call in (
+    ("display_menu.up", "up()"),
+    ("display_menu.down", "down()"),
+    ("display_menu.left", "left()"),
+    ("display_menu.right", "right()"),
+    ("display_menu.enter", "enter()"),
+    ("display_menu.show", "show()"),
+    ("display_menu.hide", "hide()"),
+    ("display_menu.show_main", "show_main()"),
+):
+    automation.register_apply_action(
+        _name, MENU_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
 
-
-automation.register_simple_action(
-    "display_menu.down",
-    DownAction,
-    MENU_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "display_menu.left",
-    LeftAction,
-    MENU_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "display_menu.right",
-    RightAction,
-    MENU_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "display_menu.enter",
-    EnterAction,
-    MENU_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "display_menu.show",
-    ShowAction,
-    MENU_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "display_menu.hide",
-    HideAction,
-    MENU_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "display_menu.show_main",
-    ShowMainAction,
-    MENU_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_condition(
-    "display_menu.is_active",
-    IsActiveCondition,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(CONF_ID): cv.use_id(DisplayMenuComponent),
-        }
-    ),
+automation.register_apply_condition(
+    "display_menu.is_active", MENU_ACTION_SCHEMA, "is_active()"
 )
 
 

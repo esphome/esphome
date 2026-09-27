@@ -35,8 +35,6 @@ CONF_ON_RESULT = "on_result"
 
 key_collector_ns = cg.esphome_ns.namespace("key_collector")
 KeyCollector = key_collector_ns.class_("KeyCollector", cg.Component)
-EnableAction = key_collector_ns.class_("EnableAction", automation.Action)
-DisableAction = key_collector_ns.class_("DisableAction", automation.Action)
 
 X_TYPE = cg.std_string_ref.operator("const")
 
@@ -134,25 +132,19 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_enabled(config[CONF_ENABLE_ON_BOOT]))
 
 
-automation.register_parented_action(
-    "key_collector.enable",
-    EnableAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(KeyCollector),
-        }
-    ),
-    synchronous=True,
+KEY_COLLECTOR_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(KeyCollector),
+    }
 )
 
-
-automation.register_parented_action(
+automation.register_apply_action(
+    "key_collector.enable",
+    KEY_COLLECTOR_ACTION_SCHEMA,
+    automation.ApplyCall("set_enabled(true)"),
+)
+automation.register_apply_action(
     "key_collector.disable",
-    DisableAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(KeyCollector),
-        }
-    ),
-    synchronous=True,
+    KEY_COLLECTOR_ACTION_SCHEMA,
+    automation.ApplyCall("set_enabled(false)"),
 )

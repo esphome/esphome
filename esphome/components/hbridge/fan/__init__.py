@@ -27,9 +27,6 @@ DECAY_MODE_OPTIONS = {
     "FAST": DecayMode.DECAY_MODE_FAST,
 }
 
-# Actions
-BrakeAction = hbridge_ns.class_("BrakeAction", automation.Action)
-
 CONFIG_SCHEMA = (
     fan.fan_schema(HBridgeFan)
     .extend(
@@ -48,11 +45,10 @@ CONFIG_SCHEMA = (
 )
 
 
-automation.register_simple_action(
+automation.register_apply_action(
     "fan.hbridge.brake",
-    BrakeAction,
     maybe_simple_id({cv.GenerateID(): cv.use_id(HBridgeFan)}),
-    synchronous=True,
+    automation.ApplyCall("brake()"),
 )
 
 

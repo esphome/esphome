@@ -41,14 +41,6 @@ StateAnyForwarder = alarm_control_panel_ns.class_("StateAnyForwarder")
 StateEnterForwarder = alarm_control_panel_ns.class_("StateEnterForwarder")
 AlarmControlPanelState = alarm_control_panel_ns.enum("AlarmControlPanelState")
 
-PendingAction = alarm_control_panel_ns.class_("PendingAction", automation.Action)
-TriggeredAction = alarm_control_panel_ns.class_("TriggeredAction", automation.Action)
-ChimeAction = alarm_control_panel_ns.class_("ChimeAction", automation.Action)
-ReadyAction = alarm_control_panel_ns.class_("ReadyAction", automation.Action)
-
-AlarmControlPanelCondition = alarm_control_panel_ns.class_(
-    "AlarmControlPanelCondition", automation.Condition
-)
 
 _ALARM_CONTROL_PANEL_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
@@ -208,50 +200,22 @@ for _name, _arm in (
     )
 
 
-automation.register_simple_action(
-    "alarm_control_panel.pending",
-    PendingAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
+for _name, _call in (
+    ("alarm_control_panel.pending", "pending()"),
+    ("alarm_control_panel.triggered", "triggered()"),
+):
+    automation.register_apply_action(
+        _name,
+        ALARM_CONTROL_PANEL_ACTION_SCHEMA,
+        automation.ApplyCall(_call),
+        call="make_call",
+    )
 
 
-automation.register_simple_action(
-    "alarm_control_panel.triggered",
-    TriggeredAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "alarm_control_panel.chime",
-    ChimeAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "alarm_control_panel.ready",
-    ReadyAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_condition(
-    "alarm_control_panel.ready",
-    AlarmControlPanelCondition,
-    ALARM_CONTROL_PANEL_CONDITION_SCHEMA,
-)
-
-
-automation.register_simple_condition(
-    "alarm_control_panel.is_armed",
-    AlarmControlPanelCondition,
-    ALARM_CONTROL_PANEL_CONDITION_SCHEMA,
-)
+for _name in ("alarm_control_panel.ready", "alarm_control_panel.is_armed"):
+    automation.register_apply_condition(
+        _name, ALARM_CONTROL_PANEL_CONDITION_SCHEMA, "is_armed_pending_or_triggered()"
+    )
 
 
 @coroutine_with_priority(CoroPriority.CORE)
