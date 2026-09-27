@@ -16,26 +16,20 @@ BLEServer *global_ble_server;  // NOLINT(cppcoreguidelines-avoid-non-const-globa
 #define DEVICE_NAME CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
 
-// Truncate the device name to fit into a 31 byte advertisement packet.
-#if defined(USE_API_TRANSPORT_BLE) || defined(USE_OTA)
-constexpr std::size_t MAX_ADV_NAME_LEN = 8;
-#else
-constexpr std::size_t MAX_ADV_NAME_LEN = 26;
-#endif
+// The advertisement holds 31 bytes: 3 for the flags and 2 for the name header
+static constexpr size_t MAX_ADV_NAME_LEN = 26;
 static const bt_data AD[] = {
     BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
     BT_DATA((DEVICE_NAME_LEN > MAX_ADV_NAME_LEN) ? BT_DATA_NAME_SHORTENED : BT_DATA_NAME_COMPLETE, DEVICE_NAME,
             (DEVICE_NAME_LEN > MAX_ADV_NAME_LEN) ? MAX_ADV_NAME_LEN : DEVICE_NAME_LEN),
 };
 
+// The scan response has no room for two 128 bit UUIDs, so the API service takes priority
 static const bt_data SD[] = {
 #ifdef USE_API_TRANSPORT_BLE
     BT_DATA_BYTES(BT_DATA_UUID128_ALL, 0x3e, 0x80, 0x39, 0x53, 0x54, 0x45, 0x64, 0x89, 0x44, 0x44, 0x9c, 0x1c, 0x8b,
                   0x0d, 0x1b, 0xe5),
-
 #elif defined(USE_OTA)
-    // A standard BLE advertisment can be at most 31 bytes in size, two full 128 bit won't fit it. We prioritize API
-    // service if available.
     BT_DATA_BYTES(BT_DATA_UUID128_ALL, 0x84, 0xaa, 0x60, 0x74, 0x52, 0x8a, 0x8b, 0x86, 0xd3, 0x4c, 0xb7, 0x1d, 0x1d,
                   0xdc, 0x53, 0x8d),
 #endif
