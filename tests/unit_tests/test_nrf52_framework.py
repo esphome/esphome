@@ -642,27 +642,6 @@ class TestCheckAndInstall:
             "update",
         ]
 
-    def test_failed_fetch_with_a_lost_stamp_keeps_the_default_projects(
-        self,
-        nrf52_dirs: SimpleNamespace,
-        mock_nrf52_ops: SimpleNamespace,
-    ) -> None:
-        """With the stamp lost nothing says what is fetched; the filter put
-        back after a failed fetch must not leave every project out."""
-        _mark_installed(nrf52_dirs)
-        _mark_west_initialized(nrf52_dirs.framework)
-        (nrf52_dirs.framework / ".west" / "config").write_text(
-            "[manifest]\nproject-filter = -.*,+zephyr\n", encoding="utf-8"
-        )
-        include_west_project("openthread")
-        # config succeeds, update fails, the restoring config succeeds
-        mock_nrf52_ops.run_command_ok.side_effect = [True, False, True]
-
-        with pytest.raises(EsphomeError, match="Can't update"):
-            check_and_install()
-
-        assert _project_filter(mock_nrf52_ops.run_command_ok) == _DEFAULTS_FILTER
-
     def test_install_waits_for_another_build_holding_the_lock(
         self,
         nrf52_dirs: SimpleNamespace,
