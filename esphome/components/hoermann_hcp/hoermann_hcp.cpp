@@ -22,9 +22,9 @@ static constexpr HoermannHcpCommand COMMAND_CLOSE{"close", 0x0120};
 static constexpr HoermannHcpCommand COMMAND_IMPULSE{"impulse", 0x0140};
 static constexpr HoermannHcpCommand COMMAND_VENT{"vent", 0x0100, 0x4000};
 static constexpr HoermannHcpCommand COMMAND_HALF_OPEN{"half open", 0x0100, 0x0400};
-// Only the toggle works on every motor.
-static constexpr uint16_t LAMP_TOGGLE = 0x0800;
-static constexpr uint16_t LAMP_TOGGLE_2 = 0x0200;
+// Absolute, as a vendor gateway sends them, so a late or repeated one cannot switch the lamp the wrong way.
+static constexpr HoermannHcpCommand COMMAND_LIGHT_ON{"light on", 0x0880};
+static constexpr HoermannHcpCommand COMMAND_LIGHT_OFF{"light off", 0x0800, 0x0100};
 
 // High byte of the state register and the door state it stands for. State 0x00 is decoded separately because
 // its low byte tells a plain stop from the vent position.
@@ -137,10 +137,10 @@ void HoermannHcp::update() {
   }
   // Neither fire late nor block the next request.
   if (this->light_requested_ && now - this->light_since_ > this->connection_timeout_ms_) {
-    if (this->light_toggle_sent_) {
-      ESP_LOGW(TAG, "Door did not report the lamp changing, giving up on the toggle");
+    if (this->light_command_sent_) {
+      ESP_LOGW(TAG, "Door did not report the lamp changing, giving up");
     } else {
-      ESP_LOGW(TAG, "Bus controller did not fetch the lamp toggle, dropping it");
+      ESP_LOGW(TAG, "Bus controller did not fetch the lamp command, dropping it");
     }
     this->clear_light_request_();
   }
@@ -277,13 +277,14 @@ void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
     registers.push_back(command->value_2);
     return;
   }
-  // Decided at the fetch, so a lamp switched at the door is not toggled back.
-  if (this->light_requested_ && !this->light_toggle_sent_ && this->light_target_ != this->light_on_) {
-    ESP_LOGI(TAG, "Sending 'toggle light' command to door");
-    this->light_toggle_sent_ = true;
+  // Decided at the fetch, so a lamp already switched at the door gets nothing.
+  if (this->light_requested_ && !this->light_command_sent_ && this->light_target_ != this->light_on_) {
+    const HoermannHcpCommand &light = this->light_target_ ? COMMAND_LIGHT_ON : COMMAND_LIGHT_OFF;
+    ESP_LOGI(TAG, "Sending '%s' command to door", light.name);
+    this->light_command_sent_ = true;
     this->light_since_ = millis();
-    registers.push_back(LAMP_TOGGLE);
-    registers.push_back(LAMP_TOGGLE_2);
+    registers.push_back(light.value);
+    registers.push_back(light.value_2);
     return;
   }
   push_zeros(registers, 2);
@@ -632,8 +633,8 @@ void HoermannHcp::set_light_on_(bool on) {
     this->clear_light_request_();
     return;
   }
-  // Reversed while the toggle was out: toggle again.
-  this->light_toggle_sent_ = false;
+  // Reversed while the command was out: send again.
+  this->light_command_sent_ = false;
   this->light_since_ = millis();
 }
 
@@ -642,9 +643,9 @@ bool HoermannHcp::set_light(bool on) {
   if (!this->light_seen_)
     return false;
   this->light_target_ = on;
-  // A sent toggle may still flip it away.
-  this->light_requested_ = on != this->light_on_ || this->light_toggle_sent_;
-  if (!this->light_toggle_sent_)
+  // A sent command may still switch it away.
+  this->light_requested_ = on != this->light_on_ || this->light_command_sent_;
+  if (!this->light_command_sent_)
     this->light_since_ = millis();
   this->changed_ = true;
   return true;
@@ -654,7 +655,7 @@ void HoermannHcp::clear_light_request_() {
   if (!this->light_requested_)
     return;
   this->light_requested_ = false;
-  this->light_toggle_sent_ = false;
+  this->light_command_sent_ = false;
   this->changed_ = true;
 }
 

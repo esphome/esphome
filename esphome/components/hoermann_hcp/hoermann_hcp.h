@@ -174,7 +174,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool light_on_{false};
   bool light_seen_{false};
   bool light_requested_{false};
-  bool light_toggle_sent_{false};
+  bool light_command_sent_{false};
   bool light_target_{false};
   bool door_state_seen_{false};
   bool short_broadcast_logged_{false};

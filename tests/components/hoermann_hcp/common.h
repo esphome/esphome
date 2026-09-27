@@ -63,7 +63,7 @@ class TestableHoermannHcp : public HoermannHcp {
   using HoermannHcp::last_command_at_;
   using HoermannHcp::light_requested_;
   using HoermannHcp::light_since_;
-  using HoermannHcp::light_toggle_sent_;
+  using HoermannHcp::light_command_sent_;
   using HoermannHcp::set_valid_;
 };
 

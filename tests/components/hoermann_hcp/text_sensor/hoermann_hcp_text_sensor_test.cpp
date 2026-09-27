@@ -459,8 +459,8 @@ TEST(HoermannHcpTextSensorTest, RequestWaitsForTheDoorCommand) {
   EXPECT_EQ(status_poll(door)[1], 0x0322);
 }
 
-// The same for the lamp toggle.
-TEST(HoermannHcpTextSensorTest, RequestWaitsForTheLampToggle) {
+// The same for the lamp command.
+TEST(HoermannHcpTextSensorTest, RequestWaitsForTheLampCommand) {
   IdentityFixture fixture;
   auto &door = fixture.door;
   connect_controller(door);
@@ -468,10 +468,10 @@ TEST(HoermannHcpTextSensorTest, RequestWaitsForTheLampToggle) {
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   ASSERT_TRUE(door.set_light(true));
 
-  const RegisterValues toggle = status_poll(door);
-  EXPECT_EQ(toggle[1], 0x0301);
-  EXPECT_EQ(toggle[2], 0x0800);
-  EXPECT_EQ(toggle[3], 0x0200);
+  const RegisterValues light = status_poll(door);
+  EXPECT_EQ(light[1], 0x0301);
+  EXPECT_EQ(light[2], 0x0880);
+  EXPECT_EQ(light[3], 0x0000);
   EXPECT_EQ(status_poll(door)[1], 0x0322);
 }
 
