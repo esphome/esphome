@@ -16,9 +16,12 @@ BLEServer *global_ble_server;  // NOLINT(cppcoreguidelines-avoid-non-const-globa
 #define DEVICE_NAME CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
 
+// The advertisement holds 31 bytes: 3 for the flags and 2 for the name header
+static constexpr size_t MAX_ADV_NAME_LEN = 26;
 static const bt_data AD[] = {
     BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-    BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
+    BT_DATA((DEVICE_NAME_LEN > MAX_ADV_NAME_LEN) ? BT_DATA_NAME_SHORTENED : BT_DATA_NAME_COMPLETE, DEVICE_NAME,
+            (DEVICE_NAME_LEN > MAX_ADV_NAME_LEN) ? MAX_ADV_NAME_LEN : DEVICE_NAME_LEN),
 };
 
 static const bt_data SD[] = {
