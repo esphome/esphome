@@ -1,3 +1,8 @@
+# http_request requires a network component; audio_http's common.yaml declares none.
+wifi:
+  ssid: MySSID
+  password: password1
+
 http_request:
   ca_certificate_path: $component_dir/test_ca.pem
 
