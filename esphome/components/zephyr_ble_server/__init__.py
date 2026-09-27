@@ -1,9 +1,12 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.nrf52.framework import include_west_project
+from esphome.components.nrf52.framework import (
+    bluetooth_west_projects,
+    include_west_project,
+)
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, KEY_CORE, KEY_FRAMEWORK_VERSION, Framework
+from esphome.const import CONF_ID, Framework
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -37,13 +40,8 @@ _CALLBACK_AUTOMATIONS = (
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     zephyr_add_prj_conf("BT", True)
-    # Bluetooth's crypto used TinyCrypt; from SDK 3.2 it goes through PSA,
-    # provided by mbedtls and Oberon, and the TinyCrypt module is gone
-    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 2, 0):
-        include_west_project("mbedtls")
-        include_west_project("oberon-psa-crypto")
-    else:
-        include_west_project("tinycrypt")
+    for project in bluetooth_west_projects():
+        include_west_project(project)
     zephyr_add_prj_conf("BT_PERIPHERAL", True)
     zephyr_add_prj_conf("BT_RX_STACK_SIZE", 1536)
     zephyr_add_prj_conf("BT_DEVICE_NAME", CORE.name)

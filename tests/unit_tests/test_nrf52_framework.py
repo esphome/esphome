@@ -501,7 +501,8 @@ class TestCheckAndInstall:
         stamp: str | None,
     ) -> None:
         """No fetch when the install already has every wanted project; an
-        install without the stamp (west config, no filter) has them all."""
+        install without the stamp (west config, no filter) has them all. The
+        names are still checked, which only reads the manifest."""
         _mark_installed(nrf52_dirs)
         _mark_west_initialized(nrf52_dirs.framework)
         if stamp is not None:
@@ -512,7 +513,7 @@ class TestCheckAndInstall:
 
         check_and_install()
 
-        mock_nrf52_ops.run_command_ok.assert_not_called()
+        assert _subcommands(mock_nrf52_ops.run_command_ok) == ["list"]
 
     def test_sysbuild_fetches_mcuboot(
         self,
@@ -664,6 +665,27 @@ class TestCheckAndInstall:
         assert file_lock.return_value.acquire.call_count == 2
         assert "Waiting for another build" in caplog.text
         assert "continuing without a lock" not in caplog.text
+
+    def test_install_from_before_the_filter_still_checks_the_names(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """An install with every project fetches nothing, but an unknown name
+        is still rejected so a mistake shows on every install alike."""
+        _mark_installed(nrf52_dirs)
+        _mark_west_initialized(nrf52_dirs.framework)
+        include_west_project("openthread")
+
+        check_and_install()
+
+        assert _subcommands(mock_nrf52_ops.run_command_ok) == ["list"]
+
+        mock_nrf52_ops.run_command_ok.reset_mock()
+        mock_nrf52_ops.run_command_ok.return_value = False
+        include_west_project("no_such_project")
+        with pytest.raises(EsphomeError, match="west list failed"):
+            check_and_install()
 
     def test_install_lock_is_per_sdk_version(
         self,

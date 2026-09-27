@@ -20,9 +20,12 @@ commands.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 import logging
 from pathlib import Path
+
+from .framework import bluetooth_west_projects
 
 TIDY_PROJECT_NAME = "esphome_tidy"
 
@@ -42,7 +45,8 @@ class _TidySubsystem:
 
     name: str
     prj_conf: str
-    west_projects: tuple[str, ...] = ()
+    # A tuple, or a callable for projects that differ by SDK version
+    west_projects: tuple[str, ...] | Callable[[], tuple[str, ...]] = ()
 
 
 # Together a Kconfig superset, so the compile commands carry every include
@@ -61,8 +65,7 @@ CONFIG_ADC=y
 CONFIG_POSIX_API=y
 """,
     ),
-    # Bluetooth's crypto uses TinyCrypt
-    _TidySubsystem("bluetooth", "CONFIG_BT=y\n", ("tinycrypt",)),
+    _TidySubsystem("bluetooth", "CONFIG_BT=y\n", bluetooth_west_projects),
     _TidySubsystem(
         "mcumgr",
         """\
@@ -209,7 +212,8 @@ def _setup_core(work_dir: Path) -> None:
         RECOMMENDED_SDK_NRF_VERSION
     )
     for subsystem in _TIDY_SUBSYSTEMS:
-        for project in subsystem.west_projects:
+        projects = subsystem.west_projects
+        for project in projects() if callable(projects) else projects:
             include_west_project(project)
 
 

@@ -294,6 +294,17 @@ def include_west_project(name: str) -> None:
     _get_data().west_projects.add(name)
 
 
+def bluetooth_west_projects() -> tuple[str, ...]:
+    """The west projects behind Bluetooth's crypto for the configured SDK.
+
+    TinyCrypt up to SDK 3.1; from 3.2 it goes through PSA, provided by mbedtls
+    and Oberon, and the TinyCrypt module is gone.
+    """
+    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 2, 0):
+        return ("mbedtls", "oberon-psa-crypto")
+    return ("tinycrypt",)
+
+
 def _wanted_west_projects() -> set[str]:
     projects = set(_get_data().west_projects)
     # Zephyr 4.1 (SDK 3.1) moved the Cortex-M core headers to the cmsis_6 module
@@ -458,14 +469,16 @@ def _fetch_missing_west_projects(
     if projects <= set(DEFAULT_WEST_PROJECTS):
         return
     installed = _installed_west_projects(framework_path)
+    # Checked first here: the manifest is resolved on an install, and an unknown
+    # name must not cost a fetch of everything else. An install from before the
+    # filter has every project, yet the names are checked all the same so a
+    # mistake shows up on every install alike.
+    _check_west_projects(env_python_path, framework_path, version, projects)
     if installed is None or not (missing := projects - installed):
         return
     _LOGGER.info(
         "Fetching nRF Connect SDK %s projects: %s", version, ", ".join(sorted(missing))
     )
-    # Checked first here: the manifest is resolved on an install, and an unknown
-    # name must not cost a fetch of everything else
-    _check_west_projects(env_python_path, framework_path, version, projects)
     wanted = installed | projects
     if not _west_update(env_python_path, framework_path, version, wanted, checked=True):
         _restore_project_filter(env_python_path, framework_path, version, installed)
