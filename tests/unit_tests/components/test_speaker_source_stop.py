@@ -1,31 +1,17 @@
 """Exercise stop ownership using the production player command/state handlers."""
 
 from pathlib import Path
-import shutil
-import subprocess
 import sys
 
-import pytest
+from speaker_source_test_helpers import compile_and_run, method
 
 ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_stop_pending_and_active_sources(tmp_path: Path) -> None:
-    compiler = shutil.which("g++") or shutil.which("clang++")
-    if compiler is None:
-        pytest.skip("A C++20 host compiler is required")
     source = (
         ROOT / "esphome/components/speaker_source/speaker_source_media_player.cpp"
     ).read_text()
-
-    def method(signature: str) -> str:
-        start = source.index(signature)
-        opening = source.index("{", start)
-        depth, end = 1, opening + 1
-        while depth:
-            depth += (source[end] == "{") - (source[end] == "}")
-            end += 1
-        return source[start:end]
 
     stub = r"""
 #include <atomic>
@@ -113,15 +99,9 @@ int main(){
     cpp = tmp_path / "stop.cpp"
     cpp.write_text(
         stub
-        + method("void SpeakerSourceMediaPlayer::handle_player_command_")
-        + method("void SpeakerSourceMediaPlayer::handle_media_state_changed_")
+        + method(source, "SpeakerSourceMediaPlayer::handle_player_command_")
+        + method(source, "SpeakerSourceMediaPlayer::handle_media_state_changed_")
         + checks
     )
     binary = tmp_path / ("stop.exe" if sys.platform == "win32" else "stop")
-    subprocess.run(
-        [compiler, "-std=c++20", str(cpp), "-o", str(binary)],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    subprocess.run([str(binary)], check=True, capture_output=True, text=True)
+    compile_and_run(cpp, binary)
