@@ -120,7 +120,7 @@ async def to_code(config: ConfigType) -> None:
             await number.register_number(
                 n, move_config, min_value=0, max_value=100, step=1
             )
-            await cg.register_parented(n, config[CONF_LD2410_ID])
+            await cg.register_parented(n, hub)
             cg.add(hub.set_gate_move_threshold_number(x, n))
 
             still_config = gate_conf[CONF_STILL_THRESHOLD]
@@ -128,5 +128,5 @@ async def to_code(config: ConfigType) -> None:
             await number.register_number(
                 n, still_config, min_value=0, max_value=100, step=1
             )
-            await cg.register_parented(n, config[CONF_LD2410_ID])
+            await cg.register_parented(n, hub)
             cg.add(hub.set_gate_still_threshold_number(x, n))
