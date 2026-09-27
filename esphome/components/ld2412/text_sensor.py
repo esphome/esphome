@@ -28,7 +28,7 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
+    hub = await cg.get_variable(config[CONF_LD2412_ID])
     text_sensors = text_sensor.sub_text_sensors(config)
-    await text_sensors(CONF_VERSION, LD2412_component.set_version_text_sensor)
-    await text_sensors(CONF_MAC_ADDRESS, LD2412_component.set_mac_text_sensor)
+    await text_sensors(CONF_VERSION, hub.set_version_text_sensor)
+    await text_sensors(CONF_MAC_ADDRESS, hub.set_mac_text_sensor)

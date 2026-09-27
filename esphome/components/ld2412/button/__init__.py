@@ -56,12 +56,12 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
-    buttons = button.sub_buttons(config, parent=LD2412_component)
-    await buttons(CONF_FACTORY_RESET, LD2412_component.set_factory_reset_button)
-    await buttons(CONF_QUERY_PARAMS, LD2412_component.set_query_button)
-    await buttons(CONF_RESTART, LD2412_component.set_restart_button)
+    hub = await cg.get_variable(config[CONF_LD2412_ID])
+    buttons = button.sub_buttons(config, parent=hub)
+    await buttons(CONF_FACTORY_RESET, hub.set_factory_reset_button)
+    await buttons(CONF_QUERY_PARAMS, hub.set_query_button)
+    await buttons(CONF_RESTART, hub.set_restart_button)
     await buttons(
         CONF_START_DYNAMIC_BACKGROUND_CORRECTION,
-        LD2412_component.set_start_dynamic_background_correction_button,
+        hub.set_start_dynamic_background_correction_button,
     )

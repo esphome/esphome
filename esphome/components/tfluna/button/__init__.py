@@ -61,7 +61,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    tfluna_component = await cg.get_variable(config[CONF_TFLUNA_ID])
-    buttons = button.sub_buttons(config, parent=tfluna_component)
-    await buttons(CONF_FACTORY_RESET, tfluna_component.set_reset_button)
-    await buttons(CONF_RESTART, tfluna_component.set_restart_button)
+    hub = await cg.get_variable(config[CONF_TFLUNA_ID])
+    buttons = button.sub_buttons(config, parent=hub)
+    await buttons(CONF_FACTORY_RESET, hub.set_reset_button)
+    await buttons(CONF_RESTART, hub.set_restart_button)

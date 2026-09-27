@@ -50,16 +50,12 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
+    hub = await cg.get_variable(config[CONF_LD2412_ID])
     binary_sensors = binary_sensor.sub_binary_sensors(config)
     await binary_sensors(
         CONF_DYNAMIC_BACKGROUND_CORRECTION_STATUS,
-        LD2412_component.set_dynamic_background_correction_status_binary_sensor,
+        hub.set_dynamic_background_correction_status_binary_sensor,
     )
-    await binary_sensors(CONF_HAS_TARGET, LD2412_component.set_target_binary_sensor)
-    await binary_sensors(
-        CONF_HAS_MOVING_TARGET, LD2412_component.set_moving_target_binary_sensor
-    )
-    await binary_sensors(
-        CONF_HAS_STILL_TARGET, LD2412_component.set_still_target_binary_sensor
-    )
+    await binary_sensors(CONF_HAS_TARGET, hub.set_target_binary_sensor)
+    await binary_sensors(CONF_HAS_MOVING_TARGET, hub.set_moving_target_binary_sensor)
+    await binary_sensors(CONF_HAS_STILL_TARGET, hub.set_still_target_binary_sensor)

@@ -50,11 +50,11 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
-    selects = select.sub_selects(config, parent=LD2412_component)
+    hub = await cg.get_variable(config[CONF_LD2412_ID])
+    selects = select.sub_selects(config, parent=hub)
     await selects(
         CONF_BAUD_RATE,
-        LD2412_component.set_baud_rate_select,
+        hub.set_baud_rate_select,
         options=[
             "9600",
             "19200",
@@ -68,16 +68,16 @@ async def to_code(config: ConfigType) -> None:
     )
     await selects(
         CONF_DISTANCE_RESOLUTION,
-        LD2412_component.set_distance_resolution_select,
+        hub.set_distance_resolution_select,
         options=["0.2m", "0.5m", "0.75m"],
     )
     await selects(
         CONF_LIGHT_FUNCTION,
-        LD2412_component.set_light_function_select,
+        hub.set_light_function_select,
         options=["off", "below", "above"],
     )
     await selects(
         CONF_OUT_PIN_LEVEL,
-        LD2412_component.set_out_pin_level_select,
+        hub.set_out_pin_level_select,
         options=["low", "high"],
     )

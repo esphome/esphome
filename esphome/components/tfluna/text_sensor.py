@@ -17,6 +17,6 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    tfluna_component = await cg.get_variable(config[CONF_TFLUNA_ID])
+    hub = await cg.get_variable(config[CONF_TFLUNA_ID])
     text_sensors = text_sensor.sub_text_sensors(config)
-    await text_sensors(CONF_VERSION, tfluna_component.set_version_text_sensor)
+    await text_sensors(CONF_VERSION, hub.set_version_text_sensor)

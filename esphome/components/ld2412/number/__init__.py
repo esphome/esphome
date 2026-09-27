@@ -87,25 +87,25 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 
 
 async def to_code(config: ConfigType) -> None:
-    LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
-    numbers = number.sub_numbers(config, parent=LD2412_component)
+    hub = await cg.get_variable(config[CONF_LD2412_ID])
+    numbers = number.sub_numbers(config, parent=hub)
     await numbers(
         CONF_LIGHT_THRESHOLD,
-        LD2412_component.set_light_threshold_number,
+        hub.set_light_threshold_number,
         min_value=0,
         max_value=255,
         step=1,
     )
     await numbers(
         CONF_MAX_DISTANCE_GATE,
-        LD2412_component.set_max_distance_gate_number,
+        hub.set_max_distance_gate_number,
         min_value=2,
         max_value=13,
         step=1,
     )
     await numbers(
         CONF_MIN_DISTANCE_GATE,
-        LD2412_component.set_min_distance_gate_number,
+        hub.set_min_distance_gate_number,
         min_value=1,
         max_value=12,
         step=1,
@@ -114,17 +114,17 @@ async def to_code(config: ConfigType) -> None:
         if gate_conf := config.get(f"gate_{x}"):
             move_config = gate_conf[CONF_MOVE_THRESHOLD]
             n = await number.new_number(move_config, min_value=0, max_value=100, step=1)
-            await cg.register_parented(n, LD2412_component)
-            cg.add(LD2412_component.set_gate_move_threshold_number(x, n))
+            await cg.register_parented(n, hub)
+            cg.add(hub.set_gate_move_threshold_number(x, n))
             still_config = gate_conf[CONF_STILL_THRESHOLD]
             n = await number.new_number(
                 still_config, min_value=0, max_value=100, step=1
             )
-            await cg.register_parented(n, LD2412_component)
-            cg.add(LD2412_component.set_gate_still_threshold_number(x, n))
+            await cg.register_parented(n, hub)
+            cg.add(hub.set_gate_still_threshold_number(x, n))
     await numbers(
         CONF_TIMEOUT,
-        LD2412_component.set_timeout_number,
+        hub.set_timeout_number,
         min_value=0,
         max_value=900,
         step=1,

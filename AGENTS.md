@@ -327,9 +327,10 @@ file does, and it is the authority when they disagree. The most useful starting 
           `sub_selects` in their domains), adding `parent=hub` for entities that derive from `Parented<T>`,
           then make one call per key, even when there is only one. A call creates the entity only when its key
           is configured, passes it to the setter and returns it (or `None`); extra arguments such as
-          `min_value` or `options` go on the call. Always name the setter explicitly, never with `getattr` and
-          an f-string. Loops whose setter also takes an index, such as `set_gate_threshold(x, n)`, stay as
-          they are.
+          `min_value` or `options` go on the call. Always name the setter explicitly on the object that owns
+          it, never with `getattr` and an f-string, and keep that variable short (`var` for the component
+          itself, `hub` for one fetched with `cg.get_variable`) so the calls fit on one line. Loops whose
+          setter also takes an index, such as `set_gate_threshold(x, n)`, stay as they are.
           ```python
           async def to_code(config):
               var = cg.new_Pvariable(config[CONF_ID])
