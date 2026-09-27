@@ -70,7 +70,13 @@ void BLEServer::connected(bt_conn *conn, uint8_t err) {
   }
 #endif
   conn = bt_conn_ref(conn);
-  global_ble_server->defer([conn]() { global_ble_server->conn_ = conn; });
+  global_ble_server->defer([conn]() {
+    // Several connections can be open; conn_ follows the newest one
+    if (global_ble_server->conn_ != nullptr) {
+      bt_conn_unref(global_ble_server->conn_);
+    }
+    global_ble_server->conn_ = conn;
+  });
 }
 
 void BLEServer::disconnected(bt_conn *conn, uint8_t reason) {
@@ -79,8 +85,8 @@ void BLEServer::disconnected(bt_conn *conn, uint8_t reason) {
   bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
   ESP_LOGI(TAG, "Disconnected from %s (reason 0x%02x)", addr, reason);
-  global_ble_server->defer([]() {
-    if (global_ble_server->conn_) {
+  global_ble_server->defer([conn]() {
+    if (global_ble_server->conn_ == conn) {
       bt_conn_unref(global_ble_server->conn_);
       global_ble_server->conn_ = nullptr;
     }
