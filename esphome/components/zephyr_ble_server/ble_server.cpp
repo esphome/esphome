@@ -20,7 +20,6 @@ static constexpr size_t ADV_MAX_LEN = 31;
 static constexpr size_t ADV_FLAGS_LEN = 3;
 static constexpr size_t ADV_HEADER_LEN = 2;
 static constexpr size_t MAX_ADV_NAME_LEN = ADV_MAX_LEN - ADV_FLAGS_LEN - ADV_HEADER_LEN;
-static constexpr size_t MAC_SUFFIX_WITH_SEPARATOR_LEN = 7;
 
 static const bt_data SD[] = {
 #ifdef USE_OTA
@@ -40,8 +39,9 @@ static void advertise(k_work *work) {
   // A name that is cut keeps its MAC suffix, as on ESP32
   static char name[MAX_ADV_NAME_LEN + 1];
   const auto &app_name = App.get_name();
-  const size_t name_len = truncate_name_to(name, sizeof(name), app_name.c_str(), app_name.length(),
-                                           App.is_name_add_mac_suffix_enabled() ? MAC_SUFFIX_WITH_SEPARATOR_LEN : 0);
+  const size_t name_len =
+      truncate_name_to(name, sizeof(name), app_name.c_str(), app_name.length(),
+                       App.is_name_add_mac_suffix_enabled() ? MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN : 0);
   const bt_data ad[] = {
       BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
       BT_DATA(name_len < app_name.length() ? BT_DATA_NAME_SHORTENED : BT_DATA_NAME_COMPLETE, name, name_len),

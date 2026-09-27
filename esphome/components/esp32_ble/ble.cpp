@@ -313,7 +313,6 @@ bool ESP32BLE::ble_setup_() {
   // BLE device names are limited to 20 characters
   // Buffer: 20 chars + null terminator
   constexpr size_t ble_name_max_len = 21;
-  constexpr size_t mac_suffix_with_separator_len = 7;
   char name_buffer[ble_name_max_len];
   const char *device_name;
 
@@ -332,9 +331,9 @@ bool ESP32BLE::ble_setup_() {
     }
   } else {
     const auto &app_name = App.get_name();
-    // A name that is cut keeps its MAC suffix ("-" plus 6 characters)
+    // A name that is cut keeps its MAC suffix
     truncate_name_to(name_buffer, sizeof(name_buffer), app_name.c_str(), app_name.length(),
-                     App.is_name_add_mac_suffix_enabled() ? mac_suffix_with_separator_len : 0);
+                     App.is_name_add_mac_suffix_enabled() ? MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN : 0);
     device_name = name_buffer;
   }
 

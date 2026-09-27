@@ -1204,6 +1204,9 @@ static constexpr size_t MAX_NAME_WITH_SUFFIX_SIZE = 128;
 size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, char sep,
                                 const char *suffix_ptr, size_t suffix_len);
 
+/// Length of the suffix name_add_mac_suffix appends: "-" plus 6 characters of the MAC address
+static constexpr size_t MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN = 7;
+
 /// Copy a name into a buffer, cutting it when it does not fit.
 /// A name that is cut keeps its last keep_suffix_len characters (for example a MAC suffix) and loses
 /// the middle instead; pass 0 to cut the end.
