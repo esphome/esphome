@@ -1,7 +1,7 @@
-#include "headers.h"
 #include "socket_ble.h"
-#include <string>
-#include <span>
+
+#ifdef USE_ZEPHYR
+#include <cstdio>
 #include "esphome/core/log.h"
 
 namespace esphome::socket_ble {
@@ -20,3 +20,5 @@ size_t format_bdaddr_to(const bdaddr_t addr, std::span<char, BDADDR_STR_LEN> buf
 }
 
 }  // namespace esphome::socket_ble
+
+#endif  // USE_ZEPHYR

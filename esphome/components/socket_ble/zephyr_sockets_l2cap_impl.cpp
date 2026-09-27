@@ -100,26 +100,20 @@ void ZephyrBleL2capImpl::released_cb(struct bt_l2cap_chan *chan) {
 
   Lock lock;
   impl->closed_ = true;
-  bool free_impl = !impl->referenced_;
-  if (free_impl) {
-    ::operator delete(impl);
-  } else {
+  if (impl->referenced_) {
     impl->released_ = true;
+  } else {
+    delete impl;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 }
 
-// NOLINTNEXTLINE(cert-dcl54-cpp,misc-new-delete-overloads)
-void ZephyrBleL2capImpl::operator delete(void *ptr) {
-  ZephyrBleL2capImpl *impl = static_cast<ZephyrBleL2capImpl *>(ptr);
+void ZephyrBleL2capImpl::release_owner() {
   Lock lock;
-  if (!impl->closed_) {
-    impl->close();
-  }
-  bool free_impl = impl->released_;
-  if (free_impl) {
-    ::operator delete(ptr);
+  this->close();
+  if (this->released_) {
+    delete this;  // NOLINT(cppcoreguidelines-owning-memory)
   } else {
-    impl->referenced_ = false;
+    this->referenced_ = false;
   }
 }
 
@@ -204,12 +198,6 @@ int ZephyrBleL2capListenImpl::close() {
   }
   this->pending_channels_.clear();
   return 0;
-}
-
-// NOLINTNEXTLINE(cert-dcl54-cpp,misc-new-delete-overloads)
-void ZephyrBleL2capListenImpl::operator delete(void *ptr) {
-  // no-op for preventing unique_ptr deletion, listen sockets are statically allocated to keep the Zephyr L2CAP server
-  // alive for the lifetime of the application.
 }
 
 bool ZephyrBleL2capImpl::ready() {
@@ -382,4 +370,9 @@ std::unique_ptr<ZephyrBleL2capListenImpl> socket_ble_listen_loop_monitored(int d
   return nullptr;
 }
 }  // namespace esphome::socket_ble
+
+void std::default_delete<esphome::socket_ble::ZephyrBleL2capImpl>::operator()(
+    esphome::socket_ble::ZephyrBleL2capImpl *impl) const {
+  impl->release_owner();
+}
 #endif  // USE_ZEPHYR

@@ -7,8 +7,19 @@
 #include <zephyr/bluetooth/l2cap.h>
 
 namespace esphome::socket_ble {
-// Forward declaration
 class ZephyrBleL2capImpl;
+class ZephyrBleL2capListenImpl;
+}  // namespace esphome::socket_ble
+
+// A channel is shared with Zephyr and a listen socket is static, so unique_ptr must not delete them itself
+template<> struct std::default_delete<esphome::socket_ble::ZephyrBleL2capImpl> {
+  void operator()(esphome::socket_ble::ZephyrBleL2capImpl *impl) const;
+};
+template<> struct std::default_delete<esphome::socket_ble::ZephyrBleL2capListenImpl> {
+  void operator()(esphome::socket_ble::ZephyrBleL2capListenImpl *impl) const {}
+};
+
+namespace esphome::socket_ble {
 
 class ZephyrBleL2capListenImpl {
  public:
@@ -24,9 +35,6 @@ class ZephyrBleL2capListenImpl {
   int listen(int backlog) { return 0; }
 
   int setblocking(bool) { return 0; }
-
-  // No-op: instances are statically allocated and must never be freed.
-  static void operator delete(void *ptr);  // NOLINT(cert-dcl54-cpp,misc-new-delete-overloads)
 
  private:
   friend std::unique_ptr<ZephyrBleL2capListenImpl> socket_ble_listen_loop_monitored(int domain, int type, int protocol);
@@ -58,7 +66,8 @@ class ZephyrBleL2capImpl {
   size_t getpeername_to(std::span<char, BDADDR_STR_LEN> buf);
   int getpeername(struct sockaddr_l2 *addr, socklen_t *addrlen);
 
-  static void operator delete(void *ptr);  // NOLINT(cert-dcl54-cpp,misc-new-delete-overloads)
+  /// Give up the owner's reference; the storage is freed once Zephyr has released the channel too.
+  void release_owner();
 
  private:
   friend class ZephyrBleL2capListenImpl;
