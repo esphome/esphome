@@ -33,7 +33,7 @@ TEST(HoermannHcpReadWrite, BusScanReturnsIdentification) {
   EXPECT_EQ(response[4], 0xa845);
 }
 
-// Without a queued command, the command poll (write 2 / read 8) reports idle and no key press.
+// Without a queued command, the command poll (write 2 / read 8) reports idle and no command.
 TEST(HoermannHcpReadWrite, IdleCommandPollHasNoCommand) {
   HoermannHcp door;
   EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})).has_value());
@@ -83,19 +83,17 @@ TEST(HoermannHcpReadWrite, DoorCommandIsSentOnceAndFreesTheSlot) {
   EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
 }
 
-// The lamp toggle is still a key press: held for the key-press duration, then released, and only then can the
-// next command be queued.
-TEST(HoermannHcpReadWrite, LampToggleIsReleasedAfterTheKeyPressDelay) {
+// The lamp toggle holds the slot like a door command until it is fetched, and frees it right after.
+TEST(HoermannHcpReadWrite, LampToggleIsSentOnceAndFreesTheSlot) {
   TestableHoermannHcp door;
   connect_controller(door);
   ASSERT_TRUE(door.toggle_light());
-  EXPECT_EQ(poll_command(door).first, 0x0100);  // COMMAND_TOGGLE_LAMP pressed
-  // Refused while one is pending: were it accepted, the release below would carry COMMAND_CLOSE's 0x0120.
+  // Refused while one is unfetched: were it accepted, the poll below would carry COMMAND_CLOSE's 0x0120.
   EXPECT_FALSE(door.close_door());
 
-  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
-  EXPECT_EQ(poll_command(door).first, 0x0800);  // COMMAND_TOGGLE_LAMP released
-  // With the command gone, the next one is accepted again.
+  EXPECT_EQ(poll_command(door).first, 0x0800);  // COMMAND_TOGGLE_LAMP
+  EXPECT_EQ(poll_command(door).first, 0x0000);
+  // With the toggle fetched, the next command is accepted right away.
   EXPECT_TRUE(door.close_door());
   EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
 }

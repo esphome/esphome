@@ -2,7 +2,6 @@
 #include <gtest/gtest.h>
 
 #include <string>
-#include <thread>
 
 #include "esphome/components/text_sensor/text_sensor.h"
 
@@ -411,8 +410,8 @@ TEST(HoermannHcpTextSensorTest, FirmwareVersionThatIsNotTextIsLoggedNotShown) {
 }
 
 // A repeat of a transfer already taken, as after a lost acknowledgement, is acknowledged again. Answered as a
-// status poll instead, it would carry the key press waiting in the slot.
-TEST(HoermannHcpTextSensorTest, RepeatedTransferIsAcknowledgedNotAnsweredWithAKeyPress) {
+// status poll instead, it would carry the command waiting in the slot.
+TEST(HoermannHcpTextSensorTest, RepeatedTransferIsAcknowledgedNotAnsweredWithACommand) {
   IdentityFixture fixture;
   auto &door = fixture.door;
   run_identity_exchange(door);
@@ -463,24 +462,18 @@ TEST(HoermannHcpTextSensorTest, RequestWaitsForTheDoorCommand) {
   EXPECT_EQ(status_poll(door)[1], 0x0322);
 }
 
-// The lamp toggle is still a key press, so the request waits for the press, the hold and the release.
-TEST(HoermannHcpTextSensorTest, RequestWaitsForTheLampKeyPress) {
+// The same for the lamp toggle, which also fills the second register.
+TEST(HoermannHcpTextSensorTest, RequestWaitsForTheLampToggle) {
   IdentityFixture fixture;
   auto &door = fixture.door;
-  door.key_press_delay_ms_ = 100;
   connect_controller(door);
   status_poll(door);
   ASSERT_TRUE(door.toggle_light());
 
-  EXPECT_EQ(status_poll(door)[2], 0x0100);
-  const RegisterValues held = status_poll(door);
-  EXPECT_EQ(held[1], 0x0301);
-  EXPECT_EQ(held[2], 0x0000);
-  door.key_press_delay_ms_ = 0;
-  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
-  const RegisterValues release = status_poll(door);
-  EXPECT_EQ(release[1], 0x0301);
-  EXPECT_EQ(release[2], 0x0800);
+  const RegisterValues toggle = status_poll(door);
+  EXPECT_EQ(toggle[1], 0x0301);
+  EXPECT_EQ(toggle[2], 0x0800);
+  EXPECT_EQ(toggle[3], 0x0200);
   EXPECT_EQ(status_poll(door)[1], 0x0322);
 }
 

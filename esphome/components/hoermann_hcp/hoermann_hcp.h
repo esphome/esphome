@@ -48,16 +48,13 @@ enum class IdentityPhase : uint8_t {
 #endif
 
 // A HCP command is one value in a single status answer, as Hoermann's own bus accessory sends it. The second
-// register names the buttons that do not fit into the first. Only the lamp toggle is still a key press: a
-// pressed value first, then the value after a short delay.
+// register names the buttons that do not fit into the first.
 struct HoermannHcpCommand {
   const char *name;
   uint16_t value;
   uint16_t value_2{0x0000};
   // A door command supersedes a half-open target; the lamp has no bearing on where the door is going.
   bool clears_target{true};
-  uint16_t pressed_value{0x0000};
-  uint16_t pressed_value_2{0x0000};
 };
 
 class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
@@ -107,7 +104,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // Where the lamp ends up once every toggle on its way has landed, each of which inverts it. Until then the
   // lamp still reads as its old self, so this is what a request has to be judged against.
   bool is_light_heading_on() const { return this->light_on_ != (this->light_toggles_in_flight_ % 2 != 0); }
-  // Drops a lamp toggle the controller has not started reading, so a reversing request cancels it outright
+  // Drops a lamp toggle the controller has not fetched yet, so a reversing request cancels it outright
   // instead of fighting it. Returns false if there is nothing to cancel.
   bool cancel_light_toggle();
 
@@ -125,7 +122,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   void light_toggle_settled_();
   // Stops expecting the toggles the door has already been shown to reach the lamp.
   void forget_light_toggles_();
-  // Appends the two command registers, consuming the pending command or advancing the lamp key press.
+  // Appends the two command registers, consuming the pending command.
   void push_command_registers_(modbus::RegisterValues &registers);
   void on_position_reg_(uint16_t value);
   void on_state_reg_(uint16_t value);
@@ -161,19 +158,16 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // Position the door was told to travel to; 0.0 means no target is armed.
   float target_position_{0.0f};
 
-  // Pending command, and the lamp toggle's key press.
+  // Pending command.
   const HoermannHcpCommand *next_command_{nullptr};
   uint32_t command_queued_at_{0};
   // Separate from command_queued_at_ so an unrelated command cannot extend the target's start deadline.
   uint32_t target_queued_at_{0};
-  uint32_t command_written_at_{0};
   uint32_t last_response_{0};
-  // When the door was last handed a lamp key press. It reports the lamp a moment later, so this bounds the
+  // When the door was last handed a lamp toggle. It reports the lamp a moment later, so this bounds the
   // wait. Queueing another toggle deliberately leaves it alone, so the one already sent keeps its deadline.
   uint32_t light_toggle_released_at_{0};
 
-  // The lamp toggle is "pressed" for this long before its value is sent.
-  uint16_t key_press_delay_ms_{100};
   // Drop the "connected" flag if the bus controller has not polled us for this long.
   uint16_t connection_timeout_ms_{2000};
   // The state starts on a value the bus controller never reports, so the first broadcast is decoded even when

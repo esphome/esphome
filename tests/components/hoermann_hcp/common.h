@@ -1,7 +1,5 @@
 #pragma once
-#include <chrono>
 #include <initializer_list>
-#include <thread>
 #include <utility>
 #include <gtest/gtest.h>
 #include "esphome/components/hoermann_hcp/hoermann_hcp.h"
@@ -14,9 +12,6 @@ using modbus::RegisterValues;
 constexpr uint16_t COMMAND_REG = 0x9C41;
 constexpr uint16_t STATE_REG = 0x9CB9;
 constexpr uint16_t BROADCAST_REG = 0x9D31;
-
-// The tests shorten the key-press delay to zero, so the release only needs the millis() clock to tick on.
-constexpr auto KEY_PRESS_ELAPSED = std::chrono::milliseconds(2);
 
 inline RegisterValues make_registers(std::initializer_list<uint16_t> values) {
   RegisterValues registers;
@@ -53,18 +48,12 @@ inline std::pair<uint16_t, uint16_t> poll_command(HoermannHcp &door) {
   return {response[2], response[3]};
 }
 
-// Fetches the queued command, a lamp toggle's release included, leaving the slot free.
-inline void consume_command(HoermannHcp &door) {
-  poll_command(door);
-  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
-  poll_command(door);
-}
+// Lets the controller fetch the queued command, leaving the slot free.
+inline void consume_command(HoermannHcp &door) { poll_command(door); }
 
 // Exposes the internal timings and the connection bookkeeping, so no test has to wait out a real delay.
 class TestableHoermannHcp : public HoermannHcp {
  public:
-  TestableHoermannHcp() { this->key_press_delay_ms_ = 0; }
-
   using HoermannHcp::connection_timeout_ms_;
 #ifdef USE_HOERMANN_HCP_IDENTITY
   using HoermannHcp::identity_asked_at_;
@@ -73,7 +62,6 @@ class TestableHoermannHcp : public HoermannHcp {
   using HoermannHcp::serial_unreadable_;
 #endif
   using HoermannHcp::is_light_toggle_pending_;
-  using HoermannHcp::key_press_delay_ms_;
   using HoermannHcp::light_toggle_released_at_;
   using HoermannHcp::light_toggles_in_flight_;
   using HoermannHcp::set_valid_;
