@@ -742,7 +742,10 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
                                               void *event_data) {
   ip_event_got_ip6_t *event = (ip_event_got_ip6_t *) event_data;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IPv6: " IPV6STR, IPV62STR(event->ip6_info.ip));
-  global_eth_component->ipv6_count_ += 1;
+  // Count the addresses on the interface, not the events: recreating the link-local
+  // after a link flap fires another event for the same address.
+  struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+  global_eth_component->ipv6_count_ = esp_netif_get_all_ip6(global_eth_component->eth_netif_, if_ip6s);
 #if (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ =
       global_eth_component->got_ipv4_address_ && (global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
@@ -767,8 +770,10 @@ void EthernetComponent::finish_connect_() {
   // - Cable unplugged/network interruption (#10705)
   // We can now retry since we're in CONNECTED state and the interface is definitely up.
   if (!this->ipv6_setup_done_) {
-    esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_);
-    if (err == ESP_OK) {
+    // Usually already created on link-up; recreating it would restart duplicate address detection.
+    esp_ip6_addr_t link_local;
+    if (esp_netif_get_ip6_linklocal(this->eth_netif_, &link_local) != ESP_OK &&
+        esp_netif_create_ip6_linklocal(this->eth_netif_) == ESP_OK) {
       ESP_LOGD(TAG, "IPv6 link-local address created (retry succeeded)");
     }
     // Always set the flag to prevent continuous retries
