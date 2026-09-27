@@ -4,7 +4,11 @@
 
 #include "esphome/components/modbus/modbus.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 namespace esphome::hoermann_hcp {
 
@@ -21,6 +25,28 @@ enum class DoorState : uint8_t {
   STOPPED,
 };
 
+#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+// Payload registers of each value, two bytes each.
+static constexpr size_t SERIAL_FIRST_HALF_REGS = 7;
+static constexpr size_t SERIAL_SECOND_HALF_REGS = 6;
+static constexpr size_t FIRMWARE_REGS = 6;
+// Counter of the transfer the read half of the frame acknowledges. Real counters have the 0x80 half marker
+// stripped, so this value never occurs.
+static constexpr uint8_t NO_TRANSFER_ANSWER = 0xFF;
+
+// Where the identity exchange stands. The low nibble is the code the motor is asked with, 0 while nothing is
+// outstanding. Like Hoermann's own bus accessory, the first status answer stays ordinary. Older motors (index B1
+// seen) send the whole serial number in one frame, without the half marker.
+enum class IdentityPhase : uint8_t {
+  IDENTITY_PHASE_IDLE = 0x00,
+  IDENTITY_PHASE_DONE = 0x10,
+  IDENTITY_PHASE_SERIAL = 0x05,              // A plain frame is the whole serial number.
+  IDENTITY_PHASE_SERIAL_SPLIT = 0x15,        // A half marker was seen, so a plain frame can only be the second half.
+  IDENTITY_PHASE_SERIAL_SECOND_HALF = 0x25,  // The first half is in.
+  IDENTITY_PHASE_FIRMWARE = 0x06,
+};
+#endif
+
 // A HCP command is a simulated key press: the pressed value is presented to the bus controller, then after a
 // short delay the released value. Each half also carries a second register, which names the buttons that do
 // not fit into the first.
@@ -35,6 +61,12 @@ struct HoermannHcpCommand {
 };
 
 class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
+#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+  // The motor is asked for these only when one of them is configured.
+  SUB_TEXT_SENSOR(serial_number)
+  SUB_TEXT_SENSOR(version)
+#endif
+
  public:
   void update() override;
   void dump_config() override;
@@ -95,6 +127,21 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   void on_position_reg_(uint16_t value);
   void on_state_reg_(uint16_t value);
   void on_light_reg_(uint16_t value);
+#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+  // Puts a due request into a status answer.
+  void add_identity_request_(modbus::RegisterValues &registers, uint16_t command);
+  void arm_identity_request_(IdentityPhase phase);
+  uint8_t identity_request_() const { return static_cast<uint8_t>(this->identity_phase_) & 0x0F; }
+  // True when the request is due, counting the attempt. Gives up after the last one.
+  bool take_identity_request_();
+  // Takes a value the motor hands over as a payload transfer. Returns the counter to acknowledge it with, kept or
+  // not, or NO_TRANSFER_ANSWER when the frame was something else.
+  uint8_t take_identity_transfer_(const modbus::RegisterValues &registers);
+  // Acknowledges the transfer taken by the write half of the same frame.
+  void push_transfer_answer_(modbus::RegisterValues &registers, uint16_t number_of_registers);
+  // Runs from update(), outside the bus callbacks.
+  void publish_identity_();
+#endif
 
   void set_valid_(bool valid);
   void set_door_state_(DoorState state);
@@ -146,6 +193,22 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool light_on_{false};
   bool light_seen_{false};
   bool short_broadcast_logged_{false};
+
+#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+  uint32_t identity_asked_at_{0};
+  IdentityPhase identity_phase_{IdentityPhase::IDENTITY_PHASE_IDLE};
+  uint8_t identity_attempts_{0};
+  // The request given up on, for update() to report.
+  uint8_t identity_unanswered_{0};
+  uint8_t transfer_answer_counter_{NO_TRANSFER_ANSWER};
+  // Length of an unreadable firmware version left in firmware_version_.
+  uint8_t firmware_unreadable_len_{0};
+  // A serial number arrived without text, for update() to log.
+  bool serial_unreadable_{false};
+  bool firmware_unreadable_{false};
+  char serial_number_[2 * (SERIAL_FIRST_HALF_REGS + SERIAL_SECOND_HALF_REGS) + 1]{};
+  char firmware_version_[2 * FIRMWARE_REGS + 1]{};
+#endif
 };
 
 }  // namespace esphome::hoermann_hcp
