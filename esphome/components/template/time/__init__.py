@@ -13,6 +13,9 @@ CONFIG_SCHEMA = time_.TIME_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(TemplateRealTimeClock),
         cv.Required(CONF_LAMBDA): cv.returning_lambda,
+        cv.Optional(time_.CONF_ON_TIME_SYNC): cv.invalid(
+            "on_time_sync is not supported for template time, use on the source clock instead."
+        ),
     }
 ).extend(cv.polling_component_schema("never"))
 
