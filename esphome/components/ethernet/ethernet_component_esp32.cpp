@@ -5,7 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#ifdef USE_ETHERNET_IPV6_ONLY
+#ifdef USE_NETWORK_IPV6_ONLY
 #include <esp_netif_net_stack.h>
 #include "lwip/dhcp6.h"
 #endif
@@ -711,7 +711,7 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
   const esp_netif_ip_info_t *ip_info = &event->ip_info;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IP " IPSTR, IP2STR(&ip_info->ip));
   global_eth_component->got_ipv4_address_ = true;
-#if defined(USE_ETHERNET_IPV6_ONLY) || (USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0))
+#if defined(USE_NETWORK_IPV6_ONLY) || (USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0))
   global_eth_component->connected_ = global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT;
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #else
@@ -729,7 +729,7 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
   ip_event_got_ip6_t *event = (ip_event_got_ip6_t *) event_data;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IPv6: " IPV6STR, IPV62STR(event->ip6_info.ip));
   global_eth_component->ipv6_count_ += 1;
-#if defined(USE_ETHERNET_IPV6_ONLY)
+#if defined(USE_NETWORK_IPV6_ONLY)
   global_eth_component->connected_ = global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT;
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #elif (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
@@ -748,7 +748,7 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
 
 #if USE_NETWORK_IPV6
 void EthernetComponent::enable_stateless_dhcp6_() {
-#if defined(USE_ETHERNET_IPV6_ONLY) && LWIP_IPV6_DHCP6
+#if defined(USE_NETWORK_IPV6_ONLY) && LWIP_IPV6_DHCP6
   // Stateless DHCPv6 for DNS servers; esp_netif never starts it.
   if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(this->eth_netif_)); netif != nullptr) {
     LwIPLock lock;
@@ -851,7 +851,7 @@ void EthernetComponent::start_connect_() {
     }
   } else
 #endif
-#ifndef USE_ETHERNET_IPV6_ONLY
+#ifndef USE_NETWORK_IPV6_ONLY
   {
     err = esp_netif_dhcpc_start(this->eth_netif_);
     if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {

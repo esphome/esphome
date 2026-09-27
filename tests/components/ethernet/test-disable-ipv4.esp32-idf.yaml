@@ -1,6 +1,7 @@
 network:
   enable_ipv6: true
   min_ipv6_addr_count: 2
+  enable_ipv4: false
 
 ethernet:
   type: LAN8720
@@ -11,4 +12,3 @@ ethernet:
     mode: CLK_EXT_IN
   phy_addr: 0
   power_pin: 33
-  enable_ipv4: false

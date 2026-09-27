@@ -211,33 +211,40 @@ def validate_ipv6(value: bool) -> bool:
 
 
 def validate_enable_ipv4(value: Any) -> bool:
-    """Validate an interface's ``enable_ipv4`` option; only ESP32 can turn it off."""
+    """Validate ``enable_ipv4``; only ESP32 can turn it off."""
     value = cv.boolean(value)
     if not value and not CORE.is_esp32:
         raise cv.Invalid("enable_ipv4: false is only supported on ESP32")
     return value
 
 
-def final_validate_enable_ipv4(config: ConfigType) -> ConfigType:
-    """Check what an interface with ``enable_ipv4: false`` needs from ``network:``."""
-    if config.get(CONF_ENABLE_IPV4, True):
+def _validate_ipv6_only(config: ConfigType) -> ConfigType:
+    """``enable_ipv4: false`` needs IPv6 and a non-zero address count to connect on."""
+    if config[CONF_ENABLE_IPV4]:
         return config
+    if not config.get(CONF_ENABLE_IPV6, False):
+        raise cv.Invalid(
+            "enable_ipv4: false requires enable_ipv6: true", [CONF_ENABLE_IPV4]
+        )
+    if config[CONF_MIN_IPV6_ADDR_COUNT] < 1:
+        raise cv.Invalid(
+            "enable_ipv4: false requires min_ipv6_addr_count of at least 1",
+            [CONF_ENABLE_IPV4],
+        )
+    return config
+
+
+def final_validate_no_manual_ip_if_ipv6_only(config: ConfigType) -> ConfigType:
+    """Reject an interface's static IPv4 when ``network: enable_ipv4`` is false."""
     network = fv.full_config.get().get("network", {})
-    if not network.get(CONF_ENABLE_IPV6, False):
-        raise cv.Invalid(
-            "enable_ipv4: false requires 'network: enable_ipv6: true'",
-            [CONF_ENABLE_IPV4],
-        )
-    if network.get(CONF_MIN_IPV6_ADDR_COUNT, 0) < 1:
-        raise cv.Invalid(
-            "enable_ipv4: false requires 'network: min_ipv6_addr_count' of at least 1",
-            [CONF_ENABLE_IPV4],
-        )
+    if network.get(CONF_ENABLE_IPV4, True):
+        return config
     if CONF_MANUAL_IP in config or any(
         CONF_MANUAL_IP in net for net in config.get(CONF_NETWORKS, [])
     ):
         raise cv.Invalid(
-            "enable_ipv4: false can't be used with manual_ip", [CONF_ENABLE_IPV4]
+            "manual_ip can't be used with 'network: enable_ipv4: false'",
+            [CONF_MANUAL_IP],
         )
     return config
 
@@ -354,6 +361,7 @@ CONFIG_SCHEMA = cv.All(
                 validate_ipv6,
             ),
             cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
+            cv.Optional(CONF_ENABLE_IPV4, default=True): validate_enable_ipv4,
             cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
@@ -365,6 +373,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PRIORITY): _validate_priority_list,
         }
     ),
+    _validate_ipv6_only,
     _register_provisioning_source,
 )
 
@@ -545,6 +554,9 @@ async def to_code(config: ConfigType) -> None:
             cg.add_define(
                 "USE_NETWORK_MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT]
             )
+        if not config[CONF_ENABLE_IPV4]:
+            cg.add_define("USE_NETWORK_IPV6_ONLY")
+            add_ipv6_only_sdkconfig()
         if CORE.is_esp32:
             if CORE.using_arduino:
                 add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", True)

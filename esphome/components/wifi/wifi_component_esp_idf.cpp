@@ -35,7 +35,7 @@
 #include "lwip/apps/sntp.h"
 #include "lwip/dns.h"
 #include "lwip/err.h"
-#ifdef USE_WIFI_IPV6_ONLY
+#ifdef USE_NETWORK_IPV6_ONLY
 #include <esp_netif_net_stack.h>
 #include "lwip/dhcp6.h"
 #endif
@@ -576,7 +576,7 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   }
 
   if (!manual_ip.has_value()) {
-#ifdef USE_WIFI_IPV6_ONLY
+#ifdef USE_NETWORK_IPV6_ONLY
     // Keep the DHCPv4 client stopped. esp_netif then makes this netif the default route on link-up.
     (void) dhcp_status;
     err = esp_netif_dhcpc_stop(s_sta_netif);
@@ -606,7 +606,7 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
       return err == ESP_OK;
     }
     return true;
-#endif  // USE_WIFI_IPV6_ONLY
+#endif  // USE_NETWORK_IPV6_ONLY
   }
 
   esp_netif_ip_info_t info;  // struct of ip4_addr_t with ip, netmask, gw
@@ -846,7 +846,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #if USE_NETWORK_IPV6
     // Start SLAAC on association, not after a DHCPv4 lease that may never arrive.
     esp_netif_create_ip6_linklocal(s_sta_netif);
-#if defined(USE_WIFI_IPV6_ONLY) && LWIP_IPV6_DHCP6
+#if defined(USE_NETWORK_IPV6_ONLY) && LWIP_IPV6_DHCP6
     // Stateless DHCPv6 for DNS servers; esp_netif never starts it.
     if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(s_sta_netif)); netif != nullptr) {
       LwIPLock lock;
@@ -1064,7 +1064,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 }
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
-#ifdef USE_WIFI_IPV6_ONLY
+#ifdef USE_NETWORK_IPV6_ONLY
   // Validation guarantees USE_NETWORK_MIN_IPV6_ADDR_COUNT >= 1.
   if (s_sta_connected && this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT) {
     return WiFiSTAConnectStatus::CONNECTED;
@@ -1079,7 +1079,7 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
     return WiFiSTAConnectStatus::CONNECTED;
 #endif  /* USE_NETWORK_IPV6 */
   }
-#endif  // USE_WIFI_IPV6_ONLY
+#endif  // USE_NETWORK_IPV6_ONLY
   if (s_sta_connect_error) {
     return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
   }

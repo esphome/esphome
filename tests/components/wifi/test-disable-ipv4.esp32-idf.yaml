@@ -4,6 +4,4 @@ packages:
 network:
   enable_ipv6: true
   min_ipv6_addr_count: 2
-
-wifi:
   enable_ipv4: false
