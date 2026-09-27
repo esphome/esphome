@@ -31,15 +31,15 @@ inline void connect_controller(HoermannHcp &door) {
 }
 
 // Runs one status poll (write 2 / read 8) and returns the whole answer. The bus controller writes its counter
-// with command 0x03 here; most tests do not care and pass zero.
-inline RegisterValues status_answer(HoermannHcp &door, uint16_t command_reg = 0x0000) {
+// with command 0x03 here; most tests do not care about the counter and leave it zero.
+inline RegisterValues status_answer(HoermannHcp &door, uint16_t command_reg = 0x0003) {
   door.on_write_registers(COMMAND_REG, make_registers({command_reg, 0x0000}));
   RegisterValues response;
   door.on_read_holding_registers(STATE_REG, 8, response);
   return response;
 }
 
-// Runs one command poll (write 2 / read 8) and returns both key-press registers.
+// Runs one status poll and returns both command registers.
 inline std::pair<uint16_t, uint16_t> poll_command(HoermannHcp &door) {
   const RegisterValues response = status_answer(door);
   EXPECT_EQ(response.size(), 8u);
@@ -61,8 +61,10 @@ class TestableHoermannHcp : public HoermannHcp {
   using HoermannHcp::firmware_unreadable_;
   using HoermannHcp::serial_unreadable_;
 #endif
+  using HoermannHcp::last_command_at_;
   using HoermannHcp::light_requested_;
-  using HoermannHcp::light_toggle_sent_at_;
+  using HoermannHcp::light_since_;
+  using HoermannHcp::light_toggle_sent_;
   using HoermannHcp::set_valid_;
 };
 

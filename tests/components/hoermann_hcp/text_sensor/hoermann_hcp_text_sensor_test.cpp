@@ -39,7 +39,7 @@ void write_transfer(HoermannHcp &door, uint8_t counter, uint8_t sub_code, const 
 
 // A whole payload transfer, returning the answer the motor reads back.
 RegisterValues transfer(HoermannHcp &door, uint8_t counter, uint8_t sub_code, const char *bytes, size_t len,
-                        uint16_t read_registers = 8) {
+                        uint16_t read_registers = 2) {
   write_transfer(door, counter, sub_code, bytes, len);
   RegisterValues response;
   door.on_read_holding_registers(STATE_REG, read_registers, response);
@@ -99,8 +99,8 @@ TEST(HoermannHcpTextSensorTest, NothingChangesWithoutASensor) {
     EXPECT_EQ(response[1], 0x0301);
     EXPECT_EQ(response[2], 0x0000);
   }
-  const RegisterValues answer = transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, SERIAL, 14);
-  EXPECT_EQ(answer[1] & 0x00FF, 0x0001);
+  // Answered as an ordinary 2-register read, not acknowledged.
+  EXPECT_THAT(transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, SERIAL, 14), ::testing::ElementsAre(0x8504, 0x0400));
 }
 
 // Like Hoermann's own bus accessory, the first status poll gets an ordinary answer and the next one carries the
@@ -165,7 +165,7 @@ TEST(HoermannHcpTextSensorTest, SerialNumberInTwoHalvesThenTheFirmwareVersion) {
   request_serial(door);
 
   RegisterValues answer = transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, SERIAL, 14);
-  ASSERT_EQ(answer.size(), 8u);
+  ASSERT_EQ(answer.size(), 2u);
   EXPECT_EQ(answer[0], 0x0500);
   EXPECT_EQ(answer[1], 0x04FD);
   EXPECT_EQ(fixture.serial_shown(), "");
@@ -418,9 +418,7 @@ TEST(HoermannHcpTextSensorTest, RepeatedTransferIsAcknowledgedNotAnsweredWithACo
   connect_controller(door);
   door.open_door();
 
-  const RegisterValues answer = transfer(door, 0x08, SUB_FIRMWARE, FIRMWARE, 12);
-  EXPECT_EQ(answer[1], 0x04FD);
-  EXPECT_EQ(answer[2], 0x0000);
+  EXPECT_THAT(transfer(door, 0x08, SUB_FIRMWARE, FIRMWARE, 12), ::testing::ElementsAre(0x0800, 0x04FD));
   EXPECT_EQ(status_poll(door)[2], 0x0110);
 }
 
@@ -443,12 +441,12 @@ TEST(HoermannHcpTextSensorTest, RequestRidesOnlyOnAStatusPoll) {
   IdentityFixture fixture;
   auto &door = fixture.door;
   status_poll(door);
-  const RegisterValues other = transfer(door, 0x06, 0x19, "\x00\x0F", 2);
+  const RegisterValues other = transfer(door, 0x06, 0x19, "\x00\x0F", 2, 8);
   EXPECT_EQ(other[1] & 0x00FF, 0x0001);
   EXPECT_EQ(status_poll(door, 0x07)[1], 0x0322);
 }
 
-// The request travels in the registers a command would, so it waits for the answer carrying a door command.
+// The request waits for the answer that carries a door command.
 TEST(HoermannHcpTextSensorTest, RequestWaitsForTheDoorCommand) {
   IdentityFixture fixture;
   auto &door = fixture.door;
@@ -462,7 +460,7 @@ TEST(HoermannHcpTextSensorTest, RequestWaitsForTheDoorCommand) {
   EXPECT_EQ(status_poll(door)[1], 0x0322);
 }
 
-// The same for the lamp toggle, which also fills the second register.
+// The same for the lamp toggle.
 TEST(HoermannHcpTextSensorTest, RequestWaitsForTheLampToggle) {
   IdentityFixture fixture;
   auto &door = fixture.door;

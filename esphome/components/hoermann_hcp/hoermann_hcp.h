@@ -152,9 +152,11 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // Separate from command_queued_at_ so an unrelated command cannot extend the target's start deadline.
   uint32_t target_queued_at_{0};
   uint32_t last_response_{0};
-  // When the lamp toggle was fetched, 0 while none is waiting to be reported back.
-  uint32_t light_toggle_sent_at_{0};
-  uint32_t light_requested_at_{0};
+  // Start of the current wait: for the fetch while a request is pending, for the report once the toggle is out.
+  uint32_t light_since_{0};
+  // The same command is not accepted again this soon after its fetch.
+  const HoermannHcpCommand *last_command_{nullptr};
+  uint32_t last_command_at_{0};
 
   // Drop the "connected" flag if the bus controller has not polled us for this long.
   uint16_t connection_timeout_ms_{2000};
@@ -177,6 +179,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool light_on_{false};
   bool light_seen_{false};
   bool light_requested_{false};
+  bool light_toggle_sent_{false};
   bool light_target_{false};
   bool door_state_seen_{false};
   bool short_broadcast_logged_{false};

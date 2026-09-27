@@ -60,9 +60,12 @@ static bool is_moving(DoorState state) {
   }
 }
 
-#ifdef USE_HOERMANN_HCP_IDENTITY
-// The command byte of a status poll. Only its answer can carry a request.
+// The command byte of a status poll. Only its answer carries commands and requests.
 static constexpr uint8_t STATUS_COMMAND = 0x03;
+// The Hoermann accessory ignores a repeat of the same key for this long.
+static constexpr uint32_t REPEAT_LOCK_MS = 500;
+
+#ifdef USE_HOERMANN_HCP_IDENTITY
 // A status answer with this code in the low byte of its second register asks the bus controller for a value,
 // named in the high byte of the third.
 static constexpr uint8_t ANSWER_REQUEST = 0x22;
@@ -134,14 +137,13 @@ void HoermannHcp::update() {
     ESP_LOGW(TAG, "Door did not start moving towards the requested position, dropping it");
     this->clear_target_();
   }
-  // Like a door command, a toggle the controller never fetches must not fire long afterwards.
-  if (this->light_requested_ && this->light_toggle_sent_at_ == 0 &&
-      now - this->light_requested_at_ > this->connection_timeout_ms_) {
-    ESP_LOGW(TAG, "Bus controller did not fetch the lamp toggle, dropping it");
-    this->clear_light_request_();
-  }
-  if (this->light_toggle_sent_at_ != 0 && now - this->light_toggle_sent_at_ > this->connection_timeout_ms_) {
-    ESP_LOGW(TAG, "Door did not report the lamp changing, giving up on the toggle");
+  // Like a door command, a toggle must neither fire long afterwards nor be waited on for ever.
+  if (this->light_requested_ && now - this->light_since_ > this->connection_timeout_ms_) {
+    if (this->light_toggle_sent_) {
+      ESP_LOGW(TAG, "Door did not report the lamp changing, giving up on the toggle");
+    } else {
+      ESP_LOGW(TAG, "Bus controller did not fetch the lamp toggle, dropping it");
+    }
     this->clear_light_request_();
   }
 #ifdef USE_HOERMANN_HCP_IDENTITY
@@ -193,7 +195,11 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
       // Command request: return the internal state, injecting any pending command.
       registers.push_back(counter);
       registers.push_back(static_cast<uint16_t>(0x0001 | command));
-      this->push_command_registers_(registers);
+      if (static_cast<uint8_t>(this->command_reg_value_) == STATUS_COMMAND) {
+        this->push_command_registers_(registers);
+      } else {
+        push_zeros(registers, 2);
+      }
       push_zeros(registers, 4);
 #ifdef USE_HOERMANN_HCP_IDENTITY
       this->add_identity_request_(registers, command);
@@ -268,14 +274,17 @@ void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
     ESP_LOGI(TAG, "Sending '%s' command to door", command->name);
     // Fetched with this answer.
     this->next_command_ = nullptr;
+    this->last_command_ = command;
+    this->last_command_at_ = millis();
     registers.push_back(command->value);
     registers.push_back(command->value_2);
     return;
   }
   // Decided now, against the latest report, so a lamp the door switched itself is not toggled back.
-  if (this->light_requested_ && this->light_toggle_sent_at_ == 0 && this->light_target_ != this->light_on_) {
+  if (this->light_requested_ && !this->light_toggle_sent_ && this->light_target_ != this->light_on_) {
     ESP_LOGI(TAG, "Sending 'toggle light' command to door");
-    this->light_toggle_sent_at_ = millis();
+    this->light_toggle_sent_ = true;
+    this->light_since_ = millis();
     registers.push_back(LAMP_TOGGLE);
     registers.push_back(LAMP_TOGGLE_2);
     return;
@@ -294,7 +303,7 @@ void HoermannHcp::add_identity_request_(modbus::RegisterValues &registers, uint1
     return;
   }
   // Uses the command registers, so it waits while a command is pending.
-  if (this->next_command_ != nullptr || registers[2] != 0 || registers[3] != 0 || !this->take_identity_request_())
+  if (registers[2] != 0 || registers[3] != 0 || !this->take_identity_request_())
     return;
   registers[1] = static_cast<uint16_t>(ANSWER_REQUEST | command);
   registers[2] = encode_uint16(this->identity_request_(), 0);
@@ -494,6 +503,10 @@ bool HoermannHcp::queue_command_(const HoermannHcpCommand &command) {
     ESP_LOGW(TAG, "Previous command not yet fetched by the bus controller");
     return false;
   }
+  if (&command == this->last_command_ && millis() - this->last_command_at_ < REPEAT_LOCK_MS) {
+    ESP_LOGW(TAG, "Ignoring '%s' repeated within %" PRIu32 " ms", command.name, REPEAT_LOCK_MS);
+    return false;
+  }
   // A new command supersedes any half-open target the door was still travelling to.
   this->clear_target_();
   this->next_command_ = &command;
@@ -554,8 +567,6 @@ void HoermannHcp::set_valid_(bool valid) {
   ESP_LOGW(TAG, "Bus controller connection lost (no request for %" PRIu32 "ms)", millis() - this->last_response_);
   // Drop what the controller never fetched, so it neither blocks later commands nor fires on reconnect.
   this->drop_command_();
-  // The door cannot be watched while the bus is quiet, so a target left armed would stop it long afterwards.
-  this->clear_target_();
   this->clear_light_request_();
   // The lamp can be switched at the door while the bus is quiet, so what was last read is no longer trusted.
   this->set_light_seen_(false);
@@ -625,28 +636,28 @@ void HoermannHcp::set_light_on_(bool on) {
     return;
   }
   // Changed, but away from the request: the next fetch decides again, with a fresh deadline.
-  this->light_toggle_sent_at_ = 0;
-  this->light_requested_at_ = millis();
+  this->light_toggle_sent_ = false;
+  this->light_since_ = millis();
 }
 
 bool HoermannHcp::set_light(bool on) {
-  if (!this->valid_ || !this->light_seen_)
+  // A known lamp implies a live connection.
+  if (!this->light_seen_)
     return false;
   this->light_target_ = on;
-  this->light_requested_ = true;
-  this->light_requested_at_ = millis();
-  // Already there, and nothing on its way that would take it away again.
-  if (on == this->light_on_ && this->light_toggle_sent_at_ == 0)
-    this->light_requested_ = false;
+  // Nothing to do if already there with nothing on its way that would take it away again.
+  this->light_requested_ = on != this->light_on_ || this->light_toggle_sent_;
+  if (!this->light_toggle_sent_)
+    this->light_since_ = millis();
   this->changed_ = true;
   return true;
 }
 
 void HoermannHcp::clear_light_request_() {
-  if (!this->light_requested_ && this->light_toggle_sent_at_ == 0)
+  if (!this->light_requested_)
     return;
   this->light_requested_ = false;
-  this->light_toggle_sent_at_ = 0;
+  this->light_toggle_sent_ = false;
   this->changed_ = true;
 }
 

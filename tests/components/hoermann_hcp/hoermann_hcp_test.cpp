@@ -36,12 +36,12 @@ TEST(HoermannHcpReadWrite, BusScanReturnsIdentification) {
 // Without a queued command, the command poll (write 2 / read 8) reports idle and no command.
 TEST(HoermannHcpReadWrite, IdleCommandPollHasNoCommand) {
   HoermannHcp door;
-  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})).has_value());
+  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0003, 0x0000})).has_value());
   RegisterValues response;
   auto status = door.on_read_holding_registers(STATE_REG, 8, response);
   EXPECT_FALSE(status.has_value());
   ASSERT_EQ(response.size(), 8u);
-  EXPECT_EQ(response[1], 0x0001);
+  EXPECT_EQ(response[1], 0x0301);
   EXPECT_EQ(response[2], 0x0000);
   EXPECT_EQ(response[3], 0x0000);
 }
@@ -51,7 +51,7 @@ TEST(HoermannHcpReadWrite, QueuedCommandIsInjectedIntoPoll) {
   HoermannHcp door;
   connect_controller(door);
   door.open_door();
-  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})).has_value());
+  EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0003, 0x0000})).has_value());
   RegisterValues response;
   auto status = door.on_read_holding_registers(STATE_REG, 8, response);
   EXPECT_FALSE(status.has_value());
@@ -68,7 +68,7 @@ TEST(HoermannHcpReadWrite, UnknownAddressIsRejected) {
   EXPECT_EQ(door.on_write_registers(0x1234, make_registers({0x0000})), modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS);
 }
 
-// A door command is one value in a single answer: fetched with it, never repeated, and the slot is free at once.
+// A door command goes out in one answer and frees the slot at once.
 TEST(HoermannHcpReadWrite, DoorCommandIsSentOnceAndFreesTheSlot) {
   TestableHoermannHcp door;
   connect_controller(door);
@@ -83,17 +83,38 @@ TEST(HoermannHcpReadWrite, DoorCommandIsSentOnceAndFreesTheSlot) {
   EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
 }
 
-// The lamp does not use the command slot, so a lamp request never keeps a door command waiting.
-TEST(HoermannHcpReadWrite, LampRequestLeavesTheCommandSlotFree) {
+// The same command is refused for 500 ms after its fetch; a different one is not.
+TEST(HoermannHcpReadWrite, RepeatedCommandIsRefusedForHalfASecond) {
   TestableHoermannHcp door;
   connect_controller(door);
-  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
-  ASSERT_TRUE(door.set_light(true));
-  EXPECT_TRUE(door.close_door());
+  ASSERT_TRUE(door.open_door());
+  EXPECT_EQ(poll_command(door).first, 0x0110);  // COMMAND_OPEN
+  EXPECT_FALSE(door.open_door());
 
+  EXPECT_TRUE(door.close_door());
   EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
-  EXPECT_EQ(poll_command(door).first, 0x0800);  // lamp toggle
-  EXPECT_EQ(poll_command(door).first, 0x0000);
+  EXPECT_FALSE(door.close_door());
+
+  door.last_command_at_ -= 500;
+  EXPECT_TRUE(door.close_door());
+  EXPECT_EQ(poll_command(door).first, 0x0120);
+}
+
+// Only a status poll (command 0x03) fetches a command; another 8-register read carries zeros.
+TEST(HoermannHcpReadWrite, CommandWaitsForAStatusPoll) {
+  TestableHoermannHcp door;
+  connect_controller(door);
+  ASSERT_TRUE(door.open_door());
+
+  // A transfer write (command 0x04) read back as 8 registers.
+  door.on_write_registers(COMMAND_REG, make_registers({0x0504, 0x0000}));
+  RegisterValues other;
+  door.on_read_holding_registers(STATE_REG, 8, other);
+  ASSERT_EQ(other.size(), 8u);
+  EXPECT_EQ(other[2], 0x0000);
+  EXPECT_EQ(other[3], 0x0000);
+
+  EXPECT_EQ(poll_command(door).first, 0x0110);  // COMMAND_OPEN
 }
 
 // Commands issued while the bus controller is absent are dropped instead of firing when it returns.
@@ -244,10 +265,7 @@ TEST(HoermannHcpPosition, NearlyClosedTargetClosesTheDoor) {
   HoermannHcp door;
   connect_controller(door);
   door.set_position(0.02f);
-  RegisterValues response;
-  door.on_read_holding_registers(STATE_REG, 8, response);
-  ASSERT_EQ(response.size(), 8u);
-  EXPECT_EQ(response[2], 0x0120);  // COMMAND_CLOSE
+  EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
 }
 
 // A half-open target starts the door moving towards the requested position.
@@ -255,10 +273,7 @@ TEST(HoermannHcpPosition, HalfOpenTargetOpensTheDoor) {
   HoermannHcp door;  // starts out fully closed
   connect_controller(door);
   door.set_position(0.5f);
-  RegisterValues response;
-  door.on_read_holding_registers(STATE_REG, 8, response);
-  ASSERT_EQ(response.size(), 8u);
-  EXPECT_EQ(response[2], 0x0110);  // COMMAND_OPEN
+  EXPECT_EQ(poll_command(door).first, 0x0110);  // COMMAND_OPEN
 }
 
 // The door has no notion of a target, so it is stopped with an impulse once it travels past the request.
