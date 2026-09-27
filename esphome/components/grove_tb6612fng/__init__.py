@@ -20,28 +20,9 @@ grove_tb6612fng_ns = cg.esphome_ns.namespace("grove_tb6612fng")
 GROVE_TB6612FNG = grove_tb6612fng_ns.class_(
     "GroveMotorDriveTB6612FNG", cg.Component, i2c.I2CDevice
 )
-GROVETB6612FNGMotorRunAction = grove_tb6612fng_ns.class_(
-    "GROVETB6612FNGMotorRunAction", automation.Action
-)
-GROVETB6612FNGMotorBrakeAction = grove_tb6612fng_ns.class_(
-    "GROVETB6612FNGMotorBrakeAction", automation.Action
-)
-GROVETB6612FNGMotorStopAction = grove_tb6612fng_ns.class_(
-    "GROVETB6612FNGMotorStopAction", automation.Action
-)
-GROVETB6612FNGMotorStandbyAction = grove_tb6612fng_ns.class_(
-    "GROVETB6612FNGMotorStandbyAction", automation.Action
-)
-GROVETB6612FNGMotorNoStandbyAction = grove_tb6612fng_ns.class_(
-    "GROVETB6612FNGMotorNoStandbyAction", automation.Action
-)
-GROVETB6612FNGMotorChangeAddressAction = grove_tb6612fng_ns.class_(
-    "GROVETB6612FNGMotorChangeAddressAction", automation.Action
-)
-
 DIRECTION_TYPE = {
     "FORWARD": 1,
-    "BACKWARD": 2,
+    "BACKWARD": -1,
 }
 
 CONFIG_SCHEMA = (
@@ -61,9 +42,8 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "grove_tb6612fng.run",
-    GROVETB6612FNGMotorRunAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(GROVE_TB6612FNG),
@@ -72,109 +52,52 @@ async def to_code(config):
             cv.Required(CONF_DIRECTION): cv.enum(DIRECTION_TYPE, upper=True),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "dc_motor_run({}, {} * {})",
+        ((CONF_CHANNEL, cg.uint8), (CONF_DIRECTION, cg.int16), (CONF_SPEED, cg.uint16)),
+    ),
 )
-async def grove_tb6612fng_run_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
 
-    template_channel = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
-    template_speed = await cg.templatable(config[CONF_SPEED], args, cg.uint16)
-    cg.add(var.set_channel(template_channel))
-    cg.add(var.set_speed(template_speed))
-    cg.add(var.set_direction(config[CONF_DIRECTION] == "FORWARD"))
-    return var
+CHANNEL_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(GROVE_TB6612FNG),
+        cv.Required(CONF_CHANNEL): cv.templatable(cv.int_range(min=0, max=1)),
+    }
+)
 
-
-@automation.register_action(
+automation.register_apply_action(
     "grove_tb6612fng.break",
-    GROVETB6612FNGMotorBrakeAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(GROVE_TB6612FNG),
-            cv.Required(CONF_CHANNEL): cv.templatable(cv.int_range(min=0, max=1)),
-        }
-    ),
-    synchronous=True,
+    CHANNEL_SCHEMA,
+    automation.ApplyField(CONF_CHANNEL, "dc_motor_brake", cg.uint8),
 )
-async def grove_tb6612fng_break_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
 
-    template_channel = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
-    cg.add(var.set_channel(template_channel))
-    return var
-
-
-@automation.register_action(
+automation.register_apply_action(
     "grove_tb6612fng.stop",
-    GROVETB6612FNGMotorStopAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(GROVE_TB6612FNG),
-            cv.Required(CONF_CHANNEL): cv.templatable(cv.int_range(min=0, max=1)),
-        }
-    ),
-    synchronous=True,
+    CHANNEL_SCHEMA,
+    automation.ApplyField(CONF_CHANNEL, "dc_motor_stop", cg.uint8),
 )
-async def grove_tb6612fng_stop_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
 
-    template_channel = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
-    cg.add(var.set_channel(template_channel))
-    return var
-
-
-@automation.register_action(
-    "grove_tb6612fng.standby",
-    GROVETB6612FNGMotorStandbyAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(GROVE_TB6612FNG),
-        }
-    ),
-    synchronous=True,
+PARENT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(GROVE_TB6612FNG),
+    }
 )
-async def grove_tb6612fng_standby_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
 
-    return var
-
-
-@automation.register_action(
-    "grove_tb6612fng.no_standby",
-    GROVETB6612FNGMotorNoStandbyAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(GROVE_TB6612FNG),
-        }
-    ),
-    synchronous=True,
+automation.register_apply_action(
+    "grove_tb6612fng.standby", PARENT_SCHEMA, automation.ApplyCall("standby()")
 )
-async def grove_tb6612fng_no_standby_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
 
-    return var
+automation.register_apply_action(
+    "grove_tb6612fng.no_standby", PARENT_SCHEMA, automation.ApplyCall("not_standby()")
+)
 
-
-@automation.register_action(
+automation.register_apply_action(
     "grove_tb6612fng.change_address",
-    GROVETB6612FNGMotorChangeAddressAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(GROVE_TB6612FNG),
             cv.Required(CONF_ADDRESS): cv.i2c_address,
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_ADDRESS, "set_i2c_addr", cg.uint8),
 )
-async def grove_tb6612fng_change_address_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-
-    template_channel = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
-    cg.add(var.set_address(template_channel))
-    return var

@@ -1,0 +1,2 @@
+packages:
+  ota: !include allow_plaintext_upload.yaml
