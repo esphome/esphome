@@ -44,14 +44,7 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_SY6970_ID])
 
-    if vbus_connected_config := config.get(CONF_VBUS_CONNECTED):
-        sens = await binary_sensor.new_binary_sensor(vbus_connected_config)
-        cg.add(parent.add_listener(sens))
-
-    if charging_config := config.get(CONF_CHARGING):
-        sens = await binary_sensor.new_binary_sensor(charging_config)
-        cg.add(parent.add_listener(sens))
-
-    if charge_done_config := config.get(CONF_CHARGE_DONE):
-        sens = await binary_sensor.new_binary_sensor(charge_done_config)
-        cg.add(parent.add_listener(sens))
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_VBUS_CONNECTED, parent.add_listener)
+    await binary_sensors(CONF_CHARGING, parent.add_listener)
+    await binary_sensors(CONF_CHARGE_DONE, parent.add_listener)
