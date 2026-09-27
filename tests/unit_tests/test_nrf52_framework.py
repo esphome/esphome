@@ -1,5 +1,6 @@
 """Tests for esphome.components.nrf52.framework helpers."""
 
+import errno
 import hashlib
 import os
 from pathlib import Path
@@ -80,6 +81,8 @@ def test_get_toolchain_platform_info(
 # ---------------------------------------------------------------------------
 
 _TEST_SDK_VERSION = "2.9.0"
+# The filter that keeps only DEFAULT_WEST_PROJECTS
+_DEFAULTS_FILTER = "-.*,+cmsis,+hal_nordic,+nrfxlib,+zephyr"
 
 
 @pytest.fixture
@@ -555,7 +558,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """A failed fetch of a newly needed project raises, keeps the stamp and
-        puts the workspace filter back to what the stamp says."""
+        puts the workspace filter back to the stamp's projects and the defaults."""
         _mark_venv_ready(nrf52_dirs.python_env)
         (nrf52_dirs.framework / ".ready").touch()
         stamp = nrf52_dirs.framework / ".west_projects"
@@ -573,7 +576,7 @@ class TestCheckAndInstall:
             "update",
             "config",
         ]
-        assert _project_filter(mock_nrf52_ops.run_command_ok) == "-.*,+zephyr"
+        assert _project_filter(mock_nrf52_ops.run_command_ok) == _DEFAULTS_FILTER
 
     def test_failed_filter_restore_is_logged(
         self,
@@ -615,6 +618,69 @@ class TestCheckAndInstall:
             "update",
             "list",
         ]
+
+    def test_failed_fetch_with_a_lost_stamp_keeps_the_default_projects(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """With the stamp lost nothing says what is fetched; the filter put
+        back after a failed fetch must not leave every project out."""
+        _mark_installed(nrf52_dirs)
+        _mark_west_initialized(nrf52_dirs.framework)
+        (nrf52_dirs.framework / ".west" / "config").write_text(
+            "[manifest]\nproject-filter = -.*,+zephyr\n", encoding="utf-8"
+        )
+        include_west_project("openthread")
+        # config succeeds, update fails, the restoring config succeeds
+        mock_nrf52_ops.run_command_ok.side_effect = [True, False, True]
+
+        with pytest.raises(EsphomeError, match="Can't update"):
+            check_and_install()
+
+        assert _project_filter(mock_nrf52_ops.run_command_ok) == _DEFAULTS_FILTER
+
+    def test_install_waits_for_another_build_holding_the_lock(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """A held lock is waited on, never mistaken for a filesystem that
+        cannot lock (filelock's Timeout is an OSError as well)."""
+        from filelock import Timeout
+
+        _mark_installed(nrf52_dirs)
+
+        with (
+            caplog.at_level("INFO"),
+            patch("filelock.FileLock") as file_lock,
+        ):
+            file_lock.return_value.acquire.side_effect = [Timeout("install.lock"), None]
+            check_and_install()
+
+        assert file_lock.return_value.acquire.call_count == 2
+        assert "Waiting for another build" in caplog.text
+        assert "continuing without a lock" not in caplog.text
+
+    def test_install_runs_unlocked_where_the_filesystem_cannot_lock(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """No soft-lock fallback: its marker outlives a killed build and would
+        hang every later one, so the install goes ahead without a lock."""
+        _mark_installed(nrf52_dirs)
+
+        with patch("filelock.FileLock") as file_lock:
+            file_lock.return_value.acquire.side_effect = OSError(
+                errno.ENOSYS, "Function not implemented"
+            )
+            check_and_install()
+
+        assert file_lock.call_args.kwargs == {"fallback_to_soft": False}
+        assert "continuing without a lock" in caplog.text
 
     def test_unknown_project_raises_before_anything_is_written(
         self,
@@ -664,7 +730,7 @@ class TestCheckAndInstall:
             "list",
             "config",
         ]
-        assert _project_filter(mock_nrf52_ops.run_command_ok) == "-.*,+zephyr"
+        assert _project_filter(mock_nrf52_ops.run_command_ok) == _DEFAULTS_FILTER
         assert (nrf52_dirs.framework / ".west_projects").read_text(
             encoding="utf-8"
         ) == "zephyr"

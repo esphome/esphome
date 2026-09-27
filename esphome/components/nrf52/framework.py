@@ -367,8 +367,13 @@ def _installed_west_projects(framework_path: Path) -> set[str] | None:
 def _restore_project_filter(
     env_python_path: Path, framework_path: Path, version: str, installed: set[str]
 ) -> None:
-    """Put the workspace filter back in step with what the stamp says is fetched."""
-    if not _set_project_filter(env_python_path, framework_path, installed):
+    """Put the workspace filter back in step with what the stamp says is fetched.
+
+    The defaults stay in whatever the stamp says: every install has them, and
+    with the stamp lost the filter would otherwise leave every project out.
+    """
+    projects = installed | set(DEFAULT_WEST_PROJECTS)
+    if not _set_project_filter(env_python_path, framework_path, projects):
         _LOGGER.warning(
             "Couldn't put the nRF Connect SDK %s project filter back; "
             "the next build that fetches a project sets it again",
@@ -393,12 +398,15 @@ def _install_lock(version: str) -> Iterator[None]:
 
     lock_path = get_sdk_nrf_tools_path() / "install.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    lock = FileLock(str(lock_path))
+    # A soft lock's marker outlives a killed build and would hang every
+    # later one, so a filesystem that can't lock runs unlocked (see git.py)
+    lock = FileLock(str(lock_path), fallback_to_soft=False)
     waiting = False
     while True:
         try:
             lock.acquire(timeout=_INSTALL_LOCK_POLL)
             break
+        # Timeout first: it is an OSError too
         except Timeout:
             if not waiting:
                 waiting = True
@@ -406,6 +414,14 @@ def _install_lock(version: str) -> Iterator[None]:
                     "Waiting for another build installing the nRF Connect SDK %s ...",
                     version,
                 )
+        except OSError as err:
+            _LOGGER.warning(
+                "Can't lock the nRF Connect SDK %s install (%s), "
+                "continuing without a lock",
+                version,
+                err,
+            )
+            break
     try:
         yield
     finally:
