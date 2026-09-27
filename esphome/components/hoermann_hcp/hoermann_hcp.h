@@ -6,7 +6,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
-#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_IDENTITY
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 
@@ -25,7 +25,7 @@ enum class DoorState : uint8_t {
   STOPPED,
 };
 
-#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_IDENTITY
 // Payload registers of each value, two bytes each.
 static constexpr size_t SERIAL_FIRST_HALF_REGS = 7;
 static constexpr size_t SERIAL_SECOND_HALF_REGS = 6;
@@ -61,7 +61,7 @@ struct HoermannHcpCommand {
 };
 
 class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
-#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_IDENTITY
   // The motor is asked for these only when one of them is configured.
   SUB_TEXT_SENSOR(serial_number)
   SUB_TEXT_SENSOR(version)
@@ -95,6 +95,9 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool toggle_light();
 
   DoorState get_door_state() const { return this->door_state_; }
+  // False until a broadcast has carried a state the door is known to report. Bus traffic alone makes the
+  // connection valid, so get_door_state() would still be its default.
+  bool is_door_state_known() const { return this->door_state_seen_; }
   float get_current_position() const { return this->current_position_; }
   bool is_valid() const { return this->valid_; }
   bool is_light_on() const { return this->light_on_; }
@@ -127,7 +130,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   void on_position_reg_(uint16_t value);
   void on_state_reg_(uint16_t value);
   void on_light_reg_(uint16_t value);
-#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_IDENTITY
   // Puts a due request into a status answer.
   void add_identity_request_(modbus::RegisterValues &registers, uint16_t command);
   void arm_identity_request_(IdentityPhase phase);
@@ -192,9 +195,10 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool changed_{false};
   bool light_on_{false};
   bool light_seen_{false};
+  bool door_state_seen_{false};
   bool short_broadcast_logged_{false};
 
-#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_IDENTITY
   uint32_t identity_asked_at_{0};
   IdentityPhase identity_phase_{IdentityPhase::IDENTITY_PHASE_IDLE};
   uint8_t identity_attempts_{0};
