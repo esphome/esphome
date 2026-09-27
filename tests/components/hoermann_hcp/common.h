@@ -53,7 +53,7 @@ inline std::pair<uint16_t, uint16_t> poll_command(HoermannHcp &door) {
   return {response[2], response[3]};
 }
 
-// Presents and then releases the queued command, leaving the slot free.
+// Fetches the queued command, a lamp toggle's release included, leaving the slot free.
 inline void consume_command(HoermannHcp &door) {
   poll_command(door);
   std::this_thread::sleep_for(KEY_PRESS_ELAPSED);

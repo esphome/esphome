@@ -19,17 +19,15 @@ static constexpr float OPEN_POSITION_THRESHOLD = 0.95f;
 // Only the parity of the outstanding toggles says where the lamp is heading, so the count must not run away.
 static constexpr uint8_t MAX_LIGHT_TOGGLES_IN_FLIGHT = 4;
 
-// Command encoding: the high byte of the first register is the phase (0x02 pressed, 0x01 released) and the
-// rest names the button - the low byte for the door commands, the second register for those that do not fit
-// there. Both halves repeat that name, so neither register is a level to hold; they carry one event each.
-static constexpr HoermannHcpCommand COMMAND_OPEN{"open", 0x0210, 0x0110};
-static constexpr HoermannHcpCommand COMMAND_CLOSE{"close", 0x0220, 0x0120};
-static constexpr HoermannHcpCommand COMMAND_IMPULSE{"impulse", 0x0240, 0x0140};
-// The intermediate positions are named in the second register, so the first only carries the phase.
-static constexpr HoermannHcpCommand COMMAND_VENT{"vent", 0x0200, 0x0100, 0x4000, 0x4000};
-static constexpr HoermannHcpCommand COMMAND_HALF_OPEN{"half open", 0x0200, 0x0100, 0x0400, 0x0400};
-// The lamp is named in the second register, but its phase bytes follow no scheme the door commands share.
-static constexpr HoermannHcpCommand COMMAND_TOGGLE_LAMP{"toggle light", 0x0100, 0x0800, 0x0200, 0x0200, false};
+// Command encoding: the high byte of the first register is 0x01 and the rest names the button, in the low byte
+// for the door commands and in the second register for those that do not fit there.
+static constexpr HoermannHcpCommand COMMAND_OPEN{"open", 0x0110};
+static constexpr HoermannHcpCommand COMMAND_CLOSE{"close", 0x0120};
+static constexpr HoermannHcpCommand COMMAND_IMPULSE{"impulse", 0x0140};
+static constexpr HoermannHcpCommand COMMAND_VENT{"vent", 0x0100, 0x4000};
+static constexpr HoermannHcpCommand COMMAND_HALF_OPEN{"half open", 0x0100, 0x0400};
+// Kept as a key press: sent once, B1 motors did not switch the lamp.
+static constexpr HoermannHcpCommand COMMAND_TOGGLE_LAMP{"toggle light", 0x0800, 0x0200, false, 0x0100, 0x0200};
 
 // High byte of the state register and the door state it stands for. State 0x00 is decoded separately because
 // its low byte tells a plain stop from the vent position.
@@ -126,8 +124,7 @@ void HoermannHcp::update() {
   // Status broadcasts alone keep the connection alive, so a command the controller never fetches would
   // otherwise block every later one for as long as it keeps broadcasting.
   if (this->next_command_ != nullptr && now - this->command_queued_at_ > this->connection_timeout_ms_) {
-    // Dropping after the press was presented leaves the door without its release value, which is worth saying
-    // apart from a command the controller never looked at.
+    // Only the lamp toggle can be caught mid key press, with its release still owed.
     if (this->command_written_at_ != 0) {
       ESP_LOGW(TAG, "Bus controller stopped polling during '%s' command, dropping it mid key press",
                this->next_command_->name);
@@ -274,11 +271,17 @@ void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
     return;
   }
   if (this->command_written_at_ == 0) {
-    // First read after the command was queued: present the "key pressed" values.
-    this->command_written_at_ = millis();
     ESP_LOGI(TAG, "Sending '%s' command to door", command->name);
-    registers.push_back(command->pressed_value);
-    registers.push_back(command->pressed_value_2);
+    if (command->pressed_value != 0 || command->pressed_value_2 != 0) {
+      this->command_written_at_ = millis();
+      registers.push_back(command->pressed_value);
+      registers.push_back(command->pressed_value_2);
+      return;
+    }
+    // Fetched with this answer.
+    this->next_command_ = nullptr;
+    registers.push_back(command->value);
+    registers.push_back(command->value_2);
     return;
   }
   if (millis() - this->command_written_at_ <= this->key_press_delay_ms_) {
@@ -286,7 +289,7 @@ void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
     push_zeros(registers, 2);
     return;
   }
-  // Enough time passed: present the "key released" values and clear the command.
+  // Enough time passed: present the lamp toggle's value and clear the command.
   ESP_LOGD(TAG, "Released '%s' command", command->name);
   this->command_written_at_ = 0;
   this->next_command_ = nullptr;
@@ -294,8 +297,8 @@ void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
   // to wait for, so it must not re-arm the watchdog.
   if (command == &COMMAND_TOGGLE_LAMP && this->light_toggles_in_flight_ != 0)
     this->light_toggle_released_at_ = millis();
-  registers.push_back(command->released_value);
-  registers.push_back(command->released_value_2);
+  registers.push_back(command->value);
+  registers.push_back(command->value_2);
 }
 
 #ifdef USE_HOERMANN_HCP_IDENTITY

@@ -129,7 +129,7 @@ TEST(HoermannHcpLightTest, LampToggleKeepsTheCoverTarget) {
   // Past the target: the door still has to be stopped despite the lamp command in between.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0078, 0x0100}));
   auto [pressed, pressed_2] = poll_command(door);
-  EXPECT_EQ(pressed, 0x0240);  // COMMAND_IMPULSE
+  EXPECT_EQ(pressed, 0x0140);  // COMMAND_IMPULSE
   EXPECT_EQ(pressed_2, 0x0000);
 }
 
@@ -156,7 +156,7 @@ TEST(HoermannHcpLightTest, LampToggleDelaysButDoesNotLoseTheTargetStop) {
   // The target survived the refusal, so the next position report still stops the door.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0079, 0x0100}));
   auto [stop, stop_2] = poll_command(door);
-  EXPECT_EQ(stop, 0x0240);  // COMMAND_IMPULSE
+  EXPECT_EQ(stop, 0x0140);  // COMMAND_IMPULSE
   EXPECT_EQ(stop_2, 0x0000);
 }
 
@@ -505,7 +505,7 @@ TEST(HoermannHcpLightTest, DroppedLampToggleKeepsTheCoverTarget) {
   // The target survived the lamp toggle being dropped, so the door is still stopped on the way.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0078, 0x0100}));
   auto [pressed, pressed_2] = poll_command(door);
-  EXPECT_EQ(pressed, 0x0240);  // COMMAND_IMPULSE
+  EXPECT_EQ(pressed, 0x0140);  // COMMAND_IMPULSE
   EXPECT_EQ(pressed_2, 0x0000);
 }
 

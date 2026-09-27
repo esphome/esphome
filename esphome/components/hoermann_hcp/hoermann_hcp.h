@@ -47,17 +47,17 @@ enum class IdentityPhase : uint8_t {
 };
 #endif
 
-// A HCP command is a simulated key press: the pressed value is presented to the bus controller, then after a
-// short delay the released value. Each half also carries a second register, which names the buttons that do
-// not fit into the first.
+// A HCP command is one value in a single status answer, as Hoermann's own bus accessory sends it. The second
+// register names the buttons that do not fit into the first. Only the lamp toggle is still a key press: a
+// pressed value first, then the value after a short delay.
 struct HoermannHcpCommand {
   const char *name;
-  uint16_t pressed_value;
-  uint16_t released_value;
-  uint16_t pressed_value_2{0x0000};
-  uint16_t released_value_2{0x0000};
+  uint16_t value;
+  uint16_t value_2{0x0000};
   // A door command supersedes a half-open target; the lamp has no bearing on where the door is going.
   bool clears_target{true};
+  uint16_t pressed_value{0x0000};
+  uint16_t pressed_value_2{0x0000};
 };
 
 class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
@@ -125,7 +125,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   void light_toggle_settled_();
   // Stops expecting the toggles the door has already been shown to reach the lamp.
   void forget_light_toggles_();
-  // Appends the two key-press registers and advances the pending command's press/release state.
+  // Appends the two command registers, consuming the pending command or advancing the lamp key press.
   void push_command_registers_(modbus::RegisterValues &registers);
   void on_position_reg_(uint16_t value);
   void on_state_reg_(uint16_t value);
@@ -161,7 +161,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // Position the door was told to travel to; 0.0 means no target is armed.
   float target_position_{0.0f};
 
-  // Pending command / key-press state machine.
+  // Pending command, and the lamp toggle's key press.
   const HoermannHcpCommand *next_command_{nullptr};
   uint32_t command_queued_at_{0};
   // Separate from command_queued_at_ so an unrelated command cannot extend the target's start deadline.
@@ -172,7 +172,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // wait. Queueing another toggle deliberately leaves it alone, so the one already sent keeps its deadline.
   uint32_t light_toggle_released_at_{0};
 
-  // A command is "pressed" for this long before its end value is sent.
+  // The lamp toggle is "pressed" for this long before its value is sent.
   uint16_t key_press_delay_ms_{100};
   // Drop the "connected" flag if the bus controller has not polled us for this long.
   uint16_t connection_timeout_ms_{2000};

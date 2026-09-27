@@ -422,7 +422,7 @@ TEST(HoermannHcpTextSensorTest, RepeatedTransferIsAcknowledgedNotAnsweredWithAKe
   const RegisterValues answer = transfer(door, 0x08, SUB_FIRMWARE, FIRMWARE, 12);
   EXPECT_EQ(answer[1], 0x04FD);
   EXPECT_EQ(answer[2], 0x0000);
-  EXPECT_EQ(status_poll(door)[2], 0x0210);
+  EXPECT_EQ(status_poll(door)[2], 0x0110);
 }
 
 // An answer belongs to the frame whose write half took the transfer. A frame whose read went elsewhere leaves
@@ -449,16 +449,30 @@ TEST(HoermannHcpTextSensorTest, RequestRidesOnlyOnAStatusPoll) {
   EXPECT_EQ(status_poll(door, 0x07)[1], 0x0322);
 }
 
-// The request travels in the registers a key press would, so it waits for the press, the hold and the release.
-TEST(HoermannHcpTextSensorTest, RequestWaitsForTheKeyPress) {
+// The request travels in the registers a command would, so it waits for the answer carrying a door command.
+TEST(HoermannHcpTextSensorTest, RequestWaitsForTheDoorCommand) {
+  IdentityFixture fixture;
+  auto &door = fixture.door;
+  connect_controller(door);
+  status_poll(door);
+  door.open_door();
+
+  const RegisterValues command = status_poll(door);
+  EXPECT_EQ(command[1], 0x0301);
+  EXPECT_EQ(command[2], 0x0110);
+  EXPECT_EQ(status_poll(door)[1], 0x0322);
+}
+
+// The lamp toggle is still a key press, so the request waits for the press, the hold and the release.
+TEST(HoermannHcpTextSensorTest, RequestWaitsForTheLampKeyPress) {
   IdentityFixture fixture;
   auto &door = fixture.door;
   door.key_press_delay_ms_ = 100;
   connect_controller(door);
   status_poll(door);
-  door.open_door();
+  ASSERT_TRUE(door.toggle_light());
 
-  EXPECT_EQ(status_poll(door)[2], 0x0210);
+  EXPECT_EQ(status_poll(door)[2], 0x0100);
   const RegisterValues held = status_poll(door);
   EXPECT_EQ(held[1], 0x0301);
   EXPECT_EQ(held[2], 0x0000);
@@ -466,7 +480,7 @@ TEST(HoermannHcpTextSensorTest, RequestWaitsForTheKeyPress) {
   std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
   const RegisterValues release = status_poll(door);
   EXPECT_EQ(release[1], 0x0301);
-  EXPECT_EQ(release[2], 0x0110);
+  EXPECT_EQ(release[2], 0x0800);
   EXPECT_EQ(status_poll(door)[1], 0x0322);
 }
 
