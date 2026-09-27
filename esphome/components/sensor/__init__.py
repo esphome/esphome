@@ -256,7 +256,6 @@ SensorPtr = Sensor.operator("ptr")
 ValueRangeTrigger = sensor_ns.class_(
     "ValueRangeTrigger", automation.Trigger.template(cg.float_), cg.Component
 )
-SensorPublishAction = sensor_ns.class_("SensorPublishAction", automation.Action)
 
 # Filters
 Filter = sensor_ns.class_("Filter")

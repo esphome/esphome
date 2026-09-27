@@ -24,14 +24,17 @@ class CountingHoermannHcpLight : public HoermannHcpLight {
   int writes{0};
 };
 
-// Drives the platform against a real LightState. ALWAYS_OFF keeps setup() clear of preferences.
+// Drives the platform against a real LightState. Boots off (no persistence) by default, which
+// keeps setup() clear of preferences.
 struct LightFixture {
   TestableHoermannHcp door;
   CountingHoermannHcpLight output{&door};
   light::LightState state{&output};
 
-  explicit LightFixture(light::LightRestoreMode restore_mode = light::LIGHT_ALWAYS_OFF) {
-    this->state.set_restore_mode(restore_mode);
+  explicit LightFixture(bool boot_on = false) {
+    if (boot_on) {
+      this->state.set_state_callback([](light::LightStateRTCState &s, bool /*restored*/) { s.state = true; });
+    }
     this->output.setup();
     // setup() queues the restored state for write_state(); the first settle() below delivers it, which is the
     // boot ordering tests need to be able to place around the bus controller coming up.
@@ -621,10 +624,10 @@ TEST(HoermannHcpLightTest, ReleaseWithNothingOutstandingLeavesTheWatchdogDisarme
   EXPECT_EQ(door.light_toggle_released_at_, 0u);
 }
 
-// A restore mode that boots the entity on replays a lit state the door has never confirmed, so it has to be
+// Booting the entity on replays a lit state the door has never confirmed, so it has to be
 // adopted back to what is known rather than turned into a command.
 TEST(HoermannHcpLightPlatformTest, RestoredOnStateIsAdoptedNotCommanded) {
-  LightFixture fixture{light::LIGHT_ALWAYS_ON};
+  LightFixture fixture{/*boot_on=*/true};
   connect_controller(fixture.door);
   fixture.settle();
 

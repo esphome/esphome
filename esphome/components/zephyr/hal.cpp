@@ -27,7 +27,11 @@ void arch_init() {
   if (device_is_ready(WDT)) {
     static wdt_timeout_cfg wdt_config{};
     wdt_config.flags = WDT_FLAG_RESET_SOC;
-#ifdef USE_ZIGBEE
+#ifndef USE_BOOTLOADER_MCUBOOT
+    // Adafruit bootloader doesn't feed the WDT while
+    // erasing flash during a firmware update, so a shorter timeout can break the update.
+    wdt_config.window.max = 30000;
+#elif defined(USE_ZIGBEE)
     // zboss thread uses a lot of CPU cycles during startup
     wdt_config.window.max = 10000;
 #else
