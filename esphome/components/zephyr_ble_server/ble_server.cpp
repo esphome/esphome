@@ -15,8 +15,11 @@ static k_work advertise_work;  // NOLINT(cppcoreguidelines-avoid-non-const-globa
 
 BLEServer *global_ble_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-// The advertisement holds 31 bytes: 3 for the flags and 2 for the name header
-static constexpr size_t MAX_ADV_NAME_LEN = 26;
+// What is left of the advertisement for the name, after the flags and the name's own header
+static constexpr size_t ADV_MAX_LEN = 31;
+static constexpr size_t ADV_FLAGS_LEN = 3;
+static constexpr size_t ADV_HEADER_LEN = 2;
+static constexpr size_t MAX_ADV_NAME_LEN = ADV_MAX_LEN - ADV_FLAGS_LEN - ADV_HEADER_LEN;
 static constexpr size_t MAC_SUFFIX_WITH_SEPARATOR_LEN = 7;
 
 static const bt_data SD[] = {
