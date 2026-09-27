@@ -31,7 +31,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_ID])
+    hub = await cg.get_variable(config[CONF_ID])
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_BATTERY_LEVEL, parent.set_battery_level)
+    await sensors(CONF_BATTERY_LEVEL, hub.set_battery_level)
