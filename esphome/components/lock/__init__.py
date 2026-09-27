@@ -1,5 +1,5 @@
 from esphome import automation
-from esphome.automation import Condition, maybe_simple_id
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
@@ -12,13 +12,13 @@ from esphome.const import (
     CONF_ON_UNLOCK,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass, TemplateArgsType
+from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@esphome/core"]
@@ -29,12 +29,8 @@ Lock = lock_ns.class_("Lock", cg.EntityBase)
 LockPtr = Lock.operator("ptr")
 LockCall = lock_ns.class_("LockCall")
 
-UnlockAction = lock_ns.class_("UnlockAction", automation.Action)
-LockAction = lock_ns.class_("LockAction", automation.Action)
-OpenAction = lock_ns.class_("OpenAction", automation.Action)
 LockPublishAction = lock_ns.class_("LockPublishAction", automation.Action)
 
-LockCondition = lock_ns.class_("LockCondition", Condition)
 LockStateForwarder = lock_ns.class_("LockStateForwarder")
 
 LockState = lock_ns.enum("LockState")
@@ -135,45 +131,24 @@ LOCK_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "lock.unlock", UnlockAction, LOCK_ACTION_SCHEMA, synchronous=True
+for _name, _call in (
+    ("lock.unlock", "unlock()"),
+    ("lock.lock", "lock()"),
+    ("lock.open", "open()"),
+):
+    automation.register_apply_action(
+        _name, LOCK_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
+
+
+automation.register_apply_condition(
+    "lock.is_locked", LOCK_ACTION_SCHEMA, f"state == {LockState.LOCK_STATE_LOCKED}"
 )
-@automation.register_action(
-    "lock.lock", LockAction, LOCK_ACTION_SCHEMA, synchronous=True
+automation.register_apply_condition(
+    "lock.is_unlocked",
+    LOCK_ACTION_SCHEMA,
+    f"state == {LockState.LOCK_STATE_UNLOCKED}",
 )
-@automation.register_action(
-    "lock.open", OpenAction, LOCK_ACTION_SCHEMA, synchronous=True
-)
-async def lock_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_condition("lock.is_locked", LockCondition, LOCK_ACTION_SCHEMA)
-async def lock_is_on_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren, True)
-
-
-@automation.register_condition("lock.is_unlocked", LockCondition, LOCK_ACTION_SCHEMA)
-async def lock_is_off_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren, False)
 
 
 @coroutine_with_priority(CoroPriority.CORE)
