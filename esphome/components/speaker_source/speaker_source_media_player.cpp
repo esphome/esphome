@@ -202,9 +202,13 @@ size_t SpeakerSourceMediaPlayer::handle_media_output_(uint8_t pipeline, media_so
     ps.pending_frames.fetch_add(reserved_frames, std::memory_order_relaxed);
     size_t bytes_written = ps.speaker->play(data, length, pdMS_TO_TICKS(timeout_ms));
     const uint32_t unused_frames = reserved_frames - stream_info.bytes_to_frames(bytes_written);
-    uint32_t pending = ps.pending_frames.load(std::memory_order_relaxed);
-    while (!ps.pending_frames.compare_exchange_weak(pending, pending - std::min(pending, unused_frames),
-                                                    std::memory_order_relaxed)) {
+    if (unused_frames > 0) {
+      // The main loop may reset pending_frames while play() is blocked.
+      // Clamp the release so that a concurrent reset cannot cause underflow.
+      uint32_t pending = ps.pending_frames.load(std::memory_order_relaxed);
+      while (!ps.pending_frames.compare_exchange_weak(pending, pending - std::min(pending, unused_frames),
+                                                      std::memory_order_relaxed)) {
+      }
     }
     return bytes_written;
   }

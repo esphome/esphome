@@ -1,31 +1,17 @@
 """Completion callbacks during a blocking speaker write must remain accounted."""
 
 from pathlib import Path
-import shutil
-import subprocess
 import sys
 
-import pytest
+from speaker_source_test_helpers import compile_and_run, method
 
 ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_completion_during_partial_write(tmp_path: Path) -> None:
-    compiler = shutil.which("g++") or shutil.which("clang++")
-    if compiler is None:
-        pytest.skip("A C++20 host compiler is required")
     source = (
         ROOT / "esphome/components/speaker_source/speaker_source_media_player.cpp"
     ).read_text()
-
-    def method(signature: str) -> str:
-        start = source.index(signature)
-        opening = source.index("{", start)
-        depth, end = 1, opening + 1
-        while depth:
-            depth += (source[end] == "{") - (source[end] == "}")
-            end += 1
-        return source[start:end]
 
     stub = r"""
 #include <algorithm>
@@ -75,27 +61,26 @@ int main() {
   assert(src.completed==queued+accepted);
   assert(p.pipelines_[0].pending_frames==0);
  }
+ // A main-loop reset during play() must not underflow the release count.
+ for(unsigned accepted:{0u,60u,100u}) {
+  SpeakerSourceMediaPlayer p;media_source::MediaSource src;Sink sink;
+  p.pipelines_[0].active_source=&src;p.pipelines_[0].speaker=&sink;
+  sink.accept=accepted*2;
+  sink.during_write=[&]{p.pipelines_[0].pending_frames.store(0);};
+  uint8_t data[200]{};
+  assert(p.handle_media_output_(0,&src,data,200,20,{})==accepted*2);
+  assert(p.pipelines_[0].pending_frames==0);
+ }
 }
 """
 
     code = stub + method(
-        "void SpeakerSourceMediaPlayer::handle_speaker_playback_callback_"
+        source, "SpeakerSourceMediaPlayer::handle_speaker_playback_callback_"
     )
     code += (
-        "\n" + method("size_t SpeakerSourceMediaPlayer::handle_media_output_") + checks
+        "\n" + method(source, "SpeakerSourceMediaPlayer::handle_media_output_") + checks
     )
     cpp = tmp_path / "completion.cpp"
     cpp.write_text(code)
     binary = tmp_path / ("completion.exe" if sys.platform == "win32" else "completion")
-    subprocess.run(
-        [compiler, "-std=c++20", str(cpp), "-o", str(binary)],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    subprocess.run(
-        [str(binary)],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    compile_and_run(cpp, binary)
