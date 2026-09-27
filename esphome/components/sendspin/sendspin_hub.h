@@ -181,6 +181,9 @@ class SendspinHub final : public Component,
   void send_client_command(sendspin::SendspinControllerCommand command, std::optional<uint8_t> volume = std::nullopt,
                            std::optional<bool> mute = std::nullopt);
 
+  /// @brief Sends the SWITCH controller command; exposed as the sendspin.switch action.
+  void switch_client();
+
   template<typename F> void add_controller_state_callback(F &&callback) {
     this->controller_state_callbacks_.add(std::forward<F>(callback));
   }

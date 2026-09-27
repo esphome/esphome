@@ -37,6 +37,8 @@ class IDFUARTComponent final : public UARTComponent, public Component {
 
   void set_flush_timeout(uint32_t flush_timeout_ms) override { this->flush_timeout_ms_ = flush_timeout_ms; }
 
+  void set_clock_source(uart_sclk_t clock_source) { this->clock_source_ = static_cast<uint8_t>(clock_source); }
+
   uint8_t get_hw_serial_number() { return this->uart_num_; }
 
   /// Discard everything received so far: the peek cache and the driver's RX buffer.
@@ -105,7 +107,8 @@ class IDFUARTComponent final : public UARTComponent, public Component {
 
   bool has_peek_{false};
   uint8_t peek_byte_{0};
-  uint32_t flush_timeout_ms_{0};  ///< 0 means wait indefinitely (portMAX_DELAY).
+  uint8_t clock_source_{UART_SCLK_DEFAULT};  ///< uart_sclk_t stored in a byte; the IDF values are all small.
+  uint32_t flush_timeout_ms_{0};             ///< 0 means wait indefinitely (portMAX_DELAY).
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
   // ISR callback for UART RX data notification — wakes the main loop directly.

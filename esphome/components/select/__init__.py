@@ -40,11 +40,6 @@ SelectStateTrigger = select_ns.class_(
     automation.Trigger.template(cg.StringRef, cg.size_t),
 )
 
-# Actions
-SelectSetAction = select_ns.class_("SelectSetAction", automation.Action)
-SelectSetIndexAction = select_ns.class_("SelectSetIndexAction", automation.Action)
-SelectOperationAction = select_ns.class_("SelectOperationAction", automation.Action)
-
 # Conditions
 SelectIsCondition = select_ns.class_("SelectIsCondition", automation.Condition)
 
@@ -140,40 +135,32 @@ OPERATION_BASE_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "select.set",
-    SelectSetAction,
     OPERATION_BASE_SCHEMA.extend(
         {
             cv.Required(CONF_OPTION): cv.templatable(cv.string_strict),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(
+        CONF_OPTION,
+        "set_option",
+        cg.std_string,
+        const_fn=automation.literal_with_length,
+    ),
+    call="make_call",
 )
-async def select_set_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_OPTION], args, cg.std_string)
-    cg.add(var.set_option(template_))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "select.set_index",
-    SelectSetIndexAction,
     OPERATION_BASE_SCHEMA.extend(
         {
             cv.Required(CONF_INDEX): cv.templatable(cv.positive_int),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_INDEX, "set_index", cg.size_t),
+    call="make_call",
 )
-async def select_set_index_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_INDEX], args, cg.size_t)
-    cg.add(var.set_index(template_))
-    return var
 
 
 @automation.register_condition(
@@ -211,9 +198,8 @@ async def select_is_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg, paren, arg)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "select.operation",
-    SelectOperationAction,
     OPERATION_BASE_SCHEMA.extend(
         {
             cv.Required(CONF_OPERATION): cv.templatable(
@@ -222,75 +208,28 @@ async def select_is_to_code(config, condition_id, template_arg, args):
             cv.Optional(CONF_CYCLE, default=True): cv.templatable(cv.boolean),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_OPERATION, "with_operation", SelectOperation),
+    automation.ApplyField(CONF_CYCLE, "with_cycle", cg.bool_),
+    call="make_call",
 )
-@automation.register_action(
-    "select.next",
-    SelectOperationAction,
-    automation.maybe_simple_id(
-        OPERATION_BASE_SCHEMA.extend(
-            {
-                cv.Optional(CONF_MODE, default="NEXT"): cv.one_of("NEXT", upper=True),
-                cv.Optional(CONF_CYCLE, default=True): cv.boolean,
-            }
-        )
-    ),
-    synchronous=True,
-)
-@automation.register_action(
-    "select.previous",
-    SelectOperationAction,
-    automation.maybe_simple_id(
-        OPERATION_BASE_SCHEMA.extend(
-            {
-                cv.Optional(CONF_MODE, default="PREVIOUS"): cv.one_of(
-                    "PREVIOUS", upper=True
-                ),
-                cv.Optional(CONF_CYCLE, default=True): cv.boolean,
-            }
-        )
-    ),
-    synchronous=True,
-)
-@automation.register_action(
-    "select.first",
-    SelectOperationAction,
-    automation.maybe_simple_id(
-        OPERATION_BASE_SCHEMA.extend(
-            {
-                cv.Optional(CONF_MODE, default="FIRST"): cv.one_of("FIRST", upper=True),
-            }
-        )
-    ),
-    synchronous=True,
-)
-@automation.register_action(
-    "select.last",
-    SelectOperationAction,
-    automation.maybe_simple_id(
-        OPERATION_BASE_SCHEMA.extend(
-            {
-                cv.Optional(CONF_MODE, default="LAST"): cv.one_of("LAST", upper=True),
-            }
-        )
-    ),
-    synchronous=True,
-)
-async def select_operation_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if (operation := config.get(CONF_OPERATION)) is not None:
-        op_ = await cg.templatable(operation, args, SelectOperation)
-        cg.add(var.set_operation(op_))
-        if (cycle := config.get(CONF_CYCLE)) is not None:
-            template_ = await cg.templatable(cycle, args, cg.bool_)
-            cg.add(var.set_cycle(template_))
-    if (mode := config.get(CONF_MODE)) is not None:
-        template_ = await cg.templatable(
-            SELECT_OPERATION_OPTIONS[mode], args, SelectOperation
-        )
-        cg.add(var.set_operation(template_))
-        if (cycle := config.get(CONF_CYCLE)) is not None:
-            template_ = await cg.templatable(cycle, args, cg.bool_)
-            cg.add(var.set_cycle(template_))
-    return var
+
+# The operation is fixed by the action name; CONF_MODE only stays accepted in the config.
+for _name, _mode, _cycle in (
+    ("select.next", "NEXT", True),
+    ("select.previous", "PREVIOUS", True),
+    ("select.first", "FIRST", False),
+    ("select.last", "LAST", False),
+):
+    _schema = {cv.Optional(CONF_MODE, default=_mode): cv.one_of(_mode, upper=True)}
+    _fields = [
+        automation.ApplyCall(f"with_operation({SELECT_OPERATION_OPTIONS[_mode]})")
+    ]
+    if _cycle:
+        _schema[cv.Optional(CONF_CYCLE, default=True)] = cv.boolean
+        _fields.append(automation.ApplyField(CONF_CYCLE, "with_cycle", cg.bool_))
+    automation.register_apply_action(
+        _name,
+        automation.maybe_simple_id(OPERATION_BASE_SCHEMA.extend(_schema)),
+        *_fields,
+        call="make_call",
+    )
