@@ -542,7 +542,7 @@ def run_compile(config, verbose: bool) -> int:
     if rc == 0:
         size_json = CORE.relative_build_path("build", "esp_idf_size.json")
         partitions = CORE.relative_build_path("partitions.csv")
-        print_summary(size_json, partitions if partitions.is_file() else None)
+        print_summary(size_json, partitions, get_built_elf_path())
     return rc
 
 
@@ -577,6 +577,16 @@ def get_ota_firmware_path() -> Path:
     """
     build_dir = CORE.relative_build_path("build")
     return build_dir / "firmware.ota.bin"
+
+
+def get_built_elf_path() -> Path:
+    """Path to the ELF idf.py writes directly, ``<build>/<name>.elf``.
+
+    Exists as soon as the build finishes, unlike the ``firmware.elf``
+    copy that ``create_elf_copy`` makes later.
+    """
+    build_dir = CORE.relative_build_path("build")
+    return build_dir / f"{CORE.name}.elf"
 
 
 def get_elf_path() -> Path:
@@ -706,8 +716,7 @@ def create_elf_copy() -> bool:
     "download ELF" link requests the literal filename ``firmware.elf``
     (PlatformIO convention), so copy it to that name.
     """
-    build_dir = CORE.relative_build_path("build")
-    src_elf = build_dir / f"{CORE.name}.elf"
+    src_elf = get_built_elf_path()
     dst_elf = get_elf_path()
 
     if not src_elf.is_file():
