@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import logging
 import math
 
@@ -115,6 +116,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    new_sub_entity,
     queue_entity_register,
     setup_device_class,
     setup_entity,
@@ -122,6 +124,7 @@ from esphome.core.entity_helpers import (
 )
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import ConfigType, Expression, SafeExpType
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -1011,6 +1014,16 @@ async def new_sensor(config, *args):
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_sensor(var, config)
     return var
+
+
+async def new_sub_sensor(
+    config: ConfigType,
+    key: str,
+    setter: Callable[[MockObj], Expression],
+    *args: SafeExpType,
+) -> MockObj | None:
+    """Create the sensor configured under key, if any, and pass it to setter."""
+    return await new_sub_entity(new_sensor, config, key, setter, *args)
 
 
 SENSOR_IN_RANGE_CONDITION_SCHEMA = cv.All(

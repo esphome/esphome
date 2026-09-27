@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
+from esphome.components.const import CONF_HUMIDITY_SOURCE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BASELINE,
@@ -31,7 +32,6 @@ SGP30Component = sgp30_ns.class_(
 CONF_ECO2_BASELINE = "eco2_baseline"
 CONF_TVOC_BASELINE = "tvoc_baseline"
 CONF_UPTIME = "uptime"
-CONF_HUMIDITY_SOURCE = "humidity_source"
 
 
 CONFIG_SCHEMA = (

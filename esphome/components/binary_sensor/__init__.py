@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from logging import getLogger
 
 from esphome import automation, core
@@ -64,11 +65,13 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    new_sub_entity,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType, Expression, SafeExpType
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -134,9 +137,6 @@ MultiClickTriggerBase = binary_sensor_ns.class_(
 MultiClickTrigger = binary_sensor_ns.class_("MultiClickTrigger", MultiClickTriggerBase)
 MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 
-BinarySensorInvalidateAction = binary_sensor_ns.class_(
-    "BinarySensorInvalidateAction", automation.Action
-)
 
 # Filters
 Filter = binary_sensor_ns.class_("Filter")
@@ -635,6 +635,16 @@ async def new_binary_sensor(config, *args):
     return var
 
 
+async def new_sub_binary_sensor(
+    config: ConfigType,
+    key: str,
+    setter: Callable[[MockObj], Expression],
+    *args: SafeExpType,
+) -> MockObj | None:
+    """Create the binary sensor configured under key, if any, and pass it to setter."""
+    return await new_sub_entity(new_binary_sensor, config, key, setter, *args)
+
+
 BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(BinarySensor),
@@ -655,20 +665,16 @@ async def to_code(config):
     cg.add_global(binary_sensor_ns.using)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "binary_sensor.invalidate_state",
-    BinarySensorInvalidateAction,
     cv.maybe_simple_value(
         {
             cv.Required(CONF_ID): cv.use_id(BinarySensor),
         },
         key=CONF_ID,
     ),
-    synchronous=True,
+    automation.ApplyCall("invalidate_state()"),
 )
-async def binary_sensor_invalidate_state_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 # automation.cpp only implements the click/double_click/multi_click triggers

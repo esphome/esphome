@@ -81,7 +81,7 @@ def AUTO_LOAD(config: ConfigType) -> list[str]:
 
 
 api_ns = cg.esphome_ns.namespace("api")
-APIServer = api_ns.class_("APIServer", cg.Component, cg.Controller)
+APIServer = api_ns.class_("APIServer", cg.Component)
 HomeAssistantServiceCallAction = api_ns.class_(
     "HomeAssistantServiceCallAction", automation.Action
 )
@@ -462,8 +462,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    # Track controller registration for StaticVector sizing
-    CORE.register_controller()
+    CORE.register_controller(var)
 
     # Request a log listener slot for API log streaming
     request_log_listener()
