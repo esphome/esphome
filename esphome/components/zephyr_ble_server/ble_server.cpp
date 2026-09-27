@@ -39,9 +39,10 @@ static void advertise(k_work *work) {
   const size_t name_len =
       truncate_name_to(name, sizeof(name), app_name.c_str(), app_name.length(),
                        App.is_name_add_mac_suffix_enabled() ? MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN : 0);
+  const uint8_t name_type = name_len < app_name.length() ? BT_DATA_NAME_SHORTENED : BT_DATA_NAME_COMPLETE;
   const bt_data ad[] = {
       BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-      BT_DATA(name_len < app_name.length() ? BT_DATA_NAME_SHORTENED : BT_DATA_NAME_COMPLETE, name, name_len),
+      BT_DATA(name_type, name, static_cast<uint8_t>(name_len)),
   };
 
   rc = bt_le_adv_start(ADV_PARAM, ad, ARRAY_SIZE(ad), SD, ARRAY_SIZE(SD));
