@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include <deque>
+#include <span>
 
 #include "esphome/components/pn532/pn532.h"
 
@@ -14,6 +16,7 @@ class FakePN532 : public PN532 {
   using PN532::auth_mifare_classic_block_;
   using PN532::read_mifare_ultralight_bytes_;
   using PN532::read_mifare_classic_block_;
+  using PN532::write_command_;
   using PN532::write_mifare_classic_block_;
   using PN532::write_mifare_ultralight_page_;
 
@@ -22,23 +25,25 @@ class FakePN532 : public PN532 {
 
  protected:
   bool is_read_ready() override { return true; }
-  bool write_data(const std::vector<uint8_t> &data) override {
-    this->written.push_back(data);
+  bool write_data(std::span<const uint8_t> data) override {
+    this->written.emplace_back(data.begin(), data.end());
     return true;
   }
   // only used for ACK frames; index 0 is the I2C status byte
-  bool read_data(std::vector<uint8_t> &data, uint8_t len) override {
+  bool read_data(PN532Frame &data, uint8_t len) override {
     data = {0x01, 0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00};
     return true;
   }
-  bool read_response(uint8_t command, std::vector<uint8_t> &data) override {
+  bool read_response(uint8_t command, PN532Frame &data) override {
     if (this->responses.empty())
       return false;
-    data = this->responses.front();
+    data.assign(this->responses.front().begin(), this->responses.front().end());
     this->responses.pop_front();
     return true;
   }
 };
+
+std::vector<uint8_t> bytes_of(std::span<const uint8_t> bytes) { return {bytes.begin(), bytes.end()}; }
 
 // Extracts the command bytes (after TFI) from a normal information frame
 std::vector<uint8_t> frame_data(const std::vector<uint8_t> &frame) {
@@ -58,40 +63,79 @@ TEST(PN532TagType, FromSelRes) {
   EXPECT_EQ(tag_type_from_sel_res(0x40), nfc::TAG_TYPE_UNKNOWN);
 }
 
+// The frame wraps the command in preamble, start code, LEN, LCS, TFI, DCS and postamble (UM0701-02, 6.2.1.1).
+TEST(PN532Frame, WrapsCommand) {
+  FakePN532 pn532;
+  ASSERT_TRUE(pn532.write_command_({0x4A, 0x01, 0x00}));
+  ASSERT_EQ(pn532.written.size(), 1u);
+  EXPECT_EQ(pn532.written[0], (std::vector<uint8_t>{0x00, 0x00, 0xFF, 0x04, 0xFC, 0xD4, 0x4A, 0x01, 0x00, 0xE1, 0x00}));
+}
+
+// A command that cannot fit a normal information frame is refused rather than truncated.
+TEST(PN532Frame, RejectsOversizedCommand) {
+  FakePN532 pn532;
+  std::array<uint8_t, PN532_FRAME_MAX_DATA_SIZE + 1> too_long{};
+  EXPECT_FALSE(pn532.write_command_(too_long));
+  EXPECT_TRUE(pn532.written.empty());
+  EXPECT_TRUE(pn532.write_command_(std::span<const uint8_t>(too_long).first(PN532_FRAME_MAX_DATA_SIZE)));
+  ASSERT_EQ(pn532.written.size(), 1u);
+  EXPECT_EQ(pn532.written[0].size(), PN532_FRAME_MAX_DATA_SIZE + 8);
+}
+
 // A failed write (status byte other than 0x00) must be reported as a failure.
 TEST(PN532Mifare, ClassicWriteChecksStatus) {
   FakePN532 pn532;
   const uint8_t block[16] = {};
   pn532.responses.push_back({0x14});  // authentication error
-  EXPECT_FALSE(pn532.write_mifare_classic_block_(4, block, sizeof(block)));
+  EXPECT_FALSE(pn532.write_mifare_classic_block_(4, block));
   pn532.responses.push_back({0x00});
-  EXPECT_TRUE(pn532.write_mifare_classic_block_(4, block, sizeof(block)));
+  EXPECT_TRUE(pn532.write_mifare_classic_block_(4, block));
 }
 
 TEST(PN532Mifare, UltralightWriteChecksStatus) {
   FakePN532 pn532;
   const uint8_t page[4] = {};
   pn532.responses.push_back({0x01});  // timeout
-  EXPECT_FALSE(pn532.write_mifare_ultralight_page_(4, page, sizeof(page)));
+  EXPECT_FALSE(pn532.write_mifare_ultralight_page_(4, page));
   pn532.responses.push_back({0x00});
-  EXPECT_TRUE(pn532.write_mifare_ultralight_page_(4, page, sizeof(page)));
+  EXPECT_TRUE(pn532.write_mifare_ultralight_page_(4, page));
 }
 
 TEST(PN532Mifare, ClassicReadRejectsBadResponses) {
   FakePN532 pn532;
-  std::vector<uint8_t> data;
+  std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> data{};
   pn532.responses.emplace_back();  // empty response
   EXPECT_FALSE(pn532.read_mifare_classic_block_(4, data));
-  data.clear();
   pn532.responses.push_back({0x00, 0x01, 0x02});  // short block
   EXPECT_FALSE(pn532.read_mifare_classic_block_(4, data));
 
   std::vector<uint8_t> good(17, 0xAB);
   good[0] = 0x00;
   pn532.responses.push_back(good);
-  data.clear();
   EXPECT_TRUE(pn532.read_mifare_classic_block_(4, data));
-  EXPECT_EQ(data, std::vector<uint8_t>(16, 0xAB));
+  EXPECT_EQ(bytes_of(data), std::vector<uint8_t>(16, 0xAB));
+}
+
+// The NDEF TLV is type 0x03, a one-byte length below 255 (three bytes otherwise), the message, terminator 0xFE,
+// then zero padding out to the requested length.
+TEST(PN532Ndef, FillsTlv) {
+  FixedVector<uint8_t> buffer;
+  const std::array<uint8_t, 3> message = {0xD1, 0x01, 0x02};
+  nfc::fill_ndef_tlv(message, 8, buffer);
+  EXPECT_EQ(bytes_of(std::span<const uint8_t>(buffer)),
+            (std::vector<uint8_t>{0x03, 0x03, 0xD1, 0x01, 0x02, 0xFE, 0x00, 0x00}));
+
+  std::vector<uint8_t> long_message(300, 0xAA);
+  nfc::fill_ndef_tlv(long_message, 320, buffer);
+  ASSERT_EQ(buffer.size(), 320u);
+  EXPECT_EQ(buffer[0], 0x03);
+  EXPECT_EQ(buffer[1], 0xFF);
+  EXPECT_EQ(buffer[2], 0x01);  // 300 = 0x012C
+  EXPECT_EQ(buffer[3], 0x2C);
+  EXPECT_EQ(buffer[4], 0xAA);
+  EXPECT_EQ(buffer[303], 0xAA);
+  EXPECT_EQ(buffer[304], 0xFE);
+  EXPECT_EQ(buffer[319], 0x00);
 }
 
 // Authentication carries exactly 4 UID bytes: the last 4 of a 7-byte UID.
@@ -119,7 +163,7 @@ TEST(PN532Mifare, UltralightReadTrimsLastChunk) {
   pn532.responses.push_back(first);
   pn532.responses.push_back(second);
 
-  std::vector<uint8_t> data;
+  UltralightReadBuffer data;
   ASSERT_TRUE(pn532.read_mifare_ultralight_bytes_(4, 20, data));
   ASSERT_EQ(data.size(), 20u);
   EXPECT_EQ(data[15], 15);
@@ -133,7 +177,7 @@ TEST(PN532Mifare, UltralightReadTrimsLastChunk) {
 
 TEST(PN532Mifare, UltralightReadRejectsBadResponses) {
   FakePN532 pn532;
-  std::vector<uint8_t> data;
+  UltralightReadBuffer data;
   pn532.responses.push_back({0x00, 0x01, 0x02});  // short response
   EXPECT_FALSE(pn532.read_mifare_ultralight_bytes_(4, 16, data));
 

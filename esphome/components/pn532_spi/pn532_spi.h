@@ -4,7 +4,7 @@
 #include "esphome/components/pn532/pn532.h"
 #include "esphome/components/spi/spi.h"
 
-#include <vector>
+#include <span>
 
 namespace esphome::pn532_spi {
 
@@ -18,9 +18,9 @@ class PN532Spi final : public pn532::PN532,
 
  protected:
   bool is_read_ready() override;
-  bool write_data(const std::vector<uint8_t> &data) override;
-  bool read_data(std::vector<uint8_t> &data, uint8_t len) override;
-  bool read_response(uint8_t command, std::vector<uint8_t> &data) override;
+  bool write_data(std::span<const uint8_t> data) override;
+  bool read_data(pn532::PN532Frame &data, uint8_t len) override;
+  bool read_response(uint8_t command, pn532::PN532Frame &data) override;
 };
 
 }  // namespace esphome::pn532_spi
