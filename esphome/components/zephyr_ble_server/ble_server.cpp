@@ -16,20 +16,26 @@ BLEServer *global_ble_server;  // NOLINT(cppcoreguidelines-avoid-non-const-globa
 #define DEVICE_NAME CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
 
+#ifdef USE_API_TRANSPORT_BLE
+// The advertisement holds 31 bytes: 3 for the flags, 18 for the API service and 2 for the name header
+static constexpr size_t MAX_ADV_NAME_LEN = 8;
+#else
 // The advertisement holds 31 bytes: 3 for the flags and 2 for the name header
 static constexpr size_t MAX_ADV_NAME_LEN = 26;
+#endif
 static const bt_data AD[] = {
     BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
+#ifdef USE_API_TRANSPORT_BLE
+    // In the advertisement, not the scan response, so passive scanners find the API
+    BT_DATA_BYTES(BT_DATA_UUID128_ALL, 0x3e, 0x80, 0x39, 0x53, 0x54, 0x45, 0x64, 0x89, 0x44, 0x44, 0x9c, 0x1c, 0x8b,
+                  0x0d, 0x1b, 0xe5),
+#endif
     BT_DATA((DEVICE_NAME_LEN > MAX_ADV_NAME_LEN) ? BT_DATA_NAME_SHORTENED : BT_DATA_NAME_COMPLETE, DEVICE_NAME,
             (DEVICE_NAME_LEN > MAX_ADV_NAME_LEN) ? MAX_ADV_NAME_LEN : DEVICE_NAME_LEN),
 };
 
-// The scan response has no room for two 128 bit UUIDs, so the API service takes priority
 static const bt_data SD[] = {
-#ifdef USE_API_TRANSPORT_BLE
-    BT_DATA_BYTES(BT_DATA_UUID128_ALL, 0x3e, 0x80, 0x39, 0x53, 0x54, 0x45, 0x64, 0x89, 0x44, 0x44, 0x9c, 0x1c, 0x8b,
-                  0x0d, 0x1b, 0xe5),
-#elif defined(USE_OTA)
+#ifdef USE_OTA
     BT_DATA_BYTES(BT_DATA_UUID128_ALL, 0x84, 0xaa, 0x60, 0x74, 0x52, 0x8a, 0x8b, 0x86, 0xd3, 0x4c, 0xb7, 0x1d, 0x1d,
                   0xdc, 0x53, 0x8d),
 #endif
@@ -89,6 +95,10 @@ void BLEServer::disconnected(bt_conn *conn, uint8_t reason) {
     if (global_ble_server->conn_ == conn) {
       bt_conn_unref(global_ble_server->conn_);
       global_ble_server->conn_ = nullptr;
+    }
+    if (global_ble_server->pairing_conn_ == conn) {
+      bt_conn_unref(global_ble_server->pairing_conn_);
+      global_ble_server->pairing_conn_ = nullptr;
     }
   });
   k_work_submit(&advertise_work);
@@ -190,7 +200,15 @@ void BLEServer::auth_passkey_confirm(bt_conn *conn, unsigned int passkey) {
   snprintk(passkey_str, 7, "%06u", passkey);
 
   ESP_LOGI(TAG, "Confirm passkey for %s: %s", addr, passkey_str);
-  global_ble_server->defer([passkey]() { global_ble_server->passkey_cb_(passkey); });
+  conn = bt_conn_ref(conn);
+  global_ble_server->defer([conn, passkey]() {
+    // The reply must go to the connection that asked, not to the newest one
+    if (global_ble_server->pairing_conn_ != nullptr) {
+      bt_conn_unref(global_ble_server->pairing_conn_);
+    }
+    global_ble_server->pairing_conn_ = conn;
+    global_ble_server->passkey_cb_(passkey);
+  });
 }
 #endif
 static void auth_pairing_confirm(bt_conn *conn) {
@@ -324,16 +342,18 @@ void BLEServer::dump_config() {
 }
 
 void BLEServer::numeric_comparison_reply(bool accept) {
-  if (this->conn_ == nullptr) {
-    ESP_LOGE(TAG, "Not connected");
+  if (this->pairing_conn_ == nullptr) {
+    ESP_LOGE(TAG, "No pairing in progress");
     return;
   }
   ESP_LOGD(TAG, "Numeric comparison %s", accept ? "accepted" : "rejected");
   if (accept) {
-    bt_conn_auth_passkey_confirm(this->conn_);
+    bt_conn_auth_passkey_confirm(this->pairing_conn_);
   } else {
-    bt_conn_auth_cancel(this->conn_);
+    bt_conn_auth_cancel(this->pairing_conn_);
   }
+  bt_conn_unref(this->pairing_conn_);
+  this->pairing_conn_ = nullptr;
 }
 
 }  // namespace esphome::zephyr_ble_server
