@@ -273,8 +273,8 @@ class MipiSpi : public display::Display,
       this->dc_pin_->digital_write(false);
       this->enable();
       this->write_byte(cmd);
-      this->dc_pin_->digital_write(true);
       this->disable();
+      this->dc_pin_->digital_write(true);
       for (size_t i = 0; i != len; i++) {
         this->enable();
         this->write_byte(0);
