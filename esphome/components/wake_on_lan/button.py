@@ -3,11 +3,12 @@ from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 
 
-def AUTO_LOAD():
+def AUTO_LOAD() -> list[str]:
     if CORE.is_esp8266 or CORE.is_rp2:
         return []
     return ["socket"]
@@ -30,7 +31,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_macaddr(*config[CONF_TARGET_MAC_ADDRESS].parts))
     await cg.register_component(var, config)

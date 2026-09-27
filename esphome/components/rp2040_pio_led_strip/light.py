@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import light, rp2
+from esphome.components.const import CONF_CHANNEL_COLORS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHIPSET,
@@ -13,10 +14,11 @@ from esphome.const import (
     CONF_PIN,
     CONF_RGB_ORDER,
 )
+from esphome.types import ConfigType
 from esphome.util import _LOGGER
 
 
-def get_nops(timing):
+def get_nops(timing: float) -> list[float | str]:
     """
     Calculate the number of NOP instructions required to wait for a given amount of time.
     """
@@ -37,7 +39,7 @@ def get_nops(timing):
     return nops
 
 
-def generate_assembly_code(id, rgbw, t0h, t0l, t1h, t1l):
+def generate_assembly_code(id: str, t0h: int, t0l: int, t1h: int, t1l: int) -> str:
     """
     Generate assembly code with the given timing values.
     """
@@ -123,7 +125,7 @@ writezero:
     return assembly_template + const_csdk_code
 
 
-def time_to_cycles(time_us):
+def time_to_cycles(time_us: float) -> int:
     cycles_per_us = 57.5
     return round(float(time_us) * cycles_per_us)
 
@@ -138,8 +140,6 @@ rp2040_pio_led_strip_ns = cg.esphome_ns.namespace("rp2040_pio_led_strip")
 RP2040PIOLEDStripLightOutput = rp2040_pio_led_strip_ns.class_(
     "RP2040PIOLEDStripLightOutput", light.AddressableLight
 )
-
-RGBOrder = rp2040_pio_led_strip_ns.enum("RGBOrder")
 
 Chipset = rp2040_pio_led_strip_ns.enum("Chipset")
 
@@ -159,15 +159,6 @@ class LEDStripTimings:
     T1L: int
 
 
-RGB_ORDERS = {
-    "RGB": RGBOrder.ORDER_RGB,
-    "RBG": RGBOrder.ORDER_RBG,
-    "GRB": RGBOrder.ORDER_GRB,
-    "GBR": RGBOrder.ORDER_GBR,
-    "BGR": RGBOrder.ORDER_BGR,
-    "BRG": RGBOrder.ORDER_BRG,
-}
-
 CHIPSET_TIMINGS = {
     "WS2812": LEDStripTimings(20, 40, 46, 34),
     "WS2812B": LEDStripTimings(23, 49, 46, 26),
@@ -181,7 +172,7 @@ CONF_BIT1_HIGH = "bit1_high"
 CONF_BIT1_LOW = "bit1_low"
 
 
-def _validate_timing(value):
+def _validate_timing(value: str) -> float:
     # if doesn't end with us, raise error
     if not value.endswith("us"):
         raise cv.Invalid("Timing must be in microseconds (us)")
@@ -199,10 +190,12 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(RP2040PIOLEDStripLightOutput),
             cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
-            cv.Required(CONF_RGB_ORDER): cv.enum(RGB_ORDERS, upper=True),
+            cv.Optional(CONF_CHANNEL_COLORS): light.validate_channel_colors,
+            # Deprecated in favour of CONF_CHANNEL_COLORS, remove in 2027.3.0
+            cv.Optional(CONF_RGB_ORDER): cv.one_of(*light.RGB_ORDERS, upper=True),
+            cv.Optional(CONF_IS_RGBW): cv.boolean,
             cv.Required(CONF_PIO): cv.one_of(0, 1, int=True),
             cv.Optional(CONF_CHIPSET): cv.enum(CHIPSETS, upper=True),
-            cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
             cv.Inclusive(
                 CONF_BIT0_HIGH,
                 "custom",
@@ -222,10 +215,13 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.has_exactly_one_key(CONF_CHIPSET, CONF_BIT0_HIGH),
+    light.migrate_channel_colors(
+        removed_in="2027.3.0", component="rp2040_pio_led_strip"
+    ),
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     id = config[CONF_ID].id
     await light.register_light(var, config)
@@ -234,8 +230,9 @@ async def to_code(config):
     cg.add(var.set_num_leds(config[CONF_NUM_LEDS]))
     cg.add(var.set_pin(config[CONF_PIN]))
 
-    cg.add(var.set_rgb_order(config[CONF_RGB_ORDER]))
-    cg.add(var.set_is_rgbw(config[CONF_IS_RGBW]))
+    cg.add(
+        var.set_channel_colors(light.channel_colors_struct(config[CONF_CHANNEL_COLORS]))
+    )
 
     cg.add(var.set_pio(config[CONF_PIO]))
     cg.add(var.set_program(cg.RawExpression(f"&rp2040_pio_led_strip_{id}_program")))
@@ -255,7 +252,6 @@ async def to_code(config):
             key,
             generate_assembly_code(
                 id,
-                config[CONF_IS_RGBW],
                 CHIPSET_TIMINGS[chipset].T0H,
                 CHIPSET_TIMINGS[chipset].T0L,
                 CHIPSET_TIMINGS[chipset].T1H,
@@ -270,7 +266,6 @@ async def to_code(config):
             key,
             generate_assembly_code(
                 id,
-                config[CONF_IS_RGBW],
                 time_to_cycles(config[CONF_BIT0_HIGH]),
                 time_to_cycles(config[CONF_BIT0_LOW]),
                 time_to_cycles(config[CONF_BIT1_HIGH]),

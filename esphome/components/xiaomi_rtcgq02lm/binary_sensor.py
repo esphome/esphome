@@ -11,6 +11,7 @@ from esphome.const import (
     DEVICE_CLASS_MOTION,
 )
 from esphome.core import TimePeriod
+from esphome.types import ConfigType
 
 from . import XiaomiRTCGQ02LM
 
@@ -45,19 +46,15 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_ID])
 
-    if CONF_MOTION in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_MOTION])
-        cg.add(parent.set_motion(sens))
+    if await binary_sensor.new_sub_binary_sensor(
+        config, CONF_MOTION, parent.set_motion
+    ):
         cg.add(parent.set_motion_timeout(config[CONF_MOTION][CONF_TIMEOUT]))
-
-    if CONF_LIGHT in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_LIGHT])
-        cg.add(parent.set_light(sens))
-
-    if CONF_BUTTON in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_BUTTON])
-        cg.add(parent.set_button(sens))
+    await binary_sensor.new_sub_binary_sensor(config, CONF_LIGHT, parent.set_light)
+    if await binary_sensor.new_sub_binary_sensor(
+        config, CONF_BUTTON, parent.set_button
+    ):
         cg.add(parent.set_button_timeout(config[CONF_BUTTON][CONF_TIMEOUT]))

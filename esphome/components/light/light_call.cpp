@@ -219,14 +219,23 @@ LightColorValues LightCall::validate_() {
     this->set_flag_(FLAG_HAS_STATE);
   }
 
-  // Make sure a turn-on makes the light visible: if the resulting brightness would be zero
-  // (e.g. restored from a brightness=0 turn-off), reset it to full brightness.
-  if (this->has_state() && this->state_ && (color_mode & ColorCapability::BRIGHTNESS)) {
-    float brightness = this->has_brightness() ? this->brightness_ : this->parent_->remote_values.get_brightness();
-    if (brightness == 0.0f) {
-      this->brightness_ = 1.0f;
-      this->set_flag_(FLAG_HAS_BRIGHTNESS);
-    }
+  // A light without brightness control has no way to represent "on but dark", so zero
+  // brightness -- how effects encode their dark phase -- means the light is off. Clear the
+  // brightness as well, so a zero can't linger in remote_values and leave the light stuck
+  // off: a later turn-on can't heal it, because the capability check below drops any
+  // brightness this mode doesn't support. explicit_turn_off_request was captured above, so
+  // a running effect is not stopped by this.
+  if (this->has_brightness() && this->brightness_ == 0.0f && !(color_mode & ColorCapability::BRIGHTNESS)) {
+    this->state_ = false;
+    this->set_flag_(FLAG_HAS_STATE);
+    this->clear_flag_(FLAG_HAS_BRIGHTNESS);
+  }
+
+  // Make sure a simple (no specific brightness) turn-on makes the light visible
+  if (this->has_state() && this->state_ && (color_mode & ColorCapability::BRIGHTNESS) && !this->has_brightness() &&
+      this->parent_->remote_values.get_brightness() == 0.0f) {
+    this->brightness_ = 1.0f;
+    this->set_flag_(FLAG_HAS_BRIGHTNESS);
   }
 
   // Set color brightness to 100% if currently zero and a color is set.

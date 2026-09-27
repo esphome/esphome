@@ -1,0 +1,125 @@
+esphome:
+  name: uart-mock-modbus-fairness
+
+host:
+api:
+logger:
+  # DEBUG (not VERBOSE) keeps the log volume manageable while both controllers
+  # hammer the bus at a high rate.
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# Counters for the number of requests seen on the bus for each device address.
+globals:
+  - id: req_count_1
+    type: int
+    initial_value: "0"
+  - id: req_count_2
+    type: int
+    initial_value: "0"
+
+uart_mock:
+  - id: virtual_uart
+    baud_rate: 9600
+    # auto_start so the mock is ready to deliver injected responses. Polling
+    # itself is gated by the Start button below.
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          # Count each outgoing request by device address (byte 0 of the frame).
+          - lambda: |-
+              if (data.empty())
+                return;
+              if (data[0] == 0x01) {
+                id(req_count_1) += 1;
+                id(requests_1).publish_state(id(req_count_1));
+              } else if (data[0] == 0x02) {
+                id(req_count_2) += 1;
+                id(requests_2).publish_state(id(req_count_2));
+              }
+          # Reply directly with a canned, CRC-correct "read holding register"
+          # response for whichever device was addressed (both controllers only
+          # ever issue this one fixed request, so the responses are constant).
+          - uart_mock.inject_rx:
+              id: virtual_uart
+              data: !lambda |-
+                if (!data.empty() && data[0] == 0x01)
+                  return {0x01, 0x03, 0x02, 0x00, 0x6F, 0xF8, 0x68};  // value 111
+                if (!data.empty() && data[0] == 0x02)
+                  return {0x02, 0x03, 0x02, 0x00, 0xDE, 0x7C, 0x1C};  // value 222
+                return {};
+
+modbus:
+  - uart_id: virtual_uart
+    id: virtual_modbus_client
+    role: client
+    turnaround_time: 15ms #This is longer than the polling interval to cause contention
+
+# Two controllers sharing one client bus, each polling a different device.
+# Polling is started by the test (update_interval: never until then) so counting
+# only begins once the API client has subscribed.
+modbus_controller:
+  - address: 1
+    modbus_id: virtual_modbus_client
+    id: modbus_controller_1
+    update_interval: never
+  - address: 2
+    modbus_id: virtual_modbus_client
+    id: modbus_controller_2
+    update_interval: never
+
+sensor:
+  # These sensors define the register range each controller polls (and so drive
+  # the requests). Their values are not checked by the test.
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: reg_1
+    address: 0x01
+    register_type: holding
+    value_type: U_WORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_2
+    name: reg_2
+    address: 0x01
+    register_type: holding
+    value_type: U_WORD
+  # Request counters exposed to the test. Updated manually from the on_tx hook.
+  - platform: template
+    name: requests_1
+    id: requests_1
+    update_interval: never
+  - platform: template
+    name: requests_2
+    id: requests_2
+    update_interval: never
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: |-
+          // Poll much faster than the bus can service so both controllers always
+          // have a request pending and must contend for the bus.
+          id(modbus_controller_1).set_update_interval(10);
+          id(modbus_controller_1).start_poller();
+          id(modbus_controller_2).set_update_interval(10);
+          id(modbus_controller_2).start_poller();
+  - platform: template
+    name: "Stop Scenario"
+    id: stop_scenario_btn
+    on_press:
+      - lambda: |-
+          id(modbus_controller_1).stop_poller();
+          id(modbus_controller_2).stop_poller();

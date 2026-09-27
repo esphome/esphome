@@ -1,0 +1,15 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ssid: test
+  password: testtest
+
+web_server:
+  port: 80
+  log: true
+  include_internal: false

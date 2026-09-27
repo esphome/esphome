@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
@@ -16,6 +18,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -31,10 +34,6 @@ POWER_MODE_OPTIONS = {
     "LOW_POWER": HDC302XPowerMode.LOW_POWER,
     "ULTRA_LOW_POWER": HDC302XPowerMode.ULTRA_LOW_POWER,
 }
-
-# Actions
-HeaterOnAction = hdc302x_ns.class_("HeaterOnAction", automation.Action)
-HeaterOffAction = hdc302x_ns.class_("HeaterOffAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -62,7 +61,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -86,7 +85,7 @@ HDC302X_HEATER_POWER_MAP = {
 }
 
 
-def heater_power_value(value):
+def heater_power_value(value: Any) -> cv.Lambda | int:
     """Accept enum names or raw uint16 values"""
     if isinstance(value, cv.Lambda):
         return value
@@ -113,29 +112,14 @@ HDC302X_HEATER_ON_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "hdc302x.heater_on",
-    HeaterOnAction,
     HDC302X_HEATER_ON_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall(
+        "start_heater({}, {})", ((CONF_POWER, cg.uint16), (CONF_DURATION, cg.uint32))
+    ),
 )
-async def hdc302x_heater_on_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_POWER], args, cg.uint16)
-    cg.add(var.set_power(template_))
-    template_ = await cg.templatable(config[CONF_DURATION], args, cg.uint32)
-    cg.add(var.set_duration(template_))
-    return var
 
-
-@automation.register_action(
-    "hdc302x.heater_off",
-    HeaterOffAction,
-    HDC302X_ACTION_SCHEMA,
-    synchronous=True,
+automation.register_apply_action(
+    "hdc302x.heater_off", HDC302X_ACTION_SCHEMA, automation.ApplyCall("stop_heater()")
 )
-async def hdc302x_heater_off_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

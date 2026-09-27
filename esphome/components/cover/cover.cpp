@@ -135,10 +135,6 @@ CoverCall &CoverCall::set_stop(bool stop) {
   this->stop_ = stop;
   return *this;
 }
-bool CoverCall::get_stop() const { return this->stop_; }
-
-CoverCall Cover::make_call() { return {this}; }
-
 void Cover::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
   this->tilt = clamp(this->tilt, 0.0f, 1.0f);
@@ -183,9 +179,6 @@ optional<CoverRestoreState> Cover::restore_state_() {
     return {};
   return recovered;
 }
-
-bool Cover::is_fully_open() const { return this->position == COVER_OPEN; }
-bool Cover::is_fully_closed() const { return this->position == COVER_CLOSED; }
 
 CoverCall CoverRestoreState::to_call(Cover *cover) {
   auto call = cover->make_call();

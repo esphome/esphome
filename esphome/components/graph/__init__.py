@@ -29,6 +29,7 @@ from esphome.const import (
     CONF_X_GRID,
     CONF_Y_GRID,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@synco"]
 
@@ -115,7 +116,9 @@ GRAPH_SCHEMA = cv.Schema(
 )
 
 
-def _relocate_fields_to_subfolder(config, subfolder, subschema):
+def _relocate_fields_to_subfolder(
+    config: ConfigType, subfolder: str, subschema: cv.Schema
+) -> ConfigType:
     fields = [k.schema for k in subschema.schema]
     fields.remove(CONF_ID)
     if subfolder in config:
@@ -138,7 +141,7 @@ def _relocate_fields_to_subfolder(config, subfolder, subschema):
     return config
 
 
-def _relocate_trace(config):
+def _relocate_trace(config: ConfigType) -> ConfigType:
     return _relocate_fields_to_subfolder(config, CONF_TRACES, GRAPH_TRACE_SCHEMA)
 
 
@@ -148,7 +151,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_duration(config[CONF_DURATION]))
     cg.add(var.set_width(config[CONF_WIDTH]))

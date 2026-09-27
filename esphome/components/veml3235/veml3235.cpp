@@ -6,6 +6,16 @@ namespace esphome::veml3235 {
 
 static const char *const TAG = "veml3235.sensor";
 
+// ADC counts at or above this value (98% of full scale) are treated as clipped: the true light level cannot
+// be estimated from such a reading, so auto-gain restarts from minimum sensitivity instead
+static const uint16_t CLIPPED_COUNTS = 64224;
+
+// Maximum sensitivity multiplier: integration time 800 ms (16x) * gain 4x * digital gain 2x
+static const uint16_t MAX_SENSITIVITY_FACTOR = 128;
+
+// At most one restart from clipping plus one proportional adjustment per update cycle
+static const uint8_t MAX_ADJUSTMENTS_PER_UPDATE = 2;
+
 void VEML3235Sensor::setup() {
   uint8_t device_id[] = {0, 0};
   if (!this->refresh_config_reg()) {
@@ -22,186 +32,156 @@ void VEML3235Sensor::setup() {
   }
 }
 
-bool VEML3235Sensor::refresh_config_reg(bool force_on) {
-  uint16_t data = this->power_on_ || force_on ? 0 : SHUTDOWN_BITS;
+bool VEML3235Sensor::refresh_config_reg() {
+  uint16_t data = 0x1;  // mandatory 1 per RM; shutdown bits cleared (device powered on)
 
-  data |= (uint16_t(this->integration_time_ << CONFIG_REG_IT_BIT));
-  data |= (uint16_t(this->digital_gain_ << CONFIG_REG_DG_BIT));
-  data |= (uint16_t(this->gain_ << CONFIG_REG_G_BIT));
-  data |= 0x1;  // mandatory 1 here per RM
+  data |= (uint16_t(this->integration_time_) << CONFIG_REG_IT_BIT);
+  data |= (uint16_t(this->digital_gain_) << CONFIG_REG_DG_BIT);
+  data |= (uint16_t(this->gain_) << CONFIG_REG_G_BIT);
 
   ESP_LOGVV(TAG, "Writing 0x%.4x to register 0x%.2x", data, CONFIG_REG);
   return this->write_byte_16(CONFIG_REG, data);
 }
 
-float VEML3235Sensor::read_lx_() {
-  if (!this->power_on_) {  // if off, turn on
-    if (!this->refresh_config_reg(true)) {
-      ESP_LOGW(TAG, "Turning on failed");
-      this->status_set_warning();
-      return NAN;
-    }
-    delay(4);  // from RM: a wait time of 4 ms should be observed before the first measurement is picked up, to allow
-               // for a correct start of the signal processor and oscillator
+void VEML3235Sensor::update() {
+  if (this->measurement_in_progress_) {
+    ESP_LOGV(TAG, "'%s': Previous measurement still in progress; skipping update", this->get_name().c_str());
+    return;
   }
+  this->measurement_in_progress_ = true;
+  this->read_and_publish_(MAX_ADJUSTMENTS_PER_UPDATE);
+}
 
+void VEML3235Sensor::read_and_publish_(uint8_t adjustments_left) {
   uint8_t als_regs[] = {0, 0};
   if ((this->read_register(ALS_REG, als_regs, sizeof als_regs) != i2c::ERROR_OK)) {
     this->status_set_warning();
-    return NAN;
+    this->publish_state(NAN);
+    this->measurement_in_progress_ = false;
+    return;
   }
 
   this->status_clear_warning();
 
-  float als_raw_value_multiplier = LUX_MULTIPLIER_BASE;
-  uint16_t als_raw_value = encode_uint16(als_regs[1], als_regs[0]);
-  // determine multiplier value based on gains and integration time
-  if (this->digital_gain_ == VEML3235_DIGITAL_GAIN_1X) {
-    als_raw_value_multiplier *= 2;
-  }
-  switch (this->gain_) {
-    case VEML3235_GAIN_1X:
-      als_raw_value_multiplier *= 4;
-      break;
-    case VEML3235_GAIN_2X:
-      als_raw_value_multiplier *= 2;
-      break;
-    default:
-      break;
-  }
-  switch (this->integration_time_) {
-    case VEML3235_INTEGRATION_TIME_50MS:
-      als_raw_value_multiplier *= 16;
-      break;
-    case VEML3235_INTEGRATION_TIME_100MS:
-      als_raw_value_multiplier *= 8;
-      break;
-    case VEML3235_INTEGRATION_TIME_200MS:
-      als_raw_value_multiplier *= 4;
-      break;
-    case VEML3235_INTEGRATION_TIME_400MS:
-      als_raw_value_multiplier *= 2;
-      break;
-    default:
-      break;
-  }
-  // finally, determine and return the actual lux value
-  float lx = float(als_raw_value) * als_raw_value_multiplier;
-  ESP_LOGVV(TAG, "'%s': ALS raw = %u, multiplier = %.5f", this->get_name().c_str(), als_raw_value,
-            als_raw_value_multiplier);
-  ESP_LOGD(TAG, "'%s': Illuminance = %.4flx", this->get_name().c_str(), lx);
+  uint16_t als_counts = encode_uint16(als_regs[1], als_regs[0]);
 
-  if (!this->power_on_) {  // turn off if required
-    if (!this->refresh_config_reg()) {
-      ESP_LOGW(TAG, "Turning off failed");
-      this->status_set_warning();
+  if (this->auto_gain_ && adjustments_left > 0) {
+    // A sample integrated with the previous settings may still be in the data register after the
+    // configuration changes, so wait out the old integration period plus two new ones before re-reading
+    const uint32_t old_integration_time_ms = this->integration_time_ms_();
+    if (this->adjust_sensitivity_(als_counts)) {
+      const uint32_t wait_ms = old_integration_time_ms + 2 * this->integration_time_ms_();
+      this->set_timeout("reread", wait_ms,
+                        [this, adjustments_left]() { this->read_and_publish_(adjustments_left - 1); });
+      return;
     }
   }
 
-  if (this->auto_gain_) {
-    this->adjust_gain_(als_raw_value);
-  }
-
-  return lx;
+  float lux = this->counts_to_lux_(als_counts);
+  ESP_LOGVV(TAG, "'%s': ALS counts = %u, sensitivity = %ux", this->get_name().c_str(), als_counts,
+            this->sensitivity_factor_());
+  ESP_LOGV(TAG, "'%s': Illuminance = %.4flx", this->get_name().c_str(), lux);
+  this->publish_state(lux);
+  this->measurement_in_progress_ = false;
 }
 
-void VEML3235Sensor::adjust_gain_(const uint16_t als_raw_value) {
-  if ((als_raw_value > UINT16_MAX * this->auto_gain_threshold_low_) &&
-      (als_raw_value < UINT16_MAX * this->auto_gain_threshold_high_)) {
-    return;
+float VEML3235Sensor::counts_to_lux_(uint16_t counts) const {
+  float resolution = LUX_MULTIPLIER_BASE * (float(MAX_SENSITIVITY_FACTOR) / float(this->sensitivity_factor_()));
+  return float(counts) * resolution;
+}
+
+uint8_t VEML3235Sensor::gain_factor_() const {
+  switch (this->gain_) {
+    case VEML3235_GAIN_4X:
+      return 4;
+    case VEML3235_GAIN_2X:
+      return 2;
+    default:
+      return 1;
+  }
+}
+
+uint16_t VEML3235Sensor::sensitivity_factor_() const {
+  const uint8_t digital_gain_factor = this->digital_gain_ == VEML3235_DIGITAL_GAIN_2X ? 2 : 1;
+  return (1 << this->integration_time_) * this->gain_factor_() * digital_gain_factor;
+}
+
+void VEML3235Sensor::set_sensitivity_factor_(uint16_t factor) {
+  // The factor is a power of two in [1, 128]. Prefer integration time (improves the signal-to-noise ratio),
+  // then analog gain; digital gain is a plain doubling of the output and is used only as a last resort.
+  uint8_t it_exponent = 0;  // integration time is 2^n * 50 ms
+  while (it_exponent < VEML3235_INTEGRATION_TIME_800MS && (1u << it_exponent) < factor) {
+    it_exponent++;
+  }
+  this->integration_time_ = static_cast<VEML3235ComponentIntegrationTime>(it_exponent);
+  factor >>= it_exponent;
+
+  if (factor >= 4) {
+    this->gain_ = VEML3235_GAIN_4X;
+    factor >>= 2;
+  } else if (factor == 2) {
+    this->gain_ = VEML3235_GAIN_2X;
+    factor >>= 1;
+  } else {
+    this->gain_ = VEML3235_GAIN_1X;
   }
 
-  if (als_raw_value >= UINT16_MAX * 0.9) {  // over-saturated, reset all gains and start over
-    this->digital_gain_ = VEML3235_DIGITAL_GAIN_1X;
-    this->gain_ = VEML3235_GAIN_1X;
-    this->integration_time_ = VEML3235_INTEGRATION_TIME_50MS;
-    this->refresh_config_reg();
-    return;
+  this->digital_gain_ = factor >= 2 ? VEML3235_DIGITAL_GAIN_2X : VEML3235_DIGITAL_GAIN_1X;
+}
+
+bool VEML3235Sensor::adjust_sensitivity_(uint16_t counts) {
+  // Test for clipping before the window test: with an upper threshold configured at or above the clip
+  // point, a saturated reading would otherwise count as "in window" and sensitivity would never recover
+  const bool clipped = counts >= CLIPPED_COUNTS;
+  const uint16_t low = uint16_t(UINT16_MAX * this->auto_gain_threshold_low_);
+  const uint16_t high = uint16_t(UINT16_MAX * this->auto_gain_threshold_high_);
+  if (!clipped && counts >= low && counts <= high) {
+    return false;
   }
 
-  if (this->gain_ != VEML3235_GAIN_4X) {  // increase gain if possible
-    switch (this->gain_) {
-      case VEML3235_GAIN_1X:
-        this->gain_ = VEML3235_GAIN_2X;
-        break;
-      case VEML3235_GAIN_2X:
-        this->gain_ = VEML3235_GAIN_4X;
-        break;
-      default:
-        break;
+  const uint16_t current_factor = this->sensitivity_factor_();
+  uint16_t new_factor;
+  if (clipped) {
+    new_factor = 1;
+  } else if (counts == 0) {
+    new_factor = MAX_SENSITIVITY_FACTOR;
+  } else {
+    // Counts scale linearly with the sensitivity factor: in one step, pick the power of two that puts the
+    // next reading closest below the middle of the configured window. Rounding down means the target is
+    // never overshot, which also keeps the sensitivity stable when the window is narrower than one step.
+    float desired = float(current_factor) * ((float(low) + float(high)) * 0.5f / float(counts));
+    desired = clamp(desired, 1.0f, float(MAX_SENSITIVITY_FACTOR));
+    new_factor = 1;
+    while (new_factor * 2 <= uint16_t(desired)) {
+      new_factor *= 2;
     }
-    this->refresh_config_reg();
-    return;
   }
-  // gain is maxed out; reset it and try to increase digital gain
-  if (this->digital_gain_ != VEML3235_DIGITAL_GAIN_2X) {  // increase digital gain if possible
-    this->digital_gain_ = VEML3235_DIGITAL_GAIN_2X;
-    this->gain_ = VEML3235_GAIN_1X;
-    this->refresh_config_reg();
-    return;
+
+  if (new_factor == current_factor) {
+    return false;
   }
-  // digital gain is maxed out; reset it and try to increase integration time
-  if (this->integration_time_ != VEML3235_INTEGRATION_TIME_800MS) {  // increase integration time if possible
-    switch (this->integration_time_) {
-      case VEML3235_INTEGRATION_TIME_50MS:
-        this->integration_time_ = VEML3235_INTEGRATION_TIME_100MS;
-        break;
-      case VEML3235_INTEGRATION_TIME_100MS:
-        this->integration_time_ = VEML3235_INTEGRATION_TIME_200MS;
-        break;
-      case VEML3235_INTEGRATION_TIME_200MS:
-        this->integration_time_ = VEML3235_INTEGRATION_TIME_400MS;
-        break;
-      case VEML3235_INTEGRATION_TIME_400MS:
-        this->integration_time_ = VEML3235_INTEGRATION_TIME_800MS;
-        break;
-      default:
-        break;
-    }
-    this->digital_gain_ = VEML3235_DIGITAL_GAIN_1X;
-    this->gain_ = VEML3235_GAIN_1X;
-    this->refresh_config_reg();
-    return;
+
+  const VEML3235ComponentIntegrationTime old_integration_time = this->integration_time_;
+  const VEML3235ComponentGain old_gain = this->gain_;
+  const VEML3235ComponentDigitalGain old_digital_gain = this->digital_gain_;
+
+  this->set_sensitivity_factor_(new_factor);
+  if (!this->refresh_config_reg()) {
+    // Keep our state consistent with the device, which still has the old configuration
+    this->integration_time_ = old_integration_time;
+    this->gain_ = old_gain;
+    this->digital_gain_ = old_digital_gain;
+    this->status_set_warning();
+    return false;
   }
+
+  ESP_LOGV(TAG, "'%s': Sensitivity adjusted from %ux to %ux (ALS counts = %u)", this->get_name().c_str(),
+           current_factor, new_factor, counts);
+  return true;
 }
 
 void VEML3235Sensor::dump_config() {
-  uint8_t digital_gain = 1;
-  uint8_t gain = 1;
-  uint16_t integration_time = 0;
-
-  if (this->digital_gain_ == VEML3235_DIGITAL_GAIN_2X) {
-    digital_gain = 2;
-  }
-  switch (this->gain_) {
-    case VEML3235_GAIN_2X:
-      gain = 2;
-      break;
-    case VEML3235_GAIN_4X:
-      gain = 4;
-      break;
-    default:
-      break;
-  }
-  switch (this->integration_time_) {
-    case VEML3235_INTEGRATION_TIME_50MS:
-      integration_time = 50;
-      break;
-    case VEML3235_INTEGRATION_TIME_100MS:
-      integration_time = 100;
-      break;
-    case VEML3235_INTEGRATION_TIME_200MS:
-      integration_time = 200;
-      break;
-    case VEML3235_INTEGRATION_TIME_400MS:
-      integration_time = 400;
-      break;
-    case VEML3235_INTEGRATION_TIME_800MS:
-      integration_time = 800;
-      break;
-    default:
-      break;
-  }
+  const uint8_t digital_gain = this->digital_gain_ == VEML3235_DIGITAL_GAIN_2X ? 2 : 1;
 
   LOG_SENSOR("", "VEML3235", this);
   LOG_I2C_DEVICE(this);
@@ -212,8 +192,9 @@ void VEML3235Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  Auto-gain enabled: %s", YESNO(this->auto_gain_));
   if (this->auto_gain_) {
     ESP_LOGCONFIG(TAG,
-                  "  Auto-gain upper threshold: %f%%\n"
-                  "  Auto-gain lower threshold: %f%%\n"
+                  "  Auto-gain thresholds:\n"
+                  "    Upper: %.0f%%\n"
+                  "    Lower: %.0f%%\n"
                   "  Values below will be used as initial values only",
                   this->auto_gain_threshold_high_ * 100.0f, this->auto_gain_threshold_low_ * 100.0f);
   }
@@ -221,7 +202,7 @@ void VEML3235Sensor::dump_config() {
                 "  Digital gain: %uX\n"
                 "  Gain: %uX\n"
                 "  Integration time: %ums",
-                digital_gain, gain, integration_time);
+                digital_gain, this->gain_factor_(), this->integration_time_ms_());
 }
 
 }  // namespace esphome::veml3235

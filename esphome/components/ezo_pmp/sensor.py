@@ -23,8 +23,8 @@ CONF_PUMP_VOLTAGE = "pump_voltage"
 CONF_LAST_VOLUME_REQUESTED = "last_volume_requested"
 CONF_MAX_FLOW_RATE = "max_flow_rate"
 
-UNIT_MILILITER = "ml"
-UNIT_MILILITERS_PER_MINUTE = "ml/min"
+UNIT_MILILITER = "mL"
+UNIT_MILILITERS_PER_MINUTE = "mL/min"
 
 CONFIG_SCHEMA = cv.Schema(
     {

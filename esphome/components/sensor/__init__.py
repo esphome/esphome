@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import logging
 import math
 
@@ -5,6 +6,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server, zigbee
 from esphome.components.const import CONF_B_CONSTANT
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ABOVE,
@@ -114,6 +116,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    new_sub_entity,
     queue_entity_register,
     setup_device_class,
     setup_entity,
@@ -121,6 +124,7 @@ from esphome.core.entity_helpers import (
 )
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import ConfigType, Expression, SafeExpType
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -255,7 +259,6 @@ SensorPtr = Sensor.operator("ptr")
 ValueRangeTrigger = sensor_ns.class_(
     "ValueRangeTrigger", automation.Trigger.template(cg.float_), cg.Component
 )
-SensorPublishAction = sensor_ns.class_("SensorPublishAction", automation.Action)
 
 # Filters
 Filter = sensor_ns.class_("Filter")
@@ -321,17 +324,31 @@ _SENSOR_SCHEMA = (
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
             cv.GenerateID(): cv.declare_id(Sensor),
-            cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
-            cv.Optional(CONF_ACCURACY_DECIMALS): validate_accuracy_decimals,
-            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-            cv.Optional(CONF_STATE_CLASS): validate_state_class,
-            cv.Optional(CONF_ENTITY_CATEGORY): sensor_entity_category,
-            cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
-            cv.Optional(CONF_EXPIRE_AFTER): cv.All(
+            cv.Optional(
+                CONF_UNIT_OF_MEASUREMENT, visibility=cv.Visibility.ADVANCED
+            ): validate_unit_of_measurement,
+            cv.Optional(
+                CONF_ACCURACY_DECIMALS, visibility=cv.Visibility.ADVANCED
+            ): validate_accuracy_decimals,
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_device_class,
+            cv.Optional(
+                CONF_STATE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_state_class,
+            cv.Optional(
+                CONF_ENTITY_CATEGORY, visibility=cv.Visibility.ADVANCED
+            ): sensor_entity_category,
+            cv.Optional(
+                CONF_FORCE_UPDATE, default=False, visibility=cv.Visibility.ADVANCED
+            ): cv.boolean,
+            cv.Optional(CONF_EXPIRE_AFTER, visibility=cv.Visibility.ADVANCED): cv.All(
                 cv.requires_component("mqtt"),
                 cv.Any(None, cv.positive_time_period_milliseconds),
             ),
-            cv.Optional(CONF_FILTERS): validate_filters,
+            cv.Optional(
+                CONF_FILTERS, visibility=cv.Visibility.ADVANCED
+            ): validate_filters,
             cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
@@ -999,6 +1016,16 @@ async def new_sensor(config, *args):
     return var
 
 
+async def new_sub_sensor(
+    config: ConfigType,
+    key: str,
+    setter: Callable[[MockObj], Expression],
+    *args: SafeExpType,
+) -> MockObj | None:
+    """Create the sensor configured under key, if any, and pass it to setter."""
+    return await new_sub_entity(new_sensor, config, key, setter, *args)
+
+
 SENSOR_IN_RANGE_CONDITION_SCHEMA = cv.All(
     {
         cv.Required(CONF_ID): cv.use_id(Sensor),
@@ -1291,3 +1318,8 @@ def _lstsq(a, b):
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(sensor_ns.using)
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"filter.cpp": "USE_SENSOR_FILTER"}
+)

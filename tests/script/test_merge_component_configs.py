@@ -10,7 +10,10 @@ sys.path.insert(0, str((Path(__file__).parent / ".." / ".." / "script").resolve(
 
 import merge_component_configs  # noqa: E402
 
+from esphome import yaml_util  # noqa: E402
+
 deduplicate_by_id = merge_component_configs.deduplicate_by_id
+prepare_component_body = merge_component_configs.prepare_component_body
 
 
 def test_identical_duplicate_ids_collapse() -> None:
@@ -99,3 +102,56 @@ def test_nested_lists_are_checked() -> None:
     }
     with pytest.raises(ValueError, match="dup"):
         deduplicate_by_id(data)
+
+
+def test_nested_package_includes_are_fully_expanded(tmp_path: Path) -> None:
+    """A package include that itself pulls in another package expands fully.
+
+    Mirrors web_server's tests, where test.yaml includes common_v2, which
+    includes common (holding the wifi/network config). Without recursive
+    expansion the nested include is dropped and network config is lost.
+    """
+    (tmp_path / "common.yaml").write_text("wifi:\n  ssid: MySSID\n")
+    (tmp_path / "common_v2.yaml").write_text(
+        "packages:\n  device_base: !include common.yaml\nweb_server:\n  port: 8080\n"
+    )
+    (tmp_path / "test.yaml").write_text(
+        "packages:\n  web_server: !include common_v2.yaml\n"
+        "web_server:\n  auth:\n    username: admin\n"
+    )
+
+    comp_data = yaml_util.load_yaml(tmp_path / "test.yaml")
+    result = prepare_component_body(comp_data, "web_server", tmp_path)
+
+    assert "packages" not in result
+    assert result["wifi"] == {"ssid": "MySSID"}
+    assert result["web_server"] == {"port": 8080, "auth": {"username": "admin"}}
+
+
+def test_common_bus_package_is_left_for_caller(tmp_path: Path) -> None:
+    """Common bus packages are not expanded inline; the caller re-adds them."""
+    comp_data = {
+        "packages": {
+            "i2c": {"sda": 21, "scl": 22},
+            "device_base": {"wifi": {"ssid": "MySSID"}},
+        },
+    }
+    result = prepare_component_body(comp_data, "mycomp", tmp_path)
+
+    # The bus package's body must not be merged in, and the packages key is
+    # dropped entirely for the caller to re-add the common bus package.
+    assert "packages" not in result
+    assert "sda" not in result
+    assert result["wifi"] == {"ssid": "MySSID"}
+
+
+def test_list_style_packages_are_expanded(tmp_path: Path) -> None:
+    """List-style package includes are expanded and the key removed."""
+    (tmp_path / "common.yaml").write_text("wifi:\n  ssid: MySSID\n")
+    (tmp_path / "test.yaml").write_text("packages:\n  - !include common.yaml\n")
+
+    comp_data = yaml_util.load_yaml(tmp_path / "test.yaml")
+    result = prepare_component_body(comp_data, "mycomp", tmp_path)
+
+    assert "packages" not in result
+    assert result["wifi"] == {"ssid": "MySSID"}

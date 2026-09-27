@@ -3,6 +3,7 @@ wifi:
   password: password1
 
 esp32_ble_tracker:
+  id: ble_tracker_hub
 
 ble_client:
   - mac_address: 01:02:03:04:05:06
@@ -26,7 +27,9 @@ display:
       it.print_battery(true);
 
 sensor:
+  # Explicit ble_hub_id: pins the neutral binding as a declared key.
   - platform: pvvx_mithermometer
+    ble_hub_id: ble_tracker_hub
     mac_address: A4:C1:38:4E:16:78
     temperature:
       name: PVVX Temperature

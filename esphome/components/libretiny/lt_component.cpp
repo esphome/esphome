@@ -13,14 +13,14 @@ void LTComponent::dump_config() {
                 "LibreTiny:\n"
                 "  Version: %s\n"
                 "  Loglevel: %u",
-                LT_BANNER_STR + 10, LT_LOGLEVEL);
+                &LT_BANNER_STR[10], LT_LOGLEVEL);
 #if defined(__OPTIMIZE_SIZE__) && __OPTIMIZE_LEVEL__ > 0 && __OPTIMIZE_LEVEL__ <= 3
   ESP_LOGCONFIG(TAG, "  Optimization: -Os, SDK: -O" STRINGIFY_MACRO(__OPTIMIZE_LEVEL__));
 #endif
 
 #ifdef USE_TEXT_SENSOR
   if (this->version_ != nullptr) {
-    this->version_->publish_state(LT_BANNER_STR + 10);
+    this->version_->publish_state(&LT_BANNER_STR[10]);
   }
 #endif  // USE_TEXT_SENSOR
 }

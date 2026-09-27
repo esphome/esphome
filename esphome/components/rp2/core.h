@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <pico.h>
 
+// NOLINTNEXTLINE(google-runtime-int,readability-identifier-naming,readability-redundant-declaration)
 extern "C" unsigned long ulMainGetRunTimeCounterValue();
 
 namespace esphome::rp2 {}  // namespace esphome::rp2

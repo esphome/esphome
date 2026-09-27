@@ -2,12 +2,17 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 
 #ifdef USE_ESP32
 
 #include "esphome/core/event_pool.h"
 #include "esphome/core/lock_free_queue.h"
 #include "espnow_packet.h"
+
+#if defined(USE_WIFI) && defined(USE_WIFI_CONNECT_STATE_LISTENERS)
+#include "esphome/components/wifi/wifi_component.h"
+#endif
 
 #include <esp_idf_version.h>
 
@@ -88,7 +93,11 @@ class ESPNowBroadcastHandler {
   virtual bool on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) = 0;
 };
 
+#if defined(USE_WIFI) && defined(USE_WIFI_CONNECT_STATE_LISTENERS)
+class ESPNowComponent final : public Component, public wifi::WiFiConnectStateListener {
+#else
 class ESPNowComponent final : public Component {
+#endif
  public:
   ESPNowComponent();
   void setup() override;
@@ -107,12 +116,26 @@ class ESPNowComponent final : public Component {
   esp_err_t add_peer(const uint8_t *peer);
   // Remove a peer with the esp_now api and remove from the internal list if exists
   esp_err_t del_peer(const uint8_t *peer);
+  // Action entry points; distinct names because add_peer(peer_address_t) only fills the boot-time list
+  esp_err_t add_peer_from_action(const peer_address_t &address) { return this->add_peer(address.data()); }
+  esp_err_t del_peer_from_action(const peer_address_t &address) { return this->del_peer(address.data()); }
 
   void set_wifi_channel(uint8_t channel) { this->wifi_channel_ = channel; }
   void apply_wifi_channel();
+  void set_channel_from_action(uint8_t channel) {
+    if (this->is_wifi_enabled())
+      return;
+    this->set_wifi_channel(channel);
+    this->apply_wifi_channel();
+  }
   uint8_t get_wifi_channel();
 
   void set_auto_add_peer(bool value) { this->auto_add_peer_ = value; }
+
+#if defined(USE_WIFI) && defined(USE_WIFI_CONNECT_STATE_LISTENERS)
+  // WiFiConnectStateListener interface: refresh the cached channel after each (re)connect
+  void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) override;
+#endif
 
   void enable();
   void disable();

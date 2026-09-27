@@ -31,11 +31,14 @@ common/
 │   ├── esp32-c3-idf.yaml
 │   ├── esp8266-ard.yaml
 │   └── rp2040-ard.yaml
-├── modbus/           # Modbus (includes uart via packages)
+├── modbus/           # Modbus client (includes uart via packages)
 │   ├── esp32-idf.yaml
 │   ├── esp32-c3-idf.yaml
 │   ├── esp8266-ard.yaml
 │   └── rp2040-ard.yaml
+├── modbus_server/    # Modbus server (includes uart via packages)
+│   ├── esp32-idf.yaml
+│   └── esp8266-ard.yaml
 └── ble/
     ├── esp32-idf.yaml
     ├── esp32-ard.yaml

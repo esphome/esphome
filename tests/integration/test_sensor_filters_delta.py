@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 
 from aioesphomeapi import ButtonInfo, EntityState, SensorState
 import pytest
@@ -25,6 +26,7 @@ async def test_sensor_filters_delta(
         "filter_baseline_max": [],
         "filter_zero_delta": [],
         "filter_percentage": [],
+        "filter_nan": [],
     }
 
     filter_min_done = loop.create_future()
@@ -32,16 +34,23 @@ async def test_sensor_filters_delta(
     filter_baseline_max_done = loop.create_future()
     filter_zero_delta_done = loop.create_future()
     filter_percentage_done = loop.create_future()
+    filter_nan_done = loop.create_future()
 
     def on_state(state: EntityState) -> None:
-        if not isinstance(state, SensorState) or state.missing_state:
+        if not isinstance(state, SensorState):
             return
 
         sensor_name = key_to_sensor.get(state.key)
         if sensor_name not in sensor_values:
             return
 
-        sensor_values[sensor_name].append(state.state)
+        if state.missing_state:
+            # Only the NaN test is interested in unavailable states
+            if sensor_name != "filter_nan":
+                return
+            sensor_values[sensor_name].append(math.nan)
+        else:
+            sensor_values[sensor_name].append(state.state)
 
         # Check completion conditions
         if (
@@ -74,6 +83,12 @@ async def test_sensor_filters_delta(
             and not filter_percentage_done.done()
         ):
             filter_percentage_done.set_result(True)
+        elif (
+            sensor_name == "filter_nan"
+            and len(sensor_values[sensor_name]) == 3
+            and not filter_nan_done.done()
+        ):
+            filter_nan_done.set_result(True)
 
     async with (
         run_compiled(yaml_config),
@@ -89,6 +104,7 @@ async def test_sensor_filters_delta(
                 "filter_baseline_max": "Filter Baseline Max",
                 "filter_zero_delta": "Filter Zero Delta",
                 "filter_percentage": "Filter Percentage",
+                "filter_nan": "Filter NaN",
             },
         )
 
@@ -108,13 +124,14 @@ async def test_sensor_filters_delta(
             "Test Filter Baseline Max": "filter_baseline_max",
             "Test Filter Zero Delta": "filter_zero_delta",
             "Test Filter Percentage": "filter_percentage",
+            "Test Filter NaN": "filter_nan",
         }
         buttons = {}
         for entity in entities:
             if isinstance(entity, ButtonInfo) and entity.name in button_name_map:
                 buttons[button_name_map[entity.name]] = entity.key
 
-        assert len(buttons) == 5, f"Expected 5 buttons, found {len(buttons)}"
+        assert len(buttons) == 6, f"Expected 6 buttons, found {len(buttons)}"
 
         # Test 1: Min
         sensor_values["filter_min"].clear()
@@ -186,3 +203,18 @@ async def test_sensor_filters_delta(
         assert sensor_values["filter_percentage"] == pytest.approx(expected), (
             f"Test 5 failed: expected {expected}, got {sensor_values['filter_percentage']}"
         )
+
+        # Test 6: NaN passes through once, then is suppressed
+        sensor_values["filter_nan"].clear()
+        client.button_command(buttons["filter_nan"])
+        try:
+            await asyncio.wait_for(filter_nan_done, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(f"Test 6 timed out. Values: {sensor_values['filter_nan']}")
+
+        values = sensor_values["filter_nan"]
+        assert values[0] == pytest.approx(1.0), f"Test 6 failed: got {values}"
+        assert math.isnan(values[1]), (
+            f"Test 6 failed: NaN not passed through, got {values}"
+        )
+        assert values[2] == pytest.approx(2.0), f"Test 6 failed: got {values}"

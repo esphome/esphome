@@ -32,6 +32,9 @@ class MockUARTComponent : public UARTComponent {
   MOCK_METHOD(size_t, available, (), (override));
   MOCK_METHOD(UARTFlushResult, flush, (), (override));
   MOCK_METHOD(void, check_logger_conflict, (), (override));
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  MOCK_METHOD(void, load_settings, (bool dump_config), (override));
+#endif
 };
 
 }  // namespace esphome::uart::testing
