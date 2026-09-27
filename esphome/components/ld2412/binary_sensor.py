@@ -51,23 +51,15 @@ CONFIG_SCHEMA = {
 
 async def to_code(config: ConfigType) -> None:
     LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
-    if dynamic_background_correction_status_config := config.get(
-        CONF_DYNAMIC_BACKGROUND_CORRECTION_STATUS
-    ):
-        sens = await binary_sensor.new_binary_sensor(
-            dynamic_background_correction_status_config
-        )
-        cg.add(
-            LD2412_component.set_dynamic_background_correction_status_binary_sensor(
-                sens
-            )
-        )
-    if has_target_config := config.get(CONF_HAS_TARGET):
-        sens = await binary_sensor.new_binary_sensor(has_target_config)
-        cg.add(LD2412_component.set_target_binary_sensor(sens))
-    if has_moving_target_config := config.get(CONF_HAS_MOVING_TARGET):
-        sens = await binary_sensor.new_binary_sensor(has_moving_target_config)
-        cg.add(LD2412_component.set_moving_target_binary_sensor(sens))
-    if has_still_target_config := config.get(CONF_HAS_STILL_TARGET):
-        sens = await binary_sensor.new_binary_sensor(has_still_target_config)
-        cg.add(LD2412_component.set_still_target_binary_sensor(sens))
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(
+        CONF_DYNAMIC_BACKGROUND_CORRECTION_STATUS,
+        LD2412_component.set_dynamic_background_correction_status_binary_sensor,
+    )
+    await binary_sensors(CONF_HAS_TARGET, LD2412_component.set_target_binary_sensor)
+    await binary_sensors(
+        CONF_HAS_MOVING_TARGET, LD2412_component.set_moving_target_binary_sensor
+    )
+    await binary_sensors(
+        CONF_HAS_STILL_TARGET, LD2412_component.set_still_target_binary_sensor
+    )

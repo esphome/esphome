@@ -88,24 +88,28 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 
 async def to_code(config: ConfigType) -> None:
     LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
-    if light_threshold_config := config.get(CONF_LIGHT_THRESHOLD):
-        n = await number.new_number(
-            light_threshold_config, min_value=0, max_value=255, step=1
-        )
-        await cg.register_parented(n, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_light_threshold_number(n))
-    if max_distance_gate_config := config.get(CONF_MAX_DISTANCE_GATE):
-        n = await number.new_number(
-            max_distance_gate_config, min_value=2, max_value=13, step=1
-        )
-        await cg.register_parented(n, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_max_distance_gate_number(n))
-    if min_distance_gate_config := config.get(CONF_MIN_DISTANCE_GATE):
-        n = await number.new_number(
-            min_distance_gate_config, min_value=1, max_value=12, step=1
-        )
-        await cg.register_parented(n, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_min_distance_gate_number(n))
+    numbers = number.sub_numbers(config, parent=LD2412_component)
+    await numbers(
+        CONF_LIGHT_THRESHOLD,
+        LD2412_component.set_light_threshold_number,
+        min_value=0,
+        max_value=255,
+        step=1,
+    )
+    await numbers(
+        CONF_MAX_DISTANCE_GATE,
+        LD2412_component.set_max_distance_gate_number,
+        min_value=2,
+        max_value=13,
+        step=1,
+    )
+    await numbers(
+        CONF_MIN_DISTANCE_GATE,
+        LD2412_component.set_min_distance_gate_number,
+        min_value=1,
+        max_value=12,
+        step=1,
+    )
     for x in range(14):
         if gate_conf := config.get(f"gate_{x}"):
             move_config = gate_conf[CONF_MOVE_THRESHOLD]
@@ -113,16 +117,19 @@ async def to_code(config: ConfigType) -> None:
             await number.register_number(
                 n, move_config, min_value=0, max_value=100, step=1
             )
-            await cg.register_parented(n, config[CONF_LD2412_ID])
+            await cg.register_parented(n, LD2412_component)
             cg.add(LD2412_component.set_gate_move_threshold_number(x, n))
             still_config = gate_conf[CONF_STILL_THRESHOLD]
             n = cg.new_Pvariable(still_config[CONF_ID])
             await number.register_number(
                 n, still_config, min_value=0, max_value=100, step=1
             )
-            await cg.register_parented(n, config[CONF_LD2412_ID])
+            await cg.register_parented(n, LD2412_component)
             cg.add(LD2412_component.set_gate_still_threshold_number(x, n))
-    if timeout_config := config.get(CONF_TIMEOUT):
-        n = await number.new_number(timeout_config, min_value=0, max_value=900, step=1)
-        await cg.register_parented(n, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_timeout_number(n))
+    await numbers(
+        CONF_TIMEOUT,
+        LD2412_component.set_timeout_number,
+        min_value=0,
+        max_value=900,
+        step=1,
+    )

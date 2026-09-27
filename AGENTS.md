@@ -322,14 +322,21 @@ file does, and it is the authority when they disagree. The most useful starting 
               var = await switch.new_switch(config)
           ```
 
-        - **Optional child entities of a hub:** use `new_sub_sensor`, `new_sub_binary_sensor` or
-          `new_sub_text_sensor`. Each creates the entity only when its key is configured and passes it to
-          the setter. Always name the setter explicitly; never build it with `getattr` and an f-string.
+        - **Optional child entities of a hub:** bind the config (and the parent, for entities that derive from
+          `Parented<T>`) once with `sensor.sub_sensors()`, `binary_sensor.sub_binary_sensors()`,
+          `text_sensor.sub_text_sensors()`, `button.sub_buttons()`, `switch.sub_switches()`,
+          `number.sub_numbers()` or `select.sub_selects()`. Each call creates the entity only when its key is
+          configured, passes it to the setter and returns it (or `None` when the key is absent); extra
+          arguments such as `min_value` or `options` go on the call. Always name the setter explicitly; never
+          build it with `getattr` and an f-string.
           ```python
           async def to_code(config):
               var = cg.new_Pvariable(config[CONF_ID])
-              await sensor.new_sub_sensor(config, CONF_TEMPERATURE, var.set_temperature_sensor)
-              await sensor.new_sub_sensor(config, CONF_HUMIDITY, var.set_humidity_sensor)
+              sensors = sensor.sub_sensors(config)
+              await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+              await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+              buttons = button.sub_buttons(config, parent=var)
+              await buttons(CONF_RESTART, var.set_restart_button)
           ```
 
 *   **Automations (Triggers, Actions, Conditions):**

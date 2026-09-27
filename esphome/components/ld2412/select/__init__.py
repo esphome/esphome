@@ -51,35 +51,33 @@ CONFIG_SCHEMA = {
 
 async def to_code(config: ConfigType) -> None:
     LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
-    if baud_rate_config := config.get(CONF_BAUD_RATE):
-        s = await select.new_select(
-            baud_rate_config,
-            options=[
-                "9600",
-                "19200",
-                "38400",
-                "57600",
-                "115200",
-                "230400",
-                "256000",
-                "460800",
-            ],
-        )
-        await cg.register_parented(s, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_baud_rate_select(s))
-    if distance_resolution_config := config.get(CONF_DISTANCE_RESOLUTION):
-        s = await select.new_select(
-            distance_resolution_config, options=["0.2m", "0.5m", "0.75m"]
-        )
-        await cg.register_parented(s, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_distance_resolution_select(s))
-    if light_function_config := config.get(CONF_LIGHT_FUNCTION):
-        s = await select.new_select(
-            light_function_config, options=["off", "below", "above"]
-        )
-        await cg.register_parented(s, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_light_function_select(s))
-    if out_pin_level_config := config.get(CONF_OUT_PIN_LEVEL):
-        s = await select.new_select(out_pin_level_config, options=["low", "high"])
-        await cg.register_parented(s, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_out_pin_level_select(s))
+    selects = select.sub_selects(config, parent=LD2412_component)
+    await selects(
+        CONF_BAUD_RATE,
+        LD2412_component.set_baud_rate_select,
+        options=[
+            "9600",
+            "19200",
+            "38400",
+            "57600",
+            "115200",
+            "230400",
+            "256000",
+            "460800",
+        ],
+    )
+    await selects(
+        CONF_DISTANCE_RESOLUTION,
+        LD2412_component.set_distance_resolution_select,
+        options=["0.2m", "0.5m", "0.75m"],
+    )
+    await selects(
+        CONF_LIGHT_FUNCTION,
+        LD2412_component.set_light_function_select,
+        options=["off", "below", "above"],
+    )
+    await selects(
+        CONF_OUT_PIN_LEVEL,
+        LD2412_component.set_out_pin_level_select,
+        options=["low", "high"],
+    )

@@ -108,18 +108,11 @@ CONFIG_SCHEMA = {
 async def to_code(config: ConfigType) -> None:
     debug_component = await cg.get_variable(config[CONF_DEBUG_ID])
 
-    await sensor.new_sub_sensor(config, CONF_FREE, debug_component.set_free_sensor)
-    await sensor.new_sub_sensor(config, CONF_BLOCK, debug_component.set_block_sensor)
-    await sensor.new_sub_sensor(
-        config, CONF_FRAGMENTATION, debug_component.set_fragmentation_sensor
-    )
-    await sensor.new_sub_sensor(
-        config, CONF_MIN_FREE, debug_component.set_min_free_sensor
-    )
-    await sensor.new_sub_sensor(
-        config, CONF_LOOP_TIME, debug_component.set_loop_time_sensor
-    )
-    await sensor.new_sub_sensor(config, CONF_PSRAM, debug_component.set_psram_sensor)
-    await sensor.new_sub_sensor(
-        config, CONF_CPU_FREQUENCY, debug_component.set_cpu_frequency_sensor
-    )
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_FREE, debug_component.set_free_sensor)
+    await sensors(CONF_BLOCK, debug_component.set_block_sensor)
+    await sensors(CONF_FRAGMENTATION, debug_component.set_fragmentation_sensor)
+    await sensors(CONF_MIN_FREE, debug_component.set_min_free_sensor)
+    await sensors(CONF_LOOP_TIME, debug_component.set_loop_time_sensor)
+    await sensors(CONF_PSRAM, debug_component.set_psram_sensor)
+    await sensors(CONF_CPU_FREQUENCY, debug_component.set_cpu_frequency_sensor)

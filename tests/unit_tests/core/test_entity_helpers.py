@@ -1239,39 +1239,39 @@ async def test_finalize_comment_sanitization(
 
 
 @pytest.mark.asyncio
-async def test_new_sub_entity_creates_and_sets(
-    setup_test_environment: list[str],
+async def test_sub_entities_creates_and_sets(
+    monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
 ) -> None:
-    """A configured key, even with an empty config, creates the entity and passes it to the setter."""
-    sub_config: dict[str, Any] = {}
-    created = MockObj("child")
+    """A configured key, even with an empty config, creates the entity with the extra
+    args, sets the parent before the setter runs and returns the entity."""
     calls: list[tuple[Any, ...]] = []
+    created = MockObj("child")
 
     async def new_entity(conf: dict[str, Any], *args: Any, **kwargs: Any) -> MockObj:
         calls.append((conf, args, kwargs))
         return created
 
-    parent = MockObj("parent", "->")
-    result = await entity_helpers.new_sub_entity(
-        new_entity, {"child": sub_config}, "child", parent.set_child, 1, step=2
-    )
+    async def fake_register_parented(var: MockObj, parent: MockObj) -> None:
+        setup_test_environment.append(f"parent {var} {parent}")
 
-    assert result is created
-    assert calls == [(sub_config, (1,), {"step": 2})]
-    assert setup_test_environment == ["parent->set_child(child)"]
+    monkeypatch.setattr(entity_helpers.cg, "register_parented", fake_register_parented)
+    hub = MockObj("hub", "->")
+    sub = entity_helpers.SubEntities(new_entity, {"child": {}}, parent=hub)
+
+    assert await sub("child", hub.set_child, 1, step=2) is created
+    assert calls == [({}, (1,), {"step": 2})]
+    assert setup_test_environment == ["parent child hub", "hub->set_child(child)"]
 
 
 @pytest.mark.asyncio
-async def test_new_sub_entity_missing_key(setup_test_environment: list[str]) -> None:
+async def test_sub_entities_missing_key(setup_test_environment: list[str]) -> None:
     """A missing key creates nothing and emits no code."""
 
-    async def new_entity(conf: dict[str, Any], *args: Any) -> MockObj:
+    async def new_entity(conf: dict[str, Any]) -> MockObj:
         raise AssertionError("must not be called")
 
-    parent = MockObj("parent", "->")
-    result = await entity_helpers.new_sub_entity(
-        new_entity, {}, "child", parent.set_child
-    )
+    hub = MockObj("hub", "->")
+    sub = entity_helpers.SubEntities(new_entity, {})
 
-    assert result is None
+    assert await sub("child", hub.set_child) is None
     assert setup_test_environment == []
