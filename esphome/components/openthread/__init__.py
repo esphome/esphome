@@ -31,6 +31,8 @@ from esphome.const import (
     CONF_LOG_LEVEL,
     CONF_OUTPUT_POWER,
     CONF_USE_ADDRESS,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     PLATFORM_ESP32,
     PlatformFramework,
 )
@@ -318,9 +320,12 @@ async def to_code(config: ConfigType) -> None:
     if CORE.is_esp32:
         set_sdkconfig_options(config)
     elif CORE.using_zephyr:
-        # OpenThread's crypto goes through PSA, provided by mbedtls and Oberon
-        for project in ("mbedtls", "oberon-psa-crypto", "openthread"):
-            include_west_project(project)
+        # OpenThread's crypto goes through PSA, provided by mbedtls and, from
+        # SDK 2.7, the Oberon module
+        include_west_project("mbedtls")
+        include_west_project("openthread")
+        if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 7, 0):
+            include_west_project("oberon-psa-crypto")
         zephyr_add_prj_conf("NET_L2_OPENTHREAD", True)
         zephyr_add_prj_conf(
             f"OPENTHREAD_NORDIC_LIBRARY_{config.get(CONF_DEVICE_TYPE)}", True

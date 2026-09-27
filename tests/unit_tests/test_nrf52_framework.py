@@ -20,6 +20,7 @@ from esphome.components.nrf52.framework import (
     _get_platformio_penv_path,
     _get_toolchain_platform_info,
     _needs_venv_rebuild,
+    _wanted_west_projects,
     check_and_install,
     get_build_env,
     get_sdk_nrf_tools_path,
@@ -521,6 +522,18 @@ class TestCheckAndInstall:
         check_and_install()
 
         assert "+mcuboot" in _project_filter(mock_nrf52_ops.run_command_ok).split(",")
+
+    @pytest.mark.parametrize(
+        ("sdk_version", "has_cmsis_6"),
+        [("2.9.2", False), ("3.1.0", True), ("3.2.0", True)],
+    )
+    def test_sdk_3_1_and_later_want_cmsis_6(
+        self, setup_core: Path, sdk_version: str, has_cmsis_6: bool
+    ) -> None:
+        """Zephyr 4.1 moved the Cortex-M core headers to the cmsis_6 module."""
+        CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: Version.parse(sdk_version)}
+
+        assert ("cmsis_6" in _wanted_west_projects()) is has_cmsis_6
 
     def test_default_projects_never_read_the_stamp(
         self,

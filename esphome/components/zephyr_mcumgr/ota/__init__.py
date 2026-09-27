@@ -117,6 +117,8 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("NET_BUF", True)
     zephyr_add_prj_conf("ZCBOR", True)
     include_west_project("zcbor")
+    # The image manager includes MCUboot's bootutil headers whatever the bootloader
+    include_west_project("mcuboot")
     zephyr_add_prj_conf("MCUMGR", True)
 
     zephyr_add_prj_conf("MCUMGR_GRP_IMG", True)

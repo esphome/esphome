@@ -1,4 +1,6 @@
+from collections.abc import Iterator
 import configparser
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 import hashlib
 import logging
@@ -294,6 +296,9 @@ def include_west_project(name: str) -> None:
 
 def _wanted_west_projects() -> set[str]:
     projects = set(_get_data().west_projects)
+    # Zephyr 4.1 (SDK 3.1) moved the Cortex-M core headers to the cmsis_6 module
+    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 1, 0):
+        projects.add("cmsis_6")
     # Sysbuild always builds the MCUboot image, whatever the bootloader
     if CORE.data.get(KEY_ZEPHYR, {}).get(KEY_SYSBUILD):
         projects.add("mcuboot")
@@ -369,6 +374,42 @@ def _restore_project_filter(
             "the next build that fetches a project sets it again",
             version,
         )
+
+
+# Waiting on another build installing into the shared SDK folder; slices keep
+# Ctrl-C responsive
+_INSTALL_LOCK_POLL = 1
+
+
+@contextmanager
+def _install_lock(version: str) -> Iterator[None]:
+    """Serialize the shared SDK install across builds running at once.
+
+    Builds run side by side (the dashboard compiles several configs), and
+    they all install into one SDK folder per version, so the checks and the
+    west commands that change the workspace run under one inter-process lock.
+    """
+    from filelock import FileLock, Timeout
+
+    lock_path = get_sdk_nrf_tools_path() / "install.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock = FileLock(str(lock_path))
+    waiting = False
+    while True:
+        try:
+            lock.acquire(timeout=_INSTALL_LOCK_POLL)
+            break
+        except Timeout:
+            if not waiting:
+                waiting = True
+                _LOGGER.info(
+                    "Waiting for another build installing the nRF Connect SDK %s ...",
+                    version,
+                )
+    try:
+        yield
+    finally:
+        lock.release()
 
 
 def _fetch_missing_west_projects(
@@ -452,6 +493,11 @@ def _install_framework(
 
 def check_and_install() -> None:
     version = _get_version_str()
+    with _install_lock(version):
+        _check_and_install(version)
+
+
+def _check_and_install(version: str) -> None:
     python_env_path = _get_python_env_path(version)
     env_python_path = get_python_env_executable_path(python_env_path, "python")
     sentinel = python_env_path / ".ready"
