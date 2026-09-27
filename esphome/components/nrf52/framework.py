@@ -315,31 +315,54 @@ def _set_project_filter(
     return run_command_ok([*cmd, "--", project_filter], cwd=framework_path)
 
 
-def _west_update(
+def _check_west_projects(
     env_python_path: Path, framework_path: Path, version: str, projects: set[str]
-) -> bool:
-    """Fetch ``projects``; False when the fetch fails, so the caller decides."""
-    west = [str(env_python_path), "-m", "west"]
-    if not _set_project_filter(env_python_path, framework_path, projects):
-        return False
-    cmd = [*west, "update", "--narrow", "--fetch-opt=--depth=1"]
-    # Streamed so the per-project progress of the long clone reaches the log
-    if not run_command_ok(cmd, cwd=framework_path, stream_output=True):
-        return False
-    # west quietly fetches nothing for a filter naming a project the manifest
-    # lacks, which would then count as installed. list fails on such a name;
-    # it runs after the update because the manifest imports (zephyr's modules)
-    # only resolve once zephyr is cloned.
+) -> None:
+    """Raise when the manifest lacks one of ``projects``.
+
+    west quietly fetches nothing for a filter naming a project the manifest
+    lacks, which would then count as installed. list fails on such a name; it
+    needs the manifest imports (zephyr's modules) resolved, so zephyr cloned.
+    """
     names = sorted(projects)
-    if not run_command_ok([*west, "list", "-f", "{name}", *names], cwd=framework_path):
+    cmd = [str(env_python_path), "-m", "west", "list", "-f", "{name}", *names]
+    if not run_command_ok(cmd, cwd=framework_path):
         # west named the culprit in the output logged just above
         raise EsphomeError(
             f"west list failed for the requested nRF Connect SDK {version} projects "
             f"({', '.join(names)}); a project the manifest does not have is the "
             "usual cause, see west's output above"
         )
+
+
+def _west_update(
+    env_python_path: Path,
+    framework_path: Path,
+    version: str,
+    projects: set[str],
+    checked: bool = False,
+) -> bool:
+    """Fetch ``projects``; False when the fetch fails, so the caller decides.
+
+    The names are checked after the update unless the caller already did.
+    """
+    if not _set_project_filter(env_python_path, framework_path, projects):
+        return False
+    cmd = [
+        str(env_python_path),
+        "-m",
+        "west",
+        "update",
+        "--narrow",
+        "--fetch-opt=--depth=1",
+    ]
+    # Streamed so the per-project progress of the long clone reaches the log
+    if not run_command_ok(cmd, cwd=framework_path, stream_output=True):
+        return False
+    if not checked:
+        _check_west_projects(env_python_path, framework_path, version, projects)
     (framework_path / _WEST_PROJECTS_FILE).write_text(
-        "\n".join(names), encoding="utf-8"
+        "\n".join(sorted(projects)), encoding="utf-8"
     )
     return True
 
@@ -387,16 +410,17 @@ _INSTALL_LOCK_POLL = 1
 
 
 @contextmanager
-def _install_lock(version: str) -> Iterator[None]:
-    """Serialize the shared SDK install across builds running at once.
+def _install_lock(name: str) -> Iterator[None]:
+    """Serialize one shared install step across builds running at once.
 
-    Builds run side by side (the dashboard compiles several configs), and
-    they all install into one SDK folder per version, so the checks and the
-    west commands that change the workspace run under one inter-process lock.
+    Builds run side by side (the dashboard compiles several configs) and share
+    the SDK folder of a version and the toolchain folder, so the checks and the
+    commands that change them run under an inter-process lock. Without a
+    working lock (a lock-less filesystem) the step runs unlocked with a warning.
     """
     from filelock import FileLock, Timeout
 
-    lock_path = get_sdk_nrf_tools_path() / "install.lock"
+    lock_path = get_sdk_nrf_tools_path() / f"{name}.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     # A soft lock's marker outlives a killed build and would hang every
     # later one, so a filesystem that can't lock runs unlocked (see git.py)
@@ -410,16 +434,11 @@ def _install_lock(version: str) -> Iterator[None]:
         except Timeout:
             if not waiting:
                 waiting = True
-                _LOGGER.info(
-                    "Waiting for another build installing the nRF Connect SDK %s ...",
-                    version,
-                )
+                _LOGGER.info("Waiting for another build installing %s ...", name)
+        # Timeout first: it is an OSError too
         except OSError as err:
             _LOGGER.warning(
-                "Can't lock the nRF Connect SDK %s install (%s), "
-                "continuing without a lock",
-                version,
-                err,
+                "Can't lock %s (%s), continuing without a lock", lock_path, err
             )
             break
     try:
@@ -444,14 +463,11 @@ def _fetch_missing_west_projects(
     _LOGGER.info(
         "Fetching nRF Connect SDK %s projects: %s", version, ", ".join(sorted(missing))
     )
-    try:
-        fetched = _west_update(
-            env_python_path, framework_path, version, installed | projects
-        )
-    except EsphomeError:
-        _restore_project_filter(env_python_path, framework_path, version, installed)
-        raise
-    if not fetched:
+    # Checked first here: the manifest is resolved on an install, and an unknown
+    # name must not cost a fetch of everything else
+    _check_west_projects(env_python_path, framework_path, version, projects)
+    wanted = installed | projects
+    if not _west_update(env_python_path, framework_path, version, wanted, checked=True):
         _restore_project_filter(env_python_path, framework_path, version, installed)
         raise EsphomeError(f"Can't update nRF Connect SDK {version}")
 
@@ -509,7 +525,7 @@ def _install_framework(
 
 def check_and_install() -> None:
     version = _get_version_str()
-    with _install_lock(version):
+    with _install_lock(f"sdk-{version}"):
         _check_and_install(version)
 
 
@@ -573,6 +589,14 @@ def _check_and_install(version: str) -> None:
             raise EsphomeError(f"Install Zephyr requirements for {version} failure")
         zephyr_sentinel.touch()
 
+    # Every SDK version shares the toolchain folder; the lock is only taken
+    # while it is missing, and the install checks again under it
+    if not (_get_toolchain_path(TOOLCHAIN_VERSION) / ".ready").exists():
+        with _install_lock(f"toolchain-{TOOLCHAIN_VERSION}"):
+            _install_toolchain()
+
+
+def _install_toolchain() -> None:
     toolchains_dir = _get_toolchain_path(TOOLCHAIN_VERSION)
     sentinel = toolchains_dir / ".ready"
     if not sentinel.exists():

@@ -474,10 +474,11 @@ class TestCheckAndInstall:
 
         check_and_install()
 
+        # The names are checked before anything is fetched
         assert _subcommands(mock_nrf52_ops.run_command_ok) == [
+            "list",
             "config",
             "update",
-            "list",
         ]
         wanted = "-.*,+cmsis,+hal_nordic,+nrfxlib,+openthread,+tinycrypt,+zephyr"
         assert _project_filter(mock_nrf52_ops.run_command_ok) == wanted
@@ -564,18 +565,40 @@ class TestCheckAndInstall:
         stamp = nrf52_dirs.framework / ".west_projects"
         stamp.write_text("zephyr", encoding="utf-8")
         include_west_project("openthread")
-        # config succeeds, update fails, the restoring config succeeds
-        mock_nrf52_ops.run_command_ok.side_effect = [True, False, True]
+        # list and config succeed, update fails, the restoring config succeeds
+        mock_nrf52_ops.run_command_ok.side_effect = [True, True, False, True]
 
         with pytest.raises(EsphomeError, match="Can't update"):
             check_and_install()
 
         assert stamp.read_text(encoding="utf-8") == "zephyr"
         assert _subcommands(mock_nrf52_ops.run_command_ok) == [
+            "list",
             "config",
             "update",
             "config",
         ]
+        # The defaults always stay in the restored filter
+        assert _project_filter(mock_nrf52_ops.run_command_ok) == _DEFAULTS_FILTER
+
+    def test_failed_fetch_with_a_lost_stamp_keeps_the_defaults_active(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """An unknown installed set must not leave a filter with every module off."""
+        _mark_installed(nrf52_dirs)
+        _mark_west_initialized(nrf52_dirs.framework)
+        (nrf52_dirs.framework / ".west" / "config").write_text(
+            "[manifest]\nproject-filter = -.*,+zephyr\n", encoding="utf-8"
+        )
+        include_west_project("openthread")
+        # list and config succeed, update fails, the restoring config succeeds
+        mock_nrf52_ops.run_command_ok.side_effect = [True, True, False, True]
+
+        with pytest.raises(EsphomeError, match="Can't update"):
+            check_and_install()
+
         assert _project_filter(mock_nrf52_ops.run_command_ok) == _DEFAULTS_FILTER
 
     def test_failed_filter_restore_is_logged(
@@ -589,8 +612,8 @@ class TestCheckAndInstall:
         (nrf52_dirs.framework / ".ready").touch()
         (nrf52_dirs.framework / ".west_projects").write_text("zephyr", encoding="utf-8")
         include_west_project("openthread")
-        # config succeeds, update fails, the restoring config fails too
-        mock_nrf52_ops.run_command_ok.side_effect = [True, False, False]
+        # list and config succeed, update fails, the restoring config fails too
+        mock_nrf52_ops.run_command_ok.side_effect = [True, True, False, False]
 
         with pytest.raises(EsphomeError, match="Can't update"):
             check_and_install()
@@ -614,9 +637,9 @@ class TestCheckAndInstall:
         check_and_install()
 
         assert _subcommands(mock_nrf52_ops.run_command_ok) == [
+            "list",
             "config",
             "update",
-            "list",
         ]
 
     def test_failed_fetch_with_a_lost_stamp_keeps_the_default_projects(
@@ -663,6 +686,21 @@ class TestCheckAndInstall:
         assert "Waiting for another build" in caplog.text
         assert "continuing without a lock" not in caplog.text
 
+    def test_install_lock_is_per_sdk_version(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """Installs of different SDK versions do not wait on each other; the
+        toolchain they share is only locked while it is missing."""
+        _mark_installed(nrf52_dirs)
+
+        with patch("filelock.FileLock") as file_lock:
+            check_and_install()
+
+        lock_files = [Path(c.args[0]).name for c in file_lock.call_args_list]
+        assert lock_files == [f"sdk-v{_TEST_SDK_VERSION}.lock"]
+
     def test_install_runs_unlocked_where_the_filesystem_cannot_lock(
         self,
         nrf52_dirs: SimpleNamespace,
@@ -707,30 +745,24 @@ class TestCheckAndInstall:
         assert "no_such_project" in mock_nrf52_ops.run_command_ok.call_args.args[0]
         assert not (nrf52_dirs.framework / ".west_projects").exists()
 
-    def test_unknown_project_on_an_installed_sdk_puts_the_filter_back(
+    def test_unknown_project_on_an_installed_sdk_fetches_nothing(
         self,
         nrf52_dirs: SimpleNamespace,
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
-        """An unknown name found while fetching into a finished install leaves
-        the workspace filter as the stamp has it."""
+        """On a finished install the names are checked first, so an unknown one
+        costs no fetch and leaves the workspace as it was."""
         _mark_venv_ready(nrf52_dirs.python_env)
         (nrf52_dirs.framework / ".ready").touch()
         (nrf52_dirs.framework / ".west_projects").write_text("zephyr", encoding="utf-8")
         include_west_project("no_such_project")
-        # config and update succeed, list fails, the restoring config succeeds
-        mock_nrf52_ops.run_command_ok.side_effect = [True, True, False, True]
+        # list fails before anything is fetched or changed
+        mock_nrf52_ops.run_command_ok.side_effect = [False]
 
         with pytest.raises(EsphomeError, match="west list failed"):
             check_and_install()
 
-        assert _subcommands(mock_nrf52_ops.run_command_ok) == [
-            "config",
-            "update",
-            "list",
-            "config",
-        ]
-        assert _project_filter(mock_nrf52_ops.run_command_ok) == _DEFAULTS_FILTER
+        assert _subcommands(mock_nrf52_ops.run_command_ok) == ["list"]
         assert (nrf52_dirs.framework / ".west_projects").read_text(
             encoding="utf-8"
         ) == "zephyr"
@@ -748,9 +780,9 @@ class TestCheckAndInstall:
         check_and_install()
 
         assert _subcommands(mock_nrf52_ops.run_command_ok) == [
+            "list",
             "config",
             "update",
-            "list",
         ]
 
     def test_toolchain_download_passes_platform_substitutions(
