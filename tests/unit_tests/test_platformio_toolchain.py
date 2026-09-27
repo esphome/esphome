@@ -448,6 +448,38 @@ def test_ccache_env_enabled_by_default(setup_core: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    "platformio_cache_dir",
+    [
+        "/cache/platformio/cache",
+        "/config/.esphome/platformio/cache",
+        "/data/cache/platformio/cache",
+        "",
+    ],
+)
+def test_ccache_env_uses_platformio_cache_mount(
+    setup_core: Path, platformio_cache_dir: str
+) -> None:
+    """Docker cache mounts keep ccache off an unwritable HOME."""
+    CORE.build_path = setup_core / "build" / "test"
+
+    with (
+        patch.dict(
+            os.environ,
+            {"HOME": "/", "PLATFORMIO_CACHE_DIR": platformio_cache_dir},
+            clear=True,
+        ),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch("esphome.framework_helpers.subprocess.run"),
+    ):
+        env = toolchain._ccache_env()
+
+    if platformio_cache_dir:
+        assert env["CCACHE_DIR"] == str(Path(platformio_cache_dir).parent / "ccache")
+    else:
+        assert env["CCACHE_DIR"].endswith("platformio-ccache")
+
+
+@pytest.mark.parametrize(
     ("env_vars", "expect_warning"),
     [
         pytest.param({}, False, id="default"),
@@ -582,6 +614,7 @@ def test_ccache_env_respects_user_values_and_refreshes_basedir(
     user_env = {
         "CCACHE_DIR": "/custom/cache",
         "CCACHE_BASEDIR": "/stale/other-device",
+        "PLATFORMIO_CACHE_DIR": "/mounted/platformio/cache",
     }
     CORE.build_path = setup_core / "build" / "test"
 

@@ -234,9 +234,10 @@ def _ccache_env() -> dict[str, str]:
     skips defaults for ``CCACHE_*`` keys it finds already set, so leaking
     these values would hand it the wrong cache dir and a stale basedir.
 
-    This mirrors ``_ccache_env()`` in ``esphome/espidf/framework.py``. The
-    cache lives under the machine-global ESPHome cache dir, so it is shared
-    across all projects and removed by ``esphome clean-all``. Unlike the
+    This mirrors ``_ccache_env()`` in ``esphome/espidf/framework.py``. When
+    PlatformIO has a configured cache directory, ccache lives alongside it so
+    container users can keep both caches on the same writable mount. Otherwise
+    it lives under the machine-global ESPHome cache dir. Unlike the
     ESP-IDF path, ``CCACHE_DEPEND`` is not set: SCons compiles don't emit
     the depfiles depend mode needs, so ccache's default preprocessor mode
     is used.
@@ -263,11 +264,15 @@ def _ccache_env() -> dict[str, str]:
             "build environment"
         )
     env["CCACHE_BASEDIR"] = str(Path(CORE.build_path).resolve())
+    platformio_cache_dir = os.environ.get("PLATFORMIO_CACHE_DIR")
+    ccache_dir = (
+        Path(platformio_cache_dir).parent / "ccache"
+        if platformio_cache_dir
+        else Path(platformdirs.user_cache_dir("esphome", appauthor=False))
+        / "platformio-ccache"
+    )
     defaults = {
-        "CCACHE_DIR": str(
-            Path(platformdirs.user_cache_dir("esphome", appauthor=False))
-            / "platformio-ccache"
-        ),
+        "CCACHE_DIR": str(ccache_dir),
         "CCACHE_NOHASHDIR": "true",
     }
     env.update({k: v for k, v in defaults.items() if k not in os.environ})
