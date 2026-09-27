@@ -26,10 +26,6 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_ID])
 
-    if CONF_DOSING_MODE in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_DOSING_MODE])
-        cg.add(parent.set_dosing_mode(sens))
-
-    if CONF_CALIBRATION_STATUS in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_CALIBRATION_STATUS])
-        cg.add(parent.set_calibration_status(sens))
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_DOSING_MODE, parent.set_dosing_mode)
+    await text_sensors(CONF_CALIBRATION_STATUS, parent.set_calibration_status)
