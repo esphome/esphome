@@ -9,6 +9,14 @@ namespace esphome::usb_host {
 
 void USBHost::setup() {
   usb_host_config_t config{};
+  config.fifo_settings_custom.rx_fifo_lines = this->rx_fifo_lines_;
+  config.fifo_settings_custom.nptx_fifo_lines = this->nptx_fifo_lines_;
+  config.fifo_settings_custom.ptx_fifo_lines = this->ptx_fifo_lines_;
+
+  if (this->rx_fifo_lines_ != 0) {
+    ESP_LOGI(TAG, "Installing USB host with FIFO lines: RX=%" PRIu32 ", NPTX=%" PRIu32 ", PTX=%" PRIu32,
+             this->rx_fifo_lines_, this->nptx_fifo_lines_, this->ptx_fifo_lines_);
+  }
 
   if (usb_host_install(&config) != ESP_OK) {
     this->status_set_error(LOG_STR("usb_host_install failed"));

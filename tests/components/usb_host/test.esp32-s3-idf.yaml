@@ -1,5 +1,8 @@
 usb_host:
   max_transfer_requests: 32  # Test uint32_t bitmask path (17-32 requests)
+  rx_fifo_lines: 131
+  nptx_fifo_lines: 64
+  ptx_fifo_lines: 256
   devices:
     - id: device_1
       vid: 0x1234

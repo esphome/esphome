@@ -189,9 +189,17 @@ class USBHost final : public Component {
   float get_setup_priority() const override { return setup_priority::BUS; }
   void loop() override;
   void setup() override;
+  void set_fifo_settings(uint32_t rx_fifo_lines, uint32_t nptx_fifo_lines, uint32_t ptx_fifo_lines) {
+    this->rx_fifo_lines_ = rx_fifo_lines;
+    this->nptx_fifo_lines_ = nptx_fifo_lines;
+    this->ptx_fifo_lines_ = ptx_fifo_lines;
+  }
 
  protected:
   std::vector<USBClient *> clients_{};
+  uint32_t rx_fifo_lines_{0};
+  uint32_t nptx_fifo_lines_{0};
+  uint32_t ptx_fifo_lines_{0};
 };
 
 }  // namespace esphome::usb_host

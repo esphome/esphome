@@ -29,6 +29,9 @@ CONF_PID = "pid"
 CONF_ENABLE_HUBS = "enable_hubs"
 CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
 CONF_MAX_PACKET_SIZE = "max_packet_size"
+CONF_RX_FIFO_LINES = "rx_fifo_lines"
+CONF_NPTX_FIFO_LINES = "nptx_fifo_lines"
+CONF_PTX_FIFO_LINES = "ptx_fifo_lines"
 
 
 def usb_device_schema(
@@ -61,6 +64,18 @@ def get_max_packet_size() -> int:
     return CORE.data.get(DOMAIN, {}).get(CONF_MAX_PACKET_SIZE, 64)
 
 
+def _validate_fifo_settings(config: dict) -> dict:
+    fifo_keys = (CONF_RX_FIFO_LINES, CONF_NPTX_FIFO_LINES, CONF_PTX_FIFO_LINES)
+    if not any(key in config for key in fifo_keys):
+        return config
+    if CONF_RX_FIFO_LINES not in config or CONF_NPTX_FIFO_LINES not in config:
+        raise cv.Invalid(
+            "rx_fifo_lines and nptx_fifo_lines must both be configured when "
+            "custom USB FIFO settings are used"
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
@@ -72,6 +87,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_PACKET_SIZE, default=64): cv.one_of(
                 64, 128, 256, 512, 1024, int=True
             ),
+            cv.Optional(CONF_RX_FIFO_LINES): cv.All(cv.uint32_t, cv.Range(min=1)),
+            cv.Optional(CONF_NPTX_FIFO_LINES): cv.All(cv.uint32_t, cv.Range(min=1)),
+            cv.Optional(CONF_PTX_FIFO_LINES): cv.uint32_t,
             cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
         }
     ),
@@ -84,6 +102,7 @@ CONFIG_SCHEMA = cv.All(
             VARIANT_ESP32S31,
         ]
     ),
+    _validate_fifo_settings,
     _set_max_packet_size,
 )
 
@@ -107,5 +126,13 @@ async def to_code(config: ConfigType) -> None:
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    if CONF_RX_FIFO_LINES in config:
+        cg.add(
+            var.set_fifo_settings(
+                config[CONF_RX_FIFO_LINES],
+                config[CONF_NPTX_FIFO_LINES],
+                config.get(CONF_PTX_FIFO_LINES, 0),
+            )
+        )
     for device in config.get(CONF_DEVICES) or ():
         await register_usb_client(device)
