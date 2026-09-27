@@ -33,6 +33,4 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_ID])
 
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
-        cg.add(parent.set_battery_level(sens))
+    await sensor.new_sub_sensor(config, CONF_BATTERY_LEVEL, parent.set_battery_level)

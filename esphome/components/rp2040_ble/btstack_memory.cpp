@@ -20,7 +20,7 @@
 namespace esphome::rp2040_ble {
 namespace {
 
-// Pinned against arduino-pico 6.0.0's prebuilt archives: a framework bump (or
+// Pinned against arduino-pico 6.1.0's prebuilt archives: a framework bump (or
 // a changed ENABLE_* macro) shifting the struct layout must fail the build
 // here, not overrun the pool blocks at runtime. Sizes differ per core
 // architecture (measured from each archive's own storage symbols). GCC only:
