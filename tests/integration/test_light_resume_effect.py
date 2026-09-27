@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from aioesphomeapi import ColorMode, EntityState, LightState
+from aioesphomeapi import ColorMode, EntityState, LightInfo, LightState
 import pytest
 
 from .state_utils import InitialStateHelper
@@ -48,7 +48,7 @@ async def test_light_resume_effect(
         await initial_state_helper.wait_for_initial_states()
 
         async def send_and_wait(
-            light, timeout: float = 5.0, **kwargs: Any
+            light: LightInfo, timeout: float = 5.0, **kwargs: Any
         ) -> LightState:
             """Send a light command and wait for the matching state response."""
             state_futures[light.key] = asyncio.get_running_loop().create_future()
