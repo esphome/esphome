@@ -3,6 +3,7 @@ import logging
 from typing import Any
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_IPV6_ONLY
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.components.zephyr import zephyr_add_prj_conf
@@ -10,7 +11,9 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENABLE_IPV6,
     CONF_ID,
+    CONF_MANUAL_IP,
     CONF_MIN_IPV6_ADDR_COUNT,
+    CONF_NETWORKS,
     CONF_PRIORITY,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -205,6 +208,33 @@ def validate_ipv6(value: bool) -> bool:
         raise cv.Invalid("On nRF52, enable_ipv6 must be true")
 
     return value
+
+
+def validate_ipv6_only(config: ConfigType) -> ConfigType:
+    """Final validation for an interface's ``ipv6_only`` option."""
+    if not config.get(CONF_IPV6_ONLY):
+        return config
+    network = fv.full_config.get().get("network", {})
+    if not network.get(CONF_ENABLE_IPV6, False):
+        raise cv.Invalid(
+            "ipv6_only requires 'network: enable_ipv6: true'", [CONF_IPV6_ONLY]
+        )
+    if network.get(CONF_MIN_IPV6_ADDR_COUNT, 0) < 1:
+        raise cv.Invalid(
+            "ipv6_only requires 'network: min_ipv6_addr_count' of at least 1",
+            [CONF_IPV6_ONLY],
+        )
+    if CONF_MANUAL_IP in config or any(
+        CONF_MANUAL_IP in net for net in config.get(CONF_NETWORKS, [])
+    ):
+        raise cv.Invalid("ipv6_only can't be used with manual_ip", [CONF_IPV6_ONLY])
+    return config
+
+
+def add_ipv6_only_sdkconfig() -> None:
+    """Let an IPv6-only interface learn DNS servers from RDNSS and stateless DHCPv6."""
+    add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_RDNSS_MAX_DNS_SERVERS", 2)
+    add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_DHCP6", True)
 
 
 def get_network_priority(iface: str) -> float | None:

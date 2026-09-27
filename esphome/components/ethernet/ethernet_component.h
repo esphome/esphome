@@ -348,6 +348,7 @@ class EthernetComponent final : public Component {
 #if LWIP_IPV6
   uint8_t ipv6_count_{0};
   bool ipv6_setup_done_{false};
+  void enable_stateless_dhcp6_();
 #endif /* LWIP_IPV6 */
 
   optional<std::array<uint8_t, MAC_ADDRESS_SIZE>> fixed_mac_;

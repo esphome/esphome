@@ -5,7 +5,7 @@ from typing import Any
 from esphome import automation, preferences
 from esphome.automation import Condition
 import esphome.codegen as cg
-from esphome.components.const import CONF_ENABLED, CONF_USE_PSRAM
+from esphome.components.const import CONF_ENABLED, CONF_IPV6_ONLY, CONF_USE_PSRAM
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     const,
@@ -15,10 +15,12 @@ from esphome.components.esp32 import (
     require_mbedtls_tls_extras,
 )
 from esphome.components.network import (
+    add_ipv6_only_sdkconfig,
     add_use_address,
     get_network_priority,
     has_high_performance_networking,
     ip_address_literal,
+    validate_ipv6_only,
 )
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.config_helpers import filter_source_files_from_platform
@@ -389,6 +391,7 @@ def _consume_wifi_sockets(config: ConfigType) -> ConfigType:
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(
+    validate_ipv6_only,
     final_validate,
     validate_variant,
     _consume_wifi_sockets,
@@ -511,6 +514,9 @@ CONFIG_SCHEMA = cv.All(
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): _fast_connect_schema,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
+            cv.SplitDefault(CONF_IPV6_ONLY, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
+            ),
             cv.Optional(CONF_MIN_AUTH_MODE): cv.All(
                 VALIDATE_WIFI_MIN_AUTH_MODE,
                 cv.only_on([Platform.ESP32, Platform.ESP8266]),
@@ -681,6 +687,10 @@ async def to_code(config):
     # Only define USE_WIFI_MANUAL_IP if any AP uses manual IP
     if has_manual_ip:
         cg.add_define("USE_WIFI_MANUAL_IP")
+
+    if config.get(CONF_IPV6_ONLY):
+        cg.add_define("USE_WIFI_IPV6_ONLY")
+        add_ipv6_only_sdkconfig()
 
     # The C++ initializers are DEFAULT_REBOOT_TIMEOUT, power save NONE and minimum
     # auth WPA2; skip the setters when the config matches them.

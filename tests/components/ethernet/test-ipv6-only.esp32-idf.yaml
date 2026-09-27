@@ -1,0 +1,14 @@
+network:
+  enable_ipv6: true
+  min_ipv6_addr_count: 2
+
+ethernet:
+  type: LAN8720
+  mdc_pin: 23
+  mdio_pin: 32
+  clk:
+    pin: 0
+    mode: CLK_EXT_IN
+  phy_addr: 0
+  power_pin: 33
+  ipv6_only: true

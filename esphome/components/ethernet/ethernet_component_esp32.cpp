@@ -5,6 +5,10 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#ifdef USE_ETHERNET_IPV6_ONLY
+#include <esp_netif_net_stack.h>
+#include "lwip/dhcp6.h"
+#endif
 #include "w5500_custom_spi.h"
 
 #include <lwip/dns.h>
@@ -707,7 +711,7 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
   const esp_netif_ip_info_t *ip_info = &event->ip_info;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IP " IPSTR, IP2STR(&ip_info->ip));
   global_eth_component->got_ipv4_address_ = true;
-#if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
+#if defined(USE_ETHERNET_IPV6_ONLY) || (USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0))
   global_eth_component->connected_ = global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT;
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #else
@@ -725,7 +729,10 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
   ip_event_got_ip6_t *event = (ip_event_got_ip6_t *) event_data;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IPv6: " IPV6STR, IPV62STR(event->ip6_info.ip));
   global_eth_component->ipv6_count_ += 1;
-#if (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
+#if defined(USE_ETHERNET_IPV6_ONLY)
+  global_eth_component->connected_ = global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT;
+  global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
+#elif (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ =
       global_eth_component->got_ipv4_address_ && (global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
@@ -735,6 +742,18 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
 #endif
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   global_eth_component->notify_ip_state_listeners_();
+#endif
+}
+#endif /* USE_NETWORK_IPV6 */
+
+#if USE_NETWORK_IPV6
+void EthernetComponent::enable_stateless_dhcp6_() {
+#if defined(USE_ETHERNET_IPV6_ONLY) && LWIP_IPV6_DHCP6
+  // Stateless DHCPv6 for DNS servers; esp_netif never starts it.
+  if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(this->eth_netif_)); netif != nullptr) {
+    LwIPLock lock;
+    dhcp6_enable_stateless(netif);
+  }
 #endif
 }
 #endif /* USE_NETWORK_IPV6 */
@@ -752,6 +771,7 @@ void EthernetComponent::finish_connect_() {
     esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_);
     if (err == ESP_OK) {
       ESP_LOGD(TAG, "IPv6 link-local address created (retry succeeded)");
+      this->enable_stateless_dhcp6_();
     }
     // Always set the flag to prevent continuous retries
     // If IPv6 setup fails here with the interface up and stable, it's
@@ -831,12 +851,14 @@ void EthernetComponent::start_connect_() {
     }
   } else
 #endif
+#ifndef USE_ETHERNET_IPV6_ONLY
   {
     err = esp_netif_dhcpc_start(this->eth_netif_);
     if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
       ESPHL_ERROR_CHECK(err, "DHCPC start error");
     }
   }
+#endif
 #if USE_NETWORK_IPV6
   // Attempt to create IPv6 link-local address
   // We MUST attempt this here, not just in finish_connect_(), because with
@@ -846,7 +868,9 @@ void EthernetComponent::start_connect_() {
   // - After disconnection/cable unplugged (#10705)
   // We'll retry in finish_connect_() if it fails here.
   err = esp_netif_create_ip6_linklocal(this->eth_netif_);
-  if (err != ESP_OK) {
+  if (err == ESP_OK) {
+    this->enable_stateless_dhcp6_();
+  } else {
     if (err == ESP_ERR_ESP_NETIF_INVALID_PARAMS) {
       // This is a programming error, not a transient failure
       ESPHL_ERROR_CHECK(err, "esp_netif_create_ip6_linklocal invalid parameters");

@@ -5,11 +5,14 @@ from esphome import automation, pins
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components import spi
+from esphome.components.const import CONF_IPV6_ONLY
 from esphome.components.network import (
+    add_ipv6_only_sdkconfig,
     add_use_address,
     get_network_priority,
     get_priority_interfaces_from_full_config,
     ip_address_literal,
+    validate_ipv6_only,
 )
 from esphome.config_helpers import (
     filter_source_files_from_defines,
@@ -423,6 +426,9 @@ BASE_SCHEMA = cv.Schema(
         ): MANUAL_IP_SCHEMA,
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
+        cv.SplitDefault(CONF_IPV6_ONLY, esp32=False): cv.All(
+            cv.boolean, cv.only_on_esp32
+        ),
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
         cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
         cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
@@ -655,6 +661,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_ETHERNET_MANUAL_IP")
         cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
 
+    if config.get(CONF_IPV6_ONLY):
+        cg.add_define("USE_ETHERNET_IPV6_ONLY")
+        add_ipv6_only_sdkconfig()
+
     # Add compile-time define for PHY types with specific code
     if phy_define := _PHY_TYPE_TO_DEFINE.get(config[CONF_TYPE]):
         cg.add_define(phy_define)
@@ -843,6 +853,7 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
 
 def _final_validate(config: ConfigType) -> None:
     """Final validation for Ethernet component."""
+    validate_ipv6_only(config)
     # Allow ethernet + wifi coexistence only when both are declared in network: priority:.
     if "wifi" in fv.full_config.get():
         priority_ifaces = get_priority_interfaces_from_full_config(fv.full_config.get())
