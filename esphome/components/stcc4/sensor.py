@@ -86,7 +86,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Exclusive(
                 CONF_AMBIENT_PRESSURE_COMPENSATION, "ambient_pressure_compensation"
-            ): cv.pressure,
+            ): cv.All(cv.pressure, cv.float_range(min=0.4, max=1.1)),
             cv.Exclusive(
                 CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE,
                 "ambient_pressure_compensation",
@@ -130,7 +130,7 @@ async def to_code(config):
     if CONF_AMBIENT_PRESSURE_COMPENSATION in config:
         cg.add(
             var.set_ambient_pressure_compensation(
-                config[CONF_AMBIENT_PRESSURE_COMPENSATION]
+                config[CONF_AMBIENT_PRESSURE_COMPENSATION] * 1000  # convert bar to hPa
             )
         )
 

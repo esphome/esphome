@@ -39,7 +39,7 @@ constexpr float humidity_in_ticks_to_percent(uint16_t humidity_in_ticks) {
 }
 
 constexpr uint16_t pressure_in_hpa_to_pa_2(float pressure_in_hpa) {
-  return uint16_t(std::clamp(pressure_in_hpa, 700.f, 1100.f) * 50.f);
+  return uint16_t(std::clamp(pressure_in_hpa, 400.f, 1100.f) * 50.f);
 }
 
 constexpr float pressure_in_pa_2_to_hpa(uint16_t pressure_in_pa_2) { return pressure_in_pa_2 / 50.f; }
@@ -52,70 +52,78 @@ void STCC4Component::setup() {
   this->set_timeout(100, [this]() {
     // Send exit sleep mode command (8-bit, NACK expected), wait 5 ms to exit sleep
     this->write_command(STCC4_CMD_EXIT_SLEEP_MODE);
-    this->set_timeout(5, [this]() {
-      // Stop continuous measurement in case the device is not idle, wait 1200 ms for completion
-      if (!this->write_command(STCC4_CMD_STOP_CONTINUOUS_MEASUREMENT)) {
-        ESP_LOGE(TAG, "Failed to stop continuous measurements");
+    this->set_timeout(5, [this]() { this->sync_setup_(); });
+  });
+}
+
+void STCC4Component::sync_setup_() {
+  // Stop continuous measurements
+  // While waiting for the current measurement to finish, the device will NACK all I2C requests
+  // and it can take up to 1200 ms for the operation to complete. We have to be prepared for the
+  // stop command itself to be NACKed if a previous stop already blocked communication with the device
+  // which may happen during a warm reboot.
+  if (this->write_command(STCC4_CMD_STOP_CONTINUOUS_MEASUREMENT)) {
+    // Read product ID to verify communication (6 words: 2 for product_id + 4 for serial)
+    uint16_t raw_product_id[6];
+    if (this->get_register(STCC4_CMD_GET_PRODUCT_ID, raw_product_id, 6, 1)) {
+      uint32_t product_id = (uint32_t(raw_product_id[0]) << 16) | raw_product_id[1];
+      uint64_t serial_number = (uint64_t(raw_product_id[2]) << 48) | (uint64_t(raw_product_id[3]) << 32) |
+                               (uint64_t(raw_product_id[4]) << 16) | raw_product_id[5];
+      ESP_LOGD(TAG, "Product ID: 0x%08" PRIX32 ", Serial: 0x%016" PRIX64, product_id, serial_number);
+      if (product_id != STCC4_PRODUCT_ID) {
+        ESP_LOGE(TAG, "Unsupported product ID");
         this->mark_failed();
         return;
       }
-      this->set_timeout(1200, [this]() {
-        // Read product ID to verify communication (6 words: 2 for product_id + 4 for serial)
-        uint16_t raw_product_id[6];
-        if (!this->get_register(STCC4_CMD_GET_PRODUCT_ID, raw_product_id, 6, 1)) {
-          ESP_LOGE(TAG, "Failed to read product ID");
+
+      // Set static ambient pressure compensation if configured
+      if (this->ambient_pressure_in_pa_2_ != 0) {
+        if (!this->write_ambient_pressure_compensation_(this->ambient_pressure_in_pa_2_)) {
           this->mark_failed();
           return;
         }
-        uint32_t product_id = (uint32_t(raw_product_id[0]) << 16) | raw_product_id[1];
-        uint64_t serial_number = (uint64_t(raw_product_id[2]) << 48) | (uint64_t(raw_product_id[3]) << 32) |
-                                 (uint64_t(raw_product_id[4]) << 16) | raw_product_id[5];
-        ESP_LOGD(TAG, "Product ID: 0x%08" PRIX32 ", Serial: 0x%016" PRIX64, product_id, serial_number);
-        if (product_id != STCC4_PRODUCT_ID) {
-          ESP_LOGE(TAG, "Unsupported product ID");
-          this->mark_failed();
-          return;
-        }
+      }
 
-        // Set static ambient pressure compensation if configured
-        if (this->ambient_pressure_in_pa_2_ != 0) {
-          if (!this->write_ambient_pressure_compensation_(this->ambient_pressure_in_pa_2_)) {
-            this->mark_failed();
-            return;
-          }
-        }
+      // Setup dynamic compensation sources if configured
+      if (this->temperature_source_ != nullptr && this->humidity_source_ != nullptr) {
+        this->temperature_source_->add_on_state_callback(
+            [this](float) { this->update_rht_compensation_from_source_(); });
+        this->humidity_source_->add_on_state_callback([this](float) { this->update_rht_compensation_from_source_(); });
+        this->update_rht_compensation_from_source_();
+      }
+      if (this->ambient_pressure_source_ != nullptr) {
+        this->ambient_pressure_source_->add_on_state_callback(
+            [this](float) { this->update_ambient_pressure_compensation_from_source_(); });
+        this->update_ambient_pressure_compensation_from_source_();
+      }
 
-        // Setup dynamic compensation sources if configured
-        if (this->temperature_source_ != nullptr && this->humidity_source_ != nullptr) {
-          this->temperature_source_->add_on_state_callback(
-              [this](float) { this->update_rht_compensation_from_source_(); });
-          this->humidity_source_->add_on_state_callback(
-              [this](float) { this->update_rht_compensation_from_source_(); });
-          this->update_rht_compensation_from_source_();
-        }
-        if (this->ambient_pressure_source_ != nullptr) {
-          this->ambient_pressure_source_->add_on_state_callback(
-              [this](float) { this->update_ambient_pressure_compensation_from_source_(); });
-          this->update_ambient_pressure_compensation_from_source_();
-        }
-
-        if (this->measurement_mode_ == MeasurementMode::SINGLE_SHOT) {
-          this->start_poller();
-          this->finish_setup_();
-          return;
-        }
-
-        // Start continuous measurement, wait 1200 ms for first measurement to be available
-        if (!this->write_command(STCC4_CMD_START_CONTINUOUS_MEASUREMENT)) {
-          ESP_LOGE(TAG, "Failed to start continuous measurement");
-          this->mark_failed();
-          return;
-        }
-        this->schedule_continuous_update_(false);
+      if (this->measurement_mode_ == MeasurementMode::SINGLE_SHOT) {
+        this->start_poller();
         this->finish_setup_();
-      });
-    });
-  });
+        return;
+      }
+
+      // Start continuous measurement
+      if (!this->write_command(STCC4_CMD_START_CONTINUOUS_MEASUREMENT)) {
+        ESP_LOGE(TAG, "Failed to start continuous measurement");
+        this->mark_failed();
+        return;
+      }
+      this->schedule_continuous_update_(false);
+      this->finish_setup_();
+      return;
+    }
+  }
+
+  if (this->setup_retry_count_ < 12) {  // retry for at least 1200 ms in total
+    ESP_LOGVV(TAG, "Retry sync");
+    this->setup_retry_count_ += 1;
+    this->set_timeout(100, [this]() { this->sync_setup_(); });
+    return;
+  }
+
+  ESP_LOGE(TAG, "Failed to stop continuous measurements and read product ID");
+  this->mark_failed();
 }
 
 void STCC4Component::finish_setup_() { this->ready_ = true; }
@@ -173,7 +181,7 @@ void STCC4Component::schedule_continuous_update_(bool retry_for_clock_drift) {
   // internal clock.  The datasheet recommends retrying 150 ms after a failed read to compensate
   // for clock drift between the host and the device.
   this->set_timeout(retry_for_clock_drift ? 150 : 1000, [this, retry_for_clock_drift]() {
-    if (read_measurement_(retry_for_clock_drift ? 0 : sensirion_common::SENSIRION_OPTION_READ_MAY_NACK)) {
+    if (this->read_measurement_(retry_for_clock_drift ? 0 : sensirion_common::SENSIRION_OPTION_READ_MAY_NACK)) {
       this->status_clear_warning();
       this->schedule_continuous_update_(false);
     } else if (!retry_for_clock_drift) {
