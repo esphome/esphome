@@ -643,9 +643,11 @@ bool HoermannHcp::set_light(bool on) {
   if (!this->light_seen_)
     return false;
   this->light_target_ = on;
+  const bool was_requested = this->light_requested_;
   // A sent command may still switch it away.
   this->light_requested_ = on != this->light_on_ || this->light_command_sent_;
-  if (!this->light_command_sent_)
+  // The deadline belongs to the request, so more taps cannot keep it alive.
+  if (!was_requested)
     this->light_since_ = millis();
   this->changed_ = true;
   return true;

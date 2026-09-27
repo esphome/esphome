@@ -748,6 +748,20 @@ TEST(HoermannHcpLightPlatformTest, ChangingTheRequestKeepsTheWatchdogArmed) {
   EXPECT_FALSE(fixture.entity_on());
 }
 
+// Asking again before the fetch does not move the deadline of the pending request.
+TEST(HoermannHcpLightPlatformTest, AskingAgainKeepsTheFetchDeadline) {
+  LightFixture fixture;
+  fixture.door.connection_timeout_ms_ = 20;
+  fixture.bring_up();
+
+  fixture.command(true);
+  ASSERT_TRUE(fixture.door.light_requested_);
+  const uint32_t requested_at = fixture.door.light_since_;
+  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  ASSERT_TRUE(fixture.door.set_light(true));
+  EXPECT_EQ(fixture.door.light_since_, requested_at);
+}
+
 // A request refused while the lamp is unknown must leave the entity idle. Republishing unconditionally would
 // re-enter write_state() on every loop, so the platform would never stop asking to be written.
 TEST(HoermannHcpLightPlatformTest, RefusedRequestLeavesTheEntityIdle) {
