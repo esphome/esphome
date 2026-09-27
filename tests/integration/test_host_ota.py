@@ -13,6 +13,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 import functools
+import logging
 from pathlib import Path
 import socket
 
@@ -455,3 +456,95 @@ async def test_host_ota_rejects_garbage(
         async with wait_and_connect_api_client(port=dev.api_port) as client:
             info = await client.device_info()
             assert info.name == DEVICE_NAME
+
+
+def _request_then_close(port: int) -> None:
+    """Plaintext handshake, then the update request, then hang up while the
+    device waits for its components to prepare."""
+    with socket.create_connection((LOCALHOST, port), timeout=5.0) as sock:
+        espota2.send_check(sock, espota2.MAGIC_BYTES, "magic bytes")
+        espota2.receive_exactly(sock, 2, "version", espota2.RESPONSE_OK)
+        espota2.send_check(
+            sock, espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL, "features"
+        )
+        espota2.receive_exactly(sock, 1, "features", espota2.RESPONSE_FEATURE_FLAGS)
+        espota2.receive_exactly(sock, 1, "feature flags", None)
+        espota2.receive_exactly(sock, 1, "auth", espota2.RESPONSE_AUTH_OK)
+        espota2.send_check(sock, espota2.OTA_TYPE_UPDATE_APP, "ota type")
+        espota2.send_check(sock, [0, 0x10, 0, 0], "size")
+
+
+@pytest.mark.asyncio
+async def test_host_ota_prepare(
+    yaml_config: str,
+    write_yaml_config: ConfigWriter,
+    compile_esphome: CompileFunction,
+    reserved_tcp_port: tuple[int, socket.socket],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The update waits for a prepare listener while the loop keeps running,
+    skips the wait when the listener is prepared at once, goes ahead after the
+    cap when it never is, and survives a client that leaves while it waits."""
+    dev = _Device(
+        *await _build(
+            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+        )
+    )
+
+    async def set_ready_after(ms: int) -> None:
+        async with wait_and_connect_api_client(port=dev.api_port) as client:
+            _, services = await client.list_entities_services()
+            service = next(s for s in services if s.name == "set_ready_after")
+            await client.execute_service(service, {"ms": ms})
+
+    async def ota_lines(msg: str) -> list[str]:
+        start = len(lines)
+        await dev.ota(None, None, msg)
+        return lines[start:]
+
+    def index(run: list[str], needle: str) -> int:
+        return next((i for i, line in enumerate(run) if needle in line), -1)
+
+    def prepare_seconds() -> float:
+        record = next(
+            r
+            for r in reversed(caplog.records)
+            if r.getMessage().startswith("Preparing for upload took")
+        )
+        return float(record.getMessage().split()[4])
+
+    caplog.set_level(logging.INFO, logger=espota2.__name__)
+    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, lines):
+        dev.proc = proc
+        await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
+
+        # Prepared by the listener's own loop, before the update is written
+        run = await ota_lines("update with a slow listener failed")
+        waiting = index(run, "Waiting for components to prepare")
+        prepared = index(run, "Prepared after")
+        assert 0 <= waiting < prepared < index(run, "Update complete")
+        assert int(run[prepared].split("Prepared after ")[1].split()[0]) > 0
+        assert index(run, "updating anyway") == -1
+
+        await set_ready_after(0)
+        run = await ota_lines("update with a prepared listener failed")
+        assert index(run, "Prepare requested") >= 0
+        assert index(run, "Waiting for components to prepare") == -1
+
+        await set_ready_after(60000)
+        run = await ota_lines("update with a listener that never prepares failed")
+        assert index(run, "Components not prepared after 2000 ms, updating anyway") >= 0
+        assert prepare_seconds() >= 1.9
+
+        await set_ready_after(60000)
+        start = len(lines)
+        await asyncio.get_running_loop().run_in_executor(
+            None, _request_then_close, dev.ota_port
+        )
+        # The read after the wait fails, whether the socket reports EOF or a reset
+        async with asyncio.timeout(5.0):
+            while index(lines[start:], "esphome.ota set Error flag") == -1:
+                await asyncio.sleep(PORT_POLL_INTERVAL)
+        assert proc.returncode is None, "process died when the client left"
+        await set_ready_after(0)
+        await dev.ota(None, None, "update after a client left failed")

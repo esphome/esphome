@@ -743,7 +743,8 @@ def perform_ota(
     ]
     # The device erases flash between receiving the size and acking the
     # prepare, so this window shows the erase cost (near zero when the
-    # device erases lazily during the upload)
+    # device erases lazily during the upload), plus any time the device
+    # waits for its components to prepare
     prepare_start = time.perf_counter()
     send_check(sock, upload_size_encoded, "binary size")
     receive_exactly(sock, 1, "update prepare result", RESPONSE_UPDATE_PREPARE_OK)

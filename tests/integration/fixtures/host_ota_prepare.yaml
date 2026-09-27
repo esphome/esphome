@@ -1,0 +1,24 @@
+esphome:
+  name: host-ota-test
+host:
+api:
+  actions:
+    - action: set_ready_after
+      variables:
+        ms: int
+      then:
+        - lambda: id(prepare_test).set_ready_after(ms);
+ota:
+  - platform: esphome
+    port: __OTA_PORT__
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+ota_prepare_test_component:
+  id: prepare_test
+  ready_after: 300ms

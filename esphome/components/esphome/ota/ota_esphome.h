@@ -31,6 +31,9 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
     NOISE_HANDSHAKE,  // Exchanging Noise handshake frames
 #endif
     DATA,  // BLOCKING! Processing OTA data (update, etc.)
+#ifdef OTA_PREPARE_LISTENER_COUNT
+    PREPARE_WAIT,  // Update requested, waiting for the prepare listeners before DATA writes flash
+#endif
   };
 #ifdef USE_OTA_PASSWORD
   void set_auth_password(const std::string &password) { password_ = password; }
@@ -182,12 +185,19 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   uint32_t running_app_offset_{0};
   size_t running_app_size_{0};
 #endif
+#ifdef OTA_PREPARE_LISTENER_COUNT
+  // The requested size, kept while the prepare listeners are waited for
+  size_t ota_size_{0};
+#endif
   uint16_t port_;
   uint8_t handshake_buf_[HANDSHAKE_BUF_SIZE];
   OTAState ota_state_{OTAState::IDLE};
   uint8_t handshake_buf_pos_{0};
   uint8_t ota_features_{0};
   bool remote_closed_{false};  // the peer hung up cleanly during a blocking read
+#ifdef OTA_PREPARE_LISTENER_COUNT
+  ota::OTAType ota_type_{ota::OTA_TYPE_UPDATE_APP};  // kept with ota_size_
+#endif
 #ifdef USE_OTA_PASSWORD
   uint8_t auth_buf_pos_{0};
   uint8_t auth_type_{0};  // Store auth type to know which hasher to use

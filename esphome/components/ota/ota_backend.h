@@ -124,6 +124,35 @@ class OTAStateListener {
   virtual void on_ota_state(OTAState state, float progress, uint8_t error) = 0;
 };
 
+#ifdef OTA_PREPARE_LISTENER_COUNT
+/** Lets a component finish work on the main loop before an OTA update blocks it.
+ *
+ * Honored by the esphome OTA platform, which blocks the loop from the first flash write until the
+ * reboot. It waits up to OTA_PREPARE_TIMEOUT_MS for every listener and then updates regardless, so a
+ * listener can delay an update but never fail it. web_server and http_request OTA do not wait.
+ *
+ * While it waits, the loop keeps running after OTA_STARTED, so state listeners may see loop passes
+ * before the transfer. An update that fails after the notice is only reported through OTA_ERROR; a
+ * listener that must undo something should also bound it by its own timer.
+ *
+ * @note Components must call ota.register_ota_prepare_listener() in their Python to_code().
+ */
+class OTAPrepareListener {
+ public:
+  /// Called once per update, from the main loop, after OTA_STARTED and before any flash is written.
+  virtual void on_ota_prepare() = 0;
+  /// Polled every loop pass until it returns true; must not change state. Return true only when nothing
+  /// the listener started is still in flight, because the loop may block right after.
+  virtual bool is_ota_prepared() = 0;
+};
+
+static constexpr uint32_t OTA_PREPARE_TIMEOUT_MS = 2000;
+
+void register_ota_prepare_listener(OTAPrepareListener *listener);
+void notify_ota_prepare();
+bool ota_prepare_listeners_ready();
+#endif
+
 class OTAComponent : public Component {
 #ifdef USE_OTA_STATE_LISTENER
  public:

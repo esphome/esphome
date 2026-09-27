@@ -30,6 +30,26 @@ bool version_is_older(const char *candidate, const char *reference) {
   }
 }
 
+#ifdef OTA_PREPARE_LISTENER_COUNT
+static StaticVector<OTAPrepareListener *, OTA_PREPARE_LISTENER_COUNT>
+    ota_prepare_listeners;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+void register_ota_prepare_listener(OTAPrepareListener *listener) { ota_prepare_listeners.push_back(listener); }
+
+void notify_ota_prepare() {
+  for (auto *listener : ota_prepare_listeners)
+    listener->on_ota_prepare();
+}
+
+bool ota_prepare_listeners_ready() {
+  for (auto *listener : ota_prepare_listeners) {
+    if (!listener->is_ota_prepared())
+      return false;
+  }
+  return true;
+}
+#endif
+
 #ifdef USE_OTA_STATE_LISTENER
 OTAGlobalCallback *global_ota_callback{nullptr};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
