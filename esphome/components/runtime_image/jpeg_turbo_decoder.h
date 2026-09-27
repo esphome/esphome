@@ -23,6 +23,10 @@ class JpegTurboDecoder : public ImageDecoder {
   JpegTurboDecoder(RuntimeImage *image) : ImageDecoder(image, JPEG) {}
 
   int HOT decode(uint8_t *buffer, size_t size) override;
+  // With an unknown size, decode() only succeeds once the whole image has arrived.
+  bool is_finished() const override {
+    return this->expected_size_ == 0 ? this->decoded_bytes_ > 0 : ImageDecoder::is_finished();
+  }
 };
 
 }  // namespace esphome::runtime_image

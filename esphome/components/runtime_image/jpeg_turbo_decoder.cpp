@@ -72,6 +72,12 @@ int HOT JpegTurboDecoder::decode(uint8_t *buffer, size_t size) {
     ESP_LOGV(TAG, "Download not complete. Size: %zu/%zu", size, this->expected_size_);
     return 0;
   }
+  // Without a known size (chunked transfer), wait for the end-of-image marker so a
+  // partial download is not decoded, and rejected, as a truncated image.
+  if (this->expected_size_ == 0 && (size < 2 || buffer[size - 2] != 0xFF || buffer[size - 1] != 0xD9)) {
+    ESP_LOGV(TAG, "Waiting for end of image. Size: %zu", size);
+    return 0;
+  }
 
   struct jpeg_decompress_struct cinfo;
   DecoderErrorManager error_manager;
@@ -150,10 +156,16 @@ int HOT JpegTurboDecoder::decode(uint8_t *buffer, size_t size) {
 
   jpeg_finish_decompress(&cinfo);
   const bool truncated = error_manager.truncated;
+  const auto num_warnings = error_manager.pub.num_warnings;
   jpeg_destroy_decompress(&cinfo);
   if (truncated) {
     ESP_LOGE(TAG, "JPEG data is incomplete");
-    return DECODE_ERROR_INVALID_TYPE;
+    return DECODE_ERROR_INTERNAL_DECODER_ERROR;
+  }
+  // Other warnings are not fatal: many real-world files trigger harmless ones (such as
+  // extraneous bytes before a marker), so the image is kept, but the count is shown.
+  if (num_warnings > 0) {
+    ESP_LOGW(TAG, "Image decoded with %ld warning(s); it may be partly corrupted", num_warnings);
   }
   this->decoded_bytes_ = size;
   return size;
