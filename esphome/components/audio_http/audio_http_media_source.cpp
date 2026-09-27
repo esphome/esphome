@@ -34,7 +34,7 @@ void AudioHTTPMediaSource::dump_config() {
                 "  Decoder Task Stack in PSRAM: %s",
                 this->buffer_size_, YESNO(this->persistent_ring_buffer_), YESNO(this->decoder_task_stack_in_psram_));
 #ifdef USE_AUDIO_HTTP_CA_CERTIFICATE
-  ESP_LOGCONFIG(TAG, "  Custom CA Certificate: %s", YESNO(!this->http_ca_certificate_.empty()));
+  ESP_LOGCONFIG(TAG, "  Custom CA Certificate: %s", YESNO(this->http_ca_certificate_ != nullptr));
 #endif
 }
 
@@ -57,7 +57,9 @@ void AudioHTTPMediaSource::setup() {
   config.decoder_stack_in_psram = this->decoder_task_stack_in_psram_;
 #ifdef USE_AUDIO_HTTP_CA_CERTIFICATE
   // micro-decoder verifies HTTPS against this PEM only, skipping the built-in certificate bundle.
-  config.http_ca_certificate = this->http_ca_certificate_;
+  if (this->http_ca_certificate_ != nullptr) {
+    config.http_ca_certificate = this->http_ca_certificate_;
+  }
 #endif
 
   this->decoder_ = std::make_unique<micro_decoder::DecoderSource>(config);

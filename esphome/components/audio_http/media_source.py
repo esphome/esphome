@@ -1,11 +1,14 @@
+import logging
 from pathlib import Path
 
 import esphome.codegen as cg
 from esphome.components import audio, media_source, psram
 import esphome.config_validation as cv
 from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_TASK_STACK_IN_PSRAM
-from esphome.core import CORE
+import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@kahrendt"]
 AUTO_LOAD = ["audio"]
@@ -13,6 +16,7 @@ AUTO_LOAD = ["audio"]
 CONF_PERSISTENT_RING_BUFFER = "persistent_ring_buffer"
 CONF_CA_CERTIFICATE_PATH = "ca_certificate_path"
 CONF_HTTP_REQUEST = "http_request"
+CONF_VERIFY_SSL = "verify_ssl"
 
 audio_http_ns = cg.esphome_ns.namespace("audio_http")
 AudioHTTPMediaSource = audio_http_ns.class_(
@@ -25,22 +29,36 @@ def _request_micro_decoder(config: ConfigType) -> ConfigType:
     return config
 
 
-def _default_ca_certificate_path(config: ConfigType) -> ConfigType:
+def _inherit_ca_certificate_path(config: ConfigType) -> ConfigType:
     # Default to the CA certificate configured on the http_request component so
     # HTTPS playback verifies against the same trust anchor without repeating
     # the option on every source. Needed because audio_http sources are often
     # declared by device packages and cannot be extended from the device config.
+    # The PEM replaces the built-in certificate bundle as the sole trust anchor,
+    # so make the inheritance visible in the log.
     if CONF_CA_CERTIFICATE_PATH in config:
         return config
-    http_request_config = (CORE.raw_config or {}).get(CONF_HTTP_REQUEST)
-    if (
-        isinstance(http_request_config, dict)
-        and CONF_CA_CERTIFICATE_PATH in http_request_config
-    ):
-        config[CONF_CA_CERTIFICATE_PATH] = cv.file_(
-            http_request_config[CONF_CA_CERTIFICATE_PATH]
+    fconf = fv.full_config.get()
+    if CONF_HTTP_REQUEST not in fconf:
+        return config
+    http_request_config = fconf[CONF_HTTP_REQUEST]
+    # Mirror http_request's own semantics: it only applies its CA when SSL
+    # verification is enabled, so neither does the inheritance.
+    if not http_request_config.get(CONF_VERIFY_SSL, True):
+        return config
+    if ca_cert_path := http_request_config.get(CONF_CA_CERTIFICATE_PATH):
+        _LOGGER.info(
+            "audio_http source '%s' is inheriting ca_certificate_path from the "
+            "http_request component; HTTPS playback will verify against that PEM "
+            "instead of the built-in certificate bundle",
+            config[CONF_ID].id,
         )
+        # Already validated by http_request's schema; the value is a resolved Path.
+        config[CONF_CA_CERTIFICATE_PATH] = ca_cert_path
     return config
+
+
+FINAL_VALIDATE_SCHEMA = _inherit_ca_certificate_path
 
 
 CONFIG_SCHEMA = cv.All(
@@ -60,7 +78,6 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
     _request_micro_decoder,
-    _default_ca_certificate_path,
 )
 
 

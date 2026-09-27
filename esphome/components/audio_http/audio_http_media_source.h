@@ -14,7 +14,6 @@
 #include <atomic>
 #include <memory>
 #include <string>
-#include <utility>
 
 namespace esphome::audio_http {
 
@@ -38,7 +37,7 @@ class AudioHTTPMediaSource final : public Component,
 #ifdef USE_AUDIO_HTTP_CA_CERTIFICATE
   /// PEM-encoded CA certificate(s) used as the sole trust anchor for HTTPS playback URLs,
   /// replacing the built-in certificate bundle.
-  void set_http_ca_certificate(std::string pem) { this->http_ca_certificate_ = std::move(pem); }
+  void set_http_ca_certificate(const char *ca_certificate) { this->http_ca_certificate_ = ca_certificate; }
 #endif
 
   // MediaSource interface implementation
@@ -63,7 +62,7 @@ class AudioHTTPMediaSource final : public Component,
   bool decoder_task_stack_in_psram_{false};
   bool persistent_ring_buffer_{false};
 #ifdef USE_AUDIO_HTTP_CA_CERTIFICATE
-  std::string http_ca_certificate_{};
+  const char *http_ca_certificate_{nullptr};
 #endif
 };
 
