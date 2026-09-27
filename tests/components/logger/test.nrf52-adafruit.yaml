@@ -8,4 +8,3 @@ logger:
   wait_for_cdc: true
   early_message: true
   task_log_buffer_size: 0
-  hardware_uart: UART0
