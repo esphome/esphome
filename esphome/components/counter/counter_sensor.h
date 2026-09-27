@@ -17,7 +17,7 @@ class CounterSensor final : public sensor::Sensor, public Component {
   void setup() override;
   void dump_config() override;
   // restore value before `on_boot` automations run
-  float get_setup_priority() const override { return setup_priority::DATA - 50.0f; }
+  float get_setup_priority() const override { return setup_priority::DATA + 50.0f; }
 
   /// Increment by one each time the given sensor publishes a state.
   void count_updates_from(sensor::Sensor *source) {
