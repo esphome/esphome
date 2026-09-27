@@ -153,7 +153,6 @@ async def to_code(config: ConfigType) -> None:
         step=0.025,
     )
     if config.get(CONF_GATE_SELECT):
-        numbers = number.sub_numbers(config, parent=hub)
         await numbers(
             CONF_GATE_SELECT,
             hub.set_gate_select_number,
@@ -166,14 +165,14 @@ async def to_code(config: ConfigType) -> None:
             await number.register_number(
                 n, gate_still_threshold, min_value=0, max_value=65535, step=25
             )
-            await cg.register_parented(n, config[CONF_LD2420_ID])
+            await cg.register_parented(n, hub)
             cg.add(hub.set_gate_still_threshold_numbers(0, n))
         if gate_move_threshold := config.get(CONF_MOVE_THRESHOLD):
             n = cg.new_Pvariable(gate_move_threshold[CONF_ID])
             await number.register_number(
                 n, gate_move_threshold, min_value=0, max_value=65535, step=25
             )
-            await cg.register_parented(n, config[CONF_LD2420_ID])
+            await cg.register_parented(n, hub)
             cg.add(hub.set_gate_move_threshold_numbers(0, n))
     else:
         for x in range(16):
@@ -183,7 +182,7 @@ async def to_code(config: ConfigType) -> None:
                 await number.register_number(
                     n, move_config, min_value=0, max_value=65535, step=25
                 )
-                await cg.register_parented(n, config[CONF_LD2420_ID])
+                await cg.register_parented(n, hub)
                 cg.add(hub.set_gate_move_threshold_numbers(x, n))
 
                 still_config = gate_conf[CONF_STILL_THRESHOLD]
@@ -191,5 +190,5 @@ async def to_code(config: ConfigType) -> None:
                 await number.register_number(
                     n, still_config, min_value=0, max_value=65535, step=25
                 )
-                await cg.register_parented(n, config[CONF_LD2420_ID])
+                await cg.register_parented(n, hub)
                 cg.add(hub.set_gate_still_threshold_numbers(x, n))
