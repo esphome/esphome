@@ -52,4 +52,6 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await ssd1306_base.setup_ssd1306(var, config)
     await i2c.register_i2c_device(var, config)
-    cg.add(var.set_partial_updates(config[CONF_PARTIAL_UPDATES]))
+    if config[CONF_PARTIAL_UPDATES]:
+        cg.add_define("USE_SSD1306_I2C_PARTIAL_UPDATES")
+        cg.add(var.set_partial_updates())

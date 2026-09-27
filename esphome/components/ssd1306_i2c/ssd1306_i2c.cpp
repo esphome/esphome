@@ -1,7 +1,9 @@
 #include "ssd1306_i2c.h"
 
+#ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
 #include <algorithm>
 #include <cstring>
+#endif
 
 #include "esphome/core/log.h"
 
@@ -9,6 +11,7 @@ namespace esphome::ssd1306_i2c {
 
 static const char *const TAG = "ssd1306_i2c";
 
+#ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
 // Partial-update transport cost model
 //
 // write_register():
@@ -75,64 +78,43 @@ static constexpr uint32_t MAX_ALWAYS_MERGE_GAP =
 // the inexpensive identical-X-span vertical pass.
 
 static constexpr size_t MAX_GENERAL_MERGE_REGIONS = 32;
+#endif
 
 // SETUP
 
 void I2CSSD1306::setup() {
-  // Preserve the native ESPHome setup/probe path.
   this->init_reset_();
 
   auto err = this->write(nullptr, 0);
-
   if (err != i2c::ERROR_OK) {
     this->error_code_ = COMMUNICATION_FAILED;
-
     this->mark_failed();
     return;
   }
 
-  // Reject partial updates for controller families
-  // whose addressing differs from SSD1306.
-  //
-  // Normal operation for these models remains
-  // completely unchanged when partial_updates=false.
+#ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
   if (this->partial_updates_enabled_ && !this->partial_updates_supported_()) {
-    ESP_LOGE(TAG, "partial_updates is supported only for "
-                  "SSD1306 models");
-
+    ESP_LOGE(TAG, "partial_updates is supported only for SSD1306 models");
     this->mark_failed();
     return;
   }
+#endif
 
-  // Native ESPHome initialization remains untouched.
-  //
-  // During setup write_display_data() therefore uses
-  // the existing full-frame transport.
   SSD1306::setup();
 
+#ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
   if (!this->partial_updates_enabled_) {
     return;
   }
 
-  // Allocate all additional RAM only when explicitly
-  // requested.
-  //
-  // No heap allocation occurs during later updates.
   this->partial_update_state_ = std::make_unique<PartialUpdateState>();
-
   this->partial_update_state_->previous_buffer = std::make_unique<uint8_t[]>(this->get_buffer_length_());
 
   std::memset(this->partial_update_state_->previous_buffer.get(), 0, this->get_buffer_length_());
 
-  // ESPHome has already initialized and cleared the
-  // display successfully, but our shadow framebuffer
-  // does not yet have a checked runtime identity.
-  //
-  // The first ordinary update therefore performs one
-  // checked complete synchronization.
   this->partial_update_state_->have_previous_buffer = false;
-
   this->partial_update_state_->controller_reinit_required = false;
+#endif
 }
 
 // CONFIG DUMP
@@ -147,10 +129,13 @@ void I2CSSD1306::dump_config() {
                 "  Flip Y: %s\n"
                 "  Offset X: %d\n"
                 "  Offset Y: %d\n"
-                "  Inverted Color: %s\n"
-                "  Partial Updates: %s",
+                "  Inverted Color: %s",
                 LOG_STR_ARG(this->model_str_()), YESNO(this->external_vcc_), YESNO(this->flip_x_), YESNO(this->flip_y_),
-                this->offset_x_, this->offset_y_, YESNO(this->invert_), YESNO(this->partial_updates_enabled_));
+                this->offset_x_, this->offset_y_, YESNO(this->invert_));
+
+#ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
+  ESP_LOGCONFIG(TAG, "  Partial Updates: %s", YESNO(this->partial_updates_enabled_));
+#endif
 
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
@@ -171,9 +156,16 @@ void I2CSSD1306::dump_config() {
 // It also remains the setup-time write path.
 
 void I2CSSD1306::command(uint8_t value) {
-  if (this->write_byte(0x00, value) != i2c::ERROR_OK && this->partial_updates_enabled_) {
-    this->mark_partial_transport_failure_();
+#ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
+  if (this->partial_updates_enabled_) {
+    if (this->write_byte(0x00, value) != i2c::ERROR_OK) {
+      this->mark_partial_transport_failure_();
+    }
+    return;
   }
+#endif
+
+  this->write_byte(0x00, value);
 }
 
 void HOT I2CSSD1306::write_display_data() {
@@ -213,6 +205,7 @@ void HOT I2CSSD1306::write_display_data() {
   }
 }
 
+#ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
 // MODEL HELPERS
 
 bool I2CSSD1306::partial_updates_supported_() const {
@@ -998,5 +991,6 @@ void I2CSSD1306::update() {
     return;
   }
 }
+#endif
 
 }  // namespace esphome::ssd1306_i2c
