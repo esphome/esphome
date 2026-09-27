@@ -45,6 +45,7 @@ the last `yield` expression defines what is returned.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Generator, Iterator
+import contextvars
 import enum
 import functools
 import heapq
@@ -277,14 +278,22 @@ class _Task:
         id_number: int,
         iterator: Iterator[None],
         original_function: Any,
+        context: contextvars.Context,
     ):
         self.priority = priority
         self.id_number = id_number
         self.iterator = iterator
         self.original_function = original_function
+        self.context = context
 
     def with_priority(self, priority: float) -> _Task:
-        return _Task(priority, self.id_number, self.iterator, self.original_function)
+        return _Task(
+            priority,
+            self.id_number,
+            self.iterator,
+            self.original_function,
+            self.context,
+        )
 
     @property
     def _cmp_tuple(self) -> tuple[float, int]:
@@ -321,7 +330,10 @@ class FakeEventLoop:
             coro = coroutine(func)
             gen = coro(*args, **kwargs)
         prio = getattr(coro, "priority", 0.0)
-        task = _Task(prio, self._task_counter, gen, func)
+        # Each task gets its own copy of the current context, isolating any
+        # contextvars it sets from other tasks the scheduler interleaves it with
+        # (mirrors what asyncio.Task does internally).
+        task = _Task(prio, self._task_counter, gen, func, contextvars.copy_context())
         self._task_counter += 1
         heapq.heappush(self._pending_tasks, task)
 
@@ -352,7 +364,7 @@ class FakeEventLoop:
             )
 
             try:
-                next(task.iterator)
+                task.context.run(next, task.iterator)
                 # Decrease priority over time, so that if this task is blocked
                 # due to a dependency others will clear the dependency
                 # This could be improved with a less naive approach

@@ -2,7 +2,13 @@
 #ifdef USE_CAPTIVE_PORTAL
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
+#include "esphome/components/wifi/scan_list.h"
 #include "esphome/components/wifi/wifi_component.h"
+#ifdef USE_PROVISIONING
+#include "esphome/components/provisioning/provisioning.h"
+#endif
 #include "captive_index.h"
 
 namespace esphome::captive_portal {
@@ -12,7 +18,7 @@ static const char *const TAG = "captive_portal";
 void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream(ESPHOME_F("application/json"));
   stream->addHeader(ESPHOME_F("cache-control"), ESPHOME_F("public, max-age=0, must-revalidate"));
-  char mac_s[18];
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   const char *mac_str = get_mac_address_pretty_into_buffer(mac_s);
 #ifdef USE_ESP8266
   stream->print(ESPHOME_F("{\"mac\":\""));
@@ -24,23 +30,32 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   stream->printf(R"({"mac":"%s","name":"%s","aps":[{})", mac_str, App.get_name().c_str());
 #endif
 
-  for (auto &scan : wifi::global_wifi_component->get_scan_result()) {
-    if (scan.get_is_hidden())
-      continue;
+  // An SSID can contain a " or \ that would break the JSON, so escape it before writing it out. An SSID is at most
+  // 32 bytes (IEEE 802.11), so this is large enough that nothing is ever dropped. Reused for every scan result.
+  char escaped_ssid[32 * JSON_ESCAPE_MAX_EXPANSION + 1];
+  {
+    // Invariant: only bounded in-memory work under the lock; the network send
+    // happens later in request->send()
+    wifi::ScanResultsLock lock(wifi::global_wifi_component);
+    const auto &results = wifi::global_wifi_component->get_scan_result();
+    for (const auto &scan : results) {
+      bool with_auth = false;
+      if (!wifi::should_show_scan_entry(results, scan, with_auth))
+        continue;
 
-      // Assumes no " in ssid, possible unicode isses?
+      json_escape_into_buffer(escaped_ssid, scan.get_ssid());
 #ifdef USE_ESP8266
-    stream->print(ESPHOME_F(",{\"ssid\":\""));
-    stream->print(scan.get_ssid().c_str());
-    stream->print(ESPHOME_F("\",\"rssi\":"));
-    stream->print(scan.get_rssi());
-    stream->print(ESPHOME_F(",\"lock\":"));
-    stream->print(scan.get_with_auth());
-    stream->print(ESPHOME_F("}"));
+      stream->print(ESPHOME_F(",{\"ssid\":\""));
+      stream->print(escaped_ssid);
+      stream->print(ESPHOME_F("\",\"rssi\":"));
+      stream->print(scan.get_rssi());
+      stream->print(ESPHOME_F(",\"lock\":"));
+      stream->print(with_auth);
+      stream->print(ESPHOME_F("}"));
 #else
-    stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", scan.get_ssid().c_str(), scan.get_rssi(),
-                   scan.get_with_auth());
+      stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", escaped_ssid, scan.get_rssi(), with_auth);
 #endif
+    }
   }
   stream->print(ESPHOME_F("]}"));
   request->send(stream);
@@ -66,6 +81,20 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
 void CaptivePortal::setup() {
   // Disable loop by default - will be enabled when captive portal starts
   this->disable_loop();
+#ifdef USE_PROVISIONING
+  // The captive portal is a provisioning surface: once the provisioning window
+  // has closed, stop serving it. WiFi's own closed-callback shuts down the
+  // access point the portal runs on, and the gated fallback in WiFiComponent's
+  // loop() ensures neither is started again afterwards.
+  if (provisioning::global_provisioning_manager != nullptr) {
+    provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
+      if (this->active_) {
+        ESP_LOGD(TAG, "Provisioning window closed; stopping captive portal");
+        this->end();
+      }
+    });
+  }
+#endif
 }
 void CaptivePortal::start() {
   this->base_->init();

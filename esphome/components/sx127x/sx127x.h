@@ -41,9 +41,9 @@ class SX127xListener {
   virtual void on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) = 0;
 };
 
-class SX127x : public Component,
-               public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                     spi::DATA_RATE_8MHZ> {
+class SX127x final : public Component,
+                     public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                           spi::DATA_RATE_8MHZ> {
  public:
   size_t get_max_packet_size();
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }

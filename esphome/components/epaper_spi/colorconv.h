@@ -81,4 +81,134 @@ constexpr NATIVE_COLOR color_to_bwr(Color color, NATIVE_COLOR hw_black, NATIVE_C
   return color_to_bwyr<NATIVE_COLOR>(color, hw_black, hw_white, /*hw_yellow=*/hw_white, hw_red);
 }
 
+/** Map RGB color to discrete BWYRGB hex 6 color key
+ *
+ * Divides the RGB cube into 8 corners by which components are "on" (over 128), same as
+ * color_to_bwyr, but also resolves the green and blue corners instead of folding them into
+ * white/black.
+ *
+ * @tparam NATIVE_COLOR  Type of native hardware color values
+ * @param color     RGB color to convert from
+ * @param hw_black  Native value for black
+ * @param hw_white  Native value for white
+ * @param hw_yellow Native value for yellow
+ * @param hw_red    Native value for red
+ * @param hw_green  Native value for green
+ * @param hw_blue   Native value for blue
+ * @return          Converted native hardware color value
+ * @internal Constexpr. Does not depend on side effects ("pure").
+ */
+template<typename NATIVE_COLOR>
+constexpr NATIVE_COLOR color_to_bwyrgb(Color color, NATIVE_COLOR hw_black, NATIVE_COLOR hw_white,
+                                       NATIVE_COLOR hw_yellow, NATIVE_COLOR hw_red, NATIVE_COLOR hw_green,
+                                       NATIVE_COLOR hw_blue) {
+  const auto [min_rgb, max_rgb] = std::minmax({color.r, color.g, color.b});
+
+  if ((max_rgb - min_rgb) < COLORCONV_GRAY_THRESHOLD) {
+    if ((static_cast<int>(color.r) + color.g + color.b) > 382) {
+      return hw_white;
+    }
+    return hw_black;
+  }
+
+  const bool r_on = (color.r > 128);
+  const bool g_on = (color.g > 128);
+  const bool b_on = (color.b > 128);
+
+  if (r_on && g_on && !b_on) {
+    return hw_yellow;
+  }
+  if (r_on && !g_on && !b_on) {
+    return hw_red;
+  }
+  if (!r_on && g_on && !b_on) {
+    return hw_green;
+  }
+  if (!r_on && !g_on && b_on) {
+    return hw_blue;
+  }
+  // Handle "impure" colors (cyan, magenta) by folding into the closest primary.
+  if (!r_on && g_on && b_on) {
+    return hw_green;  // cyan
+  }
+  if (r_on && !g_on) {
+    return hw_red;  // magenta
+  }
+  if (r_on) {
+    // All high (but not gray) -> white
+    return hw_white;
+  }
+  // !r_on && !g_on && !b_on
+  // All low (but not gray) -> black
+  return hw_black;
+}
+
+/** Map RGB color to discrete BWYRGBO hex 7 color key
+ *
+ * Same corner logic as color_to_bwyrgb, except the red/yellow corner is split three ways
+ * instead of two, for panels with a dedicated orange ink.
+ *
+ * @tparam NATIVE_COLOR  Type of native hardware color values
+ * @param color     RGB color to convert from
+ * @param hw_black  Native value for black
+ * @param hw_white  Native value for white
+ * @param hw_yellow Native value for yellow
+ * @param hw_red    Native value for red
+ * @param hw_green  Native value for green
+ * @param hw_blue   Native value for blue
+ * @param hw_orange Native value for orange
+ * @return          Converted native hardware color value
+ * @internal Constexpr. Does not depend on side effects ("pure").
+ */
+template<typename NATIVE_COLOR>
+constexpr NATIVE_COLOR color_to_bwyrgbo(Color color, NATIVE_COLOR hw_black, NATIVE_COLOR hw_white,
+                                        NATIVE_COLOR hw_yellow, NATIVE_COLOR hw_red, NATIVE_COLOR hw_green,
+                                        NATIVE_COLOR hw_blue, NATIVE_COLOR hw_orange) {
+  const auto [min_rgb, max_rgb] = std::minmax({color.r, color.g, color.b});
+
+  if ((max_rgb - min_rgb) < COLORCONV_GRAY_THRESHOLD) {
+    if ((static_cast<int>(color.r) + color.g + color.b) > 382) {
+      return hw_white;
+    }
+    return hw_black;
+  }
+
+  const bool r_on = (color.r > 128);
+  const bool g_on = (color.g > 128);
+  const bool b_on = (color.b > 128);
+
+  if (r_on && !b_on) {
+    // Between red and yellow: split the gradient in three instead of two, since this panel has a
+    // dedicated orange ink. Named orange (e.g. 0xFFA500) has g close to the midpoint, so the
+    // plain g_on (>128) threshold used by color_to_bwyrgb can't tell it apart from yellow.
+    if (color.g > 170) {
+      return hw_yellow;
+    }
+    if (color.g > 85) {
+      return hw_orange;
+    }
+    return hw_red;
+  }
+  if (!r_on && g_on && !b_on) {
+    return hw_green;
+  }
+  if (!r_on && !g_on && b_on) {
+    return hw_blue;
+  }
+  // Handle "impure" colors (cyan, magenta) by folding into the closest primary.
+  if (!r_on && g_on && b_on) {
+    return hw_green;  // cyan
+  }
+  if (r_on && !g_on) {
+    return hw_red;  // magenta
+  }
+  if (r_on) {
+    // All high (but not gray) -> white
+    return hw_white;
+  }
+  // !r_on && !g_on && !b_on
+  // All low (but not gray) -> black
+  return hw_black;
+}
+
 }  // namespace esphome::epaper_spi

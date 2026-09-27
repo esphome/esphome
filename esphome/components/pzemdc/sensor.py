@@ -27,9 +27,6 @@ AUTO_LOAD = ["modbus"]
 pzemdc_ns = cg.esphome_ns.namespace("pzemdc")
 PZEMDC = pzemdc_ns.class_("PZEMDC", cg.PollingComponent, modbus.ModbusClientDevice)
 
-# Actions
-ResetEnergyAction = pzemdc_ns.class_("ResetEnergyAction", automation.Action)
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -65,29 +62,25 @@ CONFIG_SCHEMA = (
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "pzemdc.reset_energy",
-    ResetEnergyAction,
     maybe_simple_id(
         {
             cv.GenerateID(CONF_ID): cv.use_id(PZEMDC),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("reset_energy()"),
 )
-async def reset_energy_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    return modbus.final_validate_modbus_device("pzemdc", role="client")(config)
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("pzemdc", role="client")(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await modbus.register_modbus_client_device(var, config)

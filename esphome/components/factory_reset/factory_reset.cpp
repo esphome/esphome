@@ -7,7 +7,7 @@
 
 #include <cinttypes>
 
-#if !defined(USE_RP2040) && !defined(USE_HOST)
+#if !defined(USE_RP2) && !defined(USE_HOST)
 
 namespace esphome::factory_reset {
 
@@ -73,4 +73,4 @@ void FactoryResetComponent::setup() {
 
 }  // namespace esphome::factory_reset
 
-#endif  // !defined(USE_RP2040) && !defined(USE_HOST)
+#endif  // !defined(USE_RP2) && !defined(USE_HOST)

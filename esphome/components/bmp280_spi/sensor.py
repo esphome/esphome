@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import spi
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 from ..bmp280_base import CONFIG_SCHEMA_BASE, to_code_base
 
@@ -18,6 +19,6 @@ CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(
 ).extend({cv.GenerateID(): cv.declare_id(BMP280SPIComponent)})
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await to_code_base(config)
     await spi.register_spi_device(var, config)

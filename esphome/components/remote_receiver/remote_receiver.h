@@ -14,7 +14,7 @@
 
 namespace esphome::remote_receiver {
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
 struct RemoteReceiverComponentStore {
   static void gpio_intr(RemoteReceiverComponentStore *arg);
 
@@ -30,7 +30,7 @@ struct RemoteReceiverComponentStore {
   uint32_t buffer_read{0};
   volatile uint32_t commit_micros{0};
   volatile uint32_t prev_micros{0};
-  uint32_t buffer_size{1000};
+  uint32_t buffer_entries{0};
   uint32_t filter_us{10};
   uint32_t idle_us{10000};
   ISRInternalGPIOPin pin;
@@ -47,7 +47,7 @@ struct RemoteReceiverComponentStore {
   /// The position last read from
   volatile uint32_t buffer_read{0};
   bool overflow{false};
-  uint32_t buffer_size{1000};
+  uint32_t buffer_size{0};
   uint32_t receive_size{0};
   uint32_t filter_symbols{0};
   esp_err_t error{ESP_OK};
@@ -83,25 +83,25 @@ class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
  protected:
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
   void decode_rmt_(rmt_symbol_word_t *item, size_t item_count);
+  // log the failed RMT call and mark the component failed
+  void fail_(esp_err_t error, const LogString *reason);
   rmt_channel_handle_t channel_{NULL};
   uint32_t filter_symbols_{0};
   uint32_t receive_symbols_{0};
   bool with_dma_{false};
   uint32_t carrier_frequency_{0};
   uint8_t carrier_duty_percent_{100};
-  esp_err_t error_code_{ESP_OK};
-  std::string error_string_;
 #endif
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040) || defined(USE_ESP32)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ESP32)
   RemoteReceiverComponentStore store_;
 #endif
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
   HighFrequencyLoopRequester high_freq_;
 #endif
 
-  uint32_t buffer_size_{};
+  uint32_t buffer_size_{};  // 0 on RMT targets: sized from receive_symbols in setup()
   uint32_t filter_us_{10};
   uint32_t idle_us_{10000};
 };

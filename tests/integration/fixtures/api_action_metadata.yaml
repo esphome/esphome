@@ -1,0 +1,26 @@
+esphome:
+  name: api-action-metadata-test
+host:
+api:
+  batch_delay: 0ms
+  actions:
+    - action: play_buzzer
+      description: Play an RTTTL melody on the buzzer
+      variables:
+        song_str:
+          type: string
+          description: RTTTL melody string
+          example: "two_short:d=4,o=5,b=100:16e6,16e6"
+        volume:
+          type: int
+      then:
+        - logger.log:
+            format: "Buzzer: %s"
+            args: [song_str.c_str()]
+    - action: plain_action
+      variables:
+        value: int
+      then:
+        - logger.log: "Plain action called"
+
+logger:

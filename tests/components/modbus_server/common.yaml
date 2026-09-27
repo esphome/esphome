@@ -15,6 +15,16 @@ modbus_server:
   - id: modbus_server3
     address: 0x3
     modbus_id: mod_bus2
+    bits:
+      - address: 0x0
+        read_lambda: |-
+          return true;
+      - address: 0x1
+        read_lambda: |-
+          return address == 0x1;
+        write_lambda: |-
+          printf("bit address=%d, value=%d\n", (int) address, (int) x);
+          return true;
     registers:
       - address: 0x9
         value_type: S_DWORD
@@ -40,3 +50,11 @@ modbus_server:
         value_type: U_WORD
         read_lambda: |-
           return (random_uint32() % 100);
+      # Covers CPP_TYPE_REGISTER_MAP / signed byte-swapped codegen
+      - address: 0x6
+        value_type: S_WORD_S
+        read_lambda: |-
+          return -2;
+        write_lambda: |-
+          printf("address=%d, value=%d\n", (int) address, (int) x);
+          return true;

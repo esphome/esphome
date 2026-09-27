@@ -13,6 +13,7 @@ from esphome.const import (
     ICON_ACCOUNT,
     ICON_MOTION_SENSOR,
 )
+from esphome.types import ConfigType
 
 from . import CONF_LD2410_ID, LD2410Component
 
@@ -46,7 +47,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
     if has_target_config := config.get(CONF_HAS_TARGET):
         sens = await binary_sensor.new_binary_sensor(has_target_config)

@@ -87,7 +87,7 @@ class Switch : public EntityBase {
    *
    * @param inverted Whether to invert this switch.
    */
-  void set_inverted(bool inverted);
+  void set_inverted(bool inverted) { this->inverted_ = inverted; }
 
   /** Set callback for state changes.
    *
@@ -117,7 +117,7 @@ class Switch : public EntityBase {
    */
   virtual bool assumed_state();
 
-  bool is_inverted() const;
+  bool is_inverted() const { return this->inverted_; }
 
   void set_restore_mode(SwitchRestoreMode restore_mode) { this->restore_mode = restore_mode; }
 

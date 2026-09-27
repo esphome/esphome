@@ -173,6 +173,14 @@ bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
   return bool(gpio_pin_get(arg->gpio, arg->pin % arg->gpio_size) != arg->inverted);
 }
 
+void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
+  auto *arg = (zephyr::ISRPinArg *) this->arg_;
+  if (arg == nullptr || arg->gpio == nullptr) {
+    return;
+  }
+  gpio_pin_set(arg->gpio, arg->pin % arg->gpio_size, value != arg->inverted ? 1 : 0);
+}
+
 }  // namespace esphome
 
 #endif

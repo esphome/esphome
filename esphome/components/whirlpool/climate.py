@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import climate_ir
 import esphome.config_validation as cv
 from esphome.const import CONF_MODEL
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["climate_ir"]
 CODEOWNERS = ["@glmnet"]
@@ -22,6 +23,6 @@ CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(WhirlpoolClimate).ext
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await climate_ir.new_climate_ir(config)
     cg.add(var.set_model(config[CONF_MODEL]))

@@ -15,7 +15,7 @@ namespace esphome::sntp {
 /// The C library (newlib) available on ESPs only supports TZ strings that specify an offset and DST info;
 /// you cannot specify zone names or paths to zoneinfo files.
 /// \see https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
-class SNTPComponent : public time::RealTimeClock {
+class SNTPComponent final : public time::RealTimeClock {
  public:
   SNTPComponent(const std::array<const char *, SNTP_SERVER_COUNT> &servers) : servers_(servers) {}
 

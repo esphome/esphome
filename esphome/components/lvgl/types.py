@@ -3,6 +3,8 @@ from esphome.const import CONF_TEXT, CONF_VALUE
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import Component, esphome_ns
 
+from .defines import CONF_SELECTED_INDEX
+
 
 class LvType(cg.MockObjClass):
     def __init__(self, *args, **kwargs):
@@ -67,6 +69,7 @@ lv_obj_t = LvType("lv_obj_t")
 lv_page_t = LvType("LvPageType", parents=(LvCompound,))
 lv_image_t = LvType("lv_image_t")
 lv_gradient_t = LvType("lv_grad_dsc_t")
+LvAnimation = lvgl_ns.class_("LvAnimation", cg.Component)
 lv_event_t = LvType("lv_event_t")
 RotationType = lvgl_ns.enum("RotationType")
 lv_point_t = cg.global_ns.struct("lv_point_t")
@@ -111,3 +114,4 @@ class LvSelect(LvType):
             parents=parens,
             **kwargs,
         )
+        self.value_property = CONF_SELECTED_INDEX

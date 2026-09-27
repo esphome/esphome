@@ -1,8 +1,6 @@
 #include "xiaomi_mue4094rt.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
 namespace esphome::xiaomi_mue4094rt {
 
 static const char *const TAG = "xiaomi_mue4094rt";
@@ -12,7 +10,7 @@ void XiaomiMUE4094RT::dump_config() {
   LOG_BINARY_SENSOR("  ", "Motion", this);
 }
 
-bool XiaomiMUE4094RT::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiMUE4094RT::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -51,5 +49,3 @@ bool XiaomiMUE4094RT::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
 }
 
 }  // namespace esphome::xiaomi_mue4094rt
-
-#endif

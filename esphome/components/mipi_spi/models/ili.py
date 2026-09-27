@@ -10,7 +10,6 @@ from esphome.components.mipi import (
     GMCTR,
     GMCTRN1,
     GMCTRP1,
-    IDMOFF,
     IFCTR,
     IFMODE,
     INVCTR,
@@ -23,7 +22,6 @@ from esphome.components.mipi import (
     PWCTR5,
     PWSET,
     PWSETN,
-    SETEXTC,
     VMCTR,
     VMCTR1,
     VMCTR2,
@@ -32,60 +30,6 @@ from esphome.components.mipi import (
 )
 from esphome.components.spi import TYPE_OCTAL
 
-DriverChip(
-    "M5CORE",
-    width=320,
-    height=240,
-    cs_pin=14,
-    dc_pin=27,
-    reset_pin=33,
-    initsequence=(
-        (SETEXTC, 0xFF, 0x93, 0x42),
-        (PWCTR1, 0x12, 0x12),
-        (PWCTR2, 0x03),
-        (VMCTR1, 0xF2),
-        (IFMODE, 0xE0),
-        (0xF6, 0x01, 0x00, 0x00),
-        (
-            GMCTRP1,
-            0x00,
-            0x0C,
-            0x11,
-            0x04,
-            0x11,
-            0x08,
-            0x37,
-            0x89,
-            0x4C,
-            0x06,
-            0x0C,
-            0x0A,
-            0x2E,
-            0x34,
-            0x0F,
-        ),
-        (
-            GMCTRN1,
-            0x00,
-            0x0B,
-            0x11,
-            0x05,
-            0x13,
-            0x09,
-            0x33,
-            0x67,
-            0x48,
-            0x07,
-            0x0E,
-            0x0B,
-            0x2E,
-            0x33,
-            0x0F,
-        ),
-        (DFUNCTR, 0x08, 0x82, 0x1D, 0x04),
-        (IDMOFF,),
-    ),
-)
 ILI9341 = DriverChip(
     "ILI9341",
     mirror_x=True,
@@ -172,22 +116,6 @@ ILI9342 = DriverChip(
         (0xE0, 0x0F, 0x1F, 0x1C, 0x0C, 0x0F, 0x08, 0x48, 0x98, 0x37, 0x0A, 0x13, 0x04, 0x11, 0x0D, 0x00),  # Positive Gamma
         (0xE1, 0x0F, 0x32, 0x2E, 0x0B, 0x0D, 0x05, 0x47, 0x75, 0x37, 0x06, 0x10, 0x03, 0x24, 0x20, 0x00),  # Negative Gamma
     ),
-)
-
-# M5Stack Core2 uses ILI9341 chip - mirror_x disabled for correct orientation
-ILI9341.extend(
-    "M5CORE2",
-    # Reset native dimensions due to axis swap.
-    native_width=320,
-    native_height=240,
-    width=320,
-    height=240,
-    mirror_x=False,
-    cs_pin=5,
-    dc_pin=15,
-    invert_colors=True,
-    pixel_mode="18bit",
-    data_rate="40MHz",
 )
 
 DriverChip(
@@ -386,6 +314,7 @@ DriverChip(
     data_rate="40MHz",
     dc_pin=4,
     cs_pin=5,
+    requires={"psram"},
     # reset_pin={CONF_INVERTED: True, CONF_NUMBER: 48},
     initsequence=(
         (0xEF, 0x03, 0x80, 0x02),
@@ -451,6 +380,7 @@ DriverChip(
     cs_pin=5,
     dc_pin=4,
     reset_pin=48,
+    requires={"psram"},
     initsequence=(
         (0xEF, 0x03, 0x80, 0x02),
         (0xCF, 0x00, 0xC1, 0x30),
@@ -783,6 +713,7 @@ ST7796.extend(
     reset_pin=4,
     dc_pin={"number": 0, "ignore_strapping_warning": True},
     invert_colors=True,
+    requires={"psram"},
 )
 
 ST7789V.extend(

@@ -1,0 +1,53 @@
+esphome:
+  name: test-sensor-raw-state
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+# Filters are compiled in for this config (USE_SENSOR_FILTER), so raw storage exists
+sensor:
+  # No filters on this sensor: get_raw_state() must equal state
+  - platform: template
+    name: "No Filter Sensor"
+    id: no_filter_sensor
+    accuracy_decimals: 1
+
+  # Filtered sensor: get_raw_state() must be the pre-filter value
+  - platform: template
+    name: "With Filter Sensor"
+    id: with_filter_sensor
+    accuracy_decimals: 1
+    filters:
+      - multiply: 2.0
+
+button:
+  - platform: template
+    name: "Test No Filter Button"
+    id: test_no_filter_button
+    on_press:
+      - sensor.template.publish:
+          id: no_filter_sensor
+          state: 21.5
+      - delay: 50ms
+      - logger.log:
+          format: "NO_FILTER: state=%.1f raw_state=%.1f"
+          args:
+            - id(no_filter_sensor).state
+            - id(no_filter_sensor).get_raw_state()
+
+  - platform: template
+    name: "Test With Filter Button"
+    id: test_with_filter_button
+    on_press:
+      - sensor.template.publish:
+          id: with_filter_sensor
+          state: 21.5
+      - delay: 50ms
+      - logger.log:
+          format: "WITH_FILTER: state=%.1f raw_state=%.1f"
+          args:
+            - id(with_filter_sensor).state
+            - id(with_filter_sensor).get_raw_state()

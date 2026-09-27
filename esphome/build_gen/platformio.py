@@ -63,6 +63,17 @@ def get_ini_content():
     # Add extra script for C++ flags
     CORE.add_platformio_option("extra_scripts", [f"pre:{CXX_FLAGS_FILE_NAME}"])
 
+    # Add CMake args. A user-supplied value (str or list) is deliberately
+    # replaced; this option was always overwritten at FINAL priority.
+    if CORE.cmake_args:
+        CORE.add_platformio_option(
+            "board_build.cmake_extra_args",
+            " ".join(
+                f"-D{name}={value}" for name, value in sorted(CORE.cmake_args.items())
+            ),
+            replace=True,
+        )
+
     content = "[platformio]\n"
     content += f"description = ESPHome {__version__}\n"
 
@@ -108,7 +119,6 @@ Import("env")
 def write_cxx_flags_script() -> None:
     path = CORE.relative_build_path(CXX_FLAGS_FILE_NAME)
     contents = CXX_FLAGS_FILE_CONTENTS
-    if not CORE.is_host:
-        contents += 'env.Append(CXXFLAGS=["-Wno-volatile"])'
-        contents += "\n"
+    for flag in sorted(CORE.cxx_build_flags):
+        contents += f'env.Append(CXXFLAGS=["{flag}"])\n'
     write_file_if_changed(path, contents)

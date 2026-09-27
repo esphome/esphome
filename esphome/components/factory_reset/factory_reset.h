@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/preferences.h"
-#if !defined(USE_RP2040) && !defined(USE_HOST)
+#if !defined(USE_RP2) && !defined(USE_HOST)
 
 #ifdef USE_ESP32
 #include <esp_system.h>
@@ -32,4 +32,4 @@ class FactoryResetComponent final : public Component {
 
 }  // namespace esphome::factory_reset
 
-#endif  // !defined(USE_RP2040) && !defined(USE_HOST)
+#endif  // !defined(USE_RP2) && !defined(USE_HOST)

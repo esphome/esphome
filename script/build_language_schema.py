@@ -250,6 +250,16 @@ def add_pin_validators():
         "modes": ["input"],
     }
 
+    from esphome.components import gpio_expander
+
+    # Wraps pins.internal_gpio_input_pin_schema, so the editor schema must keep
+    # treating the config var as a pin
+    pin_validators[repr(gpio_expander.validate_interrupt_pin)] = {
+        "schema": True,
+        "internal": True,
+        "modes": ["input"],
+    }
+
 
 def add_module_registries(domain, module):
     for attr_name in dir(module):
@@ -388,16 +398,6 @@ def fix_mapping():
 
     config = convert_config(BASE_SCHEMA, "mapping/CONFIG_SCHEMA")
     output["mapping"][S_SCHEMAS][S_CONFIG_SCHEMA] = config
-
-
-def fix_image():
-    if "image" not in output:
-        return
-    from esphome.components.image import IMAGE_SCHEMA
-
-    config = convert_config(IMAGE_SCHEMA, "image/CONFIG_SCHEMA")
-    config["is_list"] = True
-    output["image"][S_SCHEMAS][S_CONFIG_SCHEMA] = config
 
 
 def fix_menu():
@@ -763,7 +763,6 @@ def build_schema():
     fix_font()
     fix_globals()
     fix_mapping()
-    fix_image()
     add_logger_tags()
     shrink()
     fix_menu()
@@ -784,6 +783,29 @@ def build_schema():
 
     # bundle core inside esphome
     data["esphome"]["core"] = data.pop("core")["core"]
+
+    # Surface deprecated component aliases (declared via ``ALIASES = [...]``
+    # on the canonical component) so language servers / dashboard
+    # autocomplete still accept legacy top-level keys instead of flagging
+    # them as unknown. Each alias gets its own bundle that mirrors the
+    # canonical schema; ``alias_of`` and the optional ``removal_version``
+    # metadata let consumers render a deprecation hint and point users at
+    # the canonical name. Without this, configs migrated only at runtime
+    # (via the ``_resolve_component_aliases`` pre-pass) would still light
+    # up as errors in the editor.
+    for domain, manifest in components.items():
+        aliases = manifest.aliases
+        if not aliases or domain not in data:
+            continue
+        canonical_bundle = data[domain].get(domain)
+        if canonical_bundle is None:
+            continue
+        for alias in aliases:
+            alias_entry = dict(canonical_bundle)
+            alias_entry["alias_of"] = domain
+            if manifest.alias_removal_version is not None:
+                alias_entry["removal_version"] = manifest.alias_removal_version
+            data[alias] = {alias: alias_entry}
 
     if GENERATED_ID_TYPES:
         print(
@@ -1122,12 +1144,28 @@ def convert_keys(converted, schema, path):
         else:
             converted["key"] = "String"
             key_string_match = re.search(
-                r"<function (\w*) at \w*>", str(k), re.IGNORECASE
+                r"<function ([^ ]+) at \w+>", str(k), re.IGNORECASE
             )
             if key_string_match:
                 converted["key_type"] = key_string_match.group(1)
             else:
                 converted["key_type"] = str(k)
+
+        # A marker-wrapped callable key (e.g. script.execute's
+        # ``cv.Optional(validate_parameter_name)``) is a wildcard matcher;
+        # ``str(marker)`` is the function repr, whose heap address would
+        # churn the dump every build. Normalize like the bare-callable
+        # branch above: record the validator name in ``key_type`` and file
+        # the config var under ``string``.
+        key_name = str(k)
+        if isinstance(k, vol.Marker) and callable(k.schema):
+            key_string_match = re.search(
+                r"<function ([^ ]+) at \w+>", key_name, re.IGNORECASE
+            )
+            result["key_type"] = (
+                key_string_match.group(1) if key_string_match else key_name
+            )
+            key_name = "string"
 
         # ``cv.OnlyWith`` / ``cv.OnlyWithout`` expose ``default`` as
         # a property that returns ``vol.UNDEFINED`` when the gating
@@ -1208,7 +1246,7 @@ def convert_keys(converted, schema, path):
         for base_k, base_v in get_overridden_config(k, converted).items():
             if base_k in result and base_v == result[base_k]:
                 result.pop(base_k)
-        converted["schema"][S_CONFIG_VARS][str(k)] = result
+        converted["schema"][S_CONFIG_VARS][key_name] = result
         if "key" in converted and converted["key"] == "String":
             config_vars = converted["schema"]["config_vars"]
             assert len(config_vars) == 1

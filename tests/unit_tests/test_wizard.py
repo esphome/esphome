@@ -11,6 +11,7 @@ from esphome.components.bk72xx.boards import BK72XX_BOARD_PINS
 from esphome.components.esp32.boards import ESP32_BOARD_PINS
 from esphome.components.esp8266.boards import ESP8266_BOARD_PINS
 from esphome.components.ln882x.boards import LN882X_BOARD_PINS
+from esphome.components.rp2.boards import RP2_BOARD_PINS
 from esphome.components.rtl87xx.boards import RTL87XX_BOARD_PINS
 from esphome.core import CORE
 import esphome.wizard as wz
@@ -36,7 +37,6 @@ def wizard_answers() -> list[str]:
         "nodemcuv2",  # board
         "SSID",  # ssid
         "psk",  # wifi password
-        "",  # ota password (empty for no password)
     ]
 
 
@@ -98,6 +98,25 @@ def test_config_file_should_include_ota(default_config: dict[str, Any]):
 
     # Then
     assert "ota:" in config
+
+
+def test_config_file_should_use_encryption_when_api_key_set(
+    default_config: dict[str, Any],
+):
+    """
+    With an API encryption key and no OTA password the OTA block reuses the key
+    """
+    # Given
+    default_config["api_encryption_key"] = (
+        "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    )
+
+    # When
+    config = wz.wizard_file(**default_config)
+
+    # Then
+    assert "ota:\n  - platform: esphome\n    encryption:" in config
+    assert "password" not in config.split("ota:")[1].split("wifi:")[0]
 
 
 def test_config_file_should_include_ota_when_password_set(
@@ -300,6 +319,31 @@ def test_wizard_write_defaults_platform_from_board_rtl87xx(
     assert "rtl87xx:" in generated_config
 
 
+def test_wizard_write_defaults_platform_from_board_rp2(
+    default_config: dict[str, Any], tmp_path: Path, monkeypatch: MonkeyPatch
+):
+    """
+    If the platform is not explicitly set, use "RP2" when the board is in
+    the RP2 boards list. The generated config must use the canonical
+    ``rp2:`` top-level key (not the deprecated ``rp2040:`` alias).
+    """
+    # Given
+    del default_config["platform"]
+    default_config["board"] = [*RP2_BOARD_PINS][0]
+
+    monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", tmp_path.parent)
+
+    # When
+    wz.wizard_write(tmp_path, **default_config)
+
+    # Then
+    generated_config = wz.write_file.call_args.args[1]
+    assert "rp2:" in generated_config
+    # Guard against regressing to the legacy alias key.
+    assert "rp2040:" not in generated_config
+
+
 def test_safe_print_step_prints_step_number_and_description(monkeypatch: MonkeyPatch):
     """
     The safe_print_step function prints the step number and the passed description
@@ -450,6 +494,34 @@ def test_wizard_accepts_default_answers_esp32(
     assert retval == 0
 
 
+def test_wizard_accepts_default_answers_bk72xx(
+    tmp_path: Path, monkeypatch: MonkeyPatch, wizard_answers: list[str]
+):
+    """
+    The wizard should accept the given default answers for bk72xx. The
+    libretiny branch also exercises the False side of the
+    ``elif platform == "RP2":`` checks in the platform / board-link
+    elif chain (without this, those branches show as partial coverage
+    because only the rpipico interactive test reaches them with platform
+    == "RP2").
+    """
+    # Given
+    wizard_answers[1] = "BK72XX"
+    wizard_answers[2] = next(iter(BK72XX_BOARD_PINS))
+    config_file = tmp_path / "test.yaml"
+    input_mock = MagicMock(side_effect=wizard_answers)
+    monkeypatch.setattr("builtins.input", input_mock)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
+    monkeypatch.setattr(wz, "sleep", lambda _: 0)
+    monkeypatch.setattr(wz, "wizard_write", MagicMock())
+
+    # When
+    retval = wz.wizard(config_file)
+
+    # Then
+    assert retval == 0
+
+
 def test_wizard_offers_better_node_name(
     tmp_path: Path, monkeypatch: MonkeyPatch, wizard_answers: list[str]
 ):
@@ -576,15 +648,15 @@ def test_wizard_write_protects_existing_config(
     assert config_file.read_text() == original_content
 
 
-def test_wizard_accepts_ota_password(
+def test_wizard_uses_the_api_key_for_ota(
     tmp_path: Path, monkeypatch: MonkeyPatch, wizard_answers: list[str]
 ):
     """
-    The wizard should pass ota_password to wizard_write when the user provides one
+    The wizard generates an api key and does not ask for an OTA password;
+    the key secures OTA updates
     """
 
     # Given
-    wizard_answers[5] = "my_ota_password"  # Set OTA password
     config_file = tmp_path / "test.yaml"
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
@@ -599,8 +671,9 @@ def test_wizard_accepts_ota_password(
     # Then
     assert retval == 0
     call_kwargs = wizard_write_mock.call_args.kwargs
-    assert "ota_password" in call_kwargs
-    assert call_kwargs["ota_password"] == "my_ota_password"
+    assert "api_encryption_key" in call_kwargs
+    assert "ota_password" not in call_kwargs
+    assert input_mock.call_count == len(wizard_answers)
 
 
 def test_wizard_accepts_rpipico_board(tmp_path: Path, monkeypatch: MonkeyPatch):
@@ -612,7 +685,7 @@ def test_wizard_accepts_rpipico_board(tmp_path: Path, monkeypatch: MonkeyPatch):
     # Given
     wizard_answers_rp2040 = [
         "test-node",  # Name of the node
-        "RP2040",  # platform
+        "RP2",  # platform (canonical name; ``RP2040`` was the legacy alias)
         "rpipico",  # board (no WiFi support)
     ]
     config_file = tmp_path / "test.yaml"

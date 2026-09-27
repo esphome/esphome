@@ -1,0 +1,12 @@
+esphome:
+  name: ota-encryption-required
+
+host:
+
+api:
+  encryption:
+    key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+
+ota:
+  - platform: esphome
+    encryption:

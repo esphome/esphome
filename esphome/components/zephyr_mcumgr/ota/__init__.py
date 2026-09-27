@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
+from esphome.components.nrf52.framework import include_west_project
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 from esphome.components.zephyr import (
     HexValue,
@@ -125,6 +126,9 @@ async def to_code(config: ConfigType) -> None:
 
     zephyr_add_prj_conf("NET_BUF", True)
     zephyr_add_prj_conf("ZCBOR", True)
+    include_west_project("zcbor")
+    # The image manager includes MCUboot headers with any bootloader
+    include_west_project("mcuboot")
     zephyr_add_prj_conf("MCUMGR", True)
 
     zephyr_add_prj_conf("MCUMGR_GRP_IMG", True)
@@ -213,7 +217,7 @@ async def to_code(config: ConfigType) -> None:
         slot1_start = slot0_start + slot_size
 
         def _mcuboot_partition_overlay() -> str:
-            def part(name, start, size):
+            def part(name: str, start: int, size: int) -> str:
                 return f"""
                 {name}: partition@{start:x} {{
                     reg = <0x{start:x} 0x{size:x}>;

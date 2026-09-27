@@ -104,7 +104,7 @@ struct iovec {
   size_t iov_len;
 };
 
-#if defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_ESP8266) || defined(USE_RP2)
 // arduino-esp8266 declares a global vars called INADDR_NONE/ANY which are invalid with the define
 #ifdef INADDR_ANY
 #undef INADDR_ANY
@@ -204,6 +204,13 @@ static constexpr size_t SOCKADDR_STR_LEN = 46;  // INET6_ADDRSTRLEN
 #else
 static constexpr size_t SOCKADDR_STR_LEN = 16;  // INET_ADDRSTRLEN
 #endif
+
+/// Outcome of polling a non-blocking connect(); see socket::poll_connect().
+enum class ConnectPollResult : uint8_t {
+  CONNECT_POLL_RESULT_PENDING,
+  CONNECT_POLL_RESULT_CONNECTED,
+  CONNECT_POLL_RESULT_ERROR,
+};
 
 }  // namespace esphome::socket
 

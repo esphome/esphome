@@ -169,6 +169,7 @@ def clean_core(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(CORE, "platformio_libraries", {})
     monkeypatch.setattr(CORE, "build_flags", set())
     monkeypatch.setattr(CORE, "build_unflags", set())
+    monkeypatch.setattr(CORE, "cmake_args", {})
 
 
 def test_get_ini_content_pins_cpp_standard(
@@ -200,3 +201,75 @@ def test_get_ini_content_no_cpp_standard(
     content = platformio.get_ini_content()
 
     assert "-std=" not in content
+
+
+def test_get_ini_content_emits_cmake_args(
+    clean_core: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Registered args are space-joined into one option, sorted by name."""
+    monkeypatch.setattr(
+        CORE,
+        "cmake_args",
+        {"EXECUTABLE_COMPONENT_NAME": "src", "EXCLUDE_COMPONENTS": "unity"},
+    )
+
+    content = platformio.get_ini_content()
+
+    assert (
+        "board_build.cmake_extra_args = "
+        "-DEXCLUDE_COMPONENTS=unity -DEXECUTABLE_COMPONENT_NAME=src" in content
+    )
+
+
+def test_get_ini_content_no_cmake_option_when_no_args(clean_core: None) -> None:
+    """No board_build.cmake_extra_args line at all when nothing registered
+    (ESP8266/RP2040/LibreTiny builds must not get a blank option)."""
+    content = platformio.get_ini_content()
+
+    assert "board_build.cmake_extra_args" not in content
+
+
+def test_get_ini_content_overwrites_list_valued_user_cmake_option(
+    clean_core: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A user-supplied board_build.cmake_extra_args may be a list; the
+    registered args must replace it without tripping add_platformio_option's
+    list-append assert."""
+    monkeypatch.setattr(
+        CORE, "platformio_options", {"board_build.cmake_extra_args": ["-DFOO=1"]}
+    )
+    monkeypatch.setattr(CORE, "cmake_args", {"EXECUTABLE_COMPONENT_NAME": "src"})
+
+    content = platformio.get_ini_content()
+
+    assert "board_build.cmake_extra_args = -DEXECUTABLE_COMPONENT_NAME=src" in content
+    assert "-DFOO=1" not in content
+
+
+def test_write_cxx_flags_script_emits_registered_flags(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Flags registered via cg.add_cxx_build_flag() are emitted as CXXFLAGS,
+    sorted, so they apply to C++ compiles only."""
+    CORE.build_path = str(tmp_path)
+    monkeypatch.setattr(CORE, "cxx_build_flags", {"-Wno-volatile", "-Wno-deprecated"})
+
+    platformio.write_cxx_flags_script()
+
+    content = (tmp_path / platformio.CXX_FLAGS_FILE_NAME).read_text()
+    assert (
+        'env.Append(CXXFLAGS=["-Wno-deprecated"])\n'
+        'env.Append(CXXFLAGS=["-Wno-volatile"])\n'
+    ) in content
+
+
+def test_write_cxx_flags_script_no_flags(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    CORE.build_path = str(tmp_path)
+    monkeypatch.setattr(CORE, "cxx_build_flags", set())
+
+    platformio.write_cxx_flags_script()
+
+    content = (tmp_path / platformio.CXX_FLAGS_FILE_NAME).read_text()
+    assert "CXXFLAGS" not in content

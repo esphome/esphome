@@ -193,6 +193,11 @@ LightColorValues LightCall::validate_() {
   auto *name = this->parent_->get_name().c_str();
   auto traits = this->parent_->get_traits();
 
+#ifdef USE_LIGHT_RESUME_EFFECT
+  // Snapshot before the adjustments below add flags of their own
+  const bool plain_turn_on = this->has_state() && this->state_ && (this->flags_ & ~STATE_ONLY_FLAGS_MASK) == 0;
+#endif  // USE_LIGHT_RESUME_EFFECT
+
   // Color mode check
   if (this->has_color_mode() && !traits.supports_color_mode(this->color_mode_)) {
     ESP_LOGW(TAG, "'%s' does not support color mode %s", name, LOG_STR_ARG(color_mode_to_human(this->color_mode_)));
@@ -213,18 +218,29 @@ LightColorValues LightCall::validate_() {
   // Flag whether an explicit turn off was requested, in which case we'll also stop the effect.
   bool explicit_turn_off_request = this->has_state() && !this->state_;
 
-  // Turn off when brightness is set to zero, and reset brightness (so that it has nonzero brightness when turned on).
-  if (this->has_brightness() && this->brightness_ == 0.0f) {
+  // Treat zero brightness as an implicit turn-off when no state was explicitly requested.
+  if (this->has_brightness() && this->brightness_ == 0.0f && !this->has_state()) {
     this->state_ = false;
     this->set_flag_(FLAG_HAS_STATE);
-    if (color_mode & ColorCapability::BRIGHTNESS) {
-      // Reset brightness so the light has nonzero brightness when turned back on.
-      this->brightness_ = 1.0f;
-    } else {
-      // Light doesn't support brightness; clear the flag to avoid a spurious
-      // "brightness not supported" warning during capability validation.
-      this->clear_flag_(FLAG_HAS_BRIGHTNESS);
-    }
+  }
+
+  // A light without brightness control has no way to represent "on but dark", so zero
+  // brightness -- how effects encode their dark phase -- means the light is off. Clear the
+  // brightness as well, so a zero can't linger in remote_values and leave the light stuck
+  // off: a later turn-on can't heal it, because the capability check below drops any
+  // brightness this mode doesn't support. explicit_turn_off_request was captured above, so
+  // a running effect is not stopped by this.
+  if (this->has_brightness() && this->brightness_ == 0.0f && !(color_mode & ColorCapability::BRIGHTNESS)) {
+    this->state_ = false;
+    this->set_flag_(FLAG_HAS_STATE);
+    this->clear_flag_(FLAG_HAS_BRIGHTNESS);
+  }
+
+  // Make sure a simple (no specific brightness) turn-on makes the light visible
+  if (this->has_state() && this->state_ && (color_mode & ColorCapability::BRIGHTNESS) && !this->has_brightness() &&
+      this->parent_->remote_values.get_brightness() == 0.0f) {
+    this->brightness_ = 1.0f;
+    this->set_flag_(FLAG_HAS_BRIGHTNESS);
   }
 
   // Set color brightness to 100% if currently zero and a color is set.
@@ -323,6 +339,15 @@ LightColorValues LightCall::validate_() {
   // validate transition length/flash length/effect not used at the same time
   bool supports_transition = color_mode & ColorCapability::BRIGHTNESS;
 
+#ifdef USE_LIGHT_RESUME_EFFECT
+  // A plain turn-on from off brings back the effect that was running when the light was turned off
+  if (this->parent_->resume_effect_ && plain_turn_on && !this->parent_->remote_values.is_on() &&
+      this->parent_->previous_effect_index_ != 0) {
+    this->effect_ = this->parent_->previous_effect_index_;
+    this->set_flag_(FLAG_HAS_EFFECT);
+  }
+#endif  // USE_LIGHT_RESUME_EFFECT
+
   // If effect is already active, remove effect start
   if (this->has_effect_() && this->effect_ == this->parent_->active_effect_index_) {
     this->clear_flag_(FLAG_HAS_EFFECT);
@@ -365,6 +390,11 @@ LightColorValues LightCall::validate_() {
   // Reason: When user turns off the light in frontend, the effect should also stop
   bool target_state = this->has_state() ? this->state_ : v.is_on();
   if (!this->has_flash_() && !target_state) {
+#ifdef USE_LIGHT_RESUME_EFFECT
+    // Remember what was running, including no effect, when a lit light is explicitly turned off
+    if (this->parent_->resume_effect_ && explicit_turn_off_request && this->parent_->remote_values.is_on())
+      this->parent_->previous_effect_index_ = this->parent_->active_effect_index_;
+#endif  // USE_LIGHT_RESUME_EFFECT
     if (this->has_effect_()) {
       log_invalid_parameter(name, LOG_STR("cannot start effect when turning off"));
       this->clear_flag_(FLAG_HAS_EFFECT);

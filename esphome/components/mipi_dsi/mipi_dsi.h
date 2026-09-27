@@ -35,7 +35,7 @@ const uint8_t MADCTL_MV = 0x20;     // row/column swap
 const uint8_t MADCTL_XFLIP = 0x02;  // Mirror the display horizontally
 const uint8_t MADCTL_YFLIP = 0x01;  // Mirror the display vertically
 
-class MipiDsi : public display::Display {
+class MipiDsi final : public display::Display {
  public:
   MipiDsi(size_t width, size_t height, display::ColorBitness color_depth, uint8_t pixel_mode)
       : width_(width), height_(height), color_depth_(color_depth), pixel_mode_(pixel_mode) {}
