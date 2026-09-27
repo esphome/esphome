@@ -60,7 +60,7 @@ class TestableHoermannHcp : public HoermannHcp {
   using HoermannHcp::firmware_unreadable_;
   using HoermannHcp::serial_unreadable_;
 #endif
-  using HoermannHcp::last_command_at_;
+  using HoermannHcp::last_stop_at_;
   using HoermannHcp::light_requested_;
   using HoermannHcp::light_since_;
   using HoermannHcp::light_command_sent_;

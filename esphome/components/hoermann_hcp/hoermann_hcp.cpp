@@ -60,8 +60,8 @@ static bool is_moving(DoorState state) {
 
 // Only a status poll's answer carries commands.
 static constexpr uint8_t STATUS_COMMAND = 0x03;
-// Hoermann's accessory ignores a repeated key this long.
-static constexpr uint32_t REPEAT_LOCK_MS = 500;
+// A vendor gateway ignores a second stop this soon, so a double press cannot restart the door.
+static constexpr uint32_t STOP_LOCK_MS = 500;
 
 #ifdef USE_HOERMANN_HCP_IDENTITY
 // A status answer with this code in the low byte of its second register asks the bus controller for a value,
@@ -271,8 +271,6 @@ void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
   if (command != nullptr) {
     ESP_LOGI(TAG, "Sending '%s' command to door", command->name);
     this->next_command_ = nullptr;
-    this->last_command_ = command;
-    this->last_command_at_ = millis();
     registers.push_back(command->value);
     registers.push_back(command->value_2);
     return;
@@ -501,10 +499,6 @@ bool HoermannHcp::queue_command_(const HoermannHcpCommand &command) {
     ESP_LOGW(TAG, "Previous command not yet fetched by the bus controller");
     return false;
   }
-  if (&command == this->last_command_ && millis() - this->last_command_at_ < REPEAT_LOCK_MS) {
-    ESP_LOGW(TAG, "Ignoring '%s' repeated within %" PRIu32 " ms", command.name, REPEAT_LOCK_MS);
-    return false;
-  }
   // A new command supersedes any half-open target the door was still travelling to.
   this->clear_target_();
   this->next_command_ = &command;
@@ -512,18 +506,35 @@ bool HoermannHcp::queue_command_(const HoermannHcpCommand &command) {
   return true;
 }
 
-bool HoermannHcp::open_door() { return this->queue_command_(COMMAND_OPEN); }
-bool HoermannHcp::close_door() { return this->queue_command_(COMMAND_CLOSE); }
-bool HoermannHcp::impulse_door() { return this->queue_command_(COMMAND_IMPULSE); }
-bool HoermannHcp::vent_door() { return this->queue_command_(COMMAND_VENT); }
-bool HoermannHcp::half_open_door() { return this->queue_command_(COMMAND_HALF_OPEN); }
+bool HoermannHcp::command_door_(const HoermannHcpCommand &command) {
+  // As a vendor gateway does: a moving door is only stopped, so it is never reversed at speed.
+  if (is_moving(this->door_state_))
+    return this->stop_door();
+  return this->queue_command_(command);
+}
+
+bool HoermannHcp::open_door() { return this->command_door_(COMMAND_OPEN); }
+bool HoermannHcp::close_door() { return this->command_door_(COMMAND_CLOSE); }
+bool HoermannHcp::impulse_door() { return this->command_door_(COMMAND_IMPULSE); }
+bool HoermannHcp::vent_door() { return this->command_door_(COMMAND_VENT); }
+bool HoermannHcp::half_open_door() { return this->command_door_(COMMAND_HALF_OPEN); }
 bool HoermannHcp::stop_door() {
   if (!is_moving(this->door_state_)) {
     this->clear_target_();
     return true;
   }
+  const uint32_t now = millis();
+  if (this->stop_sent_ && now - this->last_stop_at_ < STOP_LOCK_MS) {
+    ESP_LOGD(TAG, "Door already stopping, ignoring stop");
+    this->clear_target_();
+    return true;
+  }
   // On success queue_command_() clears the target; on refusal it stays armed so the next position retries.
-  return this->queue_command_(COMMAND_IMPULSE);
+  if (!this->queue_command_(COMMAND_IMPULSE))
+    return false;
+  this->stop_sent_ = true;
+  this->last_stop_at_ = now;
+  return true;
 }
 
 bool HoermannHcp::set_position(float position) {
@@ -532,8 +543,8 @@ bool HoermannHcp::set_position(float position) {
     return this->close_door();
   if (position >= OPEN_POSITION_THRESHOLD)
     return this->open_door();
-  // Asking the door to travel to where it already is means stopping it.
-  if (position == this->current_position_)
+  // Asking the door to travel to where it already is, or anywhere while it moves, means stopping it.
+  if (position == this->current_position_ || is_moving(this->door_state_))
     return this->stop_door();
 
   // The door itself has no notion of a target, so it is started in the right direction and stopped on the way.
@@ -543,8 +554,6 @@ bool HoermannHcp::set_position(float position) {
   this->target_position_ = position;
   this->target_queued_at_ = millis();
   this->target_direction_ = opening ? DoorState::OPENING : DoorState::CLOSING;
-  // A door already travelling that way is on its way; one moving the other way has to turn around first.
-  this->target_started_ = this->door_state_ == this->target_direction_;
   return true;
 }
 

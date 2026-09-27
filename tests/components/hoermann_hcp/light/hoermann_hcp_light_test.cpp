@@ -285,10 +285,11 @@ TEST(HoermannHcpLightTest, DoorCommandGoesBeforeTheLampCommand) {
 TEST(HoermannHcpLightTest, LampCommandKeepsTheCoverTarget) {
   TestableHoermannHcp door;
   connect_controller(door);
-  // Position 60/200 = 0.3 while opening, so a 0.5 target is armed and under way.
-  door.on_write_registers(BROADCAST_REG, door_broadcast(0x003C, 0x0100));
+  // Stopped at 60/200 = 0.3, so a 0.5 target is armed, then the door opens.
+  door.on_write_registers(BROADCAST_REG, door_broadcast(0x003C, 0x0000));
   ASSERT_TRUE(door.set_position(0.5f));
   consume_command(door);
+  door.on_write_registers(BROADCAST_REG, door_broadcast(0x003E, 0x0100));
 
   ASSERT_TRUE(door.set_light(true));
   EXPECT_EQ(poll_command(door).first, 0x0880);
@@ -304,10 +305,11 @@ TEST(HoermannHcpLightTest, LampCommandKeepsTheCoverTarget) {
 TEST(HoermannHcpLightTest, LampRequestDoesNotDelayTheTargetStop) {
   TestableHoermannHcp door;
   connect_controller(door);
-  // Position 60/200 = 0.3 while opening, so a 0.5 target is armed and under way.
-  door.on_write_registers(BROADCAST_REG, door_broadcast(0x003C, 0x0100));
+  // Stopped at 60/200 = 0.3, so a 0.5 target is armed, then the door opens.
+  door.on_write_registers(BROADCAST_REG, door_broadcast(0x003C, 0x0000));
   ASSERT_TRUE(door.set_position(0.5f));
   consume_command(door);
+  door.on_write_registers(BROADCAST_REG, door_broadcast(0x003E, 0x0100));
 
   ASSERT_TRUE(door.set_light(true));
   door.on_write_registers(BROADCAST_REG, door_broadcast(0x0078, 0x0100));
@@ -324,8 +326,8 @@ TEST(HoermannHcpLightTest, LampCommandDoesNotExtendTheTargetWatchdog) {
   TestableHoermannHcp door;
   door.connection_timeout_ms_ = 20;
   connect_controller(door);
-  // The door is closing, so an opening target is armed but not yet under way.
-  door.on_write_registers(BROADCAST_REG, door_broadcast(0x003C, 0x0200));
+  // The door is stopped, so an opening target is armed but not yet under way.
+  door.on_write_registers(BROADCAST_REG, door_broadcast(0x003C, 0x0000));
   ASSERT_TRUE(door.set_position(0.5f));
   consume_command(door);
 
@@ -347,10 +349,11 @@ TEST(HoermannHcpLightTest, LampWatchdogKeepsTheCoverTarget) {
   TestableHoermannHcp door;
   door.connection_timeout_ms_ = 20;
   connect_controller(door);
-  // Position 60/200 = 0.3 while opening, so a 0.5 target is armed and under way.
-  door.on_write_registers(BROADCAST_REG, door_broadcast(0x003C, 0x0100));
+  // Stopped at 60/200 = 0.3, so a 0.5 target is armed, then the door opens.
+  door.on_write_registers(BROADCAST_REG, door_broadcast(0x003C, 0x0000));
   ASSERT_TRUE(door.set_position(0.5f));
   consume_command(door);
+  door.on_write_registers(BROADCAST_REG, door_broadcast(0x003E, 0x0100));
 
   // The door takes the command but never reports the lamp.
   ASSERT_TRUE(door.set_light(true));
@@ -372,10 +375,11 @@ TEST(HoermannHcpLightTest, ConnectionLossClearsTheTargetAndTheLampRequest) {
   TestableHoermannHcp door;
   door.connection_timeout_ms_ = 20;
   connect_controller(door);
-  // Position 60/200 = 0.3 while opening, so a 0.5 target is armed and under way.
-  door.on_write_registers(BROADCAST_REG, door_broadcast(0x003C, 0x0100));
+  // Stopped at 60/200 = 0.3, so a 0.5 target is armed, then the door opens.
+  door.on_write_registers(BROADCAST_REG, door_broadcast(0x003C, 0x0000));
   ASSERT_TRUE(door.set_position(0.5f));
   consume_command(door);
+  door.on_write_registers(BROADCAST_REG, door_broadcast(0x003E, 0x0100));
   ASSERT_TRUE(door.set_light(true));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(30));

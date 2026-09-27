@@ -104,6 +104,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
 
  protected:
   void record_response_();
+  bool command_door_(const HoermannHcpCommand &command);
   // Returns false when the bus controller has not fetched the previous command yet.
   bool queue_command_(const HoermannHcpCommand &command);
   void drop_command_();
@@ -150,8 +151,8 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   uint32_t last_response_{0};
   // Start of the wait for the fetch, then for the report.
   uint32_t light_since_{0};
-  const HoermannHcpCommand *last_command_{nullptr};
-  uint32_t last_command_at_{0};
+  uint32_t last_stop_at_{0};
+  bool stop_sent_{false};
 
   // Drop the "connected" flag if the bus controller has not polled us for this long.
   uint16_t connection_timeout_ms_{2000};
