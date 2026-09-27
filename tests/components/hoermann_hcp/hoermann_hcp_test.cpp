@@ -73,7 +73,7 @@ TEST(HoermannHcpReadWrite, DoorCommandIsSentOnceAndFreesTheSlot) {
   TestableHoermannHcp door;
   connect_controller(door);
   EXPECT_TRUE(door.open_door());
-  // Refused while one is unfetched: were it accepted, the poll below would carry COMMAND_CLOSE's 0x0120.
+  // Refused while one is unfetched.
   EXPECT_FALSE(door.close_door());
 
   EXPECT_EQ(poll_command(door).first, 0x0110);  // COMMAND_OPEN

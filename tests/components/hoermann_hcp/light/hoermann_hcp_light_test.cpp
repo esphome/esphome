@@ -503,8 +503,7 @@ TEST(HoermannHcpLightPlatformTest, UnfetchedRequestIsDroppedAndNeverSent) {
   EXPECT_EQ(idle_2, 0x0000);
 }
 
-// The lamp is only reported some time after the toggle is fetched, so an unrelated door broadcast in
-// that gap must not publish the state the lamp is about to leave.
+// A door broadcast before the lamp reports must not publish the state the lamp is about to leave.
 TEST(HoermannHcpLightPlatformTest, DoorMovementDoesNotFlipTheEntityBeforeTheLampReports) {
   LightFixture fixture;
   fixture.bring_up();
@@ -693,8 +692,7 @@ TEST(HoermannHcpLightPlatformTest, RefusalWithoutARequestStillFollowsTheLamp) {
   EXPECT_TRUE(fixture.entity_on());
 }
 
-// A door that takes the toggle but never actually switches the lamp must not leave the entity showing the
-// request for ever; the wait has to end so the entity can settle back on what the door reports.
+// A toggle the door never carries out must not leave the entity on the request.
 TEST(HoermannHcpLightPlatformTest, ToggleTheDoorIgnoresStopsBeingWaitedFor) {
   LightFixture fixture;
   fixture.door.connection_timeout_ms_ = 20;
@@ -814,8 +812,7 @@ TEST(HoermannHcpLightPlatformTest, BroadcastWithoutTheLampRegisterMarksItUnknown
 TEST(HoermannHcpLightPlatformTest, PublishOvertakenByTheLampIsNotARequest) {
   LightFixture fixture;
   fixture.bring_up();
-  // A broadcast without the lamp register leaves it unknown, so the request below is refused and the lamp
-  // published back.
+  // Lamp unknown, so the request below is refused and published back.
   fixture.door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x4000}));
 
   auto call = fixture.state.make_call();

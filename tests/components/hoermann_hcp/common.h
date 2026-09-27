@@ -30,8 +30,7 @@ inline void connect_controller(HoermannHcp &door) {
   door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000}));
 }
 
-// Runs one status poll (write 2 / read 8) and returns the whole answer. The bus controller writes its counter
-// with command 0x03 here; most tests do not care about the counter and leave it zero.
+// Runs one status poll (write 2 / read 8) and returns the whole answer.
 inline RegisterValues status_answer(HoermannHcp &door, uint16_t command_reg = 0x0003) {
   door.on_write_registers(COMMAND_REG, make_registers({command_reg, 0x0000}));
   RegisterValues response;

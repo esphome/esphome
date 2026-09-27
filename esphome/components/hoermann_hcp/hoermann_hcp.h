@@ -47,8 +47,7 @@ enum class IdentityPhase : uint8_t {
 };
 #endif
 
-// A HCP command is one value in a single status answer, as Hoermann's own bus accessory sends it. The second
-// register names the buttons that do not fit into the first.
+// Sent once, in a single status answer, as Hoermann's own bus accessory does.
 struct HoermannHcpCommand {
   const char *name;
   uint16_t value;
@@ -87,7 +86,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool half_open_door();
   bool stop_door();
   bool set_position(float position);
-  // The lamp is switched towards this state; returns false while the door has not reported the lamp.
+  // False while the door has not reported the lamp.
   bool set_light(bool on);
 
   DoorState get_door_state() const { return this->door_state_; }
@@ -100,17 +99,15 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // False until a broadcast has actually carried the lamp register. Bus traffic alone makes the connection
   // valid without saying anything about the lamp, so is_light_on() would still be its default.
   bool is_light_known() const { return this->light_seen_; }
-  // The requested state while the lamp is being switched, otherwise the reported one.
+  // The requested state while switching, else the reported one.
   bool is_light_heading_on() const { return this->light_requested_ ? this->light_target_ : this->light_on_; }
 
  protected:
   void record_response_();
   // Returns false when the bus controller has not fetched the previous command yet.
   bool queue_command_(const HoermannHcpCommand &command);
-  // Throws away the pending command and any armed target with it.
   void drop_command_();
   void clear_light_request_();
-  // Appends the two command registers, consuming the pending command.
   void push_command_registers_(modbus::RegisterValues &registers);
   void on_position_reg_(uint16_t value);
   void on_state_reg_(uint16_t value);
@@ -146,15 +143,13 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // Position the door was told to travel to; 0.0 means no target is armed.
   float target_position_{0.0f};
 
-  // Pending command.
   const HoermannHcpCommand *next_command_{nullptr};
   uint32_t command_queued_at_{0};
   // Separate from command_queued_at_ so an unrelated command cannot extend the target's start deadline.
   uint32_t target_queued_at_{0};
   uint32_t last_response_{0};
-  // Start of the current wait: for the fetch while a request is pending, for the report once the toggle is out.
+  // Start of the wait for the fetch, then for the report.
   uint32_t light_since_{0};
-  // The same command is not accepted again this soon after its fetch.
   const HoermannHcpCommand *last_command_{nullptr};
   uint32_t last_command_at_{0};
 

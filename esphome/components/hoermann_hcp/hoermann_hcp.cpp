@@ -17,14 +17,12 @@ static constexpr uint16_t BROADCAST_REG = 0x9D31;  // Door status broadcast by t
 static constexpr float CLOSE_POSITION_THRESHOLD = 0.05f;
 static constexpr float OPEN_POSITION_THRESHOLD = 0.95f;
 
-// Command encoding: the high byte of the first register is 0x01 and the rest names the button, in the low byte
-// for the door commands and in the second register for those that do not fit there.
 static constexpr HoermannHcpCommand COMMAND_OPEN{"open", 0x0110};
 static constexpr HoermannHcpCommand COMMAND_CLOSE{"close", 0x0120};
 static constexpr HoermannHcpCommand COMMAND_IMPULSE{"impulse", 0x0140};
 static constexpr HoermannHcpCommand COMMAND_VENT{"vent", 0x0100, 0x4000};
 static constexpr HoermannHcpCommand COMMAND_HALF_OPEN{"half open", 0x0100, 0x0400};
-// The lamp only has a toggle that works on every motor, so it is sent while the reported state differs.
+// Only the toggle works on every motor.
 static constexpr uint16_t LAMP_TOGGLE = 0x0800;
 static constexpr uint16_t LAMP_TOGGLE_2 = 0x0200;
 
@@ -60,9 +58,9 @@ static bool is_moving(DoorState state) {
   }
 }
 
-// The command byte of a status poll. Only its answer carries commands and requests.
+// Only a status poll's answer carries commands.
 static constexpr uint8_t STATUS_COMMAND = 0x03;
-// The Hoermann accessory ignores a repeat of the same key for this long.
+// Hoermann's accessory ignores a repeated key this long.
 static constexpr uint32_t REPEAT_LOCK_MS = 500;
 
 #ifdef USE_HOERMANN_HCP_IDENTITY
@@ -137,7 +135,7 @@ void HoermannHcp::update() {
     ESP_LOGW(TAG, "Door did not start moving towards the requested position, dropping it");
     this->clear_target_();
   }
-  // Like a door command, a toggle must neither fire long afterwards nor be waited on for ever.
+  // Neither fire late nor block the next request.
   if (this->light_requested_ && now - this->light_since_ > this->connection_timeout_ms_) {
     if (this->light_toggle_sent_) {
       ESP_LOGW(TAG, "Door did not report the lamp changing, giving up on the toggle");
@@ -272,7 +270,6 @@ void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
   const HoermannHcpCommand *command = this->next_command_;
   if (command != nullptr) {
     ESP_LOGI(TAG, "Sending '%s' command to door", command->name);
-    // Fetched with this answer.
     this->next_command_ = nullptr;
     this->last_command_ = command;
     this->last_command_at_ = millis();
@@ -280,7 +277,7 @@ void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
     registers.push_back(command->value_2);
     return;
   }
-  // Decided now, against the latest report, so a lamp the door switched itself is not toggled back.
+  // Decided at the fetch, so a lamp switched at the door is not toggled back.
   if (this->light_requested_ && !this->light_toggle_sent_ && this->light_target_ != this->light_on_) {
     ESP_LOGI(TAG, "Sending 'toggle light' command to door");
     this->light_toggle_sent_ = true;
@@ -635,7 +632,7 @@ void HoermannHcp::set_light_on_(bool on) {
     this->clear_light_request_();
     return;
   }
-  // Changed, but away from the request: the next fetch decides again, with a fresh deadline.
+  // Reversed while the toggle was out: toggle again.
   this->light_toggle_sent_ = false;
   this->light_since_ = millis();
 }
@@ -645,7 +642,7 @@ bool HoermannHcp::set_light(bool on) {
   if (!this->light_seen_)
     return false;
   this->light_target_ = on;
-  // Nothing to do if already there with nothing on its way that would take it away again.
+  // A sent toggle may still flip it away.
   this->light_requested_ = on != this->light_on_ || this->light_toggle_sent_;
   if (!this->light_toggle_sent_)
     this->light_since_ = millis();
@@ -665,7 +662,6 @@ void HoermannHcp::set_light_seen_(bool seen) {
   if (this->light_seen_ == seen)
     return;
   this->light_seen_ = seen;
-  // Nothing to judge a request against any more.
   if (!seen)
     this->clear_light_request_();
   // A resting door changes nothing else, so without this the light would never hear about it.

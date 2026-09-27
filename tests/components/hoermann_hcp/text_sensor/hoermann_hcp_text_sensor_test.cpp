@@ -409,8 +409,7 @@ TEST(HoermannHcpTextSensorTest, FirmwareVersionThatIsNotTextIsLoggedNotShown) {
   EXPECT_EQ(door.identity_request_(), 0);
 }
 
-// A repeat of a transfer already taken, as after a lost acknowledgement, is acknowledged again. Answered as a
-// status poll instead, it would carry the command waiting in the slot.
+// A repeated transfer, as after a lost acknowledgement, is acknowledged again, not answered with a command.
 TEST(HoermannHcpTextSensorTest, RepeatedTransferIsAcknowledgedNotAnsweredWithACommand) {
   IdentityFixture fixture;
   auto &door = fixture.door;
