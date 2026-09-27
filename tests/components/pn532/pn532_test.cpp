@@ -103,7 +103,7 @@ TEST(PN532Mifare, UltralightWriteChecksStatus) {
 
 TEST(PN532Mifare, ClassicReadRejectsBadResponses) {
   FakePN532 pn532;
-  std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> data{};
+  MifareReadData data{};
   pn532.responses.emplace_back();  // empty response
   EXPECT_FALSE(pn532.read_mifare_classic_block_(4, data));
   pn532.responses.push_back({0x00, 0x01, 0x02});  // short block

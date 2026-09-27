@@ -52,26 +52,17 @@ std::unique_ptr<nfc::NfcTag> PN532::read_mifare_ultralight_tag_(nfc::NfcTagUid &
 }
 
 bool PN532::read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, UltralightReadBuffer &data) {
-  const uint8_t read_increment = nfc::MIFARE_ULTRALIGHT_READ_SIZE * nfc::MIFARE_ULTRALIGHT_PAGE_SIZE;
-  PN532Frame response;
+  MifareReadData chunk;
 
-  for (uint8_t i = 0; i * read_increment < num_bytes; i++) {
+  for (uint8_t i = 0; i * MIFARE_READ_SIZE < num_bytes; i++) {
     // a READ returns 4 pages (16 bytes)
-    if (!this->in_data_exchange_(
-            {
-                PN532_COMMAND_INDATAEXCHANGE,
-                0x01,  // One card
-                nfc::MIFARE_CMD_READ,
-                uint8_t(i * nfc::MIFARE_ULTRALIGHT_READ_SIZE + start_page),
-            },
-            response) ||
-        response.size() != read_increment) {
+    if (!this->mifare_read_(uint8_t(i * nfc::MIFARE_ULTRALIGHT_READ_SIZE + start_page), chunk)) {
       return false;
     }
     // keep only the bytes still wanted from this read
-    const uint16_t remaining = num_bytes - i * read_increment;
-    const size_t count = std::min<size_t>(read_increment, remaining);
-    for (const uint8_t byte : std::span<const uint8_t>(response).subspan(0, count)) {
+    const uint16_t remaining = num_bytes - i * MIFARE_READ_SIZE;
+    const size_t count = std::min<size_t>(MIFARE_READ_SIZE, remaining);
+    for (const uint8_t byte : std::span<const uint8_t>(chunk).subspan(0, count)) {
       data.push_back(byte);
     }
   }

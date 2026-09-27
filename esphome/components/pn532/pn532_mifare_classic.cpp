@@ -15,7 +15,7 @@ std::unique_ptr<nfc::NfcTag> PN532::read_mifare_classic_tag_(nfc::NfcTagUid &uid
   uint8_t message_start_index = 0;
   uint32_t message_length = 0;
 
-  std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> block_data;
+  MifareReadData block_data;
   if (this->auth_mifare_classic_block_(uid, current_block, nfc::MIFARE_CMD_AUTH_A, nfc::NDEF_KEY)) {
     if (this->read_mifare_classic_block_(current_block, block_data)) {
       if (!nfc::decode_mifare_classic_tlv(block_data, message_length, message_start_index)) {
@@ -68,20 +68,10 @@ std::unique_ptr<nfc::NfcTag> PN532::read_mifare_classic_tag_(nfc::NfcTagUid &uid
       make_unique<nfc::NdefMessage>(std::span<const uint8_t>(buffer).subspan(message_start_index)));
 }
 
-bool PN532::read_mifare_classic_block_(uint8_t block_num, std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> &data) {
-  PN532Frame response;
-  if (!this->in_data_exchange_(
-          {
-              PN532_COMMAND_INDATAEXCHANGE,
-              0x01,  // One card
-              nfc::MIFARE_CMD_READ,
-              block_num,
-          },
-          response) ||
-      response.size() != nfc::MIFARE_CLASSIC_BLOCK_SIZE) {
+bool PN532::read_mifare_classic_block_(uint8_t block_num, MifareReadData &data) {
+  if (!this->mifare_read_(block_num, data)) {
     return false;
   }
-  std::copy(response.begin(), response.end(), data.begin());
 
   char data_buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
   ESP_LOGVV(TAG, " Block %d: %s", block_num, nfc::format_bytes_to(data_buf, data));

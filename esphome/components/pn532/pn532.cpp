@@ -461,6 +461,23 @@ bool PN532::in_data_exchange_(const std::span<const uint8_t> command, PN532Frame
   return true;
 }
 
+bool PN532::mifare_read_(uint8_t address, MifareReadData &data) {
+  PN532Frame response;
+  if (!this->in_data_exchange_(
+          {
+              PN532_COMMAND_INDATAEXCHANGE,
+              0x01,  // One card
+              nfc::MIFARE_CMD_READ,
+              address,
+          },
+          response) ||
+      response.size() != data.size()) {
+    return false;
+  }
+  std::copy(response.begin(), response.end(), data.begin());
+  return true;
+}
+
 void PN532::dump_config() {
   ESP_LOGCONFIG(TAG, "PN532:");
   switch (this->error_code_) {
