@@ -10,6 +10,7 @@ import pytest
 from esphome.automation import (
     ApplyAction,
     ApplyCall,
+    ApplyCondition,
     ApplyField,
     CallbackAutomation,
     TriggerForwarder,
@@ -17,8 +18,10 @@ from esphome.automation import (
     TriggerOnTrueForwarder,
     build_callback_automations,
     has_non_synchronous_actions,
+    literal_with_length,
     maybe_simple_id,
     register_apply_action,
+    register_apply_condition,
     register_bare_action,
     register_bare_condition,
     register_parented_action,
@@ -602,6 +605,21 @@ def test_shared_builders_keep_synchronous_flag(
     assert actions["my.parented"].synchronous is synchronous
 
 
+async def _run_entry(
+    entry: RegistryEntry,
+    config: dict[str, object],
+    args: list[tuple[object, str]] | None,
+    platform: str,
+    id_key: str = CONF_ID,
+) -> RegistryEntry:
+    """Run a registered builder with the given config, trigger args and platform."""
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
+    args = args or []
+    template_arg = cg.TemplateArguments(*(t for t, _ in args))
+    await entry.fun({id_key: PARENT_ID, **config}, ID("obj_1"), template_arg, args)
+    return entry
+
+
 async def _run_apply_action(
     registries: tuple[Registry, Registry],
     fields: tuple[ApplyField | ApplyCall, ...],
@@ -609,16 +627,26 @@ async def _run_apply_action(
     args: list[tuple[object, str]] | None = None,
     call: str | None = None,
     platform: str = "esp32",
+    id_key: str = CONF_ID,
 ) -> RegistryEntry:
     """Register an apply action and run its builder with the given config."""
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
     actions, _ = registries
-    register_apply_action("my.apply", None, *fields, call=call)
-    entry = actions["my.apply"]
-    args = args or []
-    template_arg = cg.TemplateArguments(*(t for t, _ in args))
-    await entry.fun({CONF_ID: PARENT_ID, **config}, ID("obj_1"), template_arg, args)
-    return entry
+    register_apply_action("my.apply", None, *fields, call=call, id_key=id_key)
+    return await _run_entry(actions["my.apply"], config, args, platform, id_key)
+
+
+async def _run_apply_condition(
+    registries: tuple[Registry, Registry],
+    check: str | ApplyCall,
+    config: dict[str, object],
+    args: list[tuple[object, str]] | None = None,
+    platform: str = "esp32",
+    id_key: str = CONF_ID,
+) -> RegistryEntry:
+    """Register an apply condition and run its builder with the given config."""
+    _, conditions = registries
+    register_apply_condition("my.check", None, check, id_key=id_key)
+    return await _run_entry(conditions["my.check"], config, args, platform, id_key)
 
 
 def _apply_lambda(mock_cg: MockCodegen) -> str:
@@ -636,6 +664,17 @@ async def test_register_apply_action_entry(
     action_id, template_arg, _ = mock_cg.new_pvariable.call_args.args
     assert action_id == ID("obj_1")
     assert str(template_arg) == "<int32_t>"
+
+
+@pytest.mark.asyncio
+async def test_apply_custom_id_key(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    await _run_apply_action(registries, (), {}, id_key="transmitter_id")
+    mock_cg.get_variable.assert_awaited_once_with(PARENT_ID)
+    mock_cg.get_variable.reset_mock()
+    await _run_apply_condition(registries, "is_on()", {}, id_key="transmitter_id")
+    mock_cg.get_variable.assert_awaited_once_with(PARENT_ID)
 
 
 @pytest.mark.asyncio
@@ -664,6 +703,32 @@ async def test_apply_constants(
     positions = [text.index(line) for line in lines]
     assert positions == sorted(positions)
     assert "set_ki" not in text
+
+
+@pytest.mark.asyncio
+async def test_apply_id_constant_is_the_named_object(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """A templatable use_id given as a plain id renders the object it names."""
+    target = MockObj("speaker_b", "->")
+    mock_cg.get_variable.side_effect = [PARENT_OBJ, target]
+    fields = (ApplyField("target", "switch_to_output", cg.RawExpression("Speaker *")),)
+    await _run_apply_action(registries, fields, {"target": ID("speaker_b")})
+    mock_cg.get_variable.assert_any_await(ID("speaker_b"))
+    assert f"::{PARENT_OBJ}->switch_to_output(::speaker_b);" in _apply_lambda(mock_cg)
+
+
+@pytest.mark.asyncio
+async def test_apply_condition_id_constant_is_the_named_object(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """The condition path resolves and qualifies an id constant the same way."""
+    target = MockObj("speaker_b", "->")
+    mock_cg.get_variable.side_effect = [PARENT_OBJ, target]
+    check = ApplyCall("is_output({})", (("target", cg.RawExpression("Speaker *")),))
+    await _run_apply_condition(registries, check, {"target": ID("speaker_b")})
+    mock_cg.get_variable.assert_any_await(ID("speaker_b"))
+    assert f"return ::{PARENT_OBJ}->is_output(::speaker_b);" in _apply_lambda(mock_cg)
 
 
 @pytest.mark.asyncio
@@ -774,6 +839,17 @@ def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> Non
     register_apply_action("my.ok", schema, ApplyField("kp", "set_kp", cg.float_))
     with pytest.raises(ValueError, match="'kd' is not in the schema"):
         register_apply_action("my.bad", schema, ApplyField("kd", "set_kd", cg.float_))
+    register_apply_condition(
+        "my.is", schema, ApplyCall("kp == {}", (("kp", cg.float_),))
+    )
+    with pytest.raises(ValueError, match="'kd' is not in the schema"):
+        register_apply_condition(
+            "my.bad_is", schema, ApplyCall("kd == {}", (("kd", cg.float_),))
+        )
+    with pytest.raises(ValueError, match="'parent_id' is not in the schema"):
+        register_apply_action("my.bad_id", schema, id_key="parent_id")
+    with pytest.raises(ValueError, match="'parent_id' is not in the schema"):
+        register_apply_condition("my.bad_is_id", schema, "is_on()", id_key="parent_id")
     either = cv.Any(schema, cv.Schema({cv.Optional("kd"): cv.float_}))
     register_apply_action("my.any", either, ApplyField("kd", "set_kd", cg.float_))
     for wrapped in (
@@ -786,7 +862,12 @@ def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> Non
             register_apply_action(
                 "my.bad", wrapped, ApplyField("kd", "set_kd", cg.float_)
             )
-    nested = cv.Schema({cv.Optional("v"): cv.Schema({cv.Optional("dir"): cv.int_})})
+    nested = cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.string,
+            cv.Optional("v"): cv.Schema({cv.Optional("dir"): cv.int_}),
+        }
+    )
     register_apply_action(
         "my.nested", nested, ApplyField(("v", "dir"), "set_dir", cg.int_)
     )
@@ -805,3 +886,84 @@ async def test_apply_string_constant_stays_in_flash_on_esp8266(
     assert f'::{PARENT_OBJ}->play(progmem_string(ESPHOME_F("a:b")));' in _apply_lambda(
         mock_cg
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("platform", ["esp32", "esp8266"])
+async def test_apply_literal_with_length_is_plain_on_every_platform(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen, platform: str
+) -> None:
+    """A (const char *, size_t) target gets the RAM literal and its byte length, never a flash copy."""
+    fields = (
+        ApplyField("option", "set_option", cg.std_string, const_fn=literal_with_length),
+    )
+    await _run_apply_action(
+        registries, fields, {"option": "h\u00e9llo"}, platform=platform
+    )
+    text = _apply_lambda(mock_cg)
+    assert f'::{PARENT_OBJ}->set_option("h\\303\\251llo", 6);' in text
+    assert "progmem_string" not in text
+
+
+@pytest.mark.asyncio
+async def test_register_apply_condition_predicate(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    entry = await _run_apply_condition(
+        registries, "is_playing()", {}, args=[(cg.int32, "x")]
+    )
+    assert entry.type_id is ApplyCondition
+    condition_id, template_arg, check = mock_cg.new_pvariable.call_args.args
+    assert condition_id == ID("obj_1")
+    assert str(template_arg) == "<int32_t>"
+    text = str(check)
+    assert text.startswith("[](const std::remove_cvref_t<int32_t> & x) -> bool {")
+    assert f"return ::{PARENT_OBJ}->is_playing();" in text
+
+
+@pytest.mark.asyncio
+async def test_apply_condition_compares_config_value(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    check = ApplyCall("state == {}", (("state", cg.bool_),))
+    await _run_apply_condition(registries, check, {"state": True})
+    assert f"return ::{PARENT_OBJ}->state == true;" in _apply_lambda(mock_cg)
+
+    with pytest.raises(EsphomeError, match="needs all of"):
+        await _run_apply_condition(registries, check, {})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("platform", ["esp32", "esp8266"])
+async def test_apply_condition_string_constant_is_a_plain_literal(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen, platform: str
+) -> None:
+    check = ApplyCall("state == {}", (("state", cg.std_string),))
+    await _run_apply_condition(registries, check, {"state": "two"}, platform=platform)
+    assert f'return ::{PARENT_OBJ}->state == "two";' in _apply_lambda(mock_cg)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("body", "expected", "called"),
+    [
+        ("return x;", "->state == (x);", False),
+        ('return x.empty() ? "e" : x;', '->state == (x.empty() ? "e" : x);', False),
+        ('if (x.empty()) return "e";\nreturn x;', "}(x);", True),
+    ],
+)
+async def test_apply_condition_string_lambda_paths(
+    registries: tuple[Registry, Registry],
+    mock_cg: MockCodegen,
+    body: str,
+    expected: str,
+    called: bool,
+) -> None:
+    """A single return is inlined with no copy; a longer body is a called std::string lambda."""
+    check = ApplyCall("state == {}", (("state", cg.std_string),))
+    await _run_apply_condition(
+        registries, check, {"state": Lambda(body)}, args=[(cg.std_string, "x")]
+    )
+    text = _apply_lambda(mock_cg)
+    assert expected in text
+    assert ("-> std::string {" in text) is called

@@ -267,6 +267,18 @@ template<typename... Ts> class ApplyAction final : public Action<Ts...> {
   ApplyFn apply_;
 };
 
+/// Condition counterpart of ApplyAction: one codegen-generated predicate with the parent baked in.
+template<typename... Ts> class ApplyCondition final : public Condition<Ts...> {
+ public:
+  using CheckFn = bool (*)(const std::remove_cvref_t<Ts> &...);
+  explicit ApplyCondition(CheckFn check) : check_(check) {}
+
+  bool check(const Ts &...x) override { return this->check_(x...); }
+
+ protected:
+  CheckFn check_;
+};
+
 /// Simple continuation action that calls play_next_ on a parent action.
 /// Used internally by IfAction, WhileAction, RepeatAction, etc. to chain actions.
 /// Memory: 4-8 bytes (parent pointer) vs 40 bytes (LambdaAction with std::function).
