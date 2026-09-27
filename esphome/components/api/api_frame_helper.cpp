@@ -200,7 +200,7 @@ APIError APIFrameHelper::init_common_() {
     return APIError::TCP_NONBLOCKING_FAILED;
   }
 
-#ifdef USE_API_TRANSPORT_IP
+#ifndef USE_API_TRANSPORT_BLE
   int enable = 1;
   err = this->socket_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
   if (err != 0) {

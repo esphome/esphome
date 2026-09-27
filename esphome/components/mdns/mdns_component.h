@@ -23,11 +23,16 @@
 #endif
 #endif
 
+// The native API is only advertised when it listens on IP
+#if defined(USE_API) && !defined(USE_API_TRANSPORT_BLE)
+#define USE_MDNS_API_SERVICE
+#endif
+
 // Device info TXT records (version, mac, config_hash) are published on the _esphomelib service
-// when the native API listens on IP, otherwise on the _http service (web_server's or the fallback one).
+// when the native API is advertised, otherwise on the _http service (web_server's or the fallback one).
 // When neither applies (only prometheus, sendspin or user-defined services are configured), no
 // device info records are published and the buffers below are not needed.
-#if defined(USE_API_TRANSPORT_IP) || defined(USE_WEBSERVER) || \
+#if defined(USE_MDNS_API_SERVICE) || defined(USE_WEBSERVER) || \
     (!defined(USE_PROMETHEUS) && !defined(USE_SENDSPIN) && !defined(USE_MDNS_EXTRA_SERVICES))
 #define USE_MDNS_DEVICE_INFO_TXT
 #endif

@@ -89,3 +89,19 @@ def test_ble_transport_requires_an_encryption_key(extra: dict[str, dict]) -> Non
 def test_ip_transport_needs_no_encryption() -> None:
     config = {CONF_TRANSPORT: TRANSPORT_IP, CONF_PORT: 8000}
     assert _validate_ble_transport(config) == config
+
+
+def test_mdns_skips_the_api_service_on_the_ble_transport() -> None:
+    from esphome.components.mdns import _has_mdns_service
+
+    CORE.config = {"api": {CONF_TRANSPORT: TRANSPORT_BLE}, "web_server": {}}
+    assert not _has_mdns_service("api")
+    assert _has_mdns_service("web_server")
+    assert not _has_mdns_service("prometheus")
+
+
+def test_mdns_counts_the_api_service_on_the_ip_transport() -> None:
+    from esphome.components.mdns import _has_mdns_service
+
+    CORE.config = {"api": {CONF_TRANSPORT: TRANSPORT_IP}}
+    assert _has_mdns_service("api")

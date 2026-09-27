@@ -14,7 +14,7 @@
 #define MDNS_STATIC_CONST_CHAR(name, value) static constexpr const char name[] = value
 #endif
 
-#ifdef USE_API_TRANSPORT_IP
+#ifdef USE_MDNS_API_SERVICE
 #include "esphome/components/api/api_server.h"
 #endif
 #ifdef USE_DASHBOARD_IMPORT
@@ -81,7 +81,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   MDNS_STATIC_CONST_CHAR(TXT_CONFIG_HASH, "config_hash");
 #endif
 
-#ifdef USE_API_TRANSPORT_IP
+#ifdef USE_MDNS_API_SERVICE
   MDNS_STATIC_CONST_CHAR(SERVICE_ESPHOMELIB, "_esphomelib");
   MDNS_STATIC_CONST_CHAR(TXT_FRIENDLY_NAME, "friendly_name");
   MDNS_STATIC_CONST_CHAR(TXT_PLATFORM, "platform");
@@ -210,7 +210,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     txt_records.push_back({MDNS_STR(TXT_PACKAGE_IMPORT_URL), MDNS_STR(dashboard_import::get_package_import_url())});
 #endif
   }
-#endif  // USE_API_TRANSPORT_IP
+#endif  // USE_MDNS_API_SERVICE
 
 #ifdef USE_PROMETHEUS
   MDNS_STATIC_CONST_CHAR(SERVICE_PROMETHEUS, "_prometheus-http");
@@ -244,7 +244,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   web_service.service_type = MDNS_STR(SERVICE_HTTP);
   web_service.proto = MDNS_STR(SERVICE_TCP);
   web_service.port = []() -> uint16_t { return USE_WEBSERVER_PORT; };
-#ifndef USE_API_TRANSPORT_IP
+#ifndef USE_MDNS_API_SERVICE
   // Without the native API there is no _esphomelib service, so publish the
   // device info here for the device builder to discover.
   web_service.txt_records = {{MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)},
@@ -253,7 +253,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 #endif
 #endif
 
-#if !defined(USE_API_TRANSPORT_IP) && !defined(USE_PROMETHEUS) && !defined(USE_SENDSPIN) && !defined(USE_WEBSERVER) && \
+#if !defined(USE_MDNS_API_SERVICE) && !defined(USE_PROMETHEUS) && !defined(USE_SENDSPIN) && !defined(USE_WEBSERVER) && \
     !defined(USE_MDNS_EXTRA_SERVICES)
   MDNS_STATIC_CONST_CHAR(SERVICE_HTTP, "_http");
 

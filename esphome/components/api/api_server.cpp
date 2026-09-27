@@ -3,7 +3,7 @@
 #include <cerrno>
 #include <cinttypes>
 #include "api_connection.h"
-#ifdef USE_API_TRANSPORT_IP
+#ifndef USE_API_TRANSPORT_BLE
 #include "esphome/components/network/util.h"
 #endif
 #include "esphome/core/application.h"
@@ -74,7 +74,7 @@ void APIServer::setup() {
 #endif
 #endif
   int err;
-#ifdef USE_API_TRANSPORT_IP
+#ifndef USE_API_TRANSPORT_BLE
   this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
   if (this->socket_ == nullptr) {
     this->socket_failed_(LOG_STR("creation"));
@@ -97,7 +97,7 @@ void APIServer::setup() {
     this->socket_failed_(LOG_STR("set sockaddr"));
     return;
   }
-#elif defined(USE_API_TRANSPORT_BLE)
+#else
   this->socket_ = socket_ble::socket_ble_listen_loop_monitored(AF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_L2CAP).release();
   if (this->socket_ == nullptr) {
     this->socket_failed_(LOG_STR("creation"));
@@ -195,7 +195,7 @@ void APIServer::loop() {
     return;
   }
 
-#ifdef USE_API_TRANSPORT_IP
+#ifndef USE_API_TRANSPORT_BLE
   // Process clients and remove disconnected ones in a single pass
   // Check network connectivity once for all clients
   if (!network::is_connected()) {
@@ -306,20 +306,20 @@ void __attribute__((flatten)) APIServer::accept_new_connections_() {
 }
 
 void APIServer::dump_config() {
-#ifdef USE_API_TRANSPORT_IP
+#ifndef USE_API_TRANSPORT_BLE
   char addr_buf[network::USE_ADDRESS_BUFFER_SIZE];
 #endif
   ESP_LOGCONFIG(TAG,
                 "Server:\n"
-#ifdef USE_API_TRANSPORT_IP
+#ifndef USE_API_TRANSPORT_BLE
                 "  Transport: IP\n"
                 "  Address: %s:%u\n"
-#elif defined(USE_API_TRANSPORT_BLE)
+#else
                 "  Transport: BLE\n"
 #endif
                 "  Listen backlog: %u\n"
                 "  Max connections: %u",
-#ifdef USE_API_TRANSPORT_IP
+#ifndef USE_API_TRANSPORT_BLE
                 network::get_use_address_to(addr_buf), this->port_,
 #endif
                 this->listen_backlog_, MAX_API_CONNECTIONS);
@@ -744,7 +744,7 @@ void APIServer::on_shutdown() {
 }
 
 bool APIServer::teardown() {
-#ifdef USE_API_TRANSPORT_IP
+#ifndef USE_API_TRANSPORT_BLE
   // If network is disconnected, no point trying to flush buffers
   if (!network::is_connected()) {
     return true;

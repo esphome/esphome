@@ -19,7 +19,7 @@
 #ifdef USE_ESP8266
 #include <pgmspace.h>
 #endif
-#ifdef USE_API_TRANSPORT_IP
+#ifndef USE_API_TRANSPORT_BLE
 #include "esphome/components/network/util.h"
 #endif
 #include "esphome/core/application.h"
@@ -1310,9 +1310,9 @@ void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &ms
     // Use API Audio
     voice_assistant::global_voice_assistant->start_streaming();
   } else {
-    api_sockaddr_storage_t storage;
+    struct sockaddr_storage storage;
     socklen_t len = sizeof(storage);
-    this->helper_->getpeername((api_sockaddr_t *) &storage, &len);
+    this->helper_->getpeername((struct sockaddr *) &storage, &len);
     voice_assistant::global_voice_assistant->start_streaming(&storage, msg.port);
   }
 };
@@ -2294,7 +2294,7 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint16_t message_type) 
     return false;
   }
 
-#ifdef USE_API_TRANSPORT_IP
+#ifndef USE_API_TRANSPORT_BLE
   // Set TCP_NODELAY based on message type - see set_nodelay_for_message() for details
   this->helper_->set_nodelay_for_message(is_log_message);
 #endif
@@ -2366,7 +2366,7 @@ void APIConnection::process_batch_() {
     this->flags_.batch_scheduled = false;
     return;
   }
-#ifdef USE_API_TRANSPORT_IP
+#ifndef USE_API_TRANSPORT_BLE
   // Ensure TCP_NODELAY is on before draining overflow and writing batch data.
   // Log messages enable Nagle (NODELAY off) to coalesce small packets.
   // If Nagle is still on when we try to drain, LWIP holds data in the

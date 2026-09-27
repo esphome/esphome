@@ -128,7 +128,7 @@ class APIFrameHelper {
       return APIError::CLOSE_FAILED;
     return APIError::OK;
   }
-#ifdef USE_API_TRANSPORT_IP
+#ifndef USE_API_TRANSPORT_BLE
   APIError shutdown(int how) {
     int err = this->socket_->shutdown(how);
     if (err == -1)
@@ -211,7 +211,7 @@ class APIFrameHelper {
   // Move the socket out of this helper so a replacement helper can take it
   // over (plaintext to Noise handoff on unprovisioned devices). The drained
   // helper must be destroyed right after.
-  std::unique_ptr<socket::Socket> release_socket_for_switch() { return std::move(this->socket_); }
+  std::unique_ptr<APISocket> release_socket_for_switch() { return std::move(this->socket_); }
 #endif
   // Release excess memory from internal buffers after initial sync
   void release_buffers() {
@@ -325,7 +325,7 @@ class APIFrameHelper {
 #endif
   uint8_t nodelay_counter_{0};
 
-#ifdef USE_API_TRANSPORT_IP
+#ifndef USE_API_TRANSPORT_BLE
   // Internal helper to set TCP_NODELAY socket option
   void set_nodelay_raw_(bool enable) {
     int val = enable ? 1 : 0;

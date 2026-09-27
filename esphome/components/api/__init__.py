@@ -300,7 +300,8 @@ def _consume_api_sockets(config: ConfigType) -> ConfigType:
     if config[CONF_TRANSPORT] == TRANSPORT_BLE:
         from esphome.components import socket_ble
 
-        socket_ble.consume_sockets(3, "api")(config)
+        # Every client is a BLE link of its own, so the stack must allow max_connections
+        socket_ble.consume_sockets(config[CONF_MAX_CONNECTIONS], "api")(config)
         socket_ble.consume_sockets(1, "api", socket_ble.SocketType.L2CAP_LISTEN)(config)
         return config
 
@@ -473,9 +474,15 @@ def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:
 
 
 def _validate_network(config: ConfigType) -> ConfigType:
+    full_config = fv.full_config.get()
+    if config[CONF_TRANSPORT] == TRANSPORT_BLE:
+        # Voice assistant streams audio to the client's IP address
+        if "voice_assistant" in full_config:
+            raise cv.Invalid("The BLE transport does not support voice_assistant")
+        return config
     # The IP transport needs a network; this replaces the DEPENDENCIES entry,
     # which would also apply to the BLE transport
-    if config[CONF_TRANSPORT] == TRANSPORT_IP and "network" not in fv.full_config.get():
+    if "network" not in full_config:
         raise cv.Invalid("Component api requires component network")
     return config
 
@@ -548,9 +555,7 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_HOMEASSISTANT_STATES]:
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
 
-    if config[CONF_TRANSPORT] == TRANSPORT_IP:
-        cg.add_define("USE_API_TRANSPORT_IP")
-    else:
+    if config[CONF_TRANSPORT] == TRANSPORT_BLE:
         cg.add_define("USE_API_TRANSPORT_BLE")
 
     scratch_size = 0
