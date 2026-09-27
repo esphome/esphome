@@ -36,7 +36,10 @@ std::unique_ptr<nfc::NfcTag> PN532::read_mifare_classic_tag_(nfc::NfcTagUid &uid
 
   const uint32_t buffer_size = nfc::get_mifare_classic_buffer_size(message_length);
   FixedVector<uint8_t> buffer;
-  buffer.init(buffer_size);
+  if (!buffer.try_init(buffer_size)) {
+    ESP_LOGE(TAG, "Out of memory reading NDEF message of %" PRIu32 " bytes", buffer_size);
+    return make_unique<nfc::NfcTag>(uid, nfc::MIFARE_CLASSIC);
+  }
 
   while (buffer.size() < buffer_size) {
     if (nfc::mifare_classic_is_first_block(current_block)) {

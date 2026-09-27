@@ -19,7 +19,7 @@ class PN532Spi final : public pn532::PN532,
  protected:
   bool is_read_ready() override;
   bool write_data(std::span<const uint8_t> data) override;
-  bool read_data(pn532::PN532Frame &data, uint8_t len) override;
+  bool read_data(pn532::PN532Frame &data, size_t len) override;
   bool read_response(uint8_t command, pn532::PN532Frame &data) override;
 };
 

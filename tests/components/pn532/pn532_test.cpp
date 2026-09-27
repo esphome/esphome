@@ -30,7 +30,7 @@ class FakePN532 : public PN532 {
     return true;
   }
   // only used for ACK frames; index 0 is the I2C status byte
-  bool read_data(PN532Frame &data, uint8_t len) override {
+  bool read_data(PN532Frame &data, size_t len) override {
     data = {0x01, 0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00};
     return true;
   }

@@ -48,8 +48,8 @@ bool PN532Spi::write_data(const std::span<const uint8_t> data) {
   return true;
 }
 
-bool PN532Spi::read_data(pn532::PN532Frame &data, uint8_t len) {
-  if (this->read_ready_(true) != pn532::PN532ReadReady::READY) {
+bool PN532Spi::read_data(pn532::PN532Frame &data, size_t len) {
+  if (len + 1 > pn532::PN532_FRAME_MAX_SIZE || this->read_ready_(true) != pn532::PN532ReadReady::READY) {
     return false;
   }
 

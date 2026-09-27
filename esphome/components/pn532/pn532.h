@@ -107,7 +107,7 @@ class PN532 : public PollingComponent {
   virtual bool is_read_ready() = 0;
   virtual bool write_data(std::span<const uint8_t> data) = 0;
   /// Reads `len` frame bytes into `data` behind a leading status byte, so every bus presents the I2C layout
-  virtual bool read_data(PN532Frame &data, uint8_t len) = 0;
+  virtual bool read_data(PN532Frame &data, size_t len) = 0;
   /// Reads the response to `command`; on success `data` holds only the bytes that follow the response code
   virtual bool read_response(uint8_t command, PN532Frame &data) = 0;
 
