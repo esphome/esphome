@@ -79,6 +79,8 @@ class ZephyrBleL2capImpl {
   };
 
   struct bt_l2cap_le_chan le_chan_ = {};
+  // Copied at accept time, see accept_cb
+  bt_addr_le_t peer_addr_{};
 
   // Tracks whether the C++ owner and Zephyr still hold references.
   // Storage is reclaimed only after both have released ownership.

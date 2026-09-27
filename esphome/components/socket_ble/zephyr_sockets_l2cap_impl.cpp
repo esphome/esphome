@@ -36,15 +36,10 @@ NET_BUF_POOL_FIXED_DEFINE(send_data_pool, SOCKET_BLE_COUNT, BT_L2CAP_SDU_BUF_SIZ
 NET_BUF_POOL_FIXED_DEFINE(recv_data_pool, SOCKET_BLE_COUNT, SOCKET_BLE_MTU, 8, NULL);
 
 net_buf *ZephyrBleL2capImpl::alloc_buf_cb(struct bt_l2cap_chan *chan) {
-  // Blocking (K_FOREVER) until a buffer is available is not supported by fixed pools, so we retry after a short delay
-  // if the first allocation fails.
-  net_buf *b = net_buf_alloc(&recv_data_pool, K_FOREVER);
-  if (!b) {
-    k_msleep(10);
-    b = net_buf_alloc(&recv_data_pool, K_FOREVER);
-    if (!b) {
-      ESP_LOGE(TAG, "Failed to allocate net_buf for L2CAP channel");
-    }
+  // Runs on the Bluetooth RX thread, so it must not wait; Zephyr closes the channel when this fails
+  net_buf *b = net_buf_alloc(&recv_data_pool, K_NO_WAIT);
+  if (b == nullptr) {
+    ESP_LOGE(TAG, "No receive buffer free");
   }
   return b;
 }
@@ -166,6 +161,8 @@ int ZephyrBleL2capListenImpl::accept_cb(struct bt_conn *conn, struct bt_l2cap_se
     impl->le_chan_.chan.ops = &ZephyrBleL2capImpl::OPS;
     impl->le_chan_.rx.mtu = SOCKET_BLE_MTU;
     impl->le_chan_.tx.mtu = SOCKET_BLE_MTU;
+    // Zephyr clears the channel's conn on disconnect, but the API still logs the peer afterwards
+    bt_addr_le_copy(&impl->peer_addr_, bt_conn_get_dst(conn));
     *chan = &impl->le_chan_.chan;
     listen_impl->pending_channels_.push(std::move(impl));
     ESP_LOGD(TAG, "Accepted new connection as pending");
@@ -344,8 +341,7 @@ int ZephyrBleL2capImpl::close() {
 }
 
 size_t ZephyrBleL2capImpl::getpeername_to(std::span<char, BDADDR_STR_LEN> buf) {
-  const bt_addr_le_t *le_addr = bt_conn_get_dst((const bt_conn *) this->le_chan_.chan.conn);
-  return format_bdaddr_to(le_addr->a.val, buf);
+  return format_bdaddr_to(this->peer_addr_.a.val, buf);
 }
 
 int ZephyrBleL2capImpl::getpeername(struct sockaddr_l2 *addr, socklen_t *addrlen) {
@@ -353,10 +349,8 @@ int ZephyrBleL2capImpl::getpeername(struct sockaddr_l2 *addr, socklen_t *addrlen
   memset(addr, 0, sizeof(sockaddr_l2));
   addr->l2_family = AF_BLUETOOTH;
   addr->l2_psm = this->le_chan_.psm;
-
-  const bt_addr_le_t *le_addr = bt_conn_get_dst((const bt_conn *) this->le_chan_.chan.conn);
-  memcpy(&addr->l2_bdaddr, le_addr->a.val, sizeof(bdaddr_t));
-  addr->l2_bdaddr_type = le_addr->type;
+  memcpy(&addr->l2_bdaddr, this->peer_addr_.a.val, sizeof(bdaddr_t));
+  addr->l2_bdaddr_type = this->peer_addr_.type;
   return 0;
 }
 
