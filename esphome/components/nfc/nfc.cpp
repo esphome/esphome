@@ -69,6 +69,25 @@ uint32_t get_mifare_ultralight_buffer_size(uint32_t message_length) {
   return buffer_size;
 }
 
+void fill_ndef_tlv(const std::span<const uint8_t> message, const uint32_t buffer_length, FixedVector<uint8_t> &buffer) {
+  buffer.init(buffer_length);
+  buffer.push_back(0x03);
+  if (message.size() < 255) {
+    buffer.push_back(message.size());
+  } else {
+    buffer.push_back(0xFF);
+    buffer.push_back((message.size() >> 8) & 0xFF);
+    buffer.push_back(message.size() & 0xFF);
+  }
+  for (const uint8_t byte : message) {
+    buffer.push_back(byte);
+  }
+  buffer.push_back(0xFE);
+  while (buffer.size() < buffer_length) {
+    buffer.push_back(0x00);
+  }
+}
+
 uint32_t get_mifare_classic_buffer_size(uint32_t message_length) {
   uint32_t buffer_size = message_length;
   if (message_length < 255) {
