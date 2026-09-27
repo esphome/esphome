@@ -320,8 +320,7 @@ async def to_code(config: ConfigType) -> None:
     if CORE.is_esp32:
         set_sdkconfig_options(config)
     elif CORE.using_zephyr:
-        # OpenThread's crypto goes through PSA, provided by mbedtls and, from
-        # SDK 2.7, the Oberon module
+        # Crypto through PSA: mbedtls, plus Oberon from SDK 2.7
         include_west_project("mbedtls")
         include_west_project("openthread")
         if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 7, 0):

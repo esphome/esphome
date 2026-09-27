@@ -847,9 +847,7 @@ def _west_build_command(
         str(build_dir),
         str(source_dir),
         "--",
-        # Zephyr picks the optimization level through Kconfig, so the CMake build
-        # type only adds the -DNDEBUG that keeps libc assert() out of the image.
-        # The picolibc module used to force it whenever it was in the SDK.
+        # Only adds -DNDEBUG (Kconfig sets the optimization level); picolibc used to force it
         "-DCMAKE_BUILD_TYPE=MinSizeRel",
     ]
 

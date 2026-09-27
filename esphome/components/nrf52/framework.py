@@ -263,14 +263,11 @@ def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
     tmp.replace(uf2conv)
 
 
-# nRF Connect SDK west projects every build needs; the SDK manifest has about
-# 50 more (2.2 GB in all) that are left out of the download. A component whose
-# code needs another one calls include_west_project() from to_code().
+# West projects every build needs; components add others with include_west_project()
 DEFAULT_WEST_PROJECTS = ("cmsis", "hal_nordic", "nrfxlib", "zephyr")
 
 _KEY_NRF52 = "nrf52"
-# Records which projects a finished install fetched, so a later build that
-# needs another one fetches it
+# The projects a finished install fetched
 _WEST_PROJECTS_FILE = ".west_projects"
 
 
@@ -286,20 +283,12 @@ def _get_data() -> _Nrf52Data:
 
 
 def include_west_project(name: str) -> None:
-    """Fetch an nRF Connect SDK west project left out by default.
-
-    Call from to_code() of a component whose code needs the project; the set
-    is only complete after codegen, so an upload alone keeps to the defaults.
-    """
+    """Fetch a west project left out by default; call from to_code()."""
     _get_data().west_projects.add(name)
 
 
 def bluetooth_west_projects() -> tuple[str, ...]:
-    """The west projects behind Bluetooth's crypto for the configured SDK.
-
-    TinyCrypt up to SDK 3.1; from 3.2 it goes through PSA, provided by mbedtls
-    and Oberon, and the TinyCrypt module is gone.
-    """
+    """Bluetooth's crypto: TinyCrypt up to SDK 3.1, PSA (mbedtls, Oberon) from 3.2."""
     if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 2, 0):
         return ("mbedtls", "oberon-psa-crypto")
     return ("tinycrypt",)
@@ -307,10 +296,10 @@ def bluetooth_west_projects() -> tuple[str, ...]:
 
 def _wanted_west_projects() -> set[str]:
     projects = set(_get_data().west_projects)
-    # Zephyr 4.1 (SDK 3.1) moved the Cortex-M core headers to the cmsis_6 module
+    # Zephyr 4.1 moved the Cortex-M core headers to cmsis_6
     if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 1, 0):
         projects.add("cmsis_6")
-    # Sysbuild always builds the MCUboot image, whatever the bootloader
+    # Sysbuild builds the MCUboot image with any bootloader
     if CORE.data.get(KEY_ZEPHYR, {}).get(KEY_SYSBUILD):
         projects.add("mcuboot")
     return projects
@@ -319,8 +308,7 @@ def _wanted_west_projects() -> set[str]:
 def _set_project_filter(
     env_python_path: Path, framework_path: Path, projects: set[str]
 ) -> bool:
-    # Leave every project out, then bring back the wanted ones; the value starts
-    # with "-", so "--" keeps west from reading it as options
+    # "--" keeps west from reading the leading "-" as an option
     project_filter = ",".join(["-.*", *(f"+{p}" for p in sorted(projects))])
     cmd = [str(env_python_path), "-m", "west", "config", "manifest.project-filter"]
     return run_command_ok([*cmd, "--", project_filter], cwd=framework_path)
@@ -329,16 +317,13 @@ def _set_project_filter(
 def _check_west_projects(
     env_python_path: Path, framework_path: Path, version: str, projects: set[str]
 ) -> None:
-    """Raise when the manifest lacks one of ``projects``.
+    """Raise when the manifest lacks one of ``projects``; needs zephyr cloned.
 
-    west quietly fetches nothing for a filter naming a project the manifest
-    lacks, which would then count as installed. list fails on such a name; it
-    needs the manifest imports (zephyr's modules) resolved, so zephyr cloned.
+    west update quietly skips an unknown name in the filter, west list fails on it.
     """
     names = sorted(projects)
     cmd = [str(env_python_path), "-m", "west", "list", "-f", "{name}", *names]
     if not run_command_ok(cmd, cwd=framework_path):
-        # west named the culprit in the output logged just above
         raise EsphomeError(
             f"west list failed for the requested nRF Connect SDK {version} projects "
             f"({', '.join(names)}); a project the manifest does not have is the "
@@ -353,10 +338,7 @@ def _west_update(
     projects: set[str],
     checked: bool = False,
 ) -> bool:
-    """Fetch ``projects``; False when the fetch fails, so the caller decides.
-
-    The names are checked after the update unless the caller already did.
-    """
+    """Fetch ``projects``; False when the fetch fails."""
     if not _set_project_filter(env_python_path, framework_path, projects):
         return False
     cmd = [
@@ -367,7 +349,7 @@ def _west_update(
         "--narrow",
         "--fetch-opt=--depth=1",
     ]
-    # Streamed so the per-project progress of the long clone reaches the log
+    # Streamed so the clone's progress reaches the log
     if not run_command_ok(cmd, cwd=framework_path, stream_output=True):
         return False
     if not checked:
@@ -379,19 +361,17 @@ def _west_update(
 
 
 def _installed_west_projects(framework_path: Path) -> set[str] | None:
-    """The projects a finished install fetched; None when it has all of them."""
+    """The projects a finished install fetched; None when it has every project."""
     try:
         stamp = (framework_path / _WEST_PROJECTS_FILE).read_text(encoding="utf-8")
     except FileNotFoundError:
         pass
     else:
         return set(stamp.split())
-    # A filtered install whose stamp went missing has to fetch again; an
-    # install from before the filter has no filter and every project
+    # No stamp: an install from before the filter has every project, a filtered
+    # one that lost its stamp fetches again
     config = configparser.ConfigParser()
-    config_path = framework_path / ".west" / "config"
-    if not config.read(config_path, encoding="utf-8"):
-        # Nothing left to say what is there, so fetch again rather than assume
+    if not config.read(framework_path / ".west" / "config", encoding="utf-8"):
         return set()
     if config.has_option("manifest", "project-filter"):
         return set()
@@ -401,11 +381,7 @@ def _installed_west_projects(framework_path: Path) -> set[str] | None:
 def _restore_project_filter(
     env_python_path: Path, framework_path: Path, version: str, installed: set[str]
 ) -> None:
-    """Put the workspace filter back in step with what the stamp says is fetched.
-
-    The defaults stay in whatever the stamp says: every install has them, and
-    with the stamp lost the filter would otherwise leave every project out.
-    """
+    """Put the filter back to the stamp's projects; the defaults always stay in."""
     projects = installed | set(DEFAULT_WEST_PROJECTS)
     if not _set_project_filter(env_python_path, framework_path, projects):
         _LOGGER.warning(
@@ -415,38 +391,28 @@ def _restore_project_filter(
         )
 
 
-# Waiting on another build installing into the shared SDK folder; slices keep
-# Ctrl-C responsive
+# Lock wait slices, so Ctrl-C stays responsive
 _INSTALL_LOCK_POLL = 1
 
 
 @contextmanager
 def _install_lock(name: str) -> Iterator[None]:
-    """Serialize one shared install step across builds running at once.
-
-    Builds run side by side (the dashboard compiles several configs) and share
-    the SDK folder of a version and the toolchain folder, so the checks and the
-    commands that change them run under an inter-process lock. Without a
-    working lock (a lock-less filesystem) the step runs unlocked with a warning.
-    """
+    """Serialize a shared install step across builds running at once."""
     from filelock import FileLock, Timeout
 
     lock_path = get_sdk_nrf_tools_path() / f"{name}.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    # A soft lock's marker outlives a killed build and would hang every
-    # later one, so a filesystem that can't lock runs unlocked (see git.py)
+    # No soft lock: its marker outlives a killed build and hangs every later one
     lock = FileLock(str(lock_path), fallback_to_soft=False)
     waiting = False
     while True:
         try:
             lock.acquire(timeout=_INSTALL_LOCK_POLL)
             break
-        # Timeout first: it is an OSError too
-        except Timeout:
+        except Timeout:  # before OSError, which it subclasses
             if not waiting:
                 waiting = True
                 _LOGGER.info("Waiting for another build installing %s ...", name)
-        # Timeout first: it is an OSError too
         except OSError as err:
             _LOGGER.warning(
                 "Can't lock %s (%s), continuing without a lock", lock_path, err
@@ -461,18 +427,11 @@ def _install_lock(name: str) -> Iterator[None]:
 def _fetch_missing_west_projects(
     env_python_path: Path, framework_path: Path, version: str, projects: set[str]
 ) -> None:
-    """Fetch the wanted projects a finished install lacks.
-
-    The install is shared by every config, so it only ever gains projects.
-    """
-    # Every install has the defaults, so there is nothing to check
+    """Fetch the wanted projects a finished install lacks; it only ever gains."""
     if projects <= set(DEFAULT_WEST_PROJECTS):
         return
     installed = _installed_west_projects(framework_path)
-    # Checked first here: the manifest is resolved on an install, and an unknown
-    # name must not cost a fetch of everything else. An install from before the
-    # filter has every project, yet the names are checked all the same so a
-    # mistake shows up on every install alike.
+    # Before the fetch, so an unknown name costs nothing on any install
     _check_west_projects(env_python_path, framework_path, version, projects)
     if installed is None or not (missing := projects - installed):
         return
@@ -602,8 +561,7 @@ def _check_and_install(version: str) -> None:
             raise EsphomeError(f"Install Zephyr requirements for {version} failure")
         zephyr_sentinel.touch()
 
-    # Every SDK version shares the toolchain folder; the lock is only taken
-    # while it is missing, and the install checks again under it
+    # Shared by every SDK version; locked only while missing
     if not (_get_toolchain_path(TOOLCHAIN_VERSION) / ".ready").exists():
         with _install_lock(f"toolchain-{TOOLCHAIN_VERSION}"):
             _install_toolchain()

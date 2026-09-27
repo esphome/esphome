@@ -40,17 +40,15 @@ _TIDY_MAIN_CPP = "int main() { return 0; }\n"
 
 @dataclass(frozen=True)
 class _TidySubsystem:
-    """A subsystem an ESPHome nrf52 component may use: the Kconfig that
-    enables it and the west projects its headers come from."""
+    """A subsystem's Kconfig and the west projects its headers come from."""
 
     name: str
     prj_conf: str
-    # A tuple, or a callable for projects that differ by SDK version
+    # A callable when the projects differ by SDK version
     west_projects: tuple[str, ...] | Callable[[], tuple[str, ...]] = ()
 
 
-# Together a Kconfig superset, so the compile commands carry every include
-# path, and the projects the SDK install needs beyond the defaults.
+# Kconfig superset for the compile commands and the projects it needs
 _TIDY_SUBSYSTEMS = (
     _TidySubsystem(
         "base",
@@ -274,7 +272,7 @@ def generate_compile_commands(work_dir: Path, platformio_ini: Path) -> Path:
         "zephyr_generated_headers",
         "--",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
-        # Same build type as a real build, so the compile commands carry NDEBUG
+        # As in a real build, so NDEBUG is set
         "-DCMAKE_BUILD_TYPE=MinSizeRel",
     ]
     if not run_command_ok(

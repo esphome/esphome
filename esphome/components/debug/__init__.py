@@ -52,7 +52,7 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("HWINFO", True)
         # gdb thread support
         zephyr_add_prj_conf("DEBUG_THREAD_INFO", True)
-        # RTT; its sources come from the segger west project
+        # RTT sources live in the segger project
         include_west_project("segger")
         zephyr_add_prj_conf("USE_SEGGER_RTT", True)
         zephyr_add_prj_conf("RTT_CONSOLE", True)
