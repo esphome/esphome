@@ -140,7 +140,7 @@ class JPEGFormat(Format):
                 return
             from esphome.components.esp32 import add_idf_component
 
-            add_idf_component(name="espressif/libjpeg-turbo", ref="3.2.0")
+            add_idf_component(name="espressif/libjpeg-turbo", ref="3.2.0~1")
             return
         cg.add_define("USE_RUNTIME_IMAGE_JPEG_DEC")
         cg.add_library("JPEGDEC", "1.8.4", "https://github.com/bitbank2/JPEGDEC#1.8.4")
