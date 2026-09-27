@@ -1,4 +1,0 @@
-<<: !include common.yaml
-
-api:
-  transport: ble

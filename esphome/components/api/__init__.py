@@ -45,12 +45,11 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_VARIABLES,
-    PLATFORM_ESP32,
     PLATFORM_NRF52,
-    PLATFORM_RP2,
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.helpers import fnv1_hash
 from esphome.types import ConfigFragmentType, ConfigType
 
@@ -67,13 +66,12 @@ CODEOWNERS = ["@esphome/core"]
 def AUTO_LOAD(config: ConfigType | None) -> list[str]:
     """Conditionally auto-load the transport's socket component, noise
     (encryption) and json (capture_response)."""
-    base: list[str] = []
-    if (not config or config.get(CONF_TRANSPORT) == TRANSPORT_BLE) and (
-        CORE.is_esp32 or CORE.is_nrf52 or CORE.is_rp2
-    ):
-        base.append("socket_ble")
-    if not config or config.get(CONF_TRANSPORT) == TRANSPORT_IP:
-        base.extend(("socket", "network"))
+    if not config:
+        base = ["socket", "network", "socket_ble"]
+    elif config[CONF_TRANSPORT] == TRANSPORT_BLE:
+        base = ["socket_ble"]
+    else:
+        base = ["socket"]
 
     # A falsy config is a tooling probe for the maximal set (None from
     # dependency resolution, {} from the components-graph platform probe);
@@ -297,34 +295,32 @@ ACTIONS_SCHEMA = automation.validate_automation(
 
 def _consume_api_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for API component."""
-
-    transport = config.get(CONF_TRANSPORT)
     # API needs 1 listening socket + typically 3 concurrent client connections
     # (not max_connections, which is the upper limit rarely reached)
-    if transport == "ip":
-        from esphome.components import socket
-
-        socket.consume_sockets(3, "api", socket.SocketType.TCP)(config)
-        socket.consume_sockets(1, "api", socket.SocketType.TCP_LISTEN)(config)
-    elif transport == "ble":
+    if config[CONF_TRANSPORT] == TRANSPORT_BLE:
         from esphome.components import socket_ble
 
-        socket_ble.consume_sockets(3, "api", socket_ble.SocketType.L2CAP)(config)
+        socket_ble.consume_sockets(3, "api")(config)
         socket_ble.consume_sockets(1, "api", socket_ble.SocketType.L2CAP_LISTEN)(config)
+        return config
+
+    from esphome.components import socket
+
+    socket.consume_sockets(3, "api")(config)
+    socket.consume_sockets(1, "api", socket.SocketType.TCP_LISTEN)(config)
     return config
 
 
-def _validate_transport(value):
-    if value == "ble":
-        return cv.only_on([PLATFORM_ESP32, PLATFORM_NRF52, PLATFORM_RP2])(value)
+def _validate_transport(value: str) -> str:
+    if value == TRANSPORT_BLE:
+        return cv.only_on([PLATFORM_NRF52])(value)
     return value
 
 
-def _validate_no_port_set_on_ble(config):
-    # check if port is other than default 6053 when transport is ble
-    if config[CONF_TRANSPORT] == "ble" and config[CONF_PORT] != 6053:
+def _validate_no_port_set_on_ble(config: ConfigType) -> ConfigType:
+    if config[CONF_TRANSPORT] == TRANSPORT_BLE and config[CONF_PORT] != DEFAULT_PORT:
         raise cv.Invalid(
-            "BLE transport does not support specifing a port", path=[CONF_PORT]
+            "The BLE transport does not support setting a port", path=[CONF_PORT]
         )
     return config
 
@@ -468,7 +464,15 @@ def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _validate_esp8266_action_strings
+def _validate_network(config: ConfigType) -> ConfigType:
+    # The IP transport needs a network; this replaces the DEPENDENCIES entry,
+    # which would also apply to the BLE transport
+    if config[CONF_TRANSPORT] == TRANSPORT_IP and "network" not in fv.full_config.get():
+        raise cv.Invalid("Component api requires component network")
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(_validate_esp8266_action_strings, _validate_network)
 
 
 def _add_action_strings(

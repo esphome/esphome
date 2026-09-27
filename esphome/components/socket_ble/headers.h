@@ -1,31 +1,13 @@
 #pragma once
 #include "esphome/core/defines.h"
 
-// Helper file to include all socket-related system headers (or use our own
-// definitions where system ones don't exist)
+// Socket types for BLE L2CAP channels; Zephyr has no definitions of its own for these
 
+#ifdef USE_ZEPHYR
 #include <cerrno>
 #include <cstdint>
 #include <sys/types.h>
-
-#if defined(USE_ZEPHYR)
 #include <zephyr/posix/sys/socket.h>
-#elif defined(USE_HOST)
-#include <sys/socket.h>
-#elif defined(USE_ESP32)
-#include <lwip/sockets.h>
-#else
-using socklen_t = uint32_t;
-using sa_family_t = uint8_t;
-#ifndef IOVEC
-#define IOVEC
-// NOLINTNEXTLINE(readability-identifier-naming)
-struct iovec {
-  void *iov_base;
-  size_t iov_len;
-};
-#endif
-#endif
 
 #ifndef AF_BLUETOOTH
 #define AF_BLUETOOTH 31
@@ -50,3 +32,4 @@ struct sockaddr_l2 {
   uint16_t l2_cid;
   uint8_t l2_bdaddr_type;
 };
+#endif  // USE_ZEPHYR

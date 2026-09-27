@@ -34,7 +34,8 @@
 namespace esphome::api {
 
 #ifdef USE_API_TRANSPORT_BLE
-static const uint16_t BLE_LISTEN_PSM = 0x80;
+// First PSM of the dynamic LE range
+static constexpr uint16_t BLE_LISTEN_PSM = 0x80;
 #endif
 
 #ifdef USE_API_USER_DEFINED_ACTIONS

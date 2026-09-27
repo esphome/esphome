@@ -1,4 +1,6 @@
-<<: !include common-base.yaml
+packages:
+  api: !include common-base.yaml
 
 api:
   transport: ble
+  port: 6053  # common-base.yaml sets a port, which the BLE transport does not take
