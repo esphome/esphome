@@ -189,6 +189,9 @@ class USBHost final : public Component {
   float get_setup_priority() const override { return setup_priority::BUS; }
   void loop() override;
   void setup() override;
+#ifdef USB_HOST_RX_FIFO_LINES
+  void dump_config() override;
+#endif  // USB_HOST_RX_FIFO_LINES
 
  protected:
   std::vector<USBClient *> clients_{};
