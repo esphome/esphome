@@ -131,8 +131,8 @@ class OTAPrepareListener {
  public:
   /// Called after OTA_STARTED, before any flash is written.
   virtual void on_ota_prepare() = 0;
-  /// Polled every loop pass; no side effects. True once nothing the listener started is in flight.
-  virtual bool is_ota_prepared() = 0;
+  /// Polled every loop pass. True once nothing the listener started is in flight.
+  virtual bool is_ota_prepared() const = 0;
 };
 
 static constexpr uint32_t OTA_PREPARE_TIMEOUT_MS = 2000;

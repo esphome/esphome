@@ -12,7 +12,7 @@ class OTAPrepareTestComponent : public Component, public ota::OTAPrepareListener
 
   void loop() override;
   void on_ota_prepare() override;
-  bool is_ota_prepared() override { return this->prepared_; }
+  bool is_ota_prepared() const override { return this->prepared_; }
 
  protected:
   uint32_t ready_after_{0};
