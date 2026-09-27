@@ -4,7 +4,9 @@
 
 #include <cstdint>
 #include <limits>
+#include <utility>
 
+#include "esphome/core/helpers.h"
 #include "esphome/components/counter/counter_sensor.h"
 
 namespace esphome::counter::testing {

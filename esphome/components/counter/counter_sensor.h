@@ -16,6 +16,8 @@ class CounterSensor final : public sensor::Sensor, public Component {
 
   void setup() override;
   void dump_config() override;
+  // restore value before `on_boot` automations run
+  float get_setup_priority() const override { return setup_priority::DATA - 50.0f; }
 
   /// Increment by one each time the given sensor publishes a state.
   void count_updates_from(sensor::Sensor *source) {
@@ -31,7 +33,7 @@ class CounterSensor final : public sensor::Sensor, public Component {
   }
 
   void set_value(int64_t value);
-  /// Add a positive or negative amount; the result wraps around on overflow.
+  /// overflow on addition of signed numbers is undefined - use the well defined unsigned version
   void increment(int64_t amount = 1) {
     this->set_value(static_cast<int64_t>(static_cast<uint64_t>(this->value_) + static_cast<uint64_t>(amount)));
   }
