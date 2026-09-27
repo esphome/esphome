@@ -83,19 +83,17 @@ TEST(HoermannHcpReadWrite, DoorCommandIsSentOnceAndFreesTheSlot) {
   EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
 }
 
-// The lamp toggle holds the slot like a door command until it is fetched, and frees it right after.
-TEST(HoermannHcpReadWrite, LampToggleIsSentOnceAndFreesTheSlot) {
+// The lamp does not use the command slot, so a lamp request never keeps a door command waiting.
+TEST(HoermannHcpReadWrite, LampRequestLeavesTheCommandSlotFree) {
   TestableHoermannHcp door;
   connect_controller(door);
-  ASSERT_TRUE(door.toggle_light());
-  // Refused while one is unfetched: were it accepted, the poll below would carry COMMAND_CLOSE's 0x0120.
-  EXPECT_FALSE(door.close_door());
-
-  EXPECT_EQ(poll_command(door).first, 0x0800);  // COMMAND_TOGGLE_LAMP
-  EXPECT_EQ(poll_command(door).first, 0x0000);
-  // With the toggle fetched, the next command is accepted right away.
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
+  ASSERT_TRUE(door.set_light(true));
   EXPECT_TRUE(door.close_door());
+
   EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
+  EXPECT_EQ(poll_command(door).first, 0x0800);  // lamp toggle
+  EXPECT_EQ(poll_command(door).first, 0x0000);
 }
 
 // Commands issued while the bus controller is absent are dropped instead of firing when it returns.

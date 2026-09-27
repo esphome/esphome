@@ -61,9 +61,8 @@ class TestableHoermannHcp : public HoermannHcp {
   using HoermannHcp::firmware_unreadable_;
   using HoermannHcp::serial_unreadable_;
 #endif
-  using HoermannHcp::is_light_toggle_pending_;
-  using HoermannHcp::light_toggle_released_at_;
-  using HoermannHcp::light_toggles_in_flight_;
+  using HoermannHcp::light_requested_;
+  using HoermannHcp::light_toggle_sent_at_;
   using HoermannHcp::set_valid_;
 };
 

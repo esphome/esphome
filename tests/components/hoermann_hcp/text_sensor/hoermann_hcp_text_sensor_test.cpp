@@ -468,7 +468,8 @@ TEST(HoermannHcpTextSensorTest, RequestWaitsForTheLampToggle) {
   auto &door = fixture.door;
   connect_controller(door);
   status_poll(door);
-  ASSERT_TRUE(door.toggle_light());
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
+  ASSERT_TRUE(door.set_light(true));
 
   const RegisterValues toggle = status_poll(door);
   EXPECT_EQ(toggle[1], 0x0301);

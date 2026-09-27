@@ -53,8 +53,6 @@ struct HoermannHcpCommand {
   const char *name;
   uint16_t value;
   uint16_t value_2{0x0000};
-  // A door command supersedes a half-open target; the lamp has no bearing on where the door is going.
-  bool clears_target{true};
 };
 
 class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
@@ -89,7 +87,8 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool half_open_door();
   bool stop_door();
   bool set_position(float position);
-  bool toggle_light();
+  // The lamp is switched towards this state; returns false while the door has not reported the lamp.
+  bool set_light(bool on);
 
   DoorState get_door_state() const { return this->door_state_; }
   // False until a broadcast has carried a state the door is known to report. Bus traffic alone makes the
@@ -101,27 +100,16 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // False until a broadcast has actually carried the lamp register. Bus traffic alone makes the connection
   // valid without saying anything about the lamp, so is_light_on() would still be its default.
   bool is_light_known() const { return this->light_seen_; }
-  // Where the lamp ends up once every toggle on its way has landed, each of which inverts it. Until then the
-  // lamp still reads as its old self, so this is what a request has to be judged against.
-  bool is_light_heading_on() const { return this->light_on_ != (this->light_toggles_in_flight_ % 2 != 0); }
-  // Drops a lamp toggle the controller has not fetched yet, so a reversing request cancels it outright
-  // instead of fighting it. Returns false if there is nothing to cancel.
-  bool cancel_light_toggle();
+  // The requested state while the lamp is being switched, otherwise the reported one.
+  bool is_light_heading_on() const { return this->light_requested_ ? this->light_target_ : this->light_on_; }
 
  protected:
-  // True while a lamp toggle is queued but not yet fetched, so the lamp is about to invert.
-  bool is_light_toggle_pending_() const;
-  // Toggles the door has not been shown yet, which is at most the one still waiting in the command slot.
-  uint8_t unsent_light_toggles_() const;
   void record_response_();
   // Returns false when the bus controller has not fetched the previous command yet.
   bool queue_command_(const HoermannHcpCommand &command);
-  // Throws away the pending command, taking any armed target with it unless the command was the lamp toggle.
+  // Throws away the pending command and any armed target with it.
   void drop_command_();
-  // One outstanding toggle reached the lamp, was withdrawn, or was thrown away.
-  void light_toggle_settled_();
-  // Stops expecting the toggles the door has already been shown to reach the lamp.
-  void forget_light_toggles_();
+  void clear_light_request_();
   // Appends the two command registers, consuming the pending command.
   void push_command_registers_(modbus::RegisterValues &registers);
   void on_position_reg_(uint16_t value);
@@ -164,9 +152,9 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // Separate from command_queued_at_ so an unrelated command cannot extend the target's start deadline.
   uint32_t target_queued_at_{0};
   uint32_t last_response_{0};
-  // When the door was last handed a lamp toggle. It reports the lamp a moment later, so this bounds the
-  // wait. Queueing another toggle deliberately leaves it alone, so the one already sent keeps its deadline.
-  uint32_t light_toggle_released_at_{0};
+  // When the lamp toggle was fetched, 0 while none is waiting to be reported back.
+  uint32_t light_toggle_sent_at_{0};
+  uint32_t light_requested_at_{0};
 
   // Drop the "connected" flag if the bus controller has not polled us for this long.
   uint16_t connection_timeout_ms_{2000};
@@ -183,12 +171,13 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   DoorState target_direction_{DoorState::STOPPED};
   // Position as reported by the bus controller, 0..200 across the full travel.
   uint8_t position_raw_{0};
-  uint8_t light_toggles_in_flight_{0};
   bool target_started_{false};
   bool valid_{false};
   bool changed_{false};
   bool light_on_{false};
   bool light_seen_{false};
+  bool light_requested_{false};
+  bool light_target_{false};
   bool door_state_seen_{false};
   bool short_broadcast_logged_{false};
 
