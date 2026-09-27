@@ -317,10 +317,18 @@ def _validate_transport(value: str) -> str:
     return value
 
 
-def _validate_no_port_set_on_ble(config: ConfigType) -> ConfigType:
-    if config[CONF_TRANSPORT] == TRANSPORT_BLE and config[CONF_PORT] != DEFAULT_PORT:
+def _validate_ble_transport(config: ConfigType) -> ConfigType:
+    if config[CONF_TRANSPORT] != TRANSPORT_BLE:
+        return config
+    if config[CONF_PORT] != DEFAULT_PORT:
         raise cv.Invalid(
             "The BLE transport does not support setting a port", path=[CONF_PORT]
+        )
+    # Anyone in radio range can connect, and without a key the API accepts plaintext
+    if CONF_KEY not in config.get(CONF_ENCRYPTION, {}):
+        raise cv.Invalid(
+            f"The BLE transport requires an {CONF_ENCRYPTION} {CONF_KEY}",
+            path=[CONF_ENCRYPTION],
         )
     return config
 
@@ -407,7 +415,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
-    _validate_no_port_set_on_ble,
+    _validate_ble_transport,
     _consume_api_sockets,
     _register_provisioning_source,
 )

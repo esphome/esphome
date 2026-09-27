@@ -8,11 +8,17 @@ from esphome.components.api import (
     DEFAULT_PORT,
     TRANSPORT_BLE,
     TRANSPORT_IP,
-    _validate_no_port_set_on_ble,
+    _validate_ble_transport,
     _validate_transport,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_PORT, KEY_CORE, KEY_TARGET_PLATFORM
+from esphome.const import (
+    CONF_ENCRYPTION,
+    CONF_KEY,
+    CONF_PORT,
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
+)
 from esphome.core import CORE
 
 
@@ -51,11 +57,35 @@ def test_ip_transport_accepted_everywhere() -> None:
     assert _validate_transport(TRANSPORT_IP) == TRANSPORT_IP
 
 
+_ENCRYPTION = {CONF_KEY: "bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU="}
+
+
 def test_ble_transport_rejects_a_port() -> None:
+    config = {
+        CONF_TRANSPORT: TRANSPORT_BLE,
+        CONF_PORT: 8000,
+        CONF_ENCRYPTION: _ENCRYPTION,
+    }
     with pytest.raises(cv.Invalid, match="does not support setting a port"):
-        _validate_no_port_set_on_ble({CONF_TRANSPORT: TRANSPORT_BLE, CONF_PORT: 8000})
+        _validate_ble_transport(config)
 
 
-def test_ble_transport_accepts_the_default_port() -> None:
-    config = {CONF_TRANSPORT: TRANSPORT_BLE, CONF_PORT: DEFAULT_PORT}
-    assert _validate_no_port_set_on_ble(config) == config
+def test_ble_transport_accepts_the_default_port_with_a_key() -> None:
+    config = {
+        CONF_TRANSPORT: TRANSPORT_BLE,
+        CONF_PORT: DEFAULT_PORT,
+        CONF_ENCRYPTION: _ENCRYPTION,
+    }
+    assert _validate_ble_transport(config) == config
+
+
+@pytest.mark.parametrize("extra", [{}, {CONF_ENCRYPTION: {}}])
+def test_ble_transport_requires_an_encryption_key(extra: dict[str, dict]) -> None:
+    config = {CONF_TRANSPORT: TRANSPORT_BLE, CONF_PORT: DEFAULT_PORT} | extra
+    with pytest.raises(cv.Invalid, match="requires an encryption key"):
+        _validate_ble_transport(config)
+
+
+def test_ip_transport_needs_no_encryption() -> None:
+    config = {CONF_TRANSPORT: TRANSPORT_IP, CONF_PORT: 8000}
+    assert _validate_ble_transport(config) == config

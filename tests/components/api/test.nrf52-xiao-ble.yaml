@@ -1,5 +1,5 @@
 packages:
-  api: !include common-base.yaml
+  api: !include common.yaml
 
 api:
   transport: ble
