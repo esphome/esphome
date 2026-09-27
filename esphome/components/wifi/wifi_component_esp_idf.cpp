@@ -831,7 +831,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connected = true;
 #if USE_NETWORK_IPV6
     // Start SLAAC on association, not after a DHCPv4 lease that may never arrive.
-    esp_netif_create_ip6_linklocal(s_sta_netif);
+    if (esp_err_t ll_err = esp_netif_create_ip6_linklocal(s_sta_netif); ll_err != ESP_OK) {
+      ESP_LOGW(TAG, "esp_netif_create_ip6_linklocal failed: %s", esp_err_to_name(ll_err));
+    }
 #endif /* USE_NETWORK_IPV6 */
     if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED) {
       // Driver-initiated roam: the WIFI_REASON_ROAMING disconnect was ignored,
