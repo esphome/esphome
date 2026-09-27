@@ -453,6 +453,17 @@ void EthernetComponent::ethernet_lazy_init_() {
   /* attach Ethernet driver to TCP/IP stack */
   err = esp_netif_attach(this->eth_netif_, esp_eth_new_netif_glue(this->eth_handle_));
   ESPHL_ERROR_CHECK(err, "ETH netif attach error");
+#if USE_NETWORK_IPV6
+  // The internal EMAC drops multicast groups that were never added, and lwIP never
+  // adds all-nodes, so router advertisements were lost and SLAAC never ran.
+  {
+    uint8_t all_nodes[6] = {0x33, 0x33, 0x00, 0x00, 0x00, 0x01};
+    if (esp_err_t filter_err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_ADD_MAC_FILTER, all_nodes);
+        filter_err != ESP_OK) {
+      ESP_LOGD(TAG, "IPv6 all-nodes multicast filter not added: %s", esp_err_to_name(filter_err));
+    }
+  }
+#endif /* USE_NETWORK_IPV6 */
 
   // Register user defined event handers
   err = esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &EthernetComponent::eth_event_handler, nullptr);
@@ -688,6 +699,13 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
         global_eth_component->notify_ip_state_listeners_();
       }
 #endif
+#if USE_NETWORK_IPV6
+      // Start SLAAC on link-up, not after the DHCPv4 lease. This also restores the
+      // link-local after a link flap, which clears the IPv6 addresses.
+      if (esp_err_t ll_err = esp_netif_create_ip6_linklocal(global_eth_component->eth_netif_); ll_err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_netif_create_ip6_linklocal failed on link-up: %s", esp_err_to_name(ll_err));
+      }
+#endif /* USE_NETWORK_IPV6 */
       break;
     case ETHERNET_EVENT_DISCONNECTED:
       event_name = "ETH disconnected";
