@@ -74,6 +74,7 @@ async def to_code(config: ConfigType) -> None:
             zephyr_add_prj_conf("THREAD_NAME", True)
             zephyr_add_prj_conf("INIT_STACKS", True)
             zephyr_add_prj_conf("THREAD_STACK_INFO", True)
+            zephyr_add_prj_conf("CONFIG_STATS_NAMES", True)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add_define("USE_DEBUG")

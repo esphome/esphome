@@ -1,0 +1,11 @@
+power_management:
+  - platform: zephyr_pm
+    id: pm_id
+    policy: on_demand
+
+zephyr:
+  snippet_source:
+    type: git
+    url: https://github.com/esphomeplatformzephyr/custom_zephyr_boards
+  snippets:
+    - cpu_freq_stub

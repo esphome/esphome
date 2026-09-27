@@ -85,6 +85,29 @@ def has_pinctrl_configured(board: str, label: str) -> bool:
     return False
 
 
+def board_has_pm_states(board: str) -> bool:
+    """Return True if board's DTS declares a "zephyr,power-state" node -- the real
+    per-board signal for whether CONFIG_PM does anything here, tracking each SoC's
+    own `select HAS_PM` (confirmed: present for esp32/silabs, absent for
+    nrf52/rp2040). Boards without it still run arch_cpu_idle() unconditionally, but
+    how much power that actually saves is SoC-specific and not verified here."""
+    edt = _get_edt(board)
+    if edt is None:
+        return False
+    return any("zephyr,power-state" in node.compats for node in _iter_nodes(edt))
+
+
+def board_has_cpu_freq_pstates(board: str) -> bool:
+    """Return True if board's DTS declares a "performance-states" container node.
+    Unlike power-states, cpu_freq P-state bindings are per-SoC (e.g.
+    "nxp,mcxn-pstate" never appears as "zephyr,pstate" too), so the container
+    node's name, not a shared compatible, is the only thing to match on."""
+    edt = _get_edt(board)
+    if edt is None:
+        return False
+    return any(node.name == "performance-states" for node in _iter_nodes(edt))
+
+
 def _pinctrl_states_for_node(node) -> list[tuple[str, list[str]]] | None:
     """Return [(real_label, child_group_names), ...] built from `node`'s own
     pinctrl-<N> properties, or None if a referenced conf node lacks a label."""

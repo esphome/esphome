@@ -14,6 +14,13 @@
 #ifdef CONFIG_FLASH_MAP
 #include <zephyr/storage/flash_map.h>
 #endif
+#ifdef CONFIG_STATS
+#include <cstring>
+#include <zephyr/stats/stats.h>
+#endif
+#ifdef CONFIG_PM_STATS
+#include <zephyr/pm/state.h>
+#endif
 #ifdef USE_NRF52
 #include <hal/nrf_power.h>
 
@@ -77,6 +84,69 @@ static void log_thread_cb_(const struct k_thread *thread, void *) {
 #endif
 }
 #endif  // CONFIG_THREAD_MONITOR
+
+#ifdef CONFIG_STATS
+#ifdef CONFIG_PM_STATS
+static const char *pm_state_name_(int state) {
+  switch (static_cast<enum pm_state>(state)) {
+    case PM_STATE_ACTIVE:
+      return "Active";
+    case PM_STATE_RUNTIME_IDLE:
+      return "Runtime Idle";
+    case PM_STATE_SUSPEND_TO_IDLE:
+      return "Suspend to Idle";
+    case PM_STATE_STANDBY:
+      return "Standby";
+    case PM_STATE_SUSPEND_TO_RAM:
+      return "Suspend to Ram";
+    case PM_STATE_SUSPEND_TO_DISK:
+      return "Suspend to Disk";
+    case PM_STATE_SOFT_OFF:
+      return "Soft Off";
+    default:
+      return "Unknown";
+  }
+}
+#endif  // CONFIG_PM_STATS
+static int log_stats_entry_cb_(struct stats_hdr *hdr, void *arg, const char *name, uint16_t off) {
+  const auto *addr = reinterpret_cast<const uint8_t *>(hdr) + off;
+  uint64_t val = 0;
+  switch (hdr->s_size) {
+    case sizeof(uint16_t):
+      val = *reinterpret_cast<const uint16_t *>(addr);
+      break;
+    case sizeof(uint32_t):
+      val = *reinterpret_cast<const uint32_t *>(addr);
+      break;
+    case sizeof(uint64_t):
+      val = *reinterpret_cast<const uint64_t *>(addr);
+      break;
+  }
+  ESP_LOGD(TAG, "    %s: %" PRIu64, name, val);
+  return 0;
+}
+
+static int log_stats_group_cb_(struct stats_hdr *hdr, void *arg) {
+  bool isHdrLogged = false;
+#ifdef CONFIG_PM_STATS
+  // Fixed offsets -- pm_stats.c's group name format is fixed-width.
+  if (strncmp(hdr->s_name, "pm_cpu_", 7) == 0 && strncmp(hdr->s_name + 10, "_state_", 7) == 0) {
+    char cpu_buf[4] = {hdr->s_name[7], hdr->s_name[8], hdr->s_name[9], '\0'};
+    char state_buf[2] = {hdr->s_name[17], '\0'};
+    auto cpu = parse_number<uint8_t>(cpu_buf);
+    auto state = parse_number<uint8_t>(state_buf);
+    if (cpu.has_value() && state.has_value()) {
+      ESP_LOGD(TAG, "  CPU %u %s:", *cpu, pm_state_name_(*state));
+      isHdrLogged = true;
+    }
+  }
+#endif  // CONFIG_PM_STATS
+  if (!isHdrLogged) {
+    ESP_LOGD(TAG, "  %s:", hdr->s_name);
+  }
+  return stats_walk(hdr, log_stats_entry_cb_, arg);
+}
+#endif  // CONFIG_STATS
 
 const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
   const char *buf = zephyr::get_reset_reason(buffer);
@@ -470,6 +540,10 @@ void DebugComponent::update_platform_() {
 #ifdef CONFIG_THREAD_MONITOR
   ESP_LOGD(TAG, "Threads:");
   k_thread_foreach(log_thread_cb_, nullptr);
+#endif
+#ifdef CONFIG_STATS
+  ESP_LOGD(TAG, "Stats:");
+  stats_group_walk(log_stats_group_cb_, nullptr);
 #endif
 }
 
