@@ -1,0 +1,33 @@
+esphome:
+  name: test
+  on_boot:
+    then:
+      - counter.set_value:
+          id: counter_a
+          value: 100
+      - counter.set_value:
+          id: counter_b
+          value: -5000000000
+      - counter.increment: counter_a
+      - counter.increment:
+          id: counter_a
+          value: -7
+      - counter.increment:
+          id: counter_b
+          value: !lambda "return 3;"
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: template
+    id: source_sensor
+    lambda: return 1.0;
+  - platform: counter
+    id: counter_a
+    name: Counter A
+    sensor: source_sensor
+  - platform: counter
+    id: counter_b
+    name: Counter B
+    restore: false

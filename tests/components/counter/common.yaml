@@ -1,0 +1,29 @@
+esphome:
+  on_boot:
+    then:
+      - counter.set_value:
+          id: counter_sensor
+          value: 100
+      - counter.increment: counter_sensor
+      - counter.increment:
+          id: counter_sensor
+          value: -5
+      - counter.increment:
+          id: counter_sensor
+          value: !lambda "return 5000000000LL;"
+
+sensor:
+  - platform: counter
+    id: counter_sensor
+    name: Counter
+  - platform: counter
+    id: counter_no_restore
+    name: Counter No Restore
+    restore: false
+  - platform: template
+    id: source_sensor
+    lambda: return 1.0;
+    update_interval: 1s
+  - platform: counter
+    name: Counter Of Sensor
+    sensor: source_sensor
