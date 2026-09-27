@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Protocol
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
 from esphome import const, platform_hooks
+from esphome.build_helpers.native import analysis_backend, native_backend
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
@@ -835,7 +836,9 @@ def write_cpp_file() -> int:
         from esphome.build_gen import espidf
 
         espidf.write_project()
-    else:
+    elif not CORE.using_native_toolchain:
+        # Other native builds generate their project at compile time;
+        # never write a platformio.ini for them
         from esphome.build_gen import platformio
 
         platformio.write_project()
@@ -877,20 +880,14 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         toolchain.create_factory_bin()
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
-        from esphome.build_helpers.idedata import IDEDATA_BEST_EFFORT_ERRORS
+        from esphome.build_helpers.idedata import warn_if_idedata_missing
 
-        try:
-            if toolchain.get_idedata() is None:
-                _LOGGER.warning("No idedata was generated for this build")
-        except IDEDATA_BEST_EFFORT_ERRORS as err:
-            # The firmware already built; an idedata failure must not fail
-            # a successful build.
-            _LOGGER.warning(
-                "Could not generate idedata: %s (IDE, clang-tidy, and "
-                "memory-analysis data will be unavailable for this build)",
-                err,
-            )
-            _LOGGER.debug("Idedata failure detail", exc_info=True)
+        warn_if_idedata_missing(toolchain.get_idedata)
+    elif CORE.using_native_toolchain:
+        raise EsphomeError(
+            f"Toolchain '{CORE.toolchain.value}' resolved but no platform "
+            "backend claimed the build"
+        )
     else:
         from esphome.platformio import toolchain
 
@@ -993,12 +990,15 @@ def upload_using_esptool(
 
     if file is not None:
         flash_images = [FlashImage(path=file, offset="0x0")]
-    elif CORE.using_toolchain_esp_idf:
-        from esphome.espidf import toolchain
-
-        flash_images = [
-            FlashImage(path=toolchain.get_factory_firmware_path(), offset="0x0")
-        ]
+    elif (native := native_backend()) is not None:
+        # Every native backend supplies its own 0x0 flash image (bootloader
+        # and partitions included where the target needs them)
+        image = native.get_factory_firmware_path()
+        if not image.is_file():
+            raise EsphomeError(
+                f"{image} does not exist; compile the configuration first"
+            )
+        flash_images = [FlashImage(path=image, offset="0x0")]
     else:
         from esphome.platformio import toolchain
 
@@ -1374,8 +1374,12 @@ def _upload_via_native_api(
     # fall back to a plaintext upload
     noise_psk = None
     plaintext_fallback = False
+    allow_plaintext_upload = False
     if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
         noise_psk = encryption_conf.get(CONF_KEY)
+        allow_plaintext_upload = bool(
+            encryption_conf.get(espota2.CONF_ALLOW_PLAINTEXT_UPLOAD)
+        )
         if not noise_psk:
             raise EsphomeError(
                 "OTA encryption is configured but no key was resolved; "
@@ -1434,6 +1438,7 @@ def _upload_via_native_api(
         noise_psk,
         plaintext_fallback=plaintext_fallback,
         alt_filename=alt_binary,
+        allow_plaintext_upload=allow_plaintext_upload,
     )
 
 
@@ -2020,12 +2025,12 @@ def command_update_all(args: ArgsProtocol) -> int | None:
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     import json
 
-    if CORE.using_toolchain_esp_idf:
-        # Native ESP-IDF derives idedata from the build's compile_commands.json,
-        # so the configuration must already be compiled.
-        from esphome.espidf import toolchain as espidf_toolchain
+    native_toolchain = native_backend()
 
-        idedata = espidf_toolchain.get_idedata()
+    if native_toolchain is not None:
+        # Native toolchains derive idedata from the build's
+        # compile_commands.json, so the configuration must already be compiled.
+        idedata = native_toolchain.get_idedata()
         if idedata is None:
             _LOGGER.error(
                 "No idedata available; compile the configuration first",
@@ -2064,6 +2069,17 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     from esphome.analyze_memory.cli import MemoryAnalyzerCLI
     from esphome.analyze_memory.ram_strings import RamStringsAnalyzer
 
+    # Refuse an unsupported toolchain before paying for a full compile
+    analysis_toolchain = analysis_backend()
+    if analysis_toolchain is None and not CORE.using_toolchain_platformio:
+        _LOGGER.error(
+            "analyze-memory is not supported with the '%s' toolchain on %s; "
+            "re-run with --toolchain platformio",
+            CORE.toolchain.value if CORE.toolchain else "unresolved",
+            CORE.target_platform,
+        )
+        return 1
+
     # Always compile to ensure fresh data (fast if no changes - just relinks)
     exit_code = write_cpp(config)
     if exit_code != 0:
@@ -2075,13 +2091,30 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
 
     # Get idedata for analysis
     idedata = None
-    if CORE.using_toolchain_esp_idf:
-        from esphome.espidf import toolchain
+    if analysis_toolchain is not None:
+        objdump = analysis_toolchain.get_objdump_path()
+        readelf = analysis_toolchain.get_readelf_path()
+        for tool in (objdump, readelf):
+            if not tool.is_file():
+                # The analyzer would silently fall back to host
+                # binutils, which cannot read the target ELF
+                _LOGGER.error(
+                    "%s is missing; the toolchain install may be incomplete "
+                    "(recompile, or run 'esphome clean-all' if it persists)",
+                    tool,
+                )
+                return 1
+        objdump_path = str(objdump)
+        readelf_path = str(readelf)
 
-        objdump_path = str(toolchain.get_objdump_path())
-        readelf_path = str(toolchain.get_readelf_path())
-
-        firmware_elf = toolchain.get_elf_path()
+        firmware_elf = analysis_toolchain.get_elf_path()
+        if not firmware_elf.is_file():
+            # The analyzer swallows tool failures, so a missing ELF would
+            # produce an exit-0 zeroed report
+            _LOGGER.error(
+                "%s is missing; compile the configuration first", firmware_elf
+            )
+            return 1
     else:
         from esphome.platformio import toolchain
 
