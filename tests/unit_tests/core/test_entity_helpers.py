@@ -1242,8 +1242,7 @@ async def test_finalize_comment_sanitization(
 async def test_sub_entities_creates_and_sets(
     monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
 ) -> None:
-    """A configured key, even with an empty config, creates the entity with the extra
-    args, sets the parent before the setter runs and returns the entity."""
+    """A configured key creates the entity, sets the parent before the setter and returns it."""
     calls: list[tuple[Any, ...]] = []
     created = MockObj("child")
 
@@ -1275,3 +1274,23 @@ async def test_sub_entities_missing_key(setup_test_environment: list[str]) -> No
 
     assert await sub("child", hub.set_child) is None
     assert setup_test_environment == []
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_without_parent(
+    monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
+) -> None:
+    """Without a bound parent, register_parented is not called."""
+
+    async def fail_register_parented(var: MockObj, parent: MockObj) -> None:
+        raise AssertionError("must not be called")
+
+    async def new_entity(conf: dict[str, Any]) -> MockObj:
+        return MockObj("child")
+
+    monkeypatch.setattr(entity_helpers.cg, "register_parented", fail_register_parented)
+    hub = MockObj("hub", "->")
+    sub = entity_helpers.SubEntities(new_entity, {"child": {CONF_ID: "child"}})
+
+    assert await sub("child", hub.set_child) is not None
+    assert setup_test_environment == ["hub->set_child(child)"]

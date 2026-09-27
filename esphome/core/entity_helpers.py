@@ -470,12 +470,10 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
 
 @dataclass(frozen=True, slots=True)
 class SubEntities:
-    """Creates optional child entities of one hub that share a config and parent.
+    """Create the child entity configured under key, set parent (if bound) and pass it to setter.
 
-    Calling it with a key and a setter creates the entity configured under that key, if any,
-    sets the parent on it with cg.register_parented() when one is bound, and passes it to the
-    setter. Extra arguments go to new_entity. Returns None only when the key is not configured,
-    so the result can be used directly as a condition.
+    Extra arguments go to new_entity. Returns None only when key is absent, so the result can be
+    used directly as a condition.
     """
 
     new_entity: Callable[..., Awaitable[MockObj]]
