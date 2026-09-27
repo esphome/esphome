@@ -5,8 +5,11 @@ import esphome.codegen as cg
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, Framework
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import CORE, ID as ID, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import (
+    MockObj as MockObj,
+    TemplateArgsType as TemplateArgsType,
+)
 from esphome.types import ConfigType
 
 # BLE LE Data Length Extension maximum LL PDU payload (BLE spec)
