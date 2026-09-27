@@ -108,30 +108,18 @@ CONFIG_SCHEMA = {
 async def to_code(config: ConfigType) -> None:
     debug_component = await cg.get_variable(config[CONF_DEBUG_ID])
 
-    if free_conf := config.get(CONF_FREE):
-        sens = await sensor.new_sensor(free_conf)
-        cg.add(debug_component.set_free_sensor(sens))
-
-    if block_conf := config.get(CONF_BLOCK):
-        sens = await sensor.new_sensor(block_conf)
-        cg.add(debug_component.set_block_sensor(sens))
-
-    if fragmentation_conf := config.get(CONF_FRAGMENTATION):
-        sens = await sensor.new_sensor(fragmentation_conf)
-        cg.add(debug_component.set_fragmentation_sensor(sens))
-
-    if min_free_conf := config.get(CONF_MIN_FREE):
-        sens = await sensor.new_sensor(min_free_conf)
-        cg.add(debug_component.set_min_free_sensor(sens))
-
-    if loop_time_conf := config.get(CONF_LOOP_TIME):
-        sens = await sensor.new_sensor(loop_time_conf)
-        cg.add(debug_component.set_loop_time_sensor(sens))
-
-    if psram_conf := config.get(CONF_PSRAM):
-        sens = await sensor.new_sensor(psram_conf)
-        cg.add(debug_component.set_psram_sensor(sens))
-
-    if cpu_freq_conf := config.get(CONF_CPU_FREQUENCY):
-        sens = await sensor.new_sensor(cpu_freq_conf)
-        cg.add(debug_component.set_cpu_frequency_sensor(sens))
+    await sensor.new_sub_sensor(config, CONF_FREE, debug_component.set_free_sensor)
+    await sensor.new_sub_sensor(config, CONF_BLOCK, debug_component.set_block_sensor)
+    await sensor.new_sub_sensor(
+        config, CONF_FRAGMENTATION, debug_component.set_fragmentation_sensor
+    )
+    await sensor.new_sub_sensor(
+        config, CONF_MIN_FREE, debug_component.set_min_free_sensor
+    )
+    await sensor.new_sub_sensor(
+        config, CONF_LOOP_TIME, debug_component.set_loop_time_sensor
+    )
+    await sensor.new_sub_sensor(config, CONF_PSRAM, debug_component.set_psram_sensor)
+    await sensor.new_sub_sensor(
+        config, CONF_CPU_FREQUENCY, debug_component.set_cpu_frequency_sensor
+    )

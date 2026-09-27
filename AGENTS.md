@@ -322,6 +322,16 @@ file does, and it is the authority when they disagree. The most useful starting 
               var = await switch.new_switch(config)
           ```
 
+        - **Optional child entities of a hub:** use `new_sub_sensor`, `new_sub_binary_sensor` or
+          `new_sub_text_sensor`. Each creates the entity only when its key is configured and passes it to
+          the setter. Always name the setter explicitly; never build it with `getattr` and an f-string.
+          ```python
+          async def to_code(config):
+              var = cg.new_Pvariable(config[CONF_ID])
+              await sensor.new_sub_sensor(config, CONF_TEMPERATURE, var.set_temperature_sensor)
+              await sensor.new_sub_sensor(config, CONF_HUMIDITY, var.set_humidity_sensor)
+          ```
+
 *   **Automations (Triggers, Actions, Conditions):**
 
     Automations have three building blocks: **Triggers** (fire when something happens), **Actions** (do something), and **Conditions** (check if something is true).
