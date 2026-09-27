@@ -22,3 +22,10 @@ button:
 light:
   - platform: hoermann_hcp
     name: Garage Light
+
+text_sensor:
+  - platform: hoermann_hcp
+    serial_number:
+      name: Garage Motor Serial Number
+    version:
+      name: Garage Motor Firmware Version
