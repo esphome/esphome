@@ -193,6 +193,11 @@ LightColorValues LightCall::validate_() {
   auto *name = this->parent_->get_name().c_str();
   auto traits = this->parent_->get_traits();
 
+#ifdef USE_LIGHT_RESUME_EFFECT
+  // Snapshot before the adjustments below add flags of their own
+  const bool plain_turn_on = this->has_state() && this->state_ && (this->flags_ & ~STATE_ONLY_FLAGS_MASK) == 0;
+#endif  // USE_LIGHT_RESUME_EFFECT
+
   // Color mode check
   if (this->has_color_mode() && !traits.supports_color_mode(this->color_mode_)) {
     ESP_LOGW(TAG, "'%s' does not support color mode %s", name, LOG_STR_ARG(color_mode_to_human(this->color_mode_)));
@@ -210,10 +215,6 @@ LightColorValues LightCall::validate_() {
   this->transform_parameters_(traits);
 
   // Business logic adjustments before validation
-#ifdef USE_LIGHT_RESUME_EFFECT
-  // Snapshot before the adjustments below add flags of their own
-  const bool plain_turn_on = this->has_state() && this->state_ && (this->flags_ & ~STATE_ONLY_FLAGS_MASK) == 0;
-#endif  // USE_LIGHT_RESUME_EFFECT
   // Flag whether an explicit turn off was requested, in which case we'll also stop the effect.
   bool explicit_turn_off_request = this->has_state() && !this->state_;
 

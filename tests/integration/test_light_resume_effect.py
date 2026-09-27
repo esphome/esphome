@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from aioesphomeapi import EntityState, LightState
+from aioesphomeapi import ColorMode, EntityState, LightState
 import pytest
 
 from .state_utils import InitialStateHelper
@@ -124,7 +124,15 @@ async def test_light_resume_effect(
             "A lit light must not pick up the remembered effect"
         )
 
-        # Test 11: Turn on effect, then off, then on without effect — should not restore Pulse Effect
+        # Test 11: a turn-on that names a color mode is not plain, so it does not restore
+        state = await send_and_wait(light_resume, state=True, effect="Pulse Effect")
+        state = await send_and_wait(light_resume, state=False)
+        state = await send_and_wait(
+            light_resume, state=True, color_mode=ColorMode.BRIGHTNESS
+        )
+        assert state.effect == "None", "A turn-on with a color mode should not restore"
+
+        # Test 12: Turn on effect, then off, then on without effect — should not restore Pulse Effect
         state = await send_and_wait(light_no_resume, state=True, effect="Pulse Effect")
         assert state.state is True
         assert state.effect == "Pulse Effect"
