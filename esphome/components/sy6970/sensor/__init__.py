@@ -73,11 +73,11 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_SY6970_ID])
+    hub = await cg.get_variable(config[CONF_SY6970_ID])
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_VBUS_VOLTAGE, parent.add_listener)
-    await sensors(CONF_BATTERY_VOLTAGE, parent.add_listener)
-    await sensors(CONF_SYSTEM_VOLTAGE, parent.add_listener)
-    await sensors(CONF_CHARGE_CURRENT, parent.add_listener)
-    await sensors(CONF_PRECHARGE_CURRENT, parent.add_listener)
+    await sensors(CONF_VBUS_VOLTAGE, hub.add_listener)
+    await sensors(CONF_BATTERY_VOLTAGE, hub.add_listener)
+    await sensors(CONF_SYSTEM_VOLTAGE, hub.add_listener)
+    await sensors(CONF_CHARGE_CURRENT, hub.add_listener)
+    await sensors(CONF_PRECHARGE_CURRENT, hub.add_listener)

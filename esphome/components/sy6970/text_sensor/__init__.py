@@ -38,9 +38,9 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_SY6970_ID])
+    hub = await cg.get_variable(config[CONF_SY6970_ID])
 
     text_sensors = text_sensor.sub_text_sensors(config)
-    await text_sensors(CONF_BUS_STATUS, parent.add_listener)
-    await text_sensors(CONF_CHARGE_STATUS, parent.add_listener)
-    await text_sensors(CONF_NTC_STATUS, parent.add_listener)
+    await text_sensors(CONF_BUS_STATUS, hub.add_listener)
+    await text_sensors(CONF_CHARGE_STATUS, hub.add_listener)
+    await text_sensors(CONF_NTC_STATUS, hub.add_listener)
