@@ -331,7 +331,6 @@ bool ESP32BLE::ble_setup_() {
     }
   } else {
     const auto &app_name = App.get_name();
-    // A name that is cut keeps its MAC suffix
     truncate_name_to(name_buffer, sizeof(name_buffer), app_name.c_str(), app_name.length(),
                      App.is_name_add_mac_suffix_enabled() ? MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN : 0);
     device_name = name_buffer;

@@ -978,30 +978,17 @@ void WiFiComponent::setup_ap_config_() {
     return;
 
   if (this->ap_.ssid_.empty()) {
-    // Build AP SSID from app name without heap allocation
-    // WiFi SSID max is 32 bytes, with MAC suffix we keep first 25 + last 7
+    // Build AP SSID from app name without heap allocation; WiFi SSID max is 32 bytes
     static constexpr size_t AP_SSID_MAX_LEN = 32;
-    static constexpr size_t AP_SSID_PREFIX_LEN = 25;
-    static constexpr size_t AP_SSID_SUFFIX_LEN = 7;
 
     const auto &app_name = App.get_name();
-    const char *name_ptr = app_name.c_str();
-    size_t name_len = app_name.length();
-
-    if (name_len <= AP_SSID_MAX_LEN) {
+    if (app_name.length() <= AP_SSID_MAX_LEN) {
       // Name fits, use directly
-      this->ap_.set_ssid(name_ptr);
+      this->ap_.set_ssid(app_name.c_str());
     } else {
-      // Name too long, need to truncate into stack buffer
       char ssid_buf[AP_SSID_MAX_LEN + 1];
-      if (App.is_name_add_mac_suffix_enabled()) {
-        // Keep first 25 chars and last 7 chars (MAC suffix), remove middle
-        memcpy(ssid_buf, name_ptr, AP_SSID_PREFIX_LEN);
-        memcpy(ssid_buf + AP_SSID_PREFIX_LEN, name_ptr + name_len - AP_SSID_SUFFIX_LEN, AP_SSID_SUFFIX_LEN);
-      } else {
-        memcpy(ssid_buf, name_ptr, AP_SSID_MAX_LEN);
-      }
-      ssid_buf[AP_SSID_MAX_LEN] = '\0';
+      truncate_name_to(ssid_buf, sizeof(ssid_buf), app_name.c_str(), app_name.length(),
+                       App.is_name_add_mac_suffix_enabled() ? MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN : 0);
       this->ap_.set_ssid(ssid_buf);
     }
   }

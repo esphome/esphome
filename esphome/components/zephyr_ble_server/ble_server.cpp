@@ -15,11 +15,8 @@ static k_work advertise_work;  // NOLINT(cppcoreguidelines-avoid-non-const-globa
 
 BLEServer *global_ble_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-// What is left of the advertisement for the name, after the flags and the name's own header
-static constexpr size_t ADV_MAX_LEN = 31;
-static constexpr size_t ADV_FLAGS_LEN = 3;
-static constexpr size_t ADV_HEADER_LEN = 2;
-static constexpr size_t MAX_ADV_NAME_LEN = ADV_MAX_LEN - ADV_FLAGS_LEN - ADV_HEADER_LEN;
+// What the advertisement has left for the name: the flags take 3 bytes and the name header 2
+static constexpr size_t MAX_ADV_NAME_LEN = BT_GAP_ADV_MAX_ADV_DATA_LEN - 3 - 2;
 
 static const bt_data SD[] = {
 #ifdef USE_OTA
@@ -36,8 +33,8 @@ static void advertise(k_work *work) {
     ESP_LOGE(TAG, "Advertising failed to stop (rc %d)", rc);
   }
 
-  // A name that is cut keeps its MAC suffix, as on ESP32
-  static char name[MAX_ADV_NAME_LEN + 1];
+  // Zephyr would cut the end of a long name, which is where the MAC suffix is
+  char name[MAX_ADV_NAME_LEN + 1];
   const auto &app_name = App.get_name();
   const size_t name_len =
       truncate_name_to(name, sizeof(name), app_name.c_str(), app_name.length(),
