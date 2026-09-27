@@ -245,7 +245,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
   }
 
 #ifdef OTA_PREPARE_LISTENER_COUNT
-  // The handshake is over; this wait has its own, shorter cap
+  // Not subject to the handshake timeout
   if (this->ota_state_ == OTAState::PREPARE_WAIT) {
     if (!ota::ota_prepare_listeners_ready()) {
       if (millis() - this->client_connect_time_ < ota::OTA_PREPARE_TIMEOUT_MS)
@@ -424,8 +424,7 @@ void ESPHomeOTAComponent::handle_data_() {
   ///
   /// This method is blocking and will not return until the OTA update completes,
   /// fails, or times out. It receives the firmware data, writes it to flash,
-  /// and reboots on success. The one exception is PREPARE_WAIT: it returns to wait
-  /// for the prepare listeners, and is called again to continue at begin().
+  /// and reboots on success. Returns early for PREPARE_WAIT and resumes at begin().
   ///
   /// Authentication has already been handled in the non-blocking states AUTH_SEND/AUTH_READ.
   ///
@@ -468,7 +467,7 @@ void ESPHomeOTAComponent::handle_data_() {
 #endif
 
 #ifdef OTA_PREPARE_LISTENER_COUNT
-  // Called again once the prepare listeners are done: the request was already read
+  // Resumed after PREPARE_WAIT
   if (this->ota_state_ == OTAState::PREPARE_WAIT) {
     ota_size = this->ota_size_;
     ota_type = this->ota_type_;
@@ -533,14 +532,12 @@ void ESPHomeOTAComponent::handle_data_() {
 #endif
 
 #ifdef OTA_PREPARE_LISTENER_COUNT
-  // Give them the main loop until they are done, before the blocking write takes it
   ota::notify_ota_prepare();
   if (!ota::ota_prepare_listeners_ready()) {
     ESP_LOGD(TAG, "Waiting for components to prepare");
     this->ota_size_ = ota_size;
     this->ota_type_ = ota_type;
-    // The handshake is over, so its start time now times this wait. The loop start time is already stale
-    // after the blocking reads above.
+    // Loop start time is stale after the blocking reads
     this->client_connect_time_ = millis();
     this->transition_ota_state_(OTAState::PREPARE_WAIT);
     return;

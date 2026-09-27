@@ -5,8 +5,7 @@
 
 namespace esphome::ota_prepare_test_component {
 
-// Becomes prepared ready_after ms after the notice, from its own loop(), which shows the loop keeps
-// running while the OTA waits. 0 means prepared at once.
+// Prepared ready_after ms after the notice, from loop(); 0 means at once.
 class OTAPrepareTestComponent : public Component, public ota::OTAPrepareListener {
  public:
   void set_ready_after(uint32_t ready_after) { this->ready_after_ = ready_after; }

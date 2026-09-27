@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
   // Install signal handlers for graceful shutdown (flushes preferences to disk)
   std::signal(SIGINT, signal_handler);
   std::signal(SIGTERM, signal_handler);
-  // A peer that leaves must fail the socket write with EPIPE, not end the process
+  // Fail writes to a closed socket with EPIPE instead of exiting
   std::signal(SIGPIPE, SIG_IGN);
 
   esphome::host::setup_preferences();

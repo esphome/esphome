@@ -143,11 +143,7 @@ _request_ota_prepare_listener_slot = cg.slot_counter("OTA_PREPARE_LISTENER_COUNT
 
 
 async def register_ota_prepare_listener(var: MockObj) -> None:
-    """Register an ota::OTAPrepareListener.
-
-    The esphome OTA platform then waits, for a bounded time, until the listener
-    reports it is prepared before it starts writing flash.
-    """
+    """Register an ota::OTAPrepareListener."""
     await cg.past_safe_mode()
     _request_ota_prepare_listener_slot()
     cg.add(ota_ns.register_ota_prepare_listener(var))

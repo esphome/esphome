@@ -459,8 +459,7 @@ async def test_host_ota_rejects_garbage(
 
 
 def _request_then_close(port: int) -> None:
-    """Plaintext handshake, then the update request, then hang up while the
-    device waits for its components to prepare."""
+    """Send an update request, then hang up during PREPARE_WAIT."""
     with socket.create_connection((LOCALHOST, port), timeout=5.0) as sock:
         espota2.send_check(sock, espota2.MAGIC_BYTES, "magic bytes")
         espota2.receive_exactly(sock, 2, "version", espota2.RESPONSE_OK)
@@ -482,9 +481,8 @@ async def test_host_ota_prepare(
     reserved_tcp_port: tuple[int, socket.socket],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The update waits for a prepare listener while the loop keeps running,
-    skips the wait when the listener is prepared at once, goes ahead after the
-    cap when it never is, and survives a client that leaves while it waits."""
+    """Waits for a slow listener, skips a ready one, gives up on a stuck one,
+    and survives a client that leaves while waiting."""
     dev = _Device(
         *await _build(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
@@ -518,7 +516,6 @@ async def test_host_ota_prepare(
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
 
-        # Prepared by the listener's own loop, before the update is written
         run = await ota_lines("update with a slow listener failed")
         waiting = index(run, "Waiting for components to prepare")
         prepared = index(run, "Prepared after")
@@ -541,7 +538,6 @@ async def test_host_ota_prepare(
         await asyncio.get_running_loop().run_in_executor(
             None, _request_then_close, dev.ota_port
         )
-        # The read after the wait fails, whether the socket reports EOF or a reset
         async with asyncio.timeout(5.0):
             while index(lines[start:], "esphome.ota set Error flag") == -1:
                 await asyncio.sleep(PORT_POLL_INTERVAL)
