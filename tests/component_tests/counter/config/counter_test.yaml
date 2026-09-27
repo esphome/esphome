@@ -31,3 +31,12 @@ sensor:
     id: counter_b
     name: Counter B
     restore: false
+    initial_value: -5000000000
+  - platform: counter
+    id: counter_c
+    name: Counter C
+    binary_sensor: source_binary_sensor
+
+binary_sensor:
+  - platform: template
+    id: source_binary_sensor

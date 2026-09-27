@@ -11,15 +11,15 @@ from esphome.components.counter.sensor import CONFIG_SCHEMA, COUNTER_VALUE
 INT64_MAX = 2**63 - 1
 
 
-def test_counter_restore_defaults_to_true(
+def test_counter_constructor_arguments(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """Restore is passed to the constructor: on by default, off when configured."""
+    """Restore (on by default) and initial value (zero by default) are constructor arguments."""
     main_cpp = generate_main(component_config_path("counter_test.yaml"))
 
-    assert "new(counter_a) counter::CounterSensor(true);" in main_cpp
-    assert "new(counter_b) counter::CounterSensor(false);" in main_cpp
+    assert "new(counter_a) counter::CounterSensor(true, 0);" in main_cpp
+    assert "new(counter_b) counter::CounterSensor(false, -5000000000LL);" in main_cpp
 
 
 def test_counter_sensor_option_registers_source(
@@ -31,6 +31,17 @@ def test_counter_sensor_option_registers_source(
 
     assert "counter_a->count_updates_from(source_sensor);" in main_cpp
     assert main_cpp.count("count_updates_from") == 1
+
+
+def test_counter_binary_sensor_option_registers_source(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Only the counter with a binary_sensor option counts that sensor's changes to true."""
+    main_cpp = generate_main(component_config_path("counter_test.yaml"))
+
+    assert "counter_c->count_true_from(source_binary_sensor);" in main_cpp
+    assert main_cpp.count("count_true_from") == 1
 
 
 def test_counter_actions(
@@ -57,6 +68,12 @@ def test_counter_actions_without_id_use_only_counter(
     assert "::only_counter->set_value(5);" in main_cpp
     assert "::only_counter->set_value(7);" in main_cpp
     assert "::only_counter->increment(-3);" in main_cpp
+
+
+@pytest.mark.parametrize("value", [INT64_MAX + 1, -INT64_MAX - 1, 1.5])
+def test_counter_initial_value_must_be_int64(value: float) -> None:
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({"id": "c1", "name": "C1", "initial_value": value})
 
 
 def test_counter_cannot_count_itself() -> None:

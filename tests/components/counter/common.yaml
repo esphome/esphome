@@ -20,6 +20,7 @@ sensor:
     id: counter_no_restore
     name: Counter No Restore
     restore: false
+    initial_value: 10
   - platform: template
     id: source_sensor
     lambda: return 1.0;
@@ -27,3 +28,10 @@ sensor:
   - platform: counter
     name: Counter Of Sensor
     sensor: source_sensor
+  - platform: counter
+    name: Counter Of Binary Sensor
+    binary_sensor: source_binary_sensor
+
+binary_sensor:
+  - platform: template
+    id: source_binary_sensor

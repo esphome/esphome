@@ -11,7 +11,8 @@ namespace esphome::counter {
 /// A counter held as a 64-bit integer. The published sensor state is a float, so it is exact only up to 2^24.
 class CounterSensor final : public sensor::Sensor, public Component {
  public:
-  explicit CounterSensor(bool restore) : restore_(restore) {}
+  /// The counter starts at initial_value unless a stored value is restored.
+  CounterSensor(bool restore, int64_t initial_value) : value_(initial_value), restore_(restore) {}
 
   void setup() override;
   void dump_config() override;
@@ -19,6 +20,14 @@ class CounterSensor final : public sensor::Sensor, public Component {
   /// Increment by one each time the given sensor publishes a state.
   void count_updates_from(sensor::Sensor *source) {
     source->add_on_state_callback([this](float) { this->increment(); });
+  }
+
+  /// Increment by one each time the given binary sensor changes to true.
+  template<typename T> void count_true_from(T *source) {
+    source->add_on_state_callback([this](bool state) {
+      if (state)
+        this->increment();
+    });
   }
 
   void set_value(int64_t value);
@@ -29,7 +38,7 @@ class CounterSensor final : public sensor::Sensor, public Component {
 
  protected:
   ESPPreferenceObject pref_;
-  int64_t value_{0};
+  int64_t value_;
   bool restore_;
 };
 

@@ -2,6 +2,19 @@
 
 namespace esphome::counter::testing {
 
+TEST_F(CounterTest, StartsAtZero) {
+  this->counter_.setup();
+  EXPECT_EQ(this->counter_.state, 0.0f);
+}
+
+TEST(CounterInitialValue, PublishedAtSetupWhenNotRestoring) {
+  CounterSensor counter(false, -12);
+  counter.setup();
+  EXPECT_EQ(counter.state, -12.0f);
+  counter.increment();
+  EXPECT_EQ(counter.state, -11.0f);
+}
+
 TEST_F(CounterTest, SetValuePublishesState) {
   this->counter_.set_value(42);
   EXPECT_EQ(this->counter_.state, 42.0f);
@@ -53,6 +66,19 @@ TEST_F(CounterTest, SourceUpdatesAddToCurrentValue) {
   this->counter_.set_value(100);
   source.publish_state(1.0f);
   EXPECT_EQ(this->counter_.state, 101.0f);
+}
+
+TEST_F(CounterTest, CountsOnlyTrueFromBinarySource) {
+  FakeBinarySource source;
+  this->counter_.count_true_from(&source);
+
+  source.publish(true);
+  source.publish(false);
+  EXPECT_EQ(this->counter_.state, 1.0f);
+  source.publish(true);
+  source.publish(false);
+  source.publish(false);
+  EXPECT_EQ(this->counter_.state, 2.0f);
 }
 
 }  // namespace esphome::counter::testing
