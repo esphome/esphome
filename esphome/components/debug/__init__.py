@@ -59,7 +59,6 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("LOG_BUFFER_SIZE", 4096)
         zephyr_add_prj_conf("SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL", True)
         zephyr_add_prj_conf("PRINTK", True)
-        zephyr_add_prj_conf("CONSOLE", True)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add_define("USE_DEBUG")
