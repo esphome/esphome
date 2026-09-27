@@ -88,6 +88,7 @@ class APC1Component : public uart::UARTDevice, public Component {
   uint8_t rx_index_{0};
   uint8_t last_error_code_{0xFF};
   bool active_mode_{true};
+  bool idle_{false};
   bool gas_warming_up_{false};
   uint32_t last_transmission_{0};
   uint32_t last_update_{0};

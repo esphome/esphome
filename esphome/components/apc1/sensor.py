@@ -214,7 +214,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_SET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+            cv.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)

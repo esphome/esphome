@@ -42,7 +42,7 @@ void APC1Component::setup() {
 
 void APC1Component::initialize_device_() {
   this->last_init_attempt_ = App.get_loop_component_start_time();
-  if (this->active_mode_) {
+  if (this->active_mode_ && !this->idle_) {
     this->set_active_mode();
   }
   this->send_command_(APC1Command::APC1_COMMAND_READ_SENSOR_VERSION, 0x0000);
@@ -75,14 +75,13 @@ void APC1Component::dump_config() {
   LOG_SENSOR("  ", "RS2", this->rs2_sensor_);
   LOG_SENSOR("  ", "RS3", this->rs3_sensor_);
   LOG_SENSOR("  ", "Error Code", this->error_code_sensor_);
-  this->check_uart_settings(9600);
 }
 
 void APC1Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
 
-  // If in active mode and no valid data has been received yet, retry periodically
-  if (this->active_mode_) {
+  // If in active mode and not idle, retry periodically if no valid data received
+  if (this->active_mode_ && !this->idle_) {
     if (this->last_valid_frame_ == 0) {
       if (now - this->last_init_attempt_ >= 10000) {
         ESP_LOGD(TAG, "Waiting for APC1 sensor to respond, sending init commands...");
@@ -205,10 +204,9 @@ void APC1Component::parse_measurement_frame_() {
       this->status_clear_warning();
     }
     this->last_error_code_ = error_code;
-  }
-
-  if (this->error_code_sensor_ != nullptr) {
-    this->error_code_sensor_->publish_state(error_code);
+    if (this->error_code_sensor_ != nullptr) {
+      this->error_code_sensor_->publish_state(error_code);
+    }
   }
 
   uint8_t aqi = this->rx_buffer_[APC1_MEASUREMENT_OFFSET_AQI];
@@ -222,7 +220,8 @@ void APC1Component::parse_measurement_frame_() {
     ESP_LOGI(TAG, "APC1: Gas sensor warm-up complete (AQI=%u)", aqi);
   }
 
-  if (this->update_interval_ > 0 && now - this->last_update_ < this->update_interval_) {
+  if (this->active_mode_ && this->update_interval_ > 0 && this->last_update_ != 0 &&
+      now - this->last_update_ < this->update_interval_) {
     return;
   }
   this->last_update_ = now;
@@ -314,6 +313,8 @@ void APC1Component::parse_measurement_frame_() {
     this->rs2_sensor_->publish_state(rs2);
   if (this->rs3_sensor_ != nullptr)
     this->rs3_sensor_->publish_state(rs3);
+  if (this->error_code_sensor_ != nullptr)
+    this->error_code_sensor_->publish_state(error_code);
 }
 
 void APC1Component::parse_device_info_frame_() {
@@ -355,10 +356,14 @@ void APC1Component::request_measurement() {
 }
 
 void APC1Component::set_idle_mode() {
+  this->idle_ = true;
   this->send_command_(APC1Command::APC1_COMMAND_OPERATION_MODE, APC1_OPERATING_MODE_IDLE);
 }
 
 void APC1Component::set_measurement_mode() {
+  this->idle_ = false;
+  this->last_valid_frame_ = App.get_loop_component_start_time();
+  this->last_init_attempt_ = this->last_valid_frame_;
   this->send_command_(APC1Command::APC1_COMMAND_OPERATION_MODE, APC1_OPERATING_MODE_STANDARD);
 }
 
