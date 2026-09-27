@@ -105,3 +105,20 @@ def test_mdns_counts_the_api_service_on_the_ip_transport() -> None:
 
     CORE.config = {"api": {CONF_TRANSPORT: TRANSPORT_IP}}
     assert _has_mdns_service("api")
+
+
+def test_ble_links_are_kept_free_for_ota_and_nus() -> None:
+    from esphome.components.socket_ble import _other_ble_links
+
+    CORE.config = {}
+    assert _other_ble_links() == 0
+    CORE.config = {
+        "ble_nus": {},
+        "ota": [
+            {"platform": "esphome"},
+            {"platform": "zephyr_mcumgr", "transport": {"ble": True}},
+        ],
+    }
+    assert _other_ble_links() == 2
+    CORE.config = {"ota": [{"platform": "zephyr_mcumgr", "transport": {"ble": False}}]}
+    assert _other_ble_links() == 0

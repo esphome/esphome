@@ -5,7 +5,7 @@ from enum import StrEnum
 import esphome.codegen as cg
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
-from esphome.const import PLATFORM_NRF52
+from esphome.const import CONF_OTA, CONF_PLATFORM, PLATFORM_NRF52
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -71,6 +71,23 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+# MTU that OTA over BLE configures for itself (NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP)
+BLE_OTA_MTU = 498
+
+
+def _has_ble_ota() -> bool:
+    return any(
+        conf.get(CONF_PLATFORM) == "zephyr_mcumgr"
+        and conf.get("transport", {}).get("ble")
+        for conf in CORE.config.get(CONF_OTA, [])
+    )
+
+
+def _other_ble_links() -> int:
+    """Links to keep free for BLE users that are not sockets."""
+    return ("ble_nus" in CORE.config) + _has_ble_ota()
+
+
 async def to_code(config: ConfigType) -> None:
     socket_count = get_socket_count(SocketType.L2CAP)
     mtu = config[CONF_MTU]
@@ -80,6 +97,8 @@ async def to_code(config: ConfigType) -> None:
 
     zephyr_add_prj_conf("BT_SMP", True)
     zephyr_add_prj_conf("BT_L2CAP_DYNAMIC_CHANNEL", True)
-    zephyr_add_prj_conf("BT_MAX_CONN", socket_count)
-    zephyr_add_prj_conf("BT_BUF_ACL_RX_SIZE", mtu + 4)
-    zephyr_add_prj_conf("BT_L2CAP_TX_MTU", mtu)
+    zephyr_add_prj_conf("BT_MAX_CONN", socket_count + _other_ble_links())
+    # OTA over BLE sets larger buffers itself; smaller values here would break its build
+    if not _has_ble_ota() or mtu > BLE_OTA_MTU:
+        zephyr_add_prj_conf("BT_BUF_ACL_RX_SIZE", mtu + 4)
+        zephyr_add_prj_conf("BT_L2CAP_TX_MTU", mtu)
