@@ -63,7 +63,7 @@ static bool is_moving(DoorState state) {
   }
 }
 
-#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_IDENTITY
 // The command byte of a status poll. Only its answer can carry a request.
 static constexpr uint8_t STATUS_COMMAND = 0x03;
 // A status answer with this code in the low byte of its second register asks the bus controller for a value,
@@ -149,7 +149,7 @@ void HoermannHcp::update() {
     ESP_LOGW(TAG, "Door did not report the lamp changing, giving up on the toggle");
     this->forget_light_toggles_();
   }
-#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_IDENTITY
   this->publish_identity_();
 #endif
   if (this->changed_) {
@@ -163,7 +163,7 @@ void HoermannHcp::dump_config() {
                 "Hoermann HCP bridge:\n"
                 "  Modbus server address: 0x%02X",
                 this->get_address());
-#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_IDENTITY
   LOG_TEXT_SENSOR("  ", "Serial Number", this->serial_number_text_sensor_);
   log_identity_value(this->serial_number_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Firmware Version", this->version_text_sensor_);
@@ -180,7 +180,7 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
 
   this->record_response_();
 
-#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_IDENTITY
   // Acknowledge the transfer taken by the write half of this frame.
   if (this->transfer_answer_counter_ != NO_TRANSFER_ANSWER) {
     this->push_transfer_answer_(registers, number_of_registers);
@@ -200,7 +200,7 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
       registers.push_back(static_cast<uint16_t>(0x0001 | command));
       this->push_command_registers_(registers);
       push_zeros(registers, 4);
-#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_IDENTITY
       this->add_identity_request_(registers, command);
 #endif
       break;
@@ -234,7 +234,7 @@ modbus::ResponseStatus HoermannHcp::on_write_registers(uint16_t start_address,
     // command byte back from STATE_REG. The hub always runs the write before the read within one request.
     this->record_response_();
     this->command_reg_value_ = registers[0];
-#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_IDENTITY
     this->transfer_answer_counter_ = this->take_identity_transfer_(registers);
 #endif
     return {};
@@ -298,7 +298,7 @@ void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
   registers.push_back(command->released_value_2);
 }
 
-#ifdef USE_HOERMANN_HCP_TEXT_SENSOR
+#ifdef USE_HOERMANN_HCP_IDENTITY
 void HoermannHcp::add_identity_request_(modbus::RegisterValues &registers, uint16_t command) {
   if (static_cast<uint8_t>(this->command_reg_value_) != STATUS_COMMAND)
     return;
@@ -601,6 +601,9 @@ void HoermannHcp::set_valid_(bool valid) {
   this->forget_light_toggles_();
   // The lamp can be switched at the door while the bus is quiet, so what was last read is no longer trusted.
   this->set_light_seen_(false);
+  // The same holds for the door. The next broadcast is decoded even if it repeats the last one.
+  this->door_state_seen_ = false;
+  this->prev_state_reg_ = 0xFFFF;
   this->short_broadcast_logged_ = false;
 }
 
@@ -640,6 +643,11 @@ void HoermannHcp::forget_light_toggles_() {
 }
 
 void HoermannHcp::set_door_state_(DoorState state) {
+  // The first state may equal the default, so being seen is a change of its own.
+  if (!this->door_state_seen_) {
+    this->door_state_seen_ = true;
+    this->changed_ = true;
+  }
   if (this->door_state_ == state)
     return;
   this->door_state_ = state;
