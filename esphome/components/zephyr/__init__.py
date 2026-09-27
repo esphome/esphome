@@ -46,7 +46,6 @@ class HexValue:
         return f"0x{self.value:X}"
 
 
-
 PrjConfValueType = bool | str | int | HexValue
 
 
