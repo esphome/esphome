@@ -116,6 +116,8 @@ void NciMessage::set_header(const uint8_t message_type, const uint8_t gid, const
 
 void NciMessage::set_message(const uint8_t message_type, const std::vector<uint8_t> &payload) {
   this->nci_message_.resize(nfc::NCI_PKT_HEADER_SIZE);
+  this->nci_message_[nfc::NCI_PKT_MT_GID_OFFSET] = message_type & nfc::NCI_PKT_MT_MASK;
+  this->nci_message_[nfc::NCI_PKT_OID_OFFSET] = 0;
   this->nci_message_[nfc::NCI_PKT_LENGTH_OFFSET] = payload.size();
   this->nci_message_.insert(this->nci_message_.end(), payload.begin(), payload.end());
 }

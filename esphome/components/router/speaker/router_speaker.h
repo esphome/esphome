@@ -3,7 +3,6 @@
 #ifdef USE_ESP32
 
 #include "esphome/components/speaker/speaker.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -78,16 +77,6 @@ class Router final : public Component, public speaker::Speaker {
   // Index into outputs_, always within [0, outputs_.size()). Defaults to the first
   // configured output; updated by switch_to_output().
   std::atomic<int8_t> active_output_idx_{0};
-};
-
-template<typename... Ts> class SwitchOutputAction final : public Action<Ts...> {
- public:
-  explicit SwitchOutputAction(Router *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(speaker::Speaker *, target)
-  void play(const Ts &...x) override { this->parent_->switch_to_output(this->target_.value(x...)); }
-
- protected:
-  Router *parent_;
 };
 
 }  // namespace esphome::router

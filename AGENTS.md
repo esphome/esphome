@@ -322,6 +322,16 @@ file does, and it is the authority when they disagree. The most useful starting 
               var = await switch.new_switch(config)
           ```
 
+        - **Optional child entities of a hub:** use `new_sub_sensor`, `new_sub_binary_sensor` or
+          `new_sub_text_sensor`. Each creates the entity only when its key is configured and passes it to
+          the setter. Always name the setter explicitly; never build it with `getattr` and an f-string.
+          ```python
+          async def to_code(config):
+              var = cg.new_Pvariable(config[CONF_ID])
+              await sensor.new_sub_sensor(config, CONF_TEMPERATURE, var.set_temperature_sensor)
+              await sensor.new_sub_sensor(config, CONF_HUMIDITY, var.set_humidity_sensor)
+          ```
+
 *   **Automations (Triggers, Actions, Conditions):**
 
     Automations have three building blocks: **Triggers** (fire when something happens), **Actions** (do something), and **Conditions** (check if something is true).
@@ -469,6 +479,19 @@ file does, and it is the authority when they disagree. The most useful starting 
         ```
         Register with `automation.register_simple_condition("my_component.is_active", MyCondition, schema)`;
         `register_bare_condition`, `register_parented_condition` and the decorator follow the action rules.
+
+        **Conditions that only test their parent need no C++ class either.** Register them with
+        `register_apply_condition`; the expression is applied to the parent, and an `ApplyCall` compares
+        against config values.
+        ```python
+        automation.register_apply_condition("my_component.is_active", schema, "is_active()")
+        automation.register_apply_condition(
+            "my_component.state_is",
+            schema,
+            automation.ApplyCall("state == {}", ((CONF_STATE, cg.bool_),)),
+        )
+        ```
+        `cover.is_open`, `rtttl.is_playing` and `component.is_idle` are in-tree examples.
 
 *   **Type Hints:** Type-hint all function signatures, including test functions and config validators (e.g. `def validate_x(config: ConfigType) -> ConfigType:`, `def test_x() -> None:`). Import `ConfigType` from `esphome.types`.
 
@@ -724,7 +747,9 @@ file does, and it is the authority when they disagree. The most useful starting 
 
         6. **Avoid `std::deque`:** It allocates in 512-byte blocks regardless of element size, guaranteeing at least 512 bytes of RAM usage immediately. This is a major source of crashes on memory-constrained devices.
 
-        7. **Detection:** Look for these patterns in compiler output:
+        7. **Never use `new (std::nothrow)`:** On ESP-IDF exceptions are disabled, so a failed nothrow allocation aborts instead of returning `nullptr`. Use `RAMAllocator` from `esphome/core/helpers.h`; CI rejects `std::nothrow`.
+
+        8. **Detection:** Look for these patterns in compiler output:
            - Large code sections with STL symbols (vector, map, set)
            - `alloc`, `realloc`, `dealloc` in symbol names
            - `_M_realloc_insert`, `_M_default_append` (vector reallocation)
