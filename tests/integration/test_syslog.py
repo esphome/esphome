@@ -31,12 +31,23 @@ class ParsedSyslogMessage(TypedDict):
 # RFC 3164 syslog message pattern:
 # <PRI>TIMESTAMP HOSTNAME TAG: MESSAGE
 # Example: <134>Dec 20 14:30:45 syslog-test app: [D][app:029]: Running...
-SYSLOG_PATTERN = re.compile(
+RFC3164_PATTERN = re.compile(
     r"<(\d+)>"  # PRI (priority = facility * 8 + severity)
-    r"(\S+ +\d+ \d+:\d+:\d+|-)"  # TIMESTAMP (BSD-style "%b %e %H:%M:%S", e.g. "Dec 20 14:30:45", or NILVALUE "-")
-    r" (\S+)"  # HOSTNAME
+    r"(?:(\S+ +\d+ \d+:\d+:\d+) )?"  # Optional BSD TIMESTAMP
+    r"(\S+)"  # HOSTNAME
     r" (\S+):"  # TAG
     r" (.*)"  # MESSAGE
+)
+
+# RFC 5424 syslog message pattern:
+# <PRI>VERSION TIMESTAMP HOSTNAME APP-NAME PROCID MSGID STRUCTURED-DATA MSG
+RFC5424_PATTERN = re.compile(
+    r"<(\d+)>1 "
+    r"(\S+) "
+    r"(\S+) "
+    r"(\S+) "
+    r"- - - "
+    r"(.*)"
 )
 
 
@@ -123,9 +134,10 @@ async def syslog_udp_listener() -> AsyncGenerator[tuple[int, SyslogReceiver]]:
         sock.close()
 
 
-def parse_syslog_message(msg: str) -> ParsedSyslogMessage | None:
+def parse_syslog_message(msg: str, format_: str) -> ParsedSyslogMessage | None:
     """Parse a syslog message and return its components."""
-    match = SYSLOG_PATTERN.match(msg)
+    pattern = RFC3164_PATTERN if format_ == "RFC3164" else RFC5424_PATTERN
+    match = pattern.fullmatch(msg)
     if not match:
         return None
     pri, timestamp, hostname, tag, message = match.groups()
@@ -137,7 +149,7 @@ def parse_syslog_message(msg: str) -> ParsedSyslogMessage | None:
         pri=pri_val,
         facility=facility,
         severity=severity,
-        timestamp=timestamp,
+        timestamp=timestamp or "",
         hostname=hostname,
         tag=tag,
         message=message,
@@ -145,15 +157,18 @@ def parse_syslog_message(msg: str) -> ParsedSyslogMessage | None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("format_", ["RFC3164", "RFC5424"])
 async def test_syslog(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
+    format_: str,
 ) -> None:
     """Test syslog component sends properly formatted messages."""
     async with syslog_udp_listener() as (udp_port, receiver):
         # Replace the placeholder port in the config
         config = yaml_config.replace("SYSLOG_PORT_PLACEHOLDER", str(udp_port))
+        config = config.replace("SYSLOG_FORMAT_PLACEHOLDER", format_)
 
         async with run_compiled(config), api_client_connected() as client:
             # Verify device is running
@@ -176,7 +191,7 @@ async def test_syslog(
             # Parse and validate all messages
             parsed_messages: list[ParsedSyslogMessage] = []
             for msg in receiver.messages:
-                parsed = parse_syslog_message(msg)
+                parsed = parse_syslog_message(msg, format_)
                 if parsed:
                     parsed_messages.append(parsed)
 
@@ -204,10 +219,14 @@ async def test_syslog(
                     f"Unexpected hostname: {parsed['hostname']}"
                 )
 
-                # Validate timestamp format (BSD or NILVALUE)
-                if parsed["timestamp"] != "-":
+                if format_ == "RFC3164" and parsed["timestamp"]:
                     assert re.match(
                         r"[A-Z][a-z]{2} +\d+ \d{2}:\d{2}:\d{2}",
+                        parsed["timestamp"],
+                    ), f"Invalid timestamp format: {parsed['timestamp']}"
+                elif format_ == "RFC5424" and parsed["timestamp"] != "-":
+                    assert re.fullmatch(
+                        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}",
                         parsed["timestamp"],
                     ), f"Invalid timestamp format: {parsed['timestamp']}"
 

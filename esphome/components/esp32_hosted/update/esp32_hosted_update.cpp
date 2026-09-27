@@ -56,7 +56,10 @@ static bool parse_version(const std::string &version_str, int &major, int &minor
   major = minor = patch = 0;
   const char *ptr = version_str.c_str();
 
-  if (!parse_int(ptr, major) || *ptr++ != '.' || !parse_int(ptr, minor))
+  if (!parse_int(ptr, major) || *ptr != '.')
+    return false;
+  ++ptr;
+  if (!parse_int(ptr, minor))
     return false;
   if (*ptr == '.')
     parse_int(++ptr, patch);
@@ -132,6 +135,10 @@ void Esp32HostedUpdate::setup() {
   // Publish state
   this->status_clear_error();
   this->publish_state();
+  // Defer so the automation runs on the main loop after setup, not during App.setup()
+  if (this->state_ == update::UPDATE_STATE_AVAILABLE && this->update_available_trigger_) {
+    this->defer([this]() { this->update_available_trigger_->trigger(this->update_info_); });
+  }
 #else
   // HTTP mode: check every 10s until network is ready (max 6 attempts)
   // Only if update interval is > 1 minute to avoid redundant checks
@@ -162,7 +169,7 @@ void Esp32HostedUpdate::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Mode: HTTP\n"
                 "  Source URL: %s",
-                this->source_url_.c_str());
+                this->source_url_);
 #else
   ESP_LOGCONFIG(TAG,
                 "  Mode: Embedded\n"
@@ -182,6 +189,8 @@ void Esp32HostedUpdate::check() {
     return;
   }
 
+  const bool was_available = this->state_ == update::UPDATE_STATE_AVAILABLE;
+
   // Compare versions
   if (this->update_info_.latest_version.empty() ||
       this->update_info_.latest_version == this->update_info_.current_version) {
@@ -194,6 +203,9 @@ void Esp32HostedUpdate::check() {
   this->update_info_.progress = 0.0f;
   this->status_clear_error();
   this->publish_state();
+  if (this->state_ == update::UPDATE_STATE_AVAILABLE && !was_available && this->update_available_trigger_) {
+    this->update_available_trigger_->trigger(this->update_info_);
+  }
 #endif
 }
 
@@ -203,7 +215,7 @@ bool Esp32HostedUpdate::fetch_manifest_() {
 
   auto container = this->http_request_parent_->get(this->source_url_);
   if (container == nullptr || container->status_code != 200) {
-    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this->source_url_.c_str());
+    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this->source_url_);
     this->status_set_error(LOG_STR("Failed to fetch manifest"));
     return false;
   }

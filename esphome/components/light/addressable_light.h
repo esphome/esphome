@@ -21,7 +21,7 @@ Color color_from_light_color_values(LightColorValues val);
 
 /// Use a custom state class for addressable lights, to allow type system to discriminate between addressable and
 /// non-addressable lights.
-class AddressableLightState : public LightState {
+class AddressableLightState final : public LightState {
   using LightState::LightState;
 };
 

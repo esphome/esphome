@@ -13,7 +13,7 @@ enum Model {
   AJ_SR04M,
 };
 
-class Jsnsr04tComponent : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
+class Jsnsr04tComponent final : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
  public:
   void set_model(Model model) { this->model_ = model; }
 

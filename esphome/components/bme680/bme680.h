@@ -65,7 +65,7 @@ struct BME680CalibrationData {
   int8_t ambient_temperature;
 };
 
-class BME680Component : public PollingComponent, public i2c::I2CDevice {
+class BME680Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   /// Set the temperature oversampling value. Defaults to 16X.
   void set_temperature_oversampling(BME680Oversampling temperature_oversampling);
@@ -74,7 +74,7 @@ class BME680Component : public PollingComponent, public i2c::I2CDevice {
   /// Set the humidity oversampling value. Defaults to 16X.
   void set_humidity_oversampling(BME680Oversampling humidity_oversampling);
   /// Set the IIR Filter value. Defaults to no IIR Filter.
-  void set_iir_filter(BME680IIRFilter iir_filter);
+  void set_iir_filter(BME680IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }

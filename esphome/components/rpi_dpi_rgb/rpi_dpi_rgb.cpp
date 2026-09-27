@@ -54,8 +54,9 @@ void RpiDpiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uin
   // if color mapping is required, pass the buck.
   // note that endianness is not considered here - it is assumed to match!
   if (bitness != display::COLOR_BITNESS_565) {
-    return display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                            x_pad);
+    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
+                                     x_pad);
+    return;
   }
   x_start += this->offset_x_;
   y_start += this->offset_y_;
@@ -74,8 +75,9 @@ void RpiDpiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uin
         break;
     }
   }
-  if (err != ESP_OK)
+  if (err != ESP_OK) {
     ESP_LOGE(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
+  }
 }
 
 int RpiDpiRgb::get_width() {
@@ -99,7 +101,7 @@ int RpiDpiRgb::get_height() {
 }
 
 void RpiDpiRgb::draw_pixel_at(int x, int y, Color color) {
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return;  // NOLINT
 
   switch (this->rotation_) {
@@ -122,7 +124,7 @@ void RpiDpiRgb::draw_pixel_at(int x, int y, Color color) {
 
   this->draw_pixels_at(x, y, 1, 1, (const uint8_t *) &pixel, display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, true,
                        0, 0, 0);
-  App.feed_wdt();
+  this->feed_wdt_per_pixel_();
 }
 
 void RpiDpiRgb::dump_config() {

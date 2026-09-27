@@ -41,7 +41,7 @@ struct AcDimmerDataStore {
 #endif
 };
 
-class AcDimmer : public output::FloatOutput, public Component {
+class AcDimmer final : public output::FloatOutput, public Component {
  public:
   void setup() override;
 

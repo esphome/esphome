@@ -8,6 +8,7 @@ from esphome.components.openthread.const import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_IP_ADDRESS, ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.types import ConfigType
 
 CONF_ROLE = "role"
 CONF_RLOC16 = "rloc16"
@@ -86,13 +87,13 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def setup_conf(config: dict, key: str):
+async def setup_conf(config: dict, key: str) -> None:
     if conf := config.get(key):
         var = await text_sensor.new_text_sensor(conf)
         await cg.register_component(var, conf)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     await setup_conf(config, CONF_IP_ADDRESS)
     await setup_conf(config, CONF_ROLE)
     await setup_conf(config, CONF_RLOC16)

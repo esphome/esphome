@@ -11,7 +11,7 @@ namespace esphome::fs3000 {
 //  1015 has a max speed detection of 15 m/s
 enum FS3000Model { FIVE, FIFTEEN };
 
-class FS3000Component : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
+class FS3000Component final : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
  public:
   void setup() override;
   void update() override;

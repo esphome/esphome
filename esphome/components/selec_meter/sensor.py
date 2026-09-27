@@ -27,11 +27,15 @@ from esphome.const import (
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_HERTZ,
+    UNIT_KILOVOLT_AMPS_HOURS,
+    UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
+    UNIT_KILOWATT_HOURS,
     UNIT_VOLT,
     UNIT_VOLT_AMPS,
     UNIT_VOLT_AMPS_REACTIVE,
     UNIT_WATT,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["modbus"]
 CODEOWNERS = ["@sourabhjaiswal"]
@@ -43,13 +47,10 @@ CONF_MAXIMUM_DEMAND_ACTIVE_POWER = "maximum_demand_active_power"
 CONF_MAXIMUM_DEMAND_REACTIVE_POWER = "maximum_demand_reactive_power"
 CONF_MAXIMUM_DEMAND_APPARENT_POWER = "maximum_demand_apparent_power"
 
-UNIT_KILOWATT_HOURS = "kWh"
-UNIT_KILOVOLT_AMPS_HOURS = "kVAh"
-UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kVARh"
 
 selec_meter_ns = cg.esphome_ns.namespace("selec_meter")
 SelecMeter = selec_meter_ns.class_(
-    "SelecMeter", cg.PollingComponent, modbus.ModbusDevice
+    "SelecMeter", cg.PollingComponent, modbus.ModbusClientDevice
 )
 
 SENSORS = {
@@ -163,10 +164,17 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("selec_meter", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await modbus.register_modbus_device(var, config)
+    await modbus.register_modbus_client_device(var, config)
     for name in SENSORS:
         if name in config:
             sens = await sensor.new_sensor(config[name])

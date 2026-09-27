@@ -51,9 +51,9 @@ enum STAT : uint8_t { STAT_RX0IF = (1 << 0), STAT_RX1IF = (1 << 1) };
 static const uint8_t STAT_RXIF_MASK = STAT_RX0IF | STAT_RX1IF;
 static const uint8_t EFLG_ERRORMASK = EFLG_RX1OVR | EFLG_RX0OVR | EFLG_TXBO | EFLG_TXEP | EFLG_RXEP;
 
-class MCP2515 : public canbus::Canbus,
-                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                      spi::DATA_RATE_8MHZ> {
+class MCP2515 final : public canbus::Canbus,
+                      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                            spi::DATA_RATE_8MHZ> {
  public:
   MCP2515(){};
   void set_mcp_clock(CanClock clock) { this->mcp_clock_ = clock; };

@@ -14,7 +14,7 @@ enum CanMode : uint8_t {
   CAN_MODE_LISTEN_ONLY = 1,
 };
 
-class ESP32Can : public canbus::Canbus {
+class ESP32Can final : public canbus::Canbus {
  public:
   void set_rx(int rx) { rx_ = rx; }
   void set_tx(int tx) { tx_ = tx; }

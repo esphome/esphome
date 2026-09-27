@@ -18,7 +18,7 @@ namespace esphome::ir_rf_proxy {
 
 #ifdef USE_IR_RF
 /// IrRfProxy - Infrared platform implementation using remote_transmitter/receiver as backend
-class IrRfProxy : public infrared::Infrared {
+class IrRfProxy final : public infrared::Infrared {
  public:
   IrRfProxy() = default;
 
@@ -47,7 +47,7 @@ class IrRfProxy : public infrared::Infrared {
 /// Driver-agnostic: integration with specific RF front-end chips (CC1101, RFM69, etc.) is done
 /// in YAML by wiring their actions to `remote_transmitter`'s on_transmit/on_complete triggers and
 /// to this entity's on_control trigger (see radio_frequency component docs).
-class RfProxy : public radio_frequency::RadioFrequency {
+class RfProxy final : public radio_frequency::RadioFrequency {
  public:
   RfProxy() = default;
 
@@ -56,7 +56,8 @@ class RfProxy : public radio_frequency::RadioFrequency {
 
   /// Set the remote transmitter component
   void set_transmitter(remote_base::RemoteTransmitterBase *transmitter) { this->transmitter_ = transmitter; }
-  /// Set the remote receiver component
+  /// Set the remote receiver component; the listener registration happens from codegen, see
+  /// remote_base.attach_receiver
   void set_receiver(remote_base::RemoteReceiverBase *receiver) { this->receiver_ = receiver; }
 
   /// Set the fixed carrier frequency in Hz (metadata: advertised via traits, does not tune hardware)

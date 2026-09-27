@@ -58,7 +58,7 @@ class CombinationOneParameterComponent : public CombinationComponent {
   FixedVector<SensorSource> sensor_sources_;
 };
 
-class KalmanCombinationComponent : public CombinationOneParameterComponent {
+class KalmanCombinationComponent final : public CombinationOneParameterComponent {
  public:
   void dump_config() override;
   void setup() override;
@@ -85,7 +85,7 @@ class KalmanCombinationComponent : public CombinationOneParameterComponent {
   float variance_{INFINITY};
 };
 
-class LinearCombinationComponent : public CombinationOneParameterComponent {
+class LinearCombinationComponent final : public CombinationOneParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("linear")); }
   void setup() override;
@@ -93,49 +93,49 @@ class LinearCombinationComponent : public CombinationOneParameterComponent {
   void handle_new_value(float value);
 };
 
-class MaximumCombinationComponent : public CombinationNoParameterComponent {
+class MaximumCombinationComponent final : public CombinationNoParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("max")); }
 
   void handle_new_value(float value) override;
 };
 
-class MeanCombinationComponent : public CombinationNoParameterComponent {
+class MeanCombinationComponent final : public CombinationNoParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("mean")); }
 
   void handle_new_value(float value) override;
 };
 
-class MedianCombinationComponent : public CombinationNoParameterComponent {
+class MedianCombinationComponent final : public CombinationNoParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("median")); }
 
   void handle_new_value(float value) override;
 };
 
-class MinimumCombinationComponent : public CombinationNoParameterComponent {
+class MinimumCombinationComponent final : public CombinationNoParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("min")); }
 
   void handle_new_value(float value) override;
 };
 
-class MostRecentCombinationComponent : public CombinationNoParameterComponent {
+class MostRecentCombinationComponent final : public CombinationNoParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("most_recently_updated")); }
 
   void handle_new_value(float value) override;
 };
 
-class RangeCombinationComponent : public CombinationNoParameterComponent {
+class RangeCombinationComponent final : public CombinationNoParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("range")); }
 
   void handle_new_value(float value) override;
 };
 
-class SumCombinationComponent : public CombinationNoParameterComponent {
+class SumCombinationComponent final : public CombinationNoParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("sum")); }
 

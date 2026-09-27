@@ -5,7 +5,7 @@
 
 namespace esphome::micronova {
 
-class MicroNovaNumber : public number::Number, public MicroNovaListener {
+class MicroNovaNumber final : public number::Number, public MicroNovaListener {
  public:
   MicroNovaNumber(MicroNova *m) : MicroNovaListener(m) {}
   void dump_config() override;

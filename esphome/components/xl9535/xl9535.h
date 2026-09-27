@@ -17,7 +17,7 @@ enum {
   XL9535_CONFIG_PORT_1_REGISTER = 0x07,
 };
 
-class XL9535Component : public Component, public i2c::I2CDevice {
+class XL9535Component final : public Component, public i2c::I2CDevice {
  public:
   bool digital_read(uint8_t pin);
   void digital_write(uint8_t pin, bool value);
@@ -28,7 +28,7 @@ class XL9535Component : public Component, public i2c::I2CDevice {
   float get_setup_priority() const override { return setup_priority::IO; }
 };
 
-class XL9535GPIOPin : public GPIOPin {
+class XL9535GPIOPin final : public GPIOPin {
  public:
   void set_parent(XL9535Component *parent) { this->parent_ = parent; }
   void set_pin(uint8_t pin) { this->pin_ = pin; }

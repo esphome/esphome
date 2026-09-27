@@ -6,7 +6,7 @@
 
 namespace esphome::stts22h {
 
-class STTS22HComponent : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class STTS22HComponent final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;

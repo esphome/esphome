@@ -251,7 +251,7 @@ class RC522 : public PollingComponent {
   } error_code_{NONE};
 };
 
-class RC522BinarySensor : public binary_sensor::BinarySensor {
+class RC522BinarySensor final : public binary_sensor::BinarySensor {
  public:
   void set_uid(const std::vector<uint8_t> &uid) { uid_ = uid; }
 
@@ -269,7 +269,7 @@ class RC522BinarySensor : public binary_sensor::BinarySensor {
   bool found_{false};
 };
 
-class RC522Trigger : public Trigger<std::string> {
+class RC522Trigger final : public Trigger<std::string> {
  public:
   void process(std::vector<uint8_t> &data);
 };

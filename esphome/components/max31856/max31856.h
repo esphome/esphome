@@ -68,10 +68,10 @@ enum MAX31856ConfigFilter {
   FILTER_50HZ = 1,
 };
 
-class MAX31856Sensor : public sensor::Sensor,
-                       public PollingComponent,
-                       public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                             spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_4MHZ> {
+class MAX31856Sensor final : public sensor::Sensor,
+                             public PollingComponent,
+                             public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                   spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_4MHZ> {
  public:
   void setup() override;
   void dump_config() override;

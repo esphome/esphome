@@ -29,19 +29,13 @@ void Mcp4461Wiper::write_state(float state) {
   }
 }
 
-float Mcp4461Wiper::read_state() { return (static_cast<float>(this->parent_->get_wiper_level_(this->wiper_)) / 256.0); }
+float Mcp4461Wiper::read_state() {
+  return (static_cast<float>(this->parent_->get_wiper_level_(this->wiper_)) / 256.0f);
+}
 
 float Mcp4461Wiper::update_state() {
   this->state_ = this->read_state();
   return this->state_;
-}
-
-void Mcp4461Wiper::set_state(bool state) {
-  if (state) {
-    this->turn_on();
-  } else {
-    this->turn_off();
-  }
 }
 
 void Mcp4461Wiper::turn_on() { this->parent_->enable_wiper_(this->wiper_); }
@@ -61,6 +55,12 @@ void Mcp4461Wiper::decrease_wiper() {
     this->state_ = this->update_state();
     ESP_LOGV(TAG, "Decreased wiper %u to %u", static_cast<uint8_t>(this->wiper_),
              static_cast<uint16_t>(std::roundf(this->state_ * 256)));
+  }
+}
+
+void Mcp4461Wiper::store_nonvolatile() {
+  if (this->parent_->store_level_nonvolatile_(this->wiper_)) {
+    ESP_LOGV(TAG, "Stored wiper %u level to nonvolatile register", static_cast<uint8_t>(this->wiper_));
   }
 }
 

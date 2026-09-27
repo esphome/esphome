@@ -1,0 +1,29 @@
+# Config-only: a controller polling the broadcast address (0), for a device that answers it, with a
+# writer entity expecting the reply to its broadcast writes. Never compiled, so the extra entities do
+# not inflate the memory-impact baseline.
+packages:
+  modbus: !include ../../test_build_components/common/modbus/esp32-idf.yaml
+
+modbus_controller:
+  - id: modbus_controller_broadcast
+    address: 0
+    allow_broadcast_read: true
+    modbus_id: modbus_bus
+
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_broadcast
+    id: modbus_broadcast_sensor
+    name: Broadcast Read Sensor
+    register_type: holding
+    address: 0x0010
+    value_type: U_WORD
+
+switch:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_broadcast
+    id: modbus_broadcast_switch
+    name: Broadcast Write Switch
+    register_type: coil
+    address: 0x20
+    expect_broadcast_write_response: true

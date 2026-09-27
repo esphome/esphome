@@ -31,7 +31,7 @@ class DateTimeBase : public EntityBase {
 #endif
 };
 
-class DateTimeStateTrigger : public Trigger<ESPTime> {
+class DateTimeStateTrigger final : public Trigger<ESPTime> {
  public:
   explicit DateTimeStateTrigger(DateTimeBase *parent) : parent_(parent) {
     parent->add_on_state_callback([this]() { this->trigger(this->parent_->state_as_esptime()); });

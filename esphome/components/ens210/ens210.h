@@ -7,7 +7,7 @@
 namespace esphome::ens210 {
 
 /// This class implements support for the ENS210 relative humidity and temperature i2c sensor.
-class ENS210Component : public PollingComponent, public i2c::I2CDevice {
+class ENS210Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void dump_config() override;
   void setup() override;

@@ -6,12 +6,7 @@
 
 namespace esphome::sx127x {
 
-template<typename... Ts> class RunImageCalAction : public Action<Ts...>, public Parented<SX127x> {
- public:
-  void play(const Ts &...x) override { this->parent_->run_image_cal(); }
-};
-
-template<typename... Ts> class SendPacketAction : public Action<Ts...>, public Parented<SX127x> {
+template<typename... Ts> class SendPacketAction final : public Action<Ts...>, public Parented<SX127x> {
  public:
   void set_data_template(std::vector<uint8_t> (*func)(Ts...)) {
     this->data_.func = func;
@@ -41,26 +36,6 @@ template<typename... Ts> class SendPacketAction : public Action<Ts...>, public P
     std::vector<uint8_t> (*func)(Ts...);  // Function pointer (stateless lambdas)
     const uint8_t *data;                  // Pointer to static data in flash
   } data_;
-};
-
-template<typename... Ts> class SetModeTxAction : public Action<Ts...>, public Parented<SX127x> {
- public:
-  void play(const Ts &...x) override { this->parent_->set_mode_tx(); }
-};
-
-template<typename... Ts> class SetModeRxAction : public Action<Ts...>, public Parented<SX127x> {
- public:
-  void play(const Ts &...x) override { this->parent_->set_mode_rx(); }
-};
-
-template<typename... Ts> class SetModeSleepAction : public Action<Ts...>, public Parented<SX127x> {
- public:
-  void play(const Ts &...x) override { this->parent_->set_mode_sleep(); }
-};
-
-template<typename... Ts> class SetModeStandbyAction : public Action<Ts...>, public Parented<SX127x> {
- public:
-  void play(const Ts &...x) override { this->parent_->set_mode_standby(); }
 };
 
 }  // namespace esphome::sx127x

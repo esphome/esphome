@@ -250,6 +250,16 @@ def add_pin_validators():
         "modes": ["input"],
     }
 
+    from esphome.components import gpio_expander
+
+    # Wraps pins.internal_gpio_input_pin_schema, so the editor schema must keep
+    # treating the config var as a pin
+    pin_validators[repr(gpio_expander.validate_interrupt_pin)] = {
+        "schema": True,
+        "internal": True,
+        "modes": ["input"],
+    }
+
 
 def add_module_registries(domain, module):
     for attr_name in dir(module):
@@ -390,16 +400,6 @@ def fix_mapping():
     output["mapping"][S_SCHEMAS][S_CONFIG_SCHEMA] = config
 
 
-def fix_image():
-    if "image" not in output:
-        return
-    from esphome.components.image import IMAGE_SCHEMA
-
-    config = convert_config(IMAGE_SCHEMA, "image/CONFIG_SCHEMA")
-    config["is_list"] = True
-    output["image"][S_SCHEMAS][S_CONFIG_SCHEMA] = config
-
-
 def fix_menu():
     if "display_menu_base" not in output:
         return
@@ -426,6 +426,33 @@ def fix_menu():
     menu = schemas["MENU_TYPES"][S_SCHEMA][S_CONFIG_VARS]["items"]["types"]["menu"]
     menu[S_CONFIG_VARS].pop("items")
     menu[S_EXTENDS].append("display_menu_base.MENU_TYPES")
+
+
+def fix_lvgl_widgets():
+    # lvgl's `widgets:` is a recursive tree (a widget can contain widgets). The
+    # dumper has no cycle detection, so — like fix_menu — hoist the inlined
+    # widget-type enumeration into a named schema and reference it for both the
+    # top-level list and each widget's own children, instead of expanding it.
+    if "lvgl" not in output:
+        return
+    schemas = output["lvgl"][S_SCHEMAS]
+    config_vars = schemas["CONFIG_SCHEMA"][S_SCHEMA][S_CONFIG_VARS]
+    widgets = config_vars.get("widgets")
+    if not widgets or S_SCHEMA not in widgets or S_CONFIG_VARS not in widgets[S_SCHEMA]:
+        return
+    # 1. Hoist the (one-level) widget enumeration into a named schema.
+    schemas["WIDGET_TYPES"] = {S_TYPE: S_SCHEMA, S_SCHEMA: widgets[S_SCHEMA]}
+    # 2. Reference it from the top-level widgets: list instead of inlining.
+    widgets[S_SCHEMA] = {S_EXTENDS: ["lvgl.WIDGET_TYPES"]}
+    # 3. Let every widget contain child widgets, via the same named ref.
+    for widget in schemas["WIDGET_TYPES"][S_SCHEMA][S_CONFIG_VARS].values():
+        if widget.get(S_TYPE) == S_SCHEMA and S_SCHEMA in widget:
+            widget[S_SCHEMA].setdefault(S_CONFIG_VARS, {})["widgets"] = {
+                S_TYPE: S_SCHEMA,
+                "is_list": True,
+                "key": "Optional",
+                S_SCHEMA: {S_EXTENDS: ["lvgl.WIDGET_TYPES"]},
+            }
 
 
 def get_logger_tags():
@@ -736,10 +763,10 @@ def build_schema():
     fix_font()
     fix_globals()
     fix_mapping()
-    fix_image()
     add_logger_tags()
     shrink()
     fix_menu()
+    fix_lvgl_widgets()
 
     # aggregate components, so all component info is in same file, otherwise we have dallas.json, dallas.sensor.json, etc.
     data = {}
@@ -756,6 +783,29 @@ def build_schema():
 
     # bundle core inside esphome
     data["esphome"]["core"] = data.pop("core")["core"]
+
+    # Surface deprecated component aliases (declared via ``ALIASES = [...]``
+    # on the canonical component) so language servers / dashboard
+    # autocomplete still accept legacy top-level keys instead of flagging
+    # them as unknown. Each alias gets its own bundle that mirrors the
+    # canonical schema; ``alias_of`` and the optional ``removal_version``
+    # metadata let consumers render a deprecation hint and point users at
+    # the canonical name. Without this, configs migrated only at runtime
+    # (via the ``_resolve_component_aliases`` pre-pass) would still light
+    # up as errors in the editor.
+    for domain, manifest in components.items():
+        aliases = manifest.aliases
+        if not aliases or domain not in data:
+            continue
+        canonical_bundle = data[domain].get(domain)
+        if canonical_bundle is None:
+            continue
+        for alias in aliases:
+            alias_entry = dict(canonical_bundle)
+            alias_entry["alias_of"] = domain
+            if manifest.alias_removal_version is not None:
+                alias_entry["removal_version"] = manifest.alias_removal_version
+            data[alias] = {alias: alias_entry}
 
     if GENERATED_ID_TYPES:
         print(
@@ -923,10 +973,24 @@ def convert(schema, config_var, path):
         elif schema_type == "enum":
             config_var[S_TYPE] = "enum"
             config_var["values"] = dict.fromkeys(list(data.keys()))
+        elif schema_type == "variant_enum":
+            # Per-variant enum (e.g. psram mode/speed): each value carries the
+            # list of variants that accept it so clients can filter to the
+            # user's selected variant. Additive to the plain enum format —
+            # consumers that ignore the metadata still see every option.
+            config_var[S_TYPE] = "enum"
+            config_var["values"] = {
+                value: {"variants": variants} for value, variants in data.items()
+            }
         elif schema_type == "maybe":
-            config_var[S_TYPE] = S_SCHEMA
+            # maybe_simple_value: either a scalar shorthand (mapped to the key in
+            # data[1]) or the full wrapped schema. The wrapped schema is usually a
+            # plain Schema (converts to a "schema" config var), but may be something
+            # else, e.g. a typed_schema (converts to a "typed" config var with
+            # "types" and no top-level "schema" key). Merge whatever it produced
+            # rather than assuming a "schema" key is present.
             config_var["maybe"] = data[1]
-            config_var["schema"] = convert_config(data[0], path + "/maybe")["schema"]
+            config_var.update(convert_config(data[0], path + "/maybe"))
         # esphome/on_boot
         elif schema_type == "automation":
             extra_schema = None
@@ -997,6 +1061,10 @@ def convert(schema, config_var, path):
             else:
                 config_var["use_id_type"] = str(data.base)
                 config_var[S_TYPE] = "use_id"
+        elif schema_type == "schema":
+            # A callable CONFIG_SCHEMA that returned a representative schema
+            # for extraction (model-driven components); walk it as usual.
+            convert(data, config_var, path)
         else:
             raise TypeError("Unknown extracted schema type")
     elif config_var.get("key") == "GeneratedID":
@@ -1076,12 +1144,28 @@ def convert_keys(converted, schema, path):
         else:
             converted["key"] = "String"
             key_string_match = re.search(
-                r"<function (\w*) at \w*>", str(k), re.IGNORECASE
+                r"<function ([^ ]+) at \w+>", str(k), re.IGNORECASE
             )
             if key_string_match:
                 converted["key_type"] = key_string_match.group(1)
             else:
                 converted["key_type"] = str(k)
+
+        # A marker-wrapped callable key (e.g. script.execute's
+        # ``cv.Optional(validate_parameter_name)``) is a wildcard matcher;
+        # ``str(marker)`` is the function repr, whose heap address would
+        # churn the dump every build. Normalize like the bare-callable
+        # branch above: record the validator name in ``key_type`` and file
+        # the config var under ``string``.
+        key_name = str(k)
+        if isinstance(k, vol.Marker) and callable(k.schema):
+            key_string_match = re.search(
+                r"<function ([^ ]+) at \w+>", key_name, re.IGNORECASE
+            )
+            result["key_type"] = (
+                key_string_match.group(1) if key_string_match else key_name
+            )
+            key_name = "string"
 
         # ``cv.OnlyWith`` / ``cv.OnlyWithout`` expose ``default`` as
         # a property that returns ``vol.UNDEFINED`` when the gating
@@ -1162,7 +1246,7 @@ def convert_keys(converted, schema, path):
         for base_k, base_v in get_overridden_config(k, converted).items():
             if base_k in result and base_v == result[base_k]:
                 result.pop(base_k)
-        converted["schema"][S_CONFIG_VARS][str(k)] = result
+        converted["schema"][S_CONFIG_VARS][key_name] = result
         if "key" in converted and converted["key"] == "String":
             config_vars = converted["schema"]["config_vars"]
             assert len(config_vars) == 1

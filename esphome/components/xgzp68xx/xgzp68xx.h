@@ -20,7 +20,7 @@ enum XGZP68XXOversampling : uint8_t {
   XGZP68XX_OVERSAMPLING_UNKNOWN = (uint8_t) -1,
 };
 
-class XGZP68XXComponent : public PollingComponent, public sensor::Sensor, public i2c::I2CDevice {
+class XGZP68XXComponent final : public PollingComponent, public sensor::Sensor, public i2c::I2CDevice {
  public:
   SUB_SENSOR(temperature)
   SUB_SENSOR(pressure)

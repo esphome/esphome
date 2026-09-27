@@ -22,7 +22,7 @@ class GPSListener {
   GPS *parent_;
 };
 
-class GPS : public PollingComponent, public uart::UARTDevice {
+class GPS final : public PollingComponent, public uart::UARTDevice {
  public:
   void set_latitude_sensor(sensor::Sensor *latitude_sensor) { this->latitude_sensor_ = latitude_sensor; }
   void set_longitude_sensor(sensor::Sensor *longitude_sensor) { this->longitude_sensor_ = longitude_sensor; }

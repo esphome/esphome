@@ -1,3 +1,5 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
@@ -50,7 +52,7 @@ def _request_roles(config: ConfigType) -> ConfigType:
 _HUB_ID_SCHEMA = cv.Schema({cv.GenerateID(CONF_SENDSPIN_ID): cv.use_id(SendspinHub)})
 
 
-def _metadata_schema(**sensor_kwargs):
+def _metadata_schema(**sensor_kwargs: Any) -> cv.Schema:
     """Schema for event-driven numeric metadata sensors (duration/year/track)."""
     return (
         sensor.sensor_schema(

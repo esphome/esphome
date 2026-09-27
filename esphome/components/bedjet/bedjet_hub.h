@@ -33,7 +33,7 @@ static const espbt::ESPBTUUID BEDJET_NAME_UUID = espbt::ESPBTUUID::from_raw("000
 /**
  * Hub component connecting to the BedJet device over Bluetooth.
  */
-class BedJetHub : public esphome::ble_client::BLEClientNode, public PollingComponent {
+class BedJetHub final : public esphome::ble_client::BLEClientNode, public PollingComponent {
  public:
   /* BedJet functionality exposed to `BedJetClient` children and/or accessible from action lambdas. */
 

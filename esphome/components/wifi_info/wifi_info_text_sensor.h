@@ -87,7 +87,7 @@ class PowerSaveModeWiFiInfo final : public Component,
 class MacAddressWifiInfo final : public Component, public text_sensor::TextSensor {
  public:
   void setup() override {
-    char mac_s[18];
+    char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
     this->publish_state(get_mac_address_pretty_into_buffer(mac_s));
   }
   void dump_config() override;

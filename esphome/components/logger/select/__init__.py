@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_LEVEL, CONF_LOGGER, ENTITY_CATEGORY_CONFIG, ICON_BUG
 from esphome.core import CORE
 from esphome.cpp_helpers import register_component, register_parented
+from esphome.types import ConfigType
 
 from .. import (
     CONF_LOGGER_ID,
@@ -26,7 +27,7 @@ CONFIG_SCHEMA = select.select_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     request_logger_level_listeners()
     parent = await cg.get_variable(config[CONF_LOGGER_ID])
     levels = list(LOG_LEVELS)

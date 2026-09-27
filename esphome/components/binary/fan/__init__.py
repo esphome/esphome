@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import fan, output
 import esphome.config_validation as cv
 from esphome.const import CONF_DIRECTION_OUTPUT, CONF_OSCILLATION_OUTPUT, CONF_OUTPUT
+from esphome.types import ConfigType
 
 from .. import binary_ns
 
@@ -20,7 +21,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await fan.new_fan(config)
     await cg.register_component(var, config)
 

@@ -205,7 +205,7 @@ void BL0906::read_data_(const uint8_t address, const float reference, sensor::Se
   // Chip temperature
   if (reference == BL0906_TREF) {
     value = (float) to_int32_t(data_s24);
-    value = (value - 64) * 12.5 / 59 - 40;
+    value = (value - 64) * 12.5f / 59 - 40;
   }
   sensor->publish_state(value);
 }

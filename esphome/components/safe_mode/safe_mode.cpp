@@ -117,19 +117,31 @@ void SafeModeComponent::dump_config() {
 
 float SafeModeComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 
-void SafeModeComponent::mark_successful() {
-  this->clean_rtc();
-  this->boot_successful_ = true;
-#if defined(USE_OTA_ROLLBACK)
-// Mark OTA partition as valid to prevent rollback
+#ifdef USE_OTA_ROLLBACK
+void SafeModeComponent::confirm_app_image_() {
+  // Mark the running app image as valid so the bootloader will not roll back
+  // to the previously flashed image
 #if defined(USE_ZEPHYR)
   if (!boot_is_img_confirmed()) {
     boot_write_img_confirmed();
   }
 #elif defined(USE_ESP32)
-  // Mark OTA partition as valid to prevent rollback
-  esp_ota_mark_app_valid_cancel_rollback();
+  // esp_ota_mark_app_valid_cancel_rollback() acts on the partition selected
+  // for the next boot, not the running one. After an OTA update those differ:
+  // the new image is already selected, and marking it valid before it has ever
+  // booted would disable rollback protection for that update.
+  if (esp_ota_get_running_partition() == esp_ota_get_boot_partition()) {
+    esp_ota_mark_app_valid_cancel_rollback();
+  }
 #endif
+}
+#endif
+
+void SafeModeComponent::mark_successful() {
+  this->clean_rtc();
+  this->boot_successful_ = true;
+#ifdef USE_OTA_ROLLBACK
+  this->confirm_app_image_();
 #endif
   // Disable loop since we no longer need to check
   this->disable_loop();
@@ -162,13 +174,13 @@ bool SafeModeComponent::get_safe_mode_pending() {
   return this->read_rtc_() == SafeModeComponent::ENTER_SAFE_MODE_MAGIC;
 }
 
-bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time,
-                                               uint32_t boot_is_good_after) {
+bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time, uint32_t boot_is_good_after,
+                                               bool in_flash) {
   this->safe_mode_start_time_ = millis();
   this->safe_mode_enable_time_ = enable_time;
   this->safe_mode_boot_is_good_after_ = boot_is_good_after;
   this->safe_mode_num_attempts_ = num_attempts;
-  this->rtc_ = global_preferences->make_preference<uint32_t>(RTC_KEY, false);
+  this->rtc_ = global_preferences->make_preference<uint32_t>(RTC_KEY, in_flash);
 
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
   // Check partition state to detect if bootloader supports rollback
@@ -243,12 +255,17 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
 }
 
 void SafeModeComponent::write_rtc_(uint32_t val) {
-  this->rtc_.save(&val);
-  global_preferences->sync();
+  if (!this->rtc_.save(&val)) {
+    ESP_LOGE(TAG, "Failed to set rtc value (%" PRIu32 ")", val);
+    return;
+  }
+  if (!global_preferences->sync()) {
+    ESP_LOGE(TAG, "Failed to persist rtc value (%" PRIu32 ")", val);
+  }
 }
 
 uint32_t SafeModeComponent::read_rtc_() {
-  uint32_t val;
+  uint32_t val = 0;
   if (!this->rtc_.load(&val))
     return 0;
   return val;
@@ -260,12 +277,23 @@ void SafeModeComponent::clean_rtc() {
   // before sync, the boot wasn't really successful anyway and the counter should
   // remain incremented.
   uint32_t val = 0;
-  this->rtc_.save(&val);
+  if (!this->rtc_.save(&val)) {
+    ESP_LOGE(TAG, "Failed to clear boot loop counter");
+  }
 }
 
 void SafeModeComponent::on_safe_shutdown() {
   if (this->read_rtc_() != SafeModeComponent::ENTER_SAFE_MODE_MAGIC)
     this->clean_rtc();
+#if defined(USE_OTA_ROLLBACK) && defined(USE_SAFE_MODE_BOOT_IS_GOOD_ON_SHUTDOWN)
+  // An orderly shutdown (deep sleep, restart, power off) means the firmware is
+  // functional, so confirm the running app image even if boot_is_good_after has
+  // not elapsed yet. Without this, a device that enters deep sleep shortly
+  // after waking would have every OTA update rolled back by the bootloader on
+  // the next wake. Can be turned off with boot_is_good_on_shutdown: false for
+  // strict rollback semantics.
+  this->confirm_app_image_();
+#endif
 }
 
 }  // namespace esphome::safe_mode

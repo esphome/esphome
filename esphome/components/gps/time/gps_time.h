@@ -6,7 +6,7 @@
 
 namespace esphome::gps {
 
-class GPSTime : public time::RealTimeClock, public GPSListener {
+class GPSTime final : public time::RealTimeClock, public GPSListener {
  public:
   void update() override { this->from_tiny_gps_(this->get_tiny_gps()); };
   void on_update(TinyGPSPlus &tiny_gps) override {

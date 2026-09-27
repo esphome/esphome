@@ -4,6 +4,7 @@
 
 #include <cinttypes>
 #include <cmath>
+#include <numbers>
 
 namespace esphome::rd03d {
 
@@ -54,8 +55,9 @@ void RD03DComponent::setup() {
 void RD03DComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "RD-03D:");
   if (this->tracking_mode_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Tracking Mode: %s",
-                  *this->tracking_mode_ == TrackingMode::SINGLE_TARGET ? "single" : "multi");
+    ESP_LOGCONFIG(
+        TAG, "  Tracking Mode: %s",
+        *this->tracking_mode_ == TrackingMode::SINGLE_TARGET ? LOG_STR_LITERAL("single") : LOG_STR_LITERAL("multi"));
   }
   if (this->throttle_ > 0) {
     ESP_LOGCONFIG(TAG, "  Throttle: %" PRIu32 "ms", this->throttle_);
@@ -233,7 +235,7 @@ void RD03DComponent::publish_target_(uint8_t target_num, int16_t x, int16_t y, i
   // Angle is measured from the Y axis (radar forward direction)
   if (target.angle != nullptr) {
     if (valid) {
-      float angle = std::atan2(static_cast<float>(x), static_cast<float>(y)) * 180.0f / M_PI;
+      float angle = std::atan2(static_cast<float>(x), static_cast<float>(y)) * 180.0f / std::numbers::pi_v<float>;
       target.angle->publish_state(angle);
     } else {
       target.angle->publish_state(NAN);

@@ -6,7 +6,7 @@
 
 namespace esphome::tmp102 {
 
-class TMP102Component : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
+class TMP102Component final : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
  public:
   void dump_config() override;
   void update() override;

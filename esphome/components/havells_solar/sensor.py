@@ -23,11 +23,13 @@ from esphome.const import (
     UNIT_AMPERE,
     UNIT_DEGREES,
     UNIT_HERTZ,
+    UNIT_KILOWATT_HOURS,
     UNIT_MINUTE,
     UNIT_VOLT,
     UNIT_VOLT_AMPS_REACTIVE,
     UNIT_WATT,
 )
+from esphome.types import ConfigType
 
 CONF_ENERGY_PRODUCTION_DAY = "energy_production_day"
 CONF_TOTAL_ENERGY_PRODUCTION = "total_energy_production"
@@ -35,7 +37,6 @@ CONF_TOTAL_GENERATION_TIME = "total_generation_time"
 CONF_TODAY_GENERATION_TIME = "today_generation_time"
 CONF_PV1 = "pv1"
 CONF_PV2 = "pv2"
-UNIT_KILOWATT_HOURS = "kWh"
 UNIT_HOURS = "h"
 UNIT_KOHM = "kΩ"
 UNIT_MILLIAMPERE = "mA"
@@ -58,7 +59,7 @@ CODEOWNERS = ["@sourabhjaiswal"]
 
 havells_solar_ns = cg.esphome_ns.namespace("havells_solar")
 HavellsSolar = havells_solar_ns.class_(
-    "HavellsSolar", cg.PollingComponent, modbus.ModbusDevice
+    "HavellsSolar", cg.PollingComponent, modbus.ModbusClientDevice
 )
 
 PHASE_SENSORS = {
@@ -216,10 +217,17 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("havells_solar", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await modbus.register_modbus_device(var, config)
+    await modbus.register_modbus_client_device(var, config)
 
     if CONF_FREQUENCY in config:
         sens = await sensor.new_sensor(config[CONF_FREQUENCY])

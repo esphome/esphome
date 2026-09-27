@@ -8,10 +8,10 @@
 
 namespace esphome::nfc {
 
-class NfcTagBinarySensor : public binary_sensor::BinarySensor,
-                           public Component,
-                           public NfcTagListener,
-                           public Parented<Nfcc> {
+class NfcTagBinarySensor final : public binary_sensor::BinarySensor,
+                                 public Component,
+                                 public NfcTagListener,
+                                 public Parented<Nfcc> {
  public:
   void setup() override;
   void dump_config() override;

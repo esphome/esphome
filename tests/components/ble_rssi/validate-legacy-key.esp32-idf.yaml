@@ -1,0 +1,11 @@
+# Config-only: pins the esp32_ble_id: -> ble_hub_id: deprecation alias — the
+# legacy key must keep validating (with a rename warning) until its removal
+# release (2027.2.0).
+esp32_ble_tracker:
+  id: legacy_tracker
+
+sensor:
+  - platform: ble_rssi
+    esp32_ble_id: legacy_tracker
+    mac_address: AC:37:43:77:5F:4C
+    name: Legacy Key RSSI

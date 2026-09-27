@@ -24,7 +24,7 @@ using namespace bytebuffer;
 
 class BLEService;
 
-class BLECharacteristic {
+class BLECharacteristic final {
  public:
   BLECharacteristic(ESPBTUUID uuid, uint32_t properties);
   ~BLECharacteristic();

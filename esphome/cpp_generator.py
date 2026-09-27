@@ -19,7 +19,7 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
-from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
+from esphome.helpers import cpp_string_escape, indent, indent_all_but_first_and_last
 from esphome.types import Expression, SafeExpType, TemplateArgsType
 from esphome.util import OrderedDict
 from esphome.yaml_util import ESPHomeDataBase
@@ -670,6 +670,28 @@ def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":
     return Pvariable(id_, rhs)
 
 
+def static_function(
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+    body: list[str],
+) -> RawExpression:
+    """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
+    expression naming it, for use as a template argument or a function pointer.
+
+    Every id the body names must already be declared, which holds when the statements were
+    rendered through ``get_variable`` or ``process_lambda``.
+    """
+    params = ParameterListExpression(*parameters)
+    add_global(
+        RawStatement(
+            f"static {safe_exp(return_type)} {name}({params}) {{\n"
+            f"{indent(chr(10).join(body))}\n}}"
+        )
+    )
+    return RawExpression(name)
+
+
 def add(expression: Expression | Statement, prepend: bool = False):
     """Add an expression to the codegen section.
 
@@ -699,21 +721,28 @@ def add_build_flag(build_flag: str):
     CORE.add_build_flag(build_flag)
 
 
+def add_cmake_arg(name: str, value: str) -> None:
+    """Add a CMake arg for CMake-based toolchains; see ``EsphomeCore.add_cmake_arg``."""
+    CORE.add_cmake_arg(name, value)
+
+
+def add_cxx_build_flag(build_flag: str) -> None:
+    """Add a global build flag that applies to C++ compiles only.
+
+    Use for flags GCC rejects or warns about when passed on C compiles
+    (e.g. ``-Wno-volatile``).
+    """
+    CORE.add_cxx_build_flag(build_flag)
+
+
 def add_build_unflag(build_unflag: str) -> None:
     """Add a global build unflag to the compiler flags."""
     CORE.add_build_unflag(build_unflag)
 
 
 def set_cpp_standard(standard: str) -> None:
-    """Set C++ standard with compiler flag `-std={standard}`."""
-    CORE.add_build_unflag("-std=gnu++11")
-    CORE.add_build_unflag("-std=gnu++14")
-    CORE.add_build_unflag("-std=gnu++17")
-    CORE.add_build_unflag("-std=gnu++23")
-    CORE.add_build_unflag("-std=gnu++2a")
-    CORE.add_build_unflag("-std=gnu++2b")
-    CORE.add_build_unflag("-std=gnu++2c")
-    CORE.add_build_flag(f"-std={standard}")
+    """Set the C++ language standard for the build (e.g. ``gnu++20``)."""
+    CORE.cpp_standard = standard
 
 
 def add_define(name: str, value: SafeExpType = None):
@@ -1180,3 +1209,48 @@ class MockObjClass(MockObj):
 
     def __repr__(self):
         return f"MockObjClass<{str(self.base)}, parents={self._parents}>"
+
+
+class StaticCastExpression(Expression):
+    __slots__ = ("type", "exp")
+
+    def __init__(self, type: Any, exp: SafeExpType):
+        self.type = str(type)
+        self.exp = safe_exp(exp)
+
+    def __str__(self):
+        return f"static_cast<{self.type}>({self.exp})"
+
+
+def call_lambda(lamb: LambdaExpression) -> Expression:
+    """
+    Given a lambda, either reduce to a simple expression or call it, possibly with parameters
+    from the surrounding context.
+    This is for use only with value-returning lambdas, used in places where the value of a lambda call is needed.
+    :param lamb: The LambdaExpression to call or reduce
+    :return: An Expression representing the result of calling the lambda or reducing it to a simple expression
+    """
+    # Developer error if this is called with a lambda that doesn't have a return type
+    assert lamb.return_type is not None, "Lambda must have a return type to be called"
+    expr = lamb.content.strip()
+    # A lone `return <expr>;` reduces to the expression; anything longer is called as is.
+    # A braced return such as `return {};` needs the lambda's return type, so it is called.
+    if (
+        re.match(r"^return\b", expr)
+        and expr.endswith(";")
+        and expr.count(";") == 1
+        and not expr[6:].lstrip().startswith("{")
+    ):
+        expr = RawExpression(expr[6:-1].strip())
+        # Don't cast if the return type is a class
+        if isinstance(lamb.return_type, MockObjClass):
+            return expr
+        return StaticCastExpression(lamb.return_type, expr)
+    # If lambda has parameters, call it with their names
+    # Parameter names come from hardcoded component code (like "x", "it", "event")
+    # not from user input, so they're safe to use directly
+    if lamb.parameters and lamb.parameters.parameters:
+        return CallExpression(
+            lamb, *[MockObj(x.id) for x in lamb.parameters.parameters]
+        )
+    return CallExpression(lamb)

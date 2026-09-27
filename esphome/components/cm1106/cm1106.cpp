@@ -100,7 +100,6 @@ bool CM1106Component::cm1106_write_command_(const uint8_t *command, size_t comma
 void CM1106Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CM1106:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
-  this->check_uart_settings(9600);
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }

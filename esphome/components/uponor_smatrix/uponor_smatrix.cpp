@@ -29,8 +29,6 @@ void UponorSmatrixComponent::dump_config() {
   }
 #endif
 
-  this->check_uart_settings(19200);
-
   if (!this->unknown_devices_.empty()) {
     ESP_LOGCONFIG(TAG, "  Detected unknown device addresses:");
     for (auto device_address : this->unknown_devices_) {
@@ -110,8 +108,9 @@ bool UponorSmatrixComponent::parse_byte_(uint8_t byte) {
   // Handle packet
   size_t data_len = (packet_len - 6) / 3;
   if (data_len == 0) {
-    if (packet[4] == UPONOR_ID_REQUEST)
+    if (packet[4] == UPONOR_ID_REQUEST) {
       ESP_LOGVV(TAG, "Ignoring request packet for device 0x%08" PRIX32 "", device_address);
+    }
     return true;
   }
 

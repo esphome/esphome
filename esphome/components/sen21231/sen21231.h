@@ -63,7 +63,7 @@ using person_sensor_results_t = struct __attribute__((__packed__)) {
   uint16_t checksum;                                          // Bytes 38-39.
 };
 
-class Sen21231Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class Sen21231Sensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void update() override;
   void dump_config() override;

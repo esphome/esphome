@@ -4,6 +4,7 @@ from typing import Any
 import esphome.codegen as cg
 from esphome.components import image
 from esphome.components.color import CONF_HEX, ColorStruct, from_rgbw
+from esphome.components.const.css_colors import CSS_COLORS
 from esphome.components.font import Font
 from esphome.components.image import Image_
 import esphome.config_validation as cv
@@ -16,23 +17,24 @@ from esphome.const import (
     CONF_VALUE,
 )
 from esphome.core import CORE, ID, Lambda
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import MockObj, StaticCastExpression, call_lambda
 from esphome.cpp_types import ESPTime, int32, uint32
 from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
+from ..mapping import INDEX_TYPES, get_mapping_metadata
 from . import types as ty
 from .defines import (
     CONF_END_VALUE,
+    CONF_IMAGE,
+    CONF_MAPPING,
     CONF_START_VALUE,
     CONF_TIME_FORMAT,
     LV_FONTS,
     LValidator,
     LvConstant,
-    StaticCastExpression,
     add_lv_use,
-    call_lambda,
     get_esphome_fonts_used,
     get_lv_fonts_used,
     get_lv_images_used,
@@ -60,186 +62,54 @@ opacity = LValidator(
     opacity_validator,
     lv_opa_t,
     retmapper=lambda opa: StaticCastExpression(cg.uint8, opa * 255.0),
+    animatable=True,
 )
-
-COLOR_NAMES = {
-    "aliceblue": 0xF0F8FF,
-    "antiquewhite": 0xFAEBD7,
-    "aqua": 0x00FFFF,
-    "aquamarine": 0x7FFFD4,
-    "azure": 0xF0FFFF,
-    "beige": 0xF5F5DC,
-    "bisque": 0xFFE4C4,
-    "black": 0x000000,
-    "blanchedalmond": 0xFFEBCD,
-    "blue": 0x0000FF,
-    "blueviolet": 0x8A2BE2,
-    "brown": 0xA52A2A,
-    "burlywood": 0xDEB887,
-    "cadetblue": 0x5F9EA0,
-    "chartreuse": 0x7FFF00,
-    "chocolate": 0xD2691E,
-    "coral": 0xFF7F50,
-    "cornflowerblue": 0x6495ED,
-    "cornsilk": 0xFFF8DC,
-    "crimson": 0xDC143C,
-    "cyan": 0x00FFFF,
-    "darkblue": 0x00008B,
-    "darkcyan": 0x008B8B,
-    "darkgoldenrod": 0xB8860B,
-    "darkgray": 0xA9A9A9,
-    "darkgreen": 0x006400,
-    "darkgrey": 0xA9A9A9,
-    "darkkhaki": 0xBDB76B,
-    "darkmagenta": 0x8B008B,
-    "darkolivegreen": 0x556B2F,
-    "darkorange": 0xFF8C00,
-    "darkorchid": 0x9932CC,
-    "darkred": 0x8B0000,
-    "darksalmon": 0xE9967A,
-    "darkseagreen": 0x8FBC8F,
-    "darkslateblue": 0x483D8B,
-    "darkslategray": 0x2F4F4F,
-    "darkslategrey": 0x2F4F4F,
-    "darkturquoise": 0x00CED1,
-    "darkviolet": 0x9400D3,
-    "deeppink": 0xFF1493,
-    "deepskyblue": 0x00BFFF,
-    "dimgray": 0x696969,
-    "dimgrey": 0x696969,
-    "dodgerblue": 0x1E90FF,
-    "firebrick": 0xB22222,
-    "floralwhite": 0xFFFAF0,
-    "forestgreen": 0x228B22,
-    "fuchsia": 0xFF00FF,
-    "gainsboro": 0xDCDCDC,
-    "ghostwhite": 0xF8F8FF,
-    "goldenrod": 0xDAA520,
-    "gold": 0xFFD700,
-    "gray": 0x808080,
-    "green": 0x008000,
-    "greenyellow": 0xADFF2F,
-    "grey": 0x808080,
-    "honeydew": 0xF0FFF0,
-    "hotpink": 0xFF69B4,
-    "indianred": 0xCD5C5C,
-    "indigo": 0x4B0082,
-    "ivory": 0xFFFFF0,
-    "khaki": 0xF0E68C,
-    "lavenderblush": 0xFFF0F5,
-    "lavender": 0xE6E6FA,
-    "lawngreen": 0x7CFC00,
-    "lemonchiffon": 0xFFFACD,
-    "lightblue": 0xADD8E6,
-    "lightcoral": 0xF08080,
-    "lightcyan": 0xE0FFFF,
-    "lightgoldenrodyellow": 0xFAFAD2,
-    "lightgray": 0xD3D3D3,
-    "lightgreen": 0x90EE90,
-    "lightgrey": 0xD3D3D3,
-    "lightpink": 0xFFB6C1,
-    "lightsalmon": 0xFFA07A,
-    "lightseagreen": 0x20B2AA,
-    "lightskyblue": 0x87CEFA,
-    "lightslategray": 0x778899,
-    "lightslategrey": 0x778899,
-    "lightsteelblue": 0xB0C4DE,
-    "lightyellow": 0xFFFFE0,
-    "lime": 0x00FF00,
-    "limegreen": 0x32CD32,
-    "linen": 0xFAF0E6,
-    "magenta": 0xFF00FF,
-    "maroon": 0x800000,
-    "mediumaquamarine": 0x66CDAA,
-    "mediumblue": 0x0000CD,
-    "mediumorchid": 0xBA55D3,
-    "mediumpurple": 0x9370DB,
-    "mediumseagreen": 0x3CB371,
-    "mediumslateblue": 0x7B68EE,
-    "mediumspringgreen": 0x00FA9A,
-    "mediumturquoise": 0x48D1CC,
-    "mediumvioletred": 0xC71585,
-    "midnightblue": 0x191970,
-    "mintcream": 0xF5FFFA,
-    "mistyrose": 0xFFE4E1,
-    "moccasin": 0xFFE4B5,
-    "navajowhite": 0xFFDEAD,
-    "navy": 0x000080,
-    "oldlace": 0xFDF5E6,
-    "olive": 0x808000,
-    "olivedrab": 0x6B8E23,
-    "orange": 0xFFA500,
-    "orangered": 0xFF4500,
-    "orchid": 0xDA70D6,
-    "palegoldenrod": 0xEEE8AA,
-    "palegreen": 0x98FB98,
-    "paleturquoise": 0xAFEEEE,
-    "palevioletred": 0xDB7093,
-    "papayawhip": 0xFFEFD5,
-    "peachpuff": 0xFFDAB9,
-    "peru": 0xCD853F,
-    "pink": 0xFFC0CB,
-    "plum": 0xDDA0DD,
-    "powderblue": 0xB0E0E6,
-    "purple": 0x800080,
-    "rebeccapurple": 0x663399,
-    "red": 0xFF0000,
-    "rosybrown": 0xBC8F8F,
-    "royalblue": 0x4169E1,
-    "saddlebrown": 0x8B4513,
-    "salmon": 0xFA8072,
-    "sandybrown": 0xF4A460,
-    "seagreen": 0x2E8B57,
-    "seashell": 0xFFF5EE,
-    "sienna": 0xA0522D,
-    "silver": 0xC0C0C0,
-    "skyblue": 0x87CEEB,
-    "slateblue": 0x6A5ACD,
-    "slategray": 0x708090,
-    "slategrey": 0x708090,
-    "snow": 0xFFFAFA,
-    "springgreen": 0x00FF7F,
-    "steelblue": 0x4682B4,
-    "tan": 0xD2B48C,
-    "teal": 0x008080,
-    "thistle": 0xD8BFD8,
-    "tomato": 0xFF6347,
-    "turquoise": 0x40E0D0,
-    "violet": 0xEE82EE,
-    "wheat": 0xF5DEB3,
-    "white": 0xFFFFFF,
-    "whitesmoke": 0xF5F5F5,
-    "yellow": 0xFFFF00,
-    "yellowgreen": 0x9ACD32,
-}
 
 
 @schema_extractor("one_of")
 def color(value):
     if value == SCHEMA_EXTRACT:
         return ["hex color value", "color ID"]
-    return cv.Any(cv.int_, cv.one_of(*COLOR_NAMES, lower=True), cv.use_id(ColorStruct))(
+    return cv.Any(cv.int_, cv.one_of(*CSS_COLORS, lower=True), cv.use_id(ColorStruct))(
         value
     )
 
 
-def color_retmapper(value):
-    if isinstance(value, cv.Lambda):
-        return cv.returning_lambda(value)
-    if isinstance(value, str) and value in COLOR_NAMES:
-        value = COLOR_NAMES[value]
+def get_component_colors(value):
+    if isinstance(value, str) and value in CSS_COLORS:
+        value = CSS_COLORS[value]
     if isinstance(value, int):
-        return literal(
-            f"lv_color_make({(value >> 16) & 0xFF}, {(value >> 8) & 0xFF}, {value & 0xFF})"
-        )
+        return value >> 16, value >> 8 & 0xFF, value & 0xFF
     if isinstance(value, ID):
         cval = [x for x in CORE.config[CONF_COLOR] if x[CONF_ID] == value][0]
         if CONF_HEX in cval:
             r, g, b = cval[CONF_HEX]
         else:
             r, g, b, _ = from_rgbw(cval)
-        return literal(f"lv_color_make({r}, {g}, {b})")
+        return r, g, b
     raise AssertionError(f"Unhandled lv_color value: {value!r}")
+
+
+def color_retmapper(value):
+    if isinstance(value, cv.Lambda):
+        return cv.returning_lambda(value)
+    r, g, b = get_component_colors(value)
+    return literal(f"lv_color_make({r}, {g}, {b})")
+
+
+class LvColor(LValidator):
+    def __init__(self):
+        super().__init__(
+            color, ty.lv_color_t, retmapper=color_retmapper, animatable=True
+        )
+
+    def __getattr__(self, item):
+        if item in CSS_COLORS:
+            return color_retmapper(CSS_COLORS[item])
+        raise AttributeError(item)
+
+
+lv_color = LvColor()
 
 
 def option_string(value):
@@ -247,19 +117,6 @@ def option_string(value):
     if value.find("\n") != -1:
         raise cv.Invalid("Options strings must not contain newlines")
     return value
-
-
-class LvColor(LValidator):
-    def __init__(self):
-        super().__init__(color, ty.lv_color_t, retmapper=color_retmapper)
-
-    def __getattr__(self, item):
-        if item in COLOR_NAMES:
-            return color_retmapper(COLOR_NAMES[item])
-        raise AttributeError(item)
-
-
-lv_color = LvColor()
 
 
 def pixels_or_percent_validator(value):
@@ -277,6 +134,7 @@ pixels_or_percent = LValidator(
     pixels_or_percent_validator,
     lv_coord_t,
     retmapper=lambda x: x if isinstance(x, int) else literal(f"lv_pct({int(x * 100)})"),
+    animatable=True,
 )
 
 
@@ -315,10 +173,23 @@ def angle(value):
 
 
 # Validator for angles in LVGL expressed in 1/10 degree units.
-lv_angle = LValidator(angle, uint32, retmapper=lambda x: int(x * 10))
+lv_angle = LValidator(angle, uint32, retmapper=lambda x: int(x * 10), animatable=True)
 
 # Validator for angles in LVGL expressed in whole degrees
-lv_angle_degrees = LValidator(angle, uint32, retmapper=int)
+lv_angle_degrees = LValidator(angle, uint32, retmapper=int, animatable=True)
+
+
+def rotation_degrees(value):
+    """Validate a display rotation, returning the angle in whole degrees.
+
+    Accepts the four supported rotations, optionally suffixed with "°".
+    """
+    value = cv.string(value).removesuffix("°")
+    return cv.one_of(0, 90, 180, 270, int=True)(value)
+
+
+# Validator for a display rotation expressed in whole degrees (templatable)
+lv_rotation = LValidator(rotation_degrees, cg.int_)
 
 
 @schema_extractor("one_of")
@@ -368,21 +239,57 @@ def stop_value(value):
     return cv.int_range(0, 255)(value)
 
 
-def image_validator(value):
-    value = cv.requires_component("image")(value)
+def _image_validator(value):
+    if isinstance(value, dict) and CONF_MAPPING in value:
+        from .schemas import MAPPING_IMAGE_SCHEMA
+
+        return MAPPING_IMAGE_SCHEMA(value)
     value = cv.use_id(Image_)(value)
     get_lv_images_used().add(value)
     add_lv_use("label")
     return value
 
 
-lv_image = LValidator(
-    image_validator,
-    image.Image_.operator("ptr"),
-    requires="image",
-)
+class ImageValidator(LValidator):
+    def __init__(self):
+        super().__init__(
+            validator=_image_validator,
+            rtype=image.Image_.operator("ptr"),
+            requires=CONF_IMAGE,
+        )
+
+    async def process(
+        self,
+        value: Any,
+        args: list[tuple[SafeExpType, str]] | None = None,
+        raw_lambda: bool = False,
+    ) -> Expression:
+        # Local import to avoid circular import at module level
+        from .lvcode import get_lambda_context_args
+
+        args = args or get_lambda_context_args()
+        if isinstance(value, dict) and CONF_MAPPING in value:
+            mapping_id = value[CONF_MAPPING]
+            mapping_var = await cg.get_variable(mapping_id)
+            metadata = get_mapping_metadata(mapping_id.id)
+            index = value[CONF_VALUE]
+            if isinstance(index, Lambda):
+                index = call_lambda(
+                    await cg.process_lambda(
+                        index, args, return_type=metadata.from_.data_type
+                    )
+                )
+            else:
+                index = await metadata.from_.convert_value(index)
+            return mapping_var.get(index)
+
+        return await super().process(value, args, raw_lambda)
+
+
+lv_image = ImageValidator()
+
 lv_image_list = LValidator(
-    cv.ensure_list(image_validator),
+    cv.ensure_list(_image_validator),
     cg.std_vector.template(image.Image_.operator("ptr")),
     requires="image",
 )
@@ -410,7 +317,10 @@ class TextValidator(LValidator):
         return super().__call__(value)
 
     async def process(
-        self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
+        self,
+        value: Any,
+        args: list[tuple[SafeExpType, str]] | None = None,
+        raw_lambda: bool = False,
     ) -> Expression:
         # Local import to avoid circular import at module level
         from .lvcode import get_lambda_context_args
@@ -430,6 +340,24 @@ class TextValidator(LValidator):
                         f"(std::isfinite({arg_expr}) ? {sprintf_str} : {nanval})"
                     )
                 return literal(sprintf_str)
+            if mapping_id := value.get(CONF_MAPPING):
+                mapping_var = await cg.get_variable(mapping_id)
+                metadata = get_mapping_metadata(mapping_id.id)
+                if metadata.to_ != INDEX_TYPES["string"]:
+                    raise ValueError(
+                        f"Mapping {mapping_id} does not map to strings, cannot use in text"
+                    )
+                index = value[CONF_VALUE]
+                if isinstance(index, Lambda):
+                    index = call_lambda(
+                        await cg.process_lambda(
+                            index, args, return_type=metadata.from_.data_type
+                        )
+                    )
+                else:
+                    index = await metadata.from_.convert_value(index)
+                return mapping_var.get(index).c_str()
+
             if time_format := value.get(CONF_TIME_FORMAT):
                 source = value[CONF_TIME]
                 if isinstance(source, Lambda):
@@ -455,13 +383,18 @@ class TextValidator(LValidator):
                 return value
             # Either a std::string or a lambda call returning that. We need const char*
             return MockObj(f"({value}).c_str()")
-        return await super().process(value, args)
+        return await super().process(value, args, raw_lambda)
 
 
 lv_text = TextValidator()
 lv_float = LValidator(cv.float_, cg.float_)
-lv_int = LValidator(cv.int_, cg.int_)
-lv_positive_int = LValidator(cv.positive_int, cg.int_)
+lv_positive_float = LValidator(cv.positive_float, cg.float_)
+lv_zero_to_one_float = LValidator(cv.zero_to_one_float, cg.float_)
+lv_int = LValidator(cv.int_, cg.int_, animatable=True)
+lv_positive_int = LValidator(cv.positive_int, cg.int_, animatable=True)
+lv_brightness = LValidator(
+    cv.percentage, cg.float_, retmapper=lambda x: int(x * 255), animatable=True
+)
 
 
 def _percentage_validator(value):
@@ -508,12 +441,17 @@ class LvFont(LValidator):
         # The inline overloads in lvgl_esphome.h handle conversion to lv_font_t*
         super().__init__(validator, Font.operator("ptr"))
 
-    async def process(self, value, args=()):
+    async def process(
+        self,
+        value: Any,
+        args: list[tuple[SafeExpType, str]] | None = None,
+        raw_lambda: bool = False,
+    ):
         if is_lv_font(value):
             return literal(f"&lv_font_{value}")
         if isinstance(value, str):
             return literal(f"{value}")
-        return await super().process(value, args)
+        return await super().process(value, args, raw_lambda)
 
 
 lv_font = LvFont()

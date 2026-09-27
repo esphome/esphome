@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"  // for ESPDEPRECATED
 
 #include <cstddef>
 #include <cstdint>
@@ -143,6 +144,8 @@ AudioFileType detect_audio_file_type(const char *content_type, const char *url);
 /// @param output_buffer Buffer to store the scaled samples
 /// @param scale_factor Q15 fixed point scaling factor
 /// @param samples_to_scale Number of samples to scale
+// Remove before 2026.12.0
+ESPDEPRECATED("Use esp_audio_libs::gain::apply() (from <gain.h>) instead. Removed in 2026.12.0.", "2026.6.0")
 void scale_audio_samples(const int16_t *audio_samples, int16_t *output_buffer, int16_t scale_factor,
                          size_t samples_to_scale);
 
