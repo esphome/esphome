@@ -36,7 +36,10 @@ uint8_t PN71xx::read_mifare_classic_tag_(nfc::NfcTag &tag) {
 
   const uint32_t buffer_size = nfc::get_mifare_classic_buffer_size(message_length);
   FixedVector<uint8_t> buffer;
-  buffer.init(buffer_size);
+  if (!buffer.try_init(buffer_size)) {
+    ESP_LOGE(TAG, "Out of memory reading NDEF message of %" PRIu32 " bytes", buffer_size);
+    return nfc::STATUS_FAILED;
+  }
 
   while (buffer.size() < buffer_size) {
     if (nfc::mifare_classic_is_first_block(current_block)) {
@@ -276,7 +279,7 @@ uint8_t PN71xx::write_mifare_classic_tag_(const std::shared_ptr<nfc::NdefMessage
   const auto encoded = message->encode();
   const uint32_t buffer_length = nfc::get_mifare_classic_buffer_size(encoded.size());
   FixedVector<uint8_t> buffer;
-  fill_ndef_tlv(encoded, buffer_length, buffer);
+  nfc::fill_ndef_tlv(encoded, buffer_length, buffer);
 
   uint32_t index = 0;
   uint8_t current_block = 4;

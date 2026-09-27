@@ -151,9 +151,6 @@ struct DiscoveredEndpoint {
   bool trig_called;
 };
 
-/// Fills `buffer` with the NDEF TLV (type, length, message, terminator) padded with zeros to `buffer_length`
-void fill_ndef_tlv(const std::vector<uint8_t> &message, uint32_t buffer_length, FixedVector<uint8_t> &buffer);
-
 /// Common driver for the NXP PN71xx family of NCI NFC controllers. The chip classes (PN7150, PN7160) supply the parts
 /// that differ between chips; the bus classes supply read_nfcc() and write_nfcc().
 class PN71xx : public nfc::Nfcc, public Component {
