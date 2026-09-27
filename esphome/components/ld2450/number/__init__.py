@@ -80,16 +80,15 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 
 
 async def to_code(config: ConfigType) -> None:
-    ld2450_component = await cg.get_variable(config[CONF_LD2450_ID])
-    if presence_timeout_config := config.get(CONF_PRESENCE_TIMEOUT):
-        n = await number.new_number(
-            presence_timeout_config,
-            min_value=0,
-            max_value=3600,
-            step=1,
-        )
-        await cg.register_parented(n, config[CONF_LD2450_ID])
-        cg.add(ld2450_component.set_presence_timeout_number(n))
+    hub = await cg.get_variable(config[CONF_LD2450_ID])
+    numbers = number.sub_numbers(config, parent=hub)
+    await numbers(
+        CONF_PRESENCE_TIMEOUT,
+        hub.set_presence_timeout_number,
+        min_value=0,
+        max_value=3600,
+        step=1,
+    )
     for zone_num in range(MAX_ZONES):
         if zone_conf := config.get(f"zone_{zone_num + 1}"):
             zone_x1_config = zone_conf.get(CONF_X1)
@@ -120,4 +119,4 @@ async def to_code(config: ConfigType) -> None:
             )
             await cg.register_parented(y2, config[CONF_LD2450_ID])
 
-            cg.add(ld2450_component.set_zone_numbers(zone_num, x1, y1, x2, y2))
+            cg.add(hub.set_zone_numbers(zone_num, x1, y1, x2, y2))
