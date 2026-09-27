@@ -1,6 +1,8 @@
 #ifdef USE_ZEPHYR
 #include "ble_server.h"
+#include "esphome/core/application.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/settings/settings.h>
@@ -13,16 +15,9 @@ static k_work advertise_work;  // NOLINT(cppcoreguidelines-avoid-non-const-globa
 
 BLEServer *global_ble_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-#define DEVICE_NAME CONFIG_BT_DEVICE_NAME
-#define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
-
 // The advertisement holds 31 bytes: 3 for the flags and 2 for the name header
 static constexpr size_t MAX_ADV_NAME_LEN = 26;
-static const bt_data AD[] = {
-    BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-    BT_DATA((DEVICE_NAME_LEN > MAX_ADV_NAME_LEN) ? BT_DATA_NAME_SHORTENED : BT_DATA_NAME_COMPLETE, DEVICE_NAME,
-            (DEVICE_NAME_LEN > MAX_ADV_NAME_LEN) ? MAX_ADV_NAME_LEN : DEVICE_NAME_LEN),
-};
+static constexpr size_t MAC_SUFFIX_WITH_SEPARATOR_LEN = 7;
 
 static const bt_data SD[] = {
 #ifdef USE_OTA
@@ -39,7 +34,17 @@ static void advertise(k_work *work) {
     ESP_LOGE(TAG, "Advertising failed to stop (rc %d)", rc);
   }
 
-  rc = bt_le_adv_start(ADV_PARAM, AD, ARRAY_SIZE(AD), SD, ARRAY_SIZE(SD));
+  // A name that is cut keeps its MAC suffix, as on ESP32
+  static char name[MAX_ADV_NAME_LEN + 1];
+  const auto &app_name = App.get_name();
+  const size_t name_len = truncate_name_to(name, sizeof(name), app_name.c_str(), app_name.length(),
+                                           App.is_name_add_mac_suffix_enabled() ? MAC_SUFFIX_WITH_SEPARATOR_LEN : 0);
+  const bt_data ad[] = {
+      BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
+      BT_DATA(name_len < app_name.length() ? BT_DATA_NAME_SHORTENED : BT_DATA_NAME_COMPLETE, name, name_len),
+  };
+
+  rc = bt_le_adv_start(ADV_PARAM, ad, ARRAY_SIZE(ad), SD, ARRAY_SIZE(SD));
   if (rc) {
     ESP_LOGE(TAG, "Advertising failed to start (rc %d)", rc);
     return;

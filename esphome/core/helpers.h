@@ -1204,6 +1204,13 @@ static constexpr size_t MAX_NAME_WITH_SUFFIX_SIZE = 128;
 size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, char sep,
                                 const char *suffix_ptr, size_t suffix_len);
 
+/// Copy a name into a buffer, cutting it when it does not fit.
+/// A name that is cut keeps its last keep_suffix_len characters (for example a MAC suffix) and loses
+/// the middle instead; pass 0 to cut the end.
+/// @param buffer Output buffer; holds at most buffer_size - 1 characters plus the null terminator
+/// @return Length written (excluding null terminator)
+size_t truncate_name_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, size_t keep_suffix_len);
+
 ///@}
 
 /// @name Parsing & formatting
