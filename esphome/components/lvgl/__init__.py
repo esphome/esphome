@@ -173,6 +173,8 @@ def generate_lv_conf_h():
     esphome_config = CORE.config[CONF_ESPHOME]
     # User build flags come from esphome->build_flags and from the deprecated
     # esphome->platformio_options->build_flags (a string or a list).
+    # Remove before 2026.12.0
+
     pio_build_flags = esphome_config.get(CONF_PLATFORMIO_OPTIONS, {}).get(
         CONF_BUILD_FLAGS, []
     )
