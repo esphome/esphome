@@ -514,15 +514,15 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
                 "download": f"{storage_json.name}.hex",
             },
         ]
-        if (build_dir / APP_IMAGE_PATH).is_file():
-            types += [
-                {
-                    "title": "App update package",
-                    "description": "For flashing via mcumgr-web using BLE or smpclient using USB CDC.",
-                    "file": APP_IMAGE_PATH,
-                    "download": f"app-{storage_json.name}.img",
-                },
-            ]
+    if (build_dir / APP_IMAGE_PATH).is_file():
+        types += [
+            {
+                "title": "App update package",
+                "description": "For flashing via mcumgr-web using BLE or smpclient using USB CDC.",
+                "file": APP_IMAGE_PATH,
+                "download": f"app-{storage_json.name}.img",
+            },
+        ]
 
     return types
 
