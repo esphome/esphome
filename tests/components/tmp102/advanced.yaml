@@ -1,0 +1,34 @@
+sensor:
+  - platform: tmp102
+    id: tmp102_extended_temperature
+    name: TMP102 Extended Temperature
+    i2c_id: i2c_bus
+    address: 0x49
+    extended_mode: true
+    one_shot_mode: true
+    conversion_rate: 8Hz
+    alert_polarity: active_high
+    thermostat_mode: interrupt
+    fault_queue: 6
+
+number:
+  - platform: tmp102
+    tmp102_id: tmp102_extended_temperature
+    temperature_high:
+      name: TMP102 High Threshold
+      initial_value: 140°C
+      restore_value: true
+    temperature_low:
+      name: TMP102 Low Threshold
+      initial_value: 120°C
+      restore_value: false
+
+binary_sensor:
+  - platform: tmp102
+    tmp102_id: tmp102_extended_temperature
+    name: TMP102 Alert
+
+text_sensor:
+  - platform: tmp102
+    tmp102_id: tmp102_extended_temperature
+    name: TMP102 Threshold Status
