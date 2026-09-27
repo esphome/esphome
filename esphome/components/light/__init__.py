@@ -70,6 +70,7 @@ from .types import (  # noqa: F401
     AddressableLightState,
     ChannelColors,
     ColorMode,
+    GammaTable,
     LightOutput,
     LightState,
     LightStateRTCState,
@@ -85,6 +86,7 @@ CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
 DOMAIN = "light"
+CONF_GAMMA_TABLE_ID = "gamma_table_id"
 
 
 @dataclass
@@ -140,18 +142,29 @@ def generate_gamma_table(gamma_correct: float) -> list[HexInt]:
     return [HexInt(int(round(i / 255.0 * 65535))) for i in range(256)]
 
 
-def _get_or_create_gamma_table(gamma_correct):
+def gamma_table_initializer(gamma_correct: float) -> str:
+    """C++ initializer for a light::GammaTable: the lookup table, then gamma * 100."""
+    lut = ", ".join(f"0x{int(v):04X}" for v in generate_gamma_table(gamma_correct))
+    # gamma_x100 is a uint16_t; platforms that redefine gamma_correct leave it unbounded, so saturate here
+    return f"{{{{{lut}}}, {min(0xFFFF, round(gamma_correct * 100))}}}"
+
+
+def _get_or_create_gamma_table(gamma_correct: float, table_id: ID) -> cg.RawExpression:
     data = _get_data()
     if gamma_correct in data.gamma_tables:
         return data.gamma_tables[gamma_correct]
 
-    forward = generate_gamma_table(gamma_correct)
-
-    gamma_str = f"{gamma_correct}".replace(".", "_")
-    fwd_id = ID(f"gamma_{gamma_str}_fwd", is_declaration=True, type=cg.uint16)
-    fwd_arr = cg.progmem_array(fwd_id, forward)
-    data.gamma_tables[gamma_correct] = fwd_arr
-    return fwd_arr
+    # table_id is generated and resolved against every declared ID, so it can't collide with a
+    # YAML ID; lights sharing a gamma reuse the first light's table.
+    cg.add(
+        cg.RawStatement(
+            f"static constexpr light::GammaTable {table_id} PROGMEM = "
+            f"{gamma_table_initializer(gamma_correct)};"
+        )
+    )
+    table = cg.RawExpression(f"&{table_id}")
+    data.gamma_tables[gamma_correct] = table
+    return table
 
 
 def find_effect_index(effects: list, effect_name: str) -> int | None:
@@ -357,6 +370,7 @@ LIGHT_SCHEMA = (
     .extend(
         {
             cv.GenerateID(): cv.declare_id(LightState),
+            cv.GenerateID(CONF_GAMMA_TABLE_ID): cv.declare_id(GammaTable),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
                 mqtt.MQTTJSONLightComponent
             ),
@@ -553,14 +567,14 @@ async def setup_light_core_(light_var, config, output_var):
     ) is not None and flash_transition_length != cv.time_period(
         DEFAULT_FLASH_TRANSITION_LENGTH
     ):
+        cg.add_define("USE_LIGHT_FLASH_TRANSITION_LENGTH")
         cg.add(light_var.set_flash_transition_length(flash_transition_length))
     # Setting an interval opts this light in and compiles the feature in
     if (interval := config.get(CONF_TRANSITION_STATE_PUBLISH_INTERVAL)) is not None:
         cg.add(light_var.set_transition_state_publish_interval(interval))
         cg.add_define("USE_LIGHT_TRANSITION_PUBLISH_INTERVAL")
     if (gamma_correct := config.get(CONF_GAMMA_CORRECT)) is not None:
-        cg.add(light_var.set_gamma_correct(gamma_correct))
-        fwd_arr = _get_or_create_gamma_table(gamma_correct)
+        fwd_arr = _get_or_create_gamma_table(gamma_correct, config[CONF_GAMMA_TABLE_ID])
         cg.add(light_var.set_gamma_table(fwd_arr))
         cg.add_define("USE_LIGHT_GAMMA_LUT")
     effects = await cg.build_registry_list(

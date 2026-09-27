@@ -6,6 +6,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/string_ref.h"
 #include "light_call.h"
+#include "esp_color_correction.h"
 #include "light_color_values.h"
 #include "light_effect.h"
 #include "light_traits.h"
@@ -151,15 +152,28 @@ class LightState : public EntityBase, public Component {
   }
   uint32_t get_default_transition_length() const { return this->default_transition_length_; }
 
-  /// Set the flash transition length
+#ifdef USE_LIGHT_FLASH_TRANSITION_LENGTH
+  /// Set the flash transition length; only compiled in when a light configures one
   void set_flash_transition_length(uint32_t flash_transition_length) {
     this->flash_transition_length_ = flash_transition_length;
   }
   uint32_t get_flash_transition_length() const { return this->flash_transition_length_; }
+#else
+  // Remove before 2027.4.0
+  ESPDEPRECATED("set_flash_transition_length() does nothing unless flash_transition_length is set in YAML. Removed in "
+                "2027.4.0",
+                "2026.10.0")
+  void set_flash_transition_length(uint32_t flash_transition_length) {}
+  uint32_t get_flash_transition_length() const { return 0; }
+#endif
 
-  /// Set the gamma correction factor
-  void set_gamma_correct(float gamma_correct) { this->gamma_correct_ = gamma_correct; }
-  float get_gamma_correct() const { return this->gamma_correct_; }
+  // Remove before 2027.4.0
+  ESPDEPRECATED("set_gamma_correct() does nothing; gamma is fixed at build time by gamma_correct in YAML. Removed in "
+                "2027.4.0",
+                "2026.10.0")
+  void set_gamma_correct(float gamma_correct) {}
+  /// The gamma correction factor, read from the entry after the gamma lookup table; 0 without one
+  float get_gamma_correct() const;
 
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   void set_transition_state_publish_interval(uint32_t transition_state_publish_interval) {
@@ -169,11 +183,11 @@ class LightState : public EntityBase, public Component {
 #endif
 
 #ifdef USE_LIGHT_GAMMA_LUT
-  /// Set pre-computed gamma forward lookup table (256-entry uint16 PROGMEM array)
-  void set_gamma_table(const uint16_t *forward) { this->gamma_table_ = forward; }
+  /// Set the pre-computed PROGMEM gamma curve
+  void set_gamma_table(const GammaTable *table) { this->gamma_table_ = table; }
 
-  /// Get the forward gamma lookup table
-  const uint16_t *get_gamma_table() const { return this->gamma_table_; }
+  /// Get the forward gamma lookup table, 256 PROGMEM entries
+  const uint16_t *get_gamma_table() const { return this->gamma_table_ != nullptr ? this->gamma_table_->lut : nullptr; }
 
   /// Apply gamma correction using the pre-computed forward LUT
   float gamma_correct_lut(float value) const;
@@ -362,31 +376,31 @@ class LightState : public EntityBase, public Component {
   /// Values live in flash as function body; no per-instance data storage beyond this pointer.
   void (*state_callback_)(LightStateRTCState &, bool restored){nullptr};
 
-  /// Value for storing the index of the currently active effect. 0 if no effect is active
-  uint32_t active_effect_index_{};
   /// Default transition length for all transitions in ms.
   uint32_t default_transition_length_{};
+#ifdef USE_LIGHT_FLASH_TRANSITION_LENGTH
   /// Transition length to use for flash transitions.
   uint32_t flash_transition_length_{};  // Keep in sync with DEFAULT_FLASH_TRANSITION_LENGTH in __init__.py
+#endif
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   uint32_t transition_state_publish_interval_{0};
   uint32_t last_transition_state_publish_{0};
 #endif
-  /// Gamma correction factor for the light.
-  float gamma_correct_{};
 #ifdef USE_LIGHT_GAMMA_LUT
-  const uint16_t *gamma_table_{nullptr};
+  const GammaTable *gamma_table_{nullptr};
 #endif  // USE_LIGHT_GAMMA_LUT
 
+  /// 1-based index of the active effect, 0 if none; codegen caps effects at MAX_EFFECTS in effects.py
+  uint16_t active_effect_index_{};
   /// Whether the light value should be written in the next cycle.
-  bool next_write_{true};
+  bool next_write_{true};  // a plain bool: it is the most written flag, and still shares the index's word
   // for effects, true if a transformer (transition) is active.
-  bool is_transformer_active_{false};
+  bool is_transformer_active_ : 1 {false};
   /// Whether this light persists its state to preferences at all.
-  bool save_enabled_{false};
+  bool save_enabled_ : 1 {false};
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   /// True while the active transformer publishes current_values on an interval from loop().
-  bool transition_publish_enabled_{false};
+  bool transition_publish_enabled_ : 1 {false};
 #endif
 };
 
