@@ -6,4 +6,4 @@ network:
   min_ipv6_addr_count: 2
 
 wifi:
-  ipv6_only: true
+  enable_ipv4: false

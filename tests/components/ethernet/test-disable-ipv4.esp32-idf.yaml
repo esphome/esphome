@@ -11,4 +11,4 @@ ethernet:
     mode: CLK_EXT_IN
   phy_addr: 0
   power_pin: 33
-  ipv6_only: true
+  enable_ipv4: false

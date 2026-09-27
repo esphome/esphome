@@ -3,7 +3,7 @@ import logging
 from typing import Any
 
 import esphome.codegen as cg
-from esphome.components.const import CONF_IPV6_ONLY
+from esphome.components.const import CONF_ENABLE_IPV4
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.components.zephyr import zephyr_add_prj_conf
@@ -210,24 +210,35 @@ def validate_ipv6(value: bool) -> bool:
     return value
 
 
-def validate_ipv6_only(config: ConfigType) -> ConfigType:
-    """Final validation for an interface's ``ipv6_only`` option."""
-    if not config.get(CONF_IPV6_ONLY):
+def validate_enable_ipv4(value: Any) -> bool:
+    """Validate an interface's ``enable_ipv4`` option; only ESP32 can turn it off."""
+    value = cv.boolean(value)
+    if not value and not CORE.is_esp32:
+        raise cv.Invalid("enable_ipv4: false is only supported on ESP32")
+    return value
+
+
+def final_validate_enable_ipv4(config: ConfigType) -> ConfigType:
+    """Check what an interface with ``enable_ipv4: false`` needs from ``network:``."""
+    if config.get(CONF_ENABLE_IPV4, True):
         return config
     network = fv.full_config.get().get("network", {})
     if not network.get(CONF_ENABLE_IPV6, False):
         raise cv.Invalid(
-            "ipv6_only requires 'network: enable_ipv6: true'", [CONF_IPV6_ONLY]
+            "enable_ipv4: false requires 'network: enable_ipv6: true'",
+            [CONF_ENABLE_IPV4],
         )
     if network.get(CONF_MIN_IPV6_ADDR_COUNT, 0) < 1:
         raise cv.Invalid(
-            "ipv6_only requires 'network: min_ipv6_addr_count' of at least 1",
-            [CONF_IPV6_ONLY],
+            "enable_ipv4: false requires 'network: min_ipv6_addr_count' of at least 1",
+            [CONF_ENABLE_IPV4],
         )
     if CONF_MANUAL_IP in config or any(
         CONF_MANUAL_IP in net for net in config.get(CONF_NETWORKS, [])
     ):
-        raise cv.Invalid("ipv6_only can't be used with manual_ip", [CONF_IPV6_ONLY])
+        raise cv.Invalid(
+            "enable_ipv4: false can't be used with manual_ip", [CONF_ENABLE_IPV4]
+        )
     return config
 
 
