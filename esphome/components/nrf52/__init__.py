@@ -843,8 +843,9 @@ def _app_build_dir(build_dir: Path) -> Path:
 
 def _prepare_pch(app_dir: Path, env: dict[str, str], cwd: str) -> None:
     """Build the .gch between the cmake and compile phases of west."""
-    # kernel.h needs the syscall headers, which only a build step makes
-    if not run_command_ok(
+    # kernel.h needs the syscall headers, which only a build step makes.
+    # A .sum from an earlier pch compile proves they are there
+    if not (app_dir / pch.PCH_SUM_NAME).is_file() and not run_command_ok(
         ["cmake", "--build", str(app_dir), "--target", "zephyr_generated_headers"],
         env=env,
         stream_output=True,
