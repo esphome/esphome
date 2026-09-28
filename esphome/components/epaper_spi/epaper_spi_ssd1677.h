@@ -29,6 +29,9 @@ class EPaperSSD1677 : public EPaperMono {
   void setup() override;
 
  protected:
+  // Allocates the comparison frame when partial updates are enabled. Separate from setup() so it
+  // can run without a bus.
+  void init_comparison_frame_();
   bool reset() override;
   bool transfer_data() override;
 

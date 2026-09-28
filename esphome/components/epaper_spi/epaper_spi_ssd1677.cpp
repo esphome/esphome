@@ -12,7 +12,12 @@ static constexpr uint32_t TRANSFER_BLOCK_TIME = 40;
 
 void EPaperSSD1677::setup() {
   EPaperMono::setup();
-  if (this->is_failed() || !this->is_using_partial_update_())
+  if (!this->is_failed())
+    this->init_comparison_frame_();
+}
+
+void EPaperSSD1677::init_comparison_frame_() {
+  if (!this->is_using_partial_update_())
     return;
   if (!this->sent_.init(this->buffer_length_)) {
     ESP_LOGW(TAG, "No memory for the comparison frame; partial updates will degrade unchanged areas");
