@@ -1,3 +1,5 @@
+#ifdef USE_HOST
+
 #include <gtest/gtest.h>
 
 #include <array>
@@ -481,3 +483,5 @@ TEST_F(TMP102Test, RestoreDisabledNeverChangesSavedValue) {
 }
 
 }  // namespace esphome::tmp102::testing
+
+#endif  // USE_HOST
