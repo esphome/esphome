@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -37,8 +38,9 @@ def _make_src(tmp_path: Path, *names: str) -> Path:
     return src
 
 
-def _render(ccache: str | None = None) -> tuple[bool, str]:
-    changed = build_gen.write_project(COMPILERS, ccache)
+def _render(ccache: str | None = None, version: str = "g++ 1.0") -> tuple[bool, str]:
+    with patch.object(build_gen, "_compiler_version", return_value=version):
+        changed = build_gen.write_project(COMPILERS, ccache)
     ninja = CORE.build_path / ".pioenvs" / "dev" / "build.ninja"
     return changed, ninja.read_text()
 
@@ -189,7 +191,7 @@ def test_write_project_requires_generated_sources(tmp_path: Path) -> None:
         build_gen.write_project(COMPILERS, None)
     _make_src(tmp_path, "esphome.h")
     with pytest.raises(EsphomeError, match="No source files found"):
-        build_gen.write_project(COMPILERS, None)
+        _render()
 
 
 def test_write_project_emits_every_source_kind(tmp_path: Path) -> None:
@@ -242,8 +244,10 @@ def test_write_project_precompiles_the_core_headers(tmp_path: Path) -> None:
         '#include "esphome/core/defines.h"\n#include "esphome/core/pch_prefix.h"\n'
     )
     assert "rule pch\n" in ninja
-    # Rebuilt when the system compiler is replaced in place
-    assert f"build esphome_pch.h.gch: pch {_e(source)} | /usr/bin/g++\n" in ninja
+    sum_path = build_dir / "esphome_pch.h.gch.sum"
+    assert (
+        f"build esphome_pch.h.gch: pch {_e(source)} | esphome_pch.h.gch.sum\n" in ninja
+    )
     assert "srccxxflags = -Winvalid-pch " in ninja
     assert (
         f"build obj/src/main.cpp.o: cxx {_e(src / 'main.cpp')} | esphome_pch.h.gch\n"
@@ -253,7 +257,14 @@ def test_write_project_precompiles_the_core_headers(tmp_path: Path) -> None:
         f"build obj/src/esphome/core/a.c.o: c {_e(src / 'esphome/core/a.c')}\n"
     ) in ninja
     assert f"build obj/src/x.S.o: aspp {_e(src / 'x.S')}\n" in ninja
-    assert (build_dir / "esphome_pch.h.gch.sum").is_file()
+    # An updated compiler behind the same path rebuilds the header
+    first = sum_path.read_text()
+    _render(version="g++ 2.0")
+    assert sum_path.read_text() != first
+
+
+def test_compiler_version_asks_the_compiler() -> None:
+    assert build_gen._compiler_version((sys.executable,)).startswith("Python ")
 
 
 def test_write_project_pch_disabled(
