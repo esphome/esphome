@@ -78,16 +78,11 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)
 
-    for key, setter in (
-        (CONF_WEIGHT, var.set_weight),
-        (CONF_IMPEDANCE_LOW, var.set_impedance_low),
-        (CONF_IMPEDANCE_HIGH, var.set_impedance_high),
-        (CONF_HEART_RATE, var.set_heart_rate),
-        (CONF_PROFILE_ID, var.set_profile_id),
-    ):
-        if (conf := config.get(key)) is not None:
-            sens = await sensor.new_sensor(conf)
-            cg.add(setter(sens))
-    if (conf := config.get(CONF_STABILIZED)) is not None:
-        sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(var.set_stabilized(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_WEIGHT, var.set_weight)
+    await sensors(CONF_IMPEDANCE_LOW, var.set_impedance_low)
+    await sensors(CONF_IMPEDANCE_HIGH, var.set_impedance_high)
+    await sensors(CONF_HEART_RATE, var.set_heart_rate)
+    await sensors(CONF_PROFILE_ID, var.set_profile_id)
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_STABILIZED, var.set_stabilized)
