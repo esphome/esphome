@@ -83,56 +83,65 @@ def test_toolchain_download_unsupported_system() -> None:
         framework.toolchain_download()
 
 
+def _fake_framework(tmp_path: Path) -> None:
+    """The layout install_package expects of an installed framework."""
+    for sub in ("cores/esp8266", "tools/sdk", "libraries"):
+        (tmp_path / "frameworks" / "3.30102.0" / sub).mkdir(parents=True)
+    (tmp_path / "frameworks" / "3.30102.0" / ".esphome_extracted").touch()
+
+
 def test_check_and_install_mirror_skips_pinned_toolchain(tmp_path: Path) -> None:
     """With a mirror override an unsupported host can bring its own toolchain."""
     with (
         patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
         patch.object(framework, "ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS", ["http://m"]),
-        patch.object(framework, "get_systype", return_value="linux_armv7l"),
         patch.object(framework, "install_package") as mock_install,
         patch.object(framework, "prefetch_packages") as mock_prefetch,
         patch.object(framework, "find_ninja", return_value=tmp_path / "ninja"),
     ):
         framework.check_and_install(cv.Version(3, 1, 2))
     assert mock_prefetch.call_args.args[2] == {}
-    assert mock_install.call_args_list[1].kwargs["pinned"] is None
+    assert mock_install.call_args_list[1].kwargs["resolve"] is None
 
 
 def test_check_and_install_installed_toolchain_on_unsupported_host(
     tmp_path: Path,
 ) -> None:
-    """An installed toolchain keeps working on a host without a pinned build."""
+    """The host is only checked when the toolchain must be downloaded."""
+    _fake_framework(tmp_path)
     toolchain = tmp_path / "toolchains" / framework.TOOLCHAIN_VERSION
-    toolchain.mkdir(parents=True)
+    for sub in ("bin", "xtensa-lx106-elf"):
+        (toolchain / sub).mkdir(parents=True)
+    (toolchain / ".esphome_extracted").touch()
     with (
         patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
         patch.object(framework, "get_systype", return_value="linux_armv7l"),
-        patch.object(framework, "is_installed", side_effect=lambda d: d == toolchain),
-        patch.object(framework, "install_package"),
-        patch.object(framework, "prefetch_packages") as mock_prefetch,
+        patch.object(framework, "prefetch_packages"),
         patch.object(framework, "find_ninja", return_value=tmp_path / "ninja"),
     ):
-        framework.check_and_install(cv.Version(3, 1, 2))
-    assert mock_prefetch.call_args.args[2] == {}
+        paths = framework.check_and_install(cv.Version(3, 1, 2))
+    assert paths.toolchain == toolchain
 
 
 def test_check_and_install_unsupported_host_without_toolchain_raises(
     tmp_path: Path,
 ) -> None:
+    """Without an installed toolchain the download is needed, and the host
+    error names the ways out."""
+    _fake_framework(tmp_path)
     with (
         patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
         patch.object(framework, "get_systype", return_value="linux_armv7l"),
+        patch.object(framework, "prefetch_packages"),
         patch.object(framework, "find_ninja", return_value=tmp_path / "ninja"),
-        pytest.raises(EsphomeError, match="linux_armv7l"),
+        pytest.raises(EsphomeError, match=r"linux_armv7l.*toolchain: platformio"),
     ):
         framework.check_and_install(cv.Version(3, 1, 2))
 
 
 def test_check_and_install_returns_paths(tmp_path: Path) -> None:
-    toolchain = framework.Download("http://y/toolchain.tar.gz", "def456", 7)
     with (
         patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
-        patch.object(framework, "toolchain_download", return_value=toolchain),
         patch.object(framework, "install_package") as mock_install,
         patch.object(framework, "prefetch_packages") as mock_prefetch,
         patch.object(framework, "find_ninja", return_value=tmp_path / "ninja"),
@@ -154,7 +163,7 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
     )
     assert fw_call.kwargs == {
         "expect": ("cores/esp8266", "tools/sdk", "libraries"),
-        "pinned": None,
+        "resolve": None,
     }
     assert tc_call.args == (
         framework.TOOLCHAIN_PACKAGE,
@@ -165,7 +174,7 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
     )
     assert tc_call.kwargs == {
         "expect": ("bin", "xtensa-lx106-elf"),
-        "pinned": toolchain,
+        "resolve": framework.toolchain_download,
     }
     # The prefetch sees the same package specs as the installs
     assert mock_prefetch.call_args.args == (
@@ -184,7 +193,7 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
             ),
         ],
         tmp_path / "downloads",
-        {framework.TOOLCHAIN_PACKAGE: toolchain},
+        {framework.TOOLCHAIN_PACKAGE: framework.toolchain_download},
     )
 
 

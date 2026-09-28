@@ -39,6 +39,10 @@ class Download(NamedTuple):
     size: int | None
 
 
+# Looks a package's download up; called only when a download is needed
+Resolver = Callable[[], Download]
+
+
 def get_systype() -> str:
     """The registry system tag for the current host.
 
@@ -193,12 +197,12 @@ def is_installed(dest: Path) -> bool:
 def prefetch_packages(
     packages: list[tuple[str, str, Path, list[str]]],
     downloads_dir: Path,
-    pinned: dict[str, Download] | None = None,
+    resolvers: dict[str, Resolver] | None = None,
 ) -> None:
     """Download pending package archives in parallel under one combined bar.
 
     ``packages`` holds ``(name, version, dest, mirrors)`` per package;
-    ``pinned`` replaces the registry lookup by name. Purely
+    ``resolvers`` replaces the registry lookup by name. Purely
     an optimization: ``install_package`` verifies every archive and
     re-downloads anything this pass left unfinished. Mirror overrides and
     registry entries without a size stay on the sequential path so its
@@ -218,15 +222,15 @@ def prefetch_packages(
             # A duplicate entry would race itself between two workers
             continue
         seen.add(archive)
-        if pinned and (download := pinned.get(name)):
-            url, sha256, size = download
-        else:
-            try:
-                url, sha256, size = registry_download(name, version)
-            except EsphomeError as err:
-                # The sequential install reports the real failure with context
-                _LOGGER.debug("Prefetch resolve for %s failed: %s", name, err)
-                continue
+        resolve = (resolvers or {}).get(name) or partial(
+            registry_download, name, version
+        )
+        try:
+            url, sha256, size = resolve()
+        except EsphomeError as err:
+            # The sequential install reports the real failure with context
+            _LOGGER.debug("Prefetch resolve for %s failed: %s", name, err)
+            continue
         if not size:
             continue
         if archive.is_file() and archive.stat().st_size == size:
@@ -296,14 +300,14 @@ def install_package(
     mirrors: list[str],
     downloads_dir: Path,
     expect: Collection[str],
-    pinned: Download | None = None,
+    resolve: Resolver | None = None,
 ) -> None:
     """Download, verify, and extract one package if not already installed.
 
     The registry path is integrity-checked against the sha256 the registry
     publishes; a mirror override (URL templates with ``{VERSION}``/``{SYSTEM}``
     substitution) is trusted as configured. ``downloads_dir`` holds the
-    archive between runs so an interrupted download resumes. ``pinned``
+    archive between runs so an interrupted download resumes. ``resolve``
     replaces the registry lookup.
     """
     if not expect:
@@ -339,7 +343,9 @@ def install_package(
                 mirrors, {"VERSION": version, "SYSTEM": get_systype()}, archive
             )
         else:
-            url, sha256, size = pinned or registry_download(name, version)
+            url, sha256, size = (
+                resolve() if resolve else registry_download(name, version)
+            )
             download_with_resume(url, archive, sha256=sha256, size=size)
         _LOGGER.info("Extracting %s ...", name)
         archive_extract_all(archive, dest, progress_header="Extracting")

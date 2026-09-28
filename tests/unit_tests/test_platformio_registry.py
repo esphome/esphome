@@ -312,7 +312,7 @@ def test_install_package_downloads_via_registry(tmp_path: Path) -> None:
 
 
 def test_install_package_downloads_pinned(tmp_path: Path) -> None:
-    """A pinned download is verified like a registry one, with no lookup."""
+    """A resolver's download is verified like a registry one, with no lookup."""
     dest = tmp_path / "pkg"
     pinned = registry.Download("http://y/pinned.tar.gz", "def456", 7)
     with (
@@ -330,7 +330,7 @@ def test_install_package_downloads_pinned(tmp_path: Path) -> None:
             [],
             tmp_path / "dl",
             expect=("payload",),
-            pinned=pinned,
+            resolve=lambda: pinned,
         )
     mock_registry.assert_not_called()
     assert mock_download.call_args[0][0] == "http://y/pinned.tar.gz"
@@ -355,7 +355,7 @@ def test_install_package_mirror_wins_over_pinned(tmp_path: Path) -> None:
             ["http://mirror/{VERSION}"],
             tmp_path / "dl",
             expect=("payload",),
-            pinned=registry.Download("http://y/pinned.tar.gz", "def456", 7),
+            resolve=lambda: registry.Download("http://y/pinned.tar.gz", "def456", 7),
         )
     mock_mirrors.assert_called_once()
     mock_download.assert_not_called()
@@ -586,7 +586,7 @@ def test_prefetch_packages_downloads_pending_in_parallel(tmp_path: Path) -> None
 
 
 def test_prefetch_packages_uses_pinned_download(tmp_path: Path) -> None:
-    """A pinned package skips the registry; the others still resolve there."""
+    """A package with a resolver skips the registry; the rest use it."""
     with (
         patch.object(registry, "download_with_resume") as mock_download,
         patch.object(
@@ -599,7 +599,7 @@ def test_prefetch_packages_uses_pinned_download(tmp_path: Path) -> None:
                 ("b", "2.0", tmp_path / "b", []),
             ],
             tmp_path / "dl",
-            {"b": registry.Download("http://y/b.tar.gz", "def456", 20)},
+            {"b": lambda: registry.Download("http://y/b.tar.gz", "def456", 20)},
         )
     mock_registry.assert_called_once_with("a", "1.0")
     calls = sorted(mock_download.call_args_list, key=lambda c: c[0][0])

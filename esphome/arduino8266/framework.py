@@ -25,9 +25,9 @@ from esphome.core import EsphomeError, Version
 from esphome.framework_helpers import str_to_lst_of_str
 from esphome.platformio.registry import (
     Download,
+    Resolver,
     get_systype,
     install_package,
-    is_installed,
     prefetch_packages,
 )
 
@@ -164,17 +164,13 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
             ("bin", "xtensa-lx106-elf"),
         ),
     )
-    # A mirror override replaces the pinned download, and an installed
-    # toolchain keeps working on a host without a pinned build
-    pinned: dict[str, Download] = {}
+    # Resolved only when a download is needed, so an installed toolchain
+    # keeps working on a host without a build; a mirror override wins
+    resolvers: dict[str, Resolver] = {}
     if not ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS:
-        try:
-            pinned[TOOLCHAIN_PACKAGE] = toolchain_download()
-        except EsphomeError:
-            if not is_installed(toolchain_path):
-                raise
+        resolvers[TOOLCHAIN_PACKAGE] = toolchain_download
     # Fetch both archives at once; the installs below verify and extract
-    prefetch_packages([spec[:4] for spec in specs], downloads_dir, pinned)
+    prefetch_packages([spec[:4] for spec in specs], downloads_dir, resolvers)
     for name, version, dest, mirrors, expect in specs:
         install_package(
             name,
@@ -183,7 +179,7 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
             mirrors,
             downloads_dir,
             expect=expect,
-            pinned=pinned.get(name),
+            resolve=resolvers.get(name),
         )
     return InstalledPaths(
         framework=framework_path, toolchain=toolchain_path, ninja=ninja_path
