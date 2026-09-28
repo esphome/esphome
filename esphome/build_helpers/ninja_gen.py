@@ -135,7 +135,10 @@ def pch_edges(
     """
     if not pch_enabled():
         return None
-    if any(tok == "-include" or is_joined_include(tok) for tok in cxxflags):
+    if any(
+        tok == "-include" or tok.startswith("--include") or is_joined_include(tok)
+        for tok in cxxflags
+    ):
         # $cxxflags expands first and GCC only loads a .gch for the first
         # -include
         _LOGGER.warning(
