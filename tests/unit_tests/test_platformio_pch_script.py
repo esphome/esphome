@@ -111,7 +111,12 @@ def _run_script(
     with patch.dict(os.environ, env_vars or {}, clear=True):
         exec(  # noqa: S102
             compile(source, "pch.py", "exec"),
-            {"Import": lambda *_names: None, "env": global_env, "projenv": projenv},
+            {
+                "Import": lambda *_names: None,
+                "env": global_env,
+                "projenv": projenv,
+                "COMMAND_LINE_TARGETS": [],
+            },
         )
     return projenv
 
@@ -136,6 +141,7 @@ def test_pch_script_names_match_the_python_side(tmp_path: Path) -> None:
         "Import": lambda *_names: None,
         "env": _FakeSConsEnv(tmp_path, tmp_path, "g++", []),
         "projenv": None,
+        "COMMAND_LINE_TARGETS": ["nobuild"],
     }
     exec(compile(_SCRIPT.read_text(), "pch.py", "exec"), namespace)  # noqa: S102
     assert namespace["_HEADER_NAME"] == pch.PCH_HEADER_NAME
@@ -228,8 +234,7 @@ def test_copy_pch_script(tmp_path: Path) -> None:
     assert (tmp_path / "pch.py").read_text() == _SCRIPT.read_text()
 
 
-def test_pch_script_nobuild_without_projenv_is_noop(tmp_path: Path) -> None:
-    """-t nobuild never exports projenv; the script must not abort."""
+def _run_without_projenv(tmp_path: Path, targets: list[str]) -> Path:
     proj = tmp_path / "dev"
     (proj / "src").mkdir(parents=True)
 
@@ -240,9 +245,32 @@ def test_pch_script_nobuild_without_projenv_is_noop(tmp_path: Path) -> None:
     env = _FakeSConsEnv(proj, proj / "src", "g++", ["-DX=1"])
     exec(  # noqa: S102
         compile(_SCRIPT.read_text(), "pch.py", "exec"),
-        {"Import": strict_import, "env": env},
+        {"Import": strict_import, "env": env, "COMMAND_LINE_TARGETS": targets},
     )
+    return proj
+
+
+def test_pch_script_nobuild_without_projenv_is_noop(tmp_path: Path) -> None:
+    """-t nobuild never exports projenv; the script must not abort."""
+    proj = _run_without_projenv(tmp_path, ["nobuild"])
     assert not (proj / "esphome_pch.h").exists()
+
+
+def test_pch_script_build_without_projenv_stops(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="no project environment"):
+        _run_without_projenv(tmp_path, [])
+
+
+def test_pch_script_stops_when_no_source_object_matches(tmp_path: Path) -> None:
+    """Flags on projenv would reach no compile while the log says the
+    precompiled header is in use."""
+
+    def build_files(args: tuple) -> list:
+        lib = args[1].parent / "lib" / "c.cpp"
+        return [SimpleNamespace(env=_FakeSConsEnv(*args), sources=[lib])]
+
+    with pytest.raises(RuntimeError, match="no C\\+\\+ source takes"):
+        _run_script(tmp_path, build_files=build_files)
 
 
 def test_pch_script_ignores_library_trees_and_non_headers(tmp_path: Path) -> None:
