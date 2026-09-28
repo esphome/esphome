@@ -1,6 +1,38 @@
 ld6004:
   id: ld6004_radar
 
+button:
+  - platform: ld6004
+    ld6004_id: ld6004_radar
+    apply_area:
+      name: LD6004 Apply Area
+    auto_interference:
+      name: LD6004 Auto Interference
+    get_areas:
+      name: LD6004 Get Areas
+    clear_interference:
+      name: LD6004 Clear Interference
+    reset_detection_area:
+      name: LD6004 Reset Detection
+    get_delay:
+      name: LD6004 Get Delay
+    get_sensitivity:
+      name: LD6004 Get Sensitivity
+    get_trigger_speed:
+      name: LD6004 Get Trigger Speed
+    get_z_range:
+      name: LD6004 Get Z Range
+    get_installation:
+      name: LD6004 Get Installation
+    get_low_power_mode:
+      name: LD6004 Get Low Power Mode
+    get_low_power_sleep_time:
+      name: LD6004 Get Low Power Sleep
+    reset_unattended:
+      name: LD6004 Reset Unattended
+    clear_dwell:
+      name: LD6004 Clear Dwell
+
 select:
   - platform: ld6004
     ld6004_id: ld6004_radar
