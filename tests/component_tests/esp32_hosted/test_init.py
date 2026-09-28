@@ -3,7 +3,6 @@
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components import esp32_hosted
 from esphome.components.esp32 import KEY_IDF_VERSION
 from esphome.components.esp32_hosted import (
     CONF_ACTIVE_HIGH,
@@ -57,46 +56,6 @@ SPI = {CONF_TYPE: "spi", CONF_ACTIVE_HIGH: True}
 SPI_ACTIVE_LOW = {CONF_TYPE: "spi", CONF_ACTIVE_HIGH: False}
 
 
-@pytest.mark.parametrize(
-    ("idf", "config", "expected"),
-    [
-        ("5.3.0", SDIO_4BIT, False),
-        ("5.4.2", SPI, False),
-        ("5.5.0", SDIO_4BIT, True),
-        ("5.5.5", SPI, True),
-        ("5.5.5", SDIO_1BIT, False),
-        ("5.5.5", SPI_ACTIVE_LOW, False),
-    ],
-)
-def test_uses_esp_hosted_3x(
-    set_core_config: SetCoreConfigCallable,
-    monkeypatch: pytest.MonkeyPatch,
-    idf: str,
-    config: dict,
-    expected: bool,
-) -> None:
-    """3.x needs ESP-IDF 5.5, a 4-bit SDIO or SPI bus, and an active-high reset."""
-    monkeypatch.setattr(esp32_hosted, "ESP_HOSTED_ENABLE_3X", True)
-    set_core_config(
-        PlatformFramework.ESP32_IDF,
-        platform_data={KEY_IDF_VERSION: cv.Version.parse(idf)},
-    )
-    assert uses_esp_hosted_3x(config) is expected
-
-
-@pytest.mark.parametrize("config", [SDIO_4BIT, SDIO_1BIT, SPI, SPI_ACTIVE_LOW])
-def test_uses_esp_hosted_3x_disabled_by_default(
-    set_core_config: SetCoreConfigCallable, config: dict
-) -> None:
-    """Every configuration stays on 2.x while the 3.x line is not enabled."""
-    assert esp32_hosted.ESP_HOSTED_ENABLE_3X is False
-    set_core_config(
-        PlatformFramework.ESP32_IDF,
-        platform_data={KEY_IDF_VERSION: cv.Version.parse("5.5.5")},
-    )
-    assert uses_esp_hosted_3x(config) is False
-
-
 def _pinned(ref: str, source: str | None = None) -> dict:
     """A full config with esp_hosted pinned under esp32.framework.components."""
     component = {CONF_NAME: "espressif/esp_hosted", CONF_REF: ref}
@@ -127,28 +86,24 @@ def test_user_esp_hosted_major(
 
 
 @pytest.mark.parametrize(
-    ("ref", "config", "expected"),
+    ("full_config", "expected"),
     [
-        ("3.0.9", SDIO_4BIT, True),
-        ("3.0.9", SDIO_1BIT, True),
-        ("2.12.13", SDIO_4BIT, False),
+        ({}, False),
+        (_pinned("2.12.13"), False),
+        (_pinned("3.0.9"), True),
+        (_pinned("main", source="https://github.com/espressif/esp-hosted-mcu"), False),
     ],
 )
-def test_user_pin_selects_line(
-    set_core_config: SetCoreConfigCallable,
-    monkeypatch: pytest.MonkeyPatch,
-    ref: str,
-    config: dict,
-    expected: bool,
+def test_uses_esp_hosted_3x(
+    set_core_config: SetCoreConfigCallable, full_config: dict, expected: bool
 ) -> None:
-    """A user pin wins over the default line and the bus heuristics."""
-    monkeypatch.setattr(esp32_hosted, "ESP_HOSTED_ENABLE_3X", not expected)
+    """Only a 3.x version pin selects the 3.x line."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_IDF_VERSION: cv.Version.parse("5.5.5")},
-        full_config=_pinned(ref),
+        full_config=full_config,
     )
-    assert uses_esp_hosted_3x(config) is expected
+    assert uses_esp_hosted_3x() is expected
 
 
 @pytest.mark.parametrize("config", [SDIO_4BIT, SPI])

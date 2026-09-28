@@ -32,16 +32,11 @@ DEPENDENCIES = ["esp32"]
 # esp32_ble raises the task watchdog around the remote BT controller bring-up
 AUTO_LOAD = ["watchdog"]
 
-# esp_hosted 3.x requires ESP-IDF 5.5; older ESP-IDF releases stay on the 2.x
-# line. The two majors renamed most host Kconfig symbols, so every option below
-# is emitted for the line in use.
-ESP_HOSTED_VERSION_3X = "3.0.9"
-ESP_HOSTED_VERSION_2X = "2.12.13"
-# The 3.x line is wired up but not selected by default yet: 1-bit SDIO cannot
-# be built on it until espressif/esp-hosted#765 is fixed, so builds stay on 2.x
-# unless the user pins a 3.x esp_hosted under esp32.framework.components. Flip
-# this once a 3.x release with the fix is pinned above.
-ESP_HOSTED_ENABLE_3X = False
+# Builds use esp_hosted 2.x. The 3.x host line (ESP-IDF 5.5 or newer) is also
+# supported, selected by pinning a 3.x version under esp32.framework.components;
+# the two majors renamed most host Kconfig symbols, so every option below is
+# emitted for the line in use. 3.x is not the default yet because 1-bit SDIO
+# cannot be built on it until espressif/esp-hosted#765 is fixed.
 ESP_HOSTED_COMPONENT = "espressif/esp_hosted"
 
 CONF_ACTIVE_HIGH = "active_high"
@@ -187,39 +182,13 @@ def user_esp_hosted_major() -> int | None:
     return None
 
 
-def _config_supports_3x(config: ConfigType) -> bool:
-    """Whether this bus configuration can be expressed on the 3.x line.
-
-    Two configurations cannot:
-
-    - 1-bit SDIO: the 3.x SDIO Kconfig (through 3.0.9) hides the D1 pin in
-      1-bit mode while the port config still requires it (the interrupt line),
-      which breaks the build (espressif/esp-hosted#765).
-    - active_high: false: 3.0.8 removed the reset polarity options and always
-      parks the reset line high with a low pulse, which is what active_high:
-      true means here.
-    """
-    if not config[CONF_ACTIVE_HIGH]:
-        return False
-    return config[CONF_TYPE] != "sdio" or config[CONF_BUS_WIDTH] != 1
-
-
-def uses_esp_hosted_3x(config: ConfigType | None = None) -> bool:
+def uses_esp_hosted_3x() -> bool:
     """Whether the build uses the esp_hosted 3.x line.
 
-    An esp_hosted pinned by the user under esp32.framework.components decides
-    outright (validation has already checked that the configuration can be
-    built on that line). Without a pin, 3.x is used only when
-    ESP_HOSTED_ENABLE_3X is on, ESP-IDF is 5.5 or newer, and the bus
-    configuration supports it (see _config_supports_3x).
+    Only when the user pinned a 3.x esp_hosted under esp32.framework.components;
+    validation has already checked that the configuration can be built on it.
     """
-    if (major := user_esp_hosted_major()) is not None:
-        return major >= 3
-    if not ESP_HOSTED_ENABLE_3X or esp32.idf_version() < cv.Version(5, 5, 0):
-        return False
-    if config is None:
-        config = fv.full_config.get()["esp32_hosted"]
-    return _config_supports_3x(config)
+    return (major := user_esp_hosted_major()) is not None and major >= 3
 
 
 def _final_validate(config: ConfigType) -> None:
@@ -240,6 +209,8 @@ def _final_validate(config: ConfigType) -> None:
             f"Remove the {ESP_HOSTED_COMPONENT} pin from esp32.framework."
             "components to stay on the 2.x line, or use ESP-IDF 5.5 or newer."
         )
+    # 3.0.8 removed the reset polarity options and always parks the reset line
+    # high with a low pulse, which is what active_high: true means here.
     if not config[CONF_ACTIVE_HIGH]:
         raise cv.Invalid(
             "esp_hosted 3.x always parks the reset line high with a low pulse, so "
@@ -247,6 +218,8 @@ def _final_validate(config: ConfigType) -> None:
             f"{ESP_HOSTED_COMPONENT} pin from esp32.framework.components to stay "
             "on the 2.x line."
         )
+    # The 3.x SDIO Kconfig (through 3.0.9) hides the D1 pin in 1-bit mode while
+    # the port config still requires it (the interrupt line), so the build fails.
     if config[CONF_TYPE] == "sdio" and config[CONF_BUS_WIDTH] == 1:
         raise cv.Invalid(
             "esp_hosted 3.x cannot be built with a 1-bit SDIO bus "
@@ -500,7 +473,7 @@ def _configure_3x(config: ConfigType) -> None:
 
 async def to_code(config: ConfigType) -> None:
     add_define("USE_ESP32_HOSTED")
-    use_3x = uses_esp_hosted_3x(config)
+    use_3x = uses_esp_hosted_3x()
 
     if use_3x:
         _configure_3x(config)
@@ -527,13 +500,7 @@ async def to_code(config: ConfigType) -> None:
     esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.6.5")
     esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.3")
     esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
-    # A user pin under esp32.framework.components replaces this one anyway;
-    # skipping it avoids a spurious version-conflict warning.
-    if user_esp_hosted_major() is None:
-        esp32.add_idf_component(
-            name=ESP_HOSTED_COMPONENT,
-            ref=ESP_HOSTED_VERSION_3X if use_3x else ESP_HOSTED_VERSION_2X,
-        )
+    esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.13")
     esp32.add_extra_script(
         "post",
         "esp32_hosted.py",
