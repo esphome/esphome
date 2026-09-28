@@ -16,8 +16,9 @@ from esphome.const import (
     DEVICE_CLASS_RESTART,
     DEVICE_CLASS_UPDATE,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
     setup_device_class,
@@ -112,6 +113,13 @@ async def new_button(config: ConfigType, *args: SafeExpType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_button(var, config)
     return var
+
+
+def sub_buttons(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_button."""
+    return SubEntities(new_button, config, parent)
 
 
 BUTTON_PRESS_SCHEMA = maybe_simple_id(

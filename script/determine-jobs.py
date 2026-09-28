@@ -111,14 +111,25 @@ INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
 INTEGRATION_TESTS_SPLIT_BUCKETS = 5
 INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT = 360.0
 
-# platformio and aioesphomeapi (requirements.txt), the pytest stack
-# (requirements_test.txt) and the fixture every session compiles; a change
-# to any runs the full matrix
+# aioesphomeapi (requirements.txt), the pytest stack (requirements_test.txt)
+# and the native host build backend every test compiles with; a change to
+# any runs the full matrix
 INTEGRATION_TESTS_TRIGGER_FILES = frozenset(
     {
         "requirements.txt",
         "requirements_test.txt",
-        "tests/integration/fixtures/cache_init.yaml",
+        "esphome/arduino/library.py",
+        "esphome/build_gen/build_tool.py",
+        "esphome/build_gen/host.py",
+        "esphome/build_helpers/ccache.py",
+        "esphome/build_helpers/idedata.py",
+        "esphome/build_helpers/native.py",
+        "esphome/build_helpers/ninja.py",
+        "esphome/build_helpers/ninja_gen.py",
+        "esphome/build_helpers/tools_cache.py",
+        "esphome/framework_helpers.py",
+        "esphome/host/toolchain.py",
+        "esphome/platformio/library.py",
     }
 )
 
@@ -240,7 +251,7 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
        - conftest.py, types.py, const.py, entity_utils.py, state_utils.py, etc.
 
     4. A file in INTEGRATION_TESTS_TRIGGER_FILES changed
-       - The dependency pins and the session init fixture affect every test
+       - The dependency pins and the host build backend affect every test
 
     Returns (run_all=False, [test_files...]) when:
 
@@ -729,11 +740,17 @@ def _esp8266_native_path_or_file_trigger(files: list[str]) -> bool:
 
 
 def esp8266_native_components_to_test(branch: str | None = None) -> list[str]:
-    """Subset of ``ESP8266_NATIVE_TEST_COMPONENTS`` the job needs to
-    compile (same narrowing as ``esp32_platformio_components_to_test``)."""
-    return _toolchain_components_to_test(
-        branch, ESP8266_NATIVE_TEST_COMPONENTS, _esp8266_native_path_or_file_trigger
-    )
+    """The smoke set on a native-build change, nothing otherwise.
+
+    Unlike the esp32 PlatformIO job, this one does not narrow to the changed
+    components: the component matrix already compiles every esp8266 fixture
+    with this toolchain, so the only gap left is a change to the native build
+    itself that brings no component along.
+    """
+    files = changed_files(branch)
+    if core_changed(files) or _esp8266_native_path_or_file_trigger(files):
+        return sorted(ESP8266_NATIVE_TEST_COMPONENTS)
+    return []
 
 
 def determine_cpp_unit_tests(
@@ -1291,6 +1308,7 @@ def detect_memory_impact_config(
         "components": compatible_components,
         "platform": platform,
         "use_merged_config": "true",
+        "needs_arduino8266": platform.startswith("esp8266"),
     }
 
 
@@ -1521,12 +1539,20 @@ def main() -> None:
         for batch in batches:
             platforms: set[str] = set()
             for component in batch:
-                platforms.update(get_component_test_platforms(component))
+                # Variants included: the compile stage builds them, so a
+                # component tested only by test-<variant>.<platform>.yaml
+                # still needs that platform's toolchain
+                platforms.update(
+                    get_component_test_platforms(component, base_only=False)
+                )
             component_test_batches.append(
                 {
                     "components": " ".join(batch),
                     "needs_idf": any(p.startswith("esp32") for p in platforms),
                     "needs_nrf": any(p.startswith("nrf52") for p in platforms),
+                    "needs_arduino8266": any(
+                        p.startswith("esp8266") for p in platforms
+                    ),
                 }
             )
 
