@@ -1,5 +1,7 @@
+from esphome import pins
 import esphome.codegen as cg
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
+from esphome.components.nrf52.framework import include_west_project
 from esphome.components.ota import (
     BASE_OTA_SCHEMA,
     SWAP_METHOD_SCHEMA,
@@ -23,6 +25,7 @@ from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOOTLOADER,
     KEY_FRAMEWORK_TYPE,
+    KEY_SYSBUILD,
     ZEPHYR_VARIANT_EFR32MG24,
     ZEPHYR_VARIANT_NRF52,
     ZEPHYR_VARIANT_NRF54L15,
@@ -30,8 +33,18 @@ from esphome.components.zephyr.const import (
     ZEPHYR_VARIANT_RP2040,
     ZEPHYR_VARIANT_RP2350,
 )
+from esphome.components.zephyr_ble_server import request_ble_l2cap_mtu
 import esphome.config_validation as cv
-from esphome.const import CONF_HARDWARE_UART, CONF_ID, KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.const import (
+    CONF_HARDWARE_UART,
+    CONF_ID,
+    CONF_INVERTED,
+    CONF_NUMBER,
+    CONF_PIN,
+    CONF_STATUS,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+)
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 from esphome.types import ConfigType
@@ -110,6 +123,12 @@ def _validate_platform(conf: ConfigType) -> ConfigType:
             f"peripheral. Use 'UART0'/'UART1', or 'ble: true', instead.",
             [CONF_TRANSPORT, CONF_HARDWARE_UART],
         )
+    if CONF_STATUS in conf and not CORE.is_nrf52:
+        # The overlay this generates assumes Nordic's 32-pins-per-port &gpio{N}
+        # devicetree numbering -- not valid on EFR32MG24/RP2040/RP2350/nRF54 yet.
+        raise cv.Invalid(
+            f"'{CONF_STATUS}' is only available on platform: nrf52.", [CONF_STATUS]
+        )
     return conf
 
 
@@ -126,6 +145,11 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             **SWAP_METHOD_SCHEMA,
+            cv.Optional(CONF_STATUS): cv.Schema(
+                {
+                    cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
+                }
+            ),
         }
     )
     .extend(BASE_OTA_SCHEMA)
@@ -179,6 +203,10 @@ async def to_code(config: ConfigType) -> None:
 
     zephyr_add_prj_conf("NET_BUF", True)
     zephyr_add_prj_conf("ZCBOR", True)
+    if CORE.is_nrf52:
+        include_west_project("zcbor")
+        # The image manager includes MCUboot headers with any bootloader
+        include_west_project("mcuboot")
     zephyr_add_prj_conf("MCUMGR", True)
 
     zephyr_add_prj_conf("MCUMGR_GRP_IMG", True)
@@ -209,7 +237,9 @@ async def to_code(config: ConfigType) -> None:
         # undefined-symbol assignment as a fatal Kconfig warning).
         if zephyr_data().get(KEY_FRAMEWORK_TYPE) == "ncs":
             zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
+            request_ble_l2cap_mtu(498)  # matches NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP
     if CONF_HARDWARE_UART in transport:
+        zephyr_add_prj_conf("SERIAL", True)
         hw_uart = transport[CONF_HARDWARE_UART]
         if hw_uart in CDC_IDS:
             # zephyr_add_cdc_acm() reuses a board-provided cdc-acm-uart node (e.g.
@@ -247,6 +277,35 @@ async def to_code(config: ConfigType) -> None:
                 }};
                 """
         )
+    if CONF_STATUS in config:
+        pin_conf = config[CONF_STATUS][CONF_PIN]
+        pin_num = pin_conf[CONF_NUMBER]
+        port = pin_num // 32
+        pin_in_port = pin_num % 32
+        active_flag = (
+            "GPIO_ACTIVE_LOW" if pin_conf[CONF_INVERTED] else "GPIO_ACTIVE_HIGH"
+        )
+        zephyr_add_prj_conf("MCUBOOT_INDICATION_LED", True, image="mcuboot")
+        zephyr_add_overlay(
+            f"""
+                #include <dt-bindings/gpio/gpio.h>
+                / {{
+                    mcuboot_leds {{
+                        compatible = "gpio-leds";
+                        mcuboot_led0: mcuboot_led0 {{
+                            gpios = <&gpio{port} {pin_in_port} {active_flag}>;
+                        }};
+                    }};
+                    aliases {{
+                        mcuboot-led0 = &mcuboot_led0;
+                    }};
+                }};
+                """,
+            image="mcuboot",
+        )
+    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if framework_ver >= cv.Version(2, 9, 2):
+        zephyr_data()[KEY_SYSBUILD] = True
 
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader != BOOTLOADER_MCUBOOT:

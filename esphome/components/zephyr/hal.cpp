@@ -82,8 +82,12 @@ void arch_init() {
     !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) && !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS_SIWX91X)
     wdt_config.callback = wdt_warning_cb;
 #endif
+#elif !defined(USE_BOOTLOADER_MCUBOOT)
+    // Adafruit bootloader doesn't feed the WDT while
+    // erasing flash during a firmware update, so a shorter timeout can break the update.
+    wdt_config.window.max = 30000;
 #elif defined(USE_ZIGBEE)
-    // zboss (zigbee) drives default
+    // zboss thread uses a lot of CPU cycles during startup
     wdt_config.window.max = 10000;
 #else
     wdt_config.window.max = 2000;

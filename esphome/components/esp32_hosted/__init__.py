@@ -290,6 +290,8 @@ async def to_code(config: ConfigType) -> None:
     # symbols are simply unused and never register a callback at runtime.
     if esp32.get_esp32_variant() == esp32.VARIANT_ESP32P4:
         add_define("USE_ESP_NOW_HOSTED")
+        # esp_now_hosted.cpp includes esp_now.h, which esp_wifi provides
+        esp32.include_builtin_idf_component("esp_wifi")
         # esp-hosted's CustomRpc ("peer data transfer") path — off by default.
         esp32.add_idf_sdkconfig_option(
             "CONFIG_ESP_HOSTED_ENABLE_PEER_DATA_TRANSFER", True
@@ -311,7 +313,7 @@ async def to_code(config: ConfigType) -> None:
     esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.6.3")
     esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.3")
     esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
-    esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.12")
+    esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.13")
     esp32.add_extra_script(
         "post",
         "esp32_hosted.py",

@@ -527,6 +527,7 @@ def set_core_data(
         module_overrides={},
         blobs=[],
         runner=runner,
+        sysbuild=False,
     )
 
 

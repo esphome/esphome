@@ -3,4 +3,4 @@ power_management:
     id: pm_id
     enable_light_sleep: true
     power_down_device: true
-    profiling: true
+    stats: true

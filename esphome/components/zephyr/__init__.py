@@ -228,6 +228,9 @@ class ZephyrData(TypedDict):
     # transport-conditional blob fetches, on top of the variant's own static `blobs`.
     blobs: list[tuple[str, str, str]]
     runner: str | None  # zephyr: advanced: runner: -- west flash runner override
+    # Set by zephyr_mcumgr/ota's to_code() when sysbuild is actually in use; consulted
+    # by nrf52/framework.py's west-project-filter to decide whether to fetch "mcuboot".
+    sysbuild: bool
 
 
 # platform: nrf52 use only
@@ -270,6 +273,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         module_overrides={},
         blobs=[],
         runner=None,
+        sysbuild=False,
     )
 
 
@@ -726,7 +730,10 @@ async def _overlays_to_code(config: ConfigType) -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _cdc_acm_to_code(config: ConfigType) -> None:
-    if "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT" in zephyr_data()[KEY_PRJ_CONF][""]:
+    need_cdc_cb = zephyr_data()[KEY_PRJ_CONF][""].get(
+        "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", (False,)
+    )[0]
+    if need_cdc_cb:
         var = cg.new_Pvariable(config[CONF_CDC_ACM])
         await cg.register_component(var, {})
 
@@ -774,6 +781,8 @@ def zephyr_add_cdc_acm(config: ConfigType, id: int) -> str:
             zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
         zephyr_add_prj_conf("USB_DEVICE_STACK", True)
         zephyr_add_prj_conf("USB_CDC_ACM", True)
+        # nrf52/__init__.py disables SERIAL by default to save power; CDC-ACM needs it back
+        zephyr_add_prj_conf("SERIAL", True)
         # prevent device to go to susspend, without this communication stop working in python
         # there should be a way to solve it
         zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
@@ -782,6 +791,7 @@ def zephyr_add_cdc_acm(config: ConfigType, id: int) -> str:
     else:
         zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", True)
         zephyr_add_prj_conf("CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", True)
+        zephyr_add_prj_conf("SERIAL", True)
 
     from .dts_lookup import get_existing_cdc_acm_uart_label
 

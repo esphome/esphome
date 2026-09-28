@@ -36,7 +36,7 @@ void HOT esp_log_printf_(int level, const char *tag, int line, const char *forma
 #endif
 }
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
 void HOT esp_log_printf_(int level, const char *tag, int line, const __FlashStringHelper *format, ...) {
 #ifdef USE_LOGGER
   ESPHOME_DEBUG_ASSERT(logger::global_logger != nullptr);

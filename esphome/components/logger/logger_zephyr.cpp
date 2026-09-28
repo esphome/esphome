@@ -81,6 +81,7 @@ void Logger::cdc_loop_() {
 #endif
 
 void Logger::pre_setup() {
+#ifdef CONFIG_SERIAL
   if (this->baud_rate_ > 0) {
     static const struct device *uart_dev = nullptr;
     switch (this->uart_) {
@@ -134,6 +135,7 @@ void Logger::pre_setup() {
 #endif
     }
   }
+#endif
   global_logger = this;
   ESP_LOGI(TAG, "Log initialized");
 #ifdef USE_LOGGER_EARLY_MESSAGE

@@ -228,47 +228,40 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 
 
 async def to_code(config: ConfigType) -> None:
-    ld2450_component = await cg.get_variable(config[CONF_LD2450_ID])
+    hub = await cg.get_variable(config[CONF_LD2450_ID])
 
-    if target_count_config := config.get(CONF_TARGET_COUNT):
-        sens = await sensor.new_sensor(target_count_config)
-        cg.add(ld2450_component.set_target_count_sensor(sens))
-
-    if still_target_count_config := config.get(CONF_STILL_TARGET_COUNT):
-        sens = await sensor.new_sensor(still_target_count_config)
-        cg.add(ld2450_component.set_still_target_count_sensor(sens))
-
-    if moving_target_count_config := config.get(CONF_MOVING_TARGET_COUNT):
-        sens = await sensor.new_sensor(moving_target_count_config)
-        cg.add(ld2450_component.set_moving_target_count_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TARGET_COUNT, hub.set_target_count_sensor)
+    await sensors(CONF_STILL_TARGET_COUNT, hub.set_still_target_count_sensor)
+    await sensors(CONF_MOVING_TARGET_COUNT, hub.set_moving_target_count_sensor)
     for n in range(MAX_TARGETS):
         if target_conf := config.get(f"target_{n + 1}"):
             if x_config := target_conf.get(CONF_X):
                 sens = await sensor.new_sensor(x_config)
-                cg.add(ld2450_component.set_move_x_sensor(n, sens))
+                cg.add(hub.set_move_x_sensor(n, sens))
             if y_config := target_conf.get(CONF_Y):
                 sens = await sensor.new_sensor(y_config)
-                cg.add(ld2450_component.set_move_y_sensor(n, sens))
+                cg.add(hub.set_move_y_sensor(n, sens))
             if speed_config := target_conf.get(CONF_SPEED):
                 sens = await sensor.new_sensor(speed_config)
-                cg.add(ld2450_component.set_move_speed_sensor(n, sens))
+                cg.add(hub.set_move_speed_sensor(n, sens))
             if angle_config := target_conf.get(CONF_ANGLE):
                 sens = await sensor.new_sensor(angle_config)
-                cg.add(ld2450_component.set_move_angle_sensor(n, sens))
+                cg.add(hub.set_move_angle_sensor(n, sens))
             if distance_config := target_conf.get(CONF_DISTANCE):
                 sens = await sensor.new_sensor(distance_config)
-                cg.add(ld2450_component.set_move_distance_sensor(n, sens))
+                cg.add(hub.set_move_distance_sensor(n, sens))
             if resolution_config := target_conf.get(CONF_RESOLUTION):
                 sens = await sensor.new_sensor(resolution_config)
-                cg.add(ld2450_component.set_move_resolution_sensor(n, sens))
+                cg.add(hub.set_move_resolution_sensor(n, sens))
     for n in range(MAX_ZONES):
         if zone_config := config.get(f"zone_{n + 1}"):
             if target_count_config := zone_config.get(CONF_TARGET_COUNT):
                 sens = await sensor.new_sensor(target_count_config)
-                cg.add(ld2450_component.set_zone_target_count_sensor(n, sens))
+                cg.add(hub.set_zone_target_count_sensor(n, sens))
             if still_target_count_config := zone_config.get(CONF_STILL_TARGET_COUNT):
                 sens = await sensor.new_sensor(still_target_count_config)
-                cg.add(ld2450_component.set_zone_still_target_count_sensor(n, sens))
+                cg.add(hub.set_zone_still_target_count_sensor(n, sens))
             if moving_target_count_config := zone_config.get(CONF_MOVING_TARGET_COUNT):
                 sens = await sensor.new_sensor(moving_target_count_config)
-                cg.add(ld2450_component.set_zone_moving_target_count_sensor(n, sens))
+                cg.add(hub.set_zone_moving_target_count_sensor(n, sens))
