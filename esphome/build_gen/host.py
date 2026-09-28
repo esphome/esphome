@@ -11,6 +11,7 @@ else both.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 import logging
 import os
 from pathlib import Path
@@ -20,7 +21,8 @@ from typing import TYPE_CHECKING
 from esphome.build_helpers.ninja import escape as _e, quote_path as _q, shell_token
 from esphome.build_helpers.ninja_gen import (
     PATH_ARG_FLAGS,
-    anchor_path_flags,
+    Flag,
+    anchor_path_flag,
     ar_rule_lines,
     collect_sources,
     compile_edges,
@@ -46,47 +48,71 @@ PIO_PLATFORM = "native"
 LIBRARY_CACHE_KEY = "host"
 
 # Flag shapes that only the compiler understands; dropped from the link line
-_COMPILE_ONLY_PREFIXES = ("-D", "-U", "-I", "-std=", "-W")
-# Compile-only flags whose argument is the next token
-_COMPILE_ONLY_ARG_FLAGS = PATH_ARG_FLAGS
+_COMPILE_ONLY_PREFIXES = ("-D", "-U", "-I", "-std=", "-W", *PATH_ARG_FLAGS)
 # Flag shapes that only the linker consumes; inert on a -c compile line
 _LINK_ONLY_PREFIXES = ("-l", "-L", "-Wl,")
 # Link-only flags whose argument is the next token
 _LINK_ONLY_ARG_FLAGS = ("-framework", "-Xlinker", "-z")
 
 
-def split_flags(tokens: list[str]) -> tuple[list[str], list[str]]:
-    """Route lexed build flags to the compile and link lines (raw tokens).
+def parse_flags(entries: Iterable[str], owner: str) -> list[Flag]:
+    """Lex build flag entries into flags, each with its argument.
 
-    Two-token flags travel with their argument so a stray ``foo.h`` never
-    lands on the link line as an input file.
+    Entries are a set, so their order is not the user's: a flag and the
+    argument it takes as the next token must share one entry.
     """
-    compile_flags: list[str] = []
-    link_flags: list[str] = []
-    it = iter(tokens)
-    for tok in it:
-        if tok in _COMPILE_ONLY_ARG_FLAGS or tok in _LINK_ONLY_ARG_FLAGS:
+    flags: list[Flag] = []
+    for entry in entries:
+        it = iter(lex_build_flags(entry, owner))
+        for tok in it:
+            if tok not in PATH_ARG_FLAGS and tok not in _LINK_ONLY_ARG_FLAGS:
+                flags.append((tok,))
+                continue
             arg = next(it, None)
-            if arg is None:
+            # A path never starts with "-"; that is the next flag
+            if arg is None or (tok in PATH_ARG_FLAGS and arg.startswith("-")):
                 raise EsphomeError(
-                    f"build_flags has a trailing '{tok}' with no argument"
+                    f"{owner} build flags have '{tok}' with no argument; write "
+                    f"the flag and its argument as one entry"
                 )
-            target = compile_flags if tok in _COMPILE_ONLY_ARG_FLAGS else link_flags
-            target += [tok, arg]
-        elif tok.startswith(_LINK_ONLY_PREFIXES):
+            flags.append((tok, arg))
+    return flags
+
+
+def split_flags(flags: list[Flag]) -> tuple[list[Flag], list[Flag]]:
+    """Route build flags to the compile and link lines."""
+    compile_flags: list[Flag] = []
+    link_flags: list[Flag] = []
+    for flag in flags:
+        name = flag[0]
+        if len(flag) > 1:
+            (compile_flags if name in PATH_ARG_FLAGS else link_flags).append(flag)
+        elif name.startswith(_LINK_ONLY_PREFIXES):
             # Checked before the compile prefixes: -Wl, would match -W
-            link_flags.append(tok)
-        elif tok.startswith(_COMPILE_ONLY_PREFIXES):
-            compile_flags.append(tok)
+            link_flags.append(flag)
+        elif name.startswith(_COMPILE_ONLY_PREFIXES):
+            compile_flags.append(flag)
         else:
             # -g, -O, -f*, -m*, -pthread, --coverage: both lines, as SCons
-            compile_flags.append(tok)
-            link_flags.append(tok)
+            compile_flags.append(flag)
+            link_flags.append(flag)
     return compile_flags, link_flags
 
 
-def _is_cxx_std(tok: str) -> bool:
-    return tok.startswith("-std=") and "++" in tok
+def _is_std(flag: Flag) -> bool:
+    return flag[0].startswith("-std=")
+
+
+def _is_cxx_std(flag: Flag) -> bool:
+    return _is_std(flag) and "++" in flag[0]
+
+
+def _anchored_flags(entries: Iterable[str], owner: str) -> list[Flag]:
+    build_path = Path(CORE.build_path)
+    return [
+        anchor_path_flag(flag, build_path)
+        for flag in parse_flags(sorted(entries), owner)
+    ]
 
 
 def _flag_lists() -> tuple[list[str], list[str], list[str]]:
@@ -97,31 +123,29 @@ def _flag_lists() -> tuple[list[str], list[str], list[str]]:
     compiles never see a C++ standard.
     """
     # The funnel warns and drops empty glued arguments (-D "") itself
-    tokens = lex_build_flags(sorted(CORE.build_flags), "esphome")
-    compile_flags, link_flags = split_flags(anchor_path_flags(tokens, CORE.build_path))
-    cflags = [t for t in compile_flags if not _is_cxx_std(t)]
-    cxx_std = CORE.cpp_standard
-    cxxflags = [t for t in compile_flags if not (cxx_std and t.startswith("-std="))]
-    if cxx_std:
-        cxxflags.insert(0, f"-std={cxx_std}")
-    cxxflags += get_project_cxx_compile_flags()
-
-    unflags = set(
-        anchor_path_flags(
-            lex_build_flags(sorted(CORE.build_unflags), "esphome build_unflags"),
-            CORE.build_path,
-        )
+    compile_flags, link_flags = split_flags(
+        _anchored_flags(CORE.build_flags, "esphome")
     )
-    # Matching is whole-token; an unflag that hits nothing (a typo, or
-    # -DUSE_FOO against -DUSE_FOO=1) must be visible, since the user
-    # believes the flag is gone while it still drives the build
+    cflags = [f for f in compile_flags if not _is_cxx_std(f)]
+    cxx_std = CORE.cpp_standard
+    cxxflags = [f for f in compile_flags if not (cxx_std and _is_std(f))]
+    if cxx_std:
+        cxxflags.insert(0, (f"-std={cxx_std}",))
+    cxxflags += [(tok,) for tok in get_project_cxx_compile_flags()]
+
+    # A flag is removed whole, with its argument, as PlatformIO did
+    unflags = set(_anchored_flags(CORE.build_unflags, "esphome build_unflags"))
+    # An unflag that hits nothing (a typo, or -DUSE_FOO against
+    # -DUSE_FOO=1) must be visible, since the user believes the flag is
+    # gone while it still drives the build
     if unmatched := sorted(unflags - set(cflags) - set(cxxflags) - set(link_flags)):
         _LOGGER.warning(
-            "build_unflags entries matched no build flag: %s", ", ".join(unmatched)
+            "build_unflags entries matched no build flag: %s",
+            ", ".join(" ".join(flag) for flag in unmatched),
         )
 
-    def keep(flags: list[str]) -> list[str]:
-        return [t for t in flags if t not in unflags]
+    def keep(flags: list[Flag]) -> list[str]:
+        return [tok for flag in flags if flag not in unflags for tok in flag]
 
     return keep(cflags), keep(cxxflags), keep(link_flags)
 

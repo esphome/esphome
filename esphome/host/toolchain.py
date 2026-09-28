@@ -58,6 +58,9 @@ def find_command(env_var: str, candidates: tuple[str, ...]) -> tuple[str, ...]:
     """
     if override := os.environ.get(env_var, "").strip():
         program, *args = shlex.split(override)
+        if Path(program).stem == "ccache" and args:
+            # The build adds ccache itself; twice would hide the compiler
+            program, *args = args
         # which() accepts an absolute path as well as a bare program name
         if (resolved := shutil.which(program)) is None:
             raise EsphomeError(

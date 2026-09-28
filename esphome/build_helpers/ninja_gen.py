@@ -172,10 +172,13 @@ def library_edges(
     return archives, direct_objs
 
 
-# Glued flags whose operand is a path
-_PATH_PREFIXES = ("-I", "-L")
-# Flags whose path operand is the next token
+# One build flag: the flag, plus its argument when that is a separate token
+Flag = tuple[str, ...]
+
+# Flags whose path operand is the next token; gcc also takes it glued on
 PATH_ARG_FLAGS = ("-include", "-imacros", "-isystem", "-iquote", "-idirafter")
+# Flags whose path operand is glued on
+PATH_PREFIXES = ("-I", "-L", *PATH_ARG_FLAGS)
 
 
 def _anchor(path: str, base: Path) -> str:
@@ -184,21 +187,18 @@ def _anchor(path: str, base: Path) -> str:
     return str(base / path)
 
 
-def anchor_path_flags(tokens: list[str], base: Path) -> list[str]:
-    """Anchor the relative path operands of ``tokens`` at ``base``.
+def anchor_path_flag(flag: Flag, base: Path) -> Flag:
+    """Anchor a flag's relative path operand at ``base``.
 
     PlatformIO ran the compiler from the build path; ninja runs it from
     ``.pioenvs/<name>``, where a relative operand would point elsewhere.
     """
-    anchored: list[str] = []
-    it = iter(tokens)
-    for tok in it:
-        if tok in PATH_ARG_FLAGS or tok in _PATH_PREFIXES:
-            anchored.append(tok)
-            if (arg := next(it, None)) is not None:
-                anchored.append(_anchor(arg, base))
-        elif tok.startswith(_PATH_PREFIXES):
-            anchored.append(tok[:2] + _anchor(tok[2:], base))
-        else:
-            anchored.append(tok)
-    return anchored
+    name, *args = flag
+    if args:
+        if name in PATH_ARG_FLAGS:
+            return (name, _anchor(args[0], base))
+        return flag
+    for prefix in PATH_PREFIXES:
+        if name.startswith(prefix):
+            return (prefix + _anchor(name[len(prefix) :], base),)
+    return flag

@@ -57,6 +57,31 @@ def test_find_command_keeps_the_override_arguments(
         )
 
 
+@pytest.mark.parametrize(
+    ("override", "expected_args"),
+    [("ccache gcc", ()), ("/opt/bin/ccache gcc -m32", ("-m32",))],
+)
+def test_find_command_drops_a_ccache_prefix(
+    monkeypatch: pytest.MonkeyPatch, override: str, expected_args: tuple[str, ...]
+) -> None:
+    """The build adds ccache itself; the compiler is the word after it."""
+    monkeypatch.setenv("CC", override)
+    with patch("shutil.which", side_effect={"gcc": "/usr/bin/gcc"}.get):
+        assert toolchain.find_command("CC", ("cc",)) == (
+            _abs("/usr/bin/gcc"),
+            *expected_args,
+        )
+
+
+def test_find_command_accepts_a_compiler_named_ccache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Alone, the word is the program: ccache's compiler links work that way."""
+    monkeypatch.setenv("CC", "ccache")
+    with patch("shutil.which", side_effect={"ccache": "/usr/bin/ccache"}.get):
+        assert toolchain.find_command("CC", ("cc",)) == (_abs("/usr/bin/ccache"),)
+
+
 def test_find_command_env_override_must_run(monkeypatch: pytest.MonkeyPatch) -> None:
     """A broken override fails by name instead of silently using another compiler."""
     monkeypatch.setenv("CXX", "nope++")

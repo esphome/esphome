@@ -2,40 +2,47 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
+import pytest
+
 from esphome.build_helpers import ninja_gen
+from esphome.build_helpers.ninja_gen import Flag
 
 
-def test_anchor_path_flags_anchors_relative_operands(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("flag", "anchored"),
+    [
+        (("-Iinc",), ("-I{base}/inc",)),
+        (("-Llib",), ("-L{base}/lib",)),
+        (("-include", "pre.h"), ("-include", "{base}/pre.h")),
+        (("-isystem", "sys"), ("-isystem", "{base}/sys")),
+        # The glued spelling of a flag that takes a path
+        (("-isystemsys",), ("-isystem{base}/sys",)),
+        (("-includepre.h",), ("-include{base}/pre.h",)),
+        # An absolute operand is never changed
+        (("-I{base}/abs",), ("-I{base}/abs",)),
+        (("-include", "{base}/abs.h"), ("-include", "{base}/abs.h")),
+        # Not a path
+        (("-DUSE_HOST",), ("-DUSE_HOST",)),
+        (("-lssl",), ("-lssl",)),
+        (("-framework", "Cocoa"), ("-framework", "Cocoa")),
+        (("-I",), ("-I",)),
+    ],
+)
+def test_anchor_path_flag(tmp_path: Path, flag: Flag, anchored: Flag) -> None:
     """Relative operands resolve from the build path, as under PlatformIO."""
-    absolute = str(tmp_path / "abs")
-    assert ninja_gen.anchor_path_flags(
-        [
-            "-Iinc",
-            f"-I{absolute}",
-            "-Llib",
-            "-include",
-            "pre.h",
-            "-I",
-            "split",
-            "-DUSE_HOST",
-            "-lssl",
-            "-I",
-        ],
-        tmp_path,
-    ) == [
-        f"-I{tmp_path / 'inc'}",
-        f"-I{absolute}",
-        f"-L{tmp_path / 'lib'}",
-        "-include",
-        str(tmp_path / "pre.h"),
-        "-I",
-        str(tmp_path / "split"),
-        "-DUSE_HOST",
-        "-lssl",
-        "-I",
-    ]
+
+    def fill(tokens: Flag) -> Flag:
+        return tuple(
+            str(Path(tok.replace("{base}", str(tmp_path))))
+            if "{base}" in tok and not tok.startswith("-")
+            else tok.replace("{base}/", f"{tmp_path}{os.sep}")
+            for tok in tokens
+        )
+
+    assert ninja_gen.anchor_path_flag(fill(flag), tmp_path) == fill(anchored)
 
 
 def test_collect_sources_skips_excluded_and_other_files(tmp_path: Path) -> None:

@@ -12,6 +12,7 @@ import pytest
 from esphome.arduino.library import ArduinoLibrary
 from esphome.build_gen import host as build_gen
 from esphome.build_helpers.ninja import escape as _e, quote_path as _q
+from esphome.build_helpers.ninja_gen import Flag
 from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM, PLATFORM_HOST
 from esphome.core import CORE, EsphomeError, Library
 from esphome.host.toolchain import PROGRAM_NAME, HostCompilers
@@ -43,49 +44,83 @@ def _render(ccache: str | None = None) -> tuple[bool, str]:
 
 
 @pytest.mark.parametrize(
-    ("tokens", "compile_flags", "link_flags"),
+    ("entries", "compile_flags", "link_flags"),
     [
         (
             ["-DUSE_HOST", "-Iinc", "-Ufoo", "-Wall"],
-            ["-DUSE_HOST", "-Iinc", "-Ufoo", "-Wall"],
+            [("-DUSE_HOST",), ("-Iinc",), ("-Ufoo",), ("-Wall",)],
             [],
         ),
-        (["-std=gnu++20"], ["-std=gnu++20"], []),
+        (["-std=gnu++20"], [("-std=gnu++20",)], []),
         (
             ["-lssl", "-L/opt/lib", "-Wl,--gc-sections"],
             [],
-            ["-lssl", "-L/opt/lib", "-Wl,--gc-sections"],
+            [("-lssl",), ("-L/opt/lib",), ("-Wl,--gc-sections",)],
         ),
         # A link-only flag travels with its argument
         (
-            ["-Xlinker", "--wrap=malloc", "-z", "noexecstack", "-framework", "Cocoa"],
+            ["-Xlinker --wrap=malloc", "-z noexecstack", "-framework Cocoa"],
             [],
-            ["-Xlinker", "--wrap=malloc", "-z", "noexecstack", "-framework", "Cocoa"],
+            [
+                ("-Xlinker", "--wrap=malloc"),
+                ("-z", "noexecstack"),
+                ("-framework", "Cocoa"),
+            ],
         ),
         # Both lines, as SCons routes unclassified flags
         (
-            ["-g", "-O2", "-fsanitize=address", "-pthread", "--coverage"],
-            ["-g", "-O2", "-fsanitize=address", "-pthread", "--coverage"],
-            ["-g", "-O2", "-fsanitize=address", "-pthread", "--coverage"],
+            ["-g -O2", "-fsanitize=address", "-pthread", "--coverage"],
+            [
+                ("-g",),
+                ("-O2",),
+                ("-fsanitize=address",),
+                ("-pthread",),
+                ("--coverage",),
+            ],
+            [
+                ("-g",),
+                ("-O2",),
+                ("-fsanitize=address",),
+                ("-pthread",),
+                ("--coverage",),
+            ],
         ),
-        # Two-token flags travel with their argument
+        # A flag with a path argument travels with it, glued on or not
         (
-            ["-include", "pre.h", "-isystem", "/x"],
-            ["-include", "pre.h", "-isystem", "/x"],
+            ["-include pre.h", "-isystem /x", "-isystem/y", "-iquotez"],
+            [("-include", "pre.h"), ("-isystem", "/x"), ("-isystem/y",), ("-iquotez",)],
             [],
         ),
-        (["-framework", "CoreFoundation"], [], ["-framework", "CoreFoundation"]),
     ],
 )
 def test_split_flags(
-    tokens: list[str], compile_flags: list[str], link_flags: list[str]
+    entries: list[str], compile_flags: list[Flag], link_flags: list[Flag]
 ) -> None:
-    assert build_gen.split_flags(tokens) == (compile_flags, link_flags)
+    flags = build_gen.parse_flags(entries, "esphome")
+    assert build_gen.split_flags(flags) == (compile_flags, link_flags)
 
 
-def test_split_flags_trailing_argument_flag() -> None:
-    with pytest.raises(EsphomeError, match="trailing '-include' with no argument"):
-        build_gen.split_flags(["-g", "-include"])
+@pytest.mark.parametrize(
+    "entries",
+    [
+        # The flag is the last token of its entry
+        ["-g -include"],
+        # Entries are a set: the next entry is not this flag's argument
+        ["-include", "pre.h"],
+        ["-framework", "-pthread"],
+        # A path never starts with "-"
+        ["-include -pthread"],
+    ],
+)
+def test_parse_flags_refuses_a_flag_without_its_argument(entries: list[str]) -> None:
+    with pytest.raises(EsphomeError, match="with no argument; write the flag"):
+        build_gen.parse_flags(entries, "esphome")
+
+
+def test_parse_flags_accepts_a_linker_argument_that_is_a_flag() -> None:
+    assert build_gen.parse_flags(["-Xlinker --wrap=malloc"], "esphome") == [
+        ("-Xlinker", "--wrap=malloc")
+    ]
 
 
 def test_flag_lists_route_the_standard() -> None:
@@ -299,6 +334,29 @@ def test_write_project_darwin_links_archives_bare(tmp_path: Path) -> None:
         _changed, ninja = _render()
     assert "  archives = libfoo.a\n" in ninja
     assert "--start-group" not in ninja
+
+
+def test_build_unflags_remove_a_flag_with_its_argument(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Only the named pair goes; the same path under another flag stays."""
+    CORE.build_flags = {"-iquote inc", "-isystem inc", "-Xlinker -dead_strip", "-g"}
+    CORE.build_unflags = {"-isystem inc", "-Xlinker -dead_strip"}
+    with caplog.at_level(logging.WARNING):
+        cflags, _cxxflags, link_flags = build_gen._flag_lists()
+    assert cflags == ["-g", "-iquote", str(CORE.build_path / "inc")]
+    assert link_flags == ["-g"]
+    assert "matched no build flag" not in caplog.text
+
+
+def test_build_unflags_warn_when_nothing_matches(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    CORE.build_flags = {"-g"}
+    CORE.build_unflags = {"-isystem inc", "-DNOPE"}
+    with caplog.at_level(logging.WARNING):
+        build_gen._flag_lists()
+    assert "matched no build flag: -DNOPE, -isystem " in caplog.text
 
 
 def test_build_unflags_match_anchored_paths(caplog: pytest.LogCaptureFixture) -> None:
