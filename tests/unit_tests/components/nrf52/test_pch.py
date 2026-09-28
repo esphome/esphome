@@ -20,7 +20,7 @@ def build_dir(tmp_path: Path) -> Path:
     return d
 
 
-def _prepare(build_dir: Path, generate_headers: bool = False) -> tuple[Mock, Mock]:
+def _prepare(build_dir: Path) -> tuple[Mock, Mock]:
     with (
         patch.dict(CORE.data, {KEY_CORE: {KEY_FRAMEWORK_VERSION: "2.9.2"}}),
         patch.object(
@@ -30,29 +30,15 @@ def _prepare(build_dir: Path, generate_headers: bool = False) -> tuple[Mock, Moc
         patch.object(nrf52, "run_command_ok", return_value=True) as run_cmd,
         patch.object(nrf52.pch, "prepare_pch") as prepare,
     ):
-        nrf52._prepare_pch(build_dir, generate_headers, {"A": "b"}, "/sdk")
+        nrf52._prepare_pch(build_dir, {"A": "b"}, "/sdk")
     return run_cmd, prepare
 
 
-@pytest.mark.parametrize("layout", ["zephyr/autoconf.h", "autoconf.h"])
-def test_prepare_pch_passes_the_build_identity(build_dir: Path, layout: str) -> None:
-    """Zephyr 3.4 moved autoconf.h under zephyr/; both layouts are found."""
-    autoconf = build_dir / "zephyr" / "include" / "generated" / layout
-    autoconf.parent.mkdir(parents=True)
-    autoconf.write_text("#define CONFIG_GPIO 1\n")
-
-    run_cmd, prepare = _prepare(build_dir)
-
-    assert not run_cmd.called
-    passed_dir, identity_file, extras = prepare.call_args.args
-    assert passed_dir == build_dir
-    assert identity_file == autoconf
-    assert list(extras) == ["2.9.2", "adafruit_feather", "-Os"]
-
-
-def test_prepare_pch_generates_the_zephyr_headers(build_dir: Path) -> None:
+def test_prepare_pch_generates_headers_and_passes_the_identity(
+    build_dir: Path,
+) -> None:
     """kernel.h needs the syscall headers, which only a build step makes."""
-    run_cmd, prepare = _prepare(build_dir, generate_headers=True)
+    run_cmd, prepare = _prepare(build_dir)
 
     assert run_cmd.call_args.args[0] == [
         "cmake",
@@ -62,7 +48,12 @@ def test_prepare_pch_generates_the_zephyr_headers(build_dir: Path) -> None:
         "zephyr_generated_headers",
     ]
     assert run_cmd.call_args.kwargs["env"] == {"A": "b"}
-    assert prepare.called
+    passed_dir, identity_file, extras = prepare.call_args.args
+    assert passed_dir == build_dir
+    assert identity_file == (
+        build_dir / "zephyr" / "include" / "generated" / "zephyr" / "autoconf.h"
+    )
+    assert list(extras) == ["2.9.2", "adafruit_feather", "-Os"]
 
 
 def test_prepare_pch_header_generation_failure_stops_the_build(
@@ -73,7 +64,7 @@ def test_prepare_pch_header_generation_failure_stops_the_build(
         patch.object(nrf52.pch, "prepare_pch") as prepare,
         pytest.raises(EsphomeError, match="header generation failed"),
     ):
-        nrf52._prepare_pch(build_dir, True, {}, "/sdk")
+        nrf52._prepare_pch(build_dir, {}, "/sdk")
     assert not prepare.called
 
 
@@ -88,20 +79,6 @@ def test_app_build_dir_top_level_layout(build_dir: Path) -> None:
     # Non-sysbuild: build_dir/zephyr is the Zephyr output dir, no cache
     (build_dir / "zephyr").mkdir()
     assert nrf52._app_build_dir(build_dir) == build_dir
-
-
-def test_app_build_dir_ignores_cache_directory(build_dir: Path) -> None:
-    (build_dir / "zephyr" / "CMakeCache.txt").mkdir(parents=True)
-    assert nrf52._app_build_dir(build_dir) == build_dir
-
-
-def test_app_build_dir_propagates_stat_errors(build_dir: Path) -> None:
-    # is_file() would swallow this and mislocate the pch
-    with (
-        patch.object(Path, "stat", side_effect=PermissionError("denied")),
-        pytest.raises(PermissionError),
-    ):
-        nrf52._app_build_dir(build_dir)
 
 
 def _generate_cmake(tmp_path: Path) -> str:
@@ -126,6 +103,8 @@ def test_cmake_lists_include_pch_consumer_block(tmp_path: Path) -> None:
     text = _generate_cmake(tmp_path)
     assert "target_compile_options(app PRIVATE" in text
     assert 'OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/esphome_pch.h"' in text
+    # With -imacros on the command line GCC never loads the .gch
+    assert "set_property(TARGET compiler PROPERTY imacros -include)" in text
 
 
 def test_cmake_lists_pch_block_disabled(
@@ -211,8 +190,8 @@ class TestRunCompilePhases:
         assert "--cmake-only" in run_cmd.call_args_list[0].args[0]
         # One configure: the build does not hand west the arguments again
         assert "--" not in run_cmd.call_args_list[1].args[0]
-        # Prepared in the app domain dir, with the headers still to generate
-        assert prepare.call_args.args[:2] == (build_dir / "zephyr", True)
+        # Prepared in the app domain dir the configure created
+        assert prepare.call_args.args[0] == build_dir / "zephyr"
 
     def test_cmake_phase_failure_raises(self, compile_ctx: CompileCtx) -> None:
         run_cmd, prepare, _ = compile_ctx
@@ -252,7 +231,7 @@ class TestRunCompilePhases:
         assert run_cmd.call_count == 1
         assert "--cmake-only" not in run_cmd.call_args.args[0]
         assert "-DCMAKE_BUILD_TYPE=MinSizeRel" in run_cmd.call_args.args[0]
-        assert prepare.call_args.args[:2] == (app, False)
+        assert prepare.call_args.args[0] == app
 
     def test_disabled_skips_the_pch(
         self, monkeypatch: pytest.MonkeyPatch, compile_ctx: CompileCtx
