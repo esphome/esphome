@@ -1009,14 +1009,13 @@ def run_compile(args, config: ConfigType) -> bool:
         _copy_if_exists(west_out / "zephyr.hex", zephyr_dir / "zephyr.hex")
         _copy_if_exists(build_dir / "merged.hex", zephyr_dir / "merged.hex")
 
-    # For Adafruit bootloader builds, regenerate the UF2 from the first
-    # available hex file. merged.hex carries the correct flash addresses;
-    # SDK 3.4.0+ no longer generates it, so zephyr.hex is the fallback.
-    hex_file = next(
-        (p for p in (zephyr_dir / "merged.hex", zephyr_dir / "zephyr.hex") if p.is_file()),
-        None,
-    )
-    if bootloader in _UF2_FAMILY_IDS and hex_file is not None:
+    # For Adafruit bootloader builds, regenerate the UF2 from a hex file.
+    # merged.hex carries the correct flash addresses; SDK 3.4.0+ no longer
+    # generates it, so fall back to zephyr.hex.
+    hex_file = zephyr_dir / "merged.hex"
+    if not hex_file.is_file():
+        hex_file = zephyr_dir / "zephyr.hex"
+    if bootloader in _UF2_FAMILY_IDS and hex_file.is_file():
         # Drop the build's own wrong-offset UF2 so it isn't shipped alongside.
         app_uf2 = west_out / "zephyr.uf2"
         if app_uf2.is_file():
