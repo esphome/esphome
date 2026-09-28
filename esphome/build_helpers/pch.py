@@ -12,6 +12,7 @@ from pathlib import Path
 import posixpath
 import re
 import subprocess
+import sys
 
 from esphome.build_helpers.ccache import effective_ccache_basedir, parse_enable_env
 from esphome.build_helpers.idedata import (
@@ -20,7 +21,12 @@ from esphome.build_helpers.idedata import (
     is_launcher,
     split_command,
 )
-from esphome.const import PLATFORM_NRF52
+from esphome.const import (
+    PLATFORM_BK72XX,
+    PLATFORM_LN882X,
+    PLATFORM_NRF52,
+    PLATFORM_RTL87XX,
+)
 from esphome.helpers import write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
@@ -63,6 +69,15 @@ PCH_DEFAULT_HEADERS = (PCH_CORE_HEADER, PCH_PREFIX_HEADER)
 PCH_SCRIPT_EXCLUDED_PLATFORMS = frozenset(
     {
         PLATFORM_NRF52,
+    }
+)
+
+# The GCC 10.3 of LibreTiny only loads its own .gch back on Linux
+PCH_SCRIPT_LINUX_ONLY_PLATFORMS = frozenset(
+    {
+        PLATFORM_BK72XX,
+        PLATFORM_LN882X,
+        PLATFORM_RTL87XX,
     }
 )
 
@@ -123,7 +138,10 @@ def pch_script_enabled() -> bool:
     """Whether this PlatformIO build takes the pch script."""
     from esphome.core import CORE
 
-    return pch_enabled() and CORE.target_platform not in PCH_SCRIPT_EXCLUDED_PLATFORMS
+    platform = CORE.target_platform
+    if platform in PCH_SCRIPT_LINUX_ONLY_PLATFORMS and sys.platform != "linux":
+        return False
+    return pch_enabled() and platform not in PCH_SCRIPT_EXCLUDED_PLATFORMS
 
 
 def pch_header_text(include_headers: Iterable[str]) -> str:

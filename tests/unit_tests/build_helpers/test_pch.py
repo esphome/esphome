@@ -113,9 +113,20 @@ def test_pch_checksum_tracks_closure_content(tmp_path: Path) -> None:
     "platform", ["bk72xx", "esp32", "esp8266", "ln882x", "rp2", "rtl87xx"]
 )
 def test_pch_script_enabled(platform: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(pch.sys, "platform", "linux")
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
     assert pch.pch_script_enabled()
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    assert not pch.pch_script_enabled()
+
+
+@pytest.mark.parametrize("host", ["darwin", "win32"])
+@pytest.mark.parametrize("platform", sorted(pch.PCH_SCRIPT_LINUX_ONLY_PLATFORMS))
+def test_pch_script_linux_only_platform(
+    platform: str, host: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(pch.sys, "platform", host)
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
     assert not pch.pch_script_enabled()
 
 
