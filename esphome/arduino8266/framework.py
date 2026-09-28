@@ -35,31 +35,31 @@ FRAMEWORK_PACKAGE = "framework-arduinoespressif8266"
 TOOLCHAIN_PACKAGE = "toolchain-xtensa-lx106-elf"
 # gcc 10.3, the toolchain Arduino core 3.x builds with; the build
 # generator's compile flags are tuned to it.
-TOOLCHAIN_VERSION = "10.3.0-esphome.1"
+TOOLCHAIN_VERSION = "10.3.0-esphome.2"
 _TOOLCHAIN_RELEASES = (
     "https://github.com/esphome-libs/xtensa-lx106-elf-toolchain/releases/"
 )
 # Registry system tag -> (sha256, size) of that host's archive
 TOOLCHAIN_BUILDS: dict[str, tuple[str, int]] = {
     "darwin_arm64": (
-        "6b533f8dc1e0ae548e60ed18e018b22eaac8fdb78783638c886b41cf112d2656",
-        60830714,
+        "849cede44d4d5c6ea0f14099783239f559f46327bea314281814f2652b486201",
+        60830321,
     ),
     "darwin_x86_64": (
-        "3aa169dce8ac8149017c3b1f77e8021cf65eafaa46dae3f26a2b91feabf78c13",
-        64147528,
+        "ca69904daabf0c5983b372423e5e62f49182a793e992c052e94666852470c897",
+        64149487,
     ),
     "linux_aarch64": (
-        "1543f1fc93149903c0d0cacdaec68fd85903ddd4be668327999c84bbeb016311",
-        67575226,
+        "60a49a4f082bf246544bd409a9517dbbcab19bb30ac9decbee544b896aaccbd6",
+        67573397,
     ),
     "linux_x86_64": (
-        "3fa3aa616f08e54e6a0d1ec89e99642e8c0cd3c3238f055f403f6aadcf21a6cb",
-        68431850,
+        "1fba33ca1494ec79f2776e0e37eca93282d30f8bb9992f5f4f9a655d6fff1db4",
+        68431336,
     ),
     "windows_amd64": (
-        "bd56821518283a144c229a032cf2db97401f09ded5be2ab12be2d5c4a3954a73",
-        67666395,
+        "af9066b0e5bf036f04f2bd9d08b89b81a7f183c57dac0abcaff71dd861cf5f3b",
+        67664137,
     ),
 }
 
