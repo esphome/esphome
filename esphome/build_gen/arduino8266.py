@@ -1145,7 +1145,6 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         (*src_includes, *PCH_DEFAULT_HEADERS),
         flag_sets.cxxflags,
         src_other,
-        toolchain_tool(paths.toolchain, "g++"),
         (str(paths.framework), str(paths.toolchain)),
     )
     src_objs = compile_edges(
