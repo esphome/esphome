@@ -124,15 +124,14 @@ def pch_edges(
     headers: Sequence[str],
     cxxflags: Sequence[str],
     src_flags: Sequence[str],
-    compiler: Path | str,
     identity: Sequence[str],
 ) -> tuple[str, str] | None:
     """Emit the precompiled header for the C++ src edges.
 
     ``headers`` are folded into one prefix header, ``src_flags`` are the
-    flags every src edge carries, ``compiler`` is the C++ compiler program
-    and ``identity`` names what else the compile depends on. Returns the
-    ``cxx_override`` for ``compile_edges``, or None without a pch.
+    flags every src edge carries and ``identity`` names what else the
+    compile depends on, the compiler included. Returns the ``cxx_override``
+    for ``compile_edges``, or None without a pch.
     """
     if not pch_enabled():
         return None
@@ -151,8 +150,8 @@ def pch_edges(
         pch_identity(cxxflags, src_dir, tuple(headers), identity) + "\n",
     )
     gch = _e(PCH_GCH_NAME)
-    # A compiler replaced in place cannot load the .gch of the old one
-    lines.append(f"build {gch}: pch {_e(source)} | {_e(compiler)}")
+    # The checksum file changes with anything the .gch depends on
+    lines.append(f"build {gch}: pch {_e(source)} | {_e(PCH_SUM_NAME)}")
     if src_flags:
         lines.append(f"  flags = {' '.join(src_flags)}")
     lines.append(f"srccxxflags = {' '.join([*src_flags, *pch_consumer_flags()])}")
