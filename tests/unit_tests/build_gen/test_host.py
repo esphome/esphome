@@ -272,7 +272,10 @@ def test_write_project_pch_disabled(
 ) -> None:
     src = _make_src(tmp_path, "main.cpp")
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
-    _, ninja = _render()
+    # The compiler is not asked for its version either
+    with patch.object(build_gen, "_compiler_version", side_effect=AssertionError):
+        build_gen.write_project(COMPILERS, None)
+    ninja = (tmp_path / ".pioenvs" / "dev" / "build.ninja").read_text()
     assert "esphome_pch" not in ninja
     assert f"build obj/src/main.cpp.o: cxx {_e(src / 'main.cpp')}\n" in ninja
 

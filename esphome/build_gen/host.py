@@ -33,7 +33,7 @@ from esphome.build_helpers.ninja_gen import (
     pch_rule_lines,
     tool_lines,
 )
-from esphome.build_helpers.pch import PCH_DEFAULT_HEADERS
+from esphome.build_helpers.pch import PCH_DEFAULT_HEADERS, pch_enabled
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import get_project_cxx_compile_flags
 from esphome.helpers import mkdir_p, write_file_if_changed
@@ -272,7 +272,7 @@ def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
         PCH_DEFAULT_HEADERS,
         cxxflags,
         (),
-        (*compilers.cxx, _compiler_version(compilers.cxx)),
+        (*compilers.cxx, _compiler_version(compilers.cxx)) if pch_enabled() else (),
     )
     src_objs = compile_edges(
         lines,
