@@ -1,15 +1,18 @@
 #pragma once
 
+#include <array>
+
 #include "esphome/components/audio_dac/audio_dac.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-namespace esphome::tas5805m {
+namespace esphome::tas58xx {
 
 enum DacMode : uint8_t {
   DAC_MODE_BTL = 0,   // Bridge tied load, two speakers
@@ -24,8 +27,56 @@ enum MixerMode : uint8_t {
   MIXER_MODE_RIGHT,
 };
 
-class TAS5805M : public audio_dac::AudioDac, public PollingComponent, public i2c::I2CDevice {
+/// Fault binary sensors that map to a single fault bit. The Python FAULT_SENSORS list uses the same names.
+enum FaultSensor : uint8_t {
+  FAULT_SENSOR_LEFT_CHANNEL_DC_FAULT = 0,
+  FAULT_SENSOR_RIGHT_CHANNEL_DC_FAULT,
+  FAULT_SENSOR_LEFT_CHANNEL_OVER_CURRENT,
+  FAULT_SENSOR_RIGHT_CHANNEL_OVER_CURRENT,
+  FAULT_SENSOR_OTP_CRC_CHECK,
+  FAULT_SENSOR_BQ_WRITE_FAILED,
+  FAULT_SENSOR_CLOCK_FAULT,
+  FAULT_SENSOR_PVDD_OVER_VOLTAGE,
+  FAULT_SENSOR_PVDD_UNDER_VOLTAGE,
+  FAULT_SENSOR_OVER_TEMP_SHUTDOWN,
+  FAULT_SENSOR_OVER_TEMP_WARNING,
+  FAULT_SENSOR_COUNT,
+};
+
+/// Everything that differs between models of the family. One constant instance exists per model, see
+/// model_*.cpp, and each TAS58xx instance points to the one for its model.
+///
+/// Fault bits are packed into a 32 bit word: CHAN_FAULT, GLOBAL_FAULT1, GLOBAL_FAULT2 and OT_WARNING, one byte
+/// each, from low to high. A bit index is register * 8 + bit.
+struct ModelInfo {
+  const LogString *(*name)();
+  /// Remainder of the startup sequence, run after the reset, as {register, value} pairs in PROGMEM
+  const uint8_t (*startup_sequence)[2];
+  uint8_t startup_sequence_length;
+  /// Location of the four 9.23 fixed point input mixer coefficients: LEFT_TO_LEFT, RIGHT_TO_LEFT, LEFT_TO_RIGHT,
+  /// RIGHT_TO_RIGHT
+  uint8_t mixer_book;
+  uint8_t mixer_page;
+  uint8_t mixer_register;
+  /// Faults logged as errors and reported by have_fault
+  uint32_t fault_error_mask;
+  /// Faults logged as warnings
+  uint32_t fault_warning_mask;
+  /// Faults that keep the output off until cleared by activate()
+  uint32_t fault_output_off_mask;
+  /// Faults that stay set after the condition is gone and are cleared after each read
+  uint32_t fault_latched_mask;
+  const LogString *(*fault_name)(uint8_t index);
+  /// Bit index for each FaultSensor
+  uint8_t fault_sensor_bits[FAULT_SENSOR_COUNT];
+};
+
+extern const ModelInfo TAS5805M_MODEL;
+
+class TAS58xx : public audio_dac::AudioDac, public PollingComponent, public i2c::I2CDevice {
  public:
+  explicit TAS58xx(const ModelInfo *model) : model_(model) {}
+
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::IO; }
@@ -53,17 +104,9 @@ class TAS5805M : public audio_dac::AudioDac, public PollingComponent, public i2c
 
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(have_fault)
-  SUB_BINARY_SENSOR(left_channel_dc_fault)
-  SUB_BINARY_SENSOR(right_channel_dc_fault)
-  SUB_BINARY_SENSOR(left_channel_over_current)
-  SUB_BINARY_SENSOR(right_channel_over_current)
-  SUB_BINARY_SENSOR(otp_crc_check)
-  SUB_BINARY_SENSOR(bq_write_failed)
-  SUB_BINARY_SENSOR(clock_fault)
-  SUB_BINARY_SENSOR(pvdd_over_voltage)
-  SUB_BINARY_SENSOR(pvdd_under_voltage)
-  SUB_BINARY_SENSOR(over_temp_shutdown)
-  SUB_BINARY_SENSOR(over_temp_warning)
+  void set_fault_binary_sensor(FaultSensor fault, binary_sensor::BinarySensor *sensor) {
+    this->fault_binary_sensors_[fault] = sensor;
+  }
 #endif
 
  protected:
@@ -75,7 +118,11 @@ class TAS5805M : public audio_dac::AudioDac, public PollingComponent, public i2c
   bool write_mixer_();
   bool read_faults_();
 
+  const ModelInfo *model_;
   GPIOPin *enable_pin_{nullptr};
+#ifdef USE_BINARY_SENSOR
+  std::array<binary_sensor::BinarySensor *, FAULT_SENSOR_COUNT> fault_binary_sensors_{};
+#endif
   float volume_{0};
   float analog_gain_db_{-15.5f};
   float volume_min_db_{-103.0f};
@@ -87,4 +134,4 @@ class TAS5805M : public audio_dac::AudioDac, public PollingComponent, public i2c
   uint8_t power_state_{0xFF};  // Last POWER_STATE seen by update(), 0xFF until the first read
 };
 
-}  // namespace esphome::tas5805m
+}  // namespace esphome::tas58xx
