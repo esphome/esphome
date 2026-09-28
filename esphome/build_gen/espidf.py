@@ -4,6 +4,7 @@ import json
 import logging
 from pathlib import Path
 
+from esphome.build_helpers import pch
 from esphome.components.esp32 import (
     get_esp32_variant,
     get_excluded_builtin_components,
@@ -282,7 +283,53 @@ idf_component_register(
 target_link_options(${{COMPONENT_LIB}} PUBLIC
     {link_opts_str}
 )
+{_pch_cmake_block()}"""
+
+
+# Where CMake puts the .gch of the src component; ccache reads the checksum
+# next to it in place of the .gch
+_PCH_SUM_PATH = "build/esp-idf/src/CMakeFiles/__idf_src.dir/cmake_pch.hxx.gch.sum"
+
+
+def _pch_cmake_block() -> str:
+    """The CMake block that precompiles the core headers for the C++ sources
+    of the src component; empty when disabled."""
+    if not pch.pch_enabled():
+        return ""
+    headers = "\n".join(
+        f'    "$<$<COMPILE_LANGUAGE:CXX>:${{CMAKE_CURRENT_SOURCE_DIR}}/{header}>"'
+        for header in pch.PCH_DEFAULT_HEADERS
+    )
+    return f"""
+# ESPHome precompiled header
+target_precompile_headers(${{COMPONENT_LIB}} PRIVATE
+{headers}
+)
 """
+
+
+def _read_if_exists(path: Path) -> str:
+    return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+
+def write_pch_checksum() -> None:
+    """Write the checksum ccache uses in place of the .gch: the core headers,
+    the framework version, the sdkconfig and the managed component versions."""
+    if not pch.pch_enabled():
+        return
+    pch.log_pch_in_use()
+    checksum = pch.pch_checksum(
+        CORE.relative_src_path(),
+        pch.PCH_DEFAULT_HEADERS,
+        (
+            str(idf_version()),
+            _read_if_exists(CORE.relative_build_path(f"sdkconfig.{CORE.name}")),
+            _read_if_exists(CORE.relative_build_path("dependencies.lock")),
+        ),
+    )
+    path = CORE.relative_build_path(_PCH_SUM_PATH)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_file_if_changed(path, checksum + "\n")
 
 
 def write_project(

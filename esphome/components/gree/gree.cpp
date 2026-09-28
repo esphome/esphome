@@ -226,7 +226,7 @@ uint8_t GreeClimate::vertical_swing_() {
 }
 
 uint8_t GreeClimate::temperature_() {
-  return (uint8_t) roundf(clamp<float>(this->target_temperature, GREE_TEMP_MIN, GREE_TEMP_MAX));
+  return (uint8_t) roundf(clamp<float>(this->target_temperature, GREE_TEMP_MIN, GREE_TEMP_MAX)) - GREE_TEMP_MIN;
 }
 
 uint8_t GreeClimate::preset_() {
