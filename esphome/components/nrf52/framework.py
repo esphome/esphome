@@ -66,7 +66,7 @@ def _get_sdk_ng_toolchain_mirrors() -> list[str]:
 
     SDK 1.0+ uses a toolchain_gnu_ prefix in the filename.
     """
-    if _get_toolchain_version() != TOOLCHAIN_VERSION:
+    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 4, 0):
         return _SDK_NG_TOOLCHAIN_GNU_MIRRORS
     return SDK_NG_TOOLCHAIN_MIRRORS
 
@@ -124,7 +124,7 @@ def toolchain_tool(name: str) -> Path:
     suffix = ".exe" if os.name == "nt" else ""
     toolchain_version = _get_toolchain_version()
     toolchain_root = _get_toolchain_path(toolchain_version)
-    if toolchain_version != TOOLCHAIN_VERSION:
+    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 4, 0):
         bin_path = toolchain_root / "gnu" / "arm-zephyr-eabi" / "bin"
     else:
         bin_path = toolchain_root / "arm-zephyr-eabi" / "bin"
@@ -625,7 +625,7 @@ def _install_toolchain() -> None:
         # target gnu/arm-zephyr-eabi/ to get the right path after stripping.
         arm_extract_dir = (
             toolchains_dir / "gnu" / "arm-zephyr-eabi"
-            if toolchain_version != TOOLCHAIN_VERSION
+            if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 4, 0)
             else toolchains_dir / "arm-zephyr-eabi"
         )
         for mirrors, extract_dir, what, slug in (
