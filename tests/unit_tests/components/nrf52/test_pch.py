@@ -150,6 +150,15 @@ def test_west_configure_command_keeps_one_separator() -> None:
     ]
 
 
+def test_west_build_after_a_configure_passes_no_cmake_arguments() -> None:
+    """West configures again whenever it is handed CMake arguments."""
+    cmd = nrf52._west_build_command(
+        Path("/penv/python"), "board", Path("/b"), Path("/s"), configured=True
+    )
+    assert "--" not in cmd
+    assert not [arg for arg in cmd if arg.startswith("-D")]
+
+
 CompileCtx = tuple[Mock, Mock, Path]
 
 
@@ -200,7 +209,8 @@ class TestRunCompilePhases:
         with pytest.raises(EsphomeError, match="nRF52 native build failed"):
             self._run()
         assert "--cmake-only" in run_cmd.call_args_list[0].args[0]
-        assert "--cmake-only" not in run_cmd.call_args_list[1].args[0]
+        # One configure: the build does not hand west the arguments again
+        assert "--" not in run_cmd.call_args_list[1].args[0]
         # Prepared in the app domain dir, with the headers still to generate
         assert prepare.call_args.args[:2] == (build_dir / "zephyr", True)
 
@@ -241,6 +251,7 @@ class TestRunCompilePhases:
             self._run()
         assert run_cmd.call_count == 1
         assert "--cmake-only" not in run_cmd.call_args.args[0]
+        assert "-DCMAKE_BUILD_TYPE=MinSizeRel" in run_cmd.call_args.args[0]
         assert prepare.call_args.args[:2] == (app, False)
 
     def test_disabled_skips_the_pch(
