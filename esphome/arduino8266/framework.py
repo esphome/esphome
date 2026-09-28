@@ -4,11 +4,13 @@ Artifacts land in a machine-global cache (shared across projects, like the
 ESP-IDF install in ``esphome.espidf.framework``):
 
     <cache>/arduino8266/frameworks/<version>/   framework-arduinoespressif8266
-    <cache>/arduino8266/toolchains/<version>/   toolchain-xtensa (gcc 10.3)
+    <cache>/arduino8266/toolchains/<version>/   xtensa-lx106-elf gcc 10.3
 
-Packages come from the PlatformIO registry (identical bits to the PlatformIO
-backend); ``ESPHOME_ARDUINO8266_*_MIRRORS`` overrides the URLs. ninja comes
-from PATH or the ninja PyPI wheel.
+The framework comes from the PlatformIO registry (identical bits to the
+PlatformIO backend). The toolchain comes from
+esphome-libs/xtensa-lx106-elf-toolchain, which builds it for every supported
+host. ``ESPHOME_ARDUINO8266_*_MIRRORS`` overrides the URLs. ninja comes from
+PATH or the ninja PyPI wheel.
 """
 
 from __future__ import annotations
@@ -22,13 +24,46 @@ from esphome.build_helpers.ninja import find_ninja
 from esphome.build_helpers.tools_cache import ARDUINO8266_TOOLS_CACHE, tools_cache_path
 from esphome.core import EsphomeError, Version
 from esphome.framework_helpers import str_to_lst_of_str
-from esphome.platformio.registry import install_package, prefetch_packages
+from esphome.platformio.registry import (
+    Download,
+    get_systype,
+    install_package,
+    prefetch_packages,
+)
 
 FRAMEWORK_PACKAGE = "framework-arduinoespressif8266"
-TOOLCHAIN_PACKAGE = "toolchain-xtensa"
+TOOLCHAIN_PACKAGE = "toolchain-xtensa-lx106-elf"
 # gcc 10.3, the toolchain Arduino core 3.x builds with; the build
-# generator's compile flags are tuned to it.
-TOOLCHAIN_VERSION = "2.100300.220621"
+# generator's compile flags are tuned to it. Generates the same code as
+# PlatformIO's toolchain-xtensa 2.100300.220621.
+TOOLCHAIN_VERSION = "10.3.0-esphome.1"
+_TOOLCHAIN_URL = (
+    "https://github.com/esphome-libs/xtensa-lx106-elf-toolchain/releases/download/"
+    "{version}/toolchain-xtensa-lx106-elf-{version}-{system}.tar.gz"
+)
+# Registry system tag -> (sha256, size) of that host's archive
+TOOLCHAIN_BUILDS: dict[str, tuple[str, int]] = {
+    "darwin_arm64": (
+        "6b533f8dc1e0ae548e60ed18e018b22eaac8fdb78783638c886b41cf112d2656",
+        60830714,
+    ),
+    "darwin_x86_64": (
+        "3aa169dce8ac8149017c3b1f77e8021cf65eafaa46dae3f26a2b91feabf78c13",
+        64147528,
+    ),
+    "linux_aarch64": (
+        "1543f1fc93149903c0d0cacdaec68fd85903ddd4be668327999c84bbeb016311",
+        67575226,
+    ),
+    "linux_x86_64": (
+        "3fa3aa616f08e54e6a0d1ec89e99642e8c0cd3c3238f055f403f6aadcf21a6cb",
+        68431850,
+    ),
+    "windows_amd64": (
+        "bd56821518283a144c229a032cf2db97401f09ded5be2ab12be2d5c4a3954a73",
+        67666395,
+    ),
+}
 
 ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS = str_to_lst_of_str(
     os.environ.get("ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS", "")
@@ -74,6 +109,21 @@ def get_toolchain_path() -> Path:
     return get_arduino8266_tools_path() / "toolchains" / TOOLCHAIN_VERSION
 
 
+def toolchain_download() -> Download:
+    """The toolchain archive for the current host."""
+    systype = get_systype()
+    if (build := TOOLCHAIN_BUILDS.get(systype)) is None:
+        raise EsphomeError(
+            f"There is no ESP8266 toolchain for this system ({systype}); "
+            f"supported systems are {', '.join(sorted(TOOLCHAIN_BUILDS))}. "
+            "Either set 'toolchain: platformio' under 'esp8266:', or point "
+            "ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS at a toolchain archive"
+        )
+    sha256, size = build
+    url = _TOOLCHAIN_URL.format(version=TOOLCHAIN_VERSION, system=systype)
+    return Download(url, sha256, size)
+
+
 class InstalledPaths(NamedTuple):
     """Locations of the installed framework, toolchain, and ninja binary."""
 
@@ -115,10 +165,25 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
             ("bin", "xtensa-lx106-elf"),
         ),
     )
+    # A mirror override replaces the pinned download, so an unsupported host
+    # can still bring its own toolchain
+    pinned: dict[str, Download] = (
+        {}
+        if ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS
+        else {TOOLCHAIN_PACKAGE: toolchain_download()}
+    )
     # Fetch both archives at once; the installs below verify and extract
-    prefetch_packages([spec[:4] for spec in specs], downloads_dir)
+    prefetch_packages([spec[:4] for spec in specs], downloads_dir, pinned)
     for name, version, dest, mirrors, expect in specs:
-        install_package(name, version, dest, mirrors, downloads_dir, expect=expect)
+        install_package(
+            name,
+            version,
+            dest,
+            mirrors,
+            downloads_dir,
+            expect=expect,
+            pinned=pinned.get(name),
+        )
     return InstalledPaths(
         framework=framework_path, toolchain=toolchain_path, ninja=ninja_path
     )

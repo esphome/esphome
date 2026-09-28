@@ -1,5 +1,8 @@
 """Install packages from the PlatformIO registry without importing the
-platformio package (identical bits, esphome's own download machinery)."""
+platformio package (identical bits, esphome's own download machinery).
+
+A package can also come from a pinned download, a URL with its sha256 and
+size, which skips the registry lookup and is verified the same way."""
 
 from __future__ import annotations
 
@@ -31,6 +34,14 @@ _REGISTRY_URL = (
 )
 
 
+class Download(NamedTuple):
+    """Where to fetch a package archive and what it must hash to."""
+
+    url: str
+    sha256: str
+    size: int | None
+
+
 def get_systype() -> str:
     """The registry system tag for the current host.
 
@@ -56,7 +67,7 @@ def get_systype() -> str:
 
 
 @cache
-def registry_download(package: str, version: str) -> tuple[str, str, int | None]:
+def registry_download(package: str, version: str) -> Download:
     """Resolve a package's download URL, sha256, and size via the registry.
 
     The metadata fetch goes through ``http_request``/``fetch_with_retry``
@@ -144,7 +155,7 @@ def registry_download(package: str, version: str) -> tuple[str, str, int | None]
                         f"The package registry returned no download URL for "
                         f"{package} {version}"
                     )
-                return (url, sha256, file.get("size"))
+                return Download(url, sha256, file.get("size"))
         raise EsphomeError(
             f"No {package} {version} build for this platform ({systype})"
         )
@@ -183,15 +194,18 @@ def _already_installed(dest: Path) -> bool:
 
 
 def prefetch_packages(
-    packages: list[tuple[str, str, Path, list[str]]], downloads_dir: Path
+    packages: list[tuple[str, str, Path, list[str]]],
+    downloads_dir: Path,
+    pinned: dict[str, Download] | None = None,
 ) -> None:
     """Download pending package archives in parallel under one combined bar.
 
-    ``packages`` holds ``(name, version, dest, mirrors)`` per package. Purely
-    an optimization: ``install_package`` verifies every archive and
-    re-downloads anything this pass left unfinished. Mirror overrides and
-    registry entries without a size stay on the sequential path so its
-    per-file bars remain trustworthy. Each fetch holds the same per-dest
+    ``packages`` holds ``(name, version, dest, mirrors)`` per package;
+    ``pinned`` maps a package name to the download that replaces its
+    registry lookup. Purely an optimization: ``install_package`` verifies
+    every archive and re-downloads anything this pass left unfinished.
+    Mirror overrides and registry entries without a size stay on the
+    sequential path so its per-file bars remain trustworthy. Each fetch holds the same per-dest
     lock as ``install_package``: the archive's ``.part`` file is shared, and
     two concurrent writers would truncate each other's bytes.
     """
@@ -207,12 +221,15 @@ def prefetch_packages(
             # A duplicate entry would race itself between two workers
             continue
         seen.add(archive)
-        try:
-            url, sha256, size = registry_download(name, version)
-        except EsphomeError as err:
-            # The sequential install reports the real failure with context
-            _LOGGER.debug("Prefetch resolve for %s failed: %s", name, err)
-            continue
+        if pinned and (download := pinned.get(name)):
+            url, sha256, size = download
+        else:
+            try:
+                url, sha256, size = registry_download(name, version)
+            except EsphomeError as err:
+                # The sequential install reports the real failure with context
+                _LOGGER.debug("Prefetch resolve for %s failed: %s", name, err)
+                continue
         if not size:
             continue
         if archive.is_file() and archive.stat().st_size == size:
@@ -282,13 +299,15 @@ def install_package(
     mirrors: list[str],
     downloads_dir: Path,
     expect: Collection[str],
+    pinned: Download | None = None,
 ) -> None:
     """Download, verify, and extract one package if not already installed.
 
-    The registry path is integrity-checked against the sha256 the registry
-    publishes; a mirror override (URL templates with ``{VERSION}``/``{SYSTEM}``
-    substitution) is trusted as configured. ``downloads_dir`` holds the
-    archive between runs so an interrupted download resumes.
+    The archive comes from ``pinned`` when given, else from the registry;
+    both are integrity-checked against their sha256. A mirror override (URL
+    templates with ``{VERSION}``/``{SYSTEM}`` substitution) wins over both
+    and is trusted as configured. ``downloads_dir`` holds the archive
+    between runs so an interrupted download resumes.
     """
     if not expect:
         # Layout validation before marker.touch() is the only guard against
@@ -323,7 +342,7 @@ def install_package(
                 mirrors, {"VERSION": version, "SYSTEM": get_systype()}, archive
             )
         else:
-            url, sha256, size = registry_download(name, version)
+            url, sha256, size = pinned or registry_download(name, version)
             download_with_resume(url, archive, sha256=sha256, size=size)
         _LOGGER.info("Extracting %s ...", name)
         archive_extract_all(archive, dest, progress_header="Extracting")

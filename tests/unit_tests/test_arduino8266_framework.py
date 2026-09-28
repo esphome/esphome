@@ -54,9 +54,60 @@ def test_tools_path_default_and_prefix(tmp_path: Path) -> None:
     assert path != Path.cwd()
 
 
-def test_check_and_install_returns_paths(tmp_path: Path) -> None:
+def test_toolchain_builds_are_pinned() -> None:
+    """A release must not be pinned without its checksums."""
+    for sha256, size in framework.TOOLCHAIN_BUILDS.values():
+        assert len(sha256) == 64
+        assert size > 0
+
+
+def test_toolchain_download() -> None:
+    sha256, size = framework.TOOLCHAIN_BUILDS["darwin_arm64"]
+    with (
+        patch.object(framework, "TOOLCHAIN_VERSION", "1.2.3"),
+        patch.object(framework, "get_systype", return_value="darwin_arm64"),
+    ):
+        download = framework.toolchain_download()
+    assert download == (
+        (
+            "https://github.com/esphome-libs/xtensa-lx106-elf-toolchain/releases/"
+            "download/1.2.3/toolchain-xtensa-lx106-elf-1.2.3-darwin_arm64.tar.gz"
+        ),
+        sha256,
+        size,
+    )
+
+
+def test_toolchain_download_unsupported_system() -> None:
+    with (
+        patch.object(framework, "get_systype", return_value="linux_armv7l"),
+        pytest.raises(
+            EsphomeError, match=r"linux_armv7l.*darwin_arm64.*toolchain: platformio"
+        ),
+    ):
+        framework.toolchain_download()
+
+
+def test_check_and_install_mirror_skips_pinned_toolchain(tmp_path: Path) -> None:
+    """With a mirror override an unsupported host can bring its own toolchain."""
     with (
         patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
+        patch.object(framework, "ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS", ["http://m"]),
+        patch.object(framework, "get_systype", return_value="linux_armv7l"),
+        patch.object(framework, "install_package") as mock_install,
+        patch.object(framework, "prefetch_packages") as mock_prefetch,
+        patch.object(framework, "find_ninja", return_value=tmp_path / "ninja"),
+    ):
+        framework.check_and_install(cv.Version(3, 1, 2))
+    assert mock_prefetch.call_args.args[2] == {}
+    assert mock_install.call_args_list[1].kwargs["pinned"] is None
+
+
+def test_check_and_install_returns_paths(tmp_path: Path) -> None:
+    toolchain = framework.Download("http://y/toolchain.tar.gz", "def456", 7)
+    with (
+        patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
+        patch.object(framework, "toolchain_download", return_value=toolchain),
         patch.object(framework, "install_package") as mock_install,
         patch.object(framework, "prefetch_packages") as mock_prefetch,
         patch.object(framework, "find_ninja", return_value=tmp_path / "ninja"),
@@ -76,7 +127,10 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
         framework.ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
         tmp_path / "downloads",
     )
-    assert fw_call.kwargs["expect"] == ("cores/esp8266", "tools/sdk", "libraries")
+    assert fw_call.kwargs == {
+        "expect": ("cores/esp8266", "tools/sdk", "libraries"),
+        "pinned": None,
+    }
     assert tc_call.args == (
         framework.TOOLCHAIN_PACKAGE,
         framework.TOOLCHAIN_VERSION,
@@ -84,7 +138,10 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
         framework.ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS,
         tmp_path / "downloads",
     )
-    assert tc_call.kwargs["expect"] == ("bin", "xtensa-lx106-elf")
+    assert tc_call.kwargs == {
+        "expect": ("bin", "xtensa-lx106-elf"),
+        "pinned": toolchain,
+    }
     # The prefetch sees the same package specs as the installs
     assert mock_prefetch.call_args.args == (
         [
@@ -102,6 +159,7 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
             ),
         ],
         tmp_path / "downloads",
+        {framework.TOOLCHAIN_PACKAGE: toolchain},
     )
 
 

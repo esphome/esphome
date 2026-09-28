@@ -311,6 +311,56 @@ def test_install_package_downloads_via_registry(tmp_path: Path) -> None:
     assert mock_download.call_args[1] == {"sha256": "abc123", "size": 42}
 
 
+def test_install_package_downloads_pinned(tmp_path: Path) -> None:
+    """A pinned download is verified like a registry one, with no lookup."""
+    dest = tmp_path / "pkg"
+    pinned = registry.Download("http://y/pinned.tar.gz", "def456", 7)
+    with (
+        patch.object(registry, "download_with_resume") as mock_download,
+        patch.object(registry, "archive_extract_all") as mock_extract,
+        patch.object(registry, "registry_download") as mock_registry,
+    ):
+        mock_extract.side_effect = lambda *_a, **_kw: (dest / "payload").mkdir(
+            parents=True
+        )
+        registry.install_package(
+            "pkg",
+            "1.0.0",
+            dest,
+            [],
+            tmp_path / "dl",
+            expect=("payload",),
+            pinned=pinned,
+        )
+    mock_registry.assert_not_called()
+    assert mock_download.call_args[0][0] == "http://y/pinned.tar.gz"
+    assert mock_download.call_args[1] == {"sha256": "def456", "size": 7}
+
+
+def test_install_package_mirror_wins_over_pinned(tmp_path: Path) -> None:
+    """A mirror override replaces the pinned download."""
+    dest = tmp_path / "pkg"
+    with (
+        patch.object(registry, "download_from_mirrors") as mock_mirrors,
+        patch.object(registry, "download_with_resume") as mock_download,
+        patch.object(registry, "archive_extract_all") as mock_extract,
+    ):
+        mock_extract.side_effect = lambda *_a, **_kw: (dest / "payload").mkdir(
+            parents=True
+        )
+        registry.install_package(
+            "pkg",
+            "1.0.0",
+            dest,
+            ["http://mirror/{VERSION}"],
+            tmp_path / "dl",
+            expect=("payload",),
+            pinned=registry.Download("http://y/pinned.tar.gz", "def456", 7),
+        )
+    mock_mirrors.assert_called_once()
+    mock_download.assert_not_called()
+
+
 def test_install_package_validates_expected_layout(tmp_path: Path) -> None:
     """The success marker is only written when the extracted tree is usable."""
     dest = tmp_path / "pkg"
@@ -533,6 +583,29 @@ def test_prefetch_packages_downloads_pending_in_parallel(tmp_path: Path) -> None
         assert call[1]["sha256"] == "abc123"
         assert call[1]["size"] == size
         assert callable(call[1]["progress"])
+
+
+def test_prefetch_packages_uses_pinned_download(tmp_path: Path) -> None:
+    """A pinned package skips the registry; the others still resolve there."""
+    with (
+        patch.object(registry, "download_with_resume") as mock_download,
+        patch.object(
+            registry, "registry_download", side_effect=_resolve_for({"a": 10})
+        ) as mock_registry,
+    ):
+        registry.prefetch_packages(
+            [
+                ("a", "1.0", tmp_path / "a", []),
+                ("b", "2.0", tmp_path / "b", []),
+            ],
+            tmp_path / "dl",
+            {"b": registry.Download("http://y/b.tar.gz", "def456", 20)},
+        )
+    mock_registry.assert_called_once_with("a", "1.0")
+    calls = sorted(mock_download.call_args_list, key=lambda c: c[0][0])
+    assert [c[0][0] for c in calls] == ["http://x/a.tar.gz", "http://y/b.tar.gz"]
+    assert calls[1][1]["sha256"] == "def456"
+    assert calls[1][1]["size"] == 20
 
 
 def test_prefetch_packages_skips_freshly_installed_dest(tmp_path: Path) -> None:

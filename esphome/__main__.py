@@ -837,8 +837,9 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         check_placeholder_credentials(config)
 
     # Keep this here, NOT in codegen: config-hash and --only-generate must keep
-    # working on machines that cannot run the toolchain.
-    if CORE.is_esp8266:
+    # working on machines that cannot run the toolchain. The native toolchain
+    # has an arm64 macOS build and needs no check.
+    if CORE.is_esp8266 and CORE.using_toolchain_platformio:
         from esphome.components.esp8266 import check_rosetta
 
         check_rosetta()
