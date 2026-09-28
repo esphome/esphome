@@ -29,19 +29,6 @@ namespace esphome::bluetooth_connection {
 
 static const char *const TAG = "bluetooth_connection";
 
-// Without a cancel, Bluedroid keeps the pending open's CLCB and later opens fail with status 128.
-static void cancel_pending_open(esp_gatt_if_t gattc_if, const esp_bd_addr_t bda, uint8_t index) {
-#ifdef BLUEDROID_HAS_CANCEL_OPEN
-  esp_ble_gattc_cancel_open_params_t params{};
-  params.gattc_if = gattc_if;
-  memcpy(params.remote_bda, bda, sizeof(esp_bd_addr_t));
-  esp_err_t err = esp_ble_gattc_cancel_open(&params);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "[%d] esp_ble_gattc_cancel_open failed, status=%d", index, err);
-  }
-#endif
-}
-
 using ble_device_base::FAST_CONN_TIMEOUT;
 using ble_device_base::FAST_MAX_CONN_INTERVAL;
 using ble_device_base::FAST_MIN_CONN_INTERVAL;
@@ -84,7 +71,7 @@ void BluedroidGattClient::loop() {
     // teardown whose OPEN_EVT never arrives.
     if (millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
       if (this->conn_id_ == UNSET_CONN_ID) {
-        cancel_pending_open(this->gattc_if_, this->remote_bda_, this->connection_index_);
+        this->cancel_pending_open_();
       } else {
         // Lost CLOSE_EVT can leave the ACL link up.
         this->check_and_log_error_("esp_ble_gap_disconnect", esp_ble_gap_disconnect(this->remote_bda_));
@@ -211,12 +198,21 @@ int BluedroidGattClient::gatt_disconnect() {
     this->enable_loop();
     if (this->conn_id_ == UNSET_CONN_ID) {
       // CANCEL_OPEN_EVT or a racing OPEN_EVT settles the slot.
-      cancel_pending_open(this->gattc_if_, this->remote_bda_, this->connection_index_);
+      this->cancel_pending_open_();
     }
     return 0;
   }
   this->unconditional_disconnect_();
   return 0;
+}
+
+void BluedroidGattClient::cancel_pending_open_() {
+#ifdef BLUEDROID_HAS_CANCEL_OPEN
+  esp_ble_gattc_cancel_open_params_t params{};
+  params.gattc_if = this->gattc_if_;
+  memcpy(params.remote_bda, this->remote_bda_, sizeof(esp_bd_addr_t));
+  this->check_and_log_error_("esp_ble_gattc_cancel_open", esp_ble_gattc_cancel_open(&params));
+#endif
 }
 
 void BluedroidGattClient::unconditional_disconnect_() {
@@ -797,7 +793,8 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       if (!this->check_addr_(param->cancel_open.remote_bda))
         return false;
       // ERROR means OPEN_EVT follows and settles the slot.
-      if (param->cancel_open.status == ESP_GATT_OK && this->state() == ClientState::CONNECTING) {
+      if (param->cancel_open.status == ESP_GATT_OK && this->state() == ClientState::CONNECTING &&
+          this->disconnect_pending()) {
         ESP_LOGD(TAG, "[%d] Pending open cancelled", this->connection_index_);
         this->release_services();
         this->set_idle_();
