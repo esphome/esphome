@@ -3,6 +3,7 @@
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components import esp32_hosted
 from esphome.components.esp32 import KEY_IDF_VERSION
 from esphome.components.esp32_hosted import (
     CONF_ACTIVE_HIGH,
@@ -59,13 +60,28 @@ SPI_ACTIVE_LOW = {CONF_TYPE: "spi", CONF_ACTIVE_HIGH: False}
 )
 def test_uses_esp_hosted_3x(
     set_core_config: SetCoreConfigCallable,
+    monkeypatch: pytest.MonkeyPatch,
     idf: str,
     config: dict,
     expected: bool,
 ) -> None:
     """3.x needs ESP-IDF 5.5, a 4-bit SDIO or SPI bus, and an active-high reset."""
+    monkeypatch.setattr(esp32_hosted, "ESP_HOSTED_ENABLE_3X", True)
     set_core_config(
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_IDF_VERSION: cv.Version.parse(idf)},
     )
     assert uses_esp_hosted_3x(config) is expected
+
+
+@pytest.mark.parametrize("config", [SDIO_4BIT, SDIO_1BIT, SPI, SPI_ACTIVE_LOW])
+def test_uses_esp_hosted_3x_disabled_by_default(
+    set_core_config: SetCoreConfigCallable, config: dict
+) -> None:
+    """Every configuration stays on 2.x while the 3.x line is not enabled."""
+    assert esp32_hosted.ESP_HOSTED_ENABLE_3X is False
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_IDF_VERSION: cv.Version.parse("5.5.5")},
+    )
+    assert uses_esp_hosted_3x(config) is False

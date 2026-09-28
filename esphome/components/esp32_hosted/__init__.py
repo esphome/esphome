@@ -27,8 +27,12 @@ AUTO_LOAD = ["watchdog"]
 # esp_hosted 3.x requires ESP-IDF 5.5; older ESP-IDF releases stay on the 2.x
 # line. The two majors renamed most host Kconfig symbols, so every option below
 # is emitted for the line in use.
-ESP_HOSTED_VERSION_3X = "3.0.8"
+ESP_HOSTED_VERSION_3X = "3.0.9"
 ESP_HOSTED_VERSION_2X = "2.12.13"
+# The 3.x line is wired up but not selected yet: 1-bit SDIO cannot be built on
+# it until espressif/esp-hosted#765 is fixed, so every build stays on 2.x for
+# now. Flip this once a 3.x release with the fix is pinned above.
+ESP_HOSTED_ENABLE_3X = False
 
 CONF_ACTIVE_HIGH = "active_high"
 CONF_BUS_WIDTH = "bus_width"
@@ -155,16 +159,17 @@ CONFIG_SCHEMA = cv.typed_schema(
 def uses_esp_hosted_3x(config: ConfigType | None = None) -> bool:
     """Whether the build uses the esp_hosted 3.x line.
 
-    3.x requires ESP-IDF 5.5. Two configurations stay on the 2.x line:
+    Always false while ESP_HOSTED_ENABLE_3X is off. Otherwise 3.x requires
+    ESP-IDF 5.5, and two configurations stay on the 2.x line:
 
-    - 1-bit SDIO: the 3.0.8 SDIO Kconfig hides the D1 pin in 1-bit mode while
-      the port config still requires it (the interrupt line), which breaks the
-      build (espressif/esp-hosted#765).
+    - 1-bit SDIO: the 3.x SDIO Kconfig (through 3.0.9) hides the D1 pin in
+      1-bit mode while the port config still requires it (the interrupt line),
+      which breaks the build (espressif/esp-hosted#765).
     - active_high: false: 3.0.8 removed the reset polarity options and always
       parks the reset line high with a low pulse, which is what active_high:
       true means here.
     """
-    if esp32.idf_version() < cv.Version(5, 5, 0):
+    if not ESP_HOSTED_ENABLE_3X or esp32.idf_version() < cv.Version(5, 5, 0):
         return False
     if config is None:
         config = fv.full_config.get()["esp32_hosted"]
