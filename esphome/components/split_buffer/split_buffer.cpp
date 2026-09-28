@@ -18,7 +18,6 @@ bool SplitBuffer::init(size_t total_length, size_t max_buffer_size) {
     return false;
   }
 
-  this->total_length_ = total_length;
   size_t current_buffer_size = std::min(total_length, max_buffer_size);
 
   RAMAllocator<uint8_t *> ptr_allocator;
@@ -66,6 +65,7 @@ bool SplitBuffer::init(size_t total_length, size_t max_buffer_size) {
       this->buffers_ = temp_buffers;
       this->buffer_count_ = needed_buffers;
       this->buffer_size_ = current_buffer_size;
+      this->total_length_ = total_length;
       ESP_LOGD(TAG, "Allocated %zu * %zu bytes - %zu bytes", this->buffer_count_, this->buffer_size_,
                this->total_length_);
       return true;
@@ -125,7 +125,7 @@ uint8_t &SplitBuffer::operator[](size_t index) {
   return const_cast<uint8_t &>(static_cast<const SplitBuffer *>(this)->operator[](index));
 }
 
-uint8_t *SplitBuffer::get_span(size_t index, size_t &length) const {
+const uint8_t *SplitBuffer::get_span(size_t index, size_t &length) const {
   if (index >= this->total_length_) {
     length = 0;
     return nullptr;
@@ -133,6 +133,10 @@ uint8_t *SplitBuffer::get_span(size_t index, size_t &length) const {
   const size_t offset = index % this->buffer_size_;
   length = std::min(this->buffer_size_ - offset, this->total_length_ - index);
   return this->buffers_[index / this->buffer_size_] + offset;
+}
+
+uint8_t *SplitBuffer::get_span(size_t index, size_t &length) {
+  return const_cast<uint8_t *>(static_cast<const SplitBuffer *>(this)->get_span(index, length));
 }
 
 void SplitBuffer::write(size_t index, const uint8_t *data, size_t length) {
