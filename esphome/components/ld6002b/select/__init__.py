@@ -1,16 +1,17 @@
 import esphome.codegen as cg
 from esphome.components import select
+from esphome.components.ld600x import ld600x_ns
 import esphome.config_validation as cv
 from esphome.const import CONF_AREA_ID, CONF_SENSITIVITY, ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
-from .. import LD6002BComponent, ld6002b_ns
+from .. import LD6002BComponent
 from ..const import CONF_INSTALLATION_MODE, CONF_LD6002B_ID, CONF_TRIGGER_SPEED
 
 DEPENDENCIES = ["ld6002b"]
 
-LD6002BSelect = ld6002b_ns.class_("LD6002BSelect", select.Select)
-SelectType = ld6002b_ns.enum("SelectType", is_class=True)
+LD600XSelect = ld600x_ns.class_("LD600XSelect", select.Select)
+SelectType = ld600x_ns.enum("SelectType")
 
 AREA_ID_OPTIONS = [
     "interference_area_0",
@@ -27,16 +28,16 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_LD6002B_ID): cv.use_id(LD6002BComponent),
         cv.Optional(CONF_SENSITIVITY): select.select_schema(
-            LD6002BSelect, entity_category=ENTITY_CATEGORY_CONFIG
+            LD600XSelect, entity_category=ENTITY_CATEGORY_CONFIG
         ),
         cv.Optional(CONF_TRIGGER_SPEED): select.select_schema(
-            LD6002BSelect, entity_category=ENTITY_CATEGORY_CONFIG
+            LD600XSelect, entity_category=ENTITY_CATEGORY_CONFIG
         ),
         cv.Optional(CONF_INSTALLATION_MODE): select.select_schema(
-            LD6002BSelect, entity_category=ENTITY_CATEGORY_CONFIG
+            LD600XSelect, entity_category=ENTITY_CATEGORY_CONFIG
         ),
         cv.Optional(CONF_AREA_ID): select.select_schema(
-            LD6002BSelect, entity_category=ENTITY_CATEGORY_CONFIG
+            LD600XSelect, entity_category=ENTITY_CATEGORY_CONFIG
         ),
     }
 )
@@ -45,23 +46,23 @@ CONFIG_SCHEMA = cv.Schema(
 SELECT_MAP = (
     (
         CONF_SENSITIVITY,
-        SelectType.SENSITIVITY,
+        SelectType.SELECT_SENSITIVITY,
         "set_sensitivity_select",
         ["low", "medium", "high"],
     ),
     (
         CONF_TRIGGER_SPEED,
-        SelectType.TRIGGER_SPEED,
+        SelectType.SELECT_TRIGGER_SPEED,
         "set_trigger_speed_select",
         ["slow", "medium", "fast"],
     ),
     (
         CONF_INSTALLATION_MODE,
-        SelectType.INSTALLATION_MODE,
+        SelectType.SELECT_INSTALLATION_MODE,
         "set_installation_select",
         ["top", "side"],
     ),
-    (CONF_AREA_ID, SelectType.AREA_ID, "set_area_id_select", AREA_ID_OPTIONS),
+    (CONF_AREA_ID, SelectType.SELECT_AREA_ID, "set_area_id_select", AREA_ID_OPTIONS),
 )
 
 
