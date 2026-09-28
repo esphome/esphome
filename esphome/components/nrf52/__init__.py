@@ -176,6 +176,8 @@ def _detect_bootloader(config: ConfigType) -> ConfigType:
     """Detect the bootloader for the given board."""
     config = config.copy()
     bootloaders: list[str] = []
+    if CONF_BOARD not in config:
+        raise cv.Invalid("'board' is a required option for [nrf52].")
     board = config[CONF_BOARD]
 
     if board in BOARDS_ZEPHYR and KEY_BOOTLOADER in BOARDS_ZEPHYR[board]:
@@ -250,7 +252,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.Schema(
                 {
                     cv.Optional(CONF_VERSION): cv.string_strict,
-                    cv.Optional(CONF_LIBC_NANO, default=True): cv.boolean,
+                    cv.Optional(CONF_LIBC_NANO): cv.boolean,
                     cv.Optional(
                         CONF_ADVANCED, default={}, visibility=cv.Visibility.YAML_ONLY
                     ): cv.Schema(
@@ -296,7 +298,7 @@ def _final_validate(config):
     conf = config[CONF_FRAMEWORK]
     advanced = conf[CONF_ADVANCED]
 
-    if conf[CONF_LIBC_NANO] and "logger" in CORE.loaded_integrations:
+    if conf.get(CONF_LIBC_NANO, False) and "logger" in CORE.loaded_integrations:
         _LOGGER.warning(
             "Logger is enabled with newlib-nano (libc_nano: true). Some format specifiers "
             "such as %%zu are not supported and will print incorrectly. "
@@ -402,7 +404,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_OTA_ROLLBACK")
     zephyr_add_prj_conf("NEWLIB_LIBC", True)
     zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
-    zephyr_add_prj_conf("NEWLIB_LIBC_NANO", conf[CONF_LIBC_NANO])
+    zephyr_add_prj_conf(
+        "NEWLIB_LIBC_NANO",
+        conf.get(CONF_LIBC_NANO, "logger" not in CORE.loaded_integrations),
+    )
     # c++ support
     if framework_ver < cv.Version(2, 9, 2):
         zephyr_add_prj_conf("CPLUSPLUS", True)
@@ -413,9 +418,6 @@ async def to_code(config: ConfigType) -> None:
     # watchdog
     zephyr_add_prj_conf("WATCHDOG", True)
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
-    # disable console
-    zephyr_add_prj_conf("UART_CONSOLE", False)
-    zephyr_add_prj_conf("CONSOLE", False, False)
     # use NFC pins as GPIO
     if framework_ver < cv.Version(2, 9, 2):
         zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
@@ -429,9 +431,17 @@ async def to_code(config: ConfigType) -> None:
         )
     zephyr_add_prj_conf("REBOOT", True)
 
-    # some boards enable USB by default.
+    # some boards enable USB and UART by default.
     # disable it to prevent extra current consumption.
     zephyr_add_prj_conf("USB_DEVICE_STACK", False, False)
+    zephyr_add_prj_conf("SERIAL", False, False)
+
+    # disable stuff to make image smaller by default
+    zephyr_add_prj_conf("NCS_BOOT_BANNER", False, False)
+    zephyr_add_prj_conf("BOOT_BANNER", False, False)
+    zephyr_add_prj_conf("PRINTK", False, False)
+    zephyr_add_prj_conf("CONSOLE", False, False)
+    zephyr_add_prj_conf("UART_CONSOLE", False)
 
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
@@ -446,6 +456,7 @@ async def _dfu_to_code(dfu_config):
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
     zephyr_add_prj_conf("USB_CDC_ACM", True)
     zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
+    zephyr_add_prj_conf("SERIAL", True)
     await cg.register_component(var, dfu_config)
 
 
