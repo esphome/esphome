@@ -380,7 +380,10 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
       } else {
         ESP_LOGE(TAG, "Error reading firmware data: %d", read_or_error);
       }
-      esp_hosted_slave_ota_end();  // NOLINT
+      {
+        watchdog::WatchdogManager wdt(OTA_WDT_TIMEOUT_MS);
+        esp_hosted_slave_ota_end();  // NOLINT
+      }
       container->end();
       this->status_set_error(LOG_STR("Download failed"));
       return false;
@@ -390,7 +393,10 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
     err = esp_hosted_slave_ota_write(buffer, read_or_error);  // NOLINT
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
-      esp_hosted_slave_ota_end();  // NOLINT
+      {
+        watchdog::WatchdogManager wdt(OTA_WDT_TIMEOUT_MS);
+        esp_hosted_slave_ota_end();  // NOLINT
+      }
       container->end();
       this->status_set_error(LOG_STR("Failed to write OTA data"));
       return false;
@@ -402,7 +408,10 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
   hasher.calculate();
   if (!hasher.equals_bytes(this->firmware_sha256_.data())) {
     ESP_LOGE(TAG, "SHA256 mismatch");
-    esp_hosted_slave_ota_end();  // NOLINT
+    {
+      watchdog::WatchdogManager wdt(OTA_WDT_TIMEOUT_MS);
+      esp_hosted_slave_ota_end();  // NOLINT
+    }
     this->status_set_error(LOG_STR("SHA256 verification failed"));
     return false;
   }
@@ -451,7 +460,10 @@ bool Esp32HostedUpdate::write_embedded_firmware_to_coprocessor_() {
     err = esp_hosted_slave_ota_write(chunk, chunk_size);  // NOLINT
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
-      esp_hosted_slave_ota_end();  // NOLINT
+      {
+        watchdog::WatchdogManager wdt(OTA_WDT_TIMEOUT_MS);
+        esp_hosted_slave_ota_end();  // NOLINT
+      }
       this->status_set_error(LOG_STR("Failed to write OTA data"));
       return false;
     }
