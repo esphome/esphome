@@ -179,28 +179,6 @@ def test_pch_script_folds_joined_force_include_spelling(tmp_path: Path) -> None:
     assert pch.splitlines()[0] == '#include "other.h"'
 
 
-def test_pch_script_leaves_absolute_force_includes_unfolded(
-    tmp_path: Path,
-) -> None:
-    """An absolute -include resolves through src_dir / name; it must still
-    stay consumer-only or the host path enters the .sum."""
-    outside = tmp_path / "outside.h"
-    outside.write_text("")
-    _run_script(tmp_path, flags=["-DX=1", "-include", str(outside)])
-    pch = (tmp_path / "dev" / "esphome_pch_src.h").read_text()
-    assert "outside.h" not in pch
-
-
-def test_pch_script_leaves_non_src_force_includes_unfolded(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A user -include outside src/ stays on the consumers only."""
-    _run_script(tmp_path, flags=["-DX=1", "-include", "user_extra.h"])
-    pch = (tmp_path / "dev" / "esphome_pch_src.h").read_text()
-    assert "user_extra.h" not in pch
-    assert "not precompiling non-src force-includes" in capsys.readouterr().out
-
-
 def test_pch_script_sum_is_device_independent(tmp_path: Path) -> None:
     """Regression: identical configs in different dirs share cache keys."""
     sums = []
@@ -299,3 +277,28 @@ def test_pch_script_hashes_project_local_include_dirs(tmp_path: Path) -> None:
     (tmp_path / "fake-gxx.argv").unlink(missing_ok=True)
     _run_script(tmp_path, flags=flags)
     assert (proj / "esphome_pch.h.gch.sum").read_text() != first
+
+
+def test_pch_script_folds_force_includes_found_on_the_include_path(
+    tmp_path: Path,
+) -> None:
+    """A framework force-include (Arduino.h) is read before the core
+    headers, as it was without the precompiled header."""
+    _run_script(tmp_path, flags=["-DX=1", "-include", "Arduino.h"])
+    source = (tmp_path / "dev" / "esphome_pch_src.h").read_text()
+    assert source.splitlines() == [
+        '#include "Arduino.h"',
+        '#include "esphome/core/defines.h"',
+        '#include "esphome/core/pch_prefix.h"',
+    ]
+
+
+def test_pch_script_skipped_for_an_absolute_force_include(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    outside = tmp_path / "outside.h"
+    outside.write_text("")
+    scons_env = _run_script(tmp_path, flags=["-DX=1", "-include", str(outside)])
+    assert scons_env.prepended == []
+    assert not (tmp_path / "dev" / "esphome_pch.h.gch").exists()
+    assert "prevents the precompiled header" in capsys.readouterr().out

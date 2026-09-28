@@ -13,7 +13,7 @@ try:
 except Exception:  # noqa: BLE001 -- not exported under -t nobuild
     projenv = None
 
-# Precompile the src force-includes plus the core headers and force-include
+# Precompile the force-includes plus the core headers and force-include
 # the result into C++ src compiles only. Any failure stops the build. This
 # script cannot import esphome: a test pins the values below to
 # build_helpers/pch.py.
@@ -104,15 +104,15 @@ def _setup_pch() -> None:
             include_headers.append(tok[len("-include") :])
         else:
             flags.append(tok)
-    # Only names under src/ are folded; the rest stay consumer only
-    folded = [
-        name
-        for name in include_headers
-        if not Path(name).is_absolute() and (src_dir / name).is_file()
-    ]
-    if unfolded := [n for n in include_headers if n not in folded]:
-        print(f"ESPHome: not precompiling non-src force-includes: {unfolded}")
-    headers = [*folded, *_DEFAULT_HEADERS]
+    # Folded first and in order, as the compiler would have read them. An
+    # absolute path would enter the checksum, so it cannot be folded
+    if absolute := [name for name in include_headers if Path(name).is_absolute()]:
+        print(
+            f"ESPHome: the force-include of {absolute} prevents the precompiled "
+            "header; compiling without it"
+        )
+        return
+    headers = [*include_headers, *_DEFAULT_HEADERS]
     content = "".join(f'#include "{name}"\n' for name in headers)
 
     digest = hashlib.sha256()
