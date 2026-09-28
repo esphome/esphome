@@ -56,6 +56,12 @@ def _render(ccache: str | None = None) -> tuple[bool, str]:
             [],
             ["-lssl", "-L/opt/lib", "-Wl,--gc-sections"],
         ),
+        # A link-only flag travels with its argument
+        (
+            ["-Xlinker", "--wrap=malloc", "-z", "noexecstack", "-framework", "Cocoa"],
+            [],
+            ["-Xlinker", "--wrap=malloc", "-z", "noexecstack", "-framework", "Cocoa"],
+        ),
         # Both lines, as SCons routes unclassified flags
         (
             ["-g", "-O2", "-fsanitize=address", "-pthread", "--coverage"],
@@ -200,7 +206,13 @@ def test_write_project_without_ccache(tmp_path: Path) -> None:
 def test_write_project_routes_user_link_flags(tmp_path: Path) -> None:
     _make_src(tmp_path, "main.cpp")
     lib_dir = tmp_path / "opt" / "lib"
-    CORE.build_flags = {f"-L{lib_dir}", "-lcrypto", "-Wl,-framework,Security"}
+    # Forward slashes: build flags are lexed like a POSIX shell line, which
+    # reads a backslash as an escape
+    CORE.build_flags = {
+        f"-L{lib_dir.as_posix()}",
+        "-lcrypto",
+        "-Wl,-framework,Security",
+    }
     _changed, ninja = _render()
     assert "linkflags = -Wl,-framework,Security\n" in ninja
     assert f"libdirflags = -L{_q(lib_dir)}\n" in ninja

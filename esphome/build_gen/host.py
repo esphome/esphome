@@ -51,8 +51,8 @@ _COMPILE_ONLY_PREFIXES = ("-D", "-U", "-I", "-std=", "-W")
 _COMPILE_ONLY_ARG_FLAGS = PATH_ARG_FLAGS
 # Flag shapes that only the linker consumes; inert on a -c compile line
 _LINK_ONLY_PREFIXES = ("-l", "-L", "-Wl,")
-# Link-only flags whose argument is the next token (macOS frameworks)
-_LINK_ONLY_ARG_FLAGS = ("-framework",)
+# Link-only flags whose argument is the next token
+_LINK_ONLY_ARG_FLAGS = ("-framework", "-Xlinker", "-z")
 
 
 def split_flags(tokens: list[str]) -> tuple[list[str], list[str]]:
