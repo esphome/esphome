@@ -36,12 +36,20 @@ def test_pch_enabled(value: str | None, expected: bool) -> None:
 def test_ccache_pch_env_enabled() -> None:
     with patch.dict(os.environ, {}, clear=True):
         env = pch.ccache_pch_env()
-    assert env == pch.CCACHE_PCH_ENV
+    assert env == {
+        "CCACHE_SLOPPINESS": "pch_defines,time_macros",
+        "CCACHE_PCH_EXTSUM": "true",
+    }
 
 
-def test_ccache_pch_env_user_values_win() -> None:
-    with patch.dict(os.environ, {"CCACHE_SLOPPINESS": "locale"}, clear=True):
-        assert pch.ccache_pch_env() == {"CCACHE_PCH_EXTSUM": "true"}
+def test_ccache_pch_env_keeps_user_values() -> None:
+    """A user sloppiness list without the pch entries would stop ccache
+    from caching every compile that loads the .gch."""
+    user = {"CCACHE_SLOPPINESS": "locale, time_macros", "CCACHE_PCH_EXTSUM": "false"}
+    with patch.dict(os.environ, user, clear=True):
+        assert pch.ccache_pch_env() == {
+            "CCACHE_SLOPPINESS": "locale,time_macros,pch_defines"
+        }
 
 
 def test_ccache_pch_env_disabled() -> None:
