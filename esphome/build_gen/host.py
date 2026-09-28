@@ -15,6 +15,7 @@ from collections.abc import Iterable
 import logging
 import os
 from pathlib import Path
+import subprocess
 import sys
 from typing import TYPE_CHECKING
 
@@ -28,8 +29,11 @@ from esphome.build_helpers.ninja_gen import (
     compile_edges,
     compile_rule_lines,
     library_edges,
+    pch_edges,
+    pch_rule_lines,
     tool_lines,
 )
+from esphome.build_helpers.pch import PCH_DEFAULT_HEADERS, pch_enabled
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import get_project_cxx_compile_flags
 from esphome.helpers import mkdir_p, write_file_if_changed
@@ -189,6 +193,15 @@ def _file_macro_maps(build_dir: Path) -> list[str]:
     ]
 
 
+def _compiler_version(cxx: tuple[str, ...]) -> str:
+    """What the compiler says it is: its path can stay the same across an
+    update (the macOS shims in /usr/bin)."""
+    result = subprocess.run(
+        [*cxx, "--version"], capture_output=True, text=True, check=False
+    )
+    return result.stdout
+
+
 def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
     """Write the ninja build for the current configuration.
 
@@ -228,6 +241,7 @@ def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
     lines = [
         *tool_lines(compilers.cc, compilers.cxx, ccache),
         *compile_rule_lines(),
+        *pch_rule_lines(),
         "rule link",
         "  command = $cxx -o $out $linkflags @$out.rsp $archives $libdirflags $libflags",
         "  rspfile = $out.rsp",
@@ -251,7 +265,23 @@ def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
 
     archives, direct_objs = library_edges(lines, libraries)
 
-    src_objs = compile_edges(lines, collect_sources(src_dir), src_dir, "src")
+    src_cxx_override = pch_edges(
+        lines,
+        build_dir,
+        src_dir,
+        PCH_DEFAULT_HEADERS,
+        # The arguments of a CXX override come before the flags
+        [*compilers.cxx[1:], *cxxflags],
+        (),
+        (compilers.cxx[0], _compiler_version(compilers.cxx)) if pch_enabled() else (),
+    )
+    src_objs = compile_edges(
+        lines,
+        collect_sources(src_dir),
+        src_dir,
+        "src",
+        cxx_override=src_cxx_override,
+    )
     if not src_objs:
         raise EsphomeError(f"No source files found under {src_dir}")
 

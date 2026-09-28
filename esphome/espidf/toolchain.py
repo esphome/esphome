@@ -528,6 +528,10 @@ def run_compile(config, verbose: bool) -> int:
             return result.returncode
         _patch_memory_segments()
 
+    from esphome.build_gen.espidf import write_pch_checksum
+
+    write_pch_checksum()
+
     # Build
     args = []
 
