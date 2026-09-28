@@ -29,7 +29,20 @@ PCH_HEADER_NAME = "esphome_pch.h"
 PCH_GCH_NAME = f"{PCH_HEADER_NAME}.gch"
 # ccache hashes this instead of the .gch; also the freshness stamp
 PCH_SUM_NAME = f"{PCH_GCH_NAME}.sum"
+# The include list the .gch is compiled from
+PCH_SOURCE_NAME = "esphome_pch_src.h"
 _PCH_COMMAND_CACHE = f"{PCH_HEADER_NAME}.cmd.json"
+
+# GCC can skip a .gch without any diagnostic and read the header of the same
+# name instead, so that header is an error. Tools that cannot load a .gch
+# get the include list.
+PCH_GUARD_TEXT = f"""\
+#if defined(__GNUC__) && !defined(__clang__) && !defined(__INTELLISENSE__)
+#error "The precompiled header was not loaded"
+#else
+#include "{PCH_SOURCE_NAME}"
+#endif
+"""
 
 PCH_CORE_HEADER = "esphome/core/defines.h"
 # The curated core headers
@@ -86,6 +99,15 @@ def ccache_pch_env() -> dict[str, str]:
 def pch_header_text(include_headers: Iterable[str]) -> str:
     """The prefix-header source: exactly these includes, in order."""
     return "".join(f'#include "{name}"\n' for name in include_headers)
+
+
+def write_pch_headers(build_dir: Path, include_headers: Iterable[str]) -> Path:
+    """Write the guard header and the include list; return the latter,
+    which is what the .gch compiles from."""
+    write_file_if_changed(build_dir / PCH_HEADER_NAME, PCH_GUARD_TEXT)
+    source = build_dir / PCH_SOURCE_NAME
+    write_file_if_changed(source, pch_header_text(include_headers))
+    return source
 
 
 def _include_closure(src_dir: Path, roots: Iterable[str]) -> dict[str, bytes]:
@@ -228,8 +250,8 @@ def prepare_pch(build_dir: Path, identity_file: Path, extra: Iterable[str]) -> N
     gch = build_dir / PCH_GCH_NAME
     sum_path = build_dir / PCH_SUM_NAME
     try:
-        write_file_if_changed(header, pch_header_text(PCH_DEFAULT_HEADERS))
-        cmd, cmd_dir = pch_compile_command(build_dir, header, gch)
+        source = write_pch_headers(build_dir, PCH_DEFAULT_HEADERS)
+        cmd, cmd_dir = pch_compile_command(build_dir, source, gch)
         checksum = pch_identity(
             cmd,
             CORE.relative_src_path(),
