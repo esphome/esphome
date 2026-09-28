@@ -55,6 +55,7 @@ CONF_SORTING_GROUP_ID = "sorting_group_id"
 CONF_SORTING_GROUPS = "sorting_groups"
 CONF_SORTING_WEIGHT = "sorting_weight"
 CONF_ALLOWED_ORIGINS = "allowed_origins"
+CONF_JS_EXTRA_URLS = "js_extra_urls"
 
 # Schema default that also matches the C++ initializer in web_server_base.h; codegen
 # skips the setter when the config equals it.
@@ -165,6 +166,17 @@ def validate_private_network_access(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_js_extra_urls(config: ConfigType) -> ConfigType:
+    # Version 1 lets the firmware assemble the page from js_url alone; only the
+    # generated index page of versions 2 and 3 can carry extra script tags.
+    if CONF_JS_EXTRA_URLS in config and config[CONF_VERSION] == 1:
+        raise cv.Invalid(
+            f"'{CONF_JS_EXTRA_URLS}' requires 'web_server' version 2 or 3",
+            path=[CONF_JS_EXTRA_URLS],
+        )
+    return config
+
+
 def validate_sorting_groups(config: ConfigType) -> ConfigType:
     if CONF_SORTING_GROUPS in config and config[CONF_VERSION] != 3:
         raise cv.Invalid(
@@ -261,6 +273,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
             cv.Optional(CONF_JS_URL): cv.string,
             cv.Optional(CONF_JS_INCLUDE): cv.file_,
+            cv.Optional(CONF_JS_EXTRA_URLS): cv.All(
+                cv.ensure_list(cv.url), cv.Length(min=1)
+            ),
             cv.Optional(CONF_ENABLE_PRIVATE_NETWORK_ACCESS, default=False): cv.boolean,
             cv.Optional(CONF_ALLOWED_ORIGINS): cv.All(
                 cv.ensure_list(validate_origin), cv.Length(min=1)
@@ -306,6 +321,7 @@ CONFIG_SCHEMA = cv.All(
     validate_version_deprecated,
     validate_local,
     validate_sorting_groups,
+    validate_js_extra_urls,
     validate_ota,
     validate_private_network_access,
     _consume_web_server_sockets,
@@ -352,6 +368,9 @@ def build_index_html(config: ConfigType) -> str:
     html += "<esp-app></esp-app>"
     if config[CONF_JS_URL]:
         html += f'<script src="{config[CONF_JS_URL]}"></script>'
+    # Extra modules load after the main script so they can extend the page it renders.
+    for extra_url in config.get(CONF_JS_EXTRA_URLS, []):
+        html += f'<script type=module src="{extra_url}"></script>'
     html += "</body></html>"
     return html
 
