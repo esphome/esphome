@@ -140,7 +140,10 @@ def test_pch_cmake_consumer_substitutes_target_and_sources(
     assert '"$<$<COMPILE_LANGUAGE:CXX>:-Winvalid-pch>"' in block
     assert '"$<$<COMPILE_LANGUAGE:CXX>:-Werror=invalid-pch>"' in block
     assert '"$<$<COMPILE_LANGUAGE:CXX>:esphome_pch.h>"' in block
-    assert "set_source_files_properties(${APP_SOURCES} PROPERTIES" in block
+    # C sources do not load the pch, so they must not rebuild with it
+    assert "set(esphome_pch_sources ${APP_SOURCES})" in block
+    assert 'INCLUDE REGEX "[.](cpp|cc|cxx)$")' in block
+    assert "set_source_files_properties(${esphome_pch_sources} PROPERTIES" in block
     assert 'OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/esphome_pch.h"' in block
 
 
