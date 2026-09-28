@@ -600,7 +600,7 @@ bool APIConnection::send_light_state(light::LightState *light) {
 uint16_t APIConnection::try_send_light_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *light = static_cast<light::LightState *>(entity);
   LightStateResponse resp;
-  auto values = light->remote_values;
+  auto values = light->get_reported_values();
   auto color_mode = values.get_color_mode();
   resp.state = values.is_on();
   resp.color_mode = static_cast<enums::ColorMode>(color_mode);
@@ -709,6 +709,7 @@ uint16_t APIConnection::try_send_switch_state(EntityBase *entity, APIConnection 
   auto *a_switch = static_cast<switch_::Switch *>(entity);
   SwitchStateResponse resp;
   resp.state = a_switch->state;
+  resp.missing_state = !a_switch->has_state();
   return fill_and_encode_entity_state(a_switch, resp, conn, remaining_size);
 }
 
@@ -754,6 +755,7 @@ uint16_t APIConnection::try_send_climate_state(EntityBase *entity, APIConnection
   auto traits = climate->get_traits();
   resp.mode = static_cast<enums::ClimateMode>(climate->mode);
   resp.action = static_cast<enums::ClimateAction>(climate->action);
+  resp.missing_state = !climate->has_state();
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE))
     resp.current_temperature = climate->current_temperature;
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
@@ -1447,6 +1449,7 @@ uint16_t APIConnection::try_send_water_heater_state(EntityBase *entity, APIConne
   auto *wh = static_cast<water_heater::WaterHeater *>(entity);
   WaterHeaterStateResponse resp;
   resp.mode = static_cast<enums::WaterHeaterMode>(wh->get_mode());
+  resp.missing_state = !wh->has_state();
   resp.current_temperature = wh->get_current_temperature();
   resp.target_temperature = wh->get_target_temperature();
   resp.target_temperature_low = wh->get_target_temperature_low();
@@ -2267,7 +2270,12 @@ bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, 
   // Capacity reserved above, cannot fail
   (void) shared_buf.resize(write_start + payload_size);
   ProtoWriteBuffer buffer{&shared_buf, write_start};
-  encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
+  uint8_t *end = encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
+#ifdef ESPHOME_DEBUG_API
+  proto_check_encode_end(end, shared_buf.data() + shared_buf.size());
+#else
+  (void) end;
+#endif
   return this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type);
 }
 // encode_to_buffer is defined inline in api_connection.h (ESPHOME_ALWAYS_INLINE)

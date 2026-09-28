@@ -730,6 +730,34 @@ def test_resolve_package_max_depth_exceeded(tmp_path: Path) -> None:
         processor.resolve_package(package_config, substitutions.ContextVars(), [])
 
 
+def test_include_non_existent_file(tmp_path: Path) -> None:
+    """!include with a file that cannot be opened raises cv.Invalid."""
+    main_file = tmp_path / "main.yaml"
+    main_file.write_text("result: !include non_existent_include_file.yaml\n")
+
+    config = yaml_util.load_yaml(main_file)
+    with pytest.raises(
+        cv.Invalid, match=r"Error including file 'non_existent_include_file.yaml'"
+    ) as exc_info:
+        substitutions.do_substitution_pass(config)
+    assert "main.yaml" in str(exc_info.value)
+
+
+def test_include_broken_file(tmp_path: Path) -> None:
+    """!include with a file that cannot be parsed raises cv.Invalid."""
+    broken_file = tmp_path / "broken_file.yaml"
+    broken_file.write_text("{garbage\n")
+    main_file = tmp_path / "main.yaml"
+    main_file.write_text("result: !include broken_file.yaml\n")
+
+    config = yaml_util.load_yaml(main_file)
+    with pytest.raises(
+        cv.Invalid, match=r"Error including file 'broken_file.yaml'"
+    ) as exc_info:
+        substitutions.do_substitution_pass(config)
+    assert "main.yaml" in str(exc_info.value)
+
+
 def test_include_filename_substitution_undefined_var(tmp_path: Path) -> None:
     """!include with an undefined substitution variable raises cv.Invalid.
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <span>
 #include <vector>
 
 #include "esphome/core/helpers.h"
@@ -16,7 +17,8 @@ static constexpr uint8_t MAX_NDEF_RECORDS = 4;
 class NdefMessage {
  public:
   NdefMessage() = default;
-  NdefMessage(std::vector<uint8_t> &data);
+  NdefMessage(std::span<const uint8_t> data);
+  NdefMessage(std::vector<uint8_t> &data) : NdefMessage(std::span<const uint8_t>(data)) {}
   NdefMessage(const NdefMessage &msg) {
     records_.reserve(msg.records_.size());
     for (const auto &r : msg.records_) {

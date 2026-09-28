@@ -3,7 +3,7 @@ import encodings
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32_ble
-from esphome.components.const import CONF_MANUFACTURER
+from esphome.components.const import CONF_DESCRIPTION, CONF_MANUFACTURER
 from esphome.components.esp32 import request_bluetooth
 from esphome.components.esp32_ble import BTLoggers, bt_uuid
 import esphome.config_validation as cv
@@ -37,7 +37,6 @@ CONF_ADVERTISE = "advertise"
 CONF_APPEARANCE = "appearance"
 CONF_BROADCAST = "broadcast"
 CONF_CHARACTERISTICS = "characteristics"
-CONF_DESCRIPTION = "description"
 CONF_DESCRIPTORS = "descriptors"
 CONF_ENDIANNESS = "endianness"
 CONF_FIRMWARE_VERSION = "firmware_version"
