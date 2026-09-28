@@ -17,6 +17,7 @@ DOMAIN = "zephyr_ble_server"
 @dataclass
 class _BLEServerData:
     requested_l2cap_mtu: int = 0
+    mtu_emitted: bool = False
 
 
 def _get_data() -> _BLEServerData:
@@ -27,7 +28,9 @@ def _get_data() -> _BLEServerData:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _emit_ble_mtu() -> None:
-    mtu = _get_data().requested_l2cap_mtu
+    data = _get_data()
+    data.mtu_emitted = True
+    mtu = data.requested_l2cap_mtu
     if mtu > 0:
         zephyr_add_prj_conf("BT_L2CAP_TX_MTU", mtu)
         zephyr_add_prj_conf("BT_BUF_ACL_TX_SIZE", min(mtu + 4, _DLE_MAX_PDU))
@@ -37,6 +40,8 @@ async def _emit_ble_mtu() -> None:
 def request_ble_l2cap_mtu(l2cap_mtu: int) -> None:
     """Request a minimum BLE L2CAP MTU. The maximum of all callers wins."""
     data = _get_data()
+    if data.mtu_emitted:
+        raise RuntimeError("BLE L2CAP MTU requested after it was written to prj.conf")
     if data.requested_l2cap_mtu == 0:
         CORE.add_job(_emit_ble_mtu)
     data.requested_l2cap_mtu = max(data.requested_l2cap_mtu, l2cap_mtu)
