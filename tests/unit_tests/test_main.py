@@ -7489,6 +7489,8 @@ def test_command_idedata_arduino_no_build_errors(tmp_path: Path) -> None:
     [
         (PLATFORM_ESP8266, Toolchain.ARDUINO, "esphome.arduino8266.toolchain"),
         (PLATFORM_ESP32, Toolchain.ESP_IDF, "esphome.espidf.toolchain"),
+        # No native build backend, but its binutils and ELF are known
+        (PLATFORM_NRF52, Toolchain.SDK_NRF, "esphome.components.nrf52.toolchain"),
     ],
 )
 def test_command_analyze_memory_native_toolchains(
@@ -7708,7 +7710,12 @@ def test_command_analyze_memory_unsupported_toolchain(
     mock_write_cpp.return_value = 0
     mock_compile_program.return_value = 0
 
-    result = command_analyze_memory(MockArgs(), {CONF_ESPHOME: {CONF_NAME: "t"}})
+    # Every toolchain has analysis hooks today; drop sdk-nrf's to stand in for
+    # one that does not
+    with patch.dict(
+        "esphome.build_helpers.native.ANALYSIS_TOOLCHAIN_MODULES", clear=True
+    ):
+        result = command_analyze_memory(MockArgs(), {CONF_ESPHOME: {CONF_NAME: "t"}})
 
     assert result == 1
     assert "analyze-memory is not supported" in caplog.text
