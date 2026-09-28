@@ -255,8 +255,6 @@ def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
 
     archives, direct_objs = library_edges(lines, libraries)
 
-    # Host has no framework force-includes; the per-TU cost is the STL
-    # closure behind the core headers, so those are what is precompiled
     src_cxx_override = pch_edges(
         lines,
         build_dir,
@@ -264,7 +262,7 @@ def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
         PCH_DEFAULT_HEADERS,
         cxxflags,
         (),
-        ccache,
+        compilers.cxx[0],
         compilers.cxx,
     )
     src_objs = compile_edges(

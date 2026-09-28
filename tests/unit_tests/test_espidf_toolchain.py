@@ -697,20 +697,29 @@ def test_run_compile_without_compile_process_limit(setup_core: Path) -> None:
     mock_run.assert_called_once_with("build", "size", jobs=None)
 
 
-def test_run_compile_prepares_the_pch_before_the_build(setup_core: Path) -> None:
-    """A pch failure stops the build before idf.py runs."""
+def test_run_compile_prepares_the_pch_before_the_build(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The compile database is settled first; a pch failure then stops the
+    build before idf.py runs."""
     from esphome.core import EsphomeError
 
     _setup_build(setup_core)
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+    ninja = subprocess.CompletedProcess([], 0)
 
     with (
         patch.object(toolchain, "need_reconfigure", return_value=False),
         patch.object(toolchain, "run_idf_py", return_value=0) as run_idf_py,
         patch.object(toolchain, "print_summary"),
+        patch.object(toolchain, "_get_idf_tool", return_value="ninja"),
+        patch.object(toolchain, "_get_idf_env", return_value={}),
+        patch.object(toolchain.subprocess, "run", return_value=ninja) as run,
         patch("esphome.build_gen.espidf.prepare_pch", side_effect=EsphomeError("boom")),
         pytest.raises(EsphomeError, match="boom"),
     ):
         toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
+    assert run.call_args.args[0][-1] == "build.ninja"
     run_idf_py.assert_not_called()
 
 
