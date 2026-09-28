@@ -147,6 +147,7 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
         request_ble_l2cap_mtu(498)  # matches NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP
     if CONF_HARDWARE_UART in transport:
+        zephyr_add_prj_conf("SERIAL", True)
         uart = UARTS[transport[CONF_HARDWARE_UART]]
         uart_name = uart[0]
         cdc_id = uart[1]
