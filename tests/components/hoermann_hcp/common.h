@@ -57,6 +57,7 @@ inline void consume_command(HoermannHcp &door) { poll_command(door); }
 class TestableHoermannHcp : public HoermannHcp {
  public:
   using HoermannHcp::connection_timeout_ms_;
+  using HoermannHcp::start_window_ms_;
 #ifdef USE_HOERMANN_HCP_IDENTITY
   using HoermannHcp::identity_asked_at_;
   using HoermannHcp::identity_request_;

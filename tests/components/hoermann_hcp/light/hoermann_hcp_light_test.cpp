@@ -301,15 +301,15 @@ TEST(HoermannHcpLightTest, OffSendsTheSameToggle) {
 // A toggle sent again after the lamp moved away from a changed request gets its own deadline.
 TEST(HoermannHcpLightTest, ToggleAgainRestartsTheDeadline) {
   TestableHoermannHcp door;
-  door.connection_timeout_ms_ = 60;
+  door.connection_timeout_ms_ = 200;
   connect_controller(door);
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   ASSERT_TRUE(door.set_light(true));
   EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
-  std::this_thread::sleep_for(std::chrono::milliseconds(40));
+  std::this_thread::sleep_for(std::chrono::milliseconds(130));
   ASSERT_TRUE(door.set_light(false));
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));  // the first toggle lands
-  std::this_thread::sleep_for(std::chrono::milliseconds(35));
+  std::this_thread::sleep_for(std::chrono::milliseconds(110));
   connect_controller(door);
   door.update();
   EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
@@ -374,6 +374,7 @@ TEST(HoermannHcpLightTest, LampRequestDoesNotDelayTheTargetStop) {
 TEST(HoermannHcpLightTest, LampCommandDoesNotExtendTheTargetWatchdog) {
   TestableHoermannHcp door;
   door.connection_timeout_ms_ = 20;
+  door.start_window_ms_ = 20;
   connect_controller(door);
   // The door is stopped, so an opening target is armed but not yet under way.
   door.on_write_registers(BROADCAST_REG, door_broadcast(0x003C, 0x0000));

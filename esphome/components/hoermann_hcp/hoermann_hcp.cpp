@@ -1,6 +1,7 @@
 #include "hoermann_hcp.h"
 
 #include <algorithm>
+#include <utility>
 
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -58,6 +59,19 @@ static bool is_moving(DoorState state) {
     default:
       return false;
   }
+}
+
+// True when the door already rests where the command sends it, so the command does not move it.
+static bool command_reached(const HoermannHcpCommand &command, DoorState state) {
+  if (&command == &COMMAND_OPEN)
+    return state == DoorState::OPEN;
+  if (&command == &COMMAND_CLOSE)
+    return state == DoorState::CLOSED;
+  if (&command == &COMMAND_VENT)
+    return state == DoorState::VENT;
+  if (&command == &COMMAND_HALF_OPEN)
+    return state == DoorState::HALF_OPEN;
+  return false;
 }
 
 // Only a status poll's answer carries commands.
@@ -125,7 +139,9 @@ void HoermannHcp::update() {
     this->set_valid_(false);
   // Status broadcasts alone keep the connection alive, so a command the controller never fetches would
   // otherwise block every later one for as long as it keeps broadcasting.
-  if (this->next_command_ != nullptr && now - this->command_queued_at_ > this->connection_timeout_ms_) {
+  // A stop held for a door that has not reported its start yet is timed by the start window instead.
+  const bool stop_held = this->next_command_ == &COMMAND_STOP && this->starting_;
+  if (this->next_command_ != nullptr && !stop_held && now - this->command_queued_at_ > this->connection_timeout_ms_) {
     ESP_LOGW(TAG, "Bus controller did not fetch '%s' command, dropping it", this->next_command_->name);
     this->drop_command_();
     // Children may have assumed the command would land, so let them re-derive from the door.
@@ -138,9 +154,14 @@ void HoermannHcp::update() {
     this->clear_target_();
   }
   // A door that never reports moving after a fetched command is at rest after all.
-  if (this->starting_ && now - this->start_fetched_at_ > this->connection_timeout_ms_) {
-    ESP_LOGD(TAG, "Door did not start after the command");
+  if (this->starting_ && now - this->start_fetched_at_ > this->start_window_ms_) {
     this->starting_ = false;
+    if (stop_held) {
+      ESP_LOGW(TAG, "Door did not report moving, dropping the stop");
+      this->next_command_ = nullptr;
+    } else {
+      ESP_LOGD(TAG, "Door did not start after the command");
+    }
   }
   // Neither fire late nor block the next request.
   if (this->light_requested_ && now - this->light_since_ > this->connection_timeout_ms_) {
@@ -181,6 +202,8 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
   }
 
   this->record_response_();
+  // Only the read half of a status poll carries commands, once, so a second read without a new write does not.
+  const bool status_poll = std::exchange(this->status_poll_pending_, false);
 
 #ifdef USE_HOERMANN_HCP_IDENTITY
   // Acknowledge the transfer taken by the write half of this frame.
@@ -200,9 +223,7 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
       // Command request: return the internal state, injecting any pending command.
       registers.push_back(counter);
       registers.push_back(static_cast<uint16_t>(0x0001 | command));
-      // Only the read half of a status poll carries commands, once, so a second read without a new write does not.
-      if (this->status_poll_pending_ && static_cast<uint8_t>(this->command_reg_value_) == STATUS_COMMAND) {
-        this->status_poll_pending_ = false;
+      if (status_poll && static_cast<uint8_t>(this->command_reg_value_) == STATUS_COMMAND) {
         this->push_command_registers_(registers);
       } else {
         push_zeros(registers, 2);
@@ -278,34 +299,43 @@ modbus::ResponseStatus HoermannHcp::on_write_registers(uint16_t start_address,
 
 void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
   const HoermannHcpCommand *command = this->next_command_;
-  if (command == &COMMAND_STOP) {
-    if (this->starting_) {
-      // The door was just told to start and has not said so yet, so an impulse now could start it instead.
-      push_zeros(registers, 2);
-      return;
-    }
+  if (command == &COMMAND_STOP && this->starting_ && !is_moving(this->door_state_)) {
+    // The door was just told to start and has not said so yet, so an impulse now could start it instead.
+    push_zeros(registers, 2);
+    return;
+  }
+  if (command != nullptr) {
     this->next_command_ = nullptr;
     if (is_moving(this->door_state_)) {
+      // Checked here as well, as the door may have been started from elsewhere since the command was queued.
+      if (command != &COMMAND_STOP)
+        ESP_LOGD(TAG, "Door is moving, stopping it instead of '%s'", command->name);
+      if (this->stop_sent_ && millis() - this->last_stop_at_ < STOP_LOCK_MS) {
+        ESP_LOGD(TAG, "Door already stopping, ignoring stop");
+      } else {
+        ESP_LOGI(TAG, "Sending '%s' command to door", COMMAND_STOP.name);
+        this->last_stop_at_ = millis();
+        this->stop_sent_ = true;
+        registers.push_back(COMMAND_STOP.value);
+        registers.push_back(COMMAND_STOP.value_2);
+        return;
+      }
+    } else if (command == &COMMAND_STOP) {
+      ESP_LOGD(TAG, "Door came to rest before the stop was fetched, dropping it");
+    } else {
       ESP_LOGI(TAG, "Sending '%s' command to door", command->name);
-      this->last_stop_at_ = millis();
-      this->stop_sent_ = true;
+      // Until the door reports moving it still reads as at rest, and its lamp may be about to change. A door
+      // already where the command sends it does not move.
+      if (!command_reached(*command, this->door_state_)) {
+        this->starting_ = true;
+        this->start_fetched_at_ = millis();
+      }
       registers.push_back(command->value);
       registers.push_back(command->value_2);
       return;
     }
-    ESP_LOGD(TAG, "Door came to rest before the stop was fetched, dropping it");
-  } else if (command != nullptr) {
-    ESP_LOGI(TAG, "Sending '%s' command to door", command->name);
-    this->next_command_ = nullptr;
-    // Until the door reports moving it still reads as at rest, and its lamp may be about to change.
-    this->starting_ = true;
-    this->start_fetched_at_ = millis();
-    registers.push_back(command->value);
-    registers.push_back(command->value_2);
-    return;
   }
-  // A motor may switch its lamp as the door starts, so a toggle waits until that has been reported. Checked
-  // again here as a defence, although reaching the target already clears the request.
+  // A motor may switch its lamp as the door starts, so a toggle waits until that has been reported.
   if (this->light_requested_ && !this->light_command_sent_ && !this->starting_ &&
       this->light_target_ != this->light_on_) {
     ESP_LOGI(TAG, "Sending '%s' command to door", COMMAND_TOGGLE_LIGHT.name);
@@ -542,6 +572,9 @@ bool HoermannHcp::command_door_(const HoermannHcpCommand &command) {
   // A moving or starting door is only stopped, so it is never reversed at speed.
   if (this->is_moving_or_starting_())
     return this->stop_door();
+  // A stop still waiting for a door that has come to rest would be dropped at the fetch anyway.
+  if (this->next_command_ == &COMMAND_STOP)
+    this->next_command_ = nullptr;
   return this->queue_command_(command);
 }
 
@@ -636,8 +669,15 @@ void HoermannHcp::set_door_state_(DoorState state) {
     return;
   this->door_state_ = state;
   this->changed_ = true;
-  if (is_moving(state))
+  if (is_moving(state)) {
+    // A stop held for the start is due now, so its fetch deadline starts here.
+    if (this->starting_ && this->next_command_ == &COMMAND_STOP)
+      this->command_queued_at_ = millis();
     this->starting_ = false;
+  } else {
+    // A door at rest cannot be restarted by a second stop, as stop_door() sends nothing then.
+    this->stop_sent_ = false;
+  }
   this->update_current_position_();
   if (!this->has_target_())
     return;

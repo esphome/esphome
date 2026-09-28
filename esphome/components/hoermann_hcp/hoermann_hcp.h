@@ -154,6 +154,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   uint32_t light_since_{0};
   // When the last stop impulse went out.
   uint32_t last_stop_at_{0};
+  // When the command that set starting_ was fetched.
   uint32_t start_fetched_at_{0};
   bool stop_sent_{false};
   // A door command was fetched and the door has not reported moving yet.
@@ -161,6 +162,8 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
 
   // Drop the "connected" flag if the bus controller has not polled us for this long.
   uint16_t connection_timeout_ms_{2000};
+  // How long a door may take to report moving after a fetched command.
+  uint16_t start_window_ms_{5000};
   // The state starts on a value the bus controller never reports, so the first broadcast is decoded even when
   // it reads 0x0000.
   uint16_t prev_state_reg_{0xFFFF};
