@@ -1,66 +1,20 @@
-import esphome.codegen as cg
-from esphome.components import switch
-from esphome.components.ld600x import ld600x_ns
-import esphome.config_validation as cv
-from esphome.const import DEVICE_CLASS_SWITCH, ENTITY_CATEGORY_CONFIG
-from esphome.types import ConfigType
-
-from .. import LD6002BComponent
-from ..const import (
-    CONF_LD6002B_ID,
+from esphome.components.ld600x import entities
+from esphome.components.ld600x.const import (
     CONF_LOW_POWER,
     CONF_POINT_CLOUD,
     CONF_TARGET_DISPLAY,
 )
+from esphome.types import ConfigType
+
+from .. import LD6002BComponent
+from ..const import CONF_LD6002B_ID
+
+KEYS = (CONF_LOW_POWER, CONF_POINT_CLOUD, CONF_TARGET_DISPLAY)
 
 DEPENDENCIES = ["ld6002b"]
 
-LD600XSwitch = ld600x_ns.class_("LD600XSwitch", switch.Switch)
-SwitchType = ld600x_ns.enum("SwitchType")
-
-# None of these three carry an inversion. They name what the module is doing, not
-# how something is wired to it, so an inverted one would only report the opposite
-# of the truth -- and the boot restore, which applies a state nothing reports back,
-# is where that would be hardest to spot.
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(CONF_LD6002B_ID): cv.use_id(LD6002BComponent),
-        cv.Optional(CONF_LOW_POWER): switch.switch_schema(
-            LD600XSwitch,
-            block_inverted=True,
-            device_class=DEVICE_CLASS_SWITCH,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        ),
-        cv.Optional(CONF_POINT_CLOUD): switch.switch_schema(
-            LD600XSwitch,
-            block_inverted=True,
-            device_class=DEVICE_CLASS_SWITCH,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        ),
-        cv.Optional(CONF_TARGET_DISPLAY): switch.switch_schema(
-            LD600XSwitch,
-            block_inverted=True,
-            device_class=DEVICE_CLASS_SWITCH,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-            default_restore_mode="RESTORE_DEFAULT_ON",
-        ),
-    }
-)
+CONFIG_SCHEMA = entities.switch_schema(LD6002BComponent, CONF_LD6002B_ID, keys=KEYS)
 
 
 async def to_code(config: ConfigType) -> None:
-    hub = await cg.get_variable(config[CONF_LD6002B_ID])
-
-    for key, switch_type, setter in (
-        (CONF_LOW_POWER, SwitchType.SWITCH_LOW_POWER, "set_low_power_switch"),
-        (CONF_POINT_CLOUD, SwitchType.SWITCH_POINT_CLOUD, "set_point_cloud_switch"),
-        (
-            CONF_TARGET_DISPLAY,
-            SwitchType.SWITCH_TARGET_DISPLAY,
-            "set_target_display_switch",
-        ),
-    ):
-        if conf := config.get(key):
-            s = await switch.new_switch(conf, switch_type)
-            await cg.register_parented(s, config[CONF_LD6002B_ID])
-            cg.add(getattr(hub, setter)(s))
+    await entities.switch_to_code(config, CONF_LD6002B_ID, keys=KEYS)

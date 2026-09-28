@@ -1,7 +1,12 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
-from esphome.components.ld600x import LD600XComponent, request_model_sizes
+from esphome.components.ld600x import (
+    LD600XComponent,
+    ld600x_hub_schema,
+    request_model_sizes,
+    uart_final_validate,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_WAKEUP_PIN
 from esphome.types import ConfigType
@@ -37,29 +42,18 @@ def _validate_wakeup_options(config: ConfigType) -> ConfigType:
 
 CONFIG_SCHEMA = cv.All(
     _validate_wakeup_options,
-    cv.Schema(
+    ld600x_hub_schema(LD6002BComponent).extend(
         {
-            cv.GenerateID(): cv.declare_id(LD6002BComponent),
             cv.Optional(CONF_WAKEUP_PIN): pins.gpio_output_pin_schema,
             cv.Optional(
                 CONF_WAKEUP_PULSE, default="50ms"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_AUTO_WAKE, default=True): cv.boolean,
         }
-    )
-    .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA),
+    ),
 )
 
-FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "ld6002b",
-    baud_rate=115200,
-    require_tx=True,
-    require_rx=True,
-    data_bits=8,
-    parity="NONE",
-    stop_bits=1,
-)
+FINAL_VALIDATE_SCHEMA = uart_final_validate("ld6002b")
 
 
 async def to_code(config: ConfigType) -> None:

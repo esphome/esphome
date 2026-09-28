@@ -1,192 +1,20 @@
-import esphome.codegen as cg
-from esphome.components import sensor
-from esphome.components.const import CONF_TARGET_COUNT
-from esphome.components.ld600x import ld600x_ns
-import esphome.config_validation as cv
-from esphome.const import (
-    CONF_X,
-    CONF_Y,
-    DEVICE_CLASS_DISTANCE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_METER,
-)
+from esphome.components.ld600x import entities
 from esphome.types import ConfigType
 
 from . import LD6002BComponent
-from .const import (
-    AREA_COUNT,
-    CONF_CLUSTER_ID,
-    CONF_DOPPLER_INDEX,
-    CONF_LD6002B_ID,
-    CONF_POINT_COUNT,
-    CONF_Z,
-    CONF_Z_MAX,
-    CONF_Z_MIN,
-    KEY_X_MAX,
-    KEY_X_MIN,
-    KEY_Y_MAX,
-    KEY_Y_MIN,
-    MAX_TARGETS,
-)
+from .const import CONF_LD6002B_ID
 
 DEPENDENCIES = ["ld6002b"]
 
-AreaKind = ld600x_ns.enum("AreaKind")
-AreaAxis = ld600x_ns.enum("AreaAxis")
-
-# The ld2450 defaults for a streamed value: hold the last reading for a second so a
-# dropped frame does not read as absence, then rate-limit what reaches the frontend.
-_VALUE_SENSOR_FILTERS = [
-    {
-        "timeout": {
-            "timeout": cv.TimePeriod(milliseconds=1000),
-            "value": "last",
-        }
-    },
-    {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
-]
-
-TARGET_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_X): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            filters=_VALUE_SENSOR_FILTERS,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_Y): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            filters=_VALUE_SENSOR_FILTERS,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_Z): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            filters=_VALUE_SENSOR_FILTERS,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_DOPPLER_INDEX): sensor.sensor_schema(
-            accuracy_decimals=0,
-            filters=_VALUE_SENSOR_FILTERS,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_CLUSTER_ID): sensor.sensor_schema(
-            accuracy_decimals=0,
-        ),
-    }
-)
-
-AREA_SCHEMA = cv.Schema(
-    {
-        cv.Optional(KEY_X_MIN): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(KEY_X_MAX): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(KEY_Y_MIN): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(KEY_Y_MAX): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_Z_MIN): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_Z_MAX): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-    }
-)
-
-# (config key, C++ setter axis) for the six bounds every area sensor block carries.
-_AREA_AXES = (
-    (KEY_X_MIN, AreaAxis.AREA_AXIS_X_MIN),
-    (KEY_X_MAX, AreaAxis.AREA_AXIS_X_MAX),
-    (KEY_Y_MIN, AreaAxis.AREA_AXIS_Y_MIN),
-    (KEY_Y_MAX, AreaAxis.AREA_AXIS_Y_MAX),
-    (CONF_Z_MIN, AreaAxis.AREA_AXIS_Z_MIN),
-    (CONF_Z_MAX, AreaAxis.AREA_AXIS_Z_MAX),
-)
-
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(CONF_LD6002B_ID): cv.use_id(LD6002BComponent),
-            cv.Optional(CONF_TARGET_COUNT): sensor.sensor_schema(
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_POINT_COUNT): sensor.sensor_schema(
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-        }
-    )
-    .extend({cv.Optional(f"target_{i + 1}"): TARGET_SCHEMA for i in range(MAX_TARGETS)})
-    .extend(
-        {cv.Optional(f"interference_area_{i}"): AREA_SCHEMA for i in range(AREA_COUNT)}
-    )
-    .extend(
-        {cv.Optional(f"detection_area_{i}"): AREA_SCHEMA for i in range(AREA_COUNT)}
-    )
+CONFIG_SCHEMA = entities.sensor_schema(
+    LD6002BComponent,
+    CONF_LD6002B_ID,
+    max_targets=3,
+    area_kinds=("interference", "detection"),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    hub = await cg.get_variable(config[CONF_LD6002B_ID])
-
-    sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TARGET_COUNT, hub.set_target_count_sensor)
-    await sensors(CONF_POINT_COUNT, hub.set_point_count_sensor)
-
-    for i in range(MAX_TARGETS):
-        if target_config := config.get(f"target_{i + 1}"):
-            if x_config := target_config.get(CONF_X):
-                sens = await sensor.new_sensor(x_config)
-                cg.add(hub.set_target_x_sensor(i, sens))
-            if y_config := target_config.get(CONF_Y):
-                sens = await sensor.new_sensor(y_config)
-                cg.add(hub.set_target_y_sensor(i, sens))
-            if z_config := target_config.get(CONF_Z):
-                sens = await sensor.new_sensor(z_config)
-                cg.add(hub.set_target_z_sensor(i, sens))
-            if doppler_index_config := target_config.get(CONF_DOPPLER_INDEX):
-                sens = await sensor.new_sensor(doppler_index_config)
-                cg.add(hub.set_target_dop_idx_sensor(i, sens))
-            if cluster_id_config := target_config.get(CONF_CLUSTER_ID):
-                sens = await sensor.new_sensor(cluster_id_config)
-                cg.add(hub.set_target_cluster_id_sensor(i, sens))
-
-    for kind, area_kind in (
-        ("interference", AreaKind.AREA_KIND_INTERFERENCE),
-        ("detection", AreaKind.AREA_KIND_DETECTION),
-    ):
-        for i in range(AREA_COUNT):
-            if area_config := config.get(f"{kind}_area_{i}"):
-                for key, axis in _AREA_AXES:
-                    if axis_config := area_config.get(key):
-                        sens = await sensor.new_sensor(axis_config)
-                        cg.add(hub.set_area_sensor(area_kind, i, axis, sens))
+    await entities.sensor_to_code(
+        config, CONF_LD6002B_ID, max_targets=3, area_kinds=("interference", "detection")
+    )

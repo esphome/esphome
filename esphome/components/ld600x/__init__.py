@@ -6,7 +6,8 @@ another report format) and gets its own component, so it does not build on this 
 
 import esphome.codegen as cg
 from esphome.components import uart
-from esphome.cpp_generator import MockObj
+import esphome.config_validation as cv
+from esphome.cpp_generator import MockObj, MockObjClass
 
 CODEOWNERS = ["@hepter", "@wolph"]
 DEPENDENCIES = ["uart"]
@@ -23,3 +24,23 @@ def request_model_sizes(hub: MockObj, *, max_targets: int, area_kinds: int) -> N
         _request_target_slot(str(hub))
     for _ in range(area_kinds):
         _request_area_kind_slot(str(hub))
+
+
+def ld600x_hub_schema(component_class: MockObjClass) -> cv.Schema:
+    return (
+        cv.Schema({cv.GenerateID(): cv.declare_id(component_class)})
+        .extend(uart.UART_DEVICE_SCHEMA)
+        .extend(cv.COMPONENT_SCHEMA)
+    )
+
+
+def uart_final_validate(component_name: str) -> cv.Schema:
+    return uart.final_validate_device_schema(
+        component_name,
+        baud_rate=115200,
+        require_tx=True,
+        require_rx=True,
+        data_bits=8,
+        parity="NONE",
+        stop_bits=1,
+    )
