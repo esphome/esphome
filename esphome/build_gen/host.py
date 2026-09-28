@@ -28,8 +28,11 @@ from esphome.build_helpers.ninja_gen import (
     compile_edges,
     compile_rule_lines,
     library_edges,
+    pch_edges,
+    pch_rule_lines,
     tool_lines,
 )
+from esphome.build_helpers.pch import PCH_DEFAULT_HEADERS
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import get_project_cxx_compile_flags
 from esphome.helpers import mkdir_p, write_file_if_changed
@@ -228,6 +231,7 @@ def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
     lines = [
         *tool_lines(compilers.cc, compilers.cxx, ccache),
         *compile_rule_lines(),
+        *pch_rule_lines(),
         "rule link",
         "  command = $cxx -o $out $linkflags @$out.rsp $archives $libdirflags $libflags",
         "  rspfile = $out.rsp",
@@ -251,7 +255,25 @@ def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
 
     archives, direct_objs = library_edges(lines, libraries)
 
-    src_objs = compile_edges(lines, collect_sources(src_dir), src_dir, "src")
+    # Host has no framework force-includes; the per-TU cost is the STL
+    # closure behind the core headers, so those are what is precompiled
+    src_cxx_override = pch_edges(
+        lines,
+        build_dir,
+        src_dir,
+        PCH_DEFAULT_HEADERS,
+        cxxflags,
+        (),
+        ccache,
+        compilers.cxx,
+    )
+    src_objs = compile_edges(
+        lines,
+        collect_sources(src_dir),
+        src_dir,
+        "src",
+        cxx_override=src_cxx_override,
+    )
     if not src_objs:
         raise EsphomeError(f"No source files found under {src_dir}")
 
