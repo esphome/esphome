@@ -1,0 +1,9 @@
+psram:
+  mode: quad
+
+sendspin:
+  id: sendspin_hub_id
+  task_stack_in_psram: true
+  manufacturer: Test Manufacturer
+  model: Test Model
+  firmware_version: 1.2.3

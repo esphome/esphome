@@ -26,6 +26,7 @@ CONF_RGB_DATAPOINT = "rgb_datapoint"
 CONF_HSV_DATAPOINT = "hsv_datapoint"
 CONF_COLOR_DATAPOINT = "color_datapoint"
 CONF_COLOR_TYPE = "color_type"
+CONF_COLOR_TYPE_LOWERCASE = "color_type_lowercase"
 
 TuyaColorType = tuya_ns.enum("TuyaColorType")
 
@@ -37,10 +38,6 @@ COLOR_TYPES = {
 
 TuyaLight = tuya_ns.class_("TuyaLight", light.LightOutput, cg.Component)
 
-COLOR_CONFIG_ERROR = (
-    "This option has been removed, use color_datapoint and color_type instead."
-)
-
 CONFIG_SCHEMA = cv.All(
     light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
         {
@@ -49,10 +46,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DIMMER_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_MIN_VALUE_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_SWITCH_DATAPOINT): cv.uint8_t,
-            cv.Optional(CONF_RGB_DATAPOINT): cv.invalid(COLOR_CONFIG_ERROR),
-            cv.Optional(CONF_HSV_DATAPOINT): cv.invalid(COLOR_CONFIG_ERROR),
             cv.Inclusive(CONF_COLOR_DATAPOINT, "color"): cv.uint8_t,
             cv.Inclusive(CONF_COLOR_TYPE, "color"): cv.enum(COLOR_TYPES, upper=True),
+            cv.Optional(CONF_COLOR_TYPE_LOWERCASE, default=False): cv.boolean,
             cv.Optional(CONF_COLOR_INTERLOCK, default=False): cv.boolean,
             cv.Inclusive(
                 CONF_COLOR_TEMPERATURE_DATAPOINT, "color_temperature"
@@ -97,6 +93,7 @@ async def to_code(config):
     if CONF_COLOR_DATAPOINT in config:
         cg.add(var.set_color_id(config[CONF_COLOR_DATAPOINT]))
         cg.add(var.set_color_type(config[CONF_COLOR_TYPE]))
+        cg.add(var.set_color_type_lowercase(config[CONF_COLOR_TYPE_LOWERCASE]))
     if CONF_COLOR_TEMPERATURE_DATAPOINT in config:
         cg.add(var.set_color_temperature_id(config[CONF_COLOR_TEMPERATURE_DATAPOINT]))
         cg.add(var.set_color_temperature_invert(config[CONF_COLOR_TEMPERATURE_INVERT]))

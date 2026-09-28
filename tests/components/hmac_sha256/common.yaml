@@ -1,0 +1,34 @@
+esphome:
+  on_boot:
+    - lambda: |-
+        // Test HMAC-SHA256 functionality
+        #ifdef USE_SHA256
+        using esphome::hmac_sha256::HmacSHA256;
+        HmacSHA256 hmac;
+
+        // Test with key "key" and message "The quick brown fox jumps over the lazy dog"
+        const char* key = "key";
+        const char* message = "The quick brown fox jumps over the lazy dog";
+
+        hmac.init(key, strlen(key));
+        hmac.add(message, strlen(message));
+        hmac.calculate();
+
+        char hex_output[65];
+        hmac.get_hex(hex_output);
+        hex_output[64] = '\0';
+
+        ESP_LOGD("HMAC_SHA256", "HMAC-SHA256('%s', '%s') = %s", key, message, hex_output);
+
+        // Expected: f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8
+        const char* expected = "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8";
+        if (strcmp(hex_output, expected) == 0) {
+          ESP_LOGI("HMAC_SHA256", "Test PASSED");
+        } else {
+          ESP_LOGE("HMAC_SHA256", "Test FAILED. Expected %s", expected);
+        }
+        #else
+        ESP_LOGW("HMAC_SHA256", "HMAC-SHA256 not available on this platform");
+        #endif
+
+hmac_sha256:

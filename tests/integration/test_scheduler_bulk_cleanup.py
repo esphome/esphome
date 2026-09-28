@@ -98,7 +98,7 @@ async def test_scheduler_bulk_cleanup(
         )
 
         # Execute the test
-        client.execute_service(trigger_bulk_cleanup_service, {})
+        await client.execute_service(trigger_bulk_cleanup_service, {})
 
         # Wait for test completion
         try:

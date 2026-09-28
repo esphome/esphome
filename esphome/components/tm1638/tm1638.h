@@ -5,11 +5,11 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/time.h"
+#include "esphome/components/display/display.h"
 
 #include <vector>
 
-namespace esphome {
-namespace tm1638 {
+namespace esphome::tm1638 {
 
 class KeyListener {
  public:
@@ -18,9 +18,9 @@ class KeyListener {
 
 class TM1638Component;
 
-using tm1638_writer_t = std::function<void(TM1638Component &)>;
+using tm1638_writer_t = display::DisplayWriter<TM1638Component>;
 
-class TM1638Component : public PollingComponent {
+class TM1638Component final : public PollingComponent {
  public:
   void set_writer(tm1638_writer_t &&writer) { this->writer_ = writer; }
   void setup() override;
@@ -69,10 +69,9 @@ class TM1638Component : public PollingComponent {
   GPIOPin *clk_pin_;
   GPIOPin *stb_pin_;
   GPIOPin *dio_pin_;
-  uint8_t *buffer_ = new uint8_t[8];
-  optional<tm1638_writer_t> writer_{};
+  uint8_t buffer_[8]{};
+  tm1638_writer_t writer_{};
   std::vector<KeyListener *> listeners_{};
 };
 
-}  // namespace tm1638
-}  // namespace esphome
+}  // namespace esphome::tm1638

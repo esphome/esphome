@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_RED,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
 
@@ -37,7 +38,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(var, config)
 

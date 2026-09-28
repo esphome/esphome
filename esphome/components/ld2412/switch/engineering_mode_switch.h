@@ -3,16 +3,15 @@
 #include "esphome/components/switch/switch.h"
 #include "../ld2412.h"
 
-namespace esphome {
-namespace ld2412 {
+namespace esphome::ld2412 {
 
-class EngineeringModeSwitch : public switch_::Switch, public Parented<LD2412Component> {
+class EngineeringModeSwitch final : public switch_::Switch, public Parented<LD2412Component> {
  public:
-  EngineeringModeSwitch() = default;
+  // User provided, not "= default": `new(p) EngineeringModeSwitch()` would zero-fill .bss that is already zero.
+  EngineeringModeSwitch() {}
 
  protected:
   void write_state(bool state) override;
 };
 
-}  // namespace ld2412
-}  // namespace esphome
+}  // namespace esphome::ld2412

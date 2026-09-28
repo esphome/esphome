@@ -1,24 +1,24 @@
 #include "modbus_binarysensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller.binary_sensor";
 
 void ModbusBinarySensor::dump_config() { LOG_BINARY_SENSOR("", "Modbus Controller Binary Sensor", this); }
 
-void ModbusBinarySensor::parse_and_publish(const std::vector<uint8_t> &data) {
+void ModbusBinarySensor::parse_and_publish(std::span<const uint8_t> data) {
   bool value;
+  // For coils/discrete inputs this is the bit index; for registers it is the byte offset.
+  const size_t offset = this->offset;
 
   switch (this->register_type) {
-    case ModbusRegisterType::DISCRETE_INPUT:
-    case ModbusRegisterType::COIL:
-      // offset for coil is the actual number of the coil not the byte offset
-      value = coil_from_vector(this->offset, data);
+    case modbus::EntityType::DISCRETE_INPUT:
+    case modbus::EntityType::COIL:
+      value = modbus::helpers::bit_from_packed(offset, data);
       break;
     default:
-      value = get_data<uint16_t>(data, this->offset) & this->bitmask;
+      value = modbus::helpers::get_data<uint16_t>(data.data(), offset) & this->bitmask;
       break;
   }
   // Is there a lambda registered
@@ -34,5 +34,4 @@ void ModbusBinarySensor::parse_and_publish(const std::vector<uint8_t> &data) {
   this->publish_state(value);
 }
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

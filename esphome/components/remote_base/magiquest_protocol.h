@@ -8,39 +8,31 @@
  * https://arduino-irremote.github.io/Arduino-IRremote/ir__MagiQuest_8hpp_source.html
  */
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
+
+// Older decoders read the wand id 5 bits too early, so ids in older configs lack its 5 low bits.
+static constexpr uint8_t MAGIQUEST_LEGACY_WAND_ID_SHIFT = 5;
 
 struct MagiQuestData {
   uint16_t magnitude;
   uint32_t wand_id;
-  uint32_t wand_id_legacy;
 
+  // Not symmetric: `this` is the decoded frame and `rhs` the configured match. A configured wand_id of 0 matches
+  // any wand. Magnitude is not compared; it appears to encode the cast type rather than a strength.
   bool operator==(const MagiQuestData &rhs) const {
-    // The "legacy" implementation only matched on wand_id, so do that first.
-    if (rhs.wand_id == this->wand_id_legacy) {
-      return true;
-    }
-
-    // If a wand_id was specified, and it's not the current wand, do not match.
-    if (rhs.wand_id != 0 && rhs.wand_id != this->wand_id) {
-      return false;
-    }
-
-    // Otherwise, if have the right wand (or any wand is acceptable), apply the
-    // magnitude threshold.
-    return this->magnitude >= rhs.magnitude;
+    return rhs.wand_id == 0 || rhs.wand_id == this->wand_id ||
+           rhs.wand_id == (this->wand_id >> MAGIQUEST_LEGACY_WAND_ID_SHIFT);
   }
 };
 
 class MagiQuestProtocol : public RemoteProtocol<MagiQuestData> {
  public:
-  void encode(RemoteTransmitData *dst, const MagiQuestData &data) override;
-  optional<MagiQuestData> decode(RemoteReceiveData src) override;
-  void dump(const MagiQuestData &data) override;
+  void encode(RemoteTransmitData *dst, const MagiQuestData &data);
+  optional<MagiQuestData> decode(RemoteReceiveData src);
+  void dump(const MagiQuestData &data);
 
- private:
-  bool checksum_is_valid_(uint32_t wand_id, uint32_t magnitude_and_checksum);
+ protected:
+  static bool checksum_is_valid_(uint32_t wand_id, uint32_t magnitude_and_checksum);
 };
 
 DECLARE_REMOTE_PROTOCOL(MagiQuest)
@@ -58,5 +50,4 @@ template<typename... Ts> class MagiQuestAction : public RemoteTransmitterActionB
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

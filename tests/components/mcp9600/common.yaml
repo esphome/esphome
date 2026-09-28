@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_mcp9600
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: mcp9600
+    i2c_id: i2c_bus
     thermocouple_type: K
     hot_junction:
       name: Thermocouple Temperature

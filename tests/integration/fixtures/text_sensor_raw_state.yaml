@@ -1,0 +1,281 @@
+esphome:
+  name: test-text-sensor-raw-state
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+# Text sensor WITHOUT filters - get_raw_state() should return same as state
+text_sensor:
+  - platform: template
+    name: "No Filter Sensor"
+    id: no_filter_sensor
+
+  # Text sensor WITH filter - get_raw_state() should return original value
+  - platform: template
+    name: "With Filter Sensor"
+    id: with_filter_sensor
+    filters:
+      - to_upper
+
+  # StringRef-based filters (append, prepend, substitute, map)
+  - platform: template
+    name: "Append Sensor"
+    id: append_sensor
+    filters:
+      - append: " suffix"
+
+  - platform: template
+    name: "Prepend Sensor"
+    id: prepend_sensor
+    filters:
+      - prepend: "prefix "
+
+  - platform: template
+    name: "Substitute Sensor"
+    id: substitute_sensor
+    filters:
+      - substitute:
+          - foo -> bar
+          - hello -> world
+
+  - platform: template
+    name: "Map Sensor"
+    id: map_sensor
+    filters:
+      - map:
+          - ON -> Active
+          - OFF -> Inactive
+
+  - platform: template
+    name: "Chained Sensor"
+    id: chained_sensor
+    filters:
+      - prepend: "["
+      - append: "]"
+
+  - platform: template
+    name: "To Lower Sensor"
+    id: to_lower_sensor
+    filters:
+      - to_lower
+
+  - platform: template
+    name: "Lambda Sensor"
+    id: lambda_sensor
+    filters:
+      - lambda: |-
+          return {"[" + x + "]"};
+
+  - platform: template
+    name: "Lambda Raw State Sensor"
+    id: lambda_raw_state_sensor
+    filters:
+      - lambda: |-
+          return {x + " MODIFIED"};
+
+  - platform: template
+    name: "Lambda Skip Sensor"
+    id: lambda_skip_sensor
+    filters:
+      - lambda: |-
+          if (x == "skip") {
+            return {};
+          }
+          return {x + " passed"};
+
+# Button to publish values and log raw_state vs state
+button:
+  - platform: template
+    name: "Test No Filter Button"
+    id: test_no_filter_button
+    on_press:
+      - text_sensor.template.publish:
+          id: no_filter_sensor
+          state: "hello world"
+      - delay: 50ms
+      # Log both state and get_raw_state() to verify they match
+      - logger.log:
+          format: "NO_FILTER: state='%s' raw_state='%s'"
+          args:
+            - id(no_filter_sensor).state.c_str()
+            - id(no_filter_sensor).get_raw_state().c_str()
+
+  - platform: template
+    name: "Test With Filter Button"
+    id: test_with_filter_button
+    on_press:
+      - text_sensor.template.publish:
+          id: with_filter_sensor
+          state: "hello world"
+      - delay: 50ms
+      # Log both state and get_raw_state() to verify filter works
+      # state should be "HELLO WORLD" (filtered), raw_state should be "hello world" (original)
+      - logger.log:
+          format: "WITH_FILTER: state='%s' raw_state='%s'"
+          args:
+            - id(with_filter_sensor).state.c_str()
+            - id(with_filter_sensor).get_raw_state().c_str()
+
+  - platform: template
+    name: "Test Append Button"
+    id: test_append_button
+    on_press:
+      - text_sensor.template.publish:
+          id: append_sensor
+          state: "test"
+      - delay: 50ms
+      - logger.log:
+          format: "APPEND: state='%s'"
+          args:
+            - id(append_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Prepend Button"
+    id: test_prepend_button
+    on_press:
+      - text_sensor.template.publish:
+          id: prepend_sensor
+          state: "test"
+      - delay: 50ms
+      - logger.log:
+          format: "PREPEND: state='%s'"
+          args:
+            - id(prepend_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Substitute Button"
+    id: test_substitute_button
+    on_press:
+      - text_sensor.template.publish:
+          id: substitute_sensor
+          state: "foo says hello"
+      - delay: 50ms
+      - logger.log:
+          format: "SUBSTITUTE: state='%s'"
+          args:
+            - id(substitute_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Map ON Button"
+    id: test_map_on_button
+    on_press:
+      - text_sensor.template.publish:
+          id: map_sensor
+          state: "ON"
+      - delay: 50ms
+      - logger.log:
+          format: "MAP_ON: state='%s'"
+          args:
+            - id(map_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Map OFF Button"
+    id: test_map_off_button
+    on_press:
+      - text_sensor.template.publish:
+          id: map_sensor
+          state: "OFF"
+      - delay: 50ms
+      - logger.log:
+          format: "MAP_OFF: state='%s'"
+          args:
+            - id(map_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Map Unknown Button"
+    id: test_map_unknown_button
+    on_press:
+      - text_sensor.template.publish:
+          id: map_sensor
+          state: "UNKNOWN"
+      - delay: 50ms
+      - logger.log:
+          format: "MAP_UNKNOWN: state='%s'"
+          args:
+            - id(map_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Chained Button"
+    id: test_chained_button
+    on_press:
+      - text_sensor.template.publish:
+          id: chained_sensor
+          state: "value"
+      - delay: 50ms
+      - logger.log:
+          format: "CHAINED: state='%s'"
+          args:
+            - id(chained_sensor).state.c_str()
+
+  - platform: template
+    name: "Test To Lower Button"
+    id: test_to_lower_button
+    on_press:
+      - text_sensor.template.publish:
+          id: to_lower_sensor
+          state: "HELLO WORLD"
+      - delay: 50ms
+      - logger.log:
+          format: "TO_LOWER: state='%s'"
+          args:
+            - id(to_lower_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Lambda Button"
+    id: test_lambda_button
+    on_press:
+      - text_sensor.template.publish:
+          id: lambda_sensor
+          state: "test"
+      - delay: 50ms
+      - logger.log:
+          format: "LAMBDA: state='%s'"
+          args:
+            - id(lambda_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Lambda Pass Button"
+    id: test_lambda_pass_button
+    on_press:
+      - text_sensor.template.publish:
+          id: lambda_skip_sensor
+          state: "value"
+      - delay: 50ms
+      - logger.log:
+          format: "LAMBDA_PASS: state='%s'"
+          args:
+            - id(lambda_skip_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Lambda Skip Button"
+    id: test_lambda_skip_button
+    on_press:
+      - text_sensor.template.publish:
+          id: lambda_skip_sensor
+          state: "skip"
+      - delay: 50ms
+      # When lambda returns {}, the value should NOT be published
+      # so state should remain from previous publish (or empty if first)
+      - logger.log:
+          format: "LAMBDA_SKIP: state='%s'"
+          args:
+            - id(lambda_skip_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Lambda Raw State Button"
+    id: test_lambda_raw_state_button
+    on_press:
+      - text_sensor.template.publish:
+          id: lambda_raw_state_sensor
+          state: "original"
+      - delay: 50ms
+      # Verify raw_state is preserved (not mutated) after lambda filter
+      # state should be "original MODIFIED", raw_state should be "original"
+      - logger.log:
+          format: "LAMBDA_RAW_STATE: state='%s' raw_state='%s'"
+          args:
+            - id(lambda_raw_state_sensor).state.c_str()
+            - id(lambda_raw_state_sensor).get_raw_state().c_str()

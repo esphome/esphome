@@ -1,7 +1,3 @@
-remote_transmitter:
-  pin: ${pin}
-  carrier_duty_percent: 50%
-
 climate:
   - platform: heatpumpir
     protocol: mitsubishi_heavy_zm
@@ -10,6 +6,7 @@ climate:
     name: HeatpumpIR Climate Mitsubishi
     min_temperature: 18
     max_temperature: 30
+    transmitter_id: xmitr
   - platform: heatpumpir
     protocol: daikin
     horizontal_default: mleft
@@ -17,6 +14,7 @@ climate:
     name: HeatpumpIR Climate Daikin
     min_temperature: 18
     max_temperature: 30
+    transmitter_id: xmitr
   - platform: heatpumpir
     protocol: panasonic_altdke
     horizontal_default: mright
@@ -24,3 +22,4 @@ climate:
     name: HeatpumpIR Climate Panasonic
     min_temperature: 18
     max_temperature: 30
+    transmitter_id: xmitr

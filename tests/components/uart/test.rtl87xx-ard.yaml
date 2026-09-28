@@ -1,0 +1,14 @@
+uart:
+  - id: uart_id
+    tx_pin: PA23
+    rx_pin: PA18
+    baud_rate: 9600
+    data_bits: 8
+    parity: NONE
+    stop_bits: 1
+
+switch:
+  - platform: uart
+    name: "UART Switch"
+    uart_id: uart_id
+    data: [0x01, 0x02, 0x03]

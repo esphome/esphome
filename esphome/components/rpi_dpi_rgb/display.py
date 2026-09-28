@@ -1,7 +1,11 @@
+from collections.abc import Callable
+import logging
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display
-from esphome.components.esp32 import const, only_on_variant
+from esphome.components.esp32 import VARIANT_ESP32S3, only_on_variant
 from esphome.components.mipi import (
     CONF_DE_PIN,
     CONF_HSYNC_BACK_PORCH,
@@ -36,8 +40,10 @@ from esphome.const import (
     CONF_VSYNC_PIN,
     CONF_WIDTH,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["esp32"]
+LOGGER = logging.getLogger(__name__)
 
 rpi_dpi_rgb_ns = cg.esphome_ns.namespace("rpi_dpi_rgb")
 RPI_DPI_RGB = rpi_dpi_rgb_ns.class_("RpiDpiRgb", display.Display, cg.Component)
@@ -50,7 +56,7 @@ COLOR_ORDERS = {
 DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
 
-def data_pin_validate(value):
+def data_pin_validate(value: Any) -> ConfigType:
     """
     It is safe to use strapping pins as RGB output data bits, as they are outputs only,
     and not initialised until after boot.
@@ -65,7 +71,7 @@ def data_pin_validate(value):
     return DATA_PIN_SCHEMA(value)
 
 
-def data_pin_set(length):
+def data_pin_set(length: int) -> Callable[[Any], Any]:
     return cv.All(
         [data_pin_validate],
         cv.Length(min=length, max=length, msg=f"Exactly {length} data pins required"),
@@ -102,7 +108,7 @@ CONFIG_SCHEMA = cv.All(
                         }
                     ),
                 ),
-                cv.Optional(CONF_COLOR_ORDER): cv.one_of(
+                cv.Optional(CONF_COLOR_ORDER, default="BGR"): cv.one_of(
                     *COLOR_ORDERS.keys(), upper=True
                 ),
                 cv.Optional(CONF_INVERT_COLORS, default=False): cv.boolean,
@@ -121,12 +127,14 @@ CONFIG_SCHEMA = cv.All(
             }
         )
     ),
-    only_on_variant(supported=[const.VARIANT_ESP32S3]),
-    cv.only_with_esp_idf,
+    only_on_variant(supported=[VARIANT_ESP32S3]),
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
+    LOGGER.warning(
+        "The 'rpi_dpi_rgb' component is deprecated, it is recommended to use 'mipi_rgb' instead."
+    )
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
 

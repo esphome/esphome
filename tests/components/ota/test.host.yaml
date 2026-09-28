@@ -1,0 +1,4 @@
+<<: !include common.yaml
+
+#host platform does not support wifi / network is automatically included
+wifi: !remove

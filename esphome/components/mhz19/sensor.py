@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_CO2,
     CONF_ID,
     CONF_TEMPERATURE,
+    CONF_WARMUP_TIME,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
     ICON_MOLECULE_CO2,
@@ -14,19 +15,23 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PARTS_PER_MILLION,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 
 CONF_AUTOMATIC_BASELINE_CALIBRATION = "automatic_baseline_calibration"
-CONF_WARMUP_TIME = "warmup_time"
+CONF_DETECTION_RANGE = "detection_range"
 
 mhz19_ns = cg.esphome_ns.namespace("mhz19")
 MHZ19Component = mhz19_ns.class_("MHZ19Component", cg.PollingComponent, uart.UARTDevice)
-MHZ19CalibrateZeroAction = mhz19_ns.class_(
-    "MHZ19CalibrateZeroAction", automation.Action
-)
-MHZ19ABCEnableAction = mhz19_ns.class_("MHZ19ABCEnableAction", automation.Action)
-MHZ19ABCDisableAction = mhz19_ns.class_("MHZ19ABCDisableAction", automation.Action)
+mhz19_detection_range = mhz19_ns.enum("MHZ19DetectionRange")
+MHZ19_DETECTION_RANGE_ENUM = {
+    2000: mhz19_detection_range.MHZ19_DETECTION_RANGE_0_2000PPM,
+    5000: mhz19_detection_range.MHZ19_DETECTION_RANGE_0_5000PPM,
+    10000: mhz19_detection_range.MHZ19_DETECTION_RANGE_0_10000PPM,
+}
+
+_validate_ppm = cv.float_with_unit("parts per million", "ppm")
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -49,14 +54,25 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_WARMUP_TIME, default="75s"
             ): cv.positive_time_period_seconds,
+            cv.Optional(CONF_DETECTION_RANGE): cv.All(
+                _validate_ppm, cv.enum(MHZ19_DETECTION_RANGE_ENUM)
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "mhz19",
+    baud_rate=9600,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
+)
 
-async def to_code(config):
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
@@ -78,23 +94,39 @@ async def to_code(config):
 
     cg.add(var.set_warmup_seconds(config[CONF_WARMUP_TIME]))
 
+    if CONF_DETECTION_RANGE in config:
+        cg.add(var.set_detection_range(config[CONF_DETECTION_RANGE]))
 
-CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
+
+NO_ARGS_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(MHZ19Component),
     }
 )
 
 
-@automation.register_action(
-    "mhz19.calibrate_zero", MHZ19CalibrateZeroAction, CALIBRATION_ACTION_SCHEMA
+for _name, _call in (
+    ("mhz19.calibrate_zero", "calibrate_zero()"),
+    ("mhz19.abc_enable", "abc_enable()"),
+    ("mhz19.abc_disable", "abc_disable()"),
+):
+    automation.register_apply_action(
+        _name, NO_ARGS_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
+
+
+RANGE_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(MHZ19Component),
+        cv.Required(CONF_DETECTION_RANGE): cv.All(
+            _validate_ppm, cv.enum(MHZ19_DETECTION_RANGE_ENUM)
+        ),
+    }
 )
-@automation.register_action(
-    "mhz19.abc_enable", MHZ19ABCEnableAction, CALIBRATION_ACTION_SCHEMA
+
+
+automation.register_apply_action(
+    "mhz19.detection_range_set",
+    RANGE_ACTION_SCHEMA,
+    automation.ApplyField(CONF_DETECTION_RANGE, "range_set", mhz19_detection_range),
 )
-@automation.register_action(
-    "mhz19.abc_disable", MHZ19ABCDisableAction, CALIBRATION_ACTION_SCHEMA
-)
-async def mhz19_calibration_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)

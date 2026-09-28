@@ -1,4 +1,5 @@
 <<: !include common.yaml
+<<: !include common_use_psram.yaml
 
 esp32_ble:
   io_capability: keyboard_only

@@ -1,9 +1,5 @@
-i2c:
-  - id: i2c_sen21231
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: sen21231
+    i2c_id: i2c_bus
     id: sen21231_sensor1
     name: Person Sensor

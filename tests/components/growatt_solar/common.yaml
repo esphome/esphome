@@ -1,14 +1,6 @@
-uart:
-  - id: uart_growatt_solar
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
-modbus:
-  flow_control_pin: ${flow_control_pin}
-
 sensor:
   - platform: growatt_solar
+    modbus_id: modbus_bus
     update_interval: 10s
     protocol_version: RTU
     inverter_status:

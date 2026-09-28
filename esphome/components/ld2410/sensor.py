@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ID,
     CONF_LIGHT,
     CONF_MOVING_DISTANCE,
     DEVICE_CLASS_DISTANCE,
@@ -14,6 +15,7 @@ from esphome.const import (
     UNIT_CENTIMETER,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 from . import CONF_LD2410_ID, LD2410Component
 
@@ -28,38 +30,87 @@ CONF_STILL_ENERGY = "still_energy"
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
         cv.Optional(CONF_MOVING_DISTANCE): sensor.sensor_schema(
             device_class=DEVICE_CLASS_DISTANCE,
-            filters=[{"throttle_with_priority": cv.TimePeriod(milliseconds=1000)}],
+            filters=[
+                {
+                    "timeout": {
+                        "timeout": cv.TimePeriod(milliseconds=1000),
+                        "value": "last",
+                    }
+                },
+                {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+            ],
             icon=ICON_SIGNAL,
             unit_of_measurement=UNIT_CENTIMETER,
         ),
         cv.Optional(CONF_STILL_DISTANCE): sensor.sensor_schema(
             device_class=DEVICE_CLASS_DISTANCE,
-            filters=[{"throttle_with_priority": cv.TimePeriod(milliseconds=1000)}],
+            filters=[
+                {
+                    "timeout": {
+                        "timeout": cv.TimePeriod(milliseconds=1000),
+                        "value": "last",
+                    }
+                },
+                {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+            ],
             icon=ICON_SIGNAL,
             unit_of_measurement=UNIT_CENTIMETER,
         ),
         cv.Optional(CONF_MOVING_ENERGY): sensor.sensor_schema(
-            filters=[{"throttle_with_priority": cv.TimePeriod(milliseconds=1000)}],
+            filters=[
+                {
+                    "timeout": {
+                        "timeout": cv.TimePeriod(milliseconds=1000),
+                        "value": "last",
+                    }
+                },
+                {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+            ],
             icon=ICON_MOTION_SENSOR,
             unit_of_measurement=UNIT_PERCENT,
         ),
         cv.Optional(CONF_STILL_ENERGY): sensor.sensor_schema(
-            filters=[{"throttle_with_priority": cv.TimePeriod(milliseconds=1000)}],
+            filters=[
+                {
+                    "timeout": {
+                        "timeout": cv.TimePeriod(milliseconds=1000),
+                        "value": "last",
+                    }
+                },
+                {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+            ],
             icon=ICON_FLASH,
             unit_of_measurement=UNIT_PERCENT,
         ),
         cv.Optional(CONF_LIGHT): sensor.sensor_schema(
             device_class=DEVICE_CLASS_ILLUMINANCE,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            filters=[{"throttle_with_priority": cv.TimePeriod(milliseconds=1000)}],
+            filters=[
+                {
+                    "timeout": {
+                        "timeout": cv.TimePeriod(milliseconds=1000),
+                        "value": "last",
+                    }
+                },
+                {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+            ],
             icon=ICON_LIGHTBULB,
         ),
         cv.Optional(CONF_DETECTION_DISTANCE): sensor.sensor_schema(
             device_class=DEVICE_CLASS_DISTANCE,
-            filters=[{"throttle_with_priority": cv.TimePeriod(milliseconds=1000)}],
+            filters=[
+                {
+                    "timeout": {
+                        "timeout": cv.TimePeriod(milliseconds=1000),
+                        "value": "last",
+                    }
+                },
+                {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+            ],
             icon=ICON_SIGNAL,
             unit_of_measurement=UNIT_CENTIMETER,
         ),
@@ -73,7 +124,13 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
                 cv.Optional(CONF_MOVE_ENERGY): sensor.sensor_schema(
                     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                     filters=[
-                        {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)}
+                        {
+                            "timeout": {
+                                "timeout": cv.TimePeriod(milliseconds=1000),
+                                "value": "last",
+                            }
+                        },
+                        {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
                     ],
                     icon=ICON_MOTION_SENSOR,
                     unit_of_measurement=UNIT_PERCENT,
@@ -81,7 +138,13 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
                 cv.Optional(CONF_STILL_ENERGY): sensor.sensor_schema(
                     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                     filters=[
-                        {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)}
+                        {
+                            "timeout": {
+                                "timeout": cv.TimePeriod(milliseconds=1000),
+                                "value": "last",
+                            }
+                        },
+                        {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
                     ],
                     icon=ICON_FLASH,
                     unit_of_measurement=UNIT_PERCENT,
@@ -93,31 +156,20 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 )
 
 
-async def to_code(config):
-    ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
-    if moving_distance_config := config.get(CONF_MOVING_DISTANCE):
-        sens = await sensor.new_sensor(moving_distance_config)
-        cg.add(ld2410_component.set_moving_target_distance_sensor(sens))
-    if still_distance_config := config.get(CONF_STILL_DISTANCE):
-        sens = await sensor.new_sensor(still_distance_config)
-        cg.add(ld2410_component.set_still_target_distance_sensor(sens))
-    if moving_energy_config := config.get(CONF_MOVING_ENERGY):
-        sens = await sensor.new_sensor(moving_energy_config)
-        cg.add(ld2410_component.set_moving_target_energy_sensor(sens))
-    if still_energy_config := config.get(CONF_STILL_ENERGY):
-        sens = await sensor.new_sensor(still_energy_config)
-        cg.add(ld2410_component.set_still_target_energy_sensor(sens))
-    if light_config := config.get(CONF_LIGHT):
-        sens = await sensor.new_sensor(light_config)
-        cg.add(ld2410_component.set_light_sensor(sens))
-    if detection_distance_config := config.get(CONF_DETECTION_DISTANCE):
-        sens = await sensor.new_sensor(detection_distance_config)
-        cg.add(ld2410_component.set_detection_distance_sensor(sens))
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_LD2410_ID])
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_MOVING_DISTANCE, hub.set_moving_target_distance_sensor)
+    await sensors(CONF_STILL_DISTANCE, hub.set_still_target_distance_sensor)
+    await sensors(CONF_MOVING_ENERGY, hub.set_moving_target_energy_sensor)
+    await sensors(CONF_STILL_ENERGY, hub.set_still_target_energy_sensor)
+    await sensors(CONF_LIGHT, hub.set_light_sensor)
+    await sensors(CONF_DETECTION_DISTANCE, hub.set_detection_distance_sensor)
     for x in range(9):
         if gate_conf := config.get(f"g{x}"):
             if move_config := gate_conf.get(CONF_MOVE_ENERGY):
                 sens = await sensor.new_sensor(move_config)
-                cg.add(ld2410_component.set_gate_move_sensor(x, sens))
+                cg.add(hub.set_gate_move_sensor(x, sens))
             if still_config := gate_conf.get(CONF_STILL_ENERGY):
                 sens = await sensor.new_sensor(still_config)
-                cg.add(ld2410_component.set_gate_still_sensor(x, sens))
+                cg.add(hub.set_gate_still_sensor(x, sens))

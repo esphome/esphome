@@ -1,6 +1,4 @@
-i2c:
-  - id: i2c_nau7802
-    scl: 5
-    sda: 4
+packages:
+  i2c: !include ../../test_build_components/common/i2c/rp2040-ard.yaml
 
 <<: !include common.yaml

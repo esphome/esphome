@@ -1,0 +1,25 @@
+esphome:
+  name: test-device
+  # No friendly_name set, no MAC suffix
+  # OLD behavior: object_id = device name because Python pre-computed with fallback
+
+host:
+
+api:
+
+logger:
+
+sensor:
+  # Empty name entity - OLD behavior used device name as fallback
+  - platform: template
+    name: ""
+    id: sensor_empty_name
+    lambda: return 42.0;
+    update_interval: 60s
+
+  # Named entity for comparison
+  - platform: template
+    name: "Temperature"
+    id: sensor_named
+    lambda: return 43.0;
+    update_interval: 60s

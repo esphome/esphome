@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/display/display_buffer.h"
 
-namespace esphome {
-namespace ssd1306_base {
+namespace esphome::ssd1306_base {
 
 enum SSD1306Model {
   SSD1306_MODEL_128_32 = 0,
@@ -22,6 +21,9 @@ enum SSD1306Model {
   SH1107_MODEL_128_128,
   SSD1305_MODEL_128_32,
   SSD1305_MODEL_128_64,
+  // When adding a new model, add it before SSD1306_MODEL_COUNT and update
+  // MODEL_DIMS and ModelStrings tables in ssd1306_base.cpp
+  SSD1306_MODEL_COUNT,  // must be last
 };
 
 class SSD1306 : public display::DisplayBuffer {
@@ -63,13 +65,14 @@ class SSD1306 : public display::DisplayBuffer {
   bool is_sh1106_() const;
   bool is_sh1107_() const;
   bool is_ssd1305_() const;
+  bool is_ssd1306b_() const;
 
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
   int get_height_internal() override;
   int get_width_internal() override;
   size_t get_buffer_length_();
-  const char *model_str_();
+  const LogString *model_str_();
 
   SSD1306Model model_{SSD1306_MODEL_128_64};
   GPIOPin *reset_pin_{nullptr};
@@ -84,5 +87,4 @@ class SSD1306 : public display::DisplayBuffer {
   bool invert_{false};
 };
 
-}  // namespace ssd1306_base
-}  // namespace esphome
+}  // namespace esphome::ssd1306_base

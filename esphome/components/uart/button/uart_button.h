@@ -6,12 +6,12 @@
 
 #include <vector>
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
-class UARTButton : public button::Button, public UARTDevice, public Component {
+class UARTButton final : public button::Button, public UARTDevice, public Component {
  public:
-  void set_data(const std::vector<uint8_t> &data) { this->data_ = data; }
+  void set_data(std::vector<uint8_t> &&data) { this->data_ = std::move(data); }
+  void set_data(std::initializer_list<uint8_t> data) { this->data_ = std::vector<uint8_t>(data); }
 
   void dump_config() override;
 
@@ -20,5 +20,4 @@ class UARTButton : public button::Button, public UARTDevice, public Component {
   std::vector<uint8_t> data_;
 };
 
-}  // namespace uart
-}  // namespace esphome
+}  // namespace esphome::uart

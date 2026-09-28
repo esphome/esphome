@@ -1,7 +1,4 @@
-remote_transmitter:
-  pin: 4
-  carrier_duty_percent: 50%
-
 climate:
   - platform: mitsubishi
     name: Mitsubishi
+    transmitter_id: xmitr

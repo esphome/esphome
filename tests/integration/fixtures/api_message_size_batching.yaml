@@ -143,6 +143,7 @@ text:
     mode: text
     min_length: 0
     max_length: 255
+    pattern: "[A-Za-z0-9 ]+"
     initial_value: "Initial value"
     update_interval: 5.0s
 

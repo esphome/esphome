@@ -1,0 +1,332 @@
+esphome:
+  name: test-value-list-filters
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+# Template sensors - one for each test to avoid cross-test interference
+sensor:
+  - platform: template
+    name: "Source Sensor 1"
+    id: source_sensor_1
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Source Sensor 2"
+    id: source_sensor_2
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Source Sensor 3"
+    id: source_sensor_3
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Source Sensor 4"
+    id: source_sensor_4
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Source Sensor 5"
+    id: source_sensor_5
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Source Sensor 6"
+    id: source_sensor_6
+    accuracy_decimals: 2
+
+  - platform: template
+    name: "Source Sensor 7"
+    id: source_sensor_7
+    accuracy_decimals: 1
+
+  # FilterOutValueFilter - single value
+  - platform: copy
+    source_id: source_sensor_1
+    name: "Filter Out Single"
+    id: filter_out_single
+    filters:
+      - filter_out: 42.0
+
+  # FilterOutValueFilter - multiple values
+  - platform: copy
+    source_id: source_sensor_2
+    name: "Filter Out Multiple"
+    id: filter_out_multiple
+    filters:
+      - filter_out: [0.0, 42.0, 100.0]
+
+  # FilterOutValueFilter - with NaN
+  - platform: copy
+    source_id: source_sensor_1
+    name: "Filter Out NaN"
+    id: filter_out_nan
+    filters:
+      - filter_out: nan
+
+  # ThrottleWithPriorityFilter - single priority value
+  - platform: copy
+    source_id: source_sensor_3
+    name: "Throttle Priority Single"
+    id: throttle_priority_single
+    filters:
+      - throttle_with_priority:
+          timeout: 200ms
+          value: 42.0
+
+  # ThrottleWithPriorityFilter - multiple priority values
+  - platform: copy
+    source_id: source_sensor_4
+    name: "Throttle Priority Multiple"
+    id: throttle_priority_multiple
+    filters:
+      - throttle_with_priority:
+          timeout: 200ms
+          value: [0.0, 42.0, 100.0]
+
+  # Edge case: Filter Out NaN explicitly
+  - platform: copy
+    source_id: source_sensor_5
+    name: "Filter Out NaN Test"
+    id: filter_out_nan_test
+    filters:
+      - filter_out: nan
+
+  # Edge case: Accuracy decimals - 2 decimals
+  - platform: copy
+    source_id: source_sensor_6
+    name: "Filter Out Accuracy 2"
+    id: filter_out_accuracy_2
+    filters:
+      - filter_out: 42.0
+
+  # Edge case: Throttle with NaN priority
+  - platform: copy
+    source_id: source_sensor_7
+    name: "Throttle Priority NaN"
+    id: throttle_priority_nan
+    filters:
+      - throttle_with_priority:
+          timeout: 200ms
+          value: nan
+
+# Script to test FilterOutValueFilter
+script:
+  - id: test_filter_out_single
+    then:
+      # Should pass through: 1.0, 2.0, 3.0
+      # Should filter out: 42.0
+      - sensor.template.publish:
+          id: source_sensor_1
+          state: 1.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_1
+          state: 42.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_1
+          state: 2.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_1
+          state: 42.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_1
+          state: 3.0
+
+  - id: test_filter_out_multiple
+    then:
+      # Should filter out: 0.0, 42.0, 100.0
+      # Should pass through: 1.0, 2.0, 50.0
+      - sensor.template.publish:
+          id: source_sensor_2
+          state: 0.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_2
+          state: 1.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_2
+          state: 42.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_2
+          state: 2.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_2
+          state: 100.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_2
+          state: 50.0
+
+  - id: test_throttle_priority_single
+    then:
+      # 42.0 bypasses throttle, other values are throttled
+      - sensor.template.publish:
+          id: source_sensor_3
+          state: 1.0  # First value - passes
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor_3
+          state: 2.0  # Throttled
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor_3
+          state: 42.0  # Priority - passes immediately
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor_3
+          state: 3.0  # Throttled
+      - delay: 250ms  # Wait for throttle to expire
+      - sensor.template.publish:
+          id: source_sensor_3
+          state: 4.0  # Passes after timeout
+
+  - id: test_throttle_priority_multiple
+    then:
+      # 0.0, 42.0, 100.0 bypass throttle
+      - sensor.template.publish:
+          id: source_sensor_4
+          state: 1.0  # First value - passes
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor_4
+          state: 2.0  # Throttled
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor_4
+          state: 0.0  # Priority - passes
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor_4
+          state: 3.0  # Throttled
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor_4
+          state: 42.0  # Priority - passes
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor_4
+          state: 4.0  # Throttled
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor_4
+          state: 100.0  # Priority - passes
+
+  - id: test_filter_out_nan
+    then:
+      # NaN should be filtered out, regular values pass
+      - sensor.template.publish:
+          id: source_sensor_5
+          state: 1.0  # Pass
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_5
+          state: !lambda 'return NAN;'  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_5
+          state: 2.0  # Pass
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_5
+          state: !lambda 'return NAN;'  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_5
+          state: 3.0  # Pass
+
+  - id: test_filter_out_accuracy_2
+    then:
+      # With 2 decimal places, 42.00 filtered, 42.01 and 42.15 pass
+      - sensor.template.publish:
+          id: source_sensor_6
+          state: 42.0  # Filtered (rounds to 42.00)
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_6
+          state: 42.01  # Pass (rounds to 42.01)
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_6
+          state: 42.15  # Pass (rounds to 42.15)
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_6
+          state: 42.0  # Filtered (rounds to 42.00)
+
+  - id: test_throttle_priority_nan
+    then:
+      # NaN bypasses throttle, regular values throttled
+      - sensor.template.publish:
+          id: source_sensor_7
+          state: 1.0  # First value - passes
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor_7
+          state: 2.0  # Throttled
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor_7
+          state: !lambda 'return NAN;'  # Priority NaN - passes
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor_7
+          state: 3.0  # Throttled
+      - delay: 50ms
+      - sensor.template.publish:
+          id: source_sensor_7
+          state: !lambda 'return NAN;'  # Priority NaN - passes
+
+# Buttons to trigger each test
+button:
+  - platform: template
+    name: "Test Filter Out Single"
+    id: btn_filter_out_single
+    on_press:
+      - script.execute: test_filter_out_single
+
+  - platform: template
+    name: "Test Filter Out Multiple"
+    id: btn_filter_out_multiple
+    on_press:
+      - script.execute: test_filter_out_multiple
+
+  - platform: template
+    name: "Test Throttle Priority Single"
+    id: btn_throttle_priority_single
+    on_press:
+      - script.execute: test_throttle_priority_single
+
+  - platform: template
+    name: "Test Throttle Priority Multiple"
+    id: btn_throttle_priority_multiple
+    on_press:
+      - script.execute: test_throttle_priority_multiple
+
+  - platform: template
+    name: "Test Filter Out NaN"
+    id: btn_filter_out_nan
+    on_press:
+      - script.execute: test_filter_out_nan
+
+  - platform: template
+    name: "Test Filter Out Accuracy 2"
+    id: btn_filter_out_accuracy_2
+    on_press:
+      - script.execute: test_filter_out_accuracy_2
+
+  - platform: template
+    name: "Test Throttle Priority NaN"
+    id: btn_throttle_priority_nan
+    on_press:
+      - script.execute: test_throttle_priority_nan

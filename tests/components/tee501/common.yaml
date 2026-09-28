@@ -1,9 +1,5 @@
-i2c:
-  - id: i2c_tee501
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: tee501
+    i2c_id: i2c_bus
     name: TEE501 Temperature
     address: 0x48

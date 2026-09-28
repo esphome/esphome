@@ -1,14 +1,16 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/template_lambda.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
-class TemplateSensor : public sensor::Sensor, public PollingComponent {
+class TemplateSensor final : public sensor::Sensor, public PollingComponent {
  public:
-  void set_template(std::function<optional<float>()> &&f);
+  // User provided, not "= default": `new(p) TemplateSensor()` would zero-fill .bss that is already zero.
+  TemplateSensor() {}
+  template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
   void update() override;
 
@@ -17,8 +19,7 @@ class TemplateSensor : public sensor::Sensor, public PollingComponent {
   float get_setup_priority() const override;
 
  protected:
-  optional<std::function<optional<float>()>> f_;
+  TemplateLambda<float> f_;
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

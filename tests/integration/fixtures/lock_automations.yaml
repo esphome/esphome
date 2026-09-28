@@ -1,0 +1,17 @@
+esphome:
+  name: lock-automations-test
+
+host:
+api:  # Port will be automatically injected
+logger:
+  level: DEBUG
+
+lock:
+  - platform: template
+    id: test_lock
+    name: "Test Lock"
+    optimistic: true
+    on_lock:
+      - logger.log: "TRIGGER: on_lock fired"
+    on_unlock:
+      - logger.log: "TRIGGER: on_unlock fired"

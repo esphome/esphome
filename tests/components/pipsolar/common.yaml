@@ -5,12 +5,6 @@ esphome:
           id: inverter0_battery_recharge_voltage_out
           value: 48.0
 
-uart:
-  - id: uart_pipsolar
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 115200
-
 pipsolar:
   id: inverter0
 

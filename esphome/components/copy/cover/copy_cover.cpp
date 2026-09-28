@@ -1,8 +1,7 @@
 #include "copy_cover.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
 static const char *const TAG = "copy.cover";
 
@@ -38,14 +37,16 @@ cover::CoverTraits CopyCover::get_traits() {
 void CopyCover::control(const cover::CoverCall &call) {
   auto call2 = source_->make_call();
   call2.set_stop(call.get_stop());
-  if (call.get_tilt().has_value())
-    call2.set_tilt(*call.get_tilt());
-  if (call.get_position().has_value())
-    call2.set_position(*call.get_position());
-  if (call.get_tilt().has_value())
-    call2.set_tilt(*call.get_tilt());
+  auto tilt = call.get_tilt();
+  if (tilt.has_value())
+    call2.set_tilt(*tilt);
+  auto position = call.get_position();
+  if (position.has_value())
+    call2.set_position(*position);
+  auto tilt2 = call.get_tilt();
+  if (tilt2.has_value())
+    call2.set_tilt(*tilt2);
   call2.perform();
 }
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

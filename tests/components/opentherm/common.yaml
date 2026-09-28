@@ -92,7 +92,7 @@ sensor:
     ch_pump_starts:
       name: "Boiler Number of starts CH pump"
     dhw_pump_valve_starts:
-      name: "Boiler Number of starts DHW pump/valve"
+      name: "Boiler Number of starts DHW pump valve"
     dhw_burner_starts:
       name: "Boiler Number of starts burner during DHW mode"
     burner_operation_hours:
@@ -139,7 +139,7 @@ binary_sensor:
     dhw_present:
       name: "Boiler DHW present"
     control_type_on_off:
-      name: "Boiler Control type is on/off"
+      name: "Boiler Control type is on-off"
     cooling_supported:
       name: "Boiler Cooling supported"
     dhw_storage_tank:
@@ -153,9 +153,9 @@ binary_sensor:
     max_ch_setpoint_transfer_enabled:
       name: "Boiler CH maximum setpoint transfer enabled"
     dhw_setpoint_rw:
-      name: "Boiler DHW setpoint read/write"
+      name: "Boiler DHW setpoint read-write"
     max_ch_setpoint_rw:
-      name: "Boiler CH maximum setpoint read/write"
+      name: "Boiler CH maximum setpoint read-write"
 
 switch:
   - platform: opentherm

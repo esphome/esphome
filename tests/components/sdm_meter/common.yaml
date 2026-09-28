@@ -1,11 +1,6 @@
-uart:
-  - id: uart_sdm_meter
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 sensor:
   - platform: sdm_meter
+    modbus_id: modbus_bus
     phase_a:
       current:
         name: Phase A Current

@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_mmc5983
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: mmc5983
+    i2c_id: i2c_bus
     field_strength_x:
       name: "Magnet X"
       id: magnet_x

@@ -1,0 +1,7 @@
+substitutions:
+  reset_pin: P0.10
+
+packages:
+  i2c: !include ../../test_build_components/common/i2c/nrf52.yaml
+
+<<: !include common.yaml

@@ -8,7 +8,6 @@
 ///                 wk2132_i2c, wk2168_i2c, wk2204_i2c, wk2212_i2c
 
 #pragma once
-#include <bitset>
 #include <memory>
 #include <cinttypes>
 #include "esphome/core/component.h"
@@ -26,8 +25,7 @@
 /// @endcode
 // #define TEST_COMPONENT
 
-namespace esphome {
-namespace weikai {
+namespace esphome::weikai {
 
 /// @brief XFER_MAX_SIZE defines the maximum number of bytes allowed during one transfer.
 #if defined(I2C_BUFFER_LENGTH)
@@ -278,7 +276,7 @@ class WeikaiGPIOPin : public GPIOPin {
   gpio::Flags get_flags() const override { return this->flags_; }
 
   void setup() override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
   void pin_mode(gpio::Flags flags) override { this->parent_->set_pin_direction_(this->pin_, flags); }
   bool digital_read() override { return this->parent_->read_pin_val_(this->pin_) != this->inverted_; }
   void digital_write(bool value) override { this->parent_->write_pin_val_(this->pin_, value != this->inverted_); }
@@ -375,13 +373,22 @@ class WeikaiChannel : public uart::UARTComponent {
 
   /// @brief Returns the number of bytes in the receive buffer
   /// @return the number of bytes available in the receiver fifo
-  int available() override;
+  size_t available() override;
 
   /// @brief Flush the output fifo.
   /// @details If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission of outgoing serial data
   /// to complete. (Prior to Arduino 1.0, this the method was removing any buffered incoming serial data.). ** Therefore
   /// we wait until all bytes are gone with a timeout of 100 ms
-  void flush() override;
+  uart::UARTFlushResult flush() override;
+
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  /// @brief Re-apply the current line settings (baud, parity, etc) to the channel.
+  void load_settings(bool dump_config) override {
+    this->set_line_param_();
+    this->set_baudrate_();
+  }
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
+#endif
 
  protected:
   friend class WeikaiComponent;
@@ -441,5 +448,4 @@ class WeikaiChannel : public uart::UARTComponent {
   std::string name_;         ///< name of the entity
 };
 
-}  // namespace weikai
-}  // namespace esphome
+}  // namespace esphome::weikai

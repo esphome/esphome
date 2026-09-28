@@ -17,8 +17,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace aht10 {
+namespace esphome::aht10 {
 
 static const char *const TAG = "aht10";
 static const uint8_t AHT10_INITIALIZE_CMD[] = {0xE1, 0x08, 0x00};
@@ -83,7 +82,7 @@ void AHT10Component::setup() {
 void AHT10Component::restart_read_() {
   if (this->read_count_ == AHT10_ATTEMPTS) {
     this->read_count_ = 0;
-    this->status_set_error("Reading timed out");
+    this->status_set_error(LOG_STR("Reading timed out"));
     return;
   }
   this->read_count_++;
@@ -150,8 +149,6 @@ void AHT10Component::update() {
   this->restart_read_();
 }
 
-float AHT10Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void AHT10Component::dump_config() {
   ESP_LOGCONFIG(TAG, "AHT10:");
   LOG_I2C_DEVICE(this);
@@ -162,5 +159,4 @@ void AHT10Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
-}  // namespace aht10
-}  // namespace esphome
+}  // namespace esphome::aht10

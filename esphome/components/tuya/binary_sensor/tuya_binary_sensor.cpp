@@ -1,8 +1,7 @@
 #include "esphome/core/log.h"
 #include "tuya_binary_sensor.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 static const char *const TAG = "tuya.binary_sensor";
 
@@ -14,9 +13,10 @@ void TuyaBinarySensor::setup() {
 }
 
 void TuyaBinarySensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "Tuya Binary Sensor:");
-  ESP_LOGCONFIG(TAG, "  Binary Sensor has datapoint ID %u", this->sensor_id_);
+  ESP_LOGCONFIG(TAG,
+                "Tuya Binary Sensor:\n"
+                "  Binary Sensor has datapoint ID %u",
+                this->sensor_id_);
 }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

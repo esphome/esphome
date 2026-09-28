@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct CoolixData {
   CoolixData() {}
@@ -22,9 +21,9 @@ struct CoolixData {
 
 class CoolixProtocol : public RemoteProtocol<CoolixData> {
  public:
-  void encode(RemoteTransmitData *dst, const CoolixData &data) override;
-  optional<CoolixData> decode(RemoteReceiveData data) override;
-  void dump(const CoolixData &data) override;
+  void encode(RemoteTransmitData *dst, const CoolixData &data);
+  optional<CoolixData> decode(RemoteReceiveData data);
+  void dump(const CoolixData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Coolix)
@@ -37,5 +36,4 @@ template<typename... Ts> class CoolixAction : public RemoteTransmitterActionBase
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

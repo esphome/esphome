@@ -15,6 +15,7 @@ from esphome.const import (
     UNIT_AMPERE,
     UNIT_VOLT,
 )
+from esphome.types import ConfigType
 
 from .. import atm90e32_ns
 from ..sensor import ATM90E32Component
@@ -90,7 +91,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_ID])
 
     if voltage_cfg := config.get(CONF_REFERENCE_VOLTAGE):

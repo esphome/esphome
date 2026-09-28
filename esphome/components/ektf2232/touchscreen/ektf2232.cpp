@@ -4,8 +4,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace ektf2232 {
+namespace esphome::ektf2232 {
 
 static const char *const TAG = "ektf2232";
 
@@ -130,5 +129,4 @@ void EKTF2232Touchscreen::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
-}  // namespace ektf2232
-}  // namespace esphome
+}  // namespace esphome::ektf2232

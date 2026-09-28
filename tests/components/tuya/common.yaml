@@ -2,12 +2,6 @@ wifi:
   ssid: MySSID
   password: password1
 
-uart:
-  - id: uart_tuya
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 tuya:
   status_pin:
     number: ${status_pin}
@@ -44,11 +38,14 @@ light:
     dimmer_datapoint: 2
     min_value_datapoint: 3
     color_temperature_datapoint: 4
+    color_datapoint: 5
     min_value: 1
     max_value: 100
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
     gamma_correct: 1
+    color_type: RGB
+    color_type_lowercase: true
 
 number:
   - platform: tuya
@@ -83,3 +80,24 @@ switch:
   - platform: tuya
     id: tuya_switch
     switch_datapoint: 1
+
+water_heater:
+  - platform: tuya
+    id: tuya_water_heater
+    name: Tuya Water Heater
+    switch_datapoint: 1
+    current_temperature_datapoint: 3
+    target_temperature_datapoint: 2
+    current_temperature_multiplier: 0.5
+    target_temperature_multiplier: 0.5
+    mode_datapoint: 4
+    eco_value: 0
+    electric_value: 2
+    supported_modes:
+      - "OFF"
+      - ECO
+      - ELECTRIC
+    visual:
+      min_temperature: 30
+      max_temperature: 75
+      target_temperature_step: 1

@@ -1,10 +1,12 @@
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components import gpio_expander
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_INPUT,
     CONF_INTERRUPT,
+    CONF_INTERRUPT_PIN,
     CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
@@ -13,6 +15,8 @@ from esphome.const import (
     CONF_PULLUP,
 )
 from esphome.core import CORE, ID, coroutine
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["gpio_expander"]
 CODEOWNERS = ["@jesserockz"]
@@ -29,24 +33,28 @@ MCP23XXX_INTERRUPT_MODES = {
     "FALLING": MCP23XXXInterruptMode.MCP23XXX_FALLING,
 }
 
+
 MCP23XXX_CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_OPEN_DRAIN_INTERRUPT, default=False): cv.boolean,
+        cv.Optional(CONF_INTERRUPT_PIN): gpio_expander.validate_interrupt_pin,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
 @coroutine
-async def register_mcp23xxx(config, num_pins):
+async def register_mcp23xxx(config: ConfigType, num_pins: int) -> MockObj:
     id: ID = config[CONF_ID]
     var = cg.new_Pvariable(id)
     await cg.register_component(var, config)
     CORE.data.setdefault(CONF_MCP23XXX, {})[id.id] = num_pins
     cg.add(var.set_open_drain_ints(config[CONF_OPEN_DRAIN_INTERRUPT]))
+    if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
+        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
     return var
 
 
-def validate_mode(value):
+def validate_mode(value: ConfigType) -> ConfigType:
     if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
         raise cv.Invalid("Mode must be either input or output")
     if value[CONF_INPUT] and value[CONF_OUTPUT]:
@@ -75,7 +83,7 @@ MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_MCP23XXX, MCP23XXX_PIN_SCHEMA)
-async def mcp23xxx_pin_to_code(config):
+async def mcp23xxx_pin_to_code(config: ConfigType) -> MockObj:
     parent_id: ID = config[CONF_MCP23XXX]
     parent = await cg.get_variable(parent_id)
 

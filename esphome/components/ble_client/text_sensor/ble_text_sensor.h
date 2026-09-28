@@ -8,8 +8,7 @@
 #ifdef USE_ESP32
 #include <esp_gattc_api.h>
 
-namespace esphome {
-namespace ble_client {
+namespace esphome::ble_client {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -30,7 +29,6 @@ class BLETextSensor : public text_sensor::TextSensor, public PollingComponent, p
   void set_descr_uuid32(uint32_t uuid) { this->descr_uuid_ = espbt::ESPBTUUID::from_uint32(uuid); }
   void set_descr_uuid128(uint8_t *uuid) { this->descr_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }
   void set_enable_notify(bool notify) { this->notify_ = notify; }
-  std::string parse_data(uint8_t *value, uint16_t value_len);
   uint16_t handle;
 
  protected:
@@ -40,6 +38,5 @@ class BLETextSensor : public text_sensor::TextSensor, public PollingComponent, p
   espbt::ESPBTUUID descr_uuid_;
 };
 
-}  // namespace ble_client
-}  // namespace esphome
+}  // namespace esphome::ble_client
 #endif

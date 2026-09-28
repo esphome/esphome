@@ -5,8 +5,7 @@
 #include "esphome/components/network/util.h"
 #include "udp_component.h"
 
-namespace esphome {
-namespace udp {
+namespace esphome::udp {
 
 static const char *const TAG = "udp";
 
@@ -14,15 +13,20 @@ void UDPComponent::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   for (const auto &address : this->addresses_) {
     struct sockaddr saddr {};
-    socket::set_sockaddr(&saddr, sizeof(saddr), address, this->broadcast_port_);
+    if (socket::set_sockaddr(&saddr, sizeof(saddr), address, this->broadcast_port_) == 0) {
+      ESP_LOGW(TAG, "Invalid address %s", address);
+      // A dropped address silently receives nothing; surface the misconfiguration
+      this->status_set_warning(LOG_STR("invalid address"));
+      continue;
+    }
     this->sockaddrs_.push_back(saddr);
   }
   // set up broadcast socket
   if (this->should_broadcast_) {
     this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (this->broadcast_socket_ == nullptr) {
+      this->status_set_error(LOG_STR("Could not create socket"));
       this->mark_failed();
-      this->status_set_error("Could not create socket");
       return;
     }
     int enable = 1;
@@ -41,15 +45,15 @@ void UDPComponent::setup() {
   if (this->should_listen_) {
     this->listen_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (this->listen_socket_ == nullptr) {
+      this->status_set_error(LOG_STR("Could not create socket"));
       this->mark_failed();
-      this->status_set_error("Could not create socket");
       return;
     }
     auto err = this->listen_socket_->setblocking(false);
     if (err < 0) {
       ESP_LOGE(TAG, "Unable to set nonblocking: errno %d", errno);
+      this->status_set_error(LOG_STR("Unable to set nonblocking"));
       this->mark_failed();
-      this->status_set_error("Unable to set nonblocking");
       return;
     }
     int enable = 1;
@@ -65,16 +69,19 @@ void UDPComponent::setup() {
     server.sin_port = htons(this->listen_port_);
 
     if (this->listen_address_.has_value()) {
+      // Only 16 bytes needed for IPv4, but use standard size for consistency
+      char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
+      this->listen_address_.value().str_to(addr_buf);
       struct ip_mreq imreq = {};
       imreq.imr_interface.s_addr = ESPHOME_INADDR_ANY;
-      inet_aton(this->listen_address_.value().str().c_str(), &imreq.imr_multiaddr);
+      inet_aton(addr_buf, &imreq.imr_multiaddr);
       server.sin_addr.s_addr = imreq.imr_multiaddr.s_addr;
-      ESP_LOGD(TAG, "Join multicast %s", this->listen_address_.value().str().c_str());
+      ESP_LOGD(TAG, "Join multicast %s", addr_buf);
       err = this->listen_socket_->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, &imreq, sizeof(imreq));
       if (err < 0) {
         ESP_LOGE(TAG, "Failed to set IP_ADD_MEMBERSHIP. Error %d", errno);
+        this->status_set_error(LOG_STR("Failed to set IP_ADD_MEMBERSHIP"));
         this->mark_failed();
-        this->status_set_error("Failed to set IP_ADD_MEMBERSHIP");
         return;
       }
     }
@@ -82,8 +89,8 @@ void UDPComponent::setup() {
     err = this->listen_socket_->bind((struct sockaddr *) &server, sizeof(server));
     if (err != 0) {
       ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
+      this->status_set_error(LOG_STR("Unable to bind socket"));
       this->mark_failed();
-      this->status_set_error("Unable to bind socket");
       return;
     }
   }
@@ -92,7 +99,11 @@ void UDPComponent::setup() {
   // 8266 and RP2040 `Duino
   for (const auto &address : this->addresses_) {
     auto ipaddr = IPAddress();
-    ipaddr.fromString(address.c_str());
+    if (!ipaddr.fromString(address)) {
+      ESP_LOGW(TAG, "Invalid address %s", address);
+      this->status_set_warning(LOG_STR("invalid address"));
+      continue;
+    }
     this->ipaddrs_.push_back(ipaddr);
   }
   if (this->should_listen_)
@@ -101,8 +112,8 @@ void UDPComponent::setup() {
 }
 
 void UDPComponent::loop() {
-  auto buf = std::vector<uint8_t>(MAX_PACKET_SIZE);
   if (this->should_listen_) {
+    std::array<uint8_t, MAX_PACKET_SIZE> buf;
     for (;;) {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
       auto len = this->listen_socket_->read(buf.data(), buf.size());
@@ -114,9 +125,9 @@ void UDPComponent::loop() {
 #endif
       if (len <= 0)
         break;
-      buf.resize(len);
-      ESP_LOGV(TAG, "Received packet of length %zu", len);
-      this->packet_listeners_.call(buf);
+      size_t packet_len = static_cast<size_t>(len);
+      ESP_LOGV(TAG, "Received packet of length %zu", packet_len);
+      this->packet_listeners_.call(std::span<const uint8_t>(buf.data(), packet_len));
     }
   }
 }
@@ -127,10 +138,12 @@ void UDPComponent::dump_config() {
                 "  Listen Port: %u\n"
                 "  Broadcast Port: %u",
                 this->listen_port_, this->broadcast_port_);
-  for (const auto &address : this->addresses_)
-    ESP_LOGCONFIG(TAG, "  Address: %s", address.c_str());
+  for (const char *address : this->addresses_) {
+    ESP_LOGCONFIG(TAG, "  Address: %s", address);
+  }
   if (this->listen_address_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Listen address: %s", this->listen_address_.value().str().c_str());
+    char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    ESP_LOGCONFIG(TAG, "  Listen address: %s", this->listen_address_.value().str_to(addr_buf));
   }
   ESP_LOGCONFIG(TAG,
                 "  Broadcasting: %s\n"
@@ -142,8 +155,9 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   for (const auto &saddr : this->sockaddrs_) {
     auto result = this->broadcast_socket_->sendto(data, size, 0, &saddr, sizeof(saddr));
-    if (result < 0)
+    if (result < 0) {
       ESP_LOGW(TAG, "sendto() error %d", errno);
+    }
   }
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
@@ -152,13 +166,13 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
     if (this->udp_client_.beginPacketMulticast(saddr, this->broadcast_port_, iface, 128) != 0) {
       this->udp_client_.write(data, size);
       auto result = this->udp_client_.endPacket();
-      if (result == 0)
+      if (result == 0) {
         ESP_LOGW(TAG, "udp.write() error");
+      }
     }
   }
 #endif
 }
-}  // namespace udp
-}  // namespace esphome
+}  // namespace esphome::udp
 
 #endif

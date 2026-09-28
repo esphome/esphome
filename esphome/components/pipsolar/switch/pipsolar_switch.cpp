@@ -2,23 +2,16 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace pipsolar {
+namespace esphome::pipsolar {
 
 static const char *const TAG = "pipsolar.switch";
 
 void PipsolarSwitch::dump_config() { LOG_SWITCH("", "Pipsolar Switch", this); }
 void PipsolarSwitch::write_state(bool state) {
-  if (state) {
-    if (!this->on_command_.empty()) {
-      this->parent_->switch_command(this->on_command_);
-    }
-  } else {
-    if (!this->off_command_.empty()) {
-      this->parent_->switch_command(this->off_command_);
-    }
+  const char *command = state ? this->on_command_ : this->off_command_;
+  if (command != nullptr) {
+    this->parent_->queue_command(command);
   }
 }
 
-}  // namespace pipsolar
-}  // namespace esphome
+}  // namespace esphome::pipsolar

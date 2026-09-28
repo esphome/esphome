@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace hdc1080 {
+namespace esphome::hdc1080 {
 
 static const char *const TAG = "hdc1080";
 
@@ -16,7 +15,8 @@ void HDC1080Component::setup() {
 
   // if configuration fails - there is a problem
   if (this->write_register(HDC1080_CMD_CONFIGURATION, config, 2) != i2c::ERROR_OK) {
-    this->mark_failed();
+    ESP_LOGW(TAG, "Failed to configure HDC1080");
+    this->status_set_warning();
     return;
   }
 }
@@ -77,5 +77,4 @@ void HDC1080Component::update() {
   });
 }
 
-}  // namespace hdc1080
-}  // namespace esphome
+}  // namespace esphome::hdc1080

@@ -6,13 +6,12 @@
 #include <forward_list>
 #include <vector>
 
-namespace esphome {
-namespace lcd_menu {
+namespace esphome::lcd_menu {
 
 /** Class to display a hierarchical menu.
  *
  */
-class LCDCharacterMenuComponent : public display_menu_base::DisplayMenuComponent {
+class LCDCharacterMenuComponent final : public display_menu_base::DisplayMenuComponent {
  public:
   void set_display(lcd_base::LCDDisplay *display) { this->display_ = display; }
   void set_dimensions(uint8_t columns, uint8_t rows) {
@@ -41,5 +40,4 @@ class LCDCharacterMenuComponent : public display_menu_base::DisplayMenuComponent
   char mark_back_;
 };
 
-}  // namespace lcd_menu
-}  // namespace esphome
+}  // namespace esphome::lcd_menu

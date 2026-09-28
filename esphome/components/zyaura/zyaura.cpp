@@ -1,8 +1,7 @@
 #include "zyaura.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace zyaura {
+namespace esphome::zyaura {
 
 static const char *const TAG = "zyaura";
 
@@ -121,5 +120,4 @@ void ZyAuraSensor::update() {
   }
 }
 
-}  // namespace zyaura
-}  // namespace esphome
+}  // namespace esphome::zyaura

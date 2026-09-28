@@ -1,0 +1,6 @@
+substitutions:
+  x: 1
+  y: 2
+
+values:
+  - This value comes from inc2.yaml. x is $x, y is $y

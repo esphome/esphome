@@ -1,8 +1,7 @@
 #pragma once
 #include "esphome/core/color.h"
 
-namespace esphome {
-namespace display {
+namespace esphome::display {
 enum ColorOrder : uint8_t { COLOR_ORDER_RGB = 0, COLOR_ORDER_BGR = 1, COLOR_ORDER_GRB = 2 };
 enum ColorBitness : uint8_t { COLOR_BITNESS_888 = 0, COLOR_BITNESS_565 = 1, COLOR_BITNESS_332 = 2 };
 inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value = 255) { return (max_value * i / scale); }
@@ -155,5 +154,4 @@ class ColorUtil {
     return color;
   }
 };
-}  // namespace display
-}  // namespace esphome
+}  // namespace esphome::display

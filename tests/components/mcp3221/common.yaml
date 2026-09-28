@@ -1,0 +1,6 @@
+sensor:
+  - platform: mcp3221
+    id: test_id
+    name: voltage
+    i2c_id: i2c_bus
+    reference_voltage: 3.3V

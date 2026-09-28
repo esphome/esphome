@@ -1,9 +1,0 @@
-substitutions:
-  light_platform: ledc
-  pin1: GPIO12
-  pin2: GPIO13
-  pin3: GPIO14
-  pin4: GPIO15
-  pin5: GPIO16
-
-<<: !include common.yaml

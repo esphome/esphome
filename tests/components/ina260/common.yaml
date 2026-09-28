@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_ina260
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: ina260
+    i2c_id: i2c_bus
     address: 0x40
     current:
       name: INA260 Current

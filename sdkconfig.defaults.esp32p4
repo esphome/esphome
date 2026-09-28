@@ -1,0 +1,31 @@
+# Per-target ESP-IDF sdkconfig defaults for esp32p4 static analysis (clang-tidy) only.
+# Read by IDF in addition to sdkconfig.defaults. Enables variant-only components so
+# their headers register for the tidy translation unit (these are normally set at
+# codegen via add_idf_sdkconfig_option, which the stub tidy build skips).
+
+# esp32_hosted (P4 has no native Wi-Fi; it drives a co-processor over SDIO/SPI).
+# Mirrors a default SDIO 4-bit setup (slot 1, ESP32-C6 slave) so the esp_hosted
+# code paths compile under static analysis.
+CONFIG_SLAVE_IDF_TARGET_ESP32C6=y
+CONFIG_ESP_HOSTED_SDIO_SLOT_1=y
+CONFIG_ESP_HOSTED_SDIO_4_BIT_BUS=y
+CONFIG_ESP_HOSTED_CUSTOM_SDIO_PINS=y
+CONFIG_ESP_HOSTED_SDIO_CLOCK_FREQ_KHZ=40000
+CONFIG_ESP_HOSTED_SDIO_RESET_ACTIVE_HIGH=y
+CONFIG_ESP_HOSTED_SDIO_GPIO_RESET_SLAVE=54
+CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_CLK_SLOT_1=18
+CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_CMD_SLOT_1=19
+CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D0_SLOT_1=14
+CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D1_4BIT_BUS_SLOT_1=15
+CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D2_4BIT_BUS_SLOT_1=16
+CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D3_4BIT_BUS_SLOT_1=17
+
+# BLE runs over the hosted co-processor on P4 (no native BT controller), so
+# esp32_ble_tracker must take the hosted bluedroid path instead of <esp_bt.h>.
+CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID=y
+
+# tinyusb CDC (usb_cdc_acm), same as esp32s3
+CONFIG_TINYUSB_CDC_ENABLED=y
+CONFIG_TINYUSB_CDC_COUNT=1
+CONFIG_TINYUSB_CDC_RX_BUFSIZE=256
+CONFIG_TINYUSB_CDC_TX_BUFSIZE=256

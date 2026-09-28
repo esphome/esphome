@@ -5,8 +5,7 @@
 #include "light_state.h"
 #include "light_transformer.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 /// Interface to write LightStates to hardware.
 class LightOutput {
@@ -29,5 +28,4 @@ class LightOutput {
   virtual void write_state(LightState *state) = 0;
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

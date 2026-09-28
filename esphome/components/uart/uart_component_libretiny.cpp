@@ -14,12 +14,11 @@
 #include <SoftwareSerial.h>
 #endif
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
-static const char *const TAG = "uart.lt";
+static const char *const TAG = "uart";
 
-static const char *UART_TYPE[] = {
+static const char *const UART_TYPE[] = {
     "hardware",
     "software",
 };
@@ -46,33 +45,61 @@ uint16_t LibreTinyUARTComponent::get_config() {
 }
 
 void LibreTinyUARTComponent::setup() {
-  int8_t tx_pin = tx_pin_ == nullptr ? -1 : tx_pin_->get_pin();
-  int8_t rx_pin = rx_pin_ == nullptr ? -1 : rx_pin_->get_pin();
-  bool tx_inverted = tx_pin_ != nullptr && tx_pin_->is_inverted();
-  bool rx_inverted = rx_pin_ != nullptr && rx_pin_->is_inverted();
+  int16_t tx_pin = tx_pin_ == nullptr ? -1 : tx_pin_->get_pin();
+  int16_t rx_pin = rx_pin_ == nullptr ? -1 : rx_pin_->get_pin();
 
-  if (false)
+  auto should_fallback_to_software_serial = [&]() -> bool {
+    auto has_flags = [](InternalGPIOPin *pin, const gpio::Flags mask) -> bool {
+      return pin && (pin->get_flags() & mask) != gpio::Flags::FLAG_NONE;
+    };
+    if (has_flags(this->tx_pin_,
+                  gpio::Flags::FLAG_OPEN_DRAIN | gpio::Flags::FLAG_PULLUP | gpio::Flags::FLAG_PULLDOWN) ||
+        has_flags(this->rx_pin_,
+                  gpio::Flags::FLAG_OPEN_DRAIN | gpio::Flags::FLAG_PULLUP | gpio::Flags::FLAG_PULLDOWN)) {
+#if LT_ARD_HAS_SOFTSERIAL
+      ESP_LOGI(TAG, "Pins have flags set. Using Software Serial");
+      return true;
+#else
+      ESP_LOGW(TAG, "Pin flags are set but not supported for hardware serial. Ignoring");
+#endif
+    }
+    return false;
+  };
+
+  if (false) {  // NOLINT(readability-simplify-boolean-expr)
     return;
+  }
 #if LT_HW_UART0
-  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL0_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL0_RX)) {
+  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL0_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL0_RX) &&
+           !should_fallback_to_software_serial()) {
     this->serial_ = &Serial0;
     this->hardware_idx_ = 0;
   }
 #endif
 #if LT_HW_UART1
-  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL1_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL1_RX)) {
+  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL1_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL1_RX) &&
+           !should_fallback_to_software_serial()) {
     this->serial_ = &Serial1;
     this->hardware_idx_ = 1;
   }
 #endif
 #if LT_HW_UART2
-  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL2_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL2_RX)) {
+  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL2_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL2_RX) &&
+           !should_fallback_to_software_serial()) {
     this->serial_ = &Serial2;
     this->hardware_idx_ = 2;
   }
 #endif
   else {
 #if LT_ARD_HAS_SOFTSERIAL
+    if (this->rx_pin_) {
+      this->rx_pin_->setup();
+    }
+    if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
+      this->tx_pin_->setup();
+    }
+    bool tx_inverted = tx_pin_ != nullptr && tx_pin_->is_inverted();
+    bool rx_inverted = rx_pin_ != nullptr && rx_pin_->is_inverted();
     this->serial_ = new SoftwareSerial(rx_pin, tx_pin, rx_inverted || tx_inverted);
 #else
     this->serial_ = &Serial;
@@ -86,7 +113,7 @@ void LibreTinyUARTComponent::setup() {
 #if LT_HW_UART2
     ESP_LOGE(TAG, "    TX=%u, RX=%u", PIN_SERIAL2_TX, PIN_SERIAL2_RX);
 #endif
-    this->mark_failed();
+    this->mark_failed(LOG_STR("SoftwareSerial is not implemented for this chip."));
     return;
 #endif
   }
@@ -96,8 +123,10 @@ void LibreTinyUARTComponent::setup() {
 
 void LibreTinyUARTComponent::dump_config() {
   bool is_software = this->hardware_idx_ == -1;
-  ESP_LOGCONFIG(TAG, "UART Bus:");
-  ESP_LOGCONFIG(TAG, "  Type: %s", UART_TYPE[is_software]);
+  ESP_LOGCONFIG(TAG,
+                "UART Bus:\n"
+                "  Type: %s",
+                UART_TYPE[is_software]);
   if (!is_software) {
     ESP_LOGCONFIG(TAG, "  Port number: %d", this->hardware_idx_);
   }
@@ -107,7 +136,7 @@ void LibreTinyUARTComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
   }
   ESP_LOGCONFIG(TAG,
-                "  Baud Rate: %u baud\n"
+                "  Baud Rate: %" PRIu32 " baud\n"
                 "  Data Bits: %u\n"
                 "  Parity: %s\n"
                 "  Stop bits: %u",
@@ -143,10 +172,11 @@ bool LibreTinyUARTComponent::read_array(uint8_t *data, size_t len) {
   return true;
 }
 
-int LibreTinyUARTComponent::available() { return this->serial_->available(); }
-void LibreTinyUARTComponent::flush() {
+size_t LibreTinyUARTComponent::available() { return this->serial_->available(); }
+UARTFlushResult LibreTinyUARTComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing");
   this->serial_->flush();
+  return UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
 }
 
 void LibreTinyUARTComponent::check_logger_conflict() {
@@ -162,7 +192,5 @@ void LibreTinyUARTComponent::check_logger_conflict() {
 #endif
 }
 
-}  // namespace uart
-}  // namespace esphome
-
+}  // namespace esphome::uart
 #endif  // USE_LIBRETINY

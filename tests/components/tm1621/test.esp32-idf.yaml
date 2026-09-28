@@ -1,7 +1,10 @@
 substitutions:
-  cs_pin: GPIO16
-  data_pin: GPIO17
+  cs_pin: GPIO4
+  data_pin: GPIO5
   read_pin: GPIO12
   write_pin: GPIO13
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
 
 <<: !include common.yaml

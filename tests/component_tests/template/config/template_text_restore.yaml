@@ -1,0 +1,14 @@
+esphome:
+  name: test
+
+host:
+
+text:
+  - platform: template
+    name: "Test Text Restore"
+    id: test_text_restore
+    optimistic: true
+    max_length: 10
+    mode: text
+    initial_value: "hello"
+    restore_value: true

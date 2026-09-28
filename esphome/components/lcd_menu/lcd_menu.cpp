@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include <algorithm>
 
-namespace esphome {
-namespace lcd_menu {
+namespace esphome::lcd_menu {
 
 static const char *const TAG = "lcd_menu";
 
@@ -72,5 +71,4 @@ void LCDCharacterMenuComponent::draw_item(const display_menu_base::MenuItem *ite
   this->display_->print(0, row, data);
 }
 
-}  // namespace lcd_menu
-}  // namespace esphome
+}  // namespace esphome::lcd_menu

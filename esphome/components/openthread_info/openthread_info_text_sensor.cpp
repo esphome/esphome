@@ -3,8 +3,7 @@
 #ifdef USE_OPENTHREAD
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace openthread_info {
+namespace esphome::openthread_info {
 
 static const char *const TAG = "openthread_info";
 
@@ -19,6 +18,5 @@ void NetworkKeyOpenThreadInfo::dump_config() { LOG_TEXT_SENSOR("", "Network Key"
 void PanIdOpenThreadInfo::dump_config() { LOG_TEXT_SENSOR("", "PAN ID", this); }
 void ExtPanIdOpenThreadInfo::dump_config() { LOG_TEXT_SENSOR("", "Extended PAN ID", this); }
 
-}  // namespace openthread_info
-}  // namespace esphome
+}  // namespace esphome::openthread_info
 #endif

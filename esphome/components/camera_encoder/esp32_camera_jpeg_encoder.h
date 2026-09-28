@@ -11,7 +11,7 @@
 namespace esphome::camera_encoder {
 
 /// Encoder that uses the software-based JPEG implementation from Espressif's esp32-camera component.
-class ESP32CameraJPEGEncoder : public camera::Encoder {
+class ESP32CameraJPEGEncoder final : public camera::Encoder {
  public:
   /// Constructs a ESP32CameraJPEGEncoder instance.
   /// @param quality Sets the quality of the encoded image (1-100).

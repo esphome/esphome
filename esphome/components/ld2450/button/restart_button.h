@@ -3,16 +3,15 @@
 #include "esphome/components/button/button.h"
 #include "../ld2450.h"
 
-namespace esphome {
-namespace ld2450 {
+namespace esphome::ld2450 {
 
 class RestartButton : public button::Button, public Parented<LD2450Component> {
  public:
-  RestartButton() = default;
+  // User provided, not "= default": `new(p) RestartButton()` would zero-fill .bss that is already zero.
+  RestartButton() {}
 
  protected:
   void press_action() override;
 };
 
-}  // namespace ld2450
-}  // namespace esphome
+}  // namespace esphome::ld2450

@@ -4,10 +4,79 @@ from __future__ import annotations
 
 import asyncio
 
-from aioesphomeapi import BinarySensorState, EntityState, SensorState, TextSensorState
+from aioesphomeapi import (
+    AlarmControlPanelEntityState,
+    BinarySensorState,
+    CoverState,
+    DateState,
+    DateTimeState,
+    EntityState,
+    FanState,
+    LightState,
+    LockEntityState,
+    NumberState,
+    SelectState,
+    SensorState,
+    SwitchState,
+    TextSensorState,
+    TextState,
+    TimeState,
+    ValveState,
+    WaterHeaterState,
+)
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+
+# Mapping of entity name to device name for all entities with device_id
+ENTITY_TO_DEVICE = {
+    # Original entities
+    "Temperature": "Temperature Monitor",
+    "Humidity": "Humidity Monitor",
+    "Motion Detected": "Motion Sensor",
+    "Temperature Monitor Power": "Temperature Monitor",
+    "Temperature Status": "Temperature Monitor",
+    "Motion Light": "Motion Sensor",
+    # New entity types
+    "Garage Door": "Motion Sensor",
+    "Ceiling Fan": "Humidity Monitor",
+    "Front Door Lock": "Motion Sensor",
+    "Target Temperature": "Temperature Monitor",
+    "Mode Select": "Humidity Monitor",
+    "Device Label": "Temperature Monitor",
+    "Water Valve": "Humidity Monitor",
+    "Test Boiler": "Temperature Monitor",
+    "House Alarm": "Motion Sensor",
+    "Schedule Date": "Temperature Monitor",
+    "Schedule Time": "Humidity Monitor",
+    "Schedule DateTime": "Motion Sensor",
+    "Doorbell": "Motion Sensor",
+}
+
+# Entities without device_id (should have device_id 0)
+NO_DEVICE_ENTITIES = {"No Device Sensor"}
+
+# State types that should have non-zero device_id, mapped by their aioesphomeapi class
+EXPECTED_STATE_TYPES = [
+    (SensorState, "sensor"),
+    (BinarySensorState, "binary_sensor"),
+    (SwitchState, "switch"),
+    (TextSensorState, "text_sensor"),
+    (LightState, "light"),
+    (CoverState, "cover"),
+    (FanState, "fan"),
+    (LockEntityState, "lock"),
+    (NumberState, "number"),
+    (SelectState, "select"),
+    (TextState, "text"),
+    (ValveState, "valve"),
+    (WaterHeaterState, "water_heater"),
+    (AlarmControlPanelEntityState, "alarm_control_panel"),
+    (DateState, "date"),
+    (TimeState, "time"),
+    (DateTimeState, "datetime"),
+    # Event is stateless (no initial state sent on subscribe)
+]
 
 
 @pytest.mark.asyncio
@@ -40,34 +109,35 @@ async def test_device_id_in_state(
         entity_device_mapping: dict[int, int] = {}
 
         for entity in all_entities:
-            # All entities have name and key attributes
-            if entity.name == "Temperature":
-                entity_device_mapping[entity.key] = device_ids["Temperature Monitor"]
-            elif entity.name == "Humidity":
-                entity_device_mapping[entity.key] = device_ids["Humidity Monitor"]
-            elif entity.name == "Motion Detected":
-                entity_device_mapping[entity.key] = device_ids["Motion Sensor"]
-            elif entity.name in {"Temperature Monitor Power", "Temperature Status"}:
-                entity_device_mapping[entity.key] = device_ids["Temperature Monitor"]
-            elif entity.name == "Motion Light":
-                entity_device_mapping[entity.key] = device_ids["Motion Sensor"]
-            elif entity.name == "No Device Sensor":
-                # Entity without device_id should have device_id 0
+            if entity.name in ENTITY_TO_DEVICE:
+                expected_device = ENTITY_TO_DEVICE[entity.name]
+                entity_device_mapping[entity.key] = device_ids[expected_device]
+            elif entity.name in NO_DEVICE_ENTITIES:
                 entity_device_mapping[entity.key] = 0
 
-        assert len(entity_device_mapping) >= 6, (
-            f"Expected at least 6 mapped entities, got {len(entity_device_mapping)}"
+        expected_count = len(ENTITY_TO_DEVICE) + len(NO_DEVICE_ENTITIES)
+        assert len(entity_device_mapping) >= expected_count, (
+            f"Expected at least {expected_count} mapped entities, "
+            f"got {len(entity_device_mapping)}. "
+            f"Missing: {set(ENTITY_TO_DEVICE) | NO_DEVICE_ENTITIES - {e.name for e in all_entities}}"
         )
 
-        # Subscribe to states
+        # Subscribe to states and wait for all mapped entities
+        # Event entities are stateless (no initial state on subscribe),
+        # so exclude them from the expected count
+        stateless_keys = {e.key for e in all_entities if e.name == "Doorbell"}
+        stateful_count = len(entity_device_mapping) - len(
+            stateless_keys & entity_device_mapping.keys()
+        )
+
         loop = asyncio.get_running_loop()
         states: dict[int, EntityState] = {}
         states_future: asyncio.Future[bool] = loop.create_future()
 
         def on_state(state: EntityState) -> None:
-            states[state.key] = state
-            # Check if we have states for all mapped entities
-            if len(states) >= len(entity_device_mapping) and not states_future.done():
+            if state.key in entity_device_mapping:
+                states[state.key] = state
+            if len(states) >= stateful_count and not states_future.done():
                 states_future.set_result(True)
 
         client.subscribe_states(on_state)
@@ -76,9 +146,16 @@ async def test_device_id_in_state(
         try:
             await asyncio.wait_for(states_future, timeout=10.0)
         except TimeoutError:
+            received_names = {e.name for e in all_entities if e.key in states}
+            missing_names = (
+                (set(ENTITY_TO_DEVICE) | NO_DEVICE_ENTITIES)
+                - received_names
+                - {"Doorbell"}
+            )
             pytest.fail(
                 f"Did not receive all entity states within 10 seconds. "
-                f"Received {len(states)} states, expected {len(entity_device_mapping)}"
+                f"Received {len(states)} states. "
+                f"Missing: {missing_names}"
             )
 
         # Verify each state has the correct device_id
@@ -86,51 +163,33 @@ async def test_device_id_in_state(
         for key, expected_device_id in entity_device_mapping.items():
             if key in states:
                 state = states[key]
+                entity_name = next(
+                    (e.name for e in all_entities if e.key == key), f"key={key}"
+                )
 
                 assert state.device_id == expected_device_id, (
-                    f"State for key {key} has device_id {state.device_id}, "
-                    f"expected {expected_device_id}"
+                    f"State for '{entity_name}' (type={type(state).__name__}) "
+                    f"has device_id {state.device_id}, expected {expected_device_id}"
                 )
                 verified_count += 1
 
-        assert verified_count >= 6, (
-            f"Only verified {verified_count} states, expected at least 6"
+        # All stateful entities should be verified (everything except Doorbell event)
+        expected_verified = expected_count - 1  # exclude Doorbell
+        assert verified_count >= expected_verified, (
+            f"Only verified {verified_count} states, expected at least {expected_verified}"
         )
 
-        # Test specific state types to ensure device_id is present
-        # Find a sensor state with device_id
-        sensor_state = next(
-            (
+        # Verify each expected state type has at least one instance with non-zero device_id
+        for state_type, type_name in EXPECTED_STATE_TYPES:
+            matching = [
                 s
                 for s in states.values()
-                if isinstance(s, SensorState)
-                and isinstance(s.state, float)
-                and s.device_id != 0
-            ),
-            None,
-        )
-        assert sensor_state is not None, "No sensor state with device_id found"
-        assert sensor_state.device_id > 0, "Sensor state should have non-zero device_id"
-
-        # Find a binary sensor state
-        binary_sensor_state = next(
-            (s for s in states.values() if isinstance(s, BinarySensorState)),
-            None,
-        )
-        assert binary_sensor_state is not None, "No binary sensor state found"
-        assert binary_sensor_state.device_id > 0, (
-            "Binary sensor state should have non-zero device_id"
-        )
-
-        # Find a text sensor state
-        text_sensor_state = next(
-            (s for s in states.values() if isinstance(s, TextSensorState)),
-            None,
-        )
-        assert text_sensor_state is not None, "No text sensor state found"
-        assert text_sensor_state.device_id > 0, (
-            "Text sensor state should have non-zero device_id"
-        )
+                if isinstance(s, state_type) and s.device_id != 0
+            ]
+            assert matching, (
+                f"No {type_name} state (type={state_type.__name__}) "
+                f"with non-zero device_id found"
+            )
 
         # Verify the "No Device Sensor" has device_id = 0
         no_device_key = next(

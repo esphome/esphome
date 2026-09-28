@@ -1,4 +1,5 @@
 usb_host:
+  max_transfer_requests: 32  # Test uint32_t bitmask path (17-32 requests)
   devices:
     - id: device_1
       vid: 0x1234

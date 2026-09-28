@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace honeywellabp2_i2c {
+namespace esphome::honeywellabp2_i2c {
 
 static const uint8_t STATUS_BIT_POWER = 6;
 static const uint8_t STATUS_BIT_BUSY = 5;
@@ -107,5 +106,4 @@ void HONEYWELLABP2Sensor::set_transfer_function(ABP2TRANFERFUNCTION transfer_fun
   }
 }
 
-}  // namespace honeywellabp2_i2c
-}  // namespace esphome
+}  // namespace esphome::honeywellabp2_i2c

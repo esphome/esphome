@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace st7567_base {
+namespace esphome::st7567_base {
 
 static const char *const TAG = "st7567";
 
@@ -131,7 +130,16 @@ void HOT ST7567::draw_absolute_pixel_internal(int x, int y, Color color) {
   }
 }
 
-void ST7567::fill(Color color) { memset(buffer_, color.is_on() ? 0xFF : 0x00, this->get_buffer_length_()); }
+void ST7567::fill(Color color) {
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
+  uint8_t fill = color.is_on() ? 0xFF : 0x00;
+  memset(buffer_, fill, this->get_buffer_length_());
+}
 
 void ST7567::init_reset_() {
   if (this->reset_pin_ != nullptr) {
@@ -148,5 +156,4 @@ void ST7567::init_reset_() {
 
 const char *ST7567::model_str_() { return "ST7567 128x64"; }
 
-}  // namespace st7567_base
-}  // namespace esphome
+}  // namespace esphome::st7567_base

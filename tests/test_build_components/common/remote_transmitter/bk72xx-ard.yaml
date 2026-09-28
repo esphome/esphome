@@ -1,0 +1,11 @@
+# Common remote_transmitter configuration for BK72XX Arduino tests
+# Provides a shared remote transmitter that all components can use
+# Components will auto-use this transmitter if they don't specify transmitter_id
+
+substitutions:
+  remote_transmitter_pin: GPIO6
+
+remote_transmitter:
+  id: xmitr
+  pin: ${remote_transmitter_pin}
+  carrier_duty_percent: 50%

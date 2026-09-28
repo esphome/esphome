@@ -1,4 +1,0 @@
-substitutions:
-  pin: GPIO1
-
-<<: !include common-esp32.yaml

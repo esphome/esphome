@@ -1,13 +1,20 @@
 import logging
 
-from esphome import core
 import esphome.codegen as cg
 from esphome.components import climate, remote_base, sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_SENSOR, CONF_SUPPORTS_COOL, CONF_SUPPORTS_HEAT
-from esphome.cpp_generator import MockObjClass
+from esphome.const import (
+    CONF_HUMIDITY_SENSOR,
+    CONF_SENSOR,
+    CONF_SUPPORTS_COOL,
+    CONF_SUPPORTS_HEAT,
+)
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType, SafeExpType
 
 _LOGGER = logging.getLogger(__name__)
+
+CONF_SUPPORTS_HEAT_COOL = "supports_heat_cool"
 
 DEPENDENCIES = ["remote_transmitter"]
 AUTO_LOAD = ["sensor", "remote_base"]
@@ -32,7 +39,9 @@ def climate_ir_schema(
             {
                 cv.Optional(CONF_SUPPORTS_COOL, default=True): cv.boolean,
                 cv.Optional(CONF_SUPPORTS_HEAT, default=True): cv.boolean,
+                cv.Optional(CONF_SUPPORTS_HEAT_COOL): cv.boolean,
                 cv.Optional(CONF_SENSOR): cv.use_id(sensor.Sensor),
+                cv.Optional(CONF_HUMIDITY_SENSOR): cv.use_id(sensor.Sensor),
             }
         )
         .extend(cv.COMPONENT_SCHEMA)
@@ -52,39 +61,27 @@ def climate_ir_with_receiver_schema(
     )
 
 
-# Remove before 2025.11.0
-def deprecated_schema_constant(config):
-    type: str = "unknown"
-    if (id := config.get(CONF_ID)) is not None and isinstance(id, core.ID):
-        type = str(id.type).split("::", maxsplit=1)[0]
-    _LOGGER.warning(
-        "Using `climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA` is deprecated and will be removed in ESPHome 2025.11.0. "
-        "Please use `climate_ir.climate_ir_with_receiver_schema(...)` instead. "
-        "If you are seeing this, report an issue to the external_component author and ask them to update it. "
-        "https://developers.esphome.io/blog/2025/05/14/_schema-deprecations/. "
-        "Component using this schema: %s",
-        type,
-    )
-    return config
-
-
-CLIMATE_IR_WITH_RECEIVER_SCHEMA = climate_ir_with_receiver_schema(ClimateIR)
-CLIMATE_IR_WITH_RECEIVER_SCHEMA.add_extra(deprecated_schema_constant)
-
-
-async def register_climate_ir(var, config):
+async def register_climate_ir(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
     await remote_base.register_transmittable(var, config)
-    cg.add(var.set_supports_cool(config[CONF_SUPPORTS_COOL]))
-    cg.add(var.set_supports_heat(config[CONF_SUPPORTS_HEAT]))
+    supports_cool = config[CONF_SUPPORTS_COOL]
+    supports_heat = config[CONF_SUPPORTS_HEAT]
+    cg.add(var.set_supports_cool(supports_cool))
+    cg.add(var.set_supports_heat(supports_heat))
+    # The header default is true, so only the false case needs a call.
+    if not config.get(CONF_SUPPORTS_HEAT_COOL, supports_cool and supports_heat):
+        cg.add(var.set_supports_heat_cool(False))
     if remote_base.CONF_RECEIVER_ID in config:
         await remote_base.register_listener(var, config)
     if sensor_id := config.get(CONF_SENSOR):
         sens = await cg.get_variable(sensor_id)
         cg.add(var.set_sensor(sens))
+    if sensor_id := config.get(CONF_HUMIDITY_SENSOR):
+        sens = await cg.get_variable(sensor_id)
+        cg.add(var.set_humidity_sensor(sens))
 
 
-async def new_climate_ir(config, *args):
+async def new_climate_ir(config: ConfigType, *args: SafeExpType) -> MockObj:
     var = await climate.new_climate(config, *args)
     await register_climate_ir(var, config)
     return var

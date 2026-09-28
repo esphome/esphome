@@ -6,10 +6,9 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace wl_134 {
+namespace esphome::wl_134 {
 
-class Wl134Component : public text_sensor::TextSensor, public Component, public uart::UARTDevice {
+class Wl134Component final : public text_sensor::TextSensor, public Component, public uart::UARTDevice {
  public:
   enum Rfid134Error {
     RFID134_ERROR_NONE,
@@ -59,5 +58,4 @@ class Wl134Component : public text_sensor::TextSensor, public Component, public 
   uint64_t hex_lsb_ascii_to_uint64_(const uint8_t *text, uint8_t text_size);
 };
 
-}  // namespace wl_134
-}  // namespace esphome
+}  // namespace esphome::wl_134

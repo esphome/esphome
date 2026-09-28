@@ -1,0 +1,9 @@
+defaults:
+  z: 5
+  package_name: default
+values_from_repo1_main:
+  - package_name: ${package_name}
+    x: ${x}
+    y: ${y}
+    z: ${z}
+    volume: ${x*y*z}

@@ -1,0 +1,22 @@
+esphome:
+  project:
+    name: esphome.downgrade_test
+    version: "1.2.3"
+
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+    advanced:
+      enable_ota_downgrade_protection: true
+      signed_ota_verification:
+        signing_key: ../../components/esp32/dummy_signing_key.pem
+        signing_scheme: rsa3072
+
+# wifi + ota so the IDF OTA backend compiles with USE_OTA_DOWNGRADE_PROTECTION.
+wifi:
+  ssid: MySSID
+  password: password1
+
+ota:
+  - platform: esphome

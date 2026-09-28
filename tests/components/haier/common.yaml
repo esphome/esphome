@@ -2,16 +2,9 @@ wifi:
   ssid: MySSID
   password: password1
 
-uart:
-  - id: uart_haier
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 climate:
   - platform: haier
     id: haier_ac
-    uart_id: uart_haier
     protocol: hOn
     name: Haier AC
     wifi_signal: true

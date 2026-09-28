@@ -1,0 +1,103 @@
+esphome:
+  name: light-initial-state-test
+host:
+api:  # Port will be automatically injected
+logger:
+  level: DEBUG
+
+output:
+  - platform: template
+    id: test_inferred_red
+    type: float
+    write_action:
+      - lambda: ""
+  - platform: template
+    id: test_inferred_green
+    type: float
+    write_action:
+      - lambda: ""
+  - platform: template
+    id: test_inferred_blue
+    type: float
+    write_action:
+      - lambda: ""
+  - platform: template
+    id: test_red
+    type: float
+    write_action:
+      - lambda: ""
+  - platform: template
+    id: test_green
+    type: float
+    write_action:
+      - lambda: ""
+  - platform: template
+    id: test_blue
+    type: float
+    write_action:
+      - lambda: ""
+  - platform: template
+    id: test_restore_and_on_output
+    type: float
+    write_action:
+      - lambda: ""
+  - platform: template
+    id: test_no_restore_key_output
+    type: float
+    write_action:
+      - lambda: ""
+
+light:
+  - platform: rgb
+    name: "Test Light"
+    id: test_light
+    red: test_red
+    green: test_green
+    blue: test_blue
+    restore_mode: ALWAYS_OFF
+    initial_state:
+      color_mode: RGB
+      state: true
+      brightness: 0.75
+      red: 1.0
+      green: 0.5
+      blue: 0.0
+
+  - platform: monochromatic
+    name: "Test Restore And On Light"
+    id: test_restore_and_on_light
+    output: test_restore_and_on_output
+    restore_mode: RESTORE_AND_ON
+    # Simulates a stale/persisted zero brightness: RESTORE_AND_ON always forces the light
+    # on at boot regardless of the recovered state, so a leftover brightness of 0 must not
+    # leave the light on-but-invisible.
+    initial_state:
+      color_mode: BRIGHTNESS
+      state: false
+      brightness: 0%
+
+  # With neither restore_mode nor restore_state configured, initial_state: must be
+  # honored as-is (no implicit forcing to OFF) -- unlike every explicit restore_mode:
+  # value, which always overrides `state` regardless of initial_state.
+  - platform: monochromatic
+    name: "Test No Restore Key Light"
+    id: test_no_restore_key_light
+    output: test_no_restore_key_output
+    initial_state:
+      color_mode: BRIGHTNESS
+      state: true
+      brightness: 60%
+
+  # No color_mode: it must be inferred from the colour fields, not left unknown (which
+  # would drop the colours and leave the light full white).
+  - platform: rgb
+    name: "Test Inferred Color Mode Light"
+    id: test_inferred_color_mode_light
+    red: test_inferred_red
+    green: test_inferred_green
+    blue: test_inferred_blue
+    initial_state:
+      state: true
+      red: 30%
+      green: 0%
+      blue: 0%

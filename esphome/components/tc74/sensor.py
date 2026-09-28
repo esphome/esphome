@@ -6,12 +6,15 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@sethgirvan"]
 DEPENDENCIES = ["i2c"]
 
 tc74_ns = cg.esphome_ns.namespace("tc74")
-TC74Component = tc74_ns.class_("TC74Component", cg.PollingComponent, i2c.I2CDevice)
+TC74Component = tc74_ns.class_(
+    "TC74Component", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
+)
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
@@ -26,7 +29,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

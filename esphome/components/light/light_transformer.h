@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "light_color_values.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 /// Base class for all light color transformers, such as transitions or flashes.
 class LightTransformer {
@@ -38,15 +37,18 @@ class LightTransformer {
   const LightColorValues &get_target_values() const { return this->target_values_; }
 
  protected:
+  // This looks crazy, but it reduces to 6x^5 - 15x^4 + 10x^3 which is just a smooth sigmoid-like
+  // transition from 0 to 1 on x = [0, 1]
+  static float smoothed_progress(float x) { return x * x * x * (x * (x * 6.0f - 15.0f) + 10.0f); }
+
   /// The progress of this transition, on a scale of 0 to 1.
   float get_progress_() {
     uint32_t now = esphome::millis();
-    if (now < this->start_time_)
-      return 0.0f;
-    if (now >= this->start_time_ + this->length_)
+    uint32_t elapsed = now - this->start_time_;
+    if (elapsed >= this->length_)
       return 1.0f;
 
-    return clamp((now - this->start_time_) / float(this->length_), 0.0f, 1.0f);
+    return clamp(elapsed / float(this->length_), 0.0f, 1.0f);
   }
 
   uint32_t start_time_;
@@ -55,5 +57,4 @@ class LightTransformer {
   LightColorValues target_values_;
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

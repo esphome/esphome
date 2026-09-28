@@ -1,5 +1,4 @@
-substitutions:
-  tx_pin: TX1
-  rx_pin: RX1
+packages:
+  uart: !include ../../test_build_components/common/uart/bk72xx-ard.yaml
 
 <<: !include common.yaml

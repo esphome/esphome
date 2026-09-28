@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tm1637 {
+namespace esphome::tm1637 {
 
 static const char *const TAG = "display.tm1637";
 const uint8_t TM1637_CMD_DATA = 0x40;  //!< Display data command
@@ -27,7 +26,7 @@ const uint8_t TM1637_DATA_FIXED_ADDR = 0x04;     //!< Fixed address
 //     ---
 //      D   X
 // XABCDEFG
-const uint8_t TM1637_ASCII_TO_RAW[] PROGMEM = {
+constexpr uint8_t TM1637_ASCII_TO_RAW[] PROGMEM = {
     0b00000000,           // ' ', ord 0x20
     0b10110000,           // '!', ord 0x21
     0b00100010,           // '"', ord 0x22
@@ -347,7 +346,20 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char *str) {
   }
   return pos - start_pos;
 }
+
+void TM1637Display::set_brightness(float brightness) {
+  auto intensity = clamp(brightness, 0.f, 1.f) * 7;
+  this->set_on(intensity > 0);
+  this->set_intensity(intensity);
+}
+
 uint8_t TM1637Display::print(const char *str) { return this->print(0, str); }
+
+void TM1637Display::set_buffer(const uint8_t *data, uint8_t length) {
+  uint8_t len = std::min(length, (uint8_t) sizeof(this->buffer_));
+  memcpy(this->buffer_, data, len);
+}
+
 uint8_t TM1637Display::printf(uint8_t pos, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
@@ -378,5 +390,4 @@ uint8_t TM1637Display::strftime(uint8_t pos, const char *format, ESPTime time) {
 }
 uint8_t TM1637Display::strftime(const char *format, ESPTime time) { return this->strftime(0, format, time); }
 
-}  // namespace tm1637
-}  // namespace esphome
+}  // namespace esphome::tm1637

@@ -43,7 +43,7 @@ async def test_gpio_expander_cache(
     # ensure logs are in the expected order
     log_order = [
         (digital_read_hw_pattern, 0),
-        [(digital_read_cache_pattern, i) for i in range(0, 8)],
+        [(digital_read_cache_pattern, i) for i in range(8)],
         (digital_read_hw_pattern, 8),
         [(digital_read_cache_pattern, i) for i in range(8, 16)],
         (digital_read_hw_pattern, 16),
@@ -68,7 +68,7 @@ async def test_gpio_expander_cache(
         # uint16_t component tests (single bank of 16 pins)
         (uint16_read_hw_pattern, 0),  # First pin triggers hw read
         [
-            (uint16_read_cache_pattern, i) for i in range(0, 16)
+            (uint16_read_cache_pattern, i) for i in range(16)
         ],  # All 16 pins return via cache
         # After cache reset
         (uint16_read_hw_pattern, 5),  # First read after reset triggers hw

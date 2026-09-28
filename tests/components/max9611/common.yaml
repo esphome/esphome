@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_max9611
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: max9611
+    i2c_id: i2c_bus
     shunt_resistance: 0.2 ohm
     gain: 1X
     voltage:

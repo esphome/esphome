@@ -1,0 +1,7 @@
+button:
+  - platform: template
+    name: SPS30 Actions
+    on_press:
+      - sps30.start_fan_autoclean: workshop_sps30
+      - sps30.stop_measurement: workshop_sps30
+      - sps30.start_measurement: workshop_sps30
