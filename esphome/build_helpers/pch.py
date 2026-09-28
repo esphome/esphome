@@ -154,7 +154,8 @@ def _include_closure(src_dir: Path, roots: Iterable[str]) -> dict[str, bytes]:
     """Include closure of ``roots``: src-relative name -> contents.
 
     Resolution mirrors the compiler (includer's dir, then src root). No
-    #ifdef evaluation: including too much is the safe direction.
+    #ifdef evaluation: including too much is the safe direction. Headers
+    outside ``src_dir`` are covered by the version strings of the caller.
     """
     seen: dict[str, bytes] = {}
     stack: list[tuple[str, str]] = [(name, "") for name in roots]
