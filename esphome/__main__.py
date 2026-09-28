@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Protocol
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
 from esphome import const, platform_hooks
+from esphome.build_helpers.native import analysis_backend, native_backend
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
@@ -50,8 +51,6 @@ from esphome.const import (
     ENV_NOGITIGNORE,
     KEY_ESP32,
     KEY_VARIANT,
-    PLATFORM_ESP32,
-    PLATFORM_HOST,
     SECRETS_FILES,
     Toolchain,
 )
@@ -867,7 +866,6 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
 
         warn_if_idedata_missing(toolchain.get_idedata)
     elif CORE.using_native_toolchain:
-        # Degrading to the PlatformIO path would build with the wrong backend
         raise EsphomeError(
             f"Toolchain '{CORE.toolchain.value}' resolved but no platform "
             "backend claimed the build"
@@ -974,12 +972,15 @@ def upload_using_esptool(
 
     if file is not None:
         flash_images = [FlashImage(path=file, offset="0x0")]
-    elif CORE.using_toolchain_esp_idf:
-        from esphome.espidf import toolchain
-
-        flash_images = [
-            FlashImage(path=toolchain.get_factory_firmware_path(), offset="0x0")
-        ]
+    elif (native := native_backend()) is not None:
+        # Every native backend supplies its own 0x0 flash image (bootloader
+        # and partitions included where the target needs them)
+        image = native.get_factory_firmware_path()
+        if not image.is_file():
+            raise EsphomeError(
+                f"{image} does not exist; compile the configuration first"
+            )
+        flash_images = [FlashImage(path=image, offset="0x0")]
     else:
         from esphome.platformio import toolchain
 
@@ -1342,8 +1343,12 @@ def _upload_via_native_api(
     # fall back to a plaintext upload
     noise_psk = None
     plaintext_fallback = False
+    allow_plaintext_upload = False
     if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
         noise_psk = encryption_conf.get(CONF_KEY)
+        allow_plaintext_upload = bool(
+            encryption_conf.get(espota2.CONF_ALLOW_PLAINTEXT_UPLOAD)
+        )
         if not noise_psk:
             raise EsphomeError(
                 "OTA encryption is configured but no key was resolved; "
@@ -1394,6 +1399,7 @@ def _upload_via_native_api(
         ota_type,
         noise_psk,
         plaintext_fallback=plaintext_fallback,
+        allow_plaintext_upload=allow_plaintext_upload,
     )
 
 
@@ -1954,34 +1960,10 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     return run_multiple_configs(files, build_command)
 
 
-# Native build backend per (target platform, toolchain). Keyed here rather
-# than through a platform hook so the serial upload/logs fast path never
-# imports the platform component package (see the esp32 variant comment in
-# upload_using_esptool); the platform half comes from CORE.data the same way.
-_NATIVE_TOOLCHAIN_MODULES = {
-    (PLATFORM_ESP32, Toolchain.ESP_IDF): "esphome.espidf.toolchain",
-    (PLATFORM_HOST, Toolchain.HOST): "esphome.host.toolchain",
-}
-
-
-def _native_toolchain_module():
-    """The native build backend module for the resolved toolchain."""
-    if not CORE.using_native_toolchain:
-        return None
-    key = (CORE.target_platform, CORE.toolchain)
-    if (module_path := _NATIVE_TOOLCHAIN_MODULES.get(key)) is None:
-        # Degrading to the PlatformIO path would build with the wrong backend
-        raise EsphomeError(
-            f"Toolchain '{CORE.toolchain.value}' has no native build backend "
-            f"module for platform {CORE.target_platform}"
-        )
-    return importlib.import_module(module_path)
-
-
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     import json
 
-    native_toolchain = _native_toolchain_module()
+    native_toolchain = native_backend()
 
     if native_toolchain is not None:
         # Native toolchains derive idedata from the build's
@@ -2026,10 +2008,11 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     from esphome.analyze_memory.ram_strings import RamStringsAnalyzer
 
     # Refuse an unsupported toolchain before paying for a full compile
-    native_toolchain = _native_toolchain_module()
-    if native_toolchain is None and not CORE.using_toolchain_platformio:
+    analysis_toolchain = analysis_backend()
+    if analysis_toolchain is None and not CORE.using_toolchain_platformio:
         _LOGGER.error(
-            "analyze-memory is not supported with the '%s' toolchain on %s",
+            "analyze-memory is not supported with the '%s' toolchain on %s; "
+            "re-run with --toolchain platformio",
             CORE.toolchain.value if CORE.toolchain else "unresolved",
             CORE.target_platform,
         )
@@ -2046,13 +2029,13 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
 
     # Get idedata for analysis
     idedata = None
-    if native_toolchain is not None:
-        objdump = native_toolchain.get_objdump_path()
-        readelf = native_toolchain.get_readelf_path()
+    if analysis_toolchain is not None:
+        objdump = analysis_toolchain.get_objdump_path()
+        readelf = analysis_toolchain.get_readelf_path()
         for tool in (objdump, readelf):
             if not tool.is_file():
-                # The analyzer would silently fall back to host binutils,
-                # which cannot read the target ELF
+                # The analyzer would silently fall back to host
+                # binutils, which cannot read the target ELF
                 _LOGGER.error(
                     "%s is missing; the toolchain install may be incomplete "
                     "(recompile, or run 'esphome clean-all' if it persists)",
@@ -2062,7 +2045,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
         objdump_path = str(objdump)
         readelf_path = str(readelf)
 
-        firmware_elf = native_toolchain.get_elf_path()
+        firmware_elf = analysis_toolchain.get_elf_path()
         if not firmware_elf.is_file():
             # The analyzer swallows tool failures, so a missing ELF would
             # produce an exit-0 zeroed report

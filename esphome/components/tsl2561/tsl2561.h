@@ -51,7 +51,7 @@ class TSL2561Sensor final : public sensor::Sensor, public PollingComponent, publ
    *
    * @param gain The new gain.
    */
-  void set_gain(TSL2561Gain gain);
+  void set_gain(TSL2561Gain gain) { this->gain_ = gain; }
 
   /** The "CS" package of this sensor has a slightly different formula for
    * converting the raw values. Use this setting to indicate that this is a CS
@@ -59,7 +59,7 @@ class TSL2561Sensor final : public sensor::Sensor, public PollingComponent, publ
    *
    * @param package_cs Is this a CS package.
    */
-  void set_is_cs_package(bool package_cs);
+  void set_is_cs_package(bool package_cs) { this->package_cs_ = package_cs; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)

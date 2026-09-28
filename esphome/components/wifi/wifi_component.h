@@ -178,12 +178,12 @@ struct EAPAuth {
 
 using bssid_t = std::array<uint8_t, 6>;
 
-/// Initial reserve size for filtered scan results (typical: 1-3 matching networks per SSID)
-static constexpr size_t WIFI_SCAN_RESULT_FILTERED_RESERVE = 8;
+// ESP32 with one configured network: the driver filters the scan by its SSID and only this many of
+// its BSSIDs are kept, the strongest ones
+static constexpr size_t WIFI_SCAN_RESULT_BOUND = 12;
 
-// Use std::vector for RP2040 (callback-based) and ESP32 (destructive scan API)
-// Use FixedVector for ESP8266 and LibreTiny where two-pass exact allocation is possible
-#if defined(USE_RP2) || defined(USE_ESP32)
+// RP2040's callback delivers results one at a time with no count, so it needs a growable vector
+#if defined(USE_RP2)
 template<typename T> using wifi_scan_vector_t = std::vector<T>;
 #else
 template<typename T> using wifi_scan_vector_t = FixedVector<T>;
@@ -797,7 +797,7 @@ class WiFiComponent final : public Component {
   network::IPAddress wifi_dns_ip_(int num);
 
   bool is_captive_portal_active_();
-  bool is_esp32_improv_active_();
+  bool is_improv_ble_active_();
 
 #ifdef USE_WIFI_FAST_CONNECT
   bool load_fast_connect_settings_(WiFiAP &params);
@@ -919,11 +919,11 @@ class WiFiComponent final : public Component {
   float output_power_{NAN};
   uint32_t action_started_;
   uint32_t last_connected_{0};
-  uint32_t reboot_timeout_{};
+  uint32_t reboot_timeout_{900000};  // Keep in sync with DEFAULT_REBOOT_TIMEOUT in __init__.py
   uint32_t roaming_last_check_{0};
   uint32_t roaming_scan_end_{0};  // Timestamp when last roaming scan completed
 #ifdef USE_WIFI_AP
-  uint32_t ap_timeout_{};
+  uint32_t ap_timeout_{90000};  // Keep in sync with DEFAULT_AP_TIMEOUT in __init__.py
 #endif
 
   // 1-byte enums and integers
@@ -954,6 +954,12 @@ class WiFiComponent final : public Component {
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
   bool error_from_callback_{false};
+#if defined(USE_ESP32) && !defined(USE_WIFI_MULTI_SSID)
+  bool scan_driver_filtered_{false};
+  bool is_scan_driver_filtered_() const { return this->scan_driver_filtered_; }
+#else
+  constexpr bool is_scan_driver_filtered_() const { return false; }
+#endif
 #if defined(USE_ESP8266) || defined(USE_LIBRETINY)
   // Platform-specific STA state enum, defined in platform cpp file.
   // On ESP8266, written from SDK system context (wifi_event_callback) —

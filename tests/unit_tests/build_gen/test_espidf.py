@@ -163,6 +163,18 @@ def test_has_discovered_components_after_configure(tmp_path: Path) -> None:
     assert has_discovered_components()
 
 
+def test_get_project_cmakelists_size_command_uses_json2() -> None:
+    """The POST_BUILD size command uses the cheap json2 format, with --ng
+    only on the 1.x tool bundled with IDF < 6."""
+    content = _render()
+    assert "-m esp_idf_size --ng --format=json2" in content
+
+    CORE.data[KEY_ESP32][KEY_IDF_VERSION] = cv.Version(6, 0, 0)
+    content = _render()
+    assert "--ng" not in content
+    assert "--format=json2" in content
+
+
 def test_get_project_cmakelists_uses_supplied_builtin_components() -> None:
     """A cached list replaces project_description.json and is still filtered
     by EXCLUDE_COMPONENTS."""

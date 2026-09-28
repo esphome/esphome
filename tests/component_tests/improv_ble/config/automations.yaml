@@ -1,0 +1,31 @@
+esphome:
+  name: improv-ble-automations
+esp32:
+  variant: esp32
+  framework:
+    type: esp-idf
+logger:
+wifi:
+  ssid: MySSID
+  password: password1
+binary_sensor:
+  - platform: gpio
+    pin: 0
+    id: io0_button
+output:
+  - platform: gpio
+    pin: 2
+    id: built_in_led
+improv_ble:
+  authorizer: io0_button
+  status_indicator: built_in_led
+  on_provisioned:
+    - logger.log: provisioned
+  on_provisioning:
+    - logger.log: provisioning
+  on_start:
+    - logger.log: start
+  on_state:
+    - logger.log: state
+  on_stop:
+    - logger.log: stop

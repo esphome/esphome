@@ -1,0 +1,18 @@
+valve:
+  - platform: template
+    name: Test Valve
+    id: test_valve
+    optimistic: true
+    has_position: true
+
+button:
+  - platform: template
+    name: Valve Commands
+    on_press:
+      - valve.open: test_valve
+      - valve.close: test_valve
+      - valve.stop: test_valve
+      - valve.toggle: test_valve
+      - valve.control:
+          id: test_valve
+          position: 50%

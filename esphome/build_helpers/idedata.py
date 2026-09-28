@@ -22,6 +22,8 @@ import subprocess
 from esphome.core import EsphomeError
 from esphome.helpers import write_file
 
+_LOGGER = logging.getLogger(__name__)
+
 # Everything idedata generation may raise after a successful link; idedata
 # is a bonus artifact, so consumers warn instead of failing the build
 IDEDATA_BEST_EFFORT_ERRORS = (
@@ -32,15 +34,10 @@ IDEDATA_BEST_EFFORT_ERRORS = (
     ValueError,
 )
 
-_LOGGER = logging.getLogger(__name__)
-
 
 def warn_if_idedata_missing(get_idedata: Callable[[], dict | None]) -> None:
-    """Run an idedata generator, downgrading any failure to a warning.
-
-    Shared by the native backends: the firmware already built, so a missing
-    or broken idedata must not fail a successful build.
-    """
+    """Run an idedata generator, downgrading any failure to a warning:
+    the firmware already built."""
     try:
         if get_idedata() is None:
             _LOGGER.warning("No idedata was generated for this build")
