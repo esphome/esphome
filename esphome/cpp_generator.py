@@ -19,7 +19,7 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
-from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
+from esphome.helpers import cpp_string_escape, indent, indent_all_but_first_and_last
 from esphome.types import Expression, SafeExpType, TemplateArgsType
 from esphome.util import OrderedDict
 from esphome.yaml_util import ESPHomeDataBase
@@ -670,6 +670,28 @@ def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":
     return Pvariable(id_, rhs)
 
 
+def static_function(
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+    body: list[str],
+) -> RawExpression:
+    """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
+    expression naming it, for use as a template argument or a function pointer.
+
+    Every id the body names must already be declared, which holds when the statements were
+    rendered through ``get_variable`` or ``process_lambda``.
+    """
+    params = ParameterListExpression(*parameters)
+    add_global(
+        RawStatement(
+            f"static {safe_exp(return_type)} {name}({params}) {{\n"
+            f"{indent(chr(10).join(body))}\n}}"
+        )
+    )
+    return RawExpression(name)
+
+
 def add(expression: Expression | Statement, prepend: bool = False):
     """Add an expression to the codegen section.
 
@@ -1212,7 +1234,13 @@ def call_lambda(lamb: LambdaExpression) -> Expression:
     assert lamb.return_type is not None, "Lambda must have a return type to be called"
     expr = lamb.content.strip()
     # A lone `return <expr>;` reduces to the expression; anything longer is called as is.
-    if re.match(r"^return\b", expr) and expr.endswith(";") and expr.count(";") == 1:
+    # A braced return such as `return {};` needs the lambda's return type, so it is called.
+    if (
+        re.match(r"^return\b", expr)
+        and expr.endswith(";")
+        and expr.count(";") == 1
+        and not expr[6:].lstrip().startswith("{")
+    ):
         expr = RawExpression(expr[6:-1].strip())
         # Don't cast if the return type is a class
         if isinstance(lamb.return_type, MockObjClass):

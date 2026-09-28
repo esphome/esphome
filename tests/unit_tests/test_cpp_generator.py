@@ -260,6 +260,15 @@ class TestCallLambda:
         assert isinstance(result, cg.CallExpression)
         assert str(result).endswith("}()")
 
+    def test_call_lambda__braced_return_is_called(self) -> None:
+        """A braced return needs the lambda's return type, so it is not reduced."""
+        lamb = cg.LambdaExpression(("return {};",), (), "", ct.int_)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert "static_cast" not in str(result)
+
     def test_call_lambda__return_expression_with_class_return_type_no_cast(self):
         """A class return type is not cast, since static_cast doesn't apply
         to arbitrary class types."""

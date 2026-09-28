@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -114,27 +113,6 @@ class Rtttl final : public Component {
   /// The callback to call when playback is finished.
   CallbackManager<void()> on_finished_playback_callback_;
 #endif
-};
-
-template<typename... Ts> class PlayAction final : public Action<Ts...> {
- public:
-  PlayAction(Rtttl *rtttl) : rtttl_(rtttl) {}
-  TEMPLATABLE_VALUE(std::string, value)
-
-  void play(const Ts &...x) override { this->rtttl_->play(this->value_.value(x...)); }
-
- protected:
-  Rtttl *rtttl_;
-};
-
-template<typename... Ts> class StopAction final : public Action<Ts...>, public Parented<Rtttl> {
- public:
-  void play(const Ts &...x) override { this->parent_->stop(); }
-};
-
-template<typename... Ts> class IsPlayingCondition final : public Condition<Ts...>, public Parented<Rtttl> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->is_playing(); }
 };
 
 }  // namespace esphome::rtttl

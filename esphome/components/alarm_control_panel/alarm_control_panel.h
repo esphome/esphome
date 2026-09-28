@@ -130,6 +130,12 @@ class AlarmControlPanel : public EntityBase {
 
   // is the state one of the armed states
   bool is_state_armed(AlarmControlPanelState state);
+  /// Armed, pending (entry delay) or triggered; not ARMING (exit delay). Backs the is_armed and ready
+  /// conditions.
+  bool is_armed_pending_or_triggered() {
+    auto state = this->get_state();
+    return this->is_state_armed(state) || state == ACP_STATE_PENDING || state == ACP_STATE_TRIGGERED;
+  }
 
  protected:
   friend AlarmControlPanelCall;

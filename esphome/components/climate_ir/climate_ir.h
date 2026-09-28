@@ -30,8 +30,10 @@ class ClimateIR : public Component,
     this->minimum_temperature_ = minimum_temperature;
     this->maximum_temperature_ = maximum_temperature;
     this->temperature_step_ = temperature_step;
-    this->supports_dry_ = supports_dry;
-    this->supports_fan_only_ = supports_fan_only;
+    if (supports_dry)
+      this->modes_.insert(climate::CLIMATE_MODE_DRY);
+    if (supports_fan_only)
+      this->modes_.insert(climate::CLIMATE_MODE_FAN_ONLY);
     this->fan_modes_ = fan_modes;
     this->swing_modes_ = swing_modes;
     this->presets_ = presets;
@@ -39,9 +41,11 @@ class ClimateIR : public Component,
 
   void setup() override;
   void dump_config() override;
-  void set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
-  void set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
-  void set_supports_heat_cool(bool supports_heat_cool) { this->supports_heat_cool_ = supports_heat_cool; }
+  void set_supports_cool(bool supports_cool) { this->set_mode_supported_(climate::CLIMATE_MODE_COOL, supports_cool); }
+  void set_supports_heat(bool supports_heat) { this->set_mode_supported_(climate::CLIMATE_MODE_HEAT, supports_heat); }
+  void set_supports_heat_cool(bool supports_heat_cool) {
+    this->set_mode_supported_(climate::CLIMATE_MODE_HEAT_COOL, supports_heat_cool);
+  }
   void set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
   void set_humidity_sensor(sensor::Sensor *sensor) { this->humidity_sensor_ = sensor; }
 
@@ -59,12 +63,18 @@ class ClimateIR : public Component,
   // Dummy implement on_receive so implementation is optional for inheritors
   bool on_receive(remote_base::RemoteReceiveData data) override { return false; };
 
-  bool supports_cool_{true};
-  bool supports_heat_{true};
-  // Default (supports_cool && supports_heat) is resolved during code generation.
-  bool supports_heat_cool_{true};
-  bool supports_dry_{false};
-  bool supports_fan_only_{false};
+  ESPHOME_ALWAYS_INLINE void set_mode_supported_(climate::ClimateMode mode, bool supported) {
+    if (supported) {
+      this->modes_.insert(mode);
+    } else {
+      this->modes_.erase(mode);
+    }
+  }
+
+  // The HEAT_COOL default (supports_cool && supports_heat) is resolved during code generation.
+  static constexpr climate::ClimateModeMask DEFAULT_MODES{climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_COOL,
+                                                          climate::CLIMATE_MODE_HEAT, climate::CLIMATE_MODE_HEAT_COOL};
+  climate::ClimateModeMask modes_{DEFAULT_MODES};
   climate::ClimateFanModeMask fan_modes_{};
   climate::ClimateSwingModeMask swing_modes_{};
   climate::ClimatePresetMask presets_{};
