@@ -102,6 +102,17 @@ def ccache_defaults_env(cache_dir: Path) -> dict[str, str]:
     return {k: v for k, v in defaults.items() if k not in os.environ}
 
 
+def effective_ccache_basedir() -> str:
+    """The prefix ccache strips from hashed paths: a usable user
+    CCACHE_BASEDIR, else the resolved build path."""
+    from esphome.core import CORE
+
+    raw = os.environ.get("CCACHE_BASEDIR")
+    if raw is not None and Path(raw).is_absolute() and len(Path(raw).parts) > 1:
+        return raw
+    return str(Path(CORE.build_path).resolve())
+
+
 def ccache_env(ccache: str | None, tools_cache: tuple[str, str]) -> dict[str, str]:
     """The ccache settings for a build subprocess (not os.environ).
 

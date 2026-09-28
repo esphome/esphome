@@ -57,6 +57,11 @@ def test_ccache_pch_env_disabled() -> None:
         assert pch.ccache_pch_env() == {}
 
 
+def test_pch_header_text_preserves_order() -> None:
+    text = pch.pch_header_text(["b.h", "a.h"])
+    assert text == '#include "b.h"\n#include "a.h"\n'
+
+
 def test_include_closure_resolves_relative_and_root(tmp_path: Path) -> None:
     """Sibling includes resolve against the includer's directory first,
     full paths against the src root; unresolvable names end the walk."""
