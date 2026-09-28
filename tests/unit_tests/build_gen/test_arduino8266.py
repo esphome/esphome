@@ -1817,3 +1817,17 @@ def test_write_project_pch_no_device_path_poison(tmp_path: Path) -> None:
             (CORE.relative_pioenvs_path(name) / "esphome_pch.h.gch.sum").read_text()
         )
     assert sums[0] == sums[1]
+
+
+def test_write_project_pch_sum_tracks_src_flags(tmp_path: Path) -> None:
+    """The header compiles with the src flags too, so they are part of what
+    ccache is told about it."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    sum_path = CORE.relative_pioenvs_path(CORE.name) / "esphome_pch.h.gch.sum"
+    sums = []
+    for value in ("1", "2"):
+        CORE.platformio_options["build_src_flags"] = f"-DSRC_ONLY={value}"
+        _write_ninja(paths)
+        sums.append(sum_path.read_text())
+    assert sums[0] != sums[1]
