@@ -9,7 +9,6 @@ import subprocess
 
 from esphome import pins
 from esphome.build_helpers import pch
-from esphome.build_helpers.pch import pch_cmake_consumer, pch_enabled
 import esphome.codegen as cg
 from esphome.components.zephyr import (
     add_extra_script,
@@ -772,6 +771,63 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
     return False
 
 
+# GCC only loads a precompiled header ahead of every other forced header, and
+# Zephyr forces two with -imacros. They hold macros only, so the C++ sources
+# of the app get them through the precompiled header.
+_PCH_CMAKE_LINES = [
+    "",
+    "# ESPHome precompiled header",
+    "get_property(esphome_options TARGET zephyr_interface",
+    "    PROPERTY INTERFACE_COMPILE_OPTIONS)",
+    "set(esphome_kept_options)",
+    "set(esphome_pch_headers)",
+    "foreach(option IN LISTS esphome_options)",
+    '  if(option MATCHES "imacros> (.+)$")',
+    '    list(APPEND esphome_pch_headers "${CMAKE_MATCH_1}")',
+    "    list(APPEND esphome_kept_options",
+    '        "$<$<NOT:$<AND:$<COMPILE_LANGUAGE:CXX>,$<STREQUAL:$<TARGET_PROPERTY:NAME>,app>>>:${option}>")',
+    "  else()",
+    '    list(APPEND esphome_kept_options "${option}")',
+    "  endif()",
+    "endforeach()",
+    "set_property(TARGET zephyr_interface",
+    '    PROPERTY INTERFACE_COMPILE_OPTIONS "${esphome_kept_options}")',
+    *(
+        f'list(APPEND esphome_pch_headers "${{CMAKE_CURRENT_LIST_DIR}}/../src/{header}")'
+        for header in pch.PCH_DEFAULT_HEADERS
+    ),
+    'list(TRANSFORM esphome_pch_headers REPLACE "(.+)" "$<$<COMPILE_LANGUAGE:CXX>:\\\\1>")',
+    "target_precompile_headers(app PRIVATE ${esphome_pch_headers})",
+]
+# Where CMake puts the .gch of the app, below its binary dir
+_PCH_SUM_PATH = "CMakeFiles/app.dir/cmake_pch.hxx.gch.sum"
+
+
+def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
+    """Write the checksum ccache reads in place of the .gch. The app binary
+    dir only exists after the first configure; sysbuild nests it."""
+    app_dir = build_dir / "zephyr"
+    if not (app_dir / "CMakeCache.txt").is_file():
+        app_dir = build_dir
+    if not (app_dir / "CMakeCache.txt").is_file():
+        return
+    checksum = pch.pch_checksum(
+        CORE.relative_src_path(),
+        pch.PCH_DEFAULT_HEADERS,
+        (
+            str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+            zephyr_data()[KEY_BOARD],
+            # What the Zephyr configuration is generated from
+            *(
+                path.read_text(encoding="utf-8")
+                for path in sorted(source_dir.iterdir())
+                if path.suffix in (".conf", ".overlay")
+            ),
+        ),
+    )
+    write_file_if_changed(app_dir / _PCH_SUM_PATH, checksum + "\n")
+
+
 def _generate_cmake_lists() -> bool:
     """Write the project CMakeLists.txt, returning True if it changed."""
     compile_flags = get_project_compile_flags()
@@ -815,11 +871,8 @@ def _generate_cmake_lists() -> bool:
             ")",
         ]
 
-    if consumer := pch_cmake_consumer("app", "${APP_SOURCES}"):
-        lines += consumer.splitlines()
-        # GCC ignores a .gch once it has seen -imacros. Zephyr's two headers
-        # only hold macros, so -include is the same and lands after the pch
-        lines.append("set_property(TARGET compiler PROPERTY imacros -include)")
+    if pch.pch_enabled():
+        lines += _PCH_CMAKE_LINES
 
     if link_flags:
         lines += [
@@ -835,72 +888,28 @@ def _generate_cmake_lists() -> bool:
     )
 
 
-def _app_build_dir(build_dir: Path) -> Path:
-    """The CMake binary dir of the app image; sysbuild nests it."""
-    app = build_dir / "zephyr"
-    return app if (app / "CMakeCache.txt").is_file() else build_dir
-
-
-def _prepare_pch(app_dir: Path, env: dict[str, str], cwd: str) -> None:
-    """Build the .gch between the cmake and compile phases of west."""
-    # kernel.h needs the syscall headers, which only a build step makes.
-    # A .sum from an earlier pch compile proves they are there
-    if not (app_dir / pch.PCH_SUM_NAME).is_file() and not run_command_ok(
-        ["cmake", "--build", str(app_dir), "--target", "zephyr_generated_headers"],
-        env=env,
-        stream_output=True,
-        cwd=cwd,
-    ):
-        raise EsphomeError("Zephyr header generation failed")
-    pch.prepare_pch(
-        app_dir,
-        app_dir / "zephyr" / "include" / "generated" / "zephyr" / "autoconf.h",
-        (
-            str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
-            zephyr_data()[KEY_BOARD],
-            *get_project_compile_flags(),
-        ),
-    )
-
-
 def _copy_if_exists(src: Path, dst: Path) -> None:
     if src.is_file():
         shutil.copy2(src, dst)
 
 
 def _west_build_command(
-    python_executable: Path,
-    board: str,
-    build_dir: Path,
-    source_dir: Path,
-    cmake_only: bool = False,
-    configured: bool = False,
+    python_executable: Path, board: str, build_dir: Path, source_dir: Path
 ) -> list[str]:
-    """The west build command. ``cmake_only`` configures without building;
-    ``configured`` builds what that left, without CMake arguments, which
-    would make west configure again."""
-    cmd = [
+    return [
         str(python_executable),
         "-m",
         "west",
         "build",
         "--pristine=auto",
-        *(["--cmake-only"] if cmake_only else []),
         "-b",
         board,
         "-d",
         str(build_dir),
         str(source_dir),
-    ]
-    if configured:
-        return cmd
-    return [
-        *cmd,
-        # The options of west end here
         "--",
         # Only adds -DNDEBUG (Kconfig sets the optimization level); picolibc used to force it
         "-DCMAKE_BUILD_TYPE=MinSizeRel",
-        *(["-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"] if cmake_only else []),
     ]
 
 
@@ -938,28 +947,22 @@ def run_compile(args, config: ConfigType) -> bool:
         _LOGGER.info("Build inputs changed, cleaning %s", build_dir)
         rmtree(build_dir)
 
-    west_args = (paths["python_executable"], board, build_dir, source_dir)
-    cwd = str(paths["framework_path"])
-
-    configured = False
-    if pch_enabled():
+    if pch.pch_enabled():
+        pch.log_pch_in_use()
         # Zephyr turns ccache on by itself when it is installed
         env.update(pch.ccache_pch_env())
-        # The .gch compiles from the compile database, so configure first.
-        # An existing one is current: input changes wipe the build dir
-        if not (_app_build_dir(build_dir) / "compile_commands.json").is_file():
-            if not run_command_ok(
-                _west_build_command(*west_args, cmake_only=True),
-                env=env,
-                stream_output=True,
-                cwd=cwd,
-            ):
-                raise EsphomeError("nRF52 native build configure failed")
-            configured = True
-        _prepare_pch(_app_build_dir(build_dir), env, cwd)
+        _write_pch_checksum(build_dir, source_dir)
 
-    west_cmd = _west_build_command(*west_args, configured=configured)
-    if not run_command_ok(west_cmd, env=env, stream_output=True, cwd=cwd):
+    west_cmd = _west_build_command(
+        paths["python_executable"], board, build_dir, source_dir
+    )
+
+    if not run_command_ok(
+        west_cmd,
+        env=env,
+        stream_output=True,
+        cwd=str(paths["framework_path"]),
+    ):
         raise EsphomeError("nRF52 native build failed")
 
     zephyr_dir = build_dir / "zephyr"
