@@ -50,10 +50,7 @@ PCH_PREFIX_HEADER = "esphome/core/pch_prefix.h"
 PCH_DEFAULT_HEADERS = (PCH_CORE_HEADER, PCH_PREFIX_HEADER)
 
 # What ccache needs to cache compiles that load a .gch
-CCACHE_PCH_ENV = {
-    "CCACHE_SLOPPINESS": "pch_defines,time_macros",
-    "CCACHE_PCH_EXTSUM": "true",
-}
+_CCACHE_PCH_SLOPPINESS = ("pch_defines", "time_macros")
 
 # Both include forms: an angle include resolving under src/ enters the digest
 _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
@@ -89,10 +86,20 @@ set_source_files_properties({sources_var} PROPERTIES
 
 
 def ccache_pch_env() -> dict[str, str]:
-    """``CCACHE_PCH_ENV`` without what the user already set."""
+    """What ccache needs to cache compiles that load a .gch, added to what
+    the user already set."""
     if not pch_enabled():
         return {}
-    return {k: v for k, v in CCACHE_PCH_ENV.items() if k not in os.environ}
+    sloppiness = [
+        item.strip()
+        for item in os.environ.get("CCACHE_SLOPPINESS", "").split(",")
+        if item.strip()
+    ]
+    sloppiness += [item for item in _CCACHE_PCH_SLOPPINESS if item not in sloppiness]
+    env = {"CCACHE_SLOPPINESS": ",".join(sloppiness)}
+    if "CCACHE_PCH_EXTSUM" not in os.environ:
+        env["CCACHE_PCH_EXTSUM"] = "true"
+    return env
 
 
 def pch_header_text(include_headers: Iterable[str]) -> str:
