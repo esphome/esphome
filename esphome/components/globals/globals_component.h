@@ -1,8 +1,10 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
+
+#include <array>
 #include <cstring>
 
 namespace esphome::globals {
@@ -125,20 +127,6 @@ template<typename T, uint8_t SZ> class RestoringGlobalStringComponent : public P
   T last_checked_value_{};
   uint32_t name_hash_{};
   ESPPreferenceObject rtc_;
-};
-
-template<class C, typename... Ts> class GlobalVarSetAction final : public Action<Ts...> {
- public:
-  explicit GlobalVarSetAction(C *parent) : parent_(parent) {}
-
-  using T = typename C::value_type;
-
-  TEMPLATABLE_VALUE(T, value);
-
-  void play(const Ts &...x) override { this->parent_->value() = this->value_.value(x...); }
-
- protected:
-  C *parent_;
 };
 
 template<typename T> T &id(GlobalsComponent<T> *value) { return value->value(); }
