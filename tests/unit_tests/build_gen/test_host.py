@@ -237,12 +237,13 @@ def test_write_project_precompiles_the_core_headers(tmp_path: Path) -> None:
     src = _make_src(tmp_path, "main.cpp", "esphome/core/a.c", "x.S")
     _, ninja = _render()
     build_dir = tmp_path / ".pioenvs" / "dev"
-    header = build_dir / "esphome_pch.h"
-    assert header.read_text() == (
+    source = build_dir / "esphome_pch_src.h"
+    assert source.read_text() == (
         '#include "esphome/core/defines.h"\n#include "esphome/core/pch_prefix.h"\n'
     )
     assert "rule pch\n" in ninja
-    assert f"build esphome_pch.h.gch: pch {_e(header)}\n" in ninja
+    # Rebuilt when the system compiler is replaced in place
+    assert f"build esphome_pch.h.gch: pch {_e(source)} | /usr/bin/g++\n" in ninja
     assert "srccxxflags = -Winvalid-pch " in ninja
     assert (
         f"build obj/src/main.cpp.o: cxx {_e(src / 'main.cpp')} | esphome_pch.h.gch\n"
@@ -252,14 +253,7 @@ def test_write_project_precompiles_the_core_headers(tmp_path: Path) -> None:
         f"build obj/src/esphome/core/a.c.o: c {_e(src / 'esphome/core/a.c')}\n"
     ) in ninja
     assert f"build obj/src/x.S.o: aspp {_e(src / 'x.S')}\n" in ninja
-    # Without ccache nothing reads the checksum sidecar
-    assert not (build_dir / "esphome_pch.h.gch.sum").exists()
-
-
-def test_write_project_pch_checksum_with_ccache(tmp_path: Path) -> None:
-    _make_src(tmp_path, "main.cpp")
-    _render(ccache="/usr/bin/ccache")
-    assert (tmp_path / ".pioenvs" / "dev" / "esphome_pch.h.gch.sum").is_file()
+    assert (build_dir / "esphome_pch.h.gch.sum").is_file()
 
 
 def test_write_project_pch_disabled(
