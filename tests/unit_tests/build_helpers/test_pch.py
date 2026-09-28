@@ -9,6 +9,8 @@ from unittest.mock import patch
 import pytest
 
 from esphome.build_helpers import pch
+from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM
+from esphome.core import CORE
 
 
 def _write(src_dir: Path, name: str, content: str) -> None:
@@ -105,6 +107,20 @@ def test_pch_checksum_tracks_closure_content(tmp_path: Path) -> None:
     assert base == pch.pch_checksum(tmp_path, ["root.h"], ["id"])
     _write(tmp_path, "nested.h", "int b;\n")
     assert base != pch.pch_checksum(tmp_path, ["root.h"], ["id"])
+
+
+@pytest.mark.parametrize("platform", ["esp8266", "rp2"])
+def test_pch_script_enabled(platform: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
+    assert pch.pch_script_enabled()
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    assert not pch.pch_script_enabled()
+
+
+@pytest.mark.parametrize("platform", sorted(pch.PCH_SCRIPT_EXCLUDED_PLATFORMS))
+def test_pch_script_excluded_platform(platform: str) -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
+    assert not pch.pch_script_enabled()
 
 
 def test_include_closure_walks_angle_includes_under_src(tmp_path: Path) -> None:

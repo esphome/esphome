@@ -610,6 +610,11 @@ def clean_build(clear_pio_cache: bool = True, *, full: bool = False):
             if idf_path.is_dir():
                 _LOGGER.info("Deleting %s", idf_path)
                 rmtree(idf_path)
+        # The PlatformIO pch files live in the project root
+        from esphome.build_helpers.pch import PCH_ARTIFACT_NAMES
+
+        for name in PCH_ARTIFACT_NAMES:
+            CORE.relative_build_path(name).unlink(missing_ok=True)
 
     # idedata caches live under the data dir, not the build path; globbed
     # so a future backend suffix cannot drift out of clean-all

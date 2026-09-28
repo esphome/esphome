@@ -11,6 +11,13 @@ import posixpath
 import re
 
 from esphome.build_helpers.ccache import effective_ccache_basedir, parse_enable_env
+from esphome.const import (
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_LN882X,
+    PLATFORM_NRF52,
+    PLATFORM_RTL87XX,
+)
 from esphome.helpers import write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,8 +40,22 @@ PCH_GUARD_TEXT = f"""\
 #endif
 """
 
+# What the PlatformIO script leaves in the project root, for cleanup
+PCH_ARTIFACT_NAMES = (PCH_HEADER_NAME, PCH_GCH_NAME, PCH_SUM_NAME, PCH_SOURCE_NAME)
+
 # The core headers every backend precompiles
 PCH_DEFAULT_HEADERS = ("esphome/core/pch_prefix.h",)
+
+# PlatformIO platforms that do not take the pch script
+PCH_SCRIPT_EXCLUDED_PLATFORMS = frozenset(
+    {
+        PLATFORM_BK72XX,
+        PLATFORM_ESP32,
+        PLATFORM_LN882X,
+        PLATFORM_NRF52,
+        PLATFORM_RTL87XX,
+    }
+)
 
 # What ccache needs to cache compiles that load a .gch
 _CCACHE_PCH_SLOPPINESS = ("pch_defines", "time_macros")
@@ -69,6 +90,13 @@ def ccache_pch_env() -> dict[str, str]:
     if "CCACHE_PCH_EXTSUM" not in os.environ:
         env["CCACHE_PCH_EXTSUM"] = "true"
     return env
+
+
+def pch_script_enabled() -> bool:
+    """Whether this PlatformIO build takes the pch script."""
+    from esphome.core import CORE
+
+    return pch_enabled() and CORE.target_platform not in PCH_SCRIPT_EXCLUDED_PLATFORMS
 
 
 def pch_header_text(include_headers: Iterable[str]) -> str:
