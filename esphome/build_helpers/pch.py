@@ -329,7 +329,7 @@ def prepare_pch(build_dir: Path, identity_file: Path, extra: Iterable[str]) -> N
         # Consumers depend on the header, so bump it to recompile them
         os.utime(header)
         sum_path.write_text(checksum + "\n", encoding="utf-8")
-    except OSError as err:
+    except (OSError, ValueError, KeyError, IndexError) as err:
         raise EsphomeError(
             f"Could not prepare the precompiled header{_DISABLE_HINT}: {err}"
         ) from err
