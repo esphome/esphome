@@ -270,9 +270,10 @@ def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
         build_dir,
         src_dir,
         PCH_DEFAULT_HEADERS,
-        cxxflags,
+        # The arguments of a CXX override come before the flags
+        [*compilers.cxx[1:], *cxxflags],
         (),
-        (*compilers.cxx, _compiler_version(compilers.cxx)) if pch_enabled() else (),
+        (compilers.cxx[0], _compiler_version(compilers.cxx)) if pch_enabled() else (),
     )
     src_objs = compile_edges(
         lines,
