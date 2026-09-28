@@ -30,9 +30,6 @@ class MagiQuestProtocol : public RemoteProtocol<MagiQuestData> {
   void encode(RemoteTransmitData *dst, const MagiQuestData &data);
   optional<MagiQuestData> decode(RemoteReceiveData src);
   void dump(const MagiQuestData &data);
-
- protected:
-  static bool checksum_is_valid_(uint32_t wand_id, uint32_t magnitude_and_checksum);
 };
 
 DECLARE_REMOTE_PROTOCOL(MagiQuest)

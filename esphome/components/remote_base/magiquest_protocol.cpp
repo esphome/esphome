@@ -17,6 +17,16 @@ static constexpr uint32_t MAGIQUEST_ONE_SPACE = 2 * MAGIQUEST_UNIT;
 static constexpr uint32_t MAGIQUEST_ZERO_MARK = MAGIQUEST_UNIT;
 static constexpr uint32_t MAGIQUEST_ZERO_SPACE = 3 * MAGIQUEST_UNIT;
 
+static bool checksum_is_valid(uint32_t wand_id, uint32_t magnitude_and_checksum) {
+  // The frame's six payload bytes, which start at the wand id's top bit, must sum to zero.
+  const uint32_t id_bytes = wand_id << 1;
+  uint8_t sum = 0;
+  for (uint8_t shift = 0; shift < 32; shift += 8) {
+    sum += (id_bytes >> shift) + (magnitude_and_checksum >> shift);
+  }
+  return sum == 0;
+}
+
 void MagiQuestProtocol::encode(RemoteTransmitData *dst, const MagiQuestData &data) {
   // Still the old frame layout, which the decoder no longer reads; changing it would alter what existing configs send.
   dst->reserve(101);  // 2 start bits, 48 data bits, 1 stop bit
@@ -82,7 +92,7 @@ optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
     }
   }
 
-  if (!checksum_is_valid_(data.wand_id, magnitude_and_checksum)) {
+  if (!checksum_is_valid(data.wand_id, magnitude_and_checksum)) {
     return {};
   }
   data.magnitude = magnitude_and_checksum >> 8;
@@ -90,15 +100,6 @@ optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
 }
 void MagiQuestProtocol::dump(const MagiQuestData &data) {
   ESP_LOGI(TAG, "Received MagiQuest: wand_id=0x%08" PRIX32 ", magnitude=%u", data.wand_id, data.magnitude);
-}
-bool MagiQuestProtocol::checksum_is_valid_(uint32_t wand_id, uint32_t magnitude_and_checksum) {
-  // The frame's six payload bytes, which start at the wand id's top bit, must sum to zero.
-  const uint32_t id_bytes = wand_id << 1;
-  uint8_t sum = 0;
-  for (uint8_t shift = 0; shift < 32; shift += 8) {
-    sum += (id_bytes >> shift) + (magnitude_and_checksum >> shift);
-  }
-  return sum == 0;
 }
 
 }  // namespace esphome::remote_base
