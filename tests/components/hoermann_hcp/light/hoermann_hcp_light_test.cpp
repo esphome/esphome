@@ -301,15 +301,16 @@ TEST(HoermannHcpLightTest, OffSendsTheSameToggle) {
 // A toggle sent again after the lamp moved away from a changed request gets its own deadline.
 TEST(HoermannHcpLightTest, ToggleAgainRestartsTheDeadline) {
   TestableHoermannHcp door;
-  door.connection_timeout_ms_ = 200;
+  // Only the second wait has to stay under the timeout; a late wakeup only lengthens the first.
+  door.connection_timeout_ms_ = 500;
   connect_controller(door);
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   ASSERT_TRUE(door.set_light(true));
   EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
-  std::this_thread::sleep_for(std::chrono::milliseconds(130));
+  std::this_thread::sleep_for(std::chrono::milliseconds(450));
   ASSERT_TRUE(door.set_light(false));
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));  // the first toggle lands
-  std::this_thread::sleep_for(std::chrono::milliseconds(110));
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
   connect_controller(door);
   door.update();
   EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
