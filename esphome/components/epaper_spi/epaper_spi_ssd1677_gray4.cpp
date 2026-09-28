@@ -45,14 +45,33 @@ void HOT EPaperSSD1677Gray4::draw_pixel_at(int x, int y, Color color) {
   this->buffer_[byte_position] = (uint8_t) ((original & ~(0x03 << shift)) | (level << shift));
 }
 
+// A partial update reduces each pixel to its high bit: levels 2 and 3 are light, 0 and 1 dark.
+void EPaperSSD1677Gray4::plane_row(size_t y, uint8_t *out) {
+  const size_t src_row = y * this->row_width_;
+  for (size_t i = 0; i != this->plane_row_length_(); i++)
+    out[i] = plane_byte(this->buffer_[src_row + 2 * i], this->buffer_[src_row + 2 * i + 1], true);
+}
+
 // the high bit of every pixel's level goes to the new (bw) plane
 // (0x24), the low bit to the old (red) plane (0x26)
 bool HOT EPaperSSD1677Gray4::transfer_data() {
+  if (this->is_partial_push_())
+    return EPaperSSD1677::transfer_data();
+
   auto start_time = millis();
   const bool first_pass = this->send_red_;
   if (this->current_data_index_ == 0) {
-    if (first_pass)
+    if (first_pass) {
+      // With partial updates enabled the window follows the changed area, but the four-level
+      // refresh drives every pixel from both planes, and the reset before it does not keep RAM.
+      if (this->sent_.is_valid()) {
+        this->x_low_ = 0;
+        this->x_high_ = this->width_;
+        this->y_low_ = 0;
+        this->y_high_ = this->height_;
+      }
       this->set_window();
+    }
     this->command(first_pass ? 0x24 : 0x26);
     this->current_data_index_ = this->y_low_;
   }
@@ -70,6 +89,9 @@ bool HOT EPaperSSD1677Gray4::transfer_data() {
       const uint8_t plane = plane_byte(this->buffer_[src_row + 2 * i], this->buffer_[src_row + 2 * i + 1], first_pass);
       // The OTP grayscale waveform treats data as inverted relative to monochrome
       bytes_to_send[i] = (uint8_t) ~plane;
+      // What the next partial update compares against: the high bits, as a black-and-white frame.
+      if (first_pass && this->sent_.is_valid())
+        this->sent_[this->current_data_index_ * plane_row_length + i] = plane;
     }
     ++this->current_data_index_;
     this->write_array(bytes_to_send, plane_row_length);
@@ -91,7 +113,15 @@ bool HOT EPaperSSD1677Gray4::transfer_data() {
 }
 
 void EPaperSSD1677Gray4::refresh_screen(bool partial) {
-  // Full refresh only; the model schema rejects full_update_every other than 1 for this class.
+  if (this->is_partial_push_()) {
+    ESP_LOGV(TAG, "Black-and-white partial refresh");
+    // The border follows the LUT selected in 0x3C. The model's setting (sent with the init
+    // sequence) picks the LUT that is white under the four-level waveform's inverted data; under
+    // the black-and-white waveform that LUT drives black and the border darkens, so use LUT1.
+    this->cmd_data(0x3C, {0x01});
+    EPaperSSD1677::refresh_screen(true);
+    return;
+  }
   ESP_LOGV(TAG, "Four-level refresh");
   this->cmd_data(0x1A, {0x67, 0x00});  // force temperature by OTP
   this->cmd_data(0x22, {0xD7});        // four-level update sequence, panel's OTP waveform

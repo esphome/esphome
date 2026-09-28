@@ -152,18 +152,61 @@ def test_full_update_every_rejected_for_gray4(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
 ) -> None:
-    """The gray4 driver has no partial waveform, so full_update_every must stay 1."""
+    """The gray4 driver's partial updates are black and white and flatten the whole
+    panel, so full_update_every > 1 is refused unless that is explicitly accepted."""
     _setup_esp32(
         set_core_config, set_component_config, VARIANT_ESP32S3, "esp32-s3-devkitc-1"
     )
     CORE.raw_config = {"psram": {}}
 
-    with pytest.raises(cv.Invalid, match="does not support partial update"):
+    with pytest.raises(cv.Invalid, match="monochrome_partial_updates: true"):
         CONFIG_SCHEMA(
             {
                 "id": "test_display",
                 "model": "seeed-reterminal-sticky-gray4",
                 "full_update_every": 5,
+            }
+        )
+
+
+def test_full_update_every_accepted_for_gray4_with_monochrome_partials(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """With the trade-off accepted, the gray4 driver takes full_update_every > 1."""
+    _setup_esp32(
+        set_core_config, set_component_config, VARIANT_ESP32S3, "esp32-s3-devkitc-1"
+    )
+    CORE.raw_config = {"psram": {}}
+
+    result = CONFIG_SCHEMA(
+        {
+            "id": "test_display",
+            "model": "seeed-reterminal-sticky-gray4",
+            "full_update_every": 5,
+            "monochrome_partial_updates": True,
+        }
+    )
+
+    assert result["full_update_every"] == 5
+
+
+def test_monochrome_partial_updates_not_offered_for_mono_sticky(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The option only exists where partial updates lose something."""
+    _setup_esp32(
+        set_core_config, set_component_config, VARIANT_ESP32S3, "esp32-s3-devkitc-1"
+    )
+    CORE.raw_config = {"psram": {}}
+
+    with pytest.raises(cv.Invalid, match="monochrome_partial_updates"):
+        CONFIG_SCHEMA(
+            {
+                "id": "test_display",
+                "model": "seeed-reterminal-sticky",
+                "monochrome_partial_updates": True,
             }
         )
 

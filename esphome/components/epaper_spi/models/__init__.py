@@ -52,6 +52,16 @@ class EpaperModel:
         """
         return {}
 
+    def validate_config(self, config: dict) -> dict:
+        """
+        Validate the configuration as a whole, once the schema has been applied.
+        The base implementation accepts it unchanged; specific models override this for
+        rules that span several options.
+        :param config: The validated configuration
+        :return: The configuration, possibly updated
+        """
+        return config
+
     async def to_code(self, var: MockObj, config: dict) -> dict:
         """
         Generate model-specific code for the options added by add_options().

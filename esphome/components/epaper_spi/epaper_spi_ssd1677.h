@@ -23,12 +23,20 @@ namespace esphome::epaper_spi {
 class EPaperSSD1677 : public EPaperMono {
  public:
   EPaperSSD1677(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
-                size_t init_sequence_length)
-      : EPaperMono(name, width, height, init_sequence, init_sequence_length) {}
+                size_t init_sequence_length, DisplayType display_type = DISPLAY_TYPE_BINARY)
+      : EPaperMono(name, width, height, init_sequence, init_sequence_length, display_type) {}
 
   void setup() override;
 
  protected:
+  // Allocates the comparison frame when partial updates are enabled. Separate from setup() so it
+  // can run without a bus.
+  void init_comparison_frame_();
+  // Bytes in one row of a RAM plane: 8 pixels per byte, whatever the buffer holds.
+  size_t plane_row_length_() const { return (this->width_ + 7) / 8; }
+  // Row y of the frame as a RAM plane holds it, 1 bit per pixel with 1 = white. Here the buffer
+  // already has that layout; a subclass with a deeper buffer reduces its row to one.
+  virtual void plane_row(size_t y, uint8_t *out);
   bool reset() override;
   bool transfer_data() override;
 
