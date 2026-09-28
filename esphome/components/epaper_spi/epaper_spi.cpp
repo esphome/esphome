@@ -299,7 +299,7 @@ bool EPaperBase::initialise(bool partial) {
  * @return false if the coordinates are out of bounds
  */
 bool EPaperBase::rotate_coordinates_(int &x, int &y) {
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return false;
   if (this->effective_transform_ & SWAP_XY)
     std::swap(x, y);

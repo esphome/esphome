@@ -428,6 +428,10 @@ async def to_code(config: ConfigType) -> None:
         )
     zephyr_add_prj_conf("REBOOT", True)
 
+    # some boards enable USB by default.
+    # disable it to prevent extra current consumption.
+    zephyr_add_prj_conf("USB_DEVICE_STACK", False, False)
+
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
 async def _dfu_to_code(dfu_config):
@@ -436,6 +440,10 @@ async def _dfu_to_code(dfu_config):
     if CONF_RESET_PIN in dfu_config:
         pin = await cg.gpio_pin_expression(dfu_config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(pin))
+
+    # DFU uses cdc rate callback to enter bootloader which was disabled explicitly to save power.
+    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
+    zephyr_add_prj_conf("USB_CDC_ACM", True)
     zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
     await cg.register_component(var, dfu_config)
 
@@ -506,15 +514,15 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
                 "download": f"{storage_json.name}.hex",
             },
         ]
-        if (build_dir / APP_IMAGE_PATH).is_file():
-            types += [
-                {
-                    "title": "App update package",
-                    "description": "For flashing via mcumgr-web using BLE or smpclient using USB CDC.",
-                    "file": APP_IMAGE_PATH,
-                    "download": f"app-{storage_json.name}.img",
-                },
-            ]
+    if (build_dir / APP_IMAGE_PATH).is_file():
+        types += [
+            {
+                "title": "App update package",
+                "description": "For flashing via mcumgr-web using BLE or smpclient using USB CDC.",
+                "file": APP_IMAGE_PATH,
+                "download": f"app-{storage_json.name}.img",
+            },
+        ]
 
     return types
 
@@ -824,6 +832,26 @@ def _copy_if_exists(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
+def _west_build_command(
+    python_executable: Path, board: str, build_dir: Path, source_dir: Path
+) -> list[str]:
+    return [
+        str(python_executable),
+        "-m",
+        "west",
+        "build",
+        "--pristine=auto",
+        "-b",
+        board,
+        "-d",
+        str(build_dir),
+        str(source_dir),
+        "--",
+        # Only adds -DNDEBUG (Kconfig sets the optimization level); picolibc used to force it
+        "-DCMAKE_BUILD_TYPE=MinSizeRel",
+    ]
+
+
 def run_compile(args, config: ConfigType) -> bool:
     if CORE.using_toolchain_platformio:
         # The actual build is done by PlatformIO (the caller falls through to
@@ -858,18 +886,9 @@ def run_compile(args, config: ConfigType) -> bool:
         _LOGGER.info("Build inputs changed, cleaning %s", build_dir)
         rmtree(build_dir)
 
-    west_cmd = [
-        str(paths["python_executable"]),
-        "-m",
-        "west",
-        "build",
-        "--pristine=auto",
-        "-b",
-        board,
-        "-d",
-        str(build_dir),
-        str(source_dir),
-    ]
+    west_cmd = _west_build_command(
+        paths["python_executable"], board, build_dir, source_dir
+    )
 
     if not run_command_ok(
         west_cmd,

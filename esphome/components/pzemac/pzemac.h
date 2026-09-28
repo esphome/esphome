@@ -9,8 +9,6 @@
 
 namespace esphome::pzemac {
 
-template<typename... Ts> class ResetEnergyAction;
-
 class PZEMAC final : public PollingComponent, public modbus::ModbusClientDevice {
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
@@ -28,9 +26,9 @@ class PZEMAC final : public PollingComponent, public modbus::ModbusClientDevice 
                           modbus::ResponseStatus status) override;
 
   void dump_config() override;
+  void reset_energy();
 
  protected:
-  template<typename... Ts> friend class ResetEnergyAction;
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *power_sensor_{nullptr};
@@ -38,16 +36,15 @@ class PZEMAC final : public PollingComponent, public modbus::ModbusClientDevice 
   sensor::Sensor *frequency_sensor_{nullptr};
   sensor::Sensor *power_factor_sensor_{nullptr};
 
-  void reset_energy_();
-
   uint32_t last_update_time_{0};
 };
 
+// Keep the legacy action wrapper for ESPHome releases without register_apply_action().
 template<typename... Ts> class ResetEnergyAction final : public Action<Ts...> {
  public:
   ResetEnergyAction(PZEMAC *pzemac) : pzemac_(pzemac) {}
 
-  void play(const Ts &...x) override { this->pzemac_->reset_energy_(); }
+  void play(const Ts &...x) override { this->pzemac_->reset_energy(); }
 
  protected:
   PZEMAC *pzemac_;
