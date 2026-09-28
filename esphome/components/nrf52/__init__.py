@@ -801,6 +801,10 @@ _PCH_CMAKE_LINES = [
     '    list(APPEND esphome_kept_options "${option}")',
     "  endif()",
     "endforeach()",
+    "if(NOT esphome_pch_headers)",
+    '  message(FATAL_ERROR "ESPHome: the headers Zephyr forces were not found, so "',
+    '      "the precompiled header would not load (set ESPHOME_PCH_ENABLE=0)")',
+    "endif()",
     "set_property(TARGET zephyr_interface",
     '    PROPERTY INTERFACE_COMPILE_OPTIONS "${esphome_kept_options}")',
     *(
