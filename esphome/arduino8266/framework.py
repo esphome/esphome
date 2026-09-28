@@ -164,11 +164,15 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
             ("bin", "xtensa-lx106-elf"),
         ),
     )
-    # Only resolve when a download is needed: an installed or mirrored
-    # toolchain must keep working on a host without a pinned build
+    # A mirror override replaces the pinned download, and an installed
+    # toolchain keeps working on a host without a pinned build
     pinned: dict[str, Download] = {}
-    if not ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS and not is_installed(toolchain_path):
-        pinned[TOOLCHAIN_PACKAGE] = toolchain_download()
+    if not ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS:
+        try:
+            pinned[TOOLCHAIN_PACKAGE] = toolchain_download()
+        except EsphomeError:
+            if not is_installed(toolchain_path):
+                raise
     # Fetch both archives at once; the installs below verify and extract
     prefetch_packages([spec[:4] for spec in specs], downloads_dir, pinned)
     for name, version, dest, mirrors, expect in specs:

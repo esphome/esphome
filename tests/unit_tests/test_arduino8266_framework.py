@@ -98,7 +98,7 @@ def test_check_and_install_mirror_skips_pinned_toolchain(tmp_path: Path) -> None
     assert mock_install.call_args_list[1].kwargs["pinned"] is None
 
 
-def test_check_and_install_installed_toolchain_skips_host_check(
+def test_check_and_install_installed_toolchain_on_unsupported_host(
     tmp_path: Path,
 ) -> None:
     """An installed toolchain keeps working on a host without a pinned build."""
@@ -114,6 +114,18 @@ def test_check_and_install_installed_toolchain_skips_host_check(
     ):
         framework.check_and_install(cv.Version(3, 1, 2))
     assert mock_prefetch.call_args.args[2] == {}
+
+
+def test_check_and_install_unsupported_host_without_toolchain_raises(
+    tmp_path: Path,
+) -> None:
+    with (
+        patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
+        patch.object(framework, "get_systype", return_value="linux_armv7l"),
+        patch.object(framework, "find_ninja", return_value=tmp_path / "ninja"),
+        pytest.raises(EsphomeError, match="linux_armv7l"),
+    ):
+        framework.check_and_install(cv.Version(3, 1, 2))
 
 
 def test_check_and_install_returns_paths(tmp_path: Path) -> None:
