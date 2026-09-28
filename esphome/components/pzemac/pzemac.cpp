@@ -47,13 +47,19 @@ void PZEMAC::on_read_input_registers(uint16_t start_address, std::span<const uin
   }
 
   // The full-frame check above guarantees that all requested values are present.
+  const auto current_value =
+      helpers::value_at<helpers::SensorValueType::U_DWORD_R>(registers, start_address, PZEM_REGISTER_CURRENT);
+  const auto power_value =
+      helpers::value_at<helpers::SensorValueType::U_DWORD_R>(registers, start_address, PZEM_REGISTER_ACTIVE_POWER);
+  const auto energy_value =
+      helpers::value_at<helpers::SensorValueType::U_DWORD_R>(registers, start_address, PZEM_REGISTER_ACTIVE_ENERGY);
+  if (!current_value || !power_value || !energy_value)
+    return;
+
   uint16_t raw_voltage = registers[PZEM_REGISTER_VOLTAGE];
-  uint32_t raw_current =
-      *helpers::value_at<helpers::SensorValueType::U_DWORD_R>(registers, start_address, PZEM_REGISTER_CURRENT);
-  uint32_t raw_active_power =
-      *helpers::value_at<helpers::SensorValueType::U_DWORD_R>(registers, start_address, PZEM_REGISTER_ACTIVE_POWER);
-  uint32_t raw_active_energy =
-      *helpers::value_at<helpers::SensorValueType::U_DWORD_R>(registers, start_address, PZEM_REGISTER_ACTIVE_ENERGY);
+  uint32_t raw_current = *current_value;
+  uint32_t raw_active_power = *power_value;
+  uint32_t raw_active_energy = *energy_value;
   uint16_t raw_frequency = registers[PZEM_REGISTER_FREQUENCY];
   uint16_t raw_power_factor = registers[PZEM_REGISTER_POWER_FACTOR];
   uint16_t raw_alarm = registers[PZEM_REGISTER_ALARM];
