@@ -98,7 +98,9 @@ def _run_script(
     src = proj / "src"
     (src / "esphome" / "core").mkdir(parents=True, exist_ok=True)
     (src / "esphome" / "core" / "defines.h").write_text("#define USE_X\n")
-    (src / "esphome" / "core" / "pch_prefix.h").write_text("")
+    (src / "esphome" / "core" / "pch_prefix.h").write_text(
+        '#include "esphome/core/defines.h"\n'
+    )
     cxx = _fake_cxx(tmp_path, fail=fail)
     args = (proj, src, str(cxx), flags or ["-DX=1"], platform_cls)
     # Distinct objects: the -include flags must land on projenv only
@@ -319,7 +321,6 @@ def test_pch_script_folds_force_includes_found_on_the_include_path(
     source = (tmp_path / "dev" / "esphome_pch_src.h").read_text()
     assert source.splitlines() == [
         '#include "Arduino.h"',
-        '#include "esphome/core/defines.h"',
         '#include "esphome/core/pch_prefix.h"',
     ]
 
