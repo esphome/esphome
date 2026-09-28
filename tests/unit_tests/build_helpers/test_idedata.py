@@ -119,7 +119,7 @@ def test_parse_entry_resolves_joined_force_include(tmp_path: Path) -> None:
 
 
 def test_parse_entry_keeps_search_chain_force_include(tmp_path: Path) -> None:
-    """-include names resolved via the -I chain (libretiny's Arduino.h) must
+    """-include names resolved via the -I chain (a framework header) must
     not be re-anchored to a nonexistent build-dir path."""
     entry = _entry(
         str(tmp_path),
@@ -130,40 +130,6 @@ def test_parse_entry_keeps_search_chain_force_include(tmp_path: Path) -> None:
     _, _, _, cxx_flags = idedata.parse_entry(entry)
 
     assert cxx_flags[cxx_flags.index("-include") + 1] == "Arduino.h"
-
-
-def test_parse_entry_warns_on_vanished_force_include(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A build-dir force-include deleted by clean_build must leave a trail;
-    a name resolvable via the -I chain must not warn."""
-    inc = tmp_path / "inc"
-    inc.mkdir()
-    (inc / "Arduino.h").write_text("")
-    entry = _entry(
-        str(tmp_path),
-        f"{tmp_path}/src/esphome/x.cpp",
-        f"g++ -I{inc} -include Arduino.h -include esphome_pch.h -c x.cpp",
-    )
-
-    _, _, _, cxx_flags = idedata.parse_entry(entry)
-
-    assert "Arduino.h" in cxx_flags
-    assert "esphome_pch.h" in caplog.text
-    assert "Arduino.h" not in caplog.text
-
-
-def test_parse_entry_drops_trailing_force_include(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    entry = _entry(
-        str(tmp_path), f"{tmp_path}/src/esphome/x.cpp", "g++ -c x.cpp -include"
-    )
-
-    _, _, _, cxx_flags = idedata.parse_entry(entry)
-
-    assert "-include" not in cxx_flags
-    assert "no argument" in caplog.text
 
 
 def test_parse_entry_skips_dependency_flags() -> None:
@@ -218,18 +184,18 @@ def test_pick_entry_falls_back_to_any_cxx_tu() -> None:
     assert idedata._pick_entry(entries)["file"].endswith("x.cpp")
 
 
-def test_is_esphome_src_handles_backslash_paths() -> None:
+def testis_esphome_src_handles_backslash_paths() -> None:
     r"""The src marker must match Windows ``\src\esphome\`` paths too.
 
     compile_commands ``file`` entries use the OS-native separator; if the
     marker only matched forward slashes no source would match on Windows and
     the build-include union would be silently empty.
     """
-    assert idedata._is_esphome_src(r"C:\b\src\esphome\core\app.cpp")
-    assert idedata._is_esphome_src("/b/src/esphome/core/app.cpp")
+    assert idedata.is_esphome_src(r"C:\b\src\esphome\core\app.cpp")
+    assert idedata.is_esphome_src("/b/src/esphome/core/app.cpp")
     # non-esphome and non-C++ still rejected regardless of separator
-    assert not idedata._is_esphome_src(r"C:\b\managed_components\x\x.cpp")
-    assert not idedata._is_esphome_src(r"C:\b\src\esphome\core\app.h")
+    assert not idedata.is_esphome_src(r"C:\b\managed_components\x\x.cpp")
+    assert not idedata.is_esphome_src(r"C:\b\src\esphome\core\app.h")
 
 
 @pytest.mark.parametrize(

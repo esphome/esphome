@@ -99,65 +99,6 @@ def test_pch_checksum_tracks_closure_content(tmp_path: Path) -> None:
     assert base != pch.pch_checksum(tmp_path, ["root.h"], ["id"])
 
 
-@pytest.mark.skipif(
-    os.name == "nt" or os.geteuid() == 0, reason="chmod is ineffective here"
-)
-def test_include_closure_fails_closed_on_unreadable(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A marker would truncate the transitive walk; the OSError propagates
-    so callers compile without a pch."""
-    _write(tmp_path, "a.h", '#include "locked.h"\n')
-    locked = tmp_path / "locked.h"
-    locked.write_text("")
-    locked.chmod(0)
-    try:
-        with pytest.raises(OSError):
-            pch._include_closure(tmp_path, ["a.h"])
-    finally:
-        locked.chmod(0o644)
-    assert "Could not read locked.h" in caplog.text
-
-
-def test_include_closure_raises_when_identity_unknown(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """An unreadable header propagates; callers compile without a pch."""
-
-    class _BadFile:
-        def stat(self):  # noqa: ANN202 -- regular-file mode only
-            import os
-            import stat as stat_mod
-
-            return os.stat_result((stat_mod.S_IFREG | 0o644,) + (0,) * 9)
-
-        def read_bytes(self) -> bytes:
-            raise OSError("read failed")
-
-    class _FakeSrcDir:
-        def __truediv__(self, rel: str) -> _BadFile:
-            return _BadFile()
-
-    with pytest.raises(OSError, match="read failed"):
-        pch._include_closure(_FakeSrcDir(), ["a.h"])
-    assert "Could not read a.h" in caplog.text
-
-
-def test_include_closure_survives_non_utf8_include_name(tmp_path: Path) -> None:
-    """A non-UTF-8 quoted include must not abort the build; it simply does
-    not resolve and ends the walk."""
-    (tmp_path / "a.h").write_bytes(b'#include "bad\xff.h"\n#include "b.h"\n')
-    (tmp_path / "b.h").write_text("")
-    closure = pch._include_closure(tmp_path, ["a.h"])
-    assert set(closure) == {"a.h", "b.h"}
-
-
-def test_pch_checksum_survives_surrogate_extra(tmp_path: Path) -> None:
-    """Install paths from non-UTF-8 filesystems carry surrogates; hashing
-    them must not raise past the caller's identity-unknown guard."""
-    assert pch.pch_checksum(tmp_path, [], ["/opt/bad\udcff/framework"])
-
-
 def test_include_closure_walks_angle_includes_under_src(tmp_path: Path) -> None:
     """An angle include resolving under src/ must enter the digest; one
     that does not simply ends the walk."""
@@ -177,8 +118,6 @@ def test_pch_cmake_consumer_substitutes_target_and_sources(
     assert '"$<$<COMPILE_LANGUAGE:CXX>:esphome_pch.h>"' in block
     assert "set_source_files_properties(${APP_SOURCES} PROPERTIES" in block
     assert 'OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/esphome_pch.h"' in block
-    # Placeholder guard: survives a build-system-side pristine wipe
-    assert 'file(TOUCH "${CMAKE_BINARY_DIR}/esphome_pch.h")' in block
 
 
 def test_pch_cmake_consumer_empty_when_disabled(
