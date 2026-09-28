@@ -60,11 +60,8 @@ PCH_ARTIFACT_NAMES = (
     _PCH_COMMAND_CACHE,
 )
 
-PCH_CORE_HEADER = "esphome/core/defines.h"
-# The curated core headers
-PCH_PREFIX_HEADER = "esphome/core/pch_prefix.h"
-# defines.h first so USE_* macros exist for the rest
-PCH_DEFAULT_HEADERS = (PCH_CORE_HEADER, PCH_PREFIX_HEADER)
+# The core headers every backend precompiles
+PCH_DEFAULT_HEADERS = ("esphome/core/pch_prefix.h",)
 
 # PlatformIO platforms that do not take the pch script
 PCH_SCRIPT_EXCLUDED_PLATFORMS = frozenset(
