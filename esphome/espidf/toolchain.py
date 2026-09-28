@@ -542,9 +542,12 @@ def run_compile(config, verbose: bool) -> int:
                 "build.ninja",
             ],
             env=_get_idf_env(),
+            capture_output=True,
+            text=True,
             check=False,
         )
         if result.returncode != 0:
+            _LOGGER.error("Reconfigure failed:\n%s", result.stdout + result.stderr)
             return result.returncode
         prepare_pch()
 
