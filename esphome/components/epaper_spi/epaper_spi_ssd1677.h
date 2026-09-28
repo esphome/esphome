@@ -36,7 +36,7 @@ class EPaperSSD1677 : public EPaperMono {
   size_t plane_row_length_() const { return (this->width_ + 7) / 8; }
   // Row y of the frame as a RAM plane holds it, 1 bit per pixel with 1 = white. Here the buffer
   // already has that layout; a subclass with a deeper buffer reduces its row to one.
-  virtual void plane_row_(size_t y, uint8_t *out);
+  virtual void plane_row(size_t y, uint8_t *out);
   bool reset() override;
   bool transfer_data() override;
 

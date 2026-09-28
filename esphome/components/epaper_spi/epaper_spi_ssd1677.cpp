@@ -24,7 +24,7 @@ void EPaperSSD1677::init_comparison_frame_() {
   }
 }
 
-void EPaperSSD1677::plane_row_(size_t y, uint8_t *out) {
+void EPaperSSD1677::plane_row(size_t y, uint8_t *out) {
   const size_t row_length = this->plane_row_length_();
   const size_t data_idx = y * row_length;
   for (size_t i = 0; i != row_length; i++)
@@ -66,7 +66,7 @@ bool HOT EPaperSSD1677::transfer_data() {
       for (size_t i = 0; i != row_length; i++)
         row[i] = this->sent_[data_idx + i];
     } else {
-      this->plane_row_(this->current_data_index_, &row.front());
+      this->plane_row(this->current_data_index_, &row.front());
       if (this->plane_ == 1) {
         for (size_t i = 0; i != row_length; i++)
           this->sent_[data_idx + i] = row[i];

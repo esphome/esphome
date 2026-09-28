@@ -46,7 +46,7 @@ void HOT EPaperSSD1677Gray4::draw_pixel_at(int x, int y, Color color) {
 }
 
 // A partial update reduces each pixel to its high bit: levels 2 and 3 are light, 0 and 1 dark.
-void EPaperSSD1677Gray4::plane_row_(size_t y, uint8_t *out) {
+void EPaperSSD1677Gray4::plane_row(size_t y, uint8_t *out) {
   const size_t src_row = y * this->row_width_;
   for (size_t i = 0; i != this->plane_row_length_(); i++)
     out[i] = plane_byte(this->buffer_[src_row + 2 * i], this->buffer_[src_row + 2 * i + 1], true);
