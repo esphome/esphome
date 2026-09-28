@@ -50,24 +50,24 @@ def warn_if_idedata_missing(get_idedata: Callable[[], dict | None]) -> None:
         _LOGGER.debug("Idedata failure detail", exc_info=True)
 
 
-# C++ translation-unit suffixes.
-CXX_SOURCE_SUFFIXES = (".cpp", ".cc", ".cxx")
+# C++ translation-unit suffixes used to identify ESPHome source files.
+_CXX_SUFFIXES = (".cpp", ".cc")
 # Suffixes of input/output files that appear bare on the command line (and so
 # must not be mistaken for compiler flags).
-_INPUT_FILE_SUFFIXES = (*CXX_SOURCE_SUFFIXES, ".c", ".o", ".S", ".s")
+_INPUT_FILE_SUFFIXES = (*_CXX_SUFFIXES, ".c", ".o", ".S", ".s")
 # Path marker identifying an ESPHome source translation unit.
 _ESPHOME_SRC_MARKER = "/src/esphome/"
 
 
-def is_esphome_src(file: str) -> bool:
+def _is_esphome_src(file: str) -> bool:
     """Whether ``file`` is an ESPHome C++ translation unit; normalized to
     ``/`` first since Windows compile DBs use backslashes."""
     return _ESPHOME_SRC_MARKER in file.replace("\\", "/") and file.endswith(
-        CXX_SOURCE_SUFFIXES
+        _CXX_SUFFIXES
     )
 
 
-def split_command(command: str) -> list[str]:
+def _split_command(command: str) -> list[str]:
     r"""Tokenize a compile_commands.json / response-file command string.
 
     On Windows, tokenize per Windows ``argv`` rules via ``CommandLineToArgvW``.
@@ -103,7 +103,7 @@ def split_command(command: str) -> list[str]:
         ctypes.windll.kernel32.LocalFree(argv)
 
 
-def expand_response_files(tokens: list[str], directory: Path) -> list[str]:
+def _expand_response_files(tokens: list[str], directory: Path) -> list[str]:
     """Inline any ``@response-file`` arguments (paths relative to ``directory``).
 
     GCC response files embed flags that must be expanded so GCC-only flags
@@ -118,8 +118,8 @@ def expand_response_files(tokens: list[str], directory: Path) -> list[str]:
                 rf = directory / rf
             try:
                 out.extend(
-                    expand_response_files(
-                        split_command(rf.read_text(encoding="utf-8")), directory
+                    _expand_response_files(
+                        _split_command(rf.read_text(encoding="utf-8")), directory
                     )
                 )
                 continue
@@ -135,10 +135,10 @@ def _pick_entry(entries: list[dict]) -> dict:
     """Pick a representative ESPHome C++ TU; all share the same component
     flags/defines."""
     for entry in entries:
-        if is_esphome_src(entry["file"]):
+        if _is_esphome_src(entry["file"]):
             return entry
     for entry in entries:
-        if entry["file"].endswith(CXX_SOURCE_SUFFIXES):
+        if entry["file"].endswith(_CXX_SUFFIXES):
             return entry
     raise ValueError("no C++ translation unit found in compile_commands.json")
 
@@ -148,7 +148,7 @@ def _pick_entry(entries: list[dict]) -> dict:
 _LAUNCHER_STEMS = frozenset({"ccache", "sccache", "distcc", "icecc", "buildcache"})
 
 
-def is_launcher(token: str) -> bool:
+def _is_launcher(token: str) -> bool:
     return Path(token).stem.lower() in _LAUNCHER_STEMS
 
 
@@ -166,7 +166,7 @@ def parse_entry(
 ) -> tuple[str, list[str], list[str], list[str]]:
     """Parse one compile_commands entry -> (cxx_path, defines, includes, cxx_flags)."""
     directory = Path(entry["directory"])
-    tokens = expand_response_files(split_command(entry["command"]), directory)
+    tokens = _expand_response_files(_split_command(entry["command"]), directory)
 
     def _include(raw: str) -> str:
         # Resolve against the entry's ``directory`` so cached idedata works
@@ -182,7 +182,7 @@ def parse_entry(
     if not tokens:
         # An empty command, or one that was only the launcher; fail by name
         raise ValueError(f"empty compile command for {entry.get('file')}")
-    if is_launcher(tokens[0]) and len(tokens) > 1 and not tokens[1].startswith("-"):
+    if _is_launcher(tokens[0]) and len(tokens) > 1 and not tokens[1].startswith("-"):
         # Stale DB built with a launcher this run no longer configures; the
         # real compiler is the next token
         _LOGGER.warning("Stripping unconfigured launcher %s", tokens[0])
@@ -200,14 +200,6 @@ def parse_entry(
     for tok in it:
         if tok in ("-c", "-o"):
             next(it, None)  # drop the flag and its argument (input/output)
-        elif tok == "-include" or is_joined_include(tok):
-            # Re-anchor only names next to the compile (the pch); a name
-            # found through the -I chain stays as written
-            raw = next(it, "") if tok == "-include" else tok[len("-include") :]
-            resolved = _include(raw)
-            cxx_flags.extend(
-                ("-include", resolved if Path(resolved).is_file() else raw)
-            )
         elif tok.startswith("-D"):
             # ``.strip()`` handles tokens like ``-D CONFIGURED=1`` (a single
             # quoted arg with a space after -D) that some flags arrive as.
@@ -290,7 +282,7 @@ def _cache_usable(cached: object) -> bool:
     if not isinstance(cached, dict) or "cc_path" not in cached:
         return False
     cxx_path = cached.get("cxx_path")
-    if not isinstance(cxx_path, str) or is_launcher(cxx_path):
+    if not isinstance(cxx_path, str) or _is_launcher(cxx_path):
         return False
     includes = cached.get("includes")
     return isinstance(includes, dict) and isinstance(includes.get("build"), list)
@@ -338,7 +330,7 @@ def load_or_build_idedata(
 def reject_launcher_compiler(cxx_path: str) -> None:
     """Reject a compile DB naming a launcher (ccache) as the compiler; it
     must never be probed, cached, or consumed."""
-    if is_launcher(cxx_path):
+    if _is_launcher(cxx_path):
         raise EsphomeError(
             f"compile_commands.json names the launcher {cxx_path} as the "
             "compiler; the compile database is unusable"
@@ -364,7 +356,7 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
     cxx_path, defines, rep_includes, cxx_flags = parse_entry(representative, launcher)
 
     # Seed with the representative's includes so it is not parsed twice
-    has_esphome_tu = is_esphome_src(representative["file"])
+    has_esphome_tu = _is_esphome_src(representative["file"])
     build_includes: dict[str, None] = dict.fromkeys(
         rep_includes if has_esphome_tu else ()
     )
@@ -384,7 +376,7 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
 
     seen_shapes = {_shape(representative)}
     for entry in entries:
-        if entry is representative or not is_esphome_src(entry["file"]):
+        if entry is representative or not _is_esphome_src(entry["file"]):
             continue
         has_esphome_tu = True
         if (shape := _shape(entry)) in seen_shapes:
