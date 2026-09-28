@@ -4,6 +4,7 @@
 #ifdef USE_LVGL_ANIMATION
 #include "lvgl_esphome.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::lvgl {
 
@@ -110,17 +111,8 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
   }
 
   void start() {
-    if (this->state_ > AnimationState::STOPPED)
-      this->stop();
-    if (this->duration_ == 0)
+    if (!this->prepare_())
       return;
-    // evaluate any lambdas
-    for (size_t i = 0; i != DATA_SIZE; i++) {
-      this->data_from_[i] = this->from_[i].value();
-      this->data_to_[i] = this->to_[i].value();
-    }
-    this->start_time_ = millis();
-    this->state_ = AnimationState::STARTED;
     this->loop();
     this->start_callback_.call();
   }
@@ -143,29 +135,26 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
     if (this->state_ == AnimationState::STOPPED)
       return;
     uint32_t elapsed = millis() - this->start_time_;
-    float progress = static_cast<float>(elapsed) / static_cast<float>(this->duration_);
+    float progress = clamp_at_most(elapsed / static_cast<float>(this->duration_), 1.0f);
     switch (this->state_) {
       case AnimationState::STARTED:
         if (elapsed < this->start_delay_)
           return;
         this->state_ = AnimationState::RUNNING;
         this->start_time_ = millis();
+        elapsed = 0;
         progress = 0.0f;
         break;
       case AnimationState::RUNNING:
-        if (progress >= 1.0f) {
-          progress = 1.0f;
-          this->stop();
-          if (this->loop_)
-            this->start();
-        }
         break;
       default:
         return;
     }
 
+    // state here is RUNNING.
     for (auto *timing : this->timings_) {
-      progress = timing->map_progress(progress);
+      // avoid overshooting
+      progress = clamp_at_most(timing->map_progress(progress), 1.0f);
     }
     lv_coord_t data[DATA_SIZE];
     for (size_t i = 0; i != DATA_SIZE; i++) {
@@ -173,6 +162,12 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
           roundf(this->data_from_[i] + static_cast<lv_coord_t>(this->data_to_[i] - this->data_from_[i]) * progress));
     }
     this->update_callback_(data);
+    if (elapsed >= this->duration_) {
+      this->stop();
+      // Restart without drawing the first frame now, so the final frame is not overwritten before it is shown
+      if (this->loop_ && this->prepare_())
+        this->start_callback_.call();
+    }
   }
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR - 20.0; }
@@ -187,6 +182,22 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
   template<typename F> void add_on_stop_callback(F &&callback) { this->stop_callback_.add(std::forward<F>(callback)); }
 
  protected:
+  // Arms a new run. Returns false if there is nothing to run.
+  bool prepare_() {
+    if (this->state_ > AnimationState::STOPPED)
+      this->stop();
+    if (this->duration_ == 0)
+      return false;
+    // evaluate any lambdas
+    for (size_t i = 0; i != DATA_SIZE; i++) {
+      this->data_from_[i] = this->from_[i].value();
+      this->data_to_[i] = this->to_[i].value();
+    }
+    this->start_time_ = millis();
+    this->state_ = AnimationState::STARTED;
+    return true;
+  }
+
   void (*const update_callback_)(const lv_coord_t *data);
   LazyCallbackManager<void()> start_callback_{};
   LazyCallbackManager<void()> stop_callback_{};

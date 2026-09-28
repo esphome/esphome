@@ -1,0 +1,8 @@
+button:
+  - platform: template
+    name: SCD30 Calibrate
+    on_press:
+      - scd30.force_recalibration_with_reference: 419
+      - scd30.force_recalibration_with_reference:
+          id: co2_scd30
+          value: !lambda return 420;

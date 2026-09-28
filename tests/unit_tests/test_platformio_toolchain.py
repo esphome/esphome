@@ -447,6 +447,47 @@ def test_ccache_env_enabled_by_default(setup_core: Path) -> None:
     assert "ESPHOME_CCACHE_ENABLE" not in os.environ
 
 
+def test_ccache_env_uses_cache_dir_override(setup_core: Path, tmp_path: Path) -> None:
+    """The containers point ccache at their writable cache mount."""
+    CORE.build_path = setup_core / "build" / "test"
+    ccache_dir = tmp_path / "cache" / "platformio-ccache"
+
+    with (
+        patch.dict(
+            os.environ,
+            {"HOME": "/", "ESPHOME_PLATFORMIO_CCACHE_DIR": str(ccache_dir)},
+            clear=True,
+        ),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch("esphome.framework_helpers.subprocess.run"),
+    ):
+        env = toolchain._ccache_env()
+
+    assert env["CCACHE_DIR"] == str(ccache_dir.resolve())
+
+
+def test_ccache_env_ignores_platformio_cache_dir(
+    setup_core: Path, tmp_path: Path
+) -> None:
+    """PLATFORMIO_CACHE_DIR does not move ccache; only the override does."""
+    CORE.build_path = setup_core / "build" / "test"
+    cache_root = tmp_path / "user-cache"
+
+    with (
+        patch.dict(
+            os.environ,
+            {"PLATFORMIO_CACHE_DIR": str(tmp_path / "platformio" / "cache")},
+            clear=True,
+        ),
+        patch("platformdirs.user_cache_dir", return_value=str(cache_root)),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch("esphome.framework_helpers.subprocess.run"),
+    ):
+        env = toolchain._ccache_env()
+
+    assert env["CCACHE_DIR"] == str((cache_root / "platformio-ccache").resolve())
+
+
 @pytest.mark.parametrize(
     ("env_vars", "expect_warning"),
     [
@@ -582,6 +623,7 @@ def test_ccache_env_respects_user_values_and_refreshes_basedir(
     user_env = {
         "CCACHE_DIR": "/custom/cache",
         "CCACHE_BASEDIR": "/stale/other-device",
+        "ESPHOME_PLATFORMIO_CCACHE_DIR": "/mounted/platformio-ccache",
     }
     CORE.build_path = setup_core / "build" / "test"
 
