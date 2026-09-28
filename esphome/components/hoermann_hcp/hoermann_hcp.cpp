@@ -344,6 +344,7 @@ const HoermannHcpCommand *HoermannHcp::take_command_() {
   // rest where the command sends it does not move.
   if (!this->door_state_seen_ || !at_destination(*command, this->door_state_)) {
     this->starting_ = true;
+    this->start_command_ = command;
     this->start_fetched_at_ = millis();
   }
   return command;
@@ -579,7 +580,8 @@ bool HoermannHcp::queue_command_(const HoermannHcpCommand &command) {
 bool HoermannHcp::is_moving_or_starting_() const { return this->starting_ || is_moving(this->door_state_); }
 
 bool HoermannHcp::command_door_(const HoermannHcpCommand &command) {
-  // A moving or starting door is only stopped, so it is never reversed at speed.
+  // A moving or starting door is only stopped, so it is never reversed at speed. This includes a command for the
+  // way it is already moving; only one that was queued before the door started is dropped at the fetch instead.
   if (this->is_moving_or_starting_())
     return this->stop_door();
   // A stop still waiting for a door that has come to rest would be dropped at the fetch anyway.
@@ -675,16 +677,18 @@ void HoermannHcp::set_door_state_(DoorState state) {
     this->door_state_seen_ = true;
     this->changed_ = true;
   }
+  // The door answers a fetched command by moving or by reporting where it sent it, possibly a state it already
+  // held before its first report. Another rest state is not an answer yet.
+  if (this->starting_ && (is_moving(state) || at_destination(*this->start_command_, state))) {
+    // A stop held for the start is due now, so its fetch deadline starts here.
+    if (this->next_command_ == &COMMAND_STOP)
+      this->command_queued_at_ = millis();
+    this->starting_ = false;
+  }
   if (this->door_state_ == state)
     return;
   this->door_state_ = state;
   this->changed_ = true;
-  // Any change after a fetched command is the door's answer to it.
-  if (this->starting_ && this->next_command_ == &COMMAND_STOP && is_moving(state)) {
-    // A stop held for the start is due now, so its fetch deadline starts here.
-    this->command_queued_at_ = millis();
-  }
-  this->starting_ = false;
   if (!is_moving(state)) {
     // A door at rest cannot be restarted by a second stop, as stop_door() sends nothing then.
     this->stop_sent_ = false;

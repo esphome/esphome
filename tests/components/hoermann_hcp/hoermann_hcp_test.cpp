@@ -200,6 +200,45 @@ TEST(HoermannHcpReadWrite, CommandForADoorAlreadyMovingThatWayIsDropped) {
   EXPECT_EQ(poll_command(door).first, 0x0000);
 }
 
+// The same holds for a close queued while the door was open and then started closing from elsewhere.
+TEST(HoermannHcpReadWrite, CloseForADoorAlreadyClosingIsDropped) {
+  TestableHoermannHcp door;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x00C8, 0x2000}));
+  ASSERT_TRUE(door.close_door());
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x00C0, 0x0200}));
+  EXPECT_EQ(poll_command(door).first, 0x0000);
+}
+
+// Another rest state after a fetched start is not the door's answer yet, so the start window stays open.
+TEST(HoermannHcpReadWrite, RestStateAfterAStartKeepsTheWindow) {
+  TestableHoermannHcp door;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0010, 0x0061}));
+  ASSERT_EQ(door.get_door_state(), DoorState::VENT);
+  ASSERT_TRUE(door.open_door());
+  EXPECT_EQ(poll_command(door).first, 0x0110);  // COMMAND_OPEN
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0010, 0x0000}));
+  ASSERT_EQ(door.get_door_state(), DoorState::STOPPED);
+  // Still starting, so a close is only a stop, held until the door moves.
+  ASSERT_TRUE(door.close_door());
+  EXPECT_EQ(poll_command(door).first, 0x0000);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0014, 0x0100}));
+  EXPECT_EQ(poll_command(door).first, 0x0140);  // COMMAND_IMPULSE
+}
+
+// A first report showing the door where the command sent it ends the start window, even without a change.
+TEST(HoermannHcpReadWrite, FirstReportAtTheDestinationEndsTheStart) {
+  TestableHoermannHcp door;
+  connect_controller(door);
+  ASSERT_TRUE(door.close_door());
+  EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x4000}));
+  ASSERT_EQ(door.get_door_state(), DoorState::CLOSED);
+  ASSERT_TRUE(door.open_door());
+  EXPECT_EQ(poll_command(door).first, 0x0110);  // COMMAND_OPEN
+}
+
 // A stop held for a late start report is sent once the door reports moving.
 TEST(HoermannHcpReadWrite, HeldStopSurvivesALateStart) {
   TestableHoermannHcp door;
