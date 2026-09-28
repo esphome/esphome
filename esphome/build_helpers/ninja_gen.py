@@ -18,7 +18,21 @@ from esphome.build_helpers.ninja import (
     quote_path as _q,
     shell_token as _shell_token,
 )
+from esphome.build_helpers.pch import (
+    PCH_HEADER_NAME,
+    log_pch_in_use,
+    mark_pch_emitted,
+    pch_consumer_escalation,
+    pch_degraded,
+    pch_disabled_degraded,
+    pch_enabled,
+    pch_header_text,
+    pch_identity,
+    pch_probe_args,
+    pch_strict,
+)
 from esphome.framework_helpers import strip_win_long_path_prefix
+from esphome.helpers import write_file_if_changed
 from esphome.platformio.library import SOURCE_KIND_FOR_SUFFIX
 
 if TYPE_CHECKING:
@@ -105,6 +119,91 @@ def pch_rule_lines() -> list[str]:
         "  deps = gcc",
         "  description = PCH $out",
     ]
+
+
+def pch_edges(
+    lines: list[str],
+    build_dir: Path,
+    src_dir: Path,
+    headers: Sequence[str],
+    cxxflags: Sequence[str],
+    src_flags: Sequence[str],
+    ccache: str | None,
+    identity: Sequence[str],
+) -> tuple[str, str] | None:
+    """Emit the precompiled header for the C++ src edges.
+
+    ``headers`` are folded into one prefix header, ``src_flags`` are the
+    flags every src edge carries, and ``identity`` names what the compile
+    depends on beyond the headers and flags (versioned install paths).
+    Returns the ``cxx_override`` for ``compile_edges``, or None when the
+    build goes without a precompiled header.
+    """
+    if not pch_enabled():
+        pch_disabled_degraded()
+        return None
+    if any(tok.startswith("-include") for tok in cxxflags):
+        # $cxxflags expands first, so a user -include there means GCC would
+        # never load the .gch
+        _LOGGER.warning(
+            "A -include in build_flags prevents the precompiled header from "
+            "loading; compiling without it"
+        )
+        pch_degraded("a user -include precedes the pch")
+        return None
+    pch_header = build_dir / PCH_HEADER_NAME
+    checksum = None
+    if ccache:
+        # The .sum exists only for CCACHE_PCH_EXTSUM; ninja's depfile
+        # handles staleness
+        checksum = pch_identity(cxxflags, src_dir, tuple(headers), identity)
+        if checksum is None:
+            # Identity unknown: pch_identity warned and degraded
+            return None
+    log_pch_in_use()
+    write_file_if_changed(pch_header, pch_header_text(headers))
+    sum_path = build_dir / f"{PCH_HEADER_NAME}.gch.sum"
+    if checksum is not None:
+        # Generate-time stamp: a hand-run ninja can rebuild the .gch
+        # while this .sum lags
+        write_file_if_changed(sum_path, checksum + "\n")
+    else:
+        # A stale .sum from an earlier ccache run must not survive
+        sum_path.unlink(missing_ok=True)
+    gch = _e(f"{PCH_HEADER_NAME}.gch")
+    lines.append(f"build {gch}: pch {_e(pch_header)}")
+    if src_flags:
+        lines.append(f"  flags = {' '.join(src_flags)}")
+    # Relative -include: absolute would break cross-device ccache.
+    # -Wno-error keeps a rejected .gch a warning under user -Werror;
+    # strict inverts it so any consumer rejection reds the build
+    # (rejection is per-process, so the probe alone cannot prove
+    # the consumers)
+    cxx_parts = [
+        *src_flags,
+        f"-Winvalid-pch {pch_consumer_escalation()} -include {PCH_HEADER_NAME}",
+    ]
+    lines.append(f"srccxxflags = {' '.join(cxx_parts)}")
+    pch_dep = gch
+    if pch_strict():
+        # Consumers wait on the probe stamp, so an unloadable .gch
+        # reds the build here instead of warning ~100 times
+        probe = " ".join(pch_probe_args(PCH_HEADER_NAME, source=os.devnull))
+        lines.append("rule pchprobe")
+        # $out only expands in rule text, hence the inline stamp
+        lines.append(
+            f"  command = $cxx $cxxflags $flags {probe}"
+            " && $python $buildtool touch $out"
+        )
+        lines.append("  description = PCHPROBE $out")
+        # Runs when the .gch is (re)built; strict consumer -Werror
+        # covers a cached .gch this process cannot load
+        lines.append(f"build esphome_pch.probe: pchprobe {gch}")
+        if src_flags:
+            lines.append(f"  flags = {' '.join(src_flags)}")
+        pch_dep = f"{gch} esphome_pch.probe"
+    mark_pch_emitted()
+    return ("$srccxxflags", pch_dep)
 
 
 def ar_rule_lines(ar: Path | str) -> list[str]:
