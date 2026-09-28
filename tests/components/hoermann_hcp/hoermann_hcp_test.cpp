@@ -78,7 +78,9 @@ TEST(HoermannHcpReadWrite, DoorCommandIsSentOnceAndFreesTheSlot) {
 
   EXPECT_EQ(poll_command(door).first, 0x0110);  // COMMAND_OPEN
   EXPECT_EQ(poll_command(door).first, 0x0000);
-  // With the command fetched, the next one is accepted right away.
+  // Once the door has run and come to rest, the slot takes the next command.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0100}));
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x00C8, 0x2000}));
   EXPECT_TRUE(door.close_door());
   EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
 }
@@ -109,6 +111,73 @@ TEST(HoermannHcpReadWrite, SecondStopWithinHalfASecondIsIgnored) {
   door.last_stop_at_ -= 500;
   EXPECT_TRUE(door.stop_door());
   EXPECT_EQ(poll_command(door).first, 0x0140);
+}
+
+// A stop outranks a command still waiting, so a door at rest does not start after it.
+TEST(HoermannHcpReadWrite, StopCancelsAnUnfetchedCommand) {
+  TestableHoermannHcp door;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x4000}));
+  ASSERT_TRUE(door.open_door());
+  EXPECT_TRUE(door.stop_door());
+  EXPECT_EQ(poll_command(door).first, 0x0000);
+}
+
+// The impulse would start a door that came to rest while the stop waited, so the stop is dropped instead.
+TEST(HoermannHcpReadWrite, StopIsDroppedWhenTheDoorRestsBeforeTheFetch) {
+  TestableHoermannHcp door;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0100}));
+  ASSERT_TRUE(door.stop_door());
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x00C8, 0x2000}));
+  EXPECT_EQ(poll_command(door).first, 0x0000);
+}
+
+// Until the door reports the start it reads as at rest, so a command in between only stops it, once it moves.
+TEST(HoermannHcpReadWrite, CommandBeforeTheStartIsReportedBecomesAStop) {
+  TestableHoermannHcp door;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x4000}));
+  ASSERT_TRUE(door.open_door());
+  EXPECT_EQ(poll_command(door).first, 0x0110);  // COMMAND_OPEN
+
+  EXPECT_TRUE(door.close_door());
+  EXPECT_EQ(poll_command(door).first, 0x0000);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0004, 0x0100}));
+  EXPECT_EQ(poll_command(door).first, 0x0140);  // COMMAND_IMPULSE
+}
+
+// A door that never reports moving after its command is at rest after all, so later commands are its own.
+TEST(HoermannHcpReadWrite, StartWindowClosesWhenTheDoorNeverMoves) {
+  TestableHoermannHcp door;
+  door.connection_timeout_ms_ = 20;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x4000}));
+  ASSERT_TRUE(door.open_door());
+  EXPECT_EQ(poll_command(door).first, 0x0110);  // COMMAND_OPEN
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  connect_controller(door);
+  door.update();
+
+  EXPECT_TRUE(door.open_door());
+  EXPECT_EQ(poll_command(door).first, 0x0110);
+}
+
+// Only the read half of a status poll carries a command, so a second read without a new write gets none.
+TEST(HoermannHcpReadWrite, SecondReadWithoutAWriteCarriesNoCommand) {
+  TestableHoermannHcp door;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x4000}));
+  door.on_write_registers(COMMAND_REG, make_registers({0x0003, 0x0000}));
+  RegisterValues first;
+  door.on_read_holding_registers(STATE_REG, 8, first);
+  ASSERT_TRUE(door.open_door());
+  RegisterValues second;
+  door.on_read_holding_registers(STATE_REG, 8, second);
+  ASSERT_EQ(second.size(), 8u);
+  EXPECT_EQ(second[2], 0x0000);
+  // The next status poll takes it.
+  EXPECT_EQ(poll_command(door).first, 0x0110);  // COMMAND_OPEN
 }
 
 // A start does not hold off the stop that follows it.

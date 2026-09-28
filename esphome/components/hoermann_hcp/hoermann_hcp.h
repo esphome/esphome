@@ -134,6 +134,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // Recomputes the reported position from position_raw_ and the current door state.
   void update_current_position_();
   bool has_target_() const { return this->target_position_ != 0.0f; }
+  bool is_moving_or_starting_() const;
   void clear_target_();
   void set_light_on_(bool on);
   void set_light_seen_(bool seen);
@@ -151,8 +152,12 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   uint32_t last_response_{0};
   // Start of the wait for the fetch, then for the report.
   uint32_t light_since_{0};
+  // When the last stop impulse went out.
   uint32_t last_stop_at_{0};
+  uint32_t start_fetched_at_{0};
   bool stop_sent_{false};
+  // A door command was fetched and the door has not reported moving yet.
+  bool starting_{false};
 
   // Drop the "connected" flag if the bus controller has not polled us for this long.
   uint16_t connection_timeout_ms_{2000};
@@ -164,8 +169,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   uint16_t command_reg_value_{0};
 
   DoorState door_state_{DoorState::CLOSED};
-  // Direction the door was started in for the current target. A target armed while the door is still travelling
-  // the other way must not be judged by the reported direction until the door has turned around.
+  // Direction the door was started in for the current target, judged only once the door reports moving that way.
   DoorState target_direction_{DoorState::STOPPED};
   // Position as reported by the bus controller, 0..200 across the full travel.
   uint8_t position_raw_{0};
@@ -179,6 +183,8 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool light_target_{false};
   bool door_state_seen_{false};
   bool short_broadcast_logged_{false};
+  // Set by the write half of a 0x17 request, taken by its read half.
+  bool status_poll_pending_{false};
 
 #ifdef USE_HOERMANN_HCP_IDENTITY
   uint32_t identity_asked_at_{0};

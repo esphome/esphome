@@ -275,9 +275,58 @@ TEST(HoermannHcpLightTest, DoorCommandGoesBeforeTheLampCommand) {
   ASSERT_TRUE(door.close_door());
 
   EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
+  // The lamp waits for the door to report the start, which may switch the lamp on its own.
+  EXPECT_EQ(poll_command(door).first, 0x0000);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0200, 0x0000, 0x0000, 0x0000, 0x0000}));
   auto [light, light_2] = poll_command(door);
   EXPECT_EQ(light, LIGHT_TOGGLE);
   EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
+  EXPECT_EQ(poll_command(door).first, 0x0000);
+}
+
+// Switching a lit lamp off sends the same toggle as switching it on.
+TEST(HoermannHcpLightTest, OffSendsTheSameToggle) {
+  TestableHoermannHcp door;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));
+  ASSERT_TRUE(door.set_light(false));
+  auto [light, light_2] = poll_command(door);
+  EXPECT_EQ(light, LIGHT_TOGGLE);
+  EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
+  EXPECT_FALSE(door.is_light_heading_on());
+  EXPECT_EQ(poll_command(door).first, 0x0000);
+}
+
+// A toggle sent again after the lamp moved away from a changed request gets its own deadline.
+TEST(HoermannHcpLightTest, ToggleAgainRestartsTheDeadline) {
+  TestableHoermannHcp door;
+  door.connection_timeout_ms_ = 60;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
+  ASSERT_TRUE(door.set_light(true));
+  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
+  std::this_thread::sleep_for(std::chrono::milliseconds(40));
+  ASSERT_TRUE(door.set_light(false));
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));  // the first toggle lands
+  std::this_thread::sleep_for(std::chrono::milliseconds(35));
+  connect_controller(door);
+  door.update();
+  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
+}
+
+// A lamp the motor switches on as the door starts gets no toggle, which would switch it off again.
+TEST(HoermannHcpLightTest, LampSwitchedOnByTheStartGetsNoToggle) {
+  TestableHoermannHcp door;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
+  ASSERT_TRUE(door.set_light(true));
+  ASSERT_TRUE(door.close_door());
+
+  EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
+  EXPECT_EQ(poll_command(door).first, 0x0000);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0200, 0x0000, 0x0000, 0x0000, 0x0010}));
+  EXPECT_TRUE(door.is_light_on());
   EXPECT_EQ(poll_command(door).first, 0x0000);
 }
 
@@ -332,6 +381,9 @@ TEST(HoermannHcpLightTest, LampCommandDoesNotExtendTheTargetWatchdog) {
   consume_command(door);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  // The door never started, so the start window closes along with the target.
+  consume_command(door);
+  door.update();
   ASSERT_TRUE(door.set_light(true));
   consume_command(door);
   door.update();
