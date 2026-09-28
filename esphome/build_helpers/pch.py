@@ -305,6 +305,8 @@ def prepare_pch(build_dir: Path, identity_file: Path, extra: Iterable[str]) -> N
             and sum_path.read_text(encoding="utf-8").strip() == checksum
         ):
             return
+        # A .sum only ever sits next to the .gch it was written for
+        sum_path.unlink(missing_ok=True)
         result = subprocess.run(
             cmd, cwd=cmd_dir, capture_output=True, text=True, check=False
         )
