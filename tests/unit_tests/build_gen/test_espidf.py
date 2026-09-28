@@ -524,9 +524,9 @@ def _make_pch_device(tmp_path: Path, name: str) -> Path:
     (dev / "sdkconfig.test").write_text("CONFIG_X=y\n")
     build = dev / "build"
     build.mkdir(exist_ok=True)
-    from esphome.build_helpers.pch import pch_header_text
+    from esphome.build_helpers.pch import write_pch_headers
 
-    (build / "esphome_pch.h").write_text(pch_header_text(PCH_DEFAULT_HEADERS))
+    write_pch_headers(build, PCH_DEFAULT_HEADERS)
     src_file = str(dev / "src" / "esphome" / "a.cpp")
     _write_db(
         build,
@@ -544,8 +544,12 @@ def _prepare(dev: Path, name: str = "test", returncode: int = 0) -> str:
     CORE.build_path = dev
 
     def compile_(cmd, **kwargs):
-        # The compile must target the header
-        assert cmd[-5:-3] == ["c++-header", "-c"]
+        # The compile must target the include list, not the guard header
+        assert cmd[-5:-2] == [
+            "c++-header",
+            "-c",
+            str(dev / "build" / "esphome_pch_src.h"),
+        ]
         if returncode == 0:
             (dev / "build" / "esphome_pch.h.gch").write_bytes(b"gch")
         return subprocess.CompletedProcess(cmd, returncode, "", "boom")
@@ -569,6 +573,8 @@ def test_prepare_pch_writes_header_and_sum(tmp_path: Path) -> None:
 
     dev = _make_pch_device(tmp_path, "dev_a")
     assert len(_prepare(dev).strip()) == 64
+    # A compiler that skips the .gch reads this header: it must be an error
+    assert "#error" in (dev / "build" / "esphome_pch.h").read_text()
     # Unchanged inputs: the second call must not recompile
     with (
         patch.object(CORE, "name", "test"),
