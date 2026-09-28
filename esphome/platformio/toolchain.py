@@ -290,8 +290,7 @@ def copy_ccache_script() -> None:
 
 
 def copy_pch_script() -> None:
-    """Copy the shared precompiled-header SCons post-script into the build
-    dir; the project generator registers it as ``post:pch.py``."""
+    """Copy the precompiled header SCons script into the build dir."""
     copy_file_if_changed(
         Path(__file__).parent / "pch.py.script",
         CORE.relative_build_path("pch.py"),
