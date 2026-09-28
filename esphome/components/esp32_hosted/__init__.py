@@ -17,7 +17,6 @@ from esphome.const import (
     CONF_NAME,
     CONF_REF,
     CONF_RESET_PIN,
-    CONF_SOURCE,
     CONF_TYPE,
     CONF_VARIANT,
     KEY_ESP32,
@@ -157,28 +156,22 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-# Version specs that stay within one major (exact, ^, ~, ~=); open ranges don't
+# Version specs that stay within one major (exact, ^, ~, ~=); anything else is 2.x
 _PINNED_MAJOR = re.compile(r"^(?:==|\^|~=|~)?(\d+)(?:\.(?:\d+|\*))*$")
 
 
 def user_esp_hosted_major() -> int | None:
-    """Major version of a user-pinned esp_hosted, or None."""
+    """Major version of a user-pinned esp_hosted, or None if it cannot be told."""
     try:
         full_config = fv.full_config.get()
     except LookupError:
         full_config = CORE.config
     esp32_config = full_config.get(KEY_ESP32) or {}
     for component in esp32_config.get(CONF_FRAMEWORK, {}).get(CONF_COMPONENTS, []):
-        if component.get(CONF_NAME) != ESP_HOSTED_COMPONENT or CONF_SOURCE in component:
+        if component.get(CONF_NAME) != ESP_HOSTED_COMPONENT:
             continue
-        ref = component.get(CONF_REF, "")
-        if match := _PINNED_MAJOR.match(ref.strip()):
+        if match := _PINNED_MAJOR.match(component.get(CONF_REF, "").strip()):
             return int(match.group(1))
-        raise cv.Invalid(
-            f"{ESP_HOSTED_COMPONENT} in esp32.framework.components needs an exact "
-            f"version such as 'ref: 3.0.9' (got {ref!r}): esp32_hosted has to know "
-            "whether the 2.x or the 3.x line is in use to configure it."
-        )
     return None
 
 
