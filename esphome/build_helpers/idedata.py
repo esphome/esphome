@@ -59,7 +59,7 @@ _INPUT_FILE_SUFFIXES = (*CXX_SOURCE_SUFFIXES, ".c", ".o", ".S", ".s")
 _ESPHOME_SRC_MARKER = "/src/esphome/"
 
 
-def _is_esphome_src(file: str) -> bool:
+def is_esphome_src(file: str) -> bool:
     """Whether ``file`` is an ESPHome C++ translation unit; normalized to
     ``/`` first since Windows compile DBs use backslashes."""
     return _ESPHOME_SRC_MARKER in file.replace("\\", "/") and file.endswith(
@@ -135,7 +135,7 @@ def _pick_entry(entries: list[dict]) -> dict:
     """Pick a representative ESPHome C++ TU; all share the same component
     flags/defines."""
     for entry in entries:
-        if _is_esphome_src(entry["file"]):
+        if is_esphome_src(entry["file"]):
             return entry
     for entry in entries:
         if entry["file"].endswith(CXX_SOURCE_SUFFIXES):
@@ -195,7 +195,6 @@ def parse_entry(
     defines: list[str] = []
     includes: list[str] = []
     cxx_flags: list[str] = []
-    unresolved_force_includes: list[str] = []
 
     it = iter(tokens[1:])
     for tok in it:
@@ -203,15 +202,12 @@ def parse_entry(
             next(it, None)  # drop the flag and its argument (input/output)
         elif tok == "-include" or is_joined_include(tok):
             # Re-anchor only names next to the compile (the pch); a name
-            # meant for the -I chain must stay untouched
+            # found through the -I chain stays as written
             raw = next(it, "") if tok == "-include" else tok[len("-include") :]
-            if not raw:
-                _LOGGER.warning("Dropping -include with no argument")
-            elif Path(resolved := _include(raw)).is_file():
-                cxx_flags.extend(("-include", resolved))
-            else:
-                unresolved_force_includes.append(raw)
-                cxx_flags.extend(("-include", raw))
+            resolved = _include(raw)
+            cxx_flags.extend(
+                ("-include", resolved if Path(resolved).is_file() else raw)
+            )
         elif tok.startswith("-D"):
             # ``.strip()`` handles tokens like ``-D CONFIGURED=1`` (a single
             # quoted arg with a space after -D) that some flags arrive as.
@@ -230,14 +226,6 @@ def parse_entry(
             pass  # input/output files
         else:
             cxx_flags.append(tok)
-    for raw in unresolved_force_includes:
-        # A deleted build artifact would otherwise surface only downstream
-        if not any((Path(inc) / raw).is_file() for inc in includes):
-            _LOGGER.warning(
-                "-include %s found neither next to the compile nor on the "
-                "include path; cached idedata may not resolve it",
-                raw,
-            )
     return cxx_path, defines, includes, cxx_flags
 
 
@@ -376,7 +364,7 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
     cxx_path, defines, rep_includes, cxx_flags = parse_entry(representative, launcher)
 
     # Seed with the representative's includes so it is not parsed twice
-    has_esphome_tu = _is_esphome_src(representative["file"])
+    has_esphome_tu = is_esphome_src(representative["file"])
     build_includes: dict[str, None] = dict.fromkeys(
         rep_includes if has_esphome_tu else ()
     )
@@ -396,7 +384,7 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
 
     seen_shapes = {_shape(representative)}
     for entry in entries:
-        if entry is representative or not _is_esphome_src(entry["file"]):
+        if entry is representative or not is_esphome_src(entry["file"]):
             continue
         has_esphome_tu = True
         if (shape := _shape(entry)) in seen_shapes:
