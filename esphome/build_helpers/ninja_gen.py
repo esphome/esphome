@@ -18,7 +18,16 @@ from esphome.build_helpers.ninja import (
     quote_path as _q,
     shell_token as _shell_token,
 )
+from esphome.build_helpers.pch import (
+    PCH_HEADER_NAME,
+    log_pch_in_use,
+    pch_consumer_flags,
+    pch_enabled,
+    pch_header_text,
+    pch_identity,
+)
 from esphome.framework_helpers import strip_win_long_path_prefix
+from esphome.helpers import write_file_if_changed
 from esphome.platformio.library import SOURCE_KIND_FOR_SUFFIX
 
 if TYPE_CHECKING:
@@ -94,6 +103,71 @@ def compile_rule_lines() -> list[str]:
     ]
 
 
+def pch_rule_lines() -> list[str]:
+    """The precompiled header rule, for a generator that emits one."""
+    return [
+        # No $ccache: the .gch is compiled once per build dir and ccache
+        # cannot cache it usefully (its bytes embed build-dir paths)
+        "rule pch",
+        "  command = $cxx -MMD -MF $out.d -x c++-header $cxxflags $flags -c $in -o $out",
+        "  depfile = $out.d",
+        "  deps = gcc",
+        "  description = PCH $out",
+    ]
+
+
+def pch_edges(
+    lines: list[str],
+    build_dir: Path,
+    src_dir: Path,
+    headers: Sequence[str],
+    cxxflags: Sequence[str],
+    src_flags: Sequence[str],
+    ccache: str | None,
+    identity: Sequence[str],
+) -> tuple[str, str] | None:
+    """Emit the precompiled header for the C++ src edges.
+
+    ``headers`` are folded into one prefix header, ``src_flags`` are the
+    flags every src edge carries, and ``identity`` names what the compile
+    depends on beyond the headers and flags (versioned install paths).
+    Returns the ``cxx_override`` for ``compile_edges``, or None when the
+    build goes without a precompiled header.
+    """
+    if not pch_enabled():
+        return None
+    if any(tok.startswith("-include") for tok in cxxflags):
+        # $cxxflags expands first, so a user -include there means GCC would
+        # never load the .gch
+        _LOGGER.warning(
+            "A -include in build_flags prevents the precompiled header from "
+            "loading; compiling without it"
+        )
+        return None
+    pch_header = build_dir / PCH_HEADER_NAME
+    checksum = None
+    if ccache:
+        # The .sum exists only for CCACHE_PCH_EXTSUM; ninja's depfile
+        # handles staleness
+        checksum = pch_identity(cxxflags, src_dir, tuple(headers), identity)
+    log_pch_in_use()
+    write_file_if_changed(pch_header, pch_header_text(headers))
+    sum_path = build_dir / f"{PCH_HEADER_NAME}.gch.sum"
+    if checksum is not None:
+        # Generate-time stamp: a hand-run ninja can rebuild the .gch
+        # while this .sum lags
+        write_file_if_changed(sum_path, checksum + "\n")
+    else:
+        # A stale .sum from an earlier ccache run must not survive
+        sum_path.unlink(missing_ok=True)
+    gch = _e(f"{PCH_HEADER_NAME}.gch")
+    lines.append(f"build {gch}: pch {_e(pch_header)}")
+    if src_flags:
+        lines.append(f"  flags = {' '.join(src_flags)}")
+    lines.append(f"srccxxflags = {' '.join([*src_flags, *pch_consumer_flags()])}")
+    return ("$srccxxflags", gch)
+
+
 def ar_rule_lines(ar: Path | str) -> list[str]:
     return [
         "rule ar",
@@ -111,20 +185,26 @@ def compile_edges(
     group: str,
     flags: str = "",
     own_includes: str = "",
+    cxx_override: tuple[str, str] | None = None,
 ) -> list[str]:
-    """Emit compile edges for ``sources``; return the object paths."""
+    """Emit compile edges for ``sources``; return the object paths.
+
+    ``cxx_override`` is a (flags, implicit-dep) pair applied to C++ edges
+    only, replacing ``flags`` (used for the precompiled header).
+    """
     objects = []
     for src in sources:
         rel = src.relative_to(root).as_posix()
         obj = f"obj/{group}/{rel}.o"
         escaped_obj = _e(obj)
-        lines.append(
-            f"build {escaped_obj}: {SOURCE_KIND_FOR_SUFFIX[src.suffix]} {_e(src)}"
-        )
+        kind = SOURCE_KIND_FOR_SUFFIX[src.suffix]
+        override = cxx_override if kind == "cxx" else None
+        implicit = f" | {override[1]}" if override else ""
+        lines.append(f"build {escaped_obj}: {kind} {_e(src)}{implicit}")
         if own_includes:
             lines.append(f"  own_includes = {own_includes}")
-        if flags:
-            lines.append(f"  flags = {flags}")
+        if edge_flags := override[0] if override else flags:
+            lines.append(f"  flags = {edge_flags}")
         # Escaped once here: the returned paths only ever appear in build
         # statements (archive/link inputs), which use ninja escaping
         objects.append(escaped_obj)
