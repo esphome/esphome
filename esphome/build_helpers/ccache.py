@@ -111,6 +111,9 @@ def ccache_env(ccache: str | None, tools_cache: tuple[str, str]) -> dict[str, st
     """
     if ccache is None:
         return {}
+    from esphome.build_helpers.pch import ccache_pch_env
     from esphome.build_helpers.tools_cache import tools_cache_path
 
-    return ccache_defaults_env(tools_cache_path(*tools_cache) / "ccache")
+    env = ccache_defaults_env(tools_cache_path(*tools_cache) / "ccache")
+    env.update(ccache_pch_env())
+    return env

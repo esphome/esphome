@@ -165,3 +165,30 @@ def test_ccache_defaults_env_escapes_a_dollar(
     env = ccache.ccache_defaults_env(tmp_path / "c$d")
     assert env["CCACHE_DIR"].endswith("c$$d")
     assert env["CCACHE_BASEDIR"].endswith("a$$b")
+
+
+def _pch_ccache_env(tmp_path: Path, environ: dict[str, str]) -> dict[str, str]:
+    CORE.build_path = tmp_path / "build"
+    spec = ("ESPHOME_TEST_PREFIX", "test")
+    environ = {"ESPHOME_TEST_PREFIX": str(tmp_path / "cache"), **environ}
+    with patch.dict(os.environ, environ, clear=True):
+        return ccache.ccache_env("/usr/bin/ccache", spec)
+
+
+def test_ccache_env_includes_pch_settings(tmp_path: Path) -> None:
+    """A native build exports the ccache settings the pch needs."""
+    env = _pch_ccache_env(tmp_path, {})
+    assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
+    assert env["CCACHE_PCH_EXTSUM"] == "true"
+
+
+def test_ccache_env_pch_disabled(tmp_path: Path) -> None:
+    env = _pch_ccache_env(tmp_path, {"ESPHOME_PCH_ENABLE": "0"})
+    assert "CCACHE_SLOPPINESS" not in env
+    assert "CCACHE_PCH_EXTSUM" not in env
+
+
+def test_ccache_env_user_values_win(tmp_path: Path) -> None:
+    env = _pch_ccache_env(tmp_path, {"CCACHE_SLOPPINESS": "locale"})
+    assert "CCACHE_SLOPPINESS" not in env
+    assert env["CCACHE_PCH_EXTSUM"] == "true"
