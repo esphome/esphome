@@ -34,6 +34,14 @@ _LOGGER = logging.getLogger(__name__)
 PCH_HEADER_NAME = "esphome_pch.h"
 _PCH_COMMAND_CACHE = f"{PCH_HEADER_NAME}.cmd.json"
 
+# Every artifact the pch machinery can leave behind, for cleanup
+PCH_ARTIFACT_NAMES = (
+    PCH_HEADER_NAME,
+    f"{PCH_HEADER_NAME}.gch",
+    f"{PCH_HEADER_NAME}.gch.sum",
+    _PCH_COMMAND_CACHE,
+)
+
 # The core defines header every backend anchors its prefix on
 PCH_CORE_HEADER = "esphome/core/defines.h"
 
@@ -43,6 +51,18 @@ PCH_PREFIX_HEADER = "esphome/core/pch_prefix.h"
 # defines.h first so USE_* macros exist for the rest. The curated headers
 # become visible in every src TU; ESPHOME_PCH_ENABLE=0 restores the strict view
 PCH_DEFAULT_HEADERS = (PCH_CORE_HEADER, PCH_PREFIX_HEADER)
+
+# PlatformIO platforms that do not take the pch script
+PCH_SCRIPT_EXCLUDED_PLATFORMS = frozenset(
+    {
+        "bk72xx",
+        "esp32",
+        "ln882x",
+        "nrf52",
+        "rp2",
+        "rtl87xx",
+    }
+)
 
 # ccache cannot hash through a .gch; CCACHE_PCH_EXTSUM makes it hash the
 # .sum sidecar instead of the .gch bytes, which are not reproducible
@@ -101,6 +121,13 @@ def ccache_pch_env() -> dict[str, str]:
     if not pch_enabled():
         return {}
     return {k: v for k, v in CCACHE_PCH_ENV.items() if k not in os.environ}
+
+
+def pch_script_enabled() -> bool:
+    """Whether this PlatformIO build takes the pch script."""
+    from esphome.core import CORE
+
+    return pch_enabled() and CORE.target_platform not in PCH_SCRIPT_EXCLUDED_PLATFORMS
 
 
 def pch_header_text(include_headers: Iterable[str]) -> str:

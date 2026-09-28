@@ -9,6 +9,8 @@ from unittest.mock import patch
 import pytest
 
 from esphome.build_helpers import pch
+from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM
+from esphome.core import CORE
 
 
 def _write(src_dir: Path, name: str, content: str) -> None:
@@ -117,6 +119,19 @@ def test_include_closure_fails_closed_on_unreadable(
     finally:
         locked.chmod(0o644)
     assert "Could not read locked.h" in caplog.text
+
+
+def test_pch_script_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp8266"}
+    assert pch.pch_script_enabled()
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    assert not pch.pch_script_enabled()
+
+
+def test_pch_script_excluded_platform() -> None:
+    excluded = next(iter(pch.PCH_SCRIPT_EXCLUDED_PLATFORMS))
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: excluded}
+    assert not pch.pch_script_enabled()
 
 
 def test_include_closure_raises_when_identity_unknown(
