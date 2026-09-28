@@ -93,6 +93,13 @@ def test_get_configured_targets_ci_installs_all(monkeypatch: pytest.MonkeyPatch)
     assert toolchain._get_configured_targets() is None
 
 
+@pytest.fixture(autouse=True)
+def _no_ccache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Deterministic run_compile: no host ccache probe, no pch work."""
+    monkeypatch.setenv("IDF_CCACHE_ENABLE", "0")
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+
+
 def _setup_build(setup_core: Path) -> tuple[Path, Path]:
     """Point CORE at a build dir; return (compile_commands, idedata cache) paths."""
     CORE.name = "test"
@@ -842,6 +849,27 @@ def test_run_compile_without_compile_process_limit(setup_core: Path) -> None:
         assert toolchain.run_compile(config, verbose=False) == 0
 
     mock_run.assert_called_once_with("build", "size", jobs=None)
+
+
+def test_run_compile_writes_the_pch_checksum_before_the_build(
+    setup_core: Path,
+) -> None:
+    _setup_build(setup_core)
+    order: list[str] = []
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(
+            toolchain, "run_idf_py", side_effect=lambda *a, **k: order.append("build")
+        ),
+        patch.object(toolchain, "print_summary"),
+        patch(
+            "esphome.build_gen.espidf.write_pch_checksum",
+            side_effect=lambda: order.append("checksum"),
+        ),
+    ):
+        toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
+    assert order[:2] == ["checksum", "build"]
 
 
 def test_get_core_framework_version_from_core_data():

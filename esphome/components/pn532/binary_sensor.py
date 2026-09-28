@@ -34,6 +34,8 @@ def validate_uid(value: Any) -> str:
 
 PN532BinarySensor = pn532_ns.class_("PN532BinarySensor", binary_sensor.BinarySensor)
 
+_request_binary_sensor_slot = cg.slot_counter("PN532_BINARY_SENSOR_COUNT")
+
 CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(PN532BinarySensor).extend(
     {
         cv.GenerateID(CONF_PN532_ID): cv.use_id(PN532),
@@ -46,6 +48,7 @@ async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
 
     hub = await cg.get_variable(config[CONF_PN532_ID])
+    _request_binary_sensor_slot(str(hub))
     cg.add(hub.register_tag(var))
     addr = [HexInt(int(x, 16)) for x in config[CONF_UID].split("-")]
     cg.add(var.set_uid(addr))

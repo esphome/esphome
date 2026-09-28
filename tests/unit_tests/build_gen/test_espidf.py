@@ -547,3 +547,78 @@ def test_get_component_cmakelists_no_compile_features() -> None:
         content = get_component_cmakelists()
 
     assert "target_compile_features" not in content
+
+
+def _make_pch_project(tmp_path: Path) -> Path:
+    """A build path with the core headers, an sdkconfig and a lock file."""
+    from esphome.build_helpers.pch import PCH_DEFAULT_HEADERS
+
+    CORE.build_path = tmp_path
+    for header in PCH_DEFAULT_HEADERS:
+        path = tmp_path / "src" / header
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('#include "esphome/core/defines.h"\n')
+    (tmp_path / "src" / "esphome" / "core" / "defines.h").write_text("#define M 1\n")
+    (tmp_path / "sdkconfig.test").write_text("CONFIG_X=y\n")
+    (tmp_path / "dependencies.lock").write_text("espressif/mdns: 1.12.0\n")
+    return tmp_path
+
+
+def _pch_checksum() -> str:
+    from esphome.build_gen.espidf import _PCH_SUM_PATH, write_pch_checksum
+
+    with patch.object(CORE, "name", "test"):
+        write_pch_checksum()
+    return CORE.relative_build_path(_PCH_SUM_PATH).read_text()
+
+
+def test_component_cmakelists_pch_block(monkeypatch: pytest.MonkeyPatch) -> None:
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        "target_precompile_headers(${COMPONENT_LIB} PRIVATE\n"
+        '    "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/'
+        'esphome/core/pch_prefix.h>"\n)'
+    ) in content
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    assert "target_precompile_headers" not in get_component_cmakelists()
+
+
+@pytest.mark.parametrize(
+    ("file", "content"),
+    [
+        ("src/esphome/core/defines.h", "#define M 2\n"),
+        ("sdkconfig.test", "CONFIG_X=n\n"),
+        ("dependencies.lock", "espressif/mdns: 1.13.0\n"),
+    ],
+)
+def test_pch_checksum_tracks_its_inputs(
+    tmp_path: Path, file: str, content: str
+) -> None:
+    """The checksum stands in for the .gch in ccache, so it has to change
+    with a core header, the sdkconfig and a managed component version."""
+    project = _make_pch_project(tmp_path)
+    first = _pch_checksum()
+    assert len(first.strip()) == 64
+    (project / file).write_text(content)
+    assert _pch_checksum() != first
+
+
+def test_pch_checksum_is_the_same_for_two_devices(tmp_path: Path) -> None:
+    sums = []
+    for name in ("dev_a", "dev_b"):
+        _make_pch_project(tmp_path / name)
+        sums.append(_pch_checksum())
+    assert sums[0] == sums[1]
+
+
+def test_pch_checksum_disabled_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from esphome.build_gen.espidf import _PCH_SUM_PATH, write_pch_checksum
+
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    _make_pch_project(tmp_path)
+    write_pch_checksum()
+    assert not CORE.relative_build_path(_PCH_SUM_PATH).exists()
