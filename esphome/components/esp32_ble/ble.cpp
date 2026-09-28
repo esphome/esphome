@@ -255,8 +255,6 @@ bool ESP32BLE::ble_setup_() {
   ESP_LOGD(TAG, "Co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32, fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
 
 #ifdef CONFIG_ESP_HOSTED_HOST_FEAT_BT
-  // Brings the remote controller up and attaches bluedroid's HCI driver to
-  // the hosted transport.
   esp_hosted_bt_host_stack_cfg_t bt_cfg{};
   bt_cfg.stack = ESP_HOSTED_BT_HOST_STACK_BLUEDROID;
   bt_cfg.bring_up_controller = true;
@@ -462,7 +460,6 @@ bool ESP32BLE::ble_dismantle_() {
     }
   }
 #elif defined(CONFIG_ESP_HOSTED_HOST_FEAT_BT)
-  // Detaches the HCI driver and disables/deinitializes the remote controller
   if (esp_hosted_bt_host_stack_teardown() != ESP_OK) {
     ESP_LOGE(TAG, "esp_hosted_bt_host_stack_teardown failed");
     return false;

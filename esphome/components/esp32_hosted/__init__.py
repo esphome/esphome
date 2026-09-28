@@ -32,11 +32,7 @@ DEPENDENCIES = ["esp32"]
 # esp32_ble raises the task watchdog around the remote BT controller bring-up
 AUTO_LOAD = ["watchdog"]
 
-# Builds use esp_hosted 2.x. The 3.x host line (ESP-IDF 5.5 or newer) is also
-# supported, selected by pinning a 3.x version under esp32.framework.components;
-# the two majors renamed most host Kconfig symbols, so every option below is
-# emitted for the line in use. 3.x is not the default yet because 1-bit SDIO
-# cannot be built on it until espressif/esp-hosted#765 is fixed.
+# 3.x is opt-in via a pin under esp32.framework.components (needs ESP-IDF 5.5)
 ESP_HOSTED_COMPONENT = "espressif/esp_hosted"
 
 CONF_ACTIVE_HIGH = "active_high"
@@ -161,23 +157,15 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-# Version specs whose major is unambiguous: an exact version, or a caret, tilde
-# or compatible-release range, which all stay within one major. Open ranges
-# (``>=2.11``, ``<3``, ``*``) resolve to whatever the registry has newest, so
-# the line cannot be told from the spec.
+# Version specs that stay within one major (exact, ^, ~, ~=); open ranges don't
 _PINNED_MAJOR = re.compile(r"^(?:==|\^|~=|~)?(\d+)(?:\.(?:\d+|\*))*$")
 
 
 def user_esp_hosted_major() -> int | None:
-    """Major version of an esp_hosted pinned under esp32.framework.components.
-
-    None without a pin, or for a git source or local path, which say nothing
-    about the line. A pin whose major cannot be told from the spec is rejected.
-    """
+    """Major version of a user-pinned esp_hosted, or None."""
     try:
         full_config = fv.full_config.get()
     except LookupError:
-        # Code generation runs outside the final-validate context.
         full_config = CORE.config
     esp32_config = full_config.get(KEY_ESP32) or {}
     for component in esp32_config.get(CONF_FRAMEWORK, {}).get(CONF_COMPONENTS, []):
@@ -195,11 +183,7 @@ def user_esp_hosted_major() -> int | None:
 
 
 def uses_esp_hosted_3x() -> bool:
-    """Whether the build uses the esp_hosted 3.x line.
-
-    Only when the user pinned a 3.x esp_hosted under esp32.framework.components;
-    validation has already checked that the configuration can be built on it.
-    """
+    """Whether the user pinned esp_hosted 3.x."""
     return (major := user_esp_hosted_major()) is not None and major >= 3
 
 
@@ -221,8 +205,6 @@ def _final_validate(config: ConfigType) -> None:
             f"Remove the {ESP_HOSTED_COMPONENT} pin from esp32.framework."
             "components to stay on the 2.x line, or use ESP-IDF 5.5 or newer."
         )
-    # 3.0.8 removed the reset polarity options and always parks the reset line
-    # high with a low pulse, which is what active_high: true means here.
     if not config[CONF_ACTIVE_HIGH]:
         raise cv.Invalid(
             "esp_hosted 3.x always parks the reset line high with a low pulse, so "
@@ -230,8 +212,6 @@ def _final_validate(config: ConfigType) -> None:
             f"{ESP_HOSTED_COMPONENT} pin from esp32.framework.components to stay "
             "on the 2.x line."
         )
-    # The 3.x SDIO Kconfig (through 3.0.9) hides the D1 pin in 1-bit mode while
-    # the port config still requires it (the interrupt line), so the build fails.
     if config[CONF_TYPE] == "sdio" and config[CONF_BUS_WIDTH] == 1:
         raise cv.Invalid(
             "esp_hosted 3.x cannot be built with a 1-bit SDIO bus "
@@ -455,7 +435,6 @@ def _configure_2x(config: ConfigType) -> None:
 
 
 def _configure_3x(config: ConfigType) -> None:
-    # Reset GPIO; 3.x has no polarity option (see uses_esp_hosted_3x)
     esp32.add_idf_sdkconfig_option(
         "CONFIG_ESP_HOSTED_HOST_RESET_GPIO", config[CONF_RESET_PIN]
     )
@@ -469,15 +448,11 @@ def _configure_3x(config: ConfigType) -> None:
     else:
         _configure_spi_3x(config)
     if esp32.get_esp32_variant() == esp32.VARIANT_ESP32P4:
-        # esp-hosted's CustomRpc ("peer data transfer") feature — off by default.
         esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_PEER_DATA", True)
         esp32.add_idf_sdkconfig_option(
             "CONFIG_ESP_HOSTED_HOST_FEAT_PEER_DATA_MAX_CUSTOM_MSG_HANDLERS",
             _MAX_CUSTOM_MSG_HANDLERS,
         )
-    # Place the DMA transport buffers (the 2.x mempool) and the Hosted task
-    # stacks in PSRAM to relieve internal RAM on memory-tight host
-    # configurations (e.g. P4 with a large LVGL UI).
     if config[CONF_USE_PSRAM]:
         esp32.add_idf_sdkconfig_option("CONFIG_EH_HOST_PORT_DMA_PREFER_SPIRAM", True)
         esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_DFLT_TASK_FROM_SPIRAM", True)
