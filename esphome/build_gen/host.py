@@ -15,6 +15,7 @@ from collections.abc import Iterable
 import logging
 import os
 from pathlib import Path
+import subprocess
 import sys
 from typing import TYPE_CHECKING
 
@@ -192,6 +193,15 @@ def _file_macro_maps(build_dir: Path) -> list[str]:
     ]
 
 
+def _compiler_version(cxx: tuple[str, ...]) -> str:
+    """What the compiler says it is: its path can stay the same across an
+    update (the macOS shims in /usr/bin)."""
+    result = subprocess.run(
+        [*cxx, "--version"], capture_output=True, text=True, check=False
+    )
+    return result.stdout
+
+
 def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
     """Write the ninja build for the current configuration.
 
@@ -262,8 +272,7 @@ def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
         PCH_DEFAULT_HEADERS,
         cxxflags,
         (),
-        compilers.cxx[0],
-        compilers.cxx,
+        (*compilers.cxx, _compiler_version(compilers.cxx)),
     )
     src_objs = compile_edges(
         lines,
