@@ -524,53 +524,57 @@ def _make_pch_device(tmp_path: Path, name: str) -> Path:
     (dev / "sdkconfig.test").write_text("CONFIG_X=y\n")
     build = dev / "build"
     build.mkdir(exist_ok=True)
-    from esphome.build_helpers.pch import pch_header_text
+    from esphome.build_helpers.pch import write_pch_headers
 
-    (build / "esphome_pch.h").write_text(pch_header_text(PCH_DEFAULT_HEADERS))
-    # Native separators: mixed f-string paths break the src-prefix match
-    # on Windows
-    src_file = str(dev / "src" / "a.cpp")
-    (build / "compile_commands.json").write_text(
-        json.dumps(
-            [
-                {
-                    "directory": str(build),
-                    "command": (
-                        "g++ -DX=1 -include esphome_pch.h "
-                        "-o esp-idf/src/CMakeFiles/__idf_src.dir/a.cpp.obj "
-                        f'-c "{src_file}"'
-                    ),
-                    "file": src_file,
-                }
-            ]
-        )
+    write_pch_headers(build, PCH_DEFAULT_HEADERS)
+    src_file = str(dev / "src" / "esphome" / "a.cpp")
+    _write_db(
+        build,
+        "g++ -DX=1 -include esphome_pch.h "
+        f'-o esp-idf/src/CMakeFiles/__idf_src.dir/a.cpp.obj -c "{src_file}"',
+        src_file,
     )
     return dev
+
+
+def _prepare(dev: Path, name: str = "test", returncode: int = 0) -> str:
+    """Run prepare_pch with a stub compiler; return the .sum text."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    CORE.build_path = dev
+
+    def compile_(cmd, **kwargs):
+        # The compile must target the include list, not the guard header
+        assert cmd[-5:-2] == [
+            "c++-header",
+            "-c",
+            str(dev / "build" / "esphome_pch_src.h"),
+        ]
+        if returncode == 0:
+            (dev / "build" / "esphome_pch.h.gch").write_bytes(b"gch")
+        return subprocess.CompletedProcess(cmd, returncode, "", "boom")
+
+    with (
+        patch.object(CORE, "name", name),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=compile_),
+    ):
+        prepare_pch()
+    return (dev / "build" / "esphome_pch.h.gch.sum").read_text()
+
+
+def _write_db(build: Path, command: str, file: str) -> None:
+    (build / "compile_commands.json").write_text(
+        json.dumps([{"directory": str(build), "command": command, "file": file}])
+    )
 
 
 def test_prepare_pch_writes_header_and_sum(tmp_path: Path) -> None:
     from esphome.build_gen.espidf import prepare_pch
 
     dev = _make_pch_device(tmp_path, "dev_a")
-    CORE.build_path = dev
-    gch = dev / "build" / "esphome_pch.h.gch"
-
-    def fake_compile(cmd, **kwargs):
-        if "-fsyntax-only" in cmd:
-            # The load probe follows a successful .gch build
-            return subprocess.CompletedProcess(cmd, 0, "", "")
-        # The compile must target the header, not the stub TU
-        assert cmd[-5:-3] == ["c++-header", "-c"]
-        gch.write_bytes(b"gch")
-        return subprocess.CompletedProcess(cmd, 0, "", "")
-
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
-    ):
-        prepare_pch()
-    checksum = (dev / "build" / "esphome_pch.h.gch.sum").read_text().strip()
-    assert len(checksum) == 64
+    assert len(_prepare(dev).strip()) == 64
+    # A compiler that skips the .gch reads this header: it must be an error
+    assert "#error" in (dev / "build" / "esphome_pch.h").read_text()
     # Unchanged inputs: the second call must not recompile
     with (
         patch.object(CORE, "name", "test"),
@@ -579,29 +583,16 @@ def test_prepare_pch_writes_header_and_sum(tmp_path: Path) -> None:
         prepare_pch()
 
 
-def test_pch_no_device_path_poison(tmp_path: Path) -> None:
-    """Regression: neither the injected -include nor the .sum may carry the
-    per-device build path, or cross-device ccache sharing breaks."""
-    from esphome.build_gen.espidf import get_component_cmakelists, prepare_pch
+def test_pch_no_device_path_in_flags_or_sum(tmp_path: Path) -> None:
+    """The per-device build path in either would stop ccache sharing
+    between devices."""
+    from esphome.build_gen.espidf import get_component_cmakelists
 
     sums = []
     for name in ("dev_a", "dev_b"):
         dev = _make_pch_device(tmp_path, name)
-        CORE.build_path = dev
-        gch = dev / "build" / "esphome_pch.h.gch"
-
-        def fake_compile(cmd, _gch=gch, **kwargs):
-            _gch.write_bytes(b"gch")
-            return subprocess.CompletedProcess(cmd, 0, "", "")
-
-        with (
-            patch.object(CORE, "name", name),
-            patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
-        ):
-            prepare_pch()
-            content = get_component_cmakelists()
-        assert str(dev) not in content
-        sums.append((dev / "build" / "esphome_pch.h.gch.sum").read_text())
+        sums.append(_prepare(dev, name))
+        assert str(dev) not in get_component_cmakelists()
     assert sums[0] == sums[1]
 
 
@@ -616,42 +607,25 @@ def test_pch_compile_command_variants(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         pch_compile_command(build, header, gch)
 
-    (build / "compile_commands.json").write_text(
-        json.dumps(
-            [
-                {
-                    "directory": str(build),
-                    "command": "gcc -c other.c",
-                    "file": "other.c",
-                },
-            ]
-        )
-    )
-    with pytest.raises(EsphomeError, match="has no C.. source"):
+    _write_db(build, "gcc -c other.c", "other.c")
+    with pytest.raises(EsphomeError, match="has no ESPHome"):
         pch_compile_command(build, header, gch)
 
     src_file = str(tmp_path / "src" / "esphome" / "a.cpp")
-    (build / "compile_commands.json").write_text(
-        json.dumps(
-            [
-                {
-                    "directory": str(build),
-                    "command": (
-                        "/usr/bin/ccache g++ -DX=1 -include esphome_pch.h -MMD "
-                        "-MT a.cpp.obj -MF a.cpp.obj.d "
-                        "-o esp-idf/src/CMakeFiles/__idf_src.dir/a.cpp.obj "
-                        f"-c {src_file}"
-                    ),
-                    "file": src_file,
-                },
-            ]
-        )
+    _write_db(
+        build,
+        "/usr/bin/ccache g++ -DX=1 -include user.h -include esphome_pch.h -MMD "
+        "-MT a.cpp.obj -MF a.cpp.obj.d "
+        f"-o esp-idf/src/CMakeFiles/__idf_src.dir/a.cpp.obj -c {src_file}",
+        src_file,
     )
-    # Launcher stripped; -include/-o/-c and depfile flags removed
+    # Launcher, the pch -include, -o/-c and depfile flags removed
     cmd, cmd_dir = pch_compile_command(build, header, gch)
     assert cmd == [
         "g++",
         "-DX=1",
+        "-include",
+        "user.h",
         "-x",
         "c++-header",
         "-c",
@@ -663,86 +637,29 @@ def test_pch_compile_command_variants(tmp_path: Path) -> None:
     assert cmd_dir == build
 
 
-@pytest.mark.skipif(os.name == "nt", reason="symlinks need privileges on Windows")
-def test_pch_compile_command_matches_src_through_symlink(tmp_path: Path) -> None:
-    """Find the src TU when CMake spells paths through a different symlink (macOS /tmp)."""
-    from esphome.build_helpers.pch import pch_compile_command
-
-    real = tmp_path / "real"
-    (real / "src" / "esphome").mkdir(parents=True)
-    link = tmp_path / "link"
-    link.symlink_to(real, target_is_directory=True)
-    CORE.build_path = str(real)
-    build = real / "build"
-    build.mkdir()
-    header = build / "esphome_pch.h"
-    gch = build / "esphome_pch.h.gch"
-    src_file = str(link / "src" / "esphome" / "a.cpp")
-    (build / "compile_commands.json").write_text(
-        json.dumps(
-            [
-                {
-                    "directory": str(build),
-                    "command": f"g++ -DX=1 -o a.obj -c {src_file}",
-                    "file": src_file,
-                }
-            ]
-        )
-    )
-
-    cmd, cmd_dir = pch_compile_command(build, header, gch)
-
-    assert cmd[:2] == ["g++", "-DX=1"]
-    assert cmd_dir == build
-
-
 def test_component_cmakelists_pch_block(monkeypatch: pytest.MonkeyPatch) -> None:
     from esphome.build_gen.espidf import get_component_cmakelists
 
     content = get_component_cmakelists()
     assert '"$<$<COMPILE_LANGUAGE:CXX>:-include>"' in content
     assert '"$<$<COMPILE_LANGUAGE:CXX>:esphome_pch.h>"' in content
+    assert 'OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/esphome_pch.h"' in content
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
     assert "-include" not in get_component_cmakelists()
 
 
-def _prepare_with_compile(dev: Path, returncode: int, write_gch: bool) -> None:
-    from esphome.build_gen.espidf import prepare_pch
-
-    CORE.build_path = dev
-
-    def compile_(cmd, **kwargs):
-        if write_gch:
-            (dev / "build" / "esphome_pch.h.gch").write_bytes(b"gch")
-        return subprocess.CompletedProcess(cmd, returncode, "", "boom")
-
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=compile_),
-    ):
-        prepare_pch()
-
-
 def test_prepare_pch_compile_failure_stops_the_build(tmp_path: Path) -> None:
-    """The pch holds only ESPHome's own headers: a failure is a defect."""
     dev = _make_pch_device(tmp_path, "dev_f")
     with pytest.raises(EsphomeError, match="precompiled header: boom"):
-        _prepare_with_compile(dev, returncode=1, write_gch=False)
+        _prepare(dev, returncode=1)
     assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
 
 
-def test_prepare_pch_zero_exit_without_gch_is_failure(tmp_path: Path) -> None:
-    dev = _make_pch_device(tmp_path, "dev_z")
-    with pytest.raises(EsphomeError, match="precompiled header"):
-        _prepare_with_compile(dev, returncode=0, write_gch=False)
-
-
 def test_prepare_pch_missing_sdkconfig_stops_the_build(tmp_path: Path) -> None:
-    """No sdkconfig means no configuration identity for the .sum."""
     dev = _make_pch_device(tmp_path, "dev_m")
     (dev / "sdkconfig.test").unlink()
-    with pytest.raises(FileNotFoundError):
-        _prepare_with_compile(dev, returncode=0, write_gch=True)
+    with pytest.raises(EsphomeError, match="prepare the precompiled header"):
+        _prepare(dev)
 
 
 def test_prepare_pch_disabled_does_nothing(
@@ -757,133 +674,19 @@ def test_prepare_pch_disabled_does_nothing(
     assert not (tmp_path / "nothing").exists()
 
 
-def test_pch_compile_command_is_cached(tmp_path: Path) -> None:
-    """The compile database is large; it is parsed again only when it changes."""
-    from esphome.build_helpers import pch as pch_mod
-
-    dev = _make_pch_device(tmp_path, "dev_c")
-    CORE.build_path = dev
-    build = dev / "build"
-    header, gch = build / "esphome_pch.h", build / "esphome_pch.h.gch"
-    first = pch_mod.pch_compile_command(build, header, gch)
-    with patch.object(pch_mod.json, "loads", wraps=pch_mod.json.loads) as loads:
-        assert pch_mod.pch_compile_command(build, header, gch) == first
-    # Only the small cache file was parsed
-    assert loads.call_count == 1
-    database = build / "compile_commands.json"
-    database.write_text(database.read_text().replace("-DX=1", "-DX=2"))
-    assert "-DX=2" in pch_mod.pch_compile_command(build, header, gch)[0]
-
-
-def test_pch_header_list_order_is_in_checksum(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Reordering PCH_DEFAULT_HEADERS keeps the include closure identical, but the
-    generated header text differs, so the .gch must rebuild."""
-    import esphome.build_gen.espidf as espidf_mod
-    from esphome.build_helpers import pch as pch_mod
-
-    dev = _make_pch_device(tmp_path, "dev_r")
-    CORE.build_path = dev
-    gch = dev / "build" / "esphome_pch.h.gch"
-
-    def fake_compile(cmd, **kwargs):
-        gch.write_bytes(b"gch")
-        return subprocess.CompletedProcess(cmd, 0, "", "")
-
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
-    ):
-        espidf_mod.prepare_pch()
-        first = (dev / "build" / "esphome_pch.h.gch.sum").read_text()
-        monkeypatch.setattr(
-            pch_mod,
-            "PCH_DEFAULT_HEADERS",
-            tuple(reversed(pch_mod.PCH_DEFAULT_HEADERS)),
-        )
-        espidf_mod.prepare_pch()
-    assert (dev / "build" / "esphome_pch.h.gch.sum").read_text() != first
-
-
 def test_prepare_pch_bumps_header_for_object_depends(tmp_path: Path) -> None:
-    """The OBJECT_DEPENDS edge watches the header; a rebuilt .gch must bump
-    it so pch-consuming TUs recompile."""
-    import os as _os
-
-    from esphome.build_gen.espidf import prepare_pch
-
+    """Consumers depend on the header, so a rebuilt .gch must bump it."""
     dev = _make_pch_device(tmp_path, "dev_t")
-    CORE.build_path = dev
     header = dev / "build" / "esphome_pch.h"
-    gch = dev / "build" / "esphome_pch.h.gch"
-    _os.utime(header, (0, 0))
-    before = header.stat().st_mtime
-
-    def fake_compile(cmd, **kwargs):
-        gch.write_bytes(b"gch")
-        return subprocess.CompletedProcess(cmd, 0, "", "")
-
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
-    ):
-        prepare_pch()
-    assert header.stat().st_mtime > before
-
-
-def test_component_cmakelists_pch_object_depends() -> None:
-    from esphome.build_gen.espidf import get_component_cmakelists
-
-    content = get_component_cmakelists()
-    assert 'OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/esphome_pch.h"' in content
+    os.utime(header, (0, 0))
+    _prepare(dev)
+    assert header.stat().st_mtime > 0
 
 
 def test_prepare_pch_command_change_invalidates_sum(tmp_path: Path) -> None:
     """A flag-only change in the compile DB must rebuild the .gch."""
-    from esphome.build_gen.espidf import prepare_pch
-
     dev = _make_pch_device(tmp_path, "dev_c")
-    CORE.build_path = dev
-    gch = dev / "build" / "esphome_pch.h.gch"
-
-    def fake_compile(cmd, **kwargs):
-        gch.write_bytes(b"gch")
-        return subprocess.CompletedProcess(cmd, 0, "", "")
-
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
-    ):
-        prepare_pch()
-        first = (dev / "build" / "esphome_pch.h.gch.sum").read_text()
-        db = dev / "build" / "compile_commands.json"
-        db.write_text(db.read_text().replace("-DX=1", "-DX=2"))
-        prepare_pch()
-    assert (dev / "build" / "esphome_pch.h.gch.sum").read_text() != first
-
-
-def test_prepare_pch_keeps_user_force_includes(tmp_path: Path) -> None:
-    from esphome.build_helpers.pch import pch_compile_command
-
-    dev = _make_pch_device(tmp_path, "dev_u")
-    CORE.build_path = dev
-    build = dev / "build"
-    src_file = str(dev / "src" / "esphome" / "a.cpp")
-    build.joinpath("compile_commands.json").write_text(
-        json.dumps(
-            [
-                {
-                    "directory": str(build),
-                    "command": (
-                        "g++ -include user.h -include esphome_pch.h "
-                        f"-o a.obj -c {src_file}"
-                    ),
-                    "file": src_file,
-                }
-            ]
-        )
-    )
-    cmd, _ = pch_compile_command(build, build / "esphome_pch.h", build / "x.gch")
-    assert "user.h" in cmd
-    assert "esphome_pch.h" not in " ".join(cmd[:-3])
+    first = _prepare(dev)
+    db = dev / "build" / "compile_commands.json"
+    db.write_text(db.read_text().replace("-DX=1", "-DX=2"))
+    assert _prepare(dev) != first

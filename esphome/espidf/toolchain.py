@@ -528,10 +528,25 @@ def run_compile(config, verbose: bool) -> int:
             return result.returncode
         _patch_memory_segments()
 
-    # After every reconfigure so compile_commands and sdkconfig are settled
     from esphome.build_gen.espidf import prepare_pch
+    from esphome.build_helpers.pch import pch_enabled
 
-    prepare_pch()
+    if pch_enabled():
+        # A flag-only change leaves the reconfigure to ninja; run it now so
+        # the .gch compiles from the flags the sources will get
+        result = subprocess.run(
+            [
+                _get_idf_tool("ninja"),
+                "-C",
+                str(CORE.relative_build_path("build")),
+                "build.ninja",
+            ],
+            env=_get_idf_env(),
+            check=False,
+        )
+        if result.returncode != 0:
+            return result.returncode
+        prepare_pch()
 
     # Build
     args = []

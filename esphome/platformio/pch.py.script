@@ -4,7 +4,6 @@ from pathlib import Path
 import posixpath
 import re
 import shlex
-import stat
 import subprocess
 
 # pylint: disable=E0602
@@ -14,112 +13,89 @@ try:
 except Exception:  # noqa: BLE001 -- not exported under -t nobuild
     projenv = None
 
-# Precompile the src force-includes plus defines.h and force-include the
-# result into C++ src compiles only; their preprocessed output is unchanged.
-# ESPHome registers this script only when the pch is enabled and exports the
-# ccache settings (platformio/toolchain.py). The pch holds only ESPHome's
-# own headers, so a failure here is a defect and stops the build. A test
-# pins the names below to build_helpers/pch.py.
+# Precompile the src force-includes plus the core headers and force-include
+# the result into C++ src compiles only. Any failure stops the build. This
+# script cannot import esphome: a test pins the values below to
+# build_helpers/pch.py.
 _HEADER_NAME = "esphome_pch.h"
-
+_SOURCE_NAME = "esphome_pch_src.h"
+_DEFAULT_HEADERS = ("esphome/core/defines.h", "esphome/core/pch_prefix.h")
+_CONSUMER_FLAGS = ["-Winvalid-pch", "-Werror=invalid-pch", "-include", _HEADER_NAME]
+_GUARD_TEXT = f"""\
+#if defined(__GNUC__) && !defined(__clang__) && !defined(__INTELLISENSE__)
+#error "The precompiled header was not loaded"
+#else
+#include "{_SOURCE_NAME}"
+#endif
+"""
 _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
-_CORE_HEADER = "esphome/core/defines.h"
-
-
-def _raise_walk_error(err: OSError) -> None:
-    raise err
-
-
-def _resolves_dir(path: Path) -> bool:
-    """False when missing; other stat failures propagate."""
-    try:
-        return stat.S_ISDIR(path.stat().st_mode)
-    except (FileNotFoundError, NotADirectoryError):
-        return False
-
-
-def _resolves(path: Path) -> bool:
-    """False when missing; other stat failures propagate (identity unknown)."""
-    try:
-        return stat.S_ISREG(path.stat().st_mode)
-    except (FileNotFoundError, NotADirectoryError):
-        return False
+_CXX_SUFFIXES = (".cpp", ".cc", ".cxx")
+_HEADER_SUFFIXES = (".h", ".hpp", ".hh", ".inc")
 
 
 def _include_closure(src_dir: Path, roots: list) -> dict:
-    """Include closure: src-relative name -> contents (mirror of
-    build_helpers/pch.py)."""
+    """Include closure: src-relative name -> contents."""
     seen = {}
     stack = [(name, "") for name in roots]
     while stack:
         name, from_dir = stack.pop()
         for candidate in (f"{from_dir}/{name}" if from_dir else name, name):
             rel = posixpath.normpath(candidate)
-            if not rel.startswith("..") and _resolves(src_dir / rel):
+            if not rel.startswith("..") and (src_dir / rel).is_file():
                 break
         else:
             continue
         if rel in seen:
             continue
-        try:
-            data = (src_dir / rel).read_bytes()
-        except OSError as err:
-            # A marker would truncate the transitive walk; fail closed
-            print(f"ESPHome: could not read {rel} for the pch checksum: {err}")
-            raise
-        seen[rel] = data
+        data = seen[rel] = (src_dir / rel).read_bytes()
         parent = posixpath.dirname(rel)
-        stack.extend(
-            (inc.decode(errors="surrogateescape"), parent)
-            for inc in _INCLUDE_RE.findall(data)
-        )
+        stack.extend((inc.decode(), parent) for inc in _INCLUDE_RE.findall(data))
     return seen
 
 
 def _shell_arg(element) -> str:
-    """One compiler argv from one SCons element, matching the real spawn:
-    spaced elements pass whole, the rest get one shell unquote (skipped on
-    Windows, where shlex would eat path backslashes)."""
+    """One compiler argument from one SCons element, as the real spawn
+    passes it (shlex would eat path backslashes on Windows)."""
     arg = str(element)
     if " " in arg or os.name == "nt":
         return arg.replace('\\"', '"')
-    if not arg.strip():
-        return arg
-    tokens = shlex.split(arg)
-    if len(tokens) != 1:
-        # A flag the model cannot reproduce would diverge the .gch's flags
-        raise RuntimeError(f"ESPHome: cannot model flag {arg!r} for the pch")
-    return tokens[0]
+    return (shlex.split(arg) or [""])[0]
 
 
-def _read_stamp(path: Path) -> str:
-    """A corrupt sidecar must read as stale, not kill the pch forever."""
-    try:
-        return path.read_text(encoding="utf-8").strip()
-    except (OSError, UnicodeDecodeError):
-        return ""
+def _src_envs(src_dir: Path) -> list:
+    """The environments the C++ src objects compile from. The ESP-IDF
+    builder has already created them from its own; elsewhere it is projenv."""
+    found = {}
+    src_dir = src_dir.resolve()
+    for node in env.Flatten(env.get("PIOBUILDFILES", [])):  # noqa: F821
+        source = Path(str(node.sources[0])).resolve()
+        if source.suffix in _CXX_SUFFIXES and source.is_relative_to(src_dir):
+            found[id(node.env)] = node.env
+    return list(found.values()) or [projenv]  # noqa: F821
 
 
 def _setup_pch() -> None:
     if projenv is None:
         # -t nobuild: nothing compiles
         return
-    # Project root: SCons compiles run here, so the relative -include
-    # resolves; an absolute path would break cross-device ccache sharing.
+    # SCons compiles run in the project root, so the relative -include
+    # resolves; an absolute path would enter the ccache key
     proj_dir = Path(env.subst("$PROJECT_DIR"))  # noqa: F821
     src_dir = Path(env.subst("$PROJECT_SRC_DIR"))  # noqa: F821
     header = proj_dir / _HEADER_NAME
+    source = proj_dir / _SOURCE_NAME
     gch = Path(f"{header}.gch")
     sum_path = Path(f"{gch}.sum")
+    src_envs = _src_envs(src_dir)
 
-    cxx = projenv.subst("$CXX")  # noqa: F821
+    cxx = src_envs[0].subst("$CXX")
     # The header holds the -include entries itself, so the .gch compile must
-    # not see them; consumers keep theirs, which the .gch then satisfies.
+    # not see them; consumers keep theirs, which the .gch then satisfies
     flags = []
     include_headers = []
     flag_it = iter(
         _shell_arg(element)
-        for element in projenv.subst_list("$CXXFLAGS $CCFLAGS $_CCCOMCOM")[0]  # noqa: F821
+        for element in src_envs[0].subst_list("$CXXFLAGS $CCFLAGS $_CCCOMCOM")[0]
     )
     for tok in flag_it:
         if tok == "-include":
@@ -128,82 +104,69 @@ def _setup_pch() -> None:
             include_headers.append(tok[len("-include") :])
         else:
             flags.append(tok)
-    # Fold only relative names resolving under src/: consumers keep their
-    # own -include entries, so folding an unguarded user header would
-    # include it twice; unfolded ones stay consumer-only.
+    # Only names under src/ are folded; the rest stay consumer only
     folded = [
         name
         for name in include_headers
-        if not Path(name).is_absolute() and _resolves(src_dir / name)
+        if not Path(name).is_absolute() and (src_dir / name).is_file()
     ]
     if unfolded := [n for n in include_headers if n not in folded]:
         print(f"ESPHome: not precompiling non-src force-includes: {unfolded}")
-    content = "".join(f'#include "{name}"\n' for name in (*folded, _CORE_HEADER))
+    headers = [*folded, *_DEFAULT_HEADERS]
+    content = "".join(f'#include "{name}"\n' for name in headers)
 
     digest = hashlib.sha256()
-    digest.update(content.encode(errors="surrogateescape"))
-    digest.update(cxx.encode(errors="surrogateescape"))
-    # Mirror CCACHE_BASEDIR: strip the per-device build path so identical
-    # configs produce identical .sum files and share cache entries
+    digest.update(content.encode())
+    digest.update(cxx.encode())
+    # As ccache does: strip the build path so devices share cache entries
     flags_id = " ".join(flags)
     if basedir := os.environ.get("CCACHE_BASEDIR"):
         flags_id = flags_id.replace(basedir, "")
-    digest.update(flags_id.encode(errors="surrogateescape"))
-    # GCC never validates a .gch against its source headers, and PlatformIO
-    # package paths carry no version, so a package bump must invalidate here
+    digest.update(flags_id.encode())
+    # GCC does not check a .gch against its headers and PlatformIO package
+    # paths carry no version
     platform = env.PioPlatform()  # noqa: F821
     for package in sorted(platform.packages):
-        try:
-            version = platform.get_package_version(package)
-        except KeyError:
-            version = None  # absent optional package
-        digest.update(f"{package}={version}".encode())
-        digest.update(b"\0")
-    closure = _include_closure(src_dir, [*folded, _CORE_HEADER])
+        digest.update(f"{package}={platform.get_package_version(package)}\0".encode())
+    closure = _include_closure(src_dir, headers)
     for rel in sorted(closure):
-        digest.update(rel.encode(errors="surrogateescape"))
+        digest.update(rel.encode())
         digest.update(closure[rel])
         digest.update(b"\0")
-    # Project-local -I dirs (e.g. rp2's lwip_override) hold generated
-    # headers the src closure cannot see; hash them too
+    # Project-local -I dirs (rp2's lwip_override) hold generated headers
+    # outside src/
     prev = ""
     for tok in flags:
         inc = tok[2:] if tok.startswith("-I") and len(tok) > 2 else ""
         if prev == "-I":
             inc = tok
         prev = tok
-        if not inc:
-            continue
         inc_dir = Path(inc)
-        if not (
-            inc_dir.is_relative_to(proj_dir)
-            and not inc_dir.is_relative_to(src_dir)
-            # Library trees never enter the prefix closure; walking them
-            # would read every library file each build
-            and not inc_dir.is_relative_to(proj_dir / ".piolibdeps")
-            and not inc_dir.is_relative_to(proj_dir / ".pioenvs")
-            and _resolves_dir(inc_dir)
+        if (
+            not inc
+            or not inc_dir.is_relative_to(proj_dir)
+            or inc_dir.is_relative_to(src_dir)
+            or inc_dir.is_relative_to(proj_dir / ".piolibdeps")
+            or inc_dir.is_relative_to(proj_dir / ".pioenvs")
         ):
             continue
-        local_headers = []
-        # os.walk with onerror: rglob would swallow unlistable subtrees
-        for root, _dirs, files in os.walk(inc_dir, onerror=_raise_walk_error):
-            local_headers.extend(
-                Path(root) / f
-                for f in files
-                if f.endswith((".h", ".hpp", ".hh", ".inc"))
-            )
-        for local in sorted(local_headers):
-            digest.update(str(local.relative_to(proj_dir)).encode())
-            digest.update(local.read_bytes())
-            digest.update(b"\0")
+        for local in sorted(inc_dir.rglob("*")):
+            if local.suffix in _HEADER_SUFFIXES and local.is_file():
+                digest.update(str(local.relative_to(proj_dir)).encode())
+                digest.update(local.read_bytes())
+                digest.update(b"\0")
     checksum = digest.hexdigest()
 
-    # The ccache .sum sidecar doubles as the freshness stamp
-    if not (header.is_file() and gch.is_file() and _read_stamp(sum_path) == checksum):
-        header.write_text(content, encoding="utf-8")
+    # The ccache .sum file doubles as the freshness stamp
+    if not (
+        gch.is_file()
+        and sum_path.is_file()
+        and sum_path.read_text(encoding="utf-8").strip() == checksum
+    ):
+        header.write_text(_GUARD_TEXT, encoding="utf-8")
+        source.write_text(content, encoding="utf-8")
         result = subprocess.run(  # noqa: PLW1510
-            [cxx, "-x", "c++-header", *flags, "-c", str(header), "-o", str(gch)],
+            [cxx, "-x", "c++-header", *flags, "-c", str(source), "-o", str(gch)],
             cwd=proj_dir,
             capture_output=True,
             text=True,
@@ -214,12 +177,9 @@ def _setup_pch() -> None:
             )
         sum_path.write_text(checksum + "\n", encoding="utf-8")
 
-    # Prepended: GCC only uses a .gch while no other tokens precede it.
-    # The relative name also reaches "pio run -t idedata" output. A .gch
-    # the compiler rejects is an error, never a silent text include
-    projenv.Prepend(  # noqa: F821
-        CXXFLAGS=["-Winvalid-pch", "-Werror=invalid-pch", "-include", header.name]
-    )
+    # Prepended: GCC only loads a .gch for the first -include
+    for src_env in src_envs:
+        src_env.Prepend(CXXFLAGS=_CONSUMER_FLAGS)
     print(
         "ESPHome: Compiling with a precompiled header "
         "(set ESPHOME_PCH_ENABLE=0 to disable)"
