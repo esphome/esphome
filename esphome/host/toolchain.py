@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 from typing import Any, NamedTuple
 
 from esphome.build_helpers.ccache import ccache_defaults_env, resolve_ccache_path
@@ -24,13 +25,11 @@ from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import strip_win_long_path_prefix
 from esphome.helpers import write_file_if_changed
+from esphome.host import PROGRAM_NAME
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
-# The output name PlatformIO's native platform produced; CORE.firmware_bin
-# and the integration-test harness resolve it by this name
-PROGRAM_NAME = "program"
 
 # platformio_options keys the host build reads (lib_ignore feeds the library
 # converter); anything else has no native equivalent and is warned about
@@ -48,6 +47,16 @@ class HostCompilers(NamedTuple):
     cxx: str
 
 
+def _absolute(tool: str | Path) -> str:
+    """A tool path that still resolves from the build directory.
+
+    ``shutil.which`` returns a relative path for a relative override or PATH
+    entry, and ninja runs the commands from ``.pioenvs/<name>``. Symlinks are
+    kept: ccache's compiler links depend on the name they are called by.
+    """
+    return strip_win_long_path_prefix(str(Path(tool).absolute()))
+
+
 def find_tool(env_var: str, candidates: tuple[str, ...]) -> str:
     """Resolve a build tool: ``env_var`` when set, else the first candidate
     found on PATH.
@@ -62,10 +71,10 @@ def find_tool(env_var: str, candidates: tuple[str, ...]) -> str:
             raise EsphomeError(
                 f"{env_var}={override!r} does not name a runnable program"
             )
-        return strip_win_long_path_prefix(resolved)
+        return _absolute(resolved)
     for name in candidates:
         if (found := shutil.which(name)) is not None:
-            return strip_win_long_path_prefix(found)
+            return _absolute(found)
     raise EsphomeError(
         f"{candidates[0]} not found on PATH (tried {', '.join(candidates)}); "
         f"install it or set {env_var}"
@@ -78,6 +87,11 @@ def find_compilers() -> HostCompilers:
         cc=find_tool("CC", ("gcc", "clang", "cc")),
         cxx=find_tool("CXX", ("g++", "clang++", "c++")),
     )
+
+
+def _resolve_ccache() -> str | None:
+    ccache = resolve_ccache_path()
+    return _absolute(ccache) if ccache else None
 
 
 def get_build_dir() -> Path:
@@ -94,6 +108,18 @@ def get_objdump_path() -> Path:
 
 def get_readelf_path() -> Path:
     return Path(find_tool("READELF", ("readelf",)))
+
+
+def check_analysis_supported() -> None:
+    """Refuse analyze-memory where the program is not an ELF file.
+
+    Called before the compile, so an unsupported machine fails at once.
+    """
+    if sys.platform != "linux":
+        raise EsphomeError(
+            "analyze-memory reads ELF files; the host build on "
+            f"{sys.platform} produces a different format"
+        )
 
 
 def ccache_env(ccache: str | None) -> dict[str, str]:
@@ -134,11 +160,11 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
 
     _warn_ignored_platformio_options()
     # Probe the cheap local dependencies before resolving libraries
-    ninja_path = find_ninja()
+    ninja_path = Path(_absolute(find_ninja()))
     compilers = find_compilers()
     # Resolved once per build: the resolution probes PATH and spawns the
     # runnability check, and three consumers need the same answer
-    ccache = resolve_ccache_path()
+    ccache = _resolve_ccache()
     ninja_changed = build_gen.write_project(compilers, ccache)
 
     build_dir = get_build_dir()
@@ -285,7 +311,7 @@ def get_idedata(ccache: str | None = _CCACHE_UNRESOLVED) -> dict | None:
     if ccache is _CCACHE_UNRESOLVED:
         # Deliberately uncached: env/PATH can change between builds in a
         # long-lived host process
-        ccache = resolve_ccache_path()
+        ccache = _resolve_ccache()
     return load_or_build_idedata(
         get_build_dir() / "compile_commands.json",
         get_elf_path(),

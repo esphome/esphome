@@ -875,8 +875,10 @@ class EsphomeCore:
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
         if self.is_host:
-            # Host builds produce a native ELF/Mach-O named `program`.
-            return self.relative_pioenvs_path(self.name, "program")
+            # Host builds produce a native program (program.exe on Windows)
+            from esphome.host import PROGRAM_NAME
+
+            return self.relative_pioenvs_path(self.name, PROGRAM_NAME)
         return self.relative_pioenvs_path(self.name, "firmware.bin")
 
     @property

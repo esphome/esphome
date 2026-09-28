@@ -8,3 +8,9 @@ registry libraries go through the shared library converter.
 Deliberately importable without the host component to avoid circular
 imports; the component wires these modules in via lazy imports.
 """
+
+import os
+
+# The output name PlatformIO's native platform produced; Windows linkers
+# append .exe to an output without a suffix, so the name carries it there
+PROGRAM_NAME = "program.exe" if os.name == "nt" else "program"

@@ -19,7 +19,7 @@ from esphome.const import (
     PLATFORM_HOST,
 )
 from esphome.core import CORE, EsphomeError
-from esphome.host import toolchain
+from esphome.host import PROGRAM_NAME, toolchain
 
 
 @pytest.fixture(autouse=True)
@@ -34,10 +34,15 @@ def _which(table: dict[str, str]):
     return table.get
 
 
+def _abs(path: str) -> str:
+    """What the toolchain makes of a tool path (a drive is added on Windows)."""
+    return str(Path(path).absolute())
+
+
 def test_find_tool_prefers_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CXX", "/opt/clang++")
     with patch("shutil.which", side_effect=_which({"/opt/clang++": "/opt/clang++"})):
-        assert toolchain.find_tool("CXX", ("g++",)) == "/opt/clang++"
+        assert toolchain.find_tool("CXX", ("g++",)) == _abs("/opt/clang++")
 
 
 def test_find_tool_env_override_must_run(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -53,14 +58,14 @@ def test_find_tool_env_override_must_run(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_find_tool_blank_override_is_unset(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CC", "  ")
     with patch("shutil.which", side_effect=_which({"clang": "/usr/bin/clang"})):
-        assert toolchain.find_tool("CC", ("gcc", "clang")) == "/usr/bin/clang"
+        assert toolchain.find_tool("CC", ("gcc", "clang")) == _abs("/usr/bin/clang")
 
 
 def test_find_tool_first_candidate_wins(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CC", raising=False)
     table = {"gcc": "/usr/bin/gcc", "clang": "/usr/bin/clang"}
     with patch("shutil.which", side_effect=_which(table)):
-        assert toolchain.find_tool("CC", ("gcc", "clang")) == "/usr/bin/gcc"
+        assert toolchain.find_tool("CC", ("gcc", "clang")) == _abs("/usr/bin/gcc")
 
 
 def test_find_tool_none_found(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -81,14 +86,14 @@ def test_find_compilers(monkeypatch: pytest.MonkeyPatch) -> None:
     table = {"gcc": "/usr/bin/gcc", "g++": "/usr/bin/g++"}
     with patch("shutil.which", side_effect=_which(table)):
         assert toolchain.find_compilers() == toolchain.HostCompilers(
-            cc="/usr/bin/gcc", cxx="/usr/bin/g++"
+            cc=_abs("/usr/bin/gcc"), cxx=_abs("/usr/bin/g++")
         )
 
 
 def test_build_paths(tmp_path: Path) -> None:
     """The PlatformIO layout is kept: CORE.firmware_bin resolves the same file."""
     assert toolchain.get_build_dir() == tmp_path / ".pioenvs" / "dev"
-    assert toolchain.get_elf_path() == tmp_path / ".pioenvs" / "dev" / "program"
+    assert toolchain.get_elf_path() == tmp_path / ".pioenvs" / "dev" / PROGRAM_NAME
     assert toolchain.get_elf_path() == CORE.firmware_bin
 
 
@@ -97,8 +102,8 @@ def test_binutils_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(var, raising=False)
     table = {"objdump": "/usr/bin/objdump", "readelf": "/usr/bin/readelf"}
     with patch("shutil.which", side_effect=_which(table)):
-        assert toolchain.get_objdump_path() == Path("/usr/bin/objdump")
-        assert toolchain.get_readelf_path() == Path("/usr/bin/readelf")
+        assert toolchain.get_objdump_path() == Path(_abs("/usr/bin/objdump"))
+        assert toolchain.get_readelf_path() == Path(_abs("/usr/bin/readelf"))
 
 
 def test_ccache_env_disabled() -> None:
@@ -166,7 +171,7 @@ def _completed(rc: int = 0, stdout: str = "", stderr: str = "") -> SimpleNamespa
 
 
 def test_run_compile_builds_and_reports_success(compile_env) -> None:
-    elf = compile_env.build_dir / "program"
+    elf = compile_env.build_dir / PROGRAM_NAME
 
     def build(cmd, **kwargs):
         elf.write_text("")
@@ -184,11 +189,11 @@ def test_run_compile_builds_and_reports_success(compile_env) -> None:
     # A changed manifest skips the dry-run probe and builds straight away
     compile_env.run.assert_called_once()
     assert compile_env.run.call_args.args[0] == [
-        "/usr/bin/ninja",
+        _abs("/usr/bin/ninja"),
         "-v",
         "-j",
         "4",
-        "program",
+        PROGRAM_NAME,
     ]
     assert compile_env.run.call_args.kwargs["cwd"] == compile_env.build_dir
     compile_env.idedata.assert_called_once_with(None)
@@ -196,23 +201,27 @@ def test_run_compile_builds_and_reports_success(compile_env) -> None:
 
 def test_run_compile_defaults(compile_env) -> None:
     """No verbosity and no process limit: just the ninja target."""
-    (compile_env.build_dir / "program").write_text("")
+    (compile_env.build_dir / PROGRAM_NAME).write_text("")
     compile_env.run.return_value = _completed()
     assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
-    assert compile_env.run.call_args.args[0] == ["/usr/bin/ninja", "program"]
+    assert compile_env.run.call_args.args[0] == [_abs("/usr/bin/ninja"), PROGRAM_NAME]
 
 
 def test_run_compile_skips_build_when_nothing_to_do(
     compile_env, caplog: pytest.LogCaptureFixture
 ) -> None:
     compile_env.write_project.return_value = False
-    (compile_env.build_dir / "program").write_text("")
+    (compile_env.build_dir / PROGRAM_NAME).write_text("")
     compile_env.run.return_value = _completed(stdout="ninja: no work to do.")
     with caplog.at_level(logging.DEBUG):
         assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
     # Only the dry-run probe ran
     compile_env.run.assert_called_once()
-    assert compile_env.run.call_args.args[0] == ["/usr/bin/ninja", "-n", "program"]
+    assert compile_env.run.call_args.args[0] == [
+        _abs("/usr/bin/ninja"),
+        "-n",
+        PROGRAM_NAME,
+    ]
     assert "nothing to rebuild" in caplog.text
     assert compile_env.refresh.call_args.args[3] is False
 
@@ -222,7 +231,7 @@ def test_run_compile_probe_diagnostics_fall_through_to_build(
 ) -> None:
     """A failing probe is not trusted: the real build prints the cause."""
     compile_env.write_project.return_value = False
-    (compile_env.build_dir / "program").write_text("")
+    (compile_env.build_dir / PROGRAM_NAME).write_text("")
     compile_env.run.side_effect = [
         _completed(rc=1, stderr="ninja: error: multiple rules generate x"),
         _completed(),
@@ -236,7 +245,7 @@ def test_run_compile_probe_diagnostics_fall_through_to_build(
 
 def test_run_compile_probe_with_work_builds(compile_env) -> None:
     compile_env.write_project.return_value = False
-    (compile_env.build_dir / "program").write_text("")
+    (compile_env.build_dir / PROGRAM_NAME).write_text("")
     compile_env.run.side_effect = [_completed(stdout="[1/2] CXX x.o"), _completed()]
     assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
     assert compile_env.run.call_count == 2
@@ -347,9 +356,9 @@ def test_get_idedata_resolves_ccache_by_default(tmp_path: Path) -> None:
         assert toolchain.get_idedata() == {"x": 1}
     load.assert_called_once_with(
         tmp_path / ".pioenvs" / "dev" / "compile_commands.json",
-        tmp_path / ".pioenvs" / "dev" / "program",
+        tmp_path / ".pioenvs" / "dev" / PROGRAM_NAME,
         CORE.relative_internal_path("idedata", "dev.json"),
-        launcher="/usr/bin/ccache",
+        launcher=_abs("/usr/bin/ccache"),
     )
 
 
@@ -367,10 +376,54 @@ def test_get_idedata_explicit_ccache_disabled() -> None:
 
 def test_run_compile_uses_real_subprocess_signature(compile_env) -> None:
     """The build call inherits stdio and never captures (progress must stream)."""
-    (compile_env.build_dir / "program").write_text("")
+    (compile_env.build_dir / PROGRAM_NAME).write_text("")
     compile_env.run.return_value = _completed()
     toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
     kwargs = compile_env.run.call_args.kwargs
     assert kwargs["check"] is False
     assert kwargs["close_fds"] is False
     assert "capture_output" not in kwargs
+
+
+def test_find_tool_makes_a_relative_hit_absolute(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ninja runs from the build directory, where a relative path is lost."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CC", "./toolchain/gcc")
+    with patch("shutil.which", return_value="./toolchain/gcc"):
+        found = toolchain.find_tool("CC", ("gcc",))
+    assert Path(found).is_absolute()
+    assert Path(found) == Path("toolchain/gcc").absolute()
+
+
+def test_run_compile_makes_ninja_and_ccache_absolute(
+    compile_env, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (compile_env.build_dir / PROGRAM_NAME).write_text("")
+    compile_env.run.return_value = _completed()
+    with (
+        patch.object(toolchain, "find_ninja", return_value=Path("bin/ninja")),
+        patch.object(toolchain, "resolve_ccache_path", return_value="bin/ccache"),
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+    ccache = str(Path("bin/ccache").absolute())
+    compile_env.write_project.assert_called_once_with(
+        toolchain.HostCompilers("gcc", "g++"), ccache
+    )
+    assert compile_env.run.call_args.args[0][0] == str(Path("bin/ninja").absolute())
+
+
+@pytest.mark.parametrize("platform", ["darwin", "win32"])
+def test_check_analysis_supported_refuses_non_elf(platform: str) -> None:
+    with (
+        patch.object(toolchain.sys, "platform", platform),
+        pytest.raises(EsphomeError, match=f"the host build on {platform}"),
+    ):
+        toolchain.check_analysis_supported()
+
+
+def test_check_analysis_supported_accepts_linux() -> None:
+    with patch.object(toolchain.sys, "platform", "linux"):
+        toolchain.check_analysis_supported()

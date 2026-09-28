@@ -7946,6 +7946,7 @@ def test_command_analyze_memory_native_toolchain(
         patch("esphome.host.toolchain.get_objdump_path", return_value=objdump),
         patch("esphome.host.toolchain.get_readelf_path", return_value=readelf),
         patch("esphome.host.toolchain.get_elf_path", return_value=elf),
+        patch("esphome.host.toolchain.check_analysis_supported"),
     ):
         assert command_analyze_memory(MockArgs(), config) == 0
     mock_memory_analyzer_cli.assert_called_once_with(
@@ -7971,6 +7972,7 @@ def test_command_analyze_memory_native_missing_tool_fails(
         patch("esphome.host.toolchain.get_objdump_path", return_value=objdump),
         patch("esphome.host.toolchain.get_readelf_path", return_value=readelf),
         patch("esphome.host.toolchain.get_elf_path", return_value=elf),
+        patch("esphome.host.toolchain.check_analysis_supported"),
         caplog.at_level(logging.ERROR),
     ):
         assert command_analyze_memory(MockArgs(), {}) == 1
@@ -7993,7 +7995,25 @@ def test_command_analyze_memory_host_missing_elf_fails(
         patch("esphome.host.toolchain.get_objdump_path", return_value=objdump),
         patch("esphome.host.toolchain.get_readelf_path", return_value=readelf),
         patch("esphome.host.toolchain.get_elf_path", return_value=elf),
+        patch("esphome.host.toolchain.check_analysis_supported"),
         caplog.at_level(logging.ERROR),
     ):
         assert command_analyze_memory(MockArgs(), {}) == 1
     assert f"{elf} is missing; compile the configuration first" in caplog.text
+
+
+def test_command_analyze_memory_host_refuses_before_compiling(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+) -> None:
+    """A machine whose host program is not ELF fails before the compile."""
+    setup_core(platform=PLATFORM_HOST, tmp_path=tmp_path, name="dev")
+    CORE.toolchain = Toolchain.HOST
+    with (
+        patch("esphome.host.toolchain.sys.platform", "darwin"),
+        pytest.raises(EsphomeError, match="analyze-memory reads ELF files"),
+    ):
+        command_analyze_memory(MockArgs(), {})
+    mock_write_cpp.assert_not_called()
+    mock_compile_program.assert_not_called()

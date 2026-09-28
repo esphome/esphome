@@ -10,8 +10,10 @@ import pytest
 
 from esphome.arduino.library import ArduinoLibrary
 from esphome.build_gen import host as build_gen
+from esphome.build_helpers.ninja import escape as _e, quote_path as _q
 from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM, PLATFORM_HOST
 from esphome.core import CORE, EsphomeError, Library
+from esphome.host import PROGRAM_NAME
 from esphome.host.toolchain import HostCompilers
 
 COMPILERS = HostCompilers(cc="/usr/bin/gcc", cxx="/usr/bin/g++")
@@ -93,8 +95,10 @@ def test_flag_lists_route_the_standard() -> None:
     }
     CORE.cxx_build_flags = {"-Wno-volatile"}
     cflags, cxxflags, link_flags = build_gen._flag_lists()
-    assert cflags == ["-DUSE_HOST", "-Iinc", "-g", "-std=gnu17"]
-    assert cxxflags == ["-std=gnu++20", "-DUSE_HOST", "-Iinc", "-g", "-Wno-volatile"]
+    # The relative include is anchored at the build path
+    inc = f"-I{CORE.build_path / 'inc'}"
+    assert cflags == ["-DUSE_HOST", inc, "-g", "-std=gnu17"]
+    assert cxxflags == ["-std=gnu++20", "-DUSE_HOST", inc, "-g", "-Wno-volatile"]
     assert link_flags == ["-Wl,-x", "-g", "-lssl"]
 
 
@@ -152,25 +156,27 @@ def test_write_project_emits_every_source_kind(tmp_path: Path) -> None:
     CORE.build_flags = {"-DUSE_HOST", "-g"}
     changed, ninja = _render(ccache="/usr/bin/ccache")
     assert changed is True
-    assert "cc = '/usr/bin/gcc'" in ninja
-    assert "cxx = '/usr/bin/g++'" in ninja
-    assert "ccache = '/usr/bin/ccache'" in ninja
-    assert f"build obj/src/main.cpp.o: cxx {src / 'main.cpp'}" in ninja
-    assert f"build obj/src/esphome/core/a.c.o: c {src / 'esphome/core/a.c'}" in ninja
+    assert f"cc = {_q('/usr/bin/gcc')}" in ninja
+    assert f"cxx = {_q('/usr/bin/g++')}" in ninja
+    assert f"ccache = {_q('/usr/bin/ccache')}" in ninja
+    assert f"build obj/src/main.cpp.o: cxx {_e(src / 'main.cpp')}" in ninja
+    assert (
+        f"build obj/src/esphome/core/a.c.o: c {_e(src / 'esphome/core/a.c')}" in ninja
+    )
     assert "build obj/src/x.S.o: aspp " in ninja
     assert "build obj/src/y.s.o: asm " in ninja
     assert "h.h" not in ninja
-    assert f"cflags = -DUSE_HOST -g -I'{src}'" in ninja
-    assert f"cxxflags = -std=gnu++20 -DUSE_HOST -g -I'{src}'" in ninja
+    assert f"cflags = -DUSE_HOST -g -I{_q(src)}" in ninja
+    assert f"cxxflags = -std=gnu++20 -DUSE_HOST -g -I{_q(src)}" in ninja
     # Assembly gets the defines and includes only
-    assert f"asflags = -DUSE_HOST -I'{src}'" in ninja
+    assert f"asflags = -DUSE_HOST -I{_q(src)}" in ninja
     assert "linkflags = -g\n" in ninja
     assert "libdirflags = \n" in ninja
     assert "libflags = \n" in ninja
     assert "rule ar" not in ninja
     assert (
-        "build program: link obj/src/esphome/core/a.c.o obj/src/main.cpp.o "
-        "obj/src/x.S.o obj/src/y.s.o | \n  archives = \ndefault program\n"
+        f"build {PROGRAM_NAME}: link obj/src/esphome/core/a.c.o obj/src/main.cpp.o "
+        f"obj/src/x.S.o obj/src/y.s.o | \n  archives = \ndefault {PROGRAM_NAME}\n"
     ) in ninja
     # Unchanged content reports no change so the compile DB can be reused
     changed, _ = _render(ccache="/usr/bin/ccache")
@@ -185,10 +191,11 @@ def test_write_project_without_ccache(tmp_path: Path) -> None:
 
 def test_write_project_routes_user_link_flags(tmp_path: Path) -> None:
     _make_src(tmp_path, "main.cpp")
-    CORE.build_flags = {"-L/opt/lib", "-lcrypto", "-Wl,-framework,Security"}
+    lib_dir = tmp_path / "opt" / "lib"
+    CORE.build_flags = {f"-L{lib_dir}", "-lcrypto", "-Wl,-framework,Security"}
     _changed, ninja = _render()
     assert "linkflags = -Wl,-framework,Security\n" in ninja
-    assert "libdirflags = -L'/opt/lib'\n" in ninja
+    assert f"libdirflags = -L{_q(lib_dir)}\n" in ninja
     assert "libflags = -lcrypto\n" in ninja
 
 
@@ -202,7 +209,7 @@ def _libraries(tmp_path: Path) -> list[ArduinoLibrary]:
         name="foo",
         sources=[lib_dir / "foo/src/a.cpp", lib_dir / "foo/src/sub/b.c"],
         include_dirs=[lib_dir / "foo/src"],
-        flags=["-DFOO=1"],
+        flags=["-DFOO=1", f"-I{lib_dir / 'foo/private'}"],
         link_dirs=[lib_dir / "foo/lib"],
         link_libs=["bar"],
         link_flags=["-Wl,--gc-sections"],
@@ -228,30 +235,34 @@ def test_write_project_with_libraries(
         _changed, ninja = _render()
     find_tool.assert_called_once_with("AR", ("ar",))
     assert (
-        "rule ar\n  command = $python $buildtool ar '/usr/bin/ar' $out $out.rsp"
+        f"rule ar\n  command = $python $buildtool ar {_q('/usr/bin/ar')} $out $out.rsp"
         in ninja
     )
     lib_dir = tmp_path / "libs"
     # Every library's include dir joins the global include path
-    assert f"-I'{src}' -I'{lib_dir / 'foo/src'}' -I'{lib_dir / 'hdr'}'" in ninja
+    assert f"-I{_q(src)} -I{_q(lib_dir / 'foo/src')} -I{_q(lib_dir / 'hdr')}" in ninja
     assert "linkflags = -Wl,--gc-sections\n" in ninja
-    assert f"libdirflags = -L'{lib_dir / 'foo/lib'}'\n" in ninja
+    assert f"libdirflags = -L{_q(lib_dir / 'foo/lib')}\n" in ninja
     assert "libflags = -lbar\n" in ninja
     # Library sources compile with the library's own flags, rooted at their
-    # common parent
+    # common parent; its own include dirs lead the line so another library's
+    # header of the same name cannot shadow them
+    own = f"-I{_q(lib_dir / 'foo/src')} -I{_q(lib_dir / 'foo/private')}"
+    assert "$own_includes $cxxflags $flags" in ninja
     assert (
-        f"build obj/lib/foo/a.cpp.o: cxx {lib_dir / 'foo/src/a.cpp'}\n  flags = -DFOO=1\n"
-        in ninja
+        f"build obj/lib/foo/a.cpp.o: cxx {_e(lib_dir / 'foo/src/a.cpp')}\n"
+        f"  own_includes = {own}\n  flags = -DFOO=1\n" in ninja
     )
     assert (
-        f"build obj/lib/foo/sub/b.c.o: c {lib_dir / 'foo/src/sub/b.c'}\n  flags = -DFOO=1\n"
-        in ninja
+        f"build obj/lib/foo/sub/b.c.o: c {_e(lib_dir / 'foo/src/sub/b.c')}\n"
+        f"  own_includes = {own}\n  flags = -DFOO=1\n" in ninja
     )
     assert "build libfoo.a: ar obj/lib/foo/a.cpp.o obj/lib/foo/sub/b.c.o\n" in ninja
     # libArchive: false objects link directly; the archive is an order-only
     # input wrapped in a group for GNU ld
     assert (
-        "build program: link obj/src/main.cpp.o obj/lib/bare/x.cpp.o | libfoo.a\n"
+        f"build {PROGRAM_NAME}: link obj/src/main.cpp.o obj/lib/bare/x.cpp.o "
+        "| libfoo.a\n"
         "  archives = -Wl,--start-group libfoo.a -Wl,--end-group\n"
     ) in ninja
     assert "Library hdr has no source files" in caplog.text
@@ -268,3 +279,42 @@ def test_write_project_darwin_links_archives_bare(tmp_path: Path) -> None:
         _changed, ninja = _render()
     assert "  archives = libfoo.a\n" in ninja
     assert "--start-group" not in ninja
+
+
+def test_anchor_path_flags_anchors_relative_operands(tmp_path: Path) -> None:
+    """ninja runs from .pioenvs/<name>; PlatformIO ran from the build path."""
+    absolute = str(tmp_path / "abs")
+    assert build_gen.anchor_path_flags(
+        [
+            "-Iinc",
+            f"-I{absolute}",
+            "-Llib",
+            "-include",
+            "pre.h",
+            "-I",
+            "split",
+            "-DUSE_HOST",
+            "-lssl",
+            "-I",
+        ]
+    ) == [
+        f"-I{tmp_path / 'inc'}",
+        f"-I{absolute}",
+        f"-L{tmp_path / 'lib'}",
+        "-include",
+        str(tmp_path / "pre.h"),
+        "-I",
+        str(tmp_path / "split"),
+        "-DUSE_HOST",
+        "-lssl",
+        "-I",
+    ]
+
+
+def test_build_unflags_match_anchored_paths(caplog: pytest.LogCaptureFixture) -> None:
+    CORE.build_flags = {"-Iinc", "-g"}
+    CORE.build_unflags = {"-Iinc"}
+    with caplog.at_level(logging.WARNING):
+        cflags, _cxxflags, _link = build_gen._flag_lists()
+    assert cflags == ["-g"]
+    assert "matched no build flag" not in caplog.text

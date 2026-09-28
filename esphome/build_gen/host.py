@@ -81,6 +81,38 @@ def split_flags(tokens: list[str]) -> tuple[list[str], list[str]]:
     return compile_flags, link_flags
 
 
+# Glued flags whose operand is a path
+_PATH_PREFIXES = ("-I", "-L")
+
+
+def _anchor(path: str) -> str:
+    """A relative path operand, anchored at the build path.
+
+    PlatformIO ran the compiler from the build path; ninja runs it from
+    ``.pioenvs/<name>``, so a relative operand would point elsewhere.
+    """
+    if not path or Path(path).is_absolute():
+        return path
+    return str(Path(CORE.build_path, path))
+
+
+def anchor_path_flags(tokens: list[str]) -> list[str]:
+    """Anchor the relative path operands of ``tokens`` at the build path."""
+    anchored: list[str] = []
+    path_follows = False
+    for tok in tokens:
+        if path_follows:
+            tok = _anchor(tok)
+            path_follows = False
+        elif tok in _COMPILE_ONLY_ARG_FLAGS or tok in _PATH_PREFIXES:
+            # The operand is the next token ("-I dir", "-include file")
+            path_follows = True
+        elif tok.startswith(_PATH_PREFIXES):
+            tok = tok[:2] + _anchor(tok[2:])
+        anchored.append(tok)
+    return anchored
+
+
 def _is_cxx_std(tok: str) -> bool:
     return tok.startswith("-std=") and "++" in tok
 
@@ -94,7 +126,7 @@ def _flag_lists() -> tuple[list[str], list[str], list[str]]:
     """
     # The funnel warns and drops empty glued arguments (-D "") itself
     tokens = lex_build_flags(sorted(CORE.build_flags), "esphome")
-    compile_flags, link_flags = split_flags(tokens)
+    compile_flags, link_flags = split_flags(anchor_path_flags(tokens))
     cflags = [t for t in compile_flags if not _is_cxx_std(t)]
     cxx_std = CORE.cpp_standard
     cxxflags = [t for t in compile_flags if not (cxx_std and t.startswith("-std="))]
@@ -102,7 +134,11 @@ def _flag_lists() -> tuple[list[str], list[str], list[str]]:
         cxxflags.insert(0, f"-std={cxx_std}")
     cxxflags += get_project_cxx_compile_flags()
 
-    unflags = set(lex_build_flags(sorted(CORE.build_unflags), "esphome build_unflags"))
+    unflags = set(
+        anchor_path_flags(
+            lex_build_flags(sorted(CORE.build_unflags), "esphome build_unflags")
+        )
+    )
     # Matching is whole-token; an unflag that hits nothing (a typo, or
     # -DUSE_FOO against -DUSE_FOO=1) must be visible, since the user
     # believes the flag is gone while it still drives the build
@@ -149,12 +185,31 @@ def _common_parent(paths: list[Path]) -> Path:
     return Path(os.path.commonpath([str(p.parent) for p in paths]))
 
 
+def _own_includes(lib: ArduinoLibrary) -> tuple[str, str]:
+    """A library's own include flags, and its remaining private flags.
+
+    The include path is one global list, so another library's header of the
+    same name could shadow this library's own. PlatformIO searched a
+    library's own directories first; ``$own_includes`` leads the compile
+    line to keep that order.
+    """
+    own = [f"-I{_q(d)}" for d in lib.include_dirs]
+    flags = []
+    for tok in lib.flags:
+        if tok.startswith("-I") and len(tok) > 2:
+            own.append(f"-I{_q(tok[2:])}")
+        else:
+            flags.append(_shell_token(tok))
+    return " ".join(own), " ".join(flags)
+
+
 def _ninja_compile_edges(
     lines: list[str],
     sources: list[Path],
     root: Path,
     group: str,
     flags: str = "",
+    own_includes: str = "",
 ) -> list[str]:
     """Emit compile edges for ``sources``; return the object paths."""
     objects = []
@@ -165,6 +220,8 @@ def _ninja_compile_edges(
         lines.append(
             f"build {escaped_obj}: {SOURCE_KIND_FOR_SUFFIX[src.suffix]} {_e(src)}"
         )
+        if own_includes:
+            lines.append(f"  own_includes = {own_includes}")
         if flags:
             lines.append(f"  flags = {flags}")
         # Escaped once here: the returned paths only ever appear in build
@@ -227,17 +284,17 @@ def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
         # Rule names match SOURCE_KIND_FOR_SUFFIX values (c, cxx, asm, aspp)
         # and toolchain.COMPILE_RULES
         "rule c",
-        "  command = $ccache $cc -MMD -MF $out.d $cflags $flags -c $in -o $out",
+        "  command = $ccache $cc -MMD -MF $out.d $own_includes $cflags $flags -c $in -o $out",
         "  depfile = $out.d",
         "  deps = gcc",
         "  description = CC $out",
         "rule cxx",
-        "  command = $ccache $cxx -MMD -MF $out.d $cxxflags $flags -c $in -o $out",
+        "  command = $ccache $cxx -MMD -MF $out.d $own_includes $cxxflags $flags -c $in -o $out",
         "  depfile = $out.d",
         "  deps = gcc",
         "  description = CXX $out",
         "rule aspp",
-        "  command = $ccache $cc -MMD -MF $out.d -x assembler-with-cpp $asflags $flags -c $in -o $out",
+        "  command = $ccache $cc -MMD -MF $out.d -x assembler-with-cpp $own_includes $asflags $flags -c $in -o $out",
         "  depfile = $out.d",
         "  deps = gcc",
         "  description = AS $out",
@@ -284,12 +341,14 @@ def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
                 lib.name,
             )
             continue
+        own_includes, flags = _own_includes(lib)
         objs = _ninja_compile_edges(
             lines,
             lib.sources,
             _common_parent(lib.sources),
             f"lib/{lib.name}",
-            flags=" ".join(_shell_token(f) for f in lib.flags),
+            flags=flags,
+            own_includes=own_includes,
         )
         if not lib.lib_archive:
             # libArchive: false: hand the objects to the linker directly so

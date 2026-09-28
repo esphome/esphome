@@ -49,8 +49,18 @@ def find_ninja() -> Path:
 
 
 def escape(value: Path | str) -> str:
-    """Escape a path or token for a ninja file."""
-    return str(value).replace("$", "$$").replace(":", "$:").replace(" ", "$ ")
+    """Escape a path or token for a ninja file.
+
+    ninja has no escape for ``|`` or a line break in a path, so those fail
+    here by name instead of producing a build file ninja misreads.
+    """
+    text = str(value)
+    if bad := next((c for c in "|\r\n" if c in text), None):
+        raise EsphomeError(
+            f"Path {text!r} contains {bad!r}, which a ninja build file cannot "
+            "express; rename the file or directory"
+        )
+    return text.replace("$", "$$").replace(":", "$:").replace(" ", "$ ")
 
 
 def quote_arg(tok: str) -> str:

@@ -141,3 +141,14 @@ def test_shell_token_windows_branch_uses_argv_rule() -> None:
     with patch.object(os, "name", "nt"):
         assert ninja_helper.shell_token("a b") == '"a b"'
         assert ninja_helper.shell_token("", force=True) == '""'
+
+
+@pytest.mark.parametrize("char", ["|", "\n", "\r"])
+def test_escape_rejects_what_ninja_cannot_express(char: str) -> None:
+    with pytest.raises(EsphomeError, match="a ninja build file cannot express"):
+        ninja_helper.escape(f"src/a{char}b.cpp")
+
+
+def test_escape_keeps_a_hash() -> None:
+    """ninja only reads # as a comment at the start of a line."""
+    assert ninja_helper.escape("src/a#b c.cpp") == "src/a#b$ c.cpp"

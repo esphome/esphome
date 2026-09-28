@@ -670,7 +670,11 @@ class TestEsphomeCore:
         right artifact for the host OTA backend."""
         target.name = "test-device"
         target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "host"}
-        assert target.firmware_bin == Path("foo/build/.pioenvs/test-device/program")
+        from esphome.host import PROGRAM_NAME
+
+        assert target.firmware_bin == Path(
+            "foo/build/.pioenvs/test-device", PROGRAM_NAME
+        )
 
     @pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
     def test_data_dir_default_unix(self, target):
