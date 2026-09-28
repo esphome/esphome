@@ -126,6 +126,8 @@ INTEGRATION_TESTS_TRIGGER_FILES = frozenset(
         "esphome/build_helpers/native.py",
         "esphome/build_helpers/ninja.py",
         "esphome/build_helpers/ninja_gen.py",
+        "esphome/build_helpers/tools_cache.py",
+        "esphome/framework_helpers.py",
         "esphome/host/toolchain.py",
         "esphome/platformio/library.py",
     }

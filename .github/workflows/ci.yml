@@ -400,7 +400,7 @@ jobs:
       matrix:
         bucket: ${{ fromJson(needs.determine-jobs.outputs.integration-test-buckets) }}
     env:
-      # Registry libraries (noise-c, libsodium, ArduinoJson) the host builds
+      # Registry libraries (noise-c, libsodium, ArduinoJson, lvgl) the host builds
       # download, shared per xdist worker by tests/integration/conftest.py
       INTEGRATION_LIBRARY_CACHE_PATH: ~/.esphome-integration-tests/pio_components
     steps:
@@ -428,7 +428,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.INTEGRATION_LIBRARY_CACHE_PATH }}
-          key: integration-libraries-v1-${{ runner.os }}-${{ hashFiles('esphome/components/json/__init__.py', 'esphome/components/noise/__init__.py') }}
+          key: integration-libraries-v1-${{ runner.os }}-${{ hashFiles('esphome/components/json/__init__.py', 'esphome/components/noise/__init__.py', 'esphome/components/lvgl/__init__.py', 'esphome/components/improv_base/__init__.py') }}
       - name: Restore Python virtual environment
         id: cache-venv
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

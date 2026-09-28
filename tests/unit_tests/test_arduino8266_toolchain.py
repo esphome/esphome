@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_ESPHOME,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
+    Toolchain,
 )
 from esphome.core import CORE, EsphomeError
 
@@ -407,3 +408,45 @@ def test_get_idedata_accepts_preresolved_ccache() -> None:
         assert toolchain.get_idedata("/usr/bin/ccache") == {"ok": True}
     mock_resolve.assert_not_called()
     assert mock_build.call_args.kwargs["launcher"] == "/usr/bin/ccache"
+
+
+def test_run_compile_warns_about_dropped_platformio_options(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Component-added options the native build drops are warned by name;
+    the honored ones (lib_ignore, f_cpu, ldscript, build_src_flags,
+    flash_mode) stay quiet."""
+    CORE.toolchain = Toolchain.ARDUINO
+    CORE.platformio_options = {
+        "board_build.ldscript": "eagle.flash.4m2m.ld",
+        "board_build.f_cpu": "160000000L",
+        "board_build.filesystem": "littlefs",
+        "board_build.flash_mode": "dio",
+        "build_src_flags": "-include throw_stubs.h",
+        "lib_ignore": ["Updater"],
+        "upload_speed": "460800",
+    }
+    with (
+        patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
+        patch.object(framework, "get_build_env", return_value={}),
+        patch("esphome.build_gen.arduino8266.write_project", return_value=True),
+        patch.object(
+            toolchain.subprocess,
+            "run",
+            return_value=MagicMock(returncode=0, stdout="", stderr=""),
+        ),
+        patch.object(toolchain, "refresh_compile_commands") as mock_compdb,
+        patch.object(toolchain, "_print_size_summary"),
+        patch.object(toolchain, "get_idedata"),
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+    assert "platformio_options->board_build.filesystem is ignored" in caplog.text
+    assert "platformio_options->upload_speed is ignored" in caplog.text
+    assert "native 'arduino' toolchain" in caplog.text
+    assert "board_build.ldscript is ignored" not in caplog.text
+    assert "board_build.f_cpu is ignored" not in caplog.text
+    assert "lib_ignore" not in caplog.text
+    assert "build_src_flags" not in caplog.text
+    assert "flash_mode" not in caplog.text
+    # A rewritten manifest is passed on, so the compile DB is regenerated
+    assert mock_compdb.call_args.args[3] is True

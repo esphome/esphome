@@ -143,3 +143,14 @@ def test_toolchain_tool_layout(tmp_path: Path) -> None:
     assert tool.parent == tmp_path / "bin"
     assert tool.name.startswith("xtensa-lx106-elf-addr2line")
     assert (tool.suffix == ".exe") is (os.name == "nt")
+
+
+def test_get_build_env_uses_the_arduino8266_ccache_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ESPHOME_ARDUINO8266_PREFIX", str(tmp_path / "cache"))
+    monkeypatch.delenv("CCACHE_DIR", raising=False)
+    env = framework.get_build_env(tmp_path / "toolchain", "/usr/bin/ccache")
+    assert env["CCACHE_DIR"] == str((tmp_path / "cache").resolve() / "ccache")
+    # None means resolved and disabled
+    assert "CCACHE_DIR" not in framework.get_build_env(tmp_path / "toolchain", None)

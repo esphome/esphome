@@ -251,3 +251,16 @@ def test_write_compile_commands_failures_drop_stale_db(
     ):
         ninja_helper.write_compile_commands(Path("ninja"), compdb_dir, {})
     assert not compdb.exists()
+
+
+def test_write_compile_commands_keeps_the_mtime_of_an_unchanged_db(
+    compdb_dir: Path,
+) -> None:
+    """The idedata cache is keyed on the DB's mtime."""
+    entries = '[{"file": "a.cpp", "command": "g++ -c a.cpp"}]'
+    compdb = compdb_dir / "compile_commands.json"
+    compdb.write_text(entries)
+    os.utime(compdb, (1000, 1000))
+    with patch("subprocess.run", return_value=_completed(stdout=entries)):
+        ninja_helper.write_compile_commands(Path("ninja"), compdb_dir, {})
+    assert compdb.stat().st_mtime == 1000
