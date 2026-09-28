@@ -693,13 +693,13 @@ def test_prefetch_packages_leaves_a_long_held_lock_to_its_holder(
     mock_download.assert_not_called()
 
 
-def test_already_installed_probe(tmp_path: Path) -> None:
+def test_is_installed_probe(tmp_path: Path) -> None:
     """Both arms of the marker probe the prefetch worker keys on."""
     dest = tmp_path / "pkg"
     dest.mkdir()
-    assert registry._already_installed(dest) is False
+    assert registry.is_installed(dest) is False
     (dest / ".esphome_extracted").touch()
-    assert registry._already_installed(dest) is True
+    assert registry.is_installed(dest) is True
 
 
 def test_prefetch_packages_dedupes_duplicate_entries(tmp_path: Path) -> None:

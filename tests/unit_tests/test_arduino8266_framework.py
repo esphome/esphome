@@ -68,14 +68,9 @@ def test_toolchain_download() -> None:
         patch.object(framework, "get_systype", return_value="darwin_arm64"),
     ):
         download = framework.toolchain_download()
-    assert download == (
-        (
-            "https://github.com/esphome-libs/xtensa-lx106-elf-toolchain/releases/"
-            "download/1.2.3/toolchain-xtensa-lx106-elf-1.2.3-darwin_arm64.tar.gz"
-        ),
-        sha256,
-        size,
-    )
+    releases = "https://github.com/esphome-libs/xtensa-lx106-elf-toolchain/releases/"
+    archive = "toolchain-xtensa-lx106-elf-1.2.3-darwin_arm64.tar.gz"
+    assert download == (f"{releases}download/1.2.3/{archive}", sha256, size)
 
 
 def test_toolchain_download_unsupported_system() -> None:
@@ -101,6 +96,24 @@ def test_check_and_install_mirror_skips_pinned_toolchain(tmp_path: Path) -> None
         framework.check_and_install(cv.Version(3, 1, 2))
     assert mock_prefetch.call_args.args[2] == {}
     assert mock_install.call_args_list[1].kwargs["pinned"] is None
+
+
+def test_check_and_install_installed_toolchain_skips_host_check(
+    tmp_path: Path,
+) -> None:
+    """An installed toolchain keeps working on a host without a pinned build."""
+    toolchain = tmp_path / "toolchains" / framework.TOOLCHAIN_VERSION
+    toolchain.mkdir(parents=True)
+    with (
+        patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
+        patch.object(framework, "get_systype", return_value="linux_armv7l"),
+        patch.object(framework, "is_installed", side_effect=lambda d: d == toolchain),
+        patch.object(framework, "install_package"),
+        patch.object(framework, "prefetch_packages") as mock_prefetch,
+        patch.object(framework, "find_ninja", return_value=tmp_path / "ninja"),
+    ):
+        framework.check_and_install(cv.Version(3, 1, 2))
+    assert mock_prefetch.call_args.args[2] == {}
 
 
 def test_check_and_install_returns_paths(tmp_path: Path) -> None:

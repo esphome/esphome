@@ -185,7 +185,7 @@ def _archive_path(downloads_dir: Path, name: str, version: str) -> Path:
     return downloads_dir / f"{name}-{version}"
 
 
-def _already_installed(dest: Path) -> bool:
+def is_installed(dest: Path) -> bool:
     """Whether ``dest`` holds a completed install (extraction marker)."""
     return (dest / ".esphome_extracted").is_file()
 
@@ -211,7 +211,7 @@ def prefetch_packages(
     pending: list[_PendingArchive] = []
     seen: set[Path] = set()
     for name, version, dest, mirrors in packages:
-        if mirrors or (dest / ".esphome_extracted").is_file():
+        if mirrors or is_installed(dest):
             continue
         archive = _archive_path(downloads_dir, name, version)
         if archive in seen:
@@ -248,7 +248,7 @@ def prefetch_packages(
             if done := downloaded_bytes(entry.archive, entry.size):
                 return done
             # The holder deletes the archive once it has installed it
-            return entry.size if _already_installed(entry.dest) else 0
+            return entry.size if is_installed(entry.dest) else 0
 
         lock = FileLock(f"{entry.dest}.lock", fallback_to_soft=False)
         try:
@@ -259,7 +259,7 @@ def prefetch_packages(
             _LOGGER.debug("Leaving %s to its current downloader", entry.name)
             return
         try:
-            if _already_installed(entry.dest):
+            if is_installed(entry.dest):
                 # A concurrent build installed it while we waited; a
                 # re-download would orphan a fresh copy in downloads_dir
                 tracker(entry.size)
