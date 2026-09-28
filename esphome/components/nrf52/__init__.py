@@ -1037,7 +1037,7 @@ def run_compile(args, config: ConfigType) -> bool:
             env=env,
             stream_output=True,
         ):
-            raise EsphomeError("Failed to generate UF2 from merged hex")
+            raise EsphomeError(f"Failed to generate UF2 from {hex_file.name}")
 
     if bootloader in (
         BOOTLOADER_ADAFRUIT,
