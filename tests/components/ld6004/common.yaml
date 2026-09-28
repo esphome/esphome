@@ -1,0 +1,103 @@
+ld6004:
+  id: radar
+sensor:
+  - platform: ld6004
+    target_count:
+      name: Targets
+    target_1:
+      x:
+        name: Target X
+      y:
+        name: Target Y
+      z:
+        name: Target Z
+      doppler_index:
+        name: Doppler
+      cluster_id:
+        name: Cluster
+    detection_area_0:
+      x_min:
+        name: Detection X Min
+binary_sensor:
+  - platform: ld6004
+    presence:
+      name: Presence
+    target_1:
+      name: Target 1
+    detection_area_0:
+      name: Area 0
+text_sensor:
+  - platform: ld6004
+    project:
+      name: Project
+    firmware_version:
+      name: Firmware
+    work_status:
+      name: Work Status
+    command_status:
+      name: Command Status
+number:
+  - platform: ld6004
+    hold_delay:
+      name: Hold Delay
+    z_min:
+      name: Z Min
+    z_max:
+      name: Z Max
+    low_power_sleep_time:
+      name: Sleep Time
+    dwell_lifetime:
+      name: Dwell Lifetime
+    output_interval:
+      name: Output Interval
+select:
+  - platform: ld6004
+    sensitivity:
+      name: Sensitivity
+    trigger_speed:
+      name: Trigger Speed
+    installation_mode:
+      name: Installation
+    work_mode:
+      name: Work Mode
+    p20_mode:
+      name: P20 Mode
+switch:
+  - platform: ld6004
+    target_output:
+      name: Target Output
+button:
+  - platform: ld6004
+    refresh:
+      name: Refresh
+    generate_interference:
+      name: Generate Interference
+    clear_interference:
+      name: Clear Interference
+    reset_detection:
+      name: Reset Detection
+    clear_dwell:
+      name: Clear Dwell
+    reset_unoccupied:
+      name: Reset Unoccupied
+
+interval:
+  - interval: 1h
+    then:
+      - ld6004.recover_commands:
+          id: radar
+      - ld6004.refresh:
+          id: radar
+      - ld6004.set_z_range:
+          id: radar
+          minimum: -2
+          maximum: 2
+      - ld6004.set_zone:
+          id: radar
+          zone_id: !lambda return 4;
+          x_min: -1
+          x_max: 1
+          y_min: 0
+          y_max: 2
+          z_min: -1
+          z_max: 2

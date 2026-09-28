@@ -1,0 +1,5 @@
+packages:
+  uart_115200: !include ../../test_build_components/common/uart_115200/esp32-idf.yaml
+  ld6004: !include common.yaml
+esp32:
+  variant: ESP32C6
