@@ -25,7 +25,6 @@ import subprocess
 from typing import TYPE_CHECKING, NamedTuple
 
 from esphome.arduino8266.framework import toolchain_tool
-from esphome.build_helpers.ccache import effective_ccache_basedir
 from esphome.build_helpers.idedata import is_joined_include
 from esphome.build_helpers.ninja import (
     escape as _e,
@@ -38,17 +37,11 @@ from esphome.build_helpers.ninja_gen import (
     compile_edges,
     compile_rule_lines,
     library_edges,
+    pch_edges,
     pch_rule_lines,
     tool_lines,
 )
-from esphome.build_helpers.pch import (
-    PCH_CORE_HEADER,
-    PCH_HEADER_NAME,
-    mark_pch_emitted,
-    pch_checksum,
-    pch_enabled,
-    pch_header_text,
-)
+from esphome.build_helpers.pch import PCH_CORE_HEADER
 from esphome.components.esp8266 import build_surgery
 from esphome.components.esp8266.boards import (
     BOARDS,
@@ -1146,73 +1139,16 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     # One shared variable instead of repeating the flags line on every src
     # edge (hundreds of edges in a real project)
     lines.append(f"srcflags = {' '.join(src_other + include_flags)}")
-    src_cxx_override = None
-    if pch_enabled() and any(tok.startswith("-include") for tok in flag_sets.cxxflags):
-        # $cxxflags expands first, so a user -include there means GCC would
-        # never load the .gch
-        _LOGGER.warning(
-            "A -include in build_flags prevents the precompiled header from "
-            "loading; compiling without it"
-        )
-    elif pch_enabled():
-        # C++ src edges swap the force-includes for one precompiled prefix
-        # header (same content plus defines.h); C/assembly keep srcflags
-        pch_header = build_dir / PCH_HEADER_NAME
-        pch_includes = (*src_includes, PCH_CORE_HEADER)
-        pch_text = pch_header_text(pch_includes)
-        checksum = None
-        try:
-            if ccache:
-                # The .sum exists only for CCACHE_PCH_EXTSUM; ninja's depfile
-                # handles staleness. Strip resolved and raw build paths
-                # (symlinks) so identical configs share cache entries
-                flags_id = (
-                    " ".join(flag_sets.cxxflags)
-                    .replace(effective_ccache_basedir(), "")
-                    .replace(str(CORE.build_path), "")
-                )
-                # The header text covers include order
-                checksum = pch_checksum(
-                    src_dir,
-                    pch_includes,
-                    (
-                        pch_text,
-                        str(paths.framework),
-                        str(paths.toolchain),
-                        flags_id,
-                    ),
-                )
-        except (OSError, UnicodeError) as err:
-            # Identity unknown: a stale cache entry must never be served
-            _LOGGER.warning(
-                "Could not establish the pch identity; compiling without it: %s", err
-            )
-        else:
-            _LOGGER.info(
-                "Compiling with a precompiled header "
-                "(set ESPHOME_PCH_ENABLE=0 to disable)"
-            )
-            write_file_if_changed(pch_header, pch_text)
-            sum_path = build_dir / f"{PCH_HEADER_NAME}.gch.sum"
-            if checksum is not None:
-                # Generate-time stamp: a hand-run ninja can rebuild the .gch
-                # while this .sum lags
-                write_file_if_changed(sum_path, checksum + "\n")
-            else:
-                # A stale .sum from an earlier ccache run must not survive
-                sum_path.unlink(missing_ok=True)
-            gch = _e(f"{PCH_HEADER_NAME}.gch")
-            lines.append(f"build {gch}: pch {_e(pch_header)}")
-            if src_other:
-                lines.append(f"  flags = {' '.join(src_other)}")
-            # Relative -include: absolute would break cross-device ccache.
-            # -Wno-error keeps a rejected .gch a warning under user -Werror
-            cxx_parts = src_other + [
-                f"-Winvalid-pch -Wno-error=invalid-pch -include {PCH_HEADER_NAME}"
-            ]
-            lines.append(f"srccxxflags = {' '.join(cxx_parts)}")
-            src_cxx_override = ("$srccxxflags", gch)
-            mark_pch_emitted()
+    src_cxx_override = pch_edges(
+        lines,
+        build_dir,
+        src_dir,
+        (*src_includes, PCH_CORE_HEADER),
+        flag_sets.cxxflags,
+        src_other,
+        ccache,
+        (str(paths.framework), str(paths.toolchain)),
+    )
     src_objs = compile_edges(
         lines,
         collect_sources(src_dir),
