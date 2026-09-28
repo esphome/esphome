@@ -28,4 +28,3 @@ async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_TMP102_ID])
     var = await text_sensor.new_text_sensor(config)
     cg.add(parent.set_threshold_status_text_sensor(var))
-    cg.add(parent.set_configure(True))

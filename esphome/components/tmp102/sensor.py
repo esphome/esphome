@@ -2,6 +2,7 @@
 
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_CONVERSION_RATE
 import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
@@ -14,7 +15,6 @@ from . import (
     ALERT_POLARITIES,
     CONF_ALERT,
     CONF_ALERT_POLARITY,
-    CONF_CONVERSION_RATE,
     CONF_EXTENDED_MODE,
     CONF_FAULT_QUEUE,
     CONF_ONE_SHOT_MODE,

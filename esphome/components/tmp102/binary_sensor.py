@@ -28,4 +28,3 @@ async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_TMP102_ID])
     var = await binary_sensor.new_binary_sensor(config)
     cg.add(parent.set_alert_binary_sensor(var))
-    cg.add(parent.set_configure(True))

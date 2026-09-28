@@ -1,14 +1,14 @@
 """Exercise real ESPHome final validation and code generation across platforms."""
 
+from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
-import subprocess
-import sys
 
 import pytest
 import yaml
 
-ROOT = Path(__file__).resolve().parents[3]
+from esphome.config import read_config
+from esphome.core import CORE
 
 
 def base_config() -> dict:
@@ -20,40 +20,25 @@ def base_config() -> dict:
     }
 
 
-def run_config(
-    tmp_path: Path, config: dict, generate: bool = False
-) -> subprocess.CompletedProcess:
+def write_config(tmp_path: Path, config: dict) -> Path:
     path = tmp_path / "test.yaml"
     path.write_text(yaml.safe_dump(config, sort_keys=False))
-    command = [
-        sys.executable,
-        "-m",
-        "esphome",
-        "compile" if generate else "config",
-        str(path),
-    ]
-    if generate:
-        command.append("--only-generate")
-    return subprocess.run(
-        command, text=True, capture_output=True, check=False, cwd=ROOT
-    )
+    return path
 
 
-def test_basic_unchanged(tmp_path: Path) -> None:
+def test_basic_unchanged(tmp_path: Path, generate_main: Callable[[Path], str]) -> None:
     config = base_config()
-    result = run_config(tmp_path, config, generate=True)
-    assert result.returncode == 0, result.stdout + result.stderr
-    source = (tmp_path / ".esphome/build/tmp102-test/src/main.cpp").read_text()
+    source = generate_main(write_config(tmp_path, config))
     assert "set_configure" not in source
     assert "set_temperature_high" not in source
-    defines = (
-        tmp_path / ".esphome/build/tmp102-test/src/esphome/core/defines.h"
-    ).read_text()
+    defines = " ".join(define.name for define in CORE.defines)
     assert "USE_TMP102_" not in defines
 
 
 @pytest.mark.parametrize("kind", ["number", "binary_sensor", "text_sensor", "all"])
-def test_optional_platforms(tmp_path: Path, kind: str) -> None:
+def test_optional_platforms(
+    tmp_path: Path, kind: str, generate_main: Callable[[Path], str]
+) -> None:
     config = base_config()
     platforms = ["number", "binary_sensor", "text_sensor"] if kind == "all" else [kind]
     for platform in platforms:
@@ -66,11 +51,9 @@ def test_optional_platforms(tmp_path: Path, kind: str) -> None:
         else:
             entry["name"] = platform
         config[platform] = [entry]
-    result = run_config(tmp_path, config, generate=True)
-    assert result.returncode == 0, result.stdout + result.stderr
-    defines = (
-        tmp_path / ".esphome/build/tmp102-test/src/esphome/core/defines.h"
-    ).read_text()
+    source = generate_main(write_config(tmp_path, config))
+    assert ("set_configure(true)" in source) == ("number" in platforms)
+    defines = " ".join(define.name for define in CORE.defines)
     for platform in ("number", "binary_sensor", "text_sensor"):
         assert (f"USE_TMP102_{platform.upper()}" in defines) == (platform in platforms)
 
@@ -121,11 +104,13 @@ def test_invalid_cross_platform_config(tmp_path: Path, case: str) -> None:
             {"platform": "template", "id": "other", "name": "Other"}
         )
         entry["tmp102_id"] = "other"
-    result = run_config(tmp_path, config)
-    assert result.returncode != 0, result.stdout
+    CORE.config_path = write_config(tmp_path, config)
+    assert read_config({}) is None
 
 
-def test_distinct_parents_and_extended_range(tmp_path: Path) -> None:
+def test_distinct_parents_and_extended_range(
+    tmp_path: Path, generate_main: Callable[[Path], str]
+) -> None:
     config = base_config()
     config["sensor"].append(
         {
@@ -150,13 +135,13 @@ def test_distinct_parents_and_extended_range(tmp_path: Path) -> None:
             "temperature_high": {"name": "Hot High"},
         },
     ]
-    result = run_config(tmp_path, config, generate=True)
-    assert result.returncode == 0, result.stdout + result.stderr
-    source = (tmp_path / ".esphome/build/tmp102-test/src/main.cpp").read_text()
+    source = generate_main(write_config(tmp_path, config))
     assert "127.9375" in source and "150.0" in source
 
 
-def test_unrelated_entities_do_not_enable_tmp102_features(tmp_path: Path) -> None:
+def test_unrelated_entities_do_not_enable_tmp102_features(
+    tmp_path: Path, generate_main: Callable[[Path], str]
+) -> None:
     """Global platform flags must not enable unused TMP102 entity support."""
     config = base_config()
     config["number"] = [
@@ -171,11 +156,8 @@ def test_unrelated_entities_do_not_enable_tmp102_features(tmp_path: Path) -> Non
     ]
     config["binary_sensor"] = [{"platform": "template", "name": "Other Binary"}]
     config["text_sensor"] = [{"platform": "template", "name": "Other Text"}]
-    result = run_config(tmp_path, config, generate=True)
-    assert result.returncode == 0, result.stdout + result.stderr
-    defines = (
-        tmp_path / ".esphome/build/tmp102-test/src/esphome/core/defines.h"
-    ).read_text()
+    generate_main(write_config(tmp_path, config))
+    defines = " ".join(define.name for define in CORE.defines)
     assert "USE_NUMBER" in defines
     assert "USE_BINARY_SENSOR" in defines
     assert "USE_TEXT_SENSOR" in defines
@@ -183,7 +165,9 @@ def test_unrelated_entities_do_not_enable_tmp102_features(tmp_path: Path) -> Non
 
 
 @pytest.mark.parametrize("number_first", [False, True])
-def test_mixed_scalar_and_number_limits(tmp_path: Path, number_first: bool) -> None:
+def test_mixed_scalar_and_number_limits(
+    tmp_path: Path, number_first: bool, generate_main: Callable[[Path], str]
+) -> None:
     """Cross-platform initial limits must not depend on YAML key order."""
     config = base_config()
     config["sensor"][0]["temperature_low"] = "9°F"
@@ -196,5 +180,5 @@ def test_mixed_scalar_and_number_limits(tmp_path: Path, number_first: bool) -> N
     ]
     if number_first:
         config = {"number": config.pop("number"), **config}
-    result = run_config(tmp_path, config, generate=True)
-    assert result.returncode == 0, result.stdout + result.stderr
+    source = generate_main(write_config(tmp_path, config))
+    assert "set_configure(true)" in source

@@ -82,9 +82,11 @@ class TMP102Component final : public PollingComponent, public i2c::I2CDevice, pu
   bool write_config_register_();
   bool write_limit_register_(uint8_t reg, float temperature);
   bool validate_limit_temperature_(TMP102LimitType limit, float temperature);
+  bool check_configuration_();
+  void read_failed_();
   void read_temperature_();
 #ifdef USE_TMP102_BINARY_SENSOR
-  void read_alert_state_();
+  bool read_alert_state_();
 #endif
 
   bool extended_mode_{false};
@@ -113,6 +115,7 @@ class TMP102Component final : public PollingComponent, public i2c::I2CDevice, pu
   bool configure_{false};
   bool setup_complete_{false};
   bool conversion_pending_{false};
+  bool threshold_write_failed_{false};
 };
 
 #ifdef USE_TMP102_NUMBER
@@ -120,7 +123,8 @@ class TMP102LimitNumber final : public number::Number, public Component {
  public:
   void setup() override;
   void dump_config() override;
-  float restore_value();
+  float restore_value(bool &corrected);
+  bool save_value(float value);
   TMP102LimitNumber(TMP102Component *parent, TMP102LimitType limit_type) : parent_(parent), limit_type_(limit_type) {}
   void set_initial_value(float initial_value) { this->initial_value_ = initial_value; }
   void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
