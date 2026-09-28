@@ -3,6 +3,8 @@
 
 namespace esphome::pzemac {
 
+namespace helpers = modbus::helpers;
+
 static const char *const TAG = "pzemac";
 
 static const uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
@@ -44,14 +46,14 @@ void PZEMAC::on_read_input_registers(uint16_t start_address, std::span<const uin
     return;
   }
 
-  auto pzem_get_32bit = [&](uint16_t reg) -> uint32_t {
-    return (static_cast<uint32_t>(registers[reg + 1]) << 16) | registers[reg];
-  };
-
+  // The full-frame check above guarantees that all requested values are present.
   uint16_t raw_voltage = registers[PZEM_REGISTER_VOLTAGE];
-  uint32_t raw_current = pzem_get_32bit(PZEM_REGISTER_CURRENT);
-  uint32_t raw_active_power = pzem_get_32bit(PZEM_REGISTER_ACTIVE_POWER);
-  uint32_t raw_active_energy = pzem_get_32bit(PZEM_REGISTER_ACTIVE_ENERGY);
+  uint32_t raw_current =
+      *helpers::value_at<helpers::SensorValueType::U_DWORD_R>(registers, start_address, PZEM_REGISTER_CURRENT);
+  uint32_t raw_active_power =
+      *helpers::value_at<helpers::SensorValueType::U_DWORD_R>(registers, start_address, PZEM_REGISTER_ACTIVE_POWER);
+  uint32_t raw_active_energy =
+      *helpers::value_at<helpers::SensorValueType::U_DWORD_R>(registers, start_address, PZEM_REGISTER_ACTIVE_ENERGY);
   uint16_t raw_frequency = registers[PZEM_REGISTER_FREQUENCY];
   uint16_t raw_power_factor = registers[PZEM_REGISTER_POWER_FACTOR];
   uint16_t raw_alarm = registers[PZEM_REGISTER_ALARM];
@@ -116,6 +118,8 @@ void PZEMAC::update() {
   // https://esphome.io/components/sensor/pzemac/
   // In this UPS-backed installation, removing AC stops replies instead of delivering a zero frame.
   // The timer tracks the last accepted frame, including startup with no valid frames yet.
+  // With 0.5 s polling, the >1 s threshold detects missing valid replies sooner than a 4 s YAML timeout.
+  // It also supplies zeros before the first valid reply; a YAML timeout needs an initial input to start.
   // The zeros below are an installation policy, not readings specified by the manual;
   // a timeout alone cannot distinguish loss of mains from a communication fault.
   if (this->get_update_interval() != SCHEDULER_DONT_RUN &&
