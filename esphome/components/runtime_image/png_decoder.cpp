@@ -48,7 +48,7 @@ static void draw_callback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, ui
   }
 }
 
-PngDecoder::PngDecoder(RuntimeImage *image) : ImageDecoder(image) {
+PngDecoder::PngDecoder(RuntimeImage *image) : ImageDecoder(image, PNG) {
   {
     RAMAllocator<pngle_t> allocator;
     pngle_t *pngle = allocator.allocate(1, PNGLE_T_SIZE);
@@ -57,8 +57,8 @@ PngDecoder::PngDecoder(RuntimeImage *image) : ImageDecoder(image) {
       return;
     }
     memset(pngle, 0, PNGLE_T_SIZE);
-    pngle_reset(pngle);
     this->pngle_ = pngle;
+    pngle_reset(this->pngle_);
   }
 }
 
@@ -71,11 +71,12 @@ PngDecoder::~PngDecoder() {
 }
 
 int PngDecoder::prepare(size_t expected_size) {
-  ImageDecoder::prepare(expected_size);
+  // Check before the base prepare() so a failure never leaves an active session
   if (!this->pngle_) {
     ESP_LOGE(TAG, "PNG decoder engine not initialized!");
     return DECODE_ERROR_OUT_OF_MEMORY;
   }
+  ImageDecoder::prepare(expected_size);
   pngle_set_user_data(this->pngle_, this);
   pngle_set_init_callback(this->pngle_, init_callback);
   pngle_set_draw_callback(this->pngle_, draw_callback);

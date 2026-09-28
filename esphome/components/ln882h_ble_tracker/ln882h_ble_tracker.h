@@ -9,6 +9,7 @@
 
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/ble_device_base/ble_hub.h"
+#include "esphome/components/ble_device_base/scan_response_merger.h"
 #include "esphome/components/ln882h_ble/ln882h_ble.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -26,7 +27,6 @@ namespace esphome::ln882h_ble_tracker {
 // ---------------------------------------------------------------------------
 
 class LN882HBLETracker : public Component,
-                         public ble_device_base::BLEHub,
                          public Parented<ln882h_ble::LN882HBLE>,
                          public ln882h_ble::BLEScanListener
 #ifdef USE_OTA_STATE_LISTENER
@@ -75,15 +75,13 @@ class LN882HBLETracker : public Component,
   void stop_scan();
 
   // ---- ble_device_base::BLEHub contract ----
-  void register_listener(ble_device_base::ESPBTDeviceListener *listener) override {
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-    this->listeners_.push_back(listener);
-#endif
+  void register_listener(ble_device_base::ESPBTDeviceListener *listener) {
+    this->dispatcher_.register_listener(listener);
   }
-  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback callback) override {
-    this->raw_advertisement_callback_ = callback;
+  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback callback) {
+    this->dispatcher_.set_raw_advertisement_callback(callback);
   }
-  ble_device_base::HubCapabilities get_capabilities() const override {
+  static constexpr ble_device_base::HubCapabilities get_capabilities() {
     // The LN882H controller supports active scanning; adv + scan response arrive
     // as separate reports and are merged by this tracker (Bluedroid semantics).
     // The SDK's GATT client is not exposed.
@@ -92,15 +90,15 @@ class LN882HBLETracker : public Component,
   }
   // The controller stores the address LSB-first (BLE convention); the contract
   // wants printable (MSB-first) order.
-  void get_adapter_mac(uint8_t out[6]) override {
-    uint8_t mac[6];
+  void get_adapter_mac(uint8_t out[MAC_ADDRESS_SIZE]) {
+    uint8_t mac[MAC_ADDRESS_SIZE];
     this->parent_->get_mac_lsb_first(mac);
     for (int i = 0; i < 6; i++)
       out[i] = mac[5 - i];
   }
-  bool scan_running() override { return this->scan_running_; }
-  bool scan_active() override { return this->scan_active_; }
-  bool request_scan_mode(bool active) override;
+  bool scan_running() { return this->scan_running_; }
+  bool scan_active() { return this->scan_active_; }
+  bool request_scan_mode(bool active);
 
   // ---- ln882h_ble::BLEScanListener ----
   // Delivered by the controller's loop() on the ESPHome main task — the
@@ -109,27 +107,11 @@ class LN882HBLETracker : public Component,
   void on_scan_report(const ln882h_ble::BLEScanReport &report) override;
 
  protected:
-  // Bluedroid-style adv + scan-response merging (ESP-IDF concatenates both into
-  // one result before ESPHome sees it; the LN controller reports them separately):
-  // a scannable advertisement is held here briefly, its scan response is appended
-  // on arrival and the pair is delivered as ONE merged frame. Held entries whose
-  // scan response never arrives are flushed by loop() after PENDING_ADV_TIMEOUT_MS.
-  // All of this runs on the main task (the controller queue already crossed tasks),
-  // so no locking is involved.
-  void stash_adv_(const ln882h_ble::BLEScanReport &report);
-  void deliver_scan_rsp_(const ln882h_ble::BLEScanReport &report);
-  // Dispatch one (possibly merged) advertisement: the raw
-  // callback, and — unless raw_only — parsing for listeners/triggers. raw_only
-  // marks unmatched scan-response frames: forwarded on the raw callback only,
-  // never to local sensors/triggers (HA merges per address).
-  void process_adv_(const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data, uint8_t data_len,
-                    bool raw_only);
   void start_scan_();
   void stop_scan_();
   // Close a scan period: flush held advertisements (unmerged) BEFORE
   // on_scan_end fires, then re-anchor the period clock to `now`.
   void end_scan_period_(uint32_t now);
-  void flush_pending_adv_();
 
   bool scan_running_{false};
   bool scan_active_{false};
@@ -148,45 +130,13 @@ class LN882HBLETracker : public Component,
 #endif
   uint32_t scan_start_time_{0};
 
-  // Pending scannable advertisements awaiting their scan response (active scan).
-  // 62 bytes = legacy adv (31) + scan response (31), the same merged maximum as
-  // ESP-IDF delivers on ESP32. Main-task only.
-  struct PendingAdv {
-    bool used{false};
-    uint8_t mac[6];
-    uint8_t addr_type;
-    int8_t rssi;
-    uint8_t data_len;  // <= sizeof(data)
-    uint8_t data[62];
-    uint32_t stored_ms;
-  };
-  // Sized for the unanswered case: a pair that IS answered normally matches
-  // within one queue drain, so a slot is held for the full timeout only by
-  // scannable devices that never reply. 8 concurrent such advertisers before
-  // the merge degrades (frames still delivered, just unmerged) at ~80 B each.
-  static constexpr size_t MAX_PENDING_ADV = 8;
-  // On air a scan response follows its advertisement by T_IFS (150 µs) — the
-  // timeout only covers HOST-side report queuing in rw_task under WiFi/BLE
-  // coexistence, measured on-device at up to ~136 ms. 300 ms = >2x that margin,
-  // while staying below any device's re-advertising period.
-  static constexpr uint32_t PENDING_ADV_TIMEOUT_MS = 300;
-  PendingAdv pending_adv_[MAX_PENDING_ADV];
-  // Occupied pending_adv_ slots — lets loop()'s timeout sweep skip the table
-  // in the common case (empty: passive scan, or every pair already matched).
-  uint8_t pending_count_{0};
+  // Shared adv + scan-response merge and frame dispatch (ble_device_base).
+  // All calls run on the main task (the controller queue already crossed
+  // tasks); the merger is clocked by millis() throughout this tracker.
+  ble_device_base::ScanResponseMerger merger_;
+  ble_device_base::AdvDispatcher dispatcher_;
 
   uint32_t scan_period_start_{0};  // millis() at start of current scan period; used to rate-limit on_scan_end()
-
-  ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{};
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-  // Parsed-advertisement consumers registered through ble_device_base.
-  // Codegen-sized: no heap allocation, no std::vector template instantiations.
-  StaticVector<ble_device_base::ESPBTDeviceListener *, ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT> listeners_;
-  // Per-period "Found device" DEBUG log with MAC dedup — shared implementation
-  // in ble_device_base, identical output on every tracker backend. Guarded like
-  // its only writer so a no-listener build does not carry an unused vector.
-  ble_device_base::DiscoveredDeviceLog discovered_log_{};
-#endif
 };
 
 }  // namespace esphome::ln882h_ble_tracker

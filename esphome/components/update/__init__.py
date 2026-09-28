@@ -21,7 +21,8 @@ from esphome.core.entity_helpers import (
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
 IS_PLATFORM_COMPONENT = True
@@ -30,16 +31,6 @@ update_ns = cg.esphome_ns.namespace("update")
 UpdateEntity = update_ns.class_("UpdateEntity", cg.EntityBase)
 
 UpdateInfo = update_ns.struct("UpdateInfo")
-
-PerformAction = update_ns.class_(
-    "PerformAction", automation.Action, cg.Parented.template(UpdateEntity)
-)
-CheckAction = update_ns.class_(
-    "CheckAction", automation.Action, cg.Parented.template(UpdateEntity)
-)
-IsAvailableCondition = update_ns.class_(
-    "IsAvailableCondition", automation.Condition, cg.Parented.template(UpdateEntity)
-)
 
 DEVICE_CLASSES = [
     DEVICE_CLASS_EMPTY,
@@ -95,7 +86,7 @@ def update_schema(
 
 
 @setup_entity("update")
-async def setup_update_core_(var, config):
+async def setup_update_core_(var: MockObj, config: ConfigType) -> None:
     setup_device_class(config)
 
     if on_update_available := config.get(CONF_ON_UPDATE_AVAILABLE):
@@ -113,7 +104,7 @@ async def setup_update_core_(var, config):
         await web_server.add_entity_config(var, web_server_config)
 
 
-async def register_update(var, config):
+async def register_update(var: MockObj, config: ConfigType) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     queue_entity_register("update", config)
@@ -121,20 +112,19 @@ async def register_update(var, config):
     await setup_update_core_(var, config)
 
 
-async def new_update(config):
+async def new_update(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await register_update(var, config)
     return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(update_ns.using)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "update.perform",
-    PerformAction,
     automation.maybe_simple_id(
         {
             cv.GenerateID(): cv.use_id(UpdateEntity),
@@ -143,45 +133,21 @@ async def to_code(config):
             ): cv.templatable(cv.boolean),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_FORCE_UPDATE, "perform", cg.bool_),
 )
-async def update_perform_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-
-    force = await cg.templatable(config[CONF_FORCE_UPDATE], args, cg.bool_)
-    cg.add(var.set_force(force))
-    return var
 
 
-@automation.register_action(
-    "update.check",
-    CheckAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(UpdateEntity),
-        }
-    ),
-    synchronous=True,
+UPDATE_AUTOMATION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(UpdateEntity),
+    }
 )
-async def update_check_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
-
-@automation.register_condition(
+automation.register_apply_action(
+    "update.check", UPDATE_AUTOMATION_SCHEMA, automation.ApplyCall("check()")
+)
+automation.register_apply_condition(
     "update.is_available",
-    IsAvailableCondition,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(UpdateEntity),
-        }
-    ),
+    UPDATE_AUTOMATION_SCHEMA,
+    "state == update::UPDATE_STATE_AVAILABLE",
 )
-async def update_is_available_condition_to_code(
-    config, condition_id, template_arg, args
-):
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

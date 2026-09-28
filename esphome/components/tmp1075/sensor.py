@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_CONVERSION_RATE
 import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
@@ -7,6 +8,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -40,7 +42,6 @@ CONF_LIMIT_LOW = "limit_low"
 CONF_LIMIT_HIGH = "limit_high"
 CONF_FAULT_COUNT = "fault_count"
 CONF_POLARITY = "polarity"
-CONF_CONVERSION_RATE = "conversion_rate"
 CONF_FUNCTION = "function"
 
 CONFIG_SCHEMA = (
@@ -71,7 +72,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

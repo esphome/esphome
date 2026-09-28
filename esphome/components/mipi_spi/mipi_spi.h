@@ -246,34 +246,37 @@ class MipiSpi : public display::Display,
       this->write_cmd_addr_data(8, 0x02, 24, cmd << 8, bytes, len);
       this->disable();
     } else if constexpr (BUS_TYPE == BUS_TYPE_OCTAL) {
-      this->dc_pin_->digital_write(false);
       this->enable();
+      this->dc_pin_->digital_write(false);
       this->write_cmd_addr_data(0, 0, 0, 0, &cmd, 1, 8);
-      this->disable();
       this->dc_pin_->digital_write(true);
+      // hold the bus between command and data to avoid a glitch on the D/C line
       if (len != 0) {
-        this->enable();
         this->write_cmd_addr_data(0, 0, 0, 0, bytes, len, 8);
-        this->disable();
       }
-    } else if constexpr (BUS_TYPE == BUS_TYPE_SINGLE) {
-      this->dc_pin_->digital_write(false);
-      this->enable();
-      this->write_byte(cmd);
       this->disable();
+    } else if constexpr (BUS_TYPE == BUS_TYPE_SINGLE) {
+      // Toggle D/C only while holding the bus; works around a quirk in the CoreS3 and W5500 ethernet combination.
+      // See https://github.com/esphome/esphome/pull/18529
+      this->enable();
+      this->dc_pin_->digital_write(false);
+      this->write_byte(cmd);
       this->dc_pin_->digital_write(true);
+      this->disable();
       if (len != 0) {
         this->enable();
         this->write_array(bytes, len);
         this->disable();
       }
     } else if constexpr (BUS_TYPE == BUS_TYPE_SINGLE_16) {
+      // DC must be stable before CS as the clock is gated by CS
       this->dc_pin_->digital_write(false);
       this->enable();
       this->write_byte(cmd);
       this->disable();
       this->dc_pin_->digital_write(true);
       for (size_t i = 0; i != len; i++) {
+        // must enable and disable for each byte based on empirical testing
         this->enable();
         this->write_byte(0);
         this->write_byte(bytes[i]);
@@ -601,7 +604,7 @@ class MipiSpiBuffer
 
   // Draw a pixel at the given coordinates.
   void draw_pixel_at(int x, int y, Color color) override {
-    if (!this->get_clipping().inside(x, y))
+    if (this->is_point_clipped(x, y))
       return;
     if constexpr (not HAS_HARDWARE_ROTATION) {
       if (this->rotation_ == display::DISPLAY_ROTATION_180_DEGREES) {

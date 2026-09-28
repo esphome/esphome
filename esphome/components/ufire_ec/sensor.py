@@ -14,6 +14,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_MILLISIEMENS_PER_CENTIMETER,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -25,12 +26,6 @@ ufire_ec_ns = cg.esphome_ns.namespace("ufire_ec")
 UFireECComponent = ufire_ec_ns.class_(
     "UFireECComponent", cg.PollingComponent, i2c.I2CDevice
 )
-
-# Actions
-UFireECCalibrateProbeAction = ufire_ec_ns.class_(
-    "UFireECCalibrateProbeAction", automation.Action
-)
-UFireECResetAction = ufire_ec_ns.class_("UFireECResetAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -63,7 +58,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_temperature_compensation(config[CONF_TEMPERATURE_COMPENSATION]))
@@ -93,20 +88,14 @@ UFIRE_EC_CALIBRATE_PROBE_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "ufire_ec.calibrate_probe",
-    UFireECCalibrateProbeAction,
     UFIRE_EC_CALIBRATE_PROBE_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall(
+        "calibrate_probe({}, {})",
+        ((CONF_SOLUTION, cg.float_), (CONF_TEMPERATURE, cg.float_)),
+    ),
 )
-async def ufire_ec_calibrate_probe_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    solution_ = await cg.templatable(config[CONF_SOLUTION], args, cg.float_)
-    temperature_ = await cg.templatable(config[CONF_TEMPERATURE], args, cg.float_)
-    cg.add(var.set_solution(solution_))
-    cg.add(var.set_temperature(temperature_))
-    return var
 
 
 UFIRE_EC_RESET_SCHEMA = cv.Schema(
@@ -116,12 +105,6 @@ UFIRE_EC_RESET_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
-    "ufire_ec.reset",
-    UFireECResetAction,
-    UFIRE_EC_RESET_SCHEMA,
-    synchronous=True,
+automation.register_apply_action(
+    "ufire_ec.reset", UFIRE_EC_RESET_SCHEMA, automation.ApplyCall("reset_board()")
 )
-async def ufire_ec_reset_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)

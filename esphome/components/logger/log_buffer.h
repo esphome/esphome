@@ -105,9 +105,9 @@ struct LogBuffer {
     this->format_vsnprintf_(format, args);
     this->finalize_();
   }
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  void HOT format_body_P(PGM_P format, va_list args) {
-    this->format_vsnprintf_P_(format, args);
+#ifdef USE_ESP8266
+  void HOT format_body_p(PGM_P format, va_list args) {
+    this->format_vsnprintf_p_(format, args);
     this->finalize_();
   }
 #endif
@@ -158,8 +158,8 @@ struct LogBuffer {
       return;
     this->process_vsnprintf_result_(vsnprintf(this->current_(), this->remaining_(), format, args));
   }
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  void format_vsnprintf_P_(PGM_P format, va_list args) {
+#ifdef USE_ESP8266
+  void format_vsnprintf_p_(PGM_P format, va_list args) {
     if (this->full_())
       return;
     this->process_vsnprintf_result_(vsnprintf_P(this->current_(), this->remaining_(), format, args));

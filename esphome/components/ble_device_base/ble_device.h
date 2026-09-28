@@ -154,12 +154,9 @@ class ESPBLEiBeacon {
 };
 
 /// Pack a controller-order (LSB-first) MAC into the uint64 the API speaks.
-///
-/// The result is the printable-order value esp32 has always sent
-/// (esp32_ble::ble_addr_to_uint64), so both proxy paths agree on the wire.
-/// This takes the raw controller order delivered by BLEHub's raw-advertisement
-/// callback; ESPBTDevice::address_uint64() is the equivalent for an already
-/// parsed device, whose address is stored MSB-first.
+/// Trackers with LSB-native SDKs call this at the emit site before filling
+/// RawAdvertisement::address; ESPBTDevice::address_uint64() is the equivalent
+/// for an already parsed device, whose address is stored MSB-first.
 inline uint64_t mac_lsb_first_to_uint64(const uint8_t *mac) {
   uint64_t addr = 0;
   for (int i = 0; i < 6; i++)
@@ -244,7 +241,7 @@ class ESPBTDevice {
   // the 2-byte element header); every in-tree tracker scans legacy PDUs only.
   static constexpr uint8_t MAX_ADV_NAME_LEN = 29;
 
-  uint8_t address_[6]{0};
+  uint8_t address_[MAC_ADDRESS_SIZE]{0};
   uint8_t address_type_{0};
   int rssi_{0};
   // Fixed buffer instead of std::string: no per-advertisement heap churn on

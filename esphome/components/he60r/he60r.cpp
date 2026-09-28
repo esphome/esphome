@@ -38,14 +38,14 @@ CoverTraits HE60rCover::get_traits() {
 
 void HE60rCover::dump_config() {
   LOG_COVER("", "HE60R Cover", this);
-  this->check_uart_settings(1200, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
   ESP_LOGCONFIG(TAG,
                 "  Open Duration: %.1fs\n"
                 "  Close Duration: %.1fs",
                 this->open_duration_ / 1e3f, this->close_duration_ / 1e3f);
   auto restore = this->restore_state_();
-  if (restore.has_value())
+  if (restore.has_value()) {
     ESP_LOGCONFIG(TAG, "  Saved position %d%%", (int) (restore->position * 100.f));
+  }
 }
 
 void HE60rCover::endstop_reached_(CoverOperation operation) {
@@ -59,7 +59,7 @@ void HE60rCover::endstop_reached_(CoverOperation operation) {
     if (this->last_command_ == operation) {
       float dur = (float) (now - this->start_dir_time_) / 1e3f;
       ESP_LOGD(TAG, "'%s' - %s endstop reached. Took %.1fs.", this->name_.c_str(),
-               operation == COVER_OPERATION_OPENING ? "Open" : "Close", dur);
+               operation == COVER_OPERATION_OPENING ? LOG_STR_LITERAL("Open") : LOG_STR_LITERAL("Close"), dur);
     }
     this->publish_state();
   }
@@ -77,8 +77,9 @@ void HE60rCover::process_rx_(uint8_t data) {
   ESP_LOGV(TAG, "Process RX data %X", data);
   if (!this->query_seen_) {
     this->query_seen_ = data == QUERY_BYTE;
-    if (!this->query_seen_)
+    if (!this->query_seen_) {
       ESP_LOGD(TAG, "RX Byte %02X", data);
+    }
     return;
   }
   switch (data) {
@@ -213,9 +214,9 @@ void HE60rCover::start_direction_(CoverOperation dir) {
   if (this->current_operation == dir)
     return;
   ESP_LOGD(TAG, "'%s' - Direction '%s' requested.", this->name_.c_str(),
-           dir == COVER_OPERATION_OPENING   ? "OPEN"
-           : dir == COVER_OPERATION_CLOSING ? "CLOSE"
-                                            : "STOP");
+           dir == COVER_OPERATION_OPENING   ? LOG_STR_LITERAL("OPEN")
+           : dir == COVER_OPERATION_CLOSING ? LOG_STR_LITERAL("CLOSE")
+                                            : LOG_STR_LITERAL("STOP"));
 
   if (dir == this->next_direction_) {
     // either moving and needs to stop, or stopped and will move correctly on one trigger

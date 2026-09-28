@@ -253,11 +253,18 @@ class SPIDelegate {
   // check if device is ready
   virtual bool is_ready();
 
+#ifdef USE_SPI_PSRAM_DMA
+  void set_psram_dma(bool enable) { this->psram_dma_ = enable; }
+#endif
+
  protected:
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
   uint32_t data_rate_{1000000};
   SPIMode mode_{MODE0};
   GPIOPin *cs_pin_{NullPin::NULL_PIN};
+#ifdef USE_SPI_PSRAM_DMA
+  bool psram_dma_{false};
+#endif
   static SPIDelegate *const NULL_DELEGATE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 };
 
@@ -352,6 +359,8 @@ class SPIComponent final : public Component {
     this->using_hw_ = true;
   }
 
+  SPIInterface get_interface() const { return this->interface_; }
+
   void set_interface_name(const char *name) { this->interface_name_ = name; }
 
   float get_setup_priority() const override { return setup_priority::BUS; }
@@ -395,6 +404,12 @@ class SPIClient {
     esph_log_d("spi_device", "mode %u, data_rate %ukHz", (unsigned) this->mode_, (unsigned) (this->data_rate_ / 1000));
     this->delegate_ = this->parent_->register_device(this, this->mode_, this->bit_order_, this->data_rate_, this->cs_,
                                                      this->release_device_, this->write_only_);
+#ifdef USE_SPI_PSRAM_DMA
+    this->delegate_->set_psram_dma(this->psram_dma_);
+    if (this->psram_dma_) {
+      esph_log_config("spi_device", "PSRAM DMA: enabled");
+    }
+#endif
   }
 
   virtual void spi_teardown() {
@@ -405,6 +420,9 @@ class SPIClient {
   bool spi_is_ready() { return this->delegate_->is_ready(); }
   void set_release_device(bool release) { this->release_device_ = release; }
   void set_write_only(bool write_only) { this->write_only_ = write_only; }
+#ifdef USE_SPI_PSRAM_DMA
+  void set_psram_dma(bool enable) { this->psram_dma_ = enable; }
+#endif
 
  protected:
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
@@ -414,6 +432,9 @@ class SPIClient {
   GPIOPin *cs_{nullptr};
   bool release_device_{false};
   bool write_only_{false};
+#ifdef USE_SPI_PSRAM_DMA
+  bool psram_dma_{false};
+#endif
   SPIDelegate *delegate_{SPIDelegate::NULL_DELEGATE};
 };
 

@@ -3,6 +3,8 @@ from esphome.components import ble_device_base
 import esphome.config_validation as cv
 from esphome.const import CONF_BINDKEY, CONF_ID, CONF_MAC_ADDRESS
 from esphome.core import HexInt
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@nagyrobi"]
 AUTO_LOAD = ["ble_device_base"]
@@ -14,7 +16,9 @@ BTHomeMiThermometer = bthome_mithermometer_ns.class_(
 )
 
 
-def bthome_mithermometer_base_schema(extra_schema=None):
+def bthome_mithermometer_base_schema(
+    extra_schema: cv.Schema | dict | None = None,
+) -> cv.All:
     if extra_schema is None:
         extra_schema = {}
     return cv.All(
@@ -32,7 +36,7 @@ def bthome_mithermometer_base_schema(extra_schema=None):
     )
 
 
-async def setup_bthome_mithermometer(var, config):
+async def setup_bthome_mithermometer(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))

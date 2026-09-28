@@ -1,7 +1,9 @@
 """ESPHome packet transport component."""
 
+from collections.abc import Callable, Iterator
 import hashlib
 import logging
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components.binary_sensor import BinarySensor
@@ -17,8 +19,9 @@ from esphome.const import (
     CONF_PLATFORM,
     CONF_SENSORS,
 )
-from esphome.core import CORE
-from esphome.cpp_generator import MockObjClass
+from esphome.core import CORE, ID
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
 AUTO_LOAD = ["xxtea"]
@@ -43,7 +46,7 @@ CONF_TRANSPORT_ID = "transport_id"
 _LOGGER = logging.getLogger(__name__)
 
 
-def sensor_validation(cls: MockObjClass):
+def sensor_validation(cls: MockObjClass) -> Callable[[Any], Any]:
     return cv.maybe_simple_value(
         cv.Schema(
             {
@@ -55,7 +58,7 @@ def sensor_validation(cls: MockObjClass):
     )
 
 
-def provider_name_validate(value):
+def provider_name_validate(value: Any) -> str:
     value = cv.valid_name(value)
     if "_" in value:
         _LOGGER.warning(
@@ -83,7 +86,7 @@ PROVIDER_SCHEMA = cv.Schema(
 ).extend(ENCRYPTION_SCHEMA)
 
 
-def validate_(config):
+def validate_(config: ConfigType) -> ConfigType:
     if CONF_ENCRYPTION in config:
         if CONF_SENSORS not in config and CONF_BINARY_SENSORS not in config:
             raise cv.Invalid("No sensors or binary sensors to encrypt")
@@ -117,11 +120,11 @@ TRANSPORT_SCHEMA = (
 )
 
 
-def transport_schema(cls):
+def transport_schema(cls: MockObjClass) -> cv.Schema:
     return TRANSPORT_SCHEMA.extend({cv.GenerateID(): cv.declare_id(cls)})
 
 
-def get_sensors(transport_id):
+def get_sensors(transport_id: ID) -> Iterator[ConfigType]:
     """Return the list of sensors for this platform."""
     return (
         sensor
@@ -130,7 +133,7 @@ def get_sensors(transport_id):
     )
 
 
-def validate_packet_transport_sensor(config):
+def validate_packet_transport_sensor(config: ConfigType) -> ConfigType:
     if CONF_NAME in config and CONF_INTERNAL not in config:
         raise cv.Invalid("Must provide internal: config when using name:")
     conf_sensors = CORE.data.setdefault(DOMAIN, {}).setdefault(CONF_SENSORS, [])
@@ -138,7 +141,7 @@ def validate_packet_transport_sensor(config):
     return config
 
 
-def packet_transport_sensor_schema(base_schema):
+def packet_transport_sensor_schema(base_schema: cv.Schema) -> cv.Schema:
     return cv.All(
         base_schema.extend(
             {
@@ -152,11 +155,11 @@ def packet_transport_sensor_schema(base_schema):
     )
 
 
-def hash_encryption_key(config: dict):
+def hash_encryption_key(config: dict) -> list[int]:
     return list(hashlib.sha256(config[CONF_KEY].encode()).digest())
 
 
-async def register_packet_transport(var, config):
+async def register_packet_transport(var: MockObj, config: ConfigType) -> set[str]:
     var = await cg.register_component(var, config)
     cg.add(var.set_rolling_code_enable(config[CONF_ROLLING_CODE_ENABLE]))
     cg.add(var.set_ping_pong_enable(config[CONF_PING_PONG_ENABLE]))
@@ -203,7 +206,7 @@ async def register_packet_transport(var, config):
     return providers
 
 
-async def new_packet_transport(config):
+async def new_packet_transport(config: ConfigType) -> tuple[MockObj, set[str]]:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_platform_name(config[CONF_PLATFORM]))
     providers = await register_packet_transport(var, config)

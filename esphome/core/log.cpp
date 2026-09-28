@@ -36,7 +36,7 @@ void HOT esp_log_printf_(int level, const char *tag, int line, const char *forma
 #endif
 }
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
 void HOT esp_log_printf_(int level, const char *tag, int line, const __FlashStringHelper *format, ...) {
 #ifdef USE_LOGGER
   ESPHOME_DEBUG_ASSERT(logger::global_logger != nullptr);
@@ -59,16 +59,6 @@ void HOT esp_log_vprintf_(int level, const char *tag, int line, const char *form
   logger::global_logger->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, args);
 #endif
 }
-
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-// Remove before 2026.9.0
-void HOT esp_log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format, va_list args) {
-#ifdef USE_LOGGER
-  ESPHOME_DEBUG_ASSERT(logger::global_logger != nullptr);
-  logger::global_logger->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, args);
-#endif
-}
-#endif
 
 #ifdef USE_ESP32
 int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT

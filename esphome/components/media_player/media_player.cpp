@@ -122,7 +122,7 @@ void MediaPlayerCall::perform() {
     ESP_LOGV(TAG, "  Volume: %.2f", this->volume_.value());
   }
   if (this->announcement_.has_value()) {
-    ESP_LOGV(TAG, " Announcement: %s", this->announcement_.value() ? "yes" : "no");
+    ESP_LOGV(TAG, " Announcement: %s", this->announcement_.value() ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"));
   }
   this->parent_->control(*this);
 }

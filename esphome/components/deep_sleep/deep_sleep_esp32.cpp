@@ -74,12 +74,6 @@ void DeepSleepComponent::set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode) {
 void DeepSleepComponent::set_ext1_wakeup(Ext1Wakeup ext1_wakeup) { this->ext1_wakeup_ = ext1_wakeup; }
 #endif
 
-#if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
-    !defined(USE_ESP32_VARIANT_ESP32C5) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
-void DeepSleepComponent::set_touch_wakeup(bool touch_wakeup) { this->touch_wakeup_ = touch_wakeup; }
-#endif
-
 void DeepSleepComponent::set_run_duration(WakeupCauseToRunDuration wakeup_cause_to_run_duration) {
   wakeup_cause_to_run_duration_ = wakeup_cause_to_run_duration;
 }
@@ -106,7 +100,7 @@ bool DeepSleepComponent::prepare_to_sleep_() {
       this->status_set_warning();
       ESP_LOGW(TAG, "Waiting for wakeup pin state change");
     }
-    this->next_enter_deep_sleep_ = true;
+    this->defer_sleep_();
     return false;
   }
   return true;

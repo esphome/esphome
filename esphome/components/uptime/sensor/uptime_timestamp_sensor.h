@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 
-#ifdef USE_TIME
+#ifdef USE_UPTIME_TIMESTAMP
 
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/time/real_time_clock.h"
@@ -25,4 +25,4 @@ class UptimeTimestampSensor final : public sensor::Sensor, public Component {
 
 }  // namespace esphome::uptime
 
-#endif  // USE_TIME
+#endif  // USE_UPTIME_TIMESTAMP

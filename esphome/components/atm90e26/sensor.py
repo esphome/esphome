@@ -30,6 +30,7 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from esphome.types import ConfigType
 
 CONF_METER_CONSTANT = "meter_constant"
 CONF_PL_CONST = "pl_const"
@@ -123,35 +124,20 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
 
-    if voltage_config := config.get(CONF_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
-    if current_config := config.get(CONF_CURRENT):
-        sens = await sensor.new_sensor(current_config)
-        cg.add(var.set_current_sensor(sens))
-    if power_config := config.get(CONF_POWER):
-        sens = await sensor.new_sensor(power_config)
-        cg.add(var.set_power_sensor(sens))
-    if reactive_power_config := config.get(CONF_REACTIVE_POWER):
-        sens = await sensor.new_sensor(reactive_power_config)
-        cg.add(var.set_reactive_power_sensor(sens))
-    if power_factor_config := config.get(CONF_POWER_FACTOR):
-        sens = await sensor.new_sensor(power_factor_config)
-        cg.add(var.set_power_factor_sensor(sens))
-    if forward_active_energy_config := config.get(CONF_FORWARD_ACTIVE_ENERGY):
-        sens = await sensor.new_sensor(forward_active_energy_config)
-        cg.add(var.set_forward_active_energy_sensor(sens))
-    if reverse_active_energy_config := config.get(CONF_REVERSE_ACTIVE_ENERGY):
-        sens = await sensor.new_sensor(reverse_active_energy_config)
-        cg.add(var.set_reverse_active_energy_sensor(sens))
-    if frequency_config := config.get(CONF_FREQUENCY):
-        sens = await sensor.new_sensor(frequency_config)
-        cg.add(var.set_freq_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)
+    await sensors(CONF_REACTIVE_POWER, var.set_reactive_power_sensor)
+    await sensors(CONF_POWER_FACTOR, var.set_power_factor_sensor)
+    await sensors(CONF_FORWARD_ACTIVE_ENERGY, var.set_forward_active_energy_sensor)
+    await sensors(CONF_REVERSE_ACTIVE_ENERGY, var.set_reverse_active_energy_sensor)
+    await sensors(CONF_FREQUENCY, var.set_freq_sensor)
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
     cg.add(var.set_meter_constant(config[CONF_METER_CONSTANT]))
     cg.add(var.set_pl_const(config[CONF_PL_CONST]))

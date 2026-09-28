@@ -148,41 +148,25 @@ CONFIG_SCHEMA = (
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    return modbus.final_validate_modbus_device("sdm_meter", role="client")(config)
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("sdm_meter", role="client")(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await modbus.register_modbus_client_device(var, config)
 
-    if CONF_TOTAL_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_TOTAL_POWER])
-        cg.add(var.set_total_power_sensor(sens))
-
-    if CONF_FREQUENCY in config:
-        sens = await sensor.new_sensor(config[CONF_FREQUENCY])
-        cg.add(var.set_frequency_sensor(sens))
-
-    if CONF_IMPORT_ACTIVE_ENERGY in config:
-        sens = await sensor.new_sensor(config[CONF_IMPORT_ACTIVE_ENERGY])
-        cg.add(var.set_import_active_energy_sensor(sens))
-
-    if CONF_EXPORT_ACTIVE_ENERGY in config:
-        sens = await sensor.new_sensor(config[CONF_EXPORT_ACTIVE_ENERGY])
-        cg.add(var.set_export_active_energy_sensor(sens))
-
-    if CONF_IMPORT_REACTIVE_ENERGY in config:
-        sens = await sensor.new_sensor(config[CONF_IMPORT_REACTIVE_ENERGY])
-        cg.add(var.set_import_reactive_energy_sensor(sens))
-
-    if CONF_EXPORT_REACTIVE_ENERGY in config:
-        sens = await sensor.new_sensor(config[CONF_EXPORT_REACTIVE_ENERGY])
-        cg.add(var.set_export_reactive_energy_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TOTAL_POWER, var.set_total_power_sensor)
+    await sensors(CONF_FREQUENCY, var.set_frequency_sensor)
+    await sensors(CONF_IMPORT_ACTIVE_ENERGY, var.set_import_active_energy_sensor)
+    await sensors(CONF_EXPORT_ACTIVE_ENERGY, var.set_export_active_energy_sensor)
+    await sensors(CONF_IMPORT_REACTIVE_ENERGY, var.set_import_reactive_energy_sensor)
+    await sensors(CONF_EXPORT_REACTIVE_ENERGY, var.set_export_reactive_energy_sensor)
 
     for i, phase in enumerate([CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C]):
         if phase not in config:

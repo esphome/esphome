@@ -7,7 +7,7 @@ guard is a safety property: these tests pin it to every handler slot.
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components import modbus_client
+from esphome.components import modbus, modbus_client
 from esphome.components.modbus_client import (
     CONF_ON_NO_RESPONSE,
     CONF_ON_NOT_SENT,
@@ -16,7 +16,13 @@ from esphome.components.modbus_client import (
     CONFIG_SCHEMA,
     MODBUS_CLIENT_SEND_SCHEMA,
 )
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_ON_ERROR, CONF_ON_RESPONSE
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_CONTINUOUS,
+    CONF_ID,
+    CONF_ON_ERROR,
+    CONF_ON_RESPONSE,
+)
 from esphome.core import Lambda
 from esphome.types import ConfigType
 
@@ -118,6 +124,29 @@ def test_on_no_response_retry_lambda_accepted() -> None:
     )
 
 
+def test_continuous_on_write_pdu_rejected() -> None:
+    """A literal write-code PDU with continuous: true is rejected at config time (reads only)."""
+    with pytest.raises(cv.Invalid, match="does not apply to function code"):
+        MODBUS_CLIENT_SEND_SCHEMA(
+            {
+                CONF_ADDRESS: 0x01,
+                CONF_PDU: [0x06, 0x00, 0x01, 0x00, 0x0A],
+                CONF_CONTINUOUS: True,
+            }
+        )
+
+
+def test_continuous_on_read_pdu_accepted() -> None:
+    """A literal read-code PDU with continuous: true is fine - continuous polling applies to reads."""
+    MODBUS_CLIENT_SEND_SCHEMA(
+        {
+            CONF_ADDRESS: 0x01,
+            CONF_PDU: [0x03, 0x00, 0x10, 0x00, 0x01],
+            CONF_CONTINUOUS: True,
+        }
+    )
+
+
 # The standalone component block. The compile fixtures cover the accepted shapes end to end; these pin
 # the parts a fixture cannot express - a rejection, and a module flag whose absence breaks other
 # components rather than this one.
@@ -156,3 +185,145 @@ def test_multi_conf_no_default_is_set() -> None:
     """
     assert modbus_client.MULTI_CONF is True
     assert modbus_client.MULTI_CONF_NO_DEFAULT is True
+
+
+@pytest.mark.parametrize("key", [CONF_CONTINUOUS, modbus.CONF_ALLOW_BROADCAST_READ])
+def test_send_rejects_read_option_on_static_write_pdu(key: str) -> None:
+    # A read option set true on a static write PDU is refused at validation, naming the key.
+    config = {
+        CONF_ADDRESS: 1,
+        CONF_PDU: [0x06, 0x00, 0x10, 0x00, 0x01],
+        key: True,
+    }
+    with pytest.raises(
+        cv.Invalid, match=f"'{key}: true' does not apply to function code"
+    ):
+        MODBUS_CLIENT_SEND_SCHEMA(config)
+
+
+def test_send_accepts_allow_broadcast_read_on_read_pdu() -> None:
+    # allow_broadcast_read defaults to False and is accepted on a read PDU to address 0.
+    config = MODBUS_CLIENT_SEND_SCHEMA(
+        {CONF_ADDRESS: 0, CONF_PDU: [0x03, 0x00, 0x10, 0x00, 0x02]}
+    )
+    assert config[modbus.CONF_ALLOW_BROADCAST_READ] is False
+    config = MODBUS_CLIENT_SEND_SCHEMA(
+        {
+            CONF_ADDRESS: 0,
+            CONF_PDU: [0x03, 0x00, 0x10, 0x00, 0x02],
+            modbus.CONF_ALLOW_BROADCAST_READ: True,
+        }
+    )
+    assert config[modbus.CONF_ALLOW_BROADCAST_READ] is True
+
+
+def test_send_rejects_write_option_on_static_read_pdu() -> None:
+    # The write-side option is refused on a static read PDU, the mirror of the read-option check.
+    key = modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE
+    with pytest.raises(
+        cv.Invalid, match=f"'{key}: true' does not apply to function code"
+    ):
+        MODBUS_CLIENT_SEND_SCHEMA(
+            {CONF_ADDRESS: 0, CONF_PDU: [0x03, 0x00, 0x10, 0x00, 0x02], key: True}
+        )
+
+
+def test_send_accepts_write_option_on_static_write_pdu() -> None:
+    config = MODBUS_CLIENT_SEND_SCHEMA(
+        {
+            CONF_ADDRESS: 0,
+            CONF_PDU: [0x06, 0x00, 0x10, 0x00, 0x01],
+            modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE: True,
+        }
+    )
+    assert config[modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE] is True
+
+
+def test_write_actions_offer_write_option_only() -> None:
+    # Every write action takes expect_broadcast_write_response and none of the read options.
+    from esphome.components.modbus_client import (
+        _WRITE_MULTIPLE_COILS_SCHEMA,
+        _WRITE_MULTIPLE_REGISTERS_SCHEMA,
+        _WRITE_SINGLE_COIL_SCHEMA,
+        _WRITE_SINGLE_REGISTER_SCHEMA,
+        CONF_START_ADDRESS,
+        CONF_VALUE,
+        CONF_VALUES,
+    )
+
+    write_key = modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE
+    base = {CONF_ADDRESS: 0, CONF_START_ADDRESS: 0x10, write_key: True}
+    for schema, extra in (
+        (_WRITE_SINGLE_REGISTER_SCHEMA, {CONF_VALUE: 1}),
+        (_WRITE_SINGLE_COIL_SCHEMA, {CONF_VALUE: True}),
+        (_WRITE_MULTIPLE_REGISTERS_SCHEMA, {CONF_VALUES: [1, 2]}),
+        (_WRITE_MULTIPLE_COILS_SCHEMA, {CONF_VALUES: [True, False]}),
+    ):
+        config = schema({**base, **extra})
+        assert config[write_key] is True
+        assert modbus.CONF_ALLOW_BROADCAST_READ not in config
+        with pytest.raises(cv.Invalid):
+            schema({**base, **extra, modbus.CONF_ALLOW_BROADCAST_READ: True})
+
+
+def test_send_options_follow_the_hub_classification() -> None:
+    # A vendor code is broadcastable, so it takes the write-side flag and refuses the read-side one;
+    # 0x17 is a read for broadcast purposes, so the reverse holds.
+    write_key = modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE
+    read_key = modbus.CONF_ALLOW_BROADCAST_READ
+    assert MODBUS_CLIENT_SEND_SCHEMA(
+        {CONF_ADDRESS: 0, CONF_PDU: [0x41, 0x01], write_key: True}
+    )[write_key]
+    with pytest.raises(cv.Invalid, match=f"'{read_key}: true' does not apply"):
+        MODBUS_CLIENT_SEND_SCHEMA(
+            {CONF_ADDRESS: 0, CONF_PDU: [0x41, 0x01], read_key: True}
+        )
+    pdu_0x17 = [0x17, 0x00, 0x10, 0x00, 0x01, 0x00, 0x20, 0x00, 0x01, 0x02, 0x00, 0x01]
+    assert MODBUS_CLIENT_SEND_SCHEMA(
+        {CONF_ADDRESS: 0, CONF_PDU: pdu_0x17, read_key: True}
+    )[read_key]
+    with pytest.raises(cv.Invalid, match=f"'{write_key}: true' does not apply"):
+        MODBUS_CLIENT_SEND_SCHEMA(
+            {CONF_ADDRESS: 0, CONF_PDU: pdu_0x17, write_key: True}
+        )
+
+
+def test_read_write_multiple_offers_allow_broadcast_read_only() -> None:
+    from esphome.components.modbus_client import (
+        _READ_WRITE_MULTIPLE_REGISTERS_SCHEMA,
+        CONF_READ_ADDRESS,
+        CONF_VALUES,
+        CONF_WRITE_ADDRESS,
+    )
+
+    config = _READ_WRITE_MULTIPLE_REGISTERS_SCHEMA(
+        {
+            CONF_ADDRESS: 0,
+            CONF_READ_ADDRESS: 0x10,
+            CONF_WRITE_ADDRESS: 0x20,
+            CONF_VALUES: [1],
+            modbus.CONF_ALLOW_BROADCAST_READ: True,
+        }
+    )
+    assert config[modbus.CONF_ALLOW_BROADCAST_READ] is True
+    assert CONF_CONTINUOUS not in config
+    assert modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE not in config
+
+
+@pytest.mark.parametrize(
+    "key",
+    [modbus.CONF_ALLOW_BROADCAST_READ, modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE],
+)
+def test_broadcast_options_rejected_on_literal_unicast_address(key: str) -> None:
+    # A broadcast-only option on a literal non-zero address would be silently dropped by the hub.
+    if key == modbus.CONF_ALLOW_BROADCAST_READ:
+        pdu = [0x03, 0x00, 0x10, 0x00, 0x01]
+    else:
+        pdu = [0x06, 0x00, 0x10, 0x00, 0x01]
+    with pytest.raises(cv.Invalid, match="only applies to the broadcast address"):
+        MODBUS_CLIENT_SEND_SCHEMA({CONF_ADDRESS: 1, CONF_PDU: pdu, key: True})
+    # A templated address is not decidable at validation and passes through.
+    config = MODBUS_CLIENT_SEND_SCHEMA(
+        {CONF_ADDRESS: Lambda("return 1;"), CONF_PDU: pdu, key: True}
+    )
+    assert config[key] is True

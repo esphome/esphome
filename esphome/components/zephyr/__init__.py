@@ -50,14 +50,14 @@ PrjConfValueType = bool | str | int | HexValue
 
 
 class Section:
-    def __init__(self, name, address, size, region):
+    def __init__(self, name: str, address: int, size: int, region: str) -> None:
         self.name = name
         self.address = address
         self.size = size
         self.region = region
         self.end_address = self.address + self.size
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"{self.name}:\n"
             f"  address: 0x{self.address:X}\n"
@@ -176,12 +176,15 @@ def zephyr_to_code(config: ConfigType) -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _cdc_acm_to_code(config: ConfigType) -> None:
-    if "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT" in zephyr_data()[KEY_PRJ_CONF][""]:
+    need_cdc_cb = zephyr_data()[KEY_PRJ_CONF][""].get(
+        "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", (False,)
+    )[0]
+    if need_cdc_cb:
         var = cg.new_Pvariable(config[CONF_CDC_ACM])
         await cg.register_component(var, {})
 
 
-def zephyr_setup_preferences():
+def zephyr_setup_preferences() -> None:
     cg.add(zephyr_ns.setup_preferences())
     zephyr_add_prj_conf("SETTINGS", True)
     zephyr_add_prj_conf("NVS", True)

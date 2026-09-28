@@ -2,6 +2,7 @@
 
 #ifdef USE_RP2040_BLE
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <BluetoothLock.h>
@@ -180,7 +181,7 @@ void RP2040BLE::packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, 
       // ESPHome main loop: bounded copy into the lock-free queue only.
       bd_addr_t addr;  // accessor returns printable (MSB-first) order
       gap_event_advertising_report_get_address(packet, addr);
-      uint8_t mac_lsb[6];
+      uint8_t mac_lsb[MAC_ADDRESS_SIZE];
       reverse_bd_addr(addr, mac_lsb);  // LSB-first, the BLE convention consumers expect
       global_ble->enqueue_scan_report_(mac_lsb, static_cast<int8_t>(gap_event_advertising_report_get_rssi(packet)),
                                        gap_event_advertising_report_get_address_type(packet),
@@ -206,7 +207,7 @@ void RP2040BLE::enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, 
     this->report_queue_.increment_dropped_count();
     return;
   }
-  memcpy(report->mac, mac_lsb_first, 6);
+  memcpy(report->mac, mac_lsb_first, MAC_ADDRESS_SIZE);
   report->rssi = rssi;
   report->addr_type = addr_type;
   report->adv_event_type = adv_event_type;
@@ -217,7 +218,9 @@ void RP2040BLE::enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, 
 }
 // NOLINTEND(clang-analyzer-unix.Malloc)
 
-void RP2040BLE::get_mac_msb_first(uint8_t out[6]) const { memcpy(out, this->ble_mac_, 6); }
+void RP2040BLE::get_mac_msb_first(uint8_t out[MAC_ADDRESS_SIZE]) const {
+  memcpy(out, this->ble_mac_, MAC_ADDRESS_SIZE);
+}
 
 bool RP2040BLE::scan_start(uint16_t interval, uint16_t window, bool active) {
   if (!this->is_active()) {

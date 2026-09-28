@@ -1,5 +1,6 @@
 import contextlib
 import re
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
@@ -12,6 +13,7 @@ from esphome.const import (
     CONF_TIME_ID,
     CONF_TRIGGER_ID,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@OttoWinter"]
 sun_ns = cg.esphome_ns.namespace("sun")
@@ -20,7 +22,6 @@ Sun = sun_ns.class_("Sun")
 SunTrigger = sun_ns.class_(
     "SunTrigger", cg.PollingComponent, automation.Trigger.template()
 )
-SunCondition = sun_ns.class_("SunCondition", automation.Condition)
 
 CONF_SUN_ID = "sun_id"
 CONF_ELEVATION = "elevation"
@@ -40,7 +41,7 @@ ELEVATION_MAP = {
 }
 
 
-def elevation(value):
+def elevation(value: Any) -> float:
     if isinstance(value, str):
         with contextlib.suppress(cv.Invalid):
             value = ELEVATION_MAP[
@@ -60,7 +61,7 @@ LAT_LON_REGEX = re.compile(
 )
 
 
-def parse_latlon(value):
+def parse_latlon(value: Any) -> float:
     if isinstance(value, str) and value.endswith("°"):
         # strip trailing degree character
         value = value[:-1]
@@ -114,7 +115,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     time_ = await cg.get_variable(config[CONF_TIME_ID])
     cg.add(var.set_time(time_))
@@ -138,43 +139,23 @@ async def to_code(config):
         await automation.build_automation(trigger, [], conf)
 
 
-@automation.register_condition(
+SUN_HORIZON_CONDITION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(Sun),
+        cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): cv.templatable(
+            elevation
+        ),
+    }
+)
+
+automation.register_apply_condition(
     "sun.is_above_horizon",
-    SunCondition,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(Sun),
-            cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): cv.templatable(
-                elevation
-            ),
-        }
-    ),
+    SUN_HORIZON_CONDITION_SCHEMA,
+    automation.ApplyCall("elevation() > {}", ((CONF_ELEVATION, cg.double),)),
 )
-async def sun_above_horizon_to_code(config, condition_id, template_arg, args):
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    templ = await cg.templatable(config[CONF_ELEVATION], args, cg.double)
-    cg.add(var.set_elevation(templ))
-    cg.add(var.set_above(True))
-    return var
 
-
-@automation.register_condition(
+automation.register_apply_condition(
     "sun.is_below_horizon",
-    SunCondition,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(Sun),
-            cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): cv.templatable(
-                elevation
-            ),
-        }
-    ),
+    SUN_HORIZON_CONDITION_SCHEMA,
+    automation.ApplyCall("elevation() < {}", ((CONF_ELEVATION, cg.double),)),
 )
-async def sun_below_horizon_to_code(config, condition_id, template_arg, args):
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    templ = await cg.templatable(config[CONF_ELEVATION], args, cg.double)
-    cg.add(var.set_elevation(templ))
-    cg.add(var.set_above(False))
-    return var

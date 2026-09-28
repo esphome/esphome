@@ -48,7 +48,7 @@ class MicrophoneSource final {
   template<typename F> void add_data_callback(F &&data_callback) {
     this->mic_->add_data_callback([this, data_callback](const std::vector<uint8_t> &data) {
       if (this->enabled_ || this->passive_) {
-        if (this->processed_samples_.use_count() == 0) {
+        if (this->processed_samples_ == nullptr) {
           // Create vector if its unused
           this->processed_samples_ = std::make_shared<std::vector<uint8_t>>();
         }

@@ -31,6 +31,7 @@ from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
+    CONF_BUILD_FLAGS,
     CONF_ESPHOME,
     CONF_GROUP,
     CONF_ID,
@@ -57,7 +58,6 @@ from .defines import (
     CONF_ALIGN_TO_LAMBDA_ID,
     CONF_ANIMATIONS,
     LOGGER,
-    add_lv_use,
     get_focused_widgets,
     get_lv_images_used,
     get_refreshed_widgets,
@@ -74,7 +74,6 @@ from .keypads import KEYPADS_CONFIG, keypads_to_code
 from .lv_validation import lv_bool
 from .lvcode import LvContext, LvglComponent, lv_event_t_ptr, lvgl_static
 from .schemas import (
-    BASE_PROPS,
     DISP_BG_SCHEMA,
     FULL_STYLE_SCHEMA,
     SET_STATE_SCHEMA,
@@ -83,6 +82,7 @@ from .schemas import (
     STYLE_SCHEMA,
     WIDGET_TYPES,
     any_widget_schema,
+    apply_style_driven_defines,
     container_schema,
     container_schema_value,
     theme_schema,
@@ -108,7 +108,6 @@ from .widgets import (
     get_screen_active,
     set_obj_properties,
 )
-from .widgets.img import CONF_IMAGE
 
 # Import only what we actually use directly in this file
 from .widgets.msgbox import MSGBOX_SCHEMA, msgboxes_to_code
@@ -171,11 +170,17 @@ def generate_lv_conf_h():
     all_defines = set(
         df.LV_DEFINES + tuple(f"LV_USE_{w.upper()}" for w in WIDGET_TYPES)
     )
-    build_flags = (
-        CORE.config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS).get("build_flags", [])
+    esphome_config = CORE.config[CONF_ESPHOME]
+    # User build flags come from esphome->build_flags and from the deprecated
+    # esphome->platformio_options->build_flags (a string or a list).
+    # Remove before 2026.12.0
+
+    pio_build_flags = esphome_config.get(CONF_PLATFORMIO_OPTIONS, {}).get(
+        CONF_BUILD_FLAGS, []
     )
-    if not isinstance(build_flags, list):
-        build_flags = [build_flags]
+    if not isinstance(pio_build_flags, list):
+        pio_build_flags = [pio_build_flags]
+    build_flags = [*esphome_config.get(CONF_BUILD_FLAGS, []), *pio_build_flags]
     # Extract define names from build flags like '-DLV_USE_CHART=1', '-D LV_USE_CHART',
     # or multiple defines in one string.
     define_pattern = r'-D\s*([A-Z_][A-Z0-9_]*)(?:=[^\s\'"\]]*)?'
@@ -455,6 +460,15 @@ async def to_code(configs):
     # Mark all widgets as completed so awaiters of ``wait_for_widgets`` proceed.
     set_widgets_completed(True)
     async with LvContext():
+        # Local import: lv_list imports meter, which imports obj_spec/set_obj_properties
+        # from this module's own namespace - a top-level import here would be circular.
+        from .widgets.lv_list import finish_list_triggers
+
+        # Must run before generate_triggers(): that's what actually processes other
+        # widgets' on_click etc. automations, which can include lvgl.list.add/remove/
+        # clear actions that fire a list's on_add/on_remove triggers - those need to
+        # already exist by then, not still be pending.
+        await finish_list_triggers()
         await generate_triggers()
         await generate_align_tos(configs[0])
         for config in configs:
@@ -481,34 +495,16 @@ async def to_code(configs):
 
     # This must be done after all widgets are created
     styles_used = df.get_styles_used()
-    if any(BASE_PROPS.get(x) is lvalid.lv_image for x in styles_used):
-        add_lv_use(CONF_IMAGE)
+    apply_style_driven_defines(styles_used)
     for use in df.get_lv_uses():
         df.add_define(f"LV_USE_{use.upper()}")
         cg.add_define(f"USE_LVGL_{use.upper()}")
-
-    if {
-        "transform_rotation",
-        "transform_scale",
-        "transform_scale_x",
-        "transform_scale_y",
-    } & styles_used:
-        df.add_define("LV_COLOR_SCREEN_TRANSP", "1")
 
     if configs[0].get(df.CONF_THEME, {}).get(df.CONF_DARK_MODE):
         df.add_define("LV_THEME_DEFAULT_DARK", "1")
 
     # Currently always need RGB565 for the display buffer, and ARGB8888 is used for layer blending
     lv_image_formats = {"RGB565", "ARGB8888"}
-    if {
-        "drop_shadow_color",
-        "drop_shadow_offset_x",
-        "drop_shadow_offset_y",
-        "drop_shadow_opa",
-        "drop_shadow_quality",
-        "drop_shadow_radius",
-    } & styles_used:
-        lv_image_formats.add("A8")
 
     for image_id in get_lv_images_used():
         await cg.get_variable(image_id)

@@ -5,6 +5,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server, zigbee
 from esphome.components.const import CONF_B_CONSTANT
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ABOVE,
@@ -110,9 +111,10 @@ from esphome.const import (
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
+    SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
     setup_device_class,
@@ -121,6 +123,7 @@ from esphome.core.entity_helpers import (
 )
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import ConfigType
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -255,7 +258,6 @@ SensorPtr = Sensor.operator("ptr")
 ValueRangeTrigger = sensor_ns.class_(
     "ValueRangeTrigger", automation.Trigger.template(cg.float_), cg.Component
 )
-SensorPublishAction = sensor_ns.class_("SensorPublishAction", automation.Action)
 
 # Filters
 Filter = sensor_ns.class_("Filter")
@@ -343,7 +345,9 @@ _SENSOR_SCHEMA = (
                 cv.requires_component("mqtt"),
                 cv.Any(None, cv.positive_time_period_milliseconds),
             ),
-            cv.Optional(CONF_FILTERS): validate_filters,
+            cv.Optional(
+                CONF_FILTERS, visibility=cv.Visibility.ADVANCED
+            ): validate_filters,
             cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
@@ -1011,6 +1015,13 @@ async def new_sensor(config, *args):
     return var
 
 
+def sub_sensors(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_sensor."""
+    return SubEntities(new_sensor, config, parent)
+
+
 SENSOR_IN_RANGE_CONDITION_SCHEMA = cv.All(
     {
         cv.Required(CONF_ID): cv.use_id(Sensor),
@@ -1303,3 +1314,8 @@ def _lstsq(a, b):
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(sensor_ns.using)
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"filter.cpp": "USE_SENSOR_FILTER"}
+)

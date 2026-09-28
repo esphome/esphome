@@ -1,0 +1,23 @@
+esphome:
+  name: api-backpressure-test
+
+host:
+
+api:
+  # Smallest queue so a non-draining client blocks the send path quickly
+  max_send_queue: 1
+  actions:
+# GENERATED_ACTIONS
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [sndbuf_pin_component]
+
+# Pins the device's socket send buffers for deterministic TCP backpressure
+sndbuf_pin_component:
+  buffer_size: SERVER_SNDBUF
+
+logger:
+  level: DEBUG

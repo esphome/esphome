@@ -3,6 +3,8 @@ import esphome.codegen as cg
 from esphome.components import spi, weikai
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INVERTED, CONF_MODE, CONF_NUMBER
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["spi"]
@@ -27,7 +29,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_name(str(config[CONF_ID])))
     await weikai.register_weikai(var, config)
@@ -46,7 +48,7 @@ WK2168_PIN_SCHEMA = cv.All(
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_WK2168_SPI, WK2168_PIN_SCHEMA)
-async def sc16is75x_pin_to_code(config):
+async def sc16is75x_pin_to_code(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_WK2168_SPI])
     cg.add(var.set_parent(parent))

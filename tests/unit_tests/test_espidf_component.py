@@ -1,12 +1,12 @@
 import glob
 import hashlib
 import json
-import os
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
+from esphome.components import esp32 as esp32_module
 from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
@@ -16,21 +16,24 @@ from esphome.const import (
 )
 from esphome.core import CORE, Library
 from esphome.espidf.component import (
+    _emit_idf_component,
     generate_cmakelists_txt,
     generate_idf_component_yml,
     generate_idf_components,
 )
 import esphome.platformio.library
 from esphome.platformio.library import (
+    ESPHOME_DATA_KEY,
+    ESPHOME_DATA_LINK_FLAGS_KEY,
     ConvertedLibrary as IDFComponent,
     GitSource,
     URLSource,
     _node_key,
-    _normalize_dependencies,
-    _parse_library_json,
-    _parse_library_properties,
     _resolve_registry_version,
     collect_filtered_files,
+    normalize_dependencies,
+    parse_library_json,
+    parse_library_properties,
     split_list_by_condition,
 )
 
@@ -291,6 +294,38 @@ def test_generate_cmakelists_txt_multi_token_flag(tmp_component):
     assert '  "-include"\n  "cp_custom_alloc.h"\n' in content
 
 
+def test_generate_cmakelists_txt_escapes_embedded_quotes(tmp_component):
+    """A define value carrying a literal quote survives into CMake as an
+    escaped quote, not a prematurely-terminated string."""
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+    # shlex keeps the backslash-escaped quotes as literal characters
+    tmp_component.data = {"build": {"flags": ['-DMSG=\\"hi\\"']}}
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert '"-DMSG=\\"hi\\""' in content
+
+
+def test_generate_cmakelists_txt_extra_script_link_flags(tmp_component):
+    """Captured extra-script LINKFLAGS come out as target_link_options, not
+    compile options where they would be silently ineffective."""
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+
+    tmp_component.data = {
+        ESPHOME_DATA_KEY: {ESPHOME_DATA_LINK_FLAGS_KEY: ["-Wl,--gc-sections"]}
+    }
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert (
+        'target_link_options(${COMPONENT_LIB} INTERFACE\n  "-Wl,--gc-sections"\n)'
+        in content
+    )
+    assert "target_compile_options" not in content
+
+
 def test_generate_cmakelists_txt_space_separated_classified_flags(tmp_component):
     # Space-separated -I/-L/-l entries routed to INCLUDE_DIRS and the link
     # handling before the shlex split was added; splitting must not leak
@@ -339,6 +374,18 @@ def test_generate_idf_component_yml_basic(tmp_component):
     assert result == "description: test\nrepository: http://aaa\n"
 
 
+def test_generate_idf_component_yml_tolerates_malformed_metadata(tmp_component):
+    """A string repository is the URL itself; junk shapes drop instead of
+    crashing on a third-party manifest."""
+    tmp_component.data = {"description": "test", "repository": "http://aaa"}
+    assert (
+        generate_idf_component_yml(tmp_component)
+        == "description: test\nrepository: http://aaa\n"
+    )
+    tmp_component.data = {"description": {"en": "x"}, "repository": 123}
+    assert generate_idf_component_yml(tmp_component) == "{}\n"
+
+
 def test_generate_idf_component_yml_with_dependencies(tmp_component, tmp_path):
     dep = IDFComponent("dep", "1.0", source=URLSource("http://dummy.com"))
     dep.path = tmp_path / "dep"
@@ -369,133 +416,11 @@ def test_generate_idf_component_yml_missing_path_raises(tmp_component):
         generate_idf_component_yml(tmp_component)
 
 
-def test_extra_script_captures_libpath_libs_and_defines(tmp_path):
-    from esphome.espidf.extra_script import captured_as_build_flags, run_extra_script
-
-    (tmp_path / "src" / "esp32").mkdir(parents=True)
-    script = tmp_path / "extra_script.py"
-    script.write_text(
-        "Import('env')\n"
-        "mcu = env.get('BOARD_MCU')\n"
-        "env.Append(\n"
-        "    LIBPATH=[join('src', mcu)],\n"
-        "    LIBS=['algobsec'],\n"
-        "    CPPDEFINES=['FOO', ('BAR', '1')],\n"
-        "    LINKFLAGS=['-Wl,--gc-sections'],\n"
-        ")\n"
-    )
-    # The script uses bare ``join`` (PIO's extra-scripts run inside SCons
-    # where this is in scope). Inject it via the script header so the
-    # shim's exec namespace can resolve it.
-    script.write_text("from os.path import join\n" + script.read_text())
-
-    result = run_extra_script(script, library_dir=tmp_path, idf_target="esp32")
-
-    assert result.libpath == [str(Path("src") / "esp32")]
-    assert result.libs == ["algobsec"]
-    assert ("BAR", "1") in result.cppdefines
-    assert "FOO" in result.cppdefines
-    assert result.linkflags == ["-Wl,--gc-sections"]
-
-    flags = captured_as_build_flags(result, library_dir=tmp_path)
-    sep = os.sep
-    assert f"-Lsrc{sep}esp32" in flags
-    assert "-lalgobsec" in flags
-    assert "-DFOO" in flags
-    assert "-DBAR=1" in flags
-    assert "-Wl,--gc-sections" in flags
-
-
-def test_extra_script_libpath_relative_resolves_against_library_dir(
-    tmp_path, monkeypatch
-):
-    """Relative LIBPATH entries must resolve against ``library_dir``, not the
-    caller's CWD (the shim restores CWD before ``captured_as_build_flags``
-    runs)."""
-    from esphome.espidf.extra_script import ExtraScriptResult, captured_as_build_flags
-
-    (tmp_path / "lib" / "esp32").mkdir(parents=True)
-    elsewhere = tmp_path.parent / "not_the_library_dir"
-    elsewhere.mkdir(exist_ok=True)
-    monkeypatch.chdir(elsewhere)
-
-    result = ExtraScriptResult(libpath=["lib/esp32"])
-    flags = captured_as_build_flags(result, library_dir=tmp_path)
-
-    sep = os.sep
-    assert flags == [f"-Llib{sep}esp32"]
-
-
-def test_extra_script_libpath_absolute_outside_library_dir(tmp_path):
-    from esphome.espidf.extra_script import ExtraScriptResult, captured_as_build_flags
-
-    outside = tmp_path.parent / "system_lib"
-    outside.mkdir(exist_ok=True)
-    result = ExtraScriptResult(libpath=[str(outside)])
-
-    flags = captured_as_build_flags(result, library_dir=tmp_path)
-    assert flags == [f"-L{outside.resolve()}"]
-
-
-def test_extra_script_failure_returns_empty_result(tmp_path, caplog):
-    from esphome.espidf.extra_script import run_extra_script
-
-    script = tmp_path / "broken.py"
-    script.write_text("raise RuntimeError('boom')\n")
-
-    with caplog.at_level("WARNING"):
-        result = run_extra_script(script, library_dir=tmp_path, idf_target="esp32")
-
-    assert result.libpath == []
-    assert result.libs == []
-    assert "broken.py" in caplog.text
-
-
-def test_apply_extra_script_path_traversal_is_rejected(tmp_path):
-    from esphome.espidf.component import _apply_extra_script
-
-    library_dir = tmp_path / "lib"
-    library_dir.mkdir()
-    outside = tmp_path / "evil.py"
-    outside.write_text("env.Append(LIBS=['pwned'])\n")
-
-    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
-    c.path = library_dir
-    c.data = {"build": {"extraScript": "../evil.py"}}
-
-    _apply_extra_script(c)
-
-    # Nothing was folded into flags: the traversal was rejected before
-    # the script could run.
-    assert "flags" not in c.data["build"]
-
-
-def test_apply_extra_script_merges_into_existing_flags(tmp_path, monkeypatch):
-    from esphome.components import esp32 as esp32_module
-
-    monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
-
-    from esphome.espidf.component import _apply_extra_script
-
-    (tmp_path / "src").mkdir()
-    script = tmp_path / "extra.py"
-    script.write_text("env.Append(LIBS=['algobsec'])\n")
-
-    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
-    c.path = tmp_path
-    c.data = {"build": {"extraScript": "extra.py", "flags": ["-DEXISTING"]}}
-
-    _apply_extra_script(c)
-
-    assert "-DEXISTING" in c.data["build"]["flags"]
-    assert "-lalgobsec" in c.data["build"]["flags"]
-
-
 def test_parse_library_json(tmp_path):
     f = tmp_path / "library.json"
     f.write_text(json.dumps({"name": "test"}))
 
-    result = _parse_library_json(f)
+    result = parse_library_json(f)
     assert result["name"] == "test"
 
 
@@ -510,7 +435,7 @@ empty=
 """
     )
 
-    result = _parse_library_properties(f)
+    result = parse_library_properties(f)
 
     assert result["name"] == "Test"
     assert result["version"] == "1.0"
@@ -680,22 +605,22 @@ def test_node_key_registry_bare_name():
 
 
 def test_normalize_dependencies_none():
-    assert _normalize_dependencies(None) == []
+    assert normalize_dependencies(None) == []
 
 
 def test_normalize_dependencies_list_form():
     deps = [{"name": "foo", "version": "1.0"}]
-    assert _normalize_dependencies(deps) == [{"name": "foo", "version": "1.0"}]
+    assert normalize_dependencies(deps) == [{"name": "foo", "version": "1.0"}]
 
 
 def test_normalize_dependencies_dict_form():
-    out = _normalize_dependencies({"nanopb/Nanopb": "^0.4.91", "BareName": "1.2.3"})
+    out = normalize_dependencies({"nanopb/Nanopb": "^0.4.91", "BareName": "1.2.3"})
     assert {"name": "Nanopb", "owner": "nanopb", "version": "^0.4.91"} in out
     assert {"name": "BareName", "owner": None, "version": "1.2.3"} in out
 
 
 def test_normalize_dependencies_dict_form_nested_spec():
-    out = _normalize_dependencies(
+    out = normalize_dependencies(
         {"nanopb/Nanopb": {"version": "^0.4.91", "platforms": "espidf"}}
     )
     assert out == [
@@ -735,7 +660,7 @@ def _patch_registry(monkeypatch, versions):
 
 def test_resolve_registry_version_intersects_constraints(monkeypatch):
     _patch_registry(monkeypatch, ["1.10018.1", "1.10021.0", "1.10021.1"])
-    owner, name, version, url = _resolve_registry_version(
+    owner, name, version, url, _size = _resolve_registry_version(
         "esphome", "libsodium", {"==1.10021.0", "^1.10018.1"}
     )
     assert (owner, name, version) == ("esphome", "libsodium", "1.10021.0")
@@ -744,7 +669,9 @@ def test_resolve_registry_version_intersects_constraints(monkeypatch):
 
 def test_resolve_registry_version_picks_highest_satisfying(monkeypatch):
     _patch_registry(monkeypatch, ["1.0.0", "1.5.0", "2.0.0"])
-    _owner, _name, version, _url = _resolve_registry_version("o", "p", {"^1.0.0"})
+    _owner, _name, version, _url, _size = _resolve_registry_version(
+        "o", "p", {"^1.0.0"}
+    )
     assert version == "1.5.0"
 
 
@@ -794,7 +721,7 @@ def test_generate_idf_components_dedupes_shared_dependency(
         resolve_calls.append(pkgname)
         captured[f"{owner}/{pkgname}"] = set(requirements)
         version = "1.10021.0" if pkgname == "C" else "1.0.0"
-        return owner, pkgname, version, f"http://x/{pkgname}.tar.gz"
+        return owner, pkgname, version, f"http://x/{pkgname}.tar.gz", None
 
     monkeypatch.setattr(
         esphome.platformio.library, "_resolve_registry_version", fake_resolve
@@ -853,7 +780,7 @@ def test_generate_idf_components_lib_ignore_filters_top_level_and_dependencies(
 
     def fake_resolve(owner, pkgname, requirements):
         resolve_calls.append(pkgname)
-        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz"
+        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz", None
 
     monkeypatch.setattr(
         esphome.platformio.library, "_resolve_registry_version", fake_resolve
@@ -909,6 +836,7 @@ def test_generate_idf_components_handles_dependency_cycle(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -966,6 +894,7 @@ def test_generate_idf_components_git_overrides_registry_warns(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -1002,6 +931,7 @@ def test_generate_idf_components_missing_manifest_raises(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -1046,6 +976,7 @@ def test_generate_idf_components_warns_on_noncanonical_duplicate(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -1079,6 +1010,7 @@ def test_generate_idf_components_incompatible_top_level_raises(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -1115,6 +1047,7 @@ def test_generate_idf_components_incompatible_dependency_skipped(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -1190,3 +1123,33 @@ def test_idf_component_download_passes_salt() -> None:
         "owner/name", force=True, salt="abcd1234", namespace="idf"
     )
     assert c.path == Path("/converted/owner/name")
+
+
+def test_emit_idf_component_wires_esp32_target(tmp_path, monkeypatch):
+    """Emitting a component resolves the esp32 variant into the shared
+    extraScript helper."""
+
+    monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
+    (tmp_path / "src").mkdir()
+    script = tmp_path / "extra.py"
+    script.write_text("env.Append(LIBS=[env.get('BOARD_MCU')])\n")
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": "extra.py"}}
+    _emit_idf_component(c)
+    assert c.data["build"]["flags"] == ["-lesp32"]
+
+
+def test_build_flags_dangling_flag_does_not_cross_entries(
+    tmp_path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Each entry is lexed independently, as ParseFlags does: a dangling -I ending one
+    entry warns instead of absorbing the next entry's first token."""
+    (tmp_path / "src").mkdir()
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"flags": ["-Wall -I", "-DFOO=1"]}}
+    content = generate_cmakelists_txt(c)
+    assert "FOO=1" in content
+    assert "-I-DFOO" not in content
+    assert "Ignoring trailing '-I'" in caplog.text

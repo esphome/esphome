@@ -1,3 +1,5 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import sensor
 from esphome.components.const import UNIT_AMPERE_HOUR
@@ -22,10 +24,14 @@ from esphome.const import (
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_CELSIUS,
+    UNIT_MILLIVOLT,
     UNIT_VOLT,
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from esphome.core import EnumValue
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
 
@@ -39,7 +45,6 @@ CONF_TEMPERATURE_COEFFICIENT = "temperature_coefficient"
 CONF_RESET_ON_BOOT = "reset_on_boot"
 UNIT_COULOMB = "C"
 UNIT_JOULE = "J"
-UNIT_MILLIVOLT = "mV"
 
 ina2xx_base_ns = cg.esphome_ns.namespace("ina2xx_base")
 INA2XX = ina2xx_base_ns.class_("INA2XX", cg.PollingComponent)
@@ -76,7 +81,7 @@ SENSOR_MODEL_OPTIONS = {
 }
 
 
-def validate_model_config(config):
+def validate_model_config(config: ConfigType) -> ConfigType:
     model = config[CONF_MODEL]
 
     for key in config:
@@ -92,7 +97,7 @@ def validate_model_config(config):
     return config
 
 
-def validate_adc_time(value):
+def validate_adc_time(value: Any) -> EnumValue:
     value = cv.positive_time_period_microseconds(value).total_microseconds
     return cv.enum(ADC_TIMES, int=True)(value)
 
@@ -198,7 +203,7 @@ INA2XX_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-async def setup_ina2xx(var, config):
+async def setup_ina2xx(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))
@@ -220,38 +225,13 @@ async def setup_ina2xx(var, config):
         cg.add(var.set_adc_time_shunt_voltage(adc_time_config))
         cg.add(var.set_adc_time_die_temperature(adc_time_config))
 
-    if conf := config.get(CONF_SHUNT_VOLTAGE):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_shunt_voltage_sensor(sens))
-
-    if conf := config.get(CONF_BUS_VOLTAGE):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_bus_voltage_sensor(sens))
-
-    if conf := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_die_temperature_sensor(sens))
-
-    if conf := config.get(CONF_CURRENT):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_current_sensor(sens))
-
-    if conf := config.get(CONF_POWER):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_power_sensor(sens))
-
-    if conf := config.get(CONF_ENERGY):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_energy_sensor_wh(sens))
-
-    if conf := config.get(CONF_ENERGY_JOULES):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_energy_sensor_j(sens))
-
-    if conf := config.get(CONF_CHARGE):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_charge_sensor_ah(sens))
-
-    if conf := config.get(CONF_CHARGE_COULOMBS):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_charge_sensor_c(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_SHUNT_VOLTAGE, var.set_shunt_voltage_sensor)
+    await sensors(CONF_BUS_VOLTAGE, var.set_bus_voltage_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_die_temperature_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)
+    await sensors(CONF_ENERGY, var.set_energy_sensor_wh)
+    await sensors(CONF_ENERGY_JOULES, var.set_energy_sensor_j)
+    await sensors(CONF_CHARGE, var.set_charge_sensor_ah)
+    await sensors(CONF_CHARGE_COULOMBS, var.set_charge_sensor_c)

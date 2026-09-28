@@ -53,8 +53,9 @@ from esphome.const import (
     CONF_TRANSFORM,
     CONF_WIDTH,
 )
-from esphome.cpp_generator import TemplateArguments
+from esphome.cpp_generator import MockObjClass, TemplateArguments
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 from . import CONF_BUS_MODE, CONF_SPI_16, DOMAIN, models
 
@@ -110,7 +111,7 @@ DISPLAY_PIXEL_MODES = {
 }
 
 
-def denominator(config):
+def denominator(config: ConfigType) -> int:
     """
     Calculate the best denominator for a buffer size fraction.
     The denominator should be a number between 2 and 16 that divides the display height evenly,
@@ -132,7 +133,7 @@ def denominator(config):
         return next(x for x in range(2, 17) if frac >= 1 / x)
 
 
-def model_schema(config):
+def model_schema(config: ConfigType) -> cv.All | cv.Schema:
     model = MODELS[config[CONF_MODEL]]
     bus_mode = config[CONF_BUS_MODE]
     transform = model.transform_schema()
@@ -238,7 +239,7 @@ def model_schema(config):
 
 
 @model_schema_extractor(MODELS, model_schema, extra={CONF_BUS_MODE: TYPE_SINGLE})
-def customise_schema(config):
+def customise_schema(config: ConfigType) -> ConfigType:
     """
     Create a customised config schema for a specific model and validate the configuration.
     :param config: The configuration dictionary to validate
@@ -305,7 +306,7 @@ def customise_schema(config):
 CONFIG_SCHEMA = customise_schema
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     global_config = full_config.get()
     model = MODELS[config[CONF_MODEL]]
 
@@ -341,7 +342,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def get_instance(config):
+def get_instance(config: ConfigType) -> tuple[MockObjClass, list]:
     """
     Get the type of MipiSpi instance to create based on the configuration,
     and the template arguments.
@@ -394,7 +395,7 @@ def get_instance(config):
     return MipiSpi, templateargs
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     model = MODELS[config[CONF_MODEL]]
     var_id = config[CONF_ID]
     init_sequence = model.get_sequence(config, add_madctl=False, add_reset=True)

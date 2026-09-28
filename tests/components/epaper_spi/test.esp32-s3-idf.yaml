@@ -255,3 +255,45 @@ display:
       it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
       it.circle(it.get_width() / 2, it.get_height() / 2, 100, Color::BLACK);
       it.circle(it.get_width() / 2, it.get_height() / 2, 60, Color(255, 0, 0));
+
+  # Waveshare 7.5" V2 mono (800x480, UC8179 controller, EPD_7in5_V2)
+  # full_update_every > 1 exercises the fast/partial refresh paths
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-7.5in-v2
+    full_update_every: 4
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 100, Color::BLACK);
+
+  # Seeed reTerminal E1001 - 7.5" mono e-paper (800x480, UC8179)
+  # Pins overridden to avoid conflicts with the E1002 defaults above
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: seeed-reterminal-e1001
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true

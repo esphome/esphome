@@ -1,6 +1,8 @@
 # Based on this datasheet:
 # https://www.mouser.ca/datasheet/2/678/AVGO_S_A0002854364_1-2574547.pdf
 
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
@@ -11,6 +13,8 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -55,7 +59,7 @@ AMBIENT_LIGHT_GAINS = {
 }
 
 
-def _validate_measurement_rate(value):
+def _validate_measurement_rate(value: Any) -> MockObj:
     value = cv.positive_time_period_milliseconds(value)
     return cv.enum(MEASUREMENT_RATES, int=True)(value.total_milliseconds)
 
@@ -85,7 +89,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

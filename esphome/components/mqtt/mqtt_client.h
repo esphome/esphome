@@ -159,7 +159,7 @@ class MQTTClientComponent final : public Component {
 
   /// Manually set the topic used for logging.
   void set_log_message_template(MQTTMessage &&message);
-  void set_log_level(int level);
+  void set_log_level(int level) { this->log_level_ = level; }
   /// Get the topic used for logging. Defaults to "<topic_prefix>/debug" and the value is cached for speed.
   void disable_log_message();
   bool is_log_message_enabled() const;
@@ -241,7 +241,7 @@ class MQTTClientComponent final : public Component {
 
   void check_connected();
 
-  void set_reboot_timeout(uint32_t reboot_timeout);
+  void set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 
   void register_mqtt_component(MQTTComponent *component);
 
@@ -262,8 +262,8 @@ class MQTTClientComponent final : public Component {
   void set_on_disconnect(mqtt_on_disconnect_callback_t &&callback);
 
   // Publish None state instead of NaN for Home Assistant
-  void set_publish_nan_as_none(bool publish_nan_as_none);
-  bool is_publish_nan_as_none() const;
+  void set_publish_nan_as_none(bool publish_nan_as_none) { this->publish_nan_as_none_ = publish_nan_as_none; }
+  bool is_publish_nan_as_none() const { return this->publish_nan_as_none_; }
 
   void set_wait_for_connection(bool wait_for_connection) { this->wait_for_connection_ = wait_for_connection; }
 
@@ -344,8 +344,8 @@ class MQTTMessageTrigger final : public Trigger<std::string>, public Component {
  public:
   explicit MQTTMessageTrigger(std::string topic);
 
-  void set_qos(uint8_t qos);
-  void set_payload(const std::string &payload);
+  void set_qos(uint8_t qos) { this->qos_ = qos; }
+  void set_payload(const std::string &payload) { this->payload_ = payload; }
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
@@ -378,23 +378,6 @@ class MQTTDisconnectTrigger final : public Trigger<MQTTClientDisconnectReason> {
   }
 };
 
-template<typename... Ts> class MQTTPublishAction final : public Action<Ts...> {
- public:
-  MQTTPublishAction(MQTTClientComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, topic)
-  TEMPLATABLE_VALUE(std::string, payload)
-  TEMPLATABLE_VALUE(uint8_t, qos)
-  TEMPLATABLE_VALUE(bool, retain)
-
-  void play(const Ts &...x) override {
-    this->parent_->publish(this->topic_.value(x...), this->payload_.value(x...), this->qos_.value(x...),
-                           this->retain_.value(x...));
-  }
-
- protected:
-  MQTTClientComponent *parent_;
-};
-
 template<typename... Ts> class MQTTPublishJsonAction final : public Action<Ts...> {
  public:
   MQTTPublishJsonAction(MQTTClientComponent *parent) : parent_(parent) {}
@@ -414,35 +397,6 @@ template<typename... Ts> class MQTTPublishJsonAction final : public Action<Ts...
 
  protected:
   std::function<void(Ts..., JsonObject)> payload_;
-  MQTTClientComponent *parent_;
-};
-
-template<typename... Ts> class MQTTConnectedCondition final : public Condition<Ts...> {
- public:
-  MQTTConnectedCondition(MQTTClientComponent *parent) : parent_(parent) {}
-  bool check(const Ts &...x) override { return this->parent_->is_connected(); }
-
- protected:
-  MQTTClientComponent *parent_;
-};
-
-template<typename... Ts> class MQTTEnableAction final : public Action<Ts...> {
- public:
-  MQTTEnableAction(MQTTClientComponent *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override { this->parent_->enable(); }
-
- protected:
-  MQTTClientComponent *parent_;
-};
-
-template<typename... Ts> class MQTTDisableAction final : public Action<Ts...> {
- public:
-  MQTTDisableAction(MQTTClientComponent *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override { this->parent_->disable(); }
-
- protected:
   MQTTClientComponent *parent_;
 };
 

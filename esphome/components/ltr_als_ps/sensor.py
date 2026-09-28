@@ -1,6 +1,9 @@
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import UNIT_COUNTS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTUAL_GAIN,
@@ -23,6 +26,7 @@ from esphome.const import (
     UNIT_LUX,
     UNIT_MILLISECOND,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["i2c"]
@@ -38,7 +42,6 @@ CONF_PS_LOW_THRESHOLD = "ps_low_threshold"
 ICON_BRIGHTNESS_7 = "mdi:brightness-7"
 ICON_GAIN = "mdi:multiplication"
 ICON_PROXIMITY = "mdi:hand-wave-outline"
-UNIT_COUNTS = "#"
 
 ltr_als_ps_ns = cg.esphome_ns.namespace("ltr_als_ps")
 
@@ -93,17 +96,17 @@ PS_GAINS = {
 }
 
 
-def validate_integration_time(value):
+def validate_integration_time(value: Any) -> Any:
     value = cv.positive_time_period_milliseconds(value).total_milliseconds
     return cv.enum(INTEGRATION_TIMES, int=True)(value)
 
 
-def validate_repeat_rate(value):
+def validate_repeat_rate(value: Any) -> Any:
     value = cv.positive_time_period_milliseconds(value).total_milliseconds
     return cv.enum(MEASUREMENT_REPEAT_RATES, int=True)(value)
 
 
-def validate_time_and_repeat_rate(config):
+def validate_time_and_repeat_rate(config: ConfigType) -> ConfigType:
     integraton_time = config[CONF_INTEGRATION_TIME]
     repeat_rate = config[CONF_REPEAT]
     if integraton_time > repeat_rate:
@@ -211,34 +214,18 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if als_config := config.get(CONF_AMBIENT_LIGHT):
-        sens = await sensor.new_sensor(als_config)
-        cg.add(var.set_ambient_light_sensor(sens))
-
-    if infrared_cnt_config := config.get(CONF_INFRARED_COUNTS):
-        sens = await sensor.new_sensor(infrared_cnt_config)
-        cg.add(var.set_infrared_counts_sensor(sens))
-
-    if full_spect_cnt_config := config.get(CONF_FULL_SPECTRUM_COUNTS):
-        sens = await sensor.new_sensor(full_spect_cnt_config)
-        cg.add(var.set_full_spectrum_counts_sensor(sens))
-
-    if act_gain_config := config.get(CONF_ACTUAL_GAIN):
-        sens = await sensor.new_sensor(act_gain_config)
-        cg.add(var.set_actual_gain_sensor(sens))
-
-    if act_itime_config := config.get(CONF_ACTUAL_INTEGRATION_TIME):
-        sens = await sensor.new_sensor(act_itime_config)
-        cg.add(var.set_actual_integration_time_sensor(sens))
-
-    if prox_cnt_config := config.get(CONF_PS_COUNTS):
-        sens = await sensor.new_sensor(prox_cnt_config)
-        cg.add(var.set_proximity_counts_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_AMBIENT_LIGHT, var.set_ambient_light_sensor)
+    await sensors(CONF_INFRARED_COUNTS, var.set_infrared_counts_sensor)
+    await sensors(CONF_FULL_SPECTRUM_COUNTS, var.set_full_spectrum_counts_sensor)
+    await sensors(CONF_ACTUAL_GAIN, var.set_actual_gain_sensor)
+    await sensors(CONF_ACTUAL_INTEGRATION_TIME, var.set_actual_integration_time_sensor)
+    await sensors(CONF_PS_COUNTS, var.set_proximity_counts_sensor)
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
