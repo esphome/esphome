@@ -7,9 +7,8 @@ import re
 import sys
 from typing import TYPE_CHECKING, Any
 
-import platformdirs
-
 from esphome.build_helpers.ccache import resolve_ccache_path
+from esphome.build_helpers.tools_cache import PLATFORMIO_CCACHE, tools_cache_path
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import strip_win_long_path_prefix
@@ -234,10 +233,10 @@ def _ccache_env() -> dict[str, str]:
     skips defaults for ``CCACHE_*`` keys it finds already set, so leaking
     these values would hand it the wrong cache dir and a stale basedir.
 
-    This mirrors ``_ccache_env()`` in ``esphome/espidf/framework.py``. When
-    PlatformIO has a configured cache directory, ccache lives alongside it so
-    container users can keep both caches on the same writable mount. Otherwise
-    it lives under the machine-global ESPHome cache dir. Unlike the
+    This mirrors ``_ccache_env()`` in ``esphome/espidf/framework.py``. The
+    cache lives under the machine-global ESPHome cache dir, or where
+    ``ESPHOME_PLATFORMIO_CCACHE_DIR`` points (the containers set it to their
+    writable cache mount), and is removed by ``esphome clean-all``. Unlike the
     ESP-IDF path, ``CCACHE_DEPEND`` is not set: SCons compiles don't emit
     the depfiles depend mode needs, so ccache's default preprocessor mode
     is used.
@@ -264,15 +263,8 @@ def _ccache_env() -> dict[str, str]:
             "build environment"
         )
     env["CCACHE_BASEDIR"] = str(Path(CORE.build_path).resolve())
-    platformio_cache_dir = os.environ.get("PLATFORMIO_CACHE_DIR")
-    ccache_dir = (
-        Path(platformio_cache_dir).parent / "ccache"
-        if platformio_cache_dir
-        else Path(platformdirs.user_cache_dir("esphome", appauthor=False))
-        / "platformio-ccache"
-    )
     defaults = {
-        "CCACHE_DIR": str(ccache_dir),
+        "CCACHE_DIR": str(tools_cache_path(*PLATFORMIO_CCACHE)),
         "CCACHE_NOHASHDIR": "true",
     }
     env.update({k: v for k, v in defaults.items() if k not in os.environ})
