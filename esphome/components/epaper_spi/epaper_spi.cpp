@@ -196,6 +196,15 @@ void EPaperBase::process_state_() {
       break;
     case EPaperState::UPDATE:
       this->do_update_();  // Calls ESPHome (current page) lambda
+      if (this->full_update_requested_) {
+        // Refresh the whole panel even if nothing was drawn
+        this->full_update_requested_ = false;
+        this->update_count_ = 0;
+        this->x_low_ = 0;
+        this->y_low_ = 0;
+        this->x_high_ = this->width_;
+        this->y_high_ = this->height_;
+      }
       if (this->x_high_ < this->x_low_ || this->y_high_ < this->y_low_) {
         this->set_state_(EPaperState::IDLE);
         return;

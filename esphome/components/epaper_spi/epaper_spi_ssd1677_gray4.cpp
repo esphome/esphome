@@ -64,12 +64,10 @@ bool HOT EPaperSSD1677Gray4::transfer_data() {
     if (first_pass) {
       // With partial updates enabled the window follows the changed area, but the four-level
       // refresh drives every pixel from both planes, and the reset before it does not keep RAM.
-      if (this->sent_.is_valid()) {
-        this->x_low_ = 0;
-        this->x_high_ = this->width_;
-        this->y_low_ = 0;
-        this->y_high_ = this->height_;
-      }
+      this->x_low_ = 0;
+      this->x_high_ = this->width_;
+      this->y_low_ = 0;
+      this->y_high_ = this->height_;
       this->set_window();
     }
     this->command(first_pass ? 0x24 : 0x26);

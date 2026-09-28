@@ -307,31 +307,59 @@ def test_requirement_missing_multiple_pluralised(
         model.check_requirements()
 
 
-def test_deprecation_warning_logged(
-    temp_model: Callable[..., EpaperModel],
-    caplog: pytest.LogCaptureFixture,
+# --- width_multiple -----------------------------------------------------------
+
+
+@pytest.mark.parametrize("width", [804, 801])
+def test_gray4_width_not_multiple_of_8_rejected(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+    width: int,
 ) -> None:
-    """A model with a deprecation_reason logs a warning naming it."""
-    model = temp_model(
-        "test-deprecated-model", deprecation_reason="replaced by test-new-model"
+    """The gray4 plane split reads two whole buffer bytes per plane byte, so width must be a multiple of 8."""
+    _setup_esp32(
+        set_core_config, set_component_config, VARIANT_ESP32S3, "esp32-s3-devkitc-1"
     )
 
-    model.check_requirements()
+    with pytest.raises(cv.Invalid, match="multiple of 8"):
+        CONFIG_SCHEMA(
+            {
+                "id": "test_display",
+                "model": "seeed-reterminal-sticky-gray4",
+                "dimensions": {"width": width, "height": 480},
+            }
+        )
 
-    assert "TEST-DEPRECATED-MODEL" in caplog.text
-    assert "replaced by test-new-model" in caplog.text
 
-
-def test_no_deprecation_warning_for_current_model(
-    temp_model: Callable[..., EpaperModel],
-    caplog: pytest.LogCaptureFixture,
+def test_gray4_width_multiple_of_8_accepted(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
 ) -> None:
-    """A model without deprecation_reason logs nothing."""
-    model = temp_model("test-current-model")
+    _setup_esp32(
+        set_core_config, set_component_config, VARIANT_ESP32S3, "esp32-s3-devkitc-1"
+    )
 
-    model.check_requirements()
+    result = CONFIG_SCHEMA(
+        {
+            "id": "test_display",
+            "model": "seeed-reterminal-sticky-gray4",
+            "dimensions": {"width": 808, "height": 480},
+        }
+    )
 
-    assert caplog.text == ""
+    assert result["dimensions"]["width"] == 808
+
+
+def test_mono_ssd1677_accepts_any_width(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The width restriction applies only to the gray4 model."""
+    _setup_esp32(set_core_config, set_component_config)
+
+    result = CONFIG_SCHEMA(_ssd1677_config(dimensions={"width": 204, "height": 200}))
+
+    assert result["dimensions"]["width"] == 204
 
 
 # --- extend(class_name=...) --------------------------------------------------

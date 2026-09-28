@@ -1,5 +1,8 @@
+from typing import Any
+
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA_RATE, CONF_FULL_UPDATE_EVERY
+from esphome.types import ConfigType
 
 from . import EpaperModel
 
@@ -13,12 +16,12 @@ MONOCHROME = "monochrome"
 class SSD1677(EpaperModel):
     def __init__(
         self,
-        name,
-        class_name="EPaperSSD1677",
-        data_rate="20MHz",
-        border_waveform=0x01,
-        **defaults,
-    ):
+        name: str,
+        class_name: str = "EPaperSSD1677",
+        data_rate: str = "20MHz",
+        border_waveform: int = 0x01,
+        **defaults: Any,
+    ) -> None:
         defaults[CONF_DATA_RATE] = data_rate
         defaults[CONF_BORDER_WAVEFORM] = border_waveform
         defaults.setdefault("partial_update", True)
@@ -34,7 +37,7 @@ class SSD1677(EpaperModel):
             )
         return options
 
-    def validate_config(self, config: dict) -> dict:
+    def validate_config(self, config: ConfigType) -> ConfigType:
         if (
             self.get_default("partial_update") == MONOCHROME
             and config[CONF_FULL_UPDATE_EVERY] > 1
@@ -115,4 +118,6 @@ seeed_sticky.extend(
     class_name="EPaperSSD1677Gray4",
     border_waveform=0x00,
     partial_update=MONOCHROME,
+    # each plane byte is built from two whole buffer bytes
+    width_multiple=8,
 )

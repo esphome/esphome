@@ -1,14 +1,12 @@
 #include "epaper_spi_ssd1677.h"
 
+#include <algorithm>
+
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
 static constexpr const char *const TAG = "epaper_spi.ssd1677";
-
-// Both planes are rewritten in full every update (~96 KB at 800x480). Sending that in
-// MAX_TRANSFER_TIME slices costs several loop iterations; larger blocks keep the overhead small
-// while staying under the scheduler's 50 ms warning.
-static constexpr uint32_t TRANSFER_BLOCK_TIME = 40;
 
 void EPaperSSD1677::setup() {
   EPaperMono::setup();
@@ -38,15 +36,15 @@ bool EPaperSSD1677::reset() {
   return EPaperMono::reset();
 }
 
+// The window always covers the whole panel, so each plane is the frame's bytes in order. Where
+// those bytes are already stored as the plane needs them (the comparison frame, and a 1-bit
+// buffer) they are written straight from the buffer, as many at a time as the time slice allows;
+// otherwise they are built a row at a time by plane_row().
 bool HOT EPaperSSD1677::transfer_data() {
   if (!this->sent_.is_valid())
     return EPaperMono::transfer_data();
 
   const auto start_time = millis();
-  // A full update ignores 0x26, and the copy may not hold a real frame yet (first update after
-  // boot): send the new frame to both planes.
-  const bool full = this->update_count_ == 0;
-  const size_t row_length = this->plane_row_length_();
   if (this->current_data_index_ == 0) {
     if (this->plane_ == 0) {
       this->x_low_ = 0;
@@ -57,24 +55,34 @@ bool HOT EPaperSSD1677::transfer_data() {
     this->set_window();
     this->command(this->plane_ == 0 ? 0x26 : 0x24);
   }
-  FixedVector<uint8_t> row{};
-  row.init(row_length);
+  // A full update ignores 0x26, and the copy may not hold a real frame yet (first update after
+  // boot): send the new frame to both planes.
+  const bool send_copy = this->plane_ == 0 && this->update_count_ != 0;
+  const bool direct = send_copy || this->buffer_is_plane();
+  const auto &source = send_copy ? this->sent_ : this->buffer_;
+  const size_t row_length = this->plane_row_length_();
+  const size_t plane_length = row_length * this->height_;
+  // Roughly what the bus moves in one time slice, so a slice is not overrun by much
+  const size_t max_chunk = std::max<size_t>(this->data_rate_ / 8000 * MAX_TRANSFER_TIME, MAX_TRANSFER_SIZE);
+  SmallBufferWithHeapFallback<128> row_alloc(direct ? 0 : row_length);
   this->start_data_();
-  while (this->current_data_index_ != this->height_) {
-    const size_t data_idx = this->current_data_index_ * row_length;
-    if (this->plane_ == 0 && !full) {
-      for (size_t i = 0; i != row_length; i++)
-        row[i] = this->sent_[data_idx + i];
+  while (this->current_data_index_ != plane_length) {
+    size_t length;
+    const uint8_t *data;
+    if (direct) {
+      data = source.get_span(this->current_data_index_, length);
+      length = std::min(length, max_chunk);
     } else {
-      this->plane_row(this->current_data_index_, &row.front());
-      if (this->plane_ == 1) {
-        for (size_t i = 0; i != row_length; i++)
-          this->sent_[data_idx + i] = row[i];
-      }
+      // Always at the start of a row here, since this path sends whole rows only
+      this->plane_row(this->current_data_index_ / row_length, row_alloc.get());
+      data = row_alloc.get();
+      length = row_length;
     }
-    ++this->current_data_index_;
-    this->write_array(&row.front(), row_length);  // NOLINT
-    if (millis() - start_time > TRANSFER_BLOCK_TIME) {
+    this->write_array(data, length);
+    if (this->plane_ == 1)
+      this->sent_.write(this->current_data_index_, data, length);
+    this->current_data_index_ += length;
+    if (this->current_data_index_ != plane_length && millis() - start_time > MAX_TRANSFER_TIME) {
       // Let the main loop run and come back next loop
       this->disable();
       return false;

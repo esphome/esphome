@@ -4,8 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_WIDTH
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj
-
-LOGGER = cv.logging.getLogger(__name__)
+from esphome.types import ConfigType
 
 
 class EpaperModel:
@@ -52,7 +51,7 @@ class EpaperModel:
         """
         return {}
 
-    def validate_config(self, config: dict) -> dict:
+    def validate_config(self, config: ConfigType) -> ConfigType:
         """
         Validate the configuration as a whole, once the schema has been applied.
         The base implementation accepts it unchanged; specific models override this for
@@ -114,13 +113,7 @@ class EpaperModel:
         This runs during schema validation (before ID references are resolved) so that a
         model whose default pins live on a pin expander reports the missing expander clearly
         instead of a cryptic "Couldn't find ID" from the unresolved pin reference.
-
-        Also logs a warning if the model is deprecated.
         """
-        if deprecation_reason := self.get_default("deprecation_reason"):
-            LOGGER.warning(
-                "Display model %s is deprecated: %s", self.name, deprecation_reason
-            )
         if requirements := self.get_default("requires", set()):
             # ``raw_config`` is populated before any component schema runs during a real
             # validation, so presence of a required component is simply a top-level key.

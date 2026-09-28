@@ -29,6 +29,16 @@ class TestableSSD1677 : public EPaperSSD1677 {
       this->buffer_[i++] = byte;
   }
 
+  /// Fill the frame with a byte pattern that differs per seed; returns it.
+  std::vector<uint8_t> set_pattern(uint8_t seed) {
+    std::vector<uint8_t> frame;
+    for (size_t i = 0; i != this->buffer_length_; i++) {
+      frame.push_back((uint8_t) (seed + i * 7));
+      this->buffer_[i] = frame.back();
+    }
+    return frame;
+  }
+
   /// What the base class would decide; 0 means the next push is a full one.
   void set_update_count(uint8_t count) { this->update_count_ = count; }
 
@@ -50,6 +60,16 @@ class TestableSSD1677 : public EPaperSSD1677 {
       calls++;
     return calls;
   }
+
+  /// Run the UPDATE state, with nothing drawn, and report whether a push follows.
+  bool run_update_state() {
+    this->set_auto_clear(false);
+    this->set_dirty(this->width_, this->height_, 0, 0);
+    this->state_ = EPaperState::UPDATE;
+    this->process_state_();
+    return this->state_ == EPaperState::RESET;
+  }
+  uint8_t update_count() const { return this->update_count_; }
 
   bool reset_in(EPaperState state) {
     this->state_ = state;
@@ -136,24 +156,44 @@ TEST(EPaperSSD1677, ComparisonFrameIsWhatWasSentNotTheBuffer) {
 }
 
 /// Two full planes can take several loop iterations to send; each resumed call must continue the
-/// right plane at the right row.
+/// right plane at the right byte. Planes go out in runs sized to the time slice, not row by row.
 TEST(EPaperSSD1677, ResumesTheRightPlaneAfterYielding) {
-  TestableSSD1677 display(16, 4);
-  RecordingDelegate bus(&display.dc, 25);  // two rows exceed the 40 ms block
+  // 400x100 is 5000 bytes per plane: two runs at the default 2 MHz bus
+  TestableSSD1677 display(400, 100);
+  RecordingDelegate bus(&display.dc, MAX_TRANSFER_TIME + 1);  // every run overruns the time slice
   display.install(&bus, 5);
 
-  display.set_frame({1, 2, 3, 4, 5, 6, 7, 8});
+  const auto old_frame = display.set_pattern(1);
   display.set_update_count(0);
   display.run_push();
   bus.clear();
 
-  display.set_frame({9, 10, 11, 12, 13, 14, 15, 16});
+  const auto new_frame = display.set_pattern(2);
   display.set_update_count(1);
   const int calls = display.run_push();
 
-  EXPECT_GT(calls, 2) << "the transfer never yielded, so this test proves nothing";
-  EXPECT_EQ(bus.data[0x26], (Bytes{1, 2, 3, 4, 5, 6, 7, 8}));
-  EXPECT_EQ(bus.data[0x24], (Bytes{9, 10, 11, 12, 13, 14, 15, 16}));
+  EXPECT_EQ(calls, 4) << "expected two runs per plane, one per call";
+  EXPECT_EQ(bus.data[0x26], old_frame);
+  EXPECT_EQ(bus.data[0x24], new_frame);
+}
+
+/// A requested full update takes effect when the next update starts, and pushes the whole panel
+/// even if nothing was drawn.
+TEST(EPaperSSD1677, RequestedFullUpdateAppliesWhenTheNextUpdateStarts) {
+  TestableSSD1677 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_update_count(3);
+  EXPECT_FALSE(display.run_update_state()) << "an update with nothing drawn should not push";
+
+  display.request_full_update();
+  EXPECT_EQ(display.update_count(), 3) << "request changed the update in progress";
+  EXPECT_TRUE(display.run_update_state()) << "requested full update did not push";
+  EXPECT_EQ(display.update_count(), 0) << "requested update is not a full one";
+
+  display.set_update_count(3);
+  EXPECT_FALSE(display.run_update_state()) << "request was applied more than once";
 }
 
 /// Nothing a partial needs lives in controller RAM any more, so a partial push skips the reset

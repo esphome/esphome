@@ -107,7 +107,8 @@ class EPaperBase : public Display,
   int get_width() override { return this->effective_transform_ & SWAP_XY ? this->height_ : this->width_; }
   int get_height() override { return this->effective_transform_ & SWAP_XY ? this->width_ : this->height_; }
   void draw_pixel_at(int x, int y, Color color) override;
-  void reset_update_count() { this->update_count_ = 0; }
+  // Make the next update a full one. Applied when that update starts, so one in progress is not affected.
+  void request_full_update() { this->full_update_requested_ = true; }
 
  protected:
   int get_height_internal() override { return this->height_; };
@@ -179,6 +180,7 @@ class EPaperBase : public Display,
   uint8_t transform_{};
   uint8_t effective_transform_{};
   uint8_t update_count_{};
+  bool full_update_requested_{};
   // these values represent the bounds of the updated buffer. Note that x_high and y_high
   // point to the pixel past the last one updated, i.e. may range up to width/height.
   uint16_t x_low_{}, y_low_{}, x_high_{}, y_high_{};

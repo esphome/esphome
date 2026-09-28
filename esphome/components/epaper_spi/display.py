@@ -1,5 +1,7 @@
+from collections.abc import Callable
 import importlib
 import pkgutil
+from typing import Any
 
 from esphome import automation, core, pins
 import esphome.codegen as cg
@@ -57,7 +59,7 @@ Transform = epaper_spi_ns.enum("Transform")
 automation.register_apply_action(
     "epaper_spi.full_update_next",
     automation.maybe_simple_id({cv.Required(CONF_ID): cv.use_id(EPaperBase)}),
-    automation.ApplyCall("reset_update_count()"),
+    automation.ApplyCall("request_full_update()"),
 )
 
 # Import all models dynamically from the models package
@@ -76,11 +78,13 @@ DIMENSION_SCHEMA = cv.Schema(
 TRANSFORM_OPTIONS = {CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY}
 
 
-def _full_update_every_validator(model):
+def _full_update_every_validator(
+    model: models.EpaperModel,
+) -> Callable[[Any], int]:
     if model.get_default("partial_update"):
         return cv.int_range(1, 255)
 
-    def validate(value):
+    def validate(value: Any) -> int:
         value = cv.int_range(1, 255)(value)
         if value != 1:
             raise cv.Invalid(
@@ -159,6 +163,11 @@ def customise_schema(config):
     config = model_schema(config)(config)
     config = model.validate_config(config)
     width, height = model.get_dimensions(config)
+    if width % (width_multiple := model.get_default("width_multiple", 1)):
+        raise cv.Invalid(
+            f"{model.name} requires a width that is a multiple of {width_multiple}",
+            path=[CONF_DIMENSIONS],
+        )
     display.add_metadata(
         config[CONF_ID],
         width,

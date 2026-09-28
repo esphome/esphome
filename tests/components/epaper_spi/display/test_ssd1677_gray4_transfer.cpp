@@ -46,6 +46,7 @@ class TestableSSD1677Gray4 : public EPaperSSD1677Gray4 {
   }
 
   using EPaperSSD1677Gray4::refresh_screen;
+  using EPaperSSD1677Gray4::transfer_data;
 
   RecordingPin dc;
 };
@@ -192,6 +193,70 @@ TEST(EPaperSSD1677Gray4, PartialPushSendsTheHighBitsInBlackAndWhite) {
 
   EXPECT_EQ(bus.data[0x26], (Bytes{0x33, 0xFF, 0x00, 0x00})) << "old plane is not the frame on the panel";
   EXPECT_EQ(bus.data[0x24], (Bytes{0x33, 0xFF, 0xF0, 0x00})) << "new plane is not the whole frame's high bits";
+}
+
+/// The new plane of a partial update is built a row at a time; a push that yields partway through
+/// must resume at the right row.
+TEST(EPaperSSD1677Gray4, PartialPushResumesAfterYielding) {
+  TestableSSD1677Gray4 display(8, 4);
+  RecordingDelegate bus(&display.dc, 6);  // two rows exceed MAX_TRANSFER_TIME
+  display.install_with_partials(&bus);
+
+  display.set_update_count(0);
+  display.run_push();
+  bus.clear();
+
+  // The buffer starts white; darken all of row 0 and the right half of row 2
+  draw_row(display, 0, {0, 0, 0, 0, 0, 0, 0, 0});
+  draw_row(display, 2, {3, 3, 3, 3, 0, 0, 0, 0});
+  display.set_update_count(1);
+  const int calls = display.run_push();
+
+  EXPECT_GT(calls, 2) << "the transfer never yielded, so this test proves nothing";
+  EXPECT_EQ(bus.data[0x26], (Bytes{0xFF, 0xFF, 0xFF, 0xFF}));
+  EXPECT_EQ(bus.data[0x24], (Bytes{0x00, 0xFF, 0xF0, 0xFF}));
+}
+
+/// Regression test: a full update requested while a partial one is being sent must not switch the
+/// push to the four-level transfer halfway, which misread the partial's progress and never finished.
+TEST(EPaperSSD1677Gray4, FullUpdateRequestDuringAPartialPushWaitsForTheNextUpdate) {
+  TestableSSD1677Gray4 display(8, 4);
+  RecordingDelegate bus(&display.dc, 6);  // two rows exceed MAX_TRANSFER_TIME
+  display.install_with_partials(&bus);
+
+  display.set_update_count(0);
+  display.run_push();
+  bus.clear();
+
+  draw_row(display, 0, {0, 0, 0, 0, 0, 0, 0, 0});
+  display.set_update_count(1);
+  ASSERT_FALSE(display.transfer_data());
+  display.request_full_update();
+  int calls = 1;
+  while (!display.transfer_data())
+    ASSERT_LT(++calls, 20) << "partial push never finished";
+
+  EXPECT_EQ(bus.data[0x26], (Bytes{0xFF, 0xFF, 0xFF, 0xFF}));
+  EXPECT_EQ(bus.data[0x24], (Bytes{0x00, 0xFF, 0xFF, 0xFF}));
+  bus.clear();
+  display.refresh_screen(true);
+  EXPECT_EQ(bus.data[0x22], (Bytes{0xFF})) << "refresh does not match the partial data sent";
+}
+
+/// The four-level refresh follows a reset, which loses controller RAM, so it must send the whole
+/// panel even when partial updates are enabled but the comparison frame could not be allocated.
+TEST(EPaperSSD1677Gray4, FourLevelPushCoversTheWholePanelWithoutAComparisonFrame) {
+  TestableSSD1677Gray4 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus);
+  display.set_full_update_every(5);  // partial updates on, but no comparison frame
+
+  display.set_dirty(8, 1, 16, 2);
+  display.set_update_count(0);
+  display.run_push();
+
+  EXPECT_EQ(bus.data[0x24].size(), 4u) << "four-level update did not send the whole new plane";
+  EXPECT_EQ(bus.data[0x26].size(), 4u) << "four-level update did not send the whole old plane";
 }
 
 /// A full update resets the controller, which does not keep RAM, so even when only part of the
