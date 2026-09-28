@@ -20,9 +20,8 @@ __attribute__((weak)) void print_coredump() {}
 
 namespace esphome::logger {
 
-// Zephyr 3.7 renamed z_arch_esf_t to struct arch_esf (the old name was later
-// removed) and moved the generated version header to zephyr/version.h.
-#if __has_include(<zephyr/version.h>)
+// Zephyr 3.7 renamed z_arch_esf_t to struct arch_esf; the old name was later removed.
+#if KERNEL_VERSION_NUMBER >= 0x030700
 using FatalErrorEsf = ::arch_esf;
 #else
 using FatalErrorEsf = z_arch_esf_t;
