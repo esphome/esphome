@@ -1,4 +1,4 @@
-pylint==4.0.8
+pylint==4.0.9
 flake8==7.3.0  # .pre-commit-config.yaml rev synced by script/sync_dependency_versions.py
 ruff==0.16.8  # .pre-commit-config.yaml rev synced by script/sync_dependency_versions.py
 pyupgrade==3.21.2  # .pre-commit-config.yaml rev synced by script/sync_dependency_versions.py
