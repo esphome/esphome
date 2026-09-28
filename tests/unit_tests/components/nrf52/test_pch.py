@@ -39,6 +39,8 @@ def test_cmake_lists_precompile_the_core_headers(tmp_path: Path) -> None:
         "$<STREQUAL:$<TARGET_PROPERTY:NAME>,app>>>:${option}>"
     ) in text
     assert r'REPLACE "(.+)" "$<$<COMPILE_LANGUAGE:CXX>:\\1>"' in text
+    # A Zephyr that spells them another way must not go unnoticed
+    assert "if(NOT esphome_pch_headers)\n  message(FATAL_ERROR" in text
 
 
 def test_cmake_lists_pch_block_disabled(
