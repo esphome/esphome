@@ -28,14 +28,17 @@ _LOGGER = logging.getLogger(__name__)
 
 _REQUIREMENTS = Path(__file__).parent / "requirements.txt"
 TOOLCHAIN_VERSION = "0.17.4"
-_TOOLCHAIN_VERSION_3_4_0 = "1.0.1"
+# Zephyr SDK 1.0.1 ships with NCS 3.4.0.  Newer NCS releases will need their
+# own entry here; the layout check below uses != TOOLCHAIN_VERSION so it
+# automatically covers any version beyond the legacy 0.17.4.
+_TOOLCHAIN_VERSION_NCS_3_4_0 = "1.0.1"
 
 
 def _get_toolchain_version() -> str:
     """Return the Zephyr SDK toolchain version for the current framework."""
     framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if framework_ver >= cv.Version(3, 4, 0):
-        return _TOOLCHAIN_VERSION_3_4_0
+        return _TOOLCHAIN_VERSION_NCS_3_4_0
     return TOOLCHAIN_VERSION
 
 
@@ -59,8 +62,11 @@ _SDK_NG_TOOLCHAIN_GNU_MIRRORS = str_to_lst_of_str(
 
 
 def _get_sdk_ng_toolchain_mirrors() -> list[str]:
-    """Return toolchain mirror URLs for the current framework version."""
-    if _get_toolchain_version() == _TOOLCHAIN_VERSION_3_4_0:
+    """Return toolchain mirror URLs for the current framework version.
+
+    SDK 1.0+ uses a toolchain_gnu_ prefix in the filename.
+    """
+    if _get_toolchain_version() != TOOLCHAIN_VERSION:
         return _SDK_NG_TOOLCHAIN_GNU_MIRRORS
     return SDK_NG_TOOLCHAIN_MIRRORS
 
@@ -118,7 +124,7 @@ def toolchain_tool(name: str) -> Path:
     suffix = ".exe" if os.name == "nt" else ""
     toolchain_version = _get_toolchain_version()
     toolchain_root = _get_toolchain_path(toolchain_version)
-    if toolchain_version == _TOOLCHAIN_VERSION_3_4_0:
+    if toolchain_version != TOOLCHAIN_VERSION:
         bin_path = toolchain_root / "gnu" / "arm-zephyr-eabi" / "bin"
     else:
         bin_path = toolchain_root / "arm-zephyr-eabi" / "bin"
@@ -619,7 +625,7 @@ def _install_toolchain() -> None:
         # target gnu/arm-zephyr-eabi/ to get the right path after stripping.
         arm_extract_dir = (
             toolchains_dir / "gnu" / "arm-zephyr-eabi"
-            if toolchain_version == _TOOLCHAIN_VERSION_3_4_0
+            if toolchain_version != TOOLCHAIN_VERSION
             else toolchains_dir / "arm-zephyr-eabi"
         )
         for mirrors, extract_dir, what, slug in (
