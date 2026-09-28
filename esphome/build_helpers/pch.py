@@ -59,7 +59,6 @@ PCH_SCRIPT_EXCLUDED_PLATFORMS = frozenset(
         "esp32",
         "ln882x",
         "nrf52",
-        "rp2",
         "rtl87xx",
     }
 )
