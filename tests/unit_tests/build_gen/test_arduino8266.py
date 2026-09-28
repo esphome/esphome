@@ -26,7 +26,6 @@ from esphome.build_gen.arduino8266 import (
     _resolve_build_config,
     get_flash_ld_path,
 )
-from esphome.build_helpers.ninja import escape as ninja_escape
 from esphome.components.esp8266.boards import BOARDS, ESP8266_BOARD_BUILD
 from esphome.components.esp8266.build_surgery import RATETABLE_RULE
 from esphome.components.esp8266.const import KEY_BOARD, KEY_ESP8266, KEY_SCANF_FLOAT
@@ -375,14 +374,13 @@ def test_write_project_pch(tmp_path: Path) -> None:
     content = _write_ninja(paths, ccache="/usr/bin/ccache")
     build_dir = CORE.relative_pioenvs_path(CORE.name)
     assert "rule pch" in content
-    # Compiled from the include list, and again when the compiler changes
+    # Compiled from the include list, and again when the checksum changes
     gch_edge = next(
         line
         for line in content.splitlines()
         if line.startswith("build esphome_pch.h.gch: pch ")
     )
-    assert "esphome_pch_src.h | " in gch_edge
-    assert gch_edge.endswith(ninja_escape(toolchain_tool(paths.toolchain, "g++")))
+    assert gch_edge.endswith("esphome_pch_src.h | esphome_pch.h.gch.sum")
     for line in content.splitlines():
         # C++ edges wait on the .gch; the C edge must not reference it
         if line.startswith("build obj/src/main.cpp.o:"):
