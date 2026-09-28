@@ -38,9 +38,13 @@ def _make_src(tmp_path: Path, *names: str) -> Path:
     return src
 
 
-def _render(ccache: str | None = None, version: str = "g++ 1.0") -> tuple[bool, str]:
+def _render(
+    ccache: str | None = None,
+    version: str = "g++ 1.0",
+    compilers: HostCompilers = COMPILERS,
+) -> tuple[bool, str]:
     with patch.object(build_gen, "_compiler_version", return_value=version):
-        changed = build_gen.write_project(COMPILERS, ccache)
+        changed = build_gen.write_project(compilers, ccache)
     ninja = CORE.build_path / ".pioenvs" / "dev" / "build.ninja"
     return changed, ninja.read_text()
 
@@ -288,6 +292,17 @@ def test_write_project_pch_skipped_for_a_user_force_include(
     _make_src(tmp_path, "main.cpp")
     CORE.build_flags = {"-include pre.h"}
     _, ninja = _render()
+    assert "esphome_pch" not in ninja
+    assert "prevents the precompiled header" in caplog.text
+
+
+def test_write_project_pch_skipped_for_a_force_include_in_the_compiler(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """CXX="g++ -include pre.h" puts it ahead of every flag."""
+    _make_src(tmp_path, "main.cpp")
+    override = HostCompilers(cc=COMPILERS.cc, cxx=("/usr/bin/g++", "-include", "pre.h"))
+    _, ninja = _render(compilers=override)
     assert "esphome_pch" not in ninja
     assert "prevents the precompiled header" in caplog.text
 
