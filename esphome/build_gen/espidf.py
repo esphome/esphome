@@ -287,8 +287,7 @@ target_link_options(${{COMPONENT_LIB}} PUBLIC
 
 
 def prepare_pch() -> None:
-    """Build the .gch right before ninja, after every reconfigure, so the
-    compile_commands.json flags and the sdkconfig are the settled ones."""
+    """Build the .gch from the configured project, right before the build."""
     if not pch.pch_enabled():
         return
     pch.prepare_pch(
