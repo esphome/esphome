@@ -4,6 +4,10 @@ climate:
     id: my_gree_ac
     model: YAN
     transmitter_id: xmitr
+  - platform: gree
+    name: GREE YAC16
+    model: yac16
+    transmitter_id: xmitr
 
 switch:
   - platform: gree

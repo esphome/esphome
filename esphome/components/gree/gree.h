@@ -43,6 +43,13 @@ static constexpr uint32_t GREE_YAC_BIT_MARK = 650;
 static constexpr uint32_t GREE_YAC1FB9_HEADER_SPACE = 4500;
 static constexpr uint32_t GREE_YAC1FB9_MESSAGE_SPACE = 19980;
 
+// Timing specific to YAC16, which sends a 16-byte state as four 4-byte blocks
+static constexpr uint32_t GREE_YAC16_HEADER_SPACE = 4500;
+static constexpr uint32_t GREE_YAC16_BIT_MARK = 650;
+static constexpr uint32_t GREE_YAC16_ZERO_SPACE = 550;
+static constexpr uint32_t GREE_YAC16_MESSAGE_SPACE = 20000;
+static constexpr uint8_t GREE_YAC16_STATE_FRAME_SIZE = 16;
+
 // State Frame size
 static constexpr uint8_t GREE_STATE_FRAME_SIZE = 8;
 
@@ -77,7 +84,7 @@ static constexpr uint8_t GREE_PRESET_SLEEP = 0x01;
 static constexpr uint8_t GREE_PRESET_SLEEP_BIT = 0x80;
 
 // Model codes
-enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG };
+enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG, GREE_YAC16 };
 
 class GreeClimate final : public climate_ir::ClimateIR {
  public:

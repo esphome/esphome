@@ -20,6 +20,7 @@ MODELS = {
     "yac1fb9": Model.GREE_YAC1FB9,
     "yx1ff": Model.GREE_YX1FF,
     "yag": Model.GREE_YAG,
+    "yac16": Model.GREE_YAC16,
 }
 
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(GreeClimate).extend(

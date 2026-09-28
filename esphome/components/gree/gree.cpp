@@ -30,7 +30,7 @@ void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
 }
 
 void GreeClimate::transmit_state() {
-  uint8_t remote_state[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00};
+  uint8_t remote_state[GREE_YAC16_STATE_FRAME_SIZE] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00};
   const Model model = this->model_;
 
   remote_state[0] = this->fan_speed_() | this->operation_mode_();
@@ -56,11 +56,18 @@ void GreeClimate::transmit_state() {
     }
   }
 
-  if (model == GREE_YAC || model == GREE_YAG) {
+  if (model == GREE_YAC16) {
+    remote_state[5] = 0xC0;
+    // The second half of the state is constant: bytes 11 and 15 always 1010 in bits 4..7
+    remote_state[11] = 0xA0;
+    remote_state[15] = 0xA0;
+  }
+
+  if (model == GREE_YAC || model == GREE_YAG || model == GREE_YAC16) {
     remote_state[4] |= (this->horizontal_swing_() << 4);
   }
 
-  if (model == GREE_YAA || model == GREE_YAC || model == GREE_YAC1FB9) {
+  if (model == GREE_YAA || model == GREE_YAC || model == GREE_YAC1FB9 || model == GREE_YAC16) {
     remote_state[2] = 0x20;  // bits 0..3 always 0000, bits 4..7 TURBO, LIGHT, HEALTH, X-FAN
     remote_state[3] = 0x50;  // bits 4..7 always 0101
     remote_state[6] = 0x20;  // YAA1FB, FAA1FB1, YB1F2 bits 4..7 always 0010
@@ -99,48 +106,64 @@ void GreeClimate::transmit_state() {
          << 4);
   }
 
+  uint32_t header_space = GREE_HEADER_SPACE;
+  uint32_t bit_mark = GREE_BIT_MARK;
+  uint32_t zero_space = GREE_ZERO_SPACE;
+  uint32_t message_space = GREE_MESSAGE_SPACE;
+  uint32_t block_space = GREE_MESSAGE_SPACE;
+  if (model == GREE_YAC1FB9) {
+    header_space = GREE_YAC1FB9_HEADER_SPACE;
+    block_space = GREE_YAC1FB9_MESSAGE_SPACE;
+  } else if (model == GREE_YAC16) {
+    header_space = GREE_YAC16_HEADER_SPACE;
+    bit_mark = GREE_YAC16_BIT_MARK;
+    zero_space = GREE_YAC16_ZERO_SPACE;
+    message_space = GREE_YAC16_MESSAGE_SPACE;
+    block_space = GREE_YAC16_MESSAGE_SPACE;
+  }
+
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
   data->set_carrier_frequency(GREE_IR_FREQUENCY);
 
-  data->mark(GREE_HEADER_MARK);
-  if (model == GREE_YAC1FB9) {
-    data->space(GREE_YAC1FB9_HEADER_SPACE);
-  } else {
-    data->space(GREE_HEADER_SPACE);
-  }
-
-  for (int i = 0; i < 4; i++) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(GREE_BIT_MARK);
-      bool bit = remote_state[i] & mask;
-      data->space(bit ? GREE_ONE_SPACE : GREE_ZERO_SPACE);
+  auto send_block = [&](const uint8_t *block) {
+    for (int i = 0; i < 4; i++) {
+      for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
+        data->mark(bit_mark);
+        bool bit = block[i] & mask;
+        data->space(bit ? GREE_ONE_SPACE : zero_space);
+      }
     }
+  };
+
+  // Each 8-byte frame is a header, 4 bytes, a 3-bit 010 connector, a message space and 4 more bytes
+  auto send_frame = [&](const uint8_t *frame, uint32_t first_block_space) {
+    data->mark(GREE_HEADER_MARK);
+    data->space(header_space);
+    send_block(frame);
+
+    data->mark(bit_mark);
+    data->space(zero_space);
+    data->mark(bit_mark);
+    data->space(GREE_ONE_SPACE);
+    data->mark(bit_mark);
+    data->space(zero_space);
+
+    data->mark(bit_mark);
+    data->space(first_block_space);
+    send_block(frame + 4);
+  };
+
+  send_frame(remote_state, block_space);
+
+  if (model == GREE_YAC16) {
+    data->mark(bit_mark);
+    data->space(message_space);
+    data->space(message_space);
+    send_frame(remote_state + 8, message_space);
   }
 
-  data->mark(GREE_BIT_MARK);
-  data->space(GREE_ZERO_SPACE);
-  data->mark(GREE_BIT_MARK);
-  data->space(GREE_ONE_SPACE);
-  data->mark(GREE_BIT_MARK);
-  data->space(GREE_ZERO_SPACE);
-
-  data->mark(GREE_BIT_MARK);
-  if (model == GREE_YAC1FB9) {
-    data->space(GREE_YAC1FB9_MESSAGE_SPACE);
-  } else {
-    data->space(GREE_MESSAGE_SPACE);
-  }
-
-  for (int i = 4; i < 8; i++) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(GREE_BIT_MARK);
-      bool bit = remote_state[i] & mask;
-      data->space(bit ? GREE_ONE_SPACE : GREE_ZERO_SPACE);
-    }
-  }
-
-  data->mark(GREE_BIT_MARK);
+  data->mark(bit_mark);
   data->space(0);
 
   transmit.perform();
