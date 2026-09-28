@@ -118,7 +118,8 @@ def ccache_env(ccache: str | None, tools_cache: tuple[str, str]) -> dict[str, st
 
     ``ccache`` is the pre-resolved binary (resolve_ccache_path), or None when
     disabled; ``tools_cache`` is the backend's tools cache spec, which holds
-    its ccache dir.
+    its ccache dir. The pch settings include ``time_macros``: a cached
+    object can keep an older ``__DATE__`` or ``__TIME__``.
     """
     if ccache is None:
         return {}
