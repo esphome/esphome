@@ -7,9 +7,8 @@ import re
 import sys
 from typing import TYPE_CHECKING, Any
 
-import platformdirs
-
 from esphome.build_helpers.ccache import resolve_ccache_path
+from esphome.build_helpers.tools_cache import PLATFORMIO_CCACHE, tools_cache_path
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import strip_win_long_path_prefix
@@ -235,8 +234,9 @@ def _ccache_env() -> dict[str, str]:
     these values would hand it the wrong cache dir and a stale basedir.
 
     This mirrors ``_ccache_env()`` in ``esphome/espidf/framework.py``. The
-    cache lives under the machine-global ESPHome cache dir, so it is shared
-    across all projects and removed by ``esphome clean-all``. Unlike the
+    cache lives under the machine-global ESPHome cache dir, or where
+    ``ESPHOME_PLATFORMIO_CCACHE_DIR`` points (the containers set it to their
+    writable cache mount), and is removed by ``esphome clean-all``. Unlike the
     ESP-IDF path, ``CCACHE_DEPEND`` is not set: SCons compiles don't emit
     the depfiles depend mode needs, so ccache's default preprocessor mode
     is used.
@@ -264,10 +264,7 @@ def _ccache_env() -> dict[str, str]:
         )
     env["CCACHE_BASEDIR"] = str(Path(CORE.build_path).resolve())
     defaults = {
-        "CCACHE_DIR": str(
-            Path(platformdirs.user_cache_dir("esphome", appauthor=False))
-            / "platformio-ccache"
-        ),
+        "CCACHE_DIR": str(tools_cache_path(*PLATFORMIO_CCACHE)),
         "CCACHE_NOHASHDIR": "true",
     }
     env.update({k: v for k, v in defaults.items() if k not in os.environ})

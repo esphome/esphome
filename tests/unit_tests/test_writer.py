@@ -1109,6 +1109,28 @@ def test_clean_all_removes_global_arduino8266_install(
 
 
 @patch("esphome.writer.CORE")
+def test_clean_all_removes_platformio_ccache(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """clean_all removes the PlatformIO ccache dir the containers relocate."""
+    ccache_dir = tmp_path / "platformio-ccache"
+    (ccache_dir / "0").mkdir(parents=True)
+    monkeypatch.setenv("ESPHOME_PLATFORMIO_CCACHE_DIR", str(ccache_dir))
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    with caplog.at_level("INFO"):
+        clean_all([str(config_dir)])
+
+    assert not ccache_dir.exists()
+    assert str(ccache_dir.resolve()) in caplog.text
+
+
+@patch("esphome.writer.CORE")
 def test_clean_all_removes_default_cache_root(
     mock_core: MagicMock,
     tmp_path: Path,
