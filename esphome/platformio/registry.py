@@ -1,8 +1,5 @@
 """Install packages from the PlatformIO registry without importing the
-platformio package (identical bits, esphome's own download machinery).
-
-A package can also come from a pinned download, a URL with its sha256 and
-size, which skips the registry lookup and is verified the same way."""
+platformio package (identical bits, esphome's own download machinery)."""
 
 from __future__ import annotations
 
@@ -35,7 +32,7 @@ _REGISTRY_URL = (
 
 
 class Download(NamedTuple):
-    """Where to fetch a package archive and what it must hash to."""
+    """A package archive to fetch and verify."""
 
     url: str
     sha256: str
@@ -201,11 +198,11 @@ def prefetch_packages(
     """Download pending package archives in parallel under one combined bar.
 
     ``packages`` holds ``(name, version, dest, mirrors)`` per package;
-    ``pinned`` maps a package name to the download that replaces its
-    registry lookup. Purely an optimization: ``install_package`` verifies
-    every archive and re-downloads anything this pass left unfinished.
-    Mirror overrides and registry entries without a size stay on the
-    sequential path so its per-file bars remain trustworthy. Each fetch holds the same per-dest
+    ``pinned`` replaces the registry lookup by name. Purely
+    an optimization: ``install_package`` verifies every archive and
+    re-downloads anything this pass left unfinished. Mirror overrides and
+    registry entries without a size stay on the sequential path so its
+    per-file bars remain trustworthy. Each fetch holds the same per-dest
     lock as ``install_package``: the archive's ``.part`` file is shared, and
     two concurrent writers would truncate each other's bytes.
     """
@@ -303,11 +300,11 @@ def install_package(
 ) -> None:
     """Download, verify, and extract one package if not already installed.
 
-    The archive comes from ``pinned`` when given, else from the registry;
-    both are integrity-checked against their sha256. A mirror override (URL
-    templates with ``{VERSION}``/``{SYSTEM}`` substitution) wins over both
-    and is trusted as configured. ``downloads_dir`` holds the archive
-    between runs so an interrupted download resumes.
+    The registry path is integrity-checked against the sha256 the registry
+    publishes; a mirror override (URL templates with ``{VERSION}``/``{SYSTEM}``
+    substitution) is trusted as configured. ``downloads_dir`` holds the
+    archive between runs so an interrupted download resumes. ``pinned``
+    replaces the registry lookup.
     """
     if not expect:
         # Layout validation before marker.touch() is the only guard against

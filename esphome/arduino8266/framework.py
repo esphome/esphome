@@ -6,11 +6,9 @@ ESP-IDF install in ``esphome.espidf.framework``):
     <cache>/arduino8266/frameworks/<version>/   framework-arduinoespressif8266
     <cache>/arduino8266/toolchains/<version>/   xtensa-lx106-elf gcc 10.3
 
-The framework comes from the PlatformIO registry (identical bits to the
-PlatformIO backend). The toolchain comes from
-esphome-libs/xtensa-lx106-elf-toolchain, which builds it for every supported
-host. ``ESPHOME_ARDUINO8266_*_MIRRORS`` overrides the URLs. ninja comes from
-PATH or the ninja PyPI wheel.
+The framework comes from the PlatformIO registry, the toolchain from
+esphome-libs/xtensa-lx106-elf-toolchain; ``ESPHOME_ARDUINO8266_*_MIRRORS``
+overrides the URLs. ninja comes from PATH or the ninja PyPI wheel.
 """
 
 from __future__ import annotations
@@ -34,8 +32,7 @@ from esphome.platformio.registry import (
 FRAMEWORK_PACKAGE = "framework-arduinoespressif8266"
 TOOLCHAIN_PACKAGE = "toolchain-xtensa-lx106-elf"
 # gcc 10.3, the toolchain Arduino core 3.x builds with; the build
-# generator's compile flags are tuned to it. Generates the same code as
-# PlatformIO's toolchain-xtensa 2.100300.220621.
+# generator's compile flags are tuned to it.
 TOOLCHAIN_VERSION = "10.3.0-esphome.1"
 _TOOLCHAIN_URL = (
     "https://github.com/esphome-libs/xtensa-lx106-elf-toolchain/releases/download/"
@@ -165,8 +162,7 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
             ("bin", "xtensa-lx106-elf"),
         ),
     )
-    # A mirror override replaces the pinned download, so an unsupported host
-    # can still bring its own toolchain
+    # A mirror override replaces the pinned download
     pinned: dict[str, Download] = (
         {}
         if ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS
