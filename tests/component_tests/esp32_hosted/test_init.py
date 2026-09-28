@@ -56,9 +56,11 @@ SPI = {CONF_TYPE: "spi", CONF_ACTIVE_HIGH: True}
 SPI_ACTIVE_LOW = {CONF_TYPE: "spi", CONF_ACTIVE_HIGH: False}
 
 
-def _pinned(ref: str, source: str | None = None) -> dict:
+def _pinned(ref: str | None, source: str | None = None) -> dict:
     """A full config with esp_hosted pinned under esp32.framework.components."""
-    component = {CONF_NAME: "espressif/esp_hosted", CONF_REF: ref}
+    component = {CONF_NAME: "espressif/esp_hosted"}
+    if ref is not None:
+        component[CONF_REF] = ref
     if source is not None:
         component[CONF_SOURCE] = source
     return {KEY_ESP32: {CONF_FRAMEWORK: {CONF_COMPONENTS: [component]}}}
@@ -72,6 +74,8 @@ def _pinned(ref: str, source: str | None = None) -> dict:
         (_pinned("3.0.9"), 3),
         (_pinned("==3.0.9"), 3),
         (_pinned("^3"), 3),
+        (_pinned("~=3.0.9"), 3),
+        (_pinned("3.0.*"), 3),
         (_pinned("2.12.13"), 2),
         (_pinned("~2.12"), 2),
         (_pinned("main", source="https://github.com/espressif/esp-hosted-mcu"), None),
@@ -83,6 +87,18 @@ def test_user_esp_hosted_major(
     """A registry version pin decides the line; git sources and no pin do not."""
     set_core_config(PlatformFramework.ESP32_IDF, full_config=full_config)
     assert user_esp_hosted_major() == expected
+
+
+@pytest.mark.parametrize(
+    "ref", [None, "", "*", ">=2.11", ">2", "<3", "<=3.0.9", "!=3.0.8"]
+)
+def test_user_esp_hosted_major_rejects_ambiguous_pin(
+    set_core_config: SetCoreConfigCallable, ref: str | None
+) -> None:
+    """A missing ref or an open range cannot tell the line and is rejected."""
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=_pinned(ref))
+    with pytest.raises(cv.Invalid, match="needs an exact version"):
+        user_esp_hosted_major()
 
 
 @pytest.mark.parametrize(

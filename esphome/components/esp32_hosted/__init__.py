@@ -161,12 +161,18 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
+# Version specs whose major is unambiguous: an exact version, or a caret, tilde
+# or compatible-release range, which all stay within one major. Open ranges
+# (``>=2.11``, ``<3``, ``*``) resolve to whatever the registry has newest, so
+# the line cannot be told from the spec.
+_PINNED_MAJOR = re.compile(r"^(?:==|\^|~=|~)?(\d+)(?:\.(?:\d+|\*))*$")
+
+
 def user_esp_hosted_major() -> int | None:
     """Major version of an esp_hosted pinned under esp32.framework.components.
 
-    A registry version pin such as ``3.0.9``, ``==3.0.9`` or ``^3`` decides
-    the esp_hosted line; a git source or local path says nothing about it and
-    is ignored, as is the absence of a pin.
+    None without a pin, or for a git source or local path, which say nothing
+    about the line. A pin whose major cannot be told from the spec is rejected.
     """
     try:
         full_config = fv.full_config.get()
@@ -177,8 +183,14 @@ def user_esp_hosted_major() -> int | None:
     for component in esp32_config.get(CONF_FRAMEWORK, {}).get(CONF_COMPONENTS, []):
         if component.get(CONF_NAME) != ESP_HOSTED_COMPONENT or CONF_SOURCE in component:
             continue
-        if match := re.match(r"\D*(\d+)", component.get(CONF_REF) or ""):
+        ref = component.get(CONF_REF, "")
+        if match := _PINNED_MAJOR.match(ref.strip()):
             return int(match.group(1))
+        raise cv.Invalid(
+            f"{ESP_HOSTED_COMPONENT} in esp32.framework.components needs an exact "
+            f"version such as 'ref: 3.0.9' (got {ref!r}): esp32_hosted has to know "
+            "whether the 2.x or the 3.x line is in use to configure it."
+        )
     return None
 
 
