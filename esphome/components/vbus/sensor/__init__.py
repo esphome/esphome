@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_OPERATING_HOURS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMMAND,
@@ -56,7 +57,6 @@ VBusCustomSub = vbus_ns.class_("VBusCustomSubSensor", cg.Component)
 
 CONF_FLOW_RATE = "flow_rate"
 CONF_HEAT_QUANTITY = "heat_quantity"
-CONF_OPERATING_HOURS = "operating_hours"
 CONF_OPERATING_HOURS_1 = "operating_hours_1"
 CONF_OPERATING_HOURS_2 = "operating_hours_2"
 CONF_PUMP_SPEED = "pump_speed"

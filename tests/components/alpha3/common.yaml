@@ -1,11 +1,10 @@
-esp32_ble_tracker:
-
 ble_client:
   - mac_address: 01:02:03:04:05:06
     id: alpha3_blec
 
 sensor:
   - platform: alpha3
+    id: alpha3_hub
     ble_client_id: alpha3_blec
     flow:
       name: "Radiator Pump Flow"
@@ -15,3 +14,7 @@ sensor:
       name: "Radiator Pump Power"
     speed:
       name: "Radiator Pump Speed"
+    voltage:
+      name: "Radiator Pump Voltage"
+    current:
+      name: "Radiator Pump Current"
