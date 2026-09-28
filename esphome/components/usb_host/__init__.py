@@ -126,10 +126,10 @@ async def to_code(config: ConfigType) -> None:
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    if CONF_RX_FIFO_LINES in config:
+    if (rx_fifo_lines := config.get(CONF_RX_FIFO_LINES)) is not None:
         cg.add(
             var.set_fifo_settings(
-                config[CONF_RX_FIFO_LINES],
+                rx_fifo_lines,
                 config[CONF_NPTX_FIFO_LINES],
                 config.get(CONF_PTX_FIFO_LINES, 0),
             )
