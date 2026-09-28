@@ -5,7 +5,6 @@ import logging
 from pathlib import Path
 import re
 import shutil
-import stat
 import subprocess
 
 from esphome import pins
@@ -818,6 +817,9 @@ def _generate_cmake_lists() -> bool:
 
     if consumer := pch_cmake_consumer("app", "${APP_SOURCES}"):
         lines += consumer.splitlines()
+        # GCC ignores a .gch once it has seen -imacros. Zephyr's two headers
+        # only hold macros, so -include is the same and lands after the pch
+        lines.append("set_property(TARGET compiler PROPERTY imacros -include)")
 
     if link_flags:
         lines += [
@@ -834,40 +836,24 @@ def _generate_cmake_lists() -> bool:
 
 
 def _app_build_dir(build_dir: Path) -> Path:
-    """The CMake binary dir of the app image: sysbuild nests it in a
-    domain dir named after the app source dir. Probed on disk (the
-    non-sysbuild zephyr/ output dir has no CMakeCache.txt) so it stays
-    truthful mid-build, unlike an SDK-version check."""
-    sysbuild_app = build_dir / "zephyr"
-    try:
-        cache = (sysbuild_app / "CMakeCache.txt").stat()
-    except (FileNotFoundError, NotADirectoryError):
-        return build_dir
-    # Other stat errors propagate; is_file() would silently mislocate the pch
-    return sysbuild_app if stat.S_ISREG(cache.st_mode) else build_dir
+    """The CMake binary dir of the app image; sysbuild nests it."""
+    app = build_dir / "zephyr"
+    return app if (app / "CMakeCache.txt").is_file() else build_dir
 
 
-def _prepare_pch(
-    app_dir: Path, generate_headers: bool, env: dict[str, str], cwd: str
-) -> None:
+def _prepare_pch(app_dir: Path, env: dict[str, str], cwd: str) -> None:
     """Build the .gch between the cmake and compile phases of west."""
-    # kernel.h needs the build-time syscall headers; under sysbuild the
-    # target exists only in the app domain's ninja
-    if generate_headers and not run_command_ok(
+    # kernel.h needs the syscall headers, which only a build step makes
+    if not run_command_ok(
         ["cmake", "--build", str(app_dir), "--target", "zephyr_generated_headers"],
         env=env,
         stream_output=True,
         cwd=cwd,
     ):
         raise EsphomeError("Zephyr header generation failed")
-    generated = app_dir / "zephyr" / "include" / "generated"
-    # Zephyr >= 3.4 nests it under zephyr/
-    autoconf = generated / "zephyr" / "autoconf.h"
-    if not autoconf.exists():
-        autoconf = generated / "autoconf.h"
     pch.prepare_pch(
         app_dir,
-        autoconf,
+        app_dir / "zephyr" / "include" / "generated" / "zephyr" / "autoconf.h",
         (
             str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             zephyr_data()[KEY_BOARD],
@@ -889,13 +875,9 @@ def _west_build_command(
     cmake_only: bool = False,
     configured: bool = False,
 ) -> list[str]:
-    """The west build command.
-
-    ``cmake_only`` configures without building and asks for the compile
-    database the pch compiles from. ``configured`` builds what that left:
-    west configures again whenever it is handed CMake arguments, so they are
-    left out.
-    """
+    """The west build command. ``cmake_only`` configures without building;
+    ``configured`` builds what that left, without CMake arguments, which
+    would make west configure again."""
     cmd = [
         str(python_executable),
         "-m",
@@ -962,9 +944,8 @@ def run_compile(args, config: ConfigType) -> bool:
     if pch_enabled():
         # Zephyr turns ccache on by itself when it is installed
         env.update(pch.ccache_pch_env())
-        # Configure first so the .gch compiles from settled compile database
-        # flags. An existing database is settled: input changes wipe the
-        # build dir
+        # The .gch compiles from the compile database, so configure first.
+        # An existing one is current: input changes wipe the build dir
         if not (_app_build_dir(build_dir) / "compile_commands.json").is_file():
             if not run_command_ok(
                 _west_build_command(*west_args, cmake_only=True),
@@ -974,8 +955,7 @@ def run_compile(args, config: ConfigType) -> bool:
             ):
                 raise EsphomeError("nRF52 native build configure failed")
             configured = True
-        # Resolved after the configure: it is what creates the sysbuild domain dir
-        _prepare_pch(_app_build_dir(build_dir), configured, env, cwd)
+        _prepare_pch(_app_build_dir(build_dir), env, cwd)
 
     west_cmd = _west_build_command(*west_args, configured=configured)
     if not run_command_ok(west_cmd, env=env, stream_output=True, cwd=cwd):
