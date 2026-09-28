@@ -75,11 +75,13 @@ class _FakeSConsEnv(dict):
 def _fake_cxx(tmp_path: Path, fail: bool = False) -> Path:
     """A compiler stand-in that records its argv and writes the -o target."""
     cxx = tmp_path / "fake-gxx"
-    # As GCC: the program's path when it exists next to the driver, else its name
+    # As GCC: the program's path when it exists next to the driver, else its
+    # name; the version from FAKE_GCC_VERSION
     body = (
         'case "$1" in -print-prog-name=*) n=${1#*=};'
         ' p="$(dirname "$0")/../libexec/gcc/arm-none-eabi/10.3.1/$n";'
-        ' [ -x "$p" ] && echo "$p" || echo "$n"; exit 0;; esac\n'
+        ' [ -x "$p" ] && echo "$p" || echo "$n"; exit 0;;'
+        ' -dumpversion) echo "${FAKE_GCC_VERSION:-10.3.1}"; exit 0;; esac\n'
         'printf -- ---call---\\\\n >> "$0.argv"; printf \'%s\\n\' "$@" >> "$0.argv"\n'
     )
     if fail:
@@ -156,12 +158,18 @@ def _run_on_host(
     machine: str,
     platform_cls: type[_FakePlatform],
     cxx: Path | None = None,
+    gcc_version: str = "10.3.1",
 ) -> _FakeSConsEnv:
     with (
         patch.object(sys, "platform", host),
         patch("platform.machine", return_value=machine),
     ):
-        return _run_script(tmp_path, platform_cls=platform_cls, cxx=cxx)
+        return _run_script(
+            tmp_path,
+            platform_cls=platform_cls,
+            cxx=cxx,
+            env_vars={"FAKE_GCC_VERSION": gcc_version},
+        )
 
 
 def _fake_toolchain(tmp_path: Path) -> tuple[Path, Path]:
@@ -225,13 +233,25 @@ def test_pch_script_gcc10_skipped_elsewhere(
 
 
 @pytest.mark.parametrize(
-    ("host", "machine", "platform_cls"),
-    [("darwin", "arm64", _FakePlatform), ("linux", "aarch64", _LibreTinyPlatform)],
+    ("host", "machine", "platform_cls", "gcc_version"),
+    [
+        ("darwin", "arm64", _FakePlatform, "10.3.1"),
+        ("linux", "aarch64", _LibreTinyPlatform, "10.3.1"),
+        # From GCC 12 the .gch loads at any address, so the rule retires itself
+        ("darwin", "arm64", _LibreTinyPlatform, "12.2.0"),
+        ("win32", "AMD64", _LibreTinyPlatform, "14.2.0"),
+    ],
 )
 def test_pch_script_no_wrapper_where_the_gch_loads(
-    tmp_path: Path, host: str, machine: str, platform_cls: type[_FakePlatform]
+    tmp_path: Path,
+    host: str,
+    machine: str,
+    platform_cls: type[_FakePlatform],
+    gcc_version: str,
 ) -> None:
-    scons_env = _run_on_host(tmp_path, host, machine, platform_cls)
+    scons_env = _run_on_host(
+        tmp_path, host, machine, platform_cls, gcc_version=gcc_version
+    )
     assert not (tmp_path / "dev" / pch.PCH_CC1_DIR).exists()
     assert scons_env.prepended == pch.pch_consumer_flags()
 

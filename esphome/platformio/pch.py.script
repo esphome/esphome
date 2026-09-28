@@ -31,9 +31,10 @@ _GUARD_TEXT = f"""\
 #endif
 """
 _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
-# The GCC 10 of this PlatformIO platform only loads a .gch at the address it
-# was saved from. Remove once LibreTiny ships GCC 12 or newer
-_GCC10_PIO_PLATFORM = "libretiny"
+# Before GCC 12 a .gch only loads at the address it was saved from. Checked
+# for this PlatformIO platform, whose compiler is built for a random address
+_OLD_GCC_PIO_PLATFORM = "libretiny"
+_MOVABLE_PCH_GCC = 12
 # Relative: compiles run in the project root
 _CC1_DIR = "pch_cc1"
 _CC1PLUS_WRAPPER = """\
@@ -111,19 +112,25 @@ def _src_envs(src_dir: Path) -> list:
     return list(found.values()) or [projenv]  # noqa: F821
 
 
-def _gcc10_flags(proj_dir: Path, pio_platform: str, cxx: str):
-    """Extra driver flags for a GCC 10 platform, or None where its .gch cannot
-    be used. Linux loads it as is. arm64 macOS loads every program at a
-    random address, so there the driver gets a -B directory whose cc1plus
-    starts the real one without that randomisation."""
-    if pio_platform != _GCC10_PIO_PLATFORM or sys.platform == "linux":
+def _driver_output(cxx: str, option: str) -> str:
+    result = subprocess.run([cxx, option], capture_output=True, text=True)  # noqa: PLW1510
+    return result.stdout.strip()
+
+
+def _old_gcc_flags(proj_dir: Path, pio_platform: str, cxx: str):
+    """Extra driver flags for an old GCC, or None where its .gch cannot be
+    used. Linux loads it as is. arm64 macOS loads every program at a random
+    address, so there the driver gets a -B directory whose cc1plus starts
+    the real one without that randomisation."""
+    if pio_platform != _OLD_GCC_PIO_PLATFORM or sys.platform == "linux":
+        return []
+    major = _driver_output(cxx, "-dumpversion").partition(".")[0]
+    if major.isdigit() and int(major) >= _MOVABLE_PCH_GCC:
         return []
     if sys.platform != "darwin" or platform.machine() != "arm64":
         return None
     # The driver prints the bare name when it has no cc1plus of its own
-    real = subprocess.run(  # noqa: PLW1510
-        [cxx, "-print-prog-name=cc1plus"], capture_output=True, text=True
-    ).stdout.strip()
+    real = _driver_output(cxx, "-print-prog-name=cc1plus")
     if not os.path.isabs(real):
         return None
     wrapper = proj_dir / _CC1_DIR / "cc1plus"
@@ -151,7 +158,7 @@ def _setup_pch() -> None:
 
     cxx = src_envs[0].subst("$CXX")
     pio_platform = env.PioPlatform()  # noqa: F821
-    extra = _gcc10_flags(proj_dir, pio_platform.name, cxx)
+    extra = _old_gcc_flags(proj_dir, pio_platform.name, cxx)
     if extra is None:
         print("ESPHome: this compiler cannot load a precompiled header here; compiling without it")
         return
