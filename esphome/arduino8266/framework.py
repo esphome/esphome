@@ -17,7 +17,7 @@ import os
 from pathlib import Path
 from typing import NamedTuple
 
-from esphome.build_helpers.ccache import ccache_defaults_env
+from esphome.build_helpers.ccache import ccache_env
 from esphome.build_helpers.ninja import find_ninja
 from esphome.build_helpers.tools_cache import ARDUINO8266_TOOLS_CACHE, tools_cache_path
 from esphome.core import EsphomeError, Version
@@ -143,17 +143,5 @@ def get_build_env(toolchain_path: Path, ccache: str | None) -> dict[str, str]:
         *filter(None, env.get("PATH", "").split(os.pathsep)),
     ]
     env["PATH"] = os.pathsep.join(parts)
-    env.update(ccache_env(ccache))
+    env.update(ccache_env(ccache, ARDUINO8266_TOOLS_CACHE))
     return env
-
-
-def ccache_env(ccache: str | None) -> dict[str, str]:
-    """Return ccache settings for the build subprocess (not os.environ).
-
-    ``ccache`` is the pre-resolved binary (resolve_ccache_path), or None
-    when disabled. Values the user already set in the environment are
-    respected.
-    """
-    if ccache is None:
-        return {}
-    return ccache_defaults_env(get_arduino8266_tools_path() / "ccache")

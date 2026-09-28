@@ -36,7 +36,6 @@ _USB_CLASS_COMPONENTS = ("usb_cdc_acm",)
 
 tinyusb_ns = cg.esphome_ns.namespace("tinyusb")
 TinyUSB = tinyusb_ns.class_("TinyUSB", cg.Component)
-IsMountedCondition = tinyusb_ns.class_("IsMountedCondition", automation.Condition)
 
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
@@ -134,8 +133,8 @@ async def to_code(config: ConfigType) -> None:
     add_idf_sdkconfig_option("CONFIG_TINYUSB_DESC_BCD_DEVICE", 0x0100)
 
 
-automation.register_simple_condition(
+automation.register_apply_condition(
     "tinyusb.is_mounted",
-    IsMountedCondition,
     cv.Schema({cv.GenerateID(): cv.use_id(TinyUSB)}),
+    "is_mounted()",
 )

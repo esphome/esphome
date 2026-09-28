@@ -16,6 +16,7 @@ from esphome.build_helpers.ccache import (
     parse_enable_env,
     resolve_ccache_path,
 )
+from esphome.build_helpers.pch import ccache_pch_env
 from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.core import Version
 from esphome.framework_helpers import (
@@ -1240,6 +1241,7 @@ def _ccache_env() -> dict[str, str]:
         return {"IDF_CCACHE_ENABLE": "0"}
 
     env = ccache_defaults_env(get_idf_tools_path() / "ccache")
+    env.update(ccache_pch_env())
     # Exactly one canonical spelling ever reaches idf.py, whatever the
     # accepted input spelling was ("enable", "yes", ...)
     env["IDF_CCACHE_ENABLE"] = "1"

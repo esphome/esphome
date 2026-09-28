@@ -10,9 +10,8 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_USE_FAHRENHEIT,
 )
-from esphome.core import ID
 from esphome.cpp_generator import MockObj
-from esphome.types import ConfigType, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@crnjan"]
 DEPENDENCIES = ["uart"]
@@ -45,18 +44,6 @@ VERTICAL_VANE_DIRECTIONS = {
     "5": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_5,
     "SWING": VerticalVaneMode.VERTICAL_VANE_MODE_SWING,
 }
-
-SetRemoteTemperatureAction = mitsubishi_ns.class_(
-    "SetRemoteTemperatureAction",
-    automation.Action,
-    cg.Parented.template(MitsubishiCN105Component),
-)
-
-ClearRemoteTemperatureAction = mitsubishi_ns.class_(
-    "ClearRemoteTemperatureAction",
-    automation.Action,
-    cg.Parented.template(MitsubishiCN105Component),
-)
 
 
 CONFIG_SCHEMA = (
@@ -143,30 +130,16 @@ CLEAR_REMOTE_TEMPERATURE_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     f"{DOMAIN}.set_remote_temperature",
-    SetRemoteTemperatureAction,
     REMOTE_TEMPERATURE_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_TEMPERATURE, "set_remote_temperature", cg.float_),
 )
-async def remote_temperature_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    temperature = await cg.templatable(config[CONF_TEMPERATURE], args, float)
-    cg.add(var.set_temperature(temperature))
-    return var
 
-
-automation.register_parented_action(
+automation.register_apply_action(
     f"{DOMAIN}.clear_remote_temperature",
-    ClearRemoteTemperatureAction,
     CLEAR_REMOTE_TEMPERATURE_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("clear_remote_temperature()"),
 )
 
 
