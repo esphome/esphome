@@ -898,22 +898,33 @@ def _west_build_command(
     build_dir: Path,
     source_dir: Path,
     cmake_only: bool = False,
+    configured: bool = False,
 ) -> list[str]:
-    """The west build command; ``cmake_only`` configures without building
-    and asks for the compile database the pch compiles from."""
-    return [
+    """The west build command.
+
+    ``cmake_only`` configures without building and asks for the compile
+    database the pch compiles from. ``configured`` builds what that left:
+    west configures again whenever it is handed CMake arguments, so they are
+    left out.
+    """
+    cmd = [
         str(python_executable),
         "-m",
         "west",
         "build",
         "--pristine=auto",
-        # west's own options end at the "--"
         *(["--cmake-only"] if cmake_only else []),
         "-b",
         board,
         "-d",
         str(build_dir),
         str(source_dir),
+    ]
+    if configured:
+        return cmd
+    return [
+        *cmd,
+        # The options of west end here
         "--",
         # Only adds -DNDEBUG (Kconfig sets the optimization level); picolibc used to force it
         "-DCMAKE_BUILD_TYPE=MinSizeRel",
@@ -956,7 +967,6 @@ def run_compile(args, config: ConfigType) -> bool:
         rmtree(build_dir)
 
     west_args = (paths["python_executable"], board, build_dir, source_dir)
-    west_cmd = _west_build_command(*west_args)
     cwd = str(paths["framework_path"])
 
     configured = False
@@ -978,6 +988,7 @@ def run_compile(args, config: ConfigType) -> bool:
         # Resolved after the configure: it is what creates the sysbuild domain dir
         _prepare_pch(_app_build_dir(build_dir), configured, env, cwd)
 
+    west_cmd = _west_build_command(*west_args, configured=configured)
     if not run_command_ok(west_cmd, env=env, stream_output=True, cwd=cwd):
         raise EsphomeError("nRF52 native build failed")
 
