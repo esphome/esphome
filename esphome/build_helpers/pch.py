@@ -56,7 +56,6 @@ PCH_DEFAULT_HEADERS = (PCH_CORE_HEADER, PCH_PREFIX_HEADER)
 PCH_SCRIPT_EXCLUDED_PLATFORMS = frozenset(
     {
         "bk72xx",
-        "esp32",
         "ln882x",
         "nrf52",
         "rtl87xx",

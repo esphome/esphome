@@ -10,6 +10,7 @@ import subprocess
 from typing import Any
 
 from esphome import yaml_util
+from esphome.build_helpers.pch import PCH_PREFIX_HEADER, pch_script_enabled
 import esphome.codegen as cg
 from esphome.components.const import (
     CONF_ENABLE_OTA_DOWNGRADE_PROTECTION,
@@ -2644,6 +2645,10 @@ async def to_code(config):
 
         cg.add_platformio_option("lib_ldf_mode", "off")
         cg.add_platformio_option("lib_compat_mode", "strict")
+        if pch_script_enabled():
+            # No framework force-includes here, so the pch script is handed
+            # the curated headers
+            cg.add_platformio_option("build_src_flags", f"-include {PCH_PREFIX_HEADER}")
         cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
         cg.add_platformio_option("board", config[CONF_BOARD])
         cg.add_platformio_option("board_upload.flash_size", config[CONF_FLASH_SIZE])
