@@ -1,13 +1,8 @@
 #include "epaper_spi_bwr.h"
 
-#include <algorithm>
-
 #include "colorconv.h"
-#include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
-
-static constexpr const char *const TAG = "epaper_spi.bwr";
 
 void HOT EPaperBWR::draw_pixel_at(int x, int y, Color color) {
   if (!this->rotate_coordinates_(x, y))
@@ -56,42 +51,42 @@ void EPaperBWR::fill(Color color) {
   this->y_low_ = 0;
 }
 
-bool HOT EPaperBWR::transfer_data() {
-  const uint32_t start_time = millis();
-  const size_t buffer_length = this->buffer_length_;
-  const size_t half_buffer = buffer_length / 2u;
-
+bool HOT EPaperBWR::send_buffer_range_(size_t end, uint8_t invert_mask, uint32_t start_time) {
   uint8_t bytes_to_send[MAX_TRANSFER_SIZE];
-
-  // The B/W plane (first half) is sent inverted with 0x10, then the red plane (second half) with 0x13
-  while (this->current_data_index_ < buffer_length) {
-    if (this->current_data_index_ == 0) {
-      ESP_LOGV(TAG, "Sending B/W data (0x10)");
-      this->command(0x10);
-    } else if (this->current_data_index_ == half_buffer) {
-      ESP_LOGV(TAG, "Sending Red data (0x13)");
-      this->command(0x13);
+  size_t buf_idx = 0;
+  while (this->current_data_index_ < end) {
+    bytes_to_send[buf_idx++] = this->buffer_[this->current_data_index_++] ^ invert_mask;
+    if (buf_idx == sizeof bytes_to_send) {
+      this->start_data_();
+      this->write_array(bytes_to_send, buf_idx);
+      this->disable();
+      buf_idx = 0;
+      if (millis() - start_time > MAX_TRANSFER_TIME)
+        return false;  // yield; resume next loop
     }
-    const bool bw_plane = this->current_data_index_ < half_buffer;
-    const size_t plane_end = bw_plane ? half_buffer : buffer_length;
-    const uint8_t invert_mask = (bw_plane || this->invert_red_) ? 0xFF : 0x00;
-
+  }
+  if (buf_idx != 0) {
     this->start_data_();
-    while (this->current_data_index_ < plane_end) {
-      const size_t bytes_to_copy = std::min(MAX_TRANSFER_SIZE, plane_end - this->current_data_index_);
-      for (size_t i = 0; i < bytes_to_copy; i++) {
-        bytes_to_send[i] = this->buffer_[this->current_data_index_ + i] ^ invert_mask;
-      }
-      this->write_array(bytes_to_send, bytes_to_copy);
-      this->current_data_index_ += bytes_to_copy;
-
-      if (millis() - start_time > MAX_TRANSFER_TIME) {
-        this->disable();
-        return false;
-      }
-    }
+    this->write_array(bytes_to_send, buf_idx);
     this->disable();
   }
+  return true;
+}
+
+bool HOT EPaperBWR::transfer_data() {
+  const uint32_t start_time = millis();
+  const size_t half_buffer = this->buffer_length_ / 2;
+
+  // Black/white plane (first half, always inverted) then red plane (second half, inverted if invert_red_).
+  if (this->current_data_index_ == 0)
+    this->command(0x10);
+  if (this->current_data_index_ < half_buffer && !this->send_buffer_range_(half_buffer, 0xFF, start_time))
+    return false;
+
+  if (this->current_data_index_ == half_buffer)
+    this->command(0x13);
+  if (!this->send_buffer_range_(this->buffer_length_, this->invert_red_ ? 0xFF : 0x00, start_time))
+    return false;
 
   this->current_data_index_ = 0;
   return true;
