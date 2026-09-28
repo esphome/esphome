@@ -1,6 +1,14 @@
 ld6004:
   id: ld6004_radar
 
+text_sensor:
+  - platform: ld6004
+    ld6004_id: ld6004_radar
+    work_mode:
+      name: LD6004 Work Mode
+    ota_version:
+      name: LD6004 OTA Version
+
 binary_sensor:
   - platform: ld6004
     ld6004_id: ld6004_radar
