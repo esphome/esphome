@@ -81,7 +81,7 @@ target_compile_options({target} PRIVATE
 {options}
 )
 set(esphome_pch_sources {sources_var})
-list(FILTER esphome_pch_sources INCLUDE REGEX "[.](cpp|cc|cxx)$")
+list(FILTER esphome_pch_sources EXCLUDE REGEX "[.][cSs]$")
 set_source_files_properties(${{esphome_pch_sources}} PROPERTIES
     OBJECT_DEPENDS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}")
 """
