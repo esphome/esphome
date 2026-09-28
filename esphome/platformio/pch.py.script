@@ -31,6 +31,8 @@ _GUARD_TEXT = f"""\
 _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
 _CXX_SUFFIXES = (".cpp", ".cc", ".cxx")
 _HEADER_SUFFIXES = (".h", ".hpp", ".hh", ".inc")
+# Build output and library trees; package versions stand in for libraries
+_SKIPPED_DIRS = (".pioenvs", ".piolibdeps", "managed_components")
 
 
 def _include_closure(src_dir: Path, roots: list) -> dict:
@@ -133,6 +135,9 @@ def _setup_pch() -> None:
         digest.update(rel.encode())
         digest.update(closure[rel])
         digest.update(b"\0")
+    # The ESP-IDF configuration: sdkconfig.h sits in the build output
+    for config in sorted(proj_dir.glob("sdkconfig.*")):
+        digest.update(config.read_bytes())
     # Project-local -I dirs (rp2's lwip_override) hold generated headers
     # outside src/
     prev = ""
@@ -141,13 +146,14 @@ def _setup_pch() -> None:
         if prev == "-I":
             inc = tok
         prev = tok
-        inc_dir = Path(inc)
+        # Relative dirs are relative to the project, where compiles run
+        inc_dir = Path(os.path.normpath(proj_dir / inc))
         if (
             not inc
+            or inc_dir == proj_dir
             or not inc_dir.is_relative_to(proj_dir)
             or inc_dir.is_relative_to(src_dir)
-            or inc_dir.is_relative_to(proj_dir / ".piolibdeps")
-            or inc_dir.is_relative_to(proj_dir / ".pioenvs")
+            or any(inc_dir.is_relative_to(proj_dir / name) for name in _SKIPPED_DIRS)
         ):
             continue
         for local in sorted(inc_dir.rglob("*")):

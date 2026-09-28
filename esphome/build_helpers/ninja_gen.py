@@ -142,7 +142,7 @@ def pch_edges(
         # $cxxflags expands first and GCC only loads a .gch for the first
         # -include
         _LOGGER.warning(
-            "A -include in build_flags prevents the precompiled header from "
+            "A -include in the compiler flags prevents the precompiled header from "
             "loading; compiling without it"
         )
         return None
