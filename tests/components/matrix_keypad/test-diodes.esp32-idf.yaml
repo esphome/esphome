@@ -1,0 +1,23 @@
+packages:
+  matrix_keypad: !include common.yaml
+
+matrix_keypad:
+  id: keypad
+  rows:
+    - pin: GPIO16
+    - pin: GPIO17
+    - pin: GPIO18
+    - pin: GPIO19
+  columns:
+    - pin: GPIO13
+    - pin: GPIO12
+    - pin: GPIO27
+    - pin: GPIO26
+    - pin: GPIO25
+    - pin: GPIO33
+    - pin: GPIO32
+    - pin: GPIO14
+  keys: "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456"
+  has_diodes: true
+  on_key:
+    - lambda: ESP_LOGI("KEY", "key %d pressed", x);

@@ -6,16 +6,17 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include <cstdlib>
+#include <memory>
 #include <utility>
 
 namespace esphome::matrix_keypad {
 
 class MatrixKeypadListener {
  public:
-  virtual void button_pressed(int row, int col){};
-  virtual void button_released(int row, int col){};
-  virtual void key_pressed(uint8_t key){};
-  virtual void key_released(uint8_t key){};
+  virtual void button_pressed(int row, int col) {};
+  virtual void button_released(int row, int col) {};
+  virtual void key_pressed(uint8_t key) {};
+  virtual void key_released(uint8_t key) {};
 };
 
 class MatrixKeyTrigger final : public Trigger<uint8_t> {};
@@ -36,6 +37,15 @@ class MatrixKeypad final : public key_provider::KeyProvider, public Component {
   void register_key_trigger(MatrixKeyTrigger *trig);
 
  protected:
+  void press_key_(int key);
+  void release_key_(int key);
+
+  struct KeyState {
+    uint32_t active_start{0};
+    bool active{false};
+    bool pressed{false};
+  };
+
   std::vector<GPIOPin *> rows_;
   std::vector<GPIOPin *> columns_;
   std::string keys_;
@@ -45,6 +55,7 @@ class MatrixKeypad final : public key_provider::KeyProvider, public Component {
   int pressed_key_ = -1;
   uint32_t active_start_{0};
   int active_key_{-1};
+  std::unique_ptr<KeyState[]> key_states_;
 
   std::vector<MatrixKeypadListener *> listeners_{};
   std::vector<MatrixKeyTrigger *> key_triggers_;
