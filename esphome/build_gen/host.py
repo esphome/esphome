@@ -12,6 +12,7 @@ else both.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 import sys
 from typing import TYPE_CHECKING
@@ -148,6 +149,22 @@ def _resolve_host_libraries() -> list[ArduinoLibrary]:
     )
 
 
+def _file_macro_maps(build_dir: Path) -> list[str]:
+    """Flags that keep ``__FILE__`` relative to the build path.
+
+    PlatformIO compiled ``src/x.cpp`` from the build path, and tools name
+    things after that spelling (CodSpeed's benchmark ids). Here a source
+    reaches the compiler by its absolute path, or relative to the build
+    directory when ccache rewrites it.
+    """
+    build_path = Path(CORE.build_path)
+    prefixes = (build_path, Path(os.path.relpath(build_path, build_dir)))
+    return [
+        shell_token(f"-fmacro-prefix-map={prefix}{os.sep}=", force=True)
+        for prefix in prefixes
+    ]
+
+
 def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
     """Write the ninja build for the current configuration.
 
@@ -169,6 +186,7 @@ def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
     for lib in libraries:
         include_dirs += lib.include_dirs
     includes = [f"-I{_q(d)}" for d in include_dirs]
+    includes += _file_macro_maps(build_dir)
 
     # SCons's link line: $LINKFLAGS $SOURCES $_LIBDIRFLAGS $_LIBFLAGS, so
     # -L and -l trail the objects while every other link token leads

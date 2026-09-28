@@ -125,7 +125,7 @@ def test_parse_enable_env_spelling_tables(
 def test_resolve_absolute_ccache_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """ninja runs from the build directory, where a relative path is lost."""
+    """Anchor the path: ninja runs from the build directory."""
     monkeypatch.chdir(tmp_path)
     with patch.object(ccache, "resolve_ccache_path", return_value="bin/ccache"):
         resolved = ccache.resolve_absolute_ccache_path()

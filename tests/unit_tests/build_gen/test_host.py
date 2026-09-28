@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -166,10 +167,17 @@ def test_write_project_emits_every_source_kind(tmp_path: Path) -> None:
     assert "build obj/src/x.S.o: aspp " in ninja
     assert "build obj/src/y.s.o: asm " in ninja
     assert "h.h" not in ninja
-    assert f"cflags = -DUSE_HOST -g -I{_q(src)}" in ninja
-    assert f"cxxflags = -std=gnu++20 -DUSE_HOST -g -I{_q(src)}" in ninja
+    # __FILE__ stays relative to the build path, as it was under PlatformIO,
+    # whether the source arrives absolute or rewritten by ccache
+    sep = os.sep
+    maps = (
+        f"{_q(f'-fmacro-prefix-map={tmp_path}{sep}=')} "
+        f"{_q(f'-fmacro-prefix-map=..{sep}..{sep}=')}"
+    )
+    assert f"cflags = -DUSE_HOST -g -I{_q(src)} {maps}\n" in ninja
+    assert f"cxxflags = -std=gnu++20 -DUSE_HOST -g -I{_q(src)} {maps}\n" in ninja
     # Assembly gets the defines and includes only
-    assert f"asflags = -DUSE_HOST -I{_q(src)}" in ninja
+    assert f"asflags = -DUSE_HOST -I{_q(src)} {maps}\n" in ninja
     assert "linkflags = -g\n" in ninja
     assert "libdirflags = \n" in ninja
     assert "libflags = \n" in ninja

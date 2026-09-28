@@ -8,7 +8,7 @@ from esphome.build_helpers import ninja_gen
 
 
 def test_anchor_path_flags_anchors_relative_operands(tmp_path: Path) -> None:
-    """ninja runs from .pioenvs/<name>; PlatformIO ran from the build path."""
+    """PlatformIO ran from the build path; ninja runs from .pioenvs/<name>."""
     absolute = str(tmp_path / "abs")
     assert ninja_gen.anchor_path_flags(
         [

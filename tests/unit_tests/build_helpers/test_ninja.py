@@ -150,14 +150,14 @@ def test_escape_rejects_what_ninja_cannot_express(char: str) -> None:
 
 
 def test_escape_keeps_a_hash() -> None:
-    """ninja only reads # as a comment at the start of a line."""
+    """A # is only a comment at the start of a ninja line."""
     assert ninja_helper.escape("src/a#b c.cpp") == "src/a#b$ c.cpp"
 
 
 def test_absolute_tool_anchors_a_relative_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """ninja runs from the build directory, where a relative path is lost."""
+    """Anchor the path: ninja runs from the build directory."""
     monkeypatch.chdir(tmp_path)
     assert Path(ninja_helper.absolute_tool("bin/ninja")) == tmp_path / "bin" / "ninja"
 

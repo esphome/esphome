@@ -97,7 +97,7 @@ def test_find_command_none_found(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_find_command_makes_a_relative_hit_absolute(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """ninja runs from the build directory, where a relative path is lost."""
+    """Anchor the path: ninja runs from the build directory."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("CC", "./toolchain/gcc")
     with patch("shutil.which", return_value="./toolchain/gcc"):
