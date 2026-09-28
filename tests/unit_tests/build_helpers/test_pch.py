@@ -114,25 +114,3 @@ def test_include_closure_walks_angle_includes_under_src(tmp_path: Path) -> None:
     (tmp_path / "local.h").write_text("")
     closure = pch._include_closure(tmp_path, ["a.h"])
     assert set(closure) == {"a.h", "local.h"}
-
-
-def test_pch_cmake_consumer_substitutes_target_and_sources(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    block = pch.pch_cmake_consumer("app", "${APP_SOURCES}")
-    assert "target_compile_options(app PRIVATE" in block
-    assert '"$<$<COMPILE_LANGUAGE:CXX>:-Winvalid-pch>"' in block
-    assert '"$<$<COMPILE_LANGUAGE:CXX>:-Werror=invalid-pch>"' in block
-    assert '"$<$<COMPILE_LANGUAGE:CXX>:esphome_pch.h>"' in block
-    # C sources do not load the pch, so they must not rebuild with it
-    assert "set(esphome_pch_sources ${APP_SOURCES})" in block
-    assert 'list(FILTER esphome_pch_sources EXCLUDE REGEX "[.][cSs]$")' in block
-    assert "set_source_files_properties(${esphome_pch_sources} PROPERTIES" in block
-    assert 'OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/esphome_pch.h"' in block
-
-
-def test_pch_cmake_consumer_empty_when_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
-    assert pch.pch_cmake_consumer("app", "${APP_SOURCES}") == ""
