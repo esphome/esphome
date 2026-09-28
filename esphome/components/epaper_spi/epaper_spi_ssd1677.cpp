@@ -19,9 +19,16 @@ void EPaperSSD1677::setup() {
 void EPaperSSD1677::init_comparison_frame_() {
   if (!this->is_using_partial_update_())
     return;
-  if (!this->sent_.init(this->buffer_length_)) {
+  if (!this->sent_.init(this->plane_row_length_() * this->height_)) {
     ESP_LOGW(TAG, "No memory for the comparison frame; partial updates will degrade unchanged areas");
   }
+}
+
+void EPaperSSD1677::plane_row_(size_t y, uint8_t *out) {
+  const size_t row_length = this->plane_row_length_();
+  const size_t data_idx = y * row_length;
+  for (size_t i = 0; i != row_length; i++)
+    out[i] = this->buffer_[data_idx + i];
 }
 
 // Nothing a partial update needs is kept in controller RAM any more, so skip the reset for those.
@@ -39,7 +46,7 @@ bool HOT EPaperSSD1677::transfer_data() {
   // A full update ignores 0x26, and the copy may not hold a real frame yet (first update after
   // boot): send the new frame to both planes.
   const bool full = this->update_count_ == 0;
-  const size_t row_length = this->row_width_;
+  const size_t row_length = this->plane_row_length_();
   if (this->current_data_index_ == 0) {
     if (this->plane_ == 0) {
       this->x_low_ = 0;
@@ -54,15 +61,15 @@ bool HOT EPaperSSD1677::transfer_data() {
   row.init(row_length);
   this->start_data_();
   while (this->current_data_index_ != this->height_) {
-    size_t data_idx = this->current_data_index_ * row_length;
+    const size_t data_idx = this->current_data_index_ * row_length;
     if (this->plane_ == 0 && !full) {
       for (size_t i = 0; i != row_length; i++)
-        row[i] = this->sent_[data_idx++];
+        row[i] = this->sent_[data_idx + i];
     } else {
-      for (size_t i = 0; i != row_length; i++, data_idx++) {
-        row[i] = this->buffer_[data_idx];
-        if (this->plane_ == 1)
-          this->sent_[data_idx] = row[i];
+      this->plane_row_(this->current_data_index_, &row.front());
+      if (this->plane_ == 1) {
+        for (size_t i = 0; i != row_length; i++)
+          this->sent_[data_idx + i] = row[i];
       }
     }
     ++this->current_data_index_;

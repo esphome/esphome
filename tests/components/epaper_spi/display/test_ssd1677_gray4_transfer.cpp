@@ -18,6 +18,25 @@ class TestableSSD1677Gray4 : public EPaperSSD1677Gray4 {
     ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
   }
 
+  /// As configured with monochrome_partial_updates: full_update_every > 1.
+  void install_with_partials(spi::SPIDelegate *delegate) {
+    this->install(delegate);
+    this->set_full_update_every(5);
+    this->init_comparison_frame_();
+    ASSERT_TRUE(this->sent_.is_valid());
+  }
+
+  /// What the base class would decide; 0 means the next push is a full one.
+  void set_update_count(uint8_t count) { this->update_count_ = count; }
+
+  /// Pretend only this rectangle changed.
+  void set_dirty(uint16_t x_low, uint16_t y_low, uint16_t x_high, uint16_t y_high) {
+    this->x_low_ = x_low;
+    this->y_low_ = y_low;
+    this->x_high_ = x_high;
+    this->y_high_ = y_high;
+  }
+
   /// Both planes of one push; returns how many calls it took.
   int run_push() {
     int calls = 1;
@@ -115,18 +134,100 @@ TEST(EPaperSSD1677Gray4, ResumesBothPlanesAfterYielding) {
   EXPECT_EQ(bus.data[0x26], (Bytes{0xFF, 0x00, 0xFF, 0x00}));
 }
 
-/// There is no partial four-level update: whatever the caller asks for, the refresh is the panel's
-/// four-level sequence.
-TEST(EPaperSSD1677Gray4, RefreshIsAlwaysTheFourLevelSequence) {
+/// Without partial updates enabled (the default) every refresh is the four-level sequence, even if
+/// the update count says otherwise.
+TEST(EPaperSSD1677Gray4, WithoutPartialUpdatesEveryRefreshIsFourLevel) {
   TestableSSD1677Gray4 display(8, 1);
   RecordingDelegate bus(&display.dc);
   display.install(&bus);
 
+  display.set_update_count(1);
   display.refresh_screen(true);
 
   EXPECT_EQ(bus.commands, (Bytes{0x1A, 0x22, 0x20}));
   EXPECT_EQ(bus.data[0x1A], (Bytes{0x67, 0x00}));
   EXPECT_EQ(bus.data[0x22], (Bytes{0xD7}));
+}
+
+// --- With monochrome partial updates ------------------------------------------------------------
+
+/// A full update is still four-level. It also records, as the frame the next partial update
+/// compares against, what the panel shows in black-and-white terms: the high bit of each level.
+TEST(EPaperSSD1677Gray4, FullPushRecordsTheHighBitsForTheNextPartial) {
+  TestableSSD1677Gray4 display(8, 1);
+  RecordingDelegate bus(&display.dc);
+  display.install_with_partials(&bus);
+
+  draw_row(display, 0, {0, 1, 2, 3, 0, 1, 2, 3});
+  display.set_update_count(0);
+  display.run_push();
+  EXPECT_EQ(bus.data[0x24], (Bytes{0xCC})) << "full update is no longer the four-level split";
+  EXPECT_EQ(bus.data[0x26], (Bytes{0xAA}));
+  bus.clear();
+
+  // Nothing changed: old and new planes must match, or the partial drives every pixel.
+  display.set_update_count(1);
+  display.run_push();
+  EXPECT_EQ(bus.data[0x26], (Bytes{0x33})) << "comparison frame is not the high bits";
+  EXPECT_EQ(bus.data[0x24], (Bytes{0x33}));
+}
+
+/// A partial update sends the comparison frame to 0x26 and the new frame's high bits to 0x24,
+/// not inverted (it runs the black-and-white waveform), over the whole panel.
+TEST(EPaperSSD1677Gray4, PartialPushSendsTheHighBitsInBlackAndWhite) {
+  TestableSSD1677Gray4 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install_with_partials(&bus);
+
+  draw_row(display, 0, {0, 1, 2, 3, 0, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3});
+  draw_row(display, 1, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+  display.set_update_count(0);
+  display.run_push();
+  bus.clear();
+
+  draw_row(display, 1, {3, 3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+  display.set_dirty(0, 1, 8, 2);  // only the start of the second row changed
+  display.set_update_count(1);
+  display.run_push();
+
+  EXPECT_EQ(bus.data[0x26], (Bytes{0x33, 0xFF, 0x00, 0x00})) << "old plane is not the frame on the panel";
+  EXPECT_EQ(bus.data[0x24], (Bytes{0x33, 0xFF, 0xF0, 0x00})) << "new plane is not the whole frame's high bits";
+}
+
+/// A full update resets the controller, which does not keep RAM, so even when only part of the
+/// frame changed it must send the whole panel.
+TEST(EPaperSSD1677Gray4, FullPushWithPartialsEnabledCoversTheWholePanel) {
+  TestableSSD1677Gray4 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install_with_partials(&bus);
+
+  display.set_dirty(8, 1, 16, 2);
+  display.set_update_count(0);
+  display.run_push();
+
+  EXPECT_EQ(bus.data[0x24].size(), 4u) << "full update did not send the whole new plane";
+  EXPECT_EQ(bus.data[0x26].size(), 4u) << "full update did not send the whole old plane";
+}
+
+/// The refresh matches what was sent: black-and-white for a partial update, four-level for a full.
+TEST(EPaperSSD1677Gray4, PartialRefreshIsBlackAndWhiteAndFullIsFourLevel) {
+  TestableSSD1677Gray4 display(8, 1);
+  RecordingDelegate bus(&display.dc);
+  display.install_with_partials(&bus);
+
+  display.set_update_count(1);
+  display.refresh_screen(true);
+  EXPECT_EQ(bus.commands, (Bytes{0x3C, 0x22, 0x20}));
+  EXPECT_EQ(bus.data[0x22], (Bytes{0xFF})) << "partial update did not use the black-and-white waveform";
+  // The model's border setting is right for the four-level waveform only; under this one it
+  // would drive the border black on every partial.
+  EXPECT_EQ(bus.data[0x3C], (Bytes{0x01})) << "partial update did not switch the border to LUT1";
+  bus.clear();
+
+  display.set_update_count(0);
+  display.refresh_screen(false);
+  EXPECT_EQ(bus.data[0x22], (Bytes{0xD7})) << "full update did not use the four-level waveform";
+  EXPECT_EQ(bus.data.count(0x3C), 0u) << "full update overrode the model's border setting";
 }
 
 }  // namespace esphome::epaper_spi::testing
