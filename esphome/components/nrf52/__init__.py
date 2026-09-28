@@ -843,6 +843,26 @@ def _copy_if_exists(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
+def _west_build_command(
+    python_executable: Path, board: str, build_dir: Path, source_dir: Path
+) -> list[str]:
+    return [
+        str(python_executable),
+        "-m",
+        "west",
+        "build",
+        "--pristine=auto",
+        "-b",
+        board,
+        "-d",
+        str(build_dir),
+        str(source_dir),
+        "--",
+        # Only adds -DNDEBUG (Kconfig sets the optimization level); picolibc used to force it
+        "-DCMAKE_BUILD_TYPE=MinSizeRel",
+    ]
+
+
 def run_compile(args, config: ConfigType) -> bool:
     if CORE.using_toolchain_platformio:
         # The actual build is done by PlatformIO (the caller falls through to
@@ -877,18 +897,9 @@ def run_compile(args, config: ConfigType) -> bool:
         _LOGGER.info("Build inputs changed, cleaning %s", build_dir)
         rmtree(build_dir)
 
-    west_cmd = [
-        str(paths["python_executable"]),
-        "-m",
-        "west",
-        "build",
-        "--pristine=auto",
-        "-b",
-        board,
-        "-d",
-        str(build_dir),
-        str(source_dir),
-    ]
+    west_cmd = _west_build_command(
+        paths["python_executable"], board, build_dir, source_dir
+    )
 
     if not run_command_ok(
         west_cmd,
