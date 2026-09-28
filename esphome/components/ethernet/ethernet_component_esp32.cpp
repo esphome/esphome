@@ -453,9 +453,10 @@ void EthernetComponent::ethernet_lazy_init_() {
   /* attach Ethernet driver to TCP/IP stack */
   err = esp_netif_attach(this->eth_netif_, esp_eth_new_netif_glue(this->eth_handle_));
   ESPHL_ERROR_CHECK(err, "ETH netif attach error");
-#if USE_NETWORK_IPV6
-  // The internal EMAC drops multicast groups that were never added, and lwIP never
-  // adds all-nodes, so router advertisements were lost and SLAAC never ran.
+#if USE_NETWORK_IPV6 && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+  // Since IDF 5.5 the internal EMAC drops multicast groups that were never added (before,
+  // it passed all multicast), and lwIP never adds all-nodes, so router advertisements
+  // were lost and SLAAC never ran.
   {
     uint8_t all_nodes[6] = {0x33, 0x33, 0x00, 0x00, 0x00, 0x01};
     if (esp_err_t filter_err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_ADD_MAC_FILTER, all_nodes);
@@ -463,7 +464,7 @@ void EthernetComponent::ethernet_lazy_init_() {
       ESP_LOGD(TAG, "IPv6 all-nodes multicast filter not added: %s", esp_err_to_name(filter_err));
     }
   }
-#endif /* USE_NETWORK_IPV6 */
+#endif
 
   // Register user defined event handers
   err = esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &EthernetComponent::eth_event_handler, nullptr);
