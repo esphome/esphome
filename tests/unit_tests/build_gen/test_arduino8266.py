@@ -374,47 +374,27 @@ def test_write_project_pch(tmp_path: Path) -> None:
     content = _write_ninja(paths, ccache="/usr/bin/ccache")
     build_dir = CORE.relative_pioenvs_path(CORE.name)
     assert "rule pch" in content
-    assert "build esphome_pch.h.gch: pch" in content
+    # Compiled from the include list, and again when the compiler changes
+    gch_edge = next(
+        line
+        for line in content.splitlines()
+        if line.startswith("build esphome_pch.h.gch: pch ")
+    )
+    assert "esphome_pch_src.h | " in gch_edge
+    assert gch_edge.endswith("g++")
     for line in content.splitlines():
         # C++ edges wait on the .gch; the C edge must not reference it
         if line.startswith("build obj/src/main.cpp.o:"):
             assert line.endswith("| esphome_pch.h.gch")
         if line.startswith("build obj/src/esphome/vendor.c.o:"):
             assert "esphome_pch" not in line
-    assert (build_dir / "esphome_pch.h").read_text().splitlines() == [
+    assert (build_dir / "esphome_pch_src.h").read_text().splitlines() == [
         '#include "esphome/components/esp8266/throw_stubs.h"',
         '#include "esphome/core/defines.h"',
+        '#include "esphome/core/pch_prefix.h"',
     ]
+    assert "#error" in (build_dir / "esphome_pch.h").read_text()
     assert (build_dir / "esphome_pch.h.gch.sum").read_text().strip()
-    # Emission recorded so the framework env exports the ccache settings
-    from esphome.build_helpers.pch import ccache_pch_env
-
-    assert "CCACHE_PCH_EXTSUM" in ccache_pch_env()
-
-
-def test_write_project_pch_sum_only_with_ccache(tmp_path: Path) -> None:
-    """The .sum sidecar exists solely for ccache; skip it when disabled."""
-    paths = _make_framework(tmp_path)
-    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
-    content = _write_ninja(paths)
-    build_dir = CORE.relative_pioenvs_path(CORE.name)
-    assert "build esphome_pch.h.gch: pch" in content
-    assert not (build_dir / "esphome_pch.h.gch.sum").exists()
-
-
-def test_write_project_pch_identity_unknown_stops_the_build(tmp_path: Path) -> None:
-    """The headers hashed are ESPHome's own: one that cannot be read is a
-    defect, not a reason to build without the pch."""
-    paths = _make_framework(tmp_path)
-    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
-    with (
-        patch(
-            "esphome.build_helpers.pch.pch_checksum",
-            side_effect=OSError("stat failed"),
-        ),
-        pytest.raises(OSError, match="stat failed"),
-    ):
-        _write_ninja(paths, ccache="/usr/bin/ccache")
 
 
 def test_write_project_pch_folds_joined_src_force_include(

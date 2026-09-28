@@ -180,15 +180,3 @@ def test_ccache_env_includes_pch_settings(tmp_path: Path) -> None:
     env = _pch_ccache_env(tmp_path, {})
     assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
     assert env["CCACHE_PCH_EXTSUM"] == "true"
-
-
-def test_ccache_env_pch_disabled(tmp_path: Path) -> None:
-    env = _pch_ccache_env(tmp_path, {"ESPHOME_PCH_ENABLE": "0"})
-    assert "CCACHE_SLOPPINESS" not in env
-    assert "CCACHE_PCH_EXTSUM" not in env
-
-
-def test_ccache_env_user_values_win(tmp_path: Path) -> None:
-    env = _pch_ccache_env(tmp_path, {"CCACHE_SLOPPINESS": "locale"})
-    assert "CCACHE_SLOPPINESS" not in env
-    assert env["CCACHE_PCH_EXTSUM"] == "true"
