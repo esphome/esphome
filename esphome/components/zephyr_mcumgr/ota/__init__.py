@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
+from esphome.components.nrf52.framework import include_west_project
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 from esphome.components.zephyr import (
     HexValue,
@@ -13,6 +14,7 @@ from esphome.components.zephyr.const import (
     KEY_BOOTLOADER,
     KEY_SYSBUILD,
 )
+from esphome.components.zephyr_ble_server import request_ble_l2cap_mtu
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_HARDWARE_UART,
@@ -115,6 +117,9 @@ async def to_code(config: ConfigType) -> None:
 
     zephyr_add_prj_conf("NET_BUF", True)
     zephyr_add_prj_conf("ZCBOR", True)
+    include_west_project("zcbor")
+    # The image manager includes MCUboot headers with any bootloader
+    include_west_project("mcuboot")
     zephyr_add_prj_conf("MCUMGR", True)
 
     zephyr_add_prj_conf("MCUMGR_GRP_IMG", True)
@@ -140,6 +145,7 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
 
         zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
+        request_ble_l2cap_mtu(498)  # matches NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP
     if CONF_HARDWARE_UART in transport:
         uart = UARTS[transport[CONF_HARDWARE_UART]]
         uart_name = uart[0]

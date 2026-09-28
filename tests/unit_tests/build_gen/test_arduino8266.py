@@ -604,7 +604,7 @@ def test_write_project_libraries_and_variant(
     )
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_ENABLE_EXCEPTIONS")
 
-    with caplog.at_level(logging.DEBUG, logger="esphome.build_gen.arduino8266"):
+    with caplog.at_level(logging.DEBUG, logger="esphome.build_helpers.ninja_gen"):
         content = _write_ninja(
             paths, libraries=[library, headers_only], ccache="/cc/ccache"
         )
@@ -616,6 +616,9 @@ def test_write_project_libraries_and_variant(
     assert "libHeadersOnly.a" not in content
     assert "Library HeadersOnly has no source files" in caplog.text
     assert "  flags = -DMYLIB=1" in content
+    # A library's own include dirs lead its compile lines
+    assert "  own_includes = -I" in content
+    assert "$own_includes $cxxflags $flags" in content
     assert "-lalgobsec" in content
     # Library link flags reach the firmware link line; .cc compiles as C++
     assert "-Wl,--wrap=malloc" in content

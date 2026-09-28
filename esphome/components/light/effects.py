@@ -33,6 +33,7 @@ from esphome.cpp_generator import MockObjClass
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry
 
+from .automation import validate_light_state
 from .types import (
     COLOR_MODES,
     AddressableColorWipeEffect,
@@ -281,7 +282,7 @@ async def random_effect_to_code(config, effect_id):
             cv.ensure_list(
                 cv.Schema(
                     {
-                        cv.Optional(CONF_STATE, default=True): cv.boolean,
+                        cv.Optional(CONF_STATE, default=True): validate_light_state,
                         cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
                         cv.Optional(CONF_COLOR_MODE): cv.enum(
                             COLOR_MODES, upper=True, space="_"
@@ -544,12 +545,18 @@ async def addressable_flicker_effect_to_code(config, effect_id):
     return var
 
 
+# LightState stores the active effect index in a uint16_t
+MAX_EFFECTS = 65535
+
+
 def validate_effects(allowed_effects):
     @schema_extractor("effects")
     def validator(value):
         if value == SCHEMA_EXTRACT:
             return (allowed_effects, EFFECTS_REGISTRY)
 
+        if isinstance(value, list) and len(value) > MAX_EFFECTS:
+            raise cv.Invalid(f"A light supports at most {MAX_EFFECTS} effects")
         value = cv.validate_registry("effect", EFFECTS_REGISTRY)(value)
         errors = []
         names = set()
