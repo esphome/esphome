@@ -410,14 +410,12 @@ def test_write_project_pch_folds_joined_src_force_include(
     assert "-includeesphome" not in content
 
 
-def test_write_project_pch_skipped_for_joined_force_include_spelling(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+@pytest.mark.parametrize("flag", ["-includefoo.h", "--include=foo.h"])
+def test_write_project_pch_skipped_for_other_force_include_spellings(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, flag: str
 ) -> None:
-    """GCC also accepts -includefoo.h as one token; the guard must see it."""
     paths = _make_framework(tmp_path)
-    _set_flags(
-        "-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH", "-includefoo.h"
-    )
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH", flag)
     content = _write_ninja(paths, ccache="/usr/bin/ccache")
     assert "esphome_pch" not in content
     assert "prevents the precompiled header" in caplog.text
