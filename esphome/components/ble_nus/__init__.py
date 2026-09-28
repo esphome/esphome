@@ -7,6 +7,7 @@ from esphome.components.uart import (
     uart_ns,
 )
 from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr_ble_server import request_ble_l2cap_mtu
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEBUG,
@@ -61,6 +62,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     zephyr_add_prj_conf("BT_NUS", True)
+    request_ble_l2cap_mtu(247)  # DLE sweet spot: one NUS frame per LL PDU
     expose_log = config[CONF_TYPE] == CONF_LOGS
     cg.add(var.set_expose_log(expose_log))
     if expose_log:
