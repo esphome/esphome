@@ -325,8 +325,9 @@ const HoermannHcpCommand *HoermannHcp::take_command_() {
       ESP_LOGD(TAG, "Door is already moving that way, dropping '%s'", command->name);
       return nullptr;
     }
-    if (command != &COMMAND_STOP)
+    if (command != &COMMAND_STOP) {
       ESP_LOGD(TAG, "Door is moving, stopping it instead of '%s'", command->name);
+    }
     this->last_stop_at_ = millis();
     this->stop_sent_ = true;
     return &COMMAND_STOP;
