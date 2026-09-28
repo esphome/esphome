@@ -40,10 +40,14 @@ void EPaperBWR::fill(Color color) {
 
   const uint8_t bw_byte = bwr == BwrColor::BWR_COLOR_BLACK ? 0xFF : 0x00;
   const uint8_t red_byte = bwr == BwrColor::BWR_COLOR_RED ? 0xFF : 0x00;
-  for (size_t i = 0; i < half_buffer; i++)
-    this->buffer_[i] = bw_byte;
-  for (size_t i = 0; i < half_buffer; i++)
-    this->buffer_[half_buffer + i] = red_byte;
+  if (bw_byte == red_byte) {
+    this->buffer_.fill(bw_byte);  // white: both planes 0x00
+  } else {
+    for (size_t i = 0; i < half_buffer; i++)
+      this->buffer_[i] = bw_byte;
+    for (size_t i = 0; i < half_buffer; i++)
+      this->buffer_[half_buffer + i] = red_byte;
+  }
 
   this->x_high_ = this->width_;
   this->y_high_ = this->height_;
