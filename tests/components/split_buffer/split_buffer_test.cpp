@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <vector>
 
@@ -98,6 +99,26 @@ TEST(SplitBufferGetSpan, OutOfRange) {
   EXPECT_EQ(length, 0u);
   length = 99;
   EXPECT_EQ(buffer.get_span(1000, length), nullptr);
+  EXPECT_EQ(length, 0u);
+}
+
+TEST(SplitBufferGetSpan, ConstBufferGivesConstSpan) {
+  SplitBuffer buffer;
+  ASSERT_TRUE(buffer.init(50, 16));
+  const SplitBuffer &ref = buffer;
+  size_t length = 0;
+  const uint8_t *span = ref.get_span(20, length);
+  EXPECT_EQ(span, &ref[20]);
+  EXPECT_EQ(length, 12u);
+}
+
+TEST(SplitBufferInit, FailedInitLeavesEmptyState) {
+  SplitBuffer buffer;
+  // One-byte pieces need a pointer array too large to allocate, so init fails straight away
+  EXPECT_FALSE(buffer.init(SIZE_MAX / 16, 1));
+  EXPECT_EQ(buffer.size(), 0u);
+  size_t length = 99;
+  EXPECT_EQ(buffer.get_span(0, length), nullptr);
   EXPECT_EQ(length, 0u);
 }
 

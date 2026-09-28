@@ -1089,6 +1089,9 @@ _ESP32_PLATFORMIO_FULL_LIST_FILES = [
     # PlatformIO subsystem (path-prefix trigger) + build generator
     ["esphome/platformio/runner.py"],
     ["esphome/platformio/toolchain.py"],
+    # Decides which platforms take the pch script
+    ["esphome/build_helpers/pch.py"],
+    ["esphome/build_helpers/ccache.py"],
     ["esphome/build_gen/platformio.py"],
     # Workflow / harness files
     ["script/test_build_components.py"],
@@ -1150,6 +1153,9 @@ def test_esp32_platformio_components_to_test_returns_full_list_on_infrastructure
         # Non-PlatformIO files in esphome/build_gen/ do NOT trigger the
         # full list -- only esphome/build_gen/platformio.py is a trigger.
         (["esphome/build_gen/espidf.py"], [], []),
+        # The rest of build_helpers/ is not a trigger.
+        (["esphome/build_helpers/size_summary.py"], [], []),
+        (["esphome/build_helpers/ninja.py"], [], []),
         # Docs / unrelated files -> empty.
         (["README.md"], [], []),
         ([], [], []),

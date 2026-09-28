@@ -29,7 +29,8 @@ class SplitBuffer {
 
   // Pointer to the byte at `index`; `length` is set to how many bytes are contiguous from there.
   // Returns nullptr with `length` 0 if `index` is out of range.
-  uint8_t *get_span(size_t index, size_t &length) const;
+  const uint8_t *get_span(size_t index, size_t &length) const;
+  uint8_t *get_span(size_t index, size_t &length);
   // Copy `length` bytes from `data` into the buffer starting at `index`; bytes past the end are dropped.
   void write(size_t index, const uint8_t *data, size_t length);
 
