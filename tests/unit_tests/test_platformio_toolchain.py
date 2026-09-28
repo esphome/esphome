@@ -331,6 +331,30 @@ def test_idedata_null_section_raises_esphome_error(setup_core: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    ("platform", "expected"), [("esp8266", "true"), ("nrf52", None)]
+)
+def test_run_platformio_cli_exports_the_pch_ccache_settings(
+    setup_core: Path,
+    mock_run_external_process: Mock,
+    platform: str,
+    expected: str | None,
+) -> None:
+    """Only for a platform that takes the pch script."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: platform,
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+
+    with patch.dict(os.environ, {}, clear=True):
+        mock_run_external_process.return_value = 0
+        toolchain.run_platformio_cli("test", "arg")
+
+    env = mock_run_external_process.call_args[1]["env"]
+    assert env.get("CCACHE_PCH_EXTSUM") == expected
+
+
+@pytest.mark.parametrize(
     ("platform", "framework", "expected"),
     [
         ("esp32", "arduino", "1"),
