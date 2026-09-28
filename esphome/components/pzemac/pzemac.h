@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
@@ -37,17 +36,6 @@ class PZEMAC final : public PollingComponent, public modbus::ModbusClientDevice 
   sensor::Sensor *power_factor_sensor_{nullptr};
 
   uint32_t last_update_time_{0};
-};
-
-// Keep the legacy action wrapper for ESPHome releases without register_apply_action().
-template<typename... Ts> class ResetEnergyAction final : public Action<Ts...> {
- public:
-  ResetEnergyAction(PZEMAC *pzemac) : pzemac_(pzemac) {}
-
-  void play(const Ts &...x) override { this->pzemac_->reset_energy(); }
-
- protected:
-  PZEMAC *pzemac_;
 };
 
 }  // namespace esphome::pzemac
