@@ -668,6 +668,13 @@ def test_prepare_pch_missing_sdkconfig_stops_the_build(tmp_path: Path) -> None:
         _prepare(dev)
 
 
+def test_prepare_pch_broken_compile_database_stops_the_build(tmp_path: Path) -> None:
+    dev = _make_pch_device(tmp_path, "dev_j")
+    (dev / "build" / "compile_commands.json").write_text("[{")
+    with pytest.raises(EsphomeError, match="ESPHOME_PCH_ENABLE=0"):
+        _prepare(dev)
+
+
 def test_prepare_pch_disabled_does_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
