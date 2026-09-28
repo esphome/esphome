@@ -610,8 +610,7 @@ def clean_build(clear_pio_cache: bool = True, *, full: bool = False):
             if idf_path.is_dir():
                 _LOGGER.info("Deleting %s", idf_path)
                 rmtree(idf_path)
-        # The PlatformIO pch artifacts live at the project root so the
-        # relative -include resolves; a partial clean must drop them too
+        # The PlatformIO pch files live in the project root
         from esphome.build_helpers.pch import PCH_ARTIFACT_NAMES
 
         for name in PCH_ARTIFACT_NAMES:

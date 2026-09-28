@@ -39,9 +39,8 @@ PCH_SUM_NAME = f"{PCH_GCH_NAME}.sum"
 PCH_SOURCE_NAME = "esphome_pch_src.h"
 _PCH_COMMAND_CACHE = f"{PCH_HEADER_NAME}.cmd.json"
 
-# GCC can skip a .gch without any diagnostic and read the header of the same
-# name instead, so that header is an error. Tools that cannot load a .gch
-# get the include list.
+# GCC can skip a .gch without a diagnostic and read the header of the same
+# name, so that header is an error. Other tools get the include list.
 PCH_GUARD_TEXT = f"""\
 #if defined(__GNUC__) && !defined(__clang__) && !defined(__INTELLISENSE__)
 #error "The precompiled header was not loaded"
@@ -263,7 +262,6 @@ def pch_identity(
 
 
 def log_pch_in_use() -> None:
-    # The only place a user can discover the knob
     _LOGGER.info(
         "Compiling with a precompiled header (set ESPHOME_PCH_ENABLE=0 to disable)"
     )
