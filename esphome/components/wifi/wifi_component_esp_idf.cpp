@@ -576,15 +576,6 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   }
 
   if (!manual_ip.has_value()) {
-#ifdef USE_NETWORK_IPV6_ONLY
-    // Keep the DHCPv4 client stopped. esp_netif then makes this netif the default route on link-up.
-    (void) dhcp_status;
-    err = esp_netif_dhcpc_stop(s_sta_netif);
-    if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
-      ESP_LOGV(TAG, "Stopping DHCP client failed: %s", esp_err_to_name(err));
-    }
-    return true;
-#else
     // lwIP starts the SNTP client if it gets an SNTP server from DHCP. We don't need the time, and more importantly,
     // the built-in SNTP client has a memory leak in certain situations. Disable this feature.
     // https://github.com/esphome/issues/issues/2299
@@ -597,6 +588,15 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
       sntp_servermode_dhcp(false);
     }
 
+#ifdef USE_NETWORK_IPV6_ONLY
+    // Keep the DHCPv4 client stopped. esp_netif then makes this netif the default route on link-up.
+    (void) dhcp_status;
+    err = esp_netif_dhcpc_stop(s_sta_netif);
+    if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+      ESP_LOGV(TAG, "Stopping DHCP client failed: %s", esp_err_to_name(err));
+    }
+    return true;
+#else
     // No manual IP is set; use DHCP client
     if (dhcp_status != ESP_NETIF_DHCP_STARTED) {
       err = esp_netif_dhcpc_start(s_sta_netif);

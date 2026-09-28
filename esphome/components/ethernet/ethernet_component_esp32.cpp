@@ -851,14 +851,14 @@ void EthernetComponent::start_connect_() {
     }
   } else
 #endif
-#ifndef USE_NETWORK_IPV6_ONLY
   {
+#ifndef USE_NETWORK_IPV6_ONLY
     err = esp_netif_dhcpc_start(this->eth_netif_);
     if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
       ESPHL_ERROR_CHECK(err, "DHCPC start error");
     }
-  }
 #endif
+  }
 #if USE_NETWORK_IPV6
   // Attempt to create IPv6 link-local address
   // We MUST attempt this here, not just in finish_connect_(), because with
