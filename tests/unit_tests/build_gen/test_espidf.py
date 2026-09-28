@@ -512,7 +512,7 @@ def _make_pch_device(tmp_path: Path, name: str) -> Path:
     for header in PCH_DEFAULT_HEADERS:
         path = dev / "src" / header
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("")
+        path.write_text('#include "esphome/core/defines.h"\n')
     # A real quoted include chain and a per-device-named sdkconfig with
     # identical content: the closure and sdkconfig inputs must be exercised
     (dev / "src" / "esphome" / "core" / "defines.h").write_text(

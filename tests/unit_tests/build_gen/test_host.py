@@ -244,9 +244,7 @@ def test_write_project_precompiles_the_core_headers(tmp_path: Path) -> None:
     _, ninja = _render()
     build_dir = tmp_path / ".pioenvs" / "dev"
     source = build_dir / "esphome_pch_src.h"
-    assert source.read_text() == (
-        '#include "esphome/core/defines.h"\n#include "esphome/core/pch_prefix.h"\n'
-    )
+    assert source.read_text() == '#include "esphome/core/pch_prefix.h"\n'
     assert "rule pch\n" in ninja
     sum_path = build_dir / "esphome_pch.h.gch.sum"
     assert (

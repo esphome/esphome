@@ -19,7 +19,7 @@ except Exception:  # noqa: BLE001 -- not exported under -t nobuild
 # build_helpers/pch.py.
 _HEADER_NAME = "esphome_pch.h"
 _SOURCE_NAME = "esphome_pch_src.h"
-_DEFAULT_HEADERS = ("esphome/core/defines.h", "esphome/core/pch_prefix.h")
+_DEFAULT_HEADERS = ("esphome/core/pch_prefix.h",)
 _CONSUMER_FLAGS = ["-Winvalid-pch", "-Werror=invalid-pch", "-include", _HEADER_NAME]
 _GUARD_TEXT = f"""\
 #if defined(__GNUC__) && !defined(__clang__) && !defined(__INTELLISENSE__)
