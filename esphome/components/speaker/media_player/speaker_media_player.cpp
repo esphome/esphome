@@ -371,7 +371,12 @@ void SpeakerMediaPlayer::loop() {
   } else {
     if (!this->announcement_playlist_.empty()) {
       uint32_t timeout_ms = 0;
-      if (old_announcement_pipeline_state == AudioPipelineState::PLAYING) {
+      if ((old_announcement_pipeline_state == AudioPipelineState::ERROR_READING) ||
+          (old_announcement_pipeline_state == AudioPipelineState::ERROR_DECODING)) {
+        // The pipeline goes straight from an error to STOPPED, so drop the item that failed, even with repeat
+        // enabled; otherwise it is restarted on every loop
+        this->announcement_playlist_.pop_front();
+      } else if (old_announcement_pipeline_state == AudioPipelineState::PLAYING) {
         // Finished the current announcement file
         if (!this->announcement_repeat_one_) {
           //  Pop item off the playlist if repeat is disabled
@@ -412,7 +417,12 @@ void SpeakerMediaPlayer::loop() {
       } else if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
         if (!media_playlist_.empty()) {
           uint32_t timeout_ms = 0;
-          if (old_media_pipeline_state == AudioPipelineState::PLAYING) {
+          if ((old_media_pipeline_state == AudioPipelineState::ERROR_READING) ||
+              (old_media_pipeline_state == AudioPipelineState::ERROR_DECODING)) {
+            // The pipeline goes straight from an error to STOPPED, so drop the item that failed, even with repeat
+            // enabled; otherwise it is restarted on every loop
+            this->media_playlist_.pop_front();
+          } else if (old_media_pipeline_state == AudioPipelineState::PLAYING) {
             // Finished the current media file
             if (!this->media_repeat_one_) {
               // Pop item off the playlist if repeat is disabled
