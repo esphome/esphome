@@ -561,11 +561,8 @@ _SMOKE_HARNESS_TRIGGER_FILES = frozenset(
 
 ESP32_PLATFORMIO_TRIGGER_FILES = _SMOKE_HARNESS_TRIGGER_FILES | {
     "esphome/build_gen/platformio.py",
-    # The pch machinery and the modules it imports; the rest of
-    # build_helpers/ does not affect PlatformIO builds
+    # Decides which platforms take the pch script in esphome/platformio/
     "esphome/build_helpers/pch.py",
-    "esphome/build_helpers/ccache.py",
-    "esphome/build_helpers/idedata.py",
 }
 
 
