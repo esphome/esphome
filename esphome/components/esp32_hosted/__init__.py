@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import re
 
 from esphome import pins
 from esphome.components import esp32
@@ -7,14 +8,21 @@ from esphome.components.const import CONF_SLOT, CONF_USE_PSRAM
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLK_PIN,
+    CONF_COMPONENTS,
     CONF_CS_PIN,
+    CONF_FRAMEWORK,
     CONF_FREQUENCY,
     CONF_MISO_PIN,
     CONF_MOSI_PIN,
+    CONF_NAME,
+    CONF_REF,
     CONF_RESET_PIN,
+    CONF_SOURCE,
     CONF_TYPE,
     CONF_VARIANT,
+    KEY_ESP32,
 )
+from esphome.core import CORE
 from esphome.cpp_generator import add_define
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -29,10 +37,12 @@ AUTO_LOAD = ["watchdog"]
 # is emitted for the line in use.
 ESP_HOSTED_VERSION_3X = "3.0.9"
 ESP_HOSTED_VERSION_2X = "2.12.13"
-# The 3.x line is wired up but not selected yet: 1-bit SDIO cannot be built on
-# it until espressif/esp-hosted#765 is fixed, so every build stays on 2.x for
-# now. Flip this once a 3.x release with the fix is pinned above.
+# The 3.x line is wired up but not selected by default yet: 1-bit SDIO cannot
+# be built on it until espressif/esp-hosted#765 is fixed, so builds stay on 2.x
+# unless the user pins a 3.x esp_hosted under esp32.framework.components. Flip
+# this once a 3.x release with the fix is pinned above.
 ESP_HOSTED_ENABLE_3X = False
+ESP_HOSTED_COMPONENT = "espressif/esp_hosted"
 
 CONF_ACTIVE_HIGH = "active_high"
 CONF_BUS_WIDTH = "bus_width"
@@ -156,11 +166,31 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def uses_esp_hosted_3x(config: ConfigType | None = None) -> bool:
-    """Whether the build uses the esp_hosted 3.x line.
+def user_esp_hosted_major() -> int | None:
+    """Major version of an esp_hosted pinned under esp32.framework.components.
 
-    Always false while ESP_HOSTED_ENABLE_3X is off. Otherwise 3.x requires
-    ESP-IDF 5.5, and two configurations stay on the 2.x line:
+    A registry version pin such as ``3.0.9``, ``==3.0.9`` or ``^3`` decides
+    the esp_hosted line; a git source or local path says nothing about it and
+    is ignored, as is the absence of a pin.
+    """
+    try:
+        full_config = fv.full_config.get()
+    except LookupError:
+        # Code generation runs outside the final-validate context.
+        full_config = CORE.config
+    esp32_config = full_config.get(KEY_ESP32) or {}
+    for component in esp32_config.get(CONF_FRAMEWORK, {}).get(CONF_COMPONENTS, []):
+        if component.get(CONF_NAME) != ESP_HOSTED_COMPONENT or CONF_SOURCE in component:
+            continue
+        if match := re.match(r"\D*(\d+)", component.get(CONF_REF) or ""):
+            return int(match.group(1))
+    return None
+
+
+def _config_supports_3x(config: ConfigType) -> bool:
+    """Whether this bus configuration can be expressed on the 3.x line.
+
+    Two configurations cannot:
 
     - 1-bit SDIO: the 3.x SDIO Kconfig (through 3.0.9) hides the D1 pin in
       1-bit mode while the port config still requires it (the interrupt line),
@@ -169,13 +199,27 @@ def uses_esp_hosted_3x(config: ConfigType | None = None) -> bool:
       parks the reset line high with a low pulse, which is what active_high:
       true means here.
     """
+    if not config[CONF_ACTIVE_HIGH]:
+        return False
+    return config[CONF_TYPE] != "sdio" or config[CONF_BUS_WIDTH] != 1
+
+
+def uses_esp_hosted_3x(config: ConfigType | None = None) -> bool:
+    """Whether the build uses the esp_hosted 3.x line.
+
+    An esp_hosted pinned by the user under esp32.framework.components decides
+    outright (validation has already checked that the configuration can be
+    built on that line). Without a pin, 3.x is used only when
+    ESP_HOSTED_ENABLE_3X is on, ESP-IDF is 5.5 or newer, and the bus
+    configuration supports it (see _config_supports_3x).
+    """
+    if (major := user_esp_hosted_major()) is not None:
+        return major >= 3
     if not ESP_HOSTED_ENABLE_3X or esp32.idf_version() < cv.Version(5, 5, 0):
         return False
     if config is None:
         config = fv.full_config.get()["esp32_hosted"]
-    if not config[CONF_ACTIVE_HIGH]:
-        return False
-    return config[CONF_TYPE] != "sdio" or config[CONF_BUS_WIDTH] != 1
+    return _config_supports_3x(config)
 
 
 def _final_validate(config: ConfigType) -> None:
@@ -187,6 +231,28 @@ def _final_validate(config: ConfigType) -> None:
             f"esp32_hosted requires ESP-IDF 5.3 or newer, got {idf_ver}. "
             "Remove the framework version from your configuration to use the "
             "recommended version, or pin a version at or above 5.3."
+        )
+    if (major := user_esp_hosted_major()) is None or major < 3:
+        return
+    if idf_ver < cv.Version(5, 5, 0):
+        raise cv.Invalid(
+            f"esp_hosted 3.x requires ESP-IDF 5.5 or newer, got {idf_ver}. "
+            f"Remove the {ESP_HOSTED_COMPONENT} pin from esp32.framework."
+            "components to stay on the 2.x line, or use ESP-IDF 5.5 or newer."
+        )
+    if not config[CONF_ACTIVE_HIGH]:
+        raise cv.Invalid(
+            "esp_hosted 3.x always parks the reset line high with a low pulse, so "
+            "'active_high: false' cannot be expressed on it. Remove the "
+            f"{ESP_HOSTED_COMPONENT} pin from esp32.framework.components to stay "
+            "on the 2.x line."
+        )
+    if config[CONF_TYPE] == "sdio" and config[CONF_BUS_WIDTH] == 1:
+        raise cv.Invalid(
+            "esp_hosted 3.x cannot be built with a 1-bit SDIO bus "
+            "(espressif/esp-hosted#765). Remove the "
+            f"{ESP_HOSTED_COMPONENT} pin from esp32.framework.components to stay "
+            "on the 2.x line, or use a 4-bit bus."
         )
 
 
@@ -461,10 +527,13 @@ async def to_code(config: ConfigType) -> None:
     esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.6.5")
     esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.3")
     esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
-    esp32.add_idf_component(
-        name="espressif/esp_hosted",
-        ref=ESP_HOSTED_VERSION_3X if use_3x else ESP_HOSTED_VERSION_2X,
-    )
+    # A user pin under esp32.framework.components replaces this one anyway;
+    # skipping it avoids a spurious version-conflict warning.
+    if user_esp_hosted_major() is None:
+        esp32.add_idf_component(
+            name=ESP_HOSTED_COMPONENT,
+            ref=ESP_HOSTED_VERSION_3X if use_3x else ESP_HOSTED_VERSION_2X,
+        )
     esp32.add_extra_script(
         "post",
         "esp32_hosted.py",
