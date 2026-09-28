@@ -150,7 +150,7 @@ def pch_edges(
     source = write_pch_headers(build_dir, headers)
     write_file_if_changed(
         build_dir / PCH_SUM_NAME,
-        pch_identity(cxxflags, src_dir, tuple(headers), identity) + "\n",
+        pch_identity([*cxxflags, *src_flags], src_dir, tuple(headers), identity) + "\n",
     )
     gch = _e(PCH_GCH_NAME)
     # The checksum file changes with anything the .gch depends on
