@@ -13,7 +13,6 @@ import re
 from esphome.build_helpers.ccache import effective_ccache_basedir, parse_enable_env
 from esphome.const import (
     PLATFORM_BK72XX,
-    PLATFORM_ESP32,
     PLATFORM_LN882X,
     PLATFORM_NRF52,
     PLATFORM_RTL87XX,
@@ -50,7 +49,6 @@ PCH_DEFAULT_HEADERS = ("esphome/core/pch_prefix.h",)
 PCH_SCRIPT_EXCLUDED_PLATFORMS = frozenset(
     {
         PLATFORM_BK72XX,
-        PLATFORM_ESP32,
         PLATFORM_LN882X,
         PLATFORM_NRF52,
         PLATFORM_RTL87XX,
