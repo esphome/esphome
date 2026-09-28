@@ -19,6 +19,7 @@ from esphome.components.esp32 import (
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
 from esphome.components.network import add_use_address
+from esphome.components.nrf52.framework import include_west_project
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -30,6 +31,8 @@ from esphome.const import (
     CONF_LOG_LEVEL,
     CONF_OUTPUT_POWER,
     CONF_USE_ADDRESS,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     PLATFORM_ESP32,
     PLATFORM_ZEPHYR,
     PlatformFramework,
@@ -324,6 +327,11 @@ async def to_code(config: ConfigType) -> None:
         device_type = config.get(CONF_DEVICE_TYPE)
         zephyr_add_prj_conf("NET_L2_OPENTHREAD", True)
         if CORE.is_nrf52:
+            # Crypto through PSA: mbedtls, plus Oberon from SDK 2.7
+            include_west_project("mbedtls")
+            include_west_project("openthread")
+            if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 7, 0):
+                include_west_project("oberon-psa-crypto")
             # nRF Connect SDK uses pre-built Nordic OpenThread libraries.
             zephyr_add_prj_conf(f"OPENTHREAD_NORDIC_LIBRARY_{device_type}", True)
             # PlatformIO's bundled nrf52 Zephyr fork only goes up to Thread 1.3.1 -- the

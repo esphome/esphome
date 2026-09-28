@@ -580,6 +580,7 @@ async def _late_logger_init(config: ConfigType) -> None:
         zephyr_add_prj_conf("RESET_ON_FATAL_ERROR", False)
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
         if has_serial_logging:
+            zephyr_add_prj_conf("SERIAL", True)
             if config[CONF_HARDWARE_UART] == UART0:
                 zephyr_add_overlay("""&uart0 { status = "okay";};""")
             if config[CONF_HARDWARE_UART] == UART1:

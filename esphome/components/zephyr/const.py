@@ -37,6 +37,9 @@ KEY_PM_STATIC: Final = "pm_static"
 KEY_KCONFIG: Final = "kconfig"
 KEY_PRJ_CONF: Final = "prj_conf"
 KEY_SYSBUILD_CONF: Final = "sysbuild_conf"
+# Whether sysbuild is active for this build -- consulted by nrf52/framework.py's
+# west-project-filter narrow clone to decide whether to fetch the "mcuboot" project.
+KEY_SYSBUILD: Final = "sysbuild"
 KEY_ZEPHYR = "zephyr"
 KEY_BOARD: Final = "board"
 KEY_BOARD_ROOT: Final = "board_root"

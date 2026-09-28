@@ -35,10 +35,16 @@ SDK_NRF_TOOLS_CACHE = ("ESPHOME_SDK_NRF_PREFIX", "sdk-nrf")
 ARDUINO8266_TOOLS_CACHE = ("ESPHOME_ARDUINO8266_PREFIX", "arduino8266")
 SDK_ZEPHYR_TOOLS_CACHE = ("ESPHOME_SDK_ZEPHYR_PREFIX", "sdk-zephyr")
 SDK_SILABS_TOOLS_CACHE = ("ESPHOME_SDK_SILABS_PREFIX", "sdk-silabs")
+# The host backend installs nothing; the entry only holds its ccache dir
+HOST_TOOLS_CACHE = ("ESPHOME_HOST_PREFIX", "host")
+# PlatformIO installs into its own dirs; the entry is its ccache dir itself
+PLATFORMIO_CCACHE = ("ESPHOME_PLATFORMIO_CCACHE_DIR", "platformio-ccache")
 TOOLS_CACHE_SPECS = (
     IDF_TOOLS_CACHE,
     SDK_NRF_TOOLS_CACHE,
     ARDUINO8266_TOOLS_CACHE,
     SDK_ZEPHYR_TOOLS_CACHE,
     SDK_SILABS_TOOLS_CACHE,
+    HOST_TOOLS_CACHE,
+    PLATFORMIO_CCACHE,
 )

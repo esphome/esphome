@@ -1,4 +1,6 @@
+from collections.abc import Iterator
 import configparser
+from contextlib import contextmanager
 import hashlib
 import logging
 import os
@@ -205,7 +207,57 @@ def _generate_synthetic_manifest(
     return manifest_dir
 
 
+# Lock wait slices, so Ctrl-C stays responsive
+_INSTALL_LOCK_POLL = 1
+
+
+@contextmanager
+def _install_lock(name: str) -> Iterator[None]:
+    """Serialize a shared install step across builds running at once."""
+    from filelock import FileLock, Timeout
+
+    lock_path = _tools_path() / f"{name}.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    # No soft lock: its marker outlives a killed build and hangs every later one
+    lock = FileLock(str(lock_path), fallback_to_soft=False)
+    waiting = False
+    while True:
+        try:
+            lock.acquire(timeout=_INSTALL_LOCK_POLL)
+            break
+        except Timeout:  # before OSError, which it subclasses
+            if not waiting:
+                waiting = True
+                _LOGGER.info("Waiting for another build installing %s ...", name)
+        except OSError as err:
+            _LOGGER.warning(
+                "Can't lock %s (%s), continuing without a lock", lock_path, err
+            )
+            break
+    try:
+        yield
+    finally:
+        lock.release()
+
+
 def check_and_install(
+    sdk: ZephyrSDK,
+    version: str,
+    west_version: str | None = None,
+    ninja_version: str | None = None,
+    source: ConfigType | None = None,
+    modules: list[ZephyrModule] | None = None,
+) -> tuple[Path, Path, dict[str, str]]:
+    """Install west and Zephyr SDK, serialized against other builds installing
+    the same version at once (see _install_lock)."""
+    ver_tag = f"v{version}" if not version.startswith("v") else version
+    with _install_lock(f"sdk-{ver_tag}"):
+        return _check_and_install(
+            sdk, version, west_version, ninja_version, source, modules
+        )
+
+
+def _check_and_install(
     sdk: ZephyrSDK,
     version: str,
     west_version: str | None = None,

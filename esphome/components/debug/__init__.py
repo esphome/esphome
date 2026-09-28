@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.components.nrf52.framework import include_west_project
 from esphome.components.zephyr import (
     ZEPHYR_VARIANT_NATIVE_SIM,
     zephyr_add_prj_conf,
@@ -56,13 +57,15 @@ async def to_code(config: ConfigType) -> None:
         # gdb thread support
         zephyr_add_prj_conf("DEBUG_THREAD_INFO", True)
         if CORE.is_nrf52:
-            # RTT
+            # RTT sources live in the segger project
+            include_west_project("segger")
             zephyr_add_prj_conf("USE_SEGGER_RTT", True)
             zephyr_add_prj_conf("RTT_CONSOLE", True)
             zephyr_add_prj_conf("LOG", True)
             zephyr_add_prj_conf("LOG_BLOCK_IN_THREAD", True)
             zephyr_add_prj_conf("LOG_BUFFER_SIZE", 4096)
             zephyr_add_prj_conf("SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL", True)
+            zephyr_add_prj_conf("PRINTK", True)
         else:
             # platform: zephyr only -- nrf52 keeps its original dev behavior above,
             # unchanged by these newer debug features.

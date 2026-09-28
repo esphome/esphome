@@ -299,6 +299,9 @@ def run_west_build(
         "-d",
         str(build_dir),
         str(source_dir),
+        # Only adds -DNDEBUG (Kconfig sets the optimization level); picolibc used to
+        # force it, mainline Zephyr's own CMakeLists.txt no longer does.
+        "--cmake-opt=-DCMAKE_BUILD_TYPE=MinSizeRel",
     ]
     if extra_modules:
         # Matches nrf52's own _generate_cmake_lists() variable name; Zephyr's
