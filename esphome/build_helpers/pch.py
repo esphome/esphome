@@ -10,12 +10,52 @@ from pathlib import Path
 import posixpath
 import re
 
-from esphome.build_helpers.ccache import parse_enable_env
+from esphome.build_helpers.ccache import effective_ccache_basedir, parse_enable_env
+from esphome.const import (
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_LN882X,
+    PLATFORM_NRF52,
+    PLATFORM_RTL87XX,
+)
+from esphome.helpers import write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
 
+# The header and its sidecars live in the build directory
+PCH_HEADER_NAME = "esphome_pch.h"
+PCH_GCH_NAME = f"{PCH_HEADER_NAME}.gch"
+# ccache hashes this instead of the .gch; also the freshness stamp
+PCH_SUM_NAME = f"{PCH_GCH_NAME}.sum"
+# The include list the .gch is compiled from
+PCH_SOURCE_NAME = "esphome_pch_src.h"
+
+# GCC can skip a .gch without a diagnostic and read the header of the same
+# name, so that header is an error. Other tools get the include list.
+PCH_GUARD_TEXT = f"""\
+#if defined(__GNUC__) && !defined(__clang__) && !defined(__INTELLISENSE__)
+#error "The precompiled header was not loaded"
+#else
+#include "{PCH_SOURCE_NAME}"
+#endif
+"""
+
+# What the PlatformIO script leaves in the project root, for cleanup
+PCH_ARTIFACT_NAMES = (PCH_HEADER_NAME, PCH_GCH_NAME, PCH_SUM_NAME, PCH_SOURCE_NAME)
+
 # The core headers every backend precompiles
 PCH_DEFAULT_HEADERS = ("esphome/core/pch_prefix.h",)
+
+# PlatformIO platforms that do not take the pch script
+PCH_SCRIPT_EXCLUDED_PLATFORMS = frozenset(
+    {
+        PLATFORM_BK72XX,
+        PLATFORM_ESP32,
+        PLATFORM_LN882X,
+        PLATFORM_NRF52,
+        PLATFORM_RTL87XX,
+    }
+)
 
 # What ccache needs to cache compiles that load a .gch
 _CCACHE_PCH_SLOPPINESS = ("pch_defines", "time_macros")
@@ -27,6 +67,12 @@ _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
 def pch_enabled() -> bool:
     """Precompiled-header knob: default on, ``ESPHOME_PCH_ENABLE=0`` opts out."""
     return parse_enable_env("ESPHOME_PCH_ENABLE") is not False
+
+
+def pch_consumer_flags() -> list[str]:
+    """Flags a C++ src compile loads the pch with. The -include stays
+    relative: an absolute path would enter the ccache key."""
+    return ["-Winvalid-pch", "-Werror=invalid-pch", "-include", PCH_HEADER_NAME]
 
 
 def ccache_pch_env() -> dict[str, str]:
@@ -44,6 +90,27 @@ def ccache_pch_env() -> dict[str, str]:
     if "CCACHE_PCH_EXTSUM" not in os.environ:
         env["CCACHE_PCH_EXTSUM"] = "true"
     return env
+
+
+def pch_script_enabled() -> bool:
+    """Whether this PlatformIO build takes the pch script."""
+    from esphome.core import CORE
+
+    return pch_enabled() and CORE.target_platform not in PCH_SCRIPT_EXCLUDED_PLATFORMS
+
+
+def pch_header_text(include_headers: Iterable[str]) -> str:
+    """The prefix-header source: exactly these includes, in order."""
+    return "".join(f'#include "{name}"\n' for name in include_headers)
+
+
+def write_pch_headers(build_dir: Path, include_headers: Iterable[str]) -> Path:
+    """Write the guard header and the include list; return the latter,
+    which is what the .gch compiles from."""
+    write_file_if_changed(build_dir / PCH_HEADER_NAME, PCH_GUARD_TEXT)
+    source = build_dir / PCH_SOURCE_NAME
+    write_file_if_changed(source, pch_header_text(include_headers))
+    return source
 
 
 def _include_closure(src_dir: Path, roots: Iterable[str]) -> dict[str, bytes]:
@@ -85,6 +152,27 @@ def pch_checksum(
         digest.update(item.encode())
         digest.update(b"\0")
     return digest.hexdigest()
+
+
+def pch_identity(
+    tokens: Iterable[str],
+    src_dir: Path,
+    include_headers: tuple[str, ...],
+    extra: Iterable[str],
+) -> str:
+    """The .sum digest: include closure, header text, ``extra`` and the
+    compile flags with the build path stripped, as ccache does."""
+    from esphome.core import CORE
+
+    flags = (
+        " ".join(tokens)
+        .replace(str(CORE.build_path), "")
+        .replace(effective_ccache_basedir(), "")
+    )
+    # The closure is sorted, so header order only enters via the text
+    return pch_checksum(
+        src_dir, include_headers, (pch_header_text(include_headers), *extra, flags)
+    )
 
 
 _DISABLE_HINT = " (set ESPHOME_PCH_ENABLE=0 to disable)"
