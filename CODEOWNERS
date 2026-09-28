@@ -125,6 +125,7 @@ esphome/components/combination/* @Cat-Ion @kahrendt
 esphome/components/const/* @esphome/core
 esphome/components/coolix/* @glmnet
 esphome/components/copy/* @OttoWinter
+esphome/components/counter/* @clydebarrow
 esphome/components/cover/* @esphome/core
 esphome/components/cs5460a/* @balrog-kun
 esphome/components/cse7761/* @berfenger
