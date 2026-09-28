@@ -112,17 +112,6 @@ def test_get_build_env_prepends_toolchain_bin(tmp_path: Path) -> None:
     assert env["CCACHE_DIR"] == "x"
 
 
-def test_ccache_env(tmp_path: Path) -> None:
-    assert framework.ccache_env(None) == {}
-    with patch.dict(os.environ, {"CCACHE_NOHASHDIR": "false"}, clear=True):
-        env = framework.ccache_env("/usr/bin/ccache")
-    # User-set values are respected; the rest get defaults
-    assert "CCACHE_NOHASHDIR" not in env
-    assert env["CCACHE_DEPEND"] == "1"
-    assert env["CCACHE_BASEDIR"] == str(Path(CORE.build_path).resolve())
-    assert env["CCACHE_DIR"].endswith("ccache")
-
-
 def test_check_and_install_rejects_old_core(tmp_path: Path) -> None:
     """Calling the installer below the floor fails before any download."""
     with pytest.raises(EsphomeError, match=">= 3.1.1"):
@@ -148,18 +137,20 @@ def test_get_build_env_without_path_has_no_empty_entry(tmp_path: Path) -> None:
     assert env["PATH"].split(os.pathsep) == [str(tmp_path / "bin"), "/usr/bin", "/bin"]
 
 
-def test_ccache_env_accepts_a_preresolved_path() -> None:
-    """The caller resolves ccache once and threads it through; None means
-    resolved-and-disabled."""
-    with patch.dict(os.environ, {}, clear=True):
-        assert framework.ccache_env(None) == {}
-        env = framework.ccache_env("/usr/bin/ccache")
-    assert env["CCACHE_DIR"].endswith("ccache")
-
-
 def test_toolchain_tool_layout(tmp_path: Path) -> None:
     """One owner for the bin/xtensa-lx106-elf-<name> layout."""
     tool = framework.toolchain_tool(tmp_path, "addr2line")
     assert tool.parent == tmp_path / "bin"
     assert tool.name.startswith("xtensa-lx106-elf-addr2line")
     assert (tool.suffix == ".exe") is (os.name == "nt")
+
+
+def test_get_build_env_uses_the_arduino8266_ccache_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ESPHOME_ARDUINO8266_PREFIX", str(tmp_path / "cache"))
+    monkeypatch.delenv("CCACHE_DIR", raising=False)
+    env = framework.get_build_env(tmp_path / "toolchain", "/usr/bin/ccache")
+    assert env["CCACHE_DIR"] == str((tmp_path / "cache").resolve() / "ccache")
+    # None means resolved and disabled
+    assert "CCACHE_DIR" not in framework.get_build_env(tmp_path / "toolchain", None)
