@@ -12,3 +12,72 @@ binary_sensor:
       name: LD6004 Target 3
     detection_area_0:
       name: LD6004 Detection Area 0
+
+sensor:
+  - platform: ld6004
+    ld6004_id: ld6004_radar
+    target_count:
+      name: LD6004 Target Count
+    point_count:
+      name: LD6004 Point Count
+    target_1:
+      x:
+        name: LD6004 Target-1 X
+      y:
+        name: LD6004 Target-1 Y
+      z:
+        name: LD6004 Target-1 Z
+      doppler_index:
+        name: LD6004 Target-1 Dop
+      cluster_id:
+        name: LD6004 Target-1 Cluster
+    target_3:
+      x:
+        name: LD6004 Target-3 X
+      y:
+        name: LD6004 Target-3 Y
+      z:
+        name: LD6004 Target-3 Z
+      doppler_index:
+        name: LD6004 Target-3 Dop
+      cluster_id:
+        name: LD6004 Target-3 Cluster
+    interference_area_0:
+      x_min:
+        name: LD6004 Interference-0 X Min
+      x_max:
+        name: LD6004 Interference-0 X Max
+      y_min:
+        name: LD6004 Interference-0 Y Min
+      y_max:
+        name: LD6004 Interference-0 Y Max
+      z_min:
+        name: LD6004 Interference-0 Z Min
+      z_max:
+        name: LD6004 Interference-0 Z Max
+    detection_area_0:
+      x_min:
+        name: LD6004 Detection-0 X Min
+      x_max:
+        name: LD6004 Detection-0 X Max
+      y_min:
+        name: LD6004 Detection-0 Y Min
+      y_max:
+        name: LD6004 Detection-0 Y Max
+      z_min:
+        name: LD6004 Detection-0 Z Min
+      z_max:
+        name: LD6004 Detection-0 Z Max
+    dwell_area_3:
+      x_min:
+        name: LD6004 Dwell-3 X Min
+      x_max:
+        name: LD6004 Dwell-3 X Max
+      y_min:
+        name: LD6004 Dwell-3 Y Min
+      y_max:
+        name: LD6004 Dwell-3 Y Max
+      z_min:
+        name: LD6004 Dwell-3 Z Min
+      z_max:
+        name: LD6004 Dwell-3 Z Max
