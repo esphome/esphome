@@ -66,21 +66,26 @@ def _shell_arg(element) -> str:
 
 
 def _src_envs(src_dir: Path) -> list:
-    """The environments the C++ src objects compile from. The ESP-IDF
-    builder has already created them from its own; elsewhere it is projenv."""
+    """The environments the C++ src objects compile from: projenv, or the
+    ESP-IDF builder's own."""
     found = {}
     src_dir = src_dir.resolve()
-    for node in env.Flatten(env.get("PIOBUILDFILES", [])):  # noqa: F821
+    nodes = env.Flatten(env.get("PIOBUILDFILES", []))  # noqa: F821
+    for node in nodes:
         source = Path(str(node.sources[0])).resolve()
         if source.suffix in _CXX_SUFFIXES and source.is_relative_to(src_dir):
             found[id(node.env)] = node.env
+    if nodes and not found:
+        # Flags on projenv would reach no compile
+        raise RuntimeError("ESPHome: no C++ source takes the precompiled header")
     return list(found.values()) or [projenv]  # noqa: F821
 
 
 def _setup_pch() -> None:
     if projenv is None:
-        # -t nobuild: nothing compiles
-        return
+        if "nobuild" in COMMAND_LINE_TARGETS:  # noqa: F821
+            return
+        raise RuntimeError("ESPHome: no project environment for the pch")
     # SCons compiles run in the project root, so the relative -include
     # resolves; an absolute path would enter the ccache key
     proj_dir = Path(env.subst("$PROJECT_DIR"))  # noqa: F821
