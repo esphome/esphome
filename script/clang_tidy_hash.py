@@ -37,6 +37,7 @@ ESP_IDF_INFRA_TRIGGER_FILES = frozenset(
         "esphome/framework_helpers.py",
         "esphome/platformio/library.py",
         "esphome/platformio/extra_script.py",
+        "script/check_idf_py_equivalence.py",
     }
 )
 

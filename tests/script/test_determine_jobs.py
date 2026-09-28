@@ -1231,8 +1231,9 @@ def test_should_run_esp32_platformio_with_branch() -> None:
 @pytest.mark.parametrize(
     ("changed_files", "expected"),
     [
-        # ESP-IDF runner / framework / build generator -> trigger
-        (["esphome/espidf/runner.py"], True),
+        # ESP-IDF toolchain / framework / build generator -> trigger
+        (["esphome/espidf/toolchain.py"], True),
+        (["esphome/build_helpers/tool_runner.py"], True),
         (["esphome/espidf/framework.py"], True),
         (["esphome/build_gen/espidf.py"], True),
         # Shared native-build modules the IDF build imports -> trigger
@@ -1250,7 +1251,7 @@ def test_should_run_esp32_platformio_with_branch() -> None:
     ],
 )
 def test_esp_idf_infra_changed(changed_files: list[str], expected: bool) -> None:
-    """ESP-IDF build/runner infra paths are detected; other paths are not."""
+    """ESP-IDF build infra paths are detected; other paths are not."""
     assert determine_jobs._esp_idf_infra_changed(changed_files) is expected
 
 

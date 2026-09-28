@@ -1230,6 +1230,14 @@ jobs:
             echo "All components in this batch are validate-only -- skipping compile stage."
           fi
 
+      - name: Check the native ESP-IDF build matches idf.py
+        # Runs the real idf.py on the trees built above; fails if it would
+        # configure or build anything differently. Catches drift on IDF bumps.
+        if: matrix.batch.needs_idf
+        run: |
+          . venv/bin/activate
+          python3 script/check_idf_py_equivalence.py --allow-missing
+
       - name: Print ccache statistics
         # esphome stores the cache under the IDF tools path; expand the leading
         # ~ in ESPHOME_ESP_IDF_PREFIX so ccache reads the dir the build used.

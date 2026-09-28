@@ -179,14 +179,16 @@ class RedirectText:
             s = s.replace("\033", "\\033")
         self._out.write(s)
 
+    def _is_filtered(self, line_without_end: str) -> bool:
+        return (
+            self._filter_pattern is not None
+            and self._filter_pattern.match(line_without_end) is not None
+        )
+
     def _emit_line(self, line: str) -> None:
         line_without_ansi = ANSI_ESCAPE.sub("", line)
         line_without_end = line_without_ansi.rstrip()
-        if (
-            self._filter_pattern is not None
-            and self._filter_pattern.match(line_without_end) is not None
-        ):
-            # Filter pattern matched, ignore the line
+        if self._is_filtered(line_without_end):
             return
 
         self._write_color_replace(line)
