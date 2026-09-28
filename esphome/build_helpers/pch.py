@@ -37,7 +37,6 @@ PCH_GCH_NAME = f"{PCH_HEADER_NAME}.gch"
 PCH_SUM_NAME = f"{PCH_GCH_NAME}.sum"
 # The include list the .gch is compiled from
 PCH_SOURCE_NAME = "esphome_pch_src.h"
-_PCH_COMMAND_CACHE = f"{PCH_HEADER_NAME}.cmd.json"
 
 # GCC can skip a .gch without a diagnostic and read the header of the same
 # name, so that header is an error. Other tools get the include list.
@@ -49,14 +48,8 @@ PCH_GUARD_TEXT = f"""\
 #endif
 """
 
-# Every artifact the pch machinery can leave behind, for cleanup
-PCH_ARTIFACT_NAMES = (
-    PCH_HEADER_NAME,
-    PCH_GCH_NAME,
-    PCH_SUM_NAME,
-    PCH_SOURCE_NAME,
-    _PCH_COMMAND_CACHE,
-)
+# What the PlatformIO script leaves in the project root, for cleanup
+PCH_ARTIFACT_NAMES = (PCH_HEADER_NAME, PCH_GCH_NAME, PCH_SUM_NAME, PCH_SOURCE_NAME)
 
 # The core headers every backend precompiles
 PCH_DEFAULT_HEADERS = ("esphome/core/pch_prefix.h",)
@@ -188,6 +181,7 @@ def pch_checksum(
     return digest.hexdigest()
 
 
+_PCH_COMMAND_CACHE = "esphome_pch.h.cmd.json"
 # Dropped when retargeting a TU's flags at the prefix header
 _PCH_STRIP_FLAGS_WITH_ARG = frozenset({"-o", "-c", "-MT", "-MF", "-MQ"})
 _PCH_STRIP_FLAGS = frozenset({"-MD", "-MMD", "-MP", "-MM", "-M"})
