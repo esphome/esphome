@@ -71,7 +71,7 @@ class MatrixKeypadTest : public ::testing::Test {
     this->keypad_.add_on_key_callback([this](uint8_t key) { this->provider_keys_.push_back(key); });
   }
 
-  void scan(uint32_t now) {
+  void scan_(uint32_t now) {
     LoopBlockingGuard guard(&this->keypad_, nullptr, now);
     this->keypad_.loop();
   }
@@ -90,22 +90,22 @@ TEST_F(MatrixKeypadTest, DiodesReportSimultaneousPressesAndIndependentReleases) 
   this->keypad_.setup();
   this->buttons_[0] = true;
   this->buttons_[3] = true;
-  this->scan(100);
-  this->scan(119);
+  this->scan_(100);
+  this->scan_(119);
   EXPECT_TRUE(this->listener_.pressed_buttons.empty());
-  this->scan(120);
+  this->scan_(120);
   EXPECT_EQ(this->listener_.pressed_buttons, (std::vector<int>{0, 3}));
   EXPECT_EQ(this->listener_.pressed_keys, (std::vector<uint8_t>{'A', 'D'}));
   EXPECT_EQ(this->provider_keys_, (std::vector<uint8_t>{'A', 'D'}));
 
   this->buttons_[0] = false;
-  this->scan(121);
+  this->scan_(121);
   EXPECT_EQ(this->listener_.released_buttons, (std::vector<int>{0}));
   EXPECT_EQ(this->listener_.released_keys, (std::vector<uint8_t>{'A'}));
-  this->scan(150);
+  this->scan_(150);
   EXPECT_EQ(this->listener_.pressed_buttons.size(), 2);
   this->buttons_[3] = false;
-  this->scan(151);
+  this->scan_(151);
   EXPECT_EQ(this->listener_.released_buttons, (std::vector<int>{0, 3}));
   EXPECT_EQ(this->listener_.released_keys, (std::vector<uint8_t>{'A', 'D'}));
 }
@@ -114,21 +114,21 @@ TEST_F(MatrixKeypadTest, DiodesDebounceEachPressIndependently) {
   this->keypad_.set_has_diodes(true);
   this->keypad_.setup();
   this->buttons_[0] = true;
-  this->scan(100);
+  this->scan_(100);
   this->buttons_[3] = true;
-  this->scan(110);
-  this->scan(120);
+  this->scan_(110);
+  this->scan_(120);
   EXPECT_EQ(this->listener_.pressed_buttons, (std::vector<int>{0}));
 
   this->buttons_[0] = false;
-  this->scan(125);
+  this->scan_(125);
   this->buttons_[0] = true;
-  this->scan(126);
-  this->scan(130);
+  this->scan_(126);
+  this->scan_(130);
   EXPECT_EQ(this->listener_.pressed_buttons, (std::vector<int>{0, 3}));
-  this->scan(145);
+  this->scan_(145);
   EXPECT_EQ(this->listener_.pressed_buttons.size(), 2);
-  this->scan(146);
+  this->scan_(146);
   EXPECT_EQ(this->listener_.pressed_buttons, (std::vector<int>{0, 3, 0}));
 }
 
@@ -137,17 +137,17 @@ TEST_F(MatrixKeypadTest, DiodesIgnoreShortPressWithoutAffectingAnotherKey) {
   this->keypad_.setup();
   this->buttons_[0] = true;
   this->buttons_[3] = true;
-  this->scan(100);
+  this->scan_(100);
   this->buttons_[0] = false;
-  this->scan(110);
-  this->scan(120);
+  this->scan_(110);
+  this->scan_(120);
   EXPECT_EQ(this->listener_.pressed_buttons, (std::vector<int>{3}));
   EXPECT_TRUE(this->listener_.released_buttons.empty());
   this->buttons_[0] = true;
-  this->scan(121);
-  this->scan(140);
+  this->scan_(121);
+  this->scan_(140);
   EXPECT_EQ(this->listener_.pressed_buttons, (std::vector<int>{3}));
-  this->scan(141);
+  this->scan_(141);
   EXPECT_EQ(this->listener_.pressed_buttons, (std::vector<int>{3, 0}));
 }
 
@@ -158,13 +158,13 @@ TEST_F(MatrixKeypadTest, DiodesReportButtonsWithoutKeyCodes) {
   this->buttons_[0] = true;
   this->buttons_[1] = true;
   this->buttons_[3] = true;
-  this->scan(100);
-  this->scan(120);
+  this->scan_(100);
+  this->scan_(120);
   EXPECT_EQ(this->listener_.pressed_buttons, (std::vector<int>{0, 1, 3}));
   EXPECT_TRUE(this->listener_.pressed_keys.empty());
   EXPECT_TRUE(this->provider_keys_.empty());
   this->buttons_[1] = false;
-  this->scan(121);
+  this->scan_(121);
   EXPECT_EQ(this->listener_.released_buttons, (std::vector<int>{1}));
   EXPECT_TRUE(this->listener_.released_keys.empty());
 }
@@ -172,19 +172,19 @@ TEST_F(MatrixKeypadTest, DiodesReportButtonsWithoutKeyCodes) {
 TEST_F(MatrixKeypadTest, WithoutDiodesAmbiguousScanLeavesPreviousKeyPressed) {
   this->keypad_.setup();
   this->buttons_[0] = true;
-  this->scan(100);
-  this->scan(120);
+  this->scan_(100);
+  this->scan_(120);
   EXPECT_EQ(this->listener_.pressed_buttons, (std::vector<int>{0}));
 
   this->buttons_[3] = true;
-  this->scan(121);
-  this->scan(150);
+  this->scan_(121);
+  this->scan_(150);
   EXPECT_TRUE(this->listener_.released_buttons.empty());
   EXPECT_EQ(this->listener_.pressed_buttons, (std::vector<int>{0}));
   this->buttons_[0] = false;
-  this->scan(151);
+  this->scan_(151);
   EXPECT_EQ(this->listener_.released_buttons, (std::vector<int>{0}));
-  this->scan(171);
+  this->scan_(171);
   EXPECT_EQ(this->listener_.pressed_buttons, (std::vector<int>{0, 3}));
 }
 
