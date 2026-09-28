@@ -55,10 +55,7 @@ PCH_DEFAULT_HEADERS = (PCH_CORE_HEADER, PCH_PREFIX_HEADER)
 # PlatformIO platforms that do not take the pch script
 PCH_SCRIPT_EXCLUDED_PLATFORMS = frozenset(
     {
-        "bk72xx",
-        "ln882x",
         "nrf52",
-        "rtl87xx",
     }
 )
 
