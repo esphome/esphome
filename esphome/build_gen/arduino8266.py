@@ -41,7 +41,7 @@ from esphome.build_helpers.ninja_gen import (
     pch_rule_lines,
     tool_lines,
 )
-from esphome.build_helpers.pch import PCH_CORE_HEADER
+from esphome.build_helpers.pch import PCH_DEFAULT_HEADERS
 from esphome.components.esp8266 import build_surgery
 from esphome.components.esp8266.boards import (
     BOARDS,
@@ -1130,8 +1130,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
                 )
             src_includes.append(header)
         elif is_joined_include(tok):
-            # Left in src_other it would precede the pch include and
-            # silently defeat the .gch
+            # Left in src_other it would precede the pch include
             src_includes.append(tok[len("-include") :])
         else:
             src_other.append(_shell_token(tok))
@@ -1143,10 +1142,10 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         lines,
         build_dir,
         src_dir,
-        (*src_includes, PCH_CORE_HEADER),
+        (*src_includes, *PCH_DEFAULT_HEADERS),
         flag_sets.cxxflags,
         src_other,
-        ccache,
+        toolchain_tool(paths.toolchain, "g++"),
         (str(paths.framework), str(paths.toolchain)),
     )
     src_objs = compile_edges(

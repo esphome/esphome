@@ -13,18 +13,20 @@ from pathlib import Path
 import sys
 from typing import TYPE_CHECKING
 
+from esphome.build_helpers.idedata import is_joined_include
 from esphome.build_helpers.ninja import (
     escape as _e,
     quote_path as _q,
     shell_token as _shell_token,
 )
 from esphome.build_helpers.pch import (
-    PCH_HEADER_NAME,
+    PCH_GCH_NAME,
+    PCH_SUM_NAME,
     log_pch_in_use,
     pch_consumer_flags,
     pch_enabled,
-    pch_header_text,
     pch_identity,
+    write_pch_headers,
 )
 from esphome.framework_helpers import strip_win_long_path_prefix
 from esphome.helpers import write_file_if_changed
@@ -106,8 +108,7 @@ def compile_rule_lines() -> list[str]:
 def pch_rule_lines() -> list[str]:
     """The precompiled header rule, for a generator that emits one."""
     return [
-        # No $ccache: the .gch is compiled once per build dir and ccache
-        # cannot cache it usefully (its bytes embed build-dir paths)
+        # No $ccache: the .gch embeds build dir paths
         "rule pch",
         "  command = $cxx -MMD -MF $out.d -x c++-header $cxxflags $flags -c $in -o $out",
         "  depfile = $out.d",
@@ -123,45 +124,35 @@ def pch_edges(
     headers: Sequence[str],
     cxxflags: Sequence[str],
     src_flags: Sequence[str],
-    ccache: str | None,
+    compiler: Path | str,
     identity: Sequence[str],
 ) -> tuple[str, str] | None:
     """Emit the precompiled header for the C++ src edges.
 
     ``headers`` are folded into one prefix header, ``src_flags`` are the
-    flags every src edge carries, and ``identity`` names what the compile
-    depends on beyond the headers and flags (versioned install paths).
-    Returns the ``cxx_override`` for ``compile_edges``, or None when the
-    build goes without a precompiled header.
+    flags every src edge carries, ``compiler`` is the C++ compiler program
+    and ``identity`` names what else the compile depends on. Returns the
+    ``cxx_override`` for ``compile_edges``, or None without a pch.
     """
     if not pch_enabled():
         return None
-    if any(tok.startswith("-include") for tok in cxxflags):
-        # $cxxflags expands first, so a user -include there means GCC would
-        # never load the .gch
+    if any(tok == "-include" or is_joined_include(tok) for tok in cxxflags):
+        # $cxxflags expands first and GCC only loads a .gch for the first
+        # -include
         _LOGGER.warning(
             "A -include in build_flags prevents the precompiled header from "
             "loading; compiling without it"
         )
         return None
-    pch_header = build_dir / PCH_HEADER_NAME
-    checksum = None
-    if ccache:
-        # The .sum exists only for CCACHE_PCH_EXTSUM; ninja's depfile
-        # handles staleness
-        checksum = pch_identity(cxxflags, src_dir, tuple(headers), identity)
     log_pch_in_use()
-    write_file_if_changed(pch_header, pch_header_text(headers))
-    sum_path = build_dir / f"{PCH_HEADER_NAME}.gch.sum"
-    if checksum is not None:
-        # Generate-time stamp: a hand-run ninja can rebuild the .gch
-        # while this .sum lags
-        write_file_if_changed(sum_path, checksum + "\n")
-    else:
-        # A stale .sum from an earlier ccache run must not survive
-        sum_path.unlink(missing_ok=True)
-    gch = _e(f"{PCH_HEADER_NAME}.gch")
-    lines.append(f"build {gch}: pch {_e(pch_header)}")
+    source = write_pch_headers(build_dir, headers)
+    write_file_if_changed(
+        build_dir / PCH_SUM_NAME,
+        pch_identity(cxxflags, src_dir, tuple(headers), identity) + "\n",
+    )
+    gch = _e(PCH_GCH_NAME)
+    # A compiler replaced in place cannot load the .gch of the old one
+    lines.append(f"build {gch}: pch {_e(source)} | {_e(compiler)}")
     if src_flags:
         lines.append(f"  flags = {' '.join(src_flags)}")
     lines.append(f"srccxxflags = {' '.join([*src_flags, *pch_consumer_flags()])}")
