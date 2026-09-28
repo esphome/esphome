@@ -30,18 +30,23 @@ def _make_tree(tmp_path: Path) -> Path:
     )
     (build / "CMakeCache.txt").write_text("CCACHE_ENABLE:UNINITIALIZED=0\n")
     (build / "dev.elf").write_bytes(b"elf")
-    (build / ".ninja_log").write_text("# ninja log v7\n1\t2\t0\tesp-idf/a.obj\t0\n")
+    (build / ".ninja_log").write_text(
+        "# ninja log v7\n1\t2\t10\tesp-idf/a.obj\t0\n"
+        "1\t2\t10\tbootloader/bootloader.bin\t0\n"
+    )
     (tree / "sdkconfig.dev").write_text("")
     return tree
 
 
-def _run_check(tree: Path, side_effect) -> tuple[list[str], list[list[str]]]:
+def _run_check(
+    tree: Path, side_effect, rc: int = 0
+) -> tuple[list[str], list[list[str]]]:
     calls: list[list[str]] = []
 
     def run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess:
         calls.append(cmd)
         side_effect(cmd)
-        return subprocess.CompletedProcess(cmd, 0, "", "")
+        return subprocess.CompletedProcess(cmd, rc, "out\n", "err\n")
 
     with (
         patch.object(toolchain, "_get_idf_env", return_value={}),
@@ -71,30 +76,31 @@ def test_check_reports_changed_files_and_rebuilt_outputs(tmp_path: Path) -> None
         if cmd[-1] == "reconfigure":
             (build / "CMakeCache.txt").write_text("CCACHE_ENABLE:UNINITIALIZED=1\n")
         else:
-            with (build / ".ninja_log").open("a") as log:
-                log.write("3\t4\t0\tesp-idf/b.obj\t0\n5\t6\t0\tbootloader-stamp\t0\n")
+            # Compacted log. The re-logged bootloader byproduct and a stamp
+            # are not work; a new object mtime is.
+            (build / ".ninja_log").write_text(
+                "# ninja log v7\n3\t4\t20\tesp-idf/a.obj\t0\n"
+                "5\t6\t30\tbootloader/bootloader.bin\t0\n"
+                "5\t6\t30\tbootloader-stamp\t0\n"
+            )
+            # The bootloader sub-build is judged by its own log.
+            (build / "bootloader").mkdir()
+            (build / "bootloader" / ".ninja_log").write_text(
+                "# ninja log v7\n1\t2\t40\tbootloader.elf\t0\n"
+            )
 
     problems, _ = _run_check(tree, drift)
     assert problems == [
         "idf.py changed build/CMakeCache.txt",
-        "idf.py rebuilt esp-idf/b.obj",
+        "idf.py rebuilt esp-idf/a.obj",
+        "idf.py rebuilt bootloader.elf",
     ]
 
 
 def test_check_stops_when_idf_py_fails(tmp_path: Path) -> None:
-    tree = _make_tree(tmp_path)
-    with (
-        patch.object(toolchain, "_get_idf_env", return_value={}),
-        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
-        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
-        patch.object(
-            guard.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess([], 2, "out\n", "err\n"),
-        ),
-    ):
-        problems = guard.check(tree)
+    problems, calls = _run_check(_make_tree(tmp_path), lambda cmd: None, rc=2)
     assert problems == ["idf.py reconfigure failed:\nout\nerr\n"]
+    assert len(calls) == 1
 
 
 @pytest.mark.parametrize(("allow_missing", "rc"), [(True, 0), (False, 1)])
@@ -126,3 +132,18 @@ def test_main_reports_each_tree(
     out = capsys.readouterr().out
     assert f"{tree}: {'DIFFERS' if problems else 'OK'}" in out
     assert ("no longer matches idf.py" in out) is bool(problems)
+
+
+def test_main_checks_only_the_first_found_tree(tmp_path: Path) -> None:
+    """The contract does not depend on the target; one tree per batch is enough."""
+    first = _make_tree(tmp_path / "a")
+    _make_tree(tmp_path / "b")
+    pattern = str(tmp_path / "*" / "config" / ".esphome" / "build" / "*")
+    with (
+        patch.object(sys, "argv", ["check"]),
+        patch.object(guard, "REPO_ROOT", Path("/")),
+        patch.object(guard, "DEFAULT_GLOB", pattern.lstrip("/")),
+        patch.object(guard, "check", return_value=[]) as mock_check,
+    ):
+        assert guard.main() == 0
+    mock_check.assert_called_once_with(first)

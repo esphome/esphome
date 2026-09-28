@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import sys
 import threading
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -289,6 +290,30 @@ def test_get_kernel32_is_none_off_windows() -> None:
     assert tool_runner._get_kernel32() is None
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="kernel32 only on Windows")
-def test_get_kernel32_on_windows() -> None:
-    assert tool_runner._get_kernel32() is not None
+def test_tool_output_collapses_progress_without_a_filter() -> None:
+    """Progress mode splits lines on its own; it does not need a filter."""
+    out = io.StringIO()
+    output = ToolOutput(out, None, True)
+    output.write("[1/1] Linking app\ndone\n")
+    assert out.getvalue() == "\r[1/1] Linking app\x1b[K" + os.linesep + "done\n"
+
+
+def test_run_build_tool_flushes_a_truncated_character(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """Output that ends inside a multi-byte character still shows up."""
+    _, out = _run(
+        capsys,
+        tmp_path,
+        "import sys\nsys.stdout.buffer.write(b'end \\xc3')",
+        filter_lines=FILTER,
+    )
+    assert out == "end �\n"
+
+
+def test_get_kernel32_loads_it_on_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    kernel32 = object()
+    fake_ctypes = SimpleNamespace(windll=SimpleNamespace(kernel32=kernel32))
+    monkeypatch.setattr(tool_runner.sys, "platform", "win32")
+    monkeypatch.setitem(sys.modules, "ctypes", fake_ctypes)
+    assert tool_runner._get_kernel32() is kernel32

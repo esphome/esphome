@@ -17,7 +17,7 @@ import subprocess
 import sys
 from typing import Any, TextIO
 
-from esphome.util import ANSI_ESCAPE, RedirectText, shlex_quote
+from esphome.util import RedirectText, shlex_quote
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -96,8 +96,7 @@ class ToolOutput(RedirectText):
     """RedirectText that can collapse ninja status lines into one line.
 
     With ``progress`` each ``[n/m]`` line overwrites the previous one, the
-    way idf.py shows a build. Needs ``filter_lines``: RedirectText only
-    splits the stream into lines when it has something to match.
+    way idf.py shows a build.
     """
 
     def __init__(
@@ -107,9 +106,12 @@ class ToolOutput(RedirectText):
         self._progress = progress
         self._on_progress_line = False
 
+    def _splits_lines(self) -> bool:
+        return self._progress or super()._splits_lines()
+
     def _emit_line(self, line: str) -> None:
         if self._progress and _PROGRESS.match(line):
-            if not self._is_filtered(ANSI_ESCAPE.sub("", line).rstrip()):
+            if not self._is_filtered(line):
                 text = _fit_terminal(line.strip("\r\n"))
                 self._write_color_replace(f"\r{text}\x1b[K")
                 self._on_progress_line = True

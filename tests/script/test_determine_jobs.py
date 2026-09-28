@@ -1234,6 +1234,7 @@ def test_should_run_esp32_platformio_with_branch() -> None:
         # ESP-IDF toolchain / framework / build generator -> trigger
         (["esphome/espidf/toolchain.py"], True),
         (["esphome/build_helpers/tool_runner.py"], True),
+        (["script/check_idf_py_equivalence.py"], True),
         (["esphome/espidf/framework.py"], True),
         (["esphome/build_gen/espidf.py"], True),
         # Shared native-build modules the IDF build imports -> trigger

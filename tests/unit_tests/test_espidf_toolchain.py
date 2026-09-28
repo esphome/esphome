@@ -111,6 +111,21 @@ def _setup_build(setup_core: Path) -> tuple[Path, Path]:
     return compile_commands, cache
 
 
+@contextmanager
+def _up_to_date_compile(ninja_side_effect=None) -> Iterator[tuple]:
+    """Patch run_compile's staleness checks to "up to date"; yield the ninja
+    and print_summary mocks."""
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "_cache_entries_changed", return_value=False),
+        patch.object(
+            toolchain, "_run_ninja", return_value=0, side_effect=ninja_side_effect
+        ) as mock_ninja,
+        patch.object(toolchain, "print_summary") as mock_summary,
+    ):
+        yield mock_ninja, mock_summary
+
+
 def test_has_outdated_files_detects_exclusion_change(setup_core: Path) -> None:
     """A newer exclude_components.esphomeinternal stamp forces a reconfigure
     so components that leave the exclusion set get rediscovered."""
@@ -611,22 +626,20 @@ def test_component_cache_ignores_corrupt_file(setup_core: Path, tmp_path: Path) 
         assert toolchain.load_cached_builtin_components() is None
 
 
-def test_run_compile_passes_compile_process_limit(setup_core: Path) -> None:
+@pytest.mark.parametrize("limit", [1, None])
+def test_run_compile_passes_compile_process_limit(
+    setup_core: Path, limit: int | None
+) -> None:
     """compile_process_limit is the job limit for both ninja runs."""
     _setup_build(setup_core)
-    config = {CONF_ESPHOME: {CONF_COMPILE_PROCESS_LIMIT: 1}}
+    esphome = {} if limit is None else {CONF_COMPILE_PROCESS_LIMIT: limit}
 
-    with (
-        patch.object(toolchain, "need_reconfigure", return_value=False),
-        patch.object(toolchain, "_cache_entries_changed", return_value=False),
-        patch.object(toolchain, "_run_ninja", return_value=0) as mock_run,
-        patch.object(toolchain, "print_summary"),
-    ):
-        assert toolchain.run_compile(config, verbose=False) == 0
+    with _up_to_date_compile() as (mock_run, _):
+        assert toolchain.run_compile({CONF_ESPHOME: esphome}, verbose=False) == 0
 
     assert mock_run.call_args_list == [
-        call("all", verbose=False, jobs=1, progress=True),
-        call("size", verbose=False, jobs=1, extra_env=toolchain._size_env()),
+        call("all", verbose=False, jobs=limit, progress=True),
+        call("size", verbose=False, jobs=limit, extra_env=toolchain._size_env()),
     ]
 
 
@@ -635,15 +648,8 @@ def test_run_compile_passes_size_summary_paths(setup_core: Path) -> None:
     ELF from get_built_elf_path, which must stay in lockstep with the
     project() name in the generated CMakeLists."""
     _setup_build(setup_core)
-    config = {CONF_ESPHOME: {}}
-
-    with (
-        patch.object(toolchain, "need_reconfigure", return_value=False),
-        patch.object(toolchain, "_cache_entries_changed", return_value=False),
-        patch.object(toolchain, "_run_ninja", return_value=0),
-        patch.object(toolchain, "print_summary") as mock_summary,
-    ):
-        assert toolchain.run_compile(config, verbose=False) == 0
+    with _up_to_date_compile() as (_, mock_summary):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
 
     mock_summary.assert_called_once_with(
         CORE.relative_build_path("build", "esp_idf_size.json"),
@@ -668,22 +674,6 @@ def test_create_elf_copy_missing_source(setup_core: Path) -> None:
     assert toolchain.create_elf_copy() is False
 
 
-def test_run_compile_without_compile_process_limit(setup_core: Path) -> None:
-    """When no compile_process_limit is set, ninja gets no job limit."""
-    _setup_build(setup_core)
-    config = {CONF_ESPHOME: {}}
-
-    with (
-        patch.object(toolchain, "need_reconfigure", return_value=False),
-        patch.object(toolchain, "_cache_entries_changed", return_value=False),
-        patch.object(toolchain, "_run_ninja", return_value=0) as mock_run,
-        patch.object(toolchain, "print_summary"),
-    ):
-        assert toolchain.run_compile(config, verbose=False) == 0
-
-    assert [c.kwargs["jobs"] for c in mock_run.call_args_list] == [None, None]
-
-
 def test_run_compile_writes_the_pch_checksum_before_the_build(
     setup_core: Path,
 ) -> None:
@@ -691,14 +681,7 @@ def test_run_compile_writes_the_pch_checksum_before_the_build(
     order: list[str] = []
 
     with (
-        patch.object(toolchain, "need_reconfigure", return_value=False),
-        patch.object(toolchain, "_cache_entries_changed", return_value=False),
-        patch.object(
-            toolchain,
-            "_run_ninja",
-            side_effect=lambda *a, **k: order.append("build") or 0,
-        ),
-        patch.object(toolchain, "print_summary"),
+        _up_to_date_compile(lambda *a, **k: order.append("build") or 0),
         patch(
             "esphome.build_gen.espidf.write_pch_checksum",
             side_effect=lambda: order.append("checksum"),
@@ -952,15 +935,9 @@ def test_run_compile_reconfigures_when_cache_entries_change(
 def test_run_compile_stops_on_ninja_failure(setup_core: Path, failing: str) -> None:
     """A failed build skips size; either failure skips the summary."""
     _setup_build(setup_core)
-    with (
-        patch.object(toolchain, "need_reconfigure", return_value=False),
-        patch.object(toolchain, "_cache_entries_changed", return_value=False),
-        patch.object(
-            toolchain,
-            "_run_ninja",
-            side_effect=lambda target, **kw: 7 if target == failing else 0,
-        ) as mock_ninja,
-        patch.object(toolchain, "print_summary") as mock_summary,
+    with _up_to_date_compile(lambda target, **kw: 7 if target == failing else 0) as (
+        mock_ninja,
+        mock_summary,
     ):
         assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 7
     targets = [c.args[0] for c in mock_ninja.call_args_list]
@@ -982,11 +959,8 @@ def test_run_compile_testing_mode_builds_memory_ld_first(
         return memory_ld_rc if target.endswith("memory.ld") else 0
 
     with (
-        patch.object(toolchain, "need_reconfigure", return_value=False),
-        patch.object(toolchain, "_cache_entries_changed", return_value=False),
-        patch.object(toolchain, "_run_ninja", side_effect=record),
+        _up_to_date_compile(record),
         patch.object(toolchain, "_patch_memory_segments") as mock_patch,
-        patch.object(toolchain, "print_summary"),
     ):
         assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == memory_ld_rc
     memory_ld = str(Path("esp-idf", "esp_system", "ld", "memory.ld"))

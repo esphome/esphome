@@ -214,12 +214,25 @@ _CLICK_TRUE = frozenset({"1", "true", "t", "yes", "y", "on"})
 _CMAKECACHE_LINE = re.compile(r"^([^#/:=]+):([^:=]+)=(.*)$")
 
 
-def _idf6_or_later() -> bool:
-    """idf.py changed its cmake command line in ESP-IDF 6.0."""
+@dataclass(frozen=True)
+class _IdfPyContract:
+    """How the pinned idf.py drives cmake and ninja (tools/idf_py_actions)."""
+
+    binary_dir_arg: bool  # cmake gets -B <build dir>
+    ccache_as_bool: bool  # CCACHE_ENABLE=True/False instead of 1/0
+    colors_for_all_tools: bool  # else CLICOLOR_FORCE for ninja only
+    size_ng: bool  # size target gets ESP_IDF_SIZE_NG=1
+
+
+_IDF_PY_5 = _IdfPyContract(False, False, False, True)
+_IDF_PY_6 = _IdfPyContract(True, True, True, False)
+
+
+def _idf_py() -> _IdfPyContract:
     from esphome.components.esp32 import idf_version
     import esphome.config_validation as cv
 
-    return idf_version() >= cv.Version(6, 0, 0)
+    return _IDF_PY_6 if idf_version() >= cv.Version(6, 0, 0) else _IDF_PY_5
 
 
 def _build_dir() -> Path:
@@ -234,8 +247,7 @@ def _cache_entries() -> dict[str, str]:
     if sdkconfig_path.is_file():
         entries["SDKCONFIG"] = str(sdkconfig_path)
     ccache = _get_idf_env().get("IDF_CCACHE_ENABLE", "").strip().lower() in _CLICK_TRUE
-    # 5.x formats the flag with %d, 6.x with an f-string (True/False).
-    entries["CCACHE_ENABLE"] = str(ccache) if _idf6_or_later() else str(int(ccache))
+    entries["CCACHE_ENABLE"] = str(ccache if _idf_py().ccache_as_bool else int(ccache))
     return entries
 
 
@@ -261,14 +273,14 @@ def _cache_entries_changed() -> bool:
     return any(cache.get(k) != v for k, v in _cache_entries().items())
 
 
-def _tool_env(ninja: bool, extra_env: dict[str, str] | None = None) -> dict[str, str]:
+def _tool_env(ninja: bool) -> dict[str, str]:
     """The IDF env plus the color settings idf.py gives the tool.
 
     idf.py 5.x forces CLICOLOR_FORCE for ninja only; 6.x defaults it and
     FORCE_COLOR for every tool unless NO_COLOR is set.
     """
-    env = {**_get_idf_env(), **(extra_env or {})}
-    if _idf6_or_later():
+    env = dict(_get_idf_env())
+    if _idf_py().colors_for_all_tools:
         if not env.get("NO_COLOR"):
             env.setdefault("CLICOLOR_FORCE", "1")
             env.setdefault("FORCE_COLOR", "1")
@@ -282,7 +294,7 @@ def run_reconfigure(verbose: bool = False) -> int:
     build_dir = _build_dir()
     build_dir.mkdir(parents=True, exist_ok=True)
     cmd = [_get_idf_tool("cmake"), "-G", "Ninja"]
-    if _idf6_or_later():
+    if _idf_py().binary_dir_arg:
         cmd += ["-B", str(build_dir)]
     cmd += [
         "-DPYTHON_DEPS_CHECKED=1",
@@ -307,7 +319,7 @@ def run_reconfigure(verbose: bool = False) -> int:
 def _size_env() -> dict[str, str]:
     """Environment idf.py gives the ``size`` target."""
     env = {"ESP_IDF_SIZE_FORCE_TERMINAL": "1", "SIZE_OUTPUT_FORMAT": "default"}
-    if not _idf6_or_later():
+    if _idf_py().size_ng:
         env["ESP_IDF_SIZE_NG"] = "1"
     return env
 
@@ -330,7 +342,7 @@ def _run_ninja(
     rc = run_build_tool(
         cmd,
         cwd=_build_dir(),
-        env=_tool_env(ninja=True, extra_env=extra_env),
+        env={**_tool_env(ninja=True), **(extra_env or {})},
         filter_lines=None if verbose else FILTER_IDF_LINES,
         progress=progress and not verbose,
     )
@@ -598,13 +610,8 @@ def run_compile(config, verbose: bool) -> int:
     # so we must patch after it's generated but before linking (same timing
     # as iram_fix.py.script's AddPreAction hook in the PlatformIO path).
     if CORE.testing_mode:
-        memory_ld = CORE.relative_build_path(
-            "build", "esp-idf", "esp_system", "ld", "memory.ld"
-        )
-        build_dir = CORE.relative_build_path("build")
-        # Build just the memory.ld target - ninja needs the path relative to build dir
-        memory_ld_target = os.path.relpath(str(memory_ld), str(build_dir))
-        if (rc := _run_ninja(memory_ld_target, verbose=verbose, jobs=jobs)) != 0:
+        memory_ld = str(Path("esp-idf", "esp_system", "ld", "memory.ld"))
+        if (rc := _run_ninja(memory_ld, verbose=verbose, jobs=jobs)) != 0:
             return rc
         _patch_memory_segments()
 

@@ -14,6 +14,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -28,9 +29,13 @@ WATCHED = (
     "build/project_description.json",
     "build/config/sdkconfig.h",
     "build/esp_idf_size.json",
+    "build/bootloader/bootloader.bin",
 )
-# Ninja outputs that mean real work; always-run steps (size checks, the
-# bootloader sub-build driver) leave other entries in .ninja_log.
+# Ninja logs whose outputs mean real work when their recorded mtime changes.
+# The top level re-logs the bootloader step's byproducts on every build, so
+# the bootloader is judged by its own sub-build log instead.
+NINJA_LOGS = ("build/.ninja_log", "build/bootloader/.ninja_log")
+BOOTLOADER_BYPRODUCT = re.compile(r"(^|/build/)bootloader/")
 WORK_SUFFIXES = (".obj", ".o", ".a", ".elf", ".map", ".bin", ".ld")
 DEFAULT_GLOB = "tests/test_build_components/build/.esphome/build/*"
 
@@ -44,10 +49,18 @@ def _snapshot(build_path: Path, name: str) -> dict[str, str | None]:
     return {f: _digest(build_path / f) for f in files}
 
 
-def _ninja_outputs(build_path: Path) -> list[str]:
-    log = build_path / "build" / ".ninja_log"
-    lines = log.read_text(encoding="utf-8").splitlines() if log.is_file() else []
-    return [line.split("\t")[3] for line in lines if not line.startswith("#")]
+def _ninja_mtimes(build_path: Path) -> dict[tuple[str, str], str]:
+    """(log, output) -> recorded mtime; compaction-safe, unlike a line count."""
+    mtimes = {}
+    for name in NINJA_LOGS:
+        log = build_path / name
+        lines = log.read_text(encoding="utf-8").splitlines() if log.is_file() else []
+        for fields in (line.split("\t") for line in lines if not line.startswith("#")):
+            if len(fields) >= 4 and (
+                name != NINJA_LOGS[0] or not BOOTLOADER_BYPRODUCT.search(fields[3])
+            ):
+                mtimes[name, fields[3]] = fields[2]
+    return mtimes
 
 
 def _setup_core(build_path: Path, description: dict) -> tuple[str, str]:
@@ -70,20 +83,21 @@ def _setup_core(build_path: Path, description: dict) -> tuple[str, str]:
 
 def check(build_path: Path) -> list[str]:
     """Return the problems found in one build tree."""
+    # pylint: disable=protected-access
     from esphome.espidf import toolchain
 
     description = json.loads(
         (build_path / "build" / "project_description.json").read_text(encoding="utf-8")
     )
     name, version = _setup_core(build_path, description)
-    env = toolchain._get_idf_env(version)  # pylint: disable=protected-access
-    python = toolchain._get_idf_tool("python")  # pylint: disable=protected-access
-    idf_py = toolchain._get_idf_path(version) / "tools" / "idf.py"  # pylint: disable=protected-access
+    env = toolchain._get_idf_env(version)
+    python = toolchain._get_idf_tool("python")
+    idf_py = toolchain._get_idf_path(version) / "tools" / "idf.py"
     sdkconfig = build_path / f"sdkconfig.{name}"
     sdkconfig_args = ["-D", f"SDKCONFIG={sdkconfig}"] if sdkconfig.is_file() else []
 
     before = _snapshot(build_path, name)
-    outputs_before = len(_ninja_outputs(build_path))
+    mtimes_before = _ninja_mtimes(build_path)
     problems = []
     for action in ("reconfigure", "build"):
         result = subprocess.run(
@@ -100,9 +114,9 @@ def check(build_path: Path) -> list[str]:
     after = _snapshot(build_path, name)
     problems += [f"idf.py changed {f}" for f in before if before[f] != after[f]]
     rebuilt = [
-        out
-        for out in _ninja_outputs(build_path)[outputs_before:]
-        if out.endswith(WORK_SUFFIXES)
+        key[1]
+        for key, mtime in _ninja_mtimes(build_path).items()
+        if key[1].endswith(WORK_SUFFIXES) and mtimes_before.get(key) != mtime
     ]
     problems += [f"idf.py rebuilt {out}" for out in rebuilt]
     return problems
@@ -114,7 +128,7 @@ def main() -> int:
         "build_paths",
         nargs="*",
         type=Path,
-        help=f"ESPHome build dirs (default: every native ESP-IDF tree in {DEFAULT_GLOB})",
+        help=f"ESPHome build dirs (default: the first native ESP-IDF tree in {DEFAULT_GLOB})",
     )
     parser.add_argument(
         "--allow-missing",
@@ -133,6 +147,9 @@ def main() -> int:
     if not trees:
         print("No native ESP-IDF build tree found")
         return 0 if args.allow_missing else 1
+    if not args.build_paths:
+        # The contract does not depend on the target, so one tree is enough.
+        trees = trees[:1]
 
     failed = False
     for tree in trees:
@@ -144,8 +161,8 @@ def main() -> int:
     if failed:
         print(
             "The direct cmake/ninja build no longer matches idf.py. Compare "
-            "esphome/espidf/toolchain.py (run_reconfigure, _run_ninja, _size_env) "
-            "with the pinned ESP-IDF tools/idf_py_actions."
+            "_IdfPyContract and its users in esphome/espidf/toolchain.py with the "
+            "pinned ESP-IDF tools/idf_py_actions."
         )
     return 1 if failed else 0
 
