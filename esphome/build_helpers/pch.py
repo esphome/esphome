@@ -43,11 +43,8 @@ PCH_GUARD_TEXT = f"""\
 #endif
 """
 
-PCH_CORE_HEADER = "esphome/core/defines.h"
-# The curated core headers
-PCH_PREFIX_HEADER = "esphome/core/pch_prefix.h"
-# defines.h first so USE_* macros exist for the rest
-PCH_DEFAULT_HEADERS = (PCH_CORE_HEADER, PCH_PREFIX_HEADER)
+# The core headers every backend precompiles
+PCH_DEFAULT_HEADERS = ("esphome/core/pch_prefix.h",)
 
 # What ccache needs to cache compiles that load a .gch
 _CCACHE_PCH_SLOPPINESS = ("pch_defines", "time_macros")
