@@ -75,7 +75,11 @@ class _FakeSConsEnv(dict):
 def _fake_cxx(tmp_path: Path, fail: bool = False) -> Path:
     """A compiler stand-in that records its argv and writes the -o target."""
     cxx = tmp_path / "fake-gxx"
+    # As GCC: the program's path when it exists next to the driver, else its name
     body = (
+        'case "$1" in -print-prog-name=*) n=${1#*=};'
+        ' p="$(dirname "$0")/../libexec/gcc/arm-none-eabi/10.3.1/$n";'
+        ' [ -x "$p" ] && echo "$p" || echo "$n"; exit 0;; esac\n'
         'printf -- ---call---\\\\n >> "$0.argv"; printf \'%s\\n\' "$@" >> "$0.argv"\n'
     )
     if fail:
@@ -197,9 +201,14 @@ def test_pch_script_gcc10_wrapper_starts_the_real_cc1plus(tmp_path: Path) -> Non
     assert Path(f"{real}.argv").read_text(encoding="utf-8") == "-quiet\nx.cpp\n"
 
 
-def test_pch_script_gcc10_wrapper_needs_cc1plus(tmp_path: Path) -> None:
-    with pytest.raises(RuntimeError, match="cannot find cc1plus"):
-        _run_on_host(tmp_path, "darwin", "arm64", _LibreTinyPlatform)
+def test_pch_script_gcc10_without_cc1plus_builds_plainly(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A driver without a cc1plus of its own gets no wrapper and no header."""
+    scons_env = _run_on_host(tmp_path, "darwin", "arm64", _LibreTinyPlatform)
+    assert not (tmp_path / "dev" / "esphome_pch.h.gch").exists()
+    assert scons_env.prepended == []
+    assert "compiling without it" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
