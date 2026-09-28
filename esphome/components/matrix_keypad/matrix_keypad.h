@@ -13,10 +13,10 @@ namespace esphome::matrix_keypad {
 
 class MatrixKeypadListener {
  public:
-  virtual void button_pressed(int row, int col) {};
-  virtual void button_released(int row, int col) {};
-  virtual void key_pressed(uint8_t key) {};
-  virtual void key_released(uint8_t key) {};
+  virtual void button_pressed(int row, int col){};
+  virtual void button_released(int row, int col){};
+  virtual void key_pressed(uint8_t key){};
+  virtual void key_released(uint8_t key){};
 };
 
 class MatrixKeyTrigger final : public Trigger<uint8_t> {};
