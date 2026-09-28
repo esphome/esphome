@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Protocol
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
 from esphome import const, platform_hooks
-from esphome.build_helpers.native import native_backend
+from esphome.build_helpers.native import analysis_backend, native_backend
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
@@ -1714,24 +1714,10 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     if exit_code != 0:
         return exit_code
     if CORE.is_host:
-        _LOGGER.info(
-            "Successfully compiled program to path '%s'", _host_program_path(config)
-        )
+        _LOGGER.info("Successfully compiled program to path '%s'", CORE.firmware_bin)
     else:
         _LOGGER.info("Successfully compiled program.")
     return 0
-
-
-def _host_program_path(config: ConfigType) -> str:
-    """Return the compiled host ELF path."""
-    if CORE.using_toolchain_esp_idf:
-        from esphome.espidf import toolchain
-
-        return str(toolchain.get_elf_path())
-    from esphome.platformio.toolchain import get_idedata
-
-    # Memoized by compile_program's own call; this is a dict lookup
-    return str(get_idedata(config).firmware_elf_path)
 
 
 def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
@@ -1778,7 +1764,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
         return exit_code
     _LOGGER.info("Successfully compiled program.")
     if CORE.is_host:
-        program_path = _host_program_path(config)
+        program_path = str(CORE.firmware_bin)
         _LOGGER.info("Running program from path '%s'", program_path)
         return run_external_process(program_path)
 
@@ -2015,8 +2001,8 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     from esphome.analyze_memory.ram_strings import RamStringsAnalyzer
 
     # Refuse an unsupported toolchain before paying for a full compile
-    native_toolchain = native_backend()
-    if native_toolchain is None and not CORE.using_toolchain_platformio:
+    analysis_toolchain = analysis_backend()
+    if analysis_toolchain is None and not CORE.using_toolchain_platformio:
         _LOGGER.error(
             "analyze-memory is not supported with the '%s' toolchain on %s; "
             "re-run with --toolchain platformio",
@@ -2024,6 +2010,11 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
             CORE.target_platform,
         )
         return 1
+    if (
+        check_supported := getattr(analysis_toolchain, "check_analysis_supported", None)
+    ) is not None:
+        # Raises with the reason; before the compile, not after it
+        check_supported()
 
     # Always compile to ensure fresh data (fast if no changes - just relinks)
     exit_code = write_cpp(config)
@@ -2036,9 +2027,9 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
 
     # Get idedata for analysis
     idedata = None
-    if native_toolchain is not None:
-        objdump = native_toolchain.get_objdump_path()
-        readelf = native_toolchain.get_readelf_path()
+    if analysis_toolchain is not None:
+        objdump = analysis_toolchain.get_objdump_path()
+        readelf = analysis_toolchain.get_readelf_path()
         for tool in (objdump, readelf):
             if not tool.is_file():
                 # The analyzer would silently fall back to host
@@ -2052,7 +2043,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
         objdump_path = str(objdump)
         readelf_path = str(readelf)
 
-        firmware_elf = native_toolchain.get_elf_path()
+        firmware_elf = analysis_toolchain.get_elf_path()
         if not firmware_elf.is_file():
             # The analyzer swallows tool failures, so a missing ELF would
             # produce an exit-0 zeroed report

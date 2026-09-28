@@ -10,13 +10,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.arduino8266 import framework, toolchain
-from esphome.build_helpers.pch import mark_pch_emitted
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_ESPHOME,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
+    Toolchain,
 )
 from esphome.core import CORE, EsphomeError
 
@@ -81,7 +81,7 @@ def test_run_compile_build_failure(tmp_path: Path) -> None:
         patch.object(
             toolchain.subprocess, "run", return_value=MagicMock(returncode=2)
         ) as mock_run,
-        patch.object(toolchain, "_write_compile_commands") as mock_compdb,
+        patch.object(toolchain, "refresh_compile_commands") as mock_compdb,
     ):
         assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=True) == 2
     cmd = mock_run.call_args[0][0]
@@ -101,7 +101,7 @@ def test_run_compile_success(tmp_path: Path) -> None:
             "run",
             return_value=MagicMock(returncode=0, stdout="", stderr=""),
         ) as mock_run,
-        patch.object(toolchain, "_write_compile_commands") as mock_compdb,
+        patch.object(toolchain, "refresh_compile_commands") as mock_compdb,
         patch.object(toolchain, "_print_size_summary") as mock_size,
         patch.object(toolchain, "get_idedata") as mock_idedata,
     ):
@@ -117,37 +117,10 @@ def test_run_compile_success(tmp_path: Path) -> None:
     # cwd, not -C, so ninja prints no "Entering directory" banner
     assert "-C" not in cmd
     assert call[1]["cwd"] is not None
-    mock_compdb.assert_called_once()
+    # An unchanged manifest is passed on, so the shared refresh can skip
+    assert mock_compdb.call_args.args[3] is False
     mock_size.assert_called_once()
     mock_idedata.assert_called_once()
-
-
-def test_run_compile_regenerates_stale_compdb(tmp_path: Path) -> None:
-    """An interrupted run can leave build.ninja newer than the compile DB;
-    mere existence must not skip regeneration."""
-    build_dir = toolchain.get_build_dir()
-    build_dir.mkdir(parents=True, exist_ok=True)
-    (build_dir / "build.ninja").write_text("")
-    compdb = build_dir / "compile_commands.json"
-    compdb.write_text("[]")
-    os.utime(compdb, ((build_dir / "build.ninja").stat().st_mtime - 5,) * 2)
-    with (
-        patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
-        patch.object(framework, "get_build_env", return_value={}),
-        patch("esphome.build_gen.arduino8266.write_project", return_value=False),
-        patch.object(
-            toolchain.subprocess,
-            "run",
-            return_value=MagicMock(
-                returncode=0, stdout="ninja: no work to do.\n", stderr=""
-            ),
-        ),
-        patch.object(toolchain, "_write_compile_commands") as mock_compdb,
-        patch.object(toolchain, "_print_size_summary"),
-        patch.object(toolchain, "get_idedata"),
-    ):
-        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
-    mock_compdb.assert_called_once()
 
 
 def test_run_compile_missing_artifact_fails(
@@ -165,7 +138,7 @@ def test_run_compile_missing_artifact_fails(
             "run",
             return_value=MagicMock(returncode=0, stdout="", stderr=""),
         ),
-        patch.object(toolchain, "_write_compile_commands"),
+        patch.object(toolchain, "refresh_compile_commands"),
         patch.object(toolchain, "_print_size_summary") as mock_size,
         patch.object(toolchain, "get_idedata"),
     ):
@@ -189,69 +162,12 @@ def test_run_compile_warns_when_idedata_fails(
             "run",
             return_value=MagicMock(returncode=0, stdout="", stderr=""),
         ),
-        patch.object(toolchain, "_write_compile_commands"),
+        patch.object(toolchain, "refresh_compile_commands"),
         patch.object(toolchain, "_print_size_summary"),
         patch.object(toolchain, "get_idedata", return_value=None),
     ):
         assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
     assert "No idedata was generated for this build" in caplog.text
-
-
-def test_write_compile_commands(tmp_path: Path) -> None:
-    build_dir = tmp_path / "build"
-    build_dir.mkdir()
-    entries = '[{"file": "a.cpp", "command": "cc"}]\n'
-    with patch.object(
-        toolchain.subprocess,
-        "run",
-        return_value=MagicMock(returncode=0, stdout=entries),
-    ):
-        toolchain._write_compile_commands(tmp_path / "ninja", build_dir, {})
-    assert (build_dir / "compile_commands.json").read_text() == entries
-
-
-@pytest.mark.parametrize(
-    ("stdout", "match"),
-    [
-        ("[]\n", "empty compile database"),
-        # A parse failure names its cause, not the rule-name story
-        ("not json", "unparsable compile database.*not json"),
-    ],
-)
-def test_write_compile_commands_bad_db_raises(
-    tmp_path: Path, stdout: str, match: str
-) -> None:
-    """An empty or unparsable compile database fails the build with its
-    actual cause and drops any stale database."""
-    build_dir = tmp_path / "build"
-    build_dir.mkdir()
-    (build_dir / "compile_commands.json").write_text("[stale]")
-    with (
-        patch.object(
-            toolchain.subprocess,
-            "run",
-            return_value=MagicMock(returncode=0, stdout=stdout),
-        ),
-        pytest.raises(EsphomeError, match=match),
-    ):
-        toolchain._write_compile_commands(tmp_path / "ninja", build_dir, {})
-    assert not (build_dir / "compile_commands.json").exists()
-
-
-def test_write_compile_commands_failure_removes_stale_db(tmp_path: Path) -> None:
-    """A failed compdb run must not leave a stale database behind."""
-    stale = tmp_path / "compile_commands.json"
-    stale.write_text("[]")
-    with (
-        patch.object(
-            toolchain.subprocess,
-            "run",
-            return_value=MagicMock(returncode=1, stderr="boom"),
-        ),
-        pytest.raises(EsphomeError, match="compile_commands"),
-    ):
-        toolchain._write_compile_commands(tmp_path / "ninja", tmp_path, {})
-    assert not stale.exists()
 
 
 def test_parse_app_size(tmp_path: Path) -> None:
@@ -343,7 +259,9 @@ def test_get_idedata_delegates(tmp_path: Path) -> None:
             "esphome.build_helpers.idedata.load_or_build_idedata",
             return_value={"cc_path": "x"},
         ) as mock_load,
-        patch.object(toolchain, "resolve_ccache_path", return_value="/cc/ccache"),
+        patch.object(
+            toolchain, "resolve_absolute_ccache_path", return_value="/cc/ccache"
+        ),
     ):
         assert toolchain.get_idedata() == {"cc_path": "x"}
     compile_commands, elf, cache = mock_load.call_args[0]
@@ -360,41 +278,10 @@ def test_get_idedata_no_ccache(tmp_path: Path) -> None:
         patch(
             "esphome.build_helpers.idedata.load_or_build_idedata", return_value={}
         ) as mock_load,
-        patch.object(toolchain, "resolve_ccache_path", return_value=None),
+        patch.object(toolchain, "resolve_absolute_ccache_path", return_value=None),
     ):
         toolchain.get_idedata()
     assert mock_load.call_args.kwargs["launcher"] is None
-
-
-def test_run_compile_skips_compdb_when_ninja_unchanged(tmp_path: Path) -> None:
-    """An unchanged build.ninja means the compile DB is already current."""
-    build_dir = toolchain.get_build_dir()
-    build_dir.mkdir(parents=True, exist_ok=True)
-    # write_project (stubbed below) always leaves a build.ninja behind
-    (build_dir / "build.ninja").write_text("# manifest")
-
-    def run(regenerate_expected: bool) -> None:
-        with (
-            patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
-            patch.object(framework, "get_build_env", return_value={}),
-            patch("esphome.build_gen.arduino8266.write_project", return_value=False),
-            patch.object(
-                toolchain.subprocess,
-                "run",
-                return_value=MagicMock(returncode=0, stdout="", stderr=""),
-            ),
-            patch.object(toolchain, "_write_compile_commands") as mock_compdb,
-            patch.object(toolchain, "_print_size_summary"),
-            patch.object(toolchain, "get_idedata"),
-        ):
-            assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
-        assert mock_compdb.called == regenerate_expected
-
-    # Missing compile DB: regenerated even though build.ninja is unchanged
-    run(regenerate_expected=True)
-    # Present compile DB + unchanged build.ninja: skipped
-    (build_dir / "compile_commands.json").write_text("[]")
-    run(regenerate_expected=False)
 
 
 def test_print_size_summary_unparsable_section(
@@ -448,32 +335,6 @@ def test_print_size_summary_missing_section_skips_summary(
     assert "missing section(s) .bss" in caplog.text
 
 
-def test_warn_ignored_platformio_options(caplog: pytest.LogCaptureFixture) -> None:
-    """Component-added options the native build drops are warned by name;
-    the honored ones (lib_ignore, f_cpu, ldscript, build_src_flags,
-    flash_mode) stay quiet."""
-    CORE.platformio_options = {
-        "board_build.ldscript": "eagle.flash.4m2m.ld",
-        "board_build.f_cpu": "160000000L",
-        "board_build.filesystem": "littlefs",
-        "board_build.flash_mode": "dio",
-        "build_src_flags": "-include throw_stubs.h",
-        "lib_ignore": ["Updater"],
-        "upload_speed": "460800",
-    }
-    toolchain._warn_ignored_platformio_options()
-    assert "platformio_options->board_build.filesystem is ignored" in caplog.text
-    assert "native 'arduino' toolchain" in caplog.text
-    assert "board_build.ldscript is ignored" not in caplog.text
-    assert "board_build.f_cpu is ignored" not in caplog.text
-    assert "lib_ignore" not in caplog.text
-    assert "build_src_flags" not in caplog.text
-    assert "flash_mode" not in caplog.text
-    # Component-added upload_speed never gets read under the native
-    # toolchain, so it must warn
-    assert "upload_speed" in caplog.text
-
-
 def test_run_compile_idedata_error_does_not_fail_build(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -487,7 +348,7 @@ def test_run_compile_idedata_error_does_not_fail_build(
             "run",
             return_value=MagicMock(returncode=0, stdout="", stderr=""),
         ),
-        patch.object(toolchain, "_write_compile_commands"),
+        patch.object(toolchain, "refresh_compile_commands"),
         patch.object(toolchain, "_print_size_summary"),
         patch.object(
             toolchain,
@@ -513,7 +374,7 @@ def test_run_compile_skipped_size_summary_names_consequence(
             "run",
             return_value=MagicMock(returncode=0, stdout="", stderr=""),
         ),
-        patch.object(toolchain, "_write_compile_commands"),
+        patch.object(toolchain, "refresh_compile_commands"),
         patch.object(toolchain, "_print_size_summary", return_value=False),
         patch.object(toolchain, "get_idedata", return_value=None),
     ):
@@ -542,33 +403,50 @@ def test_get_idedata_accepts_preresolved_ccache() -> None:
             "esphome.build_helpers.idedata.load_or_build_idedata",
             return_value={"ok": True},
         ) as mock_build,
-        patch.object(toolchain, "resolve_ccache_path") as mock_resolve,
+        patch.object(toolchain, "resolve_absolute_ccache_path") as mock_resolve,
     ):
         assert toolchain.get_idedata("/usr/bin/ccache") == {"ok": True}
     mock_resolve.assert_not_called()
     assert mock_build.call_args.kwargs["launcher"] == "/usr/bin/ccache"
 
 
-def test_ccache_env_includes_pch_settings() -> None:
-    """The native build exports the ccache settings the pch needs."""
-    mark_pch_emitted()
-    with patch.dict(os.environ, {}, clear=True):
-        env = framework.ccache_env("/usr/bin/ccache")
-    assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
-    assert env["CCACHE_PCH_EXTSUM"] == "true"
-
-
-def test_ccache_env_pch_disabled() -> None:
-    with patch.dict(os.environ, {"ESPHOME_PCH_ENABLE": "0"}, clear=True):
-        env = framework.ccache_env("/usr/bin/ccache")
-    assert "CCACHE_SLOPPINESS" not in env
-    assert "CCACHE_PCH_EXTSUM" not in env
-
-
-def test_ccache_env_respects_user_sloppiness() -> None:
-    mark_pch_emitted()
-    with patch.dict(os.environ, {"CCACHE_SLOPPINESS": "locale"}, clear=True):
-        env = framework.ccache_env("/usr/bin/ccache")
-    # The user's tokens survive; the ones the pch needs are unioned on
-    assert env["CCACHE_SLOPPINESS"] == "locale,pch_defines,time_macros"
-    assert env["CCACHE_PCH_EXTSUM"] == "true"
+def test_run_compile_warns_about_dropped_platformio_options(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Component-added options the native build drops are warned by name;
+    the honored ones (lib_ignore, f_cpu, ldscript, build_src_flags,
+    flash_mode) stay quiet."""
+    CORE.toolchain = Toolchain.ARDUINO
+    CORE.platformio_options = {
+        "board_build.ldscript": "eagle.flash.4m2m.ld",
+        "board_build.f_cpu": "160000000L",
+        "board_build.filesystem": "littlefs",
+        "board_build.flash_mode": "dio",
+        "build_src_flags": "-include throw_stubs.h",
+        "lib_ignore": ["Updater"],
+        "upload_speed": "460800",
+    }
+    with (
+        patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
+        patch.object(framework, "get_build_env", return_value={}),
+        patch("esphome.build_gen.arduino8266.write_project", return_value=True),
+        patch.object(
+            toolchain.subprocess,
+            "run",
+            return_value=MagicMock(returncode=0, stdout="", stderr=""),
+        ),
+        patch.object(toolchain, "refresh_compile_commands") as mock_compdb,
+        patch.object(toolchain, "_print_size_summary"),
+        patch.object(toolchain, "get_idedata"),
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+    assert "platformio_options->board_build.filesystem is ignored" in caplog.text
+    assert "platformio_options->upload_speed is ignored" in caplog.text
+    assert "native 'arduino' toolchain" in caplog.text
+    assert "board_build.ldscript is ignored" not in caplog.text
+    assert "board_build.f_cpu is ignored" not in caplog.text
+    assert "lib_ignore" not in caplog.text
+    assert "build_src_flags" not in caplog.text
+    assert "flash_mode" not in caplog.text
+    # A rewritten manifest is passed on, so the compile DB is regenerated
+    assert mock_compdb.call_args.args[3] is True
