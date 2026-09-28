@@ -212,7 +212,7 @@ def _final_validate(config: ConfigType) -> None:
     if config[CONF_TYPE] == "sdio" and config[CONF_BUS_WIDTH] == 1:
         raise cv.Invalid(
             "esp_hosted 3.x cannot be built with a 1-bit SDIO bus "
-            "(espressif/esp-hosted#765). Remove the "
+            "(espressif/esp-hosted-mcu#245). Remove the "
             f"{ESP_HOSTED_COMPONENT} pin from esp32.framework.components to stay "
             "on the 2.x line, or use a 4-bit bus."
         )
