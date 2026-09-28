@@ -190,6 +190,16 @@ TEST(HoermannHcpReadWrite, CommandForADoorStartedBeforeTheFetchStopsIt) {
   EXPECT_EQ(poll_command(door).first, 0x0140);  // COMMAND_IMPULSE
 }
 
+// A door started from elsewhere the way the queued command wants keeps going, and the command is dropped.
+TEST(HoermannHcpReadWrite, CommandForADoorAlreadyMovingThatWayIsDropped) {
+  TestableHoermannHcp door;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x4000}));
+  ASSERT_TRUE(door.open_door());
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0004, 0x0100}));
+  EXPECT_EQ(poll_command(door).first, 0x0000);
+}
+
 // A stop held for a late start report is sent once the door reports moving.
 TEST(HoermannHcpReadWrite, HeldStopSurvivesALateStart) {
   TestableHoermannHcp door;

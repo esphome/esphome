@@ -323,7 +323,13 @@ const HoermannHcpCommand *HoermannHcp::take_command_() {
     return nullptr;
   this->next_command_ = nullptr;
   if (moving) {
-    // Checked here as well, as the door may have been started from elsewhere since the command was queued.
+    // Checked here as well, as the door may have been started from elsewhere since the command was queued. One
+    // already travelling where the command sends it is left alone.
+    if ((command == &COMMAND_OPEN && this->door_state_ == DoorState::OPENING) ||
+        (command == &COMMAND_CLOSE && this->door_state_ == DoorState::CLOSING)) {
+      ESP_LOGD(TAG, "Door is already moving that way, dropping '%s'", command->name);
+      return nullptr;
+    }
     if (command != &COMMAND_STOP)
       ESP_LOGD(TAG, "Door is moving, stopping it instead of '%s'", command->name);
     this->last_stop_at_ = millis();
