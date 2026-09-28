@@ -110,6 +110,9 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   void drop_command_();
   void clear_light_request_();
   void push_command_registers_(modbus::RegisterValues &registers);
+  // Decide at the fetch what goes into a status answer, against the door as it stands then.
+  const HoermannHcpCommand *take_command_();
+  const HoermannHcpCommand *take_light_toggle_();
   void on_position_reg_(uint16_t value);
   void on_state_reg_(uint16_t value);
   void on_light_reg_(uint16_t value);
@@ -162,7 +165,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
 
   // Drop the "connected" flag if the bus controller has not polled us for this long.
   uint16_t connection_timeout_ms_{2000};
-  // How long a door may take to report moving after a fetched command.
+  // How long a door may take to report moving after a fetched command, a chosen margin.
   uint16_t start_window_ms_{5000};
   // The state starts on a value the bus controller never reports, so the first broadcast is decoded even when
   // it reads 0x0000.

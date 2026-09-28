@@ -315,6 +315,23 @@ TEST(HoermannHcpLightTest, ToggleAgainRestartsTheDeadline) {
   EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
 }
 
+// A toggle held for the door's start report is not given up while it waits.
+TEST(HoermannHcpLightTest, ToggleHeldForTheStartIsNotGivenUp) {
+  TestableHoermannHcp door;
+  door.connection_timeout_ms_ = 20;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
+  ASSERT_TRUE(door.set_light(true));
+  ASSERT_TRUE(door.close_door());
+  EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  connect_controller(door);
+  door.update();
+  EXPECT_TRUE(door.light_requested_);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0200, 0x0000, 0x0000, 0x0000, 0x0000}));
+  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
+}
+
 // A lamp the motor switches on as the door starts gets no toggle, which would switch it off again.
 TEST(HoermannHcpLightTest, LampSwitchedOnByTheStartGetsNoToggle) {
   TestableHoermannHcp door;
