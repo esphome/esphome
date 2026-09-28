@@ -107,7 +107,9 @@ def pch_cmake_consumer(target: str, sources_var: str) -> str:
 target_compile_options({target} PRIVATE
 {options}
 )
-set_source_files_properties({sources_var} PROPERTIES
+set(esphome_pch_sources {sources_var})
+list(FILTER esphome_pch_sources INCLUDE REGEX "[.](cpp|cc|cxx)$")
+set_source_files_properties(${{esphome_pch_sources}} PROPERTIES
     OBJECT_DEPENDS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}")
 """
 
