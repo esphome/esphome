@@ -1,0 +1,6 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/bk72xx-ard.yaml
+  ld6004: !include common.yaml
+uart:
+  - id: !extend uart_bus
+    baud_rate: 115200

@@ -1,0 +1,33 @@
+ld6004:
+  id: radar
+sensor:
+  - platform: ld6004
+    target_count:
+      name: Targets
+    target_1:
+      x:
+        name: Target X
+      y:
+        name: Target Y
+      z:
+        name: Target Z
+      doppler_index:
+        name: Doppler
+      cluster_id:
+        name: Cluster
+binary_sensor:
+  - platform: ld6004
+    presence:
+      name: Presence
+    target_1:
+      name: Target 1
+    detection_area_0:
+      name: Area 0
+text_sensor:
+  - platform: ld6004
+    project:
+      name: Project
+    firmware_version:
+      name: Firmware
+    work_status:
+      name: Work Status
