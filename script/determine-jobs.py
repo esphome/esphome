@@ -111,14 +111,25 @@ INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
 INTEGRATION_TESTS_SPLIT_BUCKETS = 5
 INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT = 360.0
 
-# platformio and aioesphomeapi (requirements.txt), the pytest stack
-# (requirements_test.txt) and the fixture every session compiles; a change
-# to any runs the full matrix
+# aioesphomeapi (requirements.txt), the pytest stack (requirements_test.txt)
+# and the native host build backend every test compiles with; a change to
+# any runs the full matrix
 INTEGRATION_TESTS_TRIGGER_FILES = frozenset(
     {
         "requirements.txt",
         "requirements_test.txt",
-        "tests/integration/fixtures/cache_init.yaml",
+        "esphome/arduino/library.py",
+        "esphome/build_gen/build_tool.py",
+        "esphome/build_gen/host.py",
+        "esphome/build_helpers/ccache.py",
+        "esphome/build_helpers/idedata.py",
+        "esphome/build_helpers/native.py",
+        "esphome/build_helpers/ninja.py",
+        "esphome/build_helpers/ninja_gen.py",
+        "esphome/build_helpers/tools_cache.py",
+        "esphome/framework_helpers.py",
+        "esphome/host/toolchain.py",
+        "esphome/platformio/library.py",
     }
 )
 
@@ -240,7 +251,7 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
        - conftest.py, types.py, const.py, entity_utils.py, state_utils.py, etc.
 
     4. A file in INTEGRATION_TESTS_TRIGGER_FILES changed
-       - The dependency pins and the session init fixture affect every test
+       - The dependency pins and the host build backend affect every test
 
     Returns (run_all=False, [test_files...]) when:
 
