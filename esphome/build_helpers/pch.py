@@ -16,7 +16,6 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_LN882X,
     PLATFORM_NRF52,
-    PLATFORM_RP2,
     PLATFORM_RTL87XX,
 )
 from esphome.helpers import write_file_if_changed
@@ -54,7 +53,6 @@ PCH_SCRIPT_EXCLUDED_PLATFORMS = frozenset(
         PLATFORM_ESP32,
         PLATFORM_LN882X,
         PLATFORM_NRF52,
-        PLATFORM_RP2,
         PLATFORM_RTL87XX,
     }
 )

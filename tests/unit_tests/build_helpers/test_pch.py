@@ -109,7 +109,7 @@ def test_pch_checksum_tracks_closure_content(tmp_path: Path) -> None:
     assert base != pch.pch_checksum(tmp_path, ["root.h"], ["id"])
 
 
-@pytest.mark.parametrize("platform", ["esp8266"])
+@pytest.mark.parametrize("platform", ["esp8266", "rp2"])
 def test_pch_script_enabled(platform: str, monkeypatch: pytest.MonkeyPatch) -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
     assert pch.pch_script_enabled()
