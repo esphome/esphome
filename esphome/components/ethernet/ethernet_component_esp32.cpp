@@ -789,7 +789,9 @@ void EthernetComponent::finish_connect_() {
 void EthernetComponent::start_connect_() {
   global_eth_component->got_ipv4_address_ = false;
 #if USE_NETWORK_IPV6
-  global_eth_component->ipv6_count_ = 0;
+  // Recount rather than zero: addresses that survive a reconnect are not announced again.
+  struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+  global_eth_component->ipv6_count_ = esp_netif_get_all_ip6(this->eth_netif_, if_ip6s);
   this->ipv6_setup_done_ = false;
 #endif /* USE_NETWORK_IPV6 */
   this->connect_begin_ = millis();
@@ -868,7 +870,13 @@ void EthernetComponent::start_connect_() {
   // - At bootup when link isn't ready (#10281)
   // - After disconnection/cable unplugged (#10705)
   // We'll retry in finish_connect_() if it fails here.
-  err = esp_netif_create_ip6_linklocal(this->eth_netif_);
+  // Skip it when the link-local already exists; recreating it would restart duplicate address detection.
+  esp_ip6_addr_t link_local;
+  if (esp_netif_get_ip6_linklocal(this->eth_netif_, &link_local) == ESP_OK) {
+    err = ESP_OK;
+  } else {
+    err = esp_netif_create_ip6_linklocal(this->eth_netif_);
+  }
   if (err != ESP_OK) {
     if (err == ESP_ERR_ESP_NETIF_INVALID_PARAMS) {
       // This is a programming error, not a transient failure
