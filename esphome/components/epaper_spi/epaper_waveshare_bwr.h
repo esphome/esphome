@@ -8,11 +8,7 @@ namespace esphome::epaper_spi {
  * Waveshare 3-color e-paper displays (UC8179 controller).
  * Supports: 7.5" V2 BWR (EDP_7in5b_V2), 800x480 pixels.
  *
- * Color scheme: Black, White, Red (BWR)
- * Buffer layout: 1 bit per pixel, separate planes
- * - Buffer first half: Black/White plane (1=black, 0=white)
- * - Buffer second half: Red plane (1=red, 0=no red)
- * - Total buffer: width * height / 4 bytes (2 * width * height / 8)
+ * Buffer layout and data transfer: see EPaperBWR.
  *
  * The init sequence (INITIALISE state) sends panel configuration only.
  * Power-on (0x01 + 0x04) is sent in the POWER_ON state after data transfer;

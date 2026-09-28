@@ -10,11 +10,7 @@ namespace esphome::epaper_spi {
  * This driver handles larger BWR panels using the UC8179 controller,
  * such as the XSRUPB 2025 panel at 800x480.
  *
- * Color scheme: Black, White, Red (BWR)
- * Buffer layout: 1 bit per pixel, separate planes
- * - Buffer first half: Black/White plane (1=black, 0=white or red)
- * - Buffer second half: Red plane (1=red, 0=no red)
- * - Total buffer: width * height / 4 bytes (2 * width * height / 8)
+ * Buffer layout and data transfer: see EPaperBWR.
  * Panels with DDX=11 (as set by the model init sequence) need invert_red, which sends the red plane inverted.
  *
  * Commands:
