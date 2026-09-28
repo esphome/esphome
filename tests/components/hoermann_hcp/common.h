@@ -12,6 +12,9 @@ using modbus::RegisterValues;
 constexpr uint16_t COMMAND_REG = 0x9C41;
 constexpr uint16_t STATE_REG = 0x9CB9;
 constexpr uint16_t BROADCAST_REG = 0x9D31;
+// The lamp toggle a status answer carries in its two command registers.
+constexpr uint16_t LIGHT_TOGGLE = 0x0800;
+constexpr uint16_t LIGHT_TOGGLE_2 = 0x0200;
 
 inline RegisterValues make_registers(std::initializer_list<uint16_t> values) {
   RegisterValues registers;

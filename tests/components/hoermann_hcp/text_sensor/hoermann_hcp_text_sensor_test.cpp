@@ -470,8 +470,8 @@ TEST(HoermannHcpTextSensorTest, RequestWaitsForTheLampCommand) {
 
   const RegisterValues light = status_poll(door);
   EXPECT_EQ(light[1], 0x0301);
-  EXPECT_EQ(light[2], 0x0880);
-  EXPECT_EQ(light[3], 0x0000);
+  EXPECT_EQ(light[2], LIGHT_TOGGLE);
+  EXPECT_EQ(light[3], LIGHT_TOGGLE_2);
   EXPECT_EQ(status_poll(door)[1], 0x0322);
 }
 

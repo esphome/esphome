@@ -22,9 +22,8 @@ static constexpr HoermannHcpCommand COMMAND_CLOSE{"close", 0x0120};
 static constexpr HoermannHcpCommand COMMAND_IMPULSE{"impulse", 0x0140};
 static constexpr HoermannHcpCommand COMMAND_VENT{"vent", 0x0100, 0x4000};
 static constexpr HoermannHcpCommand COMMAND_HALF_OPEN{"half open", 0x0100, 0x0400};
-// Absolute, as a vendor gateway sends them, so a late or repeated one cannot switch the lamp the wrong way.
-static constexpr HoermannHcpCommand COMMAND_LIGHT_ON{"light on", 0x0880};
-static constexpr HoermannHcpCommand COMMAND_LIGHT_OFF{"light off", 0x0800, 0x0100};
+// Toggles the lamp with the end phase alone, like the door commands. A B1 does not switch on absolute lamp values.
+static constexpr HoermannHcpCommand COMMAND_TOGGLE_LIGHT{"toggle light", 0x0800, 0x0200};
 
 // High byte of the state register and the door state it stands for. State 0x00 is decoded separately because
 // its low byte tells a plain stop from the vent position.
@@ -277,12 +276,11 @@ void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
   }
   // Decided at the fetch, so a lamp already switched at the door gets nothing.
   if (this->light_requested_ && !this->light_command_sent_ && this->light_target_ != this->light_on_) {
-    const HoermannHcpCommand &light = this->light_target_ ? COMMAND_LIGHT_ON : COMMAND_LIGHT_OFF;
-    ESP_LOGI(TAG, "Sending '%s' command to door", light.name);
+    ESP_LOGI(TAG, "Sending '%s' command to door", COMMAND_TOGGLE_LIGHT.name);
     this->light_command_sent_ = true;
     this->light_since_ = millis();
-    registers.push_back(light.value);
-    registers.push_back(light.value_2);
+    registers.push_back(COMMAND_TOGGLE_LIGHT.value);
+    registers.push_back(COMMAND_TOGGLE_LIGHT.value_2);
     return;
   }
   push_zeros(registers, 2);
@@ -642,7 +640,7 @@ void HoermannHcp::set_light_on_(bool on) {
     this->clear_light_request_();
     return;
   }
-  // Reversed while the command was out: send again.
+  // Switched away from the target while the toggle was out: toggle again.
   this->light_command_sent_ = false;
   this->light_since_ = millis();
 }

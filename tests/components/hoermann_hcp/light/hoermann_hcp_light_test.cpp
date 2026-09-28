@@ -105,8 +105,8 @@ TEST(HoermannHcpLightTest, RequestSendsOneCommandUntilTheLampReports) {
   ASSERT_TRUE(door.set_light(true));
 
   auto [light, light_2] = poll_command(door);
-  EXPECT_EQ(light, 0x0880);
-  EXPECT_EQ(light_2, 0x0000);
+  EXPECT_EQ(light, LIGHT_TOGGLE);
+  EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
 
   // Asking again sends no second command.
   ASSERT_TRUE(door.set_light(true));
@@ -165,7 +165,7 @@ TEST(HoermannHcpLightTest, RequestReversedAfterTheFetchSendsAgainOnceTheFirstLan
   connect_controller(door);
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   ASSERT_TRUE(door.set_light(true));
-  EXPECT_EQ(poll_command(door).first, 0x0880);
+  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
 
   ASSERT_TRUE(door.set_light(false));
   EXPECT_FALSE(door.is_light_heading_on());
@@ -175,7 +175,7 @@ TEST(HoermannHcpLightTest, RequestReversedAfterTheFetchSendsAgainOnceTheFirstLan
   // It lands, away from the request.
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));
   EXPECT_TRUE(door.light_requested_);
-  EXPECT_EQ(poll_command(door).first, 0x0800);
+  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
 
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   EXPECT_FALSE(door.light_requested_);
@@ -214,7 +214,7 @@ TEST(HoermannHcpLightTest, LampCommandWaitsForAStatusPoll) {
   EXPECT_EQ(other[3], 0x0000);
   EXPECT_FALSE(door.light_command_sent_);
 
-  EXPECT_EQ(poll_command(door).first, 0x0880);
+  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
 }
 
 // A lamp switched at the door without a request is followed, never switched back.
@@ -252,7 +252,7 @@ TEST(HoermannHcpLightTest, WatchdogGivesUpOnAnUnreportedCommand) {
   connect_controller(door);
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   ASSERT_TRUE(door.set_light(true));
-  EXPECT_EQ(poll_command(door).first, 0x0880);
+  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(30));
   // The broadcast keeps the connection alive.
@@ -276,8 +276,8 @@ TEST(HoermannHcpLightTest, DoorCommandGoesBeforeTheLampCommand) {
 
   EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
   auto [light, light_2] = poll_command(door);
-  EXPECT_EQ(light, 0x0880);
-  EXPECT_EQ(light_2, 0x0000);
+  EXPECT_EQ(light, LIGHT_TOGGLE);
+  EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
   EXPECT_EQ(poll_command(door).first, 0x0000);
 }
 
@@ -292,7 +292,7 @@ TEST(HoermannHcpLightTest, LampCommandKeepsTheCoverTarget) {
   door.on_write_registers(BROADCAST_REG, door_broadcast(0x003E, 0x0100));
 
   ASSERT_TRUE(door.set_light(true));
-  EXPECT_EQ(poll_command(door).first, 0x0880);
+  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
 
   // Past the target: the door still has to be stopped despite the lamp command in between.
   door.on_write_registers(BROADCAST_REG, door_broadcast(0x0078, 0x0100));
@@ -317,8 +317,8 @@ TEST(HoermannHcpLightTest, LampRequestDoesNotDelayTheTargetStop) {
   EXPECT_EQ(stop, 0x0140);  // COMMAND_IMPULSE
   EXPECT_EQ(stop_2, 0x0000);
   auto [light, light_2] = poll_command(door);
-  EXPECT_EQ(light, 0x0880);
-  EXPECT_EQ(light_2, 0x0000);
+  EXPECT_EQ(light, LIGHT_TOGGLE);
+  EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
 }
 
 // The target's start deadline is its own, so switching the lamp cannot keep a stale target alive.
@@ -418,8 +418,8 @@ TEST(HoermannHcpLightPlatformTest, CommandIsSentOnceAndSettles) {
 
   fixture.command(true);
   auto [light, light_2] = poll_command(fixture.door);
-  EXPECT_EQ(light, 0x0880);
-  EXPECT_EQ(light_2, 0x0000);
+  EXPECT_EQ(light, LIGHT_TOGGLE);
+  EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
 
   // The lamp is now on, and the resulting broadcast must not send another command.
   fixture.report_lamp(true);
@@ -472,7 +472,7 @@ TEST(HoermannHcpLightPlatformTest, LampBecomingUnknownDropsTheRequest) {
   fixture.bring_up();
 
   fixture.command(true);
-  EXPECT_EQ(poll_command(fixture.door).first, 0x0880);
+  EXPECT_EQ(poll_command(fixture.door).first, LIGHT_TOGGLE);
 
   fixture.report_broadcast(make_registers({0x0000, 0x0064, 0x0100}));
   EXPECT_FALSE(fixture.door.light_requested_);
@@ -584,7 +584,7 @@ TEST(HoermannHcpLightPlatformTest, QuickTapsSettleOnTheLastRequest) {
   fixture.bring_up();
 
   fixture.command(true);
-  EXPECT_EQ(poll_command(fixture.door).first, 0x0880);
+  EXPECT_EQ(poll_command(fixture.door).first, LIGHT_TOGGLE);
   fixture.command(false);
   EXPECT_FALSE(fixture.entity_on());
   fixture.command(true);
@@ -610,8 +610,8 @@ TEST(HoermannHcpLightPlatformTest, CommandBeforeTheFirstPollIsNotMistakenForTheB
 
   fixture.command(true);
   auto [light, light_2] = poll_command(fixture.door);
-  EXPECT_EQ(light, 0x0880);
-  EXPECT_EQ(light_2, 0x0000);
+  EXPECT_EQ(light, LIGHT_TOGGLE);
+  EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
 }
 
 // On boot the restored state is replayed through write_state() before the lamp has ever been read. A lamp
@@ -656,7 +656,7 @@ TEST(HoermannHcpLightPlatformTest, ReversingRequestAfterFetchSwitchesBackOnceThe
   fixture.bring_up();
 
   fixture.command(true);
-  EXPECT_EQ(poll_command(fixture.door).first, 0x0880);
+  EXPECT_EQ(poll_command(fixture.door).first, LIGHT_TOGGLE);
   ASSERT_FALSE(fixture.door.is_light_on());
 
   fixture.command(false);
@@ -667,8 +667,8 @@ TEST(HoermannHcpLightPlatformTest, ReversingRequestAfterFetchSwitchesBackOnceThe
   fixture.report_lamp(true);
   EXPECT_FALSE(fixture.entity_on());
   auto [light, light_2] = poll_command(fixture.door);
-  EXPECT_EQ(light, 0x0800);
-  EXPECT_EQ(light_2, 0x0100);
+  EXPECT_EQ(light, LIGHT_TOGGLE);
+  EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
 
   // The second command lands too, and the lamp finally agrees with the request.
   fixture.report_lamp(false);
@@ -727,8 +727,8 @@ TEST(HoermannHcpLightPlatformTest, FirstLampReportReachesTheEntity) {
 
   fixture.command(true);
   auto [light, light_2] = poll_command(fixture.door);
-  EXPECT_EQ(light, 0x0880);
-  EXPECT_EQ(light_2, 0x0000);
+  EXPECT_EQ(light, LIGHT_TOGGLE);
+  EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
 }
 
 // Changing the request does not move the deadline of the command already out.
