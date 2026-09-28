@@ -207,7 +207,7 @@ def test_write_project_emits_every_source_kind(tmp_path: Path) -> None:
     )
     assert "build obj/src/x.S.o: aspp " in ninja
     assert "build obj/src/y.s.o: asm " in ninja
-    assert "h.h" not in ninja
+    assert _e(src / "h.h") not in ninja
     # __FILE__ stays relative to the build path, as it was under PlatformIO,
     # whether the source arrives absolute or rewritten by ccache
     sep = os.sep
@@ -230,6 +230,58 @@ def test_write_project_emits_every_source_kind(tmp_path: Path) -> None:
     # Unchanged content reports no change so the compile DB can be reused
     changed, _ = _render(ccache="/usr/bin/ccache")
     assert changed is False
+
+
+def test_write_project_precompiles_the_core_headers(tmp_path: Path) -> None:
+    """C++ src edges load one precompiled prefix; C and assembly do not."""
+    src = _make_src(tmp_path, "main.cpp", "esphome/core/a.c", "x.S")
+    _, ninja = _render()
+    build_dir = tmp_path / ".pioenvs" / "dev"
+    header = build_dir / "esphome_pch.h"
+    assert header.read_text() == (
+        '#include "esphome/core/pch_prefix.h"\n#include "esphome/core/defines.h"\n'
+    )
+    assert "rule pch\n" in ninja
+    assert f"build esphome_pch.h.gch: pch {_e(header)}\n" in ninja
+    assert "srccxxflags = -Winvalid-pch " in ninja
+    assert (
+        f"build obj/src/main.cpp.o: cxx {_e(src / 'main.cpp')} | esphome_pch.h.gch\n"
+        "  flags = $srccxxflags\n"
+    ) in ninja
+    assert (
+        f"build obj/src/esphome/core/a.c.o: c {_e(src / 'esphome/core/a.c')}\n"
+    ) in ninja
+    assert f"build obj/src/x.S.o: aspp {_e(src / 'x.S')}\n" in ninja
+    # Without ccache nothing reads the checksum sidecar
+    assert not (build_dir / "esphome_pch.h.gch.sum").exists()
+
+
+def test_write_project_pch_checksum_with_ccache(tmp_path: Path) -> None:
+    _make_src(tmp_path, "main.cpp")
+    _render(ccache="/usr/bin/ccache")
+    assert (tmp_path / ".pioenvs" / "dev" / "esphome_pch.h.gch.sum").is_file()
+
+
+def test_write_project_pch_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    src = _make_src(tmp_path, "main.cpp")
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    _, ninja = _render()
+    assert "esphome_pch" not in ninja
+    assert f"build obj/src/main.cpp.o: cxx {_e(src / 'main.cpp')}\n" in ninja
+
+
+def test_write_project_pch_skipped_for_a_user_force_include(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A -include in the build flags precedes the prefix, so the compiler
+    would never load the precompiled header."""
+    _make_src(tmp_path, "main.cpp")
+    CORE.build_flags = {"-include pre.h"}
+    _, ninja = _render()
+    assert "esphome_pch" not in ninja
+    assert "prevents the precompiled header" in caplog.text
 
 
 def test_write_project_without_ccache(tmp_path: Path) -> None:
