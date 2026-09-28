@@ -389,7 +389,6 @@ def test_write_project_pch(tmp_path: Path) -> None:
             assert "esphome_pch" not in line
     assert (build_dir / "esphome_pch_src.h").read_text().splitlines() == [
         '#include "esphome/components/esp8266/throw_stubs.h"',
-        '#include "esphome/core/defines.h"',
         '#include "esphome/core/pch_prefix.h"',
     ]
     assert "#error" in (build_dir / "esphome_pch.h").read_text()
