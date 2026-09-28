@@ -3,6 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
+#include <cstdio>
 
 static const char *const TAG = "online_image";
 static const char *const CONTENT_TYPE_HEADER_NAME = "content-type";
@@ -62,30 +63,11 @@ void OnlineImage::update() {
     headers.push_back({IF_MODIFIED_SINCE_HEADER_NAME, this->last_modified_});
   }
 
-  // Add Accept header based on image format
-  const char *accept_mime_type;
   runtime_image::ImageFormat format = this->get_format();
-  switch (format) {
-#ifdef USE_RUNTIME_IMAGE_BMP
-    case runtime_image::BMP:
-      accept_mime_type = "image/bmp,*/*;q=0.8";
-      break;
-#endif
-#ifdef USE_RUNTIME_IMAGE_JPEG
-    case runtime_image::JPEG:
-      accept_mime_type = "image/jpeg,*/*;q=0.8";
-      break;
-#endif
-#ifdef USE_RUNTIME_IMAGE_PNG
-    case runtime_image::PNG:
-      accept_mime_type = "image/png,*/*;q=0.8";
-      break;
-#endif
-    default:
-      accept_mime_type = "image/*,*/*;q=0.8";
-      break;
-  }
-  headers.push_back({"Accept", accept_mime_type});
+  // Accept: "<mime>,*/*;q=0.8"; 32 covers the longest MIME type plus the suffix
+  char accept_header[32];
+  snprintf(accept_header, sizeof(accept_header), "%s,*/*;q=0.8", runtime_image::get_mime_type_for_format(format));
+  headers.push_back({"Accept", accept_header});
 
   // User headers last so they can override any of the above
   for (auto &header : this->request_headers_) {
@@ -122,32 +104,18 @@ void OnlineImage::update() {
 
   if (format == runtime_image::AUTO) {
     // Try to auto-detect format from Content-Type header
-    auto content_type_header = this->downloader_->get_response_header(CONTENT_TYPE_HEADER_NAME);
-    const char *content_type = content_type_header.c_str();
-    ESP_LOGV(TAG, "Content-Type: %s", content_type);
-    // Includes aliases seen from real servers (older IIS, CDNs, S3)
-    if (str_contains_ignore_case(content_type, "image/bmp") ||
-        str_contains_ignore_case(content_type, "image/x-ms-bmp") ||
-        str_contains_ignore_case(content_type, "image/x-bmp")) {
-      format = runtime_image::BMP;
-    } else if (str_contains_ignore_case(content_type, "image/jpeg") ||
-               str_contains_ignore_case(content_type, "image/jpg")) {
-      format = runtime_image::JPEG;
-    } else if (str_contains_ignore_case(content_type, "image/png") ||
-               str_contains_ignore_case(content_type, "image/x-png")) {
-      format = runtime_image::PNG;
-    } else if (str_contains_ignore_case(content_type, "image/")) {
-      ESP_LOGW(TAG, "Unsupported image type: '%s'", content_type);
-      this->end_connection_();
-      this->download_error_callback_.call();
-      return;
+    auto content_type = this->downloader_->get_response_header(CONTENT_TYPE_HEADER_NAME);
+    ESP_LOGV(TAG, "Content-Type: %s", content_type.c_str());
+    auto mime_format = esphome::runtime_image::get_format_for_mime_type(content_type.c_str());
+    if (mime_format.has_value()) {
+      format = *mime_format;
     } else {
-      // TODO: implement auto-detection in runtime_image by sniffing the first few bytes of the image data
-      if (content_type_header.empty()) {
-        ESP_LOGW(TAG, "Server sent no Content-Type header; cannot determine image format. Set `format:` explicitly");
+      if (content_type.empty()) {
+        ESP_LOGE(TAG, "Server sent no Content-Type header; cannot determine image format. Set `format:` explicitly");
+      } else if (str_contains_ignore_case(content_type.c_str(), "image/")) {
+        ESP_LOGE(TAG, "Image format '%s' not supported.", content_type.c_str());
       } else {
-        ESP_LOGE(TAG, "Could not determine image format from Content-Type: '%s'. Set `format:` explicitly",
-                 content_type);
+        ESP_LOGE(TAG, "Server did not return an image (Content-Type: '%s')", content_type.c_str());
       }
       this->end_connection_();
       this->download_error_callback_.call();

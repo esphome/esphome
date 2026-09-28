@@ -67,9 +67,9 @@ class MideaData {
 
 class MideaProtocol : public RemoteProtocol<MideaData> {
  public:
-  void encode(RemoteTransmitData *dst, const MideaData &src) override;
-  optional<MideaData> decode(RemoteReceiveData src) override;
-  void dump(const MideaData &data) override;
+  void encode(RemoteTransmitData *dst, const MideaData &src);
+  optional<MideaData> decode(RemoteReceiveData src);
+  void dump(const MideaData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Midea)

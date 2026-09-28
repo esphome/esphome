@@ -9,7 +9,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@esphome/core"]
 
 preferences_ns = cg.esphome_ns.namespace("preferences")
-IntervalSyncer = preferences_ns.class_("IntervalSyncer", cg.Component)
+IntervalSyncer = preferences_ns.class_("IntervalSyncer", cg.PollingComponent)
 
 CONF_FLASH_WRITE_INTERVAL = "flash_write_interval"
 CONF_RTC_STORAGE = "rtc_storage"
@@ -31,10 +31,7 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     write_interval = config[CONF_FLASH_WRITE_INTERVAL]
-    if write_interval.total_milliseconds == 0:
-        cg.add_define("USE_PREFERENCES_SYNC_EVERY_LOOP")
-    else:
-        cg.add(var.set_write_interval(write_interval))
+    cg.add(var.set_update_interval(write_interval))
     if config.get(CONF_RTC_STORAGE):
         preferences.request_rtc_storage()
     await cg.register_component(var, config)

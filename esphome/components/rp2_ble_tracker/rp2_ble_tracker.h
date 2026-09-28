@@ -44,11 +44,20 @@ class RP2BLETracker : public Component,
   void set_scan_duration(uint32_t scan_duration) { this->scan_duration_ = scan_duration; }
   void set_scan_active(bool scan_active) { this->scan_active_ = scan_active; }
   void set_scan_continuous(bool scan_continuous) { this->scan_continuous_ = scan_continuous; }
+  void set_configured_continuous(bool scan_continuous) {
+    this->configured_continuous_ = scan_continuous;
+    this->scan_continuous_ = scan_continuous;
+  }
+  bool scan_continuous() const { return this->scan_continuous_; }
+  bool configured_continuous() const { return this->configured_continuous_; }
 
   // ---- Public scan control ----
   // Mirrors esp32_ble_tracker: set_scan_continuous() + start_scan() / stop_scan().
   void start_scan();
   void stop_scan();
+  // Re-anchors the one-shot duration clock only (bk72xx parity); no-op while
+  // idle. Policy lives in the action.
+  void restart_scan_duration();
 
   // ---- ble_device_base::BLEHub contract ----
   void register_listener(ble_device_base::ESPBTDeviceListener *listener) {
@@ -58,10 +67,8 @@ class RP2BLETracker : public Component,
     this->dispatcher_.set_raw_advertisement_callback(callback);
   }
   static constexpr ble_device_base::HubCapabilities get_capabilities() {
-    // BTstack delivers scan responses as separate advertisement reports; this
-    // tracker merges the pair before delivery (shared ScanResponseMerger,
-    // Bluedroid semantics). GATT is available when the BTstack connection
-    // backend is compiled in (bluetooth_proxy active).
+    // Scan responses arrive separately and are merged before delivery
+    // (Bluedroid semantics). GATT needs the BTstack connection backend.
 #ifdef USE_BLE_GATT_CLIENT
     constexpr bool has_gatt = true;
 #else
@@ -77,8 +84,7 @@ class RP2BLETracker : public Component,
   bool request_scan_mode(bool active);
 
   // ---- rp2040_ble::BLEScanListener ----
-  // Delivered by the controller's loop() on the ESPHome main loop — the
-  // IRQ → main-loop handoff already happened in the controller's queue.
+  // Delivered on the main loop; the controller's queue did the IRQ handoff.
   void on_scan_report(const rp2040_ble::BLEScanReport &report) override;
 
  protected:
@@ -93,20 +99,29 @@ class RP2BLETracker : public Component,
   uint32_t scan_window_{48};     // 48 × 0.625 ms = 30 ms (30/100 = 30 %)
   uint32_t scan_duration_{300000};
   uint32_t last_scan_start_attempt_{0};  // loop time of last start_scan_() attempt; rate-limits retries
-  uint32_t scan_period_start_{0};        // loop time at start of current scan period; rate-limits on_scan_end()
-  bool scan_running_{false};
-  bool scan_active_{true};
+  uint32_t scan_period_start_{0};        // continuous-mode on_scan_end period clock
+  uint32_t scan_start_time_{0};          // one-shot duration clock (bk72xx parity: kept separate from the period)
+  // Bit-packed (C++20 default member initializers on bit-fields);
+  // scan_continuous_ stays a plain bool because the merger binds its address.
+  bool scan_running_ : 1 {false};
+  bool pending_start_ : 1 {false};      // start_scan() latched before setup() or while the stack is
+                                        // not ACTIVE; loop() applies it once it is
+  bool last_start_failed_ : 1 {false};  // last controller start failed; gates the public start_scan() floor
+  bool scan_active_ : 1 {true};
+  bool configured_continuous_ : 1 {true};  // YAML scan_parameters.continuous; runtime stop_scan() must not lose it
   bool scan_continuous_{true};
 #ifdef USE_OTA_STATE_LISTENER
-  bool scan_continuous_before_ota_{false};  // continuous mode saved at OTA start, restored on OTA failure
-  bool scan_pending_before_ota_{false};     // one-shot scan in flight at OTA start, resumed on OTA failure
+  // Resume intent for a failed/aborted OTA: seeded at OTA start, overwritten
+  // by a start/stop during the download, except from the pause's own stop.
+  bool scan_continuous_before_ota_ : 1 {false};  // resume continuous
+  bool scan_pending_before_ota_ : 1 {false};     // resume a one-shot scan
+  bool ota_in_progress_ : 1 {false};             // OTA holds the radio; start_scan() defers to the resume path
+  bool ota_pausing_ : 1 {false};                 // inside the OTA's own stop_scan(); its latch clear is skipped
 #endif
 
-  // Shared adv + scan-response merge and frame dispatch (ble_device_base).
-  // All calls run on the main loop. Merger clock: stash_adv() reads the
-  // PARENT's cached loop time (on_scan_report runs inside rp2040_ble's queue
-  // drain), sweep() this component's — same App.loop() pass, so the delta
-  // stays non-negative and the 300 ms timeout holds.
+  // Shared merge + dispatch (ble_device_base), all on the main loop.
+  // stash_adv() uses the parent's cached loop time and sweep() this one's -
+  // same App.loop() pass, so the merger delta stays non-negative.
   ble_device_base::ScanResponseMerger merger_;
   ble_device_base::AdvDispatcher dispatcher_;
 };

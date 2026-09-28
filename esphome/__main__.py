@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Protocol
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
 from esphome import const, platform_hooks
+from esphome.build_helpers.native import analysis_backend, native_backend
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
@@ -26,7 +27,9 @@ from esphome.const import (
     CONF_DEASSERT_RTS_DTR,
     CONF_DISABLED,
     CONF_DISCOVER_IP,
+    CONF_ENCRYPTION,
     CONF_ESPHOME,
+    CONF_KEY,
     CONF_LEVEL,
     CONF_LOG,
     CONF_LOG_TOPIC,
@@ -815,7 +818,9 @@ def write_cpp_file() -> int:
         from esphome.build_gen import espidf
 
         espidf.write_project()
-    else:
+    elif not CORE.using_native_toolchain:
+        # Other native builds generate their project at compile time;
+        # never write a platformio.ini for them
         from esphome.build_gen import platformio
 
         platformio.write_project()
@@ -857,7 +862,14 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         toolchain.create_factory_bin()
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
-        toolchain.get_idedata()
+        from esphome.build_helpers.idedata import warn_if_idedata_missing
+
+        warn_if_idedata_missing(toolchain.get_idedata)
+    elif CORE.using_native_toolchain:
+        raise EsphomeError(
+            f"Toolchain '{CORE.toolchain.value}' resolved but no platform "
+            "backend claimed the build"
+        )
     else:
         from esphome.platformio import toolchain
 
@@ -960,12 +972,15 @@ def upload_using_esptool(
 
     if file is not None:
         flash_images = [FlashImage(path=file, offset="0x0")]
-    elif CORE.using_toolchain_esp_idf:
-        from esphome.espidf import toolchain
-
-        flash_images = [
-            FlashImage(path=toolchain.get_factory_firmware_path(), offset="0x0")
-        ]
+    elif (native := native_backend()) is not None:
+        # Every native backend supplies its own 0x0 flash image (bootloader
+        # and partitions included where the target needs them)
+        image = native.get_factory_firmware_path()
+        if not image.is_file():
+            raise EsphomeError(
+                f"{image} does not exist; compile the configuration first"
+            )
+        flash_images = [FlashImage(path=image, offset="0x0")]
     else:
         from esphome.platformio import toolchain
 
@@ -1320,9 +1335,32 @@ def _upload_via_native_api(
             break
 
     from esphome import espota2
+    from esphome.components.noise import static_encryption_key
 
     remote_port = int(ota_conf[CONF_PORT])
     password = ota_conf.get(CONF_PASSWORD)
+    # Fail closed: an encryption block whose key did not resolve must never
+    # fall back to a plaintext upload
+    noise_psk = None
+    plaintext_fallback = False
+    allow_plaintext_upload = False
+    if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
+        noise_psk = encryption_conf.get(CONF_KEY)
+        allow_plaintext_upload = bool(
+            encryption_conf.get(espota2.CONF_ALLOW_PLAINTEXT_UPLOAD)
+        )
+        if not noise_psk:
+            raise EsphomeError(
+                "OTA encryption is configured but no key was resolved; "
+                "set the key under 'ota: encryption:' or 'api: encryption:'"
+            )
+        # Ensure the key is a string, as required by the underlying OTA implementation.
+        # It arrives here as a SensitiveStr which aioesphomeapi rejects.
+        noise_psk = str(noise_psk)
+    elif api_key := static_encryption_key(config.get(CONF_API) or {}):
+        # Remove before 2027.3.0: the api key is tried, falling back to plaintext
+        noise_psk = str(api_key)
+        plaintext_fallback = True
 
     def check_partition_access(option_string: str) -> None:
         if not ota_conf.get("allow_partition_access"):
@@ -1353,7 +1391,16 @@ def _upload_via_native_api(
     if ota_type == espota2.OTA_TYPE_UPDATE_BOOTLOADER:
         _validate_bootloader_binary(binary)
 
-    return espota2.run_ota(network_devices, remote_port, password, binary, ota_type)
+    return espota2.run_ota(
+        network_devices,
+        remote_port,
+        password,
+        binary,
+        ota_type,
+        noise_psk,
+        plaintext_fallback=plaintext_fallback,
+        allow_plaintext_upload=allow_plaintext_upload,
+    )
 
 
 def _upload_via_web_server(
@@ -1362,6 +1409,16 @@ def _upload_via_web_server(
     from esphome import web_server_ota
     from esphome.web_server_helpers import get_web_server_connection
 
+    if any(
+        ota_item.get(CONF_PLATFORM) == CONF_ESPHOME
+        and ota_item.get(CONF_ENCRYPTION) is not None
+        for ota_item in config.get(CONF_OTA, [])
+    ):
+        _LOGGER.warning(
+            "This config has OTA encryption, but the web_server OTA path sends "
+            "the image over plaintext HTTP; use the esphome OTA platform to "
+            "keep it confidential"
+        )
     remote_port, username, password = get_web_server_connection(config)
     return web_server_ota.run_ota(
         network_devices, remote_port, username, password, binary
@@ -1657,15 +1714,7 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     if exit_code != 0:
         return exit_code
     if CORE.is_host:
-        if CORE.using_toolchain_esp_idf:
-            from esphome.espidf import toolchain
-
-            program_path = str(toolchain.get_elf_path())
-        else:
-            from esphome.platformio.toolchain import get_idedata
-
-            program_path = str(get_idedata(config).firmware_elf_path)
-        _LOGGER.info("Successfully compiled program to path '%s'", program_path)
+        _LOGGER.info("Successfully compiled program to path '%s'", CORE.firmware_bin)
     else:
         _LOGGER.info("Successfully compiled program.")
     return 0
@@ -1715,14 +1764,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
         return exit_code
     _LOGGER.info("Successfully compiled program.")
     if CORE.is_host:
-        if CORE.using_toolchain_esp_idf:
-            from esphome.espidf import toolchain
-
-            program_path = str(toolchain.get_elf_path())
-        else:
-            from esphome.platformio.toolchain import get_idedata
-
-            program_path = str(get_idedata(config).firmware_elf_path)
+        program_path = str(CORE.firmware_bin)
         _LOGGER.info("Running program from path '%s'", program_path)
         return run_external_process(program_path)
 
@@ -1914,12 +1956,12 @@ def command_update_all(args: ArgsProtocol) -> int | None:
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     import json
 
-    if CORE.using_toolchain_esp_idf:
-        # Native ESP-IDF derives idedata from the build's compile_commands.json,
-        # so the configuration must already be compiled.
-        from esphome.espidf import toolchain as espidf_toolchain
+    native_toolchain = native_backend()
 
-        idedata = espidf_toolchain.get_idedata()
+    if native_toolchain is not None:
+        # Native toolchains derive idedata from the build's
+        # compile_commands.json, so the configuration must already be compiled.
+        idedata = native_toolchain.get_idedata()
         if idedata is None:
             _LOGGER.error(
                 "No idedata available; compile the configuration first",
@@ -1958,6 +2000,22 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     from esphome.analyze_memory.cli import MemoryAnalyzerCLI
     from esphome.analyze_memory.ram_strings import RamStringsAnalyzer
 
+    # Refuse an unsupported toolchain before paying for a full compile
+    analysis_toolchain = analysis_backend()
+    if analysis_toolchain is None and not CORE.using_toolchain_platformio:
+        _LOGGER.error(
+            "analyze-memory is not supported with the '%s' toolchain on %s; "
+            "re-run with --toolchain platformio",
+            CORE.toolchain.value if CORE.toolchain else "unresolved",
+            CORE.target_platform,
+        )
+        return 1
+    if (
+        check_supported := getattr(analysis_toolchain, "check_analysis_supported", None)
+    ) is not None:
+        # Raises with the reason; before the compile, not after it
+        check_supported()
+
     # Always compile to ensure fresh data (fast if no changes - just relinks)
     exit_code = write_cpp(config)
     if exit_code != 0:
@@ -1969,13 +2027,30 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
 
     # Get idedata for analysis
     idedata = None
-    if CORE.using_toolchain_esp_idf:
-        from esphome.espidf import toolchain
+    if analysis_toolchain is not None:
+        objdump = analysis_toolchain.get_objdump_path()
+        readelf = analysis_toolchain.get_readelf_path()
+        for tool in (objdump, readelf):
+            if not tool.is_file():
+                # The analyzer would silently fall back to host
+                # binutils, which cannot read the target ELF
+                _LOGGER.error(
+                    "%s is missing; the toolchain install may be incomplete "
+                    "(recompile, or run 'esphome clean-all' if it persists)",
+                    tool,
+                )
+                return 1
+        objdump_path = str(objdump)
+        readelf_path = str(readelf)
 
-        objdump_path = str(toolchain.get_objdump_path())
-        readelf_path = str(toolchain.get_readelf_path())
-
-        firmware_elf = toolchain.get_elf_path()
+        firmware_elf = analysis_toolchain.get_elf_path()
+        if not firmware_elf.is_file():
+            # The analyzer swallows tool failures, so a missing ELF would
+            # produce an exit-0 zeroed report
+            _LOGGER.error(
+                "%s is missing; compile the configuration first", firmware_elf
+            )
+            return 1
     else:
         from esphome.platformio import toolchain
 
@@ -2721,10 +2796,14 @@ def run_esphome(argv):
     # Skipped when -s overrides are passed, since the cache was written
     # against the previous substitution set.
     config: ConfigType | None = None
-    cache_eligible = (
+    cache_write_eligible = (
         args.command in ("upload", "logs") and not command_line_substitutions
     )
-    if cache_eligible:
+    # An explicit --toolchain must re-run the per-platform validators, so
+    # gate only the cache read; the refresh below saves the result unless
+    # the sidecar records a different toolchain.
+    cache_read_eligible = cache_write_eligible and args.toolchain is None
+    if cache_read_eligible:
         from esphome.compiled_config import load_compiled_config
 
         config = load_compiled_config(conf_path)
@@ -2748,17 +2827,14 @@ def run_esphome(argv):
             return 2
     CORE.config = config
 
-    # Fallback for platforms whose validators didn't set the toolchain
-    # (only the esp32 component reads esp32.framework.toolchain). All
-    # other platforms only support PlatformIO today. Must run before the
-    # cache refresh below so its sidecar records the same toolchain a
-    # compile would.
+    # The cache fast path skips validation, and legacy sidecars lack the
+    # toolchain field. Must run before the cache refresh below.
     if CORE.toolchain is None:
         CORE.toolchain = Toolchain.PLATFORMIO
 
     # Refresh the cache so the next upload/logs hits the fast path
     # instead of re-running read_config.
-    if cache_eligible and cache_missed:
+    if cache_write_eligible and cache_missed:
         from esphome.compiled_config import save_compiled_config_and_sidecar
 
         save_compiled_config_and_sidecar(config)

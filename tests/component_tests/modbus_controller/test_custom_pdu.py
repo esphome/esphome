@@ -1,19 +1,28 @@
-"""Schema-level config validation for custom_pdu and the deprecated custom_command alias.
+"""Config validation for custom_pdu and the deprecated custom_command alias.
 
 custom_command took a raw frame with a leading device address byte; custom_pdu takes the PDU only.
-The old key is still accepted at the schema level and auto-migrated later in final validate (which a
-bare-schema test can't reach), so these tests only cover what the schema itself enforces: the two keys
-are mutually exclusive, and custom_pdu takes byte-sized values.
+Most of these tests cover what the schema itself enforces (the two keys are mutually exclusive, and
+custom_pdu takes byte-sized values). The last two reach the final-validate step that a bare-schema
+test cannot: a write-coded custom_pdu polled continuously is rejected there.
 """
 
 import pytest
 from voluptuous import Invalid, MultipleInvalid
 
-from esphome.components.modbus_controller import ModbusItemBaseSchema
+from esphome.components import modbus
+from esphome.components.modbus_controller import (
+    ModbusItemBaseSchema,
+    validate_custom_pdu_item,
+)
 from esphome.components.modbus_controller.const import (
     CONF_CUSTOM_COMMAND,
     CONF_CUSTOM_PDU,
+    CONF_MODBUS_CONTROLLER_ID,
 )
+from esphome.config import Config
+from esphome.const import CONF_ADDRESS, CONF_CONTINUOUS, CONF_ID
+from esphome.core import ID
+import esphome.final_validate as fv
 
 
 def test_custom_command_accepted_at_schema_level() -> None:
@@ -45,3 +54,116 @@ def test_custom_pdu_rejects_non_byte_values() -> None:
     """PDU entries are bytes; a word-sized value is a sign the old raw format is being used."""
     with pytest.raises((Invalid, MultipleInvalid)):
         ModbusItemBaseSchema({CONF_CUSTOM_PDU: [0x0103, 0x002A]})
+
+
+def _controller_full_config(
+    *, continuous: bool, allow_broadcast_read: bool = False
+) -> Config:
+    """A minimal full-config graph with one modbus_controller declaring id 'ctl', enough for the
+    final-validate to resolve the controller (and its option flags) from an item's
+    modbus_controller_id."""
+    ctl_id = ID("ctl", is_declaration=True)
+    config = Config()
+    config["modbus_controller"] = [
+        {
+            CONF_ID: ctl_id,
+            CONF_ADDRESS: 0 if allow_broadcast_read else 1,
+            CONF_CONTINUOUS: continuous,
+            modbus.CONF_ALLOW_BROADCAST_READ: allow_broadcast_read,
+        }
+    ]
+    config.declare_ids.append((ctl_id, ["modbus_controller", 0, CONF_ID]))
+    return config
+
+
+@pytest.fixture
+def reset_full_config():
+    token = fv.full_config.set(Config())
+    yield
+    fv.full_config.reset(token)
+
+
+def test_continuous_write_custom_pdu_rejected(reset_full_config) -> None:
+    """A write-coded custom_pdu (0x17 = read/write-multiple) under a continuous controller is
+    rejected at final validate: the hub would strip continuous from the mutating code and warn on
+    every update."""
+    fv.full_config.set(_controller_full_config(continuous=True))
+    with pytest.raises(Invalid, match="can't be polled continuously"):
+        validate_custom_pdu_item(
+            {
+                CONF_MODBUS_CONTROLLER_ID: ID("ctl"),
+                CONF_CUSTOM_PDU: [0x17, 0x00, 0x03, 0x00, 0x01],
+            }
+        )
+
+
+def test_continuous_read_custom_pdu_allowed(reset_full_config) -> None:
+    """A read-coded custom_pdu (0x03) under a continuous controller is fine - only writes stream."""
+    fv.full_config.set(_controller_full_config(continuous=True))
+    validate_custom_pdu_item(
+        {
+            CONF_MODBUS_CONTROLLER_ID: ID("ctl"),
+            CONF_CUSTOM_PDU: [0x03, 0x00, 0x2A, 0x00, 0x01],
+        }
+    )
+
+
+def test_broadcastable_custom_pdu_rejected_under_broadcast_controller(
+    reset_full_config,
+) -> None:
+    """A vendor-coded custom_pdu under an allow_broadcast_read controller would be a real broadcast,
+    never answered, so it is rejected at final validate."""
+    fv.full_config.set(
+        _controller_full_config(continuous=False, allow_broadcast_read=True)
+    )
+    with pytest.raises(Invalid, match="is a real broadcast at address 0"):
+        validate_custom_pdu_item(
+            {
+                CONF_MODBUS_CONTROLLER_ID: ID("ctl"),
+                CONF_CUSTOM_PDU: [0x41, 0x00, 0x03],
+            }
+        )
+
+
+def test_read_custom_pdu_allowed_under_broadcast_controller(reset_full_config) -> None:
+    """A read-coded custom_pdu (0x03) is answered under allow_broadcast_read, so it is fine."""
+    fv.full_config.set(
+        _controller_full_config(continuous=False, allow_broadcast_read=True)
+    )
+    validate_custom_pdu_item(
+        {
+            CONF_MODBUS_CONTROLLER_ID: ID("ctl"),
+            CONF_CUSTOM_PDU: [0x03, 0x00, 0x2A, 0x00, 0x01],
+        }
+    )
+
+
+def test_write_option_rejected_under_unicast_controller(reset_full_config) -> None:
+    """expect_broadcast_write_response on a writer entity whose controller is not at address 0 is
+    rejected at final validate, where the controller's address is known."""
+    from esphome.components.modbus_controller import validate_writer_item
+
+    fv.full_config.set(_controller_full_config(continuous=False))
+    with pytest.raises(
+        Invalid, match="only applies when the 'ctl' modbus_controller is at address 0"
+    ):
+        validate_writer_item(
+            {
+                CONF_MODBUS_CONTROLLER_ID: ID("ctl"),
+                modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE: True,
+            }
+        )
+
+
+def test_write_option_allowed_under_broadcast_controller(reset_full_config) -> None:
+    from esphome.components.modbus_controller import validate_writer_item
+
+    fv.full_config.set(
+        _controller_full_config(continuous=False, allow_broadcast_read=True)
+    )
+    validate_writer_item(
+        {
+            CONF_MODBUS_CONTROLLER_ID: ID("ctl"),
+            modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE: True,
+        }
+    )

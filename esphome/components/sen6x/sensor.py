@@ -3,15 +3,22 @@ from esphome.components import i2c, sensirion_common, sensor
 from esphome.components.const import CONF_NOX_INDEX, CONF_VOC_INDEX
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ALGORITHM_TUNING,
     CONF_CO2,
     CONF_FORMALDEHYDE,
+    CONF_GAIN_FACTOR,
+    CONF_GATING_MAX_DURATION_MINUTES,
     CONF_HUMIDITY,
     CONF_ID,
+    CONF_INDEX_OFFSET,
+    CONF_LEARNING_TIME_GAIN_HOURS,
+    CONF_LEARNING_TIME_OFFSET_HOURS,
     CONF_NOX,
     CONF_PM_1_0,
     CONF_PM_2_5,
     CONF_PM_4_0,
     CONF_PM_10_0,
+    CONF_STD_INITIAL,
     CONF_TEMPERATURE,
     CONF_TYPE,
     CONF_VOC,
@@ -42,6 +49,42 @@ sen6x_ns = cg.esphome_ns.namespace("sen6x")
 SEN6XComponent = sen6x_ns.class_(
     "SEN6XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
+
+
+def _gas_index_schema(
+    *,
+    index_offset: int,
+    gating_max_duration: int,
+    std_initial: int | None,
+) -> cv.Schema:
+    """Sensor schema for a gas index sensor with optional algorithm tuning.
+
+    std_initial is only configurable for VOC; the NOx algorithm requires 50.
+    """
+    tuning_schema = {
+        cv.Optional(CONF_INDEX_OFFSET, default=index_offset): cv.int_range(
+            min=1, max=250
+        ),
+        cv.Optional(CONF_LEARNING_TIME_OFFSET_HOURS, default=12): cv.int_range(
+            min=1, max=1000
+        ),
+        cv.Optional(CONF_LEARNING_TIME_GAIN_HOURS, default=12): cv.int_range(
+            min=1, max=1000
+        ),
+        cv.Optional(
+            CONF_GATING_MAX_DURATION_MINUTES, default=gating_max_duration
+        ): cv.int_range(min=0, max=3000),
+        cv.Optional(CONF_GAIN_FACTOR, default=230): cv.int_range(min=1, max=1000),
+    }
+    if std_initial is not None:
+        tuning_schema[cv.Optional(CONF_STD_INITIAL, default=std_initial)] = (
+            cv.int_range(min=10, max=5000)
+        )
+    return sensor.sensor_schema(
+        icon=ICON_RADIATOR,
+        accuracy_decimals=0,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ).extend({cv.Optional(CONF_ALGORITHM_TUNING): cv.Schema(tuning_schema)})
 
 
 CONFIG_SCHEMA = cv.All(
@@ -94,15 +137,15 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_VOC_INDEX): sensor.sensor_schema(
-                icon=ICON_RADIATOR,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
+            cv.Optional(CONF_VOC_INDEX): _gas_index_schema(
+                index_offset=100,
+                gating_max_duration=180,
+                std_initial=50,
             ),
-            cv.Optional(CONF_NOX_INDEX): sensor.sensor_schema(
-                icon=ICON_RADIATOR,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
+            cv.Optional(CONF_NOX_INDEX): _gas_index_schema(
+                index_offset=1,
+                gating_max_duration=720,
+                std_initial=None,
             ),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
@@ -149,3 +192,20 @@ async def to_code(config: ConfigType) -> None:
         if cfg := config.get(key):
             sens = await sensor.new_sensor(cfg)
             cg.add(getattr(var, func_name)(sens))
+
+    for key, setter in (
+        (CONF_VOC_INDEX, "set_voc_algorithm_tuning"),
+        (CONF_NOX_INDEX, "set_nox_algorithm_tuning"),
+    ):
+        if (tuning := config.get(key, {}).get(CONF_ALGORITHM_TUNING)) is not None:
+            args = [
+                tuning[CONF_INDEX_OFFSET],
+                tuning[CONF_LEARNING_TIME_OFFSET_HOURS],
+                tuning[CONF_LEARNING_TIME_GAIN_HOURS],
+                tuning[CONF_GATING_MAX_DURATION_MINUTES],
+            ]
+            # std_initial is in the schema for VOC only
+            if (std_initial := tuning.get(CONF_STD_INITIAL)) is not None:
+                args.append(std_initial)
+            args.append(tuning[CONF_GAIN_FACTOR])
+            cg.add(getattr(var, setter)(*args))

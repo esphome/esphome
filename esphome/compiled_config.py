@@ -100,6 +100,21 @@ def _refresh_sidecar() -> bool:
             )
             return False
         if old is not None and old.can_apply_to_core():
+            if (
+                old.toolchain is not None
+                and CORE.toolchain is not None
+                and old.toolchain != CORE.toolchain.value
+            ):
+                # Platforms normalize toolchain-sensitive keys differently;
+                # never cache a config validated under a different toolchain
+                # than the compile's
+                _LOGGER.debug(
+                    "Not caching: config validated with toolchain %r but the "
+                    "last compile used %r",
+                    CORE.toolchain.value,
+                    old.toolchain,
+                )
+                return False
             # Compile-written; nothing to refresh.
             return True
         if CORE.build_path is not None and CORE.build_path.exists():

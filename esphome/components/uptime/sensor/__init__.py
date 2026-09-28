@@ -61,8 +61,9 @@ async def to_code(config: ConfigType) -> None:
     if time_id_config := config.get(CONF_TIME_ID):
         time_id = await cg.get_variable(time_id_config)
         cg.add(var.set_time(time_id))
+        cg.add_define("USE_UPTIME_TIMESTAMP")
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
-    {"uptime_timestamp_sensor.cpp": "USE_TIME"}
+    {"uptime_timestamp_sensor.cpp": "USE_UPTIME_TIMESTAMP"}
 )

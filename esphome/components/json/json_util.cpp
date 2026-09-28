@@ -66,6 +66,8 @@ JsonDocument parse_json(const uint8_t *data, size_t len) {
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks,clang-analyzer-core.StackAddressEscape)
 }
 
+JsonBuilder::JsonBuilder() = default;
+
 SerializationBuffer<> JsonBuilder::serialize() {
   // ===========================================================================================
   // CRITICAL: NRVO (Named Return Value Optimization) - DO NOT REFACTOR WITHOUT UNDERSTANDING

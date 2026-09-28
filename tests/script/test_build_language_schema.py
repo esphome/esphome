@@ -248,6 +248,41 @@ def test_convert_keys_bare_callable_dotted_qualname() -> None:
     assert set(converted["schema"]["config_vars"]) == {"string"}
 
 
+@pytest.fixture(scope="module")
+def language_schema_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Run the full language-schema build once and return the output directory.
+
+    The build must run in a fresh interpreter: ``build_language_schema.py``
+    enables schema extraction *before* importing any esphome component, and the
+    extraction hooks are no-ops if the components were already imported (as they
+    are inside the pytest session). Running it as a subprocess mirrors how CI
+    generates the schema and keeps these tests isolated from import order.
+    """
+    out_dir = tmp_path_factory.mktemp("language_schema")
+    subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), "--output-path", str(out_dir)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return out_dir
+
+
+def test_uart_clock_source_preserves_variant_metadata(
+    language_schema_dir: Path,
+) -> None:
+    """UART clock choices retain chip restrictions in the editor schema."""
+    uart_schema = json.loads((language_schema_dir / "uart.json").read_text())
+    clock_source = uart_schema["uart"]["schemas"]["CONFIG_SCHEMA"]["schema"][
+        "config_vars"
+    ]["clock_source"]
+
+    assert clock_source["type"] == "enum"
+    assert clock_source["values"]["REF_TICK"] == {"variants": ["ESP32", "ESP32S2"]}
+    assert "ESP32C6" in clock_source["values"]["XTAL"]["variants"]
+    assert "ESP32C6" not in clock_source["values"]["APB"]["variants"]
+
+
 # ---------------------------------------------------------------------------
 # Regression tests for the lvgl schema dump.
 #
@@ -261,23 +296,8 @@ def test_convert_keys_bare_callable_dotted_qualname() -> None:
 
 
 @pytest.fixture(scope="module")
-def lvgl_schema(tmp_path_factory: pytest.TempPathFactory) -> dict:
-    """Run the full language-schema build once and return parsed lvgl.json.
-
-    The build must run in a fresh interpreter: ``build_language_schema.py``
-    enables schema extraction *before* importing any esphome component, and the
-    extraction hooks are no-ops if the components were already imported (as they
-    are inside the pytest session). Running it as a subprocess mirrors how CI
-    generates the schema and keeps this test isolated from import order.
-    """
-    out_dir = tmp_path_factory.mktemp("language_schema")
-    subprocess.run(
-        [sys.executable, str(SCRIPT_PATH), "--output-path", str(out_dir)],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return json.loads((out_dir / "lvgl.json").read_text())
+def lvgl_schema(language_schema_dir: Path) -> dict:
+    return json.loads((language_schema_dir / "lvgl.json").read_text())
 
 
 def _lvgl_config_vars(lvgl_schema: dict) -> dict:

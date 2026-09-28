@@ -416,6 +416,9 @@ def test_perform_ota_no_auth(
         "Update took 14.00 seconds (prepare 2.00, upload 5.00, commit 7.00)"
         in caplog.text
     )
+    # The data phase timeout must outlast the device's 105 s data timeout
+    mock_socket.settimeout.assert_any_call(espota2.DATA_PHASE_TIMEOUT)
+    assert espota2.DATA_PHASE_TIMEOUT > 105.0
 
 
 @pytest.mark.usefixtures("mock_time")
@@ -998,10 +1001,10 @@ def test_progress_bar(capsys: CaptureFixture[str]) -> None:
     assert "100%" in captured.err
     assert "Done" in captured.err
 
-    # Test done method
+    # done() after the 100% frame adds nothing; that frame ended its line
     progress.done()
     captured = capsys.readouterr()
-    assert captured.err == "\n"
+    assert captured.err == ""
 
     # Test same progress doesn't update
     progress.update(0.5)
@@ -1009,6 +1012,10 @@ def test_progress_bar(capsys: CaptureFixture[str]) -> None:
     captured = capsys.readouterr()
     # Should only see one update (second call shouldn't write)
     assert captured.err.count("50%") == 1
+
+    # done() after a mid-way frame ends the line
+    progress.done()
+    assert capsys.readouterr().err == "\n"
 
 
 # Tests for SHA256 authentication

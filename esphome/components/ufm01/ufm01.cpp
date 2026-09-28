@@ -213,7 +213,6 @@ void UFM01Component::dump_config() {
   LOG_BINARY_SENSOR("  ", "Empty Tube", this->empty_tube_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Flow Rate Out Of Range", this->flow_rate_out_of_range_binary_sensor_);
 #endif
-  this->check_uart_settings(2400, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
 }
 
 void UFM01Component::on_active_frame_(uint8_t data[FRAME_SIZE]) {

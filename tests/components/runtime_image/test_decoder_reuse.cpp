@@ -70,11 +70,36 @@ static const uint8_t PNG_RGB_EXPECTED[4][4][3] = {
     {{0x12, 0x34, 0x56}, {0x65, 0x43, 0x21}, {0xFE, 0xDC, 0xBA}, {0xAB, 0xCD, 0xEF}},
 };
 
+// 3x3 QOI, exercising all possible chunk types
+static const uint8_t QOI_RGBA[] = {
+    0x71, 0x6F, 0x69, 0x66,  // Header: 'qoif'
+    0x00, 0x00, 0x00, 0x03,  // Width: 3
+    0x00, 0x00, 0x00, 0x03,  // Height: 3
+    0x04,                    // Channels: 4 (RGBA)
+    0x00,                    // Colorspace: 0 (SRGB)
+    0xC1,                    // 1. QOI_OP_RUN
+    0x79,                    // 2. QOI_OP_DIFF
+    0xAA, 0x79,              // 3. QOI_OP_LUMA
+    0xFE, 0xC8, 0x64, 0x32,  // 4. QOI_OP_RGB
+    0xFF, 0x78, 0x50, 0x28,
+    0x64,                                           // 5. QOI_OP_RGBA
+    0x31,                                           // 6. QOI_OP_INDEX
+    0xC1,                                           // 7. QOI_OP_RUN
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01  // End Marker
+};
+
+static const uint8_t QOI_EXPECTED_RGBA[3][3][4] = {
+    {{0x00, 0x00, 0x00, 0xFF}, {0x00, 0x00, 0x00, 0xFF}, {0x01, 0x00, 0xFF, 0xFF}},
+    {{0x0A, 0x0A, 0x0A, 0xFF}, {0xC8, 0x64, 0x32, 0xFF}, {0x78, 0x50, 0x28, 0x64}},
+    {{0x01, 0x00, 0xFF, 0xFF}, {0x01, 0x00, 0xFF, 0xFF}, {0x01, 0x00, 0xFF, 0xFF}}
+
+};
+
 /// Exposes the protected decoder machinery so reuse and eviction can be observed directly.
 class TestableRuntimeImage : public RuntimeImage {
  public:
-  explicit TestableRuntimeImage(ImageFormat format)
-      : RuntimeImage(format, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE, nullptr, false, 0, 0) {}
+  explicit TestableRuntimeImage(ImageFormat format, image::Transparency transparency = image::TRANSPARENCY_OPAQUE)
+      : RuntimeImage(format, image::IMAGE_TYPE_RGB, transparency, nullptr, false, 0, 0) {}
 
   ImageDecoder *decoder() { return this->decoder_.get(); }
 };
@@ -132,6 +157,19 @@ template<size_t H, size_t W> static void expect_pixels(TestableRuntimeImage &img
   }
 }
 
+template<size_t H, size_t W>
+static void expect_pixels_rgba(TestableRuntimeImage &img, const uint8_t (&expected)[H][W][4]) {
+  ASSERT_EQ(img.get_width(), static_cast<int>(W));
+  ASSERT_EQ(img.get_height(), static_cast<int>(H));
+  for (size_t y = 0; y < H; y++) {
+    for (size_t x = 0; x < W; x++) {
+      SCOPED_TRACE(::testing::Message() << "pixel (" << x << "," << y << ")");
+      Color color = img.get_pixel(x, y);
+      EXPECT_THAT((std::array<uint8_t, 4>{color.r, color.g, color.b, color.w}),
+                  ::testing::ElementsAreArray(expected[y][x]));
+    }
+  }
+}
 TEST(RuntimeImageDecoder, DecoderStaysWarmAcrossDecodes) {
   TestableRuntimeImage img(BMP);
 
@@ -336,6 +374,33 @@ TEST(RuntimeImageDecoder, JpegDecoderStaysWarmAcrossDecodes) {
   EXPECT_EQ(pixel_bytes(img), first_pixels) << "reused decoder must reproduce identical pixels";
 }
 #endif  // USE_RUNTIME_IMAGE_JPEG
+
+TEST(RuntimeImageDecoder, QoiDecoderStaysWarmAcrossDecodes) {
+  TestableRuntimeImage img(QOI, image::TRANSPARENCY_ALPHA_CHANNEL);
+
+  ASSERT_TRUE(decode_all(img, QOI_RGBA, sizeof(QOI_RGBA)));
+  expect_pixels_rgba(img, QOI_EXPECTED_RGBA);
+  ImageDecoder *first = img.decoder();
+  ASSERT_NE(first, nullptr);
+
+  ASSERT_TRUE(decode_all(img, QOI_RGBA, sizeof(QOI_RGBA)));
+  expect_pixels_rgba(img, QOI_EXPECTED_RGBA);
+  EXPECT_EQ(img.decoder(), first) << "decoder must be reused, not reallocated";
+}
+
+TEST(RuntimeImageDecoder, QoiChunkedFeedDecodesLikeDownloadLoop) {
+  TestableRuntimeImage img(QOI, image::TRANSPARENCY_ALPHA_CHANNEL);
+
+  ASSERT_TRUE(decode_chunked(img, QOI_RGBA, sizeof(QOI_RGBA), 10));
+  expect_pixels_rgba(img, QOI_EXPECTED_RGBA);
+  ImageDecoder *first = img.decoder();
+
+  // Chunked again on the warm decoder: the cross-call resume state
+  // (current_index_ / paint_index_) must have been fully reset.
+  ASSERT_TRUE(decode_chunked(img, QOI_RGBA, sizeof(QOI_RGBA), 10));
+  expect_pixels_rgba(img, QOI_EXPECTED_RGBA);
+  EXPECT_EQ(img.decoder(), first);
+}
 
 TEST(RuntimeImageDecoder, SessionFlagsTrackLifecycle) {
   TestableRuntimeImage img(BMP);

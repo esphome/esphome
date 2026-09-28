@@ -13,9 +13,11 @@ CONF_HEADER_LOW = "header_low"
 CONF_BIT_HIGH = "bit_high"
 CONF_BIT_ONE_LOW = "bit_one_low"
 CONF_BIT_ZERO_LOW = "bit_zero_low"
+CONF_ADVANCED_COMMANDS_SUPPORT = "advanced_commands_support"
 
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(LgIrClimate).extend(
     {
+        cv.Optional(CONF_ADVANCED_COMMANDS_SUPPORT, default=False): cv.boolean,
         cv.Optional(
             CONF_HEADER_HIGH, default="8000us"
         ): cv.positive_time_period_microseconds,
@@ -38,6 +40,7 @@ CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(LgIrClimate).extend(
 async def to_code(config: ConfigType) -> None:
     var = await climate_ir.new_climate_ir(config)
 
+    cg.add(var.set_advanced_commands_support(config[CONF_ADVANCED_COMMANDS_SUPPORT]))
     cg.add(var.set_header_high(config[CONF_HEADER_HIGH]))
     cg.add(var.set_header_low(config[CONF_HEADER_LOW]))
     cg.add(var.set_bit_high(config[CONF_BIT_HIGH]))

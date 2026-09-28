@@ -20,9 +20,9 @@ struct DooyaData {
 
 class DooyaProtocol : public RemoteProtocol<DooyaData> {
  public:
-  void encode(RemoteTransmitData *dst, const DooyaData &data) override;
-  optional<DooyaData> decode(RemoteReceiveData src) override;
-  void dump(const DooyaData &data) override;
+  void encode(RemoteTransmitData *dst, const DooyaData &data);
+  optional<DooyaData> decode(RemoteReceiveData src);
+  void dump(const DooyaData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Dooya)

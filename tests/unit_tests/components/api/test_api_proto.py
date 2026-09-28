@@ -194,17 +194,17 @@ def test_superseded_device_info_fields_still_declared_in_header() -> None:
 
 def test_superseded_device_info_fields_still_encoded_and_sized() -> None:
     """Each superseded field must still be touched by DeviceInfoResponse's
-    generated encode() and calculate_size(), i.e. it is still put on the wire.
+    generated encode_msg() and calc_size_msg(), i.e. it is still put on the wire.
     """
-    encode_body = _extract_function_body(CPP_TEXT, "DeviceInfoResponse::encode")
-    size_body = _extract_function_body(CPP_TEXT, "DeviceInfoResponse::calculate_size")
+    encode_body = _extract_function_body(CPP_TEXT, "DeviceInfoResponse::encode_msg")
+    size_body = _extract_function_body(CPP_TEXT, "DeviceInfoResponse::calc_size_msg")
     for field_name in SUPERSEDED_FIELDS:
-        assert f"this->{field_name}" in encode_body, (
-            f"DeviceInfoResponse::encode() no longer references {field_name}. "
+        assert f"msg.{field_name}" in encode_body, (
+            f"DeviceInfoResponse::encode_msg() no longer references {field_name}. "
             f"{DEPRECATED_FIELD_TRAP}"
         )
-        assert f"this->{field_name}" in size_body, (
-            f"DeviceInfoResponse::calculate_size() no longer references "
+        assert f"msg.{field_name}" in size_body, (
+            f"DeviceInfoResponse::calc_size_msg() no longer references "
             f"{field_name}. {DEPRECATED_FIELD_TRAP}"
         )
 
@@ -258,6 +258,17 @@ def test_device_capabilities_response_has_id_150() -> None:
     assert match is not None, "DeviceCapabilitiesResponse is missing `option (id)`"
     assert int(match.group(1)) == 150, (
         f"DeviceCapabilitiesResponse has id {match.group(1)}, expected 150. "
+        "Message ids are part of the wire protocol and must not change once "
+        "assigned."
+    )
+
+
+def test_z_wave_proxy_request_response_has_id_151() -> None:
+    body = _extract_proto_message(PROTO_TEXT, "ZWaveProxyRequestResponse")
+    match = re.search(r"option \(id\) = (\d+);", body)
+    assert match is not None, "ZWaveProxyRequestResponse is missing `option (id)`"
+    assert int(match.group(1)) == 151, (
+        f"ZWaveProxyRequestResponse has id {match.group(1)}, expected 151. "
         "Message ids are part of the wire protocol and must not change once "
         "assigned."
     )
@@ -369,3 +380,13 @@ def test_api_version_minor_is_at_least_15() -> None:
         "clients to see api_version >= 1.15 in HelloResponse before they will "
         "ever request it."
     )
+
+
+def test_generated_encode_calls_keep_the_cursor() -> None:
+    """No generated ProtoEncode call may drop the returned cursor."""
+    dropped = [
+        line
+        for line in CPP_TEXT.splitlines()
+        if "ProtoEncode::" in line and "pos = ProtoEncode::" not in line
+    ]
+    assert not dropped, dropped[:5]

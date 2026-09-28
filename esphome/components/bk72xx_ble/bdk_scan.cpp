@@ -62,8 +62,9 @@ BdkActivityState bdk_scan_state(uint8_t activity_idx) {
 
 uint8_t bdk_scan_acquire_activity() {
   uint8_t idx = app_ble_get_idle_actv_idx_handle(SCAN_ACTV);
-  if (idx == INVALID_ACTIVITY_IDX)
+  if (idx == INVALID_ACTIVITY_IDX) {
     ESP_LOGE(TAG, "Scan start failed: no idle activity handle");
+  }
   return idx;
 }
 

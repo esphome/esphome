@@ -13,6 +13,9 @@
 #include "esp_eth.h"
 #ifdef USE_ETHERNET_SPI
 #include "hal/spi_types.h"
+#ifdef USE_SPI
+#include "esphome/components/spi/spi.h"
+#endif
 #endif
 #include "esp_eth_mac.h"
 #include "esp_eth_mac_esp.h"
@@ -176,6 +179,9 @@ class EthernetComponent final : public Component {
   void set_reset_pin(uint8_t reset_pin) { this->reset_pin_ = reset_pin; }
   void set_clock_speed(int clock_speed) { this->clock_speed_ = clock_speed; }
   void set_interface(spi_host_device_t interface) { this->interface_ = interface; }
+#ifdef USE_SPI
+  void set_spi_parent(spi::SPIComponent *parent) { this->spi_parent_ = parent; }
+#endif
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   void set_polling_interval(uint32_t polling_interval) { this->polling_interval_ = polling_interval; }
 #endif
@@ -258,6 +264,11 @@ class EthernetComponent final : public Component {
   int phy_addr_spi_{-1};
   int clock_speed_;
   spi_host_device_t interface_{SPI2_HOST};
+#ifdef USE_SPI
+  // When set, the SPI bus is owned and initialized by this spi component
+  // and the ethernet chip only adds a device to it.
+  spi::SPIComponent *spi_parent_{nullptr};
+#endif
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   uint32_t polling_interval_{0};
 #endif

@@ -25,6 +25,31 @@ esphome:
         away: !lambda "return true;"
         is_on: !lambda "return false;"
 
+    - climate.template.publish:
+        id: template_climate
+        current_temperature: 21.0
+        mode: HEAT
+        fan_mode: AUTO
+        swing_mode: "OFF"
+        preset: NONE
+        target_temperature: 22.0
+
+    # Templated
+    - climate.template.publish:
+        id: template_climate
+        current_temperature: !lambda "return 21.5f;"
+        mode: !lambda "return climate::CLIMATE_MODE_COOL;"
+        target_temperature: !lambda "return 23.0f;"
+
+    - climate.template.publish:
+        id: template_climate_custom_modes
+        custom_fan_mode: "turbo"
+        custom_preset: "eco_plus"
+    - climate.template.publish:
+        id: template_climate_custom_modes
+        custom_fan_mode: !lambda return std::string("turbo");
+        custom_preset: !lambda return std::string("eco_plus");
+
     # Test C++ API: set_template() with stateless lambda (no captures)
     # NOTE: set_template() is not intended to be a public API, but we test it to ensure it doesn't break.
     - lambda: |-
@@ -236,8 +261,14 @@ switch:
       return false;
     turn_on_action:
       - logger.log: "turn_on_action"
+      - switch.template.publish:
+          id: test_switch
+          state: true
     turn_off_action:
       - logger.log: "turn_off_action"
+      - switch.template.publish:
+          id: test_switch
+          state: !lambda return false;
 
 button:
   - platform: template
@@ -298,7 +329,7 @@ cover:
             logger.log: Cover is closed
   # Exercise cover.control / cover.template.publish action variants so they
   # get build coverage in CI (and so memory-impact analysis on PRs that
-  # touch ControlAction / CoverPublishAction sees real instances).
+  # touch these actions sees real instances).
   - platform: template
     name: "Template Cover Actions"
     id: template_cover_actions
@@ -346,6 +377,10 @@ cover:
       - cover.control:
           id: template_cover_actions
           stop: true
+      - cover.open: template_cover_actions
+      - cover.close: template_cover_actions
+      - cover.stop: template_cover_actions
+      - cover.toggle: template_cover_actions
       # CONF_STATE alias for position
       - cover.control:
           id: template_cover_actions
@@ -440,6 +475,7 @@ select:
 
 lock:
   - platform: template
+    id: template_lock
     name: "Template Lock"
     lambda: |-
       if (id(template_some_binary_sensor).state) {
@@ -448,8 +484,14 @@ lock:
       return LOCK_STATE_UNLOCKED;
     lock_action:
       - logger.log: lock_action
+      - lock.template.publish:
+          id: template_lock
+          state: LOCKED
     unlock_action:
       - logger.log: unlock_action
+      - lock.template.publish:
+          id: template_lock
+          state: !lambda "return LOCK_STATE_UNLOCKED;"
     open_action:
       - logger.log: open_action
 
@@ -469,10 +511,18 @@ valve:
       - valve.template.publish:
           id: template_valve
           state: CLOSED
+      - valve.template.publish:
+          id: template_valve
+          position: 50%
+          current_operation: IDLE
+      - valve.template.publish:
+          id: template_valve
+          position: !lambda "return 0.25f;"
+          current_operation: !lambda "return VALVE_OPERATION_CLOSING;"
     stop_action:
       - logger.log: stop_action
       # Exercise valve.control with various field combinations so the
-      # ControlAction codegen paths get build coverage.
+      # valve.control codegen paths get build coverage.
       - valve.control:
           id: template_valve
           stop: true
@@ -501,17 +551,115 @@ text:
     update_interval: 1s
     lambda: |
       return std::string{"Hello!"};
+    # Exercise a register_apply_condition inside a trigger with a std::string
+    # argument, so ApplyCondition<std::string> is compiled.
     set_action:
       then:
-        - logger.log:
-            format: Template Text set to %s
-            args: ["x.c_str()"]
+        - if:
+            condition:
+              cover.is_open: template_cover_with_triggers
+            then:
+              - logger.log:
+                  format: Template Text set to %s
+                  args: ["x.c_str()"]
 
 alarm_control_panel:
   - platform: template
     name: Alarm Panel
     codes:
       - "1234"
+
+climate:
+  - platform: template
+    id: template_climate
+    name: "Template Climate"
+    optimistic: true
+    sensor: template_template_sens
+    supports_action: true
+    supports_current_humidity: true
+    restore_mode: NO_RESTORE
+    initial_state:
+      mode: HEAT
+      target_temperature: 21.0
+      fan_mode: LOW
+    supported_modes:
+      - "OFF"
+      - HEAT
+      - COOL
+    supported_fan_modes:
+      - AUTO
+      - LOW
+      - HIGH
+    supported_swing_modes:
+      - "OFF"
+      - VERTICAL
+    supported_presets:
+      - NONE
+      - ECO
+    visual:
+      min_temperature: 16.0
+      max_temperature: 30.0
+      temperature_step: 0.5
+    set_mode_action:
+      - logger.log:
+          format: "set_mode_action %d"
+          args: ["(int) x"]
+    set_target_temperature_action:
+      - logger.log:
+          format: "set_target_temperature_action %.1f"
+          args: ["x"]
+    set_target_humidity_action:
+      - logger.log:
+          format: "set_target_humidity_action %.1f"
+          args: ["x"]
+    set_fan_mode_action:
+      - logger.log:
+          format: "set_fan_mode_action %d"
+          args: ["(int) x"]
+    set_swing_mode_action:
+      - logger.log:
+          format: "set_swing_mode_action %d"
+          args: ["(int) x"]
+    set_preset_action:
+      - logger.log:
+          format: "set_preset_action %d"
+          args: ["(int) x"]
+    on_control:
+      - logger.log: "on_control fired"
+    on_state:
+      - logger.log: "on_state fired"
+
+  - platform: template
+    id: template_climate_custom_modes
+    name: "Template Climate Custom Modes"
+    optimistic: true
+    sensor: template_template_sens
+    supported_modes:
+      - "OFF"
+      - HEAT
+    custom_fan_modes:
+      - turbo
+      - silent
+      - eco
+    custom_presets:
+      - eco_plus
+      - power_save
+      - max
+    set_custom_fan_mode_action:
+      - logger.log:
+          format: "set_custom_fan_mode_action %s"
+          args: ["x.c_str()"]
+    set_custom_preset_action:
+      - logger.log:
+          format: "set_custom_preset_action %s"
+          args: ["x.c_str()"]
+    initial_state:
+      custom_fan_mode: eco
+      custom_preset: max
+    visual:
+      min_temperature: 16.0
+      max_temperature: 30.0
+      temperature_step: 0.5
 
 water_heater:
   - platform: template
