@@ -26,7 +26,7 @@ static const char *const TAG = "esp32_hosted.update";
 
 // Older coprocessor firmware versions have a 1500-byte limit per RPC call
 constexpr size_t CHUNK_SIZE = 1500;
-// OTA begin blocks while the coprocessor erases its partition (15 s RPC timeout)
+// OTA begin blocks while the coprocessor erases its partition
 constexpr uint32_t OTA_WDT_TIMEOUT_MS = 60000;
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
