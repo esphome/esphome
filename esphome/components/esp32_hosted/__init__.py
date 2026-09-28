@@ -156,7 +156,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-# Version specs that stay within one major (exact, ^, ~, ~=); anything else is 3.x
+# Version specs that stay within one major (exact, ^, ~, ~=); other ranges are 3.x
 _PINNED_MAJOR = re.compile(r"^(?:==|\^|~=|~)?(\d+)(?:\.(?:\d+|\*))*$")
 
 
@@ -170,7 +170,10 @@ def user_esp_hosted_major() -> int | None:
     for component in esp32_config.get(CONF_FRAMEWORK, {}).get(CONF_COMPONENTS, []):
         if component.get(CONF_NAME) != ESP_HOSTED_COMPONENT:
             continue
-        if match := _PINNED_MAJOR.match(component.get(CONF_REF, "").strip()):
+        ref = component.get(CONF_REF, "").strip()
+        if not ref:
+            return 2
+        if match := _PINNED_MAJOR.match(ref):
             return int(match.group(1))
         return 3
     return None
