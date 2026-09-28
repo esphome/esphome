@@ -65,6 +65,9 @@ class _FakeSConsEnv(dict):
     def Flatten(self, nodes: list) -> list:  # noqa: N802
         return nodes
 
+    def GetProjectOption(self, name: str, default: list) -> list:  # noqa: N802
+        return self.get(f"option:{name}", default)
+
 
 def _fake_cxx(tmp_path: Path, fail: bool = False) -> Path:
     """A compiler stand-in that records its argv and writes the -o target."""
@@ -334,3 +337,18 @@ def test_pch_script_hashes_the_sdkconfig(tmp_path: Path) -> None:
     first = _sum_after(tmp_path, ["-DX=1"])
     (proj / "sdkconfig.dev").write_text("CONFIG_X=n\n")
     assert _sum_after(tmp_path, ["-DX=1"]) != first
+
+
+def test_pch_script_hashes_the_library_versions(tmp_path: Path) -> None:
+    sums = []
+    for version in ("7.4.1", "7.4.2"):
+        (tmp_path / "fake-gxx.argv").unlink(missing_ok=True)
+
+        with patch.object(
+            _FakeSConsEnv,
+            "GetProjectOption",
+            lambda self, name, default, version=version: [f"ArduinoJson@{version}"],
+        ):
+            _run_script(tmp_path)
+        sums.append((tmp_path / "dev" / "esphome_pch.h.gch.sum").read_text())
+    assert sums[0] != sums[1]

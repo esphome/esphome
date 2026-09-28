@@ -131,6 +131,8 @@ def _setup_pch() -> None:
     platform = env.PioPlatform()  # noqa: F821
     for package in sorted(platform.packages):
         digest.update(f"{package}={platform.get_package_version(package)}\0".encode())
+    # Libraries carry their version in lib_deps
+    digest.update(repr(env.GetProjectOption("lib_deps", [])).encode())  # noqa: F821
     closure = _include_closure(src_dir, headers)
     for rel in sorted(closure):
         digest.update(rel.encode())
