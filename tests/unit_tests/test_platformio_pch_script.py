@@ -302,3 +302,30 @@ def test_pch_script_skipped_for_an_absolute_force_include(
     assert scons_env.prepended == []
     assert not (tmp_path / "dev" / "esphome_pch.h.gch").exists()
     assert "prevents the precompiled header" in capsys.readouterr().out
+
+
+def _sum_after(tmp_path: Path, flags: list[str]) -> str:
+    (tmp_path / "fake-gxx.argv").unlink(missing_ok=True)
+    _run_script(tmp_path, flags=flags)
+    return (tmp_path / "dev" / "esphome_pch.h.gch.sum").read_text()
+
+
+def test_pch_script_hashes_relative_include_dirs(tmp_path: Path) -> None:
+    """Compiles run in the project root, so -Iinclude is a project dir."""
+    include = tmp_path / "dev" / "include"
+    include.mkdir(parents=True)
+    (include / "user.h").write_text("#define A 1\n")
+    flags = ["-DX=1", "-Iinclude", "-I."]
+    first = _sum_after(tmp_path, flags)
+    (include / "user.h").write_text("#define A 2\n")
+    assert _sum_after(tmp_path, flags) != first
+
+
+def test_pch_script_hashes_the_sdkconfig(tmp_path: Path) -> None:
+    """sdkconfig.h is build output; the configuration it comes from is not."""
+    proj = tmp_path / "dev"
+    proj.mkdir()
+    (proj / "sdkconfig.dev").write_text("CONFIG_X=y\n")
+    first = _sum_after(tmp_path, ["-DX=1"])
+    (proj / "sdkconfig.dev").write_text("CONFIG_X=n\n")
+    assert _sum_after(tmp_path, ["-DX=1"]) != first
