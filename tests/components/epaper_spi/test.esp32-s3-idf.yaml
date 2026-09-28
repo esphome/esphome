@@ -297,3 +297,26 @@ display:
       allow_other_uses: true
       number: GPIO4
       inverted: true
+
+  # Seeed reTerminal Sticky (800x480, SSD1677), four-level grayscale via the panel's factory
+  # OTP waveform (no microcontroller-uploaded LUT)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: seeed-reterminal-sticky
+    grayscale: true
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    lambda: |-
+      it.fill(Color::WHITE);
+      it.filled_rectangle(0, 0, it.get_width() / 2, it.get_height(), Color(85, 85, 85));
+      it.filled_rectangle(it.get_width() / 2, 0, it.get_width() / 2, it.get_height(), Color(170, 170, 170));
