@@ -25,8 +25,7 @@ static constexpr HoermannHcpCommand COMMAND_VENT{"vent", 0x0100, 0x4000};
 static constexpr HoermannHcpCommand COMMAND_HALF_OPEN{"half open", 0x0100, 0x0400};
 // The release half of the lamp key press, sent alone. The absolute on/off values did not switch a SupraMatic E4 B1.
 static constexpr HoermannHcpCommand COMMAND_TOGGLE_LIGHT{"toggle light", 0x0800, 0x0200};
-// A stop is kept as the intent and only becomes an impulse if the door still moves when it is fetched, because
-// the same impulse starts a door at rest.
+// Kept as the intent, as the same impulse starts a door at rest; only a door still moving at the fetch gets it.
 static constexpr HoermannHcpCommand COMMAND_STOP{"stop", 0x0140};
 
 // High byte of the state register and the door state it stands for. State 0x00 is decoded separately because
@@ -147,8 +146,7 @@ void HoermannHcp::update() {
     // Children may have assumed the command would land, so let them re-derive from the door.
     this->changed_ = true;
   }
-  // A target waits for the door to report moving the way it was started. If it never does, the target has to go
-  // as well, otherwise it would cut a later move short.
+  // A target the door never started towards would otherwise cut a later move short.
   if (this->has_target_() && !this->target_started_ && now - this->target_queued_at_ > this->start_window_ms_) {
     ESP_LOGW(TAG, "Door did not start moving towards the requested position, dropping it");
     this->clear_target_();
@@ -323,8 +321,7 @@ const HoermannHcpCommand *HoermannHcp::take_command_() {
     return nullptr;
   this->next_command_ = nullptr;
   if (moving) {
-    // Checked here as well, as the door may have been started from elsewhere since the command was queued. One
-    // already travelling where the command sends it is left alone.
+    // The door may have been started from elsewhere since the command was queued.
     if ((command == &COMMAND_OPEN && this->door_state_ == DoorState::OPENING) ||
         (command == &COMMAND_CLOSE && this->door_state_ == DoorState::CLOSING)) {
       ESP_LOGD(TAG, "Door is already moving that way, dropping '%s'", command->name);
@@ -340,8 +337,7 @@ const HoermannHcpCommand *HoermannHcp::take_command_() {
     ESP_LOGD(TAG, "Door came to rest before the stop was fetched, dropping it");
     return nullptr;
   }
-  // Until the door reports moving it still reads as at rest, and its lamp may be about to change. A door known to
-  // rest where the command sends it does not move.
+  // Until the door reports moving it still reads as at rest, and the motor may switch its lamp as it starts.
   if (!this->door_state_seen_ || !at_destination(*command, this->door_state_)) {
     this->starting_ = true;
     this->start_command_ = command;
@@ -580,8 +576,7 @@ bool HoermannHcp::queue_command_(const HoermannHcpCommand &command) {
 bool HoermannHcp::is_moving_or_starting_() const { return this->starting_ || is_moving(this->door_state_); }
 
 bool HoermannHcp::command_door_(const HoermannHcpCommand &command) {
-  // A moving or starting door is only stopped, so it is never reversed at speed. This includes a command for the
-  // way it is already moving; only one that was queued before the door started is dropped at the fetch instead.
+  // Only stopped, so it is never reversed at speed. take_command_() drops one queued before the door started instead.
   if (this->is_moving_or_starting_())
     return this->stop_door();
   // A stop still waiting for a door that has come to rest would be dropped at the fetch anyway.
@@ -677,8 +672,7 @@ void HoermannHcp::set_door_state_(DoorState state) {
     this->door_state_seen_ = true;
     this->changed_ = true;
   }
-  // The door answers a fetched command by moving or by reporting where it sent it, possibly a state it already
-  // held before its first report. Another rest state is not an answer yet.
+  // Only moving or the command's destination answers it, even as a first report that changes nothing.
   if (this->starting_ && (is_moving(state) || at_destination(*this->start_command_, state))) {
     // A stop held for the start is due now, so its fetch deadline starts here.
     if (this->next_command_ == &COMMAND_STOP)

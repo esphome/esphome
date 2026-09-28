@@ -149,7 +149,6 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   float target_position_{0.0f};
 
   const HoermannHcpCommand *next_command_{nullptr};
-  // The command that set starting_.
   const HoermannHcpCommand *start_command_{nullptr};
   uint32_t command_queued_at_{0};
   // Separate from command_queued_at_ so an unrelated command cannot extend the target's start deadline.
@@ -157,9 +156,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   uint32_t last_response_{0};
   // Start of the wait for the fetch, then for the report.
   uint32_t light_since_{0};
-  // When the last stop impulse went out.
   uint32_t last_stop_at_{0};
-  // When the command that set starting_ was fetched.
   uint32_t start_fetched_at_{0};
   bool stop_sent_{false};
   // A door command was fetched and the door has not reported moving yet.
@@ -167,7 +164,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
 
   // Drop the "connected" flag if the bus controller has not polled us for this long.
   uint16_t connection_timeout_ms_{2000};
-  // How long a door may take to report moving after a fetched command, a chosen margin.
+  // A chosen margin for a door to report moving after a fetched command.
   uint16_t start_window_ms_{5000};
   // The state starts on a value the bus controller never reports, so the first broadcast is decoded even when
   // it reads 0x0000.
@@ -191,7 +188,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool light_target_{false};
   bool door_state_seen_{false};
   bool short_broadcast_logged_{false};
-  // Set by the write half of a 0x17 request, taken by its read half.
+  // Only the read half right after a 0x17 write carries a command.
   bool status_poll_pending_{false};
 
 #ifdef USE_HOERMANN_HCP_IDENTITY
