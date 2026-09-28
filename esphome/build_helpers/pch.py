@@ -7,6 +7,7 @@ import hashlib
 import logging
 import os
 from pathlib import Path
+import platform as host_platform
 import posixpath
 import re
 import sys
@@ -53,16 +54,20 @@ PCH_SCRIPT_EXCLUDED_PLATFORMS = frozenset(
     }
 )
 
-# The GCC 10.3 of LibreTiny only loads its own .gch back on Linux: elsewhere
-# the compiler is loaded at a new address each run, which GCC accepts from
-# version 12. Remove once LibreTiny ships GCC 12 or newer
-PCH_SCRIPT_LINUX_ONLY_PLATFORMS = frozenset(
+# The GCC 10.3 of LibreTiny only loads a .gch at the address it was saved
+# from, which GCC accepts from version 12. Fine on Linux; on arm64 macOS the
+# script starts cc1plus without address randomisation; off elsewhere.
+# Remove once LibreTiny ships GCC 12 or newer
+PCH_SCRIPT_GCC10_PLATFORMS = frozenset(
     {
         PLATFORM_BK72XX,
         PLATFORM_LN882X,
         PLATFORM_RTL87XX,
     }
 )
+
+# Tells the PlatformIO script to start cc1plus without address randomisation
+PCH_NO_ASLR_ENV = "ESPHOME_PCH_NO_ASLR"
 
 # What ccache needs to cache compiles that load a .gch
 _CCACHE_PCH_SLOPPINESS = ("pch_defines", "time_macros")
@@ -99,14 +104,36 @@ def ccache_pch_env() -> dict[str, str]:
     return env
 
 
+def _needs_no_aslr_wrapper(platform: str) -> bool:
+    return (
+        platform in PCH_SCRIPT_GCC10_PLATFORMS
+        and sys.platform == "darwin"
+        and host_platform.machine() == "arm64"
+    )
+
+
 def pch_script_enabled() -> bool:
     """Whether this PlatformIO build takes the pch script."""
     from esphome.core import CORE
 
     platform = CORE.target_platform
-    if platform in PCH_SCRIPT_LINUX_ONLY_PLATFORMS and sys.platform != "linux":
+    if (
+        platform in PCH_SCRIPT_GCC10_PLATFORMS
+        and sys.platform != "linux"
+        and not _needs_no_aslr_wrapper(platform)
+    ):
         return False
     return pch_enabled() and platform not in PCH_SCRIPT_EXCLUDED_PLATFORMS
+
+
+def pch_script_env() -> dict[str, str]:
+    """Environment for a PlatformIO build that takes the pch script."""
+    from esphome.core import CORE
+
+    env = ccache_pch_env()
+    if _needs_no_aslr_wrapper(CORE.target_platform):
+        env[PCH_NO_ASLR_ENV] = "1"
+    return env
 
 
 def pch_header_text(include_headers: Iterable[str]) -> str:

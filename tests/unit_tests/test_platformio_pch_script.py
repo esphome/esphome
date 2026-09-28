@@ -6,6 +6,7 @@ from collections.abc import Callable
 import os
 from pathlib import Path
 import stat
+import sys
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -135,6 +136,27 @@ def test_pch_script_builds_and_prepends_relative_include(tmp_path: Path) -> None
     assert scons_env.prepended == pch.pch_consumer_flags()
     # The -include flags are scoped to projenv (src compiles)
     assert scons_env.global_env.prepended == []
+
+
+def test_pch_script_no_aslr_wrapper(tmp_path: Path) -> None:
+    """With the variable set, the .gch compile and the consumers get a -B
+    directory holding a cc1plus that starts the real one."""
+    scons_env = _run_script(tmp_path, env_vars={pch.PCH_NO_ASLR_ENV: "1"})
+    proj = tmp_path / "dev"
+    wrapper = proj / "pch_cc1" / "cc1plus"
+    assert wrapper.stat().st_mode & stat.S_IXUSR
+    text = wrapper.read_text()
+    assert text.startswith(f'#!/usr/bin/env -S "{sys.executable}" -ISs\n')
+    assert "0x0040 | 0x0100" in text
+    argv = (tmp_path / "fake-gxx.argv").read_text().split("\n")
+    assert "-Bpch_cc1/" in argv
+    assert scons_env.prepended == ["-Bpch_cc1/", *pch.pch_consumer_flags()]
+
+
+def test_pch_script_no_wrapper_by_default(tmp_path: Path) -> None:
+    scons_env = _run_script(tmp_path)
+    assert not (tmp_path / "dev" / "pch_cc1").exists()
+    assert scons_env.prepended == pch.pch_consumer_flags()
 
 
 def test_pch_script_names_match_the_python_side(tmp_path: Path) -> None:

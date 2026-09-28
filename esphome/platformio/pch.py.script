@@ -5,6 +5,7 @@ import posixpath
 import re
 import shlex
 import subprocess
+import sys
 
 # pylint: disable=E0602
 Import("env")  # noqa: F821
@@ -29,6 +30,42 @@ _GUARD_TEXT = f"""\
 #endif
 """
 _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
+# GCC 10 only loads a .gch at the address it was saved from, and arm64 macOS
+# loads every program at a random address. When ESPHome sets this variable,
+# the driver gets a -B directory whose cc1plus starts the real one without
+# that randomisation. Relative: compiles run in the project root
+_NO_ASLR_ENV = "ESPHOME_PCH_NO_ASLR"
+_NO_ASLR_DIR = "pch_cc1"
+_NO_ASLR_WRAPPER = """\
+#!/usr/bin/env -S "{python}" -ISs
+# Written by ESPHome: starts cc1plus without address randomisation, so it
+# loads the precompiled header. See esphome/platformio/pch.py.script.
+import ctypes
+import glob
+import os
+import shutil
+import sys
+
+# The driver's own path, a bare name when it was found on PATH
+driver = os.environ.get("COLLECT_GCC", "")
+if not os.path.dirname(driver):
+    driver = shutil.which(driver) or driver
+found = glob.glob(os.path.join(os.path.dirname(driver), "..", "libexec", "gcc", "*", "*", "cc1plus"))
+if not found:
+    sys.exit("ESPHome: cannot find cc1plus next to " + driver)
+real = found[0]
+libc = ctypes.CDLL("/usr/lib/libSystem.B.dylib", use_errno=True)
+attr = ctypes.create_string_buffer(64)
+libc.posix_spawnattr_init(attr)
+# POSIX_SPAWN_SETEXEC | _POSIX_SPAWN_DISABLE_ASLR
+libc.posix_spawnattr_setflags(attr, ctypes.c_short(0x0040 | 0x0100))
+argv = [real, *sys.argv[1:]]
+c_argv = (ctypes.c_char_p * (len(argv) + 1))(*[a.encode() for a in argv], None)
+env = [(k + "=" + v).encode() for k, v in os.environ.items()]
+c_env = (ctypes.c_char_p * (len(env) + 1))(*env, None)
+libc.posix_spawn(None, real.encode(), None, attr, c_argv, c_env)
+sys.exit("ESPHome: cannot start " + real + ": " + os.strerror(ctypes.get_errno()))
+"""
 _CXX_SUFFIXES = (".cpp", ".cc", ".cxx")
 _HEADER_SUFFIXES = (".h", ".hpp", ".hh", ".inc")
 _INCLUDE_DIR_OPTIONS = ("-I", "-isystem", "-iquote", "-idirafter")
@@ -81,6 +118,17 @@ def _src_envs(src_dir: Path) -> list:
     return list(found.values()) or [projenv]  # noqa: F821
 
 
+def _no_aslr_flags(proj_dir: Path) -> list:
+    """The -B flag for the cc1plus wrapper, written when ESPHome asks for it."""
+    if os.environ.get(_NO_ASLR_ENV) != "1":
+        return []
+    wrapper = proj_dir / _NO_ASLR_DIR / "cc1plus"
+    wrapper.parent.mkdir(exist_ok=True)
+    wrapper.write_text(_NO_ASLR_WRAPPER.format(python=sys.executable))
+    wrapper.chmod(0o755)
+    return [f"-B{_NO_ASLR_DIR}/"]
+
+
 def _setup_pch() -> None:
     if projenv is None:
         if "nobuild" in COMMAND_LINE_TARGETS:  # noqa: F821
@@ -97,6 +145,7 @@ def _setup_pch() -> None:
     src_envs = _src_envs(src_dir)
 
     cxx = src_envs[0].subst("$CXX")
+    no_aslr = _no_aslr_flags(proj_dir)
     # The header holds the -include entries itself, so the .gch compile must
     # not see them; consumers keep theirs, which the .gch then satisfies
     flags = []
@@ -183,7 +232,7 @@ def _setup_pch() -> None:
         header.write_text(_GUARD_TEXT, encoding="utf-8")
         source.write_text(content, encoding="utf-8")
         result = subprocess.run(  # noqa: PLW1510
-            [cxx, "-x", "c++-header", *flags, "-c", str(source), "-o", str(gch)],
+            [cxx, "-x", "c++-header", *flags, *no_aslr, "-c", str(source), "-o", str(gch)],
             cwd=proj_dir,
             capture_output=True,
             text=True,
@@ -196,7 +245,7 @@ def _setup_pch() -> None:
 
     # Prepended: GCC only loads a .gch for the first -include
     for src_env in src_envs:
-        src_env.Prepend(CXXFLAGS=_CONSUMER_FLAGS)
+        src_env.Prepend(CXXFLAGS=[*no_aslr, *_CONSUMER_FLAGS])
     print(
         "ESPHome: Compiling with a precompiled header "
         "(set ESPHOME_PCH_ENABLE=0 to disable)"
