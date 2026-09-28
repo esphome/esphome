@@ -50,16 +50,19 @@ def test_prepare_pch_generates_headers_and_passes_the_identity(
     assert run_cmd.call_args.kwargs["env"] == {"A": "b"}
     passed_dir, identity_file, extras = prepare.call_args.args
     assert passed_dir == build_dir
-
-    # Not again once a pch compile has succeeded in this build dir
-    (build_dir / "esphome_pch.h.gch.sum").write_text("x")
-    run_cmd, prepare = _prepare(build_dir)
-    assert not run_cmd.called
-    assert prepare.called
     assert identity_file == (
         build_dir / "zephyr" / "include" / "generated" / "zephyr" / "autoconf.h"
     )
     assert list(extras) == ["2.9.2", "adafruit_feather", "-Os"]
+
+
+def test_prepare_pch_skips_header_generation_after_a_pch_compile(
+    build_dir: Path,
+) -> None:
+    (build_dir / "esphome_pch.h.gch.sum").write_text("x")
+    run_cmd, prepare = _prepare(build_dir)
+    assert not run_cmd.called
+    assert prepare.called
 
 
 def test_prepare_pch_header_generation_failure_stops_the_build(
