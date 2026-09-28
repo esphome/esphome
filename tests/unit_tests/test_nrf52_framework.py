@@ -808,6 +808,63 @@ class TestCheckAndInstall:
         assert substitutions["machine"] == "x86_64"
         assert substitutions["extension"] == "tar.xz"
 
+    def test_toolchain_download_uses_gnu_url_for_sdk_3_4_0(
+        self,
+        tmp_path: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """For nRF Connect SDK >= 3.4.0 the toolchain archive name includes 'toolchain_gnu_'."""
+        CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: Version.parse("3.4.0")}
+        sdk_version = "3.4.0"
+        tools = get_sdk_nrf_tools_path()
+        python_env = tools / "penvs" / f"v{sdk_version}"
+        framework = tools / "frameworks" / f"v{sdk_version}"
+        toolchain_dir = tools / "toolchains" / "1.0.1"
+        for d in (python_env, framework, toolchain_dir):
+            d.mkdir(parents=True, exist_ok=True)
+        (framework / "zephyr" / "scripts").mkdir(parents=True, exist_ok=True)
+        (framework / "zephyr" / "scripts" / "requirements.txt").touch()
+        _mark_venv_ready(python_env)
+        (framework / ".ready").touch()
+
+        check_and_install()
+
+        # Two download calls: minimal SDK first, toolchain second
+        toolchain_call = mock_nrf52_ops.download_from_mirrors.call_args_list[1]
+        mirrors = toolchain_call.args[0]
+        assert all("toolchain_gnu_" in m for m in mirrors)
+
+    def test_toolchain_extracts_under_gnu_for_sdk_3_4_0(
+        self,
+        tmp_path: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """SDK 1.0+ toolchain archive must land in gnu/arm-zephyr-eabi/.
+
+        Zephyr-sdkConfig.cmake validates the toolchain at gnu/arm-zephyr-eabi/
+        in SDK 1.0+; if the archive is extracted to arm-zephyr-eabi/ instead,
+        cmake reports the package as not found.
+        """
+        CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: Version.parse("3.4.0")}
+        sdk_version = "3.4.0"
+        tools = get_sdk_nrf_tools_path()
+        python_env = tools / "penvs" / f"v{sdk_version}"
+        framework = tools / "frameworks" / f"v{sdk_version}"
+        toolchain_dir = tools / "toolchains" / "1.0.1"
+        for d in (python_env, framework, toolchain_dir):
+            d.mkdir(parents=True, exist_ok=True)
+        (framework / "zephyr" / "scripts").mkdir(parents=True, exist_ok=True)
+        (framework / "zephyr" / "scripts" / "requirements.txt").touch()
+        _mark_venv_ready(python_env)
+        (framework / ".ready").touch()
+
+        check_and_install()
+
+        # Two extract calls: minimal SDK first (to toolchain root), toolchain second
+        extract_calls = mock_nrf52_ops.archive_extract_all.call_args_list
+        _, toolchain_extract_dir = extract_calls[1].args[:2]
+        assert toolchain_extract_dir == toolchain_dir / "gnu" / "arm-zephyr-eabi"
+
 
 # ---------------------------------------------------------------------------
 # setup_platformio_python_env tests
@@ -1038,6 +1095,19 @@ def test_get_build_env(
     assert "Zephyr-sdk_DIR" not in env
     # The rest of the process environment is inherited
     assert env["SOME_PREEXISTING_VAR"] == "kept"
+
+
+def test_get_build_env_sdk_3_4_0_uses_toolchain_root(
+    setup_core: Path,
+) -> None:
+    """For NCS >= 3.4.0, ZEPHYR_SDK_INSTALL_DIR still points at the toolchain root."""
+    CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: Version.parse("3.4.0")}
+
+    env = get_build_env()
+
+    tools = get_sdk_nrf_tools_path()
+    assert env["ZEPHYR_SDK_INSTALL_DIR"] == str(tools / "toolchains" / "1.0.1")
+    assert "Zephyr-sdk_DIR" not in env
 
 
 # ---------------------------------------------------------------------------

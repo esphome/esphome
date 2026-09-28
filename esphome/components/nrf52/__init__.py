@@ -1006,13 +1006,15 @@ def run_compile(args, config: ConfigType) -> bool:
         west_out = zephyr_dir / "zephyr"
         _copy_if_exists(west_out / "zephyr.uf2", zephyr_dir / "zephyr.uf2")
         _copy_if_exists(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
+        _copy_if_exists(west_out / "zephyr.hex", zephyr_dir / "zephyr.hex")
         _copy_if_exists(build_dir / "merged.hex", zephyr_dir / "merged.hex")
 
-    # For Adafruit bootloader builds, regenerate the UF2 from merged.hex,
-    # whose records carry the correct flash addresses. The build's own
-    # zephyr.uf2 uses the board's default offset, which is wrong in some cases.
+    # For Adafruit bootloader builds, regenerate the UF2 from a hex file.
+    # merged.hex carries the correct flash addresses; SDK 3.4.0+ no longer
+    # generates merged.hex, so fall back to zephyr.hex in that case.
     merged_hex = zephyr_dir / "merged.hex"
-    if bootloader in _UF2_FAMILY_IDS and merged_hex.is_file():
+    hex_file = merged_hex if merged_hex.is_file() else zephyr_dir / "zephyr.hex"
+    if bootloader in _UF2_FAMILY_IDS and hex_file.is_file():
         # Drop the build's own wrong-offset UF2 so it isn't shipped alongside.
         app_uf2 = west_out / "zephyr.uf2"
         if app_uf2.is_file():
@@ -1029,7 +1031,7 @@ def run_compile(args, config: ConfigType) -> bool:
                 "-c",
                 "-o",
                 str(zephyr_dir / "zephyr.uf2"),
-                str(merged_hex),
+                str(hex_file),
             ],
             env=env,
             stream_output=True,
@@ -1042,9 +1044,6 @@ def run_compile(args, config: ConfigType) -> bool:
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     ):
-        # no fallback is needed for adafruit case. merged merged.hex is always generated.
-        # get_download_types needs fallback for mcuboot (non adafruit)
-        hex_file = zephyr_dir / "merged.hex"
         dfu_package = build_dir / "firmware.zip"
         genpkg_cmd = [
             str(paths["python_executable"]),

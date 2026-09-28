@@ -8,6 +8,13 @@
 #include <zephyr/drivers/uart.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/usb/usb_device.h>
+#include <zephyr/version.h>
+
+// Zephyr 3.x uses z_arch_esf_t (typedef for struct __esf).
+// Zephyr 4.0 renamed it to struct arch_esf and removed the old alias.
+#if KERNEL_VERSION_MAJOR < 4
+#define arch_esf __esf
+#endif
 #ifdef USE_LOGGER_EARLY_MESSAGE
 #include <esphome/components/zephyr/reset_reason.h>
 #endif
@@ -168,7 +175,7 @@ void Logger::dump_crash_() {
   }
 }
 
-void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
+void k_sys_fatal_error_handler(unsigned int reason, const arch_esf *esf) {
   crash_buf.magic = App.get_config_hash();
   crash_buf.reason = reason;
   if (esf) {
@@ -192,7 +199,7 @@ void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
 
 extern "C" {
 
-void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
+void k_sys_fatal_error_handler(unsigned int reason, const arch_esf *esf) {
   esphome::logger::k_sys_fatal_error_handler(reason, esf);
 }
 }

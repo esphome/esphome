@@ -28,6 +28,16 @@ _LOGGER = logging.getLogger(__name__)
 
 _REQUIREMENTS = Path(__file__).parent / "requirements.txt"
 TOOLCHAIN_VERSION = "0.17.4"
+_TOOLCHAIN_VERSION_3_4_0 = "1.0.1"
+
+
+def _get_toolchain_version() -> str:
+    """Return the Zephyr SDK toolchain version for the current framework."""
+    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if framework_ver >= cv.Version(3, 4, 0):
+        return _TOOLCHAIN_VERSION_3_4_0
+    return TOOLCHAIN_VERSION
+
 
 # Packages the PlatformIO toolchain's Zephyr build script needs beyond west
 # (which comes from requirements.txt). Keep the pin in sync with
@@ -40,6 +50,20 @@ SDK_NG_TOOLCHAIN_MIRRORS = str_to_lst_of_str(
         "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_{sysname}-{machine}_arm-zephyr-eabi.{extension}",
     )
 )
+_SDK_NG_TOOLCHAIN_GNU_MIRRORS = str_to_lst_of_str(
+    os.environ.get(
+        "ESPHOME_SDK_NG_TOOLCHAIN_MIRRORS",
+        "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_gnu_{sysname}-{machine}_arm-zephyr-eabi.{extension}",
+    )
+)
+
+
+def _get_sdk_ng_toolchain_mirrors() -> list[str]:
+    """Return toolchain mirror URLs for the current framework version."""
+    if _get_toolchain_version() == _TOOLCHAIN_VERSION_3_4_0:
+        return _SDK_NG_TOOLCHAIN_GNU_MIRRORS
+    return SDK_NG_TOOLCHAIN_MIRRORS
+
 
 # Minimal SDK provides cmake discovery files (Zephyr-sdkConfig.cmake) and
 # host tools (dtc etc.) required by the Zephyr cmake build system.
@@ -88,11 +112,16 @@ def _get_toolchain_path(version: str) -> Path:
 def toolchain_tool(name: str) -> Path:
     """Path to one of the pinned Zephyr SDK's tools (objdump, readelf, ...).
 
-    The single owner of the ``arm-zephyr-eabi/bin/arm-zephyr-eabi-<name>``
-    layout and the Windows suffix.
+    SDK 0.x places binaries at arm-zephyr-eabi/bin/; SDK 1.0+ reorganised
+    them under a gnu/ layer: gnu/arm-zephyr-eabi/bin/.
     """
     suffix = ".exe" if os.name == "nt" else ""
-    bin_path = _get_toolchain_path(TOOLCHAIN_VERSION) / "arm-zephyr-eabi" / "bin"
+    toolchain_version = _get_toolchain_version()
+    toolchain_root = _get_toolchain_path(toolchain_version)
+    if toolchain_version == _TOOLCHAIN_VERSION_3_4_0:
+        bin_path = toolchain_root / "gnu" / "arm-zephyr-eabi" / "bin"
+    else:
+        bin_path = toolchain_root / "arm-zephyr-eabi" / "bin"
     return bin_path / f"arm-zephyr-eabi-{name}{suffix}"
 
 
@@ -169,7 +198,7 @@ def get_build_env() -> dict:
     # "Zephyr-sdk_DIR" environment hint proved unreliable here: containerized
     # non-root builds failed to locate the SDK with it, while
     # ZEPHYR_SDK_INSTALL_DIR fixed the same invocation.
-    env["ZEPHYR_SDK_INSTALL_DIR"] = str(_get_toolchain_path(TOOLCHAIN_VERSION))
+    env["ZEPHYR_SDK_INSTALL_DIR"] = str(_get_toolchain_path(_get_toolchain_version()))
     return env
 
 
@@ -562,35 +591,47 @@ def _check_and_install(version: str) -> None:
         zephyr_sentinel.touch()
 
     # Shared by every SDK version; locked only while missing
-    if not (_get_toolchain_path(TOOLCHAIN_VERSION) / ".ready").exists():
-        with _install_lock(f"toolchain-{TOOLCHAIN_VERSION}"):
+    toolchain_version = _get_toolchain_version()
+    if not (_get_toolchain_path(toolchain_version) / ".ready").exists():
+        with _install_lock(f"toolchain-{toolchain_version}"):
             _install_toolchain()
 
 
 def _install_toolchain() -> None:
-    toolchains_dir = _get_toolchain_path(TOOLCHAIN_VERSION)
+    toolchain_version = _get_toolchain_version()
+    toolchains_dir = _get_toolchain_path(toolchain_version)
     sentinel = toolchains_dir / ".ready"
     if not sentinel.exists():
-        rmdir(toolchains_dir, msg=f"Clean up {TOOLCHAIN_VERSION} toolchain environment")
+        rmdir(toolchains_dir, msg=f"Clean up {toolchain_version} toolchain environment")
         sysname, machine, extension = _get_toolchain_platform_info()
         substitutions = {
-            "VERSION": TOOLCHAIN_VERSION,
+            "VERSION": toolchain_version,
             "sysname": sysname,
             "machine": machine,
             "extension": extension,
         }
         # Downloaded next to the destination (not a temp file) so an
         # interrupted download's .part file resumes on the next run.
+        # SDK 0.x extracted arm-zephyr-eabi/ directly under toolchains/<ver>/.
+        # SDK 1.0+ reorganised under a gnu/ layer; cmake/Zephyr-sdkConfig.cmake
+        # validates the toolchain at gnu/arm-zephyr-eabi/, so the archive must
+        # land there. archive_extract_all strips the single common root, so we
+        # target gnu/arm-zephyr-eabi/ to get the right path after stripping.
+        arm_extract_dir = (
+            toolchains_dir / "gnu" / "arm-zephyr-eabi"
+            if toolchain_version == _TOOLCHAIN_VERSION_3_4_0
+            else toolchains_dir / "arm-zephyr-eabi"
+        )
         for mirrors, extract_dir, what, slug in (
             (SDK_NG_MINIMAL_MIRRORS, toolchains_dir, "Zephyr SDK minimal", "minimal"),
             (
-                SDK_NG_TOOLCHAIN_MIRRORS,
-                toolchains_dir / "arm-zephyr-eabi",
+                _get_sdk_ng_toolchain_mirrors(),
+                arm_extract_dir,
                 "toolchain",
                 "toolchain",
             ),
         ):
-            _LOGGER.info("Downloading %s %s ...", TOOLCHAIN_VERSION, what)
+            _LOGGER.info("Downloading %s %s ...", toolchain_version, what)
             download_and_extract(
                 mirrors,
                 substitutions,
