@@ -16,19 +16,22 @@ from pathlib import Path
 import sys
 from typing import TYPE_CHECKING
 
-from esphome.build_helpers.ninja import (
-    escape as _e,
-    quote_path as _q,
-    shell_token as _shell_token,
+from esphome.build_helpers.ninja import escape as _e, quote_path as _q, shell_token
+from esphome.build_helpers.ninja_gen import (
+    PATH_ARG_FLAGS,
+    anchor_path_flags,
+    ar_rule_lines,
+    collect_sources,
+    compile_edges,
+    compile_rule_lines,
+    library_edges,
+    tool_lines,
 )
 from esphome.core import CORE, EsphomeError
-from esphome.framework_helpers import (
-    get_project_cxx_compile_flags,
-    strip_win_long_path_prefix,
-)
+from esphome.framework_helpers import get_project_cxx_compile_flags
 from esphome.helpers import mkdir_p, write_file_if_changed
 from esphome.host.toolchain import PROGRAM_NAME, HostCompilers, find_tool, get_build_dir
-from esphome.platformio.library import SOURCE_KIND_FOR_SUFFIX, lex_build_flags
+from esphome.platformio.library import lex_build_flags
 
 if TYPE_CHECKING:
     from esphome.arduino.library import ArduinoLibrary
@@ -44,7 +47,7 @@ LIBRARY_CACHE_KEY = "host"
 # Flag shapes that only the compiler understands; dropped from the link line
 _COMPILE_ONLY_PREFIXES = ("-D", "-U", "-I", "-std=", "-W")
 # Compile-only flags whose argument is the next token
-_COMPILE_ONLY_ARG_FLAGS = ("-include", "-imacros", "-isystem", "-iquote", "-idirafter")
+_COMPILE_ONLY_ARG_FLAGS = PATH_ARG_FLAGS
 # Flag shapes that only the linker consumes; inert on a -c compile line
 _LINK_ONLY_PREFIXES = ("-l", "-L", "-Wl,")
 # Link-only flags whose argument is the next token (macOS frameworks)
@@ -81,38 +84,6 @@ def split_flags(tokens: list[str]) -> tuple[list[str], list[str]]:
     return compile_flags, link_flags
 
 
-# Glued flags whose operand is a path
-_PATH_PREFIXES = ("-I", "-L")
-
-
-def _anchor(path: str) -> str:
-    """A relative path operand, anchored at the build path.
-
-    PlatformIO ran the compiler from the build path; ninja runs it from
-    ``.pioenvs/<name>``, so a relative operand would point elsewhere.
-    """
-    if not path or Path(path).is_absolute():
-        return path
-    return str(Path(CORE.build_path, path))
-
-
-def anchor_path_flags(tokens: list[str]) -> list[str]:
-    """Anchor the relative path operands of ``tokens`` at the build path."""
-    anchored: list[str] = []
-    path_follows = False
-    for tok in tokens:
-        if path_follows:
-            tok = _anchor(tok)
-            path_follows = False
-        elif tok in _COMPILE_ONLY_ARG_FLAGS or tok in _PATH_PREFIXES:
-            # The operand is the next token ("-I dir", "-include file")
-            path_follows = True
-        elif tok.startswith(_PATH_PREFIXES):
-            tok = tok[:2] + _anchor(tok[2:])
-        anchored.append(tok)
-    return anchored
-
-
 def _is_cxx_std(tok: str) -> bool:
     return tok.startswith("-std=") and "++" in tok
 
@@ -126,7 +97,7 @@ def _flag_lists() -> tuple[list[str], list[str], list[str]]:
     """
     # The funnel warns and drops empty glued arguments (-D "") itself
     tokens = lex_build_flags(sorted(CORE.build_flags), "esphome")
-    compile_flags, link_flags = split_flags(anchor_path_flags(tokens))
+    compile_flags, link_flags = split_flags(anchor_path_flags(tokens, CORE.build_path))
     cflags = [t for t in compile_flags if not _is_cxx_std(t)]
     cxx_std = CORE.cpp_standard
     cxxflags = [t for t in compile_flags if not (cxx_std and t.startswith("-std="))]
@@ -136,7 +107,8 @@ def _flag_lists() -> tuple[list[str], list[str], list[str]]:
 
     unflags = set(
         anchor_path_flags(
-            lex_build_flags(sorted(CORE.build_unflags), "esphome build_unflags")
+            lex_build_flags(sorted(CORE.build_unflags), "esphome build_unflags"),
+            CORE.build_path,
         )
     )
     # Matching is whole-token; an unflag that hits nothing (a typo, or
@@ -146,10 +118,11 @@ def _flag_lists() -> tuple[list[str], list[str], list[str]]:
         _LOGGER.warning(
             "build_unflags entries matched no build flag: %s", ", ".join(unmatched)
         )
-    return tuple(
-        [t for t in flags if t not in unflags]
-        for flags in (cflags, cxxflags, link_flags)
-    )  # type: ignore[return-value]
+
+    def keep(flags: list[str]) -> list[str]:
+        return [t for t in flags if t not in unflags]
+
+    return keep(cflags), keep(cxxflags), keep(link_flags)
 
 
 def _resolve_host_libraries() -> list[ArduinoLibrary]:
@@ -173,61 +146,6 @@ def _resolve_host_libraries() -> list[ArduinoLibrary]:
         framework=None,
         manifest_optional=True,
     )
-
-
-def _collect_sources(root: Path) -> list[Path]:
-    return sorted(p for p in root.rglob("*") if p.suffix in SOURCE_KIND_FOR_SUFFIX)
-
-
-def _common_parent(paths: list[Path]) -> Path:
-    import os
-
-    return Path(os.path.commonpath([str(p.parent) for p in paths]))
-
-
-def _own_includes(lib: ArduinoLibrary) -> tuple[str, str]:
-    """A library's own include flags, and its remaining private flags.
-
-    The include path is one global list, so another library's header of the
-    same name could shadow this library's own. PlatformIO searched a
-    library's own directories first; ``$own_includes`` leads the compile
-    line to keep that order.
-    """
-    own = [f"-I{_q(d)}" for d in lib.include_dirs]
-    flags = []
-    for tok in lib.flags:
-        if tok.startswith("-I") and len(tok) > 2:
-            own.append(f"-I{_q(tok[2:])}")
-        else:
-            flags.append(_shell_token(tok))
-    return " ".join(own), " ".join(flags)
-
-
-def _ninja_compile_edges(
-    lines: list[str],
-    sources: list[Path],
-    root: Path,
-    group: str,
-    flags: str = "",
-    own_includes: str = "",
-) -> list[str]:
-    """Emit compile edges for ``sources``; return the object paths."""
-    objects = []
-    for src in sources:
-        rel = src.relative_to(root).as_posix()
-        obj = f"obj/{group}/{rel}.o"
-        escaped_obj = _e(obj)
-        lines.append(
-            f"build {escaped_obj}: {SOURCE_KIND_FOR_SUFFIX[src.suffix]} {_e(src)}"
-        )
-        if own_includes:
-            lines.append(f"  own_includes = {own_includes}")
-        if flags:
-            lines.append(f"  flags = {flags}")
-        # Escaped once here: the returned paths only ever appear in build
-        # statements (archive/link inputs), which use ninja escaping
-        objects.append(escaped_obj)
-    return objects
 
 
 def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
@@ -256,53 +174,18 @@ def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
     # -L and -l trail the objects while every other link token leads
     lib_dirs = [Path(t[2:]) for t in link_flags if t.startswith("-L")]
     libs = [t for t in link_flags if t.startswith("-l")]
-    linkflags = [_shell_token(t) for t in link_flags if not t.startswith(("-L", "-l"))]
+    linkflags = [shell_token(t) for t in link_flags if not t.startswith(("-L", "-l"))]
     for lib in libraries:
         lib_dirs += lib.link_dirs
         libs += [f"-l{name}" for name in lib.link_libs]
-        linkflags += [_shell_token(f) for f in lib.link_flags]
+        linkflags += [shell_token(f) for f in lib.link_flags]
 
     # PlatformIO's ASPPCOM passes only -D/-I user flags to assembly
     asflags = [t for t in cflags if t.startswith(("-D", "-I"))]
 
-    build_tool = Path(__file__).parent / "build_tool.py"
-
-    # $in/$out stay unquoted: ninja escapes its built-in path variables
-    # itself; only literal paths need _q().
     lines = [
-        "# Auto-generated by ESPHome",
-        "ninja_required_version = 1.5",
-        f"cc = {_q(compilers.cc)}",
-        f"cxx = {_q(compilers.cxx)}",
-        # The NSIS launcher starts Python with a \\?\ extended-length path
-        # that cmd.exe cannot spawn; same strip every other emitted binary
-        # path gets
-        f"python = {_q(strip_win_long_path_prefix(sys.executable))}",
-        f"buildtool = {_q(build_tool)}",
-        f"ccache = {_q(ccache) if ccache else ''}",
-        "",
-        # Rule names match SOURCE_KIND_FOR_SUFFIX values (c, cxx, asm, aspp)
-        # and toolchain.COMPILE_RULES
-        "rule c",
-        "  command = $ccache $cc -MMD -MF $out.d $own_includes $cflags $flags -c $in -o $out",
-        "  depfile = $out.d",
-        "  deps = gcc",
-        "  description = CC $out",
-        "rule cxx",
-        "  command = $ccache $cxx -MMD -MF $out.d $own_includes $cxxflags $flags -c $in -o $out",
-        "  depfile = $out.d",
-        "  deps = gcc",
-        "  description = CXX $out",
-        "rule aspp",
-        "  command = $ccache $cc -MMD -MF $out.d -x assembler-with-cpp $own_includes $asflags $flags -c $in -o $out",
-        "  depfile = $out.d",
-        "  deps = gcc",
-        "  description = AS $out",
-        # Plain assembler, as SCons's ASCOM: no preprocessor, so no
-        # depfile and no $flags (defines/includes) either
-        "rule asm",
-        "  command = $ccache $cc -x assembler $asflags -c $in -o $out",
-        "  description = AS $out",
+        *tool_lines(compilers.cc, compilers.cxx, ccache),
+        *compile_rule_lines(),
         "rule link",
         "  command = $cxx -o $out $linkflags @$out.rsp $archives $libdirflags $libflags",
         "  rspfile = $out.rsp",
@@ -312,61 +195,28 @@ def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
     if any(lib.sources and lib.lib_archive for lib in libraries):
         # Resolved only when an archive is built, so a system without
         # binutils still links a library-free configuration
-        lines += [
-            "rule ar",
-            f"  command = $python $buildtool ar {_q(find_tool('AR', ('ar',)))} $out $out.rsp",
-            "  rspfile = $out.rsp",
-            "  rspfile_content = $in_newline",
-            "  description = AR $out",
-        ]
+        lines += ar_rule_lines(find_tool("AR", ("ar",)))
     lines += [
         "",
-        f"cflags = {' '.join([*map(_shell_token, cflags), *includes])}",
-        f"cxxflags = {' '.join([*map(_shell_token, cxxflags), *includes])}",
-        f"asflags = {' '.join([*map(_shell_token, asflags), *includes])}",
+        f"cflags = {' '.join([*map(shell_token, cflags), *includes])}",
+        f"cxxflags = {' '.join([*map(shell_token, cxxflags), *includes])}",
+        f"asflags = {' '.join([*map(shell_token, asflags), *includes])}",
         f"linkflags = {' '.join(linkflags)}",
         f"libdirflags = {' '.join(f'-L{_q(d)}' for d in lib_dirs)}",
-        f"libflags = {' '.join(_shell_token(lib) for lib in libs)}",
+        f"libflags = {' '.join(shell_token(lib) for lib in libs)}",
         "",
     ]
 
-    archives: list[str] = []
-    direct_objs: list[str] = []
-    for lib in libraries:
-        if not lib.sources:
-            # Header-only libraries are legitimate; the log makes an empty
-            # srcFilter or broken tree traceable before link errors do
-            _LOGGER.debug(
-                "Library %s has no source files; contributing includes only",
-                lib.name,
-            )
-            continue
-        own_includes, flags = _own_includes(lib)
-        objs = _ninja_compile_edges(
-            lines,
-            lib.sources,
-            _common_parent(lib.sources),
-            f"lib/{lib.name}",
-            flags=flags,
-            own_includes=own_includes,
-        )
-        if not lib.lib_archive:
-            # libArchive: false: hand the objects to the linker directly so
-            # unreferenced-but-required symbols (weak overrides) survive
-            direct_objs.extend(objs)
-            continue
-        archive = f"lib{lib.name}.a"
-        lines.append(f"build {_e(archive)}: ar {' '.join(objs)}")
-        archives.append(archive)
+    archives, direct_objs = library_edges(lines, libraries)
 
-    src_objs = _ninja_compile_edges(lines, _collect_sources(src_dir), src_dir, "src")
+    src_objs = compile_edges(lines, collect_sources(src_dir), src_dir, "src")
     if not src_objs:
         raise EsphomeError(f"No source files found under {src_dir}")
 
     # Archives are not topologically sorted; GNU ld needs the group to
     # resolve references between them. ld64 loads archives iteratively and
     # rejects the option, so macOS lists them bare.
-    archive_tokens = [_shell_token(a) for a in archives]
+    archive_tokens = [shell_token(a) for a in archives]
     if archive_tokens and sys.platform != "darwin":
         archive_tokens = ["-Wl,--start-group", *archive_tokens, "-Wl,--end-group"]
     lines.append(

@@ -114,7 +114,8 @@ LIBRARY_CACHE_ROOT = INTEGRATION_TESTS_ROOT / "pio_components"
 def shared_library_cache() -> Path:
     """This worker's shared registry-library download cache."""
     worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
-    cache_dir = LIBRARY_CACHE_ROOT / worker
+    # Keyed by checkout too: two sessions on one machine share worker ids
+    cache_dir = LIBRARY_CACHE_ROOT / _REPO_KEY / worker
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir
 
@@ -126,8 +127,12 @@ def _link_library_cache(config_dir: Path, cache_dir: Path) -> None:
     data_dir.mkdir(exist_ok=True)
     link = data_dir / "pio_components"
     if link.is_symlink():
-        return
-    if link.exists():
+        if link.resolve() == cache_dir.resolve():
+            return
+        # A shared build dir was linked by another worker; writing through
+        # it would put two workers in one cache
+        link.unlink()
+    elif link.exists():
         # A real dir from a run predating the shared cache; nothing in it is
         # worth more than a re-download
         rmtree(link)

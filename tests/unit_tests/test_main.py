@@ -7805,45 +7805,36 @@ async def test_wrap_to_code_comment_is_insertion_order_independent() -> None:
     assert second.index("a: 2") < second.index("z: 1")
 
 
-def test_host_program_path_uses_the_host_toolchain() -> None:
-    """The compiled program is wherever the native host build put it."""
-    setup_core(platform=PLATFORM_HOST)
-    CORE.toolchain = Toolchain.HOST
-    with patch(
-        "esphome.host.toolchain.get_elf_path", return_value=Path("/b/program")
-    ) as mock_get:
-        assert main._host_program_path() == str(Path("/b/program"))
-    mock_get.assert_called_once_with()
-
-
 def test_command_compile_host_logs_program_path(
+    tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """command_compile on host logs the compiled program path."""
-    setup_core(platform=PLATFORM_HOST)
+    setup_core(platform=PLATFORM_HOST, tmp_path=tmp_path, name="dev")
     with (
         patch.object(main, "write_cpp", return_value=0),
         patch.object(main, "compile_program", return_value=0),
-        patch.object(main, "_host_program_path", return_value="/b/program"),
         caplog.at_level(logging.INFO),
     ):
         assert main.command_compile(SimpleNamespace(only_generate=False), {}) == 0
-    assert "Successfully compiled program to path '/b/program'" in caplog.text
+    assert f"Successfully compiled program to path '{CORE.firmware_bin}'" in caplog.text
 
 
-def test_command_run_host_executes_program(caplog: pytest.LogCaptureFixture) -> None:
+def test_command_run_host_executes_program(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     """command_run on host logs and executes the compiled program directly."""
-    setup_core(platform=PLATFORM_HOST)
+    setup_core(platform=PLATFORM_HOST, tmp_path=tmp_path, name="dev")
     with (
         patch.object(main, "write_cpp", return_value=0),
         patch.object(main, "compile_program", return_value=0),
-        patch.object(main, "_host_program_path", return_value="/b/program"),
         patch.object(main, "run_external_process", return_value=0) as mock_run,
         caplog.at_level(logging.INFO),
     ):
         assert main.command_run(SimpleNamespace(), {}) == 0
-    mock_run.assert_called_with("/b/program")
-    assert "Running program from path '/b/program'" in caplog.text
+    program = str(CORE.firmware_bin)
+    mock_run.assert_called_with(program)
+    assert f"Running program from path '{program}'" in caplog.text
 
 
 def test_write_cpp_file_project_generation_follows_host_toolchain() -> None:

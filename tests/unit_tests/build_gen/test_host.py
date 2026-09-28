@@ -13,10 +13,9 @@ from esphome.build_gen import host as build_gen
 from esphome.build_helpers.ninja import escape as _e, quote_path as _q
 from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM, PLATFORM_HOST
 from esphome.core import CORE, EsphomeError, Library
-from esphome.host import PROGRAM_NAME
-from esphome.host.toolchain import HostCompilers
+from esphome.host.toolchain import PROGRAM_NAME, HostCompilers
 
-COMPILERS = HostCompilers(cc="/usr/bin/gcc", cxx="/usr/bin/g++")
+COMPILERS = HostCompilers(cc=("/usr/bin/gcc", "-m32"), cxx=("/usr/bin/g++",))
 
 
 @pytest.fixture(autouse=True)
@@ -156,7 +155,8 @@ def test_write_project_emits_every_source_kind(tmp_path: Path) -> None:
     CORE.build_flags = {"-DUSE_HOST", "-g"}
     changed, ninja = _render(ccache="/usr/bin/ccache")
     assert changed is True
-    assert f"cc = {_q('/usr/bin/gcc')}" in ninja
+    # A compiler override's arguments follow the program
+    assert f"cc = {_q('/usr/bin/gcc')} -m32\n" in ninja
     assert f"cxx = {_q('/usr/bin/g++')}" in ninja
     assert f"ccache = {_q('/usr/bin/ccache')}" in ninja
     assert f"build obj/src/main.cpp.o: cxx {_e(src / 'main.cpp')}" in ninja
@@ -209,7 +209,7 @@ def _libraries(tmp_path: Path) -> list[ArduinoLibrary]:
         name="foo",
         sources=[lib_dir / "foo/src/a.cpp", lib_dir / "foo/src/sub/b.c"],
         include_dirs=[lib_dir / "foo/src"],
-        flags=["-DFOO=1", f"-I{lib_dir / 'foo/private'}"],
+        flags=["-DFOO=1"],
         link_dirs=[lib_dir / "foo/lib"],
         link_libs=["bar"],
         link_flags=["-Wl,--gc-sections"],
@@ -247,7 +247,7 @@ def test_write_project_with_libraries(
     # Library sources compile with the library's own flags, rooted at their
     # common parent; its own include dirs lead the line so another library's
     # header of the same name cannot shadow them
-    own = f"-I{_q(lib_dir / 'foo/src')} -I{_q(lib_dir / 'foo/private')}"
+    own = f"-I{_q(lib_dir / 'foo/src')}"
     assert "$own_includes $cxxflags $flags" in ninja
     assert (
         f"build obj/lib/foo/a.cpp.o: cxx {_e(lib_dir / 'foo/src/a.cpp')}\n"
@@ -279,36 +279,6 @@ def test_write_project_darwin_links_archives_bare(tmp_path: Path) -> None:
         _changed, ninja = _render()
     assert "  archives = libfoo.a\n" in ninja
     assert "--start-group" not in ninja
-
-
-def test_anchor_path_flags_anchors_relative_operands(tmp_path: Path) -> None:
-    """ninja runs from .pioenvs/<name>; PlatformIO ran from the build path."""
-    absolute = str(tmp_path / "abs")
-    assert build_gen.anchor_path_flags(
-        [
-            "-Iinc",
-            f"-I{absolute}",
-            "-Llib",
-            "-include",
-            "pre.h",
-            "-I",
-            "split",
-            "-DUSE_HOST",
-            "-lssl",
-            "-I",
-        ]
-    ) == [
-        f"-I{tmp_path / 'inc'}",
-        f"-I{absolute}",
-        f"-L{tmp_path / 'lib'}",
-        "-include",
-        str(tmp_path / "pre.h"),
-        "-I",
-        str(tmp_path / "split"),
-        "-DUSE_HOST",
-        "-lssl",
-        "-I",
-    ]
 
 
 def test_build_unflags_match_anchored_paths(caplog: pytest.LogCaptureFixture) -> None:

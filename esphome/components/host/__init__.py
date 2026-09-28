@@ -1,3 +1,5 @@
+import sys
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -61,6 +63,12 @@ async def to_code(config: ConfigType) -> None:
 def run_compile(args: object, config: ConfigType) -> bool:
     from esphome.host import toolchain
 
+    if sys.platform == "win32":
+        # Here, not in validation: `esphome config` must keep working
+        raise EsphomeError(
+            "The host platform uses POSIX interfaces and does not build on "
+            "Windows; use WSL or a Linux or macOS machine"
+        )
     if toolchain.run_compile(config, CORE.verbose) != 0:
         raise EsphomeError("Host build failed")
     return True

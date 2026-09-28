@@ -118,8 +118,16 @@ INTEGRATION_TESTS_TRIGGER_FILES = frozenset(
     {
         "requirements.txt",
         "requirements_test.txt",
+        "esphome/arduino/library.py",
+        "esphome/build_gen/build_tool.py",
         "esphome/build_gen/host.py",
+        "esphome/build_helpers/ccache.py",
+        "esphome/build_helpers/idedata.py",
+        "esphome/build_helpers/native.py",
+        "esphome/build_helpers/ninja.py",
+        "esphome/build_helpers/ninja_gen.py",
         "esphome/host/toolchain.py",
+        "esphome/platformio/library.py",
     }
 )
 
@@ -241,7 +249,7 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
        - conftest.py, types.py, const.py, entity_utils.py, state_utils.py, etc.
 
     4. A file in INTEGRATION_TESTS_TRIGGER_FILES changed
-       - The dependency pins and the session init fixture affect every test
+       - The dependency pins and the host build backend affect every test
 
     Returns (run_all=False, [test_files...]) when:
 

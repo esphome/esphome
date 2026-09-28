@@ -1714,17 +1714,10 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     if exit_code != 0:
         return exit_code
     if CORE.is_host:
-        _LOGGER.info("Successfully compiled program to path '%s'", _host_program_path())
+        _LOGGER.info("Successfully compiled program to path '%s'", CORE.firmware_bin)
     else:
         _LOGGER.info("Successfully compiled program.")
     return 0
-
-
-def _host_program_path() -> str:
-    """Return the compiled host program path."""
-    from esphome.host.toolchain import get_elf_path
-
-    return str(get_elf_path())
 
 
 def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
@@ -1771,7 +1764,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
         return exit_code
     _LOGGER.info("Successfully compiled program.")
     if CORE.is_host:
-        program_path = _host_program_path()
+        program_path = str(CORE.firmware_bin)
         _LOGGER.info("Running program from path '%s'", program_path)
         return run_external_process(program_path)
 

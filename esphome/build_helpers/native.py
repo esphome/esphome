@@ -7,11 +7,15 @@ platform component package or the backend itself.
 
 from __future__ import annotations
 
+from collections.abc import Collection
 import importlib
+import logging
 from types import ModuleType
 
 from esphome.const import Toolchain
 from esphome.core import CORE, EsphomeError
+
+_LOGGER = logging.getLogger(__name__)
 
 # Native build backend per (target platform, toolchain)
 NATIVE_TOOLCHAIN_MODULES = {
@@ -51,3 +55,20 @@ def analysis_backend() -> ModuleType | None:
         return native
     module_path = ANALYSIS_TOOLCHAIN_MODULES.get((CORE.target_platform, CORE.toolchain))
     return importlib.import_module(module_path) if module_path else None
+
+
+def warn_ignored_platformio_options(consumed: Collection[str]) -> None:
+    """Warn for component-added platformio options a native build drops.
+
+    User-supplied keys were already routed or warned about by
+    ``core/config.py``; what survives into ``CORE.platformio_options`` came
+    from ``cg.add_platformio_option`` calls in components.
+    """
+    for key in sorted(CORE.platformio_options or {}):
+        if key not in consumed:
+            _LOGGER.warning(
+                "platformio_options->%s is ignored when building with the "
+                "native '%s' toolchain",
+                key,
+                CORE.toolchain.value,
+            )

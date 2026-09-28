@@ -44,8 +44,7 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
     build_flags = BUILD_FLAGS
     if lib_config_json:
         lib_config = json.loads(lib_config_json)
-        # file:// is the local library form the native library converter reads
-        benchmark_lib = f"benchmark={Path(lib_config['lib_path']).resolve().as_uri()}"
+        benchmark_lib = f"benchmark=symlink://{lib_config['lib_path']}"
         # These defines must be global (not just in library.json) because
         # benchmark.h uses #ifdef CODSPEED_ENABLED to switch benchmark
         # registration to CodSpeed-instrumented variants, and

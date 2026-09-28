@@ -58,14 +58,29 @@ def test_to_code_configures_the_native_build() -> None:
 
 def test_run_compile_hook_claims_the_build() -> None:
     config = {"esphome": {}}
-    with patch("esphome.host.toolchain.run_compile", return_value=0) as run:
+    with (
+        patch.object(host.sys, "platform", "linux"),
+        patch("esphome.host.toolchain.run_compile", return_value=0) as run,
+    ):
         assert host.run_compile(object(), config) is True
     run.assert_called_once_with(config, CORE.verbose)
 
 
 def test_run_compile_hook_raises_on_failure() -> None:
     with (
+        patch.object(host.sys, "platform", "linux"),
         patch("esphome.host.toolchain.run_compile", return_value=2),
         pytest.raises(EsphomeError, match="Host build failed"),
     ):
         host.run_compile(object(), {"esphome": {}})
+
+
+def test_run_compile_hook_refuses_windows() -> None:
+    """The host sources use POSIX interfaces; fail before building, by name."""
+    with (
+        patch.object(host.sys, "platform", "win32"),
+        patch("esphome.host.toolchain.run_compile") as run,
+        pytest.raises(EsphomeError, match="does not build on Windows"),
+    ):
+        host.run_compile(object(), {"esphome": {}})
+    run.assert_not_called()

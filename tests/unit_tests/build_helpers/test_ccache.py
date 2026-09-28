@@ -120,3 +120,34 @@ def test_parse_enable_env_spelling_tables(
     """cv.boolean's spelling tables plus the 1/0 env convention."""
     monkeypatch.setenv("ESPHOME_CCACHE_ENABLE", raw)
     assert ccache.parse_enable_env("ESPHOME_CCACHE_ENABLE") is expected
+
+
+def test_resolve_absolute_ccache_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ninja runs from the build directory, where a relative path is lost."""
+    monkeypatch.chdir(tmp_path)
+    with patch.object(ccache, "resolve_ccache_path", return_value="bin/ccache"):
+        resolved = ccache.resolve_absolute_ccache_path()
+    assert Path(resolved) == tmp_path / "bin" / "ccache"
+    with patch.object(ccache, "resolve_ccache_path", return_value=None):
+        assert ccache.resolve_absolute_ccache_path() is None
+
+
+def test_ccache_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from esphome.core import CORE
+
+    CORE.build_path = tmp_path / "build"
+    spec = ("ESPHOME_TEST_PREFIX", "test")
+    monkeypatch.setenv("ESPHOME_TEST_PREFIX", str(tmp_path / "cache"))
+    monkeypatch.setenv("CCACHE_NOHASHDIR", "false")
+    for key in ("CCACHE_DIR", "CCACHE_BASEDIR", "CCACHE_DEPEND"):
+        monkeypatch.delenv(key, raising=False)
+    # None means resolved and disabled
+    assert ccache.ccache_env(None, spec) == {}
+    env = ccache.ccache_env("/usr/bin/ccache", spec)
+    # User-set values are respected; the rest get defaults
+    assert "CCACHE_NOHASHDIR" not in env
+    assert env["CCACHE_DEPEND"] == "1"
+    assert env["CCACHE_DIR"] == str((tmp_path / "cache").resolve() / "ccache")
+    assert env["CCACHE_BASEDIR"] == str((tmp_path / "build").resolve())

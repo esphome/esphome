@@ -863,6 +863,11 @@ def _url_or_none(value: Any) -> str | None:
     return value if parsed.scheme and parsed.netloc else None
 
 
+# URL schemes that name a local library folder; symlink:// is PlatformIO's
+# spelling for one it links instead of copying, which is the same to us
+_LOCAL_SCHEMES = ("file", "symlink")
+
+
 def _node_key(
     name: str | None, version: str | None, repository: str | None
 ) -> tuple[str, str, tuple[str | None, str | None]]:
@@ -900,7 +905,7 @@ def _node_key(
             scheme = urlsplit(candidate).scheme
         except ValueError:
             scheme = ""
-        if scheme == "file" or _url_or_none(candidate):
+        if scheme in _LOCAL_SCHEMES or _url_or_none(candidate):
             name, repository = custom_name, candidate
         else:
             # Anything with ``://`` was meant to be a URL; failing it fast
@@ -909,7 +914,7 @@ def _node_key(
     if repository:
         is_git_prefixed = repository.startswith("git+")
         split_result = urlsplit(repository.removeprefix("git+"))
-        if split_result.scheme == "file" and not is_git_prefixed:
+        if split_result.scheme in _LOCAL_SCHEMES and not is_git_prefixed:
             # A plain file:// URL points at a local library directory. A local
             # file URL is written file:///absolute/path (empty host) or, less
             # commonly, file://localhost/path. Anything else -- a real host, or
@@ -1303,7 +1308,7 @@ def convert_libraries(
                 # cross-platform skip stays at debug, other causes warn
                 if key in top_level_keys:
                     reason = (
-                        f"is not compatible with {backend.framework}"
+                        f"is not compatible with {backend.framework or backend.platform}"
                         if isinstance(e, IncompatiblePlatform)
                         else "has a malformed manifest"
                     )
