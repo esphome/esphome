@@ -1,0 +1,13 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+    advanced:
+      nvs_cache_in_psram: false
+
+psram:
+  mode: octal
+  ignore_not_found: false
