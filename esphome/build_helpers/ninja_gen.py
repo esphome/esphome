@@ -13,12 +13,22 @@ from pathlib import Path
 import sys
 from typing import TYPE_CHECKING
 
+from esphome.build_helpers.ccache import effective_ccache_basedir
 from esphome.build_helpers.ninja import (
     escape as _e,
     quote_path as _q,
     shell_token as _shell_token,
 )
+from esphome.build_helpers.pch import (
+    PCH_HEADER_NAME,
+    mark_pch_emitted,
+    pch_checksum,
+    pch_enabled,
+    pch_header_text,
+)
+from esphome.core import CORE
 from esphome.framework_helpers import strip_win_long_path_prefix
+from esphome.helpers import write_file_if_changed
 from esphome.platformio.library import SOURCE_KIND_FOR_SUFFIX
 
 if TYPE_CHECKING:
@@ -105,6 +115,82 @@ def pch_rule_lines() -> list[str]:
         "  deps = gcc",
         "  description = PCH $out",
     ]
+
+
+def pch_edges(
+    lines: list[str],
+    build_dir: Path,
+    src_dir: Path,
+    headers: Sequence[str],
+    cxxflags: Sequence[str],
+    src_flags: Sequence[str],
+    ccache: str | None,
+    identity: Sequence[str],
+) -> tuple[str, str] | None:
+    """Emit the precompiled header for the C++ src edges.
+
+    ``headers`` are folded into one prefix header, ``src_flags`` are the
+    flags every src edge carries, and ``identity`` names what the compile
+    depends on beyond the headers and flags (versioned install paths).
+    Returns the ``cxx_override`` for ``compile_edges``, or None when the
+    build goes without a precompiled header.
+    """
+    if not pch_enabled():
+        return None
+    if any(tok.startswith("-include") for tok in cxxflags):
+        # $cxxflags expands first, so a user -include there means GCC would
+        # never load the .gch
+        _LOGGER.warning(
+            "A -include in build_flags prevents the precompiled header from "
+            "loading; compiling without it"
+        )
+        return None
+    pch_header = build_dir / PCH_HEADER_NAME
+    pch_text = pch_header_text(headers)
+    checksum = None
+    try:
+        if ccache:
+            # The .sum exists only for CCACHE_PCH_EXTSUM; ninja's depfile
+            # handles staleness. Strip resolved and raw build paths
+            # (symlinks) so identical configs share cache entries
+            flags_id = (
+                " ".join(cxxflags)
+                .replace(effective_ccache_basedir(), "")
+                .replace(str(CORE.build_path), "")
+            )
+            # The header text covers include order
+            checksum = pch_checksum(src_dir, headers, (pch_text, *identity, flags_id))
+    except (OSError, UnicodeError) as err:
+        # Identity unknown: a stale cache entry must never be served
+        _LOGGER.warning(
+            "Could not establish the pch identity; compiling without it: %s", err
+        )
+        return None
+    _LOGGER.info(
+        "Compiling with a precompiled header (set ESPHOME_PCH_ENABLE=0 to disable)"
+    )
+    write_file_if_changed(pch_header, pch_text)
+    sum_path = build_dir / f"{PCH_HEADER_NAME}.gch.sum"
+    if checksum is not None:
+        # Generate-time stamp: a hand-run ninja can rebuild the .gch
+        # while this .sum lags
+        write_file_if_changed(sum_path, checksum + "\n")
+    else:
+        # A stale .sum from an earlier ccache run must not survive
+        sum_path.unlink(missing_ok=True)
+    gch = _e(f"{PCH_HEADER_NAME}.gch")
+    lines.append(f"build {gch}: pch {_e(pch_header)}")
+    if src_flags:
+        lines.append(f"  flags = {' '.join(src_flags)}")
+    # Relative -include: absolute would break cross-device ccache.
+    # -Wno-error keeps a rejected .gch a warning under user -Werror
+    cxx_parts = [
+        *src_flags,
+        f"-Winvalid-pch -Wno-error=invalid-pch -include {PCH_HEADER_NAME}",
+    ]
+    lines.append(f"srccxxflags = {' '.join(cxx_parts)}")
+    mark_pch_emitted()
+    return ("$srccxxflags", gch)
 
 
 def ar_rule_lines(ar: Path | str) -> list[str]:
