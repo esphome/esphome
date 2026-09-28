@@ -72,7 +72,9 @@ PCH_SCRIPT_EXCLUDED_PLATFORMS = frozenset(
     }
 )
 
-# The GCC 10.3 of LibreTiny only loads its own .gch back on Linux
+# The GCC 10.3 of LibreTiny only loads its own .gch back on Linux: elsewhere
+# the compiler is loaded at a new address each run, which GCC accepts from
+# version 12. Remove once LibreTiny ships GCC 12 or newer
 PCH_SCRIPT_LINUX_ONLY_PLATFORMS = frozenset(
     {
         PLATFORM_BK72XX,
