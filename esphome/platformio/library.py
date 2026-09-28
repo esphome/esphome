@@ -360,7 +360,7 @@ class LibraryBackend:
     """
 
     platform: str | None
-    framework: str
+    framework: str | None
     emit: Callable[["ConvertedLibrary"], None]
     cache_key: str
     # Owner-less names this returns True for are skipped by the walk;
@@ -914,7 +914,7 @@ def _node_key(
     if repository:
         is_git_prefixed = repository.startswith("git+")
         split_result = urlsplit(repository.removeprefix("git+"))
-        if split_result.scheme in _LOCAL_SCHEMES and not is_git_prefixed:
+        if (scheme := split_result.scheme) in _LOCAL_SCHEMES and not is_git_prefixed:
             # A plain file:// URL points at a local library directory. A local
             # file URL is written file:///absolute/path (empty host) or, less
             # commonly, file://localhost/path. Anything else -- a real host, or
@@ -922,8 +922,8 @@ def _node_key(
             # rejected rather than silently resolved to the wrong directory.
             if split_result.netloc not in ("", "localhost"):
                 raise RuntimeError(
-                    f"Unsupported host in file:// library URL '{repository}'; "
-                    "use an absolute path, e.g. file:///path/to/lib"
+                    f"Unsupported host in {scheme}:// library URL '{repository}'; "
+                    f"use an absolute path, e.g. {scheme}:///path/to/lib"
                 )
             # Validate the URL path itself (always POSIX-style, leading slash),
             # not the OS path: on Windows a "/foo" path is not is_absolute()
@@ -933,8 +933,8 @@ def _node_key(
             url_path = split_result.path
             if not url_path.startswith("/") or not PurePosixPath(url_path).name:
                 raise RuntimeError(
-                    f"file:// library URL '{repository}' must be an absolute "
-                    "directory path, e.g. file:///path/to/lib"
+                    f"{scheme}:// library URL '{repository}' must be an absolute "
+                    f"directory path, e.g. {scheme}:///path/to/lib"
                 )
             path = url2pathname(url_path)
             return (name or PurePosixPath(url_path).name), "local", (path, None)

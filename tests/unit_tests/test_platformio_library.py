@@ -1306,3 +1306,17 @@ def test_convert_libraries_incompatible_names_the_platform_without_a_framework(
     backend.framework = None
     with pytest.raises(RuntimeError, match="Only32 is not compatible with native"):
         convert_libraries([Library("Only32", None, src.as_uri())], backend)
+
+
+@pytest.mark.parametrize(
+    ("url", "message"),
+    [
+        ("symlink://host/lib", "Unsupported host in symlink:// library URL"),
+        ("symlink:lib_dev", "symlink:// library URL .* must be an absolute"),
+    ],
+)
+def test_convert_libraries_symlink_url_errors_name_the_scheme(
+    setup_core: Path, url: str, message: str
+) -> None:
+    with pytest.raises(RuntimeError, match=message):
+        convert_libraries([Library("benchmark", None, url)], _backend())

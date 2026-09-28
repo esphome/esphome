@@ -151,3 +151,17 @@ def test_ccache_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert env["CCACHE_DEPEND"] == "1"
     assert env["CCACHE_DIR"] == str((tmp_path / "cache").resolve() / "ccache")
     assert env["CCACHE_BASEDIR"] == str((tmp_path / "build").resolve())
+
+
+def test_ccache_defaults_env_escapes_a_dollar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A literal $ is doubled, since ccache expands $VAR in its settings."""
+    from esphome.core import CORE
+
+    CORE.build_path = tmp_path / "a$b"
+    for key in ("CCACHE_DIR", "CCACHE_BASEDIR"):
+        monkeypatch.delenv(key, raising=False)
+    env = ccache.ccache_defaults_env(tmp_path / "c$d")
+    assert env["CCACHE_DIR"].endswith("c$$d")
+    assert env["CCACHE_BASEDIR"].endswith("a$$b")

@@ -93,10 +93,11 @@ def ccache_defaults_env(cache_dir: Path) -> dict[str, str]:
             "CORE.build_path must be set before constructing the build environment"
         )
     defaults = {
-        "CCACHE_DIR": str(cache_dir),
+        # ccache expands $VAR in its settings; $$ is a literal $
+        "CCACHE_DIR": str(cache_dir).replace("$", "$$"),
         "CCACHE_NOHASHDIR": "true",
         "CCACHE_DEPEND": "1",
-        "CCACHE_BASEDIR": str(Path(CORE.build_path).resolve()),
+        "CCACHE_BASEDIR": str(Path(CORE.build_path).resolve()).replace("$", "$$"),
     }
     return {k: v for k, v in defaults.items() if k not in os.environ}
 
