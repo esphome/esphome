@@ -706,7 +706,7 @@ def test_run_compile_prepares_the_pch_before_the_build(
 
     _setup_build(setup_core)
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
-    ninja = subprocess.CompletedProcess([], 0)
+    ninja = subprocess.CompletedProcess([], 0, "", "")
 
     with (
         patch.object(toolchain, "need_reconfigure", return_value=False),
