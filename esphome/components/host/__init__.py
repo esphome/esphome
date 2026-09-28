@@ -20,7 +20,7 @@ from .const import KEY_HOST
 # force import gpio to register pin schema
 from .gpio import host_pin_to_code  # noqa: F401
 
-# Guarded wrapper: build_src_flags reaches C/assembly edges too
+# The curated headers the host build precompiles
 HOST_PCH_PREFIX = "esphome/core/pch_prefix.h"
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
