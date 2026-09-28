@@ -286,6 +286,10 @@ target_link_options(${{COMPONENT_LIB}} PUBLIC
 {pch.pch_cmake_consumer("${COMPONENT_LIB}", "${app_sources}")}"""
 
 
+def _read_if_exists(path: Path) -> str:
+    return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+
 def prepare_pch() -> None:
     """Build the .gch from the configured project, right before the build."""
     if not pch.pch_enabled():
@@ -295,6 +299,8 @@ def prepare_pch() -> None:
         CORE.relative_build_path(f"sdkconfig.{CORE.name}"),
         (
             str(idf_version()),
+            # The versions of the managed components
+            _read_if_exists(CORE.relative_build_path("dependencies.lock")),
             CORE.cpp_standard or "",
             *get_project_compile_flags(),
             *get_project_cxx_compile_flags(),

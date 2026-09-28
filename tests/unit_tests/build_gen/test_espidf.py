@@ -654,8 +654,18 @@ def test_component_cmakelists_pch_block(monkeypatch: pytest.MonkeyPatch) -> None
     assert "-include" not in get_component_cmakelists()
 
 
+def test_prepare_pch_managed_component_change_invalidates_sum(tmp_path: Path) -> None:
+    dev = _make_pch_device(tmp_path, "dev_l")
+    (dev / "dependencies.lock").write_text("espressif/mdns: 1.12.0\n")
+    first = _prepare(dev)
+    (dev / "dependencies.lock").write_text("espressif/mdns: 1.13.0\n")
+    assert _prepare(dev) != first
+
+
 def test_prepare_pch_compile_failure_stops_the_build(tmp_path: Path) -> None:
     dev = _make_pch_device(tmp_path, "dev_f")
+    # An earlier .sum must not outlive the .gch it was written for
+    (dev / "build" / "esphome_pch.h.gch.sum").write_text("old\n")
     with pytest.raises(EsphomeError, match="ESPHOME_PCH_ENABLE=0.*: boom"):
         _prepare(dev, returncode=1)
     assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
