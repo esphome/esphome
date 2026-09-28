@@ -60,7 +60,6 @@ static bool is_moving(DoorState state) {
   }
 }
 
-// True when the door already rests where the command sends it, so the command does not move it.
 static bool at_destination(const HoermannHcpCommand &command, DoorState state) {
   if (&command == &COMMAND_OPEN)
     return state == DoorState::OPEN;
@@ -151,7 +150,7 @@ void HoermannHcp::update() {
     ESP_LOGW(TAG, "Door did not start moving towards the requested position, dropping it");
     this->clear_target_();
   }
-  // A door that never reports moving after a fetched command is at rest after all.
+  // A door that never answers a fetched command is at rest after all.
   if (this->starting_ && now - this->start_fetched_at_ > this->start_window_ms_) {
     this->starting_ = false;
     if (stop_held) {
@@ -203,7 +202,6 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
   }
 
   this->record_response_();
-  // Only the read half of a status poll carries commands, once, so a second read without a new write does not.
   const bool status_poll = std::exchange(this->status_poll_pending_, false);
 
 #ifdef USE_HOERMANN_HCP_IDENTITY
@@ -337,7 +335,7 @@ const HoermannHcpCommand *HoermannHcp::take_command_() {
     ESP_LOGD(TAG, "Door came to rest before the stop was fetched, dropping it");
     return nullptr;
   }
-  // Until the door reports moving it still reads as at rest, and the motor may switch its lamp as it starts.
+  // Until the door answers, it still reads as at rest.
   if (!this->door_state_seen_ || !at_destination(*command, this->door_state_)) {
     this->starting_ = true;
     this->start_command_ = command;
@@ -576,7 +574,8 @@ bool HoermannHcp::queue_command_(const HoermannHcpCommand &command) {
 bool HoermannHcp::is_moving_or_starting_() const { return this->starting_ || is_moving(this->door_state_); }
 
 bool HoermannHcp::command_door_(const HoermannHcpCommand &command) {
-  // Only stopped, so it is never reversed at speed. take_command_() drops one queued before the door started instead.
+  // Only stopped, so it is never reversed at speed. take_command_() drops one queued before the door started the same
+  // way.
   if (this->is_moving_or_starting_())
     return this->stop_door();
   // A stop still waiting for a door that has come to rest would be dropped at the fetch anyway.

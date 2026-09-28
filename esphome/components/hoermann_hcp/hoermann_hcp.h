@@ -159,7 +159,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   uint32_t last_stop_at_{0};
   uint32_t start_fetched_at_{0};
   bool stop_sent_{false};
-  // A door command was fetched and the door has not reported moving yet.
+  // A door command was fetched and the door has not answered it by moving or reaching its destination yet.
   bool starting_{false};
 
   // Drop the "connected" flag if the bus controller has not polled us for this long.
@@ -188,7 +188,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool light_target_{false};
   bool door_state_seen_{false};
   bool short_broadcast_logged_{false};
-  // Only the read half right after a 0x17 write carries a command.
+  // Only the read half right after a 0x17 write carries a command, so a second read without a new write does not.
   bool status_poll_pending_{false};
 
 #ifdef USE_HOERMANN_HCP_IDENTITY
