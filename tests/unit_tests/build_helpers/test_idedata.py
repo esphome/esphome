@@ -184,7 +184,7 @@ def test_pick_entry_falls_back_to_any_cxx_tu() -> None:
     assert idedata._pick_entry(entries)["file"].endswith("x.cpp")
 
 
-def testis_esphome_src_handles_backslash_paths() -> None:
+def test_is_esphome_src_handles_backslash_paths() -> None:
     r"""The src marker must match Windows ``\src\esphome\`` paths too.
 
     compile_commands ``file`` entries use the OS-native separator; if the
