@@ -1,6 +1,7 @@
 import hashlib
 import os
 from pathlib import Path
+import platform
 import posixpath
 import re
 import shlex
@@ -31,10 +32,10 @@ _GUARD_TEXT = f"""\
 """
 _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
 # GCC 10 only loads a .gch at the address it was saved from, and arm64 macOS
-# loads every program at a random address. When ESPHome sets this variable,
-# the driver gets a -B directory whose cc1plus starts the real one without
-# that randomisation. Relative: compiles run in the project root
-_NO_ASLR_ENV = "ESPHOME_PCH_NO_ASLR"
+# loads every program at a random address. There the driver of these
+# PlatformIO platforms gets a -B directory whose cc1plus starts the real one
+# without that randomisation. Relative: compiles run in the project root
+_NO_ASLR_PIO_PLATFORMS = ("libretiny",)
 _NO_ASLR_DIR = "pch_cc1"
 _NO_ASLR_WRAPPER = """\
 #!/usr/bin/env -S "{python}" -ISs
@@ -63,8 +64,9 @@ argv = [real, *sys.argv[1:]]
 c_argv = (ctypes.c_char_p * (len(argv) + 1))(*[a.encode() for a in argv], None)
 env = [(k + "=" + v).encode() for k, v in os.environ.items()]
 c_env = (ctypes.c_char_p * (len(env) + 1))(*env, None)
-libc.posix_spawn(None, real.encode(), None, attr, c_argv, c_env)
-sys.exit("ESPHome: cannot start " + real + ": " + os.strerror(ctypes.get_errno()))
+# Replaces this process on success; the return value is the error number
+rc = libc.posix_spawn(None, real.encode(), None, attr, c_argv, c_env)
+sys.exit("ESPHome: cannot start " + real + ": " + os.strerror(rc))
 """
 _CXX_SUFFIXES = (".cpp", ".cc", ".cxx")
 _HEADER_SUFFIXES = (".h", ".hpp", ".hh", ".inc")
@@ -118,9 +120,13 @@ def _src_envs(src_dir: Path) -> list:
     return list(found.values()) or [projenv]  # noqa: F821
 
 
-def _no_aslr_flags(proj_dir: Path) -> list:
-    """The -B flag for the cc1plus wrapper, written when ESPHome asks for it."""
-    if os.environ.get(_NO_ASLR_ENV) != "1":
+def _no_aslr_flags(proj_dir: Path, pio_platform: str) -> list:
+    """The -B flag for the cc1plus wrapper, written where it is needed."""
+    if (
+        pio_platform not in _NO_ASLR_PIO_PLATFORMS
+        or sys.platform != "darwin"
+        or platform.machine() != "arm64"
+    ):
         return []
     wrapper = proj_dir / _NO_ASLR_DIR / "cc1plus"
     wrapper.parent.mkdir(exist_ok=True)
@@ -145,7 +151,7 @@ def _setup_pch() -> None:
     src_envs = _src_envs(src_dir)
 
     cxx = src_envs[0].subst("$CXX")
-    no_aslr = _no_aslr_flags(proj_dir)
+    no_aslr = _no_aslr_flags(proj_dir, env.PioPlatform().name)  # noqa: F821
     # The header holds the -include entries itself, so the .gch compile must
     # not see them; consumers keep theirs, which the .gch then satisfies
     flags = []

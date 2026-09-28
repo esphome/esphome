@@ -336,10 +336,10 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     env = dict(os.environ if base_env is None else base_env)
     env.update(_ccache_env())
     if CORE.is_configured:
-        from esphome.build_helpers.pch import pch_script_enabled, pch_script_env
+        from esphome.build_helpers.pch import ccache_pch_env, pch_script_enabled
 
         if pch_script_enabled():
-            env.update(pch_script_env())
+            env.update(ccache_pch_env())
     # The runner offers the out-of-flash tip but has no configured CORE, so
     # tell it. Ask CORE, not is_esp32_arduino_build(), which reads this same
     # variable; clear an inherited one so it cannot reach the wrong build.

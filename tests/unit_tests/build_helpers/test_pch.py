@@ -131,28 +131,17 @@ def test_pch_script_gcc10_platform_off_elsewhere(
     monkeypatch.setattr(pch.host_platform, "machine", lambda: machine)
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
     assert not pch.pch_script_enabled()
-    assert pch.PCH_NO_ASLR_ENV not in pch.pch_script_env()
 
 
 @pytest.mark.parametrize("platform", sorted(pch.PCH_SCRIPT_GCC10_PLATFORMS))
 def test_pch_script_gcc10_platform_on_apple_silicon(
     platform: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The script starts cc1plus without address randomisation there."""
+    """The script's cc1plus wrapper covers arm64 macOS."""
     monkeypatch.setattr(pch.sys, "platform", "darwin")
     monkeypatch.setattr(pch.host_platform, "machine", lambda: "arm64")
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
     assert pch.pch_script_enabled()
-    assert pch.pch_script_env()[pch.PCH_NO_ASLR_ENV] == "1"
-
-
-def test_pch_script_env_without_wrapper(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(pch.sys, "platform", "darwin")
-    monkeypatch.setattr(pch.host_platform, "machine", lambda: "arm64")
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
-    env = pch.pch_script_env()
-    assert pch.PCH_NO_ASLR_ENV not in env
-    assert env == pch.ccache_pch_env()
 
 
 @pytest.mark.parametrize("platform", sorted(pch.PCH_SCRIPT_EXCLUDED_PLATFORMS))

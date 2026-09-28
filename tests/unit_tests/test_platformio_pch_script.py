@@ -6,6 +6,7 @@ from collections.abc import Callable
 import os
 from pathlib import Path
 import stat
+import subprocess
 import sys
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -23,6 +24,7 @@ _SCRIPT = Path(toolchain.__file__).parent / "pch.py.script"
 
 
 class _FakePlatform:
+    name = "fake"
     packages = {"framework-x": {}, "toolchain-y": {}}
 
     def get_package_version(self, name: str) -> str | None:
@@ -138,23 +140,72 @@ def test_pch_script_builds_and_prepends_relative_include(tmp_path: Path) -> None
     assert scons_env.global_env.prepended == []
 
 
+class _LibreTinyPlatform(_FakePlatform):
+    name = pch.PCH_NO_ASLR_PIO_PLATFORM
+
+
+def _run_on_apple_silicon(
+    tmp_path: Path, platform_cls: type[_FakePlatform]
+) -> _FakeSConsEnv:
+    with (
+        patch.object(sys, "platform", "darwin"),
+        patch("platform.machine", return_value="arm64"),
+    ):
+        return _run_script(tmp_path, platform_cls=platform_cls)
+
+
 def test_pch_script_no_aslr_wrapper(tmp_path: Path) -> None:
-    """With the variable set, the .gch compile and the consumers get a -B
+    """On arm64 macOS the LibreTiny .gch compile and the consumers get a -B
     directory holding a cc1plus that starts the real one."""
-    scons_env = _run_script(tmp_path, env_vars={pch.PCH_NO_ASLR_ENV: "1"})
-    proj = tmp_path / "dev"
-    wrapper = proj / "pch_cc1" / "cc1plus"
+    scons_env = _run_on_apple_silicon(tmp_path, _LibreTinyPlatform)
+    wrapper = tmp_path / "dev" / "pch_cc1" / "cc1plus"
     assert wrapper.stat().st_mode & stat.S_IXUSR
-    text = wrapper.read_text()
-    assert text.startswith(f'#!/usr/bin/env -S "{sys.executable}" -ISs\n')
-    assert "0x0040 | 0x0100" in text
     argv = (tmp_path / "fake-gxx.argv").read_text().split("\n")
     assert "-Bpch_cc1/" in argv
     assert scons_env.prepended == ["-Bpch_cc1/", *pch.pch_consumer_flags()]
 
 
-def test_pch_script_no_wrapper_by_default(tmp_path: Path) -> None:
-    scons_env = _run_script(tmp_path)
+@pytest.mark.skipif(sys.platform != "darwin", reason="the wrapper is macOS only")
+def test_pch_script_no_aslr_wrapper_starts_the_real_cc1plus(tmp_path: Path) -> None:
+    """The wrapper finds cc1plus from the driver's location and runs it with
+    the arguments it was given."""
+    _run_on_apple_silicon(tmp_path, _LibreTinyPlatform)
+    wrapper = tmp_path / "dev" / "pch_cc1" / "cc1plus"
+    toolchain = tmp_path / "toolchain"
+    real = toolchain / "libexec" / "gcc" / "arm-none-eabi" / "10.3.1" / "cc1plus"
+    real.parent.mkdir(parents=True)
+    real.write_text('#!/bin/sh\nprintf \'%s\\n\' "$@" > "$0.argv"\n')
+    real.chmod(0o755)
+    (toolchain / "bin").mkdir()
+    driver = toolchain / "bin" / "arm-none-eabi-g++"
+    driver.touch()
+    result = subprocess.run(
+        [str(wrapper), "-quiet", "x.cpp"],
+        env={**os.environ, "COLLECT_GCC": str(driver)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert Path(f"{real}.argv").read_text(encoding="utf-8") == "-quiet\nx.cpp\n"
+
+
+@pytest.mark.parametrize(
+    ("host", "machine", "platform_cls"),
+    [
+        ("darwin", "arm64", _FakePlatform),
+        ("darwin", "x86_64", _LibreTinyPlatform),
+        ("linux", "aarch64", _LibreTinyPlatform),
+    ],
+)
+def test_pch_script_no_wrapper_elsewhere(
+    tmp_path: Path, host: str, machine: str, platform_cls: type[_FakePlatform]
+) -> None:
+    with (
+        patch.object(sys, "platform", host),
+        patch("platform.machine", return_value=machine),
+    ):
+        scons_env = _run_script(tmp_path, platform_cls=platform_cls)
     assert not (tmp_path / "dev" / "pch_cc1").exists()
     assert scons_env.prepended == pch.pch_consumer_flags()
 
@@ -174,6 +225,7 @@ def test_pch_script_names_match_the_python_side(tmp_path: Path) -> None:
     assert namespace["_CONSUMER_FLAGS"] == pch.pch_consumer_flags()
     assert namespace["_GUARD_TEXT"] == pch.PCH_GUARD_TEXT
     assert namespace["_INCLUDE_RE"].pattern == pch._INCLUDE_RE.pattern
+    assert namespace["_NO_ASLR_PIO_PLATFORMS"] == (pch.PCH_NO_ASLR_PIO_PLATFORM,)
 
 
 def test_pch_script_compile_failure_stops_the_build(tmp_path: Path) -> None:
