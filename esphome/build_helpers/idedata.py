@@ -50,11 +50,11 @@ def warn_if_idedata_missing(get_idedata: Callable[[], dict | None]) -> None:
         _LOGGER.debug("Idedata failure detail", exc_info=True)
 
 
-# C++ translation-unit suffixes used to identify ESPHome source files.
-_CXX_SUFFIXES = (".cpp", ".cc")
+# C++ translation-unit suffixes.
+CXX_SOURCE_SUFFIXES = (".cpp", ".cc", ".cxx")
 # Suffixes of input/output files that appear bare on the command line (and so
 # must not be mistaken for compiler flags).
-_INPUT_FILE_SUFFIXES = (*_CXX_SUFFIXES, ".c", ".o", ".S", ".s")
+_INPUT_FILE_SUFFIXES = (*CXX_SOURCE_SUFFIXES, ".c", ".o", ".S", ".s")
 # Path marker identifying an ESPHome source translation unit.
 _ESPHOME_SRC_MARKER = "/src/esphome/"
 
@@ -63,11 +63,11 @@ def _is_esphome_src(file: str) -> bool:
     """Whether ``file`` is an ESPHome C++ translation unit; normalized to
     ``/`` first since Windows compile DBs use backslashes."""
     return _ESPHOME_SRC_MARKER in file.replace("\\", "/") and file.endswith(
-        _CXX_SUFFIXES
+        CXX_SOURCE_SUFFIXES
     )
 
 
-def _split_command(command: str) -> list[str]:
+def split_command(command: str) -> list[str]:
     r"""Tokenize a compile_commands.json / response-file command string.
 
     On Windows, tokenize per Windows ``argv`` rules via ``CommandLineToArgvW``.
@@ -103,7 +103,7 @@ def _split_command(command: str) -> list[str]:
         ctypes.windll.kernel32.LocalFree(argv)
 
 
-def _expand_response_files(tokens: list[str], directory: Path) -> list[str]:
+def expand_response_files(tokens: list[str], directory: Path) -> list[str]:
     """Inline any ``@response-file`` arguments (paths relative to ``directory``).
 
     GCC response files embed flags that must be expanded so GCC-only flags
@@ -118,8 +118,8 @@ def _expand_response_files(tokens: list[str], directory: Path) -> list[str]:
                 rf = directory / rf
             try:
                 out.extend(
-                    _expand_response_files(
-                        _split_command(rf.read_text(encoding="utf-8")), directory
+                    expand_response_files(
+                        split_command(rf.read_text(encoding="utf-8")), directory
                     )
                 )
                 continue
@@ -138,7 +138,7 @@ def _pick_entry(entries: list[dict]) -> dict:
         if _is_esphome_src(entry["file"]):
             return entry
     for entry in entries:
-        if entry["file"].endswith(_CXX_SUFFIXES):
+        if entry["file"].endswith(CXX_SOURCE_SUFFIXES):
             return entry
     raise ValueError("no C++ translation unit found in compile_commands.json")
 
@@ -148,8 +148,17 @@ def _pick_entry(entries: list[dict]) -> dict:
 _LAUNCHER_STEMS = frozenset({"ccache", "sccache", "distcc", "icecc", "buildcache"})
 
 
-def _is_launcher(token: str) -> bool:
+def is_launcher(token: str) -> bool:
     return Path(token).stem.lower() in _LAUNCHER_STEMS
+
+
+def is_joined_include(tok: str) -> bool:
+    """The joined ``-includefoo.h`` spelling; excludes clang's -include-pch."""
+    return (
+        tok.startswith("-include")
+        and tok != "-include"
+        and not tok.startswith("-include-")
+    )
 
 
 def parse_entry(
@@ -157,7 +166,7 @@ def parse_entry(
 ) -> tuple[str, list[str], list[str], list[str]]:
     """Parse one compile_commands entry -> (cxx_path, defines, includes, cxx_flags)."""
     directory = Path(entry["directory"])
-    tokens = _expand_response_files(_split_command(entry["command"]), directory)
+    tokens = expand_response_files(split_command(entry["command"]), directory)
 
     def _include(raw: str) -> str:
         # Resolve against the entry's ``directory`` so cached idedata works
@@ -173,7 +182,7 @@ def parse_entry(
     if not tokens:
         # An empty command, or one that was only the launcher; fail by name
         raise ValueError(f"empty compile command for {entry.get('file')}")
-    if _is_launcher(tokens[0]) and len(tokens) > 1 and not tokens[1].startswith("-"):
+    if is_launcher(tokens[0]) and len(tokens) > 1 and not tokens[1].startswith("-"):
         # Stale DB built with a launcher this run no longer configures; the
         # real compiler is the next token
         _LOGGER.warning("Stripping unconfigured launcher %s", tokens[0])
@@ -186,11 +195,23 @@ def parse_entry(
     defines: list[str] = []
     includes: list[str] = []
     cxx_flags: list[str] = []
+    unresolved_force_includes: list[str] = []
 
     it = iter(tokens[1:])
     for tok in it:
         if tok in ("-c", "-o"):
             next(it, None)  # drop the flag and its argument (input/output)
+        elif tok == "-include" or is_joined_include(tok):
+            # Re-anchor only names next to the compile (the pch); a name
+            # meant for the -I chain must stay untouched
+            raw = next(it, "") if tok == "-include" else tok[len("-include") :]
+            if not raw:
+                _LOGGER.warning("Dropping -include with no argument")
+            elif Path(resolved := _include(raw)).is_file():
+                cxx_flags.extend(("-include", resolved))
+            else:
+                unresolved_force_includes.append(raw)
+                cxx_flags.extend(("-include", raw))
         elif tok.startswith("-D"):
             # ``.strip()`` handles tokens like ``-D CONFIGURED=1`` (a single
             # quoted arg with a space after -D) that some flags arrive as.
@@ -209,6 +230,14 @@ def parse_entry(
             pass  # input/output files
         else:
             cxx_flags.append(tok)
+    for raw in unresolved_force_includes:
+        # A deleted build artifact would otherwise surface only downstream
+        if not any((Path(inc) / raw).is_file() for inc in includes):
+            _LOGGER.warning(
+                "-include %s found neither next to the compile nor on the "
+                "include path; cached idedata may not resolve it",
+                raw,
+            )
     return cxx_path, defines, includes, cxx_flags
 
 
@@ -273,7 +302,7 @@ def _cache_usable(cached: object) -> bool:
     if not isinstance(cached, dict) or "cc_path" not in cached:
         return False
     cxx_path = cached.get("cxx_path")
-    if not isinstance(cxx_path, str) or _is_launcher(cxx_path):
+    if not isinstance(cxx_path, str) or is_launcher(cxx_path):
         return False
     includes = cached.get("includes")
     return isinstance(includes, dict) and isinstance(includes.get("build"), list)
@@ -321,7 +350,7 @@ def load_or_build_idedata(
 def reject_launcher_compiler(cxx_path: str) -> None:
     """Reject a compile DB naming a launcher (ccache) as the compiler; it
     must never be probed, cached, or consumed."""
-    if _is_launcher(cxx_path):
+    if is_launcher(cxx_path):
         raise EsphomeError(
             f"compile_commands.json names the launcher {cxx_path} as the "
             "compiler; the compile database is unusable"

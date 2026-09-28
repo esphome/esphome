@@ -85,6 +85,87 @@ def test_parse_entry_resolves_relative_includes() -> None:
     assert all(Path(inc).is_absolute() for inc in includes)
 
 
+def test_parse_entry_resolves_force_include_path(tmp_path: Path) -> None:
+    """The pch -include is emitted relative to the build dir; idedata must
+    resolve it so cached flags work from any cwd."""
+    (tmp_path / "esphome_pch.h").write_text("")
+    entry = _entry(
+        str(tmp_path),
+        f"{tmp_path}/src/esphome/x.cpp",
+        "g++ -include esphome_pch.h -c x.cpp",
+    )
+
+    _, _, _, cxx_flags = idedata.parse_entry(entry)
+
+    idx = cxx_flags.index("-include")
+    resolved = cxx_flags[idx + 1]
+    assert Path(resolved).is_absolute()
+    assert resolved == str(tmp_path / "esphome_pch.h").replace("\\", "/")
+
+
+def test_parse_entry_resolves_joined_force_include(tmp_path: Path) -> None:
+    """The joined -includefoo.h spelling takes the same resolve path."""
+    (tmp_path / "esphome_pch.h").write_text("")
+    entry = _entry(
+        str(tmp_path),
+        f"{tmp_path}/src/esphome/x.cpp",
+        "g++ -includeesphome_pch.h -c x.cpp",
+    )
+
+    _, _, _, cxx_flags = idedata.parse_entry(entry)
+
+    resolved = cxx_flags[cxx_flags.index("-include") + 1]
+    assert resolved == str(tmp_path / "esphome_pch.h").replace("\\", "/")
+
+
+def test_parse_entry_keeps_search_chain_force_include(tmp_path: Path) -> None:
+    """-include names resolved via the -I chain (libretiny's Arduino.h) must
+    not be re-anchored to a nonexistent build-dir path."""
+    entry = _entry(
+        str(tmp_path),
+        f"{tmp_path}/src/esphome/x.cpp",
+        "g++ -include Arduino.h -c x.cpp",
+    )
+
+    _, _, _, cxx_flags = idedata.parse_entry(entry)
+
+    assert cxx_flags[cxx_flags.index("-include") + 1] == "Arduino.h"
+
+
+def test_parse_entry_warns_on_vanished_force_include(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A build-dir force-include deleted by clean_build must leave a trail;
+    a name resolvable via the -I chain must not warn."""
+    inc = tmp_path / "inc"
+    inc.mkdir()
+    (inc / "Arduino.h").write_text("")
+    entry = _entry(
+        str(tmp_path),
+        f"{tmp_path}/src/esphome/x.cpp",
+        f"g++ -I{inc} -include Arduino.h -include esphome_pch.h -c x.cpp",
+    )
+
+    _, _, _, cxx_flags = idedata.parse_entry(entry)
+
+    assert "Arduino.h" in cxx_flags
+    assert "esphome_pch.h" in caplog.text
+    assert "Arduino.h" not in caplog.text
+
+
+def test_parse_entry_drops_trailing_force_include(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    entry = _entry(
+        str(tmp_path), f"{tmp_path}/src/esphome/x.cpp", "g++ -c x.cpp -include"
+    )
+
+    _, _, _, cxx_flags = idedata.parse_entry(entry)
+
+    assert "-include" not in cxx_flags
+    assert "no argument" in caplog.text
+
+
 def test_parse_entry_skips_dependency_flags() -> None:
     """Dependency-generation flags (and their args) are dropped."""
     entry = _entry(
@@ -104,7 +185,7 @@ def test_expand_response_files(tmp_path: Path) -> None:
     rsp = tmp_path / "flags.rsp"
     rsp.write_text("-DFROM_RSP -I/rsp/inc")
 
-    tokens = idedata._expand_response_files(
+    tokens = idedata.expand_response_files(
         ["g++", f"@{rsp.name}", "-c", "x.cpp"], tmp_path
     )
 
@@ -115,7 +196,7 @@ def test_expand_response_files(tmp_path: Path) -> None:
 
 def test_expand_response_files_keeps_literal_when_missing(tmp_path: Path) -> None:
     """An unreadable ``@file`` token is kept verbatim rather than dropped."""
-    tokens = idedata._expand_response_files(["g++", "@nope.rsp"], tmp_path)
+    tokens = idedata.expand_response_files(["g++", "@nope.rsp"], tmp_path)
     assert "@nope.rsp" in tokens
 
 
@@ -327,7 +408,7 @@ def test_split_command_preserves_paths_and_unescapes_quotes() -> None:
     r"""Backslash paths survive while ``\"`` define-quoting is unescaped."""
     command = r"C:\esp\bin\riscv32-esp-elf-g++.exe -DVER=\"1.2.3\" -IC:/inc/a -c x.cpp"
 
-    tokens = idedata._split_command(command)
+    tokens = idedata.split_command(command)
 
     assert tokens[0] == r"C:\esp\bin\riscv32-esp-elf-g++.exe"
     assert '-DVER="1.2.3"' in tokens
@@ -341,8 +422,8 @@ def test_split_command_empty_returns_empty() -> None:
     Guards against ``CommandLineToArgvW("")`` returning the current process name
     instead of an empty list.
     """
-    assert idedata._split_command("") == []
-    assert idedata._split_command("   ") == []
+    assert idedata.split_command("") == []
+    assert idedata.split_command("   ") == []
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows argv tokenization")
@@ -503,9 +584,9 @@ def test_load_or_build_idedata_rebuilds_non_dict_cache(tmp_path: Path) -> None:
 def test_is_launcher_matches_only_known_launchers() -> None:
     """Compilers of any shape pass; only the closed launcher set matches."""
     for token in ("/t/g++-13", "gcc-8.4.0", "clang++-17", "armcc", "icx", "cc"):
-        assert not idedata._is_launcher(token)
+        assert not idedata.is_launcher(token)
     for token in ("/opt/homebrew/bin/ccache", "CCACHE.EXE", "distcc", "sccache"):
-        assert idedata._is_launcher(token)
+        assert idedata.is_launcher(token)
 
 
 def test_load_or_build_idedata_corrupted_cache_is_logged(

@@ -4,6 +4,7 @@ import json
 import logging
 from pathlib import Path
 
+from esphome.build_helpers import pch
 from esphome.components.esp32 import (
     get_esp32_variant,
     get_excluded_builtin_components,
@@ -282,7 +283,24 @@ idf_component_register(
 target_link_options(${{COMPONENT_LIB}} PUBLIC
     {link_opts_str}
 )
-"""
+{pch.pch_cmake_consumer("${COMPONENT_LIB}", "${app_sources}")}"""
+
+
+def prepare_pch() -> None:
+    """Build the .gch right before ninja, after every reconfigure, so the
+    compile_commands.json flags and the sdkconfig are the settled ones."""
+    if not pch.pch_enabled():
+        return
+    pch.prepare_pch(
+        CORE.relative_build_path("build"),
+        CORE.relative_build_path(f"sdkconfig.{CORE.name}"),
+        (
+            str(idf_version()),
+            CORE.cpp_standard or "",
+            *get_project_compile_flags(),
+            *get_project_cxx_compile_flags(),
+        ),
+    )
 
 
 def write_project(

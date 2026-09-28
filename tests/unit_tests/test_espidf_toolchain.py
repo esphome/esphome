@@ -93,6 +93,13 @@ def test_get_configured_targets_ci_installs_all(monkeypatch: pytest.MonkeyPatch)
     assert toolchain._get_configured_targets() is None
 
 
+@pytest.fixture(autouse=True)
+def _no_ccache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Deterministic run_compile: no host ccache probe, no pch work."""
+    monkeypatch.setenv("IDF_CCACHE_ENABLE", "0")
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+
+
 def _setup_build(setup_core: Path) -> tuple[Path, Path]:
     """Point CORE at a build dir; return (compile_commands, idedata cache) paths."""
     CORE.name = "test"
@@ -688,6 +695,23 @@ def test_run_compile_without_compile_process_limit(setup_core: Path) -> None:
         assert toolchain.run_compile(config, verbose=False) == 0
 
     mock_run.assert_called_once_with("build", "size", jobs=None)
+
+
+def test_run_compile_prepares_the_pch_before_the_build(setup_core: Path) -> None:
+    """A pch failure stops the build before idf.py runs."""
+    from esphome.core import EsphomeError
+
+    _setup_build(setup_core)
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "run_idf_py", return_value=0) as run_idf_py,
+        patch.object(toolchain, "print_summary"),
+        patch("esphome.build_gen.espidf.prepare_pch", side_effect=EsphomeError("boom")),
+        pytest.raises(EsphomeError, match="boom"),
+    ):
+        toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
+    run_idf_py.assert_not_called()
 
 
 def test_get_core_framework_version_from_core_data():
