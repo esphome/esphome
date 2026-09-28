@@ -156,12 +156,12 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-# Version specs that stay within one major (exact, ^, ~, ~=); anything else is 2.x
+# Version specs that stay within one major (exact, ^, ~, ~=); anything else is 3.x
 _PINNED_MAJOR = re.compile(r"^(?:==|\^|~=|~)?(\d+)(?:\.(?:\d+|\*))*$")
 
 
 def user_esp_hosted_major() -> int | None:
-    """Major version of a user-pinned esp_hosted, or None if it cannot be told."""
+    """Major version of a user-pinned esp_hosted, or None without a pin."""
     try:
         full_config = fv.full_config.get()
     except LookupError:
@@ -172,6 +172,7 @@ def user_esp_hosted_major() -> int | None:
             continue
         if match := _PINNED_MAJOR.match(component.get(CONF_REF, "").strip()):
             return int(match.group(1))
+        return 3
     return None
 
 
