@@ -1,3 +1,4 @@
+import glob
 import hashlib
 import os
 from pathlib import Path
@@ -5,6 +6,7 @@ import platform
 import posixpath
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 
@@ -31,31 +33,21 @@ _GUARD_TEXT = f"""\
 #endif
 """
 _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
-# GCC 10 only loads a .gch at the address it was saved from, and arm64 macOS
-# loads every program at a random address. There the driver of these
-# PlatformIO platforms gets a -B directory whose cc1plus starts the real one
-# without that randomisation. Relative: compiles run in the project root
-_NO_ASLR_PIO_PLATFORMS = ("libretiny",)
-_NO_ASLR_DIR = "pch_cc1"
-_NO_ASLR_WRAPPER = """\
-#!/usr/bin/env -S "{python}" -ISs
+# The GCC 10 of this PlatformIO platform only loads a .gch at the address it
+# was saved from. Remove once LibreTiny ships GCC 12 or newer
+_GCC10_PIO_PLATFORM = "libretiny"
+# Relative: compiles run in the project root
+_CC1_DIR = "pch_cc1"
+_CC1PLUS_WRAPPER = """\
+#!/usr/bin/env -S "{python}" -IS
 # Written by ESPHome: starts cc1plus without address randomisation, so it
 # loads the precompiled header. See esphome/platformio/pch.py.script.
 import ctypes
-import glob
 import os
-import shutil
 import sys
 
-# The driver's own path, a bare name when it was found on PATH
-driver = os.environ.get("COLLECT_GCC", "")
-if not os.path.dirname(driver):
-    driver = shutil.which(driver) or driver
-found = glob.glob(os.path.join(os.path.dirname(driver), "..", "libexec", "gcc", "*", "*", "cc1plus"))
-if not found:
-    sys.exit("ESPHome: cannot find cc1plus next to " + driver)
-real = found[0]
-libc = ctypes.CDLL("/usr/lib/libSystem.B.dylib", use_errno=True)
+real = {real!r}
+libc = ctypes.CDLL("/usr/lib/libSystem.B.dylib")
 attr = ctypes.create_string_buffer(64)
 libc.posix_spawnattr_init(attr)
 # POSIX_SPAWN_SETEXEC | _POSIX_SPAWN_DISABLE_ASLR
@@ -120,19 +112,25 @@ def _src_envs(src_dir: Path) -> list:
     return list(found.values()) or [projenv]  # noqa: F821
 
 
-def _no_aslr_flags(proj_dir: Path, pio_platform: str) -> list:
-    """The -B flag for the cc1plus wrapper, written where it is needed."""
-    if (
-        pio_platform not in _NO_ASLR_PIO_PLATFORMS
-        or sys.platform != "darwin"
-        or platform.machine() != "arm64"
-    ):
+def _gcc10_flags(proj_dir: Path, pio_platform: str, cxx: str):
+    """Extra driver flags for a GCC 10 platform, or None where its .gch cannot
+    be used. Linux loads it as is. arm64 macOS loads every program at a
+    random address, so there the driver gets a -B directory whose cc1plus
+    starts the real one without that randomisation."""
+    if pio_platform != _GCC10_PIO_PLATFORM or sys.platform == "linux":
         return []
-    wrapper = proj_dir / _NO_ASLR_DIR / "cc1plus"
+    if sys.platform != "darwin" or platform.machine() != "arm64":
+        return None
+    driver = shutil.which(cxx) or cxx
+    pattern = os.path.join(os.path.dirname(driver), "..", "libexec", "gcc", "*", "*", "cc1plus")
+    if not (found := glob.glob(pattern)):
+        raise RuntimeError(f"ESPHome: cannot find cc1plus next to {driver}")
+    wrapper = proj_dir / _CC1_DIR / "cc1plus"
     wrapper.parent.mkdir(exist_ok=True)
-    wrapper.write_text(_NO_ASLR_WRAPPER.format(python=sys.executable))
+    real = os.path.normpath(found[0])
+    wrapper.write_text(_CC1PLUS_WRAPPER.format(python=sys.executable, real=real))
     wrapper.chmod(0o755)
-    return [f"-B{_NO_ASLR_DIR}/"]
+    return [f"-B{_CC1_DIR}/"]
 
 
 def _setup_pch() -> None:
@@ -151,7 +149,11 @@ def _setup_pch() -> None:
     src_envs = _src_envs(src_dir)
 
     cxx = src_envs[0].subst("$CXX")
-    no_aslr = _no_aslr_flags(proj_dir, env.PioPlatform().name)  # noqa: F821
+    pio_platform = env.PioPlatform()  # noqa: F821
+    extra = _gcc10_flags(proj_dir, pio_platform.name, cxx)
+    if extra is None:
+        print("ESPHome: this compiler cannot load a precompiled header here; compiling without it")
+        return
     # The header holds the -include entries itself, so the .gch compile must
     # not see them; consumers keep theirs, which the .gch then satisfies
     flags = []
@@ -188,9 +190,8 @@ def _setup_pch() -> None:
     digest.update(flags_id.encode())
     # GCC does not check a .gch against its headers and PlatformIO package
     # paths carry no version
-    platform = env.PioPlatform()  # noqa: F821
-    for package in sorted(platform.packages):
-        digest.update(f"{package}={platform.get_package_version(package)}\0".encode())
+    for package in sorted(pio_platform.packages):
+        digest.update(f"{package}={pio_platform.get_package_version(package)}\0".encode())
     # Libraries carry their version in lib_deps
     digest.update(repr(env.GetProjectOption("lib_deps", [])).encode())  # noqa: F821
     closure = _include_closure(src_dir, headers)
@@ -238,7 +239,7 @@ def _setup_pch() -> None:
         header.write_text(_GUARD_TEXT, encoding="utf-8")
         source.write_text(content, encoding="utf-8")
         result = subprocess.run(  # noqa: PLW1510
-            [cxx, "-x", "c++-header", *flags, *no_aslr, "-c", str(source), "-o", str(gch)],
+            [cxx, "-x", "c++-header", *flags, *extra, "-c", str(source), "-o", str(gch)],
             cwd=proj_dir,
             capture_output=True,
             text=True,
@@ -251,7 +252,7 @@ def _setup_pch() -> None:
 
     # Prepended: GCC only loads a .gch for the first -include
     for src_env in src_envs:
-        src_env.Prepend(CXXFLAGS=[*no_aslr, *_CONSUMER_FLAGS])
+        src_env.Prepend(CXXFLAGS=[*extra, *_CONSUMER_FLAGS])
     print(
         "ESPHome: Compiling with a precompiled header "
         "(set ESPHOME_PCH_ENABLE=0 to disable)"

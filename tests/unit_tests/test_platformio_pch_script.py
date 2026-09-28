@@ -96,6 +96,7 @@ def _run_script(
     name: str = "dev",
     platform_cls: type[_FakePlatform] = _FakePlatform,
     build_files: Callable[[tuple], list] | None = None,
+    cxx: Path | None = None,
 ) -> _FakeSConsEnv:
     proj = tmp_path / name
     src = proj / "src"
@@ -104,7 +105,8 @@ def _run_script(
     (src / "esphome" / "core" / "pch_prefix.h").write_text(
         '#include "esphome/core/defines.h"\n'
     )
-    cxx = _fake_cxx(tmp_path, fail=fail)
+    if cxx is None:
+        cxx = _fake_cxx(tmp_path, fail=fail)
     args = (proj, src, str(cxx), flags or ["-DX=1"], platform_cls)
     # Distinct objects: the -include flags must land on projenv only
     global_env = _FakeSConsEnv(*args)
@@ -141,72 +143,87 @@ def test_pch_script_builds_and_prepends_relative_include(tmp_path: Path) -> None
 
 
 class _LibreTinyPlatform(_FakePlatform):
-    name = pch.PCH_NO_ASLR_PIO_PLATFORM
+    name = "libretiny"
 
 
-def _run_on_apple_silicon(
-    tmp_path: Path, platform_cls: type[_FakePlatform]
+def _run_on_host(
+    tmp_path: Path,
+    host: str,
+    machine: str,
+    platform_cls: type[_FakePlatform],
+    cxx: Path | None = None,
 ) -> _FakeSConsEnv:
     with (
-        patch.object(sys, "platform", "darwin"),
-        patch("platform.machine", return_value="arm64"),
+        patch.object(sys, "platform", host),
+        patch("platform.machine", return_value=machine),
     ):
-        return _run_script(tmp_path, platform_cls=platform_cls)
+        return _run_script(tmp_path, platform_cls=platform_cls, cxx=cxx)
 
 
-def test_pch_script_no_aslr_wrapper(tmp_path: Path) -> None:
-    """On arm64 macOS the LibreTiny .gch compile and the consumers get a -B
-    directory holding a cc1plus that starts the real one."""
-    scons_env = _run_on_apple_silicon(tmp_path, _LibreTinyPlatform)
-    wrapper = tmp_path / "dev" / "pch_cc1" / "cc1plus"
-    assert wrapper.stat().st_mode & stat.S_IXUSR
-    argv = (tmp_path / "fake-gxx.argv").read_text().split("\n")
-    assert "-Bpch_cc1/" in argv
-    assert scons_env.prepended == ["-Bpch_cc1/", *pch.pch_consumer_flags()]
-
-
-@pytest.mark.skipif(sys.platform != "darwin", reason="the wrapper is macOS only")
-def test_pch_script_no_aslr_wrapper_starts_the_real_cc1plus(tmp_path: Path) -> None:
-    """The wrapper finds cc1plus from the driver's location and runs it with
-    the arguments it was given."""
-    _run_on_apple_silicon(tmp_path, _LibreTinyPlatform)
-    wrapper = tmp_path / "dev" / "pch_cc1" / "cc1plus"
+def _fake_toolchain(tmp_path: Path) -> tuple[Path, Path]:
+    """A driver in bin/ and a cc1plus that records its argv in libexec/."""
     toolchain = tmp_path / "toolchain"
+    (toolchain / "bin").mkdir(parents=True)
+    cxx = _fake_cxx(toolchain / "bin")
     real = toolchain / "libexec" / "gcc" / "arm-none-eabi" / "10.3.1" / "cc1plus"
     real.parent.mkdir(parents=True)
     real.write_text('#!/bin/sh\nprintf \'%s\\n\' "$@" > "$0.argv"\n')
     real.chmod(0o755)
-    (toolchain / "bin").mkdir()
-    driver = toolchain / "bin" / "arm-none-eabi-g++"
-    driver.touch()
+    return cxx, real
+
+
+def test_pch_script_gcc10_wrapper_on_apple_silicon(tmp_path: Path) -> None:
+    """The LibreTiny .gch compile and the consumers get a -B directory
+    holding a cc1plus that starts the real one."""
+    cxx, real = _fake_toolchain(tmp_path)
+    scons_env = _run_on_host(tmp_path, "darwin", "arm64", _LibreTinyPlatform, cxx)
+    wrapper = tmp_path / "dev" / pch.PCH_CC1_DIR / "cc1plus"
+    assert wrapper.stat().st_mode & stat.S_IXUSR
+    assert repr(str(real)) in wrapper.read_text(encoding="utf-8")
+    argv = Path(f"{cxx}.argv").read_text(encoding="utf-8").split("\n")
+    assert f"-B{pch.PCH_CC1_DIR}/" in argv
+    assert scons_env.prepended == [f"-B{pch.PCH_CC1_DIR}/", *pch.pch_consumer_flags()]
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="the wrapper is macOS only")
+def test_pch_script_gcc10_wrapper_starts_the_real_cc1plus(tmp_path: Path) -> None:
+    cxx, real = _fake_toolchain(tmp_path)
+    _run_on_host(tmp_path, "darwin", "arm64", _LibreTinyPlatform, cxx)
+    wrapper = tmp_path / "dev" / pch.PCH_CC1_DIR / "cc1plus"
     result = subprocess.run(
-        [str(wrapper), "-quiet", "x.cpp"],
-        env={**os.environ, "COLLECT_GCC": str(driver)},
-        capture_output=True,
-        text=True,
-        check=False,
+        [str(wrapper), "-quiet", "x.cpp"], capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stderr
     assert Path(f"{real}.argv").read_text(encoding="utf-8") == "-quiet\nx.cpp\n"
 
 
+def test_pch_script_gcc10_wrapper_needs_cc1plus(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="cannot find cc1plus"):
+        _run_on_host(tmp_path, "darwin", "arm64", _LibreTinyPlatform)
+
+
+@pytest.mark.parametrize(
+    ("host", "machine"), [("darwin", "x86_64"), ("win32", "AMD64")]
+)
+def test_pch_script_gcc10_skipped_elsewhere(
+    tmp_path: Path, host: str, machine: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Where the GCC 10 .gch cannot load, the build runs without it."""
+    scons_env = _run_on_host(tmp_path, host, machine, _LibreTinyPlatform)
+    assert not (tmp_path / "dev" / "esphome_pch.h.gch").exists()
+    assert scons_env.prepended == []
+    assert "compiling without it" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize(
     ("host", "machine", "platform_cls"),
-    [
-        ("darwin", "arm64", _FakePlatform),
-        ("darwin", "x86_64", _LibreTinyPlatform),
-        ("linux", "aarch64", _LibreTinyPlatform),
-    ],
+    [("darwin", "arm64", _FakePlatform), ("linux", "aarch64", _LibreTinyPlatform)],
 )
-def test_pch_script_no_wrapper_elsewhere(
+def test_pch_script_no_wrapper_where_the_gch_loads(
     tmp_path: Path, host: str, machine: str, platform_cls: type[_FakePlatform]
 ) -> None:
-    with (
-        patch.object(sys, "platform", host),
-        patch("platform.machine", return_value=machine),
-    ):
-        scons_env = _run_script(tmp_path, platform_cls=platform_cls)
-    assert not (tmp_path / "dev" / "pch_cc1").exists()
+    scons_env = _run_on_host(tmp_path, host, machine, platform_cls)
+    assert not (tmp_path / "dev" / pch.PCH_CC1_DIR).exists()
     assert scons_env.prepended == pch.pch_consumer_flags()
 
 
@@ -225,7 +242,7 @@ def test_pch_script_names_match_the_python_side(tmp_path: Path) -> None:
     assert namespace["_CONSUMER_FLAGS"] == pch.pch_consumer_flags()
     assert namespace["_GUARD_TEXT"] == pch.PCH_GUARD_TEXT
     assert namespace["_INCLUDE_RE"].pattern == pch._INCLUDE_RE.pattern
-    assert namespace["_NO_ASLR_PIO_PLATFORMS"] == (pch.PCH_NO_ASLR_PIO_PLATFORM,)
+    assert namespace["_CC1_DIR"] == pch.PCH_CC1_DIR
 
 
 def test_pch_script_compile_failure_stops_the_build(tmp_path: Path) -> None:

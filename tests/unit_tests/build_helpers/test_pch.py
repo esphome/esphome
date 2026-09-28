@@ -113,35 +113,10 @@ def test_pch_checksum_tracks_closure_content(tmp_path: Path) -> None:
     "platform", ["bk72xx", "esp32", "esp8266", "ln882x", "rp2", "rtl87xx"]
 )
 def test_pch_script_enabled(platform: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(pch.sys, "platform", "linux")
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
     assert pch.pch_script_enabled()
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
     assert not pch.pch_script_enabled()
-
-
-@pytest.mark.parametrize(
-    ("host", "machine"), [("darwin", "x86_64"), ("win32", "AMD64")]
-)
-@pytest.mark.parametrize("platform", sorted(pch.PCH_SCRIPT_GCC10_PLATFORMS))
-def test_pch_script_gcc10_platform_off_elsewhere(
-    platform: str, host: str, machine: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(pch.sys, "platform", host)
-    monkeypatch.setattr(pch.host_platform, "machine", lambda: machine)
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
-    assert not pch.pch_script_enabled()
-
-
-@pytest.mark.parametrize("platform", sorted(pch.PCH_SCRIPT_GCC10_PLATFORMS))
-def test_pch_script_gcc10_platform_on_apple_silicon(
-    platform: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The script's cc1plus wrapper covers arm64 macOS."""
-    monkeypatch.setattr(pch.sys, "platform", "darwin")
-    monkeypatch.setattr(pch.host_platform, "machine", lambda: "arm64")
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
-    assert pch.pch_script_enabled()
 
 
 @pytest.mark.parametrize("platform", sorted(pch.PCH_SCRIPT_EXCLUDED_PLATFORMS))
