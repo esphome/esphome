@@ -43,7 +43,6 @@ _CC1PLUS_WRAPPER = """\
 # Written by ESPHome: starts cc1plus without address randomisation, so it
 # loads the precompiled header. See esphome/platformio/pch.py.script.
 import ctypes
-import os
 import sys
 
 real = {real!r}
@@ -52,13 +51,13 @@ attr = ctypes.create_string_buffer(64)
 libc.posix_spawnattr_init(attr)
 # POSIX_SPAWN_SETEXEC | _POSIX_SPAWN_DISABLE_ASLR
 libc.posix_spawnattr_setflags(attr, ctypes.c_short(0x0040 | 0x0100))
-argv = [real, *sys.argv[1:]]
-c_argv = (ctypes.c_char_p * (len(argv) + 1))(*[a.encode() for a in argv], None)
-env = [(k + "=" + v).encode() for k, v in os.environ.items()]
-c_env = (ctypes.c_char_p * (len(env) + 1))(*env, None)
+argv = [real.encode(), *(a.encode() for a in sys.argv[1:]), None]
+libc._NSGetEnviron.restype = ctypes.POINTER(ctypes.POINTER(ctypes.c_char_p))
 # Replaces this process on success; the return value is the error number
-rc = libc.posix_spawn(None, real.encode(), None, attr, c_argv, c_env)
-sys.exit("ESPHome: cannot start " + real + ": " + os.strerror(rc))
+rc = libc.posix_spawn(None, argv[0], None, attr, (ctypes.c_char_p * len(argv))(*argv),
+                      libc._NSGetEnviron().contents)
+libc.strerror.restype = ctypes.c_char_p
+sys.exit("ESPHome: cannot start " + real + ": " + libc.strerror(rc).decode())
 """
 _CXX_SUFFIXES = (".cpp", ".cc", ".cxx")
 _HEADER_SUFFIXES = (".h", ".hpp", ".hh", ".inc")
