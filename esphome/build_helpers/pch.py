@@ -225,7 +225,7 @@ def pch_compile_command(
         if tok == "-include":
             # Drop only the pch itself; user force-includes must stay
             inc = next(arg_it, "")
-            if not inc.endswith(PCH_HEADER_NAME):
+            if Path(inc).name != PCH_HEADER_NAME:
                 args.extend(("-include", inc))
             continue
         args.append(tok)
@@ -244,8 +244,8 @@ def pch_identity(
 
     flags = (
         " ".join(tokens)
-        .replace(effective_ccache_basedir(), "")
         .replace(str(CORE.build_path), "")
+        .replace(effective_ccache_basedir(), "")
     )
     # The closure is sorted, so header order only enters via the text
     return pch_checksum(
@@ -253,10 +253,11 @@ def pch_identity(
     )
 
 
+_DISABLE_HINT = " (set ESPHOME_PCH_ENABLE=0 to disable)"
+
+
 def log_pch_in_use() -> None:
-    _LOGGER.info(
-        "Compiling with a precompiled header (set ESPHOME_PCH_ENABLE=0 to disable)"
-    )
+    _LOGGER.info("Compiling with a precompiled header%s", _DISABLE_HINT)
 
 
 def prepare_pch(build_dir: Path, identity_file: Path, extra: Iterable[str]) -> None:
@@ -292,10 +293,13 @@ def prepare_pch(build_dir: Path, identity_file: Path, extra: Iterable[str]) -> N
         )
         if result.returncode != 0:
             raise EsphomeError(
-                f"Could not compile the precompiled header: {result.stderr.strip()}"
+                f"Could not compile the precompiled header{_DISABLE_HINT}: "
+                f"{result.stderr.strip()}"
             )
-        sum_path.write_text(checksum + "\n", encoding="utf-8")
         # Consumers depend on the header, so bump it to recompile them
         os.utime(header)
+        sum_path.write_text(checksum + "\n", encoding="utf-8")
     except OSError as err:
-        raise EsphomeError(f"Could not prepare the precompiled header: {err}") from err
+        raise EsphomeError(
+            f"Could not prepare the precompiled header{_DISABLE_HINT}: {err}"
+        ) from err

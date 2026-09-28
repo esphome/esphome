@@ -583,11 +583,17 @@ def test_prepare_pch_writes_header_and_sum(tmp_path: Path) -> None:
         prepare_pch()
 
 
-def test_pch_no_device_path_in_flags_or_sum(tmp_path: Path) -> None:
+@pytest.mark.parametrize("user_basedir", [False, True])
+def test_pch_no_device_path_in_flags_or_sum(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, user_basedir: bool
+) -> None:
     """The per-device build path in either would stop ccache sharing
     between devices."""
     from esphome.build_gen.espidf import get_component_cmakelists
 
+    if user_basedir:
+        # A parent of the build path must not shadow it
+        monkeypatch.setenv("CCACHE_BASEDIR", str(tmp_path))
     sums = []
     for name in ("dev_a", "dev_b"):
         dev = _make_pch_device(tmp_path, name)
@@ -650,7 +656,7 @@ def test_component_cmakelists_pch_block(monkeypatch: pytest.MonkeyPatch) -> None
 
 def test_prepare_pch_compile_failure_stops_the_build(tmp_path: Path) -> None:
     dev = _make_pch_device(tmp_path, "dev_f")
-    with pytest.raises(EsphomeError, match="precompiled header: boom"):
+    with pytest.raises(EsphomeError, match="ESPHOME_PCH_ENABLE=0.*: boom"):
         _prepare(dev, returncode=1)
     assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
 
