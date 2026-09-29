@@ -70,15 +70,14 @@ class TcpUart : public uart::UARTComponent, public Component {
   uint32_t reconnect_interval_ms_{5000};
   size_t tx_len_{0};
   std::atomic<uint32_t> resolved_addr_{0};
-  // Byte exchange needs libatomic, which BK72xx and the native ESP8266 build do not have.
-  std::atomic<uint32_t> resolve_failed_{0};
 
   uint16_t port_{0};
   bool connecting_{false};
   bool connected_{false};
   bool offline_drop_logged_{false};
-  // Loads and stores of a byte are inlined. exchange() is not.
+  // Only load and store. exchange() needs libatomic on BK72xx and native ESP8266.
   std::atomic<uint8_t> resolving_{0};
+  std::atomic<uint8_t> resolve_failed_{0};
   std::atomic<uint8_t> have_addr_{0};
   char resolved_ip_[socket::SOCKADDR_STR_LEN]{};
   StaticRingBuffer<uint8_t, RX_BUFFER_SIZE> rx_;

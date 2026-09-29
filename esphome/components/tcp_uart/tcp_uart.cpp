@@ -4,6 +4,7 @@
 #include "esphome/core/log.h"
 
 #include <cerrno>
+#include <cinttypes>
 #include <cstdio>
 #include <cstring>
 
@@ -60,7 +61,7 @@ void TcpUart::setup() {
 void TcpUart::dump_config() {
   ESP_LOGCONFIG(TAG, "TCP UART:");
   ESP_LOGCONFIG(TAG, "  Host: %s:%u", this->host_.c_str(), this->port_);
-  ESP_LOGCONFIG(TAG, "  Reconnect interval: %u ms", this->reconnect_interval_ms_);
+  ESP_LOGCONFIG(TAG, "  Reconnect interval: %" PRIu32 " ms", this->reconnect_interval_ms_);
   LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
 }
 
@@ -199,7 +200,8 @@ void TcpUart::try_connect_() {
   if (this->sock_ != nullptr || this->in_backoff_()) {
     return;
   }
-  if (this->resolve_failed_.exchange(false)) {
+  if (this->resolve_failed_.load() != 0) {
+    this->resolve_failed_.store(0);
     this->have_addr_.store(false);
     this->resolved_ip_[0] = '\0';
     this->note_attempt_();
