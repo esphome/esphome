@@ -18,6 +18,16 @@ namespace esphome::socket {
 
 static const char *const TAG = "socket";
 
+void Ipv4Resolve::forget() {
+  // The DNS callback runs with the lwIP core lock held. Taking it here means a
+  // callback cannot publish a result in the middle of forgetting it.
+  LwIPLock lock;
+  this->have_.store(false);
+  this->addr_.store(0);
+  this->resolving_.store(false);
+  this->epoch_.store(this->epoch_.load() + 1);
+}
+
 socklen_t Ipv4Resolve::to_sockaddr(struct sockaddr *dest, socklen_t destlen, uint16_t port) const {
   if (!this->have_.load() || destlen < sizeof(sockaddr_in)) {
     return 0;
@@ -33,12 +43,22 @@ socklen_t Ipv4Resolve::to_sockaddr(struct sockaddr *dest, socklen_t destlen, uin
 #if !defined(USE_HOST) && !defined(USE_ZEPHYR)
 void Ipv4Resolve::dns_found(const char *name, const ip_addr_t *addr, void *arg) {
   auto *self = static_cast<Ipv4Resolve *>(arg);
+  const uint32_t expected = self->pending_epoch_.load();
+  if (expected != self->epoch_.load()) {
+    return;
+  }
   if (addr != nullptr && IP_IS_V4(addr)) {
     self->addr_.store(ip4_addr_get_u32(ip_2_ip4(addr)));
     self->have_.store(true);
   } else {
     self->failed_.store(1);
     ESP_LOGW(self->tag_ != nullptr ? self->tag_ : TAG, "DNS failed for %s", name);
+  }
+  if (self->epoch_.load() != expected) {
+    self->have_.store(false);
+    self->addr_.store(0);
+    self->failed_.store(0);
+    return;
   }
   self->resolving_.store(false);
 }
@@ -66,6 +86,7 @@ void Ipv4Resolve::start(const char *host, uint16_t port, const char *tag) {
   err_t err;
   {
     LwIPLock lock;
+    this->pending_epoch_.store(this->epoch_.load());
     this->resolving_.store(true);
     err = dns_gethostbyname(host, &cached, &Ipv4Resolve::dns_found, this);
     if (err != ERR_INPROGRESS) {

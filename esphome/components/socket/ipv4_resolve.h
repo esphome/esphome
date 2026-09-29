@@ -16,10 +16,7 @@ namespace esphome::socket {
 /// One IPv4 literal or hostname. The address is stored as an integer. Flags are load and store only.
 class Ipv4Resolve {
  public:
-  void forget() {
-    this->have_.store(false);
-    this->addr_.store(0);
-  }
+  void forget();
   /// Drop a failed lookup so the next start() tries again.
   bool consume_failure() {
     if (this->failed_.load() == 0) {
@@ -41,6 +38,8 @@ class Ipv4Resolve {
 #endif
   const char *tag_{nullptr};
   std::atomic<uint32_t> addr_{0};
+  std::atomic<uint32_t> epoch_{0};
+  std::atomic<uint32_t> pending_epoch_{0};
   std::atomic<uint8_t> resolving_{0};
   std::atomic<uint8_t> failed_{0};
   std::atomic<uint8_t> have_{0};
