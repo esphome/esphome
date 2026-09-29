@@ -1,7 +1,7 @@
 """Machine-global bootloader cache for the native ESP-IDF toolchain.
 
-CONFIG_APP_REPRODUCIBLE_BUILD (always on) makes the bootloader byte identical
-across builds; signing/secure/encryption builds keep the stock in-tree path.
+Only a bootloader proven byte reproducible (built twice on the first miss)
+is cached; signing/secure/encryption builds keep the stock in-tree path.
 """
 
 # pylint: disable=protected-access
@@ -38,6 +38,7 @@ _DISABLED_VALUES = frozenset(("n", "0", ""))
 # Marks a config name the app's sdkconfig does not define.
 _ABSENT = "\x00absent"
 _OUTPUTS = ("bootloader.bin", "bootloader.elf", "bootloader.map")
+_DAY = 86400
 
 
 def bootloader_cache_enabled() -> bool:
@@ -66,8 +67,17 @@ def _compute_enabled() -> bool:
         if not os.access(get_idf_tools_path(), os.W_OK):
             # A read-only shared prefix would fail the cache on every build.
             return False
-        if read_json_file(_failure_stamp()) == _stamp_inputs():
-            # A previous run failed with the same inputs; stay in-tree.
+        stamp = read_json_file(_failure_stamp())
+        if (
+            isinstance(stamp, dict)
+            and stamp.get("inputs") == _stamp_inputs()
+            and time.time() - stamp.get("time", 0) < _DAY
+        ):
+            _LOGGER.info(
+                "Bootloader cache off after an earlier failure; retrying "
+                "within a day, or delete %s",
+                _failure_stamp(),
+            )
             return False
         from esphome.build_gen.espidf import idf_macro_matches
 
@@ -81,7 +91,11 @@ def _compute_enabled() -> bool:
 
 
 def _has_secure_options(sdkconfig_path: Path) -> bool:
-    """Whether any signing, secure boot or encryption option is enabled."""
+    """Whether any signing, secure boot or encryption option is enabled.
+
+    Key files are inputs the cache key cannot see (rotating one at the same
+    path changes the bootloader), so these builds always stay in-tree.
+    """
     for line in sdkconfig_path.read_text(encoding="utf-8").splitlines():
         name, _, value = line.partition("=")
         if (
@@ -104,10 +118,11 @@ def _stamp_inputs() -> dict:
 
 
 def record_failure() -> None:
-    """Pin this run and later ones to in-tree until the inputs change."""
+    """Pin this run and later ones to in-tree until retry or input change."""
     toolchain._cache().bootloader_enabled = False
+    stamp = {"inputs": _stamp_inputs(), "time": time.time()}
     with contextlib.suppress(OSError, EsphomeError):
-        write_file(_failure_stamp(), json.dumps(_stamp_inputs()))
+        write_file(_failure_stamp(), json.dumps(stamp))
 
 
 def tree_uses_cached_bootloader(build_dir: Path) -> bool:
@@ -328,7 +343,7 @@ def _check_bootloader_size(bin_path: Path, app_config: dict) -> None:
 
 def _prune_stale_dirs() -> None:
     """Drop day-old work dirs from crashed builds; live ones are younger."""
-    cutoff = time.time() - 86400
+    cutoff = time.time() - _DAY
     with contextlib.suppress(OSError):
         for path in _cache_root().glob(".*"):
             if path.is_dir() and path.stat().st_mtime < cutoff:
@@ -368,11 +383,22 @@ def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | No
         if (entry / "bootloader.bin").is_file():
             return _install_into_build(entry)
     tmp = _work_dir(".build-")
+    probe = _work_dir(".build-")
     try:
         if _build_standalone(tmp, verbose) != 0:
             return None
         if (built_config := toolchain._load_sdkconfig_json(tmp)) is None:
             _LOGGER.debug("Bootloader build produced no sdkconfig.json")
+            return None
+        # Only a build proven byte identical to a second one in a different
+        # dir may be cached; timestamps or randomized signatures, present or
+        # future, fail here instead of being served stale.
+        if _build_standalone(probe, verbose) != 0:
+            return None
+        if (tmp / "bootloader.bin").read_bytes() != (
+            probe / "bootloader.bin"
+        ).read_bytes():
+            _LOGGER.info("Bootloader build is not byte reproducible; not caching")
             return None
         names = _merge_config_names(built_config)
         payload = _key_payload(names, app_config, compiler)
@@ -381,6 +407,7 @@ def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | No
         _LOGGER.info("Cached bootloader %s for later builds", key)
     finally:
         _remove_dir(tmp)
+        _remove_dir(probe)
     _prune_stale_dirs()
     return _install_into_build(entry)
 
@@ -396,6 +423,7 @@ def inject_bootloader_flash_file(flash_data: dict, build_dir: Path) -> None:
     app_config = toolchain._load_sdkconfig_json(build_dir)
     if (
         app_config is None
+        or "BOOTLOADER_OFFSET_IN_FLASH" not in app_config
         or not (build_dir / "bootloader" / "bootloader.bin").is_file()
     ):
         _LOGGER.error("Cached bootloader missing; factory image has no bootloader")

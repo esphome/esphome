@@ -92,7 +92,7 @@ def test_enabled_macro_mismatch_disables_with_a_log(
 
 
 def test_enabled_after_recorded_failure(tmp_path: Path) -> None:
-    """A recorded failure pins in-tree until the IDF version or target changes."""
+    """A recorded failure pins in-tree until retry time or an input change."""
     _write_snapshot("CONFIG_FOO=y\n")
     with (
         _tools_prefix(tmp_path),
@@ -102,6 +102,20 @@ def test_enabled_after_recorded_failure(tmp_path: Path) -> None:
         assert toolchain._cache().bootloader_enabled is False  # this run
         assert bootloader._compute_enabled() is False  # later runs
         CORE.data[KEY_ESP32][KEY_IDF_VERSION] = cv.Version(6, 1, 0)
+        assert bootloader._compute_enabled() is True
+
+
+def test_enabled_again_after_the_failure_stamp_expires(tmp_path: Path) -> None:
+    """A transient failure must not pin a device to in-tree forever."""
+    _write_snapshot("CONFIG_FOO=y\n")
+    with (
+        _tools_prefix(tmp_path),
+        patch.object(build_gen, "idf_macro_matches", return_value=True),
+    ):
+        bootloader.record_failure()
+        stamp = json.loads(bootloader._failure_stamp().read_text())
+        stamp["time"] -= bootloader._DAY + 1
+        bootloader._failure_stamp().write_text(json.dumps(stamp))
         assert bootloader._compute_enabled() is True
 
 
@@ -484,12 +498,15 @@ def test_ensure_cache_miss_builds_and_publishes(tmp_path: Path) -> None:
 
     with (
         _orchestration_env(tmp_path) as root,
-        patch.object(bootloader, "_build_standalone", side_effect=_make_built_tree_rc),
+        patch.object(
+            bootloader, "_build_standalone", side_effect=_make_built_tree_rc
+        ) as mock_build,
     ):
         root.mkdir(parents=True)
         (root / "config_names.json").write_text('["A"]')
         assert bootloader.ensure_cached_bootloader() is True
-    # Entry published under the key, names harvested, work dir removed.
+    # Both probe builds ran; entry published, names harvested, work dirs gone.
+    assert len(mock_build.call_args_list) == 2
     assert (root / "deadbeefdeadbeef" / "bootloader.bin").is_file()
     assert "A" in json.loads((root / "config_names.json").read_text())
     assert not list(root.glob(".build-*"))
@@ -514,6 +531,42 @@ def test_ensure_soft_fails_when_build_yields_no_config(tmp_path: Path) -> None:
     with (
         _orchestration_env(tmp_path),
         patch.object(bootloader, "_build_standalone", side_effect=build_without_config),
+    ):
+        assert bootloader.ensure_cached_bootloader() is False
+
+
+def test_ensure_rejects_an_unreproducible_bootloader(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A build whose second run differs byte-wise must never be cached."""
+    serial = iter(range(10))
+
+    def unstable_build(build_dir: Path, verbose: bool) -> int:
+        _make_built_tree(build_dir)
+        (build_dir / "bootloader.bin").write_bytes(b"%d" % next(serial))
+        return 0
+
+    with (
+        _orchestration_env(tmp_path) as root,
+        patch.object(bootloader, "_build_standalone", side_effect=unstable_build),
+        caplog.at_level("INFO"),
+    ):
+        assert bootloader.ensure_cached_bootloader() is False
+    assert "not byte reproducible" in caplog.text
+    assert not (root / "deadbeefdeadbeef").exists()
+    assert not list(root.glob(".build-*"))
+
+
+def test_ensure_soft_fails_when_the_probe_build_fails(tmp_path: Path) -> None:
+    rcs = iter([0, 2])
+
+    def flaky_build(build_dir: Path, verbose: bool) -> int:
+        _make_built_tree(build_dir)
+        return next(rcs)
+
+    with (
+        _orchestration_env(tmp_path),
+        patch.object(bootloader, "_build_standalone", side_effect=flaky_build),
     ):
         assert bootloader.ensure_cached_bootloader() is False
 
@@ -612,9 +665,12 @@ def test_inject_missing_pieces_log_an_error(
 ) -> None:
     """Cached mode without a bin or config is an incomplete factory image."""
     build = _flash_build(tmp_path)
-    (build / "config" / "sdkconfig.json").unlink()
+    (build / "config" / "sdkconfig.json").write_text("{}")  # no offset
     flash_data: dict = {"flash_files": {}}
     with caplog.at_level("ERROR"):
         bootloader.inject_bootloader_flash_file(flash_data, build)
+    (build / "config" / "sdkconfig.json").unlink()
+    with caplog.at_level("ERROR"):
+        bootloader.inject_bootloader_flash_file(flash_data, build)
     assert flash_data == {"flash_files": {}}
-    assert "factory image has no bootloader" in caplog.text
+    assert caplog.text.count("factory image has no bootloader") == 2
