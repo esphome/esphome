@@ -68,6 +68,17 @@ def _ninja_mtimes(build_path: Path) -> dict[tuple[str, str], str]:
     return mtimes
 
 
+def _log_problems(build_path: Path, mtimes: dict[tuple[str, str], str]) -> list[str]:
+    """A missing or unparsable ninja log would otherwise compare as unchanged."""
+    problems = []
+    for log in NINJA_LOGS:
+        if not (build_path / log).is_file():
+            problems.append(f"missing {log}")
+        elif not any(k[0] == log and k[1].endswith(WORK_SUFFIXES) for k in mtimes):
+            problems.append(f"no build entries parsed from {log}")
+    return problems
+
+
 def _setup_core(build_path: Path, description: dict) -> tuple[str, str]:
     """Point CORE at the tree so ESPHome resolves the same IDF env as the build."""
     from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION, KEY_VARIANT
@@ -110,18 +121,9 @@ def check(build_path: Path) -> list[str]:
     before = _snapshot(build_path, name)
     mtimes_before = _ninja_mtimes(build_path)
     # A moved or renamed output would otherwise compare as "unchanged".
-    missing = [f for f, digest in before.items() if digest is None]
-    missing += [log for log in NINJA_LOGS if not (build_path / log).is_file()]
-    if missing:
-        return [f"missing {f}" for f in missing]
-    # A log format change would otherwise leave nothing to compare.
-    unparsed = [
-        log
-        for log in NINJA_LOGS
-        if not any(k[0] == log and k[1].endswith(WORK_SUFFIXES) for k in mtimes_before)
-    ]
-    if unparsed:
-        return [f"no build entries parsed from {log}" for log in unparsed]
+    problems = [f"missing {f}" for f, digest in before.items() if digest is None]
+    if problems := problems + _log_problems(build_path, mtimes_before):
+        return problems
     for action in ("reconfigure", "build"):
         result = subprocess.run(
             [python, str(idf_py), *sdkconfig_args, action],
@@ -134,12 +136,17 @@ def check(build_path: Path) -> list[str]:
         if result.returncode != 0:
             return [f"idf.py {action} failed:\n{result.stdout}{result.stderr}"]
     after = _snapshot(build_path, name)
+    mtimes_after = _ninja_mtimes(build_path)
     problems = [f"idf.py changed {f}" for f in before if before[f] != after[f]]
-    problems += [
-        f"idf.py rebuilt {out}"
-        for (log, out), mtime in _ninja_mtimes(build_path).items()
-        if out.endswith(WORK_SUFFIXES) and mtimes_before.get((log, out)) != mtime
-    ]
+    problems += _log_problems(build_path, mtimes_after)
+    for key in sorted(mtimes_before.keys() | mtimes_after.keys()):
+        log, out = key
+        if not out.endswith(WORK_SUFFIXES):
+            continue
+        if key not in mtimes_after:
+            problems.append(f"idf.py dropped {out} from {log}")
+        elif mtimes_before.get(key) != mtimes_after[key]:
+            problems.append(f"idf.py rebuilt {out}")
     return problems
 
 

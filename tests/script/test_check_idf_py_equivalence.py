@@ -114,6 +114,36 @@ def test_check_reports_changed_files_and_rebuilt_outputs(tmp_path: Path) -> None
     ]
 
 
+@pytest.mark.parametrize(
+    ("after_build", "problem"),
+    [
+        (lambda log: log.unlink(), "missing build/.ninja_log"),
+        (
+            lambda log: log.write_text("# ninja log v7\n"),
+            "no build entries parsed from build/.ninja_log",
+        ),
+        (
+            lambda log: log.write_text("# ninja log v7\n1\t2\t10\tesp-idf/b.obj\t0\n"),
+            "idf.py dropped esp-idf/a.obj from build/.ninja_log",
+        ),
+    ],
+    ids=["log-removed", "log-emptied", "entry-dropped"],
+)
+def test_check_reports_a_log_idf_py_left_unusable(
+    tmp_path: Path, after_build: Callable[[Path], None], problem: str
+) -> None:
+    """The comparison side gets the same log checks as the baseline."""
+    tree = _make_tree(tmp_path)
+    log = tree / guard.TOP_NINJA_LOG
+
+    def run(cmd: list[str]) -> None:
+        if cmd[-1] == "build":
+            after_build(log)
+
+    problems, _ = _run_check(tree, run)
+    assert problem in problems
+
+
 def test_check_stops_when_idf_py_fails(tmp_path: Path) -> None:
     problems, calls = _run_check(_make_tree(tmp_path), rc=2)
     assert problems == ["idf.py reconfigure failed:\nout\nerr\n"]
