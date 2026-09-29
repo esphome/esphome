@@ -16,7 +16,7 @@ from esphome.const import (
 )
 from esphome.core import ID, EsphomeError, TimePeriod
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import MockObj, call_lambda
 from esphome.schema_extractors import EnableSchemaExtraction
 from esphome.types import Expression
 
@@ -42,7 +42,6 @@ from ..defines import (
     STATES,
     LValidator,
     add_lv_use,
-    call_lambda,
     get_styles_used,
     get_theme_widget_map,
     get_widget_map,

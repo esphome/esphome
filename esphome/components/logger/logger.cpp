@@ -127,9 +127,8 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
 }
 #endif  // USE_ESP32 || USE_HOST || USE_LIBRETINY || USE_ZEPHYR
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-// Implementation for ESP8266 with flash string support.
-// Note: USE_STORE_LOG_STR_IN_FLASH is only defined for ESP8266.
+#ifdef USE_ESP8266
+// ESP8266 keeps log format strings in flash.
 //
 // This function handles format strings stored in flash memory (PROGMEM) to save RAM.
 // Uses vsnprintf_P to read the format string directly from flash without copying to RAM.
@@ -141,7 +140,7 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
 
   this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args, nullptr);
 }
-#endif  // USE_STORE_LOG_STR_IN_FLASH
+#endif  // USE_ESP8266
 
 inline uint8_t Logger::level_for(const char *tag) {
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS

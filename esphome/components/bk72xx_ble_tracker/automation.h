@@ -38,11 +38,6 @@ template<typename... Ts> class StartScanAction final : public Action<Ts...>, pub
   }
 };
 
-template<typename... Ts> class StopScanAction final : public Action<Ts...>, public Parented<BK72xxBLETracker> {
- public:
-  void play(const Ts &...x) override { this->parent_->stop_scan(); }
-};
-
 }  // namespace esphome::bk72xx_ble_tracker
 
 #endif  // USE_LIBRETINY

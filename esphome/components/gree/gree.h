@@ -88,7 +88,7 @@ static constexpr uint8_t GREE_PRESET_SLEEP = 0x01;
 static constexpr uint8_t GREE_PRESET_SLEEP_BIT = 0x80;
 
 // Model codes
-enum Model { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YB1FA, GREE_YX1FF, GREE_YAG };
+enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YB1FA, GREE_YX1FF, GREE_YAG };
 
 enum GreeFeature : uint8_t {
   GREE_FEATURE_TURBO = 0,
@@ -175,7 +175,6 @@ class GreeClimate final : public climate_ir::ClimateIR {
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
   bool on_receive(remote_base::RemoteReceiveData data) override;
-  climate::ClimateTraits traits() override;
 
 #ifdef USE_SWITCH
   void publish_feature_state_(GreeFeature feature);

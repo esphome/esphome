@@ -1135,6 +1135,18 @@ RP2_BOARD_PINS = {
         "SS": 5,
         "TX": 0,
     },
+    "soldered_nula_node_rp2040": {
+        "MISO": 16,
+        "MOSI": 19,
+        "RX": 1,
+        "SCK": 18,
+        "SCL": 9,
+        "SCL1": 11,
+        "SDA": 8,
+        "SDA1": 10,
+        "SS": 17,
+        "TX": 0,
+    },
     "soldered_nula_rp2350": {
         "MISO": 2,
         "MOSI": 3,
@@ -2126,6 +2138,12 @@ BOARDS = {
         "name": "Soldered Electronics NULA Ethernet W55RP20",
         "mcu": "rp2040",
         "max_pin": 29,
+    },
+    "soldered_nula_node_rp2040": {
+        "name": "Soldered Electronics NULA Node",
+        "mcu": "rp2040",
+        "max_pin": 29,
+        "wifi": True,
     },
     "soldered_nula_rp2350": {
         "name": "Soldered Electronics NULA RP2350",

@@ -52,8 +52,8 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# Key for tracking controller count in CORE.data for ControllerRegistry StaticVector sizing
-KEY_CONTROLLER_REGISTRY_COUNT = "controller_registry_count"
+# Key for the controllers (APIServer, WebServer) that receive entity state updates
+KEY_CONTROLLER_REGISTRY_CONTROLLERS = "controller_registry_controllers"
 
 # CORE.data key for the "is_rp2040 deprecation warning already fired this
 # run" flag. Mirrors the ``cv.only_on_rp2040`` dedupe pattern; cleared
@@ -715,6 +715,7 @@ class EsphomeCore:
         self.defines = set()
         self.platformio_options = {}
         self.loaded_integrations = set()
+        self.loaded_platforms = set()
         self.component_ids = set()
         self.platform_counts = defaultdict(int)
         self.unique_ids = {}
@@ -996,6 +997,12 @@ class EsphomeCore:
         return self.toolchain == Toolchain.ARDUINO
 
     @property
+    def using_toolchain_host(self):
+        """The native host build toolchain: the system compiler driven by
+        ninja (the only toolchain the host platform serves)."""
+        return self.toolchain == Toolchain.HOST
+
+    @property
     def using_native_toolchain(self):
         """Whether the selected toolchain builds natively, without reading
         ``platformio.ini`` (see ``NATIVE_TOOLCHAINS`` in ``esphome.const``;
@@ -1208,10 +1215,9 @@ class EsphomeCore:
         if not self.platform_counts[platform_name]:
             self.platform_counts[platform_name] = 1
 
-    def register_controller(self) -> None:
-        """Track registration of a Controller for ControllerRegistry StaticVector sizing."""
-        controller_count = self.data.setdefault(KEY_CONTROLLER_REGISTRY_COUNT, 0)
-        self.data[KEY_CONTROLLER_REGISTRY_COUNT] = controller_count + 1
+    def register_controller(self, controller: "MockObj") -> None:
+        """Register a controller that receives every entity state update."""
+        self.data.setdefault(KEY_CONTROLLER_REGISTRY_CONTROLLERS, []).append(controller)
 
     @property
     def cpp_main_section(self):

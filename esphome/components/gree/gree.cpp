@@ -488,17 +488,6 @@ optional<GreeClimateData> GreeClimateCodec::decode_model_a(Model model, const Gr
   return data;
 }
 
-climate::ClimateTraits GreeClimate::traits() {
-  auto traits = climate_ir::ClimateIR::traits();
-  // ClimateIR unconditionally includes HEAT_COOL in the base mode set; remove it when heat is not supported.
-  if (!this->supports_heat_) {
-    auto modes = traits.get_supported_modes();
-    modes.erase(climate::CLIMATE_MODE_HEAT_COOL);
-    traits.set_supported_modes(modes);
-  }
-  return traits;
-}
-
 void GreeClimate::set_model(Model model) {
   if (model == GREE_YAN || model == GREE_YB1FA || model == GREE_YX1FF) {
     // These remotes only expose a vertical swing control.

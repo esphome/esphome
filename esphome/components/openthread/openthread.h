@@ -25,8 +25,6 @@ enum class TeardownStage : uint8_t {
   TEARDOWN_STAGE_COMPLETED,
 };
 
-template<typename... Ts> class OpenThreadComponentPollPeriodAction;
-
 class OpenThreadComponent final : public Component {
  public:
   OpenThreadComponent();
@@ -53,15 +51,13 @@ class OpenThreadComponent final : public Component {
   void set_poll_period(uint32_t poll_period) { this->poll_period_ = poll_period; }
   uint32_t get_poll_period() const { return this->poll_period_; }
 #endif
+  /// Set the poll period and re-apply the link mode under the OT lock; a warning only on FTD builds.
+  void apply_poll_period(uint32_t poll_period);
   void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
   void set_connected(bool connected) { this->connected_ = connected; }
   static void on_state_changed(otChangedFlags flags, void *context);
 
  protected:
-  // Actions re-apply link mode under the OT lock; allow them to call apply_linkmode_()
-  // without exposing this lock-sensitive, raw-instance method on the public API.
-  template<typename... Ts> friend class OpenThreadComponentPollPeriodAction;
-
   /** Apply Link Mode settings (incl poll period).
    * Callers running outside the OpenThread task must hold InstanceLock.
    * ot_main() runs on the OpenThread task itself and must not acquire the lock.
@@ -90,7 +86,7 @@ extern OpenThreadComponent *global_openthread_component;  // NOLINT(cppcoreguide
 
 class OpenThreadSrpComponent final : public Component {
  public:
-  void set_mdns(esphome::mdns::MDNSComponent *mdns);
+  void set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
   // This has to run after the mdns component or else no services are available to advertise
   float get_setup_priority() const override { return this->mdns_->get_setup_priority() - 1.0f; }
   void setup() override;
