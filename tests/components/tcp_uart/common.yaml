@@ -1,0 +1,7 @@
+tcp_uart:
+  - id: remote_serial
+    host: 192.0.2.10
+    port: 502
+    reconnect_interval: 5s
+    connected:
+      name: TCP UART Connected
