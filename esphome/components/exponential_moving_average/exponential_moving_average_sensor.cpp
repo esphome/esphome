@@ -38,9 +38,13 @@ void ExponentialMovingAverageSensor::setup() {
       this->publish_state(restored);
     }
   }
-  this->last_update_ = App.get_loop_component_start_time();
+  const uint32_t now = App.get_loop_component_start_time();
+  this->last_update_ = now;
   this->source_->add_on_state_callback(
       [this](float value) { this->process_(value, App.get_loop_component_start_time()); });
+  // The source may have published during its own setup(), before the callback was added.
+  if (this->source_->has_state())
+    this->process_(this->source_->state, now);
 }
 
 void ExponentialMovingAverageSensor::dump_config() {

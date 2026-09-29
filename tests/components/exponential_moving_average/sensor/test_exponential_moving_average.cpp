@@ -242,6 +242,47 @@ TEST_F(ExponentialMovingAverageTest, FirstValueAfterRebootUsesNewValue) {
   EXPECT_NEAR(after.state, 10.0f + 10.0f * (1.0f - std::exp(-1.0f)), 1e-4f);
 }
 
+TEST_F(ExponentialMovingAverageTest, StartsFromSourceThatAlreadyHasAValue) {
+  sensor::Sensor source;
+  source.publish_state(12.0f);
+
+  TestableExponentialMovingAverageSensor ema(&source);
+  ema.set_alpha(0.5f);
+  ema.set_restore(false);
+  ema.setup();
+  ASSERT_TRUE(ema.has_state());
+  EXPECT_FLOAT_EQ(ema.state, 12.0f);
+
+  // The value read at setup is only counted once.
+  source.publish_state(20.0f);
+  EXPECT_FLOAT_EQ(ema.state, 16.0f);
+}
+
+TEST_F(ExponentialMovingAverageTest, SourceValueAtSetupBlendsWithRestoredAverage) {
+  {
+    TestableExponentialMovingAverageSensor before(&this->source_);
+    before.setup();
+    before.process_(10.0f, 0);
+  }
+
+  sensor::Sensor source;
+  source.publish_state(20.0f);
+  TestableExponentialMovingAverageSensor after(&source);
+  after.set_alpha(0.5f);
+  after.setup();
+  EXPECT_FLOAT_EQ(after.state, 15.0f);
+}
+
+TEST_F(ExponentialMovingAverageTest, SourceNanAtSetupIsIgnored) {
+  sensor::Sensor source;
+  source.publish_state(NAN);
+
+  TestableExponentialMovingAverageSensor ema(&source);
+  ema.set_restore(false);
+  ema.setup();
+  EXPECT_FALSE(ema.has_state());
+}
+
 TEST(TimeWeightingTest, Names) {
   EXPECT_STREQ(LOG_STR_ARG(time_weighting_to_string(TIME_WEIGHTING_NEW)), "new");
   EXPECT_STREQ(LOG_STR_ARG(time_weighting_to_string(TIME_WEIGHTING_PREVIOUS)), "previous");

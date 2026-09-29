@@ -67,18 +67,6 @@ CONFIG_SCHEMA = cv.All(
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(ExponentialMovingAverageSensor),
-            cv.Optional(CONF_ICON): cv.icon,
-            cv.Optional(CONF_UNIT_OF_MEASUREMENT): sensor.validate_unit_of_measurement,
-            cv.Optional(CONF_ACCURACY_DECIMALS): sensor.validate_accuracy_decimals,
-            cv.Optional(CONF_DEVICE_CLASS): sensor.validate_device_class,
-            cv.Optional(CONF_STATE_CLASS): sensor.validate_state_class,
-            cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
-        },
-        extra=cv.ALLOW_EXTRA,
-    ),
     inherit_property_from(CONF_ICON, CONF_SENSOR),
     inherit_property_from(CONF_UNIT_OF_MEASUREMENT, CONF_SENSOR),
     inherit_property_from(
