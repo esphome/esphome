@@ -6,6 +6,7 @@ from esphome.cpp_generator import MockObj, TemplateArguments
 
 from ..defines import (
     CONF_ANIMATION,
+    CONF_DEFAULT_GROUP,
     CONF_LVGL_ID,
     CONF_PAGE,
     CONF_PAGE_WRAP,
@@ -20,12 +21,14 @@ from ..lvcode import (
     LambdaContext,
     ReturnStatement,
     add_line_marks,
+    lv,
     lv_add,
+    lv_expr,
     lvgl_comp,
     lvgl_static,
 )
 from ..schemas import LVGL_SCHEMA
-from ..types import LvglAction, LvglCondition, lv_page_t
+from ..types import LvglAction, LvglCondition, lv_group_t, lv_page_t
 from . import (
     Widget,
     WidgetType,
@@ -53,6 +56,7 @@ PAGE_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Trigger.template()),
             }
         ),
+        cv.GenerateID(CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
     }
 )
 
@@ -169,7 +173,12 @@ async def add_pages(lv_component, config):
     for pconf in config.get(CONF_PAGES, ()):
         id = pconf[CONF_ID]
         skip = pconf[CONF_SKIP]
-        var = cg.new_Pvariable(id, skip)
+        # Create a group specific to this page and set it as the lvgl default.
+        # This CONF_DEFAULT_GROUP is not intended to be used in configurations
+        # Widgets that are created without a specific group will get added to this group
+        default_group = cg.Pvariable(pconf[CONF_DEFAULT_GROUP], lv_expr.group_create())
+        lv.group_set_default(default_group)
+        var = cg.new_Pvariable(id, skip, default_group)
         page = Widget.create(id, var, page_spec, pconf)
         lv_add(lv_component.add_page(var))
         # Set outer config first
