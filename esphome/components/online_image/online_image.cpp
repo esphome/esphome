@@ -176,26 +176,6 @@ void OnlineImage::loop() {
     return;
   }
 
-  if (this->downloader_->is_read_complete()) {
-    // No more data will arrive: hand the decoder what is left, and fail if it cannot finish
-    auto consumed = this->download_buffer_.unread() > 0
-                        ? this->feed_data(this->download_buffer_.data(), this->download_buffer_.unread())
-                        : 0;
-    if (consumed > 0) {
-      this->download_buffer_.read(consumed);
-      return;
-    }
-    if (consumed < 0) {
-      ESP_LOGE(TAG, "Error decoding image: %s", esphome::runtime_image::decode_error_to_string(consumed));
-    } else {
-      ESP_LOGE(TAG, "Download ended before the image was complete (%zu bytes received)",
-               this->downloader_->get_bytes_read());
-    }
-    this->end_connection_();
-    this->download_error_callback_.call();
-    return;
-  }
-
   // Download and decode more data
   size_t available = this->download_buffer_.free_capacity();
   if (available > 0) {
@@ -236,13 +216,9 @@ void OnlineImage::loop() {
       this->download_error_callback_.call();
       return;
     } else {
-      // The decoder needs more data than fits (JPEG waits for the whole image), and
-      // feeding the same data again will not change that.
-      ESP_LOGE(TAG, "Image does not fit in the download buffer (%zu bytes); increase buffer_size",
-               this->download_buffer_.size());
-      this->end_connection_();
-      this->download_error_callback_.call();
-      return;
+      // Decoder can't process more data, might need complete image
+      // This is normal for JPEG which needs complete data
+      ESP_LOGV(TAG, "Decoder waiting for more data");
     }
   }
 }
