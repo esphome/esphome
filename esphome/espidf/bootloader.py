@@ -256,15 +256,24 @@ def _work_dir(prefix: str) -> Path:
     return Path(tempfile.mkdtemp(prefix=prefix, dir=root))
 
 
-def _entry_complete(entry: Path) -> bool:
-    return all((entry / name).is_file() for name in _OUTPUTS)
+def _bin_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _entry_intact(entry: Path) -> bool:
+    """Complete with the published bin bytes; anything else is a miss."""
+    if not all((entry / name).is_file() for name in _OUTPUTS):
+        return False
+    meta = read_json_file(entry / "meta.json")
+    expected = meta.get("bootloader_bin_sha256") if isinstance(meta, dict) else None
+    return expected == _bin_sha256(entry / "bootloader.bin")
 
 
 def _publish(build_dir: Path, key: str, payload: dict) -> Path:
     """Move the distilled outputs into the cache; losing a race is fine."""
     entry = _cache_root() / key
-    if not _entry_complete(entry):
-        # A partial entry (manual cleanup, killed publish) must not win.
+    if not _entry_intact(entry):
+        # A partial or corrupted entry (manual cleanup) must not win.
         _remove_dir(entry)
     stage = _work_dir(f".stage-{key}-")
     try:
@@ -272,13 +281,17 @@ def _publish(build_dir: Path, key: str, payload: dict) -> Path:
             shutil.copy2(build_dir / name, stage / name)
         # The resolved bootloader config, kept for debugging entries.
         shutil.copy2(build_dir / "config" / "sdkconfig.json", stage / "sdkconfig.json")
-        write_file(stage / "meta.json", json.dumps(payload, indent=2, sort_keys=True))
+        meta = {
+            **payload,
+            "bootloader_bin_sha256": _bin_sha256(stage / "bootloader.bin"),
+        }
+        write_file(stage / "meta.json", json.dumps(meta, indent=2, sort_keys=True))
         stage.chmod(0o755)  # mkdtemp creates 0o700
         _rename_with_retry(stage, entry)
     except (OSError, EsphomeError):
         # Failed to stage, or another process published the same key first.
         _remove_dir(stage)
-        if not _entry_complete(entry):
+        if not _entry_intact(entry):
             raise
     return entry
 
@@ -370,7 +383,7 @@ def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | No
         entry = _cache_root() / _compute_key(
             _key_payload(names, app_config, compiler, stamp)
         )
-        if _entry_complete(entry):
+        if _entry_intact(entry):
             return _install_into_build(entry)
     with contextlib.ExitStack() as cleanup:
         tmp = _work_dir(".build-")

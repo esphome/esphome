@@ -4,6 +4,7 @@
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -362,6 +363,15 @@ def _make_built_tree(build_dir: Path) -> None:
     (build_dir / "config" / "sdkconfig.json").write_text('{"A": "1"}')
 
 
+def _make_entry(entry: Path, content: bytes = b"winner") -> None:
+    """A complete cache entry whose meta sha matches its bin."""
+    entry.mkdir(parents=True, exist_ok=True)
+    for name in bootloader._OUTPUTS:
+        (entry / name).write_bytes(content)
+    sha = hashlib.sha256(content).hexdigest()
+    (entry / "meta.json").write_text(json.dumps({"bootloader_bin_sha256": sha}))
+
+
 def _make_built_tree_rc(build_dir: Path, verbose: bool) -> int:
     """A _build_standalone stand-in that succeeds with a full output tree."""
     _make_built_tree(build_dir)
@@ -376,8 +386,11 @@ def test_publish_creates_entry_with_the_key_payload(tmp_path: Path) -> None:
         entry = bootloader._publish(build, "k" * 16, {"idf": "5.5.5"})
     assert entry == root / ("k" * 16)
     assert (entry / "bootloader.bin").read_bytes() == b"bootloader.bin"
-    # meta.json is the full key payload, for debugging cache misses.
-    assert json.loads((entry / "meta.json").read_text()) == {"idf": "5.5.5"}
+    # meta.json is the key payload plus the bin sha, for debugging and hits.
+    assert json.loads((entry / "meta.json").read_text()) == {
+        "idf": "5.5.5",
+        "bootloader_bin_sha256": hashlib.sha256(b"bootloader.bin").hexdigest(),
+    }
     assert not list(root.glob(".stage-*"))
 
 
@@ -389,9 +402,7 @@ def test_publish_lost_race_reuses_winner(tmp_path: Path) -> None:
     entry = root / ("k" * 16)
 
     # The winner finished first; the pre-clean must not remove it.
-    entry.mkdir(parents=True)
-    for name in bootloader._OUTPUTS:
-        (entry / name).write_bytes(b"winner")
+    _make_entry(entry)
 
     with (
         patch.object(bootloader, "_cache_root", return_value=root),
@@ -510,9 +521,7 @@ def test_ensure_cache_hit_installs_without_building(tmp_path: Path) -> None:
         _orchestration_env(tmp_path) as root,
         patch.object(bootloader, "_build_standalone") as mock_build,
     ):
-        (root / "deadbeefdeadbeef").mkdir(parents=True)
-        for name in bootloader._OUTPUTS:
-            (root / "deadbeefdeadbeef" / name).write_bytes(b"\xe9" * 64)
+        _make_entry(root / "deadbeefdeadbeef", b"\xe9" * 64)
         (root / "config_names.json").write_text('["A"]')
         assert bootloader.ensure_cached_bootloader() is True
     mock_build.assert_not_called()
@@ -562,17 +571,21 @@ def test_ensure_soft_fails_when_build_yields_no_config(tmp_path: Path) -> None:
         assert bootloader.ensure_cached_bootloader() is False
 
 
-def test_ensure_rebuilds_an_incomplete_entry(tmp_path: Path) -> None:
-    """An entry that lost its elf or map is a miss and gets replaced."""
+@pytest.mark.parametrize("damage", ["missing-elf", "corrupt-bin"])
+def test_ensure_rebuilds_a_damaged_entry(tmp_path: Path, damage: str) -> None:
+    """A partial or corrupted entry is a miss and gets replaced."""
     with (
         _orchestration_env(tmp_path) as root,
         patch.object(
             bootloader, "_build_standalone", side_effect=_make_built_tree_rc
         ) as mock_build,
     ):
-        partial = root / "deadbeefdeadbeef"
-        partial.mkdir(parents=True)
-        (partial / "bootloader.bin").write_bytes(b"old")
+        entry = root / "deadbeefdeadbeef"
+        _make_entry(entry)
+        if damage == "missing-elf":
+            (entry / "bootloader.elf").unlink()
+        else:
+            (entry / "bootloader.bin").write_bytes(b"truncated")
         (root / "config_names.json").write_text('["A"]')
         assert bootloader.ensure_cached_bootloader() is True
     assert mock_build.call_count == 2  # built and probed, not served as a hit
