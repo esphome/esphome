@@ -220,12 +220,6 @@ void APC1Component::parse_measurement_frame_() {
     ESP_LOGI(TAG, "APC1: Gas sensor warm-up complete (AQI=%u)", aqi);
   }
 
-  if (this->active_mode_ && this->update_interval_ > 0 && this->last_update_ != 0 &&
-      now - this->last_update_ < this->update_interval_) {
-    return;
-  }
-  this->last_update_ = now;
-
   // Measurement payload data (bytes 4-57): big-endian sensor readings
   uint16_t pm_1_0_std = encode_uint16(this->rx_buffer_[4], this->rx_buffer_[5]);
   uint16_t pm_2_5_std = encode_uint16(this->rx_buffer_[6], this->rx_buffer_[7]);

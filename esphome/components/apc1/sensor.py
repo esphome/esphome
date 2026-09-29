@@ -23,7 +23,6 @@ from esphome.const import (
     CONF_RESET_PIN,
     CONF_TEMPERATURE,
     CONF_TVOC,
-    CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
@@ -214,7 +213,6 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_SET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -275,9 +273,6 @@ async def to_code(config: ConfigType) -> None:
     if (reset_pin_config := config.get(CONF_RESET_PIN)) is not None:
         reset_pin = await cg.gpio_pin_expression(reset_pin_config)
         cg.add(var.set_reset_pin(reset_pin))
-
-    if (update_interval := config.get(CONF_UPDATE_INTERVAL)) is not None:
-        cg.add(var.set_update_interval(update_interval))
 
 
 APC1_ACTION_SCHEMA = maybe_simple_id(

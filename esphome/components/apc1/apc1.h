@@ -45,7 +45,6 @@ class APC1Component : public uart::UARTDevice, public Component {
 
   void set_set_pin(GPIOPin *set_pin) { this->set_pin_ = set_pin; }
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
-  void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
 
   void set_pm_1_0_sensor(sensor::Sensor *sensor) { this->pm_1_0_sensor_ = sensor; }
   void set_pm_2_5_sensor(sensor::Sensor *sensor) { this->pm_2_5_sensor_ = sensor; }
@@ -91,10 +90,8 @@ class APC1Component : public uart::UARTDevice, public Component {
   bool idle_{false};
   bool gas_warming_up_{false};
   uint32_t last_transmission_{0};
-  uint32_t last_update_{0};
   uint32_t last_valid_frame_{0};
   uint32_t last_init_attempt_{0};
-  uint32_t update_interval_{0};
 
   GPIOPin *set_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};

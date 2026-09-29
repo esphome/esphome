@@ -3,11 +3,12 @@ sensor:
     id: apc1_sensor
     set_pin: ${set_pin}
     reset_pin: ${reset_pin}
-    update_interval: 10s
     pm_1_0:
       name: "APC1 PM1.0"
     pm_2_5:
       name: "APC1 PM2.5"
+      filters:
+        - throttle_average: 10s
     pm_10_0:
       name: "APC1 PM10"
     pm_1_0_std:
