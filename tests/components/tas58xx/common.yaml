@@ -16,6 +16,7 @@ audio_dac:
     id: tas58xx_amp_2
     i2c_id: i2c_bus
     address: 0x2C
+    ignore_enable_pin_warning: true
 
 esphome:
   on_boot:

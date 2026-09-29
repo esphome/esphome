@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import logging
 
 from esphome import automation, pins
 from esphome.automation import maybe_simple_id
@@ -10,10 +11,13 @@ from esphome.const import CONF_ENABLE_PIN, CONF_ID, CONF_MODEL
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+_LOGGER = logging.getLogger(__name__)
+
 DEPENDENCIES = ["i2c"]
 
 CONF_ANALOG_GAIN = "analog_gain"
 CONF_DAC_MODE = "dac_mode"
+CONF_IGNORE_ENABLE_PIN_WARNING = "ignore_enable_pin_warning"
 CONF_MIXER_MODE = "mixer_mode"
 CONF_VOLUME_MIN_DB = "volume_min_db"
 CONF_VOLUME_MAX_DB = "volume_max_db"
@@ -84,6 +88,7 @@ def _model_schema(model: Model) -> cv.Schema:
             {
                 cv.GenerateID(): cv.declare_id(TAS58xx),
                 cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
+                cv.Optional(CONF_IGNORE_ENABLE_PIN_WARNING, default=False): cv.boolean,
                 cv.Optional(
                     CONF_ANALOG_GAIN, default=model.analog_gain_min_db
                 ): _analog_gain_validator(model),
@@ -115,6 +120,21 @@ def _validate_config(config: ConfigType) -> ConfigType:
     ):
         raise cv.Invalid(
             f"{CONF_DAC_MODE} 'pbtl' drives a single speaker; use {CONF_MIXER_MODE} 'mono', 'left' or 'right'"
+        )
+    if CONF_ENABLE_PIN in config:
+        if config[CONF_IGNORE_ENABLE_PIN_WARNING]:
+            raise cv.Invalid(
+                f"{CONF_IGNORE_ENABLE_PIN_WARNING} only applies when {CONF_ENABLE_PIN} is not set"
+            )
+    elif not config[CONF_IGNORE_ENABLE_PIN_WARNING]:
+        # Without PDN high the device does not answer on I2C, and setup only reports an I2C failure
+        _LOGGER.warning(
+            "%s: %s not configured - if PDN (power down) is not hardwired high then add %s. "
+            "Set %s: true to hide this warning",
+            config[CONF_ID],
+            CONF_ENABLE_PIN,
+            CONF_ENABLE_PIN,
+            CONF_IGNORE_ENABLE_PIN_WARNING,
         )
     return config
 
