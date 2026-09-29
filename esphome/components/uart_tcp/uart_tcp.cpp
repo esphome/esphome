@@ -9,6 +9,7 @@
 #include <cstring>
 
 #if !defined(USE_HOST) && !defined(USE_ZEPHYR)
+#include "esphome/components/network/ip_address.h"
 #include "lwip/dns.h"
 #include "lwip/ip4_addr.h"
 #else
@@ -18,6 +19,16 @@
 namespace esphome::uart_tcp {
 
 static const char *const TAG = "uart_tcp";
+
+#if !defined(USE_HOST) && !defined(USE_ZEPHYR)
+static void format_ipv4(uint32_t raw, char *dest, size_t dest_len) {
+  ip_addr_t addr{};
+  ip_addr_set_ip4_u32(&addr, raw);
+  char buf[network::IP_ADDRESS_BUFFER_SIZE];
+  network::IPAddress(&addr).str_to(buf);
+  snprintf(dest, dest_len, "%s", buf);
+}
+#endif
 
 static uint32_t loop_time() { return App.get_loop_component_start_time(); }
 
@@ -159,11 +170,12 @@ bool UartTcp::ip_ready_() {
   if (!this->have_addr_.load()) {
     return false;
   }
-  // lwIP keeps the first octet in the first byte of the address word.
-  uint32_t raw = this->resolved_addr_.load();
-  const uint8_t *octets = reinterpret_cast<const uint8_t *>(&raw);
-  snprintf(this->resolved_ip_, sizeof(this->resolved_ip_), "%u.%u.%u.%u", octets[0], octets[1], octets[2], octets[3]);
-  return true;
+#if defined(USE_HOST) || defined(USE_ZEPHYR)
+  return false;
+#else
+  format_ipv4(this->resolved_addr_.load(), this->resolved_ip_, sizeof(this->resolved_ip_));
+  return this->resolved_ip_[0] != '\0';
+#endif
 }
 
 void UartTcp::try_connect_() {
