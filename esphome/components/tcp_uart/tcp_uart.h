@@ -60,25 +60,25 @@ class TcpUart : public uart::UARTComponent, public Component {
   static constexpr size_t RX_BUFFER_SIZE = 1024;
   static constexpr size_t TX_BUFFER_SIZE = 1024;
 
+  // Larger members first so the compiler does not insert padding.
   StringRef host_;
-  uint16_t port_{0};
   std::unique_ptr<socket::Socket> sock_;
-  bool connecting_{false};
-  bool connected_{false};
+  binary_sensor::BinarySensor *connected_sensor_{nullptr};
   uint32_t last_attempt_ms_{0};
   uint32_t last_drop_log_ms_{0};
   uint32_t reconnect_interval_ms_{5000};
-  binary_sensor::BinarySensor *connected_sensor_{nullptr};
+  size_t tx_len_{0};
+  std::atomic<uint32_t> resolved_addr_{0};
 
+  StaticRingBuffer<uint8_t, RX_BUFFER_SIZE> rx_;
+  uint16_t port_{0};
+  bool connecting_{false};
+  bool connected_{false};
   std::atomic<bool> resolving_{false};
   std::atomic<bool> resolve_failed_{false};
   std::atomic<bool> have_addr_{false};
-  std::atomic<uint32_t> resolved_addr_{0};
   char resolved_ip_[socket::SOCKADDR_STR_LEN]{};
-
-  StaticRingBuffer<uint8_t, RX_BUFFER_SIZE> rx_;
   uint8_t tx_[TX_BUFFER_SIZE]{};
-  size_t tx_len_{0};
 };
 
 }  // namespace esphome::tcp_uart
