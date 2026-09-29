@@ -220,44 +220,26 @@ void APC1Component::parse_measurement_frame_() {
     ESP_LOGI(TAG, "APC1: Gas sensor warm-up complete (AQI=%u)", aqi);
   }
 
-  // Measurement payload data (bytes 4-57): big-endian sensor readings
-  uint16_t pm_1_0_std = encode_uint16(this->rx_buffer_[4], this->rx_buffer_[5]);
-  uint16_t pm_2_5_std = encode_uint16(this->rx_buffer_[6], this->rx_buffer_[7]);
-  uint16_t pm_10_0_std = encode_uint16(this->rx_buffer_[8], this->rx_buffer_[9]);
-
+  // Measurement payload data (bytes 4-57): big-endian sensor readings.
+  // The values below feed the debug summary, so they are always decoded; every
+  // other reading is only decoded when its sensor is configured.
   uint16_t pm_1_0 = encode_uint16(this->rx_buffer_[10], this->rx_buffer_[11]);
   uint16_t pm_2_5 = encode_uint16(this->rx_buffer_[12], this->rx_buffer_[13]);
   uint16_t pm_10_0 = encode_uint16(this->rx_buffer_[14], this->rx_buffer_[15]);
-
-  uint16_t pm_0_3um = encode_uint16(this->rx_buffer_[16], this->rx_buffer_[17]);
-  uint16_t pm_0_5um = encode_uint16(this->rx_buffer_[18], this->rx_buffer_[19]);
-  uint16_t pm_1_0um = encode_uint16(this->rx_buffer_[20], this->rx_buffer_[21]);
-  uint16_t pm_2_5um = encode_uint16(this->rx_buffer_[22], this->rx_buffer_[23]);
-  uint16_t pm_5_0um = encode_uint16(this->rx_buffer_[24], this->rx_buffer_[25]);
-  uint16_t pm_10_0um = encode_uint16(this->rx_buffer_[26], this->rx_buffer_[27]);
-
   uint16_t tvoc = encode_uint16(this->rx_buffer_[28], this->rx_buffer_[29]);
   uint16_t eco2 = encode_uint16(this->rx_buffer_[30], this->rx_buffer_[31]);
-
   float temp_comp = static_cast<int16_t>(encode_uint16(this->rx_buffer_[34], this->rx_buffer_[35])) / 10.0f;
   float hum_comp = encode_uint16(this->rx_buffer_[36], this->rx_buffer_[37]) / 10.0f;
-
-  float temp_raw = static_cast<int16_t>(encode_uint16(this->rx_buffer_[38], this->rx_buffer_[39])) / 10.0f;
-  float hum_raw = encode_uint16(this->rx_buffer_[40], this->rx_buffer_[41]) / 10.0f;
-
-  uint32_t rs0 = encode_uint32(this->rx_buffer_[42], this->rx_buffer_[43], this->rx_buffer_[44], this->rx_buffer_[45]);
-  uint32_t rs2 = encode_uint32(this->rx_buffer_[50], this->rx_buffer_[51], this->rx_buffer_[52], this->rx_buffer_[53]);
-  uint32_t rs3 = encode_uint32(this->rx_buffer_[54], this->rx_buffer_[55], this->rx_buffer_[56], this->rx_buffer_[57]);
 
   ESP_LOGD(TAG, "APC1: PM1.0: %u, PM2.5: %u, PM10: %u, TVOC: %u, eCO2: %u, AQI: %u, Temp: %.1f°C, Hum: %.1f%%", pm_1_0,
            pm_2_5, pm_10_0, tvoc, eco2, aqi, temp_comp, hum_comp);
 
   if (this->pm_1_0_std_sensor_ != nullptr)
-    this->pm_1_0_std_sensor_->publish_state(pm_1_0_std);
+    this->pm_1_0_std_sensor_->publish_state(encode_uint16(this->rx_buffer_[4], this->rx_buffer_[5]));
   if (this->pm_2_5_std_sensor_ != nullptr)
-    this->pm_2_5_std_sensor_->publish_state(pm_2_5_std);
+    this->pm_2_5_std_sensor_->publish_state(encode_uint16(this->rx_buffer_[6], this->rx_buffer_[7]));
   if (this->pm_10_0_std_sensor_ != nullptr)
-    this->pm_10_0_std_sensor_->publish_state(pm_10_0_std);
+    this->pm_10_0_std_sensor_->publish_state(encode_uint16(this->rx_buffer_[8], this->rx_buffer_[9]));
 
   if (this->pm_1_0_sensor_ != nullptr)
     this->pm_1_0_sensor_->publish_state(pm_1_0);
@@ -267,17 +249,17 @@ void APC1Component::parse_measurement_frame_() {
     this->pm_10_0_sensor_->publish_state(pm_10_0);
 
   if (this->pm_0_3um_sensor_ != nullptr)
-    this->pm_0_3um_sensor_->publish_state(pm_0_3um);
+    this->pm_0_3um_sensor_->publish_state(encode_uint16(this->rx_buffer_[16], this->rx_buffer_[17]));
   if (this->pm_0_5um_sensor_ != nullptr)
-    this->pm_0_5um_sensor_->publish_state(pm_0_5um);
+    this->pm_0_5um_sensor_->publish_state(encode_uint16(this->rx_buffer_[18], this->rx_buffer_[19]));
   if (this->pm_1_0um_sensor_ != nullptr)
-    this->pm_1_0um_sensor_->publish_state(pm_1_0um);
+    this->pm_1_0um_sensor_->publish_state(encode_uint16(this->rx_buffer_[20], this->rx_buffer_[21]));
   if (this->pm_2_5um_sensor_ != nullptr)
-    this->pm_2_5um_sensor_->publish_state(pm_2_5um);
+    this->pm_2_5um_sensor_->publish_state(encode_uint16(this->rx_buffer_[22], this->rx_buffer_[23]));
   if (this->pm_5_0um_sensor_ != nullptr)
-    this->pm_5_0um_sensor_->publish_state(pm_5_0um);
+    this->pm_5_0um_sensor_->publish_state(encode_uint16(this->rx_buffer_[24], this->rx_buffer_[25]));
   if (this->pm_10_0um_sensor_ != nullptr)
-    this->pm_10_0um_sensor_->publish_state(pm_10_0um);
+    this->pm_10_0um_sensor_->publish_state(encode_uint16(this->rx_buffer_[26], this->rx_buffer_[27]));
 
   if (this->tvoc_sensor_ != nullptr)
     this->tvoc_sensor_->publish_state(tvoc);
@@ -297,16 +279,20 @@ void APC1Component::parse_measurement_frame_() {
     this->humidity_sensor_->publish_state(hum_comp);
 
   if (this->raw_temperature_sensor_ != nullptr)
-    this->raw_temperature_sensor_->publish_state(temp_raw);
+    this->raw_temperature_sensor_->publish_state(
+        static_cast<int16_t>(encode_uint16(this->rx_buffer_[38], this->rx_buffer_[39])) / 10.0f);
   if (this->raw_humidity_sensor_ != nullptr)
-    this->raw_humidity_sensor_->publish_state(hum_raw);
+    this->raw_humidity_sensor_->publish_state(encode_uint16(this->rx_buffer_[40], this->rx_buffer_[41]) / 10.0f);
 
   if (this->rs0_sensor_ != nullptr)
-    this->rs0_sensor_->publish_state(rs0);
+    this->rs0_sensor_->publish_state(
+        encode_uint32(this->rx_buffer_[42], this->rx_buffer_[43], this->rx_buffer_[44], this->rx_buffer_[45]));
   if (this->rs2_sensor_ != nullptr)
-    this->rs2_sensor_->publish_state(rs2);
+    this->rs2_sensor_->publish_state(
+        encode_uint32(this->rx_buffer_[50], this->rx_buffer_[51], this->rx_buffer_[52], this->rx_buffer_[53]));
   if (this->rs3_sensor_ != nullptr)
-    this->rs3_sensor_->publish_state(rs3);
+    this->rs3_sensor_->publish_state(
+        encode_uint32(this->rx_buffer_[54], this->rx_buffer_[55], this->rx_buffer_[56], this->rx_buffer_[57]));
   if (this->error_code_sensor_ != nullptr)
     this->error_code_sensor_->publish_state(error_code);
 }
