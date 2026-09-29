@@ -312,11 +312,7 @@ bool MQTTComponent::send_discovery_() {
         // Buffer sized for format string expansion: ~4 bytes net growth from format specifier to 8 hex digits, plus
         // safety margin
         char version_buf[sizeof(ver_fmt) + 8];
-#ifdef USE_ESP8266
-        snprintf_P(version_buf, sizeof(version_buf), ver_fmt, App.get_config_hash());
-#else
-        snprintf(version_buf, sizeof(version_buf), ver_fmt, App.get_config_hash());
-#endif
+        ESPHOME_snprintf_P(version_buf, sizeof(version_buf), ver_fmt, App.get_config_hash());
         device_info[MQTT_DEVICE_SW_VERSION] = version_buf;
         device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
 #if defined(USE_ESP8266) || defined(USE_ESP32)

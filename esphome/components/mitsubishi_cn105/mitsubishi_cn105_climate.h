@@ -3,7 +3,6 @@
 #include "mitsubishi_cn105_component.h"
 #include "mitsubishi_cn105.h"
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/components/climate/climate.h"
 #include "mitsubishi_cn105_swing_mode_manager.h"
@@ -29,22 +28,6 @@ class MitsubishiCN105Climate final : public climate::Climate,
   void apply_values_();
 
   SwingModeManager swing_mode_manager_;
-};
-
-// Legacy climate action compatibility. Remove in 2027.2.0.
-template<typename... Ts>
-class LegacySetRemoteTemperatureAction final : public Action<Ts...>, public Parented<MitsubishiCN105Climate> {
- public:
-  TEMPLATABLE_VALUE(float, temperature)
-
-  void play(const Ts &...x) override { this->parent_->set_remote_temperature(this->temperature_.value(x...)); }
-};
-
-// Legacy climate action compatibility. Remove in 2027.2.0.
-template<typename... Ts>
-class LegacyClearRemoteTemperatureAction final : public Action<Ts...>, public Parented<MitsubishiCN105Climate> {
- public:
-  void play(const Ts &...x) override { this->parent_->clear_remote_temperature(); }
 };
 
 }  // namespace esphome::mitsubishi_cn105

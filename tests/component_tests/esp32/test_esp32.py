@@ -4,6 +4,7 @@ Test ESP32 configuration
 
 import asyncio
 from collections.abc import Callable
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -1488,7 +1489,7 @@ def test_mbedtls_tls_trim_sdkconfig(
     assert {sdkconfig.get(name) for name in MBEDTLS_TLS_EXTRA_OPTIONS} == {extras}
 
 
-_OPENTHREAD_EXTRAS = {"CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC"}
+_CCM_ECDSA_EXTRAS = {"CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC"}
 
 
 def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
@@ -1500,7 +1501,19 @@ def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
     for name in MBEDTLS_TLS_EXTRA_OPTIONS:
-        assert sdkconfig.get(name) is (None if name in _OPENTHREAD_EXTRAS else False)
+        assert sdkconfig.get(name) is (None if name in _CCM_ECDSA_EXTRAS else False)
+
+
+def test_mbedtls_tls_zigbee_keeps_only_what_it_uses(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The Zigbee config keeps CCM and deterministic ECDSA; the rest is trimmed."""
+    generate_main(component_config_path("tls_zigbee_c6.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (True, False)
+    for name in MBEDTLS_TLS_EXTRA_OPTIONS:
+        assert sdkconfig.get(name) is (None if name in _CCM_ECDSA_EXTRAS else False)
 
 
 def test_mbedtls_tls_user_sdkconfig_wins(
@@ -1529,7 +1542,16 @@ def test_mbedtls_tls_openthread_requires_server_and_extras(
     """The OpenThread hooks mark the DTLS server and CCM/deterministic ECDSA as required."""
     generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
     assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_SERVER_REQUIRED] is True
-    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _OPENTHREAD_EXTRAS
+    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _CCM_ECDSA_EXTRAS
+
+
+def test_mbedtls_tls_zigbee_requires_extras(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The Zigbee hooks mark the CCM/deterministic ECDSA as required."""
+    generate_main(component_config_path("tls_zigbee_c6.yaml"))
+    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _CCM_ECDSA_EXTRAS
 
 
 _VASPRINTF_STUB_FLAGS = {"-Wl,--wrap=vasprintf", "-Wl,--undefined=__wrap_vasprintf"}
@@ -1554,3 +1576,137 @@ def test_vasprintf_stub_only_on_rom_vsnprintf_variants(
     assert (CORE.build_flags >= _VASPRINTF_STUB_FLAGS) is expected
     defines = {define.name for define in CORE.defines}
     assert ("USE_ESP32_VASPRINTF_STUB" in defines) is expected
+
+
+@pytest.mark.parametrize(
+    ("fixture", "expected"),
+    [
+        ("nvs_cache_psram_guaranteed.yaml", True),
+        ("nvs_cache_psram_explicit.yaml", True),
+        ("nvs_cache_psram_not_guaranteed.yaml", None),
+        ("nvs_cache_psram_disabled.yaml", None),
+        # the encryption keys must stay in internal RAM, whichever way encryption is enabled
+        ("nvs_cache_psram_encrypted.yaml", None),
+        ("nvs_cache_psram_encrypted_sdkconfig.yaml", None),
+    ],
+)
+def test_nvs_cache_in_psram_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    fixture: str,
+    expected: bool | None,
+) -> None:
+    """The NVS cache moves to PSRAM only with guaranteed PSRAM, the option not off and no NVS encryption."""
+    generate_main(component_config_path(fixture))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM") is expected
+
+
+def test_nvs_cache_in_psram_user_sdkconfig_wins(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A raw sdkconfig_options value for the NVS cache option is left alone."""
+    generate_main(component_config_path("nvs_cache_psram_user_off.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig["CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM"] == RawSdkconfigValue("n")
+
+
+@pytest.mark.parametrize(
+    ("full_config", "error_match"),
+    [
+        pytest.param(
+            {CONF_ESPHOME: {}, "psram": {"disabled": False, "ignore_not_found": True}},
+            r"'nvs_cache_in_psram' requires PSRAM with 'ignore_not_found: false'",
+            id="nvs_cache_in_psram_needs_guaranteed_psram",
+        ),
+        pytest.param(
+            {CONF_ESPHOME: {}},
+            r"'nvs_cache_in_psram' requires PSRAM with 'ignore_not_found: false'",
+            id="nvs_cache_in_psram_needs_psram",
+        ),
+    ],
+)
+def test_nvs_cache_in_psram_explicit_true_errors(
+    full_config: dict, error_match: str, set_core_config: SetCoreConfigCallable
+) -> None:
+    """An explicit nvs_cache_in_psram: true that cannot apply is a config error, not a silent no-op."""
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full_config)
+    from esphome.components.esp32 import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
+
+    config = {
+        "variant": "esp32s3",
+        "framework": {"type": "esp-idf", "advanced": {"nvs_cache_in_psram": True}},
+    }
+    with pytest.raises(cv.Invalid, match=error_match):
+        FINAL_VALIDATE_SCHEMA(CONFIG_SCHEMA(config))
+
+
+def test_nvs_cache_in_psram_explicit_true_rejects_encryption(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        full_config={
+            CONF_ESPHOME: {},
+            "psram": {"disabled": False, "ignore_not_found": False},
+        },
+    )
+    from esphome.components.esp32 import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
+
+    config = {
+        "variant": "esp32s3",
+        "framework": {
+            "type": "esp-idf",
+            "advanced": {"nvs_cache_in_psram": True, "nvs_encryption": {"key_id": 0}},
+        },
+    }
+    with pytest.raises(cv.Invalid, match="cannot be used with NVS encryption"):
+        FINAL_VALIDATE_SCHEMA(CONFIG_SCHEMA(config))
+
+
+def test_nvs_cache_in_psram_default_with_encryption_is_quiet(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Encryption on a board that never mentioned the option must not warn about it."""
+    with caplog.at_level(logging.WARNING):
+        generate_main(component_config_path("nvs_cache_psram_encrypted.yaml"))
+    assert "nvs_cache_in_psram" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_nvs_cache_in_psram_explicit_request_warns_when_encrypted(
+    set_core_config: SetCoreConfigCallable, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An explicit request dropped for NVS encryption enabled elsewhere logs a warning."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF, platform_data={KEY_SDKCONFIG_OPTIONS: {}}
+    )
+    from esphome.components.esp32 import (
+        _apply_nvs_cache_in_psram,
+        add_idf_sdkconfig_option,
+    )
+
+    add_idf_sdkconfig_option("CONFIG_NVS_ENCRYPTION", True)
+    with caplog.at_level(logging.WARNING):
+        await _apply_nvs_cache_in_psram(True)
+    assert "nvs_cache_in_psram ignored" in caplog.text
+    assert (
+        "CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM"
+        not in CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    )
+
+
+def test_nvs_cache_in_psram_explicit_true_on_valid_board_is_quiet(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An explicit true that applies sets the option and warns about nothing."""
+    with caplog.at_level(logging.WARNING):
+        generate_main(component_config_path("nvs_cache_psram_explicit.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM") is True
+    assert "nvs_cache_in_psram" not in caplog.text
