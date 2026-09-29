@@ -51,7 +51,7 @@ class UartTcp : public Component, public uart::UARTDevice {
   static void dns_found(const char *name, const ip_addr_t *addr, void *arg);
 #endif
 
-  // Larger members first so the compiler does not insert padding.
+  // 4-byte members, then the port, then the flags, then the byte buffer.
   StringRef host_;
   std::unique_ptr<socket::Socket> sock_;
   std::unique_ptr<socket::ListenSocket> listen_;
@@ -64,9 +64,10 @@ class UartTcp : public Component, public uart::UARTDevice {
   bool server_{false};
   bool connecting_{false};
   bool connected_{false};
-  std::atomic<bool> resolving_{false};
-  std::atomic<bool> resolve_failed_{false};
-  std::atomic<bool> have_addr_{false};
+  // atomic<bool> is an out-of-line call on the ESP8266 and does not link.
+  std::atomic<uint8_t> resolving_{0};
+  std::atomic<uint8_t> resolve_failed_{0};
+  std::atomic<uint8_t> have_addr_{0};
   char resolved_ip_[socket::SOCKADDR_STR_LEN]{};
 };
 
