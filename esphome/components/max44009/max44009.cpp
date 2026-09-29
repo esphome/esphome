@@ -134,6 +134,4 @@ void MAX44009Sensor::write_(uint8_t reg, uint8_t value) {
   }
 }
 
-void MAX44009Sensor::set_mode(MAX44009Mode mode) { this->mode_ = mode; }
-
 }  // namespace esphome::max44009

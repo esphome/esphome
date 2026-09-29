@@ -4,6 +4,9 @@ esphome:
       - output.ledc.set_frequency:
           id: test_ledc
           frequency: 100Hz
+      - output.ledc.set_frequency:
+          id: test_ledc
+          frequency: !lambda return 200.0f;
 
 output:
   - platform: ledc

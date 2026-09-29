@@ -5,11 +5,12 @@ from typing import Any
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ENCRYPTION, CONF_KEY
-from esphome.core import ID
+from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "noise"
 
 noise_ns = cg.esphome_ns.namespace("noise")
 
@@ -70,11 +71,16 @@ def static_encryption_key(conf: ConfigType) -> str | None:
 
 def new_psk_progmem(parent_id: ID, key: str) -> MockObj:
     """Emit the decoded key as a PROGMEM array; the component keeps a pointer
-    so the key never occupies RAM."""
-    return cg.progmem_array(
-        ID(f"{parent_id.id}_psk", is_declaration=True, type=cg.uint8),
-        list(decode_encryption_key(key)),
-    )
+    so the key never occupies RAM. Components sharing one key (api and ota)
+    share the array."""
+    decoded = decode_encryption_key(key)
+    arrays: dict[bytes, MockObj] = CORE.data.setdefault(DOMAIN, {})
+    if (array := arrays.get(decoded)) is None:
+        array = arrays[decoded] = cg.progmem_array(
+            ID(f"{parent_id.id}_psk", is_declaration=True, type=cg.uint8),
+            list(decoded),
+        )
+    return array
 
 
 def encryption_schema(config: ConfigType | None) -> ConfigType:
