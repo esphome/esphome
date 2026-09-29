@@ -83,18 +83,17 @@ class APC1Component final : public uart::UARTDevice, public Component {
   void parse_device_info_frame_();
   void parse_command_response_frame_();
 
+  GPIOPin *set_pin_{nullptr};
+  GPIOPin *reset_pin_{nullptr};
+  uint32_t last_transmission_{0};
+  uint32_t last_valid_frame_{0};
+  uint32_t last_init_attempt_{0};
   std::array<uint8_t, APC1_BUFFER_SIZE> rx_buffer_{};
   uint8_t rx_index_{0};
   uint8_t last_error_code_{0xFF};
   bool active_mode_{true};
   bool idle_{false};
   bool gas_warming_up_{false};
-  uint32_t last_transmission_{0};
-  uint32_t last_valid_frame_{0};
-  uint32_t last_init_attempt_{0};
-
-  GPIOPin *set_pin_{nullptr};
-  GPIOPin *reset_pin_{nullptr};
 };
 
 }  // namespace esphome::apc1

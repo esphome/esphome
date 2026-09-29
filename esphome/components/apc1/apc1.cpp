@@ -177,26 +177,23 @@ void APC1Component::parse_measurement_frame_() {
   uint8_t error_code = this->rx_buffer_[APC1_MEASUREMENT_OFFSET_ERROR_CODE];
   if (error_code != this->last_error_code_) {
     if (error_code != 0) {
-      if (error_code & 0x01) {
-        ESP_LOGW(TAG, "APC1: Fan restart error (too many restarts)");
-      }
-      if (error_code & 0x02) {
-        ESP_LOGW(TAG, "APC1: Fan speed low");
-      }
-      if (error_code & 0x04) {
-        ESP_LOGW(TAG, "APC1: Photodiode fault");
-      }
-      if (error_code & 0x08) {
-        ESP_LOGW(TAG, "APC1: Fan stopped / startup error");
-      }
-      if (error_code & 0x10) {
-        ESP_LOGW(TAG, "APC1: Laser fault");
-      }
-      if (error_code & 0x20) {
-        ESP_LOGW(TAG, "APC1: VOC sensor fault");
-      }
-      if (error_code & 0x40) {
-        ESP_LOGW(TAG, "APC1: RHT sensor fault");
+      struct ErrorBit {
+        uint8_t mask;
+        const LogString *message;
+      };
+      static const ErrorBit ERROR_BITS[] = {
+          {0x01, LOG_STR("Fan restart error (too many restarts)")},
+          {0x02, LOG_STR("Fan speed low")},
+          {0x04, LOG_STR("Photodiode fault")},
+          {0x08, LOG_STR("Fan stopped / startup error")},
+          {0x10, LOG_STR("Laser fault")},
+          {0x20, LOG_STR("VOC sensor fault")},
+          {0x40, LOG_STR("RHT sensor fault")},
+      };
+      for (const auto &bit : ERROR_BITS) {
+        if (error_code & bit.mask) {
+          ESP_LOGW(TAG, "APC1: %s", LOG_STR_ARG(bit.message));
+        }
       }
       this->status_set_warning("Sensor reported hardware error");
     } else {
@@ -265,13 +262,8 @@ void APC1Component::parse_measurement_frame_() {
     this->tvoc_sensor_->publish_state(tvoc);
   if (this->eco2_sensor_ != nullptr)
     this->eco2_sensor_->publish_state(eco2);
-  if (this->aqi_sensor_ != nullptr) {
-    if (aqi > 0) {
-      this->aqi_sensor_->publish_state(aqi);
-    } else {
-      this->aqi_sensor_->publish_state(NAN);
-    }
-  }
+  if (this->aqi_sensor_ != nullptr)
+    this->aqi_sensor_->publish_state(aqi > 0 ? aqi : NAN);
 
   if (this->temperature_sensor_ != nullptr)
     this->temperature_sensor_->publish_state(temp_comp);
