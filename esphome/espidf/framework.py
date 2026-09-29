@@ -481,6 +481,14 @@ def _clone_idf_with_submodules(
         )
 
 
+def read_idf_version_txt(framework_path: Path) -> str:
+    """The installed framework's version.txt stamp, or empty."""
+    try:
+        return (framework_path / "version.txt").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
 def _write_idf_version_txt(framework_path: Path, version: str) -> None:
     """Write <framework_path>/version.txt if missing.
 

@@ -1171,6 +1171,7 @@ def test_run_compile_falls_back_when_bootloader_cache_fails(
         patch.object(toolchain, "_cache_entries_changed", return_value=False),
         patch.object(toolchain, "_use_cached_bootloader", return_value=True),
         patch.object(bootloader, "ensure_cached_bootloader", return_value=1),
+        patch.object(bootloader, "record_failure") as mock_record,
         patch.object(
             toolchain, "run_reconfigure", return_value=reconfigure_rc
         ) as mock_reconfigure,
@@ -1179,8 +1180,10 @@ def test_run_compile_falls_back_when_bootloader_cache_fails(
     ):
         rc = toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
     assert rc == reconfigure_rc
-    # The fallback pins the memoized predicate for the rest of the run.
+    # The fallback pins the memoized predicate for the rest of the run and
+    # stamps the tree so later runs skip the retry until the inputs change.
     assert toolchain._cache().bootloader_enabled is False
+    mock_record.assert_called_once_with()
     mock_reconfigure.assert_called_once_with(False)
     assert mock_ninja.called is (reconfigure_rc == 0)
 
@@ -1192,6 +1195,9 @@ def test_create_factory_bin_merges_cached_bootloader(setup_core: Path) -> None:
     build = CORE.relative_build_path("build")
     (build / "bootloader").mkdir(parents=True)
     (build / "bootloader" / "bootloader.bin").write_bytes(b"\xe9")
+    (build / "CMakeCache.txt").write_text(
+        "ESPHOME_USE_CACHED_BOOTLOADER:UNINITIALIZED=1\n"
+    )
     (build / "config").mkdir()
     (build / "config" / "sdkconfig.json").write_text(
         json.dumps({"BOOTLOADER_OFFSET_IN_FLASH": 0x1000})
@@ -1221,3 +1227,44 @@ def test_create_factory_bin_merges_cached_bootloader(setup_core: Path) -> None:
     assert cmd[offset_index + 1] == str(build / "bootloader" / "bootloader.bin")
     # Sections stay sorted by address; the bootloader comes first.
     assert offset_index < cmd.index("0x10000")
+
+
+def test_idf_target_from_variant(setup_core: Path) -> None:
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32C6"}
+    assert toolchain._idf_target() == "esp32c6"
+
+
+def test_load_sdkconfig_json(setup_core: Path, tmp_path: Path) -> None:
+    assert toolchain._load_sdkconfig_json(tmp_path) is None
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "sdkconfig.json").write_text('{"A": 1}')
+    assert toolchain._load_sdkconfig_json(tmp_path) == {"A": 1}
+    (tmp_path / "config" / "sdkconfig.json").write_text("[]")
+    assert toolchain._load_sdkconfig_json(tmp_path) is None
+
+
+def test_resolved_c_compiler_from_project_description(setup_core: Path) -> None:
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    (build / "project_description.json").write_text(
+        json.dumps({"c_compiler": "/tools/xtensa-esp32-elf-gcc"})
+    )
+    expected = os.path.realpath("/tools/xtensa-esp32-elf-gcc")
+    assert toolchain._resolved_c_compiler() == expected
+
+
+@pytest.mark.parametrize(
+    "description",
+    [None, "not json", "{}", '{"c_compiler": ""}', "[]"],
+    ids=["missing", "corrupt", "no-key", "empty", "not-a-dict"],
+)
+def test_resolved_c_compiler_none_without_a_usable_description(
+    setup_core: Path, description: str | None
+) -> None:
+    _setup_build(setup_core)
+    if description is not None:
+        build = CORE.relative_build_path("build")
+        build.mkdir(parents=True)
+        (build / "project_description.json").write_text(description)
+    assert toolchain._resolved_c_compiler() is None

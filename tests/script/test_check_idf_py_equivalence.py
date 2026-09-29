@@ -13,8 +13,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "script"))
 
 import check_idf_py_equivalence as guard  # noqa: E402
 
+from esphome.build_gen import espidf as build_gen  # noqa: E402
 from esphome.core import CORE  # noqa: E402
-from esphome.espidf import bootloader, toolchain  # noqa: E402
+from esphome.espidf import toolchain  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -82,7 +83,7 @@ def _run_check(
         patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
         patch.object(toolchain, "run_reconfigure", return_value=esphome_rcs[0]),
         patch.object(toolchain, "_run_ninja", return_value=esphome_rcs[1]),
-        patch.object(bootloader, "idf_macro_matches", return_value=macro_matches),
+        patch.object(build_gen, "idf_macro_matches", return_value=macro_matches),
         patch.object(guard.subprocess, "run", side_effect=run),
     ):
         return guard.check(tree), calls

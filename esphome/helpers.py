@@ -513,6 +513,16 @@ def walk_files(path: Path):
             yield Path(root) / name
 
 
+def read_json_file(path: Path):
+    """The parsed JSON file, or None when missing or unreadable."""
+    import json
+
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
 def read_file(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")

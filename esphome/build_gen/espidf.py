@@ -3,6 +3,7 @@
 import json
 import logging
 from pathlib import Path
+import re
 import textwrap
 
 from esphome.build_helpers import pch
@@ -114,6 +115,33 @@ endif()
 # The one line the override adds to IDF's macro; the staleness tripwire in
 # esphome.espidf.bootloader strips it before comparing with the live macro.
 BOOTLOADER_OVERRIDE_ADDED_LINE = 'set(CONFIG_APP_BUILD_BOOTLOADER "")'
+
+_MACRO = re.compile(
+    r"macro\(__build_process_project_includes\)(.*?)endmacro\(\)", re.DOTALL
+)
+
+
+def _normalized_macro(text: str) -> list[str] | None:
+    """The macro body as comment-free, whitespace-collapsed lines."""
+    if (match := _MACRO.search(text)) is None:
+        return None
+    return [
+        re.sub(r"\s+", " ", line)
+        for raw in match.group(1).splitlines()
+        if (line := raw.split("#", 1)[0].strip())
+    ]
+
+
+def idf_macro_matches() -> bool:
+    """Whether IDF's macro still matches the copy the override replays."""
+    from esphome.espidf import toolchain
+
+    expected = _normalized_macro(IDF_BOOTLOADER_OVERRIDE)
+    expected.remove(BOOTLOADER_OVERRIDE_ADDED_LINE)
+    # pylint: disable-next=protected-access
+    build_cmake = toolchain._get_idf_path() / "tools" / "cmake" / "build.cmake"
+    live = _normalized_macro(build_cmake.read_text(encoding="utf-8"))
+    return live == expected
 
 
 def get_project_cmakelists(

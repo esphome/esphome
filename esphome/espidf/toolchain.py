@@ -25,7 +25,7 @@ from esphome.core import CORE, EsphomeError
 from esphome.espidf import variant_to_idf_target
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
-from esphome.helpers import add_git_ceiling_directory, write_file
+from esphome.helpers import add_git_ceiling_directory, read_json_file, write_file
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -248,6 +248,25 @@ def _build_dir() -> Path:
     return Path(os.path.realpath(CORE.build_path)) / "build"
 
 
+def _idf_target() -> str:
+    return variant_to_idf_target(CORE.data[KEY_ESP32][KEY_VARIANT])
+
+
+def _load_sdkconfig_json(build_dir: Path) -> dict | None:
+    """A build's generated config/sdkconfig.json, or None."""
+    config = read_json_file(build_dir / "config" / "sdkconfig.json")
+    return config if isinstance(config, dict) else None
+
+
+def _resolved_c_compiler() -> str | None:
+    """The configured build's resolved C compiler, or None."""
+    description = read_json_file(_build_dir() / "project_description.json")
+    if not isinstance(description, dict):
+        return None
+    compiler = description.get("c_compiler")
+    return os.path.realpath(compiler) if compiler else None
+
+
 def _cache_entries() -> dict[str, str]:
     """The ``-D`` entries idf.py passes to cmake, in idf.py's order."""
     entries = {}
@@ -444,7 +463,7 @@ def _builtin_component_cache_path() -> Path | None:
     """
     if "IDF_PATH" in os.environ:
         return None
-    target = variant_to_idf_target(CORE.data[KEY_ESP32][KEY_VARIANT])
+    target = _idf_target()
     excluded = CORE.cmake_args.get("EXCLUDE_COMPONENTS", "")
     excluded_key = hashlib.sha256(excluded.encode()).hexdigest()[:12]
     return (
@@ -693,6 +712,7 @@ def run_compile(config, verbose: bool) -> int:
             # The stock in-tree build still works; flip this run over to it.
             _LOGGER.warning("Cached bootloader unavailable; building it in-tree")
             _cache().bootloader_enabled = False
+            bootloader.record_failure()
             if (rc := run_reconfigure(verbose)) != 0:
                 return rc
 

@@ -2003,3 +2003,11 @@ def test_check_windows_path_length_long_path_warns(
     assert "long path support" in message
     # The install is global now; the remedy is the prefix env, not moving the project.
     assert "ESPHOME_ESP_IDF_PREFIX" in message
+
+
+def test_read_idf_version_txt(tmp_path: Path) -> None:
+    from esphome.espidf.framework import read_idf_version_txt
+
+    assert read_idf_version_txt(tmp_path) == ""
+    (tmp_path / "version.txt").write_text("v5.5.5\n")
+    assert read_idf_version_txt(tmp_path) == "v5.5.5"

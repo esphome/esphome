@@ -11,45 +11,11 @@ from unittest.mock import patch
 
 import pytest
 
+from esphome.build_gen import espidf as build_gen
 from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION, KEY_VARIANT
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError
 from esphome.espidf import bootloader, toolchain
-
-# The macro body as shipped in build.cmake; byte identical in IDF 5.5.5 and
-# 6.1.0, so one fixture covers both supported versions.
-IDF_BUILD_CMAKE = """\
-some_other_cmake()
-
-macro(__build_process_project_includes)
-    # Include the sdkconfig cmake file, since the following operations require
-    # knowledge of config values.
-    idf_build_get_property(sdkconfig_cmake SDKCONFIG_CMAKE)
-    include(${sdkconfig_cmake})
-
-    # Make each build property available as a read-only variable
-    idf_build_get_property(build_properties __BUILD_PROPERTIES)
-    foreach(build_property ${build_properties})
-        idf_build_get_property(val ${build_property})
-        set(${build_property} "${val}")
-    endforeach()
-
-    idf_build_get_property(build_component_targets __BUILD_COMPONENT_TARGETS)
-
-    # Include each component's project_include.cmake
-    foreach(component_target ${build_component_targets})
-        __component_get_property(dir ${component_target} COMPONENT_DIR)
-        __component_get_property(_name ${component_target} COMPONENT_NAME)
-        set(COMPONENT_NAME ${_name})
-        set(COMPONENT_DIR ${dir})
-        set(COMPONENT_PATH ${dir})  # this is deprecated, users are encouraged to use COMPONENT_DIR;
-                                    # retained for compatibility
-        if(EXISTS ${COMPONENT_DIR}/project_include.cmake)
-            include(${COMPONENT_DIR}/project_include.cmake)
-        endif()
-    endforeach()
-endmacro()
-"""
 
 
 @pytest.fixture(autouse=True)
@@ -71,13 +37,6 @@ def _write_snapshot(text: str = "") -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text)
     return path
-
-
-def _write_idf_build_cmake(tmp_path: Path, text: str = IDF_BUILD_CMAKE) -> Path:
-    idf = tmp_path / "idf"
-    (idf / "tools" / "cmake").mkdir(parents=True)
-    (idf / "tools" / "cmake" / "build.cmake").write_text(text)
-    return idf
 
 
 # ---------------------------------------------------------------- predicate
@@ -112,11 +71,36 @@ def _tools_prefix(tmp_path: Path):
 
 def test_enabled_clean_snapshot_checks_macro(tmp_path: Path) -> None:
     _write_snapshot("CONFIG_FOO=y\n")
-    idf = _write_idf_build_cmake(tmp_path)
     with (
         _tools_prefix(tmp_path),
-        patch.object(toolchain, "_get_idf_path", return_value=idf),
+        patch.object(build_gen, "idf_macro_matches", return_value=True),
     ):
+        assert bootloader._compute_enabled() is True
+
+
+def test_enabled_macro_mismatch_disables_with_a_log(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    _write_snapshot("CONFIG_FOO=y\n")
+    with (
+        _tools_prefix(tmp_path),
+        patch.object(build_gen, "idf_macro_matches", return_value=False),
+        caplog.at_level("INFO"),
+    ):
+        assert bootloader._compute_enabled() is False
+    assert "changed its bootloader macro" in caplog.text
+
+
+def test_enabled_after_recorded_failure(tmp_path: Path) -> None:
+    """A recorded failure pins in-tree until the IDF version or target changes."""
+    _write_snapshot("CONFIG_FOO=y\n")
+    with (
+        _tools_prefix(tmp_path),
+        patch.object(build_gen, "idf_macro_matches", return_value=True),
+    ):
+        bootloader.record_failure()
+        assert bootloader._compute_enabled() is False
+        CORE.data[KEY_ESP32][KEY_IDF_VERSION] = cv.Version(6, 1, 0)
         assert bootloader._compute_enabled() is True
 
 
@@ -184,34 +168,6 @@ def test_has_secure_options(tmp_path: Path, text: str, secure: bool) -> None:
     assert bootloader._has_secure_options(path) is secure
 
 
-# ------------------------------------------------------------ macro tripwire
-
-
-def test_normalized_macro_strips_comments_and_whitespace() -> None:
-    text = "macro(__build_process_project_includes)\n  a( b )  # tail\n\n  # only\n  c(d)\nendmacro()"
-    assert bootloader._normalized_macro(text) == ["a( b )", "c(d)"]
-
-
-def test_normalized_macro_none_without_macro() -> None:
-    assert bootloader._normalized_macro("nothing here") is None
-
-
-def test_idf_macro_matches_the_shipped_body(tmp_path: Path) -> None:
-    """The override's embedded copy must equal what build.cmake ships."""
-    idf = _write_idf_build_cmake(tmp_path)
-    with patch.object(toolchain, "_get_idf_path", return_value=idf):
-        assert bootloader.idf_macro_matches() is True
-
-
-def test_idf_macro_mismatch_detected(tmp_path: Path) -> None:
-    changed = IDF_BUILD_CMAKE.replace(
-        "include(${sdkconfig_cmake})", "include(${sdkconfig_cmake} NEW_ARG)"
-    )
-    idf = _write_idf_build_cmake(tmp_path, changed)
-    with patch.object(toolchain, "_get_idf_path", return_value=idf):
-        assert bootloader.idf_macro_matches() is False
-
-
 # ------------------------------------------------------------------ cache key
 
 
@@ -221,10 +177,12 @@ def _key(
     compiler: str = "/tc/gcc",
     version: str = "5.5.5",
 ) -> str:
+    from esphome.espidf import framework
+
     with (
         patch.object(toolchain, "_get_core_framework_version", return_value=version),
         patch.object(toolchain, "_get_framework_source_override", return_value=None),
-        patch.object(bootloader, "_version_stamp", return_value="v5.5.5"),
+        patch.object(framework, "read_idf_version_txt", return_value="v5.5.5"),
     ):
         return bootloader._compute_key(bootloader._key_payload(names, config, compiler))
 
@@ -252,17 +210,6 @@ def test_key_changes_with_each_input() -> None:
 def test_key_ignores_unlisted_config_values() -> None:
     """Only the names the bootloader consumes participate."""
     assert _key(["A"], {"A": "1", "Z": "app-only"}) == _key(["A"], {"A": "1"})
-
-
-def test_version_stamp_reads_version_txt(tmp_path: Path) -> None:
-    (tmp_path / "version.txt").write_text("v5.5.5\n")
-    with patch.object(toolchain, "_get_idf_path", return_value=tmp_path):
-        assert bootloader._version_stamp() == "v5.5.5"
-
-
-def test_version_stamp_missing_file(tmp_path: Path) -> None:
-    with patch.object(toolchain, "_get_idf_path", return_value=tmp_path):
-        assert bootloader._version_stamp() == ""
 
 
 def test_cache_root_layout(tmp_path: Path) -> None:
@@ -300,40 +247,6 @@ def test_load_config_names_rejects_bad_files(
         (tmp_path / "config_names.json").write_text(content)
     with patch.object(bootloader, "_cache_root", return_value=tmp_path):
         assert bootloader._load_config_names() is None
-
-
-def test_load_build_config(tmp_path: Path) -> None:
-    assert bootloader._load_build_config(tmp_path) is None
-    (tmp_path / "config").mkdir()
-    (tmp_path / "config" / "sdkconfig.json").write_text('{"A": 1}')
-    assert bootloader._load_build_config(tmp_path) == {"A": 1}
-
-
-# ------------------------------------------------------------- compiler id
-
-
-def test_compiler_id_from_project_description(tmp_path: Path) -> None:
-    build = CORE.relative_build_path("build")
-    build.mkdir(parents=True)
-    (build / "project_description.json").write_text(
-        json.dumps({"c_compiler": "/tools/xtensa-esp32-elf-gcc"})
-    )
-    assert bootloader._compiler_id() == os.path.realpath("/tools/xtensa-esp32-elf-gcc")
-
-
-@pytest.mark.parametrize(
-    "description",
-    [None, "not json", "{}", '{"c_compiler": ""}'],
-    ids=["missing", "corrupt", "no-key", "empty"],
-)
-def test_compiler_id_none_without_a_usable_description(
-    tmp_path: Path, description: str | None
-) -> None:
-    if description is not None:
-        build = CORE.relative_build_path("build")
-        build.mkdir(parents=True)
-        (build / "project_description.json").write_text(description)
-    assert bootloader._compiler_id() is None
 
 
 # ------------------------------------------------------------- cmake args
@@ -540,7 +453,7 @@ def _orchestration_env(tmp_path: Path) -> Iterator[Path]:
     )
     with (
         patch.object(bootloader, "_cache_root", return_value=root),
-        patch.object(bootloader, "_compiler_id", return_value="/tc/gcc"),
+        patch.object(toolchain, "_resolved_c_compiler", return_value="/tc/gcc"),
         patch.object(bootloader, "_key_payload", return_value={}),
         patch.object(bootloader, "_compute_key", return_value="deadbeefdeadbeef"),
     ):
@@ -556,8 +469,11 @@ def test_ensure_cache_hit_installs_without_building(tmp_path: Path) -> None:
         for name in bootloader._OUTPUTS:
             (root / "deadbeefdeadbeef" / name).write_bytes(b"\xe9" * 64)
         (root / "config_names.json").write_text('["A"]')
+        stamp = bootloader._failure_stamp()
+        stamp.write_text("{}")
         assert bootloader.ensure_cached_bootloader() == 0
     mock_build.assert_not_called()
+    assert not stamp.exists()  # success clears a stale failure stamp
     installed = CORE.relative_build_path("build", "bootloader", "bootloader.bin")
     assert installed.read_bytes() == b"\xe9" * 64
 
@@ -638,15 +554,17 @@ def test_prune_swallows_cache_root_errors() -> None:
 # --------------------------------------------------------- flash injection
 
 
-def _flash_build(tmp_path: Path, with_bin: bool = True, offset: int = 0x1000) -> Path:
+def _flash_build(tmp_path: Path, cached: bool = True, offset: int = 0x1000) -> Path:
     build = tmp_path / "build"
     (build / "config").mkdir(parents=True)
     (build / "config" / "sdkconfig.json").write_text(
         json.dumps({"BOOTLOADER_OFFSET_IN_FLASH": offset})
     )
-    if with_bin:
-        (build / "bootloader").mkdir()
-        (build / "bootloader" / "bootloader.bin").write_bytes(b"\xe9")
+    (build / "CMakeCache.txt").write_text(
+        f"ESPHOME_USE_CACHED_BOOTLOADER:UNINITIALIZED={int(cached)}\n"
+    )
+    (build / "bootloader").mkdir()
+    (build / "bootloader" / "bootloader.bin").write_bytes(b"\xe9")
     return build
 
 
@@ -664,21 +582,29 @@ def test_inject_uses_configured_offset(tmp_path: Path) -> None:
     assert flash_data["flash_files"] == {"0x0": "bootloader/bootloader.bin"}
 
 
-def test_inject_noop_when_idf_wrote_the_entry(tmp_path: Path) -> None:
-    """Stock and bypass trees already carry a bootloader entry."""
-    build = _flash_build(tmp_path)
-    flash_data = {"flash_files": {"0x1000": "bootloader/bootloader.bin"}}
-    bootloader.inject_bootloader_flash_file(flash_data, build)
-    assert flash_data["flash_files"] == {"0x1000": "bootloader/bootloader.bin"}
-
-
-def test_inject_noop_without_bin_or_config(tmp_path: Path) -> None:
+def test_inject_noop_on_a_stock_tree(tmp_path: Path) -> None:
+    """IDF omits the entry on purpose for some secure-boot builds; a tree
+    not in cached mode must stay exactly as IDF wrote it."""
+    build = _flash_build(tmp_path, cached=False)
     flash_data: dict = {"flash_files": {}}
-    bootloader.inject_bootloader_flash_file(
-        flash_data, _flash_build(tmp_path / "a", with_bin=False)
-    )
-    no_config = tmp_path / "b" / "build"
-    (no_config / "bootloader").mkdir(parents=True)
-    (no_config / "bootloader" / "bootloader.bin").write_bytes(b"\xe9")
-    bootloader.inject_bootloader_flash_file(flash_data, no_config)
+    bootloader.inject_bootloader_flash_file(flash_data, build)
     assert flash_data == {"flash_files": {}}
+
+
+def test_inject_noop_without_cmakecache(tmp_path: Path) -> None:
+    flash_data: dict = {"flash_files": {}}
+    bootloader.inject_bootloader_flash_file(flash_data, tmp_path / "missing")
+    assert flash_data == {"flash_files": {}}
+
+
+def test_inject_missing_pieces_log_an_error(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Cached mode without a bin or config is an incomplete factory image."""
+    build = _flash_build(tmp_path)
+    (build / "config" / "sdkconfig.json").unlink()
+    flash_data: dict = {"flash_files": {}}
+    with caplog.at_level("ERROR"):
+        bootloader.inject_bootloader_flash_file(flash_data, build)
+    assert flash_data == {"flash_files": {}}
+    assert "factory image has no bootloader" in caplog.text

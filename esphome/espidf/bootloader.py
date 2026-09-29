@@ -23,11 +23,10 @@ import time
 
 from esphome.build_helpers.ccache import parse_enable_env
 from esphome.build_helpers.tool_runner import run_build_tool
-from esphome.const import KEY_ESP32, KEY_VARIANT
 from esphome.core import CORE, EsphomeError
-from esphome.espidf import toolchain, variant_to_idf_target
+from esphome.espidf import toolchain
 from esphome.framework_helpers import _rename_with_retry
-from esphome.helpers import rmtree, write_file
+from esphome.helpers import read_json_file, rmtree, write_file
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,9 +35,6 @@ BOOTLOADER_CACHE_ENV = "ESPHOME_BOOTLOADER_CACHE"
 _CACHE_SCHEMA = "1"
 _SECURE_OPTION = re.compile(r"CONFIG_(SECURE_|FLASH_ENCRYPTION)")
 _DISABLED_VALUES = frozenset(("n", "0", ""))
-_MACRO = re.compile(
-    r"macro\(__build_process_project_includes\)(.*?)endmacro\(\)", re.DOTALL
-)
 # Marks a config name the app's sdkconfig does not define.
 _ABSENT = "\x00absent"
 _OUTPUTS = ("bootloader.bin", "bootloader.elf", "bootloader.map")
@@ -70,7 +66,15 @@ def _compute_enabled() -> bool:
         if not os.access(get_idf_tools_path(), os.W_OK):
             # A read-only shared prefix would fail the cache on every build.
             return False
-        return idf_macro_matches()
+        if read_json_file(_failure_stamp()) == _stamp_inputs():
+            # A previous run failed with the same inputs; stay in-tree.
+            return False
+        from esphome.build_gen.espidf import idf_macro_matches
+
+        if not idf_macro_matches():
+            _LOGGER.info("IDF changed its bootloader macro; building in-tree")
+            return False
+        return True
     except (OSError, KeyError, ValueError, EsphomeError) as err:
         _LOGGER.debug("Bootloader cache disabled: %s", err)
         return False
@@ -88,33 +92,21 @@ def _has_secure_options(sdkconfig_path: Path) -> bool:
     return False
 
 
-def _normalized_macro(text: str) -> list[str] | None:
-    """The macro body as comment-free, whitespace-collapsed lines."""
-    if (match := _MACRO.search(text)) is None:
-        return None
-    return [
-        re.sub(r"\s+", " ", line)
-        for raw in match.group(1).splitlines()
-        if (line := raw.split("#", 1)[0].strip())
-    ]
+def _failure_stamp() -> Path:
+    return toolchain._build_dir() / ".bootloader_cache_failed"
 
 
-def idf_macro_matches() -> bool:
-    """Whether IDF's macro still matches the copy the override replays."""
-    from esphome.build_gen.espidf import (
-        BOOTLOADER_OVERRIDE_ADDED_LINE,
-        IDF_BOOTLOADER_OVERRIDE,
-    )
-
-    expected = _normalized_macro(IDF_BOOTLOADER_OVERRIDE)
-    expected.remove(BOOTLOADER_OVERRIDE_ADDED_LINE)
-    build_cmake = toolchain._get_idf_path() / "tools" / "cmake" / "build.cmake"
-    live = _normalized_macro(build_cmake.read_text(encoding="utf-8"))
-    return live == expected
+def _stamp_inputs() -> dict:
+    return {
+        "idf": toolchain._get_core_framework_version(),
+        "target": toolchain._idf_target(),
+    }
 
 
-def _idf_target() -> str:
-    return variant_to_idf_target(CORE.data[KEY_ESP32][KEY_VARIANT])
+def record_failure() -> None:
+    """Pin later runs to in-tree until the IDF version or target changes."""
+    with contextlib.suppress(OSError, EsphomeError):
+        write_file(_failure_stamp(), json.dumps(_stamp_inputs()))
 
 
 def _cache_root() -> Path:
@@ -124,21 +116,13 @@ def _cache_root() -> Path:
         get_idf_tools_path()
         / "bootloaders"
         / toolchain._get_core_framework_version()
-        / _idf_target()
+        / toolchain._idf_target()
     )
-
-
-def _load_json(path: Path):
-    """The parsed JSON file, or None when missing or unreadable."""
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
 
 
 def _load_config_names() -> list[str] | None:
     """The known union of config option names the bootloader consumes."""
-    names = _load_json(_cache_root() / "config_names.json")
+    names = read_json_file(_cache_root() / "config_names.json")
     if isinstance(names, list) and names and all(isinstance(n, str) for n in names):
         return names
     return None
@@ -152,21 +136,6 @@ def _merge_config_names(names) -> list[str]:
         json.dumps(merged, separators=(",", ":")),
     )
     return merged
-
-
-def _load_build_config(build_dir: Path) -> dict | None:
-    """A build's generated config/sdkconfig.json, or None."""
-    config = _load_json(build_dir / "config" / "sdkconfig.json")
-    return config if isinstance(config, dict) else None
-
-
-def _compiler_id() -> str | None:
-    """The app build's resolved C compiler; None falls back to in-tree."""
-    description = _load_json(toolchain._build_dir() / "project_description.json")
-    if not isinstance(description, dict):
-        return None
-    compiler = description.get("c_compiler")
-    return os.path.realpath(compiler) if compiler else None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -210,7 +179,7 @@ def _subproject_cmake_args(
         "Ninja",
         f"-DSDKCONFIG={sdkconfig}",
         f"-DIDF_PATH={idf_path}",
-        f"-DIDF_TARGET={_idf_target()}",
+        f"-DIDF_TARGET={toolchain._idf_target()}",
         "-DPYTHON_DEPS_CHECKED=1",
         f"-DPYTHON={python}",
         f"-DEXTRA_COMPONENT_DIRS={extra_dirs}",
@@ -225,26 +194,16 @@ def _subproject_cmake_args(
     return args
 
 
-def _version_stamp() -> str:
-    """The installed framework's version.txt, part of the key."""
-    try:
-        return (
-            (toolchain._get_idf_path() / "version.txt")
-            .read_text(encoding="utf-8")
-            .strip()
-        )
-    except OSError:
-        return ""
-
-
 def _key_payload(names: list[str], app_config: dict, compiler: str) -> dict:
     """Everything that can influence the built bootloader."""
+    from esphome.espidf.framework import read_idf_version_txt
+
     return {
         "schema": _CACHE_SCHEMA,
         "idf": toolchain._get_core_framework_version(),
         "source": toolchain._get_framework_source_override() or "",
-        "stamp": _version_stamp(),
-        "target": _idf_target(),
+        "stamp": read_idf_version_txt(toolchain._get_idf_path()),
+        "target": toolchain._idf_target(),
         "compiler": compiler,
         # Placeholder paths: any change to the invocation shape misses.
         "args": _subproject_cmake_args(
@@ -372,8 +331,8 @@ def ensure_cached_bootloader(verbose: bool = False) -> int:
     Nonzero tells the caller to fall back to the in-tree build; a too-large
     bootloader raises instead, since in-tree would fail the same way.
     """
-    app_config = _load_build_config(toolchain._build_dir())
-    compiler = _compiler_id()
+    app_config = toolchain._load_sdkconfig_json(toolchain._build_dir())
+    compiler = toolchain._resolved_c_compiler()
     if app_config is None or compiler is None:
         _LOGGER.debug("Bootloader cache unusable: app configure outputs missing")
         return 1
@@ -384,6 +343,8 @@ def ensure_cached_bootloader(verbose: bool = False) -> int:
         return 1
     if dest is None:
         return 1
+    with contextlib.suppress(OSError):
+        _failure_stamp().unlink(missing_ok=True)
     # Outside the fail-safe net: the in-tree build would overflow the same way.
     _check_bootloader_size(dest / "bootloader.bin", app_config)
     return 0
@@ -400,7 +361,7 @@ def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | No
     try:
         if _build_standalone(tmp, verbose) != 0:
             return None
-        if (built_config := _load_build_config(tmp)) is None:
+        if (built_config := toolchain._load_sdkconfig_json(tmp)) is None:
             _LOGGER.debug("Bootloader build produced no sdkconfig.json")
             return None
         names = _merge_config_names(built_config)
@@ -417,13 +378,23 @@ def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | No
 def inject_bootloader_flash_file(flash_data: dict, build_dir: Path) -> None:
     """Add the cached bootloader to a flasher_args ``flash_files`` map.
 
-    Cached mode has no IDF-written entry; stock/bypass trees do (no-op there).
+    Gated on the tree's mode: IDF also omits the entry on purpose for some
+    secure-boot builds, and those must stay exactly as IDF wrote them.
     """
+    cmakecache = build_dir / "CMakeCache.txt"
+    if not cmakecache.is_file():
+        return
+    if (
+        toolchain._parse_cmakecache(cmakecache).get("ESPHOME_USE_CACHED_BOOTLOADER")
+        != "1"
+    ):
+        return
+    app_config = toolchain._load_sdkconfig_json(build_dir)
+    if (
+        app_config is None
+        or not (build_dir / "bootloader" / "bootloader.bin").is_file()
+    ):
+        _LOGGER.error("Cached bootloader missing; factory image has no bootloader")
+        return
     flash_files = flash_data.setdefault("flash_files", {})
-    if any("bootloader/" in name for name in flash_files.values()):
-        return
-    if not (build_dir / "bootloader" / "bootloader.bin").is_file():
-        return
-    if (app_config := _load_build_config(build_dir)) is None:
-        return
     flash_files[hex(_bootloader_offset(app_config))] = "bootloader/bootloader.bin"

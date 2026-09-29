@@ -116,13 +116,14 @@ def _setup_core(build_path: Path, description: dict) -> tuple[str, str]:
 def check(build_path: Path) -> list[str]:
     """Return the problems found in one build tree."""
     # pylint: disable=protected-access
-    from esphome.espidf import bootloader, toolchain
+    from esphome.build_gen.espidf import idf_macro_matches
+    from esphome.espidf import toolchain
 
     description = json.loads(
         (build_path / "build" / "project_description.json").read_text(encoding="utf-8")
     )
     name, version = _setup_core(build_path, description)
-    if not bootloader.idf_macro_matches():
+    if not idf_macro_matches():
         return [
             (
                 "IDF changed __build_process_project_includes; update "
