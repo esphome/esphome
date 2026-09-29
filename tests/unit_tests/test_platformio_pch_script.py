@@ -103,7 +103,6 @@ def _run_script(
     platform_cls: type[_FakePlatform] = _FakePlatform,
     build_files: Callable[[tuple], list] | None = None,
     cxx: Path | None = None,
-    version: str = "14.2.0",
 ) -> _FakeSConsEnv:
     proj = tmp_path / name
     src = proj / "src"
@@ -113,7 +112,7 @@ def _run_script(
         '#include "esphome/core/defines.h"\n'
     )
     if cxx is None:
-        cxx = _fake_cxx(tmp_path, fail=fail, version=version)
+        cxx = _fake_cxx(tmp_path, fail=fail)
     args = (proj, src, str(cxx), flags or ["-DX=1"], platform_cls)
     # Distinct objects: the -include flags must land on projenv only
     global_env = _FakeSConsEnv(*args)
@@ -240,7 +239,8 @@ def test_pch_script_gcc10_skipped_elsewhere(
         ("linux", "aarch64", _LibreTinyPlatform, "10.3.1"),
         # From GCC 12 the .gch loads at any address, so the rule retires itself
         ("darwin", "arm64", _LibreTinyPlatform, "12.2.0"),
-        ("win32", "AMD64", _LibreTinyPlatform, "14.2.0"),
+        # Windows needs the fix for GCC bug 14940 as well
+        ("win32", "AMD64", _LibreTinyPlatform, "14.4.0"),
     ],
 )
 def test_pch_script_no_wrapper_where_the_gch_loads(
@@ -296,7 +296,9 @@ def test_pch_script_asks_the_compiler_on_windows(
     """The same rule as pch.gcc_relocates_pch_on_windows, with the knob as
     esphome normalizes it forcing the header on."""
     monkeypatch.setattr(sys, "platform", "win32")
-    scons_env = _run_script(tmp_path, version=version, env_vars=env_vars)
+    scons_env = _run_script(
+        tmp_path, env_vars={"FAKE_GCC_VERSION": version, **env_vars}
+    )
     assert (scons_env.prepended == pch.pch_consumer_flags()) is on
     assert (tmp_path / "dev" / "esphome_pch.h.gch").is_file() is on
     out = capsys.readouterr().out
