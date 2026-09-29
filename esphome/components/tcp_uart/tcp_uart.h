@@ -15,8 +15,7 @@
 #include <cstdint>
 #include <memory>
 
-namespace esphome {
-namespace tcp_uart {
+namespace esphome::tcp_uart {
 
 /// TCP client presented as a UART. Bytes are copied unchanged.
 class TcpUart : public uart::UARTComponent, public Component {
@@ -53,7 +52,7 @@ class TcpUart : public uart::UARTComponent, public Component {
   void apply_socket_options_(socket::Socket *sock);
   void set_link_up_(bool up);
 #ifdef USE_ESP32
-  static void dns_found_(const char *name, const ip_addr_t *addr, void *arg);
+  static void dns_found(const char *name, const ip_addr_t *addr, void *arg);
 #endif
 
   StringRef host_;
@@ -76,5 +75,4 @@ class TcpUart : public uart::UARTComponent, public Component {
   size_t tx_len_{0};
 };
 
-}  // namespace tcp_uart
-}  // namespace esphome
+}  // namespace esphome::tcp_uart

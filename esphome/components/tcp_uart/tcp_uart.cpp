@@ -7,18 +7,14 @@
 #include <cstdio>
 #include <cstring>
 
-#include <arpa/inet.h>
-#include <netinet/tcp.h>
-
 #ifdef USE_ESP32
 #include "lwip/dns.h"
 #include "lwip/ip4_addr.h"
-#else
+#elif defined(USE_HOST)
 #include <netdb.h>
 #endif
 
-namespace esphome {
-namespace tcp_uart {
+namespace esphome::tcp_uart {
 
 static const char *const TAG = "tcp_uart";
 
@@ -86,7 +82,7 @@ void TcpUart::apply_socket_options_(socket::Socket *sock) {
 }
 
 #ifdef USE_ESP32
-void TcpUart::dns_found_(const char *name, const ip_addr_t *addr, void *arg) {
+void TcpUart::dns_found(const char *name, const ip_addr_t *addr, void *arg) {
   auto *self = static_cast<TcpUart *>(arg);
   if (addr != nullptr && IP_IS_V4(addr)) {
     self->resolved_addr_.store(ip4_addr_get_u32(ip_2_ip4(addr)));
@@ -112,7 +108,7 @@ void TcpUart::try_resolve_() {
   }
 #ifdef USE_ESP32
   ip_addr_t cached;
-  err_t err = dns_gethostbyname(this->host_.c_str(), &cached, &TcpUart::dns_found_, this);
+  err_t err = dns_gethostbyname(this->host_.c_str(), &cached, &TcpUart::dns_found, this);
   if (err == ERR_OK && IP_IS_V4(&cached)) {
     this->resolved_addr_.store(ip4_addr_get_u32(ip_2_ip4(&cached)));
     this->have_addr_.store(true);
@@ -123,7 +119,7 @@ void TcpUart::try_resolve_() {
     return;
   }
 #elif defined(USE_HOST)
-  struct addrinfo hints {};
+  struct addrinfo hints{};
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
   struct addrinfo *res = nullptr;
@@ -151,7 +147,7 @@ bool TcpUart::ip_ready_() {
   if (!this->have_addr_.load()) {
     return false;
   }
-  struct in_addr addr {};
+  struct in_addr addr{};
   addr.s_addr = this->resolved_addr_.load();
   char buf[INET_ADDRSTRLEN];
   if (inet_ntop(AF_INET, &addr, buf, sizeof(buf)) == nullptr) {
@@ -287,5 +283,4 @@ uart::UARTFlushResult TcpUart::flush() {
   return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
 }
 
-}  // namespace tcp_uart
-}  // namespace esphome
+}  // namespace esphome::tcp_uart
