@@ -22,6 +22,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_VOLT,
 )
+from esphome.cpp_generator import MockObj
 
 DEPENDENCIES = ["i2c"]
 
@@ -29,6 +30,7 @@ bq27220_ns = cg.esphome_ns.namespace("bq27220")
 BQ27220Component = bq27220_ns.class_(
     "BQ27220Component", cg.PollingComponent, i2c.I2CDevice
 )
+BQ27220Data = bq27220_ns.class_("BQ27220Data")
 
 CONF_REMAINING_CAPACITY = "remaining_capacity"
 CONF_FULL_CHARGE_CAPACITY = "full_charge_capacity"
@@ -106,39 +108,31 @@ CONFIG_SCHEMA = (
 )
 
 
+_FIELD_BY_CONF = {
+    CONF_VOLTAGE: "voltage",
+    CONF_CURRENT: "current",
+    CONF_BATTERY_LEVEL: "battery_level",
+    CONF_TEMPERATURE: "temperature",
+    CONF_REMAINING_CAPACITY: "remaining_capacity",
+    CONF_FULL_CHARGE_CAPACITY: "full_charge_capacity",
+    CONF_TIME_TO_EMPTY: "time_to_empty",
+    CONF_STATE_OF_HEALTH: "state_of_health",
+}
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if (voltage := config.get(CONF_VOLTAGE)) is not None:
-        sens = await sensor.new_sensor(voltage)
-        cg.add(var.set_voltage_sensor(sens))
-
-    if (current := config.get(CONF_CURRENT)) is not None:
-        sens = await sensor.new_sensor(current)
-        cg.add(var.set_current_sensor(sens))
-
-    if (battery_level := config.get(CONF_BATTERY_LEVEL)) is not None:
-        sens = await sensor.new_sensor(battery_level)
-        cg.add(var.set_battery_level_sensor(sens))
-
-    if (temperature := config.get(CONF_TEMPERATURE)) is not None:
-        sens = await sensor.new_sensor(temperature)
-        cg.add(var.set_temperature_sensor(sens))
-
-    if (remaining := config.get(CONF_REMAINING_CAPACITY)) is not None:
-        sens = await sensor.new_sensor(remaining)
-        cg.add(var.set_remaining_capacity_sensor(sens))
-
-    if (full := config.get(CONF_FULL_CHARGE_CAPACITY)) is not None:
-        sens = await sensor.new_sensor(full)
-        cg.add(var.set_full_charge_capacity_sensor(sens))
-
-    if (tte := config.get(CONF_TIME_TO_EMPTY)) is not None:
-        sens = await sensor.new_sensor(tte)
-        cg.add(var.set_time_to_empty_sensor(sens))
-
-    if (soh := config.get(CONF_STATE_OF_HEALTH)) is not None:
-        sens = await sensor.new_sensor(soh)
-        cg.add(var.set_state_of_health_sensor(sens))
+    # Each configured sensor gets a listener that reads its field from the decoded
+    # BQ27220Data the component broadcasts every poll and publishes it.
+    data = MockObj("data")
+    for conf_key, field in _FIELD_BY_CONF.items():
+        if (conf := config.get(conf_key)) is not None:
+            sens = await sensor.new_sensor(conf)
+            lambda_ = await cg.process_lambda(
+                sens.publish_state(getattr(data, field)),
+                [(BQ27220Data.operator("ref"), "data")],
+            )
+            cg.add(var.add_on_data_callback(lambda_))

@@ -4,8 +4,10 @@
 // Technical Reference Manual: https://www.ti.com/lit/ug/sluubd4a/sluubd4a.pdf
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
+#include <cmath>
 
 namespace esphome::bq27220 {
 
@@ -26,32 +28,34 @@ static const uint8_t BQ27220_REG_STATE_OF_HEALTH = 0x2E;       // %
 static const uint8_t BQ27220_REG_MAC_DATA = 0x40;
 static const uint16_t BQ27220_DEVICE_NUMBER = 0x0220;
 
+// One decoded reading per poll. A field is NAN when its register could not be read
+// or the gauge reported "not applicable" (e.g. TimeToEmpty = 0xFFFF).
+struct BQ27220Data {
+  float voltage{NAN};
+  float current{NAN};
+  float battery_level{NAN};
+  float temperature{NAN};
+  float remaining_capacity{NAN};
+  float full_charge_capacity{NAN};
+  float time_to_empty{NAN};
+  float state_of_health{NAN};
+};
+
 class BQ27220Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;
   void dump_config() override;
 
-  void set_voltage_sensor(sensor::Sensor *sensor) { this->voltage_sensor_ = sensor; }
-  void set_current_sensor(sensor::Sensor *sensor) { this->current_sensor_ = sensor; }
-  void set_battery_level_sensor(sensor::Sensor *sensor) { this->battery_level_sensor_ = sensor; }
-  void set_temperature_sensor(sensor::Sensor *sensor) { this->temperature_sensor_ = sensor; }
-  void set_remaining_capacity_sensor(sensor::Sensor *sensor) { this->remaining_capacity_sensor_ = sensor; }
-  void set_full_charge_capacity_sensor(sensor::Sensor *sensor) { this->full_charge_capacity_sensor_ = sensor; }
-  void set_time_to_empty_sensor(sensor::Sensor *sensor) { this->time_to_empty_sensor_ = sensor; }
-  void set_state_of_health_sensor(sensor::Sensor *sensor) { this->state_of_health_sensor_ = sensor; }
+  // Each configured sensor registers a listener that reads its value from the
+  // decoded BQ27220Data and publishes it. Templated so lambdas and lightweight
+  // forwarders are accepted without forcing std::function allocation.
+  template<typename F> void add_on_data_callback(F &&callback) { this->data_callback_.add(std::forward<F>(callback)); }
 
  protected:
   bool read_word_(uint8_t reg, uint16_t &value);
 
-  sensor::Sensor *voltage_sensor_{nullptr};
-  sensor::Sensor *current_sensor_{nullptr};
-  sensor::Sensor *battery_level_sensor_{nullptr};
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *remaining_capacity_sensor_{nullptr};
-  sensor::Sensor *full_charge_capacity_sensor_{nullptr};
-  sensor::Sensor *time_to_empty_sensor_{nullptr};
-  sensor::Sensor *state_of_health_sensor_{nullptr};
+  CallbackManager<void(BQ27220Data &)> data_callback_{};
 };
 
 }  // namespace esphome::bq27220

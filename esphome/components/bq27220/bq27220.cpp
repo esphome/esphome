@@ -35,71 +35,65 @@ void BQ27220Component::setup() {
   }
 }
 
-// Table describing each readable standard command: which register to read, which
-// sensor it feeds, and how to convert the raw 16-bit word into the published
-// value (raw * scale + offset). `is_signed` reinterprets the word as int16_t;
-// `sentinel_ffff` publishes NAN when the gauge reports 0xFFFF (not applicable).
-namespace {
-struct SensorEntry {
-  sensor::Sensor *BQ27220Component::*sensor;
-  float scale;
-  float offset;
-  uint8_t reg;
-  bool is_signed;
-  bool sentinel_ffff;
-};
-}  // namespace
-
 void BQ27220Component::update() {
-  // Defined here (inside a member function) so the pointers to the protected
-  // sensor members can be formed. Still compile-time constant, so it lives in flash.
-  static constexpr SensorEntry SENSOR_ENTRIES[] = {
-      {&BQ27220Component::voltage_sensor_, 0.001f, 0.0f, BQ27220_REG_VOLTAGE, false, false},  // mV → V
-      {&BQ27220Component::current_sensor_, 0.001f, 0.0f, BQ27220_REG_CURRENT, true, false},   // signed mA → A (§2.8)
-      {&BQ27220Component::battery_level_sensor_, 1.0f, 0.0f, BQ27220_REG_STATE_OF_CHARGE, false, false},  // %
-      {&BQ27220Component::temperature_sensor_, 0.1f, -273.15f, BQ27220_REG_TEMPERATURE, false, false},  // 0.1K → °C
-      {&BQ27220Component::remaining_capacity_sensor_, 1.0f, 0.0f, BQ27220_REG_REMAINING_CAPACITY, false, false},  // mAh
-      {&BQ27220Component::full_charge_capacity_sensor_, 1.0f, 0.0f, BQ27220_REG_FULL_CHARGE_CAPACITY, false,
-       false},  // mAh
-      {&BQ27220Component::time_to_empty_sensor_, 1.0f, 0.0f, BQ27220_REG_TIME_TO_EMPTY, false,
-       true},  // min (0xFFFF=N/A)
-      // StateOfHealth() (0x2E) is a plain 0–100% word: SLUUBD4A §2.22 defines the full 16-bit
-      // value as the health percentage, with no status/flags byte packed into the high byte
-      // (unlike some other TI gauges), so it is published as-is with no masking.
-      {&BQ27220Component::state_of_health_sensor_, 1.0f, 0.0f, BQ27220_REG_STATE_OF_HEALTH, false, false},  // 0–100%
-  };
+  if (this->is_failed())
+    return;
 
+  // Read every standard command into the decoded struct, then broadcast it to the
+  // per-sensor listeners registered at codegen time. Reading all registers each
+  // poll (rather than only the configured ones) keeps the listeners free of I/O;
+  // at the polling cadence the extra word reads are negligible.
+  BQ27220Data data{};
   bool success = true;
+  uint16_t raw = 0;
 
-  for (size_t i = 0; i < sizeof(SENSOR_ENTRIES) / sizeof(SENSOR_ENTRIES[0]); i++) {
-    const SensorEntry &entry = SENSOR_ENTRIES[i];
-    sensor::Sensor *sens = this->*(entry.sensor);
-    if (sens == nullptr) {
-      continue;
-    }
-
-    uint16_t raw = 0;
-    if (!this->read_word_(entry.reg, raw)) {
-      // A failed read means the gauge is almost certainly unresponsive, so the
-      // remaining reads would each just wait out a bus timeout. Publish NAN to
-      // every sensor still pending and stop early.
-      for (size_t j = i; j < sizeof(SENSOR_ENTRIES) / sizeof(SENSOR_ENTRIES[0]); j++) {
-        if (sensor::Sensor *pending = this->*(SENSOR_ENTRIES[j].sensor)) {
-          pending->publish_state(NAN);
-        }
-      }
-      success = false;
-      break;
-    }
-
-    if (entry.sentinel_ffff && raw == 0xFFFF) {
-      sens->publish_state(NAN);  // e.g. TimeToEmpty when not discharging
-      continue;
-    }
-
-    float value = entry.is_signed ? static_cast<int16_t>(raw) : static_cast<float>(raw);
-    sens->publish_state(value * entry.scale + entry.offset);
+  if (this->read_word_(BQ27220_REG_VOLTAGE, raw)) {
+    data.voltage = static_cast<float>(raw) * 0.001f;  // mV → V
+  } else {
+    success = false;
   }
+  if (this->read_word_(BQ27220_REG_CURRENT, raw)) {
+    data.current = static_cast<int16_t>(raw) * 0.001f;  // signed mA → A (§2.8)
+  } else {
+    success = false;
+  }
+  if (this->read_word_(BQ27220_REG_STATE_OF_CHARGE, raw)) {
+    data.battery_level = static_cast<float>(raw);  // %
+  } else {
+    success = false;
+  }
+  if (this->read_word_(BQ27220_REG_TEMPERATURE, raw)) {
+    data.temperature = static_cast<float>(raw) * 0.1f - 273.15f;  // 0.1 K → °C
+  } else {
+    success = false;
+  }
+  if (this->read_word_(BQ27220_REG_REMAINING_CAPACITY, raw)) {
+    data.remaining_capacity = static_cast<float>(raw);  // mAh
+  } else {
+    success = false;
+  }
+  if (this->read_word_(BQ27220_REG_FULL_CHARGE_CAPACITY, raw)) {
+    data.full_charge_capacity = static_cast<float>(raw);  // mAh
+  } else {
+    success = false;
+  }
+  if (this->read_word_(BQ27220_REG_TIME_TO_EMPTY, raw)) {
+    if (raw != 0xFFFF) {                             // 0xFFFF = not discharging / not applicable
+      data.time_to_empty = static_cast<float>(raw);  // min
+    }
+  } else {
+    success = false;
+  }
+  // StateOfHealth() (0x2E) is a plain 0–100% word: SLUUBD4A §2.22 defines the full
+  // 16-bit value as the health percentage, with no status/flags byte packed into the
+  // high byte (unlike some other TI gauges), so it is used as-is with no masking.
+  if (this->read_word_(BQ27220_REG_STATE_OF_HEALTH, raw)) {
+    data.state_of_health = static_cast<float>(raw);  // 0–100%
+  } else {
+    success = false;
+  }
+
+  this->data_callback_.call(data);
 
   if (success) {
     this->status_clear_warning();
@@ -115,14 +109,6 @@ void BQ27220Component::dump_config() {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
-  LOG_SENSOR("  ", "Current", this->current_sensor_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
-  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  LOG_SENSOR("  ", "Remaining Capacity", this->remaining_capacity_sensor_);
-  LOG_SENSOR("  ", "Full Charge Capacity", this->full_charge_capacity_sensor_);
-  LOG_SENSOR("  ", "Time to Empty", this->time_to_empty_sensor_);
-  LOG_SENSOR("  ", "State of Health", this->state_of_health_sensor_);
 }
 
 }  // namespace esphome::bq27220
