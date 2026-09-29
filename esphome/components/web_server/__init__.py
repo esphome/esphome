@@ -10,6 +10,7 @@ import esphome.codegen as cg
 from esphome.components import web_server_base
 from esphome.components.json import enable_arena
 from esphome.components.logger import request_log_listener
+from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
 from esphome.const import (
@@ -392,6 +393,8 @@ async def to_code(config: ConfigType) -> None:
         # The ESP-IDF event source builds state documents in a stack arena
         enable_arena()
     cg.add_define("USE_WEBSERVER_VERSION", version)
+    if CORE.is_esp32 and psram_is_guaranteed():
+        cg.add_define("USE_WEBSERVER_PSRAM_URL_FASTPATH")
     if version >= 2:
         # Don't compress the index HTML as the data sizes are almost the same.
         add_resource_as_progmem("INDEX_HTML", build_index_html(config), compress=False)

@@ -17,6 +17,7 @@
 #endif
 
 #include <cstdlib>
+#include <cstring>
 
 #ifdef USE_LIGHT
 #include "esphome/components/light/light_json_schema.h"
@@ -2449,8 +2450,33 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
 }
 void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_ESP32
+#ifdef USE_WEBSERVER_PSRAM_URL_FASTPATH
+  // The request owns its URI for the duration of this call. Most paths need
+  // no decoding, so keep a view into it and allocate only for encoded paths.
+  httpd_req_t *raw = *request;
+  const char *uri = raw->uri;
+  const char *query = strchr(uri, '?');
+  const size_t path_len = query != nullptr ? static_cast<size_t>(query - uri) : strlen(uri);
+  RAMUniquePtr<char[]> url_buf;
+  // Match url_to()'s existing truncation limit even on the allocation-free path.
+  const size_t view_len =
+      path_len < AsyncWebServerRequest::URL_BUF_SIZE ? path_len : AsyncWebServerRequest::URL_BUF_SIZE - 1;
+  StringRef url(uri, view_len);
+  if (memchr(uri, '%', view_len) != nullptr || memchr(uri, '+', view_len) != nullptr) {
+    RAMAllocator<char> allocator(RAMAllocator<char>::ALLOC_EXTERNAL);
+    url_buf = allocator.make_unique_array_for_overwrite(AsyncWebServerRequest::URL_BUF_SIZE);
+    if (!url_buf) {
+      httpd_resp_set_status(raw, "503 Service Unavailable");
+      httpd_resp_send(raw, nullptr, 0);
+      return;
+    }
+    url = request->url_to(
+        std::span<char, AsyncWebServerRequest::URL_BUF_SIZE>(url_buf.get(), AsyncWebServerRequest::URL_BUF_SIZE));
+  }
+#else
   char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
   StringRef url = request->url_to(url_buf);
+#endif
 #else
   const auto &url = request->url();
 #endif
@@ -2617,7 +2643,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #endif
   else {
     // No matching handler found - send 404
-    ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
+    ESP_LOGV(TAG, "Request for unknown URL: %.*s", static_cast<int>(url.length()), url.c_str());
     request->send(404, ESPHOME_F("text/plain"), ESPHOME_F("Not Found"));
   }
 }
