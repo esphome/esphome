@@ -538,6 +538,54 @@ def test_component_cmakelists_pch_block(monkeypatch: pytest.MonkeyPatch) -> None
     assert "target_precompile_headers" not in get_component_cmakelists()
 
 
+def test_component_cmakelists_pch_gate_on_windows(
+    windows_gcc_rule: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The block carries the rule and records its choice; the knob drops
+    the gate."""
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        'if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND '
+        "(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14.4 OR "
+        "(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15 AND "
+        "CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15.3)))\n"
+        "  message(STATUS " in content
+    )
+    assert (
+        '  set(ESPHOME_PCH OFF CACHE BOOL "ESPHome precompiled header in use" FORCE)\nelse()\n'
+        in content
+    )
+    assert (
+        '  set(ESPHOME_PCH ON CACHE BOOL "ESPHome precompiled header in use" FORCE)\n  target_precompile_headers(${COMPONENT_LIB} PRIVATE\n'
+        in content
+    )
+    assert "endif()" in content
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+    content = get_component_cmakelists()
+    assert "if(CMAKE_CXX_COMPILER_VERSION" not in content
+    assert "\ntarget_precompile_headers(${COMPONENT_LIB} PRIVATE\n" in content
+
+
+@pytest.mark.parametrize(("choice", "written"), [("OFF", False), ("ON", True)])
+def test_pch_checksum_follows_the_cmake_choice_on_windows(
+    windows_gcc_rule: None, tmp_path: Path, choice: str, written: bool
+) -> None:
+    from esphome.build_gen.espidf import _PCH_SUM_PATH, write_pch_checksum
+
+    _make_pch_project(tmp_path)
+    with (
+        patch(
+            "esphome.espidf.toolchain.get_cmake_cache_value", return_value=choice
+        ) as asked,
+        patch.object(CORE, "name", "test"),
+    ):
+        write_pch_checksum()
+    assert asked.call_args.args == ("ESPHOME_PCH",)
+    assert CORE.relative_build_path(_PCH_SUM_PATH).exists() is written
+
+
 @pytest.mark.parametrize(
     ("file", "content"),
     [
