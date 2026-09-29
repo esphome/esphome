@@ -92,16 +92,13 @@ def test_check_and_install_mirror_skips_pinned_toolchain(tmp_path: Path) -> None
         patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
         patch.object(framework, "ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS", ["http://f"]),
         patch.object(framework, "ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS", ["http://m"]),
-        patch.object(framework, "install_package") as mock_install,
+        patch.object(framework, "install_packages") as mock_install,
         patch.object(framework, "prefetch_packages") as mock_prefetch,
         patch.object(framework, "find_ninja", return_value=tmp_path / "ninja"),
     ):
         framework.check_and_install(cv.Version(3, 1, 2))
     assert mock_prefetch.call_args.args[2] == {}
-    assert [call.kwargs["resolve"] for call in mock_install.call_args_list] == [
-        None,
-        None,
-    ]
+    assert mock_install.call_args.args[2] == {}
 
 
 def test_check_and_install_installed_toolchain_on_unsupported_host(

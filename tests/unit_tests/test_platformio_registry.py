@@ -340,7 +340,11 @@ def test_install_package_downloads_pinned(tmp_path: Path) -> None:
         )
     mock_registry.assert_not_called()
     assert mock_download.call_args[0][0] == "http://y/pinned.tar.gz"
-    assert mock_download.call_args[1] == {"sha256": "def456", "size": 7}
+    assert mock_download.call_args[1] == {
+        "sha256": "def456",
+        "size": 7,
+        "progress": None,
+    }
 
 
 def test_install_package_mirror_wins_over_pinned(tmp_path: Path) -> None:
@@ -603,8 +607,8 @@ def test_prefetch_packages_uses_pinned_download(tmp_path: Path) -> None:
     ):
         registry.prefetch_packages(
             [
-                ("a", "1.0", tmp_path / "a", []),
-                ("b", "2.0", tmp_path / "b", []),
+                ("a", "1.0", tmp_path / "a", [], ("payload",)),
+                ("b", "2.0", tmp_path / "b", [], ("payload",)),
             ],
             tmp_path / "dl",
             {"b": lambda: registry.Download("http://y/b.tar.gz", "def456", 20)},
