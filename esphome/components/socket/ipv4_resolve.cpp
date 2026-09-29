@@ -19,15 +19,16 @@ namespace esphome::socket {
 static const char *const TAG = "socket";
 
 void Ipv4Resolve::forget() {
-  // The DNS callback runs with the lwIP core lock held. Taking it here means a
-  // callback cannot publish a result in the middle of forgetting it. resolving_
-  // stays set until that callback sees the new generation and drops the result,
-  // so start() will not replace the lookup the callback still belongs to.
+  // LwIPLock keeps this apart from the callback on ESP32 and RP2 only. On
+  // LibreTiny the lock is a no-op and the callback runs on the tcpip thread, so
+  // the generation moves first. A callback that already published then fails its
+  // second check and drops the result. One that has not published yet sees the
+  // new generation and does not publish.
+  this->epoch_.store(this->epoch_.load() + 1);
   LwIPLock lock;
   this->have_.store(false);
   this->addr_.store(0);
   this->failed_.store(0);
-  this->epoch_.store(this->epoch_.load() + 1);
 }
 
 socklen_t Ipv4Resolve::to_sockaddr(struct sockaddr *dest, socklen_t destlen, uint16_t port) const {
@@ -43,14 +44,21 @@ socklen_t Ipv4Resolve::to_sockaddr(struct sockaddr *dest, socklen_t destlen, uin
 }
 
 #if !defined(USE_HOST) && !defined(USE_ZEPHYR)
+bool Ipv4Resolve::drop_stale_(uint32_t expected) {
+  if (this->epoch_.load() == expected) {
+    return false;
+  }
+  this->have_.store(false);
+  this->addr_.store(0);
+  this->failed_.store(0);
+  this->resolving_.store(false);
+  return true;
+}
+
 void Ipv4Resolve::dns_found(const char *name, const ip_addr_t *addr, void *arg) {
   auto *self = static_cast<Ipv4Resolve *>(arg);
   const uint32_t expected = self->pending_epoch_.load();
-  if (expected != self->epoch_.load()) {
-    self->have_.store(false);
-    self->addr_.store(0);
-    self->failed_.store(0);
-    self->resolving_.store(false);
+  if (self->drop_stale_(expected)) {
     return;
   }
   if (addr != nullptr && IP_IS_V4(addr)) {
@@ -61,11 +69,8 @@ void Ipv4Resolve::dns_found(const char *name, const ip_addr_t *addr, void *arg) 
     self->failed_.store(1);
     ESP_LOGW(self->tag_ != nullptr ? self->tag_ : TAG, "DNS failed for %s", name);
   }
-  if (self->epoch_.load() != expected) {
-    self->have_.store(false);
-    self->addr_.store(0);
-    self->failed_.store(0);
-    self->resolving_.store(false);
+  // forget() may have bumped the generation after the check above.
+  if (self->drop_stale_(expected)) {
     return;
   }
   self->resolving_.store(false);

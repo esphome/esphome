@@ -31,11 +31,13 @@ class Ipv4Resolve {
   /// Write the stored address into dest. Returns 0 until ready() is true.
   socklen_t to_sockaddr(struct sockaddr *dest, socklen_t destlen, uint16_t port) const;
   /// Resolve host. tag is used for the failure log, including the async callback.
+  /// On the host and on Zephyr this calls getaddrinfo() and blocks until it returns.
   void start(const char *host, uint16_t port, const char *tag);
 
  private:
 #if !defined(USE_HOST) && !defined(USE_ZEPHYR)
   static void dns_found(const char *name, const ip_addr_t *addr, void *arg);
+  bool drop_stale_(uint32_t expected);
 #endif
   const char *tag_{nullptr};
   std::atomic<uint32_t> addr_{0};
