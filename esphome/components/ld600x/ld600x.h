@@ -138,7 +138,6 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_wakeup_pin(GPIOPin *pin) { this->wakeup_pin_ = pin; }
   void set_wakeup_pulse_ms(uint32_t ms) { this->wakeup_pulse_ms_ = ms; }
@@ -222,13 +221,25 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   void set_target_display_switch(switch_::Switch *sw) { this->target_display_switch_ = sw; }
 #endif
 
+#ifdef USE_NUMBER
   virtual void set_number_value(uint8_t kind, float value);
+#endif
+#ifdef USE_SELECT
   virtual void set_select_value(uint8_t kind, size_t index);
+#endif
+#ifdef USE_SWITCH
   virtual void set_switch_state(uint8_t kind, bool state);
+#endif
+#ifdef USE_BUTTON
   virtual void press_button(uint8_t kind);
+#endif
 
  protected:
   virtual bool handle_model_report(uint16_t type, const uint8_t *data, uint16_t len) { return false; }
+  // The base derives a two-state work mode from presence and low power for the text sensor, which
+  // also makes that sensor a consumer of the target stream. A model whose firmware reports the mode
+  // itself returns false here so neither the fallback nor the stream is switched on for it.
+  virtual bool work_mode_uses_fallback() const { return true; }
   virtual void setup_model() {}
   virtual void dump_model_config() {}
 
