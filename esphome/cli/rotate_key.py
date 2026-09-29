@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 import sys
 
 from esphome import espota2
@@ -25,7 +26,7 @@ from esphome.util import (
     safe_input,
     safe_print,
 )
-from esphome.yaml_edit import RestoreError, apply_line_edits, restore_files
+from esphome.yaml_edit import RestoreError, Snapshot, apply_line_edits, restore_files
 
 PRECHECK_TIMEOUT = 15.0
 
@@ -149,6 +150,12 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
         return fail(str(err))
     except EsphomeError as err:
         return fail(str(err))
+    except KeyboardInterrupt as err:
+        # A rollback that failed as well rides along as a note
+        if notes := getattr(err, "__notes__", None):
+            safe_print(keys)
+            return fail("Interrupted; " + "; ".join(notes))
+        return fail("Interrupted before the upload")
     # From here every exit restores or reports, so nothing sits outside the try
     uploaded = False
     try:
@@ -205,22 +212,47 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
     finally:
         # Before the upload nothing changed on the device; after it the device
         # most likely runs the new key, and old_key covers the other case
-        if not uploaded:
-            try:
-                restore_files(originals)
-            except EsphomeError as err:
-                safe_print(color(AnsiFore.BOLD_RED, str(err)))
-                safe_print(keys)
-            else:
-                safe_print(
-                    color(
-                        AnsiFore.BOLD_YELLOW,
-                        "Restored the previous key in "
-                        + ", ".join(str(p) for p in originals),
-                    )
-                )
-        else:
+        if uploaded:
             safe_print(f"New OTA encryption key: {color(AnsiFore.CYAN, new_key)}")
+        else:
+            _restore(originals, keys)
 
     safe_print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
     return 0
+
+
+def _restore(originals: dict[Path, Snapshot], keys: str) -> None:
+    """Put the previous key back. The image goes too, since a build made
+    meanwhile holds the new key and a later upload would install it under
+    a key the yaml no longer has; when a step fails both keys are shown."""
+    files = ", ".join(str(p) for p in originals)
+    try:
+        restore_files(originals)
+    except (EsphomeError, KeyboardInterrupt) as err:
+        safe_print(
+            color(AnsiFore.BOLD_RED, str(err) or f"Interrupted restoring {files}")
+        )
+        safe_print(keys)
+    else:
+        safe_print(color(AnsiFore.BOLD_YELLOW, f"Restored the previous key in {files}"))
+    image = CORE.firmware_bin
+    try:
+        image.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as err:
+        safe_print(
+            color(
+                AnsiFore.BOLD_RED,
+                f"Could not remove {image}, which may hold the new key: {err}",
+            )
+        )
+        safe_print(keys)
+    else:
+        safe_print(
+            color(
+                AnsiFore.BOLD_YELLOW,
+                f"Removed {image}, which may hold the new key; compile again "
+                "before the next upload.",
+            )
+        )

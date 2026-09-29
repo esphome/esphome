@@ -235,12 +235,69 @@ def test_restores_before_the_upload(
         env["compile"].return_value = 1
     else:
         env["compile"].side_effect = KeyboardInterrupt
+    image = CORE.firmware_bin
+    image.parent.mkdir(parents=True)
+    image.write_bytes(b"built with the new key")
     assert command_rotate_key(MockArgs(), CORE.config) == 1
     assert CORE.config_path.read_text() == API_YAML
     assert env["probe"].call_count == 1
-    assert ("Interrupted before the upload" in capfd.readouterr().out) is (
-        step == "interrupt"
-    )
+    out = capfd.readouterr().out
+    assert ("Interrupted before the upload" in out) is (step == "interrupt")
+    # The image may hold the new key, so a plain upload cannot install it
+    assert not image.exists()
+    assert "compile again before the next upload" in out
+    assert NEW_KEY not in out
+
+
+def test_a_build_that_cannot_be_removed_shows_the_new_key(
+    env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    env["compile"].return_value = 1
+    CORE.firmware_bin.mkdir(parents=True)  # unlink fails on a directory
+    assert command_rotate_key(MockArgs(), CORE.config) == 1
+    out = capfd.readouterr().out
+    assert f"Could not remove {CORE.firmware_bin}" in out
+    assert OLD_KEY in out and NEW_KEY in out
+
+
+def test_a_build_from_before_the_rotation_is_kept(
+    env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    env["probe"].return_value = False
+    image = CORE.firmware_bin
+    image.parent.mkdir(parents=True)
+    image.write_bytes(b"built with the current key")
+    assert command_rotate_key(MockArgs(), CORE.config) == 1
+    assert image.exists()
+    assert "compile again" not in capfd.readouterr().out
+
+
+@pytest.mark.parametrize("rollback", ["succeeded", "failed"])
+def test_an_interrupt_while_writing_reports_a_failed_rollback(
+    env: dict[str, Mock], capfd: pytest.CaptureFixture[str], rollback: str
+) -> None:
+    """apply_line_edits keeps an interrupt an interrupt and notes a rollback
+    that failed too; then a file still holds the new key, so both are shown."""
+    interrupt = KeyboardInterrupt()
+    if rollback == "failed":
+        interrupt.add_note("Could not restore test.yaml: disk")
+    with patch("esphome.cli.rotate_key.apply_line_edits", side_effect=interrupt):
+        assert command_rotate_key(MockArgs(), CORE.config) == 1
+    out = capfd.readouterr().out
+    assert ("Could not restore test.yaml: disk" in out) is (rollback == "failed")
+    assert (NEW_KEY in out) is (rollback == "failed")
+    assert ("Interrupted before the upload" in out) is (rollback == "succeeded")
+
+
+def test_a_second_interrupt_during_the_restore_shows_the_keys(
+    env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    env["compile"].return_value = 1
+    with patch("esphome.cli.rotate_key.restore_files", side_effect=KeyboardInterrupt):
+        assert command_rotate_key(MockArgs(), CORE.config) == 1
+    out = capfd.readouterr().out
+    assert f"Interrupted restoring {CORE.config_path}" in out
+    assert OLD_KEY in out and NEW_KEY in out
 
 
 def test_restores_when_the_device_was_never_reached(
