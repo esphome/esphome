@@ -1,8 +1,7 @@
 #include "ch422g.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ch422g {
+namespace esphome::ch422g {
 
 static const uint8_t CH422G_REG_MODE = 0x24;
 static const uint8_t CH422G_MODE_OUTPUT = 0x01;      // enables output mode on 0-7
@@ -124,10 +123,6 @@ bool CH422GComponent::write_outputs_() {
 
 float CH422GComponent::get_setup_priority() const { return setup_priority::IO; }
 
-// Run our loop() method very early in the loop, so that we cache read values
-// before other components call our digital_read() method.
-float CH422GComponent::get_loop_priority() const { return 9.0f; }  // Just after WIFI
-
 void CH422GGPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool CH422GGPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) ^ this->inverted_; }
 
@@ -140,5 +135,4 @@ void CH422GGPIOPin::set_flags(gpio::Flags flags) {
   this->parent_->pin_mode(this->pin_, flags);
 }
 
-}  // namespace ch422g
-}  // namespace esphome
+}  // namespace esphome::ch422g

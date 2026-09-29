@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/components/coolix/coolix.h"
 
-namespace esphome {
-namespace midea_ir {
+namespace esphome::midea_ir {
 
 static const char *const TAG = "midea_ir.climate";
 
@@ -114,15 +113,20 @@ void MideaIR::control(const climate::ClimateCall &call) {
   if (call.get_mode() == climate::CLIMATE_MODE_OFF) {
     this->swing_mode = climate::CLIMATE_SWING_OFF;
     this->preset = climate::CLIMATE_PRESET_NONE;
-  } else if (call.get_swing_mode().has_value() && ((*call.get_swing_mode() == climate::CLIMATE_SWING_OFF &&
-                                                    this->swing_mode == climate::CLIMATE_SWING_VERTICAL) ||
-                                                   (*call.get_swing_mode() == climate::CLIMATE_SWING_VERTICAL &&
-                                                    this->swing_mode == climate::CLIMATE_SWING_OFF))) {
-    this->swing_ = true;
-  } else if (call.get_preset().has_value() &&
-             ((*call.get_preset() == climate::CLIMATE_PRESET_NONE && this->preset == climate::CLIMATE_PRESET_BOOST) ||
-              (*call.get_preset() == climate::CLIMATE_PRESET_BOOST && this->preset == climate::CLIMATE_PRESET_NONE))) {
-    this->boost_ = true;
+  } else {
+    auto swing = call.get_swing_mode();
+    if (swing.has_value() &&
+        ((*swing == climate::CLIMATE_SWING_OFF && this->swing_mode == climate::CLIMATE_SWING_VERTICAL) ||
+         (*swing == climate::CLIMATE_SWING_VERTICAL && this->swing_mode == climate::CLIMATE_SWING_OFF))) {
+      this->swing_ = true;
+    } else {
+      auto preset = call.get_preset();
+      if (preset.has_value() &&
+          ((*preset == climate::CLIMATE_PRESET_NONE && this->preset == climate::CLIMATE_PRESET_BOOST) ||
+           (*preset == climate::CLIMATE_PRESET_BOOST && this->preset == climate::CLIMATE_PRESET_NONE))) {
+        this->boost_ = true;
+      }
+    }
   }
   climate_ir::ClimateIR::control(call);
 }
@@ -199,5 +203,4 @@ bool MideaIR::on_midea_(const MideaData &data) {
   return false;
 }
 
-}  // namespace midea_ir
-}  // namespace esphome
+}  // namespace esphome::midea_ir

@@ -13,7 +13,7 @@ enum BH1750Mode : uint8_t {
 };
 
 /// This class implements support for the i2c-based BH1750 ambient light sensor.
-class BH1750Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class BH1750Sensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -21,7 +21,6 @@ class BH1750Sensor : public sensor::Sensor, public PollingComponent, public i2c:
   void dump_config() override;
   void update() override;
   void loop() override;
-  float get_setup_priority() const override;
 
  protected:
   // State machine states

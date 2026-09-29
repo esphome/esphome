@@ -3,6 +3,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PIN
 from esphome.core import CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
 
 status_led_ns = cg.esphome_ns.namespace("status_led")
 StatusLED = status_led_ns.class_("StatusLED", cg.Component)
@@ -16,7 +17,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 @coroutine_with_priority(CoroPriority.STATUS)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     rhs = StatusLED.new(pin)
     var = cg.Pvariable(config[CONF_ID], rhs)

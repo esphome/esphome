@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display, spi
@@ -41,6 +43,7 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.core import TimePeriod
+from esphome.types import ConfigType
 
 from .init_sequences import ST7701S_INITS, cmd
 
@@ -58,7 +61,7 @@ COLOR_ORDERS = {
 DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
 
-def data_pin_validate(value):
+def data_pin_validate(value: Any) -> ConfigType:
     """
     It is safe to use strapping pins as RGB output data bits, as they are outputs only,
     and not initialised until after boot.
@@ -73,14 +76,14 @@ def data_pin_validate(value):
     return DATA_PIN_SCHEMA(value)
 
 
-def data_pin_set(length):
+def data_pin_set(length: int) -> cv.Schema:
     return cv.All(
         [data_pin_validate],
         cv.Length(min=length, max=length, msg=f"Exactly {length} data pins required"),
     )
 
 
-def map_sequence(value):
+def map_sequence(value: Any) -> list:
     """
     An initialisation sequence can be selected from one of the pre-defined sequences in init_sequences.py,
     or can be a literal array of data bytes.
@@ -138,7 +141,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Optional(CONF_INIT_SEQUENCE, default=1): cv.ensure_list(
                     map_sequence
                 ),
-                cv.Optional(CONF_COLOR_ORDER): cv.one_of(
+                cv.Optional(CONF_COLOR_ORDER, default="BGR"): cv.one_of(
                     *COLOR_ORDERS.keys(), upper=True
                 ),
                 cv.Optional(CONF_PCLK_FREQUENCY, default="16MHz"): cv.All(
@@ -170,7 +173,7 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=True)

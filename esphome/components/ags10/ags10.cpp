@@ -3,8 +3,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace ags10 {
+namespace esphome::ags10 {
 static const char *const TAG = "ags10";
 
 // Data acquisition.
@@ -107,6 +106,20 @@ bool AGS10Component::set_zero_point_with_factory_defaults() { return this->set_z
 
 bool AGS10Component::set_zero_point_with_current_resistance() { return this->set_zero_point_with(ZP_CURRENT); }
 
+void AGS10Component::set_zero_point(AGS10SetZeroPointActionMode mode, uint16_t value) {
+  switch (mode) {
+    case FACTORY_DEFAULT:
+      this->set_zero_point_with_factory_defaults();
+      break;
+    case CURRENT_VALUE:
+      this->set_zero_point_with_current_resistance();
+      break;
+    case CUSTOM_VALUE:
+      this->set_zero_point_with(value);
+      break;
+  }
+}
+
 bool AGS10Component::set_zero_point_with(uint16_t value) {
   std::array<uint8_t, 5> data{0x00, 0x0C, (uint8_t) ((value >> 8) & 0xFF), (uint8_t) (value & 0xFF), 0};
   data[4] = crc8(data.data(), 4, 0xFF, 0x31, true);
@@ -192,5 +205,4 @@ template<size_t N> optional<std::array<uint8_t, N>> AGS10Component::read_and_che
 
   return data;
 }
-}  // namespace ags10
-}  // namespace esphome
+}  // namespace esphome::ags10

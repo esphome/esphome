@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace dps310 {
+namespace esphome::dps310 {
 
 static const uint8_t DPS310_REG_PRS_B2 = 0x00;        // Highest byte of pressure data
 static const uint8_t DPS310_REG_TMP_B2 = 0x03;        // Highest byte of temperature data
@@ -36,11 +35,10 @@ static const uint8_t DPS310_INIT_TIMEOUT = 20;       // How long to wait for DPS
 static const uint8_t DPS310_NUM_COEF_REGS = 18;      // Number of coefficients we need to read from the device
 static const int32_t DPS310_SCALE_FACTOR = 1572864;  // Measurement compensation scale factor
 
-class DPS310Component : public PollingComponent, public i2c::I2CDevice {
+class DPS310Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
@@ -61,5 +59,4 @@ class DPS310Component : public PollingComponent, public i2c::I2CDevice {
   bool got_pres_, got_temp_, update_in_progress_;
 };
 
-}  // namespace dps310
-}  // namespace esphome
+}  // namespace esphome::dps310

@@ -31,12 +31,12 @@ void AlarmControlPanel::publish_state(AlarmControlPanelState state) {
   this->last_update_ = millis();
   if (state != this->current_state_) {
     auto prev_state = this->current_state_;
-    ESP_LOGD(TAG, "'%s' >> %s (was %s)", this->get_name().c_str(),
+    ESP_LOGV(TAG, "'%s' >> %s (was %s)", this->get_name().c_str(),
              LOG_STR_ARG(alarm_control_panel_state_to_string(state)),
              LOG_STR_ARG(alarm_control_panel_state_to_string(prev_state)));
     this->current_state_ = state;
-    // Single state callback - triggers check get_state() for specific states
-    this->state_callback_.call();
+    // Single state callback - listeners receive the new state as an argument
+    this->state_callback_.call(state);
 #if defined(USE_ALARM_CONTROL_PANEL) && defined(USE_CONTROLLER_REGISTRY)
     ControllerRegistry::notify_alarm_control_panel_update(this);
 #endif
@@ -49,22 +49,6 @@ void AlarmControlPanel::publish_state(AlarmControlPanelState state) {
       this->pref_.save(&state);
     }
   }
-}
-
-void AlarmControlPanel::add_on_state_callback(std::function<void()> &&callback) {
-  this->state_callback_.add(std::move(callback));
-}
-
-void AlarmControlPanel::add_on_cleared_callback(std::function<void()> &&callback) {
-  this->cleared_callback_.add(std::move(callback));
-}
-
-void AlarmControlPanel::add_on_chime_callback(std::function<void()> &&callback) {
-  this->chime_callback_.add(std::move(callback));
-}
-
-void AlarmControlPanel::add_on_ready_callback(std::function<void()> &&callback) {
-  this->ready_callback_.add(std::move(callback));
 }
 
 void AlarmControlPanel::arm_with_code_(AlarmControlPanelCall &(AlarmControlPanelCall::*arm_method)(),

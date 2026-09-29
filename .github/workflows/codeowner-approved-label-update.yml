@@ -1,0 +1,81 @@
+# Adds/removes a 'code-owner-approved' label when a component-specific
+# codeowner approves (or dismisses) a PR.
+#
+# Uses pull_request_target so that fork PRs do not require workflow approval.
+# The label is reconciled on every PR update; for review events specifically,
+# this means the label is applied on the next push after a codeowner review.
+
+name: Codeowner Approved Label
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches-ignore:
+      - release
+      - beta
+
+permissions:
+  issues: write       # issues.addLabels / removeLabel to manage the 'code-owner-approved' label on the PR
+  pull-requests: read  # listReviews to determine whether a codeowner has approved
+  contents: read       # actions/checkout to read CODEOWNERS and the shared codeowners.js helper
+
+jobs:
+  codeowner-approved:
+    name: Run
+    if: ${{ github.repository == 'esphome/esphome' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout base branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: |
+            .github/scripts/codeowners.js
+            CODEOWNERS
+
+      - name: Check codeowner approval and update label
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        with:
+          script: |
+            const { loadCodeowners, determineLabelAction, LabelAction } = require('./.github/scripts/codeowners.js');
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pr_number = parseInt(process.env.PR_NUMBER, 10);
+            const LABEL_NAME = 'code-owner-approved';
+
+            console.log(`Processing PR #${pr_number} for codeowner approval label`);
+
+            const codeownersPatterns = loadCodeowners();
+            const action = await determineLabelAction(
+              github, owner, repo, pr_number, codeownersPatterns, LABEL_NAME
+            );
+
+            if (action === LabelAction.NONE) {
+              console.log('No label change needed');
+              return;
+            }
+
+            try {
+              if (action === LabelAction.ADD) {
+                await github.rest.issues.addLabels({
+                  owner, repo, issue_number: pr_number, labels: [LABEL_NAME]
+                });
+                console.log(`Added '${LABEL_NAME}' label`);
+              } else if (action === LabelAction.REMOVE) {
+                await github.rest.issues.removeLabel({
+                  owner, repo, issue_number: pr_number, name: LABEL_NAME
+                });
+                console.log(`Removed '${LABEL_NAME}' label`);
+              }
+            } catch (error) {
+              if (error.status === 403) {
+                console.log(`Warning: insufficient permissions to update label (expected for fork PRs)`);
+              } else if (error.status === 404) {
+                console.log(`Label '${LABEL_NAME}' not present, nothing to remove`);
+              } else {
+                throw error;
+              }
+            }

@@ -8,10 +8,9 @@
 #endif
 #include "esphome/components/cover/cover.h"
 
-namespace esphome {
-namespace feedback {
+namespace esphome::feedback {
 
-class FeedbackCover : public cover::Cover, public Component {
+class FeedbackCover final : public cover::Cover, public Component {
  public:
   void setup() override;
   void loop() override;
@@ -85,5 +84,4 @@ class FeedbackCover : public cover::Cover, public Component {
   uint32_t update_interval_{1000};
 };
 
-}  // namespace feedback
-}  // namespace esphome
+}  // namespace esphome::feedback

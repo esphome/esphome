@@ -1,9 +1,9 @@
 #include "nau7802.h"
+#include <cmath>
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace nau7802 {
+namespace esphome::nau7802 {
 
 static const char *const TAG = "nau7802";
 
@@ -77,14 +77,13 @@ void NAU7802Sensor::setup() {
     return;
   }
 
-  uint32_t gcal = (uint32_t) (round(this->gain_calibration_ * (1 << GCAL1_FRACTIONAL)));
+  uint32_t gcal = (uint32_t) (std::round(this->gain_calibration_ * (1 << GCAL1_FRACTIONAL)));
   this->write_value_(OCAL1_B2_REG, 3, this->offset_calibration_);
   this->write_value_(GCAL1_B3_REG, 4, gcal);
 
   // turn on AFE
   pu_ctrl |= PU_CTRL_POWERUP_ANALOG;
-  auto f = std::bind(&NAU7802Sensor::complete_setup_, this);
-  this->set_timeout(600, f);
+  this->set_timeout(600, [this]() { this->complete_setup_(); });
 }
 
 void NAU7802Sensor::complete_setup_() {
@@ -296,8 +295,6 @@ void NAU7802Sensor::loop() {
   }
 }
 
-float NAU7802Sensor::get_setup_priority() const { return setup_priority::DATA; }
-
 void NAU7802Sensor::update() {
   if (!this->is_data_ready_()) {
     ESP_LOGW(TAG, "No measurements ready!");
@@ -316,5 +313,4 @@ void NAU7802Sensor::update() {
 
 bool NAU7802Sensor::is_data_ready_() { return this->reg(PU_CTRL_REG).get() & PU_CTRL_CYCLE_READY; }
 
-}  // namespace nau7802
-}  // namespace esphome
+}  // namespace esphome::nau7802

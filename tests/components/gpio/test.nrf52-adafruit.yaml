@@ -1,7 +1,31 @@
+# P0.2, P0.4 and P0.5 all live on the same Zephyr port device (gpio0) and each
+# attaches its own interrupt. This locks in shared-port behavior: every pin owns
+# a separate gpio_callback initialized with its own BIT(pin) mask, so Zephyr
+# dispatches to each pin independently even though the port device is shared.
 binary_sensor:
   - platform: gpio
     pin: 2
     id: gpio_binary_sensor
+    use_interrupt: true
+    interrupt_type: ANY
+
+  # Inverted pin with an edge-specific interrupt: exercises the inversion-aware
+  # interrupt-arming path (logical RISING must arm on the physical falling edge).
+  - platform: gpio
+    pin:
+      number: P0.4
+      inverted: true
+    id: gpio_binary_sensor_inverted
+    use_interrupt: true
+    interrupt_type: RISING
+
+  # Second non-inverted interrupt on the same port (gpio0) as P0.2 above: verifies
+  # multiple pins sharing one port device each get their own callback/pin_mask.
+  - platform: gpio
+    pin: P0.5
+    id: gpio_binary_sensor_shared_port
+    use_interrupt: true
+    interrupt_type: FALLING
 
 output:
   - platform: gpio

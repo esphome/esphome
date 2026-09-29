@@ -4,8 +4,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct AEHAData {
   uint16_t address;
@@ -16,9 +15,9 @@ struct AEHAData {
 
 class AEHAProtocol : public RemoteProtocol<AEHAData> {
  public:
-  void encode(RemoteTransmitData *dst, const AEHAData &data) override;
-  optional<AEHAData> decode(RemoteReceiveData src) override;
-  void dump(const AEHAData &data) override;
+  void encode(RemoteTransmitData *dst, const AEHAData &data);
+  optional<AEHAData> decode(RemoteReceiveData src);
+  void dump(const AEHAData &data);
 
  private:
   std::string format_data_(const std::vector<uint8_t> &data);
@@ -42,5 +41,4 @@ template<typename... Ts> class AEHAAction : public RemoteTransmitterActionBase<T
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

@@ -1,8 +1,7 @@
 #include "bang_bang_climate.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bang_bang {
+namespace esphome::bang_bang {
 
 static const char *const TAG = "bang_bang.climate";
 
@@ -45,17 +44,21 @@ void BangBangClimate::setup() {
 }
 
 void BangBangClimate::control(const climate::ClimateCall &call) {
-  if (call.get_mode().has_value()) {
-    this->mode = *call.get_mode();
+  auto mode = call.get_mode();
+  if (mode.has_value()) {
+    this->mode = *mode;
   }
-  if (call.get_target_temperature_low().has_value()) {
-    this->target_temperature_low = *call.get_target_temperature_low();
+  auto target_temperature_low = call.get_target_temperature_low();
+  if (target_temperature_low.has_value()) {
+    this->target_temperature_low = *target_temperature_low;
   }
-  if (call.get_target_temperature_high().has_value()) {
-    this->target_temperature_high = *call.get_target_temperature_high();
+  auto target_temperature_high = call.get_target_temperature_high();
+  if (target_temperature_high.has_value()) {
+    this->target_temperature_high = *target_temperature_high;
   }
-  if (call.get_preset().has_value()) {
-    this->change_away_(*call.get_preset() == climate::CLIMATE_PRESET_AWAY);
+  auto preset = call.get_preset();
+  if (preset.has_value()) {
+    this->change_away_(*preset == climate::CLIMATE_PRESET_AWAY);
   }
 
   this->compute_state_();
@@ -200,15 +203,9 @@ void BangBangClimate::set_away_config(const BangBangClimateTargetTempConfig &awa
   this->away_config_ = away_config;
 }
 
-void BangBangClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
-void BangBangClimate::set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
-
 Trigger<> *BangBangClimate::get_idle_trigger() { return &this->idle_trigger_; }
 Trigger<> *BangBangClimate::get_cool_trigger() { return &this->cool_trigger_; }
 Trigger<> *BangBangClimate::get_heat_trigger() { return &this->heat_trigger_; }
-
-void BangBangClimate::set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
-void BangBangClimate::set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
 
 void BangBangClimate::dump_config() {
   LOG_CLIMATE("", "Bang Bang Climate", this);
@@ -227,5 +224,4 @@ BangBangClimateTargetTempConfig::BangBangClimateTargetTempConfig(float default_t
                                                                  float default_temperature_high)
     : default_temperature_low(default_temperature_low), default_temperature_high(default_temperature_high) {}
 
-}  // namespace bang_bang
-}  // namespace esphome
+}  // namespace esphome::bang_bang

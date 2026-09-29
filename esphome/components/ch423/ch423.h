@@ -6,7 +6,7 @@
 
 namespace esphome::ch423 {
 
-class CH423Component : public Component, public i2c::I2CDevice {
+class CH423Component final : public Component, public i2c::I2CDevice {
  public:
   CH423Component() = default;
 
@@ -22,7 +22,6 @@ class CH423Component : public Component, public i2c::I2CDevice {
   void pin_mode(uint8_t pin, gpio::Flags flags);
 
   float get_setup_priority() const override;
-  float get_loop_priority() const override;
   void dump_config() override;
 
  protected:
@@ -42,7 +41,7 @@ class CH423Component : public Component, public i2c::I2CDevice {
 };
 
 /// Helper class to expose a CH423 pin as a GPIO pin.
-class CH423GPIOPin : public GPIOPin {
+class CH423GPIOPin final : public GPIOPin {
  public:
   void setup() override{};
   void pin_mode(gpio::Flags flags) override;

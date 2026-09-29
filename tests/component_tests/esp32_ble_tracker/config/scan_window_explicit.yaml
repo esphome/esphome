@@ -1,0 +1,19 @@
+esphome:
+  name: scan-window-explicit
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: MySSID
+
+esp32_ble_tracker:
+  scan_parameters:
+    window: 30ms
+
+bluetooth_proxy:
+  active: true
+
+api:

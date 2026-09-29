@@ -26,6 +26,13 @@ static const char *const TAG = "esp32_hosted.update";
 
 // Older coprocessor firmware versions have a 1500-byte limit per RPC call
 constexpr size_t CHUNK_SIZE = 1500;
+// OTA begin blocks while the coprocessor erases its partition
+constexpr uint32_t OTA_WDT_TIMEOUT_MS = 60000;
+
+#ifdef USE_ESP32_HOSTED_HTTP_UPDATE
+// Interval/timeout IDs (uint32_t to avoid string comparison)
+constexpr uint32_t INITIAL_CHECK_INTERVAL_ID = 0;
+#endif
 
 // Compile-time version string from esp_hosted_host_fw_ver.h macros
 #define STRINGIFY_(x) #x
@@ -51,7 +58,10 @@ static bool parse_version(const std::string &version_str, int &major, int &minor
   major = minor = patch = 0;
   const char *ptr = version_str.c_str();
 
-  if (!parse_int(ptr, major) || *ptr++ != '.' || !parse_int(ptr, minor))
+  if (!parse_int(ptr, major) || *ptr != '.')
+    return false;
+  ++ptr;
+  if (!parse_int(ptr, minor))
     return false;
   if (*ptr == '.')
     parse_int(++ptr, patch);
@@ -87,7 +97,7 @@ void Esp32HostedUpdate::setup() {
   if (esp_hosted_get_coprocessor_fwversion(&ver_info) == ESP_OK) {
     // 16 bytes: "255.255.255" (11 chars) + null + safety margin
     char buf[16];
-    snprintf(buf, sizeof(buf), "%d.%d.%d", ver_info.major1, ver_info.minor1, ver_info.patch1);
+    snprintf(buf, sizeof(buf), "%" PRIu32 ".%" PRIu32 ".%" PRIu32, ver_info.major1, ver_info.minor1, ver_info.patch1);
     this->update_info_.current_version = buf;
   } else {
     this->update_info_.current_version = "unknown";
@@ -101,11 +111,12 @@ void Esp32HostedUpdate::setup() {
     esp_app_desc_t *app_desc = (esp_app_desc_t *) (this->firmware_data_ + app_desc_offset);
     if (app_desc->magic_word == ESP_APP_DESC_MAGIC_WORD) {
       ESP_LOGD(TAG,
-               "Firmware version: %s\n"
-               "Project name: %s\n"
-               "Build date: %s\n"
-               "Build time: %s\n"
-               "IDF version: %s",
+               "ESP32 Hosted firmware:\n"
+               "  Firmware version: %s\n"
+               "  Project name: %s\n"
+               "  Build date: %s\n"
+               "  Build time: %s\n"
+               "  IDF version: %s",
                app_desc->version, app_desc->project_name, app_desc->date, app_desc->time, app_desc->idf_ver);
       this->update_info_.latest_version = app_desc->version;
       if (this->update_info_.latest_version != this->update_info_.current_version) {
@@ -114,8 +125,8 @@ void Esp32HostedUpdate::setup() {
         this->state_ = update::UPDATE_STATE_NO_UPDATE;
       }
     } else {
-      ESP_LOGW(TAG, "Invalid app description magic word: 0x%08x (expected 0x%08x)", app_desc->magic_word,
-               ESP_APP_DESC_MAGIC_WORD);
+      ESP_LOGW(TAG, "Invalid app description magic word: 0x%08" PRIx32 " (expected 0x%08" PRIx32 ")",
+               app_desc->magic_word, static_cast<uint32_t>(ESP_APP_DESC_MAGIC_WORD));
       this->state_ = update::UPDATE_STATE_NO_UPDATE;
     }
   } else {
@@ -126,16 +137,23 @@ void Esp32HostedUpdate::setup() {
   // Publish state
   this->status_clear_error();
   this->publish_state();
+  // Defer so the automation runs on the main loop after setup, not during App.setup()
+  if (this->state_ == update::UPDATE_STATE_AVAILABLE && this->update_available_trigger_) {
+    this->defer([this]() { this->update_available_trigger_->trigger(this->update_info_); });
+  }
 #else
-  // HTTP mode: retry initial check every 10s until network is ready (max 6 attempts)
+  // HTTP mode: check every 10s until network is ready (max 6 attempts)
   // Only if update interval is > 1 minute to avoid redundant checks
   if (this->get_update_interval() > 60000) {
-    this->set_retry("initial_check", 10000, 6, [this](uint8_t) {
-      if (!network::is_connected()) {
-        return RetryResult::RETRY;
+    this->initial_check_remaining_ = 6;
+    this->set_interval(INITIAL_CHECK_INTERVAL_ID, 10000, [this]() {
+      bool connected = network::is_connected();
+      if (--this->initial_check_remaining_ == 0 || connected) {
+        this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
+        if (connected) {
+          this->check();
+        }
       }
-      this->check();
-      return RetryResult::DONE;
     });
   }
 #endif
@@ -153,7 +171,7 @@ void Esp32HostedUpdate::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Mode: HTTP\n"
                 "  Source URL: %s",
-                this->source_url_.c_str());
+                this->source_url_);
 #else
   ESP_LOGCONFIG(TAG,
                 "  Mode: Embedded\n"
@@ -173,6 +191,8 @@ void Esp32HostedUpdate::check() {
     return;
   }
 
+  const bool was_available = this->state_ == update::UPDATE_STATE_AVAILABLE;
+
   // Compare versions
   if (this->update_info_.latest_version.empty() ||
       this->update_info_.latest_version == this->update_info_.current_version) {
@@ -185,6 +205,9 @@ void Esp32HostedUpdate::check() {
   this->update_info_.progress = 0.0f;
   this->status_clear_error();
   this->publish_state();
+  if (this->state_ == update::UPDATE_STATE_AVAILABLE && !was_available && this->update_available_trigger_) {
+    this->update_available_trigger_->trigger(this->update_info_);
+  }
 #endif
 }
 
@@ -194,7 +217,7 @@ bool Esp32HostedUpdate::fetch_manifest_() {
 
   auto container = this->http_request_parent_->get(this->source_url_);
   if (container == nullptr || container->status_code != 200) {
-    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this->source_url_.c_str());
+    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this->source_url_);
     this->status_set_error(LOG_STR("Failed to fetch manifest"));
     return false;
   }
@@ -315,7 +338,11 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
   ESP_LOGI(TAG, "Firmware size: %zu bytes", total_size);
 
   // Begin OTA on coprocessor
-  esp_err_t err = esp_hosted_slave_ota_begin();  // NOLINT
+  esp_err_t err;
+  {
+    watchdog::WatchdogManager wdt(OTA_WDT_TIMEOUT_MS);
+    err = esp_hosted_slave_ota_begin();  // NOLINT
+  }
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to begin OTA: %s", esp_err_to_name(err));
     container->end();
@@ -404,7 +431,11 @@ bool Esp32HostedUpdate::write_embedded_firmware_to_coprocessor_() {
 
   ESP_LOGI(TAG, "Starting OTA update (%zu bytes)", this->firmware_size_);
 
-  esp_err_t err = esp_hosted_slave_ota_begin();  // NOLINT
+  esp_err_t err;
+  {
+    watchdog::WatchdogManager wdt(OTA_WDT_TIMEOUT_MS);
+    err = esp_hosted_slave_ota_begin();  // NOLINT
+  }
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to begin OTA: %s", esp_err_to_name(err));
     this->status_set_error(LOG_STR("Failed to begin OTA"));
@@ -439,12 +470,17 @@ void Esp32HostedUpdate::perform(bool force) {
     return;
   }
 
+#ifdef USE_ESP32_HOSTED_HTTP_UPDATE
+  if (this->firmware_url_.empty()) {
+    ESP_LOGW(TAG, "No firmware URL available, run check first");
+    return;
+  }
+#endif
+
   update::UpdateState prev_state = this->state_;
   this->state_ = update::UPDATE_STATE_INSTALLING;
   this->update_info_.has_progress = false;
   this->publish_state();
-
-  watchdog::WatchdogManager watchdog(60000);
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
   if (!this->stream_firmware_to_coprocessor_())

@@ -1,0 +1,37 @@
+esphome:
+  name: light-toggle-action-test
+host:
+api:
+logger:
+  level: DEBUG
+
+output:
+  - platform: template
+    id: test_out
+    type: float
+    write_action:
+      - lambda: ""
+
+light:
+  - platform: monochromatic
+    name: "Test Light"
+    id: test_light
+    output: test_out
+    default_transition_length: 0s
+
+button:
+  # Test 1: light.toggle without transition_length (HasTransitionLength=false)
+  - platform: template
+    id: btn_toggle
+    name: "Toggle"
+    on_press:
+      - light.toggle: test_light
+
+  # Test 2: light.toggle with transition_length (HasTransitionLength=true)
+  - platform: template
+    id: btn_toggle_with_trans
+    name: "Toggle With Trans"
+    on_press:
+      - light.toggle:
+          id: test_light
+          transition_length: 0s

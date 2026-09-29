@@ -38,6 +38,10 @@ bool EPaperBase::init_buffer_(size_t buffer_length) {
 }
 
 void EPaperBase::setup_pins_() const {
+  for (auto *pin : this->enable_pins_) {
+    pin->setup();
+    pin->digital_write(true);
+  }
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
 
@@ -95,6 +99,23 @@ bool EPaperBase::reset() {
     this->reset_pin_->digital_write(true);
   }
   return true;
+}
+
+void EPaperBase::update_effective_transform_() {
+  switch (this->rotation_) {
+    case DISPLAY_ROTATION_90_DEGREES:
+      this->effective_transform_ = this->transform_ ^ (SWAP_XY | MIRROR_X);
+      break;
+    case DISPLAY_ROTATION_180_DEGREES:
+      this->effective_transform_ = this->transform_ ^ (MIRROR_Y | MIRROR_X);
+      break;
+    case DISPLAY_ROTATION_270_DEGREES:
+      this->effective_transform_ = this->transform_ ^ (SWAP_XY | MIRROR_Y);
+      break;
+    default:
+      this->effective_transform_ = this->transform_;
+      break;
+  }
 }
 
 void EPaperBase::update() {
@@ -175,6 +196,15 @@ void EPaperBase::process_state_() {
       break;
     case EPaperState::UPDATE:
       this->do_update_();  // Calls ESPHome (current page) lambda
+      if (this->full_update_requested_) {
+        // Refresh the whole panel even if nothing was drawn
+        this->full_update_requested_ = false;
+        this->update_count_ = 0;
+        this->x_low_ = 0;
+        this->y_low_ = 0;
+        this->x_high_ = this->width_;
+        this->y_high_ = this->height_;
+      }
       if (this->x_high_ < this->x_low_ || this->y_high_ < this->y_low_) {
         this->set_state_(EPaperState::IDLE);
         return;
@@ -182,7 +212,9 @@ void EPaperBase::process_state_() {
       this->set_state_(EPaperState::RESET);
       break;
     case EPaperState::INITIALISE:
-      this->initialise(this->update_count_ != 0);
+      if (!this->initialise(this->update_count_ != 0)) {
+        return;  // Not done yet, come back next loop
+      }
       this->set_state_(EPaperState::TRANSFER_DATA);
       break;
     case EPaperState::TRANSFER_DATA:
@@ -239,11 +271,9 @@ void EPaperBase::start_data_() {
 
 void EPaperBase::on_safe_shutdown() { this->deep_sleep(); }
 
-void EPaperBase::initialise(bool partial) {
+void EPaperBase::send_init_sequence_(const uint8_t *sequence, size_t length) {
   size_t index = 0;
 
-  auto *sequence = this->init_sequence_;
-  auto length = this->init_sequence_length_;
   while (index != length) {
     if (length - index < 2) {
       this->mark_failed(LOG_STR("Malformed init sequence"));
@@ -266,6 +296,11 @@ void EPaperBase::initialise(bool partial) {
   }
 }
 
+bool EPaperBase::initialise(bool partial) {
+  this->send_init_sequence_(this->init_sequence_, this->init_sequence_length_);
+  return true;
+}
+
 /**
  * Check and rotate coordinates based on the transform flags.
  * @param x
@@ -273,13 +308,13 @@ void EPaperBase::initialise(bool partial) {
  * @return false if the coordinates are out of bounds
  */
 bool EPaperBase::rotate_coordinates_(int &x, int &y) {
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return false;
-  if (this->transform_ & SWAP_XY)
+  if (this->effective_transform_ & SWAP_XY)
     std::swap(x, y);
-  if (this->transform_ & MIRROR_X)
+  if (this->effective_transform_ & MIRROR_X)
     x = this->width_ - x - 1;
-  if (this->transform_ & MIRROR_Y)
+  if (this->effective_transform_ & MIRROR_Y)
     y = this->height_ - y - 1;
   if (x >= this->width_ || y >= this->height_ || x < 0 || y < 0)
     return false;
@@ -301,9 +336,9 @@ void HOT EPaperBase::draw_pixel_at(int x, int y, Color color) {
     return;
   const size_t byte_position = y * this->row_width_ + x / 8;
   const uint8_t bit_position = x % 8;
-  const uint8_t pixel_bit = 0x80 >> bit_position;
+  const uint8_t pixel_bit = 0x80u >> bit_position;
   const auto original = this->buffer_[byte_position];
-  if ((color_to_bit(color) == 0)) {
+  if (color_to_mono(color) == 0) {
     this->buffer_[byte_position] = original & ~pixel_bit;
   } else {
     this->buffer_[byte_position] = original | pixel_bit;

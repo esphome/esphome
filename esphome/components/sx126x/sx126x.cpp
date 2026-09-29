@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sx126x {
+namespace esphome::sx126x {
 
 static const char *const TAG = "sx126x";
 static const uint16_t RAMP[8] = {10, 20, 40, 80, 200, 800, 1700, 3400};
@@ -31,8 +30,8 @@ static constexpr uint8_t OCP_140MA = 0x38;  // 140 mA max current
 static constexpr float LOW_DATA_RATE_OPTIMIZE_THRESHOLD = 16.38f;  // 16.38 ms
 
 uint8_t SX126x::read_fifo_(uint8_t offset, std::vector<uint8_t> &packet) {
-  this->wait_busy_();
   this->enable();
+  this->wait_busy_();
   this->transfer_byte(RADIO_READ_BUFFER);
   this->transfer_byte(offset);
   uint8_t status = this->transfer_byte(0x00);
@@ -44,8 +43,8 @@ uint8_t SX126x::read_fifo_(uint8_t offset, std::vector<uint8_t> &packet) {
 }
 
 void SX126x::write_fifo_(uint8_t offset, const std::vector<uint8_t> &packet) {
-  this->wait_busy_();
   this->enable();
+  this->wait_busy_();
   this->transfer_byte(RADIO_WRITE_BUFFER);
   this->transfer_byte(offset);
   for (const uint8_t &byte : packet) {
@@ -56,8 +55,8 @@ void SX126x::write_fifo_(uint8_t offset, const std::vector<uint8_t> &packet) {
 }
 
 uint8_t SX126x::read_opcode_(uint8_t opcode, uint8_t *data, uint8_t size) {
-  this->wait_busy_();
   this->enable();
+  this->wait_busy_();
   this->transfer_byte(opcode);
   uint8_t status = this->transfer_byte(0x00);
   for (int32_t i = 0; i < size; i++) {
@@ -68,8 +67,8 @@ uint8_t SX126x::read_opcode_(uint8_t opcode, uint8_t *data, uint8_t size) {
 }
 
 void SX126x::write_opcode_(uint8_t opcode, uint8_t *data, uint8_t size) {
-  this->wait_busy_();
   this->enable();
+  this->wait_busy_();
   this->transfer_byte(opcode);
   for (int32_t i = 0; i < size; i++) {
     this->transfer_byte(data[i]);
@@ -79,8 +78,8 @@ void SX126x::write_opcode_(uint8_t opcode, uint8_t *data, uint8_t size) {
 }
 
 void SX126x::read_register_(uint16_t reg, uint8_t *data, uint8_t size) {
-  this->wait_busy_();
   this->enable();
+  this->wait_busy_();
   this->write_byte(RADIO_READ_REGISTER);
   this->write_byte((reg >> 8) & 0xFF);
   this->write_byte((reg >> 0) & 0xFF);
@@ -92,8 +91,8 @@ void SX126x::read_register_(uint16_t reg, uint8_t *data, uint8_t size) {
 }
 
 void SX126x::write_register_(uint16_t reg, uint8_t *data, uint8_t size) {
-  this->wait_busy_();
   this->enable();
+  this->wait_busy_();
   this->write_byte(RADIO_WRITE_REGISTER);
   this->write_byte((reg >> 8) & 0xFF);
   this->write_byte((reg >> 0) & 0xFF);
@@ -104,11 +103,17 @@ void SX126x::write_register_(uint16_t reg, uint8_t *data, uint8_t size) {
   delayMicroseconds(SWITCHING_DELAY_US);
 }
 
+void IRAM_ATTR SX126x::gpio_intr(SX126x *arg) { arg->enable_loop_soon_any_context(); }
+
 void SX126x::setup() {
   // setup pins
   this->busy_pin_->setup();
   this->rst_pin_->setup();
   this->dio1_pin_->setup();
+  if (this->dio1_pin_->is_internal()) {
+    static_cast<InternalGPIOPin *>(this->dio1_pin_)
+        ->attach_interrupt(&SX126x::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
+  }
 
   // start spi
   this->spi_setup();
@@ -155,7 +160,8 @@ void SX126x::configure() {
   }
 
   // check silicon version to make sure hw is ok
-  this->read_register_(REG_VERSION_STRING, (uint8_t *) this->version_, 16);
+  this->read_register_(REG_VERSION_STRING, (uint8_t *) this->version_, sizeof(this->version_));
+  this->version_[sizeof(this->version_) - 1] = '\0';
   if (strncmp(this->version_, "SX126", 5) != 0 && strncmp(this->version_, "LLCC68", 6) != 0) {
     this->mark_failed();
     return;
@@ -209,7 +215,7 @@ void SX126x::configure() {
   // configure modem
   if (this->modulation_ == PACKET_TYPE_LORA) {
     // set modulation params
-    float duration = 1000.0f * std::pow(2, this->spreading_factor_) / BW_HZ[this->bandwidth_];
+    float duration = 1000.0f * (1UL << this->spreading_factor_) / BW_HZ[this->bandwidth_];
     buf[0] = this->spreading_factor_;
     buf[1] = BW_LORA[this->bandwidth_ - SX126X_BW_7810];
     buf[2] = this->coding_rate_;
@@ -243,6 +249,16 @@ void SX126x::configure() {
       buf[0] = this->crc_polynomial_ >> 8;
       buf[1] = this->crc_polynomial_ & 0xFF;
       this->write_register_(REG_CRC_POLYNOMIAL, buf, 2);
+    }
+
+    // set whitening params
+    if (this->whitening_enable_) {
+      // according to the datasheet, section 12 table 12-1 "The user should not
+      // change the value of the 7 MSB of this register"
+      this->read_register_(REG_WHITENING_INITIAL, buf, 1);
+      buf[0] = (buf[0] & 0xFE) | ((this->whitening_initial_ >> 8) & 0x01);
+      buf[1] = this->whitening_initial_ & 0xFF;
+      this->write_register_(REG_WHITENING_INITIAL, buf, 2);
     }
 
     // set packet params and sync word
@@ -291,7 +307,7 @@ void SX126x::set_packet_params_(uint8_t payload_length) {
     } else {
       buf[7] = 0x01;
     }
-    buf[8] = 0x00;
+    buf[8] = (this->whitening_enable_) ? 0x01 : 0x00;
     this->write_opcode_(RADIO_SET_PACKETPARAMS, buf, 9);
   }
 }
@@ -347,6 +363,9 @@ void SX126x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, flo
 }
 
 void SX126x::loop() {
+  if (this->dio1_pin_->is_internal()) {
+    this->disable_loop();
+  }
   if (!this->dio1_pin_->digital_read()) {
     return;
   }
@@ -385,7 +404,7 @@ void SX126x::run_image_cal() {
     buf[1] = 0xE9;
   } else if (this->frequency_ > 850000000) {
     buf[0] = 0xD7;
-    buf[1] = 0xD8;
+    buf[1] = 0xDB;
   } else if (this->frequency_ > 770000000) {
     buf[0] = 0xC1;
     buf[1] = 0xC5;
@@ -449,9 +468,10 @@ void SX126x::set_mode_tx() {
   this->write_opcode_(RADIO_SET_TX, buf, 3);
 }
 
-void SX126x::set_mode_sleep() {
+void SX126x::set_mode_sleep(bool cold) {
+  // 0x04 = warm start (config retained), 0x00 = cold start (config lost, lowest power)
   uint8_t buf[1];
-  buf[0] = 0x05;
+  buf[0] = cold ? 0x00 : 0x04;
   this->write_opcode_(RADIO_SET_SLEEP, buf, 1);
 }
 
@@ -531,10 +551,13 @@ void SX126x::dump_config() {
     ESP_LOGCONFIG(TAG, "  Sync Value: 0x%s",
                   format_hex_to(hex_buf, this->sync_value_.data(), this->sync_value_.size()));
   }
+  ESP_LOGCONFIG(TAG, "  Whitening Enable: %s", TRUEFALSE(this->whitening_enable_));
+  if (this->whitening_enable_) {
+    ESP_LOGCONFIG(TAG, "  Whitening Initial: 0x%03x", this->whitening_initial_);
+  }
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Configuring SX126x failed");
   }
 }
 
-}  // namespace sx126x
-}  // namespace esphome
+}  // namespace esphome::sx126x

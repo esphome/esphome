@@ -17,7 +17,7 @@ namespace esphome::uart {
  * XORed with 0x20.
  */
 
-class UARTTransport : public packet_transport::PacketTransport, public UARTDevice {
+class UARTTransport final : public packet_transport::PacketTransport, public UARTDevice {
  public:
   void loop() override;
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }

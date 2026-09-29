@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTSensorComponent : public mqtt::MQTTComponent {
+class MQTTSensorComponent final : public mqtt::MQTTComponent {
  public:
   /** Construct this MQTTSensorComponent instance with the provided friendly_name and sensor
    *
@@ -22,9 +22,9 @@ class MQTTSensorComponent : public mqtt::MQTTComponent {
   explicit MQTTSensorComponent(sensor::Sensor *sensor);
 
   /// Setup an expiry, 0 disables it
-  void set_expire_after(uint32_t expire_after);
+  void set_expire_after(uint32_t expire_after) { this->expire_after_ = expire_after; }
   /// Disable Home Assistant value expiry.
-  void disable_expire_after();
+  void disable_expire_after() { this->expire_after_ = 0; }
 
   void send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) override;
 

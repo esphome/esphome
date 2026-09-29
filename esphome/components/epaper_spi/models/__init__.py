@@ -2,16 +2,22 @@ from typing import Any, Self
 
 import esphome.config_validation as cv
 from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_WIDTH
+from esphome.core import CORE
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 
 class EpaperModel:
     models: dict[str, Self] = {}
 
+    # Whether the driver manages chip-select itself instead of via the SPI bus.
+    manages_cs: bool = False
+
     def __init__(
         self,
         name: str,
         class_name: str,
-        initsequence=None,
+        initsequence=(),
         **defaults,
     ):
         name = name.upper()
@@ -34,6 +40,35 @@ class EpaperModel:
 
     def get_constructor_args(self, config) -> tuple:
         return ()
+
+    def get_config_options(self) -> dict:
+        """
+        Return model-specific configuration schema options.
+        The base implementation adds nothing; specific models override this to
+        declare extra options without cluttering the shared schema.
+        :return: A mapping suitable for cv.Schema.extend()
+        """
+        return {}
+
+    def validate_config(self, config: ConfigType) -> ConfigType:
+        """
+        Validate the configuration as a whole, once the schema has been applied.
+        The base implementation accepts it unchanged; specific models override this for
+        rules that span several options.
+        :param config: The validated configuration
+        :return: The configuration, possibly updated
+        """
+        return config
+
+    async def to_code(self, var: MockObj, config: dict) -> dict:
+        """
+        Generate model-specific code for the options added by add_options().
+        The base implementation does nothing; specific models override this.
+        The config can be updated in place to add or remove options.
+        :param var: The component variable
+        :param config: The validated configuration
+        """
+        return config
 
     def get_dimensions(self, config) -> tuple[int, int]:
         if CONF_DIMENSIONS in config:
@@ -66,3 +101,26 @@ class EpaperModel:
         defaults = self.defaults.copy()
         defaults.update(kwargs)
         return self.__class__(name, initsequence=tuple(initsequence), **defaults)
+
+    def check_requirements(self) -> None:
+        """
+        Raise a friendly error if any component this model requires is not configured.
+
+        This runs during schema validation (before ID references are resolved) so that a
+        model whose default pins live on a pin expander reports the missing expander clearly
+        instead of a cryptic "Couldn't find ID" from the unresolved pin reference.
+        """
+        if requirements := self.get_default("requires", set()):
+            # ``raw_config`` is populated before any component schema runs during a real
+            # validation, so presence of a required component is simply a top-level key.
+            # When it is absent (e.g. a unit test that invokes the schema directly) there
+            # is no config to check against, so skip.
+            global_config = CORE.raw_config
+            if global_config is None:
+                return
+            missing = {x for x in requirements if x not in global_config}
+            if missing:
+                reqstr = ", ".join(f"'{x}'" for x in sorted(missing))
+                raise cv.Invalid(
+                    f"{self.name} requires component{'s' if len(missing) > 1 else ''} {reqstr} to be configured"
+                )

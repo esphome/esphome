@@ -2,8 +2,7 @@
 
 #include "esphome/components/climate_ir/climate_ir.h"
 
-namespace esphome {
-namespace emmeti {
+namespace esphome::emmeti {
 
 const uint8_t EMMETI_TEMP_MIN = 16;  // Celsius
 const uint8_t EMMETI_TEMP_MAX = 30;  // Celsius
@@ -61,7 +60,7 @@ struct EmmetiState {
   uint8_t checksum = 0;
 };
 
-class EmmetiClimate : public climate_ir::ClimateIR {
+class EmmetiClimate final : public climate_ir::ClimateIR {
  public:
   EmmetiClimate()
       : climate_ir::ClimateIR(EMMETI_TEMP_MIN, EMMETI_TEMP_MAX, 1.0f, true, true,
@@ -105,5 +104,4 @@ class EmmetiClimate : public climate_ir::ClimateIR {
   uint8_t blades_ = EMMETI_BLADES_STOP;
 };
 
-}  // namespace emmeti
-}  // namespace esphome
+}  // namespace esphome::emmeti

@@ -1,16 +1,15 @@
 #include "rc6_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const RC6_TAG = "remote.rc6";
 
-static const uint16_t RC6_FREQ = 36000;
-static const uint16_t RC6_UNIT = 444;
-static const uint16_t RC6_HEADER_MARK = (6 * RC6_UNIT);
-static const uint16_t RC6_HEADER_SPACE = (2 * RC6_UNIT);
-static const uint16_t RC6_MODE_MASK = 0x07;
+static constexpr uint16_t RC6_FREQ = 36000;
+static constexpr uint16_t RC6_UNIT = 444;
+static constexpr uint16_t RC6_HEADER_MARK = (6 * RC6_UNIT);
+static constexpr uint16_t RC6_HEADER_SPACE = (2 * RC6_UNIT);
+static constexpr uint16_t RC6_MODE_MASK = 0x07;
 
 void RC6Protocol::encode(RemoteTransmitData *dst, const RC6Data &data) {
   dst->reserve(44);
@@ -177,5 +176,4 @@ void RC6Protocol::dump(const RC6Data &data) {
            data.command, data.toggle);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

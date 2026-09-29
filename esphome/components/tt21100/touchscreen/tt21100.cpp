@@ -1,8 +1,7 @@
 #include "tt21100.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tt21100 {
+namespace esphome::tt21100 {
 
 static const char *const TAG = "tt21100";
 
@@ -139,5 +138,4 @@ void TT21100Touchscreen::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
-}  // namespace tt21100
-}  // namespace esphome
+}  // namespace esphome::tt21100

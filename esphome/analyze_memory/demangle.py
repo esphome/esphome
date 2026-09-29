@@ -154,7 +154,7 @@ def batch_demangle(
     failed_count = 0
 
     for original, stripped, prefix, demangled in zip(
-        symbols, symbols_stripped, symbols_prefixes, demangled_lines
+        symbols, symbols_stripped, symbols_prefixes, demangled_lines, strict=True
     ):
         # Add back any prefix that was removed
         demangled = _restore_symbol_prefix(prefix, stripped, demangled)

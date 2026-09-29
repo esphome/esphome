@@ -1,10 +1,7 @@
 #include "xiaomi_gcls002.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
-namespace esphome {
-namespace xiaomi_gcls002 {
+namespace esphome::xiaomi_gcls002 {
 
 static const char *const TAG = "xiaomi_gcls002";
 
@@ -16,7 +13,7 @@ void XiaomiGCLS002::dump_config() {
   LOG_SENSOR("  ", "Illuminance", this->illuminance_);
 }
 
-bool XiaomiGCLS002::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiGCLS002::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -58,7 +55,4 @@ bool XiaomiGCLS002::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   return success;
 }
 
-}  // namespace xiaomi_gcls002
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::xiaomi_gcls002

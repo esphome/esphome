@@ -3,8 +3,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.beo4";
 
@@ -149,5 +148,4 @@ void Beo4Protocol::dump(const Beo4Data &data) {
   ESP_LOGI(TAG, "Beo4: source=0x%02x command=0x%02x repeats=%d ", data.source, data.command, data.repeats);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

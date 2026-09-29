@@ -1,0 +1,29 @@
+esphome:
+  name: addr-light-transition
+host:
+api:
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+light:
+  - platform: mock_addressable_light
+    output_id: strip_output
+    id: strip
+    name: "Test Strip"
+    num_leds: 4
+    gamma_correct: 2.8
+    default_transition_length: 0s
+
+sensor:
+  - platform: template
+    name: "led0_red_raw"
+    id: led0_red_raw
+    update_interval: 10ms
+    accuracy_decimals: 0
+    lambda: |-
+      return (float) id(strip_output).get_raw_red(0);

@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace tcs34725 {
+namespace esphome::tcs34725 {
 
 enum TCS34725IntegrationTime {
   TCS34725_INTEGRATION_TIME_2_4MS = 0xFF,
@@ -36,7 +35,7 @@ enum TCS34725Gain {
   TCS34725_GAIN_60X = 0x03,
 };
 
-class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
+class TCS34725Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_integration_time(TCS34725IntegrationTime integration_time);
   void set_gain(TCS34725Gain gain);
@@ -52,7 +51,6 @@ class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
   }
 
   void setup() override;
-  float get_setup_priority() const override;
   void update() override;
   void dump_config() override;
 
@@ -86,5 +84,4 @@ class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
   uint8_t gain_reg_{TCS34725_GAIN_1X};
 };
 
-}  // namespace tcs34725
-}  // namespace esphome
+}  // namespace esphome::tcs34725

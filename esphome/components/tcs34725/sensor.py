@@ -16,6 +16,7 @@ from esphome.const import (
     UNIT_LUX,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -103,7 +104,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -112,21 +113,10 @@ async def to_code(config):
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_glass_attenuation_factor(config[CONF_GLASS_ATTENUATION_FACTOR]))
 
-    if CONF_RED_CHANNEL in config:
-        sens = await sensor.new_sensor(config[CONF_RED_CHANNEL])
-        cg.add(var.set_red_sensor(sens))
-    if CONF_GREEN_CHANNEL in config:
-        sens = await sensor.new_sensor(config[CONF_GREEN_CHANNEL])
-        cg.add(var.set_green_sensor(sens))
-    if CONF_BLUE_CHANNEL in config:
-        sens = await sensor.new_sensor(config[CONF_BLUE_CHANNEL])
-        cg.add(var.set_blue_sensor(sens))
-    if CONF_CLEAR_CHANNEL in config:
-        sens = await sensor.new_sensor(config[CONF_CLEAR_CHANNEL])
-        cg.add(var.set_clear_sensor(sens))
-    if CONF_ILLUMINANCE in config:
-        sens = await sensor.new_sensor(config[CONF_ILLUMINANCE])
-        cg.add(var.set_illuminance_sensor(sens))
-    if CONF_COLOR_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_COLOR_TEMPERATURE])
-        cg.add(var.set_color_temperature_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_RED_CHANNEL, var.set_red_sensor)
+    await sensors(CONF_GREEN_CHANNEL, var.set_green_sensor)
+    await sensors(CONF_BLUE_CHANNEL, var.set_blue_sensor)
+    await sensors(CONF_CLEAR_CHANNEL, var.set_clear_sensor)
+    await sensors(CONF_ILLUMINANCE, var.set_illuminance_sensor)
+    await sensors(CONF_COLOR_TEMPERATURE, var.set_color_temperature_sensor)

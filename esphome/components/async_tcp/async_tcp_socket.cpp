@@ -1,12 +1,11 @@
 #include "async_tcp_socket.h"
 
-#if !defined(USE_ESP32) && !defined(USE_ESP8266) && !defined(USE_RP2040) && !defined(USE_LIBRETINY) && \
+#if !defined(USE_ESP32) && !defined(USE_ESP8266) && !defined(USE_RP2) && !defined(USE_LIBRETINY) && \
     (defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS))
 
 #include "esphome/components/network/util.h"
 #include "esphome/core/log.h"
 #include <cerrno>
-#include <sys/select.h>
 
 namespace esphome::async_tcp {
 
@@ -42,7 +41,15 @@ bool AsyncClient::connect(const char *host, uint16_t port) {
     return false;
   }
 
-  socket_->setblocking(false);
+  if (socket_->setblocking(false) != 0) {
+    // Capture before the log and close() clobber errno
+    const int saved_errno = errno;
+    ESP_LOGE(TAG, "Failed to set nonblocking: errno %d", saved_errno);
+    close();
+    if (error_cb_)
+      error_cb_(error_arg_, this, saved_errno);
+    return false;
+  }
 
   int err = socket_->connect((struct sockaddr *) &addr, addrlen);
   if (err == 0) {
@@ -52,11 +59,12 @@ bool AsyncClient::connect(const char *host, uint16_t port) {
       connect_cb_(connect_arg_, this);
     return true;
   }
-  if (errno != EINPROGRESS) {
-    ESP_LOGE(TAG, "Connect failed: %d", errno);
+  const int saved_errno = errno;
+  if (saved_errno != EINPROGRESS) {
+    ESP_LOGE(TAG, "Connect failed: %d", saved_errno);
     close();
     if (error_cb_)
-      error_cb_(error_arg_, this, errno);
+      error_cb_(error_arg_, this, saved_errno);
     return false;
   }
 
@@ -79,11 +87,12 @@ size_t AsyncClient::write(const char *data, size_t len) {
 
   ssize_t sent = socket_->write(data, len);
   if (sent < 0) {
-    if (errno != EAGAIN && errno != EWOULDBLOCK) {
-      ESP_LOGE(TAG, "Write error: %d", errno);
+    const int err = errno;
+    if (err != EAGAIN && err != EWOULDBLOCK) {
+      ESP_LOGE(TAG, "Write error: %d", err);
       close();
       if (error_cb_)
-        error_cb_(error_arg_, this, errno);
+        error_cb_(error_arg_, this, err);
     }
     return 0;
   }
@@ -95,44 +104,22 @@ void AsyncClient::loop() {
     return;
 
   if (connecting_) {
-    // For connecting, we need to check writability, not readability
-    // The Application's select() only monitors read FDs, so we do our own check here
-    // For ESP platforms lwip_select() might be faster, but this code isn't used
-    // on those platforms anyway. If it was, we'd fix the Application select()
-    // to report writability instead of doing it this way.
-    int fd = socket_->get_fd();
-    if (fd < 0) {
-      ESP_LOGW(TAG, "Invalid socket fd");
-      close();
-      return;
-    }
-
-    fd_set writefds;
-    FD_ZERO(&writefds);
-    FD_SET(fd, &writefds);
-
-    struct timeval tv = {0, 0};
-    int ret = select(fd + 1, nullptr, &writefds, nullptr, &tv);
-
-    if (ret > 0 && FD_ISSET(fd, &writefds)) {
-      int error = 0;
-      socklen_t len = sizeof(error);
-      if (socket_->getsockopt(SOL_SOCKET, SO_ERROR, &error, &len) == 0 && error == 0) {
+    int err = 0;
+    switch (socket::poll_connect(*socket_, err)) {
+      case socket::ConnectPollResult::CONNECT_POLL_RESULT_PENDING:
+        break;
+      case socket::ConnectPollResult::CONNECT_POLL_RESULT_CONNECTED:
         connecting_ = false;
         connected_ = true;
         if (connect_cb_)
           connect_cb_(connect_arg_, this);
-      } else {
-        ESP_LOGW(TAG, "Connection failed: %d", error);
+        break;
+      case socket::ConnectPollResult::CONNECT_POLL_RESULT_ERROR:
+        ESP_LOGW(TAG, "Connection failed: %d", err);
         close();
         if (error_cb_)
-          error_cb_(error_arg_, this, error);
-      }
-    } else if (ret < 0) {
-      ESP_LOGE(TAG, "Select error: %d", errno);
-      close();
-      if (error_cb_)
-        error_cb_(error_arg_, this, errno);
+          error_cb_(error_arg_, this, err);
+        break;
     }
   } else if (connected_) {
     // For connected sockets, use the Application's select() results
@@ -148,11 +135,14 @@ void AsyncClient::loop() {
     } else if (len > 0) {
       if (data_cb_)
         data_cb_(data_arg_, this, buf, len);
-    } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
-      ESP_LOGW(TAG, "Read error: %d", errno);
-      close();
-      if (error_cb_)
-        error_cb_(error_arg_, this, errno);
+    } else {
+      const int err = errno;
+      if (err != EAGAIN && err != EWOULDBLOCK) {
+        ESP_LOGW(TAG, "Read error: %d", err);
+        close();
+        if (error_cb_)
+          error_cb_(error_arg_, this, err);
+      }
     }
   }
 }

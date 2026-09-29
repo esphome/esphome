@@ -1,14 +1,16 @@
-import re
-
 from esphome import automation
-from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components import logger, socket
 from esphome.components.esp32 import (
+    add_idf_component,
     add_idf_sdkconfig_option,
+    idf_version,
     include_builtin_idf_component,
 )
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    filter_source_files_from_platform,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AVAILABILITY,
@@ -21,6 +23,7 @@ from esphome.const import (
     CONF_CLIENT_ID,
     CONF_COMMAND_RETAIN,
     CONF_COMMAND_TOPIC,
+    CONF_DISCOVER_IP,
     CONF_DISCOVERY,
     CONF_DISCOVERY_OBJECT_ID_GENERATOR,
     CONF_DISCOVERY_PREFIX,
@@ -46,7 +49,6 @@ from esphome.const import (
     CONF_RETAIN,
     CONF_SHUTDOWN_MESSAGE,
     CONF_SKIP_CERT_CN_CHECK,
-    CONF_SSL_FINGERPRINTS,
     CONF_STATE_TOPIC,
     CONF_SUBSCRIBE_QOS,
     CONF_TOPIC,
@@ -58,6 +60,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_LN882X,
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
@@ -70,13 +73,9 @@ DEPENDENCIES = ["network"]
 def AUTO_LOAD():
     if CORE.is_esp8266 or CORE.is_libretiny:
         return ["async_tcp", "json"]
-    # ESP32 needs socket for wake_loop_threadsafe()
-    if CORE.is_esp32:
-        return ["json", "socket"]
     return ["json"]
 
 
-CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
 
@@ -118,10 +117,7 @@ mqtt_ns = cg.esphome_ns.namespace("mqtt")
 MQTTMessage = mqtt_ns.struct("MQTTMessage")
 MQTTClientDisconnectReason = mqtt_ns.enum("MQTTClientDisconnectReason")
 MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
-MQTTPublishAction = mqtt_ns.class_("MQTTPublishAction", automation.Action)
 MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
-MQTTEnableAction = mqtt_ns.class_("MQTTEnableAction", automation.Action)
-MQTTDisableAction = mqtt_ns.class_("MQTTDisableAction", automation.Action)
 MQTTMessageTrigger = mqtt_ns.class_(
     "MQTTMessageTrigger", automation.Trigger.template(cg.std_string), cg.Component
 )
@@ -135,7 +131,6 @@ MQTTDisconnectTrigger = mqtt_ns.class_(
     "MQTTDisconnectTrigger", automation.Trigger.template(MQTTClientDisconnectReason)
 )
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
-MQTTConnectedCondition = mqtt_ns.class_("MQTTConnectedCondition", Condition)
 
 MQTTAlarmControlPanelComponent = mqtt_ns.class_(
     "MQTTAlarmControlPanelComponent", MQTTComponent
@@ -221,13 +216,6 @@ def validate_config(value):
     return out
 
 
-def validate_fingerprint(value):
-    value = cv.string(value)
-    if re.match(r"^[0-9a-f]{40}$", value) is None:
-        raise cv.Invalid("fingerprint must be valid SHA1 hash")
-    return value
-
-
 def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for MQTT component."""
     # MQTT needs 1 socket for the broker connection
@@ -243,7 +231,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_PORT, default=1883): cv.port,
             cv.Optional(CONF_USERNAME, default=""): cv.string,
-            cv.Optional(CONF_PASSWORD, default=""): cv.string,
+            cv.Optional(CONF_PASSWORD, default=""): cv.sensitive(),
             cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
             cv.Optional(CONF_CLIENT_ID): cv.string,
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32=False): cv.All(
@@ -255,8 +243,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Inclusive(CONF_CLIENT_CERTIFICATE, "cert-key-pair"): cv.All(
                 cv.string, cv.only_on_esp32
             ),
-            cv.Inclusive(CONF_CLIENT_CERTIFICATE_KEY, "cert-key-pair"): cv.All(
-                cv.string, cv.only_on_esp32
+            cv.Inclusive(CONF_CLIENT_CERTIFICATE_KEY, "cert-key-pair"): cv.sensitive(
+                cv.All(cv.string, cv.only_on_esp32)
             ),
             cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
@@ -290,9 +278,6 @@ CONFIG_SCHEMA = cv.All(
                     }
                 ),
                 validate_message_just_topic,
-            ),
-            cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(
-                cv.only_on_esp8266, cv.ensure_list(validate_fingerprint)
             ),
             cv.Optional(CONF_KEEPALIVE, default="15s"): cv.positive_time_period_seconds,
             cv.Optional(
@@ -332,7 +317,15 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_config,
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX]),
+    cv.only_on(
+        [
+            PLATFORM_BK72XX,
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+            PLATFORM_LN882X,
+            PLATFORM_RTL87XX,
+        ]
+    ),
     _consume_mqtt_sockets,
 )
 
@@ -359,12 +352,15 @@ async def to_code(config):
         # https://github.com/heman/async-mqtt-client/blob/master/library.json
         cg.add_library("heman/AsyncMqttClient-esphome", "2.0.0")
 
-    # MQTT on ESP32 uses wake_loop_threadsafe() to wake the main loop from the MQTT event handler
-    # This enables low-latency MQTT event processing instead of waiting for select() timeout
     if CORE.is_esp32:
-        socket.require_wake_loop_threadsafe()
         # Re-enable ESP-IDF's mqtt component (excluded by default to save compile time)
-        include_builtin_idf_component("mqtt")
+        # IDF 6.0 moved esp-mqtt to an external component
+        if idf_version() >= cv.Version(6, 0, 0):
+            add_idf_component(name="espressif/mqtt", ref="1.0.0")
+        else:
+            include_builtin_idf_component("mqtt")
+        # mqtt_client.h drags in esp_tls types; esp-tls is excluded by default
+        include_builtin_idf_component("esp-tls")
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
@@ -444,14 +440,6 @@ async def to_code(config):
         if CONF_LEVEL in log_topic:
             cg.add(var.set_log_level(logger.LOG_LEVELS[log_topic[CONF_LEVEL]]))
 
-    if CONF_SSL_FINGERPRINTS in config:
-        for fingerprint in config[CONF_SSL_FINGERPRINTS]:
-            arr = [
-                cg.RawExpression(f"0x{fingerprint[i : i + 2]}") for i in range(0, 40, 2)
-            ]
-            cg.add(var.add_ssl_fingerprint(arr))
-        cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
-
     cg.add(var.set_keep_alive(config[CONF_KEEPALIVE]))
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
@@ -512,22 +500,26 @@ MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
-    "mqtt.publish", MQTTPublishAction, MQTT_PUBLISH_ACTION_SCHEMA
-)
-async def mqtt_publish_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_TOPIC], args, cg.std_string)
-    cg.add(var.set_topic(template_))
+# A bare literal is ambiguous between the std::string and (const char *, size_t) publish
+# overloads, so constants and inlined `return "...";` lambdas are both spelled as std::string.
+def _std_string(config: ConfigType, value: str) -> str:
+    rendered = automation.flash_string(config, value)
+    return rendered if CORE.is_esp8266 else f"std::string({rendered})"
 
-    template_ = await cg.templatable(config[CONF_PAYLOAD], args, cg.std_string)
-    cg.add(var.set_payload(template_))
-    template_ = await cg.templatable(config[CONF_QOS], args, cg.uint8)
-    cg.add(var.set_qos(template_))
-    template_ = await cg.templatable(config[CONF_RETAIN], args, bool)
-    cg.add(var.set_retain(template_))
-    return var
+
+automation.register_apply_action(
+    "mqtt.publish",
+    MQTT_PUBLISH_ACTION_SCHEMA,
+    automation.ApplyCall(
+        "publish({}, {}, {}, {})",
+        (
+            (CONF_TOPIC, "std::string", _std_string),
+            (CONF_PAYLOAD, "std::string", _std_string),
+            (CONF_QOS, cg.uint8),
+            (CONF_RETAIN, cg.bool_),
+        ),
+    ),
+)
 
 
 MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema(
@@ -542,7 +534,10 @@ MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "mqtt.publish_json", MQTTPublishJsonAction, MQTT_PUBLISH_JSON_ACTION_SCHEMA
+    "mqtt.publish_json",
+    MQTTPublishJsonAction,
+    MQTT_PUBLISH_JSON_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mqtt_publish_json_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -555,7 +550,7 @@ async def mqtt_publish_json_action_to_code(config, action_id, template_arg, args
     cg.add(var.set_payload(lambda_))
     template_ = await cg.templatable(config[CONF_QOS], args, cg.uint8)
     cg.add(var.set_qos(template_))
-    template_ = await cg.templatable(config[CONF_RETAIN], args, bool)
+    template_ = await cg.templatable(config[CONF_RETAIN], args, cg.bool_)
     cg.add(var.set_retain(template_))
     return var
 
@@ -603,49 +598,30 @@ async def register_mqtt_component(var, config):
             )
 
 
-@automation.register_condition(
+automation.register_apply_condition(
     "mqtt.connected",
-    MQTTConnectedCondition,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(MQTTClientComponent),
         }
     ),
+    "is_connected()",
 )
-async def mqtt_connected_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
-@automation.register_action(
-    "mqtt.enable",
-    MQTTEnableAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(MQTTClientComponent),
-        }
-    ),
-)
-async def mqtt_enable_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+for _name, _call in (("mqtt.enable", "enable()"), ("mqtt.disable", "disable()")):
+    automation.register_apply_action(
+        _name,
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.use_id(MQTTClientComponent),
+            }
+        ),
+        automation.ApplyCall(_call),
+    )
 
 
-@automation.register_action(
-    "mqtt.disable",
-    MQTTDisableAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(MQTTClientComponent),
-        }
-    ),
-)
-async def mqtt_disable_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_platform_filter = filter_source_files_from_platform(
     {
         "mqtt_backend_esp32.cpp": {
             PlatformFramework.ESP32_ARDUINO,
@@ -653,3 +629,34 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
     }
 )
+
+# Each entity file is fully #ifdef'd on the USE_<ENTITY> define the core
+# emits for entity platforms present in the config.
+_define_filter = filter_source_files_from_defines(
+    {
+        "mqtt_alarm_control_panel.cpp": "USE_ALARM_CONTROL_PANEL",
+        "mqtt_binary_sensor.cpp": "USE_BINARY_SENSOR",
+        "mqtt_button.cpp": "USE_BUTTON",
+        "mqtt_climate.cpp": "USE_CLIMATE",
+        "mqtt_cover.cpp": "USE_COVER",
+        "mqtt_date.cpp": "USE_DATETIME_DATE",
+        "mqtt_datetime.cpp": "USE_DATETIME_DATETIME",
+        "mqtt_event.cpp": "USE_EVENT",
+        "mqtt_fan.cpp": "USE_FAN",
+        "mqtt_light.cpp": "USE_LIGHT",
+        "mqtt_lock.cpp": "USE_LOCK",
+        "mqtt_number.cpp": "USE_NUMBER",
+        "mqtt_select.cpp": "USE_SELECT",
+        "mqtt_sensor.cpp": "USE_SENSOR",
+        "mqtt_switch.cpp": "USE_SWITCH",
+        "mqtt_text.cpp": "USE_TEXT",
+        "mqtt_text_sensor.cpp": "USE_TEXT_SENSOR",
+        "mqtt_time.cpp": "USE_DATETIME_TIME",
+        "mqtt_update.cpp": "USE_UPDATE",
+        "mqtt_valve.cpp": "USE_VALVE",
+    }
+)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    return _platform_filter() + _define_filter()

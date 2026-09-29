@@ -91,24 +91,12 @@ class DateCall {
 
   DateEntity *parent_;
 
-  optional<int16_t> year_;
+  optional<uint16_t> year_;
   optional<uint8_t> month_;
   optional<uint8_t> day_;
 };
 
-template<typename... Ts> class DateSetAction : public Action<Ts...>, public Parented<DateEntity> {
- public:
-  TEMPLATABLE_VALUE(ESPTime, date)
-
-  void play(const Ts &...x) override {
-    auto call = this->parent_->make_call();
-
-    if (this->date_.has_value()) {
-      call.set_date(this->date_.value(x...));
-    }
-    call.perform();
-  }
-};
+inline DateCall DateEntity::make_call() { return DateCall(this); }
 
 }  // namespace esphome::datetime
 

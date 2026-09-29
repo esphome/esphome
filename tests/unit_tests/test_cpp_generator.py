@@ -85,6 +85,15 @@ class TestCallExpression:
         assert actual == 'my_function<int32_t, float>(1, "2", false)'
 
 
+class TestStaticCastExpression:
+    def test_str(self):
+        target = cg.StaticCastExpression(ct.bool_, 42)
+
+        actual = str(target)
+
+        assert actual == "static_cast<bool>(42)"
+
+
 class TestStructInitializer:
     def test_str(self):
         target = cg.StructInitializer(
@@ -229,6 +238,94 @@ class TestLambdaExpression:
         )
 
 
+class TestCallLambda:
+    """Tests for the call_lambda() function."""
+
+    def test_call_lambda__return_expression_casts_to_return_type(self):
+        """A lambda body that is just a return statement reduces to the
+        expression, cast to the lambda's return type."""
+        lamb = cg.LambdaExpression(("return foo + 1;",), (), "", ct.bool_)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.StaticCastExpression)
+        assert str(result) == "static_cast<bool>(foo + 1)"
+
+    def test_call_lambda__return_with_trailing_statements_is_called(self) -> None:
+        """Only a lone return statement reduces; a longer body is called as is."""
+        lamb = cg.LambdaExpression(("return 1;\nfoo();",), (), "", ct.int_)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert str(result).endswith("}()")
+
+    def test_call_lambda__braced_return_is_called(self) -> None:
+        """A braced return needs the lambda's return type, so it is not reduced."""
+        lamb = cg.LambdaExpression(("return {};",), (), "", ct.int_)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert "static_cast" not in str(result)
+
+    def test_call_lambda__return_expression_with_class_return_type_no_cast(self):
+        """A class return type is not cast, since static_cast doesn't apply
+        to arbitrary class types."""
+        mock_class = cg.MockObjClass("foo::Bar", parents=())
+        lamb = cg.LambdaExpression(("return get_bar();",), (), "", mock_class)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.RawExpression)
+        assert str(result) == "get_bar()"
+
+    def test_call_lambda__no_return_with_parameters_calls_with_names(self):
+        """A multi-statement lambda with parameters is called with the
+        parameter names as arguments."""
+        lamb = cg.LambdaExpression(
+            ("do_something(x, y);",), ((int, "x"), (float, "y")), "=", ct.bool_
+        )
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert str(result) == (
+            "[=](int32_t x, float y) -> bool {\n  do_something(x, y);\n}(x, y)"
+        )
+
+    def test_call_lambda__no_return_type_raises(self):
+        """Calling a lambda with no declared return type is a developer
+        error: call_lambda is only for value-returning lambdas."""
+        lamb = cg.LambdaExpression(("do_something();",), (), "=")
+
+        with pytest.raises(AssertionError):
+            cg.call_lambda(lamb)
+
+    def test_call_lambda__identifier_starting_with_return_is_not_a_return_statement(
+        self,
+    ):
+        """A body that merely starts with the substring "return" (e.g. a call
+        to a function named returnValue()) must not be mistaken for a return
+        statement -- the match requires a word boundary after "return"."""
+        lamb = cg.LambdaExpression(("returnValue();",), (), "=", ct.bool_)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert str(result) == "[=]() -> bool {\n  returnValue();\n}()"
+
+    def test_call_lambda__no_return_no_parameters_calls_with_no_args(self):
+        """A multi-statement lambda without parameters is called with no
+        arguments."""
+        lamb = cg.LambdaExpression(("do_something();",), (), "", ct.bool_)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert str(result) == "[]() -> bool {\n  do_something();\n}()"
+
+
 class TestLiterals:
     @pytest.mark.parametrize(
         "target, expected",
@@ -248,6 +345,12 @@ class TestLiterals:
             (cg.FloatLiteral(4.2), "4.2f"),
             (cg.FloatLiteral(1.23456789), "1.23456789f"),
             (cg.FloatLiteral(math.nan), "NAN"),
+            (cg.FlashStringLiteral("hello"), 'ESPHOME_F("hello")'),
+            (cg.FlashStringLiteral(""), 'ESPHOME_F("")'),
+            (
+                cg.FlashStringLiteral('quote"here'),
+                'ESPHOME_F("quote\\042here")',
+            ),
         ),
     )
     def test_str__simple(self, target: cg.Literal, expected: str):
@@ -325,7 +428,7 @@ class TestStatements:
             ),
             (
                 cg.ProgmemAssignmentExpression(ct.uint16, "foo", "bar"),
-                'static const uint16_t foo[] PROGMEM = "bar"',
+                'static constexpr uint16_t foo[] PROGMEM = "bar"',
             ),
         ),
     )
@@ -624,3 +727,84 @@ class TestProcessLambda:
         # Test invalid tuple format (single element)
         with pytest.raises(AssertionError):
             await cg.process_lambda(lambda_obj, [(int,)])
+
+
+@pytest.mark.asyncio
+async def test_templatable__string_with_std_string_returns_flash_literal() -> None:
+    """Static string with std::string output_type returns FlashStringLiteral."""
+    result = await cg.templatable("hello", [], ct.std_string)
+
+    assert isinstance(result, cg.FlashStringLiteral)
+    assert str(result) == 'ESPHOME_F("hello")'
+
+
+@pytest.mark.asyncio
+async def test_templatable__empty_string_with_std_string() -> None:
+    """Empty static string with std::string output_type returns FlashStringLiteral."""
+    result = await cg.templatable("", [], ct.std_string)
+
+    assert isinstance(result, cg.FlashStringLiteral)
+    assert str(result) == 'ESPHOME_F("")'
+
+
+@pytest.mark.asyncio
+async def test_templatable__string_with_none_output_type() -> None:
+    """Static string with output_type=None returns raw string (no wrapping)."""
+    result = await cg.templatable("hello", [], None)
+
+    assert isinstance(result, str)
+    assert result == "hello"
+
+
+@pytest.mark.asyncio
+async def test_templatable__int_with_std_string() -> None:
+    """Non-string value with std::string output_type returns raw value."""
+    result = await cg.templatable(42, [], ct.std_string)
+
+    assert result == 42
+
+
+@pytest.mark.asyncio
+async def test_templatable__string_with_non_string_output_type() -> None:
+    """Static string with non-std::string output_type returns stateless lambda."""
+    result = await cg.templatable("hello", [], ct.bool_)
+
+    assert isinstance(result, cg.LambdaExpression)
+    assert result.capture == ""
+
+
+@pytest.mark.asyncio
+async def test_templatable__with_to_exp_callable() -> None:
+    """When to_exp is provided, it is applied to non-template values."""
+    result = await cg.templatable(42, [], None, to_exp=lambda x: x * 2)
+
+    assert result == 84
+
+
+@pytest.mark.asyncio
+async def test_templatable__with_to_exp_callable_and_output_type() -> None:
+    """When to_exp is provided with non-string output_type, result is lambda-wrapped."""
+    result = await cg.templatable(42, [], ct.int_, to_exp=lambda x: x * 2)
+
+    assert isinstance(result, cg.LambdaExpression)
+    assert result.capture == ""
+
+
+@pytest.mark.asyncio
+async def test_templatable__with_to_exp_dict() -> None:
+    """When to_exp is a dict, value is looked up."""
+    mapping: dict[str, int] = {"on": 1, "off": 0}
+    result = await cg.templatable("on", [], None, to_exp=mapping)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_templatable__lambda_with_std_string() -> None:
+    """Lambda value returns LambdaExpression, not FlashStringLiteral."""
+    from esphome.core import Lambda
+
+    lambda_obj = Lambda('return "hello";')
+    result = await cg.templatable(lambda_obj, [], ct.std_string)
+
+    assert isinstance(result, cg.LambdaExpression)

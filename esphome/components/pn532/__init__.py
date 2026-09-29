@@ -3,12 +3,13 @@ import esphome.codegen as cg
 from esphome.components import nfc
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_ON_FINISHED_WRITE,
     CONF_ON_TAG,
     CONF_ON_TAG_REMOVED,
     CONF_TRIGGER_ID,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@OttoWinter", "@jesserockz"]
 AUTO_LOAD = ["binary_sensor", "nfc"]
@@ -19,14 +20,6 @@ CONF_PN532_ID = "pn532_id"
 pn532_ns = cg.esphome_ns.namespace("pn532")
 PN532 = pn532_ns.class_("PN532", cg.PollingComponent)
 
-PN532OnFinishedWriteTrigger = pn532_ns.class_(
-    "PN532OnFinishedWriteTrigger", automation.Trigger.template()
-)
-
-PN532IsWritingCondition = pn532_ns.class_(
-    "PN532IsWritingCondition", automation.Condition
-)
-
 PN532_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(PN532),
@@ -35,13 +28,7 @@ PN532_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(nfc.NfcOnTagTrigger),
             }
         ),
-        cv.Optional(CONF_ON_FINISHED_WRITE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    PN532OnFinishedWriteTrigger
-                ),
-            }
-        ),
+        cv.Optional(CONF_ON_FINISHED_WRITE): automation.validate_automation({}),
         cv.Optional(CONF_ON_TAG_REMOVED): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(nfc.NfcOnTagTrigger),
@@ -51,7 +38,7 @@ PN532_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("1s"))
 
 
-def CONFIG_SCHEMA(conf):
+def CONFIG_SCHEMA(conf: ConfigType) -> None:
     if conf:
         raise cv.Invalid(
             "This component has been moved in 1.16, please see the docs for updated "
@@ -59,11 +46,24 @@ def CONFIG_SCHEMA(conf):
         )
 
 
-async def setup_pn532(var, config):
+_request_ontag_trigger_slot = cg.slot_counter("PN532_ON_TAG_TRIGGER_COUNT")
+_request_ontagremoved_trigger_slot = cg.slot_counter(
+    "PN532_ON_TAG_REMOVED_TRIGGER_COUNT"
+)
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_FINISHED_WRITE, "add_on_finished_write_callback"
+    ),
+)
+
+
+async def setup_pn532(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+        _request_ontag_trigger_slot(str(var))
         cg.add(var.register_ontag_trigger(trigger))
         await automation.build_automation(
             trigger, [(cg.std_string, "x"), (nfc.NfcTag, "tag")], conf
@@ -71,26 +71,21 @@ async def setup_pn532(var, config):
 
     for conf in config.get(CONF_ON_TAG_REMOVED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+        _request_ontagremoved_trigger_slot(str(var))
         cg.add(var.register_ontagremoved_trigger(trigger))
         await automation.build_automation(
             trigger, [(cg.std_string, "x"), (nfc.NfcTag, "tag")], conf
         )
 
-    for conf in config.get(CONF_ON_FINISHED_WRITE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-@automation.register_condition(
+automation.register_apply_condition(
     "pn532.is_writing",
-    PN532IsWritingCondition,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(PN532),
         }
     ),
+    "is_writing()",
 )
-async def pn532_is_writing_to_code(config, condition_id, template_arg, args):
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

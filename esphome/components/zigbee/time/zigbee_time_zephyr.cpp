@@ -1,6 +1,7 @@
 #include "zigbee_time_zephyr.h"
 #if defined(USE_ZIGBEE) && defined(USE_NRF52) && defined(USE_TIME)
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome::zigbee {
 
@@ -26,7 +27,7 @@ void ZigbeeTime::setup() {
   global_time = this;
   this->parent_->add_callback(this->endpoint_, [this](zb_bufid_t bufid) { this->zcl_device_cb_(bufid); });
   synchronize_epoch_(EPOCH_2000);
-  this->parent_->add_join_callback([this]() { zb_zcl_time_server_synchronize(this->endpoint_, sync_time); });
+  this->parent_->add_on_join_callback([this](bool x) { zb_zcl_time_server_synchronize(this->endpoint_, sync_time); });
 }
 
 void ZigbeeTime::dump_config() {
@@ -47,6 +48,7 @@ void ZigbeeTime::set_epoch_time(uint32_t epoch) {
     this->synchronize_epoch_(epoch);
     this->has_time_ = true;
   });
+  App.wake_loop_threadsafe();
 }
 
 void ZigbeeTime::zcl_device_cb_(zb_bufid_t bufid) {

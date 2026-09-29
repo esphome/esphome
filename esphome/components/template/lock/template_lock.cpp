@@ -25,7 +25,10 @@ void TemplateLock::control(const lock::LockCall &call) {
     this->prev_trigger_->stop_action();
   }
 
-  auto state = *call.get_state();
+  auto opt_state = call.get_state();
+  if (!opt_state.has_value())
+    return;
+  auto state = *opt_state;
   if (state == LOCK_STATE_LOCKED) {
     this->prev_trigger_ = &this->lock_trigger_;
     this->lock_trigger_.trigger();
@@ -44,7 +47,6 @@ void TemplateLock::open_latch() {
   this->prev_trigger_ = &this->open_trigger_;
   this->open_trigger_.trigger();
 }
-void TemplateLock::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 float TemplateLock::get_setup_priority() const { return setup_priority::HARDWARE; }
 void TemplateLock::dump_config() {
   LOG_LOCK("", "Template Lock", this);

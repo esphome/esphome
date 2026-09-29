@@ -2,8 +2,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace m5stack_8angle {
+namespace esphome::m5stack_8angle {
 
 static const char *const TAG = "m5stack_8angle.light";
 
@@ -41,5 +40,4 @@ light::ESPColorView M5Stack8AngleLightOutput::get_view_internal(int32_t index) c
           nullptr,          this->effect_data_ + index, &this->correction_};
 }
 
-}  // namespace m5stack_8angle
-}  // namespace esphome
+}  // namespace esphome::m5stack_8angle

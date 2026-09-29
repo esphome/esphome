@@ -1,0 +1,9 @@
+binary_sensor:
+  - platform: template
+    id: front_door_enrolling
+    name: Front Door Enrolling
+substitutions:
+  enrolling_id: front_door_enrolling
+  enrolling_name: Front Door Enrolling
+esphome:
+  name: test

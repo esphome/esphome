@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace st7735 {
+namespace esphome::st7735 {
 
 static const uint8_t ST_CMD_DELAY = 0x80;  // special signifier for command lists
 
@@ -68,7 +67,7 @@ static const uint8_t ST7735_GMCTRP1 = 0xE0;
 static const uint8_t ST7735_GMCTRN1 = 0xE1;
 
 // clang-format off
-static const uint8_t PROGMEM
+static constexpr uint8_t PROGMEM
   BCMD[] = {                        // Init commands for 7735B screens
     18,                             // 18 commands in list:
     ST77XX_SWRESET,   ST_CMD_DELAY, //  1: Software reset, no args, w/delay
@@ -466,7 +465,7 @@ void HOT ST7735::write_display_data_() {
 }
 
 void ST7735::spi_master_write_addr_(uint16_t addr1, uint16_t addr2) {
-  static uint8_t byte[4];
+  uint8_t byte[4];
   byte[0] = (addr1 >> 8) & 0xFF;
   byte[1] = addr1 & 0xFF;
   byte[2] = (addr2 >> 8) & 0xFF;
@@ -476,17 +475,4 @@ void ST7735::spi_master_write_addr_(uint16_t addr1, uint16_t addr2) {
   this->write_array(byte, 4);
 }
 
-void ST7735::spi_master_write_color_(uint16_t color, uint16_t size) {
-  static uint8_t byte[1024];
-  int index = 0;
-  for (int i = 0; i < size; i++) {
-    byte[index++] = (color >> 8) & 0xFF;
-    byte[index++] = color & 0xFF;
-  }
-
-  this->dc_pin_->digital_write(true);
-  write_array(byte, size * 2);
-}
-
-}  // namespace st7735
-}  // namespace esphome
+}  // namespace esphome::st7735

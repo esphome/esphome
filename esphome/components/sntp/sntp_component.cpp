@@ -9,8 +9,7 @@
 #include "lwip/apps/sntp.h"
 #endif
 
-namespace esphome {
-namespace sntp {
+namespace esphome::sntp {
 
 static const char *const TAG = "sntp";
 
@@ -102,5 +101,4 @@ void SNTPComponent::time_synced() {
   this->time_sync_callback_.call();
 }
 
-}  // namespace sntp
-}  // namespace esphome
+}  // namespace esphome::sntp

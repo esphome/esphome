@@ -21,8 +21,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
-namespace esphome {
-namespace speaker {
+namespace esphome::speaker {
 
 struct MediaCallCommand {
   optional<media_player::MediaPlayerCommand> command;
@@ -43,11 +42,11 @@ struct VolumeRestoreState {
   bool is_muted;
 };
 
-class SpeakerMediaPlayer : public Component,
-                           public media_player::MediaPlayer
+class SpeakerMediaPlayer final : public Component,
+                                 public media_player::MediaPlayer
 #ifdef USE_OTA_STATE_LISTENER
     ,
-                           public ota::OTAGlobalStateListener
+                                 public ota::OTAGlobalStateListener
 #endif
 {
  public:
@@ -112,6 +111,9 @@ class SpeakerMediaPlayer : public Component,
   /// media pipelines are defined.
   inline bool single_pipeline_() { return (this->media_speaker_ == nullptr); }
 
+  /// Stops the media pipeline and polls until stopped to unpause it, avoiding an audible glitch.
+  void stop_and_unpause_media_();
+
   // Processes commands from media_control_command_queue_.
   void watch_media_commands_();
 
@@ -141,6 +143,11 @@ class SpeakerMediaPlayer : public Component,
 
   bool is_paused_{false};
   bool is_muted_{false};
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+  bool is_turn_off_{false};
+#endif
+  uint8_t unpause_media_remaining_{0};
+  uint8_t unpause_announcement_remaining_{0};
 
   // The amount to change the volume on volume up/down commands
   float volume_increment_;
@@ -159,7 +166,6 @@ class SpeakerMediaPlayer : public Component,
   Trigger<float> volume_trigger_;
 };
 
-}  // namespace speaker
-}  // namespace esphome
+}  // namespace esphome::speaker
 
 #endif

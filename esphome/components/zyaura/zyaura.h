@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace zyaura {
+namespace esphome::zyaura {
 
 static const uint8_t ZA_MAX_MS = 2;
 static const uint8_t ZA_MSG_LEN = 5;
@@ -58,7 +57,7 @@ class ZaSensorStore {
 };
 
 /// Component for reading temperature/co2/humidity measurements from ZyAura sensors.
-class ZyAuraSensor : public PollingComponent {
+class ZyAuraSensor final : public PollingComponent {
  public:
   void set_pin_clock(InternalGPIOPin *pin) { pin_clock_ = pin; }
   void set_pin_data(InternalGPIOPin *pin) { pin_data_ = pin; }
@@ -81,5 +80,4 @@ class ZyAuraSensor : public PollingComponent {
   bool publish_state_(ZaDataType data_type, sensor::Sensor *sensor, uint16_t *data_value);
 };
 
-}  // namespace zyaura
-}  // namespace esphome
+}  // namespace esphome::zyaura

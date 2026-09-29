@@ -1,8 +1,7 @@
 #include "sun_gtil2.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sun_gtil2 {
+namespace esphome::sun_gtil2 {
 
 static const char *const TAG = "sun_gtil2";
 
@@ -131,5 +130,4 @@ void SunGTIL2::dump_config() {
 #endif
 }
 
-}  // namespace sun_gtil2
-}  // namespace esphome
+}  // namespace esphome::sun_gtil2

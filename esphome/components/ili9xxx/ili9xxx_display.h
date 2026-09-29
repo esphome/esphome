@@ -5,8 +5,7 @@
 #include "ili9xxx_defines.h"
 #include "ili9xxx_init.h"
 
-namespace esphome {
-namespace ili9xxx {
+namespace esphome::ili9xxx {
 
 static const char *const TAG = "ili9xxx";
 const size_t ILI9XXX_TRANSFER_BUFFER_SIZE = 126;  // ensure this is divisible by 6
@@ -283,5 +282,4 @@ class ILI9XXXST7735 : public ILI9XXXDisplay {
   ILI9XXXST7735() : ILI9XXXDisplay(INITCMD_ST7735, 128, 160) {}
 };
 
-}  // namespace ili9xxx
-}  // namespace esphome
+}  // namespace esphome::ili9xxx

@@ -3,8 +3,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace audio_adc {
+namespace esphome::audio_adc {
 
 class AudioAdc {
  public:
@@ -13,5 +12,4 @@ class AudioAdc {
   virtual float mic_gain() = 0;
 };
 
-}  // namespace audio_adc
-}  // namespace esphome
+}  // namespace esphome::audio_adc

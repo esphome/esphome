@@ -7,8 +7,7 @@
 #include "esphome/core/log.h"
 #include "ndef_message.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 // NFC UIDs are 4, 7, or 10 bytes depending on tag type
 static constexpr size_t NFC_UID_MAX_LENGTH = 10;
@@ -54,5 +53,4 @@ class NfcTag {
   std::shared_ptr<NdefMessage> ndef_message_;
 };
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

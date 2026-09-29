@@ -47,8 +47,6 @@ void TemplateValve::loop() {
     this->publish_state();
 }
 
-void TemplateValve::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
-void TemplateValve::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
 float TemplateValve::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 Trigger<> *TemplateValve::get_open_trigger() { return &this->open_trigger_; }
@@ -77,8 +75,9 @@ void TemplateValve::control(const ValveCall &call) {
     this->prev_command_trigger_ = &this->toggle_trigger_;
     this->publish_state();
   }
-  if (call.get_position().has_value()) {
-    auto pos = *call.get_position();
+  auto pos_val = call.get_position();
+  if (pos_val.has_value()) {
+    auto pos = *pos_val;
     this->stop_prev_trigger_();
 
     if (pos == VALVE_OPEN) {
@@ -109,10 +108,6 @@ ValveTraits TemplateValve::get_traits() {
 }
 
 Trigger<float> *TemplateValve::get_position_trigger() { return &this->position_trigger_; }
-
-void TemplateValve::set_has_stop(bool has_stop) { this->has_stop_ = has_stop; }
-void TemplateValve::set_has_toggle(bool has_toggle) { this->has_toggle_ = has_toggle; }
-void TemplateValve::set_has_position(bool has_position) { this->has_position_ = has_position; }
 
 void TemplateValve::stop_prev_trigger_() {
   if (this->prev_command_trigger_ != nullptr) {

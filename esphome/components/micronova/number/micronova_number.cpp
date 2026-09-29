@@ -2,6 +2,13 @@
 
 namespace esphome::micronova {
 
+static const char *const TAG = "micronova.number";
+
+void MicroNovaNumber::dump_config() {
+  LOG_NUMBER("", "Micronova number", this);
+  this->dump_base_config();
+}
+
 void MicroNovaNumber::process_value_from_stove(int value_from_stove) {
   if (value_from_stove == -1) {
     this->publish_state(NAN);
@@ -22,8 +29,7 @@ void MicroNovaNumber::control(float value) {
   } else {
     new_number = static_cast<uint8_t>(value);
   }
-  this->micronova_->write_address(this->memory_location_, this->memory_address_, new_number);
-  this->micronova_->request_update_listeners();
+  this->micronova_->queue_write_command(this->memory_location_, this->memory_address_, new_number);
 }
 
 }  // namespace esphome::micronova

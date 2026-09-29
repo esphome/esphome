@@ -21,7 +21,7 @@ Color color_from_light_color_values(LightColorValues val);
 
 /// Use a custom state class for addressable lights, to allow type system to discriminate between addressable and
 /// non-addressable lights.
-class AddressableLightState : public LightState {
+class AddressableLightState final : public LightState {
   using LightState::LightState;
 };
 
@@ -66,7 +66,9 @@ class AddressableLight : public LightOutput, public Component {
         Color(to_uint8_scale(red), to_uint8_scale(green), to_uint8_scale(blue), to_uint8_scale(white)));
   }
   void setup_state(LightState *state) override {
-    this->correction_.calculate_gamma_table(state->get_gamma_correct());
+#ifdef USE_LIGHT_GAMMA_LUT
+    this->correction_.set_gamma_table(state->get_gamma_table());
+#endif
     this->state_parent_ = state;
   }
   void update_state(LightState *state) override;
@@ -113,6 +115,9 @@ class AddressableLightTransformer : public LightTransformer {
   AddressableLight &light_;
   float last_transition_progress_{0.0f};
   Color target_color_{};
+  Color uniform_start_color_{};
+  bool uniform_start_scanned_{false};
+  bool uniform_start_is_uniform_{false};
 };
 
 }  // namespace esphome::light

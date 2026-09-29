@@ -2,8 +2,7 @@
 
 #include <set>
 
-namespace esphome {
-namespace bedjet {
+namespace esphome::bedjet {
 
 static const char *const TAG = "bedjet";
 
@@ -101,5 +100,4 @@ static const uint8_t BEDJET_FAN_SPEED_COUNT = 20;
 
 static constexpr const char *const BEDJET_FAN_STEP_NAMES[BEDJET_FAN_SPEED_COUNT] = BEDJET_FAN_STEP_NAMES_;
 
-}  // namespace bedjet
-}  // namespace esphome
+}  // namespace esphome::bedjet

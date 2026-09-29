@@ -9,6 +9,8 @@ from esphome.const import (
     CONF_DATA,
     CONF_FREQUENCY,
     CONF_ID,
+    CONF_OUTPUT_POWER,
+    CONF_VALUE,
     CONF_WAIT_TIME,
 )
 from esphome.core import ID
@@ -19,9 +21,9 @@ MULTI_CONF = True
 
 ns = cg.esphome_ns.namespace("cc1101")
 CC1101Component = ns.class_("CC1101Component", cg.Component, spi.SPIDevice)
+CC1101Listener = ns.class_("CC1101Listener")
 
 # Config keys
-CONF_OUTPUT_POWER = "output_power"
 CONF_RX_ATTENUATION = "rx_attenuation"
 CONF_DC_BLOCKING_FILTER = "dc_blocking_filter"
 CONF_IF_FREQUENCY = "if_frequency"
@@ -47,6 +49,15 @@ CONF_FILTER_LENGTH_FSK_MSK = "filter_length_fsk_msk"
 CONF_FILTER_LENGTH_ASK_OOK = "filter_length_ask_ook"
 CONF_FREEZE = "freeze"
 CONF_HYST_LEVEL = "hyst_level"
+CONF_FOC_BS_CS_GATE = "foc_bs_cs_gate"
+CONF_FOC_LIMIT = "foc_limit"
+CONF_FOC_PRE_K = "foc_pre_k"
+CONF_FOC_POST_K = "foc_post_k"
+CONF_BS_LIMIT = "bs_limit"
+CONF_BS_PRE_KI = "bs_pre_ki"
+CONF_BS_PRE_KP = "bs_pre_kp"
+CONF_BS_POST_KI = "bs_post_ki"
+CONF_BS_POST_KP = "bs_post_kp"
 
 # Packet mode config keys
 CONF_PACKET_MODE = "packet_mode"
@@ -160,6 +171,64 @@ HYST_LEVEL = {
     "High": HystLevel.HYST_LEVEL_HIGH,
 }
 
+FocLimit = ns.enum("FocLimit", True)
+FOC_LIMIT = {
+    "Disabled": FocLimit.FOC_LIMIT_DISABLED,
+    "BW/8": FocLimit.FOC_LIMIT_BW_8,
+    "BW/4": FocLimit.FOC_LIMIT_BW_4,
+    "BW/2": FocLimit.FOC_LIMIT_BW_2,
+}
+
+FocPreK = ns.enum("FocPreK", True)
+FOC_PRE_K = {
+    "K": FocPreK.FOC_PRE_K_K,
+    "2K": FocPreK.FOC_PRE_K_2K,
+    "3K": FocPreK.FOC_PRE_K_3K,
+    "4K": FocPreK.FOC_PRE_K_4K,
+}
+
+FocPostK = ns.enum("FocPostK", True)
+FOC_POST_K = {
+    "Same": FocPostK.FOC_POST_K_SAME,
+    "K/2": FocPostK.FOC_POST_K_K_2,
+}
+
+BsLimit = ns.enum("BsLimit", True)
+BS_LIMIT = {
+    "Disabled": BsLimit.BS_LIMIT_DISABLED,
+    "3.125%": BsLimit.BS_LIMIT_3P125_PERCENT,
+    "6.25%": BsLimit.BS_LIMIT_6P25_PERCENT,
+    "12.5%": BsLimit.BS_LIMIT_12P5_PERCENT,
+}
+
+BsPreKi = ns.enum("BsPreKi", True)
+BS_PRE_KI = {
+    "KI": BsPreKi.BS_PRE_KI_KI,
+    "2KI": BsPreKi.BS_PRE_KI_2KI,
+    "3KI": BsPreKi.BS_PRE_KI_3KI,
+    "4KI": BsPreKi.BS_PRE_KI_4KI,
+}
+
+BsPreKp = ns.enum("BsPreKp", True)
+BS_PRE_KP = {
+    "KP": BsPreKp.BS_PRE_KP_KP,
+    "2KP": BsPreKp.BS_PRE_KP_2KP,
+    "3KP": BsPreKp.BS_PRE_KP_3KP,
+    "4KP": BsPreKp.BS_PRE_KP_4KP,
+}
+
+BsPostKi = ns.enum("BsPostKi", True)
+BS_POST_KI = {
+    "Same": BsPostKi.BS_POST_KI_SAME,
+    "KI/2": BsPostKi.BS_POST_KI_KI_2,
+}
+
+BsPostKp = ns.enum("BsPostKp", True)
+BS_POST_KP = {
+    "Same": BsPostKp.BS_POST_KP_SAME,
+    "KP": BsPostKp.BS_POST_KP_KP,
+}
+
 # Optional settings to generate setter calls for
 CONFIG_MAP = {
     cv.Optional(CONF_OUTPUT_POWER, default=10): cv.float_range(min=-30.0, max=11.0),
@@ -213,6 +282,15 @@ CONFIG_MAP = {
     cv.Optional(CONF_FREEZE): cv.enum(FREEZE, upper=False),
     cv.Optional(CONF_WAIT_TIME, default="32"): cv.enum(WAIT_TIME, upper=False),
     cv.Optional(CONF_HYST_LEVEL): cv.enum(HYST_LEVEL, upper=False),
+    cv.Optional(CONF_FOC_BS_CS_GATE): cv.boolean,
+    cv.Optional(CONF_FOC_LIMIT): cv.enum(FOC_LIMIT, upper=False),
+    cv.Optional(CONF_FOC_PRE_K): cv.enum(FOC_PRE_K, upper=False),
+    cv.Optional(CONF_FOC_POST_K): cv.enum(FOC_POST_K, upper=False),
+    cv.Optional(CONF_BS_LIMIT): cv.enum(BS_LIMIT, upper=False),
+    cv.Optional(CONF_BS_PRE_KI): cv.enum(BS_PRE_KI, upper=False),
+    cv.Optional(CONF_BS_PRE_KP): cv.enum(BS_PRE_KP, upper=False),
+    cv.Optional(CONF_BS_POST_KI): cv.enum(BS_POST_KI, upper=False),
+    cv.Optional(CONF_BS_POST_KP): cv.enum(BS_POST_KP, upper=False),
     cv.Optional(CONF_PACKET_MODE, default=False): cv.boolean,
     cv.Optional(CONF_PACKET_LENGTH): cv.uint8_t,
     cv.Optional(CONF_CRC_ENABLE, default=False): cv.boolean,
@@ -273,10 +351,6 @@ async def to_code(config):
 
 
 # Actions
-BeginTxAction = ns.class_("BeginTxAction", automation.Action)
-BeginRxAction = ns.class_("BeginRxAction", automation.Action)
-ResetAction = ns.class_("ResetAction", automation.Action)
-SetIdleAction = ns.class_("SetIdleAction", automation.Action)
 SendPacketAction = ns.class_(
     "SendPacketAction", automation.Action, cg.Parented.template(CC1101Component)
 )
@@ -286,14 +360,15 @@ CC1101_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action("cc1101.begin_tx", BeginTxAction, CC1101_ACTION_SCHEMA)
-@automation.register_action("cc1101.begin_rx", BeginRxAction, CC1101_ACTION_SCHEMA)
-@automation.register_action("cc1101.reset", ResetAction, CC1101_ACTION_SCHEMA)
-@automation.register_action("cc1101.set_idle", SetIdleAction, CC1101_ACTION_SCHEMA)
-async def cc1101_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
+for _name, _call in (
+    ("cc1101.begin_tx", "begin_tx()"),
+    ("cc1101.begin_rx", "begin_rx()"),
+    ("cc1101.reset", "reset()"),
+    ("cc1101.set_idle", "set_idle()"),
+):
+    automation.register_apply_action(
+        _name, CC1101_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 
 def validate_raw_data(value):
@@ -316,7 +391,10 @@ SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
 
 
 @automation.register_action(
-    "cc1101.send_packet", SendPacketAction, SEND_PACKET_ACTION_SCHEMA
+    "cc1101.send_packet",
+    SendPacketAction,
+    SEND_PACKET_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def send_packet_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -333,3 +411,43 @@ async def send_packet_action_to_code(config, action_id, template_arg, args):
         arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
         cg.add(var.set_data_static(arr, len(data)))
     return var
+
+
+_CONFIG_VALIDATORS = {opt.schema: validator for opt, validator in CONFIG_MAP.items()}
+
+# Each key has a set_<key> action validated exactly like the config option.
+_SETTER_ACTIONS = (
+    (CONF_FREQUENCY, cg.float_),
+    (CONF_OUTPUT_POWER, cg.float_),
+    (CONF_MODULATION_TYPE, Modulation),
+    (CONF_SYMBOL_RATE, cg.float_),
+    (CONF_RX_ATTENUATION, RxAttenuation),
+    (CONF_DC_BLOCKING_FILTER, cg.bool_),
+    (CONF_MANCHESTER, cg.bool_),
+    (CONF_FILTER_BANDWIDTH, cg.float_),
+    (CONF_FSK_DEVIATION, cg.float_),
+    (CONF_MSK_DEVIATION, cg.uint8),
+    (CONF_CHANNEL, cg.uint8),
+    (CONF_CHANNEL_SPACING, cg.float_),
+    (CONF_IF_FREQUENCY, cg.float_),
+)
+
+
+def _register_setter_actions() -> None:
+    for conf_key, value_type in _SETTER_ACTIONS:
+        automation.register_apply_action(
+            f"cc1101.set_{conf_key}",
+            cv.maybe_simple_value(
+                {
+                    cv.GenerateID(): cv.use_id(CC1101Component),
+                    cv.Required(CONF_VALUE): cv.templatable(
+                        _CONFIG_VALIDATORS[conf_key]
+                    ),
+                },
+                key=CONF_VALUE,
+            ),
+            automation.ApplyField(CONF_VALUE, f"set_{conf_key}", value_type),
+        )
+
+
+_register_setter_actions()

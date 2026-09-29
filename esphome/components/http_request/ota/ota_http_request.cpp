@@ -1,18 +1,15 @@
 #include "ota_http_request.h"
 
+#include <cctype>
+
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
 #include "esphome/components/md5/md5.h"
 #include "esphome/components/watchdog/watchdog.h"
-#include "esphome/components/ota/ota_backend.h"
-#include "esphome/components/ota/ota_backend_esp8266.h"
-#include "esphome/components/ota/ota_backend_arduino_rp2040.h"
-#include "esphome/components/ota/ota_backend_esp_idf.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 static const char *const TAG = "http_request.ota";
 
@@ -67,9 +64,9 @@ void OtaHttpRequestComponent::flash() {
   }
 }
 
-void OtaHttpRequestComponent::cleanup_(std::unique_ptr<ota::OTABackend> backend,
-                                       const std::shared_ptr<HttpContainer> &container) {
-  if (this->update_started_) {
+void OtaHttpRequestComponent::cleanup_(ota::OTABackendPtr backend, const std::shared_ptr<HttpContainer> &container,
+                                       bool abort_backend) {
+  if (abort_backend) {
     ESP_LOGV(TAG, "Aborting OTA backend");
     backend->abort();
   }
@@ -105,13 +102,13 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
 
   // we will compute MD5 on the fly for verification -- Arduino OTA seems to ignore it
   md5_receive.init();
-  ESP_LOGV(TAG, "MD5Digest initialized\n"
-                "OTA backend begin");
+  ESP_LOGV(TAG, "MD5Digest initialized, OTA backend begin");
   auto backend = ota::make_ota_backend();
   auto error_code = backend->begin(container->content_length);
   if (error_code != ota::OTA_RESPONSE_OK) {
     ESP_LOGW(TAG, "backend->begin error: %d", error_code);
-    this->cleanup_(std::move(backend), container);
+    // Nothing to abort: begin() failed, so no OTA handle was opened
+    this->cleanup_(std::move(backend), container, /*abort_backend=*/false);
     return error_code;
   }
 
@@ -133,8 +130,10 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
     auto result = http_read_loop_result(bufsize_or_error, last_data_time, read_timeout, container->is_read_complete());
     if (result == HttpReadLoopResult::RETRY)
       continue;
-    // Note: COMPLETE is currently unreachable since the loop condition checks bytes_read < content_length,
-    // but this is defensive code in case chunked transfer encoding support is added for OTA in the future.
+    // For non-chunked responses, COMPLETE is unreachable (loop condition checks bytes_read < content_length).
+    // For chunked responses, the decoder sets content_length = bytes_read when the final chunk arrives,
+    // which causes the loop condition to terminate. But COMPLETE can still be returned if the decoder
+    // finishes mid-read, so this is needed for correctness.
     if (result == HttpReadLoopResult::COMPLETE)
       break;
     if (result != HttpReadLoopResult::DATA) {
@@ -143,7 +142,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
       } else {
         ESP_LOGE(TAG, "Error reading data: %d", bufsize_or_error);
       }
-      this->cleanup_(std::move(backend), container);
+      this->cleanup_(std::move(backend), container, /*abort_backend=*/true);
       return OTA_CONNECTION_ERROR;
     }
 
@@ -153,14 +152,13 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
       md5_receive.add(buf, bufsize_or_error);
 
       // write bytes to OTA backend
-      this->update_started_ = true;
       error_code = backend->write(buf, bufsize_or_error);
       if (error_code != ota::OTA_RESPONSE_OK) {
         // error code explanation available at
         // https://github.com/esphome/esphome/blob/dev/esphome/components/ota/ota_backend.h
         ESP_LOGE(TAG, "Error code (%02X) writing binary data to flash at offset %d and size %d", error_code,
                  container->get_bytes_read() - bufsize_or_error, container->content_length);
-        this->cleanup_(std::move(backend), container);
+        this->cleanup_(std::move(backend), container, /*abort_backend=*/true);
         return error_code;
       }
     }
@@ -184,7 +182,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   this->md5_computed_ = md5_receive_str;
   if (strncmp(this->md5_computed_.c_str(), this->md5_expected_.c_str(), MD5_SIZE) != 0) {
     ESP_LOGE(TAG, "MD5 computed: %s - Aborting due to MD5 mismatch", this->md5_computed_.c_str());
-    this->cleanup_(std::move(backend), container);
+    this->cleanup_(std::move(backend), container, /*abort_backend=*/true);
     return ota::OTA_RESPONSE_ERROR_MD5_MISMATCH;
   } else {
     backend->set_update_md5(md5_receive_str);
@@ -200,13 +198,33 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   error_code = backend->end();
   if (error_code != ota::OTA_RESPONSE_OK) {
     ESP_LOGW(TAG, "Error ending update! error_code: %d", error_code);
-    this->cleanup_(std::move(backend), container);
+    this->cleanup_(std::move(backend), container, /*abort_backend=*/true);
     return error_code;
   }
 
   ESP_LOGI(TAG, "Update complete");
   return ota::OTA_RESPONSE_OK;
 }
+
+// URL-encode characters that are not unreserved per RFC 3986 section 2.3.
+// This is needed for embedding userinfo (username/password) in URLs safely.
+static std::string url_encode(const std::string &str) {
+  std::string result;
+  result.reserve(str.size());
+  for (char c : str) {
+    if (std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' || c == '.' || c == '~') {
+      result += c;
+    } else {
+      result += '%';
+      result += format_hex_pretty_char((static_cast<uint8_t>(c) >> 4) & 0x0F);
+      result += format_hex_pretty_char(static_cast<uint8_t>(c) & 0x0F);
+    }
+  }
+  return result;
+}
+
+void OtaHttpRequestComponent::set_password(const std::string &password) { this->password_ = url_encode(password); }
+void OtaHttpRequestComponent::set_username(const std::string &username) { this->username_ = url_encode(username); }
 
 std::string OtaHttpRequestComponent::get_url_with_auth_(const std::string &url) {
   if (this->username_.empty() || this->password_.empty()) {
@@ -279,5 +297,4 @@ bool OtaHttpRequestComponent::validate_url_(const std::string &url) {
   return true;
 }
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request

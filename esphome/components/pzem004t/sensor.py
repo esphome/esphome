@@ -18,6 +18,7 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 
@@ -58,25 +59,18 @@ CONFIG_SCHEMA = (
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "pzem004t", baud_rate=9600, require_rx=True, require_tx=True
+)
 
-async def to_code(config):
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if CONF_VOLTAGE in config:
-        conf = config[CONF_VOLTAGE]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_voltage_sensor(sens))
-    if CONF_CURRENT in config:
-        conf = config[CONF_CURRENT]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_current_sensor(sens))
-    if CONF_POWER in config:
-        conf = config[CONF_POWER]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_power_sensor(sens))
-    if CONF_ENERGY in config:
-        conf = config[CONF_ENERGY]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_energy_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)
+    await sensors(CONF_ENERGY, var.set_energy_sensor)

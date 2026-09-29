@@ -3,8 +3,7 @@
 #include <cstdint>
 #include <cstddef>
 
-namespace esphome {
-namespace xxtea {
+namespace esphome::xxtea {
 
 /**
  * Encrypt a block of data in-place using XXTEA algorithm with 256-bit key
@@ -22,5 +21,4 @@ void encrypt(uint32_t *v, size_t n, const uint32_t *k);
  */
 void decrypt(uint32_t *v, size_t n, const uint32_t *k);
 
-}  // namespace xxtea
-}  // namespace esphome
+}  // namespace esphome::xxtea

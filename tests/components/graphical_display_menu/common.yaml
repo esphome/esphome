@@ -1,6 +1,7 @@
 display:
   - platform: ssd1306_i2c
-    id: ssd1306_i2c_display
+    i2c_id: i2c_bus
+    id: graphical_display_menu_ssd1306_i2c_display
     model: SSD1306_128X64
     reset_pin: ${reset_pin}
     pages:
@@ -10,12 +11,12 @@ display:
 
 font:
   - file: "gfonts://Roboto"
-    id: roboto
+    id: graphical_display_menu_roboto
     size: 20
 
 number:
   - platform: template
-    id: test_number
+    id: graphical_display_menu_test_number
     min_value: 0
     step: 1
     max_value: 10
@@ -31,13 +32,13 @@ select:
 
 switch:
   - platform: template
-    id: test_switch
+    id: graphical_display_menu_test_switch
     optimistic: true
 
 graphical_display_menu:
   id: test_graphical_display_menu
-  display: ssd1306_i2c_display
-  font: roboto
+  display: graphical_display_menu_ssd1306_i2c_display
+  font: graphical_display_menu_roboto
   active: false
   mode: rotary
   on_enter:
@@ -80,7 +81,7 @@ graphical_display_menu:
           lambda: 'ESP_LOGI("graphical_display_menu", "select value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
     - type: number
       text: "Number"
-      number: test_number
+      number: graphical_display_menu_test_number
       on_enter:
         then:
           lambda: 'ESP_LOGI("graphical_display_menu", "number enter: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
@@ -97,7 +98,7 @@ graphical_display_menu:
           - display_menu.hide: test_graphical_display_menu
     - type: switch
       text: "Switch"
-      switch: test_switch
+      switch: graphical_display_menu_test_switch
       on_text: "Bright"
       off_text: "Dark"
       immediate_edit: false

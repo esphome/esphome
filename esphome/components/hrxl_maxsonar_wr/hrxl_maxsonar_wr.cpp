@@ -9,8 +9,7 @@
 #include "hrxl_maxsonar_wr.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace hrxl_maxsonar_wr {
+namespace esphome::hrxl_maxsonar_wr {
 
 static const char *const TAG = "hrxl.maxsonar.wr.sensor";
 static const uint8_t ASCII_CR = 0x0D;
@@ -56,7 +55,7 @@ void HrxlMaxsonarWrComponent::check_buffer_() {
         millimeters = millimeters * 10;
       }
 
-      float meters = float(millimeters) / 1000.0;
+      float meters = float(millimeters) / 1000.0f;
       ESP_LOGV(TAG, "Distance from sensor: %d mm, %f m", millimeters, meters);
       this->publish_state(meters);
     } else {
@@ -69,9 +68,6 @@ void HrxlMaxsonarWrComponent::check_buffer_() {
 void HrxlMaxsonarWrComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HRXL MaxSonar WR Sensor:");
   LOG_SENSOR("  ", "Distance", this);
-  // As specified in the sensor's data sheet
-  this->check_uart_settings(9600, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
 }
 
-}  // namespace hrxl_maxsonar_wr
-}  // namespace esphome
+}  // namespace esphome::hrxl_maxsonar_wr

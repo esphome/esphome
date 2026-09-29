@@ -1,3 +1,5 @@
 modbus:
   id: mod_bus1
   flow_control_pin: ${flow_control_pin}
+  send_wait_time: 500ms
+  turnaround_time: 100ms

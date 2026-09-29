@@ -2,10 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
-namespace esphome {
-namespace xiaomi_lywsd03mmc {
+namespace esphome::xiaomi_lywsd03mmc {
 
 static const char *const TAG = "xiaomi_lywsd03mmc";
 
@@ -22,7 +19,7 @@ void XiaomiLYWSD03MMC::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
-bool XiaomiLYWSD03MMC::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiLYWSD03MMC::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -50,7 +47,7 @@ bool XiaomiLYWSD03MMC::parse_device(const esp32_ble_tracker::ESPBTDevice &device
     }
     if (res->humidity.has_value() && this->humidity_ != nullptr) {
       // see https://github.com/custom-components/sensor.mitemp_bt/issues/7#issuecomment-595948254
-      *res->humidity = trunc(*res->humidity);
+      *res->humidity = truncf(*res->humidity);
     }
     if (!(xiaomi_ble::report_xiaomi_results(res, addr_str))) {
       continue;
@@ -69,7 +66,4 @@ bool XiaomiLYWSD03MMC::parse_device(const esp32_ble_tracker::ESPBTDevice &device
 
 void XiaomiLYWSD03MMC::set_bindkey(const char *bindkey) { parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_)); }
 
-}  // namespace xiaomi_lywsd03mmc
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::xiaomi_lywsd03mmc

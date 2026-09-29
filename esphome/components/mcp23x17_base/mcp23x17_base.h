@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace mcp23x17_base {
+namespace esphome::mcp23x17_base {
 
 enum MCP23X17GPIORegisters {
   // A side
@@ -53,5 +52,4 @@ class MCP23X17Base : public mcp23xxx_base::MCP23XXXBase<16> {
   uint16_t input_mask_{0x00};
 };
 
-}  // namespace mcp23x17_base
-}  // namespace esphome
+}  // namespace esphome::mcp23x17_base

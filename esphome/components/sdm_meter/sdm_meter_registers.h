@@ -1,7 +1,6 @@
 #pragma once
 
-namespace esphome {
-namespace sdm_meter {
+namespace esphome::sdm_meter {
 
 /* PHASE STATUS REGISTERS */
 static const uint16_t SDM_PHASE_1_VOLTAGE = 0x0000;
@@ -110,5 +109,4 @@ static const uint16_t SDM_CURRENT_RESETTABLE_EXPORT_ENERGY = 0x0186;
 static const uint16_t SDM_IMPORT_POWER = 0x0500;
 static const uint16_t SDM_EXPORT_POWER = 0x0502;
 
-}  // namespace sdm_meter
-}  // namespace esphome
+}  // namespace esphome::sdm_meter

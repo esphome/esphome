@@ -10,13 +10,15 @@
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
 #include <WiFiUdp.h>
 #endif
+#include <array>
 #include <initializer_list>
+#include <span>
 #include <vector>
 
 namespace esphome::udp {
 
 static const size_t MAX_PACKET_SIZE = 508;
-class UDPComponent : public Component {
+class UDPComponent final : public Component {
  public:
   void set_addresses(std::initializer_list<const char *> addresses) { this->addresses_ = addresses; }
   /// Prevent accidental use of std::string which would dangle
@@ -26,10 +28,7 @@ class UDPComponent : public Component {
   void set_broadcast_port(uint16_t port) { this->broadcast_port_ = port; }
   void set_should_broadcast(bool should_broadcast = true) { this->should_broadcast_ = should_broadcast; }
   void set_should_listen(bool should_listen = true);
-
-  void add_listener(std::function<void(std::vector<uint8_t> &)> &&listener) {
-    this->packet_listeners_.add(std::move(listener));
-  }
+  template<typename F> void add_listener(F &&listener) { this->packet_listeners_.add(std::forward<F>(listener)); }
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -42,7 +41,7 @@ class UDPComponent : public Component {
   uint16_t broadcast_port_{};
   bool should_broadcast_{};
   bool should_listen_{};
-  LazyCallbackManager<void(std::vector<uint8_t> &)> packet_listeners_{};
+  LazyCallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
 
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   std::unique_ptr<socket::Socket> broadcast_socket_ = nullptr;

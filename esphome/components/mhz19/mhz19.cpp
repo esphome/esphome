@@ -16,6 +16,7 @@ static const uint8_t MHZ19_COMMAND_DETECTION_RANGE_0_2000PPM[] = {0xFF, 0x01, 0x
 static const uint8_t MHZ19_COMMAND_DETECTION_RANGE_0_5000PPM[] = {0xFF, 0x01, 0x99, 0x00, 0x00, 0x00, 0x13, 0x88};
 static const uint8_t MHZ19_COMMAND_DETECTION_RANGE_0_10000PPM[] = {0xFF, 0x01, 0x99, 0x00, 0x00, 0x00, 0x27, 0x10};
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
 static const LogString *detection_range_to_log_string(MHZ19DetectionRange range) {
   switch (range) {
     case MHZ19_DETECTION_RANGE_0_2000PPM:
@@ -28,6 +29,7 @@ static const LogString *detection_range_to_log_string(MHZ19DetectionRange range)
       return LOG_STR("default");
   }
 }
+#endif
 
 uint8_t mhz19_checksum(const uint8_t *command) {
   uint8_t sum = 0;
@@ -137,14 +139,10 @@ bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *respo
   return this->read_array(response, MHZ19_RESPONSE_LENGTH);
 }
 
-float MHZ19Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void MHZ19Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MH-Z19:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  this->check_uart_settings(9600);
-
   if (this->abc_boot_logic_ == MHZ19_ABC_ENABLED) {
     ESP_LOGCONFIG(TAG, "  Automatic baseline calibration enabled on boot");
   } else if (this->abc_boot_logic_ == MHZ19_ABC_DISABLED) {
