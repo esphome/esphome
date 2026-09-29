@@ -25,7 +25,7 @@ KeeLoq Protocol
 
 Coded using information from datasheet for Microchip HCS301 KeeLow Code Hopping Encoder
 
-Encoder - Hopping code is generated at random unless provided by the caller.
+Encoder - Hopping code is not generated. Send the encrypted field from the caller.
 Optional suffix bits may follow the 66-bit HCS301 word (same PWM coding).
 
 Decoder - Hopping code is ignored and not checked when received. Serial number of
