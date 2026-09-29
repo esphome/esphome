@@ -4,6 +4,8 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <optional>
+#include <string>
 
 #include "esphome/components/exponential_moving_average/exponential_moving_average_sensor.h"
 #include "esphome/components/host/preferences.h"
@@ -21,12 +23,24 @@ class TestableExponentialMovingAverageSensor : public ExponentialMovingAverageSe
 class ExponentialMovingAverageTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    if (const char *prefdir = getenv("ESPHOME_PREFDIR"); prefdir != nullptr)
+      this->saved_prefdir_ = prefdir;
     // Keep preferences away from the user's home directory.
     setenv("ESPHOME_PREFDIR", std::filesystem::temp_directory_path().c_str(), 1);
     host::setup_preferences();
     global_preferences->reset();
   }
 
+  void TearDown() override {
+    global_preferences->reset();
+    if (this->saved_prefdir_.has_value()) {
+      setenv("ESPHOME_PREFDIR", this->saved_prefdir_->c_str(), 1);
+    } else {
+      unsetenv("ESPHOME_PREFDIR");
+    }
+  }
+
+  std::optional<std::string> saved_prefdir_;
   sensor::Sensor source_;
 };
 

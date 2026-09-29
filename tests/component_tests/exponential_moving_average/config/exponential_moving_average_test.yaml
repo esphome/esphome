@@ -32,3 +32,9 @@ sensor:
     sensor: source_sensor
     time_constant: 5min
     restore: false
+  - platform: exponential_moving_average
+    id: ema_linear
+    name: EMA Linear
+    sensor: source_sensor
+    time_constant: 30s
+    time_weighting: linear

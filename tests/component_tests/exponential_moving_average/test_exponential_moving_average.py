@@ -49,18 +49,34 @@ def test_time_constant_replaces_alpha(
     assert "ema_time_constant->set_time_constant(300000);" in main_cpp
     assert "ema_time_constant->set_alpha" not in main_cpp
     assert "ema_time_constant->set_restore(false);" in main_cpp
+    assert "ema_time_constant->set_time_weighting" not in main_cpp
+
+
+def test_time_weighting(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(
+        component_config_path("exponential_moving_average_test.yaml")
+    )
+
+    assert "ema_linear->set_time_constant(30000);" in main_cpp
+    assert (
+        "ema_linear->set_time_weighting(exponential_moving_average::TIME_WEIGHTING_LINEAR);"
+        in main_cpp
+    )
 
 
 def test_properties_inherited_from_source(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """Unset properties come from the source sensor; set ones are kept."""
+    """Unset properties come from the source sensor, with one extra decimal; set ones are kept."""
     main_cpp = generate_main(
         component_config_path("exponential_moving_average_test.yaml")
     )
 
-    assert "ema_default->set_accuracy_decimals(1);" in main_cpp
+    assert "ema_default->set_accuracy_decimals(2);" in main_cpp
     assert "ema_alpha->set_accuracy_decimals(3);" in main_cpp
     default_line = next(
         line for line in main_cpp.splitlines() if '"EMA Default"' in line
@@ -108,3 +124,43 @@ def test_alpha_in_range(alpha: float) -> None:
     )
 
     assert config["alpha"] == alpha
+
+
+def test_time_weighting_requires_time_constant() -> None:
+    with pytest.raises(cv.Invalid, match="can only be used with 'time_constant'"):
+        CONFIG_SCHEMA(
+            {
+                "id": "ema",
+                "name": "EMA",
+                "sensor": "source",
+                "time_weighting": "previous",
+            }
+        )
+
+
+@pytest.mark.parametrize("weighting", ["new", "previous", "linear", "LINEAR"])
+def test_time_weighting_values(weighting: str) -> None:
+    config = CONFIG_SCHEMA(
+        {
+            "id": "ema",
+            "name": "EMA",
+            "sensor": "source",
+            "time_constant": "1min",
+            "time_weighting": weighting,
+        }
+    )
+
+    assert config["time_weighting"] == weighting.lower()
+
+
+def test_time_weighting_rejects_unknown_value() -> None:
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA(
+            {
+                "id": "ema",
+                "name": "EMA",
+                "sensor": "source",
+                "time_constant": "1min",
+                "time_weighting": "trapezoid",
+            }
+        )

@@ -22,7 +22,31 @@ ExponentialMovingAverageSensor = exponential_moving_average_ns.class_(
     "ExponentialMovingAverageSensor", sensor.Sensor, cg.Component
 )
 
-DEFAULT_ALPHA = 0.1
+TimeWeighting = exponential_moving_average_ns.enum("TimeWeighting")
+TIME_WEIGHTINGS: dict[str, cg.MockObj] = {
+    "new": TimeWeighting.TIME_WEIGHTING_NEW,
+    "previous": TimeWeighting.TIME_WEIGHTING_PREVIOUS,
+    "linear": TimeWeighting.TIME_WEIGHTING_LINEAR,
+}
+
+CONF_TIME_WEIGHTING: str = "time_weighting"
+
+DEFAULT_ALPHA: float = 0.1
+
+
+def inherit_accuracy_decimals(decimals: int, config: ConfigType) -> int:
+    # An average carries more precision than the individual readings.
+    return decimals + 1
+
+
+def validate_time_weighting(config: ConfigType) -> ConfigType:
+    if CONF_TIME_WEIGHTING in config and CONF_TIME_CONSTANT not in config:
+        raise cv.Invalid(
+            f"'{CONF_TIME_WEIGHTING}' can only be used with '{CONF_TIME_CONSTANT}'",
+            path=[CONF_TIME_WEIGHTING],
+        )
+    return config
+
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(ExponentialMovingAverageSensor)
@@ -33,11 +57,13 @@ CONFIG_SCHEMA = cv.All(
                 cv.float_, cv.Range(min=0, min_included=False, max=1)
             ),
             cv.Optional(CONF_TIME_CONSTANT): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_TIME_WEIGHTING): cv.enum(TIME_WEIGHTINGS, lower=True),
             cv.Optional(CONF_RESTORE, default=True): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
     cv.has_at_most_one_key(CONF_ALPHA, CONF_TIME_CONSTANT),
+    validate_time_weighting,
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(
@@ -55,7 +81,9 @@ FINAL_VALIDATE_SCHEMA = cv.All(
     ),
     inherit_property_from(CONF_ICON, CONF_SENSOR),
     inherit_property_from(CONF_UNIT_OF_MEASUREMENT, CONF_SENSOR),
-    inherit_property_from(CONF_ACCURACY_DECIMALS, CONF_SENSOR),
+    inherit_property_from(
+        CONF_ACCURACY_DECIMALS, CONF_SENSOR, transform=inherit_accuracy_decimals
+    ),
     inherit_property_from(CONF_DEVICE_CLASS, CONF_SENSOR),
     inherit_property_from(CONF_STATE_CLASS, CONF_SENSOR),
 )
@@ -69,6 +97,8 @@ async def to_code(config: ConfigType) -> None:
 
     if (time_constant := config.get(CONF_TIME_CONSTANT)) is not None:
         cg.add(var.set_time_constant(time_constant))
+        if (weighting := config.get(CONF_TIME_WEIGHTING)) is not None:
+            cg.add(var.set_time_weighting(weighting))
     else:
         cg.add(var.set_alpha(config.get(CONF_ALPHA, DEFAULT_ALPHA)))
     cg.add(var.set_restore(config[CONF_RESTORE]))

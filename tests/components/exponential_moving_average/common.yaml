@@ -15,6 +15,7 @@ sensor:
     name: EMA Time Constant
     sensor: ema_source
     time_constant: 5min
+    time_weighting: previous
     restore: false
 
 button:
