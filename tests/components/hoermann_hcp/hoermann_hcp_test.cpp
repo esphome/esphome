@@ -656,7 +656,6 @@ TEST(HoermannHcpPosition, NewPositionWhileMovingStopsTheDoor) {
   EXPECT_EQ(poll_command(door).first, 0x0000);
 }
 
-// A door that never starts has to lose the target, otherwise it would cut a later move short.
 // A target outlives a start reported late, as long as it comes within the start window.
 TEST(HoermannHcpPosition, TargetSurvivesALateStart) {
   TestableHoermannHcp door;
@@ -673,6 +672,7 @@ TEST(HoermannHcpPosition, TargetSurvivesALateStart) {
   EXPECT_EQ(poll_command(door).first, 0x0140);  // COMMAND_IMPULSE
 }
 
+// A door that never starts has to lose the target, otherwise it would cut a later move short.
 TEST(HoermannHcpPosition, TargetIsDroppedWhenTheDoorNeverStarts) {
   TestableHoermannHcp door;
   door.connection_timeout_ms_ = 200;
