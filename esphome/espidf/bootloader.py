@@ -298,8 +298,11 @@ def _publish(build_dir: Path, key: str, payload: dict) -> Path:
 
 def _remove_dir(path: Path) -> None:
     """Best-effort rmtree with the repo's read-only and retry hardening."""
-    with contextlib.suppress(OSError):
+    try:
         rmtree(path)
+    except OSError as err:
+        # Leftovers are cleared by the daily prune; just leave a trace.
+        _LOGGER.debug("Could not remove %s: %s", path, err)
 
 
 def _install_into_build(entry: Path) -> Path:

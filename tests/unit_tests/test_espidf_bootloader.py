@@ -707,6 +707,18 @@ def test_prune_removes_only_old_work_dirs(tmp_path: Path) -> None:
     assert fresh.exists()
 
 
+def test_remove_dir_logs_a_failed_delete(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Best-effort cleanup never raises, but leaves a trace."""
+    with (
+        patch.object(bootloader, "rmtree", side_effect=OSError("busy")),
+        caplog.at_level("DEBUG"),
+    ):
+        bootloader._remove_dir(tmp_path)
+    assert "Could not remove" in caplog.text
+
+
 def test_prune_swallows_cache_root_errors() -> None:
     """Housekeeping never fails a build."""
     with patch.object(bootloader, "_cache_root", side_effect=OSError("gone")):
