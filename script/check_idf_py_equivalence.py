@@ -50,6 +50,10 @@ def _ninja_logs(build_path: Path) -> list[str]:
 
 
 BOOTLOADER_BYPRODUCT = re.compile(r"(^|/build/)bootloader/")
+MACRO_CHANGED = (
+    "IDF changed __build_process_project_includes; update "
+    "IDF_BOOTLOADER_OVERRIDE in esphome/build_gen/espidf.py"
+)
 WORK_SUFFIXES = (".obj", ".o", ".a", ".elf", ".map", ".bin", ".ld")
 DEFAULT_GLOB = "tests/test_build_components/build/.esphome/build/*"
 
@@ -123,12 +127,7 @@ def check(build_path: Path) -> list[str]:
     )
     name, version = _setup_core(build_path, description)
     if not idf_macro_matches():
-        return [
-            (
-                "IDF changed __build_process_project_includes; update "
-                "IDF_BOOTLOADER_OVERRIDE in esphome/build_gen/espidf.py"
-            )
-        ]
+        return [MACRO_CHANGED]
     env = toolchain._get_idf_env(version)
     python = toolchain._get_idf_tool("python")
     idf_py = toolchain._get_idf_path(version) / "tools" / "idf.py"

@@ -199,14 +199,13 @@ def _key(
     compiler: str = "/tc/gcc",
     version: str = "5.5.5",
 ) -> str:
-    from esphome.espidf import framework
-
     with (
         patch.object(toolchain, "_get_core_framework_version", return_value=version),
         patch.object(toolchain, "_get_framework_source_override", return_value=None),
-        patch.object(framework, "read_idf_version_txt", return_value="v5.5.5"),
     ):
-        return bootloader._compute_key(bootloader._key_payload(names, config, compiler))
+        return bootloader._compute_key(
+            bootloader._key_payload(names, config, compiler, "v5.5.5")
+        )
 
 
 def test_key_is_stable_and_name_order_independent() -> None:
@@ -434,18 +433,18 @@ def test_size_check_passes_and_logs(
 ) -> None:
     bin_path = tmp_path / "bootloader.bin"
     bin_path.write_bytes(b"\xe9" * 0x6620)
-    config = {"BOOTLOADER_OFFSET_IN_FLASH": 0x1000, "PARTITION_TABLE_OFFSET": 0x8000}
+    config = {"PARTITION_TABLE_OFFSET": 0x8000}
     with caplog.at_level("INFO"):
-        bootloader._check_bootloader_size(bin_path, config)
+        bootloader._check_bootloader_size(bin_path, 0x1000, config)
     assert "0x9e0 bytes (9%) free" in caplog.text
 
 
 def test_size_check_overflow_raises(tmp_path: Path) -> None:
     bin_path = tmp_path / "bootloader.bin"
     bin_path.write_bytes(b"\xe9" * 0x7100)
-    config = {"BOOTLOADER_OFFSET_IN_FLASH": 0x1000, "PARTITION_TABLE_OFFSET": 0x8000}
+    config = {"PARTITION_TABLE_OFFSET": 0x8000}
     with pytest.raises(EsphomeError, match="overflows by 0x100 bytes"):
-        bootloader._check_bootloader_size(bin_path, config)
+        bootloader._check_bootloader_size(bin_path, 0x1000, config)
 
 
 # ------------------------------------------------------------ orchestration

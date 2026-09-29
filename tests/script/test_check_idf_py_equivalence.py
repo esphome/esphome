@@ -238,12 +238,7 @@ def test_check_fails_loudly_when_the_idf_macro_changed(tmp_path: Path) -> None:
     """An IDF bump that rewrites the overridden macro must fail CI."""
     tree = _make_tree(tmp_path)
     problems, calls = _run_check(tree, macro_matches=False)
-    assert problems == [
-        (
-            "IDF changed __build_process_project_includes; update "
-            "IDF_BOOTLOADER_OVERRIDE in esphome/build_gen/espidf.py"
-        )
-    ]
+    assert problems == [guard.MACRO_CHANGED]
     assert calls == []
 
 

@@ -24,9 +24,9 @@ import time
 from esphome.build_helpers.ccache import parse_enable_env
 from esphome.build_helpers.tool_runner import run_build_tool
 from esphome.core import CORE, EsphomeError
-from esphome.espidf import toolchain
+from esphome.espidf import framework, toolchain
 from esphome.framework_helpers import _rename_with_retry
-from esphome.helpers import read_json_file, rmtree, write_file
+from esphome.helpers import file_compare, read_json_file, rmtree, write_file
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,9 +64,7 @@ def _compute_enabled() -> bool:
         if CORE.relative_build_path("bootloader_components").exists():
             # Project-local bootloader overrides are inputs the key can't see.
             return False
-        from esphome.espidf.framework import get_idf_tools_path
-
-        if not os.access(get_idf_tools_path(), os.W_OK):
+        if not os.access(framework.get_idf_tools_path(), os.W_OK):
             # A read-only shared prefix would fail the cache on every build.
             return False
         from esphome.build_gen.espidf import idf_macro_matches
@@ -114,10 +112,8 @@ def tree_uses_cached_bootloader(build_dir: Path) -> bool:
 
 
 def _cache_root() -> Path:
-    from esphome.espidf.framework import get_idf_tools_path
-
     return (
-        get_idf_tools_path()
+        framework.get_idf_tools_path()
         / "bootloaders"
         / toolchain._get_core_framework_version()
         / toolchain._idf_target()
@@ -198,15 +194,13 @@ def _subproject_cmake_args(
     return args
 
 
-def _key_payload(names: list[str], app_config: dict, compiler: str) -> dict:
+def _key_payload(names: list[str], app_config: dict, compiler: str, stamp: str) -> dict:
     """Everything that can influence the built bootloader."""
-    from esphome.espidf.framework import read_idf_version_txt
-
     return {
         "schema": _CACHE_SCHEMA,
         "idf": toolchain._get_core_framework_version(),
         "source": toolchain._get_framework_source_override() or "",
-        "stamp": read_idf_version_txt(toolchain._get_idf_path()),
+        "stamp": stamp,
         "target": toolchain._idf_target(),
         "compiler": compiler,
         # Placeholder paths: any change to the invocation shape misses.
@@ -263,6 +257,7 @@ def _publish(build_dir: Path, key: str, payload: dict) -> Path:
     stage = _work_dir(f".stage-{key}-")
     for name in _OUTPUTS:
         shutil.copy2(build_dir / name, stage / name)
+    # The resolved bootloader config, kept for debugging entries.
     shutil.copy2(build_dir / "config" / "sdkconfig.json", stage / "sdkconfig.json")
     write_file(stage / "meta.json", json.dumps(payload, indent=2, sort_keys=True))
     stage.chmod(0o755)  # mkdtemp creates 0o700
@@ -295,14 +290,15 @@ def _install_into_build(entry: Path) -> Path:
     return dest
 
 
-def _bootloader_offset(app_config: dict) -> int:
-    """The flash offset the bootloader is written to; callers check presence."""
+def _bootloader_offset(app_config: dict | None) -> int | None:
+    """The flash offset the bootloader is written to, or None when unknown."""
+    if app_config is None or "BOOTLOADER_OFFSET_IN_FLASH" not in app_config:
+        return None
     return int(app_config["BOOTLOADER_OFFSET_IN_FLASH"])
 
 
-def _check_bootloader_size(bin_path: Path, app_config: dict) -> None:
+def _check_bootloader_size(bin_path: Path, offset: int, app_config: dict) -> None:
     """The check_sizes.py bootloader check, without spawning a process."""
-    offset = _bootloader_offset(app_config)
     table_offset = int(app_config.get("PARTITION_TABLE_OFFSET", 0x8000))
     size = bin_path.stat().st_size
     free = table_offset - offset - size
@@ -336,12 +332,9 @@ def ensure_cached_bootloader(verbose: bool = False) -> bool:
     bootloader raises instead, since in-tree would fail the same way.
     """
     app_config = toolchain._load_sdkconfig_json(toolchain._build_dir())
+    offset = _bootloader_offset(app_config)
     compiler = toolchain._resolved_c_compiler()
-    if (
-        app_config is None
-        or "BOOTLOADER_OFFSET_IN_FLASH" not in app_config
-        or compiler is None
-    ):
+    if offset is None or compiler is None:
         _LOGGER.debug("Bootloader cache unusable: app configure outputs missing")
         return False
     try:
@@ -352,20 +345,20 @@ def ensure_cached_bootloader(verbose: bool = False) -> bool:
     if dest is None:
         return False
     # Outside the fail-safe net: the in-tree build would overflow the same way.
-    _check_bootloader_size(dest / "bootloader.bin", app_config)
+    _check_bootloader_size(dest / "bootloader.bin", offset, app_config)
     return True
 
 
 def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | None:
     """The installed build/bootloader dir, building and publishing on a miss;
     None means fall back to the in-tree build."""
-    from esphome.espidf.framework import read_idf_version_txt
-
-    if not read_idf_version_txt(toolchain._get_idf_path()):
+    if not (stamp := framework.read_idf_version_txt(toolchain._get_idf_path())):
         _LOGGER.debug("Framework version.txt missing; cannot key the bootloader")
         return None
     if (names := _load_config_names()) is not None:
-        entry = _cache_root() / _compute_key(_key_payload(names, app_config, compiler))
+        entry = _cache_root() / _compute_key(
+            _key_payload(names, app_config, compiler, stamp)
+        )
         if (entry / "bootloader.bin").is_file():
             return _install_into_build(entry)
     tmp = _work_dir(".build-")
@@ -381,13 +374,11 @@ def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | No
         # future, fail here instead of being served stale.
         if _build_standalone(probe, verbose) != 0:
             return None
-        if (tmp / "bootloader.bin").read_bytes() != (
-            probe / "bootloader.bin"
-        ).read_bytes():
+        if not file_compare(tmp / "bootloader.bin", probe / "bootloader.bin"):
             _LOGGER.info("Bootloader build is not byte reproducible; not caching")
             return None
         names = _merge_config_names(built_config)
-        payload = _key_payload(names, app_config, compiler)
+        payload = _key_payload(names, app_config, compiler, stamp)
         key = _compute_key(payload)
         entry = _publish(tmp, key, payload)
         _LOGGER.info("Cached bootloader %s for later builds", key)
@@ -408,14 +399,9 @@ def inject_bootloader_flash_file(flash_data: dict, build_dir: Path) -> bool:
     """
     if not tree_uses_cached_bootloader(build_dir):
         return True
-    app_config = toolchain._load_sdkconfig_json(build_dir)
-    if (
-        app_config is None
-        or "BOOTLOADER_OFFSET_IN_FLASH" not in app_config
-        or not (build_dir / "bootloader" / "bootloader.bin").is_file()
-    ):
+    offset = _bootloader_offset(toolchain._load_sdkconfig_json(build_dir))
+    if offset is None or not (build_dir / "bootloader" / "bootloader.bin").is_file():
         _LOGGER.error("Cached bootloader missing; factory image has no bootloader")
         return False
-    flash_files = flash_data.setdefault("flash_files", {})
-    flash_files[hex(_bootloader_offset(app_config))] = "bootloader/bootloader.bin"
+    flash_data.setdefault("flash_files", {})[hex(offset)] = "bootloader/bootloader.bin"
     return True
