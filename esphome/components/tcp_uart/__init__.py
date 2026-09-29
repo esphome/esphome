@@ -1,6 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor, socket, uart
-from esphome.components.const import CONF_DATA_BITS, CONF_HOST, CONF_PARITY, CONF_STOP_BITS
+from esphome.components.const import (
+    CONF_DATA_BITS,
+    CONF_HOST,
+    CONF_PARITY,
+    CONF_STOP_BITS,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
