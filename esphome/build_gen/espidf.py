@@ -311,7 +311,7 @@ def _pch_cmake_block() -> str:
     # Before the first configure only CMake knows the compiler version
     return f"""
 # ESPHome precompiled header, unless GCC bug 14940 keeps it from loading
-if({pch.PCH_WINDOWS_CMAKE_OLD_GCC})
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND ({pch.PCH_WINDOWS_CMAKE_OLD_GCC}))
   message(STATUS "ESPHome: GCC ${{CMAKE_CXX_COMPILER_VERSION}} cannot load a precompiled header on Windows; compiling without it")
   set({_PCH_CHOICE_VAR} OFF CACHE BOOL "ESPHome precompiled header in use" FORCE)
 else()

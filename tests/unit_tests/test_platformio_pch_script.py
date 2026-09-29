@@ -81,7 +81,9 @@ def _fake_cxx(tmp_path: Path, fail: bool = False) -> Path:
         'case "$1" in -print-prog-name=*) n=${1#*=};'
         ' p="$(dirname "$0")/../libexec/gcc/arm-none-eabi/10.3.1/$n";'
         ' [ -x "$p" ] && echo "$p" || echo "$n"; exit 0;;'
-        ' -dumpversion|-dumpfullversion) echo "${FAKE_GCC_VERSION:-10.3.1}"; exit 0;; esac\n'
+        ' -dumpversion) echo "${FAKE_GCC_VERSION:-10.3.1}"; exit 0;;'
+        ' --version) echo "${FAKE_GCC_BANNER:-fake-g++ (test) ${FAKE_GCC_VERSION:-10.3.1}}";'
+        " exit 0;; esac\n"
         'printf -- ---call---\\\\n >> "$0.argv"; printf \'%s\\n\' "$@" >> "$0.argv"\n'
     )
     if fail:
@@ -302,6 +304,16 @@ def test_pch_script_asks_the_compiler_on_windows(
     assert (tmp_path / "dev" / "esphome_pch.h.gch").is_file() is on
     out = capsys.readouterr().out
     assert ("cannot load a precompiled header on Windows" in out) is not on
+
+
+def test_pch_script_spares_another_compiler_the_gcc_rule(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys, "platform", "win32")
+    scons_env = _run_script(
+        tmp_path, env_vars={"FAKE_GCC_BANNER": "clang version 15.0.0"}
+    )
+    assert scons_env.prepended == pch.pch_consumer_flags()
 
 
 def test_pch_script_leaves_the_header_off_when_the_compiler_cannot_run(
