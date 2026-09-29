@@ -25,7 +25,14 @@ static void format_ipv4(uint32_t raw, char *dest, size_t dest_len) {
   ip_addr_set_ip4_u32(&addr, raw);
   char buf[network::IP_ADDRESS_BUFFER_SIZE];
   network::IPAddress(&addr).str_to(buf);
-  snprintf(dest, dest_len, "%s", buf);
+  size_t n = 0;
+  while (n + 1 < dest_len && buf[n] != '\0') {
+    dest[n] = buf[n];
+    ++n;
+  }
+  if (dest_len > 0) {
+    dest[n] = '\0';
+  }
 }
 #endif
 
