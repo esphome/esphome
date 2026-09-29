@@ -1,8 +1,6 @@
 #include "codec.h"
 
-namespace esphome {
-namespace bthome {
-namespace codec {
+namespace esphome::bthome::codec {
 
 constexpr uint8_t INFO_ENCRYPTED = 0x01;
 constexpr uint8_t INFO_MAC_INCLUDED = 0x02;
@@ -65,6 +63,8 @@ int fixed_object_len(uint8_t id) {
     case 0x58:
     case 0x59:
     case 0x60:
+    case 0x64:
+    case 0x65:
       return 1;
     case 0x02:
     case 0x03:
@@ -220,6 +220,4 @@ bool parse(const uint8_t *data, size_t len, Parsed *out) {
   return true;
 }
 
-}  // namespace codec
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome::codec

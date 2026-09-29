@@ -39,6 +39,12 @@ TEST(BTHomeCodec, ParsesPressBatteryAndMacIncluded) {
   ASSERT_EQ(parsed.button_count, 1);
   EXPECT_EQ(parsed.buttons[0], 0x01);
 
+  // 0x64 and 0x65 are one byte each. The button after them stays.
+  const uint8_t light_level[] = {0x44, 0x64, 0x02, 0x65, 0x03, 0x3A, 0x01};
+  ASSERT_TRUE(parse(light_level, sizeof(light_level), &parsed));
+  ASSERT_EQ(parsed.button_count, 1);
+  EXPECT_EQ(parsed.buttons[0], 0x01);
+
   // 0xFE is kept raw. Mapping it to hold is the receiver's job.
   const uint8_t hold_alias[] = {0x44, 0x00, 0x09, 0x3A, 0xFE};
   ASSERT_TRUE(parse(hold_alias, sizeof(hold_alias), &parsed));
