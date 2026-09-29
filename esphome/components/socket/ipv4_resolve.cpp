@@ -18,80 +18,117 @@ namespace esphome::socket {
 
 static const char *const TAG = "socket";
 
+bool Ipv4Resolve::consume_failure() {
+#if defined(IPV4_RESOLVE_ATOMIC_STATE)
+  uint8_t expected = STATE_FAILED;
+  return this->state_word_.compare_exchange_strong(expected, STATE_IDLE);
+#else
+  if (this->state_word_ != STATE_FAILED) {
+    return false;
+  }
+  this->state_word_ = STATE_IDLE;
+  return true;
+#endif
+}
+
 void Ipv4Resolve::forget() {
-  // LwIPLock keeps this apart from the callback on ESP32 and RP2 only. On
-  // LibreTiny the lock is a no-op and the callback runs on the tcpip thread, so
-  // the generation moves first. A callback that already published then fails its
-  // second check and drops the result. One that has not published yet sees the
-  // new generation and does not publish.
-  this->epoch_.store(this->epoch_.load() + 1);
-  LwIPLock lock;
-  this->have_.store(false);
-  this->addr_.store(0);
-  this->failed_.store(0);
+#if defined(IPV4_RESOLVE_VOLATILE_EPOCH)
+  // No compare_exchange on this platform, and the callback runs on the tcpip
+  // thread. The generation moves first. resolving stays set until the callback
+  // sees it and drops the result, so start() cannot replace that lookup.
+  this->epoch_ = this->epoch_ + 1;
+  this->addr_word_ = 0;
+  if (this->state_word_ != STATE_RESOLVING) {
+    this->state_word_ = STATE_IDLE;
+  }
+#else
+  this->set_state_(STATE_IDLE);
+  this->set_addr_(0);
+#endif
 }
 
 socklen_t Ipv4Resolve::to_sockaddr(struct sockaddr *dest, socklen_t destlen, uint16_t port) const {
-  if (!this->have_.load() || destlen < sizeof(sockaddr_in)) {
+  if (this->state_() != STATE_RESOLVED || destlen < sizeof(sockaddr_in)) {
     return 0;
   }
   auto *in = reinterpret_cast<sockaddr_in *>(dest);
   memset(in, 0, sizeof(sockaddr_in));
   in->sin_family = AF_INET;
   in->sin_port = htons(port);
-  in->sin_addr.s_addr = this->addr_.load();
+  in->sin_addr.s_addr = this->addr_();
   return sizeof(sockaddr_in);
 }
 
 #if !defined(USE_HOST) && !defined(USE_ZEPHYR)
+#if defined(IPV4_RESOLVE_VOLATILE_EPOCH)
 bool Ipv4Resolve::drop_stale_(uint32_t expected) {
-  if (this->epoch_.load() == expected) {
+  if (this->epoch_ == expected) {
     return false;
   }
-  this->have_.store(false);
-  this->addr_.store(0);
-  this->failed_.store(0);
-  this->resolving_.store(false);
+  this->state_word_ = STATE_IDLE;
+  this->addr_word_ = 0;
   return true;
 }
+#endif
 
 void Ipv4Resolve::dns_found(const char *name, const ip_addr_t *addr, void *arg) {
   auto *self = static_cast<Ipv4Resolve *>(arg);
-  const uint32_t expected = self->pending_epoch_.load();
+#if defined(IPV4_RESOLVE_VOLATILE_EPOCH)
+  const uint32_t expected = self->pending_epoch_;
   if (self->drop_stale_(expected)) {
     return;
   }
+#endif
   if (addr != nullptr && IP_IS_V4(addr)) {
-    self->failed_.store(0);
-    self->addr_.store(ip4_addr_get_u32(ip_2_ip4(addr)));
-    self->have_.store(true);
+#if defined(IPV4_RESOLVE_ATOMIC_STATE)
+    self->set_addr_(ip4_addr_get_u32(ip_2_ip4(addr)));
+    uint8_t expected = STATE_RESOLVING;
+    if (!self->state_word_.compare_exchange_strong(expected, STATE_RESOLVED)) {
+      self->set_addr_(0);
+    }
+#elif defined(IPV4_RESOLVE_VOLATILE_EPOCH)
+    self->addr_word_ = ip4_addr_get_u32(ip_2_ip4(addr));
+    self->state_word_ = STATE_RESOLVED;
+    if (self->drop_stale_(expected)) {
+      return;
+    }
+#else
+    self->set_addr_(ip4_addr_get_u32(ip_2_ip4(addr)));
+    self->set_state_(STATE_RESOLVED);
+#endif
   } else {
-    self->failed_.store(1);
     ESP_LOGW(self->tag_ != nullptr ? self->tag_ : TAG, "DNS failed for %s", name);
+#if defined(IPV4_RESOLVE_ATOMIC_STATE)
+    uint8_t expected = STATE_RESOLVING;
+    self->state_word_.compare_exchange_strong(expected, STATE_FAILED);
+#elif defined(IPV4_RESOLVE_VOLATILE_EPOCH)
+    self->state_word_ = STATE_FAILED;
+    if (self->drop_stale_(expected)) {
+      return;
+    }
+#else
+    self->set_state_(STATE_FAILED);
+#endif
   }
-  // forget() may have bumped the generation after the check above.
-  if (self->drop_stale_(expected)) {
-    return;
-  }
-  self->resolving_.store(false);
 }
 #endif
 
 void Ipv4Resolve::start(const char *host, uint16_t port, const char *tag) {
-  if (this->have_.load() || this->resolving_.load()) {
+  const uint8_t state = this->state_();
+  if (state == STATE_RESOLVED || state == STATE_RESOLVING) {
     return;
   }
-  this->failed_.store(0);
+  this->set_state_(STATE_IDLE);
   this->tag_ = tag;
   struct sockaddr_storage literal;
   if (set_sockaddr(reinterpret_cast<struct sockaddr *>(&literal), sizeof(literal), host, port) != 0) {
     if (literal.ss_family == AF_INET) {
       auto *in = reinterpret_cast<sockaddr_in *>(&literal);
-      this->addr_.store(in->sin_addr.s_addr);
-      this->have_.store(true);
+      this->set_addr_(in->sin_addr.s_addr);
+      this->set_state_(STATE_RESOLVED);
       return;
     }
-    this->failed_.store(1);
+    this->set_state_(STATE_FAILED);
     ESP_LOGW(tag, "Not an IPv4 address: %s", host);
     return;
   }
@@ -100,20 +137,21 @@ void Ipv4Resolve::start(const char *host, uint16_t port, const char *tag) {
   err_t err;
   {
     LwIPLock lock;
-    this->pending_epoch_.store(this->epoch_.load());
-    this->resolving_.store(true);
+#if defined(IPV4_RESOLVE_VOLATILE_EPOCH)
+    this->pending_epoch_ = this->epoch_;
+#endif
+    this->set_state_(STATE_RESOLVING);
     err = dns_gethostbyname_addrtype(host, &cached, &Ipv4Resolve::dns_found, this, LWIP_DNS_ADDRTYPE_IPV4);
-    if (err != ERR_INPROGRESS) {
-      this->resolving_.store(false);
+    if (err != ERR_INPROGRESS && this->state_() == STATE_RESOLVING) {
+      this->set_state_(STATE_IDLE);
     }
   }
   if (err == ERR_OK && IP_IS_V4(&cached)) {
-    this->failed_.store(0);
-    this->addr_.store(ip4_addr_get_u32(ip_2_ip4(&cached)));
-    this->have_.store(true);
+    this->set_addr_(ip4_addr_get_u32(ip_2_ip4(&cached)));
+    this->set_state_(STATE_RESOLVED);
     return;
   }
-  if (err == ERR_INPROGRESS) {
+  if (err == ERR_INPROGRESS || this->state_() == STATE_RESOLVED) {
     return;
   }
 #else
@@ -124,17 +162,16 @@ void Ipv4Resolve::start(const char *host, uint16_t port, const char *tag) {
   if (getaddrinfo(host, nullptr, &hints, &res) == 0 && res != nullptr) {
     auto *in = reinterpret_cast<struct sockaddr_in *>(res->ai_addr);
     if (res->ai_family == AF_INET) {
-      this->failed_.store(0);
-      this->addr_.store(in->sin_addr.s_addr);
-      this->have_.store(true);
+      this->set_addr_(in->sin_addr.s_addr);
+      this->set_state_(STATE_RESOLVED);
     }
     freeaddrinfo(res);
-    if (this->have_.load()) {
+    if (this->ready()) {
       return;
     }
   }
 #endif
-  this->failed_.store(1);
+  this->set_state_(STATE_FAILED);
   ESP_LOGW(tag, "Could not resolve %s", host);
 }
 
