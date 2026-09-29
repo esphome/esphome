@@ -1,12 +1,15 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor, ble_device_base
 import esphome.config_validation as cv
-from esphome.const import CONF_EVENT, CONF_INDEX, CONF_MAC_ADDRESS
+from esphome.const import (
+    CONF_EVENT,
+    CONF_INDEX,
+    CONF_MAC_ADDRESS,
+    CONF_PULSE_LENGTH,
+)
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["ble_device_base"]
-
-CONF_PULSE_LENGTH = "pulse_length"
 
 # Names from the BTHome v2 button table.
 BUTTON_EVENTS = {
