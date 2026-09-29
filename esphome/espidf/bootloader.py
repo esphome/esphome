@@ -288,11 +288,12 @@ def _publish(build_dir: Path, key: str, payload: dict) -> Path:
         write_file(stage / "meta.json", json.dumps(meta, indent=2, sort_keys=True))
         stage.chmod(0o755)  # mkdtemp creates 0o700
         _rename_with_retry(stage, entry)
-    except (OSError, EsphomeError):
+    except (OSError, EsphomeError) as err:
         # Failed to stage, or another process published the same key first.
         _remove_dir(stage)
         if not _entry_intact(entry):
             raise
+        _LOGGER.debug("Reusing published %s after: %s", entry, err)
     return entry
 
 
@@ -301,7 +302,7 @@ def _remove_dir(path: Path) -> None:
     try:
         rmtree(path)
     except OSError as err:
-        # Leftovers are cleared by the daily prune; just leave a trace.
+        # Leftover work dirs are cleared by the daily prune; leave a trace.
         _LOGGER.debug("Could not remove %s: %s", path, err)
 
 

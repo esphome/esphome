@@ -394,7 +394,9 @@ def test_publish_creates_entry_with_the_key_payload(tmp_path: Path) -> None:
     assert not list(root.glob(".stage-*"))
 
 
-def test_publish_lost_race_reuses_winner(tmp_path: Path) -> None:
+def test_publish_lost_race_reuses_winner(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     """A rename beaten by another process keeps that process's entry."""
     root = tmp_path / "cache"
     build = tmp_path / "work"
@@ -409,9 +411,11 @@ def test_publish_lost_race_reuses_winner(tmp_path: Path) -> None:
         patch.object(
             bootloader, "_rename_with_retry", side_effect=OSError("not empty")
         ),
+        caplog.at_level("DEBUG"),
     ):
         assert bootloader._publish(build, "k" * 16, {}) == entry
     assert (entry / "bootloader.bin").read_bytes() == b"winner"
+    assert "Reusing published" in caplog.text  # the cause stays traceable
     assert not list(root.glob(".stage-*"))
 
 
