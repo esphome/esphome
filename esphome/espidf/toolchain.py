@@ -220,20 +220,17 @@ class _IdfPyContract:
 
     binary_dir_arg: bool  # cmake gets -B <build dir>
     ccache_as_bool: bool  # CCACHE_ENABLE=True/False instead of 1/0
-    colors_for_all_tools: bool  # else CLICOLOR_FORCE for ninja only
     size_ng: bool  # size target gets ESP_IDF_SIZE_NG=1
 
 
 _IDF_PY_5 = _IdfPyContract(
     binary_dir_arg=False,
     ccache_as_bool=False,
-    colors_for_all_tools=False,
     size_ng=True,
 )
 _IDF_PY_6 = _IdfPyContract(
     binary_dir_arg=True,
     ccache_as_bool=True,
-    colors_for_all_tools=True,
     size_ng=False,
 )
 
@@ -295,19 +292,16 @@ def _configure_defines() -> dict[str, str]:
     }
 
 
-def _tool_env(ninja: bool) -> dict[str, str]:
-    """The IDF env plus the color settings idf.py gives the tool.
+def _tool_env() -> dict[str, str]:
+    """The IDF env plus color, as idf.py 6.x gives every tool.
 
-    idf.py 5.x forces CLICOLOR_FORCE for ninja only; 6.x defaults it and
-    FORCE_COLOR for every tool unless NO_COLOR is set.
+    Also used on 5.x (which forced CLICOLOR_FORCE for ninja only); color
+    changes only what is printed, and this way NO_COLOR is respected.
     """
     env = dict(_get_idf_env())
-    if _idf_py().colors_for_all_tools:
-        if not env.get("NO_COLOR"):
-            env.setdefault("CLICOLOR_FORCE", "1")
-            env.setdefault("FORCE_COLOR", "1")
-    elif ninja:
-        env["CLICOLOR_FORCE"] = "1"
+    if not env.get("NO_COLOR"):
+        env.setdefault("CLICOLOR_FORCE", "1")
+        env.setdefault("FORCE_COLOR", "1")
     return env
 
 
@@ -323,7 +317,7 @@ def run_reconfigure(verbose: bool = False) -> int:
     rc = run_build_tool(
         cmd,
         cwd=build_dir,
-        env=_tool_env(ninja=False),
+        env=_tool_env(),
         filter_lines=None if verbose else FILTER_IDF_LINES,
     )
     if rc != 0:
@@ -359,7 +353,7 @@ def _run_ninja(
     rc = run_build_tool(
         cmd,
         cwd=_build_dir(),
-        env={**_tool_env(ninja=True), **(extra_env or {})},
+        env={**_tool_env(), **(extra_env or {})},
         filter_lines=None if verbose else FILTER_IDF_LINES,
         progress=progress and not verbose,
     )

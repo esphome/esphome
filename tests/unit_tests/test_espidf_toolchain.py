@@ -746,8 +746,7 @@ def test_run_reconfigure_cmake_argv_matches_idf_py(setup_core: Path) -> None:
     kwargs = mock_run.call_args.kwargs
     assert kwargs["cwd"] == Path(project) / "build"
     assert kwargs["cwd"].is_dir()
-    # idf.py only adds CLICOLOR_FORCE for ninja
-    assert "CLICOLOR_FORCE" not in kwargs["env"]
+    assert kwargs["env"]["CLICOLOR_FORCE"] == "1"
     assert kwargs["filter_lines"] is toolchain.FILTER_IDF_LINES
 
 
@@ -892,9 +891,9 @@ def test_size_env(setup_core: Path, version: cv.Version, size_ng: bool) -> None:
 
 
 def test_run_ninja_matches_idf_py_run_target(setup_core: Path) -> None:
-    """The command is ninja [-j N] [-v] <target> in the build dir, CLICOLOR_FORCE=1."""
+    """The command is ninja [-j N] [-v] <target> in the build dir."""
     _setup_build(setup_core)
-    with _fake_tools({"CLICOLOR_FORCE": "0"}) as mock_run:
+    with _fake_tools() as mock_run:
         assert (
             toolchain._run_ninja(
                 "size", verbose=True, jobs=2, progress=True, extra_env={"A": "b"}
@@ -985,40 +984,23 @@ def test_run_compile_testing_mode_builds_memory_ld_first(
         mock_patch.assert_called_once()
 
 
+@pytest.mark.parametrize("version", [cv.Version(5, 5, 5), cv.Version(6, 1, 0)])
 @pytest.mark.parametrize(
-    ("version", "ninja", "env", "expected"),
+    ("env", "expected"),
     [
-        # 5.x: ninja only, and it overrides the inherited value
-        (cv.Version(5, 5, 5), True, {"CLICOLOR_FORCE": "0"}, {"CLICOLOR_FORCE": "1"}),
-        (cv.Version(5, 5, 5), False, {}, {}),
-        # 6.x: every tool, as defaults, unless NO_COLOR is set
-        (
-            cv.Version(6, 1, 0),
-            False,
-            {},
-            {"CLICOLOR_FORCE": "1", "FORCE_COLOR": "1"},
-        ),
-        (
-            cv.Version(6, 1, 0),
-            True,
-            {"CLICOLOR_FORCE": "0"},
-            {"CLICOLOR_FORCE": "0", "FORCE_COLOR": "1"},
-        ),
-        (cv.Version(6, 1, 0), True, {"NO_COLOR": "1"}, {}),
+        ({}, {"CLICOLOR_FORCE": "1", "FORCE_COLOR": "1"}),
+        ({"CLICOLOR_FORCE": "0"}, {"CLICOLOR_FORCE": "0", "FORCE_COLOR": "1"}),
+        ({"NO_COLOR": "1"}, {}),
     ],
-    ids=["5-ninja", "5-cmake", "6-cmake", "6-user-value", "6-no-color"],
+    ids=["default", "user-value", "no-color"],
 )
-def test_tool_env_colors_follow_idf_py(
-    setup_core: Path,
-    version: cv.Version,
-    ninja: bool,
-    env: dict[str, str],
-    expected: dict[str, str],
+def test_tool_env_colors(
+    setup_core: Path, version: cv.Version, env: dict[str, str], expected: dict[str, str]
 ) -> None:
-    """IDF 5 run_target and IDF 6 RunTool.__call__ color handling."""
+    """IDF 6 RunTool.__call__ color handling, used for every IDF version."""
     _setup_build(setup_core)
     CORE.data[KEY_ESP32][KEY_IDF_VERSION] = version
     with _fake_tools(env):
-        result = toolchain._tool_env(ninja=ninja)
+        result = toolchain._tool_env()
     colors = {k: v for k, v in result.items() if k in ("CLICOLOR_FORCE", "FORCE_COLOR")}
     assert colors == expected
