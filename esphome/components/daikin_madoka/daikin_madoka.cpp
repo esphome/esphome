@@ -26,6 +26,12 @@ static const uint16_t CMD_GET_SENSOR_INFORMATION = 0x0110;
 
 void DaikinMadoka::dump_config() { LOG_CLIMATE(TAG, "Daikin Madoka Climate Controller", this); }
 
+void DaikinMadoka::setup() {
+  // As a ble_client node, loop() is already driven every tick by BLEClient::loop();
+  // drop the redundant Application dispatch so it is not called twice per tick.
+  this->disable_loop();
+}
+
 inline static uint32_t get_command_cooldown(uint16_t cmd) {
   switch (cmd) {
     case CMD_GET_SETTING_STATUS:
@@ -62,23 +68,11 @@ void DaikinMadoka::loop() {
     this->query_queue_.pop();
     this->query_(query.cmd, query.args);
     this->pending_message_ = true;
-    this->set_timeout("query", get_command_cooldown(query.cmd), [this]() {
-      this->pending_message_ = false;
-      // Re-enable the loop so the next queued query can be pumped
-      if (!this->query_queue_.empty()) {
-        this->enable_loop();
-      }
-    });
+    this->set_timeout("query", get_command_cooldown(query.cmd), [this]() { this->pending_message_ = false; });
   }
   if (this->should_update_) {
     this->should_update_ = false;
     this->update();
-  }
-
-  // Nothing actionable until a chunk arrives, a query is enqueued, or the command
-  // cooldown expires - sleep the loop until a producer re-enables it.
-  if (this->received_chunks_.empty() && (this->query_queue_.empty() || this->pending_message_)) {
-    this->disable_loop();
   }
 }
 
@@ -172,7 +166,6 @@ void DaikinMadoka::control(const ClimateCall &call) {
     }
   }
   this->should_update_ = true;
-  this->enable_loop();
 }
 
 void DaikinMadoka::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
@@ -257,7 +250,6 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       }
       this->node_state = espbt::ClientState::ESTABLISHED;
       this->should_update_ = true;
-      this->enable_loop();
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
@@ -276,7 +268,6 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         ESP_LOGW(TAG, "Received chunks queue full, dropping chunk");
         break;
       }
-      this->enable_loop();
       break;
     }
     default:
@@ -296,8 +287,6 @@ void DaikinMadoka::update() {
   for (auto cmd : ALL_CMDS) {
     this->enqueue_query_(cmd, {0x00, 0x00});
   }
-  // update() also fires from the polling interval while the loop is asleep
-  this->enable_loop();
 }
 
 void DaikinMadoka::process_incoming_chunk_(const Chunk &chk) {
