@@ -51,21 +51,22 @@ class UartTcp : public Component, public uart::UARTDevice {
   static void dns_found(const char *name, const ip_addr_t *addr, void *arg);
 #endif
 
+  // Larger members first so the compiler does not insert padding.
   StringRef host_;
-  uint16_t port_{0};
-  bool server_{false};
   std::unique_ptr<socket::Socket> sock_;
   std::unique_ptr<socket::ListenSocket> listen_;
-  bool connecting_{false};
-  bool connected_{false};
+  binary_sensor::BinarySensor *connected_sensor_{nullptr};
   uint32_t last_attempt_ms_{0};
   uint32_t reconnect_interval_ms_{5000};
-  binary_sensor::BinarySensor *connected_sensor_{nullptr};
+  std::atomic<uint32_t> resolved_addr_{0};
 
+  uint16_t port_{0};
+  bool server_{false};
+  bool connecting_{false};
+  bool connected_{false};
   std::atomic<bool> resolving_{false};
   std::atomic<bool> resolve_failed_{false};
   std::atomic<bool> have_addr_{false};
-  std::atomic<uint32_t> resolved_addr_{0};
   char resolved_ip_[socket::SOCKADDR_STR_LEN]{};
 };
 
