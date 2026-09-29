@@ -4,16 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
-from typing import Any
 from unittest.mock import patch
 
 import pytest
 
 from esphome import yaml_util
-from esphome.compiled_config import compiled_config_path
 from esphome.config import do_substitution_pass
 from esphome.core import CORE, EsphomeError
-from esphome.ota_key_edit import KeyEdit, locate_key_edits, old_key_edit
+from esphome.ota_key_edit import KeyEdit, locate_key_edits, old_key_edit, with_sharers
 from esphome.yaml_edit import Snapshot, apply_line_edits, restore_files
 
 OLD_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
@@ -59,9 +57,17 @@ def _setup(tmp_path: Path, yaml_text: str, secrets: str | None = None) -> Path:
     return CORE.config_path
 
 
+def _edits() -> list[KeyEdit]:
+    """Everything a rotation writes, the way the command collects it."""
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    secret = next((e.secret for e in edits if e.secret), None)
+    edits += old_key_edit(OLD_KEY, secret)
+    with_sharers(edits)
+    return edits
+
+
 def _rotate() -> list[KeyEdit]:
-    """Locate and apply everything a rotation writes."""
-    edits = [*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)]
+    edits = _edits()
     apply_line_edits(edits)
     return edits
 
@@ -213,17 +219,6 @@ def test_refuses_a_secret_defined_elsewhere(tmp_path: Path) -> None:
         locate_key_edits(OLD_KEY, NEW_KEY)
 
 
-def test_rolls_back_a_broken_rewrite(tmp_path: Path) -> None:
-    """A rewrite the parser does not agree with is undone before anything
-    else happens."""
-    path = _setup(tmp_path, API_YAML)
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    edits[0].new_line = "    key: [unterminated"
-    with pytest.raises(EsphomeError, match="no longer loads"):
-        apply_line_edits(edits)
-    assert path.read_text() == API_YAML
-
-
 def test_refuses_a_line_that_changed_since_it_was_located(tmp_path: Path) -> None:
     path = _setup(tmp_path, API_YAML)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
@@ -232,22 +227,10 @@ def test_refuses_a_line_that_changed_since_it_was_located(tmp_path: Path) -> Non
         apply_line_edits(edits)
 
 
-def test_clears_the_validated_cache(tmp_path: Path) -> None:
-    _setup(tmp_path, API_YAML)
-    cache = compiled_config_path(CORE.config_filename)
-    cache.parent.mkdir(parents=True, exist_ok=True)
-    cache.write_text("{}")
-    originals = apply_line_edits(locate_key_edits(OLD_KEY, NEW_KEY))
-    assert not cache.exists()
-    cache.write_text("{}")
-    restore_files(originals)
-    assert not cache.exists()
-
-
 def test_old_key_added_to_a_bare_block(tmp_path: Path) -> None:
     """A bare block gets old_key one level in; the api line is rewritten."""
     path = _setup(tmp_path, API_YAML)
-    edits = [*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)]
+    edits = _edits()
     apply_line_edits(edits)
     assert path.read_text() == (
         API_YAML.replace(OLD_KEY, NEW_KEY) + f'      old_key: "{OLD_KEY}"\n'
@@ -345,7 +328,7 @@ def test_inherited_key_in_a_bare_block_is_not_a_line(tmp_path: Path) -> None:
         CORE.raw_config["ota"][0]["encryption"] or {}
     )
     CORE.raw_config["ota"][0]["encryption"]["key"] = OLD_KEY
-    edits = [*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)]
+    edits = _edits()
     assert [(e.line, e.insert_after) for e in edits] == [(5, False), (9, True)]
     apply_line_edits(edits)
     assert path.read_text() == (
@@ -678,6 +661,7 @@ def test_secret_shared_with_other_configs_is_reported(tmp_path: Path) -> None:
     (build / "copy.yaml").write_bytes(b"key: !secret device_key\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: x\n")
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with_sharers(edits)
     assert [e.shared_with for e in edits] == [
         [tmp_path.resolve() / "other.yaml", tmp_path.resolve() / "quoted.yaml"]
     ]
@@ -688,7 +672,7 @@ def test_secret_key_keeps_the_previous_key_in_secrets(tmp_path: Path) -> None:
     ota block gets `old_key: !secret device_key_old` and the secrets file
     the line it points to, right under the rewritten one."""
     _setup(tmp_path, SECRET_YAML, f"wifi: hunter2\ndevice_key: {OLD_KEY}\n")
-    edits = [*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)]
+    edits = _edits()
     apply_line_edits(edits)
     assert CORE.config_path.read_text() == SECRET_YAML.replace(
         "      key: !secret device_key\n",
@@ -733,8 +717,10 @@ def test_shared_secret_scan_covers_yml_and_skips_unreadable_files(
         b"api:\n  encryption:\n    key: !secret device_key\n"
     )
     (tmp_path / "latin1.yaml").write_bytes(b"caf\xe9: !secret device_key\n")
+    (tmp_path / "notes.txt").write_bytes(b"key: !secret device_key\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with_sharers(edits)
     assert [e.shared_with for e in edits] == [[tmp_path.resolve() / "other.yml"]]
 
 
@@ -751,6 +737,7 @@ def test_literal_key_in_a_shared_include_is_reported(tmp_path: Path) -> None:
         "ota:\n  - platform: esphome\n    encryption:\n",
     )
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with_sharers(edits)
     assert [(e.path.name, e.shared_with) for e in edits] == [
         ("common.yaml", [tmp_path.resolve() / "other.yaml"])
     ]
@@ -808,6 +795,7 @@ def test_own_includes_and_similar_names_are_not_shared_users(tmp_path: Path) -> 
     # other.yaml reaches common.yaml through this configuration's own
     # base.yaml, so it is a sharer; base.yaml itself and the lookalike are not
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with_sharers(edits)
     assert [(e.path.name, [p.name for p in e.shared_with]) for e in edits] == [
         ("common.yaml", ["other.yaml"])
     ]
@@ -821,15 +809,16 @@ def test_existing_old_secret_used_elsewhere_is_not_overwritten(
     is reused."""
     secrets = f"device_key: {OLD_KEY}\ndevice_key_old: hunter2\n"
     _setup(tmp_path, SECRET_YAML, secrets)
-    (edit, kept) = old_key_edit(OLD_KEY)
-    assert (kept.new_line, kept.shared_with) == (f"device_key_old: {OLD_KEY}", [])
+    (edit, kept) = old_key_edit(OLD_KEY, "device_key")
+    assert kept.new_line == f"device_key_old: {OLD_KEY}"
     (tmp_path / "other.yaml").write_bytes(
         b"wifi:\n  password: !secret device_key_old\n"
     )
+    _setup(tmp_path, SECRET_YAML, secrets)  # the scan runs once per run
     with pytest.raises(
         EsphomeError, match="'device_key_old:' in .* is used by .*other.yaml"
     ):
-        old_key_edit(OLD_KEY)
+        old_key_edit(OLD_KEY, "device_key")
     (tmp_path / "other.yaml").unlink()
     _setup(
         tmp_path, SECRET_YAML + "wifi:\n  password: !secret device_key_old\n", secrets
@@ -837,14 +826,14 @@ def test_existing_old_secret_used_elsewhere_is_not_overwritten(
     with pytest.raises(
         EsphomeError, match="'device_key_old:' in .* is used by .*test.yaml"
     ):
-        old_key_edit(OLD_KEY)
+        old_key_edit(OLD_KEY, "device_key")
 
 
 def test_key_secret_with_a_folded_value_gets_no_old_line(tmp_path: Path) -> None:
     """The `<name>_old` line goes under the key's own line, which must be plain."""
     _setup(tmp_path, SECRET_YAML, f"device_key: >-\n  {OLD_KEY}\n")
     with pytest.raises(EsphomeError, match="No plain 'device_key:' line"):
-        old_key_edit(OLD_KEY)
+        old_key_edit(OLD_KEY, "device_key")
 
 
 def test_old_secret_collision_check_refuses_an_unreadable_file(
@@ -854,7 +843,7 @@ def test_old_secret_collision_check_refuses_an_unreadable_file(
     (tmp_path / "latin1.yaml").write_bytes(b"caf\xe9: 1\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: hunter2\n")
     with pytest.raises(EsphomeError, match="Could not read every configuration"):
-        old_key_edit(OLD_KEY)
+        old_key_edit(OLD_KEY, "device_key")
 
 
 def test_old_key_secret_with_a_folded_value_is_refused(tmp_path: Path) -> None:
@@ -874,65 +863,6 @@ def test_file_shortened_after_the_load_is_reported(tmp_path: Path) -> None:
     path.write_bytes(b"esphome:\n  name: test\n")
     with pytest.raises(EsphomeError, match="changed since it was read"):
         locate_key_edits(OLD_KEY, NEW_KEY)
-
-
-def test_restore_leaves_a_file_the_user_changed_alone(tmp_path: Path) -> None:
-    """An edit made during the compile is not overwritten by the rollback;
-    the file is reported so the previous key can be put back by hand."""
-    path = _setup(tmp_path, API_YAML)
-    originals = apply_line_edits(locate_key_edits(OLD_KEY, NEW_KEY))
-    edited = path.read_text() + "logger:\n"
-    path.write_bytes(edited.encode())
-    with pytest.raises(EsphomeError, match="changed since it was written, left as is"):
-        restore_files(originals)
-    assert path.read_text() == edited
-
-
-def test_rolls_back_when_the_cache_cannot_be_dropped(tmp_path: Path) -> None:
-    path = _setup(tmp_path, API_YAML)
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    with (
-        patch(
-            "esphome.compiled_config.invalidate_compiled_config",
-            side_effect=[EsphomeError("busy"), None],
-        ),
-        pytest.raises(EsphomeError, match="busy"),
-    ):
-        apply_line_edits(edits)
-    assert path.read_text() == API_YAML
-
-
-def test_rolls_back_on_an_interrupt_during_the_reload(tmp_path: Path) -> None:
-    path = _setup(tmp_path, API_YAML)
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    with (
-        patch("esphome.yaml_util.load_yaml", side_effect=KeyboardInterrupt),
-        pytest.raises(KeyboardInterrupt),
-    ):
-        apply_line_edits(edits)
-    assert path.read_text() == API_YAML
-
-
-def test_apply_reports_a_rollback_that_also_failed(tmp_path: Path) -> None:
-    """The rewrite lands, the reload fails, and the rollback write fails too."""
-    from esphome.yaml_edit import write_file
-
-    _setup(tmp_path, API_YAML)
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    writes: list[int] = []
-
-    def write_then_fail(*args: Any, **kwargs: Any) -> None:
-        writes.append(1)
-        if len(writes) > 1:
-            raise EsphomeError("disk")
-        write_file(*args, **kwargs)
-
-    with (
-        patch("esphome.yaml_util.load_yaml", side_effect=EsphomeError("broken")),
-        patch("esphome.yaml_edit.write_file", side_effect=write_then_fail),
-        pytest.raises(EsphomeError, match="broken; Could not restore .*disk"),
-    ):
-        apply_line_edits(edits)
 
 
 def test_two_same_port_entries_from_a_package_split(tmp_path: Path) -> None:
@@ -1018,11 +948,12 @@ def test_scan_reports_what_it_could_not_read(tmp_path: Path) -> None:
     (tmp_path / "linked").symlink_to(elsewhere)
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: x\n")
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    assert len(edits[0].unchecked) == 2
-    assert any("latin1.yaml" in u for u in edits[0].unchecked)
-    assert any("is a link" in u for u in edits[0].unchecked)
+    unchecked = with_sharers(edits)
+    assert len(unchecked) == 2
+    assert any("latin1.yaml" in u for u in unchecked)
+    assert any("is a link" in u for u in unchecked)
     with pytest.raises(EsphomeError, match="Could not read every configuration"):
-        old_key_edit(OLD_KEY)
+        old_key_edit(OLD_KEY, "device_key")
 
 
 def test_secret_used_elsewhere_in_this_configuration_is_refused(
@@ -1047,6 +978,7 @@ def test_sharers_include_the_files_that_include_a_sharer(tmp_path: Path) -> None
     (tmp_path / "third.yaml").write_bytes(b"packages:\n  base: !include other.yaml\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with_sharers(edits)
     assert [p.name for p in edits[0].shared_with] == [
         "base.yaml",
         "other.yaml",
@@ -1073,43 +1005,7 @@ def test_old_secret_goes_to_the_secrets_file_of_the_block_that_gets_old_key(
     with pytest.raises(
         EsphomeError, match="No plain 'device_key:' line in .*secrets.yaml"
     ):
-        old_key_edit(OLD_KEY)
-
-
-def test_a_failed_rollback_keeps_an_interrupt_an_interrupt(tmp_path: Path) -> None:
-    _setup(tmp_path, API_YAML)
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    with (
-        patch("esphome.yaml_util.load_yaml", side_effect=KeyboardInterrupt),
-        patch("pathlib.Path.chmod", side_effect=[None, OSError("disk")]),
-        pytest.raises(KeyboardInterrupt) as info,
-    ):
-        apply_line_edits(edits)
-    assert "disk" in "".join(info.value.__notes__)
-
-
-def test_rollback_after_a_failed_second_write_leaves_the_untouched_file_alone(
-    tmp_path: Path,
-) -> None:
-    """The file that was never written is not reported as changed."""
-    (tmp_path / "enc.yaml").write_bytes(f'key: "{OLD_KEY}"\n'.encode())
-    _setup(
-        tmp_path,
-        "esphome:\n  name: test\n\napi:\n  encryption:\n"
-        f'    key: "{OLD_KEY}"\n\nota:\n  - platform: esphome\n'
-        "    encryption: !include enc.yaml\n",
-    )
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    assert len(edits) == 2
-    with (
-        patch(
-            "esphome.yaml_edit.write_keeping_mode",
-            side_effect=[None, EsphomeError("disk")],
-        ),
-        pytest.raises(EsphomeError) as info,
-    ):
-        apply_line_edits(edits)
-    assert "changed since it was written" not in str(info.value)
+        old_key_edit(OLD_KEY, "device_key")
 
 
 def test_a_commented_out_secret_use_does_not_count(tmp_path: Path) -> None:
@@ -1128,7 +1024,8 @@ def test_a_directory_include_is_reported_as_unchecked(tmp_path: Path) -> None:
     (tmp_path / "other.yaml").write_bytes(b"packages: !include_dir_named packages\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    assert edits[0].unchecked == [
+    unchecked = with_sharers(edits)
+    assert unchecked == [
         f"{tmp_path.resolve() / 'other.yaml'} includes the directory packages"
     ]
 
@@ -1150,7 +1047,8 @@ def test_comments_in_other_configurations_are_not_uses(tmp_path: Path) -> None:
     )
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    assert (edits[0].shared_with, edits[0].unchecked) == ([], [])
+    unchecked = with_sharers(edits)
+    assert (edits[0].shared_with, unchecked) == ([], [])
 
 
 def test_existing_old_key_secret_used_elsewhere_is_refused(tmp_path: Path) -> None:
@@ -1163,7 +1061,7 @@ def test_existing_old_key_secret_used_elsewhere_is_refused(tmp_path: Path) -> No
     )
     _setup(tmp_path, yaml_text, f"device_key: {OLD_KEY}\ndevice_key_old: {OLDER_KEY}\n")
     with pytest.raises(EsphomeError, match="'device_key_old' is also used at"):
-        old_key_edit(OLD_KEY)
+        old_key_edit(OLD_KEY, "device_key")
 
 
 def test_a_key_merged_from_an_anchor_is_refused(tmp_path: Path) -> None:
@@ -1198,7 +1096,8 @@ def test_a_substituted_include_path_is_reported_as_unchecked(tmp_path: Path) -> 
     )
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    assert sorted(edits[0].unchecked) == [
+    unchecked = with_sharers(edits)
+    assert sorted(unchecked) == [
         f"{tmp_path.resolve() / 'other.yaml'} includes ${{common}} through a substitution",
         f"{tmp_path.resolve() / 'third.yaml'} includes ${{pkg}} through a substitution",
     ]
@@ -1208,4 +1107,5 @@ def test_another_device_including_the_main_file_is_a_sharer(tmp_path: Path) -> N
     (tmp_path / "other.yaml").write_bytes(b"packages:\n  base: !include test.yaml\n")
     _setup(tmp_path, API_YAML)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with_sharers(edits)
     assert [p.name for p in edits[0].shared_with] == ["other.yaml"]

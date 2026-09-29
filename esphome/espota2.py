@@ -12,8 +12,10 @@ import socket
 import time
 from typing import Any
 
+from esphome.const import CONF_ESPHOME, CONF_OTA, CONF_PLATFORM
 from esphome.core import EsphomeError
 from esphome.helpers import ProgressBar, resolve_ip_address
+from esphome.types import ConfigType
 
 OTA_TYPE_UPDATE_APP = 0x00
 OTA_TYPE_UPDATE_PARTITION_TABLE = 0x01
@@ -219,8 +221,15 @@ class OTAKeyRejected(OTAError):
     """The Noise handshake failed on the key; another key may succeed."""
 
 
-class OTAEncryptionNotOffered(OTAError):
-    """A key is configured but the device cannot encrypt."""
+def esphome_ota_items(config: ConfigType) -> list[ConfigType]:
+    """The esphome ota entries; a raw ``ota:`` may be a mapping, not a list."""
+    ota = config.get(CONF_OTA) or []
+    items = [ota] if isinstance(ota, dict) else ota
+    return [
+        item
+        for item in items
+        if isinstance(item, dict) and item.get(CONF_PLATFORM) == CONF_ESPHOME
+    ]
 
 
 # Uploader side options under `ota: encryption:`; the ota component imports
@@ -457,8 +466,8 @@ class NoiseSocketWrapper:
 
     def __init__(self, sock: socket.socket, psk: str, prologue: bytes) -> None:
         self._handshake = noise_handshake(psk, prologue)
-        # The aioesphomeapi import above already loaded cryptography; bind
-        # the exception once so recv() pays no per-frame import lookup
+        # noise_handshake() already imported cryptography; bind the
+        # exception once so recv() pays no per-frame import lookup
         from cryptography.exceptions import InvalidTag
 
         self._invalid_tag = InvalidTag
@@ -638,7 +647,7 @@ def _negotiate_session(
             # capture the image (wifi credentials, api key)
             # Remove before 2027.3.0: installing without the block no longer
             # falls back then; advise 'allow_plaintext_upload: true' instead
-            raise OTAEncryptionNotOffered(
+            raise OTAError(
                 "An OTA encryption key is configured but the device did not "
                 "offer encryption; refusing to send the image in plaintext. "
                 "The running firmware predates ESPHome 2026.9.0 or has no "
@@ -985,6 +994,10 @@ def probe_ota_key(
 
     noise_handshake(noise_psk, b"")  # a local fault must not read as the device's no
     deadline = time.monotonic() + timeout
+
+    def pause(delay: float) -> None:
+        time.sleep(max(0.0, min(delay, deadline - time.monotonic())))
+
     res: list[Any] = []
     attempts = 0
     answered: set[int] = set()  # addresses whose answer no retry changes
@@ -998,16 +1011,12 @@ def probe_ota_key(
                 )
             except EsphomeError as err:
                 last_error = str(err)
+            else:
+                if not res:
+                    last_error = f"no addresses for {remote_host}"
             if not res:
-                last_error = (
-                    last_error
-                    if last_error != "no time left"
-                    else f"no addresses for {remote_host}"
-                )
                 _LOGGER.debug("Host not resolved yet (%s); retrying", last_error)
-                time.sleep(
-                    max(0.0, min(PROBE_RETRY_DELAY, deadline - time.monotonic()))
-                )
+                pause(PROBE_RETRY_DELAY)
                 continue
         index = attempts % len(res)
         af, socktype, _, _, sa = res[index]
@@ -1033,15 +1042,12 @@ def probe_ota_key(
                         RESPONSE_AUTH_OK,
                     ],
                 )
-            except (OTAKeyRejected, OTAEncryptionNotOffered) as err:
-                last_error = str(err)
-                if not retry_rejected:
-                    answered.add(index)
             except (OSError, OTANetworkError) as err:
                 last_error = str(err)
             except OTAError as err:
-                # Final in the precheck; a rebooting device may answer
-                # differently once it is back
+                # A rejected key or a refused handshake is final in the
+                # precheck; a rebooting device may answer differently once
+                # it is back
                 last_error = str(err)
                 if not retry_rejected:
                     answered.add(index)
@@ -1056,7 +1062,7 @@ def probe_ota_key(
         _LOGGER.debug("Key not accepted yet (%s); retrying", last_error)
         if attempts % len(res):
             continue  # the next address is fresh; nothing to wait for
-        time.sleep(max(0.0, min(PROBE_RETRY_DELAY - (now - started), deadline - now)))
+        pause(PROBE_RETRY_DELAY - (now - started))
     _LOGGER.warning("The device did not accept the key: %s", last_error)
     return False
 

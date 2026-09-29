@@ -166,16 +166,13 @@ def test_warns_about_a_shared_secret(
 ) -> None:
     """Other configurations using the rewritten secret are named before the
     confirmation."""
-    edit = KeyEdit(
-        CORE.config_path,
-        0,
-        "x",
-        "y",
-        secret="device_key",
-        shared_with=[CORE.config_dir / "b.yaml"],
-        unchecked=["c.yaml is a link"],
-    )
-    with patch("esphome.cli.rotate_key.locate_key_edits", return_value=[edit]):
+
+    def scan(edits: list[KeyEdit]) -> list[str]:
+        edits[0].secret = "device_key"
+        edits[0].shared_with = [CORE.config_dir / "b.yaml"]
+        return ["c.yaml is a link"]
+
+    with patch("esphome.cli.rotate_key.with_sharers", side_effect=scan):
         env["confirm"].return_value = "n"
         assert command_rotate_key(MockArgs(), CORE.config) == 1
     out = capfd.readouterr().out
@@ -237,14 +234,16 @@ def test_restores_before_the_upload(
         env["compile"].side_effect = KeyboardInterrupt
     image = CORE.firmware_bin
     image.parent.mkdir(parents=True)
-    image.write_bytes(b"built with the new key")
+    factory = image.with_name("firmware.factory.bin")
+    for built in (image, factory):
+        built.write_bytes(b"built with the new key")
     assert command_rotate_key(MockArgs(), CORE.config) == 1
     assert CORE.config_path.read_text() == API_YAML
     assert env["probe"].call_count == 1
     out = capfd.readouterr().out
     assert ("Interrupted before the upload" in out) is (step == "interrupt")
-    # The image may hold the new key, so a plain upload cannot install it
-    assert not image.exists()
+    # The images may hold the new key, so no upload can install them
+    assert not image.exists() and not factory.exists()
     assert "compile again before the next upload" in out
     assert NEW_KEY not in out
 

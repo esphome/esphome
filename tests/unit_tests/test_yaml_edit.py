@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -114,15 +115,17 @@ def test_source_of_is_none_for_a_value_validation_added() -> None:
 def test_a_mapping_built_in_code_places_only_this_configurations_keys(
     tmp_path: Path,
 ) -> None:
-    """merge_config rebuilds a mapping without a range; a key read for this
+    """merge_config rebuilds a mapping without a range; a value read for this
     configuration is still placed, one read from elsewhere is not."""
     _setup(tmp_path, YAML)
-    own_key = next(iter(CORE.raw_config[CONF_ESPHOME]))
-    assert source_of({own_key: "x"}, CONF_NAME) == (CORE.config_path, 1)
+    own_key, own_value = next(iter(CORE.raw_config[CONF_ESPHOME].items()))
+    assert source_of({own_key: own_value}, CONF_NAME) == (CORE.config_path, 1)
+    # Only the value names the line that won; without a range it is refused
+    assert source_of({own_key: "x"}, CONF_NAME) is None
     (tmp_path / "elsewhere.yaml").write_bytes(YAML.encode())
     other = yaml_util.load_yaml(tmp_path / "elsewhere.yaml")
-    other_key = next(iter(other[CONF_ESPHOME]))
-    assert source_of({other_key: "x"}, CONF_NAME) is None
+    other_key, other_value = next(iter(other[CONF_ESPHOME].items()))
+    assert source_of({other_key: other_value}, CONF_NAME) is None
 
 
 def test_own_documents_include_a_file_that_only_gives_substitutions(
@@ -302,3 +305,68 @@ def test_restore_reports_every_file_it_could_not_write(tmp_path: Path) -> None:
     with pytest.raises(EsphomeError, match="changed since it was written, left as is"):
         restore_files(originals)
     assert path.read_text() == edited
+
+
+def test_apply_rolls_back_when_the_cache_cannot_be_dropped(tmp_path: Path) -> None:
+    path = _setup(tmp_path, YAML)
+    with (
+        patch(
+            "esphome.compiled_config.invalidate_compiled_config",
+            side_effect=[EsphomeError("busy"), None],
+        ),
+        pytest.raises(EsphomeError, match="busy"),
+    ):
+        apply_line_edits([_name_edit("garage")])
+    assert path.read_text() == YAML
+
+
+def test_apply_reports_a_rollback_that_also_failed(tmp_path: Path) -> None:
+    """The rewrite lands, the reload fails, and the rollback write fails too."""
+    from esphome.yaml_edit import write_file
+
+    _setup(tmp_path, YAML)
+    writes: list[int] = []
+
+    def write_then_fail(*args: Any, **kwargs: Any) -> None:
+        writes.append(1)
+        if len(writes) > 1:
+            raise EsphomeError("disk")
+        write_file(*args, **kwargs)
+
+    with (
+        patch("esphome.yaml_util.load_yaml", side_effect=EsphomeError("broken")),
+        patch("esphome.yaml_edit.write_file", side_effect=write_then_fail),
+        pytest.raises(EsphomeError, match="broken; Could not restore .*disk"),
+    ):
+        apply_line_edits([_name_edit("garage")])
+
+
+def test_a_failed_rollback_keeps_an_interrupt_an_interrupt(tmp_path: Path) -> None:
+    _setup(tmp_path, YAML)
+    with (
+        patch("esphome.yaml_util.load_yaml", side_effect=KeyboardInterrupt),
+        patch("pathlib.Path.chmod", side_effect=[None, OSError("disk")]),
+        pytest.raises(KeyboardInterrupt) as info,
+    ):
+        apply_line_edits([_name_edit("garage")])
+    assert "disk" in "".join(info.value.__notes__)
+
+
+def test_rollback_after_a_failed_second_write_leaves_the_untouched_file_alone(
+    tmp_path: Path,
+) -> None:
+    """The file that was never written is not reported as changed."""
+    path = _setup(tmp_path, YAML)
+    other = tmp_path / "other.yaml"
+    other.write_bytes(b"x: 1\n")
+    edits = [_name_edit("garage"), LineEdit(other, 0, "x: 1", "x: 2")]
+    with (
+        patch(
+            "esphome.yaml_edit.write_keeping_mode",
+            side_effect=[None, EsphomeError("disk")],
+        ),
+        pytest.raises(EsphomeError) as info,
+    ):
+        apply_line_edits(edits)
+    assert "changed since it was written" not in str(info.value)
+    assert path.read_text() == YAML and other.read_text() == "x: 1\n"

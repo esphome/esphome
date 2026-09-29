@@ -1358,14 +1358,9 @@ def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
 
 def _esphome_ota_conf(config: ConfigType) -> ConfigType | None:
     """The validated esphome OTA platform block, if configured."""
-    return next(
-        (
-            item
-            for item in config.get(CONF_OTA, [])
-            if item.get(CONF_PLATFORM) == CONF_ESPHOME
-        ),
-        None,
-    )
+    from esphome.espota2 import esphome_ota_items
+
+    return next(iter(esphome_ota_items(config)), None)
 
 
 def _upload_via_native_api(
