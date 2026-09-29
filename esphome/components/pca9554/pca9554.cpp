@@ -165,7 +165,11 @@ bool PCA9554Component::write_register_(uint8_t reg, uint16_t value) {
   uint8_t outputs[2];
   outputs[0] = (uint8_t) value;
   outputs[1] = (uint8_t) (value >> 8);
+  uint8_t bytes_to_write = this->reg_width_;
   uint8_t register_to_write = this->get_register_address_(reg);
+
+  //The output port config register is always only 1 byte long
+  if (reg == OUTPUT_PORT_CONFIG) {bytes_to_write = 1;}
 
   if (register_to_write == 0xFF) {
     this->status_set_warning();
@@ -173,7 +177,7 @@ bool PCA9554Component::write_register_(uint8_t reg, uint16_t value) {
     return false;
   }
 
-  this->last_error_ = this->write_register(register_to_write, outputs, this->reg_width_);
+  this->last_error_ = this->write_register(register_to_write, outputs, bytes_to_write);
   if (this->last_error_ != i2c::ERROR_OK) {
     this->status_set_warning();
     ESP_LOGE(TAG, "write_register_(): I2C I/O error: %d", (int) this->last_error_);
