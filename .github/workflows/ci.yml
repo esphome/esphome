@@ -1235,7 +1235,10 @@ jobs:
           else
             echo "All components in this batch are validate-only -- skipping compile stage."
             if [[ "${{ matrix.batch.check_idf_py }}" == "true" ]]; then
-              echo "::warning::This batch was picked for the idf.py check but compiled nothing"
+              # determine-jobs and this step disagree on what compiles; fail
+              # rather than let the check run nowhere.
+              echo "::error::This batch was picked for the idf.py check but compiled nothing"
+              exit 1
             fi
           fi
 
