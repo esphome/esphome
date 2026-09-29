@@ -6,7 +6,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/components/sensor/sensor.h"
 #include <cmath>
 
 namespace esphome::bq27220 {
@@ -55,7 +54,7 @@ class BQ27220Component final : public PollingComponent, public i2c::I2CDevice {
  protected:
   bool read_word_(uint8_t reg, uint16_t &value);
 
-  CallbackManager<void(BQ27220Data &)> data_callback_{};
+  CallbackManager<void(const BQ27220Data &)> data_callback_{};
 };
 
 }  // namespace esphome::bq27220

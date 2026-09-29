@@ -133,6 +133,6 @@ async def to_code(config):
             sens = await sensor.new_sensor(conf)
             lambda_ = await cg.process_lambda(
                 sens.publish_state(getattr(data, field)),
-                [(BQ27220Data.operator("ref"), "data")],
+                [(BQ27220Data.operator("ref").operator("const"), "data")],
             )
             cg.add(var.add_on_data_callback(lambda_))
