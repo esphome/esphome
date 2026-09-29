@@ -19,17 +19,17 @@ MULTI_CONF = True
 uart_tcp_ns = cg.esphome_ns.namespace("uart_tcp")
 UartTcp = uart_tcp_ns.class_("UartTcp", cg.Component, uart.UARTDevice)
 
-CONF_ROLE = "role"
+ROLE = "role"
 CONF_RECONNECT_INTERVAL = "reconnect_interval"
 CONF_CONNECTED = "connected"
 
 
 def _validate(config: ConfigType) -> ConfigType:
-    if config[CONF_ROLE] == "server" and CONF_HOST in config:
+    if config[ROLE] == "server" and CONF_HOST in config:
         raise cv.Invalid("host is only used when role is client", path=[CONF_HOST])
-    if config[CONF_ROLE] == "client" and CONF_HOST not in config:
+    if config[ROLE] == "client" and CONF_HOST not in config:
         raise cv.Invalid("host is required when role is client", path=[CONF_HOST])
-    listens = 1 if config[CONF_ROLE] == "server" else 0
+    listens = 1 if config[ROLE] == "server" else 0
     if listens:
         socket.consume_sockets(1, "uart_tcp", socket.SocketType.TCP_LISTEN)(config)
     socket.consume_sockets(1, "uart_tcp")(config)
@@ -41,7 +41,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(UartTcp),
             cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
-            cv.Optional(CONF_ROLE, default="client"): cv.one_of(
+            cv.Optional(ROLE, default="client"): cv.one_of(
                 "client", "server", lower=True
             ),
             cv.Optional(CONF_HOST): cv.string,
@@ -63,7 +63,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    cg.add(var.set_server(config[CONF_ROLE] == "server"))
+    cg.add(var.set_server(config[ROLE] == "server"))
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
     if (host := config.get(CONF_HOST)) is not None:

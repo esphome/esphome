@@ -50,14 +50,14 @@ void UartTcp::setup() {
 
 void UartTcp::dump_config() {
   ESP_LOGCONFIG(TAG, "UART TCP:");
-  ESP_LOGCONFIG(TAG, "  Role: %s", this->server_ ? "server" : "client");
+  ESP_LOGCONFIG(TAG, "  Role: %s", this->server_ ? LOG_STR_LITERAL("server") : LOG_STR_LITERAL("client"));
   if (this->server_) {
     ESP_LOGCONFIG(TAG, "  Listen: %u", this->port_);
   } else {
     ESP_LOGCONFIG(TAG, "  Host: %s:%u", this->host_.c_str(), this->port_);
   }
   ESP_LOGCONFIG(TAG, "  UART baud: %" PRIu32, this->parent_->get_baud_rate());
-  ESP_LOGCONFIG(TAG, "  Reconnect interval: %u ms", this->reconnect_interval_ms_);
+  ESP_LOGCONFIG(TAG, "  Reconnect interval: %" PRIu32 " ms", this->reconnect_interval_ms_);
   LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
 }
 
@@ -196,7 +196,8 @@ void UartTcp::try_connect_() {
   if (this->sock_ != nullptr || this->in_backoff_()) {
     return;
   }
-  if (this->resolve_failed_.exchange(false)) {
+  if (this->resolve_failed_.load() != 0) {
+    this->resolve_failed_.store(0);
     this->have_addr_.store(false);
     this->resolved_ip_[0] = '\0';
     this->note_attempt_();
