@@ -1004,3 +1004,38 @@ def test_tool_env_colors(
         result = toolchain._tool_env()
     colors = {k: v for k, v in result.items() if k in ("CLICOLOR_FORCE", "FORCE_COLOR")}
     assert colors == expected
+
+
+@pytest.mark.parametrize(
+    ("limit", "env_value", "expected"),
+    [
+        (2, "8", 2),
+        (None, "8", 8),
+        (None, "", None),
+        (None, None, None),
+    ],
+    ids=["limit-wins", "env", "empty-env", "unset"],
+)
+def test_build_jobs_honors_idf_py_build_jobs(
+    monkeypatch: pytest.MonkeyPatch,
+    limit: int | None,
+    env_value: str | None,
+    expected: int | None,
+) -> None:
+    """compile_process_limit first, else IDF_PY_BUILD_JOBS as idf.py read it."""
+    if env_value is None:
+        monkeypatch.delenv("IDF_PY_BUILD_JOBS", raising=False)
+    else:
+        monkeypatch.setenv("IDF_PY_BUILD_JOBS", env_value)
+    esphome = {} if limit is None else {CONF_COMPILE_PROCESS_LIMIT: limit}
+    assert toolchain._build_jobs({CONF_ESPHOME: esphome}) == expected
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "many"])
+def test_build_jobs_rejects_invalid_idf_py_build_jobs(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    """Like idf.py, a value that is not a positive integer is an error."""
+    monkeypatch.setenv("IDF_PY_BUILD_JOBS", value)
+    with pytest.raises(EsphomeError, match="positive integer"):
+        toolchain._build_jobs({CONF_ESPHOME: {}})

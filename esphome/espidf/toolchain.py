@@ -335,6 +335,21 @@ def _size_env() -> dict[str, str]:
     return env
 
 
+def _build_jobs(config) -> int | None:
+    """Ninja's -j: compile_process_limit, else IDF_PY_BUILD_JOBS as idf.py read it."""
+    if (limit := config[CONF_ESPHOME].get(CONF_COMPILE_PROCESS_LIMIT)) is not None:
+        return limit
+    if not (value := os.environ.get("IDF_PY_BUILD_JOBS")):
+        return None
+    try:
+        jobs = int(value)
+    except ValueError:
+        jobs = 0
+    if jobs <= 0:
+        raise EsphomeError("IDF_PY_BUILD_JOBS must be a positive integer")
+    return jobs
+
+
 def _run_ninja(
     target: str,
     *,
@@ -596,7 +611,7 @@ def run_compile(config, verbose: bool) -> int:
     2. Regenerate CMakeLists.txt with discovered components
     3. Run full build
     """
-    jobs = config[CONF_ESPHOME].get(CONF_COMPILE_PROCESS_LIMIT)
+    jobs = _build_jobs(config)
     if need_reconfigure():
         if (rc := _configure_project(verbose)) != 0:
             return rc
