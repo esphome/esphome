@@ -66,7 +66,7 @@ async def setup_pn532(var: MockObj, config: ConfigType) -> None:
         _request_ontag_trigger_slot(str(var))
         cg.add(var.register_ontag_trigger(trigger))
         await automation.build_automation(
-            trigger, [(cg.std_string, "x"), (nfc.NfcTag, "tag")], conf
+            trigger, [(cg.std_string, "x"), (nfc.NfcTagConstRef, "tag")], conf
         )
 
     for conf in config.get(CONF_ON_TAG_REMOVED, []):
@@ -74,7 +74,7 @@ async def setup_pn532(var: MockObj, config: ConfigType) -> None:
         _request_ontagremoved_trigger_slot(str(var))
         cg.add(var.register_ontagremoved_trigger(trigger))
         await automation.build_automation(
-            trigger, [(cg.std_string, "x"), (nfc.NfcTag, "tag")], conf
+            trigger, [(cg.std_string, "x"), (nfc.NfcTagConstRef, "tag")], conf
         )
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
