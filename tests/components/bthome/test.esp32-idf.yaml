@@ -1,1 +1,16 @@
+packages:
+  ble: !include ../../test_build_components/common/ble/esp32-idf.yaml
+
 bthome:
+
+binary_sensor:
+  - platform: bthome
+    mac_address: "3C:2E:F5:71:D5:2A"
+    event: press
+    name: "BTHome press"
+  - platform: bthome
+    mac_address: "3C:2E:F5:71:D5:2A"
+    index: 2
+    event: hold_press
+    pulse_length: 300ms
+    name: "BTHome hold"
