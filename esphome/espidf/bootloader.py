@@ -104,9 +104,19 @@ def _stamp_inputs() -> dict:
 
 
 def record_failure() -> None:
-    """Pin later runs to in-tree until the IDF version or target changes."""
+    """Pin this run and later ones to in-tree until the inputs change."""
+    toolchain._cache().bootloader_enabled = False
     with contextlib.suppress(OSError, EsphomeError):
         write_file(_failure_stamp(), json.dumps(_stamp_inputs()))
+
+
+def tree_uses_cached_bootloader(build_dir: Path) -> bool:
+    """Whether a configured tree was set up for the cached bootloader."""
+    cmakecache = build_dir / "CMakeCache.txt"
+    if not cmakecache.is_file():
+        return False
+    cache = toolchain._parse_cmakecache(cmakecache)
+    return cache.get(toolchain.USE_CACHED_BOOTLOADER_DEFINE) == "1"
 
 
 def _cache_root() -> Path:
@@ -325,29 +335,29 @@ def _prune_stale_dirs() -> None:
                 _remove_dir(path)
 
 
-def ensure_cached_bootloader(verbose: bool = False) -> int:
+def ensure_cached_bootloader(verbose: bool = False) -> bool:
     """Put the cached bootloader into build/bootloader, building on a miss.
 
-    Nonzero tells the caller to fall back to the in-tree build; a too-large
+    False tells the caller to fall back to the in-tree build; a too-large
     bootloader raises instead, since in-tree would fail the same way.
     """
     app_config = toolchain._load_sdkconfig_json(toolchain._build_dir())
     compiler = toolchain._resolved_c_compiler()
     if app_config is None or compiler is None:
         _LOGGER.debug("Bootloader cache unusable: app configure outputs missing")
-        return 1
+        return False
     try:
         dest = _install_cached(app_config, compiler, verbose)
     except (OSError, EsphomeError) as err:
         _LOGGER.warning("Bootloader cache failed: %s", err)
-        return 1
+        return False
     if dest is None:
-        return 1
+        return False
     with contextlib.suppress(OSError):
         _failure_stamp().unlink(missing_ok=True)
     # Outside the fail-safe net: the in-tree build would overflow the same way.
     _check_bootloader_size(dest / "bootloader.bin", app_config)
-    return 0
+    return True
 
 
 def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | None:
@@ -381,13 +391,7 @@ def inject_bootloader_flash_file(flash_data: dict, build_dir: Path) -> None:
     Gated on the tree's mode: IDF also omits the entry on purpose for some
     secure-boot builds, and those must stay exactly as IDF wrote them.
     """
-    cmakecache = build_dir / "CMakeCache.txt"
-    if not cmakecache.is_file():
-        return
-    if (
-        toolchain._parse_cmakecache(cmakecache).get("ESPHOME_USE_CACHED_BOOTLOADER")
-        != "1"
-    ):
+    if not tree_uses_cached_bootloader(build_dir):
         return
     app_config = toolchain._load_sdkconfig_json(build_dir)
     if (

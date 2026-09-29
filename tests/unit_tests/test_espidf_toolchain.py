@@ -117,13 +117,17 @@ def _setup_build(setup_core: Path) -> tuple[Path, Path]:
 
 
 @contextmanager
-def _up_to_date_compile(ninja_side_effect=None) -> Iterator[tuple]:
+def _up_to_date_compile(
+    ninja_side_effect=None, cached_bootloader: bool = False
+) -> Iterator[tuple]:
     """Patch run_compile's staleness checks to "up to date"; yield the ninja
     and print_summary mocks."""
     with (
         patch.object(toolchain, "need_reconfigure", return_value=False),
         patch.object(toolchain, "_cache_entries_changed", return_value=False),
-        patch.object(toolchain, "_use_cached_bootloader", return_value=False),
+        patch.object(
+            toolchain, "_use_cached_bootloader", return_value=cached_bootloader
+        ),
         patch.object(
             toolchain, "_run_ninja", return_value=0, side_effect=ninja_side_effect
         ) as mock_ninja,
@@ -1143,15 +1147,11 @@ def test_run_compile_installs_cached_bootloader(setup_core: Path) -> None:
 
     _setup_build(setup_core)
     with (
-        patch.object(toolchain, "need_reconfigure", return_value=False),
-        patch.object(toolchain, "_cache_entries_changed", return_value=False),
-        patch.object(toolchain, "_use_cached_bootloader", return_value=True),
+        _up_to_date_compile(cached_bootloader=True),
         patch.object(
-            bootloader, "ensure_cached_bootloader", return_value=0
+            bootloader, "ensure_cached_bootloader", return_value=True
         ) as mock_ensure,
         patch.object(toolchain, "run_reconfigure") as mock_reconfigure,
-        patch.object(toolchain, "_run_ninja", return_value=0),
-        patch.object(toolchain, "print_summary"),
     ):
         assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
     mock_ensure.assert_called_once_with(False)
@@ -1167,22 +1167,16 @@ def test_run_compile_falls_back_when_bootloader_cache_fails(
 
     _setup_build(setup_core)
     with (
-        patch.object(toolchain, "need_reconfigure", return_value=False),
-        patch.object(toolchain, "_cache_entries_changed", return_value=False),
-        patch.object(toolchain, "_use_cached_bootloader", return_value=True),
-        patch.object(bootloader, "ensure_cached_bootloader", return_value=1),
+        _up_to_date_compile(cached_bootloader=True) as (mock_ninja, _),
+        patch.object(bootloader, "ensure_cached_bootloader", return_value=False),
         patch.object(bootloader, "record_failure") as mock_record,
         patch.object(
             toolchain, "run_reconfigure", return_value=reconfigure_rc
         ) as mock_reconfigure,
-        patch.object(toolchain, "_run_ninja", return_value=0) as mock_ninja,
-        patch.object(toolchain, "print_summary"),
     ):
         rc = toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
     assert rc == reconfigure_rc
-    # The fallback pins the memoized predicate for the rest of the run and
-    # stamps the tree so later runs skip the retry until the inputs change.
-    assert toolchain._cache().bootloader_enabled is False
+    # record_failure pins this run and stamps the tree for later ones.
     mock_record.assert_called_once_with()
     mock_reconfigure.assert_called_once_with(False)
     assert mock_ninja.called is (reconfigure_rc == 0)

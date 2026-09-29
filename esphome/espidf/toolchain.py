@@ -30,6 +30,9 @@ from esphome.helpers import add_git_ceiling_directory, read_json_file, write_fil
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "espidf_toolchain"
+# The -D that switches the generated CMakeLists between the cached and the
+# in-tree bootloader; also read back from CMakeCache.txt to identify a tree.
+USE_CACHED_BOOTLOADER_DEFINE = "ESPHOME_USE_CACHED_BOOTLOADER"
 
 
 @dataclass
@@ -318,7 +321,7 @@ def _configure_defines() -> dict[str, str]:
         **_cache_entries(),
         # ESPHome's own switch; idf.py never passes it and cmake keeps the
         # cached value, so idf.py runs against the tree stay in the same mode.
-        "ESPHOME_USE_CACHED_BOOTLOADER": "1" if _use_cached_bootloader() else "0",
+        USE_CACHED_BOOTLOADER_DEFINE: "1" if _use_cached_bootloader() else "0",
     }
 
 
@@ -708,10 +711,9 @@ def run_compile(config, verbose: bool) -> int:
     if _use_cached_bootloader():
         from esphome.espidf import bootloader
 
-        if bootloader.ensure_cached_bootloader(verbose) != 0:
+        if not bootloader.ensure_cached_bootloader(verbose):
             # The stock in-tree build still works; flip this run over to it.
             _LOGGER.warning("Cached bootloader unavailable; building it in-tree")
-            _cache().bootloader_enabled = False
             bootloader.record_failure()
             if (rc := run_reconfigure(verbose)) != 0:
                 return rc

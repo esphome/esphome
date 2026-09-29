@@ -41,11 +41,10 @@ TOP_NINJA_LOG = "build/.ninja_log"
 def _ninja_logs(build_path: Path) -> list[str]:
     """The mode comes from the configured tree, so a missing sub-build log
     stays an error in the mode that requires one."""
-    from esphome.espidf import toolchain
+    from esphome.espidf import bootloader
 
-    cache = toolchain._parse_cmakecache(build_path / "build" / "CMakeCache.txt")
     logs = [TOP_NINJA_LOG]
-    if cache.get("ESPHOME_USE_CACHED_BOOTLOADER") != "1":
+    if not bootloader.tree_uses_cached_bootloader(build_path / "build"):
         logs.append("build/bootloader/.ninja_log")
     return logs
 

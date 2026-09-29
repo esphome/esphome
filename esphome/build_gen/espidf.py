@@ -132,16 +132,21 @@ def _normalized_macro(text: str) -> list[str] | None:
     ]
 
 
+_EXPECTED_MACRO = [
+    line
+    for line in _normalized_macro(IDF_BOOTLOADER_OVERRIDE)
+    if line != BOOTLOADER_OVERRIDE_ADDED_LINE
+]
+
+
 def idf_macro_matches() -> bool:
     """Whether IDF's macro still matches the copy the override replays."""
     from esphome.espidf import toolchain
 
-    expected = _normalized_macro(IDF_BOOTLOADER_OVERRIDE)
-    expected.remove(BOOTLOADER_OVERRIDE_ADDED_LINE)
     # pylint: disable-next=protected-access
     build_cmake = toolchain._get_idf_path() / "tools" / "cmake" / "build.cmake"
     live = _normalized_macro(build_cmake.read_text(encoding="utf-8"))
-    return live == expected
+    return live == _EXPECTED_MACRO
 
 
 def get_project_cmakelists(

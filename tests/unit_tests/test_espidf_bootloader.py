@@ -99,7 +99,8 @@ def test_enabled_after_recorded_failure(tmp_path: Path) -> None:
         patch.object(build_gen, "idf_macro_matches", return_value=True),
     ):
         bootloader.record_failure()
-        assert bootloader._compute_enabled() is False
+        assert toolchain._cache().bootloader_enabled is False  # this run
+        assert bootloader._compute_enabled() is False  # later runs
         CORE.data[KEY_ESP32][KEY_IDF_VERSION] = cv.Version(6, 1, 0)
         assert bootloader._compute_enabled() is True
 
@@ -431,7 +432,7 @@ def test_size_check_overflow_raises(tmp_path: Path) -> None:
 
 def test_ensure_fails_soft_without_configure_outputs() -> None:
     """No app config or compiler id means fall back, not crash."""
-    assert bootloader.ensure_cached_bootloader() == 1
+    assert bootloader.ensure_cached_bootloader() is False
 
 
 @contextmanager
@@ -471,7 +472,7 @@ def test_ensure_cache_hit_installs_without_building(tmp_path: Path) -> None:
         (root / "config_names.json").write_text('["A"]')
         stamp = bootloader._failure_stamp()
         stamp.write_text("{}")
-        assert bootloader.ensure_cached_bootloader() == 0
+        assert bootloader.ensure_cached_bootloader() is True
     mock_build.assert_not_called()
     assert not stamp.exists()  # success clears a stale failure stamp
     installed = CORE.relative_build_path("build", "bootloader", "bootloader.bin")
@@ -487,7 +488,7 @@ def test_ensure_cache_miss_builds_and_publishes(tmp_path: Path) -> None:
     ):
         root.mkdir(parents=True)
         (root / "config_names.json").write_text('["A"]')
-        assert bootloader.ensure_cached_bootloader() == 0
+        assert bootloader.ensure_cached_bootloader() is True
     # Entry published under the key, names harvested, work dir removed.
     assert (root / "deadbeefdeadbeef" / "bootloader.bin").is_file()
     assert "A" in json.loads((root / "config_names.json").read_text())
@@ -501,7 +502,7 @@ def test_ensure_returns_build_failure(tmp_path: Path) -> None:
         _orchestration_env(tmp_path) as root,
         patch.object(bootloader, "_build_standalone", return_value=2),
     ):
-        assert bootloader.ensure_cached_bootloader() == 1
+        assert bootloader.ensure_cached_bootloader() is False
     assert not list(root.glob(".build-*"))
 
 
@@ -514,7 +515,7 @@ def test_ensure_soft_fails_when_build_yields_no_config(tmp_path: Path) -> None:
         _orchestration_env(tmp_path),
         patch.object(bootloader, "_build_standalone", side_effect=build_without_config),
     ):
-        assert bootloader.ensure_cached_bootloader() == 1
+        assert bootloader.ensure_cached_bootloader() is False
 
 
 @pytest.mark.parametrize(
@@ -529,7 +530,7 @@ def test_ensure_turns_cache_errors_into_a_soft_failure(
         patch.object(bootloader, "_publish", side_effect=err),
         patch.object(bootloader, "_build_standalone", side_effect=_make_built_tree_rc),
     ):
-        assert bootloader.ensure_cached_bootloader() == 1
+        assert bootloader.ensure_cached_bootloader() is False
 
 
 def test_prune_removes_only_old_work_dirs(tmp_path: Path) -> None:
@@ -589,6 +590,15 @@ def test_inject_noop_on_a_stock_tree(tmp_path: Path) -> None:
     flash_data: dict = {"flash_files": {}}
     bootloader.inject_bootloader_flash_file(flash_data, build)
     assert flash_data == {"flash_files": {}}
+
+
+def test_tree_uses_cached_bootloader(tmp_path: Path) -> None:
+    assert bootloader.tree_uses_cached_bootloader(tmp_path) is False
+    cache = tmp_path / "CMakeCache.txt"
+    cache.write_text("ESPHOME_USE_CACHED_BOOTLOADER:UNINITIALIZED=0\n")
+    assert bootloader.tree_uses_cached_bootloader(tmp_path) is False
+    cache.write_text("ESPHOME_USE_CACHED_BOOTLOADER:UNINITIALIZED=1\n")
+    assert bootloader.tree_uses_cached_bootloader(tmp_path) is True
 
 
 def test_inject_noop_without_cmakecache(tmp_path: Path) -> None:
