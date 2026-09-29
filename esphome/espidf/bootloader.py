@@ -248,9 +248,16 @@ def _work_dir(prefix: str) -> Path:
     return Path(tempfile.mkdtemp(prefix=prefix, dir=root))
 
 
+def _entry_complete(entry: Path) -> bool:
+    return all((entry / name).is_file() for name in _OUTPUTS)
+
+
 def _publish(build_dir: Path, key: str, payload: dict) -> Path:
     """Move the distilled outputs into the cache; losing a race is fine."""
     entry = _cache_root() / key
+    if not _entry_complete(entry):
+        # A partial entry (manual cleanup, killed publish) must not win.
+        _remove_dir(entry)
     stage = _work_dir(f".stage-{key}-")
     for name in _OUTPUTS:
         shutil.copy2(build_dir / name, stage / name)
@@ -263,7 +270,7 @@ def _publish(build_dir: Path, key: str, payload: dict) -> Path:
     except OSError:
         # Another process published the same key first.
         _remove_dir(stage)
-        if not (entry / "bootloader.bin").is_file():
+        if not _entry_complete(entry):
             raise
     return entry
 
@@ -282,8 +289,7 @@ def _install_into_build(entry: Path) -> Path:
         rmtree(dest)
     dest.mkdir(parents=True, exist_ok=True)
     for name in _OUTPUTS:
-        if (src := entry / name).is_file():
-            shutil.copy2(src, dest / name)
+        shutil.copy2(entry / name, dest / name)
     return dest
 
 
@@ -294,9 +300,8 @@ def _bootloader_offset(app_config: dict | None) -> int | None:
     return int(app_config["BOOTLOADER_OFFSET_IN_FLASH"])
 
 
-def _check_bootloader_size(bin_path: Path, offset: int, app_config: dict) -> None:
+def _check_bootloader_size(bin_path: Path, offset: int, table_offset: int) -> None:
     """The check_sizes.py bootloader check, without spawning a process."""
-    table_offset = int(app_config.get("PARTITION_TABLE_OFFSET", 0x8000))
     size = bin_path.stat().st_size
     free = table_offset - offset - size
     if free < 0:
@@ -330,8 +335,9 @@ def ensure_cached_bootloader(verbose: bool = False) -> bool:
     """
     app_config = toolchain._load_sdkconfig_json(toolchain._build_dir())
     offset = _bootloader_offset(app_config)
+    table_offset = (app_config or {}).get("PARTITION_TABLE_OFFSET")
     compiler = toolchain._resolved_c_compiler()
-    if offset is None or compiler is None:
+    if offset is None or table_offset is None or compiler is None:
         _LOGGER.debug("Bootloader cache unusable: app configure outputs missing")
         return False
     try:
@@ -342,7 +348,7 @@ def ensure_cached_bootloader(verbose: bool = False) -> bool:
     if dest is None:
         return False
     # Outside the fail-safe net: the in-tree build would overflow the same way.
-    _check_bootloader_size(dest / "bootloader.bin", offset, app_config)
+    _check_bootloader_size(dest / "bootloader.bin", offset, int(table_offset))
     return True
 
 
@@ -356,7 +362,7 @@ def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | No
         entry = _cache_root() / _compute_key(
             _key_payload(names, app_config, compiler, stamp)
         )
-        if (entry / "bootloader.bin").is_file():
+        if _entry_complete(entry):
             return _install_into_build(entry)
     tmp = _work_dir(".build-")
     probe = _work_dir(".build-")

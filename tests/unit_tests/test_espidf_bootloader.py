@@ -379,14 +379,16 @@ def test_publish_lost_race_reuses_winner(tmp_path: Path) -> None:
     _make_built_tree(build)
     entry = root / ("k" * 16)
 
-    def rename_raises(src: Path, dst: Path) -> None:
-        entry.mkdir(parents=True)
-        (entry / "bootloader.bin").write_bytes(b"winner")
-        raise OSError("directory not empty")
+    # The winner finished first; the pre-clean must not remove it.
+    entry.mkdir(parents=True)
+    for name in bootloader._OUTPUTS:
+        (entry / name).write_bytes(b"winner")
 
     with (
         patch.object(bootloader, "_cache_root", return_value=root),
-        patch.object(bootloader, "_rename_with_retry", rename_raises),
+        patch.object(
+            bootloader, "_rename_with_retry", side_effect=OSError("not empty")
+        ),
     ):
         assert bootloader._publish(build, "k" * 16, {}) == entry
     assert (entry / "bootloader.bin").read_bytes() == b"winner"
@@ -411,18 +413,17 @@ def test_publish_rename_failure_without_winner_raises(tmp_path: Path) -> None:
 def test_install_into_build_replaces_stale_subbuild(tmp_path: Path) -> None:
     entry = tmp_path / "entry"
     entry.mkdir()
-    # No .map: an optional output missing from the entry is skipped.
-    (entry / "bootloader.bin").write_bytes(b"bin")
-    (entry / "bootloader.elf").write_bytes(b"elf")
+    for name in bootloader._OUTPUTS:
+        (entry / name).write_bytes(name.encode())
     dest = CORE.relative_build_path("build", "bootloader")
     dest.mkdir(parents=True)
     (dest / "CMakeCache.txt").write_text("stale in-tree sub-build")
     (dest / "old.obj").write_bytes(b"x")
     assert bootloader._install_into_build(entry) == dest
-    assert (dest / "bootloader.bin").read_bytes() == b"bin"
+    for name in bootloader._OUTPUTS:
+        assert (dest / name).read_bytes() == name.encode()
     assert not (dest / "CMakeCache.txt").exists()
     assert not (dest / "old.obj").exists()
-    assert not (dest / "bootloader.map").exists()
 
 
 # -------------------------------------------------------------- size check
@@ -433,18 +434,16 @@ def test_size_check_passes_and_logs(
 ) -> None:
     bin_path = tmp_path / "bootloader.bin"
     bin_path.write_bytes(b"\xe9" * 0x6620)
-    config = {"PARTITION_TABLE_OFFSET": 0x8000}
     with caplog.at_level("INFO"):
-        bootloader._check_bootloader_size(bin_path, 0x1000, config)
+        bootloader._check_bootloader_size(bin_path, 0x1000, 0x8000)
     assert "0x9e0 bytes (9%) free" in caplog.text
 
 
 def test_size_check_overflow_raises(tmp_path: Path) -> None:
     bin_path = tmp_path / "bootloader.bin"
     bin_path.write_bytes(b"\xe9" * 0x7100)
-    config = {"PARTITION_TABLE_OFFSET": 0x8000}
     with pytest.raises(EsphomeError, match="overflows by 0x100 bytes"):
-        bootloader._check_bootloader_size(bin_path, 0x1000, config)
+        bootloader._check_bootloader_size(bin_path, 0x1000, 0x8000)
 
 
 # ------------------------------------------------------------ orchestration
@@ -536,6 +535,33 @@ def test_ensure_soft_fails_when_build_yields_no_config(tmp_path: Path) -> None:
         _orchestration_env(tmp_path),
         patch.object(bootloader, "_build_standalone", side_effect=build_without_config),
     ):
+        assert bootloader.ensure_cached_bootloader() is False
+
+
+def test_ensure_rebuilds_an_incomplete_entry(tmp_path: Path) -> None:
+    """An entry that lost its elf or map is a miss and gets replaced."""
+    with (
+        _orchestration_env(tmp_path) as root,
+        patch.object(
+            bootloader, "_build_standalone", side_effect=_make_built_tree_rc
+        ) as mock_build,
+    ):
+        partial = root / "deadbeefdeadbeef"
+        partial.mkdir(parents=True)
+        (partial / "bootloader.bin").write_bytes(b"old")
+        (root / "config_names.json").write_text('["A"]')
+        assert bootloader.ensure_cached_bootloader() is True
+    assert mock_build.call_count == 2  # built and probed, not served as a hit
+    for name in bootloader._OUTPUTS:
+        assert (root / "deadbeefdeadbeef" / name).read_bytes() == name.encode()
+
+
+def test_ensure_soft_fails_without_a_partition_table_offset(tmp_path: Path) -> None:
+    with _orchestration_env(tmp_path):
+        build = CORE.relative_build_path("build")
+        (build / "config" / "sdkconfig.json").write_text(
+            '{"BOOTLOADER_OFFSET_IN_FLASH": 4096}'
+        )
         assert bootloader.ensure_cached_bootloader() is False
 
 
