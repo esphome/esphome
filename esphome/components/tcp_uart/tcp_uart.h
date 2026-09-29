@@ -52,6 +52,7 @@ class TcpUart : public uart::UARTComponent, public Component {
   void apply_socket_options_(socket::Socket *sock);
   void set_link_up_(bool up);
   void note_attempt_();
+  void forget_addr_();
   bool in_backoff_() const;
 #if !defined(USE_HOST) && !defined(USE_ZEPHYR)
   static void dns_found(const char *name, const ip_addr_t *addr, void *arg);
@@ -73,6 +74,7 @@ class TcpUart : public uart::UARTComponent, public Component {
   uint16_t port_{0};
   bool connecting_{false};
   bool connected_{false};
+  bool offline_drop_logged_{false};
   // atomic<bool> is an out-of-line call on the ESP8266 and does not link.
   std::atomic<uint8_t> resolving_{0};
   std::atomic<uint8_t> resolve_failed_{0};

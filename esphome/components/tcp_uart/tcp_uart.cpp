@@ -61,6 +61,12 @@ void TcpUart::on_shutdown() { this->close_sock_(); }
 
 void TcpUart::note_attempt_() { this->last_attempt_ms_ = loop_time(); }
 
+void TcpUart::forget_addr_() {
+  this->have_addr_.store(false);
+  this->resolved_addr_.store(0);
+  this->resolved_ip_[0] = '\0';
+}
+
 bool TcpUart::in_backoff_() const { return loop_time() - this->last_attempt_ms_ < this->reconnect_interval_ms_; }
 
 void TcpUart::set_link_up_(bool up) {
@@ -68,6 +74,9 @@ void TcpUart::set_link_up_(bool up) {
     return;
   }
   this->connected_ = up;
+  if (!up) {
+    this->offline_drop_logged_ = false;
+  }
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(up);
   }
@@ -83,6 +92,7 @@ void TcpUart::close_sock_() {
   this->set_link_up_(false);
   this->rx_.clear();
   this->tx_len_ = 0;
+  this->forget_addr_();
 }
 
 void TcpUart::apply_socket_options_(socket::Socket *sock) {
@@ -142,7 +152,7 @@ void TcpUart::try_resolve_() {
     return;
   }
 #else
-  struct addrinfo hints {};
+  struct addrinfo hints{};
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
   struct addrinfo *res = nullptr;
@@ -215,6 +225,7 @@ void TcpUart::try_connect_() {
     return;
   }
   this->sock_.reset();
+  this->forget_addr_();
   this->note_attempt_();
 }
 
@@ -280,6 +291,13 @@ void TcpUart::loop() {
 }
 
 void TcpUart::write_array(const uint8_t *data, size_t len) {
+  if (!this->connected_) {
+    if (len > 0 && !this->offline_drop_logged_) {
+      ESP_LOGW(TAG, "Not connected, dropped %u bytes", static_cast<unsigned>(len));
+      this->offline_drop_logged_ = true;
+    }
+    return;
+  }
   size_t room = sizeof(this->tx_) - this->tx_len_;
   if (len > room) {
     uint32_t now = loop_time();
