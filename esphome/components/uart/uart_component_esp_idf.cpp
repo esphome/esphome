@@ -9,6 +9,7 @@
 #include "driver/gpio.h"
 #include "esp_private/gpio.h"
 #include "soc/gpio_num.h"
+#include "soc/soc_caps.h"
 #include "soc/uart_pins.h"
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
@@ -35,6 +36,32 @@ static const char *const TAG = "uart";
 /// causing TX data to loop back into RX on the same pin.
 static constexpr bool is_default_uart0_pin(int8_t pin_num) {
   return pin_num == U0TXD_GPIO_NUM || pin_num == U0RXD_GPIO_NUM;
+}
+
+// clock_source_ is stored in a byte; every uart_sclk_t value is a soc_module_clk_t below SOC_MOD_CLK_INVALID
+static_assert(SOC_MOD_CLK_INVALID <= UINT8_MAX, "uart_sclk_t no longer fits in uint8_t clock_source_");
+
+static const LogString *clock_source_to_str(uart_sclk_t clock_source) {
+  switch (clock_source) {
+#if SOC_UART_SUPPORT_APB_CLK
+    case UART_SCLK_APB:
+      return LOG_STR("APB");
+#endif
+#if SOC_UART_SUPPORT_XTAL_CLK
+    case UART_SCLK_XTAL:
+      return LOG_STR("XTAL");
+#endif
+#if SOC_UART_SUPPORT_RTC_CLK
+    case UART_SCLK_RTC:
+      return LOG_STR("RTC");
+#endif
+#if SOC_UART_SUPPORT_REF_TICK
+    case UART_SCLK_REF_TICK:
+      return LOG_STR("REF_TICK");
+#endif
+    default:
+      return clock_source == UART_SCLK_DEFAULT ? LOG_STR("DEFAULT") : LOG_STR("UNKNOWN");
+  }
 }
 
 uart_config_t IDFUARTComponent::get_config_() {
@@ -70,7 +97,7 @@ uart_config_t IDFUARTComponent::get_config_() {
   uart_config.parity = parity;
   uart_config.stop_bits = this->stop_bits_ == 1 ? UART_STOP_BITS_1 : UART_STOP_BITS_2;
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-  uart_config.source_clk = UART_SCLK_DEFAULT;
+  uart_config.source_clk = static_cast<uart_sclk_t>(this->clock_source_);
   uart_config.rx_flow_ctrl_thresh = 122;
 
   return uart_config;
@@ -336,12 +363,14 @@ void IDFUARTComponent::dump_config() {
                 "  Baud Rate: %" PRIu32 " baud\n"
                 "  Data Bits: %u\n"
                 "  Parity: %s\n"
-                "  Stop bits: %u"
+                "  Stop bits: %u\n"
+                "  Clock Source: %s"
 #ifdef USE_UART_WAKE_LOOP_ON_RX
                 "\n  Wake on data RX: ENABLED"
 #endif
                 ,
-                this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_);
+                this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_,
+                LOG_STR_ARG(clock_source_to_str(static_cast<uart_sclk_t>(this->clock_source_))));
   this->check_logger_conflict();
 }
 

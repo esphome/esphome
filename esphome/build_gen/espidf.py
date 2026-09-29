@@ -3,7 +3,9 @@
 import json
 import logging
 from pathlib import Path
+import textwrap
 
+from esphome.build_helpers import pch
 from esphome.components.esp32 import (
     get_esp32_variant,
     get_excluded_builtin_components,
@@ -90,9 +92,10 @@ def get_project_cmakelists(
     """
     idf_target = variant_to_idf_target(get_esp32_variant())
 
-    # esp_idf_size 2.x (bundled with IDF >=6.0) made NG the default and
-    # removed the --ng flag; on 1.x (IDF 5.5) --ng is required to get
-    # --format=raw because the legacy mode doesn't support it.
+    # esp_idf_size 2.x (IDF >=6.0) made NG the default and removed --ng;
+    # 1.x (IDF 5.5) needs --ng for --format=json2. 1.x json2 also lacks
+    # total_size, hence the ELF fallback in espidf/size_summary.py; both
+    # go away together when 1.x support is dropped.
     size_ng_flag = "--ng" if idf_version() < cv.Version(6, 0, 0) else ""
 
     # Project-wide compile options: -D defines and -W warning flags (skip
@@ -211,10 +214,12 @@ include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
 project({CORE.name})
 
-# Emit raw JSON size data for ESPHome to read post-build.
+# Emit per-memory-type JSON size data for ESPHome to read post-build.
+# json2 stays small; raw dumps every symbol (~2s on a large map) and
+# this command runs inside the link edge, blocking everything downstream.
 add_custom_command(
     TARGET ${{CMAKE_PROJECT_NAME}}.elf POST_BUILD
-    COMMAND ${{PYTHON}} -m esp_idf_size {size_ng_flag} --format=raw
+    COMMAND ${{PYTHON}} -m esp_idf_size {size_ng_flag} --format=json2
             -o ${{CMAKE_BINARY_DIR}}/esp_idf_size.json
             ${{CMAKE_PROJECT_NAME}}.map
     WORKING_DIRECTORY ${{CMAKE_BINARY_DIR}}
@@ -279,7 +284,70 @@ idf_component_register(
 target_link_options(${{COMPONENT_LIB}} PUBLIC
     {link_opts_str}
 )
+{_pch_cmake_block()}"""
+
+
+# Where CMake puts the .gch of the src component; ccache reads the checksum
+# next to it in place of the .gch
+_PCH_SUM_PATH = "build/esp-idf/src/CMakeFiles/__idf_src.dir/cmake_pch.hxx.gch.sum"
+# Where the Windows gate records its choice
+_PCH_CHOICE_VAR = "ESPHOME_PCH"
+
+
+def _pch_cmake_block() -> str:
+    """The CMake block that precompiles the core headers for the C++ sources
+    of the src component; empty when disabled."""
+    if not pch.pch_enabled():
+        return ""
+    headers = "\n".join(
+        f'    "$<$<COMPILE_LANGUAGE:CXX>:${{CMAKE_CURRENT_SOURCE_DIR}}/{header}>"'
+        for header in pch.PCH_DEFAULT_HEADERS
+    )
+    block = f"""target_precompile_headers(${{COMPONENT_LIB}} PRIVATE
+{headers}
+)"""
+    if not pch.pch_needs_gcc_check():
+        return f"\n# ESPHome precompiled header\n{block}\n"
+    # Before the first configure only CMake knows the compiler version
+    return f"""
+# ESPHome precompiled header, unless GCC bug 14940 keeps it from loading
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND ({pch.PCH_WINDOWS_CMAKE_OLD_GCC}))
+  message(STATUS "ESPHome: GCC ${{CMAKE_CXX_COMPILER_VERSION}} cannot load a precompiled header on Windows; compiling without it")
+  set({_PCH_CHOICE_VAR} OFF CACHE BOOL "ESPHome precompiled header in use" FORCE)
+else()
+  set({_PCH_CHOICE_VAR} ON CACHE BOOL "ESPHome precompiled header in use" FORCE)
+{textwrap.indent(block, "  ")}
+endif()
 """
+
+
+def _read_if_exists(path: Path) -> str:
+    return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+
+def write_pch_checksum() -> None:
+    """Write the checksum ccache uses in place of the .gch: the core headers,
+    the framework version, the sdkconfig and the managed component versions."""
+    from esphome.espidf.toolchain import get_cmake_cache_value
+
+    if not pch.pch_enabled():
+        return
+    # The gate's choice, cached by configure
+    if pch.pch_needs_gcc_check() and get_cmake_cache_value(_PCH_CHOICE_VAR) != "ON":
+        return
+    pch.log_pch_in_use()
+    checksum = pch.pch_checksum(
+        CORE.relative_src_path(),
+        pch.PCH_DEFAULT_HEADERS,
+        (
+            str(idf_version()),
+            _read_if_exists(CORE.relative_build_path(f"sdkconfig.{CORE.name}")),
+            _read_if_exists(CORE.relative_build_path("dependencies.lock")),
+        ),
+    )
+    path = CORE.relative_build_path(_PCH_SUM_PATH)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_file_if_changed(path, checksum + "\n")
 
 
 def write_project(
