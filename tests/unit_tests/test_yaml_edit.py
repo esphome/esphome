@@ -16,6 +16,7 @@ from esphome.const import CONF_ESPHOME, CONF_NAME
 from esphome.core import CORE, EsphomeError
 from esphome.yaml_edit import (
     LineEdit,
+    RestoreError,
     Snapshot,
     apply_line_edits,
     editable_file,
@@ -370,3 +371,39 @@ def test_rollback_after_a_failed_second_write_leaves_the_untouched_file_alone(
         apply_line_edits(edits)
     assert "changed since it was written" not in str(info.value)
     assert path.read_text() == YAML and other.read_text() == "x: 1\n"
+
+
+def test_restore_goes_on_after_an_interrupt(tmp_path: Path) -> None:
+    """A second Ctrl-C must not leave the other files holding the new value."""
+    path = _setup(tmp_path, YAML)
+    other = tmp_path / "other.yaml"
+    other.write_bytes(b"x: 1\n")
+    calls: list[Path] = []
+
+    def interrupt_at(n: int) -> Any:
+        def write(target: Path, text: str) -> None:
+            calls.append(target)
+            if len(calls) == n:
+                raise KeyboardInterrupt
+            write_keeping_mode(target, text)
+
+        return write
+
+    originals = apply_line_edits(
+        [_name_edit("garage"), LineEdit(other, 0, "x: 1", "x: 2")]
+    )
+    with (
+        patch("esphome.yaml_edit.write_keeping_mode", side_effect=interrupt_at(1)),
+        pytest.raises(EsphomeError, match="Could not restore .*: interrupted"),
+    ):
+        restore_files(originals)
+    assert calls == [path, other] and other.read_text() == "x: 1\n"
+    # Inside apply the failed rollback is reported with the reason it ran
+    _setup(tmp_path, YAML)
+    calls.clear()
+    with (
+        patch("esphome.yaml_util.load_yaml", side_effect=EsphomeError("broken")),
+        patch("esphome.yaml_edit.write_keeping_mode", side_effect=interrupt_at(2)),
+        pytest.raises(RestoreError, match="broken; Could not restore .*interrupted"),
+    ):
+        apply_line_edits([_name_edit("garage")])

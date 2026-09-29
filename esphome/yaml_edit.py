@@ -236,7 +236,8 @@ def apply_line_edits(edits: list[LineEdit]) -> dict[Path, Snapshot]:
 
 def restore_files(originals: dict[Path, Snapshot]) -> None:
     """Put back what apply_line_edits wrote; a file that failed or changed
-    meanwhile is left alone and reported."""
+    meanwhile is left alone and reported. An interrupt is reported the same
+    way, so the other files are still put back."""
     failed = []
     for path, snapshot in originals.items():
         try:
@@ -246,8 +247,8 @@ def restore_files(originals: dict[Path, Snapshot]) -> None:
             if current != snapshot.written:
                 raise EsphomeError("changed since it was written, left as is")
             write_keeping_mode(path, snapshot.original)
-        except EsphomeError as err:
-            failed.append(f"{path}: {err}")
+        except (EsphomeError, KeyboardInterrupt) as err:
+            failed.append(f"{path}: {str(err) or 'interrupted'}")
     try:
         compiled_config.invalidate_compiled_config()
     except EsphomeError as err:
