@@ -121,7 +121,11 @@ void TcpUart::try_resolve_() {
   err_t err;
   {
     LwIPLock lock;
+    this->resolving_.store(true);
     err = dns_gethostbyname(this->host_.c_str(), &cached, &TcpUart::dns_found, this);
+    if (err != ERR_INPROGRESS) {
+      this->resolving_.store(false);
+    }
   }
   if (err == ERR_OK && IP_IS_V4(&cached)) {
     this->resolved_addr_.store(ip4_addr_get_u32(ip_2_ip4(&cached)));
@@ -129,7 +133,6 @@ void TcpUart::try_resolve_() {
     return;
   }
   if (err == ERR_INPROGRESS) {
-    this->resolving_.store(true);
     return;
   }
 #else
