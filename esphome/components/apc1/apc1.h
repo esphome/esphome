@@ -31,7 +31,7 @@ static constexpr uint16_t APC1_MEASUREMENT_MODE_ACTIVE = 0x0001;
 static constexpr uint16_t APC1_OPERATING_MODE_IDLE = 0x0000;
 static constexpr uint16_t APC1_OPERATING_MODE_STANDARD = 0x0001;
 
-class APC1Component : public uart::UARTDevice, public Component {
+class APC1Component final : public uart::UARTDevice, public Component {
   SUB_SENSOR(pm_1_0)
   SUB_SENSOR(pm_2_5)
   SUB_SENSOR(pm_10_0)
