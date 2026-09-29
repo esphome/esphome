@@ -38,7 +38,6 @@ class _CacheData:
     env: dict[str, dict[str, str]] = field(default_factory=dict)
     cmake_output: dict[Path, str] = field(default_factory=dict)
     bootloader_enabled: bool | None = None
-    bootloader_fallback: bool = False
     cmake_tools: dict[Path, dict[str, Path]] = field(default_factory=dict)
 
 
@@ -286,8 +285,6 @@ def _cache_entries_changed() -> bool:
 
 def _use_cached_bootloader() -> bool:
     """Whether this run takes the bootloader from the machine-global cache."""
-    if _cache().bootloader_fallback:
-        return False
     from esphome.espidf import bootloader
 
     return bootloader.bootloader_cache_enabled()
@@ -300,9 +297,8 @@ def _configure_defines() -> dict[str, str]:
         "PYTHON": _get_idf_tool("python"),
         "ESP_PLATFORM": "1",
         **_cache_entries(),
-        # ESPHome's own switch, appended after idf.py's entries. idf.py
-        # never passes it and cmake keeps the cached value, so an idf.py
-        # run against the tree stays in the same mode.
+        # ESPHome's own switch; idf.py never passes it and cmake keeps the
+        # cached value, so idf.py runs against the tree stay in the same mode.
         "ESPHOME_USE_CACHED_BOOTLOADER": "1" if _use_cached_bootloader() else "0",
     }
 
@@ -696,7 +692,7 @@ def run_compile(config, verbose: bool) -> int:
         if bootloader.ensure_cached_bootloader(verbose) != 0:
             # The stock in-tree build still works; flip this run over to it.
             _LOGGER.warning("Cached bootloader unavailable; building it in-tree")
-            _cache().bootloader_fallback = True
+            _cache().bootloader_enabled = False
             if (rc := run_reconfigure(verbose)) != 0:
                 return rc
 

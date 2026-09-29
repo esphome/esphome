@@ -2,6 +2,8 @@
 
 # pylint: disable=protected-access
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -191,13 +193,18 @@ def test_idf_macro_mismatch_detected(tmp_path: Path) -> None:
 # ------------------------------------------------------------------ cache key
 
 
-def _key(names: list[str], config: dict, compiler: str = "/tc/gcc") -> str:
+def _key(
+    names: list[str],
+    config: dict,
+    compiler: str = "/tc/gcc",
+    version: str = "5.5.5",
+) -> str:
     with (
-        patch.object(toolchain, "_get_core_framework_version", return_value="5.5.5"),
+        patch.object(toolchain, "_get_core_framework_version", return_value=version),
         patch.object(toolchain, "_get_framework_source_override", return_value=None),
         patch.object(bootloader, "_version_stamp", return_value="v5.5.5"),
     ):
-        return bootloader._compute_key(names, config, compiler)
+        return bootloader._compute_key(bootloader._key_payload(names, config, compiler))
 
 
 def test_key_is_stable_and_name_order_independent() -> None:
@@ -216,13 +223,8 @@ def test_key_changes_with_each_input() -> None:
     base = _key(["A"], {"A": "1"})
     assert _key(["A"], {"A": "2"}) != base
     assert _key(["A"], {"A": "1"}, compiler="/other/gcc") != base
-    with (
-        patch.object(toolchain, "_get_core_framework_version", return_value="6.1.0"),
-        patch.object(toolchain, "_get_framework_source_override", return_value=None),
-        patch.object(bootloader, "_version_stamp", return_value="v5.5.5"),
-    ):
-        CORE.data[KEY_ESP32][KEY_IDF_VERSION] = cv.Version(6, 1, 0)
-        assert bootloader._compute_key(["A"], {"A": "1"}, "/tc/gcc") != base
+    CORE.data[KEY_ESP32][KEY_IDF_VERSION] = cv.Version(6, 1, 0)
+    assert _key(["A"], {"A": "1"}, version="6.1.0") != base
 
 
 def test_key_ignores_unlisted_config_values() -> None:
@@ -288,25 +290,27 @@ def test_load_build_config(tmp_path: Path) -> None:
 # ------------------------------------------------------------- compiler id
 
 
-def test_compiler_id_from_compile_commands(tmp_path: Path) -> None:
+def test_compiler_id_from_project_description(tmp_path: Path) -> None:
     build = CORE.relative_build_path("build")
     build.mkdir(parents=True)
-    (build / "compile_commands.json").write_text(
-        json.dumps([{"command": "/tools/xtensa-esp32-elf-gcc -c a.c"}])
+    (build / "project_description.json").write_text(
+        json.dumps({"c_compiler": "/tools/xtensa-esp32-elf-gcc"})
     )
-    assert bootloader._compiler_id() == "/tools/xtensa-esp32-elf-gcc"
+    assert bootloader._compiler_id() == os.path.realpath("/tools/xtensa-esp32-elf-gcc")
 
 
-def test_compiler_id_falls_back_to_cmakecache(tmp_path: Path) -> None:
-    build = CORE.relative_build_path("build")
-    build.mkdir(parents=True)
-    (build / "CMakeCache.txt").write_text(
-        "CMAKE_C_COMPILER_AR:FILEPATH=/tools/xtensa-esp32-elf-gcc-ar\n"
-    )
-    assert bootloader._compiler_id() == "/tools/xtensa-esp32-elf-gcc-ar"
-
-
-def test_compiler_id_none_without_configure_outputs() -> None:
+@pytest.mark.parametrize(
+    "description",
+    [None, "not json", "{}", '{"c_compiler": ""}'],
+    ids=["missing", "corrupt", "no-key", "empty"],
+)
+def test_compiler_id_none_without_a_usable_description(
+    tmp_path: Path, description: str | None
+) -> None:
+    if description is not None:
+        build = CORE.relative_build_path("build")
+        build.mkdir(parents=True)
+        (build / "project_description.json").write_text(description)
     assert bootloader._compiler_id() is None
 
 
@@ -344,18 +348,25 @@ def test_subproject_args_for_idf_6() -> None:
 # -------------------------------------------------------- standalone build
 
 
-def test_build_standalone_runs_cmake_then_ninja(tmp_path: Path) -> None:
-    build_dir = tmp_path / "work"
+@contextmanager
+def _standalone_tools(run_rc: int) -> Iterator:
+    """Stub the tool lookup and runner; yield the run_build_tool mock."""
     with (
         patch.object(toolchain, "_get_idf_tool", side_effect=lambda n: f"/tools/{n}"),
         patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
         patch.object(toolchain, "_tool_env", return_value={"A": "1"}),
-        patch.object(bootloader, "run_build_tool", return_value=0) as mock_run,
+        patch.object(bootloader, "run_build_tool", return_value=run_rc) as mock_run,
     ):
+        yield mock_run
+
+
+def test_build_standalone_runs_cmake_then_ninja(tmp_path: Path) -> None:
+    build_dir = tmp_path / "work"
+    with _standalone_tools(0) as mock_run:
         assert bootloader._build_standalone(build_dir, verbose=True) == 0
     cmake_call, ninja_call = mock_run.call_args_list
     assert cmake_call.args[0][0] == "/tools/cmake"
-    assert cmake_call.args[0][-1] == "/idf/components/bootloader/subproject"
+    assert cmake_call.args[0][-1] == f"{Path('/idf')}/components/bootloader/subproject"
     assert cmake_call.kwargs["cwd"] == build_dir
     assert cmake_call.kwargs["filter_lines"] is None  # verbose
     assert cmake_call.kwargs["log_path"] == build_dir / "log" / "cmake_output.log"
@@ -365,10 +376,7 @@ def test_build_standalone_runs_cmake_then_ninja(tmp_path: Path) -> None:
 def test_build_standalone_failure_prints_hints(tmp_path: Path) -> None:
     build_dir = tmp_path / "work"
     with (
-        patch.object(toolchain, "_get_idf_tool", side_effect=lambda n: f"/tools/{n}"),
-        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
-        patch.object(toolchain, "_tool_env", return_value={}),
-        patch.object(bootloader, "run_build_tool", return_value=2) as mock_run,
+        _standalone_tools(2) as mock_run,
         patch.object(toolchain, "_print_hints") as mock_hints,
     ):
         assert bootloader._build_standalone(build_dir, verbose=False) == 2
@@ -389,7 +397,7 @@ def _make_built_tree(build_dir: Path) -> None:
     (build_dir / "config" / "sdkconfig.json").write_text('{"A": "1"}')
 
 
-def test_publish_creates_entry(tmp_path: Path) -> None:
+def test_publish_creates_entry_with_the_key_payload(tmp_path: Path) -> None:
     root = tmp_path / "cache"
     build = tmp_path / "work"
     _make_built_tree(build)
@@ -397,18 +405,9 @@ def test_publish_creates_entry(tmp_path: Path) -> None:
         entry = bootloader._publish(build, "k" * 16, {"idf": "5.5.5"})
     assert entry == root / ("k" * 16)
     assert (entry / "bootloader.bin").read_bytes() == b"bootloader.bin"
+    # meta.json is the full key payload, for debugging cache misses.
     assert json.loads((entry / "meta.json").read_text()) == {"idf": "5.5.5"}
     assert not list(root.glob(".stage-*"))
-
-
-def test_publish_existing_entry_short_circuits(tmp_path: Path) -> None:
-    root = tmp_path / "cache"
-    entry = root / ("k" * 16)
-    entry.mkdir(parents=True)
-    (entry / "bootloader.bin").write_bytes(b"winner")
-    with patch.object(bootloader, "_cache_root", return_value=root):
-        assert bootloader._publish(tmp_path / "work", "k" * 16, {}) == entry
-    assert (entry / "bootloader.bin").read_bytes() == b"winner"
 
 
 def test_publish_lost_race_reuses_winner(tmp_path: Path) -> None:
@@ -418,14 +417,14 @@ def test_publish_lost_race_reuses_winner(tmp_path: Path) -> None:
     _make_built_tree(build)
     entry = root / ("k" * 16)
 
-    def rename_raises(self: Path, target: Path) -> None:
+    def rename_raises(src: Path, dst: Path) -> None:
         entry.mkdir(parents=True)
         (entry / "bootloader.bin").write_bytes(b"winner")
         raise OSError("directory not empty")
 
     with (
         patch.object(bootloader, "_cache_root", return_value=root),
-        patch.object(Path, "rename", rename_raises),
+        patch.object(bootloader, "_rename_with_retry", rename_raises),
     ):
         assert bootloader._publish(build, "k" * 16, {}) == entry
     assert (entry / "bootloader.bin").read_bytes() == b"winner"
@@ -438,7 +437,7 @@ def test_publish_rename_failure_without_winner_raises(tmp_path: Path) -> None:
     _make_built_tree(build)
     with (
         patch.object(bootloader, "_cache_root", return_value=root),
-        patch.object(Path, "rename", side_effect=OSError("denied")),
+        patch.object(bootloader, "_rename_with_retry", side_effect=OSError("denied")),
         pytest.raises(OSError),
     ):
         bootloader._publish(build, "k" * 16, {})
@@ -457,11 +456,24 @@ def test_install_into_build_replaces_stale_subbuild(tmp_path: Path) -> None:
     dest.mkdir(parents=True)
     (dest / "CMakeCache.txt").write_text("stale in-tree sub-build")
     (dest / "old.obj").write_bytes(b"x")
-    bootloader._install_into_build(entry)
+    assert bootloader._install_into_build(entry) == dest
     assert (dest / "bootloader.bin").read_bytes() == b"bin"
     assert not (dest / "CMakeCache.txt").exists()
     assert not (dest / "old.obj").exists()
     assert not (dest / "bootloader.map").exists()
+
+
+def test_install_into_build_skips_current_copies(tmp_path: Path) -> None:
+    """copy2 keeps the source mtime, so a matching copy is not rewritten."""
+    entry = tmp_path / "entry"
+    entry.mkdir()
+    (entry / "bootloader.bin").write_bytes(b"bin")
+    dest = bootloader._install_into_build(entry)
+    first = (dest / "bootloader.bin").stat()
+    with patch.object(bootloader.shutil, "copy2") as mock_copy:
+        bootloader._install_into_build(entry)
+    mock_copy.assert_not_called()
+    assert (dest / "bootloader.bin").stat().st_mtime == first.st_mtime
 
 
 # -------------------------------------------------------------- size check
@@ -494,8 +506,10 @@ def test_ensure_fails_soft_without_configure_outputs() -> None:
     assert bootloader.ensure_cached_bootloader() == 1
 
 
-def _orchestration_env(tmp_path: Path):
-    """Patches shared by the ensure_cached_bootloader tests."""
+@contextmanager
+def _orchestration_env(tmp_path: Path) -> Iterator[Path]:
+    """A configured app tree plus the patches every ensure_* test shares;
+    yields the cache root."""
     root = tmp_path / "cache-root"
     build = CORE.relative_build_path("build")
     build.mkdir(parents=True, exist_ok=True)
@@ -509,14 +523,16 @@ def _orchestration_env(tmp_path: Path):
             }
         )
     )
-    return root
-
-
-def test_ensure_cache_hit_installs_without_building(tmp_path: Path) -> None:
-    root = _orchestration_env(tmp_path)
     with (
         patch.object(bootloader, "_cache_root", return_value=root),
         patch.object(bootloader, "_compiler_id", return_value="/tc/gcc"),
+    ):
+        yield root
+
+
+def test_ensure_cache_hit_installs_without_building(tmp_path: Path) -> None:
+    with (
+        _orchestration_env(tmp_path) as root,
         patch.object(bootloader, "_compute_key", return_value="deadbeefdeadbeef"),
         patch.object(bootloader, "_build_standalone") as mock_build,
     ):
@@ -532,35 +548,30 @@ def test_ensure_cache_hit_installs_without_building(tmp_path: Path) -> None:
 
 def test_ensure_cache_miss_builds_and_publishes(tmp_path: Path) -> None:
     """Known names but no matching entry: build, harvest, publish."""
-    root = _orchestration_env(tmp_path)
-    root.mkdir(parents=True)
-    (root / "config_names.json").write_text('["A"]')
 
     def fake_build(build_dir: Path, verbose: bool) -> int:
         _make_built_tree(build_dir)
         return 0
 
     with (
-        patch.object(bootloader, "_cache_root", return_value=root),
-        patch.object(bootloader, "_compiler_id", return_value="/tc/gcc"),
+        _orchestration_env(tmp_path) as root,
         patch.object(bootloader, "_compute_key", return_value="deadbeefdeadbeef"),
         patch.object(bootloader, "_build_standalone", side_effect=fake_build),
     ):
+        root.mkdir(parents=True)
+        (root / "config_names.json").write_text('["A"]')
         assert bootloader.ensure_cached_bootloader() == 0
     # Entry published under the key, names harvested, work dir removed.
     assert (root / "deadbeefdeadbeef" / "bootloader.bin").is_file()
-    with patch.object(bootloader, "_cache_root", return_value=root):
-        assert "A" in bootloader._load_config_names()
+    assert "A" in json.loads((root / "config_names.json").read_text())
     assert not list(root.glob(".build-*"))
     installed = CORE.relative_build_path("build", "bootloader", "bootloader.bin")
     assert installed.is_file()
 
 
 def test_ensure_returns_build_failure(tmp_path: Path) -> None:
-    root = _orchestration_env(tmp_path)
     with (
-        patch.object(bootloader, "_cache_root", return_value=root),
-        patch.object(bootloader, "_compiler_id", return_value="/tc/gcc"),
+        _orchestration_env(tmp_path) as root,
         patch.object(bootloader, "_build_standalone", return_value=2),
     ):
         assert bootloader.ensure_cached_bootloader() == 2
@@ -568,16 +579,22 @@ def test_ensure_returns_build_failure(tmp_path: Path) -> None:
 
 
 def test_ensure_soft_fails_when_build_yields_no_config(tmp_path: Path) -> None:
-    root = _orchestration_env(tmp_path)
-
     def build_without_config(build_dir: Path, verbose: bool) -> int:
         build_dir.mkdir(parents=True, exist_ok=True)
         return 0
 
     with (
-        patch.object(bootloader, "_cache_root", return_value=root),
-        patch.object(bootloader, "_compiler_id", return_value="/tc/gcc"),
+        _orchestration_env(tmp_path),
         patch.object(bootloader, "_build_standalone", side_effect=build_without_config),
+    ):
+        assert bootloader.ensure_cached_bootloader() == 1
+
+
+def test_ensure_turns_oserror_into_a_soft_failure(tmp_path: Path) -> None:
+    """Any filesystem surprise means fall back, never crash the build."""
+    with (
+        _orchestration_env(tmp_path),
+        patch.object(bootloader, "_build_standalone", side_effect=OSError("disk")),
     ):
         assert bootloader.ensure_cached_bootloader() == 1
 

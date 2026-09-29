@@ -1,16 +1,17 @@
 """Machine-global bootloader cache for the native ESP-IDF toolchain.
 
-The bootloader is its own CMake project that depends only on the IDF version,
-target, compiler and the config subset its reduced Kconfig universe defines,
-so one build serves every device that shares those. With
-``CONFIG_APP_REPRODUCIBLE_BUILD`` (always on) the result is byte identical to
-the in-tree ExternalProject build. Builds that configure signing, secure boot
-or flash encryption never use the cache: their bootloader can depend on key
-file contents, and they keep the stock in-tree path.
+One build serves every device that shares the IDF version, target, compiler
+and bootloader config; CONFIG_APP_REPRODUCIBLE_BUILD (always on) makes it
+byte identical to the in-tree build. Signing/secure/encryption builds keep
+the stock in-tree path: their bootloader can depend on key file contents.
 """
+
+# pylint: disable=protected-access
+# This module is part of the espidf toolchain and shares its private helpers.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -25,7 +26,8 @@ from esphome.build_helpers.tool_runner import run_build_tool
 from esphome.const import KEY_ESP32, KEY_VARIANT
 from esphome.core import CORE, EsphomeError
 from esphome.espidf import toolchain, variant_to_idf_target
-from esphome.helpers import write_file
+from esphome.framework_helpers import _rename_with_retry
+from esphome.helpers import rmtree, write_file
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +36,7 @@ BOOTLOADER_CACHE_ENV = "ESPHOME_BOOTLOADER_CACHE"
 # entries then miss instead of being served stale.
 _CACHE_SCHEMA = "1"
 _SECURE_OPTION = re.compile(r"CONFIG_(SECURE_|FLASH_ENCRYPTION)")
+_DISABLED_VALUES = frozenset(("n", "0", ""))
 _MACRO = re.compile(
     r"macro\(__build_process_project_includes\)(.*?)endmacro\(\)", re.DOTALL
 )
@@ -44,10 +47,7 @@ _OUTPUTS = ("bootloader.bin", "bootloader.elf", "bootloader.map")
 
 
 def bootloader_cache_enabled() -> bool:
-    """Whether this build may take its bootloader from the cache.
-
-    False keeps IDF's in-tree bootloader build, exactly as before.
-    """
+    """Whether this build may take its bootloader from the cache."""
     cache = toolchain._cache()
     if cache.bootloader_enabled is None:
         cache.bootloader_enabled = _compute_enabled()
@@ -76,16 +76,13 @@ def _compute_enabled() -> bool:
 def _has_secure_options(sdkconfig_path: Path) -> bool:
     """Whether any signing, secure boot or encryption option is enabled.
 
-    Reads ESPHome's sdkconfig snapshot, so raw ``sdkconfig_options`` count.
-    A disabled value (``n``/``0``/empty) is the compiled-out state ESPHome
-    writes by default and is safe to cache; anything else bypasses.
+    Disabled values (n/0/empty) are the compiled-out default and safe to cache.
     """
     for line in sdkconfig_path.read_text(encoding="utf-8").splitlines():
         name, _, value = line.partition("=")
-        if _SECURE_OPTION.match(name.strip()) and value.strip().strip('"') not in (
-            "n",
-            "0",
-            "",
+        if (
+            _SECURE_OPTION.match(name.strip())
+            and value.strip().strip('"') not in _DISABLED_VALUES
         ):
             return True
     return False
@@ -105,8 +102,7 @@ def _normalized_macro(text: str) -> list[str] | None:
 def idf_macro_matches() -> bool:
     """Whether IDF's macro still matches the copy the override replays.
 
-    A mismatch after an IDF update silently falls back to the in-tree
-    bootloader build; script/check_idf_py_equivalence.py reports it loudly.
+    A mismatch falls back to the in-tree build; the CI guard reports it loudly.
     """
     from esphome.build_gen.espidf import (
         BOOTLOADER_OVERRIDE_ADDED_LINE,
@@ -169,34 +165,23 @@ def _load_build_config(build_dir: Path) -> dict | None:
 
 
 def _compiler_id() -> str | None:
-    """The app build's C compiler, resolved; the toolchain part of the key.
-
-    IDF's toolchain file sets the compiler, so CMakeCache.txt has no plain
-    CMAKE_C_COMPILER entry; the compile database names it instead. None
-    means the cache cannot be trusted for this run and the caller falls
-    back to the in-tree build.
-    """
+    """The app build's resolved C compiler; None falls back to in-tree."""
     try:
-        commands = json.loads(
-            (toolchain._build_dir() / "compile_commands.json").read_text(
+        description = json.loads(
+            (toolchain._build_dir() / "project_description.json").read_text(
                 encoding="utf-8"
             )
         )
-        compiler = commands[0]["command"].split()[0]
+        compiler = description["c_compiler"]
     except (OSError, ValueError, LookupError):
-        cache_path = toolchain._build_dir() / "CMakeCache.txt"
-        if not cache_path.is_file():
-            return None
-        # Same install dir and version as the compiler itself.
-        compiler = toolchain._parse_cmakecache(cache_path).get("CMAKE_C_COMPILER_AR")
+        return None
     return os.path.realpath(compiler) if compiler else None
 
 
 def _subproject_cmake_args(
     cmake: str, python: str, sdkconfig: str, idf_path: str, project_dir: str
 ) -> list[str]:
-    """The configure argv, mirroring the ExternalProject in IDF's
-    components/bootloader/project_include.cmake for the pinned version."""
+    """The configure argv, mirroring IDF's bootloader ExternalProject args."""
     from esphome.components.esp32 import idf_version
     import esphome.config_validation as cv
 
@@ -236,26 +221,27 @@ def _version_stamp() -> str:
         return ""
 
 
-def _compute_key(names: list[str], app_config: dict, compiler: str) -> str:
+def _key_payload(names: list[str], app_config: dict, compiler: str) -> dict:
+    """Everything that can influence the built bootloader."""
+    return {
+        "schema": _CACHE_SCHEMA,
+        "idf": toolchain._get_core_framework_version(),
+        "source": toolchain._get_framework_source_override() or "",
+        "stamp": _version_stamp(),
+        "target": _idf_target(),
+        "compiler": compiler,
+        # Placeholder paths: any change to the invocation shape misses.
+        "args": _subproject_cmake_args(
+            "cmake", "@PYTHON@", "@SDKCONFIG@", "@IDF@", "@PROJECT@"
+        ),
+        "config": {n: app_config.get(n, _ABSENT) for n in sorted(names)},
+    }
+
+
+def _compute_key(payload: dict) -> str:
     """The cache entry name for this build's bootloader inputs."""
-    payload = json.dumps(
-        {
-            "schema": _CACHE_SCHEMA,
-            "idf": toolchain._get_core_framework_version(),
-            "source": toolchain._get_framework_source_override() or "",
-            "stamp": _version_stamp(),
-            "target": _idf_target(),
-            "compiler": compiler,
-            # Placeholder paths: any change to the invocation shape misses.
-            "args": _subproject_cmake_args(
-                "cmake", "@PYTHON@", "@SDKCONFIG@", "@IDF@", "@PROJECT@"
-            ),
-            "config": {n: app_config.get(n, _ABSENT) for n in sorted(names)},
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return hashlib.sha256(payload.encode()).hexdigest()[:16]
+    text = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
 def _build_standalone(build_dir: Path, verbose: bool) -> int:
@@ -285,38 +271,55 @@ def _build_standalone(build_dir: Path, verbose: bool) -> int:
     return 0
 
 
-def _publish(build_dir: Path, key: str, meta: dict) -> Path:
+def _publish(build_dir: Path, key: str, payload: dict) -> Path:
     """Move the distilled outputs into the cache; losing a race is fine."""
     entry = _cache_root() / key
-    if (entry / "bootloader.bin").is_file():
-        return entry
     stage = _cache_root() / f".stage-{key}-{os.getpid()}"
     stage.mkdir(parents=True, exist_ok=True)
     for name in _OUTPUTS:
         shutil.copy2(build_dir / name, stage / name)
     shutil.copy2(build_dir / "config" / "sdkconfig.json", stage / "sdkconfig.json")
-    write_file(stage / "meta.json", json.dumps(meta, indent=2, sort_keys=True))
+    write_file(stage / "meta.json", json.dumps(payload, indent=2, sort_keys=True))
     try:
-        stage.rename(entry)
+        _rename_with_retry(stage, entry)
     except OSError:
         # Another process published the same key first.
-        shutil.rmtree(stage, ignore_errors=True)
+        _remove_dir(stage)
         if not (entry / "bootloader.bin").is_file():
             raise
     return entry
 
 
-def _install_into_build(entry: Path) -> None:
-    """Copy the cached outputs to build/bootloader, the path every consumer
-    (factory image, OTA --bootloader, the CI guard) already reads."""
+def _remove_dir(path: Path) -> None:
+    """Best-effort rmtree with the repo's read-only and retry hardening."""
+    with contextlib.suppress(OSError):
+        rmtree(path)
+
+
+def _install_into_build(entry: Path) -> Path:
+    """Copy the cached outputs to build/bootloader, where every consumer reads."""
     dest = toolchain._build_dir() / "bootloader"
     if (dest / "CMakeCache.txt").is_file():
         # A leftover in-tree sub-build; its ninja state must not linger.
-        shutil.rmtree(dest)
+        rmtree(dest)
     dest.mkdir(parents=True, exist_ok=True)
     for name in _OUTPUTS:
-        if (src := entry / name).is_file():
-            shutil.copy2(src, dest / name)
+        if not (src := entry / name).is_file():
+            continue
+        target = dest / name
+        src_stat = src.stat()
+        try:
+            dest_stat = target.stat()
+        except OSError:
+            dest_stat = None
+        # copy2 keeps the source mtime, so a matching copy is already current.
+        if (
+            dest_stat is None
+            or dest_stat.st_size != src_stat.st_size
+            or dest_stat.st_mtime != src_stat.st_mtime
+        ):
+            shutil.copy2(src, target)
+    return dest
 
 
 def _check_bootloader_size(bin_path: Path, app_config: dict) -> None:
@@ -345,64 +348,63 @@ def _prune_stale_dirs() -> None:
     try:
         for path in _cache_root().glob(".*"):
             if path.is_dir() and path.stat().st_mtime < cutoff:
-                shutil.rmtree(path, ignore_errors=True)
+                _remove_dir(path)
     except OSError:
         pass
+
+
+def _install_and_check(entry: Path, app_config: dict) -> int:
+    """Copy an entry into the build tree and verify it fits before the table."""
+    dest = _install_into_build(entry)
+    _check_bootloader_size(dest / "bootloader.bin", app_config)
+    return 0
 
 
 def ensure_cached_bootloader(verbose: bool = False) -> int:
     """Put the cached bootloader into build/bootloader, building on a miss.
 
-    Returns 0 on success. A nonzero tool exit code tells the caller to fall
-    back to the in-tree build; a too-large bootloader raises instead, since
-    the in-tree build would fail the same way.
+    Nonzero tells the caller to fall back to the in-tree build; a too-large
+    bootloader raises instead, since in-tree would fail the same way.
     """
+    try:
+        return _ensure_cached_bootloader(verbose)
+    except OSError as err:
+        _LOGGER.warning("Bootloader cache failed: %s", err)
+        return 1
+
+
+def _ensure_cached_bootloader(verbose: bool) -> int:
     app_config = _load_build_config(toolchain._build_dir())
     compiler = _compiler_id()
     if app_config is None or compiler is None:
         _LOGGER.debug("Bootloader cache unusable: app configure outputs missing")
         return 1
-    entry = None
     if (names := _load_config_names()) is not None:
-        candidate = _cache_root() / _compute_key(names, app_config, compiler)
-        if (candidate / "bootloader.bin").is_file():
-            entry = candidate
-    if entry is None:
-        tmp = _cache_root() / f".build-{os.getpid()}"
-        try:
-            if (rc := _build_standalone(tmp, verbose)) != 0:
-                return rc
-            if (built_config := _load_build_config(tmp)) is None:
-                _LOGGER.debug("Bootloader build produced no sdkconfig.json")
-                return 1
-            names = _merge_config_names(built_config)
-            key = _compute_key(names, app_config, compiler)
-            entry = _publish(
-                tmp,
-                key,
-                {
-                    "schema": _CACHE_SCHEMA,
-                    "idf": toolchain._get_core_framework_version(),
-                    "target": _idf_target(),
-                    "compiler": compiler,
-                },
-            )
-            _LOGGER.info("Cached bootloader %s for later builds", key)
-        finally:
-            shutil.rmtree(tmp, ignore_errors=True)
-        _prune_stale_dirs()
-    _install_into_build(entry)
-    _check_bootloader_size(
-        toolchain._build_dir() / "bootloader" / "bootloader.bin", app_config
-    )
-    return 0
+        entry = _cache_root() / _compute_key(_key_payload(names, app_config, compiler))
+        if (entry / "bootloader.bin").is_file():
+            return _install_and_check(entry, app_config)
+    tmp = _cache_root() / f".build-{os.getpid()}"
+    try:
+        if (rc := _build_standalone(tmp, verbose)) != 0:
+            return rc
+        if (built_config := _load_build_config(tmp)) is None:
+            _LOGGER.debug("Bootloader build produced no sdkconfig.json")
+            return 1
+        names = _merge_config_names(built_config)
+        payload = _key_payload(names, app_config, compiler)
+        key = _compute_key(payload)
+        entry = _publish(tmp, key, payload)
+        _LOGGER.info("Cached bootloader %s for later builds", key)
+    finally:
+        _remove_dir(tmp)
+    _prune_stale_dirs()
+    return _install_and_check(entry, app_config)
 
 
 def inject_bootloader_flash_file(flash_data: dict, build_dir: Path) -> None:
     """Add the cached bootloader to a flasher_args ``flash_files`` map.
 
-    In cached mode IDF writes no bootloader entry; stock and bypass trees
-    already carry one, which makes this a no-op there.
+    Cached mode has no IDF-written entry; stock/bypass trees do (no-op there).
     """
     flash_files = flash_data.setdefault("flash_files", {})
     if any("bootloader/" in name for name in flash_files.values()):

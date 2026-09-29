@@ -90,15 +90,11 @@ def _cmake_quote(value: str) -> str:
 # esphome.espidf.bootloader compares the live macro against this copy and
 # falls back to the in-tree bootloader build if an IDF update changes it.
 IDF_BOOTLOADER_OVERRIDE = """\
-# ESPHome: with ESPHOME_USE_CACHED_BOOTLOADER the bootloader comes from a
-# machine-global cache instead of the in-tree ExternalProject. This is IDF's
-# own __build_process_project_includes macro with one added set(); see
-# esphome/espidf/bootloader.py.
+# ESPHome cached bootloader switch; see esphome/espidf/bootloader.py.
 if(ESPHOME_USE_CACHED_BOOTLOADER)
     macro(__build_process_project_includes)
         idf_build_get_property(sdkconfig_cmake SDKCONFIG_CMAKE)
         include(${sdkconfig_cmake})
-        # ESPHome: the bootloader comes from the machine-global cache
         set(CONFIG_APP_BUILD_BOOTLOADER "")
         idf_build_get_property(build_properties __BUILD_PROPERTIES)
         foreach(build_property ${build_properties})

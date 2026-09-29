@@ -1117,12 +1117,6 @@ def test_get_cmake_cache_value_reads_the_configured_cache(setup_core: Path) -> N
         assert toolchain.get_cmake_cache_value("ESPHOME_MISSING") is None
 
 
-def test_use_cached_bootloader_fallback_wins(setup_core: Path) -> None:
-    """A mid-run fallback pins the rest of the run to the in-tree build."""
-    toolchain._cache().bootloader_fallback = True
-    assert toolchain._use_cached_bootloader() is False
-
-
 def test_use_cached_bootloader_delegates_to_predicate(setup_core: Path) -> None:
     from esphome.espidf import bootloader
 
@@ -1185,7 +1179,8 @@ def test_run_compile_falls_back_when_bootloader_cache_fails(
     ):
         rc = toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
     assert rc == reconfigure_rc
-    assert toolchain._cache().bootloader_fallback is True
+    # The fallback pins the memoized predicate for the rest of the run.
+    assert toolchain._cache().bootloader_enabled is False
     mock_reconfigure.assert_called_once_with(False)
     assert mock_ninja.called is (reconfigure_rc == 0)
 

@@ -39,10 +39,20 @@ TOP_NINJA_LOG = "build/.ninja_log"
 
 
 def _ninja_logs(build_path: Path) -> list[str]:
+    """The mode comes from the configured tree, so a missing sub-build log
+    stays an error in the mode that requires one."""
     logs = [TOP_NINJA_LOG]
-    if (build_path / "build" / "bootloader" / "build.ninja").is_file():
+    if not _uses_cached_bootloader(build_path):
         logs.append("build/bootloader/.ninja_log")
     return logs
+
+
+def _uses_cached_bootloader(build_path: Path) -> bool:
+    cache = build_path / "build" / "CMakeCache.txt"
+    for line in cache.read_text(encoding="utf-8").splitlines():
+        if line.startswith("ESPHOME_USE_CACHED_BOOTLOADER:"):
+            return line.partition("=")[2].strip() == "1"
+    return False
 
 
 BOOTLOADER_BYPRODUCT = re.compile(r"(^|/build/)bootloader/")
@@ -119,8 +129,10 @@ def check(build_path: Path) -> list[str]:
 
     if not bootloader.idf_macro_matches():
         return [
-            "IDF changed __build_process_project_includes; update "
-            "IDF_BOOTLOADER_OVERRIDE in esphome/build_gen/espidf.py"
+            (
+                "IDF changed __build_process_project_includes; update "
+                "IDF_BOOTLOADER_OVERRIDE in esphome/build_gen/espidf.py"
+            )
         ]
     env = toolchain._get_idf_env(version)
     python = toolchain._get_idf_tool("python")
