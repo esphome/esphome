@@ -103,7 +103,12 @@ def check(build_path: Path) -> list[str]:
         return [f"ESPHome's CMake configure failed with exit code {rc}"]
     before = _snapshot(build_path, name)
     mtimes_before = _ninja_mtimes(build_path)
-    problems = []
+    # A moved or renamed output would otherwise compare as "unchanged".
+    problems = [f"missing {f}" for f, digest in before.items() if digest is None]
+    if not (build_path / NINJA_LOGS[0]).is_file():
+        problems.append(f"missing {NINJA_LOGS[0]}")
+    if problems:
+        return problems
     for action in ("reconfigure", "build"):
         result = subprocess.run(
             [python, str(idf_py), *sdkconfig_args, action],

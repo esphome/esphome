@@ -29,7 +29,11 @@ def _make_tree(tmp_path: Path) -> Path:
         )
     )
     (build / "CMakeCache.txt").write_text("CCACHE_ENABLE:UNINITIALIZED=0\n")
-    (build / "dev.elf").write_bytes(b"elf")
+    for watched in (*guard.WATCHED, "build/dev.elf", "build/dev.bin"):
+        path = tree / watched
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.exists():
+            path.write_bytes(b"x")
     (build / ".ninja_log").write_text(
         "# ninja log v7\n1\t2\t10\tesp-idf/a.obj\t0\n"
         "1\t2\t10\tbootloader/bootloader.bin\t0\n"
@@ -85,7 +89,7 @@ def test_check_reports_changed_files_and_rebuilt_outputs(tmp_path: Path) -> None
                 "5\t6\t30\tbootloader-stamp\t0\n"
             )
             # The bootloader sub-build is judged by its own log.
-            (build / "bootloader").mkdir()
+            (build / "bootloader").mkdir(exist_ok=True)
             (build / "bootloader" / ".ninja_log").write_text(
                 "# ninja log v7\n1\t2\t40\tbootloader.elf\t0\n"
             )
@@ -102,6 +106,25 @@ def test_check_stops_when_idf_py_fails(tmp_path: Path) -> None:
     problems, calls = _run_check(_make_tree(tmp_path), lambda cmd: None, rc=2)
     assert problems == ["idf.py reconfigure failed:\nout\nerr\n"]
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("remove", "problem"),
+    [
+        ("build/build.ninja", "missing build/build.ninja"),
+        ("build/dev.bin", "missing build/dev.bin"),
+        ("build/.ninja_log", "missing build/.ninja_log"),
+    ],
+)
+def test_check_fails_when_an_input_is_missing(
+    tmp_path: Path, remove: str, problem: str
+) -> None:
+    """A moved or renamed output must not compare as unchanged."""
+    tree = _make_tree(tmp_path)
+    (tree / remove).unlink()
+    problems, calls = _run_check(tree, lambda cmd: None)
+    assert problems == [problem]
+    assert calls == []
 
 
 def test_check_stops_when_esphome_configure_fails(tmp_path: Path) -> None:

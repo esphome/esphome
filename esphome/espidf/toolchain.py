@@ -264,13 +264,15 @@ def _cache_entries_changed() -> bool:
     """True when a ``-D`` entry is missing from or differs in CMakeCache.txt.
 
     idf.py reconfigures on this before every build; ESPHome's own staleness
-    check does not cover it (for example ccache switched on or off).
+    check does not cover it (for example ccache switched on or off). A changed
+    ``PYTHON`` (moved IDF prefix) reconfigures too, where idf.py stopped.
     """
     cache_path = _build_dir() / "CMakeCache.txt"
     if not cache_path.is_file():
         return True
     cache = _parse_cmakecache(cache_path)
-    return any(cache.get(k) != v for k, v in _cache_entries().items())
+    wanted = {**_cache_entries(), "PYTHON": _get_idf_tool("python")}
+    return any(cache.get(k) != v for k, v in wanted.items())
 
 
 def _tool_env(ninja: bool) -> dict[str, str]:

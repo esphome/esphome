@@ -847,16 +847,17 @@ def test_parse_cmakecache(tmp_path: Path) -> None:
     ("cache_text", "expected"),
     [
         (None, True),
-        ("CCACHE_ENABLE:UNINITIALIZED=0\n", False),
-        ("CCACHE_ENABLE:UNINITIALIZED=1\n", True),
-        ("OTHER:STRING=0\n", True),
+        ("CCACHE_ENABLE:UNINITIALIZED=0\nPYTHON:UNINITIALIZED=/tools/python\n", False),
+        ("CCACHE_ENABLE:UNINITIALIZED=1\nPYTHON:UNINITIALIZED=/tools/python\n", True),
+        ("CCACHE_ENABLE:UNINITIALIZED=0\nPYTHON:UNINITIALIZED=/old/python\n", True),
+        ("PYTHON:UNINITIALIZED=/tools/python\n", True),
     ],
-    ids=["no_cache", "same", "changed", "missing"],
+    ids=["no_cache", "same", "changed", "python_moved", "missing"],
 )
 def test_cache_entries_changed(
     setup_core: Path, cache_text: str | None, expected: bool
 ) -> None:
-    """Mirrors idf.py's _new_cmakecache_entries."""
+    """Mirrors idf.py's _new_cmakecache_entries, plus the cached PYTHON."""
     _setup_build(setup_core)
     if cache_text is not None:
         cache = Path(os.path.realpath(CORE.build_path)) / "build" / "CMakeCache.txt"
