@@ -2,8 +2,7 @@
 
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace scheduler_recursive_timeout_component {
+namespace esphome::scheduler_recursive_timeout_component {
 
 class SchedulerRecursiveTimeoutComponent : public Component {
  public:
@@ -16,5 +15,4 @@ class SchedulerRecursiveTimeoutComponent : public Component {
   int nested_level_{0};
 };
 
-}  // namespace scheduler_recursive_timeout_component
-}  // namespace esphome
+}  // namespace esphome::scheduler_recursive_timeout_component

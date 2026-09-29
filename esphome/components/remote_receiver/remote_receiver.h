@@ -6,12 +6,15 @@
 #include <cinttypes>
 
 #if defined(USE_ESP32)
+#include <soc/soc_caps.h>
+#if SOC_RMT_SUPPORTED
 #include <driver/rmt_rx.h>
-#endif
+#endif  // SOC_RMT_SUPPORTED
+#endif  // USE_ESP32
 
 namespace esphome::remote_receiver {
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
 struct RemoteReceiverComponentStore {
   static void gpio_intr(RemoteReceiverComponentStore *arg);
 
@@ -27,7 +30,7 @@ struct RemoteReceiverComponentStore {
   uint32_t buffer_read{0};
   volatile uint32_t commit_micros{0};
   volatile uint32_t prev_micros{0};
-  uint32_t buffer_size{1000};
+  uint32_t buffer_entries{0};
   uint32_t filter_us{10};
   uint32_t idle_us{10000};
   ISRInternalGPIOPin pin;
@@ -35,7 +38,7 @@ struct RemoteReceiverComponentStore {
   volatile bool prev_level{false};
   volatile bool overflow{false};
 };
-#elif defined(USE_ESP32)
+#elif defined(USE_ESP32) && SOC_RMT_SUPPORTED
 struct RemoteReceiverComponentStore {
   /// Stores RMT symbols and rx done event data
   volatile uint8_t *buffer{nullptr};
@@ -44,7 +47,7 @@ struct RemoteReceiverComponentStore {
   /// The position last read from
   volatile uint32_t buffer_read{0};
   bool overflow{false};
-  uint32_t buffer_size{1000};
+  uint32_t buffer_size{0};
   uint32_t receive_size{0};
   uint32_t filter_symbols{0};
   esp_err_t error{ESP_OK};
@@ -52,11 +55,11 @@ struct RemoteReceiverComponentStore {
 };
 #endif
 
-class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
-                                public Component
-#ifdef USE_ESP32
+class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
+                                      public Component
+#if defined(USE_ESP32) && SOC_RMT_SUPPORTED
     ,
-                                public remote_base::RemoteRMTChannel
+                                      public remote_base::RemoteRMTChannel
 #endif
 
 {
@@ -66,7 +69,7 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
   void dump_config() override;
   void loop() override;
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && SOC_RMT_SUPPORTED
   void set_filter_symbols(uint32_t filter_symbols) { this->filter_symbols_ = filter_symbols; }
   void set_receive_symbols(uint32_t receive_symbols) { this->receive_symbols_ = receive_symbols; }
   void set_with_dma(bool with_dma) { this->with_dma_ = with_dma; }
@@ -78,27 +81,27 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
   void set_idle_us(uint32_t idle_us) { this->idle_us_ = idle_us; }
 
  protected:
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && SOC_RMT_SUPPORTED
   void decode_rmt_(rmt_symbol_word_t *item, size_t item_count);
+  // log the failed RMT call and mark the component failed
+  void fail_(esp_err_t error, const LogString *reason);
   rmt_channel_handle_t channel_{NULL};
   uint32_t filter_symbols_{0};
   uint32_t receive_symbols_{0};
   bool with_dma_{false};
   uint32_t carrier_frequency_{0};
   uint8_t carrier_duty_percent_{100};
-  esp_err_t error_code_{ESP_OK};
-  std::string error_string_{""};
 #endif
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040) || defined(USE_ESP32)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ESP32)
   RemoteReceiverComponentStore store_;
 #endif
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
   HighFrequencyLoopRequester high_freq_;
 #endif
 
-  uint32_t buffer_size_{};
+  uint32_t buffer_size_{};  // 0 on RMT targets: sized from receive_symbols in setup()
   uint32_t filter_us_{10};
   uint32_t idle_us_{10000};
 };

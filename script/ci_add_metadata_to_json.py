@@ -44,7 +44,7 @@ def main() -> int:
         return 1
 
     try:
-        with open(json_path, encoding="utf-8") as f:
+        with Path(json_path).open(encoding="utf-8") as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         print(f"Error loading JSON: {e}", file=sys.stderr)
@@ -74,7 +74,7 @@ def main() -> int:
 
     # Write back
     try:
-        with open(json_path, "w", encoding="utf-8") as f:
+        with Path(json_path).open("w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
         print(f"Added metadata to {args.json_file}", file=sys.stderr)
     except OSError as e:

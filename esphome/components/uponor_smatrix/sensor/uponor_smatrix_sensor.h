@@ -4,10 +4,9 @@
 #include "esphome/components/uponor_smatrix/uponor_smatrix.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace uponor_smatrix {
+namespace esphome::uponor_smatrix {
 
-class UponorSmatrixSensor : public sensor::Sensor, public Component, public UponorSmatrixDevice {
+class UponorSmatrixSensor final : public sensor::Sensor, public Component, public UponorSmatrixDevice {
   SUB_SENSOR(temperature)
   SUB_SENSOR(external_temperature)
   SUB_SENSOR(humidity)
@@ -20,5 +19,4 @@ class UponorSmatrixSensor : public sensor::Sensor, public Component, public Upon
   void on_device_data(const UponorSmatrixData *data, size_t data_len) override;
 };
 
-}  // namespace uponor_smatrix
-}  // namespace esphome
+}  // namespace esphome::uponor_smatrix

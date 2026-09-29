@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace endstop {
+namespace esphome::endstop {
 
 static const char *const TAG = "endstop.cover";
 
@@ -37,8 +36,9 @@ void EndstopCover::control(const CoverCall &call) {
       }
     }
   }
-  if (call.get_position().has_value()) {
-    auto pos = *call.get_position();
+  auto opt_pos = call.get_position();
+  if (opt_pos.has_value()) {
+    auto pos = *opt_pos;
     if (pos == this->position) {
       // already at target
     } else {
@@ -111,7 +111,7 @@ void EndstopCover::dump_config() {
   LOG_BINARY_SENSOR("  ", "Open Endstop", this->open_endstop_);
   LOG_BINARY_SENSOR("  ", "Close Endstop", this->close_endstop_);
 }
-float EndstopCover::get_setup_priority() const { return setup_priority::DATA; }
+
 void EndstopCover::stop_prev_trigger_() {
   if (this->prev_command_trigger_ != nullptr) {
     this->prev_command_trigger_->stop_action();
@@ -141,15 +141,15 @@ void EndstopCover::start_direction_(CoverOperation dir) {
   Trigger<> *trig;
   switch (dir) {
     case COVER_OPERATION_IDLE:
-      trig = this->stop_trigger_;
+      trig = &this->stop_trigger_;
       break;
     case COVER_OPERATION_OPENING:
       this->last_operation_ = dir;
-      trig = this->open_trigger_;
+      trig = &this->open_trigger_;
       break;
     case COVER_OPERATION_CLOSING:
       this->last_operation_ = dir;
-      trig = this->close_trigger_;
+      trig = &this->close_trigger_;
       break;
     default:
       return;
@@ -191,5 +191,4 @@ void EndstopCover::recompute_position_() {
   this->last_recompute_time_ = now;
 }
 
-}  // namespace endstop
-}  // namespace esphome
+}  // namespace esphome::endstop

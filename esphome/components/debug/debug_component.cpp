@@ -9,8 +9,7 @@
 #include <cinttypes>
 #include <climits>
 
-namespace esphome {
-namespace debug {
+namespace esphome::debug {
 
 static const char *const TAG = "debug";
 
@@ -23,14 +22,14 @@ void DebugComponent::dump_config() {
   LOG_SENSOR("  ", "Free space on heap", this->free_sensor_);
   LOG_SENSOR("  ", "Largest free heap block", this->block_sensor_);
   LOG_SENSOR("  ", "CPU frequency", this->cpu_frequency_sensor_);
-#if defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
+#ifdef USE_ESP8266
   LOG_SENSOR("  ", "Heap fragmentation", this->fragmentation_sensor_);
-#endif  // defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
+#endif  // USE_ESP8266
 #endif  // USE_SENSOR
 
   char device_info_buffer[DEVICE_INFO_BUFFER_SIZE];
   ESP_LOGD(TAG, "ESPHome version %s", ESPHOME_VERSION);
-  size_t pos = buf_append_printf(device_info_buffer, DEVICE_INFO_BUFFER_SIZE, 0, "%s", ESPHOME_VERSION);
+  size_t pos = buf_append_str(device_info_buffer, DEVICE_INFO_BUFFER_SIZE, 0, ESPHOME_VERSION);
 
   this->free_heap_ = get_free_heap_();
   ESP_LOGD(TAG, "Free Heap Size: %" PRIu32 " bytes", this->free_heap_);
@@ -93,5 +92,4 @@ void DebugComponent::update() {
 
 float DebugComponent::get_setup_priority() const { return setup_priority::LATE; }
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug

@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, remote_base
@@ -21,6 +23,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, TimePeriod
+from esphome.types import ConfigType
 
 CONF_FILTER_SYMBOLS = "filter_symbols"
 CONF_RECEIVE_SYMBOLS = "receive_symbols"
@@ -62,9 +65,11 @@ RemoteReceiverComponent = remote_receiver_ns.class_(
 )
 
 
-def validate_config(config):
+def validate_config(config: ConfigType) -> ConfigType:
     if CORE.is_esp32:
         variant = esp32.get_esp32_variant()
+        if variant in esp32_rmt.VARIANTS_NO_RMT:
+            return config
         if variant in (esp32.VARIANT_ESP32, esp32.VARIANT_ESP32S2):
             max_idle = 65535
         else:
@@ -76,7 +81,7 @@ def validate_config(config):
     return config
 
 
-def validate_tolerance(value):
+def validate_tolerance(value: Any) -> ConfigType:
     if isinstance(value, dict):
         return TOLERANCE_SCHEMA(value)
 
@@ -107,15 +112,21 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
             cv.Optional(CONF_DUMP, default=[]): remote_base.validate_dumpers,
             cv.Optional(CONF_TOLERANCE, default="25%"): validate_tolerance,
+            # pulse ring targets hold one 4 byte entry per pulse; 4000b keeps their 1000 pulses
             cv.SplitDefault(
                 CONF_BUFFER_SIZE,
-                esp32="10000b",
-                esp8266="1000b",
-                bk72xx="1000b",
-                ln882x="1000b",
-                rtl87xx="1000b",
-                rp2040="1000b",
-            ): cv.validate_bytes,
+                esp32=cv.UNDEFINED,
+                # the pulse ring needs a size; only RMT targets size themselves in setup()
+                **{
+                    f"esp32_{variant.removeprefix('ESP32').lower()}": "4000b"
+                    for variant in esp32_rmt.VARIANTS_NO_RMT
+                },
+                esp8266="4000b",
+                bk72xx="4000b",
+                ln882x="4000b",
+                rtl87xx="4000b",
+                rp2="4000b",
+            ): cv.All(cv.validate_bytes, cv.int_range(min=64, max=65535)),
             cv.Optional(CONF_FILTER, default="50us"): cv.All(
                 cv.positive_time_period_microseconds,
                 cv.Range(max=TimePeriod(microseconds=4294967295)),
@@ -131,9 +142,11 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.SplitDefault(
                 CONF_RMT_SYMBOLS,
                 esp32=192,
+                esp32_c2=cv.UNDEFINED,
                 esp32_c3=96,
                 esp32_c5=96,
                 esp32_c6=96,
+                esp32_c61=cv.UNDEFINED,
                 esp32_h2=96,
                 esp32_p4=192,
                 esp32_s2=192,
@@ -145,6 +158,8 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.SplitDefault(
                 CONF_RECEIVE_SYMBOLS,
                 esp32=192,
+                esp32_c2=cv.UNDEFINED,
+                esp32_c61=cv.UNDEFINED,
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_USE_DMA): cv.All(
                 esp32.only_on_variant(
@@ -152,24 +167,48 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 ),
                 cv.boolean,
             ),
-            cv.SplitDefault(CONF_CARRIER_DUTY_PERCENT, esp32=100): cv.All(
+            cv.SplitDefault(
+                CONF_CARRIER_DUTY_PERCENT,
+                esp32=100,
+                esp32_c2=cv.UNDEFINED,
+                esp32_c61=cv.UNDEFINED,
+            ): cv.All(
                 cv.only_on_esp32,
                 cv.percentage_int,
                 cv.Range(min=1, max=100),
             ),
-            cv.SplitDefault(CONF_CARRIER_FREQUENCY, esp32="0Hz"): cv.All(
-                cv.only_on_esp32, cv.frequency, cv.int_
-            ),
+            cv.SplitDefault(
+                CONF_CARRIER_FREQUENCY,
+                esp32="0Hz",
+                esp32_c2=cv.UNDEFINED,
+                esp32_c61=cv.UNDEFINED,
+            ): cv.All(cv.only_on_esp32, cv.frequency, cv.int_),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
+    .add_extra(
+        esp32_rmt.validate_rmt_not_supported(
+            [
+                CONF_CLOCK_RESOLUTION,
+                CONF_USE_DMA,
+                CONF_RMT_SYMBOLS,
+                CONF_FILTER_SYMBOLS,
+                CONF_RECEIVE_SYMBOLS,
+                CONF_CARRIER_DUTY_PERCENT,
+                CONF_CARRIER_FREQUENCY,
+            ]
+        )
+    )
     .add_extra(validate_config)
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    if CORE.is_esp32:
+    if CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT:
+        # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)
+        esp32.include_builtin_idf_component("esp_driver_rmt")
+
         var = cg.new_Pvariable(config[CONF_ID], pin)
         cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
         cg.add(var.set_receive_symbols(config[CONF_RECEIVE_SYMBOLS]))
@@ -186,11 +225,11 @@ async def to_code(config):
 
     dumpers = await remote_base.build_dumpers(config[CONF_DUMP])
     for dumper in dumpers:
-        cg.add(var.register_dumper(dumper))
+        remote_base.add_dumper(var, dumper)
 
     triggers = await remote_base.build_triggers(config)
     for trigger in triggers:
-        cg.add(var.register_listener(trigger))
+        remote_base.add_listener(var, trigger)
     await cg.register_component(var, config)
 
     cg.add(
@@ -198,23 +237,26 @@ async def to_code(config):
             config[CONF_TOLERANCE][CONF_VALUE], config[CONF_TOLERANCE][CONF_TYPE]
         )
     )
-    cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
+    if CONF_BUFFER_SIZE in config:
+        cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
     cg.add(var.set_filter_us(config[CONF_FILTER]))
     cg.add(var.set_idle_us(config[CONF_IDLE]))
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
-        "remote_receiver_esp32.cpp": {
+        "remote_receiver_rmt.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
         "remote_receiver.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
             PlatformFramework.ESP8266_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
-            PlatformFramework.RP2040_ARDUINO,
+            PlatformFramework.RP2_ARDUINO,
         },
     }
 )

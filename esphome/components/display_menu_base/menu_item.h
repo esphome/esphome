@@ -16,8 +16,7 @@
 #include <vector>
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace display_menu_base {
+namespace esphome::display_menu_base {
 
 enum MenuItemType {
   MENU_ITEM_LABEL,
@@ -44,9 +43,9 @@ class MenuItem {
   MenuItemMenu *get_parent() { return this->parent_; }
   MenuItemType get_type() const { return this->item_type_; }
   template<typename V> void set_text(V val) { this->text_ = val; }
-  void add_on_enter_callback(std::function<void()> &&cb) { this->on_enter_callbacks_.add(std::move(cb)); }
-  void add_on_leave_callback(std::function<void()> &&cb) { this->on_leave_callbacks_.add(std::move(cb)); }
-  void add_on_value_callback(std::function<void()> &&cb) { this->on_value_callbacks_.add(std::move(cb)); }
+  template<typename F> void add_on_enter_callback(F &&cb) { this->on_enter_callbacks_.add(std::forward<F>(cb)); }
+  template<typename F> void add_on_leave_callback(F &&cb) { this->on_leave_callbacks_.add(std::forward<F>(cb)); }
+  template<typename F> void add_on_value_callback(F &&cb) { this->on_value_callbacks_.add(std::forward<F>(cb)); }
 
   std::string get_text() const { return const_cast<MenuItem *>(this)->text_.value(this); }
   virtual bool get_immediate_edit() const { return false; }
@@ -71,7 +70,7 @@ class MenuItem {
   CallbackManager<void()> on_value_callbacks_{};
 };
 
-class MenuItemMenu : public MenuItem {
+class MenuItemMenu final : public MenuItem {
  public:
   explicit MenuItemMenu() : MenuItem(MENU_ITEM_MENU) {}
   void add_item(MenuItem *item) {
@@ -98,7 +97,7 @@ class MenuItemEditable : public MenuItem {
 };
 
 #ifdef USE_SELECT
-class MenuItemSelect : public MenuItemEditable {
+class MenuItemSelect final : public MenuItemEditable {
  public:
   explicit MenuItemSelect() : MenuItemEditable(MENU_ITEM_SELECT) {}
   void set_select_variable(select::Select *var) { this->select_var_ = var; }
@@ -115,7 +114,7 @@ class MenuItemSelect : public MenuItemEditable {
 #endif
 
 #ifdef USE_NUMBER
-class MenuItemNumber : public MenuItemEditable {
+class MenuItemNumber final : public MenuItemEditable {
  public:
   explicit MenuItemNumber() : MenuItemEditable(MENU_ITEM_NUMBER) {}
   void set_number_variable(number::Number *var) { this->number_var_ = var; }
@@ -136,7 +135,7 @@ class MenuItemNumber : public MenuItemEditable {
 #endif
 
 #ifdef USE_SWITCH
-class MenuItemSwitch : public MenuItemEditable {
+class MenuItemSwitch final : public MenuItemEditable {
  public:
   explicit MenuItemSwitch() : MenuItemEditable(MENU_ITEM_SWITCH) {}
   void set_switch_variable(switch_::Switch *var) { this->switch_var_ = var; }
@@ -159,7 +158,7 @@ class MenuItemSwitch : public MenuItemEditable {
 };
 #endif
 
-class MenuItemCommand : public MenuItem {
+class MenuItemCommand final : public MenuItem {
  public:
   explicit MenuItemCommand() : MenuItem(MENU_ITEM_COMMAND) {}
 
@@ -167,11 +166,11 @@ class MenuItemCommand : public MenuItem {
   bool select_prev() override;
 };
 
-class MenuItemCustom : public MenuItemEditable {
+class MenuItemCustom final : public MenuItemEditable {
  public:
   explicit MenuItemCustom() : MenuItemEditable(MENU_ITEM_CUSTOM) {}
-  void add_on_next_callback(std::function<void()> &&cb) { this->on_next_callbacks_.add(std::move(cb)); }
-  void add_on_prev_callback(std::function<void()> &&cb) { this->on_prev_callbacks_.add(std::move(cb)); }
+  template<typename F> void add_on_next_callback(F &&cb) { this->on_next_callbacks_.add(std::forward<F>(cb)); }
+  template<typename F> void add_on_prev_callback(F &&cb) { this->on_prev_callbacks_.add(std::forward<F>(cb)); }
 
   bool has_value() const override { return this->value_getter_.has_value(); }
   std::string get_value_text() const override;
@@ -187,5 +186,4 @@ class MenuItemCustom : public MenuItemEditable {
   CallbackManager<void()> on_prev_callbacks_{};
 };
 
-}  // namespace display_menu_base
-}  // namespace esphome
+}  // namespace esphome::display_menu_base

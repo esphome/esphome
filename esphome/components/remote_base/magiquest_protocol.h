@@ -8,8 +8,7 @@
  * https://arduino-irremote.github.io/Arduino-IRremote/ir__MagiQuest_8cpp_source.html
  */
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct MagiQuestData {
   uint16_t magnitude;
@@ -28,9 +27,9 @@ struct MagiQuestData {
 
 class MagiQuestProtocol : public RemoteProtocol<MagiQuestData> {
  public:
-  void encode(RemoteTransmitData *dst, const MagiQuestData &data) override;
-  optional<MagiQuestData> decode(RemoteReceiveData src) override;
-  void dump(const MagiQuestData &data) override;
+  void encode(RemoteTransmitData *dst, const MagiQuestData &data);
+  optional<MagiQuestData> decode(RemoteReceiveData src);
+  void dump(const MagiQuestData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(MagiQuest)
@@ -48,5 +47,4 @@ template<typename... Ts> class MagiQuestAction : public RemoteTransmitterActionB
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

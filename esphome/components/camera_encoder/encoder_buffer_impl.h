@@ -5,7 +5,7 @@
 
 namespace esphome::camera_encoder {
 
-class EncoderBufferImpl : public camera::EncoderBuffer {
+class EncoderBufferImpl final : public camera::EncoderBuffer {
  public:
   // --- EncoderBuffer  ---
   bool set_buffer_size(size_t size) override;
@@ -16,7 +16,6 @@ class EncoderBufferImpl : public camera::EncoderBuffer {
   ~EncoderBufferImpl() override;
 
  protected:
-  RAMAllocator<uint8_t> allocator_;
   size_t capacity_{};
   size_t size_{};
   uint8_t *data_{};

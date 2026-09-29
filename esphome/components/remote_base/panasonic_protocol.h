@@ -5,8 +5,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct PanasonicData {
   uint16_t address;
@@ -17,9 +16,9 @@ struct PanasonicData {
 
 class PanasonicProtocol : public RemoteProtocol<PanasonicData> {
  public:
-  void encode(RemoteTransmitData *dst, const PanasonicData &data) override;
-  optional<PanasonicData> decode(RemoteReceiveData src) override;
-  void dump(const PanasonicData &data) override;
+  void encode(RemoteTransmitData *dst, const PanasonicData &data);
+  optional<PanasonicData> decode(RemoteReceiveData src);
+  void dump(const PanasonicData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Panasonic)
@@ -37,5 +36,4 @@ template<typename... Ts> class PanasonicAction : public RemoteTransmitterActionB
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

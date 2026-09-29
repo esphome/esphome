@@ -13,8 +13,7 @@
 #include "esphome/core/time.h"
 #endif
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 enum class TuyaDatapointType : uint8_t {
   RAW = 0x00,      // variable length
@@ -55,6 +54,7 @@ enum class TuyaCommandType : uint8_t {
   DATAPOINT_DELIVER = 0x06,
   DATAPOINT_REPORT_ASYNC = 0x07,
   DATAPOINT_QUERY = 0x08,
+  GMT_TIME_QUERY = 0x0C,
   WIFI_TEST = 0x0E,
   LOCAL_TIME_QUERY = 0x1C,
   DATAPOINT_REPORT_SYNC = 0x22,
@@ -85,7 +85,7 @@ struct TuyaCommand {
   std::vector<uint8_t> payload;
 };
 
-class Tuya : public Component, public uart::UARTDevice {
+class Tuya final : public Component, public uart::UARTDevice {
  public:
   float get_setup_priority() const override { return setup_priority::LATE; }
   void setup() override;
@@ -112,8 +112,8 @@ class Tuya : public Component, public uart::UARTDevice {
   void add_ignore_mcu_update_on_datapoints(uint8_t ignore_mcu_update_on_datapoints) {
     this->ignore_mcu_update_on_datapoints_.push_back(ignore_mcu_update_on_datapoints);
   }
-  void add_on_initialized_callback(std::function<void()> callback) {
-    this->initialized_callback_.add(std::move(callback));
+  template<typename F> void add_on_initialized_callback(F &&callback) {
+    this->initialized_callback_.add(std::forward<F>(callback));
   }
 
  protected:
@@ -139,8 +139,10 @@ class Tuya : public Component, public uart::UARTDevice {
 
 #ifdef USE_TIME
   void send_local_time_();
+  void send_gmt_time_();
   time::RealTimeClock *time_id_{nullptr};
   bool time_sync_callback_registered_{false};
+  bool gmt_time_sync_callback_registered_{false};
 #endif
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
   bool init_failed_{false};
@@ -151,7 +153,7 @@ class Tuya : public Component, public uart::UARTDevice {
   int reset_pin_reported_ = -1;
   uint32_t last_command_timestamp_ = 0;
   uint32_t last_rx_char_timestamp_ = 0;
-  std::string product_ = "";
+  std::string product_;
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;
   std::vector<uint8_t> rx_message_;
@@ -162,5 +164,4 @@ class Tuya : public Component, public uart::UARTDevice {
   CallbackManager<void()> initialized_callback_{};
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

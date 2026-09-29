@@ -1,0 +1,11 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+# Serial logging off; on a dedicated UART bus improv_serial must not
+# require the logger's serial settings
+logger:
+  baud_rate: 0
+
+improv_serial:
+  uart_id: uart_bus

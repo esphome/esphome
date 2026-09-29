@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, sensor
@@ -70,6 +72,7 @@ from esphome.const import (
     CONF_TARGET_TEMPERATURE_CHANGE_ACTION,
     CONF_VISUAL,
 )
+from esphome.types import ConfigType
 
 CONF_DEFAULT_PRESET = "default_preset"
 CONF_HUMIDITY_CONTROL_DEHUMIDIFY_ACTION = "humidity_control_dehumidify_action"
@@ -118,15 +121,18 @@ PRESET_CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MODE): validate_climate_mode,
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
-        cv.Optional(CONF_FAN_MODE): cv.templatable(climate.validate_climate_fan_mode),
-        cv.Optional(CONF_SWING_MODE): cv.templatable(
-            climate.validate_climate_swing_mode
-        ),
+        cv.Optional(CONF_FAN_MODE): climate.validate_climate_fan_mode,
+        cv.Optional(CONF_SWING_MODE): climate.validate_climate_swing_mode,
     }
 )
 
 
-def validate_temperature_preset(preset, root_config, name, requirements):
+def validate_temperature_preset(
+    preset: ConfigType,
+    root_config: ConfigType,
+    name: str,
+    requirements: dict[str, list[str]],
+) -> None:
     # verify temperature settings for the provided preset / default / away configuration
     for config_temp, req_actions in requirements.items():
         for req_action in req_actions:
@@ -142,7 +148,7 @@ def validate_temperature_preset(preset, root_config, name, requirements):
                 )
 
 
-def generate_comparable_preset(config, name):
+def generate_comparable_preset(config: ConfigType, name: str) -> str:
     comparable_preset = f"{CONF_PRESET}:\n  -  {CONF_NAME}: {name}\n"
 
     if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in config:
@@ -153,7 +159,7 @@ def generate_comparable_preset(config, name):
     return comparable_preset
 
 
-def validate_heat_cool_mode(value) -> list:
+def validate_heat_cool_mode(value: Any) -> list:
     """Validate heat_cool_mode - accepts either True or an automation."""
     if value is True:
         # Convert True to empty automation list
@@ -166,7 +172,7 @@ def validate_heat_cool_mode(value) -> list:
     return automation.validate_automation(single=True)(value)
 
 
-def validate_thermostat(config):
+def validate_thermostat(config: ConfigType) -> ConfigType:
     # verify corresponding action(s) exist(s) for any defined climate mode or action
     requirements = {
         CONF_HEAT_COOL_MODE: [
@@ -503,7 +509,7 @@ def validate_thermostat(config):
     # If restoring default preset on boot is true then ensure we have a default preset
     if (
         CONF_ON_BOOT_RESTORE_FROM in config
-        and config[CONF_ON_BOOT_RESTORE_FROM] is OnBootRestoreFrom.DEFAULT_PRESET
+        and config[CONF_ON_BOOT_RESTORE_FROM] == "DEFAULT_PRESET"
         and CONF_DEFAULT_PRESET not in config
     ):
         raise cv.Invalid(
@@ -631,7 +637,7 @@ CONFIG_SCHEMA = cv.All(
             ): automation.validate_automation(single=True),
             cv.Optional(CONF_HUMIDITY_HYSTERESIS, default=1.0): cv.percentage,
             cv.Optional(CONF_DEFAULT_MODE, default=None): cv.valid,
-            cv.Optional(CONF_DEFAULT_PRESET): cv.templatable(cv.string),
+            cv.Optional(CONF_DEFAULT_PRESET): cv.string,
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
             cv.Optional(
@@ -683,7 +689,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
 

@@ -2,6 +2,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
@@ -13,7 +14,7 @@ def AUTO_LOAD() -> list[str]:
     if (
         not CORE.is_esp32
         and not CORE.is_esp8266
-        and not CORE.is_rp2040
+        and not CORE.is_rp2
         and not CORE.is_libretiny
     ):
         return ["socket"]
@@ -25,7 +26,7 @@ CONFIG_SCHEMA = cv.Schema({})
 
 
 @coroutine_with_priority(CoroPriority.NETWORK_TRANSPORT)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if CORE.is_esp32:
         # https://github.com/ESP32Async/AsyncTCP
         from esphome.components.esp32 import add_idf_component
@@ -37,14 +38,16 @@ async def to_code(config):
     elif CORE.is_esp8266:
         # https://github.com/ESP32Async/ESPAsyncTCP
         cg.add_library("ESP32Async/ESPAsyncTCP", "2.0.0")
-    elif CORE.is_rp2040:
-        # https://github.com/khoih-prog/AsyncTCP_RP2040W
-        cg.add_library("khoih-prog/AsyncTCP_RP2040W", "1.2.0")
+    elif CORE.is_rp2:
+        # https://github.com/ayushsharma82/RPAsyncTCP
+        # RPAsyncTCP is a drop-in replacement for AsyncTCP_RP2040W with better
+        # ESPAsyncWebServer compatibility
+        cg.add_library("ayushsharma82/RPAsyncTCP", "1.3.2")
     # Other platforms (host, etc) use socket-based implementation
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
     # Exclude socket implementation for platforms that use AsyncTCP libraries
-    if CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2040 or CORE.is_libretiny:
+    if CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2 or CORE.is_libretiny:
         return ["async_tcp_socket.cpp"]
     return []

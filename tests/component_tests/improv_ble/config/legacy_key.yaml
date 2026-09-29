@@ -1,0 +1,12 @@
+esphome:
+  name: improv-ble-legacy-key
+esp32:
+  variant: esp32
+  framework:
+    type: esp-idf
+logger:
+wifi:
+  ssid: MySSID
+  password: password1
+esp32_improv:
+  authorizer: none

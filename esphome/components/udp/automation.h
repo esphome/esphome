@@ -6,10 +6,9 @@
 
 #include <vector>
 
-namespace esphome {
-namespace udp {
+namespace esphome::udp {
 
-template<typename... Ts> class UDPWriteAction : public Action<Ts...>, public Parented<UDPComponent> {
+template<typename... Ts> class UDPWriteAction final : public Action<Ts...>, public Parented<UDPComponent> {
  public:
   void set_data_template(std::vector<uint8_t> (*func)(Ts...)) {
     this->data_.func = func;
@@ -40,6 +39,6 @@ template<typename... Ts> class UDPWriteAction : public Action<Ts...>, public Par
   } data_;
 };
 
-}  // namespace udp
-}  // namespace esphome
+}  // namespace esphome::udp
+
 #endif

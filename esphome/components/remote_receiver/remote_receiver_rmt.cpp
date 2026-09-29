@@ -1,0 +1,254 @@
+#include "remote_receiver.h"
+#include "esphome/core/log.h"
+#include "esphome/core/wake.h"
+
+#ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#if SOC_RMT_SUPPORTED
+#include <driver/gpio.h>
+#include <esp_clk_tree.h>
+
+namespace esphome::remote_receiver {
+
+static const char *const TAG = "remote_receiver";
+static constexpr uint32_t DEFAULT_BUFFER_SLOTS = 4;
+
+static bool IRAM_ATTR HOT rmt_callback(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *event, void *arg) {
+  RemoteReceiverComponentStore *store = (RemoteReceiverComponentStore *) arg;
+  const uint32_t buffer_write = store->buffer_write;
+  rmt_rx_done_event_data_t *event_buffer = (rmt_rx_done_event_data_t *) (store->buffer + buffer_write);
+  uint32_t event_size = sizeof(rmt_rx_done_event_data_t);
+  uint32_t next_write = buffer_write + event_size + event->num_symbols * sizeof(rmt_symbol_word_t);
+  if (next_write + event_size + store->receive_size > store->buffer_size) {
+    next_write = 0;
+  }
+  if (store->buffer_read - next_write < event_size + store->receive_size) {
+    next_write = buffer_write;
+    store->overflow = true;
+  }
+  if (event->num_symbols <= store->filter_symbols) {
+    next_write = buffer_write;
+  }
+  store->error =
+      rmt_receive(channel, (uint8_t *) store->buffer + next_write + event_size, store->receive_size, &store->config);
+  event_buffer->num_symbols = event->num_symbols;
+  event_buffer->received_symbols = event->received_symbols;
+  const bool stored = next_write != buffer_write;
+  store->buffer_write = next_write;
+  // a stored frame is decoded, and a failed re-arm reported, on the next loop pass instead of
+  // waiting out the loop interval; filtered noise and dropped frames leave nothing to read
+  BaseType_t task_woken = pdFALSE;
+  if (stored || store->error != ESP_OK)
+    wake_loop_isrsafe(&task_woken);
+  return task_woken != pdFALSE;
+}
+
+void RemoteReceiverComponent::fail_(esp_err_t error, const LogString *reason) {
+  ESP_LOGE(TAG, "RMT driver failed: %s", esp_err_to_name(error));
+  this->mark_failed(reason);
+}
+
+void RemoteReceiverComponent::setup() {
+  rmt_rx_channel_config_t channel;
+  memset(&channel, 0, sizeof(channel));
+  channel.clk_src = RMT_CLK_SRC_DEFAULT;
+  channel.resolution_hz = this->clock_resolution_;
+  channel.mem_block_symbols = rmt_symbols_;
+  channel.gpio_num = gpio_num_t(this->pin_->get_pin());
+  channel.intr_priority = 0;
+  channel.flags.invert_in = 0;
+  channel.flags.with_dma = this->with_dma_;
+  esp_err_t error = rmt_new_rx_channel(&channel, &this->channel_);
+  if (error != ESP_OK) {
+    this->fail_(error,
+                error == ESP_ERR_NOT_FOUND ? LOG_STR("out of RMT symbol memory") : LOG_STR("in rmt_new_rx_channel"));
+    return;
+  }
+  if (this->pin_->get_flags() & gpio::FLAG_PULLUP) {
+    gpio_pullup_en(gpio_num_t(this->pin_->get_pin()));
+  } else {
+    gpio_pullup_dis(gpio_num_t(this->pin_->get_pin()));
+  }
+  error = rmt_enable(this->channel_);
+  if (error != ESP_OK) {
+    this->fail_(error, LOG_STR("in rmt_enable"));
+    return;
+  }
+
+  if (this->carrier_frequency_ > 0 && 0 < this->carrier_duty_percent_ && this->carrier_duty_percent_ < 100) {
+    rmt_carrier_config_t carrier;
+    memset(&carrier, 0, sizeof(carrier));
+    carrier.frequency_hz = this->carrier_frequency_;
+    carrier.duty_cycle = (float) this->carrier_duty_percent_ / 100.0f;
+    carrier.flags.polarity_active_low = this->pin_->is_inverted();
+    error = rmt_apply_carrier(this->channel_, &carrier);
+    if (error != ESP_OK) {
+      this->fail_(error, LOG_STR("in rmt_apply_carrier"));
+      return;
+    }
+  }
+
+  rmt_rx_event_callbacks_t callbacks;
+  memset(&callbacks, 0, sizeof(callbacks));
+  callbacks.on_recv_done = rmt_callback;
+  error = rmt_rx_register_event_callbacks(this->channel_, &callbacks, &this->store_);
+  if (error != ESP_OK) {
+    this->fail_(error, LOG_STR("in rmt_rx_register_event_callbacks"));
+    return;
+  }
+
+  uint32_t event_size = sizeof(rmt_rx_done_event_data_t);
+  uint32_t rmt_freq;
+  esp_clk_tree_src_get_freq_hz((soc_module_clk_t) RMT_CLK_SRC_DEFAULT, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED,
+                               &rmt_freq);
+  uint32_t max_filter_ns = UINT8_MAX * 1000u / (rmt_freq / 1000000);
+  memset(&this->store_.config, 0, sizeof(this->store_.config));
+  this->store_.config.signal_range_min_ns = std::min(this->filter_us_ * 1000, max_filter_ns);
+  this->store_.config.signal_range_max_ns = this->idle_us_ * 1000;
+  this->store_.filter_symbols = this->filter_symbols_;
+  this->store_.receive_size = this->receive_symbols_ * sizeof(rmt_symbol_word_t);
+  // one slot per pending rmt_receive; two are the floor (one filling while one is decoded), and
+  // the default of four covers a few frames queued across a stalled loop pass
+  const uint32_t slot_size = event_size + this->store_.receive_size;
+  this->store_.buffer_size =
+      this->buffer_size_ != 0 ? std::max(slot_size * 2, this->buffer_size_) : slot_size * DEFAULT_BUFFER_SLOTS;
+  this->store_.buffer = new uint8_t[this->store_.buffer_size];
+  error = rmt_receive(this->channel_, (uint8_t *) this->store_.buffer + event_size, this->store_.receive_size,
+                      &this->store_.config);
+  if (error != ESP_OK) {
+    this->fail_(error, LOG_STR("in rmt_receive"));
+    return;
+  }
+}
+
+void RemoteReceiverComponent::dump_config() {
+  ESP_LOGCONFIG(
+      TAG,
+      "Remote Receiver:\n"
+      "  Clock resolution: %" PRIu32 " hz\n"
+      "  RMT symbols: %" PRIu32 "\n"
+      "  Filter symbols: %" PRIu32 "\n"
+      "  Receive symbols: %" PRIu32 "\n"
+      "  Buffer size: %" PRIu32 " bytes\n"
+      "  Tolerance: %" PRIu32 "%s\n"
+      "  Carrier frequency: %" PRIu32 " hz\n"
+      "  Carrier duty: %u%%\n"
+      "  Filter out pulses shorter than: %" PRIu32 " us\n"
+      "  Signal is done after %" PRIu32 " us of no changes",
+      this->clock_resolution_, this->rmt_symbols_, this->filter_symbols_, this->receive_symbols_,
+      this->store_.buffer_size, this->tolerance_,
+      (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? LOG_STR_LITERAL(" us") : LOG_STR_LITERAL("%"),
+      this->carrier_frequency_, this->carrier_duty_percent_, this->filter_us_, this->idle_us_);
+  LOG_PIN("  Pin: ", this->pin_);
+}
+
+void RemoteReceiverComponent::loop() {
+  if (this->store_.error != ESP_OK) {
+    this->fail_(this->store_.error, LOG_STR("in rmt_callback"));
+  }
+  if (this->store_.overflow) {
+    ESP_LOGW(TAG, "Buffer overflow");
+    this->store_.overflow = false;
+  }
+  uint32_t buffer_write = this->store_.buffer_write;
+  while (this->store_.buffer_read != buffer_write) {
+    rmt_rx_done_event_data_t *event = (rmt_rx_done_event_data_t *) (this->store_.buffer + this->store_.buffer_read);
+    uint32_t event_size = sizeof(rmt_rx_done_event_data_t);
+    uint32_t next_read = this->store_.buffer_read + event_size + event->num_symbols * sizeof(rmt_symbol_word_t);
+    if (next_read + event_size + this->store_.receive_size > this->store_.buffer_size) {
+      next_read = 0;
+    }
+    this->decode_rmt_(event->received_symbols, event->num_symbols);
+    this->store_.buffer_read = next_read;
+
+    if (!this->temp_.empty()) {
+      this->call_listeners_dumpers_();
+    }
+  }
+}
+
+void RemoteReceiverComponent::decode_rmt_(rmt_symbol_word_t *item, size_t item_count) {
+  bool prev_level = false;
+  bool idle_level = false;
+  uint32_t prev_length = 0;
+  this->temp_.clear();
+  int32_t multiplier = this->pin_->is_inverted() ? -1 : 1;
+  uint32_t filter_ticks = this->from_microseconds_(this->filter_us_);
+
+  ESP_LOGVV(TAG, "START:");
+  for (size_t i = 0; i < item_count; i++) {
+    if (item[i].level0) {
+      ESP_LOGVV(TAG, "%zu A: ON %" PRIu32 "us (%u ticks)", i, this->to_microseconds_(item[i].duration0),
+                item[i].duration0);
+    } else {
+      ESP_LOGVV(TAG, "%zu A: OFF %" PRIu32 "us (%u ticks)", i, this->to_microseconds_(item[i].duration0),
+                item[i].duration0);
+    }
+    if (item[i].level1) {
+      ESP_LOGVV(TAG, "%zu B: ON %" PRIu32 "us (%u ticks)", i, this->to_microseconds_(item[i].duration1),
+                item[i].duration1);
+    } else {
+      ESP_LOGVV(TAG, "%zu B: OFF %" PRIu32 "us (%u ticks)", i, this->to_microseconds_(item[i].duration1),
+                item[i].duration1);
+    }
+  }
+  ESP_LOGVV(TAG, "\n");
+
+  this->temp_.reserve(item_count * 2);  // each RMT item has 2 pulses
+  for (size_t i = 0; i < item_count; i++) {
+    if (item[i].duration0 == 0u) {
+      // EOF, sometimes garbage follows, break early
+      break;
+    } else if ((bool(item[i].level0) == prev_level) || (item[i].duration0 < filter_ticks)) {
+      prev_length += item[i].duration0;
+    } else {
+      if (prev_length >= filter_ticks) {
+        if (prev_level) {
+          this->temp_.push_back(this->to_microseconds_(prev_length) * multiplier);
+        } else {
+          this->temp_.push_back(-int32_t(this->to_microseconds_(prev_length)) * multiplier);
+        }
+      }
+      prev_level = bool(item[i].level0);
+      prev_length = item[i].duration0;
+    }
+    idle_level = !bool(item[i].level0);
+
+    if (item[i].duration1 == 0u) {
+      // EOF, sometimes garbage follows, break early
+      break;
+    } else if ((bool(item[i].level1) == prev_level) || (item[i].duration1 < filter_ticks)) {
+      prev_length += item[i].duration1;
+    } else {
+      if (prev_length >= filter_ticks) {
+        if (prev_level) {
+          this->temp_.push_back(this->to_microseconds_(prev_length) * multiplier);
+        } else {
+          this->temp_.push_back(-int32_t(this->to_microseconds_(prev_length)) * multiplier);
+        }
+      }
+      prev_level = bool(item[i].level1);
+      prev_length = item[i].duration1;
+    }
+    idle_level = !bool(item[i].level1);
+  }
+  if (prev_length >= filter_ticks && prev_level != idle_level) {
+    if (prev_level) {
+      this->temp_.push_back(this->to_microseconds_(prev_length) * multiplier);
+    } else {
+      this->temp_.push_back(-int32_t(this->to_microseconds_(prev_length)) * multiplier);
+    }
+  }
+  if (!this->temp_.empty()) {
+    if (idle_level) {
+      this->temp_.push_back(this->idle_us_ * multiplier);
+    } else {
+      this->temp_.push_back(-int32_t(this->idle_us_) * multiplier);
+    }
+  }
+}
+
+}  // namespace esphome::remote_receiver
+
+#endif  // SOC_RMT_SUPPORTED
+#endif  // USE_ESP32

@@ -1,0 +1,7 @@
+# No api, web_server or extra services so the fallback _http service
+# (with version, mac and config_hash TXT records) is compiled.
+wifi:
+  ssid: MySSID
+  password: password1
+
+mdns:

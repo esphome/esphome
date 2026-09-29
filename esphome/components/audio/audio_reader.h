@@ -5,14 +5,13 @@
 #include "audio.h"
 #include "audio_transfer_buffer.h"
 
-#include "esphome/core/ring_buffer.h"
+#include "esphome/components/ring_buffer/ring_buffer.h"
 
 #include "esp_err.h"
 
 #include <esp_http_client.h>
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 enum class AudioReaderState : uint8_t {
   READING = 0,  // More data is available to read
@@ -36,7 +35,7 @@ class AudioReader {
   /// @brief Adds a sink ring buffer for audio data. Takes ownership of the ring buffer in a shared_ptr
   /// @param output_ring_buffer weak_ptr of a shared_ptr of the sink ring buffer to transfer ownership
   /// @return  ESP_OK if successful, ESP_ERR_INVALID_STATE otherwise
-  esp_err_t add_sink(const std::weak_ptr<RingBuffer> &output_ring_buffer);
+  esp_err_t add_sink(const std::weak_ptr<ring_buffer::RingBuffer> &output_ring_buffer);
 
   /// @brief Starts reading an audio file from an http source. The transfer buffer is allocated here.
   /// @param uri Web url to the http file.
@@ -58,15 +57,10 @@ class AudioReader {
   /// @brief Monitors the http client events to attempt determining the file type from the Content-Type header
   static esp_err_t http_event_handler(esp_http_client_event_t *evt);
 
-  /// @brief Determines the audio file type from the http header's Content-Type key
-  /// @param content_type string with the Content-Type key
-  /// @return AudioFileType of the url, if it can be determined. If not, return AudioFileType::NONE.
-  static AudioFileType get_audio_type(const char *content_type);
-
   AudioReaderState file_read_();
   AudioReaderState http_read_();
 
-  std::shared_ptr<RingBuffer> file_ring_buffer_;
+  std::shared_ptr<ring_buffer::RingBuffer> file_ring_buffer_;
   std::unique_ptr<AudioSinkTransferBuffer> output_transfer_buffer_;
   void cleanup_connection_();
 
@@ -79,7 +73,6 @@ class AudioReader {
   AudioFileType audio_file_type_{AudioFileType::NONE};
   const uint8_t *file_current_{nullptr};
 };
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio
 
 #endif

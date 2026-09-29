@@ -1,0 +1,10 @@
+button:
+  - platform: template
+    name: MCP4461 Actions
+    on_press:
+      - mcp4461.wiper.increase:
+          id: digipot_wiper_2
+      - mcp4461.wiper.set_terminal:
+          id: digipot_wiper_2
+          terminal: w
+          enable: true

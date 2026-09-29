@@ -13,7 +13,7 @@
 
 namespace esphome::esp32_hosted {
 
-class Esp32HostedUpdate : public update::UpdateEntity, public PollingComponent {
+class Esp32HostedUpdate final : public update::UpdateEntity, public PollingComponent {
  public:
   void setup() override;
   void dump_config() override;
@@ -25,7 +25,7 @@ class Esp32HostedUpdate : public update::UpdateEntity, public PollingComponent {
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
   // HTTP mode setters
-  void set_source_url(const std::string &url) { this->source_url_ = url; }
+  void set_source_url(const char *url) { this->source_url_ = url; }
   void set_http_request_parent(http_request::HttpRequestComponent *parent) { this->http_request_parent_ = parent; }
 #else
   // Embedded mode setters
@@ -38,12 +38,13 @@ class Esp32HostedUpdate : public update::UpdateEntity, public PollingComponent {
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
   // HTTP mode members
   http_request::HttpRequestComponent *http_request_parent_{nullptr};
-  std::string source_url_;
+  const char *source_url_{nullptr};  // literal from codegen
   std::string firmware_url_;
 
   // HTTP mode helpers
   bool fetch_manifest_();
   bool stream_firmware_to_coprocessor_();
+  uint8_t initial_check_remaining_{0};
 #else
   // Embedded mode members
   const uint8_t *firmware_data_{nullptr};

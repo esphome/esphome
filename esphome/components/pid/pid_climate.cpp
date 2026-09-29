@@ -1,10 +1,20 @@
 #include "pid_climate.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pid {
+namespace esphome::pid {
 
 static const char *const TAG = "pid.climate";
+
+bool PIDClimate::set_deadband_thresholds(float threshold_low, float threshold_high) {
+  if (threshold_low > threshold_high) {
+    ESP_LOGW(TAG, "Deadband threshold low %.2f must not be greater than high %.2f", threshold_low, threshold_high);
+    return false;
+  }
+
+  this->set_threshold_low(threshold_low);
+  this->set_threshold_high(threshold_high);
+  return true;
+}
 
 void PIDClimate::setup() {
   this->sensor_->add_on_state_callback([this](float state) {
@@ -41,10 +51,12 @@ void PIDClimate::setup() {
   }
 }
 void PIDClimate::control(const climate::ClimateCall &call) {
-  if (call.get_mode().has_value())
-    this->mode = *call.get_mode();
-  if (call.get_target_temperature().has_value())
-    this->target_temperature = *call.get_target_temperature();
+  auto call_mode = call.get_mode();
+  if (call_mode.has_value())
+    this->mode = *call_mode;
+  auto call_target = call.get_target_temperature();
+  if (call_target.has_value())
+    this->target_temperature = *call_target;
 
   // If switching to off mode, set output immediately
   if (this->mode == climate::CLIMATE_MODE_OFF)
@@ -157,6 +169,14 @@ void PIDClimate::update_pid_() {
   if (this->do_publish_)
     this->publish_state();
 }
+void PIDClimate::start_autotune(float noiseband, float positive_output, float negative_output) {
+  auto tuner = make_unique<PIDAutotuner>();
+  tuner->set_noiseband(noiseband);
+  tuner->set_output_positive(positive_output);
+  tuner->set_output_negative(negative_output);
+  this->start_autotune(std::move(tuner));
+}
+
 void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
   this->autotuner_ = std::move(autotune);
   float min_value = this->supports_cool_() ? -1.0f : 0.0f;
@@ -184,5 +204,4 @@ void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
 
 void PIDClimate::reset_integral_term() { this->controller_.reset_accumulated_integral(); }
 
-}  // namespace pid
-}  // namespace esphome
+}  // namespace esphome::pid

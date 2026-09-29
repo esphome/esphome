@@ -2,8 +2,7 @@
 
 #include <cstdint>
 
-namespace esphome {
-namespace ltr501 {
+namespace esphome::ltr501 {
 
 enum class CommandRegisters : uint8_t {
   ALS_CONTR = 0x80,         // ALS operation mode control and SW reset
@@ -256,5 +255,4 @@ union InterruptPersistRegister {
   } __attribute__((packed));
 };
 
-}  // namespace ltr501
-}  // namespace esphome
+}  // namespace esphome::ltr501

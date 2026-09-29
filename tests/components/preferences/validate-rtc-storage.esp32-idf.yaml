@@ -1,0 +1,4 @@
+# Exercises the opt-in that compiles the RTC-backed preference storage into
+# the ESP32 backend without any other option selecting it.
+preferences:
+  rtc_storage: true

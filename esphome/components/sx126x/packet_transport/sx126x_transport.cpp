@@ -2,8 +2,7 @@
 #include "esphome/core/application.h"
 #include "sx126x_transport.h"
 
-namespace esphome {
-namespace sx126x {
+namespace esphome::sx126x {
 
 static const char *const TAG = "sx126x_transport";
 
@@ -16,5 +15,4 @@ void SX126xTransport::send_packet(const std::vector<uint8_t> &buf) const { this-
 
 void SX126xTransport::on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) { this->process_(packet); }
 
-}  // namespace sx126x
-}  // namespace esphome
+}  // namespace esphome::sx126x

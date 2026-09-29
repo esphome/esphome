@@ -4,7 +4,6 @@
 # Home Assistant Add-on: ESPHome
 # Sends discovery information to Home Assistant.
 # ==============================================================================
-declare config
 declare port
 
 # We only disable it when disabled explicitly
@@ -16,17 +15,20 @@ fi
 
 port=$(bashio::addon.ingress_port)
 
-# Wait for NGINX to become available
+# Wait for the ESPHome Device Builder to become available
 bashio::net.wait_for "${port}" "127.0.0.1" 300
 
-config=$(\
-    bashio::var.json \
-        host "127.0.0.1" \
-        port "^${port}" \
-)
+# Send one discovery message; the config is a JSON string built with bashio::var.json.
+send_discovery() {
+    local service=$1
+    local config=$2
+    if bashio::discovery "${service}" "${config}" > /dev/null; then
+        bashio::log.info "Successfully send ${service} discovery information to Home Assistant."
+    else
+        bashio::log.error "${service} discovery message to Home Assistant failed!"
+    fi
+}
 
-if bashio::discovery "esphome" "${config}" > /dev/null; then
-    bashio::log.info "Successfully send discovery information to Home Assistant."
-else
-    bashio::log.error "Discovery message to Home Assistant failed!"
-fi
+send_discovery "esphome" "$(bashio::var.json host "127.0.0.1" port "^${port}")"
+# The Device Builder MCP server, consumed by Home Assistant's mcp integration.
+send_discovery "mcp" "$(bashio::var.json url "http://127.0.0.1:${port}/api/mcp")"

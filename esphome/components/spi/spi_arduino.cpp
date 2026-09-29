@@ -4,14 +4,14 @@
 namespace esphome::spi {
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
 
-static const char *const TAG = "spi-esp-arduino";
+static const char *const TAG = "spi";
 class SPIDelegateHw : public SPIDelegate {
  public:
   SPIDelegateHw(SPIInterface channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)
       : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {}
 
   void begin_transaction() override {
-#ifdef USE_RP2040
+#ifdef USE_RP2
     SPISettings const settings(this->data_rate_, static_cast<BitOrder>(this->bit_order_), this->mode_);
 #elif defined(ESP8266)
     // Arduino ESP8266 library has mangled values for SPI modes :-(
@@ -41,19 +41,11 @@ class SPIDelegateHw : public SPIDelegate {
       this->channel_->transfer(*ptr);
       return;
     }
-#ifdef USE_RP2040
+#ifdef USE_RP2
     this->channel_->transfer(ptr, nullptr, length);
 #elif defined(USE_ESP8266)
-    // ESP8266 SPI library requires the pointer to be word aligned, but the data may not be
-    // so we need to copy the data to a temporary buffer
-    if (reinterpret_cast<uintptr_t>(ptr) & 0x3) {
-      ESP_LOGVV(TAG, "SPI write buffer not word aligned, copying to temporary buffer");
-      auto txbuf = std::vector<uint8_t>(length);
-      memcpy(txbuf.data(), ptr, length);
-      this->channel_->writeBytes(txbuf.data(), length);
-    } else {
-      this->channel_->writeBytes(ptr, length);
-    }
+    // writeBytes() needs a word aligned pointer; transferBytes() bounces unaligned chunks through a stack buffer
+    this->channel_->transferBytes(ptr, nullptr, length);
 #else
     this->channel_->writeBytes(ptr, length);
 #endif
@@ -75,7 +67,7 @@ class SPIBusHw : public SPIBus {
 #ifdef USE_ESP32
     channel->begin(Utility::get_pin_no(clk), Utility::get_pin_no(sdi), Utility::get_pin_no(sdo), -1);
 #endif
-#ifdef USE_RP2040
+#ifdef USE_RP2
     if (Utility::get_pin_no(sdi) != -1)
       channel->setRX(Utility::get_pin_no(sdi));
     if (Utility::get_pin_no(sdo) != -1)

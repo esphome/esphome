@@ -10,4 +10,5 @@ ST7789V.extend(
     cs_pin=22,
     dc_pin=21,
     reset_pin=18,
+    requires={"psram"},
 )

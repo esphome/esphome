@@ -1,0 +1,5 @@
+host:
+  mac_address: "62:23:45:AF:B3:DE"
+
+packages:
+  snapshot: !include common.yaml

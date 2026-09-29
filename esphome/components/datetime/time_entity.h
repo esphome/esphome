@@ -15,9 +15,7 @@ namespace esphome::datetime {
 #define LOG_DATETIME_TIME(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_icon_ref().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon_ref().c_str()); \
-    } \
+    LOG_ENTITY_ICON(TAG, prefix, *(obj)); \
   }
 
 class TimeCall;
@@ -100,22 +98,10 @@ class TimeCall {
   optional<uint8_t> second_;
 };
 
-template<typename... Ts> class TimeSetAction : public Action<Ts...>, public Parented<TimeEntity> {
- public:
-  TEMPLATABLE_VALUE(ESPTime, time)
-
-  void play(const Ts &...x) override {
-    auto call = this->parent_->make_call();
-
-    if (this->time_.has_value()) {
-      call.set_time(this->time_.value(x...));
-    }
-    call.perform();
-  }
-};
+inline TimeCall TimeEntity::make_call() { return TimeCall(this); }
 
 #ifdef USE_TIME
-class OnTimeTrigger : public Trigger<>, public Component, public Parented<TimeEntity> {
+class OnTimeTrigger final : public Trigger<>, public Component, public Parented<TimeEntity> {
  public:
   void loop() override;
 

@@ -5,8 +5,7 @@
 
 #include "weikai_i2c.h"
 
-namespace esphome {
-namespace weikai_i2c {
+namespace esphome::weikai_i2c {
 static const char *const TAG = "weikai_i2c";
 
 /// @brief Display a buffer in hexadecimal format (32 hex values / line).
@@ -177,5 +176,4 @@ void WeikaiComponentI2C::dump_config() {
   }
 }
 
-}  // namespace weikai_i2c
-}  // namespace esphome
+}  // namespace esphome::weikai_i2c

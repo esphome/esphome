@@ -2,10 +2,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#define BMP280_ERROR_WRONG_CHIP_ID "Wrong chip ID"
+#define BMP280_ERROR_WRONG_CHIP_ID "Wrong chip ID or no response"
 
-namespace esphome {
-namespace bmp280_base {
+namespace esphome::bmp280_base {
 
 static const char *const TAG = "bmp280.sensor";
 
@@ -148,7 +147,6 @@ void BMP280Component::dump_config() {
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
   ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->pressure_oversampling_));
 }
-float BMP280Component::get_setup_priority() const { return setup_priority::DATA; }
 
 inline uint8_t oversampling_to_time(BMP280Oversampling over_sampling) { return (1 << uint8_t(over_sampling)) >> 1; }
 
@@ -256,7 +254,6 @@ void BMP280Component::set_temperature_oversampling(BMP280Oversampling temperatur
 void BMP280Component::set_pressure_oversampling(BMP280Oversampling pressure_over_sampling) {
   this->pressure_oversampling_ = pressure_over_sampling;
 }
-void BMP280Component::set_iir_filter(BMP280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 uint8_t BMP280Component::read_u8_(uint8_t a_register) {
   uint8_t data = 0;
   this->bmp_read_byte(a_register, &data);
@@ -269,5 +266,4 @@ uint16_t BMP280Component::read_u16_le_(uint8_t a_register) {
 }
 int16_t BMP280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 
-}  // namespace bmp280_base
-}  // namespace esphome
+}  // namespace esphome::bmp280_base

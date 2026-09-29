@@ -1,0 +1,9 @@
+# fast_connect passed through a substitution arrives as a string ("false"),
+# which must be accepted like the historic plain boolean form.
+substitutions:
+  fast_connect_value: "false"
+
+wifi:
+  ssid: MySSID
+  password: password1
+  fast_connect: ${fast_connect_value}

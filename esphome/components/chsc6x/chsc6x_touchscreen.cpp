@@ -1,7 +1,6 @@
 #include "chsc6x_touchscreen.h"
 
-namespace esphome {
-namespace chsc6x {
+namespace esphome::chsc6x {
 
 void CHSC6XTouchscreen::setup() {
   if (this->interrupt_pin_ != nullptr) {
@@ -42,5 +41,4 @@ void CHSC6XTouchscreen::dump_config() {
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
 }
 
-}  // namespace chsc6x
-}  // namespace esphome
+}  // namespace esphome::chsc6x

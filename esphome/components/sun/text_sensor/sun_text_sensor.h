@@ -6,10 +6,9 @@
 #include "esphome/components/sun/sun.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
-namespace esphome {
-namespace sun {
+namespace esphome::sun {
 
-class SunTextSensor : public text_sensor::TextSensor, public PollingComponent {
+class SunTextSensor final : public text_sensor::TextSensor, public PollingComponent {
  public:
   void set_parent(Sun *parent) { parent_ = parent; }
   void set_elevation(double elevation) { elevation_ = elevation; }
@@ -44,5 +43,4 @@ class SunTextSensor : public text_sensor::TextSensor, public PollingComponent {
   bool sunrise_;
 };
 
-}  // namespace sun
-}  // namespace esphome
+}  // namespace esphome::sun

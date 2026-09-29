@@ -2,6 +2,13 @@
 
 namespace esphome::micronova {
 
+static const char *const TAG = "micronova.sensor";
+
+void MicroNovaSensor::dump_config() {
+  LOG_SENSOR("", "Micronova sensor", this);
+  this->dump_base_config();
+}
+
 void MicroNovaSensor::process_value_from_stove(int value_from_stove) {
   if (value_from_stove == -1) {
     this->publish_state(NAN);

@@ -1,0 +1,5 @@
+# Config-only: the ESP32-S3 supports both quad and octal. The compile test uses
+# octal; this exercises the other branch of the per-variant mode enum (quad) and
+# lets speed fall back to its 40MHz default.
+psram:
+  mode: quad

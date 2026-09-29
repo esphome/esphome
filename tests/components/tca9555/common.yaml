@@ -2,6 +2,10 @@ tca9555:
   - id: tca9555_hub
     i2c_id: i2c_bus
     address: 0x21
+  - id: tca9555_hub_int
+    i2c_id: i2c_bus
+    address: 0x22
+    interrupt_pin: ${interrupt_pin}
 
 binary_sensor:
   - platform: gpio

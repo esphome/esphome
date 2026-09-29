@@ -1,0 +1,4 @@
+packages: !include 14-packages_dict.yaml
+
+wifi:
+  ssid: main_ssid

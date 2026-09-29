@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace my9231 {
+namespace esphome::my9231 {
 
 static const char *const TAG = "my9231.output";
 
@@ -81,9 +80,9 @@ void MY9231OutputComponent::loop() {
   }
   this->update_ = false;
 }
-void MY9231OutputComponent::set_channel_value_(uint8_t channel, uint16_t value) {
+void MY9231OutputComponent::set_channel_value_(uint16_t channel, uint16_t value) {
   ESP_LOGV(TAG, "set channels %u to %u", channel, value);
-  uint8_t index = this->num_channels_ - channel - 1;
+  uint16_t index = this->num_channels_ - channel - 1;
   if (this->pwm_amounts_[index] != value) {
     this->update_ = true;
   }
@@ -123,5 +122,4 @@ void MY9231OutputComponent::send_dcki_pulses_(uint8_t count) {
   }
 }
 
-}  // namespace my9231
-}  // namespace esphome
+}  // namespace esphome::my9231

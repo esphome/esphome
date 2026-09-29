@@ -1,8 +1,6 @@
 #pragma once
 #include <algorithm>
 #include <cstdint>
-#include <cstring>
-#include <string>
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -80,11 +78,6 @@ class GPIOPin {
   ///         which may exceed len-1 if truncation occurred (snprintf semantics)
   virtual size_t dump_summary(char *buffer, size_t len) const;
 
-  /// Get a summary of this pin as a string.
-  /// @deprecated Use dump_summary(char*, size_t) instead. Will be removed in 2026.7.0.
-  ESPDEPRECATED("Override dump_summary(char*, size_t) instead. Will be removed in 2026.7.0.", "2026.1.0")
-  virtual std::string dump_summary() const;
-
   virtual bool is_internal() { return false; }
 };
 
@@ -122,27 +115,13 @@ class InternalGPIOPin : public GPIOPin {
   virtual void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const = 0;
 };
 
-// Inline default implementations for GPIOPin virtual methods.
-// These provide bridge functionality for backwards compatibility with external components.
-
-// Default implementation bridges to old std::string method for backwards compatibility.
+// Inline default implementation for GPIOPin::dump_summary.
+// Writes an empty summary; subclasses override to provide pin details.
 inline size_t GPIOPin::dump_summary(char *buffer, size_t len) const {
-  if (len == 0)
-    return 0;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  std::string s = this->dump_summary();
-#pragma GCC diagnostic pop
-  size_t copy_len = std::min(s.size(), len - 1);
-  memcpy(buffer, s.c_str(), copy_len);
-  buffer[copy_len] = '\0';
-  return s.size();  // Return would-be length (snprintf semantics)
+  if (len > 0)
+    buffer[0] = '\0';
+  return 0;
 }
-
-// Default implementation returns empty string.
-// External components should override this if they haven't migrated to buffer-based version.
-// Remove before 2026.7.0
-inline std::string GPIOPin::dump_summary() const { return {}; }
 
 // Inline helper for log_pin - allows compiler to inline into log_pin in gpio.cpp
 inline void log_pin_with_prefix(const char *tag, const char *prefix, GPIOPin *pin) {

@@ -1,5 +1,6 @@
 #include "wifi_info_text_sensor.h"
 #ifdef USE_WIFI
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP8266
@@ -89,7 +90,7 @@ void ScanResultsWiFiInfo::on_wifi_scan_results(const wifi::wifi_scan_vector_t<wi
   for (const auto &scan : results) {
     if (scan.get_is_hidden())
       continue;
-    const std::string &ssid = scan.get_ssid();
+    const auto &ssid = scan.get_ssid();
     // Max space: ssid + ": " (2) + "-128" (4) + "dB\n" (3) = ssid + 9
     if (ptr + ssid.size() + 9 > end)
       break;
@@ -125,7 +126,7 @@ void BSSIDWiFiInfo::setup() { wifi::global_wifi_component->add_connect_state_lis
 void BSSIDWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "BSSID", this); }
 
 void BSSIDWiFiInfo::on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) {
-  char buf[18] = "unknown";
+  char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE] = "unknown";
   if (mac_address_is_valid(bssid.data())) {
     format_mac_addr_upper(bssid.data(), buf);
   }

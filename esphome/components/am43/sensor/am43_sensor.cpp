@@ -4,8 +4,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace am43 {
+namespace esphome::am43 {
 
 static const char *const TAG = "am43";
 
@@ -111,7 +110,6 @@ void Am43::update() {
   }
 }
 
-}  // namespace am43
-}  // namespace esphome
+}  // namespace esphome::am43
 
 #endif

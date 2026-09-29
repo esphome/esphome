@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tee501 {
+namespace esphome::tee501 {
 
 static const char *const TAG = "tee501";
 
@@ -43,7 +42,6 @@ void TEE501Component::dump_config() {
   LOG_SENSOR("  ", "TEE501", this);
 }
 
-float TEE501Component::get_setup_priority() const { return setup_priority::DATA; }
 void TEE501Component::update() {
   uint8_t address_1[] = {0x2C, 0x1B};
   this->write(address_1, 2);
@@ -67,5 +65,4 @@ void TEE501Component::update() {
   });
 }
 
-}  // namespace tee501
-}  // namespace esphome
+}  // namespace esphome::tee501

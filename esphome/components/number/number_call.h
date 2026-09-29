@@ -33,6 +33,9 @@ class NumberCall {
   NumberCall &with_cycle(bool cycle);
 
  protected:
+  float cycle_or_clamp_(float clamp, float opposite) const {
+    return (this->cycle_ && !std::isnan(opposite)) ? opposite : clamp;
+  }
   void log_perform_warning_(const LogString *message);
   void log_perform_warning_value_range_(const LogString *comparison, const LogString *limit_type, float val,
                                         float limit);

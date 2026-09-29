@@ -4,6 +4,9 @@ esphome:
       - servo.write:
           id: test_servo
           level: -100.0%
+      - servo.write:
+          id: test_servo
+          level: !lambda return 0.5;
       - servo.detach: test_servo
 
 output:

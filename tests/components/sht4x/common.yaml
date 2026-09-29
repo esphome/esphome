@@ -6,4 +6,8 @@ sensor:
     humidity:
       name: SHT4X Humidity
     address: 0x44
+    precision: High
+    heater_max_duty: 0.02
+    heater_power: High
+    heater_time: Long
     update_interval: 15s

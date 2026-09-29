@@ -7,15 +7,14 @@
 
 #include <driver/twai.h>
 
-namespace esphome {
-namespace esp32_can {
+namespace esphome::esp32_can {
 
 enum CanMode : uint8_t {
   CAN_MODE_NORMAL = 0,
   CAN_MODE_LISTEN_ONLY = 1,
 };
 
-class ESP32Can : public canbus::Canbus {
+class ESP32Can final : public canbus::Canbus {
  public:
   void set_rx(int rx) { rx_ = rx; }
   void set_tx(int tx) { tx_ = tx; }
@@ -41,7 +40,6 @@ class ESP32Can : public canbus::Canbus {
   twai_handle_t twai_handle_{nullptr};
 };
 
-}  // namespace esp32_can
-}  // namespace esphome
+}  // namespace esphome::esp32_can
 
 #endif

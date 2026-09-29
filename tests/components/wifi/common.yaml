@@ -14,6 +14,7 @@ esphome:
           condition: wifi.ap_active
           then:
             - logger.log: "WiFi AP is active!"
+      - wifi.roam
 
 wifi:
   networks:
@@ -26,3 +27,7 @@ wifi:
     - ssid: MySSID3
       password: password3
       priority: 0
+  on_connect:
+    - logger.log: "WiFi connected!"
+  on_disconnect:
+    - logger.log: "WiFi disconnected!"

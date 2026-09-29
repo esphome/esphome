@@ -3,8 +3,7 @@
 #include "esphome/core/color.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace qr_code {
+namespace esphome::qr_code {
 
 static const char *const TAG = "qr_code";
 
@@ -74,5 +73,4 @@ uint8_t QrCode::get_size() {
   return size;
 }
 
-}  // namespace qr_code
-}  // namespace esphome
+}  // namespace esphome::qr_code

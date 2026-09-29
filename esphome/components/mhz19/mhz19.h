@@ -1,12 +1,10 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace mhz19 {
+namespace esphome::mhz19 {
 
 enum MHZ19ABCLogic {
   MHZ19_ABC_NONE = 0,
@@ -21,10 +19,8 @@ enum MHZ19DetectionRange {
   MHZ19_DETECTION_RANGE_0_10000PPM,
 };
 
-class MHZ19Component : public PollingComponent, public uart::UARTDevice {
+class MHZ19Component final : public PollingComponent, public uart::UARTDevice {
  public:
-  float get_setup_priority() const override;
-
   void setup() override;
   void update() override;
   void dump_config() override;
@@ -32,7 +28,7 @@ class MHZ19Component : public PollingComponent, public uart::UARTDevice {
   void calibrate_zero();
   void abc_enable();
   void abc_disable();
-  void range_set(MHZ19DetectionRange detection_ppm);
+  void range_set(MHZ19DetectionRange detection_range);
 
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
@@ -52,27 +48,4 @@ class MHZ19Component : public PollingComponent, public uart::UARTDevice {
   MHZ19DetectionRange detection_range_{MHZ19_DETECTION_RANGE_DEFAULT};
 };
 
-template<typename... Ts> class MHZ19CalibrateZeroAction : public Action<Ts...>, public Parented<MHZ19Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->calibrate_zero(); }
-};
-
-template<typename... Ts> class MHZ19ABCEnableAction : public Action<Ts...>, public Parented<MHZ19Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->abc_enable(); }
-};
-
-template<typename... Ts> class MHZ19ABCDisableAction : public Action<Ts...>, public Parented<MHZ19Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->abc_disable(); }
-};
-
-template<typename... Ts> class MHZ19DetectionRangeSetAction : public Action<Ts...>, public Parented<MHZ19Component> {
- public:
-  TEMPLATABLE_VALUE(MHZ19DetectionRange, detection_range)
-
-  void play(const Ts &...x) override { this->parent_->range_set(this->detection_range_.value(x...)); }
-};
-
-}  // namespace mhz19
-}  // namespace esphome
+}  // namespace esphome::mhz19

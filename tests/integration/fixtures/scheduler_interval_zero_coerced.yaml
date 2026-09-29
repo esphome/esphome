@@ -1,0 +1,27 @@
+esphome:
+  name: sched-interval-zero
+
+host:
+api:
+logger:
+  level: DEBUG
+
+globals:
+  - id: fire_count
+    type: int
+    initial_value: "0"
+
+interval:
+  # Deliberately configure 0ms — this path goes through the C++
+  # Scheduler::set_timer_common_ coercion (not the Python cv.update_interval
+  # path, since interval: doesn't call cv.update_interval — it's an intervals
+  # component schema, not a PollingComponent's update_interval).
+  # Expected: scheduler coerces to 1ms at registration, emits ESP_LOGE,
+  # fires at ~1kHz instead of spinning.
+  - interval: 0ms
+    then:
+      - lambda: |-
+          id(fire_count) += 1;
+          if (id(fire_count) == 50) {
+            ESP_LOGI("test", "ZERO_INTERVAL_50_FIRES_REACHED");
+          }

@@ -1,3 +1,5 @@
+import logging
+
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
@@ -14,6 +16,9 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core.entity_helpers import inherit_property_from
+from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@Cat-Ion", "@kahrendt"]
 
@@ -47,7 +52,8 @@ SumCombinationComponent = combination_ns.class_(
     "SumCombinationComponent", cg.Component, sensor.Sensor
 )
 
-CONF_COEFFECIENT = "coeffecient"
+CONF_COEFFICIENT = "coefficient"
+CONF_COEFFECIENT = "coeffecient"  # Deprecated, remove before 2026.12.0
 CONF_ERROR = "error"
 CONF_KALMAN = "kalman"
 CONF_LINEAR = "linear"
@@ -68,11 +74,34 @@ KALMAN_SOURCE_SCHEMA = cv.Schema(
     }
 )
 
-LINEAR_SOURCE_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_SOURCE): cv.use_id(sensor.Sensor),
-        cv.Required(CONF_COEFFECIENT): cv.templatable(cv.float_),
-    }
+
+def _migrate_coeffecient(config: ConfigType) -> ConfigType:
+    """Migrate deprecated 'coeffecient' spelling to 'coefficient'."""
+    if CONF_COEFFECIENT in config:
+        if CONF_COEFFICIENT in config:
+            raise cv.Invalid(
+                f"Cannot specify both '{CONF_COEFFICIENT}' and '{CONF_COEFFECIENT}'"
+            )
+        _LOGGER.warning(
+            "'%s' is deprecated, use '%s' instead. Will be removed in 2026.12.0",
+            CONF_COEFFECIENT,
+            CONF_COEFFICIENT,
+        )
+        config[CONF_COEFFICIENT] = config.pop(CONF_COEFFECIENT)
+    elif CONF_COEFFICIENT not in config:
+        raise cv.Invalid(f"'{CONF_COEFFICIENT}' is a required option")
+    return config
+
+
+LINEAR_SOURCE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_SOURCE): cv.use_id(sensor.Sensor),
+            cv.Optional(CONF_COEFFICIENT): cv.templatable(cv.float_),
+            cv.Optional(CONF_COEFFECIENT): cv.templatable(cv.float_),
+        }
+    ),
+    _migrate_coeffecient,
 )
 
 SENSOR_ONLY_SOURCE_SCHEMA = cv.Schema(
@@ -144,13 +173,16 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
 
     if proces_std_dev := config.get(CONF_PROCESS_STD_DEV):
         cg.add(var.set_process_std_dev(proces_std_dev))
+
+    if config[CONF_TYPE] in (CONF_KALMAN, CONF_LINEAR):
+        cg.add(var.set_source_count(len(config[CONF_SOURCES])))
 
     for source_conf in config[CONF_SOURCES]:
         source = await cg.get_variable(source_conf[CONF_SOURCE])
@@ -162,12 +194,12 @@ async def to_code(config):
             )
             cg.add(var.add_source(source, error))
         elif config[CONF_TYPE] == CONF_LINEAR:
-            coeffecient = await cg.templatable(
-                source_conf[CONF_COEFFECIENT],
+            coefficient = await cg.templatable(
+                source_conf[CONF_COEFFICIENT],
                 [(float, "x")],
                 cg.float_,
             )
-            cg.add(var.add_source(source, coeffecient))
+            cg.add(var.add_source(source, coefficient))
         else:
             cg.add(var.add_source(source))
 
