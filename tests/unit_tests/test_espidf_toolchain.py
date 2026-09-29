@@ -725,3 +725,11 @@ def test_get_core_framework_version_from_core_data():
 
     CORE.data = {KEY_ESP32: {KEY_IDF_VERSION: cv.Version(5, 5, 4)}}
     assert toolchain._get_core_framework_version() == "5.5.4"
+
+
+def test_get_cmake_cache_value_reads_the_configured_cache(setup_core: Path) -> None:
+    _setup_build(setup_core)
+    output = "CMAKE_OBJDUMP:FILEPATH=/tools/objdump\nESPHOME_PCH:BOOL=OFF\n"
+    with patch.object(toolchain, "_get_cmake_output", return_value=output):
+        assert toolchain.get_cmake_cache_value("ESPHOME_PCH") == "OFF"
+        assert toolchain.get_cmake_cache_value("ESPHOME_MISSING") is None
