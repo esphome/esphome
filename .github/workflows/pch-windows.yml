@@ -1,0 +1,75 @@
+name: Windows precompiled header check
+
+on:
+  push:
+    branches:
+      - pch-windows-ci
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: ${{ matrix.name }}
+    runs-on: windows-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: esp-idf native
+            config: .github/pch_windows/idf.yaml
+          - name: platformio arduino
+            config: .github/pch_windows/arduino.yaml
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      # cmd throughout: idf_tools.py refuses to run under MSYS, which the
+      # bash shell announces, and users build from a plain Windows shell
+      - name: Install esphome
+        shell: cmd
+        run: |
+          python -m venv venv
+          call venv\Scripts\activate.bat
+          pip install -r requirements.txt
+          pip install -e .
+      - name: Compile with the rule
+        shell: cmd
+        run: |
+          call venv\Scripts\activate.bat
+          esphome compile ${{ matrix.config }} > rule.log 2>&1
+          set RC=%ERRORLEVEL%
+          type rule.log
+          echo --- header lines ---
+          findstr /i /c:"precompiled header" rule.log
+          exit /b %RC%
+      - name: Compile with the header forced on
+        continue-on-error: true
+        shell: cmd
+        env:
+          ESPHOME_PCH_ENABLE: "1"
+        run: |
+          call venv\Scripts\activate.bat
+          esphome compile ${{ matrix.config }} > forced.log 2>&1
+          set RC=%ERRORLEVEL%
+          type forced.log
+          exit /b %RC%
+      - name: Report the forced run
+        shell: cmd
+        run: |
+          echo --- forced run ---
+          findstr /i "precompiled PCH mingw32_gt_pch error:" forced.log
+          exit /b 0
+      - name: Keep the logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pch-${{ strategy.job-index }}-logs
+          path: |
+            rule.log
+            forced.log
