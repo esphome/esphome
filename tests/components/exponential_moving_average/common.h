@@ -8,7 +8,10 @@
 #include <string>
 
 #include "esphome/components/exponential_moving_average/exponential_moving_average_sensor.h"
+#include "esphome/core/preferences.h"
+#ifdef USE_HOST
 #include "esphome/components/host/preferences.h"
+#endif
 
 namespace esphome::exponential_moving_average::testing {
 
@@ -27,7 +30,9 @@ class ExponentialMovingAverageTest : public ::testing::Test {
       this->saved_prefdir_ = prefdir;
     // Keep preferences away from the user's home directory.
     setenv("ESPHOME_PREFDIR", std::filesystem::temp_directory_path().c_str(), 1);
+#ifdef USE_HOST
     host::setup_preferences();
+#endif
     global_preferences->reset();
   }
 
