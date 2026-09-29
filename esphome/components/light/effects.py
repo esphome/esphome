@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -31,9 +33,10 @@ from esphome.const import (
 )
 from esphome.cpp_generator import MockObjClass
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import ConfigType
 from esphome.util import Registry
 
-from .automation import validate_light_state
+from .automation import COLOR_SCHEMA, color_to_rgb, validate_light_state
 from .types import (
     COLOR_MODES,
     AddressableColorWipeEffect,
@@ -87,6 +90,24 @@ BINARY_EFFECTS = []
 MONOCHROMATIC_EFFECTS = []
 RGB_EFFECTS = []
 ADDRESSABLE_EFFECTS = []
+
+
+def _default_missing(
+    *keys: str, value: float = 1.0
+) -> Callable[[ConfigType], ConfigType]:
+    """Build a validator that defaults each key to `value` if still unset.
+
+    Used after `color_to_rgb` so a per-item `color:` can populate red/green/blue (and
+    color_brightness) while a plain channel list still defaults to full level.
+    """
+
+    def validator(config: ConfigType) -> ConfigType:
+        for key in keys:
+            config.setdefault(key, value)
+        return config
+
+    return validator
+
 
 EFFECTS_REGISTRY = Registry()
 
@@ -267,6 +288,31 @@ async def random_effect_to_code(config, effect_id):
     return effect
 
 
+STROBE_COLOR_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_STATE, default=True): validate_light_state,
+        cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
+        cv.Optional(CONF_COLOR_MODE): cv.enum(COLOR_MODES, upper=True, space="_"),
+        cv.Optional(CONF_COLOR_BRIGHTNESS): cv.percentage,
+        cv.Optional(CONF_RED): cv.percentage,
+        cv.Optional(CONF_GREEN): cv.percentage,
+        cv.Optional(CONF_BLUE): cv.percentage,
+        cv.Optional(CONF_WHITE, default=1.0): cv.percentage,
+        cv.Optional(CONF_COLOR_TEMPERATURE): cv.color_temperature,
+        cv.Optional(CONF_COLD_WHITE, default=1.0): cv.percentage,
+        cv.Optional(CONF_WARM_WHITE, default=1.0): cv.percentage,
+        cv.Required(CONF_DURATION): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_TRANSITION_LENGTH, default="0s"
+        ): cv.positive_time_period_milliseconds,
+    }
+).extend(COLOR_SCHEMA)
+STROBE_COLOR_SCHEMA.add_extra(color_to_rgb)
+STROBE_COLOR_SCHEMA.add_extra(
+    _default_missing(CONF_COLOR_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE)
+)
+
+
 @register_binary_effect(
     "strobe",
     StrobeLightEffect,
@@ -280,29 +326,7 @@ async def random_effect_to_code(config, effect_id):
             ],
         ): cv.All(
             cv.ensure_list(
-                cv.Schema(
-                    {
-                        cv.Optional(CONF_STATE, default=True): validate_light_state,
-                        cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
-                        cv.Optional(CONF_COLOR_MODE): cv.enum(
-                            COLOR_MODES, upper=True, space="_"
-                        ),
-                        cv.Optional(CONF_COLOR_BRIGHTNESS, default=1.0): cv.percentage,
-                        cv.Optional(CONF_RED, default=1.0): cv.percentage,
-                        cv.Optional(CONF_GREEN, default=1.0): cv.percentage,
-                        cv.Optional(CONF_BLUE, default=1.0): cv.percentage,
-                        cv.Optional(CONF_WHITE, default=1.0): cv.percentage,
-                        cv.Optional(CONF_COLOR_TEMPERATURE): cv.color_temperature,
-                        cv.Optional(CONF_COLD_WHITE, default=1.0): cv.percentage,
-                        cv.Optional(CONF_WARM_WHITE, default=1.0): cv.percentage,
-                        cv.Required(
-                            CONF_DURATION
-                        ): cv.positive_time_period_milliseconds,
-                        cv.Optional(
-                            CONF_TRANSITION_LENGTH, default="0s"
-                        ): cv.positive_time_period_milliseconds,
-                    }
-                ),
+                STROBE_COLOR_SCHEMA,
                 cv.has_at_least_one_key(
                     CONF_STATE,
                     CONF_BRIGHTNESS,
@@ -406,6 +430,23 @@ async def addressable_rainbow_effect_to_code(config, effect_id):
     return var
 
 
+ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_RED): cv.percentage,
+        cv.Optional(CONF_GREEN): cv.percentage,
+        cv.Optional(CONF_BLUE): cv.percentage,
+        cv.Optional(CONF_WHITE, default=1.0): cv.percentage,
+        cv.Optional(CONF_RANDOM, default=False): cv.boolean,
+        cv.Required(CONF_NUM_LEDS): cv.All(cv.uint32_t, cv.Range(min=1)),
+        cv.Optional(CONF_GRADIENT, default=False): cv.boolean,
+    }
+).extend(COLOR_SCHEMA)
+ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA.add_extra(color_to_rgb)
+ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA.add_extra(
+    _default_missing(CONF_RED, CONF_GREEN, CONF_BLUE)
+)
+
+
 @register_addressable_effect(
     "addressable_color_wipe",
     AddressableColorWipeEffect,
@@ -413,17 +454,7 @@ async def addressable_rainbow_effect_to_code(config, effect_id):
     {
         cv.Optional(
             CONF_COLORS, default=[{CONF_NUM_LEDS: 1, CONF_RANDOM: True}]
-        ): cv.ensure_list(
-            {
-                cv.Optional(CONF_RED, default=1.0): cv.percentage,
-                cv.Optional(CONF_GREEN, default=1.0): cv.percentage,
-                cv.Optional(CONF_BLUE, default=1.0): cv.percentage,
-                cv.Optional(CONF_WHITE, default=1.0): cv.percentage,
-                cv.Optional(CONF_RANDOM, default=False): cv.boolean,
-                cv.Required(CONF_NUM_LEDS): cv.All(cv.uint32_t, cv.Range(min=1)),
-                cv.Optional(CONF_GRADIENT, default=False): cv.boolean,
-            }
-        ),
+        ): cv.ensure_list(ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA),
         cv.Optional(
             CONF_ADD_LED_INTERVAL, default="0.1s"
         ): cv.positive_time_period_milliseconds,
