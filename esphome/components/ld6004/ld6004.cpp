@@ -41,9 +41,11 @@ static constexpr std::array<uint32_t, 5> WORK_MODE_COMMANDS = {CMD_WORK_NORMAL, 
 static const char *const WORK_MODE_NAMES[] = {"normal", "low_power", "radar_off_p20_high", "radar_off_p20_low",
                                               "high_reflectivity"};
 #endif
+#ifdef USE_SELECT
 static constexpr std::array<uint32_t, 6> P20_MODE_COMMANDS = {CMD_P20_PRESENCE_HIGH, CMD_P20_PRESENCE_LOW,
                                                               CMD_P20_CONSTANT_LOW,  CMD_P20_CONSTANT_HIGH,
                                                               CMD_P20_PULSE_LOW,     CMD_P20_PULSE_HIGH};
+#endif
 
 bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, uint16_t len) {
   switch (type) {
@@ -98,6 +100,7 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
   }
 }
 
+#ifdef USE_NUMBER
 void LD6004Component::set_number_value(uint8_t kind, float value) {
   if (kind != NUMBER_DWELL_LIFETIME && kind != NUMBER_OUTPUT_INTERVAL) {
     this->LD600XComponent::set_number_value(kind, value);
@@ -114,7 +117,9 @@ void LD6004Component::set_number_value(uint8_t kind, float value) {
   this->queue_command_(kind == NUMBER_DWELL_LIFETIME ? TYPE_SET_DWELL_LIFETIME : TYPE_SET_OUTPUT_INTERVAL, data,
                        sizeof(data));
 }
+#endif  // USE_NUMBER
 
+#ifdef USE_SELECT
 void LD6004Component::set_select_value(uint8_t kind, size_t index) {
   switch (kind) {
     case SELECT_WORK_MODE:
@@ -130,7 +135,9 @@ void LD6004Component::set_select_value(uint8_t kind, size_t index) {
       break;
   }
 }
+#endif  // USE_SELECT
 
+#ifdef USE_BUTTON
 void LD6004Component::press_button(uint8_t kind) {
   if (kind == BUTTON_CLEAR_DWELL) {
     this->send_control_command_(CMD_CLEAR_DWELL);
@@ -139,14 +146,22 @@ void LD6004Component::press_button(uint8_t kind) {
     this->LD600XComponent::press_button(kind);
   }
 }
+#endif  // USE_BUTTON
 
 void LD6004Component::setup_model() {
+  bool want_work_mode = false;
 #ifdef USE_SELECT
-  if (this->work_mode_select_ != nullptr)
-    this->send_control_command_(CMD_GET_WORK_MODE);
+  want_work_mode = this->work_mode_select_ != nullptr;
   if (this->p20_mode_select_ != nullptr)
     this->send_control_command_(CMD_GET_P20_MODE);
 #endif
+#ifdef USE_TEXT_SENSOR
+  // The text sensor follows the 0x0A12 report instead of the base's fallback, so it needs the
+  // same boot query as the select to show a mode before the module next changes it.
+  want_work_mode = want_work_mode || this->work_mode_text_sensor_ != nullptr;
+#endif
+  if (want_work_mode)
+    this->send_control_command_(CMD_GET_WORK_MODE);
 #ifdef USE_NUMBER
   if (this->dwell_lifetime_number_ != nullptr)
     this->send_control_command_(CMD_GET_DWELL_LIFETIME);

@@ -31,12 +31,21 @@ class LD6004Component final : public ld600x::LD600XComponent {
   void set_p20_mode_select(select::Select *select) { this->p20_mode_select_ = select; }
 #endif
 
+#ifdef USE_NUMBER
   void set_number_value(uint8_t kind, float value) override;
+#endif
+#ifdef USE_SELECT
   void set_select_value(uint8_t kind, size_t index) override;
+#endif
+#ifdef USE_BUTTON
   void press_button(uint8_t kind) override;
+#endif
 
  protected:
   bool handle_model_report(uint16_t type, const uint8_t *data, uint16_t len) override;
+  // The 0x0A12 report carries all five modes, so the text sensor never needs the base's
+  // presence-derived two-state fallback nor the target stream that feeds it.
+  bool work_mode_uses_fallback() const override { return false; }
   void setup_model() override;
   void dump_model_config() override;
 
