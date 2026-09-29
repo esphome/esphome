@@ -4,9 +4,9 @@ namespace esphome::nfc {
 
 static const char *const TAG = "nfc.helpers";
 
-bool has_ha_tag_ndef(NfcTag &tag) { return !get_ha_tag_ndef(tag).empty(); }
+bool has_ha_tag_ndef(const NfcTag &tag) { return !get_ha_tag_ndef(tag).empty(); }
 
-std::string get_ha_tag_ndef(NfcTag &tag) {
+std::string get_ha_tag_ndef(const NfcTag &tag) {
   if (!tag.has_ndef_message()) {
     return std::string();
   }
