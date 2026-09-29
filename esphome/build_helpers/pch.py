@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 import hashlib
 import logging
 import os
 from pathlib import Path
 import posixpath
 import re
+import subprocess
+import sys
 
 from esphome.build_helpers.ccache import effective_ccache_basedir, parse_enable_env
 from esphome.const import PLATFORM_NRF52
@@ -61,6 +63,76 @@ _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
 def pch_enabled() -> bool:
     """Precompiled-header knob: default on, ``ESPHOME_PCH_ENABLE=0`` opts out."""
     return parse_enable_env("ESPHOME_PCH_ENABLE") is not False
+
+
+def pch_forced() -> bool:
+    """``ESPHOME_PCH_ENABLE=1``: wanted even where the host rule says no."""
+    return parse_enable_env("ESPHOME_PCH_ENABLE") is True
+
+
+# GCC bug 14940: before these releases the Windows loader maps a .gch only
+# at its saved address. First fixed release per major, 16 on always fixed;
+# PCH_WINDOWS_CMAKE_OLD_GCC and the pch_usable message spell the same table
+PCH_WINDOWS_GCC_FIXED = {14: (14, 4), 15: (15, 3)}
+PCH_WINDOWS_GCC_FIXED_DEFAULT = (16, 0)
+# The same rule for CMake, which alone knows the version before configure
+PCH_WINDOWS_CMAKE_OLD_GCC = (
+    "CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14.4 OR "
+    "(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15 AND "
+    "CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15.3)"
+)
+
+
+def gcc_relocates_pch_on_windows(version: Sequence[int]) -> bool:
+    """Whether a GCC of this version loads a .gch on Windows."""
+    if not version:
+        return False
+    fixed = PCH_WINDOWS_GCC_FIXED.get(version[0], PCH_WINDOWS_GCC_FIXED_DEFAULT)
+    return tuple(version[:2]) >= fixed
+
+
+# GCC ends the first --version line with its version; clang names itself
+_VERSION_RE = re.compile(r"\d+(?:\.\d+)+")
+
+
+def gcc_version(cxx: Sequence[Path | str]) -> tuple[int, ...] | None:
+    """The GCC version from ``--version``: () when it cannot be read, None
+    for a compiler that is not GCC."""
+    try:
+        result = subprocess.run(
+            [*cxx, "--version"], capture_output=True, text=True, check=False
+        )
+    except OSError as err:
+        _LOGGER.debug("Cannot run %s: %s", cxx[0], err)
+        return ()
+    banner = result.stdout.partition("\n")[0]
+    if "clang" in banner.lower():
+        return None
+    found = _VERSION_RE.findall(banner)
+    return tuple(int(part) for part in found[-1].split(".")) if found else ()
+
+
+def pch_needs_gcc_check() -> bool:
+    """Windows host with the knob unset: the compiler version decides."""
+    return sys.platform == "win32" and parse_enable_env("ESPHOME_PCH_ENABLE") is None
+
+
+def pch_usable(cxx: Sequence[Path | str]) -> bool:
+    """The knob plus the host rule; ``ESPHOME_PCH_ENABLE=1`` skips the rule."""
+    if not pch_enabled():
+        return False
+    if not pch_needs_gcc_check():
+        return True
+    version = gcc_version(cxx)
+    if version is None or gcc_relocates_pch_on_windows(version):
+        return True
+    _LOGGER.info(
+        "GCC %s cannot load a precompiled header on Windows (GCC bug 14940, "
+        "fixed in 14.4, 15.3 and 16); compiling without it "
+        "(set ESPHOME_PCH_ENABLE=1 to force)",
+        ".".join(map(str, version)) or "of unknown version",
+    )
+    return False
 
 
 def pch_consumer_flags() -> list[str]:

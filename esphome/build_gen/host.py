@@ -274,6 +274,7 @@ def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
         [*compilers.cxx[1:], *cxxflags],
         (),
         (compilers.cxx[0], _compiler_version(compilers.cxx)) if pch_enabled() else (),
+        compilers.cxx,
     )
     src_objs = compile_edges(
         lines,
