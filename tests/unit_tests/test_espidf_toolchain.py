@@ -1222,6 +1222,22 @@ def test_create_factory_bin_merges_cached_bootloader(setup_core: Path) -> None:
     assert offset_index < cmd.index("0x10000")
 
 
+def test_create_factory_bin_fails_when_the_cached_bootloader_is_missing(
+    setup_core: Path,
+) -> None:
+    """A factory image without its bootloader would not boot; fail instead."""
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text(
+        "ESPHOME_USE_CACHED_BOOTLOADER:UNINITIALIZED=1\n"
+    )
+    (build / "flasher_args.json").write_text('{"flash_files": {}}')
+    with patch.object(toolchain.subprocess, "run") as mock_run:
+        assert toolchain.create_factory_bin() is False
+    mock_run.assert_not_called()
+
+
 def test_idf_target_from_variant(setup_core: Path) -> None:
     CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32C6"}
     assert toolchain._idf_target() == "esp32c6"

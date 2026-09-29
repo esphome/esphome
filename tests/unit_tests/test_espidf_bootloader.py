@@ -466,6 +466,7 @@ def _orchestration_env(tmp_path: Path) -> Iterator[Path]:
         patch.object(bootloader, "_cache_root", return_value=root),
         patch.object(toolchain, "_resolved_c_compiler", return_value="/tc/gcc"),
         patch.object(bootloader, "_key_payload", return_value={}),
+        patch("esphome.espidf.framework.read_idf_version_txt", return_value="v5.5.5"),
         patch.object(bootloader, "_compute_key", return_value="deadbeefdeadbeef"),
     ):
         yield root
@@ -550,6 +551,17 @@ def test_ensure_rejects_an_unreproducible_bootloader(
     assert not list(root.glob(".build-*"))
 
 
+def test_ensure_soft_fails_without_a_version_stamp(tmp_path: Path) -> None:
+    """An unidentifiable framework install must not be keyed or cached."""
+    with (
+        _orchestration_env(tmp_path),
+        patch("esphome.espidf.framework.read_idf_version_txt", return_value=""),
+        patch.object(bootloader, "_build_standalone") as mock_build,
+    ):
+        assert bootloader.ensure_cached_bootloader() is False
+    mock_build.assert_not_called()
+
+
 def test_ensure_soft_fails_when_the_probe_build_fails(tmp_path: Path) -> None:
     rcs = iter([0, 2])
 
@@ -618,14 +630,14 @@ def _flash_build(tmp_path: Path, cached: bool = True, offset: int = 0x1000) -> P
 def test_inject_adds_cached_bootloader(tmp_path: Path) -> None:
     build = _flash_build(tmp_path)
     flash_data = {"flash_files": {"0x10000": "dev.bin"}}
-    bootloader.inject_bootloader_flash_file(flash_data, build)
+    assert bootloader.inject_bootloader_flash_file(flash_data, build) is True
     assert flash_data["flash_files"]["0x1000"] == "bootloader/bootloader.bin"
 
 
 def test_inject_uses_configured_offset(tmp_path: Path) -> None:
     build = _flash_build(tmp_path, offset=0)
     flash_data: dict = {}
-    bootloader.inject_bootloader_flash_file(flash_data, build)
+    assert bootloader.inject_bootloader_flash_file(flash_data, build) is True
     assert flash_data["flash_files"] == {"0x0": "bootloader/bootloader.bin"}
 
 
@@ -634,7 +646,7 @@ def test_inject_noop_on_a_stock_tree(tmp_path: Path) -> None:
     not in cached mode must stay exactly as IDF wrote it."""
     build = _flash_build(tmp_path, cached=False)
     flash_data: dict = {"flash_files": {}}
-    bootloader.inject_bootloader_flash_file(flash_data, build)
+    assert bootloader.inject_bootloader_flash_file(flash_data, build) is True
     assert flash_data == {"flash_files": {}}
 
 
@@ -649,7 +661,10 @@ def test_tree_uses_cached_bootloader(tmp_path: Path) -> None:
 
 def test_inject_noop_without_cmakecache(tmp_path: Path) -> None:
     flash_data: dict = {"flash_files": {}}
-    bootloader.inject_bootloader_flash_file(flash_data, tmp_path / "missing")
+    assert (
+        bootloader.inject_bootloader_flash_file(flash_data, tmp_path / "missing")
+        is True
+    )
     assert flash_data == {"flash_files": {}}
 
 
@@ -661,9 +676,9 @@ def test_inject_missing_pieces_log_an_error(
     (build / "config" / "sdkconfig.json").write_text("{}")  # no offset
     flash_data: dict = {"flash_files": {}}
     with caplog.at_level("ERROR"):
-        bootloader.inject_bootloader_flash_file(flash_data, build)
+        assert bootloader.inject_bootloader_flash_file(flash_data, build) is False
     (build / "config" / "sdkconfig.json").unlink()
     with caplog.at_level("ERROR"):
-        bootloader.inject_bootloader_flash_file(flash_data, build)
+        assert bootloader.inject_bootloader_flash_file(flash_data, build) is False
     assert flash_data == {"flash_files": {}}
     assert caplog.text.count("factory image has no bootloader") == 2

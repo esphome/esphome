@@ -854,7 +854,8 @@ def create_factory_bin() -> bool:
 
     from esphome.espidf import bootloader
 
-    bootloader.inject_bootloader_flash_file(flash_data, build_dir)
+    if not bootloader.inject_bootloader_flash_file(flash_data, build_dir):
+        return False
 
     # Get flash size from config
     flash_size = CORE.data[KEY_ESP32][KEY_FLASH_SIZE]

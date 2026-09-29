@@ -355,6 +355,11 @@ def ensure_cached_bootloader(verbose: bool = False) -> bool:
 def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | None:
     """The installed build/bootloader dir, building and publishing on a miss;
     None means fall back to the in-tree build."""
+    from esphome.espidf.framework import read_idf_version_txt
+
+    if not read_idf_version_txt(toolchain._get_idf_path()):
+        _LOGGER.debug("Framework version.txt missing; cannot key the bootloader")
+        return None
     if (names := _load_config_names()) is not None:
         entry = _cache_root() / _compute_key(_key_payload(names, app_config, compiler))
         if (entry / "bootloader.bin").is_file():
@@ -389,14 +394,16 @@ def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | No
     return _install_into_build(entry)
 
 
-def inject_bootloader_flash_file(flash_data: dict, build_dir: Path) -> None:
+def inject_bootloader_flash_file(flash_data: dict, build_dir: Path) -> bool:
     """Add the cached bootloader to a flasher_args ``flash_files`` map.
 
     Gated on the tree's mode: IDF also omits the entry on purpose for some
     secure-boot builds, and those must stay exactly as IDF wrote them.
+    False means a cached-mode tree is missing pieces and the factory image
+    would not boot.
     """
     if not tree_uses_cached_bootloader(build_dir):
-        return
+        return True
     app_config = toolchain._load_sdkconfig_json(build_dir)
     if (
         app_config is None
@@ -404,6 +411,7 @@ def inject_bootloader_flash_file(flash_data: dict, build_dir: Path) -> None:
         or not (build_dir / "bootloader" / "bootloader.bin").is_file()
     ):
         _LOGGER.error("Cached bootloader missing; factory image has no bootloader")
-        return
+        return False
     flash_files = flash_data.setdefault("flash_files", {})
     flash_files[hex(_bootloader_offset(app_config))] = "bootloader/bootloader.bin"
+    return True
