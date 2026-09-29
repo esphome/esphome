@@ -13,7 +13,8 @@
 
 namespace esphome::socket {
 
-/// One IPv4 literal or hostname. The address is stored as an integer. Flags are load and store only.
+/// One IPv4 literal or hostname. The address is stored as an integer.
+/// Flags are load and store only. The object must outlive a pending lookup.
 class Ipv4Resolve {
  public:
   void forget();

@@ -48,6 +48,24 @@ TEST(Ipv4Resolve, ShortBufferWritesNothing) {
   EXPECT_EQ(lookup.to_sockaddr(reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr) - 1, 502), 0u);
 }
 
+TEST(Ipv4Resolve, RetryAfterFailureKeepsTheAddress) {
+  Ipv4Resolve lookup;
+  lookup.start("::1", 443, "test");
+  EXPECT_FALSE(lookup.ready());
+  lookup.start("192.168.1.1", 1, "test");
+  EXPECT_TRUE(lookup.ready());
+  EXPECT_FALSE(lookup.consume_failure());
+  EXPECT_TRUE(lookup.ready());
+}
+
+TEST(Ipv4Resolve, ForgetDropsAStaleFailure) {
+  Ipv4Resolve lookup;
+  lookup.start("::1", 443, "test");
+  lookup.forget();
+  EXPECT_FALSE(lookup.consume_failure());
+  EXPECT_FALSE(lookup.ready());
+}
+
 }  // namespace esphome::socket::testing
 
 #endif

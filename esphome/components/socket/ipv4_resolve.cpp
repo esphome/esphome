@@ -20,11 +20,13 @@ static const char *const TAG = "socket";
 
 void Ipv4Resolve::forget() {
   // The DNS callback runs with the lwIP core lock held. Taking it here means a
-  // callback cannot publish a result in the middle of forgetting it.
+  // callback cannot publish a result in the middle of forgetting it. resolving_
+  // stays set until that callback sees the new generation and drops the result,
+  // so start() will not replace the lookup the callback still belongs to.
   LwIPLock lock;
   this->have_.store(false);
   this->addr_.store(0);
-  this->resolving_.store(false);
+  this->failed_.store(0);
   this->epoch_.store(this->epoch_.load() + 1);
 }
 
@@ -45,9 +47,14 @@ void Ipv4Resolve::dns_found(const char *name, const ip_addr_t *addr, void *arg) 
   auto *self = static_cast<Ipv4Resolve *>(arg);
   const uint32_t expected = self->pending_epoch_.load();
   if (expected != self->epoch_.load()) {
+    self->have_.store(false);
+    self->addr_.store(0);
+    self->failed_.store(0);
+    self->resolving_.store(false);
     return;
   }
   if (addr != nullptr && IP_IS_V4(addr)) {
+    self->failed_.store(0);
     self->addr_.store(ip4_addr_get_u32(ip_2_ip4(addr)));
     self->have_.store(true);
   } else {
@@ -58,6 +65,7 @@ void Ipv4Resolve::dns_found(const char *name, const ip_addr_t *addr, void *arg) 
     self->have_.store(false);
     self->addr_.store(0);
     self->failed_.store(0);
+    self->resolving_.store(false);
     return;
   }
   self->resolving_.store(false);
@@ -68,6 +76,7 @@ void Ipv4Resolve::start(const char *host, uint16_t port, const char *tag) {
   if (this->have_.load() || this->resolving_.load()) {
     return;
   }
+  this->failed_.store(0);
   this->tag_ = tag;
   struct sockaddr_storage literal;
   if (set_sockaddr(reinterpret_cast<struct sockaddr *>(&literal), sizeof(literal), host, port) != 0) {
@@ -88,12 +97,13 @@ void Ipv4Resolve::start(const char *host, uint16_t port, const char *tag) {
     LwIPLock lock;
     this->pending_epoch_.store(this->epoch_.load());
     this->resolving_.store(true);
-    err = dns_gethostbyname(host, &cached, &Ipv4Resolve::dns_found, this);
+    err = dns_gethostbyname_addrtype(host, &cached, &Ipv4Resolve::dns_found, this, LWIP_DNS_ADDRTYPE_IPV4);
     if (err != ERR_INPROGRESS) {
       this->resolving_.store(false);
     }
   }
   if (err == ERR_OK && IP_IS_V4(&cached)) {
+    this->failed_.store(0);
     this->addr_.store(ip4_addr_get_u32(ip_2_ip4(&cached)));
     this->have_.store(true);
     return;
@@ -102,13 +112,14 @@ void Ipv4Resolve::start(const char *host, uint16_t port, const char *tag) {
     return;
   }
 #else
-  struct addrinfo hints {};
+  struct addrinfo hints{};
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
   struct addrinfo *res = nullptr;
   if (getaddrinfo(host, nullptr, &hints, &res) == 0 && res != nullptr) {
     auto *in = reinterpret_cast<struct sockaddr_in *>(res->ai_addr);
     if (res->ai_family == AF_INET) {
+      this->failed_.store(0);
       this->addr_.store(in->sin_addr.s_addr);
       this->have_.store(true);
     }
