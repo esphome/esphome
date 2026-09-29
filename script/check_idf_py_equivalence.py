@@ -6,6 +6,8 @@ runs the real ``idf.py reconfigure`` and ``idf.py build`` on a finished tree
 (in place: CMake rejects a moved cache) and fails if either one changes the
 cache, the generated build files or the firmware, or recompiles anything.
 It catches drift when the pinned ESP-IDF version changes what idf.py does.
+The color and ``size`` environment only change what is printed, so those
+parts of the contract are pinned by the unit tests instead.
 """
 
 from __future__ import annotations
@@ -28,7 +30,6 @@ WATCHED = (
     "build/compile_commands.json",
     "build/project_description.json",
     "build/config/sdkconfig.h",
-    "build/esp_idf_size.json",
     "build/bootloader/bootloader.bin",
 )
 # Ninja logs whose outputs mean real work when their recorded mtime changes.
