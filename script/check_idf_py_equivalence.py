@@ -97,6 +97,10 @@ def check(build_path: Path) -> list[str]:
     sdkconfig = build_path / f"sdkconfig.{name}"
     sdkconfig_args = ["-D", f"SDKCONFIG={sdkconfig}"] if sdkconfig.is_file() else []
 
+    # CMake writes a different build.ninja on a tree's first configure than on
+    # a reconfigure, so compare idf.py against ESPHome's own reconfigure.
+    if (rc := toolchain.run_reconfigure()) != 0:
+        return [f"ESPHome's CMake configure failed with exit code {rc}"]
     before = _snapshot(build_path, name)
     mtimes_before = _ninja_mtimes(build_path)
     problems = []

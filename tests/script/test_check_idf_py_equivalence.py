@@ -52,6 +52,7 @@ def _run_check(
         patch.object(toolchain, "_get_idf_env", return_value={}),
         patch.object(toolchain, "_get_idf_tool", return_value="/py"),
         patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
+        patch.object(toolchain, "run_reconfigure", return_value=0),
         patch.object(guard.subprocess, "run", side_effect=run),
     ):
         return guard.check(tree), calls
@@ -101,6 +102,20 @@ def test_check_stops_when_idf_py_fails(tmp_path: Path) -> None:
     problems, calls = _run_check(_make_tree(tmp_path), lambda cmd: None, rc=2)
     assert problems == ["idf.py reconfigure failed:\nout\nerr\n"]
     assert len(calls) == 1
+
+
+def test_check_stops_when_esphome_configure_fails(tmp_path: Path) -> None:
+    """The baseline is ESPHome's own reconfigure; without it nothing is compared."""
+    with (
+        patch.object(toolchain, "_get_idf_env", return_value={}),
+        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
+        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
+        patch.object(toolchain, "run_reconfigure", return_value=3),
+        patch.object(guard.subprocess, "run") as mock_run,
+    ):
+        problems = guard.check(_make_tree(tmp_path))
+    assert problems == ["ESPHome's CMake configure failed with exit code 3"]
+    mock_run.assert_not_called()
 
 
 @pytest.mark.parametrize(("allow_missing", "rc"), [(True, 0), (False, 1)])
