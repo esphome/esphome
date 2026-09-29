@@ -20,7 +20,6 @@ NfcTagBinarySensor = nfc_ns.class_(
     binary_sensor.BinarySensor,
     cg.Component,
     NfcTagListener,
-    cg.Parented.template(Nfcc),
 )
 
 
@@ -65,7 +64,6 @@ _request_listener_slot = cg.slot_counter("NFC_TAG_LISTENER_COUNT")
 async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
-    await cg.register_parented(var, config[CONF_NFCC_ID])
 
     hub = await cg.get_variable(config[CONF_NFCC_ID])
     _request_listener_slot(str(hub))
