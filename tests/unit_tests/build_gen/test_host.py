@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -37,8 +38,13 @@ def _make_src(tmp_path: Path, *names: str) -> Path:
     return src
 
 
-def _render(ccache: str | None = None) -> tuple[bool, str]:
-    changed = build_gen.write_project(COMPILERS, ccache)
+def _render(
+    ccache: str | None = None,
+    version: str = "g++ 1.0",
+    compilers: HostCompilers = COMPILERS,
+) -> tuple[bool, str]:
+    with patch.object(build_gen, "_compiler_version", return_value=version):
+        changed = build_gen.write_project(compilers, ccache)
     ninja = CORE.build_path / ".pioenvs" / "dev" / "build.ninja"
     return changed, ninja.read_text()
 
@@ -189,7 +195,7 @@ def test_write_project_requires_generated_sources(tmp_path: Path) -> None:
         build_gen.write_project(COMPILERS, None)
     _make_src(tmp_path, "esphome.h")
     with pytest.raises(EsphomeError, match="No source files found"):
-        build_gen.write_project(COMPILERS, None)
+        _render()
 
 
 def test_write_project_emits_every_source_kind(tmp_path: Path) -> None:
@@ -207,7 +213,7 @@ def test_write_project_emits_every_source_kind(tmp_path: Path) -> None:
     )
     assert "build obj/src/x.S.o: aspp " in ninja
     assert "build obj/src/y.s.o: asm " in ninja
-    assert "h.h" not in ninja
+    assert _e(src / "h.h") not in ninja
     # __FILE__ stays relative to the build path, as it was under PlatformIO,
     # whether the source arrives absolute or rewritten by ccache
     sep = os.sep
@@ -230,6 +236,73 @@ def test_write_project_emits_every_source_kind(tmp_path: Path) -> None:
     # Unchanged content reports no change so the compile DB can be reused
     changed, _ = _render(ccache="/usr/bin/ccache")
     assert changed is False
+
+
+def test_write_project_precompiles_the_core_headers(tmp_path: Path) -> None:
+    """C++ src edges load one precompiled prefix; C and assembly do not."""
+    src = _make_src(tmp_path, "main.cpp", "esphome/core/a.c", "x.S")
+    _, ninja = _render()
+    build_dir = tmp_path / ".pioenvs" / "dev"
+    source = build_dir / "esphome_pch_src.h"
+    assert source.read_text() == '#include "esphome/core/pch_prefix.h"\n'
+    assert "rule pch\n" in ninja
+    sum_path = build_dir / "esphome_pch.h.gch.sum"
+    assert (
+        f"build esphome_pch.h.gch: pch {_e(source)} | esphome_pch.h.gch.sum\n" in ninja
+    )
+    assert "srccxxflags = -Winvalid-pch " in ninja
+    assert (
+        f"build obj/src/main.cpp.o: cxx {_e(src / 'main.cpp')} | esphome_pch.h.gch\n"
+        "  flags = $srccxxflags\n"
+    ) in ninja
+    assert (
+        f"build obj/src/esphome/core/a.c.o: c {_e(src / 'esphome/core/a.c')}\n"
+    ) in ninja
+    assert f"build obj/src/x.S.o: aspp {_e(src / 'x.S')}\n" in ninja
+    # An updated compiler behind the same path rebuilds the header
+    first = sum_path.read_text()
+    _render(version="g++ 2.0")
+    assert sum_path.read_text() != first
+
+
+def test_compiler_version_asks_the_compiler() -> None:
+    assert build_gen._compiler_version((sys.executable,)).startswith("Python ")
+
+
+def test_write_project_pch_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    src = _make_src(tmp_path, "main.cpp")
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    # The compiler is not asked for its version either
+    with patch.object(build_gen, "_compiler_version", side_effect=AssertionError):
+        build_gen.write_project(COMPILERS, None)
+    ninja = (tmp_path / ".pioenvs" / "dev" / "build.ninja").read_text()
+    assert "esphome_pch" not in ninja
+    assert f"build obj/src/main.cpp.o: cxx {_e(src / 'main.cpp')}\n" in ninja
+
+
+def test_write_project_pch_skipped_for_a_user_force_include(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A -include in the build flags precedes the prefix, so the compiler
+    would never load the precompiled header."""
+    _make_src(tmp_path, "main.cpp")
+    CORE.build_flags = {"-include pre.h"}
+    _, ninja = _render()
+    assert "esphome_pch" not in ninja
+    assert "prevents the precompiled header" in caplog.text
+
+
+def test_write_project_pch_skipped_for_a_force_include_in_the_compiler(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """CXX="g++ -include pre.h" puts it ahead of every flag."""
+    _make_src(tmp_path, "main.cpp")
+    override = HostCompilers(cc=COMPILERS.cc, cxx=("/usr/bin/g++", "-include", "pre.h"))
+    _, ninja = _render(compilers=override)
+    assert "esphome_pch" not in ninja
+    assert "prevents the precompiled header" in caplog.text
 
 
 def test_write_project_without_ccache(tmp_path: Path) -> None:

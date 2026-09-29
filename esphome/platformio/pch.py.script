@@ -1,0 +1,270 @@
+import hashlib
+import os
+from pathlib import Path
+import platform
+import posixpath
+import re
+import shlex
+import subprocess
+import sys
+
+# pylint: disable=E0602
+Import("env")  # noqa: F821
+try:
+    Import("projenv")  # noqa: F821
+except Exception:  # noqa: BLE001 -- not exported under -t nobuild
+    projenv = None
+
+# Precompile the force-includes plus the core headers and force-include
+# the result into C++ src compiles only. Any failure stops the build. This
+# script cannot import esphome: a test pins the values below to
+# build_helpers/pch.py.
+_HEADER_NAME = "esphome_pch.h"
+_SOURCE_NAME = "esphome_pch_src.h"
+_DEFAULT_HEADERS = ("esphome/core/pch_prefix.h",)
+_CONSUMER_FLAGS = ["-Winvalid-pch", "-Werror=invalid-pch", "-include", _HEADER_NAME]
+_GUARD_TEXT = f"""\
+#if defined(__GNUC__) && !defined(__clang__) && !defined(__INTELLISENSE__)
+#error "The precompiled header was not loaded"
+#else
+#include "{_SOURCE_NAME}"
+#endif
+"""
+_INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
+# Before GCC 12 a .gch only loads at the address it was saved from. Checked
+# for this PlatformIO platform, whose compiler is built for a random address
+_OLD_GCC_PIO_PLATFORM = "libretiny"
+_MOVABLE_PCH_GCC = 12
+# Relative: compiles run in the project root
+_CC1_DIR = "pch_cc1"
+_CC1PLUS_WRAPPER = """\
+#!/usr/bin/env -S "{python}" -IS
+# Written by ESPHome: starts cc1plus without address randomisation, so it
+# loads the precompiled header. See esphome/platformio/pch.py.script.
+import ctypes
+import sys
+
+real = {real!r}
+libc = ctypes.CDLL("/usr/lib/libSystem.B.dylib")
+attr = ctypes.create_string_buffer(64)
+libc.posix_spawnattr_init(attr)
+# POSIX_SPAWN_SETEXEC | _POSIX_SPAWN_DISABLE_ASLR
+libc.posix_spawnattr_setflags(attr, ctypes.c_short(0x0040 | 0x0100))
+# What os.fsencode does, without the import
+encoding = sys.getfilesystemencoding()
+argv = [real.encode(), *(a.encode(encoding, "surrogateescape") for a in sys.argv[1:]), None]
+libc._NSGetEnviron.restype = ctypes.POINTER(ctypes.POINTER(ctypes.c_char_p))
+# Replaces this process on success; the return value is the error number
+rc = libc.posix_spawn(None, argv[0], None, attr, (ctypes.c_char_p * len(argv))(*argv),
+                      libc._NSGetEnviron().contents)
+libc.strerror.restype = ctypes.c_char_p
+sys.exit("ESPHome: cannot start " + real + ": " + libc.strerror(rc).decode())
+"""
+_CXX_SUFFIXES = (".cpp", ".cc", ".cxx")
+_HEADER_SUFFIXES = (".h", ".hpp", ".hh", ".inc")
+_INCLUDE_DIR_OPTIONS = ("-I", "-isystem", "-iquote", "-idirafter")
+# Build output and library trees; package versions stand in for libraries
+_SKIPPED_DIRS = (".pioenvs", ".piolibdeps", "managed_components")
+
+
+def _include_closure(src_dir: Path, roots: list) -> dict:
+    """Include closure: src-relative name -> contents."""
+    seen = {}
+    stack = [(name, "") for name in roots]
+    while stack:
+        name, from_dir = stack.pop()
+        for candidate in (f"{from_dir}/{name}" if from_dir else name, name):
+            rel = posixpath.normpath(candidate)
+            if not rel.startswith("..") and (src_dir / rel).is_file():
+                break
+        else:
+            continue
+        if rel in seen:
+            continue
+        data = seen[rel] = (src_dir / rel).read_bytes()
+        parent = posixpath.dirname(rel)
+        stack.extend((inc.decode(), parent) for inc in _INCLUDE_RE.findall(data))
+    return seen
+
+
+def _shell_arg(element) -> str:
+    """One compiler argument from one SCons element, as the real spawn
+    passes it (shlex would eat path backslashes on Windows)."""
+    arg = str(element)
+    if " " in arg or os.name == "nt":
+        return arg.replace('\\"', '"')
+    return (shlex.split(arg) or [""])[0]
+
+
+def _src_envs(src_dir: Path) -> list:
+    """The environments the C++ src objects compile from: projenv, or the
+    ESP-IDF builder's own."""
+    found = {}
+    src_dir = src_dir.resolve()
+    nodes = env.Flatten(env.get("PIOBUILDFILES", []))  # noqa: F821
+    for node in nodes:
+        source = Path(str(node.sources[0])).resolve()
+        if source.suffix in _CXX_SUFFIXES and source.is_relative_to(src_dir):
+            found[id(node.env)] = node.env
+    if nodes and not found:
+        # Flags on projenv would reach no compile
+        raise RuntimeError("ESPHome: no C++ source takes the precompiled header")
+    return list(found.values()) or [projenv]  # noqa: F821
+
+
+def _driver_output(cxx: str, option: str) -> str:
+    result = subprocess.run([cxx, option], capture_output=True, text=True)  # noqa: PLW1510
+    return result.stdout.strip()
+
+
+def _old_gcc_flags(proj_dir: Path, pio_platform: str, cxx: str):
+    """Extra driver flags for an old GCC, or None where its .gch cannot be
+    used. Linux loads it as is. arm64 macOS loads every program at a random
+    address, so there the driver gets a -B directory whose cc1plus starts
+    the real one without that randomisation."""
+    if pio_platform != _OLD_GCC_PIO_PLATFORM or sys.platform == "linux":
+        return []
+    major = _driver_output(cxx, "-dumpversion").partition(".")[0]
+    if major.isdigit() and int(major) >= _MOVABLE_PCH_GCC:
+        return []
+    if sys.platform != "darwin" or platform.machine() != "arm64":
+        return None
+    # The driver prints the bare name when it has no cc1plus of its own
+    real = _driver_output(cxx, "-print-prog-name=cc1plus")
+    if not os.path.isabs(real):
+        return None
+    wrapper = proj_dir / _CC1_DIR / "cc1plus"
+    wrapper.parent.mkdir(exist_ok=True)
+    real = os.path.normpath(real)
+    wrapper.write_text(_CC1PLUS_WRAPPER.format(python=sys.executable, real=real))
+    wrapper.chmod(0o755)
+    return [f"-B{_CC1_DIR}/"]
+
+
+def _setup_pch() -> None:
+    if projenv is None:
+        if "nobuild" in COMMAND_LINE_TARGETS:  # noqa: F821
+            return
+        raise RuntimeError("ESPHome: no project environment for the pch")
+    # SCons compiles run in the project root, so the relative -include
+    # resolves; an absolute path would enter the ccache key
+    proj_dir = Path(env.subst("$PROJECT_DIR"))  # noqa: F821
+    src_dir = Path(env.subst("$PROJECT_SRC_DIR"))  # noqa: F821
+    header = proj_dir / _HEADER_NAME
+    source = proj_dir / _SOURCE_NAME
+    gch = Path(f"{header}.gch")
+    sum_path = Path(f"{gch}.sum")
+    src_envs = _src_envs(src_dir)
+
+    cxx = src_envs[0].subst("$CXX")
+    pio_platform = env.PioPlatform()  # noqa: F821
+    extra = _old_gcc_flags(proj_dir, pio_platform.name, cxx)
+    if extra is None:
+        print("ESPHome: this compiler cannot load a precompiled header here; compiling without it")
+        return
+    # The header holds the -include entries itself, so the .gch compile must
+    # not see them; consumers keep theirs, which the .gch then satisfies
+    flags = []
+    include_headers = []
+    flag_it = iter(
+        _shell_arg(element)
+        for element in src_envs[0].subst_list("$CXXFLAGS $CCFLAGS $_CCCOMCOM")[0]
+    )
+    for tok in flag_it:
+        if tok == "-include":
+            include_headers.append(next(flag_it, ""))
+        elif tok.startswith("-include") and not tok.startswith("-include-"):
+            include_headers.append(tok[len("-include") :])
+        else:
+            flags.append(tok)
+    # Folded first and in order, as the compiler would have read them. An
+    # absolute path would enter the checksum, so it cannot be folded
+    if absolute := [name for name in include_headers if Path(name).is_absolute()]:
+        print(
+            f"ESPHome: the force-include of {absolute} prevents the precompiled "
+            "header; compiling without it"
+        )
+        return
+    headers = [*include_headers, *_DEFAULT_HEADERS]
+    content = "".join(f'#include "{name}"\n' for name in headers)
+
+    digest = hashlib.sha256()
+    digest.update(content.encode())
+    digest.update(cxx.encode())
+    # As ccache does: strip the build path so devices share cache entries
+    flags_id = " ".join(flags)
+    if basedir := os.environ.get("CCACHE_BASEDIR"):
+        flags_id = flags_id.replace(basedir, "")
+    digest.update(flags_id.encode())
+    # GCC does not check a .gch against its headers and PlatformIO package
+    # paths carry no version
+    for package in sorted(pio_platform.packages):
+        digest.update(f"{package}={pio_platform.get_package_version(package)}\0".encode())
+    # Libraries carry their version in lib_deps
+    digest.update(repr(env.GetProjectOption("lib_deps", [])).encode())  # noqa: F821
+    closure = _include_closure(src_dir, headers)
+    for rel in sorted(closure):
+        digest.update(rel.encode())
+        digest.update(closure[rel])
+        digest.update(b"\0")
+    # The ESP-IDF configuration: sdkconfig.h sits in the build output
+    for config in sorted(proj_dir.glob("sdkconfig.*")):
+        digest.update(config.read_bytes())
+    # Project-local include dirs (rp2's lwip_override) hold generated
+    # headers outside src/
+    prev = ""
+    for tok in flags:
+        inc = ""
+        for opt in _INCLUDE_DIR_OPTIONS:
+            if prev == opt:
+                inc = tok
+            elif tok.startswith(opt) and len(tok) > len(opt):
+                inc = tok[len(opt) :]
+        prev = tok
+        # Relative dirs are relative to the project, where compiles run
+        inc_dir = Path(os.path.normpath(proj_dir / inc))
+        if (
+            not inc
+            or inc_dir == proj_dir
+            or not inc_dir.is_relative_to(proj_dir)
+            or inc_dir.is_relative_to(src_dir)
+            or any(inc_dir.is_relative_to(proj_dir / name) for name in _SKIPPED_DIRS)
+        ):
+            continue
+        for local in sorted(inc_dir.rglob("*")):
+            if local.suffix in _HEADER_SUFFIXES and local.is_file():
+                digest.update(str(local.relative_to(proj_dir)).encode())
+                digest.update(local.read_bytes())
+                digest.update(b"\0")
+    checksum = digest.hexdigest()
+
+    # The ccache .sum file doubles as the freshness stamp
+    if not (
+        gch.is_file()
+        and sum_path.is_file()
+        and sum_path.read_text(encoding="utf-8").strip() == checksum
+    ):
+        header.write_text(_GUARD_TEXT, encoding="utf-8")
+        source.write_text(content, encoding="utf-8")
+        result = subprocess.run(  # noqa: PLW1510
+            [cxx, "-x", "c++-header", *flags, *extra, "-c", str(source), "-o", str(gch)],
+            cwd=proj_dir,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"ESPHome: could not compile the precompiled header:\n{result.stderr}"
+            )
+        sum_path.write_text(checksum + "\n", encoding="utf-8")
+
+    # Prepended: GCC only loads a .gch for the first -include
+    for src_env in src_envs:
+        src_env.Prepend(CXXFLAGS=[*extra, *_CONSUMER_FLAGS])
+    print(
+        "ESPHome: Compiling with a precompiled header "
+        "(set ESPHOME_PCH_ENABLE=0 to disable)"
+    )
+
+
+_setup_pch()
