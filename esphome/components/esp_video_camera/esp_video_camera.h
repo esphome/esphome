@@ -153,7 +153,14 @@ class ESPVideoCamera : public camera::Camera {
   bool init_overrun_logged_{false};
   // The host port's 5 V rail settles once, and the USB Host Library installs
   // once. Retries must not pay for either again.
-  bool usb_host_started_{false};
+  bool usb_host_installed_{false};
+  // Whether this component is the one that installed it, and therefore owes it
+  // an event pump. False when another component got there first: the pump is
+  // then theirs.
+  bool usb_host_owned_{false};
+  // Whether that pump is running. Separate from the two above because a pump
+  // that failed to start has to be retried without reinstalling the library.
+  bool usb_pump_started_{false};
 
   // Camera platform
   std::string device_{"jpeg"};

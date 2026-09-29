@@ -506,7 +506,7 @@ bool ESPVideoCamera::start_pipeline_init_() {
     // Espressif's board support code and the M5Stack Tab5 USB host example both
     // wait here for the same reason.
     // Once: a retry runs with the rail already up, and has nothing to wait for.
-    if (!this->usb_host_started_)
+    if (!this->usb_host_installed_)
       delay(VBUS_SETTLE_MS);
 
     // The USB Host Library installs once per system, so own it here rather than
@@ -524,27 +524,16 @@ bool ESPVideoCamera::start_pipeline_init_() {
     // Only on the first attempt: a retry already has the library and the daemon
     // task this component started, and asking again would earn a warning about
     // "another component" that would in fact be this one.
-    if (!this->usb_host_started_) {
+    if (!this->usb_host_installed_) {
       esp_err_t host_ret = usb_host_install(&host_config);
       if (host_ret == ESP_OK) {
-        // Recorded before the pump is started, not after: if the task fails to
-        // start we return, and a retry that tried to install again would be
-        // told the library is already there and blame another component.
-        this->usb_host_started_ = true;
-        // Priority 10, the same as Espressif's own board support code: nothing
-        // enumerates unless this task keeps draining the library's events, so it
-        // has to outrank the work it is feeding.
-        if (xTaskCreatePinnedToCore(usb_host_lib_daemon_task, "usb_lib", 4096, nullptr, 10, nullptr, tskNO_AFFINITY) !=
-            pdPASS) {
-          ESP_LOGE(TAG, "Could not start the USB host event pump; no USB camera will enumerate");
-          ctx->refs.store(1);  // no init task was started
-          ctx->release();
-          return false;
-        }
+        this->usb_host_installed_ = true;
+        this->usb_host_owned_ = true;
         ESP_LOGI(TAG, "USB Host installed (peripheral map 0x%X)", (unsigned) this->usb_peripheral_map_);
       } else if (host_ret == ESP_ERR_INVALID_STATE) {
         // Whoever installed it owns the event pump too. If they are not draining
         // it, nothing will ever enumerate and this line is the only clue.
+        this->usb_host_installed_ = true;
         ESP_LOGW(TAG, "USB Host already installed by another component; sharing it for UVC");
       } else {
         // Without the USB Host library the UVC device can never enumerate, so
@@ -554,7 +543,22 @@ bool ESPVideoCamera::start_pipeline_init_() {
         ctx->release();
         return false;
       }
-      this->usb_host_started_ = true;
+    }
+    // Ours to pump, and not pumping yet. Tracked apart from the install so that
+    // a task that fails to start is tried again on the next attempt instead of
+    // leaving the library installed with nothing draining its events.
+    if (this->usb_host_owned_ && !this->usb_pump_started_) {
+      // Priority 10, the same as Espressif's own board support code: nothing
+      // enumerates unless this task keeps draining the library's events, so it
+      // has to outrank the work it is feeding.
+      if (xTaskCreatePinnedToCore(usb_host_lib_daemon_task, "usb_lib", 4096, nullptr, 10, nullptr, tskNO_AFFINITY) !=
+          pdPASS) {
+        ESP_LOGE(TAG, "Could not start the USB host event pump; no USB camera will enumerate");
+        ctx->refs.store(1);  // no init task was started
+        ctx->release();
+        return false;
+      }
+      this->usb_pump_started_ = true;
     }
     uvc_config.usb.init_usb_host_lib = false;  // we manage the USB host library (see above)
     uvc_config.usb.task_stack = 4096;
@@ -871,8 +875,8 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
         const void *start = this->capture_buffers_[cap_buf.index].start;
         auto ptr = (uintptr_t) start;
         ESP_LOGW(TAG, "  buffer %u: ptr=0x%08X psram=%s align32=%u align64=%u len=%u used=%u", (unsigned) cap_buf.index,
-                 (unsigned) ptr, esp_ptr_external_ram(start) ? "yes" : "NO", (unsigned) (ptr % 32),
-                 (unsigned) (ptr % 64), (unsigned) this->capture_buffers_[cap_buf.index].length,
+                 (unsigned) ptr, esp_ptr_external_ram(start) ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("NO"),
+                 (unsigned) (ptr % 32), (unsigned) (ptr % 64), (unsigned) this->capture_buffers_[cap_buf.index].length,
                  (unsigned) cap_buf.bytesused);
       }
       encoder_broken = true;
@@ -1395,7 +1399,7 @@ void ESPVideoCamera::dump_config() {
     ESP_LOGCONFIG(TAG,
                   "  XCLK: %s\n"
                   "  MIPI-CSI drivers:%s",
-                  xclk, drivers.empty() ? " none" : drivers.c_str());
+                  xclk, drivers.empty() ? LOG_STR_LITERAL(" none") : drivers.c_str());
   }
 
   if (this->is_failed()) {
