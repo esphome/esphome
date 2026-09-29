@@ -1,9 +1,7 @@
 """Machine-global bootloader cache for the native ESP-IDF toolchain.
 
-One build serves every device that shares the IDF version, target, compiler
-and bootloader config; CONFIG_APP_REPRODUCIBLE_BUILD (always on) makes it
-byte identical to the in-tree build. Signing/secure/encryption builds keep
-the stock in-tree path: their bootloader can depend on key file contents.
+CONFIG_APP_REPRODUCIBLE_BUILD (always on) makes the bootloader byte identical
+across builds; signing/secure/encryption builds keep the stock in-tree path.
 """
 
 # pylint: disable=protected-access
@@ -12,6 +10,7 @@ the stock in-tree path: their bootloader can depend on key file contents.
 from __future__ import annotations
 
 import contextlib
+from dataclasses import dataclass
 import hashlib
 import json
 import logging
@@ -33,16 +32,14 @@ from esphome.helpers import rmtree, write_file
 _LOGGER = logging.getLogger(__name__)
 
 BOOTLOADER_CACHE_ENV = "ESPHOME_BOOTLOADER_CACHE"
-# Bump on any change to how cached bootloaders are built or stored; old
-# entries then miss instead of being served stale.
+# Bump when the build or storage recipe changes; old entries then miss.
 _CACHE_SCHEMA = "1"
 _SECURE_OPTION = re.compile(r"CONFIG_(SECURE_|FLASH_ENCRYPTION)")
 _DISABLED_VALUES = frozenset(("n", "0", ""))
 _MACRO = re.compile(
     r"macro\(__build_process_project_includes\)(.*?)endmacro\(\)", re.DOTALL
 )
-# Marks a config name the app's sdkconfig does not define; distinct from
-# every real value.
+# Marks a config name the app's sdkconfig does not define.
 _ABSENT = "\x00absent"
 _OUTPUTS = ("bootloader.bin", "bootloader.elf", "bootloader.map")
 
@@ -80,10 +77,7 @@ def _compute_enabled() -> bool:
 
 
 def _has_secure_options(sdkconfig_path: Path) -> bool:
-    """Whether any signing, secure boot or encryption option is enabled.
-
-    Disabled values (n/0/empty) are the compiled-out default and safe to cache.
-    """
+    """Whether any signing, secure boot or encryption option is enabled."""
     for line in sdkconfig_path.read_text(encoding="utf-8").splitlines():
         name, _, value = line.partition("=")
         if (
@@ -106,10 +100,7 @@ def _normalized_macro(text: str) -> list[str] | None:
 
 
 def idf_macro_matches() -> bool:
-    """Whether IDF's macro still matches the copy the override replays.
-
-    A mismatch falls back to the in-tree build; the CI guard reports it loudly.
-    """
+    """Whether IDF's macro still matches the copy the override replays."""
     from esphome.build_gen.espidf import (
         BOOTLOADER_OVERRIDE_ADDED_LINE,
         IDF_BOOTLOADER_OVERRIDE,
@@ -184,13 +175,41 @@ def _compiler_id() -> str | None:
     return os.path.realpath(compiler) if compiler else None
 
 
+@dataclass(frozen=True, kw_only=True)
+class _SubprojectContract:
+    """How the pinned IDF's bootloader ExternalProject configures the subproject."""
+
+    self_append_bootloader_dir: bool  # EXTRA_COMPONENT_DIRS gets the bootloader dir
+    forward_idf_build_v2: bool  # IDF_BUILD_V2 forwarded (empty: never opted in)
+
+
+_SUBPROJECT_5 = _SubprojectContract(
+    self_append_bootloader_dir=True,
+    forward_idf_build_v2=False,
+)
+_SUBPROJECT_6 = _SubprojectContract(
+    self_append_bootloader_dir=False,
+    forward_idf_build_v2=True,
+)
+
+
+def _subproject() -> _SubprojectContract:
+    from esphome.components.esp32 import idf_version
+    import esphome.config_validation as cv
+
+    return _SUBPROJECT_6 if idf_version() >= cv.Version(6, 0, 0) else _SUBPROJECT_5
+
+
 def _subproject_cmake_args(
     cmake: str, python: str, sdkconfig: str, idf_path: str, project_dir: str
 ) -> list[str]:
     """The configure argv, mirroring IDF's bootloader ExternalProject args."""
-    from esphome.components.esp32 import idf_version
-    import esphome.config_validation as cv
-
+    contract = _subproject()
+    extra_dirs = (
+        f"{idf_path}/components/bootloader"
+        if contract.self_append_bootloader_dir
+        else ""
+    )
     args = [
         cmake,
         "-G",
@@ -200,13 +219,10 @@ def _subproject_cmake_args(
         f"-DIDF_TARGET={_idf_target()}",
         "-DPYTHON_DEPS_CHECKED=1",
         f"-DPYTHON={python}",
+        f"-DEXTRA_COMPONENT_DIRS={extra_dirs}",
     ]
-    if idf_version() >= cv.Version(6, 0, 0):
-        # 6.x: no BOOTLOADER_EXTRA_COMPONENT_DIRS self-append; IDF_BUILD_V2
-        # forwarded (empty: the env opt-in is never set).
-        args += ["-DEXTRA_COMPONENT_DIRS=", "-DIDF_BUILD_V2="]
-    else:
-        args.append(f"-DEXTRA_COMPONENT_DIRS={idf_path}/components/bootloader")
+    if contract.forward_idf_build_v2:
+        args.append("-DIDF_BUILD_V2=")
     args += [
         f"-DPROJECT_SOURCE_DIR={project_dir}",
         "-DIGNORE_EXTRA_COMPONENT=",
@@ -317,27 +333,19 @@ def _install_into_build(entry: Path) -> Path:
         rmtree(dest)
     dest.mkdir(parents=True, exist_ok=True)
     for name in _OUTPUTS:
-        if not (src := entry / name).is_file():
-            continue
-        target = dest / name
-        src_stat = src.stat()
-        try:
-            dest_stat = target.stat()
-        except OSError:
-            dest_stat = None
-        # copy2 keeps the source mtime, so a matching copy is already current.
-        if (
-            dest_stat is None
-            or dest_stat.st_size != src_stat.st_size
-            or dest_stat.st_mtime != src_stat.st_mtime
-        ):
-            shutil.copy2(src, target)
+        if (src := entry / name).is_file():
+            shutil.copy2(src, dest / name)
     return dest
+
+
+def _bootloader_offset(app_config: dict) -> int:
+    """The flash offset the bootloader is written to."""
+    return int(app_config.get("BOOTLOADER_OFFSET_IN_FLASH", 0))
 
 
 def _check_bootloader_size(bin_path: Path, app_config: dict) -> None:
     """The check_sizes.py bootloader check, without spawning a process."""
-    offset = int(app_config.get("BOOTLOADER_OFFSET_IN_FLASH", 0))
+    offset = _bootloader_offset(app_config)
     table_offset = int(app_config.get("PARTITION_TABLE_OFFSET", 0x8000))
     size = bin_path.stat().st_size
     free = table_offset - offset - size
@@ -358,12 +366,10 @@ def _check_bootloader_size(bin_path: Path, app_config: dict) -> None:
 def _prune_stale_dirs() -> None:
     """Drop day-old work dirs from crashed builds; live ones are younger."""
     cutoff = time.time() - 86400
-    try:
+    with contextlib.suppress(OSError):
         for path in _cache_root().glob(".*"):
             if path.is_dir() and path.stat().st_mtime < cutoff:
                 _remove_dir(path)
-    except OSError:
-        pass
 
 
 def ensure_cached_bootloader(verbose: bool = False) -> int:
@@ -426,5 +432,4 @@ def inject_bootloader_flash_file(flash_data: dict, build_dir: Path) -> None:
         return
     if (app_config := _load_build_config(build_dir)) is None:
         return
-    offset = hex(int(app_config.get("BOOTLOADER_OFFSET_IN_FLASH", 0)))
-    flash_files[offset] = "bootloader/bootloader.bin"
+    flash_files[hex(_bootloader_offset(app_config))] = "bootloader/bootloader.bin"

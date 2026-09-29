@@ -104,13 +104,17 @@ def test_enabled_secure_option_disables() -> None:
     assert bootloader._compute_enabled() is False
 
 
-def test_enabled_clean_snapshot_checks_macro(tmp_path: Path) -> None:
+def _tools_prefix(tmp_path: Path):
     from esphome.espidf import framework
 
+    return patch.object(framework, "get_idf_tools_path", return_value=tmp_path)
+
+
+def test_enabled_clean_snapshot_checks_macro(tmp_path: Path) -> None:
     _write_snapshot("CONFIG_FOO=y\n")
     idf = _write_idf_build_cmake(tmp_path)
     with (
-        patch.object(framework, "get_idf_tools_path", return_value=tmp_path),
+        _tools_prefix(tmp_path),
         patch.object(toolchain, "_get_idf_path", return_value=idf),
     ):
         assert bootloader._compute_enabled() is True
@@ -118,11 +122,9 @@ def test_enabled_clean_snapshot_checks_macro(tmp_path: Path) -> None:
 
 def test_enabled_readonly_tools_prefix_disables(tmp_path: Path) -> None:
     """A shared read-only prefix would fail the cache on every build."""
-    from esphome.espidf import framework
-
     _write_snapshot("CONFIG_FOO=y\n")
     with (
-        patch.object(framework, "get_idf_tools_path", return_value=tmp_path),
+        _tools_prefix(tmp_path),
         patch.object(bootloader.os, "access", return_value=False),
     ):
         assert bootloader._compute_enabled() is False
@@ -130,11 +132,9 @@ def test_enabled_readonly_tools_prefix_disables(tmp_path: Path) -> None:
 
 def test_enabled_swallows_errors_as_disabled(tmp_path: Path) -> None:
     """Any failure while deciding must read as disabled, never raise."""
-    from esphome.espidf import framework
-
     _write_snapshot("CONFIG_FOO=y\n")
     with (
-        patch.object(framework, "get_idf_tools_path", return_value=tmp_path),
+        _tools_prefix(tmp_path),
         patch.object(toolchain, "_get_idf_path", side_effect=OSError("boom")),
     ):
         assert bootloader._compute_enabled() is False
@@ -419,6 +419,12 @@ def _make_built_tree(build_dir: Path) -> None:
     (build_dir / "config" / "sdkconfig.json").write_text('{"A": "1"}')
 
 
+def _make_built_tree_rc(build_dir: Path, verbose: bool) -> int:
+    """A _build_standalone stand-in that succeeds with a full output tree."""
+    _make_built_tree(build_dir)
+    return 0
+
+
 def test_publish_creates_entry_with_the_key_payload(tmp_path: Path) -> None:
     root = tmp_path / "cache"
     build = tmp_path / "work"
@@ -485,19 +491,6 @@ def test_install_into_build_replaces_stale_subbuild(tmp_path: Path) -> None:
     assert not (dest / "bootloader.map").exists()
 
 
-def test_install_into_build_skips_current_copies(tmp_path: Path) -> None:
-    """copy2 keeps the source mtime, so a matching copy is not rewritten."""
-    entry = tmp_path / "entry"
-    entry.mkdir()
-    (entry / "bootloader.bin").write_bytes(b"bin")
-    dest = bootloader._install_into_build(entry)
-    first = (dest / "bootloader.bin").stat()
-    with patch.object(bootloader.shutil, "copy2") as mock_copy:
-        bootloader._install_into_build(entry)
-    mock_copy.assert_not_called()
-    assert (dest / "bootloader.bin").stat().st_mtime == first.st_mtime
-
-
 # -------------------------------------------------------------- size check
 
 
@@ -549,6 +542,7 @@ def _orchestration_env(tmp_path: Path) -> Iterator[Path]:
         patch.object(bootloader, "_cache_root", return_value=root),
         patch.object(bootloader, "_compiler_id", return_value="/tc/gcc"),
         patch.object(bootloader, "_key_payload", return_value={}),
+        patch.object(bootloader, "_compute_key", return_value="deadbeefdeadbeef"),
     ):
         yield root
 
@@ -556,7 +550,6 @@ def _orchestration_env(tmp_path: Path) -> Iterator[Path]:
 def test_ensure_cache_hit_installs_without_building(tmp_path: Path) -> None:
     with (
         _orchestration_env(tmp_path) as root,
-        patch.object(bootloader, "_compute_key", return_value="deadbeefdeadbeef"),
         patch.object(bootloader, "_build_standalone") as mock_build,
     ):
         (root / "deadbeefdeadbeef").mkdir(parents=True)
@@ -572,14 +565,9 @@ def test_ensure_cache_hit_installs_without_building(tmp_path: Path) -> None:
 def test_ensure_cache_miss_builds_and_publishes(tmp_path: Path) -> None:
     """Known names but no matching entry: build, harvest, publish."""
 
-    def fake_build(build_dir: Path, verbose: bool) -> int:
-        _make_built_tree(build_dir)
-        return 0
-
     with (
         _orchestration_env(tmp_path) as root,
-        patch.object(bootloader, "_compute_key", return_value="deadbeefdeadbeef"),
-        patch.object(bootloader, "_build_standalone", side_effect=fake_build),
+        patch.object(bootloader, "_build_standalone", side_effect=_make_built_tree_rc),
     ):
         root.mkdir(parents=True)
         (root / "config_names.json").write_text('["A"]')
@@ -626,11 +614,6 @@ def test_ensure_turns_cache_errors_into_a_soft_failure(
         patch.object(bootloader, "_build_standalone", side_effect=_make_built_tree_rc),
     ):
         assert bootloader.ensure_cached_bootloader() == 1
-
-
-def _make_built_tree_rc(build_dir: Path, verbose: bool) -> int:
-    _make_built_tree(build_dir)
-    return 0
 
 
 def test_prune_removes_only_old_work_dirs(tmp_path: Path) -> None:

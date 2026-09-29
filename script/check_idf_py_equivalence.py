@@ -41,18 +41,13 @@ TOP_NINJA_LOG = "build/.ninja_log"
 def _ninja_logs(build_path: Path) -> list[str]:
     """The mode comes from the configured tree, so a missing sub-build log
     stays an error in the mode that requires one."""
+    from esphome.espidf import toolchain
+
+    cache = toolchain._parse_cmakecache(build_path / "build" / "CMakeCache.txt")
     logs = [TOP_NINJA_LOG]
-    if not _uses_cached_bootloader(build_path):
+    if cache.get("ESPHOME_USE_CACHED_BOOTLOADER") != "1":
         logs.append("build/bootloader/.ninja_log")
     return logs
-
-
-def _uses_cached_bootloader(build_path: Path) -> bool:
-    cache = build_path / "build" / "CMakeCache.txt"
-    for line in cache.read_text(encoding="utf-8").splitlines():
-        if line.startswith("ESPHOME_USE_CACHED_BOOTLOADER:"):
-            return line.partition("=")[2].strip() == "1"
-    return False
 
 
 BOOTLOADER_BYPRODUCT = re.compile(r"(^|/build/)bootloader/")
@@ -73,10 +68,10 @@ def _snapshot(build_path: Path, name: str) -> dict[str, str | None]:
     return {f: _digest(build_path / f) for f in watched(name)}
 
 
-def _ninja_mtimes(build_path: Path) -> dict[tuple[str, str], str]:
+def _ninja_mtimes(build_path: Path, logs: list[str]) -> dict[tuple[str, str], str]:
     """(log, output) -> recorded mtime; compaction-safe, unlike a line count."""
     mtimes = {}
-    for name in _ninja_logs(build_path):
+    for name in logs:
         log = build_path / name
         lines = log.read_text(encoding="utf-8").splitlines() if log.is_file() else []
         for fields in (line.split("\t") for line in lines if not line.startswith("#")):
@@ -87,10 +82,12 @@ def _ninja_mtimes(build_path: Path) -> dict[tuple[str, str], str]:
     return mtimes
 
 
-def _log_problems(build_path: Path, mtimes: dict[tuple[str, str], str]) -> list[str]:
+def _log_problems(
+    build_path: Path, mtimes: dict[tuple[str, str], str], logs: list[str]
+) -> list[str]:
     """A missing or unparsable ninja log would otherwise compare as unchanged."""
     problems = []
-    for log in _ninja_logs(build_path):
+    for log in logs:
         if not (build_path / log).is_file():
             problems.append(f"missing {log}")
         elif not any(k[0] == log and k[1].endswith(WORK_SUFFIXES) for k in mtimes):
@@ -119,14 +116,12 @@ def _setup_core(build_path: Path, description: dict) -> tuple[str, str]:
 def check(build_path: Path) -> list[str]:
     """Return the problems found in one build tree."""
     # pylint: disable=protected-access
-    from esphome.espidf import toolchain
+    from esphome.espidf import bootloader, toolchain
 
     description = json.loads(
         (build_path / "build" / "project_description.json").read_text(encoding="utf-8")
     )
     name, version = _setup_core(build_path, description)
-    from esphome.espidf import bootloader
-
     if not bootloader.idf_macro_matches():
         return [
             (
@@ -147,10 +142,11 @@ def check(build_path: Path) -> list[str]:
     if (rc := toolchain._run_ninja("all", verbose=False, jobs=None)) != 0:
         return [f"ESPHome's ninja build failed with exit code {rc}"]
     before = _snapshot(build_path, name)
-    mtimes_before = _ninja_mtimes(build_path)
+    logs = _ninja_logs(build_path)
+    mtimes_before = _ninja_mtimes(build_path, logs)
     # A moved or renamed output would otherwise compare as "unchanged".
     problems = [f"missing {f}" for f, digest in before.items() if digest is None]
-    if problems := problems + _log_problems(build_path, mtimes_before):
+    if problems := problems + _log_problems(build_path, mtimes_before, logs):
         return problems
     for action in ("reconfigure", "build"):
         result = subprocess.run(
@@ -164,9 +160,9 @@ def check(build_path: Path) -> list[str]:
         if result.returncode != 0:
             return [f"idf.py {action} failed:\n{result.stdout}{result.stderr}"]
     after = _snapshot(build_path, name)
-    mtimes_after = _ninja_mtimes(build_path)
+    mtimes_after = _ninja_mtimes(build_path, logs)
     problems = [f"idf.py changed {f}" for f in before if before[f] != after[f]]
-    problems += _log_problems(build_path, mtimes_after)
+    problems += _log_problems(build_path, mtimes_after, logs)
     for key in sorted(mtimes_before.keys() | mtimes_after.keys()):
         log, out = key
         if not out.endswith(WORK_SUFFIXES):
