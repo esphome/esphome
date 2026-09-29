@@ -299,7 +299,7 @@ void WaveshareEPaper4P2InV2::initialize_internal_(DisplayMode mode) {
   }
 
   // this->clear_();
-  this->turn_on_display_(mode);
+  // this->turn_on_display_(mode);
 }
 
 void WaveshareEPaper4P2InV2::initialize() {
