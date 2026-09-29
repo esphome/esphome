@@ -9,15 +9,9 @@ import os
 from pathlib import Path
 import posixpath
 import re
-import sys
 
 from esphome.build_helpers.ccache import effective_ccache_basedir, parse_enable_env
-from esphome.const import (
-    PLATFORM_BK72XX,
-    PLATFORM_LN882X,
-    PLATFORM_NRF52,
-    PLATFORM_RTL87XX,
-)
+from esphome.const import PLATFORM_NRF52
 from esphome.helpers import write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
@@ -40,8 +34,12 @@ PCH_GUARD_TEXT = f"""\
 #endif
 """
 
+# The cc1plus wrapper the PlatformIO script writes on arm64 macOS
+PCH_CC1_DIR = "pch_cc1"
+
 # What the PlatformIO script leaves in the project root, for cleanup
 PCH_ARTIFACT_NAMES = (PCH_HEADER_NAME, PCH_GCH_NAME, PCH_SUM_NAME, PCH_SOURCE_NAME)
+PCH_ARTIFACT_DIRS = (PCH_CC1_DIR,)
 
 # The core headers every backend precompiles
 PCH_DEFAULT_HEADERS = ("esphome/core/pch_prefix.h",)
@@ -50,17 +48,6 @@ PCH_DEFAULT_HEADERS = ("esphome/core/pch_prefix.h",)
 PCH_SCRIPT_EXCLUDED_PLATFORMS = frozenset(
     {
         PLATFORM_NRF52,
-    }
-)
-
-# The GCC 10.3 of LibreTiny only loads its own .gch back on Linux: elsewhere
-# the compiler is loaded at a new address each run, which GCC accepts from
-# version 12. Remove once LibreTiny ships GCC 12 or newer
-PCH_SCRIPT_LINUX_ONLY_PLATFORMS = frozenset(
-    {
-        PLATFORM_BK72XX,
-        PLATFORM_LN882X,
-        PLATFORM_RTL87XX,
     }
 )
 
@@ -103,10 +90,7 @@ def pch_script_enabled() -> bool:
     """Whether this PlatformIO build takes the pch script."""
     from esphome.core import CORE
 
-    platform = CORE.target_platform
-    if platform in PCH_SCRIPT_LINUX_ONLY_PLATFORMS and sys.platform != "linux":
-        return False
-    return pch_enabled() and platform not in PCH_SCRIPT_EXCLUDED_PLATFORMS
+    return pch_enabled() and CORE.target_platform not in PCH_SCRIPT_EXCLUDED_PLATFORMS
 
 
 def pch_header_text(include_headers: Iterable[str]) -> str:

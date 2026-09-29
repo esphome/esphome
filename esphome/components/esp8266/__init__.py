@@ -314,8 +314,8 @@ CONFIG_SCHEMA = cv.All(
 def check_rosetta() -> None:
     """Fail fast when the x86_64 ESP8266 toolchain cannot run on this Mac.
 
-    There is no native arm64 build of the xtensa-lx106 toolchain; on Apple
-    Silicon it runs under Rosetta 2, which macOS updates can remove.
+    PlatformIO's xtensa-lx106 toolchain has no arm64 build; on Apple Silicon
+    it runs under Rosetta 2, which macOS updates can remove.
     """
     if not IS_MACOS or platform.machine() != "arm64":
         return
@@ -330,9 +330,10 @@ def check_rosetta() -> None:
         return  # arch(1) unavailable; let the build proceed
     if result.returncode != 0:
         raise EsphomeError(
-            "ESP8266 builds on Apple Silicon Macs use an Intel (x86_64) "
-            "compiler that requires Rosetta 2, which is not installed on "
-            "this system. Install it with:\n"
+            "ESP8266 builds with PlatformIO on Apple Silicon Macs use an Intel "
+            "(x86_64) compiler that requires Rosetta 2, which is not installed "
+            "on this system. Either set 'toolchain: arduino' under 'esp8266:', "
+            "which needs no Rosetta, or install it with:\n"
             "  softwareupdate --install-rosetta --agree-to-license"
         )
 
