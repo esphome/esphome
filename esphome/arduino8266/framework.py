@@ -3,11 +3,10 @@
 Artifacts land in a machine-global cache (shared across projects, like the
 ESP-IDF install in ``esphome.espidf.framework``):
 
-    <cache>/arduino8266/frameworks/<version>/   framework-arduinoespressif8266
-    <cache>/arduino8266/toolchains/<version>/   xtensa-lx106-elf gcc 10.3
+    <cache>/arduino8266/frameworks/<tag>/   the Arduino core
+    <cache>/arduino8266/toolchains/<tag>/   xtensa-lx106-elf gcc 10.3
 
-The framework comes from the PlatformIO registry, the toolchain from
-https://github.com/esphome-libs/xtensa-lx106-elf-toolchain/releases/;
+Both come from esphome-libs releases pinned below;
 ``ESPHOME_ARDUINO8266_*_MIRRORS`` overrides the URLs. ninja comes from PATH
 or the ninja PyPI wheel.
 """
@@ -31,7 +30,30 @@ from esphome.platformio.registry import (
     prefetch_packages,
 )
 
-FRAMEWORK_PACKAGE = "framework-arduinoespressif8266"
+FRAMEWORK_PACKAGE = "arduino-esp8266"
+_FRAMEWORK_RELEASES = "https://github.com/esphome-libs/arduino-esp8266/releases/"
+
+
+class FrameworkRelease(NamedTuple):
+    tag: str
+    sha256: str
+    size: int
+
+    def download(self) -> Download:
+        archive = f"{FRAMEWORK_PACKAGE}-{self.tag}.tar.gz"
+        url = f"{_FRAMEWORK_RELEASES}download/{self.tag}/{archive}"
+        return Download(url, self.sha256, self.size)
+
+
+# Arduino core version -> its build in esphome-libs/arduino-esp8266
+FRAMEWORK_RELEASES: dict[Version, FrameworkRelease] = {
+    Version(3, 1, 2): FrameworkRelease(
+        "3.1.2-esphome.1",
+        "e80751e3123676b967143e39c61f2d8693946db4c7806f2a83dcaaf797ecd582",
+        37189311,
+    ),
+}
+
 TOOLCHAIN_PACKAGE = "toolchain-xtensa-lx106-elf"
 # gcc 10.3, the toolchain Arduino core 3.x builds with; the build
 # generator's compile flags are tuned to it.
@@ -77,30 +99,18 @@ def get_arduino8266_tools_path() -> Path:
     return tools_cache_path(*ARDUINO8266_TOOLS_CACHE)
 
 
-# 3.1.1 rather than 3.1.0: the registry has no packages for 3.0.0, 3.0.1 or 3.1.0
-MIN_FRAMEWORK_VERSION = Version(3, 1, 1)
-
-
-def framework_package_version(ver: Version) -> str:
-    """Map an Arduino core version to its registry package version (3.1.2 ->
-    3.30102.0; the leading 3 is the package major).
-
-    Exact registry names for 3.x cores; callers floor at MIN_FRAMEWORK_VERSION.
-    """
-    if ver.major > 3:
+def framework_release(version: Version) -> FrameworkRelease:
+    if (release := FRAMEWORK_RELEASES.get(version)) is None:
         raise EsphomeError(
-            f"Arduino core {ver} is not supported yet; "
-            "the newest known core series is 3.x"
+            f"'toolchain: arduino' has no build of Arduino core {version}; "
+            f"available: {', '.join(str(v) for v in FRAMEWORK_RELEASES)}. "
+            "Use one of those or 'toolchain: platformio'"
         )
-    if ver.major < 3:
-        raise EsphomeError(
-            f"Arduino core {ver} is not supported; ESPHome requires core 3.x"
-        )
-    return f"3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
+    return release
 
 
-def get_framework_path(package_version: str) -> Path:
-    return get_arduino8266_tools_path() / "frameworks" / package_version
+def get_framework_path(tag: str) -> Path:
+    return get_arduino8266_tools_path() / "frameworks" / tag
 
 
 def get_toolchain_path() -> Path:
@@ -133,24 +143,17 @@ class InstalledPaths(NamedTuple):
 
 def check_and_install(framework_version: Version) -> InstalledPaths:
     """Ensure framework, toolchain, and ninja are installed; return their paths."""
-    if framework_version < MIN_FRAMEWORK_VERSION:
-        # Config validation enforces this too; keep the module honest when
-        # called directly.
-        raise EsphomeError(
-            f"The native toolchain requires the Arduino core "
-            f">= {MIN_FRAMEWORK_VERSION}, got {framework_version}"
-        )
+    release = framework_release(framework_version)
     # Probe the cheap local dependency before ~110 MB of downloads
     ninja_path = find_ninja()
-    package_version = framework_package_version(framework_version)
-    framework_path = get_framework_path(package_version)
+    framework_path = get_framework_path(release.tag)
     downloads_dir = get_arduino8266_tools_path() / "downloads"
     toolchain_path = get_toolchain_path()
     # One spec per package: the prefetch and the installs must agree
     specs = (
         (
             FRAMEWORK_PACKAGE,
-            package_version,
+            release.tag,
             framework_path,
             ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
             ("cores/esp8266", "tools/sdk", "libraries"),
@@ -167,6 +170,8 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
     # Resolved only when a download is needed, so an installed toolchain
     # keeps working on a host without a build; a mirror override wins
     resolvers: dict[str, Resolver] = {}
+    if not ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS:
+        resolvers[FRAMEWORK_PACKAGE] = release.download
     if not ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS:
         resolvers[TOOLCHAIN_PACKAGE] = toolchain_download
     # Fetch both archives at once; the installs below verify and extract
