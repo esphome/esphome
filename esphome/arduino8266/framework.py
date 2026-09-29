@@ -4,11 +4,12 @@ Artifacts land in a machine-global cache (shared across projects, like the
 ESP-IDF install in ``esphome.espidf.framework``):
 
     <cache>/arduino8266/frameworks/<version>/   framework-arduinoespressif8266
-    <cache>/arduino8266/toolchains/<version>/   toolchain-xtensa (gcc 10.3)
+    <cache>/arduino8266/toolchains/<version>/   xtensa-lx106-elf gcc 10.3
 
-Packages come from the PlatformIO registry (identical bits to the PlatformIO
-backend); ``ESPHOME_ARDUINO8266_*_MIRRORS`` overrides the URLs. ninja comes
-from PATH or the ninja PyPI wheel.
+The framework comes from the PlatformIO registry, the toolchain from
+https://github.com/esphome-libs/xtensa-lx106-elf-toolchain/releases/;
+``ESPHOME_ARDUINO8266_*_MIRRORS`` overrides the URLs. ninja comes from PATH
+or the ninja PyPI wheel.
 """
 
 from __future__ import annotations
@@ -22,13 +23,45 @@ from esphome.build_helpers.ninja import find_ninja
 from esphome.build_helpers.tools_cache import ARDUINO8266_TOOLS_CACHE, tools_cache_path
 from esphome.core import EsphomeError, Version
 from esphome.framework_helpers import str_to_lst_of_str
-from esphome.platformio.registry import install_package, prefetch_packages
+from esphome.platformio.registry import (
+    Download,
+    Resolver,
+    get_systype,
+    install_package,
+    prefetch_packages,
+)
 
 FRAMEWORK_PACKAGE = "framework-arduinoespressif8266"
-TOOLCHAIN_PACKAGE = "toolchain-xtensa"
+TOOLCHAIN_PACKAGE = "toolchain-xtensa-lx106-elf"
 # gcc 10.3, the toolchain Arduino core 3.x builds with; the build
 # generator's compile flags are tuned to it.
-TOOLCHAIN_VERSION = "2.100300.220621"
+TOOLCHAIN_VERSION = "10.3.0-esphome.2"
+_TOOLCHAIN_RELEASES = (
+    "https://github.com/esphome-libs/xtensa-lx106-elf-toolchain/releases/"
+)
+# Registry system tag -> (sha256, size) of that host's archive
+TOOLCHAIN_BUILDS: dict[str, tuple[str, int]] = {
+    "darwin_arm64": (
+        "849cede44d4d5c6ea0f14099783239f559f46327bea314281814f2652b486201",
+        60830321,
+    ),
+    "darwin_x86_64": (
+        "ca69904daabf0c5983b372423e5e62f49182a793e992c052e94666852470c897",
+        64149487,
+    ),
+    "linux_aarch64": (
+        "60a49a4f082bf246544bd409a9517dbbcab19bb30ac9decbee544b896aaccbd6",
+        67573397,
+    ),
+    "linux_x86_64": (
+        "1fba33ca1494ec79f2776e0e37eca93282d30f8bb9992f5f4f9a655d6fff1db4",
+        68431336,
+    ),
+    "windows_amd64": (
+        "af9066b0e5bf036f04f2bd9d08b89b81a7f183c57dac0abcaff71dd861cf5f3b",
+        67664137,
+    ),
+}
 
 ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS = str_to_lst_of_str(
     os.environ.get("ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS", "")
@@ -74,6 +107,22 @@ def get_toolchain_path() -> Path:
     return get_arduino8266_tools_path() / "toolchains" / TOOLCHAIN_VERSION
 
 
+def toolchain_download() -> Download:
+    """The toolchain archive for the current host."""
+    systype = get_systype()
+    if (build := TOOLCHAIN_BUILDS.get(systype)) is None:
+        raise EsphomeError(
+            f"There is no ESP8266 toolchain for this system ({systype}); "
+            f"supported systems are {', '.join(sorted(TOOLCHAIN_BUILDS))}. "
+            "Either set 'toolchain: platformio' under 'esp8266:', or point "
+            "ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS at a toolchain archive"
+        )
+    sha256, size = build
+    archive = f"{TOOLCHAIN_PACKAGE}-{TOOLCHAIN_VERSION}-{systype}.tar.gz"
+    url = f"{_TOOLCHAIN_RELEASES}download/{TOOLCHAIN_VERSION}/{archive}"
+    return Download(url, sha256, size)
+
+
 class InstalledPaths(NamedTuple):
     """Locations of the installed framework, toolchain, and ninja binary."""
 
@@ -115,10 +164,23 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
             ("bin", "xtensa-lx106-elf"),
         ),
     )
+    # Resolved only when a download is needed, so an installed toolchain
+    # keeps working on a host without a build; a mirror override wins
+    resolvers: dict[str, Resolver] = {}
+    if not ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS:
+        resolvers[TOOLCHAIN_PACKAGE] = toolchain_download
     # Fetch both archives at once; the installs below verify and extract
-    prefetch_packages([spec[:4] for spec in specs], downloads_dir)
+    prefetch_packages([spec[:4] for spec in specs], downloads_dir, resolvers)
     for name, version, dest, mirrors, expect in specs:
-        install_package(name, version, dest, mirrors, downloads_dir, expect=expect)
+        install_package(
+            name,
+            version,
+            dest,
+            mirrors,
+            downloads_dir,
+            expect=expect,
+            resolve=resolvers.get(name),
+        )
     return InstalledPaths(
         framework=framework_path, toolchain=toolchain_path, ninja=ninja_path
     )
