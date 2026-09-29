@@ -105,16 +105,38 @@ def test_enabled_secure_option_disables() -> None:
 
 
 def test_enabled_clean_snapshot_checks_macro(tmp_path: Path) -> None:
+    from esphome.espidf import framework
+
     _write_snapshot("CONFIG_FOO=y\n")
     idf = _write_idf_build_cmake(tmp_path)
-    with patch.object(toolchain, "_get_idf_path", return_value=idf):
+    with (
+        patch.object(framework, "get_idf_tools_path", return_value=tmp_path),
+        patch.object(toolchain, "_get_idf_path", return_value=idf),
+    ):
         assert bootloader._compute_enabled() is True
+
+
+def test_enabled_readonly_tools_prefix_disables(tmp_path: Path) -> None:
+    """A shared read-only prefix would fail the cache on every build."""
+    from esphome.espidf import framework
+
+    _write_snapshot("CONFIG_FOO=y\n")
+    with (
+        patch.object(framework, "get_idf_tools_path", return_value=tmp_path),
+        patch.object(bootloader.os, "access", return_value=False),
+    ):
+        assert bootloader._compute_enabled() is False
 
 
 def test_enabled_swallows_errors_as_disabled(tmp_path: Path) -> None:
     """Any failure while deciding must read as disabled, never raise."""
+    from esphome.espidf import framework
+
     _write_snapshot("CONFIG_FOO=y\n")
-    with patch.object(toolchain, "_get_idf_path", side_effect=OSError("boom")):
+    with (
+        patch.object(framework, "get_idf_tools_path", return_value=tmp_path),
+        patch.object(toolchain, "_get_idf_path", side_effect=OSError("boom")),
+    ):
         assert bootloader._compute_enabled() is False
 
 
@@ -526,6 +548,7 @@ def _orchestration_env(tmp_path: Path) -> Iterator[Path]:
     with (
         patch.object(bootloader, "_cache_root", return_value=root),
         patch.object(bootloader, "_compiler_id", return_value="/tc/gcc"),
+        patch.object(bootloader, "_key_payload", return_value={}),
     ):
         yield root
 
@@ -574,7 +597,7 @@ def test_ensure_returns_build_failure(tmp_path: Path) -> None:
         _orchestration_env(tmp_path) as root,
         patch.object(bootloader, "_build_standalone", return_value=2),
     ):
-        assert bootloader.ensure_cached_bootloader() == 2
+        assert bootloader.ensure_cached_bootloader() == 1
     assert not list(root.glob(".build-*"))
 
 
@@ -590,13 +613,24 @@ def test_ensure_soft_fails_when_build_yields_no_config(tmp_path: Path) -> None:
         assert bootloader.ensure_cached_bootloader() == 1
 
 
-def test_ensure_turns_oserror_into_a_soft_failure(tmp_path: Path) -> None:
-    """Any filesystem surprise means fall back, never crash the build."""
+@pytest.mark.parametrize(
+    "err", [OSError("disk"), EsphomeError("write failed")], ids=["oserror", "esphome"]
+)
+def test_ensure_turns_cache_errors_into_a_soft_failure(
+    tmp_path: Path, err: Exception
+) -> None:
+    """Any surprise while using the cache means fall back, never crash."""
     with (
         _orchestration_env(tmp_path),
-        patch.object(bootloader, "_build_standalone", side_effect=OSError("disk")),
+        patch.object(bootloader, "_publish", side_effect=err),
+        patch.object(bootloader, "_build_standalone", side_effect=_make_built_tree_rc),
     ):
         assert bootloader.ensure_cached_bootloader() == 1
+
+
+def _make_built_tree_rc(build_dir: Path, verbose: bool) -> int:
+    _make_built_tree(build_dir)
+    return 0
 
 
 def test_prune_removes_only_old_work_dirs(tmp_path: Path) -> None:

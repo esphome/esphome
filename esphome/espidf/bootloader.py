@@ -19,6 +19,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import tempfile
 import time
 
 from esphome.build_helpers.ccache import parse_enable_env
@@ -66,6 +67,11 @@ def _compute_enabled() -> bool:
         # every resolved option, including always-on *_SUPPORTED constants.
         snapshot = CORE.relative_build_path(f"sdkconfig.{CORE.name}.esphomeinternal")
         if not snapshot.is_file() or _has_secure_options(snapshot):
+            return False
+        from esphome.espidf.framework import get_idf_tools_path
+
+        if not os.access(get_idf_tools_path(), os.W_OK):
+            # A read-only shared prefix would fail the cache on every build.
             return False
         return idf_macro_matches()
     except (OSError, KeyError, ValueError, EsphomeError) as err:
@@ -271,15 +277,22 @@ def _build_standalone(build_dir: Path, verbose: bool) -> int:
     return 0
 
 
+def _work_dir(prefix: str) -> Path:
+    """A private work dir in the cache; unique across shared tools prefixes."""
+    root = _cache_root()
+    root.mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(prefix=prefix, dir=root))
+
+
 def _publish(build_dir: Path, key: str, payload: dict) -> Path:
     """Move the distilled outputs into the cache; losing a race is fine."""
     entry = _cache_root() / key
-    stage = _cache_root() / f".stage-{key}-{os.getpid()}"
-    stage.mkdir(parents=True, exist_ok=True)
+    stage = _work_dir(f".stage-{key}-")
     for name in _OUTPUTS:
         shutil.copy2(build_dir / name, stage / name)
     shutil.copy2(build_dir / "config" / "sdkconfig.json", stage / "sdkconfig.json")
     write_file(stage / "meta.json", json.dumps(payload, indent=2, sort_keys=True))
+    stage.chmod(0o755)  # mkdtemp creates 0o700
     try:
         _rename_with_retry(stage, entry)
     except OSError:
@@ -353,43 +366,43 @@ def _prune_stale_dirs() -> None:
         pass
 
 
-def _install_and_check(entry: Path, app_config: dict) -> int:
-    """Copy an entry into the build tree and verify it fits before the table."""
-    dest = _install_into_build(entry)
-    _check_bootloader_size(dest / "bootloader.bin", app_config)
-    return 0
-
-
 def ensure_cached_bootloader(verbose: bool = False) -> int:
     """Put the cached bootloader into build/bootloader, building on a miss.
 
     Nonzero tells the caller to fall back to the in-tree build; a too-large
     bootloader raises instead, since in-tree would fail the same way.
     """
-    try:
-        return _ensure_cached_bootloader(verbose)
-    except OSError as err:
-        _LOGGER.warning("Bootloader cache failed: %s", err)
-        return 1
-
-
-def _ensure_cached_bootloader(verbose: bool) -> int:
     app_config = _load_build_config(toolchain._build_dir())
     compiler = _compiler_id()
     if app_config is None or compiler is None:
         _LOGGER.debug("Bootloader cache unusable: app configure outputs missing")
         return 1
+    try:
+        dest = _install_cached(app_config, compiler, verbose)
+    except (OSError, EsphomeError) as err:
+        _LOGGER.warning("Bootloader cache failed: %s", err)
+        return 1
+    if dest is None:
+        return 1
+    # Outside the fail-safe net: the in-tree build would overflow the same way.
+    _check_bootloader_size(dest / "bootloader.bin", app_config)
+    return 0
+
+
+def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | None:
+    """The installed build/bootloader dir, building and publishing on a miss;
+    None means fall back to the in-tree build."""
     if (names := _load_config_names()) is not None:
         entry = _cache_root() / _compute_key(_key_payload(names, app_config, compiler))
         if (entry / "bootloader.bin").is_file():
-            return _install_and_check(entry, app_config)
-    tmp = _cache_root() / f".build-{os.getpid()}"
+            return _install_into_build(entry)
+    tmp = _work_dir(".build-")
     try:
-        if (rc := _build_standalone(tmp, verbose)) != 0:
-            return rc
+        if _build_standalone(tmp, verbose) != 0:
+            return None
         if (built_config := _load_build_config(tmp)) is None:
             _LOGGER.debug("Bootloader build produced no sdkconfig.json")
-            return 1
+            return None
         names = _merge_config_names(built_config)
         payload = _key_payload(names, app_config, compiler)
         key = _compute_key(payload)
@@ -398,7 +411,7 @@ def _ensure_cached_bootloader(verbose: bool) -> int:
     finally:
         _remove_dir(tmp)
     _prune_stale_dirs()
-    return _install_and_check(entry, app_config)
+    return _install_into_build(entry)
 
 
 def inject_bootloader_flash_file(flash_data: dict, build_dir: Path) -> None:
