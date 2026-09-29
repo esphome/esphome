@@ -43,6 +43,9 @@ def _make_tree(tmp_path: Path) -> Path:
         "# ninja log v7\n1\t2\t10\tesp-idf/a.obj\t0\n"
         "1\t2\t10\tbootloader/bootloader.bin\t0\n"
     )
+    (build / "bootloader" / ".ninja_log").write_text(
+        "# ninja log v7\n1\t2\t10\tbootloader.elf\t0\n"
+    )
     (tree / "sdkconfig.dev").write_text("")
     return tree
 
@@ -146,10 +149,39 @@ def test_check_stops_when_the_esphome_baseline_fails(
     assert calls == []
 
 
+@pytest.mark.parametrize("log", guard.NINJA_LOGS)
+def test_check_fails_when_a_ninja_log_has_no_entries(tmp_path: Path, log: str) -> None:
+    """A log format change must not leave the rebuild check with nothing to compare."""
+    tree = _make_tree(tmp_path)
+    (tree / log).write_text("# ninja log v99\n1 2 3\n")
+    problems, calls = _run_check(tree)
+    assert problems == [f"no build entries parsed from {log}"]
+    assert calls == []
+
+
+def test_main_rejects_a_path_that_is_not_a_tree(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tree = _make_tree(tmp_path / "a")
+    stale = tmp_path / "stale"
+    with (
+        patch.object(sys, "argv", ["check", str(tree), str(stale)]),
+        patch.object(guard, "check", return_value=[]) as mock_check,
+    ):
+        assert guard.main() == 1
+    assert f"{stale}: not a configured native ESP-IDF build tree" in (
+        capsys.readouterr().out
+    )
+    mock_check.assert_not_called()
+
+
 def test_main_without_build_trees(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    with patch.object(sys, "argv", ["check", str(tmp_path)]):
+    with (
+        patch.object(sys, "argv", ["check"]),
+        patch.object(guard, "REPO_ROOT", tmp_path),
+    ):
         assert guard.main() == 1
     assert "No native ESP-IDF build tree found" in capsys.readouterr().out
 

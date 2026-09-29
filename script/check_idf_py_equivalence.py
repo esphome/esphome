@@ -114,6 +114,14 @@ def check(build_path: Path) -> list[str]:
     missing += [log for log in NINJA_LOGS if not (build_path / log).is_file()]
     if missing:
         return [f"missing {f}" for f in missing]
+    # A log format change would otherwise leave nothing to compare.
+    unparsed = [
+        log
+        for log in NINJA_LOGS
+        if not any(k[0] == log and k[1].endswith(WORK_SUFFIXES) for k in mtimes_before)
+    ]
+    if unparsed:
+        return [f"no build entries parsed from {log}" for log in unparsed]
     for action in ("reconfigure", "build"):
         result = subprocess.run(
             [python, str(idf_py), *sdkconfig_args, action],
@@ -152,6 +160,10 @@ def main() -> int:
         if (p / "build" / "project_description.json").is_file()
         and (p / "build" / "CMakeCache.txt").is_file()
     ]
+    if rejected := [p for p in args.build_paths if p not in trees]:
+        for path in rejected:
+            print(f"{path}: not a configured native ESP-IDF build tree")
+        return 1
     if not trees:
         print("No native ESP-IDF build tree found")
         return 1
