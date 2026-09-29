@@ -86,6 +86,10 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const ch
   config.disable_auto_redirect = !this->follow_redirects_;
   config.max_redirection_count = this->redirect_limit_;
   config.auth_type = HTTP_AUTH_TYPE_BASIC;
+#ifdef USE_NETWORK_IPV6_ONLY
+  // getaddrinfo(AF_UNSPEC) resolves the A record first, so a dual-stack host would be dialled over IPv4.
+  config.addr_type = HTTP_ADDR_TYPE_INET6;
+#endif
   if (secure && this->verify_ssl_) {
     if (this->ca_certificate_ != nullptr) {
       config.cert_pem = this->ca_certificate_;
