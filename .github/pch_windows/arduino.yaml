@@ -1,0 +1,14 @@
+esphome:
+  name: pch-arduino
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+api:
+
+wifi:
+  ssid: pch
+  password: pchpassword

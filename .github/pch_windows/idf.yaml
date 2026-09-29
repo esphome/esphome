@@ -1,0 +1,14 @@
+esphome:
+  name: pch-idf
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+api:
+
+wifi:
+  ssid: pch
+  password: pchpassword

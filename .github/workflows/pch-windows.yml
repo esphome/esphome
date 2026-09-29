@@ -1,0 +1,73 @@
+name: Windows precompiled header check
+
+on:
+  push:
+    branches:
+      - pch-windows-ci
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: ${{ matrix.name }}
+    runs-on: windows-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: esp-idf native
+            config: .github/pch_windows/idf.yaml
+          - name: platformio arduino
+            config: .github/pch_windows/arduino.yaml
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install esphome
+        shell: bash
+        run: |
+          python -m venv venv
+          source ./venv/Scripts/activate
+          pip install -r requirements.txt
+          pip install -e .
+      - name: Compiler version
+        shell: bash
+        run: |
+          source ./venv/Scripts/activate
+          esphome compile --only-generate ${{ matrix.config }} || true
+      - name: Compile with the rule
+        shell: bash
+        run: |
+          set -o pipefail
+          source ./venv/Scripts/activate
+          esphome compile ${{ matrix.config }} 2>&1 | tee rule.log
+          echo "--- header lines ---"
+          grep -iE "precompiled header|dumpfullversion" rule.log || true
+      - name: Compile with the header forced on
+        continue-on-error: true
+        shell: bash
+        env:
+          ESPHOME_PCH_ENABLE: "1"
+        run: |
+          set -o pipefail
+          source ./venv/Scripts/activate
+          esphome compile ${{ matrix.config }} 2>&1 | tee forced.log
+      - name: Report the forced run
+        shell: bash
+        run: |
+          echo "--- forced run ---"
+          grep -iE "precompiled header|PCH allocation|internal error|error:" forced.log | head -20 || true
+      - name: Keep the logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pch-${{ strategy.job-index }}-logs
+          path: |
+            rule.log
+            forced.log
