@@ -352,8 +352,14 @@ def _check_bootloader_size(bin_path: Path, offset: int, table_offset: int) -> No
 def _prune_stale_dirs() -> None:
     """Drop day-old work dirs from crashed builds; live ones are younger."""
     cutoff = time.time() - 86400
-    with contextlib.suppress(OSError):
-        for path in _cache_root().glob(".*"):
+    try:
+        paths = list(_cache_root().glob(".*"))
+    except OSError as err:
+        _LOGGER.debug("Prune skipped: %s", err)
+        return
+    for path in paths:
+        # A racing build may remove its own dir mid-scan; skip just that one.
+        with contextlib.suppress(OSError):
             if path.is_dir() and path.stat().st_mtime < cutoff:
                 _remove_dir(path)
 

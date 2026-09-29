@@ -62,6 +62,18 @@ def _make_tree(tmp_path: Path, cached_bootloader: bool = False) -> Path:
     return tree
 
 
+def _rebuilding_ninja(tree: Path, rc: int):
+    """A ninja stand-in that recreates the bin the parity check deleted."""
+
+    def run(target: str, **kwargs: object) -> int:
+        bin_path = tree / "build" / "bootloader" / "bootloader.bin"
+        if bin_path.parent.is_dir() and not bin_path.exists():
+            bin_path.write_bytes(b"x")
+        return rc
+
+    return run
+
+
 def _run_check(
     tree: Path,
     side_effect: Callable[[list[str]], None] = lambda cmd: None,
@@ -82,7 +94,9 @@ def _run_check(
         patch.object(toolchain, "_get_idf_tool", return_value="/py"),
         patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
         patch.object(toolchain, "run_reconfigure", return_value=esphome_rcs[0]),
-        patch.object(toolchain, "_run_ninja", return_value=esphome_rcs[1]),
+        patch.object(
+            toolchain, "_run_ninja", side_effect=_rebuilding_ninja(tree, esphome_rcs[1])
+        ),
         patch.object(build_gen, "idf_macro_matches", return_value=macro_matches),
         patch.object(guard.subprocess, "run", side_effect=run),
     ):
@@ -254,6 +268,28 @@ def test_check_fails_when_the_cached_bootloader_differs_from_in_tree(
     ):
         problems = guard.check(tree)
     assert problems == [guard.BOOTLOADER_DIFFERS]
+
+
+def test_check_reports_a_rebuild_that_produced_no_bootloader(
+    tmp_path: Path,
+) -> None:
+    """A rebuild that leaves no bin must fail, not compare the old bytes."""
+    tree = _make_tree(tmp_path, cached_bootloader=True)
+    with (
+        patch.object(toolchain, "_get_idf_env", return_value={}),
+        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
+        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
+        patch.object(toolchain, "run_reconfigure", return_value=0),
+        patch.object(toolchain, "_run_ninja", return_value=0),
+        patch.object(build_gen, "idf_macro_matches", return_value=True),
+        patch.object(
+            guard.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess([], 0, "", ""),
+        ),
+    ):
+        problems = guard.check(tree)
+    assert problems == ["in-tree rebuild produced no bootloader"]
 
 
 def test_check_reports_a_failed_parity_rebuild(tmp_path: Path) -> None:

@@ -188,6 +188,7 @@ def _bootloader_parity(build_path: Path) -> list[str]:
     if not bootloader.tree_uses_cached_bootloader(build_path / "build"):
         return []
     cached = bin_path.read_bytes()
+    bin_path.unlink()  # the rebuild must produce it, never compare to itself
     os.environ[bootloader.BOOTLOADER_CACHE_ENV] = "0"
     toolchain._cache().bootloader_enabled = None
     try:
@@ -195,6 +196,8 @@ def _bootloader_parity(build_path: Path) -> list[str]:
             return ["in-tree bootloader reconfigure failed"]
         if toolchain._run_ninja("all", verbose=False, jobs=None) != 0:
             return ["in-tree bootloader rebuild failed"]
+        if not bin_path.is_file():
+            return ["in-tree rebuild produced no bootloader"]
         if bin_path.read_bytes() != cached:
             return [BOOTLOADER_DIFFERS]
         return []

@@ -8,7 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -766,6 +766,21 @@ def test_prune_swallows_cache_root_errors() -> None:
     """Housekeeping never fails a build."""
     with patch.object(bootloader, "_cache_root", side_effect=OSError("gone")):
         bootloader._prune_stale_dirs()
+
+
+def test_prune_skips_just_the_racing_entry(tmp_path: Path) -> None:
+    """A dir vanishing mid-scan must not end the prune for the rest."""
+    old = tmp_path / ".build-old"
+    old.mkdir()
+    os.utime(old, (0, 0))
+    racing = MagicMock(spec=Path)
+    racing.is_dir.return_value = True
+    racing.stat.side_effect = OSError("vanished")
+    root = MagicMock(spec=Path)
+    root.glob.return_value = [racing, old]
+    with patch.object(bootloader, "_cache_root", return_value=root):
+        bootloader._prune_stale_dirs()
+    assert not old.exists()
 
 
 # --------------------------------------------------------- flash injection
