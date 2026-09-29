@@ -407,6 +407,28 @@ def test_convert_libraries_redownloads_when_manifest_missing(
     assert top[0].data["name"] == "A"
 
 
+def test_convert_libraries_manifest_optional_uses_default_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A backend accepting manifest-less libraries (the host build, like
+    PlatformIO's native platform) gets a default manifest instead of a
+    re-download that would repeat every build."""
+    calls = _patch_download_without_manifest(
+        monkeypatch, tmp_path, manifest_on_force=True
+    )
+    emitted: list[ConvertedLibrary] = []
+    backend = _backend(emit=emitted.append)
+    backend.manifest_optional = True
+
+    with caplog.at_level(logging.DEBUG, logger="esphome.platformio.library"):
+        top = convert_libraries([Library("esphome/A", "1.0.0", None)], backend)
+
+    assert calls == [False]
+    assert top[0].data == {"name": "esphome/A"}
+    assert emitted == top
+    assert "has no manifest; using PlatformIO's default layout" in caplog.text
+
+
 def test_convert_libraries_raises_when_manifest_missing_after_retry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1251,3 +1273,50 @@ def test_versionless_dependency_matching_resolved_manifest_name_stays_quiet(
         _backend(),
     )
     assert "has no version to resolve" not in caplog.text
+
+
+def test_convert_libraries_symlink_url_resolves_as_local(setup_core: Path) -> None:
+    """symlink:// is PlatformIO's other spelling for a local library folder."""
+    src = setup_core / "lib_dev"
+    (src / "src").mkdir(parents=True)
+    (src / "library.json").write_text(json.dumps({"name": "benchmark"}))
+    url = src.as_uri().replace("file://", "symlink://", 1)
+
+    # Both the name=URL form and an explicit repository take the scheme
+    for library in (
+        Library(f"benchmark={url}", None, None),
+        Library("benchmark", None, url),
+    ):
+        top = convert_libraries([library], _backend())
+        assert isinstance(top[0].source, LocalSource)
+        assert top[0].source_path == src
+
+
+def test_convert_libraries_incompatible_names_the_platform_without_a_framework(
+    setup_core: Path,
+) -> None:
+    """The host has no framework; the error must not read 'compatible with None'."""
+    src = setup_core / "lib_dev"
+    src.mkdir()
+    (src / "library.json").write_text(
+        json.dumps({"name": "Only32", "platforms": "espressif32"})
+    )
+    backend = _backend()
+    backend.platform = "native"
+    backend.framework = None
+    with pytest.raises(RuntimeError, match="Only32 is not compatible with native"):
+        convert_libraries([Library("Only32", None, src.as_uri())], backend)
+
+
+@pytest.mark.parametrize(
+    ("url", "message"),
+    [
+        ("symlink://host/lib", "Unsupported host in symlink:// library URL"),
+        ("symlink:lib_dev", "symlink:// library URL .* must be an absolute"),
+    ],
+)
+def test_convert_libraries_symlink_url_errors_name_the_scheme(
+    setup_core: Path, url: str, message: str
+) -> None:
+    with pytest.raises(RuntimeError, match=message):
+        convert_libraries([Library("benchmark", None, url)], _backend())

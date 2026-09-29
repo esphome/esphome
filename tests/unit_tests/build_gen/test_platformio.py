@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.build_gen import platformio
+from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM
 from esphome.core import CORE
 
 
@@ -170,6 +171,40 @@ def clean_core(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(CORE, "build_flags", set())
     monkeypatch.setattr(CORE, "build_unflags", set())
     monkeypatch.setattr(CORE, "cmake_args", {})
+    # A platform that does not take the pch script
+    monkeypatch.setitem(CORE.data, KEY_CORE, {KEY_TARGET_PLATFORM: "nrf52"})
+
+
+def test_pch_script_is_registered_and_copied(
+    clean_core: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """One place registers the pch script for every PlatformIO platform
+    that takes it."""
+    monkeypatch.setitem(CORE.data, KEY_CORE, {KEY_TARGET_PLATFORM: "esp8266"})
+    monkeypatch.setattr(CORE, "build_path", tmp_path)
+
+    platformio.write_project()
+
+    assert "post:pch.py" in (tmp_path / "platformio.ini").read_text()
+    assert (tmp_path / "pch.py").is_file()
+
+
+@pytest.mark.parametrize("disabled_by", ["platform", "knob"])
+def test_pch_script_is_left_out(
+    clean_core: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    disabled_by: str,
+) -> None:
+    if disabled_by == "knob":
+        monkeypatch.setitem(CORE.data, KEY_CORE, {KEY_TARGET_PLATFORM: "esp8266"})
+        monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    monkeypatch.setattr(CORE, "build_path", tmp_path)
+
+    platformio.write_project()
+
+    assert "pch.py" not in (tmp_path / "platformio.ini").read_text()
+    assert not (tmp_path / "pch.py").exists()
 
 
 def test_get_ini_content_pins_cpp_standard(
