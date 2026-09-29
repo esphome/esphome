@@ -9,7 +9,8 @@ namespace rp2 {
 static const char *const TAG = "rp2";
 
 static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
-  flags = (gpio::Flags)(flags & (gpio::FLAG_IO_MASK | gpio::FLAG_PULL_MASK));
+  flags =
+      flags & (gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN);
   if (flags == gpio::FLAG_INPUT) {  // NOLINT(bugprone-branch-clone)
     return INPUT;
   } else if (flags == gpio::FLAG_OUTPUT) {
