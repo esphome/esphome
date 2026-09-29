@@ -46,6 +46,7 @@ class UartTcp : public Component, public uart::UARTDevice {
   void apply_socket_options_(socket::Socket *sock);
   void set_link_up_(bool up);
   void note_attempt_();
+  void forget_addr_();
   bool in_backoff_() const;
 #if !defined(USE_HOST) && !defined(USE_ZEPHYR)
   static void dns_found(const char *name, const ip_addr_t *addr, void *arg);

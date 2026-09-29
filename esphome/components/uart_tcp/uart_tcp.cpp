@@ -77,11 +77,18 @@ void UartTcp::close_sock_() {
   }
   this->connecting_ = false;
   this->set_link_up_(false);
+  this->forget_addr_();
 }
 
 void UartTcp::close_listen_() { this->listen_.reset(); }
 
 void UartTcp::note_attempt_() { this->last_attempt_ms_ = loop_time(); }
+
+void UartTcp::forget_addr_() {
+  this->have_addr_.store(false);
+  this->resolved_addr_.store(0);
+  this->resolved_ip_[0] = '\0';
+}
 
 bool UartTcp::in_backoff_() const { return loop_time() - this->last_attempt_ms_ < this->reconnect_interval_ms_; }
 
@@ -215,6 +222,7 @@ void UartTcp::try_connect_() {
     return;
   }
   this->sock_.reset();
+  this->forget_addr_();
   this->note_attempt_();
 }
 
