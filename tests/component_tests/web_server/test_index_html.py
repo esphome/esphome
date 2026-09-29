@@ -1,5 +1,7 @@
 """The generated index page and the js_extra_urls option that extends it."""
 
+from pathlib import Path
+
 import pytest
 
 from esphome.components.web_server import CONFIG_SCHEMA, build_index_html
@@ -43,7 +45,7 @@ def test_without_extra_urls_the_page_is_unchanged(
 
 
 def test_extra_urls_and_js_include_coexist(
-    set_core_config: SetCoreConfigCallable, tmp_path
+    set_core_config: SetCoreConfigCallable, tmp_path: Path
 ) -> None:
     include = tmp_path / "local.js"
     include.write_text("// local")
