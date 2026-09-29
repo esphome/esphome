@@ -1,5 +1,7 @@
 """Tests for mipi_rgb configuration validation."""
 
+from collections.abc import Generator
+
 import pytest
 
 from esphome import config_validation as cv
@@ -17,6 +19,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S3,
     VARIANT_ESP32S31,
 )
+from esphome.components.mipi import DriverChip
 import esphome.components.pca9554  # noqa: F401
 import esphome.components.xl9535  # noqa: F401
 from esphome.const import (
@@ -42,6 +45,19 @@ DATA_PINS = {
     CONF_GREEN: [6, 7, 8, 9, 10, 11],
     CONF_BLUE: [12, 13, 14, 15, 16],
 }
+
+
+@pytest.fixture(autouse=True)
+def _remove_test_models() -> Generator[None]:
+    """Unregister chips created by a test.
+
+    display.py modules drain DriverChip.models when first imported, so a
+    leftover TEST-* chip could become a selectable model there.
+    """
+    existing = set(DriverChip.models)
+    yield
+    for name in set(DriverChip.models) - existing:
+        del DriverChip.models[name]
 
 
 def _set_s3(set_core_config: SetCoreConfigCallable) -> None:
@@ -174,6 +190,41 @@ def test_configuration_succeeds_on_supported_variants(
         config[CONF_INIT_SEQUENCE] = [[0xA0, 0x01]]
         config[CONF_DIMENSIONS] = {CONF_WIDTH: 480, CONF_HEIGHT: 480}
     CONFIG_SCHEMA(config)
+
+
+def test_st7701s_default_reset_delay() -> None:
+    """ST7701S instances default to a 50ms reset delay.
+
+    The datasheet's stated 5ms is too short in practice; ST7701S overrides the
+    DriverChip default of 10ms with its own default of 50ms.
+    """
+    from esphome.components.mipi_rgb.models.st7701s import st7701s
+
+    assert st7701s.get_default("reset_delay") == 50
+
+
+def test_st7701s_reset_delay_can_be_overridden() -> None:
+    """An explicit reset_delay overrides the ST7701S default of 50ms."""
+    from esphome.components.mipi_rgb.models.st7701s import ST7701S
+
+    chip = ST7701S("TEST-ST7701S-RESET-DELAY", width=480, height=480, reset_delay=99)
+
+    assert chip.get_default("reset_delay") == 99
+
+
+def test_st7701s_extend_inherits_reset_delay_default() -> None:
+    """extend() carries the 50ms default forward to derived board models.
+
+    Every shipped ST7701S variant is built via ``st7701s.extend(...)`` rather
+    than direct construction, so the override in ``ST7701S.__init__`` must
+    survive that path (see DriverChip.extend, which re-passes the copied
+    defaults as kwargs to the constructor).
+    """
+    from esphome.components.mipi_rgb.models.st7701s import st7701s
+
+    extended = st7701s.extend("TEST-ST7701S-EXTEND", width=480, height=480)
+
+    assert extended.get_default("reset_delay") == 50
 
 
 def test_only_on_variant_rejects_unsupported_variant(

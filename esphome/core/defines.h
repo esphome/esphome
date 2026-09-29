@@ -546,7 +546,7 @@
 // rp2/__init__.py codegen also defines USE_RP2040 as a back-compat alias
 // for external custom components that may still test for it.
 #ifdef USE_RP2
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 1, 0)
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 1, 1)
 #define USE_RP2_CRASH_HANDLER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
@@ -623,6 +623,7 @@
 #define USE_NRF52_REG0_VOUT 5
 #define USE_NRF52_UICR_ERASE
 #define USE_OTA_ROLLBACK
+#define USE_SOCKET_IMPL_BSD_SOCKETS
 #define USE_SOFTDEVICE_ID 7
 #define USE_SOFTDEVICE_VERSION 1
 #define USE_ZIGBEE

@@ -364,7 +364,100 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
         line for line in content.splitlines() if line.startswith("  flags = ")
     ]
     assert flags_lines
-    assert all(line == "  flags = $srcflags" for line in flags_lines)
+    # C++ src edges consume the precompiled header; C/assembly keep srcflags
+    assert set(flags_lines) == {"  flags = $srcflags", "  flags = $srccxxflags"}
+
+
+def test_write_project_pch(tmp_path: Path) -> None:
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    build_dir = CORE.relative_pioenvs_path(CORE.name)
+    assert "rule pch" in content
+    # Compiled from the include list, and again when the checksum changes
+    gch_edge = next(
+        line
+        for line in content.splitlines()
+        if line.startswith("build esphome_pch.h.gch: pch ")
+    )
+    assert gch_edge.endswith("esphome_pch_src.h | esphome_pch.h.gch.sum")
+    for line in content.splitlines():
+        # C++ edges wait on the .gch; the C edge must not reference it
+        if line.startswith("build obj/src/main.cpp.o:"):
+            assert line.endswith("| esphome_pch.h.gch")
+        if line.startswith("build obj/src/esphome/vendor.c.o:"):
+            assert "esphome_pch" not in line
+    assert (build_dir / "esphome_pch_src.h").read_text().splitlines() == [
+        '#include "esphome/components/esp8266/throw_stubs.h"',
+        '#include "esphome/core/pch_prefix.h"',
+    ]
+    assert "#error" in (build_dir / "esphome_pch.h").read_text()
+    assert (build_dir / "esphome_pch.h.gch.sum").read_text().strip()
+
+
+def test_write_project_pch_folds_joined_src_force_include(
+    tmp_path: Path,
+) -> None:
+    """-includefoo.h in build_src_flags must fold into the pch like the
+    separated spelling, not precede and defeat it."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    CORE.platformio_options["build_src_flags"] = "-includeesphome/core/defines.h"
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "build esphome_pch.h.gch: pch" in content
+    assert "srccxxflags" in content
+    assert "-includeesphome" not in content
+
+
+@pytest.mark.parametrize("flag", ["-includefoo.h", "--include=foo.h"])
+def test_write_project_pch_skipped_for_other_force_include_spellings(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, flag: str
+) -> None:
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH", flag)
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "esphome_pch" not in content
+    assert "prevents the precompiled header" in caplog.text
+
+
+def test_write_project_pch_skipped_when_user_force_include_precedes(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A -include in build_flags lands ahead of the pch include, so GCC
+    would never load the .gch; skip it and say so."""
+    paths = _make_framework(tmp_path)
+    _set_flags(
+        "-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH", "-include foo.h"
+    )
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "esphome_pch" not in content
+    assert "srccxxflags" not in content
+    assert "prevents the precompiled header" in caplog.text
+
+
+def test_write_project_pch_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    content = _write_ninja(paths)
+    assert "esphome_pch" not in content
+    assert "srccxxflags" not in content
+    assert "  flags = $srcflags" in content
+
+
+def test_write_project_pch_asks_the_toolchain_compiler_on_windows(
+    windows_gcc_rule: None, tmp_path: Path
+) -> None:
+    from esphome.build_helpers import pch
+
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    with patch.object(pch, "gcc_version", return_value=(10, 3, 0)) as asked:
+        content = _write_ninja(paths)
+    assert asked.call_args.args[0] == (toolchain_tool(paths.toolchain, "g++"),)
+    assert "esphome_pch" not in content
 
 
 def test_write_project_scanf_float_and_waveform_kept(tmp_path: Path) -> None:
@@ -1716,3 +1809,37 @@ def test_write_project_rejects_spaced_ldscript_override(tmp_path: Path) -> None:
     CORE.relative_src_path().mkdir(parents=True, exist_ok=True)
     with pytest.raises(EsphomeError, match="Invalid flash linker script name"):
         arduino8266.write_project(paths, None)
+
+
+def test_write_project_pch_no_device_path_poison(tmp_path: Path) -> None:
+    """Regression: the -include stays relative and the .sum carries no
+    per-device path, or cross-device ccache sharing breaks."""
+    paths = _make_framework(tmp_path / "shared")
+    sums = []
+    for name in ("dev_a", "dev_b"):
+        CORE.name = name
+        CORE.build_path = tmp_path / name
+        _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+        content = _write_ninja(paths, ccache="/usr/bin/ccache")
+        assert (
+            "srccxxflags = -Winvalid-pch -Werror=invalid-pch "
+            "-include esphome_pch.h" in content
+        )
+        sums.append(
+            (CORE.relative_pioenvs_path(name) / "esphome_pch.h.gch.sum").read_text()
+        )
+    assert sums[0] == sums[1]
+
+
+def test_write_project_pch_sum_tracks_src_flags(tmp_path: Path) -> None:
+    """The header compiles with the src flags too, so they are part of what
+    ccache is told about it."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    sum_path = CORE.relative_pioenvs_path(CORE.name) / "esphome_pch.h.gch.sum"
+    sums = []
+    for value in ("1", "2"):
+        CORE.platformio_options["build_src_flags"] = f"-DSRC_ONLY={value}"
+        _write_ninja(paths)
+        sums.append(sum_path.read_text())
+    assert sums[0] != sums[1]
