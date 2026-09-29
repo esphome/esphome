@@ -838,7 +838,7 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
 
     # Keep this here, NOT in codegen: config-hash and --only-generate must keep
     # working on machines that cannot run the toolchain.
-    if CORE.is_esp8266:
+    if CORE.is_esp8266 and CORE.using_toolchain_platformio:
         from esphome.components.esp8266 import check_rosetta
 
         check_rosetta()
@@ -2367,7 +2367,8 @@ def parse_args(argv):
         metavar="{" + ",".join(t.value for t in Toolchain) + "}",
         help=(
             "Select toolchain for compiling. Overrides '<platform>.toolchain' in YAML. "
-            f"Default: {Toolchain.PLATFORMIO.value}."
+            "Default: the platform's native toolchain where it has one, else "
+            f"{Toolchain.PLATFORMIO.value}."
         ),
     )
 

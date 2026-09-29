@@ -1226,8 +1226,20 @@ jobs:
           if [ -n "$compile_csv" ]; then
             # Run compilation with grouping and isolation
             python3 script/test_build_components.py -e compile -c "$compile_csv" -f --isolate "$directly_changed_csv"
+            if [[ "${{ matrix.batch.check_idf_py }}" == "true" ]]; then
+              # The real idf.py must find nothing to configure or build in a
+              # tree built above; catches drift on ESP-IDF bumps.
+              echo "Checking the native ESP-IDF build matches idf.py"
+              python3 script/check_idf_py_equivalence.py
+            fi
           else
             echo "All components in this batch are validate-only -- skipping compile stage."
+            if [[ "${{ matrix.batch.check_idf_py }}" == "true" ]]; then
+              # determine-jobs and this step disagree on what compiles; fail
+              # rather than let the check run nowhere.
+              echo "::error::This batch was picked for the idf.py check but compiled nothing"
+              exit 1
+            fi
           fi
 
       - name: Print ccache statistics
