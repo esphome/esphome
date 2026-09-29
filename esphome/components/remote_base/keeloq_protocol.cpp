@@ -25,18 +25,20 @@ KeeLoq Protocol
 
 Coded using information from datasheet for Microchip HCS301 KeeLow Code Hopping Encoder
 
-Encoder - Hopping code is generated at random.
+Encoder - Hopping code is generated at random unless provided by the caller.
+Optional suffix bits may follow the 66-bit HCS301 word (same PWM coding).
 
 Decoder - Hopping code is ignored and not checked when received. Serial number of
-transmitter and nutton command is decoded.
+transmitter and button command is decoded. Extra bits after the word are returned
+as suffix / suffix_bits when present.
 
 */
 
 void KeeloqProtocol::encode(RemoteTransmitData *dst, const KeeloqData &data) {
   uint32_t out_data = 0x0;
 
-  ESP_LOGD(TAG, "Send Keeloq: address=%07" PRIx32 " command=%03x encrypted=%08" PRIx32, data.address, data.command,
-           data.encrypted);
+  ESP_LOGD(TAG, "Send Keeloq: address=%07" PRIx32 " command=%03x encrypted=%08" PRIx32 " suffix_bits=%u", data.address,
+           data.command, data.encrypted, data.suffix_bits);
   ESP_LOGV(TAG, "Send Keeloq: data bits (%d + %d)", NBITS_ENCRYPTED_DATA, NBITS_FIXED_DATA);
 
   // Preamble = '01' x 12
@@ -92,6 +94,17 @@ void KeeloqProtocol::encode(RemoteTransmitData *dst, const KeeloqData &data) {
   dst->mark(1 * BIT_TIME_US);
   dst->space(2 * BIT_TIME_US);
 
+  const uint8_t extra = data.suffix_bits > 16 ? 16 : data.suffix_bits;
+  for (uint8_t i = 0; i < extra; i++) {
+    if (data.suffix & (1 << i)) {
+      dst->mark(1 * BIT_TIME_US);
+      dst->space(2 * BIT_TIME_US);
+    } else {
+      dst->mark(2 * BIT_TIME_US);
+      dst->space(1 * BIT_TIME_US);
+    }
+  }
+
   // Guard time  at end of packet
   dst->space(39 * BIT_TIME_US);
 }
@@ -103,10 +116,11 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
       .command = 0,
       .repeat = false,
       .vlow = false,
-
+      .suffix = 0,
+      .suffix_bits = 0,
   };
 
-  if (src.size() != (NBITS_PREAMBLE + NBITS_DATA) * 2) {
+  if (src.size() < (NBITS_PREAMBLE + NBITS_DATA) * 2) {
     return {};
   }
 
@@ -182,11 +196,29 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
     return {};
   }
 
+  if (out.repeat) {
+    src.expect_space(2 * BIT_TIME_US);
+  } else {
+    src.expect_space(BIT_TIME_US);
+  }
+
+  while (out.suffix_bits < 16) {
+    if (src.expect_mark(2 * BIT_TIME_US) && src.expect_space(BIT_TIME_US)) {
+      out.suffix_bits++;
+    } else if (src.expect_mark(BIT_TIME_US) && src.expect_space(2 * BIT_TIME_US)) {
+      out.suffix |= 1 << out.suffix_bits;
+      out.suffix_bits++;
+    } else {
+      break;
+    }
+  }
+
   return out;
 }
 
 void KeeloqProtocol::dump(const KeeloqData &data) {
-  ESP_LOGD(TAG, "Received Keeloq: address=0x%08" PRIx32 ", command=0x%02x", data.address, data.command);
+  ESP_LOGD(TAG, "Received Keeloq: address=0x%08" PRIx32 ", command=0x%02x, encrypted=0x%08" PRIx32 ", suffix=0x%04x/%u",
+           data.address, data.command, data.encrypted, data.suffix, data.suffix_bits);
 }
 
 }  // namespace esphome::remote_base
