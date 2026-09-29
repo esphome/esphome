@@ -12,6 +12,7 @@ from esphome.components.const import CONF_BYTE_ORDER, KEY_METADATA
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEFAULTS,
+    CONF_DITHER,
     CONF_FILE,
     CONF_FILES,
     CONF_ID,
@@ -177,6 +178,91 @@ class ImageBinary(ImageEncoder):
             self.index += 1
 
 
+class ImageRGB111(ImageEncoder):
+    allow_config = {CONF_OPAQUE, CONF_DITHER, CONF_ALPHA_CHANNEL}
+
+    def __init__(self, width, height, transparency, dither, invert_alpha):
+        if transparency == CONF_ALPHA_CHANNEL:
+            self.width3 = (width + 7) // 8 * 4
+        else:
+            self.width3 = (width + 7) // 8 * 3
+        super().__init__(self.width3, height, transparency, dither, invert_alpha)
+        self.bitno = 0
+
+    def convert(self, image, path):
+        if is_alpha_only(image):
+            image = image.split()[-1]
+        image = image.convert("RGBA")
+        if self.dither == Image.Dither.FLOYDSTEINBERG:
+            palette_data = [
+                0,
+                0,
+                0,  # black
+                255,
+                0,
+                0,  # red
+                0,
+                255,
+                0,  # green
+                255,
+                255,
+                0,  # yellow
+                0,
+                0,
+                255,  # blue
+                255,
+                0,
+                255,  # magenta
+                0,
+                255,
+                255,  # cyan
+                255,
+                255,
+                255,  # white
+            ]
+            palette_data += [0] * (768 - len(palette_data))
+            palette_img = Image.new("P", (1, 1))
+            palette_img.putpalette(palette_data)
+            alpha_image = image.getchannel("A")
+            dithered_image = (
+                image.convert("RGB")
+                .quantize(palette=palette_img, dither=Image.Dither.FLOYDSTEINBERG)
+                .convert("RGBA")
+            )
+            dithered_image.putalpha(alpha_image)
+            return dithered_image
+        return image.point(lambda p: 0 if p < 128 else 255)
+
+    def add_bit(self, bit):
+        if bit:
+            self.data[self.index] |= 0x80 >> (self.bitno % 8)
+        self.bitno += 1
+        if self.bitno == 8:
+            self.bitno = 0
+            self.index += 1
+
+    def encode(self, pixel):
+        r, g, b, a = pixel
+        # Convert to 3-bit color (1 bit per channel)
+        r_bit = r > 127
+        self.add_bit(r_bit)
+        g_bit = g > 127
+        self.add_bit(g_bit)
+        b_bit = b > 127
+        self.add_bit(b_bit)
+        if self.transparency == CONF_ALPHA_CHANNEL:
+            a_bit = 1 if a > 127 else 0
+            self.add_bit(a_bit)
+
+    def end_row(self):
+        """
+        Pad rows to a byte boundary
+        """
+        if self.bitno != 0:
+            self.bitno = 0
+            self.index += 1
+
+
 class ImageGrayscale(ImageEncoder):
     allow_config = {CONF_ALPHA_CHANNEL, CONF_CHROMA_KEY, CONF_INVERT_ALPHA, CONF_OPAQUE}
 
@@ -315,6 +401,7 @@ class ReplaceWith:
 IMAGE_TYPE = {
     "BINARY": ImageBinary,
     "GRAYSCALE": ImageGrayscale,
+    "RGB111": ImageRGB111,
     "RGB565": ImageRGB565,
     "RGB": ImageRGB,
     "TRANSPARENT_BINARY": ReplaceWith("'type: BINARY' and 'transparency: chroma_key'"),
