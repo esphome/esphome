@@ -1,1 +1,2 @@
-<<: !include common-ksz8851snl.yaml
+packages:
+  ethernet: !include common-ksz8851snl.yaml
