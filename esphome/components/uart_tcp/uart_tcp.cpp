@@ -1,9 +1,11 @@
 #include "uart_tcp.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
 
 #include <arpa/inet.h>
@@ -20,6 +22,8 @@ namespace esphome {
 namespace uart_tcp {
 
 static const char *const TAG = "uart_tcp";
+
+uint32_t loop_time() { return App.get_loop_component_start_time(); }
 
 float UartTcp::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 
@@ -101,9 +105,9 @@ void UartTcp::try_resolve_() {
     return;
   }
   struct sockaddr_storage literal;
-  if (socket::set_sockaddr(reinterpret_cast<struct sockaddr *>(&literal), sizeof(literal), this->host_, this->port_) !=
-      0) {
-    this->resolved_ip_ = this->host_;
+  if (socket::set_sockaddr(reinterpret_cast<struct sockaddr *>(&literal), sizeof(literal), this->host_.c_str(),
+                           this->port_) != 0) {
+    snprintf(this->resolved_ip_, sizeof(this->resolved_ip_), "%s", this->host_.c_str());
     this->have_addr_.store(true);
     return;
   }
@@ -120,7 +124,7 @@ void UartTcp::try_resolve_() {
     return;
   }
 #elif defined(USE_HOST)
-  struct addrinfo hints {};
+  struct addrinfo hints{};
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
   struct addrinfo *res = nullptr;
@@ -128,7 +132,7 @@ void UartTcp::try_resolve_() {
     char buf[INET_ADDRSTRLEN];
     auto *in = reinterpret_cast<struct sockaddr_in *>(res->ai_addr);
     if (inet_ntop(AF_INET, &in->sin_addr, buf, sizeof(buf)) != nullptr) {
-      this->resolved_ip_ = buf;
+      snprintf(this->resolved_ip_, sizeof(this->resolved_ip_), "%s", buf);
       this->have_addr_.store(true);
     }
     freeaddrinfo(res);
@@ -142,30 +146,30 @@ void UartTcp::try_resolve_() {
 }
 
 bool UartTcp::ip_ready_() {
-  if (!this->resolved_ip_.empty()) {
+  if (this->resolved_ip_[0] != '\0') {
     return true;
   }
   if (!this->have_addr_.load()) {
     return false;
   }
-  struct in_addr addr {};
+  struct in_addr addr{};
   addr.s_addr = this->resolved_addr_.load();
   char buf[INET_ADDRSTRLEN];
   if (inet_ntop(AF_INET, &addr, buf, sizeof(buf)) == nullptr) {
     return false;
   }
-  this->resolved_ip_ = buf;
+  snprintf(this->resolved_ip_, sizeof(this->resolved_ip_), "%s", buf);
   return true;
 }
 
 void UartTcp::try_connect_() {
-  if (this->sock_ != nullptr || millis() < this->next_connect_ms_) {
+  if (this->sock_ != nullptr || loop_time() < this->next_connect_ms_) {
     return;
   }
   if (this->resolve_failed_.exchange(false)) {
     this->have_addr_.store(false);
-    this->resolved_ip_.clear();
-    this->next_connect_ms_ = millis() + this->reconnect_interval_ms_;
+    this->resolved_ip_[0] = '\0';
+    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
     return;
   }
   this->try_resolve_();
@@ -176,12 +180,12 @@ void UartTcp::try_connect_() {
   socklen_t dest_len =
       socket::set_sockaddr(reinterpret_cast<struct sockaddr *>(&dest), sizeof(dest), this->resolved_ip_, this->port_);
   if (dest_len == 0) {
-    this->next_connect_ms_ = millis() + this->reconnect_interval_ms_;
+    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
     return;
   }
   this->sock_ = socket::socket(dest.ss_family, SOCK_STREAM, IPPROTO_TCP);
   if (this->sock_ == nullptr) {
-    this->next_connect_ms_ = millis() + this->reconnect_interval_ms_;
+    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
     return;
   }
   this->apply_socket_options_(this->sock_.get());
@@ -192,28 +196,29 @@ void UartTcp::try_connect_() {
     return;
   }
   this->sock_.reset();
-  this->next_connect_ms_ = millis() + this->reconnect_interval_ms_;
+  this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
 }
 
 void UartTcp::try_listen_() {
-  if (this->listen_ != nullptr || millis() < this->next_connect_ms_) {
+  if (this->listen_ != nullptr || loop_time() < this->next_connect_ms_) {
     return;
   }
   this->listen_ = socket::socket_ip_loop_monitored(SOCK_STREAM, IPPROTO_TCP);
   if (this->listen_ == nullptr) {
-    this->next_connect_ms_ = millis() + this->reconnect_interval_ms_;
+    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
     return;
   }
   int yes = 1;
   this->listen_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
   this->listen_->setblocking(false);
   struct sockaddr_storage local;
-  socklen_t local_len = socket::set_sockaddr_any(reinterpret_cast<struct sockaddr *>(&local), sizeof(local), this->port_);
+  socklen_t local_len =
+      socket::set_sockaddr_any(reinterpret_cast<struct sockaddr *>(&local), sizeof(local), this->port_);
   if (local_len == 0 || this->listen_->bind(reinterpret_cast<struct sockaddr *>(&local), local_len) != 0 ||
       this->listen_->listen(1) != 0) {
     ESP_LOGW(TAG, "Listen on %u failed", this->port_);
     this->listen_.reset();
-    this->next_connect_ms_ = millis() + this->reconnect_interval_ms_;
+    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
     return;
   }
   ESP_LOGI(TAG, "Listening on %u", this->port_);
@@ -244,7 +249,7 @@ void UartTcp::read_socket_() {
     socklen_t len = sizeof(err);
     if (this->sock_->getsockopt(SOL_SOCKET, SO_ERROR, &err, &len) < 0 || err != 0) {
       this->close_sock_();
-      this->next_connect_ms_ = millis() + this->reconnect_interval_ms_;
+      this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
       return;
     }
     this->connecting_ = false;
@@ -256,7 +261,7 @@ void UartTcp::read_socket_() {
   if (count == 0 || (count < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
     ESP_LOGW(TAG, "Connection lost");
     this->close_sock_();
-    this->next_connect_ms_ = millis() + this->reconnect_interval_ms_;
+    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
     return;
   }
   if (count > 0) {
@@ -280,7 +285,7 @@ void UartTcp::send_all_(const uint8_t *data, size_t len) {
     }
     ESP_LOGW(TAG, "Send failed");
     this->close_sock_();
-    this->next_connect_ms_ = millis() + this->reconnect_interval_ms_;
+    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
     return;
   }
 }

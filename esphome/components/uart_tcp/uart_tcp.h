@@ -4,6 +4,8 @@
 #include "esphome/components/socket/socket.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
 #ifdef USE_ESP32
 #include "lwip/ip_addr.h"
@@ -12,7 +14,6 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
-#include <string>
 
 namespace esphome {
 namespace uart_tcp {
@@ -20,7 +21,7 @@ namespace uart_tcp {
 /// Copies raw bytes between one hardware UART and one TCP socket.
 class UartTcp : public Component, public uart::UARTDevice {
  public:
-  void set_host(const std::string &host) { this->host_ = host; }
+  void set_host(const char *host) { this->host_ = StringRef(host); }
   void set_port(uint16_t port) { this->port_ = port; }
   void set_server(bool server) { this->server_ = server; }
   void set_reconnect_interval(uint32_t ms) { this->reconnect_interval_ms_ = ms; }
@@ -49,7 +50,7 @@ class UartTcp : public Component, public uart::UARTDevice {
   static void dns_found_(const char *name, const ip_addr_t *addr, void *arg);
 #endif
 
-  std::string host_;
+  StringRef host_;
   uint16_t port_{0};
   bool server_{false};
   std::unique_ptr<socket::Socket> sock_;
@@ -64,7 +65,7 @@ class UartTcp : public Component, public uart::UARTDevice {
   std::atomic<bool> resolve_failed_{false};
   std::atomic<bool> have_addr_{false};
   std::atomic<uint32_t> resolved_addr_{0};
-  std::string resolved_ip_;
+  char resolved_ip_[16]{};
 };
 
 }  // namespace uart_tcp

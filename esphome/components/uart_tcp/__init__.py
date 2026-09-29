@@ -8,6 +8,7 @@ from esphome.const import (
     DEVICE_CLASS_CONNECTIVITY,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
 DEPENDENCIES = ["network", "socket", "uart"]
@@ -23,7 +24,7 @@ CONF_RECONNECT_INTERVAL = "reconnect_interval"
 CONF_CONNECTED = "connected"
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     if config[CONF_ROLE] == "server" and CONF_HOST in config:
         raise cv.Invalid("host is only used when role is client", path=[CONF_HOST])
     if config[CONF_ROLE] == "client" and CONF_HOST not in config:
@@ -54,15 +55,14 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
     cg.add(var.set_server(config[CONF_ROLE] == "server"))
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
-    if CONF_HOST in config:
-        cg.add(var.set_host(config[CONF_HOST]))
-    if CONF_CONNECTED in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_CONNECTED])
-        cg.add(var.set_connected_sensor(sens))
+    if (host := config.get(CONF_HOST)) is not None:
+        cg.add(var.set_host(host))
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_CONNECTED, var.set_connected_sensor)
