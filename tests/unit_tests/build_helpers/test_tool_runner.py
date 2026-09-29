@@ -318,3 +318,21 @@ def test_get_kernel32_loads_it_on_windows(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(tool_runner.sys, "platform", "win32")
     monkeypatch.setitem(sys.modules, "ctypes", fake_ctypes)
     assert tool_runner._get_kernel32() is kernel32
+
+
+def test_run_build_tool_logs_the_unfiltered_output(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The log gets every line, filtered or not, for idf.py's hint matcher."""
+    log = tmp_path / "log" / "ninja_all_output.log"
+    _, out = _run(
+        capsys,
+        tmp_path,
+        "print('-- Component paths: /a')\nprint('\\x1b[1merror:\\x1b[0m boom')",
+        filter_lines=FILTER,
+        log_path=log,
+    )
+    assert out == "\x1b[1merror:\x1b[0m boom\n"
+    assert log.read_text(encoding="utf-8").replace("\r\n", "\n") == (
+        "-- Component paths: /a\nerror: boom\n"
+    )

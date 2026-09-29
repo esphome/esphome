@@ -17,7 +17,7 @@ import subprocess
 import sys
 from typing import Any, TextIO
 
-from esphome.util import RedirectText, shlex_quote
+from esphome.util import ANSI_ESCAPE, RedirectText, shlex_quote
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -139,16 +139,22 @@ def run_build_tool(
     env: dict[str, str],
     filter_lines: list[str] | None = None,
     progress: bool = False,
+    log_path: Path | None = None,
 ) -> int:
     """Run ``cmd`` and relay stdout and stderr, merged, to our stdout.
 
-    Returns the exit code.
+    ``log_path`` also gets the full, unfiltered output without color codes, as
+    idf.py wrote its logs (its hint patterns expect plain text). Returns the
+    exit code.
     """
     _LOGGER.debug("Running: %s", " ".join(shlex_quote(arg) for arg in cmd))
     _LOGGER.debug("  in directory: %s", cwd)
     output = ToolOutput(sys.stdout, filter_lines, progress)
     decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    if log_path is not None:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
     with (
+        Path(log_path or os.devnull).open("w", encoding="utf-8", newline="") as log,
         Utf8Console(_get_kernel32()),
         subprocess.Popen(
             cmd,
@@ -163,8 +169,11 @@ def run_build_tool(
             # read1 returns as soon as anything is available, so output
             # streams while the tool runs.
             while chunk := proc.stdout.read1(_READ_SIZE):
-                output.write(decoder.decode(chunk))
+                text = decoder.decode(chunk)
+                log.write(ANSI_ESCAPE.sub("", text))
+                output.write(text)
             if tail := decoder.decode(b"", final=True):
+                log.write(ANSI_ESCAPE.sub("", tail))
                 output.write(tail)
         finally:
             output.drain()

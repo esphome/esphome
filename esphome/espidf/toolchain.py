@@ -314,16 +314,19 @@ def run_reconfigure(verbose: bool = False) -> int:
         cmd += ["-B", str(build_dir)]
     cmd += [f"-D{name}={value}" for name, value in _configure_defines().items()]
     cmd.append(str(build_dir.parent))
+    log_path = build_dir / "log" / "cmake_output.log"
     rc = run_build_tool(
         cmd,
         cwd=build_dir,
         env=_tool_env(),
         filter_lines=None if verbose else FILTER_IDF_LINES,
+        log_path=log_path,
     )
     if rc != 0:
         # As idf.py does: a partial cache must not look configured.
         (build_dir / "CMakeCache.txt").unlink(missing_ok=True)
         _LOGGER.error("CMake configure failed with exit code %d", rc)
+        _print_hints(log_path)
     return rc
 
 
@@ -365,16 +368,57 @@ def _run_ninja(
     if verbose:
         cmd.append("-v")
     cmd.append(target)
+    log_path = _build_dir() / "log" / f"ninja_{Path(target).name}_output.log"
     rc = run_build_tool(
         cmd,
         cwd=_build_dir(),
         env={**_tool_env(), **(extra_env or {})},
         filter_lines=None if verbose else FILTER_IDF_LINES,
         progress=progress and not verbose,
+        log_path=log_path,
     )
     if rc != 0:
         _LOGGER.error("ninja %s failed with exit code %d", target, rc)
+        _print_hints(log_path)
     return rc
+
+
+# Runs IDF's own hint matcher (hints.yml plus its hint modules) on a failed
+# tool's output, as idf.py did; it only lives in the IDF venv.
+_HINTS_SCRIPT = """
+import sys
+sys.path.insert(0, sys.argv[1])
+from idf_py_actions.tools import generate_hints
+for hint in generate_hints(sys.argv[2]):
+    print(hint)
+"""
+
+
+def _print_hints(log_path: Path) -> None:
+    """Print ESP-IDF's advice for a failed build; never fails the build itself."""
+    try:
+        result = subprocess.run(
+            [
+                _get_idf_tool("python"),
+                "-c",
+                _HINTS_SCRIPT,
+                str(_get_idf_path() / "tools"),
+                str(log_path),
+            ],
+            env=_get_idf_env(),
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError, EsphomeError) as err:
+        _LOGGER.debug("Could not get ESP-IDF hints: %s", err)
+        return
+    if result.returncode != 0:
+        _LOGGER.debug("Could not get ESP-IDF hints:\n%s", result.stderr)
+        return
+    if hints := result.stdout.strip():
+        _LOGGER.warning("%s", hints)
 
 
 def _builtin_component_cache_path() -> Path | None:

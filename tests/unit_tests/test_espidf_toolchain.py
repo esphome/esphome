@@ -798,11 +798,17 @@ def test_run_reconfigure_failure_removes_cmakecache(
     cache = Path(os.path.realpath(CORE.build_path)) / "build" / "CMakeCache.txt"
     cache.parent.mkdir(parents=True)
     cache.write_text("")
-    with _fake_tools() as mock_run:
+    with (
+        _fake_tools() as mock_run,
+        patch.object(toolchain, "_print_hints") as mock_hints,
+    ):
         mock_run.return_value = 4
         assert toolchain.run_reconfigure() == 4
     assert not cache.exists()
     assert "CMake configure failed with exit code 4" in caplog.text
+    log_path = mock_run.call_args.kwargs["log_path"]
+    assert log_path == cache.parent / "log" / "cmake_output.log"
+    mock_hints.assert_called_once_with(log_path)
 
 
 @pytest.mark.parametrize(
@@ -914,9 +920,15 @@ def test_run_ninja_filters_and_reports_failure(
     setup_core: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     _setup_build(setup_core)
-    with _fake_tools() as mock_run:
+    with (
+        _fake_tools() as mock_run,
+        patch.object(toolchain, "_print_hints") as mock_hints,
+    ):
         mock_run.return_value = 1
         assert toolchain._run_ninja("all", verbose=False, jobs=None, progress=True) == 1
+    log_path = mock_run.call_args.kwargs["log_path"]
+    assert log_path.name == "ninja_all_output.log"
+    mock_hints.assert_called_once_with(log_path)
     assert mock_run.call_args.args[0] == ["/tools/ninja", "all"]
     assert mock_run.call_args.kwargs["filter_lines"] is toolchain.FILTER_IDF_LINES
     assert mock_run.call_args.kwargs["progress"] is True
@@ -1039,3 +1051,48 @@ def test_build_jobs_rejects_invalid_idf_py_build_jobs(
     monkeypatch.setenv("IDF_PY_BUILD_JOBS", value)
     with pytest.raises(EsphomeError, match="positive integer"):
         toolchain._build_jobs({CONF_ESPHOME: {}})
+
+
+@contextmanager
+def _hint_env(tmp_path: Path, **run_kwargs: object) -> Iterator:
+    with (
+        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
+        patch.object(toolchain, "_get_idf_path", return_value=tmp_path / "idf"),
+        patch.object(toolchain, "_get_idf_env", return_value={}),
+        patch.object(toolchain.subprocess, "run", **run_kwargs) as mock_run,
+    ):
+        yield mock_run
+
+
+def test_print_hints_shows_idf_advice(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The hint step runs IDF's own generate_hints on the failed tool's log."""
+    log = tmp_path / "ninja_all_output.log"
+    done = subprocess.CompletedProcess([], 0, "HINT: the binary is too big\n", "")
+    with _hint_env(tmp_path, return_value=done) as mock_run:
+        toolchain._print_hints(log)
+    cmd = mock_run.call_args.args[0]
+    assert cmd[0] == "/py"
+    assert "generate_hints" in cmd[2]
+    assert cmd[3:] == [str(tmp_path / "idf" / "tools"), str(log)]
+    assert "HINT: the binary is too big" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "run_kwargs",
+    [
+        {"return_value": subprocess.CompletedProcess([], 1, "", "ImportError")},
+        {"return_value": subprocess.CompletedProcess([], 0, "  \n", "")},
+        {"side_effect": subprocess.TimeoutExpired("py", 60)},
+        {"side_effect": OSError("gone")},
+    ],
+    ids=["script-fails", "no-hints", "timeout", "oserror"],
+)
+def test_print_hints_never_fails_the_build(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, run_kwargs: dict
+) -> None:
+    """No hints is fine; the hint step must not raise or add warnings."""
+    with caplog.at_level("WARNING"), _hint_env(tmp_path, **run_kwargs):
+        toolchain._print_hints(tmp_path / "log")
+    assert caplog.records == []
