@@ -359,7 +359,12 @@ def ensure_cached_bootloader(verbose: bool = False) -> bool:
     table_offset = (app_config or {}).get("PARTITION_TABLE_OFFSET")
     compiler = toolchain._resolved_c_compiler()
     if offset is None or table_offset is None or compiler is None:
-        _LOGGER.debug("Bootloader cache unusable: app configure outputs missing")
+        _LOGGER.info(
+            "Bootloader cache unusable: offset=%s table_offset=%s compiler=%s",
+            offset,
+            table_offset,
+            compiler,
+        )
         return False
     try:
         dest = _install_cached(app_config, compiler, verbose)

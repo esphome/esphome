@@ -484,9 +484,13 @@ def test_size_check_overflow_raises(tmp_path: Path) -> None:
 # ------------------------------------------------------------ orchestration
 
 
-def test_ensure_fails_soft_without_configure_outputs() -> None:
+def test_ensure_fails_soft_without_configure_outputs(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """No app config or compiler id means fall back, not crash."""
-    assert bootloader.ensure_cached_bootloader() is False
+    with caplog.at_level("INFO"):
+        assert bootloader.ensure_cached_bootloader() is False
+    assert "cache unusable" in caplog.text  # says which input is missing
 
 
 @contextmanager
