@@ -34,18 +34,24 @@ jobs:
         run: |
           python -m venv venv
           source ./venv/Scripts/activate
+          # idf_tools refuses to run under MSYS, which Git Bash announces
+          unset MSYSTEM
           pip install -r requirements.txt
           pip install -e .
       - name: Compiler version
         shell: bash
         run: |
           source ./venv/Scripts/activate
+          # idf_tools refuses to run under MSYS, which Git Bash announces
+          unset MSYSTEM
           esphome compile --only-generate ${{ matrix.config }} || true
       - name: Compile with the rule
         shell: bash
         run: |
           set -o pipefail
           source ./venv/Scripts/activate
+          # idf_tools refuses to run under MSYS, which Git Bash announces
+          unset MSYSTEM
           esphome compile ${{ matrix.config }} 2>&1 | tee rule.log
           echo "--- header lines ---"
           grep -iE "precompiled header|dumpfullversion" rule.log || true
@@ -57,6 +63,8 @@ jobs:
         run: |
           set -o pipefail
           source ./venv/Scripts/activate
+          # idf_tools refuses to run under MSYS, which Git Bash announces
+          unset MSYSTEM
           esphome compile ${{ matrix.config }} 2>&1 | tee forced.log
       - name: Report the forced run
         shell: bash

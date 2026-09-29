@@ -3,6 +3,7 @@ esphome:
 
 esp32:
   board: esp32dev
+  toolchain: platformio
   framework:
     type: arduino
 
