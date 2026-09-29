@@ -437,7 +437,8 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("SERIAL", False, False)
 
     # disable stuff to make image smaller by default
-    zephyr_add_prj_conf("NCS_BOOT_BANNER", False, False)
+    if framework_ver >= cv.Version(2, 9, 2):
+        zephyr_add_prj_conf("NCS_BOOT_BANNER", False, False)
     zephyr_add_prj_conf("BOOT_BANNER", False, False)
     zephyr_add_prj_conf("PRINTK", False, False)
     zephyr_add_prj_conf("CONSOLE", False, False)
