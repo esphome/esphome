@@ -287,8 +287,10 @@ void LD600XComponent::setup() {
     // The work mode fallback reads presence off this stream, so it counts as a
     // consumer of it here.  This only feeds the automatic branch below: with a
     // target_display switch configured that switch still decides, and the
-    // fallback weighs no presence at all while the stream is off.
-    want_target_stream = want_target_stream || this->work_mode_text_sensor_ != nullptr;
+    // fallback weighs no presence at all while the stream is off.  A model that
+    // reports the mode itself has no fallback and so no claim on the stream.
+    want_target_stream =
+        want_target_stream || (this->work_mode_text_sensor_ != nullptr && this->work_mode_uses_fallback());
 #endif
     bool target_display_controlled = false;
 #ifdef USE_SWITCH
@@ -368,7 +370,7 @@ void LD600XComponent::setup() {
     bool want_low_power = false;
 #endif
 #ifdef USE_TEXT_SENSOR
-    want_low_power = want_low_power || this->work_mode_text_sensor_ != nullptr;
+    want_low_power = want_low_power || (this->work_mode_text_sensor_ != nullptr && this->work_mode_uses_fallback());
 #endif
     if (want_low_power) {
       this->send_control_command_(CMD_GET_LOW_POWER);
@@ -932,7 +934,7 @@ void LD600XComponent::handle_work_mode_report_(const uint8_t *data, uint16_t len
 
 void LD600XComponent::update_work_mode_fallback_() {
 #ifdef USE_TEXT_SENSOR
-  if (this->work_mode_text_sensor_ == nullptr || this->work_mode_reported_) {
+  if (this->work_mode_text_sensor_ == nullptr || this->work_mode_reported_ || !this->work_mode_uses_fallback()) {
     return;
   }
   if (!this->low_power_reported_) {
@@ -1266,6 +1268,7 @@ void LD600XComponent::wake_() {
   this->set_timeout(WAKE_BUTTON_TIMEOUT, this->wakeup_pulse_ms_, [this]() { this->wakeup_pin_->digital_write(true); });
 }
 
+#ifdef USE_NUMBER
 void LD600XComponent::set_number_value(uint8_t kind, float value) {
   switch (kind) {
     case NUMBER_HOLD_DELAY: {
@@ -1319,7 +1322,9 @@ void LD600XComponent::set_number_value(uint8_t kind, float value) {
       break;
   }
 }
+#endif  // USE_NUMBER
 
+#ifdef USE_SELECT
 void LD600XComponent::set_select_value(uint8_t kind, size_t index) {
   switch (kind) {
     case SELECT_SENSITIVITY:
@@ -1358,6 +1363,7 @@ void LD600XComponent::set_select_value(uint8_t kind, size_t index) {
       break;
   }
 }
+#endif  // USE_SELECT
 
 void LD600XComponent::update_area_numbers_(const AreaConfig &area) {
   // A report refreshes every axis the user is not in the middle of changing.  An
@@ -1679,6 +1685,7 @@ void LD600XComponent::clear_target_state_() {
   }
 }
 
+#ifdef USE_SWITCH
 void LD600XComponent::set_switch_state(uint8_t kind, bool state) {
   switch (kind) {
     case SWITCH_LOW_POWER:
@@ -1713,7 +1720,9 @@ void LD600XComponent::set_switch_state(uint8_t kind, bool state) {
       break;
   }
 }
+#endif  // USE_SWITCH
 
+#ifdef USE_BUTTON
 void LD600XComponent::press_button(uint8_t kind) {
   switch (kind) {
     case BUTTON_APPLY_AREA:
@@ -1769,5 +1778,6 @@ void LD600XComponent::press_button(uint8_t kind) {
       break;
   }
 }
+#endif  // USE_BUTTON
 
 }  // namespace esphome::ld600x
