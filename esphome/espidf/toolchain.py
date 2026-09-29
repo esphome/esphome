@@ -605,6 +605,13 @@ def get_elf_path() -> Path:
     return build_dir / "firmware.elf"
 
 
+def get_cmake_cache_value(var_name: str) -> str | None:
+    """One entry of the configured build's CMake cache, or None when unset."""
+    cmake_output = _get_cmake_output(CORE.relative_build_path("build"))
+    match = re.search(rf"^{var_name}:\w+=(.*)$", cmake_output, re.MULTILINE)
+    return match.group(1).strip() if match else None
+
+
 def get_objdump_path() -> Path:
     return _get_cmake_tool_path("CMAKE_OBJDUMP")
 

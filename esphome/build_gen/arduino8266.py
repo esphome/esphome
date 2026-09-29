@@ -1053,12 +1053,9 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         + ["stdc++-exc" if config.exceptions else "stdc++", "m", "c", "gcc"]
     )
 
+    cxx = (toolchain_tool(paths.toolchain, "g++"),)
     lines = [
-        *tool_lines(
-            (toolchain_tool(paths.toolchain, "gcc"),),
-            (toolchain_tool(paths.toolchain, "g++"),),
-            ccache,
-        ),
+        *tool_lines((toolchain_tool(paths.toolchain, "gcc"),), cxx, ccache),
         *compile_rule_lines(),
         *ar_rule_lines(toolchain_tool(paths.toolchain, "ar")),
         *pch_rule_lines(),
@@ -1146,6 +1143,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         flag_sets.cxxflags,
         src_other,
         (str(paths.framework), str(paths.toolchain)),
+        cxx,
     )
     src_objs = compile_edges(
         lines,

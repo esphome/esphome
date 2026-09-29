@@ -81,7 +81,7 @@ def _fake_cxx(tmp_path: Path, fail: bool = False) -> Path:
         'case "$1" in -print-prog-name=*) n=${1#*=};'
         ' p="$(dirname "$0")/../libexec/gcc/arm-none-eabi/10.3.1/$n";'
         ' [ -x "$p" ] && echo "$p" || echo "$n"; exit 0;;'
-        ' -dumpversion) echo "${FAKE_GCC_VERSION:-10.3.1}"; exit 0;; esac\n'
+        ' -dumpversion|-dumpfullversion) echo "${FAKE_GCC_VERSION:-10.3.1}"; exit 0;; esac\n'
         'printf -- ---call---\\\\n >> "$0.argv"; printf \'%s\\n\' "$@" >> "$0.argv"\n'
     )
     if fail:
@@ -103,6 +103,7 @@ def _run_script(
     platform_cls: type[_FakePlatform] = _FakePlatform,
     build_files: Callable[[tuple], list] | None = None,
     cxx: Path | None = None,
+    version: str = "14.2.0",
 ) -> _FakeSConsEnv:
     proj = tmp_path / name
     src = proj / "src"
@@ -112,7 +113,7 @@ def _run_script(
         '#include "esphome/core/defines.h"\n'
     )
     if cxx is None:
-        cxx = _fake_cxx(tmp_path, fail=fail)
+        cxx = _fake_cxx(tmp_path, fail=fail, version=version)
     args = (proj, src, str(cxx), flags or ["-DX=1"], platform_cls)
     # Distinct objects: the -include flags must land on projenv only
     global_env = _FakeSConsEnv(*args)
@@ -272,6 +273,34 @@ def test_pch_script_names_match_the_python_side(tmp_path: Path) -> None:
     assert namespace["_GUARD_TEXT"] == pch.PCH_GUARD_TEXT
     assert namespace["_INCLUDE_RE"].pattern == pch._INCLUDE_RE.pattern
     assert namespace["_CC1_DIR"] == pch.PCH_CC1_DIR
+    assert namespace["_WINDOWS_GCC_FIXED"] == pch.PCH_WINDOWS_GCC_FIXED
+    assert namespace["_WINDOWS_GCC_FIXED_DEFAULT"] == pch.PCH_WINDOWS_GCC_FIXED_DEFAULT
+
+
+@pytest.mark.parametrize(
+    ("version", "env_vars", "on"),
+    [
+        ("14.2.0", {}, False),
+        ("14.4.0", {}, True),
+        ("14.2.0", {"ESPHOME_PCH_ENABLE": "1"}, True),
+    ],
+)
+def test_pch_script_asks_the_compiler_on_windows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    version: str,
+    env_vars: dict[str, str],
+    on: bool,
+) -> None:
+    """The same rule as pch.gcc_relocates_pch_on_windows, with the knob as
+    esphome normalizes it forcing the header on."""
+    monkeypatch.setattr(sys, "platform", "win32")
+    scons_env = _run_script(tmp_path, version=version, env_vars=env_vars)
+    assert (scons_env.prepended == pch.pch_consumer_flags()) is on
+    assert (tmp_path / "dev" / "esphome_pch.h.gch").is_file() is on
+    out = capsys.readouterr().out
+    assert ("cannot load a precompiled header on Windows" in out) is not on
 
 
 def test_pch_script_compile_failure_stops_the_build(tmp_path: Path) -> None:

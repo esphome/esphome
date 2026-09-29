@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -33,6 +35,55 @@ def test_pch_enabled(value: str | None, expected: bool) -> None:
     env = {} if value is None else {"ESPHOME_PCH_ENABLE": value}
     with patch.dict(os.environ, env, clear=True):
         assert pch.pch_enabled() is expected
+
+
+@pytest.mark.parametrize(
+    ("version", "expected"),
+    [
+        ((), False),
+        ((10, 3), False),
+        ((12, 2, 1), False),
+        ((14, 2, 0), False),
+        ((14, 3), False),
+        ((14, 4), True),
+        ((14,), False),
+        ((15, 2, 0), False),
+        ((15, 3), True),
+        ((16, 0), True),
+        ((17, 1), True),
+    ],
+)
+def test_gcc_relocates_pch_on_windows(version: tuple[int, ...], expected: bool) -> None:
+    assert pch.gcc_relocates_pch_on_windows(version) is expected
+
+
+def test_gcc_version_asks_the_compiler() -> None:
+    cxx = (sys.executable, "-c", "print('14.4.0')")
+    assert pch.gcc_version(cxx) == (14, 4, 0)
+    assert pch.gcc_version((sys.executable, "-c", "print('gcc')")) == ()
+    assert pch.gcc_version(("/nonexistent/g++",)) == ()
+
+
+def test_pch_usable_asks_the_compiler_on_windows_only(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO, logger=pch.__name__)
+    monkeypatch.delenv("ESPHOME_PCH_ENABLE")
+    monkeypatch.setattr(pch.sys, "platform", "darwin")
+    with patch.object(pch, "gcc_version", side_effect=AssertionError("off Windows")):
+        assert pch.pch_usable(("g++",))
+    monkeypatch.setattr(pch.sys, "platform", "win32")
+    with patch.object(pch, "gcc_version", return_value=(14, 2, 0)):
+        assert not pch.pch_usable(("g++",))
+    assert "GCC 14.2.0 cannot load a precompiled header on Windows" in caplog.text
+    with patch.object(pch, "gcc_version", return_value=(14, 4, 0)):
+        assert pch.pch_usable(("g++",))
+    # The knob overrides the rule both ways
+    with patch.object(pch, "gcc_version", side_effect=AssertionError("forced")):
+        monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+        assert pch.pch_usable(("g++",))
+        monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+        assert not pch.pch_usable(("g++",))
 
 
 def test_ccache_pch_env_enabled() -> None:

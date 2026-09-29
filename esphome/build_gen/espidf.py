@@ -3,6 +3,7 @@
 import json
 import logging
 from pathlib import Path
+import textwrap
 
 from esphome.build_helpers import pch
 from esphome.components.esp32 import (
@@ -289,6 +290,8 @@ target_link_options(${{COMPONENT_LIB}} PUBLIC
 # Where CMake puts the .gch of the src component; ccache reads the checksum
 # next to it in place of the .gch
 _PCH_SUM_PATH = "build/esp-idf/src/CMakeFiles/__idf_src.dir/cmake_pch.hxx.gch.sum"
+# The cache entry the Windows gate records its choice in
+_PCH_CHOICE_VAR = "ESPHOME_PCH"
 
 
 def _pch_cmake_block() -> str:
@@ -300,11 +303,23 @@ def _pch_cmake_block() -> str:
         f'    "$<$<COMPILE_LANGUAGE:CXX>:${{CMAKE_CURRENT_SOURCE_DIR}}/{header}>"'
         for header in pch.PCH_DEFAULT_HEADERS
     )
-    return f"""
-# ESPHome precompiled header
-target_precompile_headers(${{COMPONENT_LIB}} PRIVATE
+    block = f"""target_precompile_headers(${{COMPONENT_LIB}} PRIVATE
 {headers}
-)
+)"""
+    if not pch.pch_needs_gcc_check():
+        return f"\n# ESPHome precompiled header\n{block}\n"
+    # Only CMake knows the compiler version before the first configure; the
+    # choice is cached for write_pch_checksum
+    return f"""
+# ESPHome precompiled header, unless this GCC loads it on Windows only at
+# the address it was saved from (GCC bug 14940)
+if({pch.PCH_WINDOWS_CMAKE_OLD_GCC})
+  message(STATUS "ESPHome: GCC ${{CMAKE_CXX_COMPILER_VERSION}} cannot load a precompiled header on Windows; compiling without it")
+  set({_PCH_CHOICE_VAR} OFF CACHE BOOL "ESPHome precompiled header in use" FORCE)
+else()
+  set({_PCH_CHOICE_VAR} ON CACHE BOOL "ESPHome precompiled header in use" FORCE)
+{textwrap.indent(block, "  ")}
+endif()
 """
 
 
@@ -315,7 +330,12 @@ def _read_if_exists(path: Path) -> str:
 def write_pch_checksum() -> None:
     """Write the checksum ccache uses in place of the .gch: the core headers,
     the framework version, the sdkconfig and the managed component versions."""
+    from esphome.espidf.toolchain import get_cmake_cache_value
+
     if not pch.pch_enabled():
+        return
+    # After configure, so the gate's choice is in the CMake cache
+    if pch.pch_needs_gcc_check() and get_cmake_cache_value(_PCH_CHOICE_VAR) != "ON":
         return
     pch.log_pch_in_use()
     checksum = pch.pch_checksum(
