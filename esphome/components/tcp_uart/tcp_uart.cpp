@@ -159,7 +159,7 @@ void TcpUart::try_resolve_() {
     return;
   }
 #else
-  struct addrinfo hints{};
+  struct addrinfo hints {};
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
   struct addrinfo *res = nullptr;
