@@ -117,7 +117,11 @@ def _src_envs(src_dir: Path) -> list:
 
 
 def _driver_output(cxx: str, option: str) -> str:
-    result = subprocess.run([cxx, option], capture_output=True, text=True)  # noqa: PLW1510
+    """What the driver prints for ``option``, or "" when it cannot run."""
+    try:
+        result = subprocess.run([cxx, option], capture_output=True, text=True)  # noqa: PLW1510
+    except OSError:
+        return ""
     return result.stdout.strip()
 
 
@@ -143,18 +147,20 @@ def _old_gcc_flags(proj_dir: Path, pio_platform: str, cxx: str):
     wrapper.write_text(_CC1PLUS_WRAPPER.format(python=sys.executable, real=real))
     wrapper.chmod(0o755)
     return [f"-B{_CC1_DIR}/"]
+
+
 def _gcc_loads_pch_here(cxx: str) -> bool:
     """Whether this compiler loads a .gch on this host; prints why not.
     esphome normalizes ESPHOME_PCH_ENABLE=1 into the environment to insist."""
     if sys.platform != "win32" or os.environ.get("ESPHOME_PCH_ENABLE") == "1":
         return True
-    result = subprocess.run([cxx, "-dumpfullversion"], capture_output=True, text=True)  # noqa: PLW1510
-    parts = result.stdout.strip().split(".")
+    reported = _driver_output(cxx, "-dumpfullversion")
+    parts = reported.split(".")
     version = tuple(int(p) for p in parts) if all(p.isdigit() for p in parts) else ()
     if version and version[:2] >= _WINDOWS_GCC_FIXED.get(version[0], _WINDOWS_GCC_FIXED_DEFAULT):
         return True
     print(
-        f"ESPHome: GCC {result.stdout.strip() or 'of unknown version'} cannot load a "
+        f"ESPHome: GCC {reported or 'of unknown version'} cannot load a "
         "precompiled header on Windows (GCC bug 14940); compiling without it"
     )
     return False
