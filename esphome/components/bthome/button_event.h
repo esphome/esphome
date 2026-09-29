@@ -16,7 +16,16 @@ static constexpr uint32_t NO_PACKET_COOLDOWN_MS = 1200;
 
 // 1-based object order. Returns 0 when that button is absent.
 // 0xFE is returned as 0x80. Every other value is left raw.
-uint8_t button_event_at(const codec::Parsed &parsed, uint8_t index);
+inline uint8_t button_event_at(const codec::Parsed &parsed, uint8_t index) {
+  if (index < 1 || index > codec::MAX_BUTTONS || parsed.button_count < index) {
+    return 0;
+  }
+  const uint8_t event = parsed.buttons[index - 1];
+  if (event == BUTTON_HOLD_ALIAS) {
+    return BUTTON_HOLD;
+  }
+  return event;
+}
 
 // One instance per binary sensor. Packet id wins. Without one, a cooldown
 // drops the copies a transmitter sends for the same gesture.

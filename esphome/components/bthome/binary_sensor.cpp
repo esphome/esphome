@@ -10,6 +10,9 @@
 namespace esphome::bthome {
 
 static const char *const TAG = "bthome.button";
+// Service-data UUID 0xFCD2, little-endian, the same pair mithermometer matches.
+static constexpr uint8_t BTHOME_UUID_LO = 0xD2;
+static constexpr uint8_t BTHOME_UUID_HI = 0xFC;
 
 void BTHomeButtonBinarySensor::setup() { this->publish_initial_state(false); }
 
@@ -28,7 +31,7 @@ bool BTHomeButtonBinarySensor::parse_device(const ble_device_base::ESPBTDevice &
   }
   bool matched = false;
   for (const auto &service_data : device.get_service_datas()) {
-    if (!service_data.uuid.contains(0xD2, 0xFC)) {
+    if (!service_data.uuid.contains(BTHOME_UUID_LO, BTHOME_UUID_HI)) {
       continue;
     }
     matched = true;

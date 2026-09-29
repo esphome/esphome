@@ -22,9 +22,9 @@ class BTHomeButtonBinarySensor final : public binary_sensor::BinarySensor,
   bool parse_device(const ble_device_base::ESPBTDevice &device) override;
 
  protected:
-  PacketDedup dedup_{};
-  uint64_t address_{0};
   uint32_t pulse_length_ms_{200};
+  uint64_t address_{0};
+  PacketDedup dedup_{};
   uint8_t index_{1};
   uint8_t event_{0x01};
   bool encrypted_logged_{false};
