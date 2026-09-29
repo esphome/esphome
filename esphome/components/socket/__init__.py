@@ -152,6 +152,7 @@ CONFIG_SCHEMA = cv.Schema(
             rtl87xx=IMPLEMENTATION_LWIP_SOCKETS,
             host=IMPLEMENTATION_BSD_SOCKETS,
             nrf52=IMPLEMENTATION_BSD_SOCKETS,
+            zephyr=IMPLEMENTATION_BSD_SOCKETS,
         ): cv.one_of(
             IMPLEMENTATION_LWIP_TCP,
             IMPLEMENTATION_LWIP_SOCKETS,

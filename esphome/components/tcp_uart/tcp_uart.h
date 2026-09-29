@@ -60,7 +60,7 @@ class TcpUart : public uart::UARTComponent, public Component {
   static constexpr size_t RX_BUFFER_SIZE = 1024;
   static constexpr size_t TX_BUFFER_SIZE = 1024;
 
-  // Larger members first so the compiler does not insert padding.
+  // 4-byte members, then the port, then the flags, then the byte buffers.
   StringRef host_;
   std::unique_ptr<socket::Socket> sock_;
   binary_sensor::BinarySensor *connected_sensor_{nullptr};
@@ -70,14 +70,15 @@ class TcpUart : public uart::UARTComponent, public Component {
   size_t tx_len_{0};
   std::atomic<uint32_t> resolved_addr_{0};
 
-  StaticRingBuffer<uint8_t, RX_BUFFER_SIZE> rx_;
   uint16_t port_{0};
   bool connecting_{false};
   bool connected_{false};
-  std::atomic<bool> resolving_{false};
-  std::atomic<bool> resolve_failed_{false};
-  std::atomic<bool> have_addr_{false};
+  // atomic<bool> is an out-of-line call on the ESP8266 and does not link.
+  std::atomic<uint8_t> resolving_{0};
+  std::atomic<uint8_t> resolve_failed_{0};
+  std::atomic<uint8_t> have_addr_{0};
   char resolved_ip_[socket::SOCKADDR_STR_LEN]{};
+  StaticRingBuffer<uint8_t, RX_BUFFER_SIZE> rx_;
   uint8_t tx_[TX_BUFFER_SIZE]{};
 };
 
