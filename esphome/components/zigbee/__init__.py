@@ -30,7 +30,6 @@ from .const import (
     POWER_SOURCE,
     REPORT,
     ZigbeeComponent,
-    zigbee_ns,
 )
 from .const_zephyr import (
     CONF_IEEE802154_VENDOR_OUI,
@@ -293,14 +292,8 @@ ZIGBEE_ACTION_SCHEMA = automation.maybe_simple_id(
     )
 )
 
-FactoryResetAction = zigbee_ns.class_(
-    "FactoryResetAction", automation.Action, cg.Parented.template(ZigbeeComponent)
-)
-
-
-automation.register_parented_action(
+automation.register_apply_action(
     "zigbee.factory_reset",
-    FactoryResetAction,
     ZIGBEE_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("factory_reset()"),
 )

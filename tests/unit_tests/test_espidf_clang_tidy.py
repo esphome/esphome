@@ -1,5 +1,7 @@
 """Tests for esphome.espidf.clang_tidy tidy-project generation."""
 
+# pylint: disable=protected-access
+
 import json
 import os
 from pathlib import Path
@@ -99,3 +101,39 @@ def test_idedata_from_tidy_project_missing_tu_raises(tmp_path) -> None:
     compile_commands.write_text(json.dumps([]))
     with pytest.raises(RuntimeError, match="tidy.cpp not found"):
         clang_tidy._idedata_from_tidy_project(compile_commands)
+
+
+@pytest.mark.parametrize(
+    ("reconfigure_rcs", "error"),
+    [
+        ((1,), "ESP-IDF CMake configure \\(discovery\\) failed"),
+        ((0, 1), "ESP-IDF CMake configure failed"),
+        ((0, 0), None),
+    ],
+    ids=["discovery", "full", "ok"],
+)
+def test_generate_compile_commands_configures_twice(
+    tmp_path: Path, reconfigure_rcs: tuple[int, ...], error: str | None
+) -> None:
+    """Discovery configure, then a configure requiring what it found."""
+    with (
+        patch.object(clang_tidy, "_setup_core"),
+        patch.object(clang_tidy, "_convert_pio_libs", return_value={}),
+        patch.object(clang_tidy, "_write_tidy_project") as mock_write,
+        patch("esphome.espidf.toolchain.run_reconfigure", side_effect=reconfigure_rcs),
+        patch(
+            "esphome.build_gen.espidf.get_available_components",
+            return_value=["lwip", "esp_timer"],
+        ),
+    ):
+        if error:
+            with pytest.raises(RuntimeError, match=error):
+                clang_tidy._generate_compile_commands(
+                    tmp_path, _settings(), tmp_path / "platformio.ini"
+                )
+            return
+        result = clang_tidy._generate_compile_commands(
+            tmp_path, _settings(), tmp_path / "platformio.ini"
+        )
+    assert result == tmp_path / "build" / "compile_commands.json"
+    assert mock_write.call_args_list[1].args[1] == ["esp_timer", "lwip"]
