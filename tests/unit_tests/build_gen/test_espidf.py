@@ -541,9 +541,8 @@ def test_component_cmakelists_pch_block(monkeypatch: pytest.MonkeyPatch) -> None
 def test_component_cmakelists_pch_gate_on_windows(
     windows_gcc_rule: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Before the first configure only CMake knows the compiler version, so
-    the block carries the rule and records its choice; ESPHOME_PCH_ENABLE=1
-    drops the gate."""
+    """The block carries the rule and records its choice; the knob drops
+    the gate."""
     from esphome.build_gen.espidf import get_component_cmakelists
 
     content = get_component_cmakelists()

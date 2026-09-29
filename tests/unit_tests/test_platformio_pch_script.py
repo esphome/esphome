@@ -293,8 +293,7 @@ def test_pch_script_asks_the_compiler_on_windows(
     env_vars: dict[str, str],
     on: bool,
 ) -> None:
-    """The same rule as pch.gcc_relocates_pch_on_windows, with the knob as
-    esphome normalizes it forcing the header on."""
+    """The Python rule again, plus the normalized knob."""
     monkeypatch.setattr(sys, "platform", "win32")
     scons_env = _run_script(
         tmp_path, env_vars={"FAKE_GCC_VERSION": version, **env_vars}

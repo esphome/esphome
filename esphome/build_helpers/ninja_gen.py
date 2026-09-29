@@ -131,8 +131,8 @@ def pch_edges(
 
     ``headers`` are folded into one prefix header, ``src_flags`` are the
     flags every src edge carries, ``identity`` names what else the compile
-    depends on, the compiler included, and ``cxx`` is the compiler the host
-    rule asks. Returns the ``cxx_override`` for ``compile_edges``, or None
+    depends on, the compiler included, and ``cxx`` is what the host rule
+    asks. Returns the ``cxx_override`` for ``compile_edges``, or None
     without a pch.
     """
     if not pch_usable(cxx):

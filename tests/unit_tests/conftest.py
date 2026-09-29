@@ -178,17 +178,14 @@ def held_lock() -> Callable[..., Callable[..., None]]:
 
 @pytest.fixture(autouse=True)
 def _default_pch_knobs(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The precompiled header knobs change what the generators emit; a value
-    exported in the developer's or CI's shell must not reach the tests, and
-    pinning the header on keeps the Windows runner from asking a compiler
-    it does not have."""
+    """The knob changes what the generators emit: no ambient value, and on,
+    so the Windows runner asks no compiler."""
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
 
 
 @pytest.fixture
 def windows_gcc_rule(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A Windows host with the knob unset, so the compiler version decides
-    whether the precompiled header is used."""
+    """Windows host, knob unset: the compiler version decides."""
     from esphome.build_helpers import pch
 
     monkeypatch.delenv("ESPHOME_PCH_ENABLE")

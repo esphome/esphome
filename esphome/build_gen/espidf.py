@@ -290,7 +290,7 @@ target_link_options(${{COMPONENT_LIB}} PUBLIC
 # Where CMake puts the .gch of the src component; ccache reads the checksum
 # next to it in place of the .gch
 _PCH_SUM_PATH = "build/esp-idf/src/CMakeFiles/__idf_src.dir/cmake_pch.hxx.gch.sum"
-# The cache entry the Windows gate records its choice in
+# Where the Windows gate records its choice
 _PCH_CHOICE_VAR = "ESPHOME_PCH"
 
 
@@ -308,11 +308,9 @@ def _pch_cmake_block() -> str:
 )"""
     if not pch.pch_needs_gcc_check():
         return f"\n# ESPHome precompiled header\n{block}\n"
-    # Only CMake knows the compiler version before the first configure; the
-    # choice is cached for write_pch_checksum
+    # Before the first configure only CMake knows the compiler version
     return f"""
-# ESPHome precompiled header, unless this GCC loads it on Windows only at
-# the address it was saved from (GCC bug 14940)
+# ESPHome precompiled header, unless GCC bug 14940 keeps it from loading
 if({pch.PCH_WINDOWS_CMAKE_OLD_GCC})
   message(STATUS "ESPHome: GCC ${{CMAKE_CXX_COMPILER_VERSION}} cannot load a precompiled header on Windows; compiling without it")
   set({_PCH_CHOICE_VAR} OFF CACHE BOOL "ESPHome precompiled header in use" FORCE)
@@ -334,7 +332,7 @@ def write_pch_checksum() -> None:
 
     if not pch.pch_enabled():
         return
-    # After configure, so the gate's choice is in the CMake cache
+    # The gate's choice, cached by configure
     if pch.pch_needs_gcc_check() and get_cmake_cache_value(_PCH_CHOICE_VAR) != "ON":
         return
     pch.log_pch_in_use()

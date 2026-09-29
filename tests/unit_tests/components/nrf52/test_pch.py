@@ -55,8 +55,7 @@ def test_the_zephyr_compiler_decides_on_windows(
 ) -> None:
     from esphome.build_helpers import pch
 
-    # The real path would resolve the tools dir through platformdirs, which
-    # picks its Windows backend from the patched sys.platform
+    # platformdirs would pick its Windows backend from the patched sys.platform
     with (
         patch.object(nrf52, "toolchain_tool", lambda name: Path(f"/sdk/{name}.exe")),
         patch.object(pch, "gcc_version", return_value=version) as asked,

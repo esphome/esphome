@@ -66,20 +66,16 @@ def pch_enabled() -> bool:
 
 
 def pch_forced() -> bool:
-    """``ESPHOME_PCH_ENABLE=1``: the header is wanted even where the host
-    rule says the compiler cannot load it."""
+    """``ESPHOME_PCH_ENABLE=1``: wanted even where the host rule says no."""
     return parse_enable_env("ESPHOME_PCH_ENABLE") is True
 
 
 # GCC bug 14940: before these releases the Windows loader maps a .gch only
-# at the address it was saved from, so it loads by chance and the compile
-# dies with "PCH allocation failure" otherwise. The first fixed release per
-# major; from 16 on every release is fixed. PCH_WINDOWS_CMAKE_OLD_GCC and
-# the message in pch_usable spell the same table
+# at its saved address. First fixed release per major, 16 on always fixed;
+# PCH_WINDOWS_CMAKE_OLD_GCC and the pch_usable message spell the same table
 PCH_WINDOWS_GCC_FIXED = {14: (14, 4), 15: (15, 3)}
 PCH_WINDOWS_GCC_FIXED_DEFAULT = (16, 0)
-# The rule on CMAKE_CXX_COMPILER_VERSION, for a project written before the
-# first configure, when only CMake knows the compiler version
+# The same rule for CMake, which alone knows the version before configure
 PCH_WINDOWS_CMAKE_OLD_GCC = (
     "CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14.4 OR "
     "(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15 AND "
@@ -111,14 +107,12 @@ def gcc_version(cxx: Sequence[Path | str]) -> tuple[int, ...]:
 
 
 def pch_needs_gcc_check() -> bool:
-    """Whether the compiler version decides: a Windows host with the knob
-    unset."""
+    """Windows host with the knob unset: the compiler version decides."""
     return sys.platform == "win32" and parse_enable_env("ESPHOME_PCH_ENABLE") is None
 
 
 def pch_usable(cxx: Sequence[Path | str]) -> bool:
-    """The knob plus the host rule: on Windows ``cxx`` must relocate the
-    header, unless ``ESPHOME_PCH_ENABLE=1`` insists."""
+    """The knob plus the host rule; ``ESPHOME_PCH_ENABLE=1`` skips the rule."""
     if not pch_enabled():
         return False
     if not pch_needs_gcc_check():
