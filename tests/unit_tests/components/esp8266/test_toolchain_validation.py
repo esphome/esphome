@@ -14,6 +14,7 @@ from esphome.components.esp8266 import (
     ARDUINO_FRAMEWORK_SCHEMA,
     _resolve_toolchain,
     _validate_native_toolchain,
+    _warn_platformio_toolchain,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -125,10 +126,22 @@ def test_yaml_toolchain_key_resolves() -> None:
     assert CORE.using_toolchain_arduino
 
 
-def test_yaml_toolchain_key_defaults_to_platformio() -> None:
+@pytest.mark.parametrize(
+    ("config_toolchain", "expected"),
+    [
+        (None, Toolchain.ARDUINO),
+        # An explicit `toolchain:` still wins over the default
+        (Toolchain.PLATFORMIO, Toolchain.PLATFORMIO),
+        (Toolchain.ARDUINO, Toolchain.ARDUINO),
+    ],
+)
+def test_default_toolchain_is_arduino(
+    config_toolchain: Toolchain | None, expected: Toolchain
+) -> None:
     CORE.toolchain = None
-    _resolve_toolchain({})
-    assert CORE.toolchain == Toolchain.PLATFORMIO
+    config = {} if config_toolchain is None else {CONF_TOOLCHAIN: config_toolchain}
+    _resolve_toolchain(config)
+    assert CORE.toolchain == expected
 
 
 def test_decode_pc_native_missing_tools_warns_once(
@@ -198,3 +211,18 @@ def test_copy_files_native_skips_platformio_scripts(tmp_path: Path) -> None:
     CORE.build_path = tmp_path
     esp8266.copy_files()
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("toolchain", "warns"),
+    [(Toolchain.PLATFORMIO, True), (Toolchain.ARDUINO, False)],
+)
+def test_platformio_toolchain_deprecation_warning(
+    toolchain: Toolchain, warns: bool, caplog: pytest.LogCaptureFixture
+) -> None:
+    CORE.toolchain = toolchain
+    config = _config()
+    assert _warn_platformio_toolchain(config) is config
+    assert (
+        "deprecated and will be removed in ESPHome 2027.4.0" in caplog.text
+    ) is warns
