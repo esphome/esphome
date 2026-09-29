@@ -30,12 +30,12 @@ class TcpUart : public uart::UARTComponent, public Component {
   void loop() override;
   void dump_config() override;
   void on_shutdown() override;
-  float get_setup_priority() const override;
+  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   void write_array(const uint8_t *data, size_t len) override;
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
-  size_t available() override;
+  size_t available() override { return this->rx_.size(); }
   uart::UARTFlushResult flush() override;
   bool is_connected() override { return this->sock_ != nullptr && this->connected_; }
 #if defined(USE_ESP8266) || defined(USE_ESP32)
@@ -67,6 +67,7 @@ class TcpUart : public uart::UARTComponent, public Component {
 
   static constexpr size_t RX_BUFFER_SIZE = 1024;
   static constexpr size_t TX_BUFFER_SIZE = 1024;
+  static constexpr size_t READ_CHUNK = 128;
 
   // 4-byte members, then the port, then the flags, then the byte buffers.
   StringRef host_;

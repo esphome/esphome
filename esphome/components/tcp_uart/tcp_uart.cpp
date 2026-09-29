@@ -28,8 +28,6 @@ static void consume_buf(uint8_t *buf, size_t *len, size_t n) {
   *len -= n;
 }
 
-float TcpUart::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
-
 void TcpUart::setup() {
   // The first attempt must not wait out a full interval.
   this->last_attempt_ms_ = App.get_loop_component_start_time() - this->reconnect_interval_ms_;
@@ -242,7 +240,7 @@ void TcpUart::read_socket_() {
     this->rx_pending_ = true;
     return;
   }
-  uint8_t tmp[128];
+  uint8_t tmp[READ_CHUNK];
   size_t want = room < sizeof(tmp) ? room : sizeof(tmp);
   ssize_t count = this->sock_->read(tmp, want);
   if (count == 0 || (count < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
@@ -333,8 +331,6 @@ bool TcpUart::read_array(uint8_t *data, size_t len) {
   }
   return true;
 }
-
-size_t TcpUart::available() { return this->rx_.size(); }
 
 uart::UARTFlushResult TcpUart::flush() {
   this->flush_tx_();
