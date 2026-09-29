@@ -270,21 +270,25 @@ void APC1Component::parse_measurement_frame_() {
   if (this->humidity_sensor_ != nullptr)
     this->humidity_sensor_->publish_state(hum_comp);
 
-  if (this->raw_temperature_sensor_ != nullptr)
+  if (this->raw_temperature_sensor_ != nullptr) {
     this->raw_temperature_sensor_->publish_state(
         static_cast<int16_t>(encode_uint16(this->rx_buffer_[38], this->rx_buffer_[39])) / 10.0f);
+  }
   if (this->raw_humidity_sensor_ != nullptr)
     this->raw_humidity_sensor_->publish_state(encode_uint16(this->rx_buffer_[40], this->rx_buffer_[41]) / 10.0f);
 
-  if (this->rs0_sensor_ != nullptr)
+  if (this->rs0_sensor_ != nullptr) {
     this->rs0_sensor_->publish_state(
         encode_uint32(this->rx_buffer_[42], this->rx_buffer_[43], this->rx_buffer_[44], this->rx_buffer_[45]));
-  if (this->rs2_sensor_ != nullptr)
+  }
+  if (this->rs2_sensor_ != nullptr) {
     this->rs2_sensor_->publish_state(
         encode_uint32(this->rx_buffer_[50], this->rx_buffer_[51], this->rx_buffer_[52], this->rx_buffer_[53]));
-  if (this->rs3_sensor_ != nullptr)
+  }
+  if (this->rs3_sensor_ != nullptr) {
     this->rs3_sensor_->publish_state(
         encode_uint32(this->rx_buffer_[54], this->rx_buffer_[55], this->rx_buffer_[56], this->rx_buffer_[57]));
+  }
   if (this->error_code_sensor_ != nullptr)
     this->error_code_sensor_->publish_state(error_code);
 }
