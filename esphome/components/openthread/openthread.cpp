@@ -282,6 +282,25 @@ void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
   ESP_LOGD(TAG, "Waiting on Confirmation Removal SRP Host and Services");
 }
 
+void OpenThreadComponent::apply_poll_period(uint32_t poll_period) {
+#if CONFIG_OPENTHREAD_MTD
+  this->set_poll_period(poll_period);
+  if (!this->is_lock_initialized()) {
+    // The action may run before the stack is up, e.g. from a restore mode; ot_main applies the stored value.
+    ESP_LOGD(TAG, "Not (yet) ready to apply");
+    return;
+  }
+  auto lock = InstanceLock::try_acquire(100);
+  if (!lock) {
+    ESP_LOGW(TAG, "Failed to acquire lock in action");
+    return;
+  }
+  this->apply_linkmode_(lock.get_instance());
+#else
+  ESP_LOGW(TAG, "OpenThread action has no effect on FTD devices (MTD only)");
+#endif
+}
+
 void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
   otLinkModeConfig link_mode_config{};
 #if CONFIG_OPENTHREAD_FTD
