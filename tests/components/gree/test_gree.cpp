@@ -358,7 +358,8 @@ TEST(GreeClimateCodec, LegacyModelsClimateStateRoundTrip) {
 }
 
 TEST(GreeYAA, DecodeAcceptsOemTimerAndAuxiliaryFields) {
-  GreeClimateData source{climate::CLIMATE_MODE_COOL, 22, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_SWING_VERTICAL,
+  GreeClimateData source{climate::CLIMATE_MODE_COOL,   22,
+                         climate::CLIMATE_FAN_HIGH,    climate::CLIMATE_SWING_VERTICAL,
                          climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT | GREE_XFAN_BIT};
   GreeState state = GreeClimateCodec::encode(GREE_YAA, source);
 
@@ -380,8 +381,9 @@ TEST(GreeYAA, DecodeAcceptsOemTimerAndAuxiliaryFields) {
 }
 
 TEST(GreeProtocol, YAC1FB9SignalRoundTrip) {
-  const GreeClimateData source{climate::CLIMATE_MODE_COOL, 22, climate::CLIMATE_FAN_MEDIUM,
-                               climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT};
+  const GreeClimateData source{climate::CLIMATE_MODE_COOL,   22,
+                               climate::CLIMATE_FAN_MEDIUM,  climate::CLIMATE_SWING_VERTICAL,
+                               climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT};
   const GreeState expected = GreeClimateCodec::encode(GREE_YAC1FB9, source);
   auto decoded = decode_signal(GREE_YAC1FB9, encode_signal(GREE_YAC1FB9, expected));
 
@@ -590,8 +592,9 @@ class TestFeatureSwitch : public switch_::Switch {
 };
 
 TEST(GreeYAA, ReceivePublishesStateAndFeatureBitsWithoutRetransmitting) {
-  const GreeClimateData source{climate::CLIMATE_MODE_COOL, 22, climate::CLIMATE_FAN_HIGH,
-                               climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT};
+  const GreeClimateData source{climate::CLIMATE_MODE_COOL,   22,
+                               climate::CLIMATE_FAN_HIGH,    climate::CLIMATE_SWING_VERTICAL,
+                               climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT};
   const GreeState state = GreeClimateCodec::encode(GREE_YAA, source);
   CountingRemoteTransmitter transmitter;
   GreeClimate device;
