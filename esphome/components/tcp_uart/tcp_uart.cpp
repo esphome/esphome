@@ -39,9 +39,11 @@ void TcpUart::setup() {
 }
 
 void TcpUart::dump_config() {
-  ESP_LOGCONFIG(TAG, "TCP UART:");
-  ESP_LOGCONFIG(TAG, "  Host: %s:%u", this->host_.c_str(), this->port_);
-  ESP_LOGCONFIG(TAG, "  Reconnect interval: %" PRIu32 " ms", this->reconnect_interval_ms_);
+  ESP_LOGCONFIG(TAG,
+                "TCP UART:\n"
+                "  Host: %s:%u\n"
+                "  Reconnect Interval: %" PRIu32 "ms",
+                this->host_.c_str(), this->port_, this->reconnect_interval_ms_);
   LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
 }
 
