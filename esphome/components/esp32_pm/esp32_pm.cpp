@@ -58,7 +58,7 @@ void ESP32PowerManagement::dump_config() {
 #if CONFIG_PM_TRACE
   ESP_LOGCONFIG(TAG, "  PM Trace Enabled");
 #endif
-#if !CONFIG_LWIP_ND6
+#if defined(CONFIG_LWIP_IPV6) && !defined(CONFIG_LWIP_ND6)
   ESP_LOGCONFIG(TAG, "  IPv6 Neighbor Discovery Disabled (CONFIG_LWIP_ND6)");
 #endif
 #if CONFIG_USJ_NO_AUTO_LS_ON_CONNECTION

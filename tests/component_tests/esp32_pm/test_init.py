@@ -1,5 +1,6 @@
 """Tests for esp32_pm configuration validation."""
 
+import logging
 from unittest import mock
 
 import pytest
@@ -170,10 +171,11 @@ def test_allows_single_esp32_pm_instance(
     )
 
 
-def test_warns_when_boot_frequency_higher_than_max_frequency(
+def test_logs_info_when_boot_frequency_higher_than_max_frequency(
     set_core_config: SetCoreConfigCallable,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    caplog.set_level(logging.INFO)
     _final_validate_config(
         set_core_config,
         {CONF_MAX_FREQUENCY: "160MHZ"},
@@ -196,10 +198,11 @@ def test_warns_when_boot_frequency_lower_than_max_frequency(
     assert "may run as high as 240MHZ" in caplog.text
 
 
-def test_no_warning_when_boot_frequency_equals_max_frequency(
+def test_no_log_when_boot_frequency_equals_max_frequency(
     set_core_config: SetCoreConfigCallable,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    caplog.set_level(logging.INFO)
     _final_validate_config(
         set_core_config,
         {CONF_MAX_FREQUENCY: "160MHZ"},

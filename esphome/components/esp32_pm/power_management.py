@@ -174,7 +174,7 @@ def _pm_final_validate(config):
         and (boot_mhz := int(boot_freq[:-3])) != (max_mhz := max_freq // 1000000)
     ):
         if boot_mhz > max_mhz:
-            _LOGGER.warning(
+            _LOGGER.info(
                 "esp32.%s (%s) is higher than %s (%dMHZ); the CPU will be "
                 "downclocked to %dMHZ as soon as power management is set up",
                 esp32.CONF_CPU_FREQUENCY,
