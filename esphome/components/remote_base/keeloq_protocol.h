@@ -11,6 +11,8 @@ struct KeeloqData {
   uint8_t command;     // Button Status S2-S1-S0-S3
   bool repeat;         // Repeated command bit
   bool vlow;           // Battery status bit
+  uint16_t suffix{0};  // Optional bits after the 66-bit HCS301 word
+  uint8_t suffix_bits{0};
 
   bool operator==(const KeeloqData &rhs) const {
     // Treat 0x10 as a special, wildcard button press
@@ -37,6 +39,8 @@ template<typename... Ts> class KeeloqAction : public RemoteTransmitterActionBase
   TEMPLATABLE_VALUE(uint32_t, encrypted)
   TEMPLATABLE_VALUE(uint8_t, command)
   TEMPLATABLE_VALUE(bool, vlow)
+  TEMPLATABLE_VALUE(uint16_t, suffix)
+  TEMPLATABLE_VALUE(uint8_t, suffix_bits)
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     KeeloqData data{};
@@ -44,6 +48,8 @@ template<typename... Ts> class KeeloqAction : public RemoteTransmitterActionBase
     data.encrypted = this->encrypted_.value(x...);
     data.command = this->command_.value(x...);
     data.vlow = this->vlow_.value(x...);
+    data.suffix = this->suffix_.value(x...);
+    data.suffix_bits = this->suffix_bits_.value(x...);
     KeeloqProtocol().encode(dst, data);
   }
 };
