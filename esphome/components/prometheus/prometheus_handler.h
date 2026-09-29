@@ -6,8 +6,9 @@
 
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/component.h"
-#include "esphome/core/controller.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/entity_includes.h"
+#include "esphome/core/progmem.h"
 #ifdef USE_CLIMATE
 #include "esphome/core/log.h"
 #endif
@@ -71,13 +72,8 @@ class PrometheusHandler final : public AsyncWebHandler, public Component {
                              EntityBase *obj, std::string &area, std::string &node, std::string &friendly_name);
   void handle_metric_type_(AsyncResponseStream *stream, const char *component_name);
   /// Print metric name and common labels (id, area, node, friendly_name, name)
-#ifdef USE_ESP8266
-  void print_metric_labels_(AsyncResponseStream *stream, const __FlashStringHelper *metric_name, EntityBase *obj,
-                            std::string &area, std::string &node, std::string &friendly_name);
-#else
-  void print_metric_labels_(AsyncResponseStream *stream, const char *metric_name, EntityBase *obj, std::string &area,
+  void print_metric_labels_(AsyncResponseStream *stream, ProgmemStr metric_name, EntityBase *obj, std::string &area,
                             std::string &node, std::string &friendly_name);
-#endif
 
 #ifdef USE_SENSOR
   /// Return the type for prometheus
