@@ -249,11 +249,48 @@ def test_main_all_tests_should_run(
         # Should contain at least one component (no empty batches)
         assert len(batch["components"]) > 0
         assert isinstance(batch["needs_idf"], bool)
+        assert isinstance(batch["check_idf_py"], bool)
         assert isinstance(batch["needs_nrf"], bool)
         assert isinstance(batch["needs_arduino8266"], bool)
 
 
-def test_main_batch_flags_count_variant_tests(
+def _batch(components: str, idf: bool, check: bool, a8266: bool) -> dict:
+    return {
+        "components": components,
+        "needs_idf": idf,
+        "check_idf_py": check,
+        "needs_nrf": False,
+        "needs_arduino8266": a8266,
+    }
+
+
+@pytest.mark.parametrize(
+    ("batches", "component_platforms", "expected"),
+    [
+        # The compile stage builds test-<variant>.<platform>.yaml too, so a
+        # component tested on esp8266 only by a variant still needs the toolchain.
+        (
+            [["safe_mode"]],
+            {"safe_mode": {"esp8266-ard"}},
+            [_batch("safe_mode", idf=False, check=False, a8266=True)],
+        ),
+        # Only the first esp32 batch runs the idf.py equivalence check.
+        (
+            [["a"], ["b"], ["c"]],
+            {"a": {"esp8266-ard"}, "b": {"esp32-idf"}, "c": {"esp32-c3-idf"}},
+            [
+                _batch("a", idf=False, check=False, a8266=True),
+                _batch("b", idf=True, check=True, a8266=False),
+                _batch("c", idf=True, check=False, a8266=False),
+            ],
+        ),
+    ],
+    ids=["variant", "idf-check-once"],
+)
+def test_main_batch_flags(
+    batches: list[list[str]],
+    component_platforms: dict[str, set[str]],
+    expected: list[dict],
     mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
@@ -267,8 +304,7 @@ def test_main_batch_flags_count_variant_tests(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The compile stage builds test-<variant>.<platform>.yaml too, so a
-    component tested on esp8266 only by a variant still needs the toolchain."""
+    """Each batch carries the toolchain flags its test platforms need."""
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     mock_determine_integration_tests.return_value = (False, [])
     mock_should_run_clang_tidy.return_value = False
@@ -282,7 +318,7 @@ def test_main_batch_flags_count_variant_tests(
     mock_changed_files.return_value = ["esphome/components/safe_mode/__init__.py"]
 
     def platforms(component: str, *, base_only: bool = True) -> set[str]:
-        return set() if base_only else {"esp8266-ard"}
+        return set() if base_only else component_platforms[component]
 
     with (
         patch("sys.argv", ["determine-jobs.py"]),
@@ -307,9 +343,7 @@ def test_main_batch_flags_count_variant_tests(
             return_value={"should_run": "false"},
         ),
         patch.object(
-            determine_jobs,
-            "create_intelligent_batches",
-            return_value=([["safe_mode"]], {}),
+            determine_jobs, "create_intelligent_batches", return_value=(batches, {})
         ),
         patch.object(
             determine_jobs, "get_component_test_platforms", side_effect=platforms
@@ -318,14 +352,7 @@ def test_main_batch_flags_count_variant_tests(
         determine_jobs.main()
 
     output = json.loads(capsys.readouterr().out)
-    assert output["component_test_batches"] == [
-        {
-            "components": "safe_mode",
-            "needs_idf": False,
-            "needs_nrf": False,
-            "needs_arduino8266": True,
-        }
-    ]
+    assert output["component_test_batches"] == expected
 
 
 def test_main_no_tests_should_run(

@@ -843,14 +843,26 @@ def test_parse_cmakecache(tmp_path: Path) -> None:
     }
 
 
+# The constant -D entries every configure writes (see _configure_defines).
+_CONFIGURED = (
+    "PYTHON_DEPS_CHECKED:UNINITIALIZED=1\n"
+    "PYTHON:UNINITIALIZED=/tools/python\n"
+    "ESP_PLATFORM:UNINITIALIZED=1\n"
+)
+
+
 @pytest.mark.parametrize(
     ("cache_text", "expected"),
     [
         (None, True),
-        ("CCACHE_ENABLE:UNINITIALIZED=0\nPYTHON:UNINITIALIZED=/tools/python\n", False),
-        ("CCACHE_ENABLE:UNINITIALIZED=1\nPYTHON:UNINITIALIZED=/tools/python\n", True),
-        ("CCACHE_ENABLE:UNINITIALIZED=0\nPYTHON:UNINITIALIZED=/old/python\n", True),
-        ("PYTHON:UNINITIALIZED=/tools/python\n", True),
+        (_CONFIGURED + "CCACHE_ENABLE:UNINITIALIZED=0\n", False),
+        (_CONFIGURED + "CCACHE_ENABLE:UNINITIALIZED=1\n", True),
+        (
+            _CONFIGURED.replace("/tools/python", "/old/python")
+            + "CCACHE_ENABLE:UNINITIALIZED=0\n",
+            True,
+        ),
+        (_CONFIGURED, True),
     ],
     ids=["no_cache", "same", "changed", "python_moved", "missing"],
 )

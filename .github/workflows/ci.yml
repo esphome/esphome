@@ -1226,19 +1226,15 @@ jobs:
           if [ -n "$compile_csv" ]; then
             # Run compilation with grouping and isolation
             python3 script/test_build_components.py -e compile -c "$compile_csv" -f --isolate "$directly_changed_csv"
-            echo "COMPILED_COMPONENTS=$compile_csv" >> "$GITHUB_ENV"
+            if [[ "${{ matrix.batch.check_idf_py }}" == "true" ]]; then
+              # The real idf.py must find nothing to configure or build in a
+              # tree built above; catches drift on ESP-IDF bumps.
+              echo "Checking the native ESP-IDF build matches idf.py"
+              python3 script/check_idf_py_equivalence.py
+            fi
           else
             echo "All components in this batch are validate-only -- skipping compile stage."
           fi
-
-      - name: Check the native ESP-IDF build matches idf.py
-        # Runs the real idf.py on a tree built above; fails if it would
-        # configure or build anything differently. Catches drift on IDF bumps.
-        # Fails when a batch compiled but left no tree, so it cannot go quiet.
-        if: matrix.batch.needs_idf && env.COMPILED_COMPONENTS != ''
-        run: |
-          . venv/bin/activate
-          python3 script/check_idf_py_equivalence.py
 
       - name: Print ccache statistics
         # esphome stores the cache under the IDF tools path; expand the leading

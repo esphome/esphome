@@ -23,7 +23,6 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-# Files that change if idf.py configures or builds differently.
 WATCHED = (
     "build/CMakeCache.txt",
     "build/build.ninja",
@@ -35,7 +34,8 @@ WATCHED = (
 # Ninja logs whose outputs mean real work when their recorded mtime changes.
 # The top level re-logs the bootloader step's byproducts on every build, so
 # the bootloader is judged by its own sub-build log instead.
-NINJA_LOGS = ("build/.ninja_log", "build/bootloader/.ninja_log")
+TOP_NINJA_LOG = "build/.ninja_log"
+NINJA_LOGS = (TOP_NINJA_LOG, "build/bootloader/.ninja_log")
 BOOTLOADER_BYPRODUCT = re.compile(r"(^|/build/)bootloader/")
 WORK_SUFFIXES = (".obj", ".o", ".a", ".elf", ".map", ".bin", ".ld")
 DEFAULT_GLOB = "tests/test_build_components/build/.esphome/build/*"
@@ -45,9 +45,13 @@ def _digest(path: Path) -> str | None:
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
 
 
+def watched(name: str) -> list[str]:
+    """Files that change if idf.py configures or builds differently."""
+    return [*WATCHED, f"build/{name}.elf", f"build/{name}.bin"]
+
+
 def _snapshot(build_path: Path, name: str) -> dict[str, str | None]:
-    files = [*WATCHED, f"build/{name}.elf", f"build/{name}.bin"]
-    return {f: _digest(build_path / f) for f in files}
+    return {f: _digest(build_path / f) for f in watched(name)}
 
 
 def _ninja_mtimes(build_path: Path) -> dict[tuple[str, str], str]:
@@ -58,7 +62,7 @@ def _ninja_mtimes(build_path: Path) -> dict[tuple[str, str], str]:
         lines = log.read_text(encoding="utf-8").splitlines() if log.is_file() else []
         for fields in (line.split("\t") for line in lines if not line.startswith("#")):
             if len(fields) >= 4 and (
-                name != NINJA_LOGS[0] or not BOOTLOADER_BYPRODUCT.search(fields[3])
+                name != TOP_NINJA_LOG or not BOOTLOADER_BYPRODUCT.search(fields[3])
             ):
                 mtimes[name, fields[3]] = fields[2]
     return mtimes
@@ -98,17 +102,18 @@ def check(build_path: Path) -> list[str]:
     sdkconfig_args = ["-D", f"SDKCONFIG={sdkconfig}"] if sdkconfig.is_file() else []
 
     # CMake writes a different build.ninja on a tree's first configure than on
-    # a reconfigure, so compare idf.py against ESPHome's own reconfigure.
+    # a reconfigure, so the baseline is ESPHome's own reconfigure and build.
     if (rc := toolchain.run_reconfigure()) != 0:
         return [f"ESPHome's CMake configure failed with exit code {rc}"]
+    if (rc := toolchain._run_ninja("all", verbose=False, jobs=None)) != 0:
+        return [f"ESPHome's ninja build failed with exit code {rc}"]
     before = _snapshot(build_path, name)
     mtimes_before = _ninja_mtimes(build_path)
     # A moved or renamed output would otherwise compare as "unchanged".
-    problems = [f"missing {f}" for f, digest in before.items() if digest is None]
-    if not (build_path / NINJA_LOGS[0]).is_file():
-        problems.append(f"missing {NINJA_LOGS[0]}")
-    if problems:
-        return problems
+    missing = [f for f, digest in before.items() if digest is None]
+    missing += [log for log in NINJA_LOGS if not (build_path / log).is_file()]
+    if missing:
+        return [f"missing {f}" for f in missing]
     for action in ("reconfigure", "build"):
         result = subprocess.run(
             [python, str(idf_py), *sdkconfig_args, action],
@@ -119,16 +124,14 @@ def check(build_path: Path) -> list[str]:
             check=False,
         )
         if result.returncode != 0:
-            problems.append(f"idf.py {action} failed:\n{result.stdout}{result.stderr}")
-            return problems
+            return [f"idf.py {action} failed:\n{result.stdout}{result.stderr}"]
     after = _snapshot(build_path, name)
-    problems += [f"idf.py changed {f}" for f in before if before[f] != after[f]]
-    rebuilt = [
-        key[1]
-        for key, mtime in _ninja_mtimes(build_path).items()
-        if key[1].endswith(WORK_SUFFIXES) and mtimes_before.get(key) != mtime
+    problems = [f"idf.py changed {f}" for f in before if before[f] != after[f]]
+    problems += [
+        f"idf.py rebuilt {out}"
+        for (log, out), mtime in _ninja_mtimes(build_path).items()
+        if out.endswith(WORK_SUFFIXES) and mtimes_before.get((log, out)) != mtime
     ]
-    problems += [f"idf.py rebuilt {out}" for out in rebuilt]
     return problems
 
 
@@ -139,11 +142,6 @@ def main() -> int:
         nargs="*",
         type=Path,
         help=f"ESPHome build dirs (default: the first native ESP-IDF tree in {DEFAULT_GLOB})",
-    )
-    parser.add_argument(
-        "--allow-missing",
-        action="store_true",
-        help="exit 0 when there is no native ESP-IDF build tree to check",
     )
     args = parser.parse_args()
     paths = args.build_paths or sorted(REPO_ROOT.glob(DEFAULT_GLOB))
@@ -156,7 +154,7 @@ def main() -> int:
     ]
     if not trees:
         print("No native ESP-IDF build tree found")
-        return 0 if args.allow_missing else 1
+        return 1
     if not args.build_paths:
         # The contract does not depend on the target, so one tree is enough.
         trees = trees[:1]

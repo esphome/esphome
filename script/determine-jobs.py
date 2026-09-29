@@ -1540,6 +1540,9 @@ def main() -> None:
         # Convert batches to CI matrix entries: the component list plus which
         # native toolchain installs the batch's test platforms need, so the
         # workflow only restores the matching multi-GB toolchain caches.
+        # The idf.py check does not depend on the components, so one esp32
+        # batch per workflow runs it.
+        idf_py_check_assigned = False
         for batch in batches:
             platforms: set[str] = set()
             for component in batch:
@@ -1549,10 +1552,14 @@ def main() -> None:
                 platforms.update(
                     get_component_test_platforms(component, base_only=False)
                 )
+            needs_idf = any(p.startswith("esp32") for p in platforms)
+            check_idf_py = needs_idf and not idf_py_check_assigned
+            idf_py_check_assigned |= check_idf_py
             component_test_batches.append(
                 {
                     "components": " ".join(batch),
-                    "needs_idf": any(p.startswith("esp32") for p in platforms),
+                    "needs_idf": needs_idf,
+                    "check_idf_py": check_idf_py,
                     "needs_nrf": any(p.startswith("nrf52") for p in platforms),
                     "needs_arduino8266": any(
                         p.startswith("esp8266") for p in platforms

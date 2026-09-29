@@ -214,7 +214,7 @@ _CLICK_TRUE = frozenset({"1", "true", "t", "yes", "y", "on"})
 _CMAKECACHE_LINE = re.compile(r"^([^#/:=]+):([^:=]+)=(.*)$")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class _IdfPyContract:
     """How the pinned idf.py drives cmake and ninja (tools/idf_py_actions)."""
 
@@ -224,8 +224,18 @@ class _IdfPyContract:
     size_ng: bool  # size target gets ESP_IDF_SIZE_NG=1
 
 
-_IDF_PY_5 = _IdfPyContract(False, False, False, True)
-_IDF_PY_6 = _IdfPyContract(True, True, True, False)
+_IDF_PY_5 = _IdfPyContract(
+    binary_dir_arg=False,
+    ccache_as_bool=False,
+    colors_for_all_tools=False,
+    size_ng=True,
+)
+_IDF_PY_6 = _IdfPyContract(
+    binary_dir_arg=True,
+    ccache_as_bool=True,
+    colors_for_all_tools=True,
+    size_ng=False,
+)
 
 
 def _idf_py() -> _IdfPyContract:
@@ -264,15 +274,25 @@ def _cache_entries_changed() -> bool:
     """True when a ``-D`` entry is missing from or differs in CMakeCache.txt.
 
     idf.py reconfigures on this before every build; ESPHome's own staleness
-    check does not cover it (for example ccache switched on or off). A changed
-    ``PYTHON`` (moved IDF prefix) reconfigures too, where idf.py stopped.
+    check does not cover it (for example ccache switched on or off). ESPHome
+    also compares ``PYTHON``, so a moved IDF prefix reconfigures; idf.py
+    stopped with an error instead.
     """
     cache_path = _build_dir() / "CMakeCache.txt"
     if not cache_path.is_file():
         return True
     cache = _parse_cmakecache(cache_path)
-    wanted = {**_cache_entries(), "PYTHON": _get_idf_tool("python")}
-    return any(cache.get(k) != v for k, v in wanted.items())
+    return any(cache.get(k) != v for k, v in _configure_defines().items())
+
+
+def _configure_defines() -> dict[str, str]:
+    """Every ``-D`` idf.py passes to cmake, in its order."""
+    return {
+        "PYTHON_DEPS_CHECKED": "1",
+        "PYTHON": _get_idf_tool("python"),
+        "ESP_PLATFORM": "1",
+        **_cache_entries(),
+    }
 
 
 def _tool_env(ninja: bool) -> dict[str, str]:
@@ -298,13 +318,8 @@ def run_reconfigure(verbose: bool = False) -> int:
     cmd = [_get_idf_tool("cmake"), "-G", "Ninja"]
     if _idf_py().binary_dir_arg:
         cmd += ["-B", str(build_dir)]
-    cmd += [
-        "-DPYTHON_DEPS_CHECKED=1",
-        f"-DPYTHON={_get_idf_tool('python')}",
-        "-DESP_PLATFORM=1",
-        *(f"-D{name}={value}" for name, value in _cache_entries().items()),
-        str(build_dir.parent),
-    ]
+    cmd += [f"-D{name}={value}" for name, value in _configure_defines().items()]
+    cmd.append(str(build_dir.parent))
     rc = run_build_tool(
         cmd,
         cwd=build_dir,
