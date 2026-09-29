@@ -659,11 +659,14 @@ def test_secret_shared_with_other_configs_is_reported(tmp_path: Path) -> None:
     build = tmp_path / ".esphome" / "build"
     build.mkdir(parents=True)
     (build / "copy.yaml").write_bytes(b"key: !secret device_key\n")
+    (tmp_path / "packages").mkdir()
+    (tmp_path / "packages" / "base.yaml").write_bytes(b"key: !secret device_key\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: x\n")
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     with_sharers(edits)
+    root = tmp_path.resolve()
     assert [e.shared_with for e in edits] == [
-        [tmp_path.resolve() / "other.yaml", tmp_path.resolve() / "quoted.yaml"]
+        [root / "other.yaml", root / "packages" / "base.yaml", root / "quoted.yaml"]
     ]
 
 
