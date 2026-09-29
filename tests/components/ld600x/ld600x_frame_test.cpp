@@ -142,6 +142,41 @@ TEST(Ld600xFrameParser, DataChecksumMismatchDropsFrame) {
   feed_valid_frame(parser, make_frame(0xABCD, 0x9876, payload), 0xABCD, 0x9876, payload);
 }
 
+TEST(Ld600xFrameParser, DroppedHeaderChecksumKeepsNextFrame) {
+  std::vector<uint8_t> truncated = make_frame(0x1234, 0x5678, {});
+  truncated.pop_back();  // The header checksum byte never arrives.
+  const std::vector<uint8_t> payload = {0x42, 0x81};
+  const std::vector<uint8_t> next = make_frame(0xABCD, 0x9876, payload);
+  std::array<uint8_t, 16> buffer{};
+  FrameParser parser;
+  parser.init(buffer.data(), buffer.size());
+  for (uint8_t byte : truncated) {
+    EXPECT_FALSE(parser.feed(byte));
+    EXPECT_EQ(parser.event(), FrameEvent::FRAME_EVENT_NONE);
+  }
+  // The next SOF lands where the checksum was expected: reported as a mismatch, then reused.
+  EXPECT_FALSE(parser.feed(next[0]));
+  EXPECT_EQ(parser.event(), FrameEvent::FRAME_EVENT_HEADER_CHECKSUM_MISMATCH);
+  feed_valid_frame(parser, {next.begin() + 1, next.end()}, 0xABCD, 0x9876, payload);
+}
+
+TEST(Ld600xFrameParser, DroppedDataChecksumKeepsNextFrame) {
+  std::vector<uint8_t> truncated = make_frame(0x1234, 0x5678, {0x01, 0x02, 0x03});
+  truncated.pop_back();  // The data checksum byte never arrives.
+  const std::vector<uint8_t> payload = {0x42, 0x81};
+  const std::vector<uint8_t> next = make_frame(0xABCD, 0x9876, payload);
+  std::array<uint8_t, 16> buffer{};
+  FrameParser parser;
+  parser.init(buffer.data(), buffer.size());
+  for (uint8_t byte : truncated) {
+    EXPECT_FALSE(parser.feed(byte));
+    EXPECT_EQ(parser.event(), FrameEvent::FRAME_EVENT_NONE);
+  }
+  EXPECT_FALSE(parser.feed(next[0]));
+  EXPECT_EQ(parser.event(), FrameEvent::FRAME_EVENT_DATA_CHECKSUM_MISMATCH);
+  feed_valid_frame(parser, {next.begin() + 1, next.end()}, 0xABCD, 0x9876, payload);
+}
+
 TEST(Ld600xFrameParser, OversizedPayloadAndChecksumAreDiscardedWithoutBufferWrites) {
   // A complete frame inside the discarded payload must not be parsed.
   std::vector<uint8_t> payload = make_frame(0x1234, 0x5678, {});
