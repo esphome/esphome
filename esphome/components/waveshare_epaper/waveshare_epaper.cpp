@@ -10,6 +10,8 @@ namespace waveshare_epaper {
 
 static const char *const TAG = "waveshare_epaper";
 
+static bool initialized = false;
+
 static const uint8_t LUT_SIZE_WAVESHARE = 30;
 
 static const uint8_t FULL_UPDATE_LUT[LUT_SIZE_WAVESHARE] = {0x02, 0x02, 0x01, 0x11, 0x12, 0x12, 0x22, 0x22, 0x66, 0x69,
@@ -112,12 +114,21 @@ static const uint8_t PARTIAL_UPD_2IN9_LUT[PARTIAL_UPD_2IN9_LUT_SIZE] =
 // clang-format on
 
 void WaveshareEPaperBase::setup() {
-  this->init_internal_(this->get_buffer_length_());
-  this->setup_pins_();
-  this->spi_setup();
-  this->reset_();
-  this->initialize();
+
 }
+
+void WaveshareEPaperBase::setupDisplay() {
+  if(!initialized)
+  {
+    this->init_internal_(this->get_buffer_length_());
+    this->setup_pins_();
+    this->spi_setup();
+    this->reset_();
+    this->initialize();
+    initialized = true;
+  }
+}
+
 void WaveshareEPaperBase::setup_pins_() {
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
@@ -168,6 +179,7 @@ bool WaveshareEPaperBase::wait_until_idle_() {
   return true;
 }
 void WaveshareEPaperBase::update() {
+  this->setupDisplay();
   this->do_update_();
   this->display();
 }
