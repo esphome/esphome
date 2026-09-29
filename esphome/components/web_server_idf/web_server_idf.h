@@ -301,6 +301,14 @@ class AsyncEventSourceResponse {
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   void process_deferred_queue_();
   void process_buffer_();
+  void request_close_();
+  void process_close_();
+  static void close_session_work(void *arg);
+
+  // Deletable only after destroy() zeroed fd_ and no queued HTTPD close work still references this object.
+  bool safe_to_delete_() const {
+    return this->fd_.load() == 0 && !this->close_work_queued_.load(std::memory_order_acquire);
+  }
 
   static void destroy(void *p);
   AsyncEventSource *server_;
@@ -311,8 +319,16 @@ class AsyncEventSourceResponse {
   esphome::web_server::ListEntitiesIterator entities_iterator_;
   std::string event_buffer_;
   size_t event_bytes_sent_;
-  uint16_t consecutive_send_failures_{0};
-  static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
+  uint32_t send_failure_started_ms_{0};  // Zero means no send stall in progress.
+  uint32_t next_close_attempt_ms_{0};
+  // Main-loop only; the HTTPD task never reads or writes this flag.
+  bool close_requested_{false};
+  bool close_retry_warning_logged_{false};
+  // Set on the main loop before queueing close work, cleared by the HTTPD-task callback when done.
+  std::atomic<bool> close_work_queued_{false};
+  static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
+  static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
+  static constexpr uint32_t CLOSE_CONFIRM_INTERVAL_MS = 1000;
 };
 
 using AsyncEventSourceClient = AsyncEventSourceResponse;
@@ -322,7 +338,7 @@ class AsyncEventSource : public AsyncWebHandler {
   using connect_handler_t = std::function<void(AsyncEventSourceClient *)>;
 
  public:
-  AsyncEventSource(std::string url, esphome::web_server::WebServer *ws) : url_(std::move(url)), web_server_(ws) {}
+  AsyncEventSource(StringRef url, esphome::web_server::WebServer *ws) : url_(url), web_server_(ws) {}
   ~AsyncEventSource() override;
 
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -352,7 +368,7 @@ class AsyncEventSource : public AsyncWebHandler {
   // Cold path: move sessions from pending_sessions_ into sessions_ and greet each one.
   void __attribute__((noinline, cold)) adopt_pending_sessions_main_loop_();
 
-  std::string url_;
+  StringRef url_;  // Must outlive this object (string literal)
   // Main-loop only. Vector: SSE sessions are 1-5 connections, linear search beats set.
   std::vector<AsyncEventSourceResponse *> sessions_;
   // Httpd-task intake; guarded by pending_mutex_, gated by has_pending_sessions_.

@@ -208,11 +208,7 @@ void ImprovBLEComponent::set_status_indicator_state_(bool state) {
   if (this->status_indicator_state_ == state)
     return;
   this->status_indicator_state_ = state;
-  if (state) {
-    this->status_indicator_->turn_on();
-  } else {
-    this->status_indicator_->turn_off();
-  }
+  this->status_indicator_->set_state(state);
 #endif
 }
 
