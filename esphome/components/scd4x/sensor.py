@@ -75,7 +75,10 @@ CONFIG_SCHEMA = (
                 cv.float_with_unit("altitude", "(m|m a.s.l.|MAMSL|MASL)"),
                 cv.int_range(min=0, max=0xFFFF, max_included=False),
             ),
-            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.pressure,
+            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.All(
+                cv.float_with_unit("pressure", r"(hPa|mBar|mbar)", optional_unit=True),
+                cv.float_range(min=700.0, max=1200.0),
+            ),
             cv.Optional(CONF_TEMPERATURE_OFFSET, default="4°C"): cv.temperature_delta,
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
                 sensor.Sensor
