@@ -17,20 +17,15 @@ static constexpr uint8_t GREE_TIMER_HOURS_MASK = 0x0F;
 static constexpr uint8_t GREE_BYTE5_FIXED_MASK = 0xB8;
 static constexpr uint8_t GREE_BYTE5_FIXED_VALUE = 0x20;
 
+// The mode, fan and feature mappings use if-else: a switch becomes a lookup table in RAM on ESP8266.
 static constexpr uint8_t supported_feature_mask(Model model) {
-  switch (model) {
-    case GREE_YAN:
-    case GREE_YAA:
-    case GREE_YAC:
-    case GREE_YAC1FB9:
-      return GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT | GREE_MODEL_A_BIT | GREE_XFAN_BIT;
-    case GREE_YB1FA:
-      return GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT | GREE_XFAN_BIT;
-    case GREE_YX1FF:
-      return GREE_LIGHT_BIT;
-    default:
-      return 0;
-  }
+  if (model == GREE_YB1FA)
+    return GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT | GREE_XFAN_BIT;
+  if (model == GREE_YX1FF)
+    return GREE_LIGHT_BIT;
+  if (model == GREE_GENERIC || model == GREE_YAG)
+    return 0;
+  return GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT | GREE_MODEL_A_BIT | GREE_XFAN_BIT;
 }
 
 static constexpr uint8_t default_feature_bits(Model model) {
@@ -67,6 +62,18 @@ static bool is_valid_swing(Model model, const GreeState &state) {
   if (model == GREE_YX1FF)
     return horizontal == (automatic ? GREE_HDIR_SWING : GREE_HDIR_MANUAL);
   return horizontal == GREE_HDIR_MANUAL;
+}
+
+static climate::ClimateMode decode_operation_mode(uint8_t mode) {
+  if (mode == GREE_MODE_COOL)
+    return climate::CLIMATE_MODE_COOL;
+  if (mode == GREE_MODE_DRY)
+    return climate::CLIMATE_MODE_DRY;
+  if (mode == GREE_MODE_FAN)
+    return climate::CLIMATE_MODE_FAN_ONLY;
+  if (mode == GREE_MODE_HEAT)
+    return climate::CLIMATE_MODE_HEAT;
+  return climate::CLIMATE_MODE_HEAT_COOL;
 }
 
 void GreeProtocol::encode(remote_base::RemoteTransmitData *data, const GreeState &state) const {
@@ -229,60 +236,37 @@ optional<GreeClimateData> GreeClimateCodec::decode(Model model, const GreeState 
 }
 
 uint8_t GreeClimateCodec::encode_operation_mode(climate::ClimateMode mode) {
-  uint8_t operation_mode = GREE_MODE_ON;
-
-  switch (mode) {
-    case climate::CLIMATE_MODE_COOL:
-      operation_mode |= GREE_MODE_COOL;
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      operation_mode |= GREE_MODE_DRY;
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      operation_mode |= GREE_MODE_HEAT;
-      break;
-    case climate::CLIMATE_MODE_HEAT_COOL:
-      operation_mode |= GREE_MODE_AUTO;
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      operation_mode |= GREE_MODE_FAN;
-      break;
-    case climate::CLIMATE_MODE_OFF:
-    default:
-      operation_mode = GREE_MODE_OFF;
-      break;
-  }
-
-  return operation_mode;
+  if (mode == climate::CLIMATE_MODE_COOL)
+    return GREE_MODE_ON | GREE_MODE_COOL;
+  if (mode == climate::CLIMATE_MODE_DRY)
+    return GREE_MODE_ON | GREE_MODE_DRY;
+  if (mode == climate::CLIMATE_MODE_HEAT)
+    return GREE_MODE_ON | GREE_MODE_HEAT;
+  if (mode == climate::CLIMATE_MODE_HEAT_COOL)
+    return GREE_MODE_ON | GREE_MODE_AUTO;
+  if (mode == climate::CLIMATE_MODE_FAN_ONLY)
+    return GREE_MODE_ON | GREE_MODE_FAN;
+  return GREE_MODE_OFF;
 }
 
 uint8_t GreeClimateCodec::encode_fan_mode(Model model, climate::ClimateFanMode fan_mode) {
   if (model == GREE_YX1FF) {
-    switch (fan_mode) {
-      case climate::CLIMATE_FAN_QUIET:
-        return GREE_FAN_1;
-      case climate::CLIMATE_FAN_LOW:
-        return GREE_FAN_2;
-      case climate::CLIMATE_FAN_MEDIUM:
-      case climate::CLIMATE_FAN_HIGH:
-        return GREE_FAN_3;
-      case climate::CLIMATE_FAN_AUTO:
-      default:
-        return GREE_FAN_AUTO;
-    }
+    if (fan_mode == climate::CLIMATE_FAN_QUIET)
+      return GREE_FAN_1;
+    if (fan_mode == climate::CLIMATE_FAN_LOW)
+      return GREE_FAN_2;
+    if (fan_mode == climate::CLIMATE_FAN_MEDIUM || fan_mode == climate::CLIMATE_FAN_HIGH)
+      return GREE_FAN_3;
+    return GREE_FAN_AUTO;
   }
 
-  switch (fan_mode) {
-    case climate::CLIMATE_FAN_LOW:
-      return GREE_FAN_1;
-    case climate::CLIMATE_FAN_MEDIUM:
-      return GREE_FAN_2;
-    case climate::CLIMATE_FAN_HIGH:
-      return GREE_FAN_3;
-    case climate::CLIMATE_FAN_AUTO:
-    default:
-      return GREE_FAN_AUTO;
-  }
+  if (fan_mode == climate::CLIMATE_FAN_LOW)
+    return GREE_FAN_1;
+  if (fan_mode == climate::CLIMATE_FAN_MEDIUM)
+    return GREE_FAN_2;
+  if (fan_mode == climate::CLIMATE_FAN_HIGH)
+    return GREE_FAN_3;
+  return GREE_FAN_AUTO;
 }
 
 uint8_t GreeClimateCodec::encode_horizontal_swing(climate::ClimateSwingMode swing_mode) {
@@ -363,25 +347,8 @@ optional<GreeClimateData> GreeClimateCodec::decode_legacy(Model model, const Gre
     data.swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
   }
 
-  if (power) {
-    switch (mode) {
-      case GREE_MODE_AUTO:
-        data.mode = climate::CLIMATE_MODE_HEAT_COOL;
-        break;
-      case GREE_MODE_COOL:
-        data.mode = climate::CLIMATE_MODE_COOL;
-        break;
-      case GREE_MODE_DRY:
-        data.mode = climate::CLIMATE_MODE_DRY;
-        break;
-      case GREE_MODE_FAN:
-        data.mode = climate::CLIMATE_MODE_FAN_ONLY;
-        break;
-      case GREE_MODE_HEAT:
-        data.mode = climate::CLIMATE_MODE_HEAT;
-        break;
-    }
-  }
+  if (power)
+    data.mode = decode_operation_mode(mode);
 
   switch (fan) {
     case GREE_FAN_1:
@@ -431,25 +398,8 @@ optional<GreeClimateData> GreeClimateCodec::decode_model_a(Model model, const Gr
       .feature_bits = static_cast<uint8_t>(state[2] & supported_feature_mask(model)),
   };
 
-  if (power) {
-    switch (mode) {
-      case GREE_MODE_AUTO:
-        data.mode = climate::CLIMATE_MODE_HEAT_COOL;
-        break;
-      case GREE_MODE_COOL:
-        data.mode = climate::CLIMATE_MODE_COOL;
-        break;
-      case GREE_MODE_DRY:
-        data.mode = climate::CLIMATE_MODE_DRY;
-        break;
-      case GREE_MODE_FAN:
-        data.mode = climate::CLIMATE_MODE_FAN_ONLY;
-        break;
-      case GREE_MODE_HEAT:
-        data.mode = climate::CLIMATE_MODE_HEAT;
-        break;
-    }
-  }
+  if (power)
+    data.mode = decode_operation_mode(mode);
 
   if (turbo) {
     data.fan_mode = climate::CLIMATE_FAN_HIGH;

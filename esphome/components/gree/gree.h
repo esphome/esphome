@@ -97,20 +97,7 @@ enum GreeFeature : uint8_t {
   GREE_FEATURE_XFAN = 3,
 };
 
-static constexpr uint8_t gree_feature_bit(GreeFeature feature) {
-  switch (feature) {
-    case GREE_FEATURE_TURBO:
-      return GREE_FAN_TURBO_BIT;
-    case GREE_FEATURE_LIGHT:
-      return GREE_LIGHT_BIT;
-    case GREE_FEATURE_HEALTH:
-      return GREE_MODEL_A_BIT;
-    case GREE_FEATURE_XFAN:
-      return GREE_XFAN_BIT;
-    default:
-      return 0;
-  }
-}
+static constexpr uint8_t gree_feature_bit(GreeFeature feature) { return GREE_FAN_TURBO_BIT << feature; }
 
 using GreeState = std::array<uint8_t, GREE_STATE_FRAME_SIZE>;
 
