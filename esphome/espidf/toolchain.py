@@ -261,24 +261,6 @@ def _load_sdkconfig_json(build_dir: Path) -> dict | None:
     return config if isinstance(config, dict) else None
 
 
-def parse_sdkconfig(path: Path) -> dict[str, str]:
-    """Map each CONFIG_X=value line of a text sdkconfig to its raw value.
-
-    Comment lines ("# CONFIG_X is not set") are skipped and quoted values
-    are unquoted.
-    """
-    result = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line.startswith("CONFIG_"):
-            continue
-        name, _, value = line.partition("=")
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] == '"':
-            value = value[1:-1]
-        result[name] = value
-    return result
-
-
 def _resolved_c_compiler() -> str | None:
     """The configured build's resolved C compiler, or None."""
     description = read_json_file(_build_dir() / "project_description.json")

@@ -40,7 +40,7 @@ def _make_tree(tmp_path: Path, cached_bootloader: bool = False) -> Path:
         (tree / name).write_bytes(b"x")
     define = "1" if cached_bootloader else "0"
     (build / "CMakeCache.txt").write_text(
-        f"ESPHOME_USE_CACHED_BOOTLOADER:UNINITIALIZED={define}\n"
+        f"{toolchain.USE_CACHED_BOOTLOADER_DEFINE}:UNINITIALIZED={define}\n"
     )
     (build / "project_description.json").write_text(
         json.dumps(
@@ -223,6 +223,56 @@ def test_check_accepts_a_cached_bootloader_tree(tmp_path: Path) -> None:
     problems, calls = _run_check(tree)
     assert problems == []
     assert len(calls) == 2
+
+
+def test_check_fails_when_the_cached_bootloader_differs_from_in_tree(
+    tmp_path: Path,
+) -> None:
+    """The parity rebuild catches IDF-side drift in the subproject args."""
+    tree = _make_tree(tmp_path, cached_bootloader=True)
+    bin_path = tree / "build" / "bootloader" / "bootloader.bin"
+    calls = {"n": 0}
+
+    def ninja(target: str, **kwargs: object) -> int:
+        calls["n"] += 1
+        if calls["n"] == 2:  # the parity rebuild
+            bin_path.write_bytes(b"different")
+        return 0
+
+    with (
+        patch.object(toolchain, "_get_idf_env", return_value={}),
+        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
+        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
+        patch.object(toolchain, "run_reconfigure", return_value=0),
+        patch.object(toolchain, "_run_ninja", side_effect=ninja),
+        patch.object(build_gen, "idf_macro_matches", return_value=True),
+        patch.object(
+            guard.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess([], 0, "", ""),
+        ),
+    ):
+        problems = guard.check(tree)
+    assert problems == [guard.BOOTLOADER_DIFFERS]
+
+
+def test_check_reports_a_failed_parity_rebuild(tmp_path: Path) -> None:
+    tree = _make_tree(tmp_path, cached_bootloader=True)
+    with (
+        patch.object(toolchain, "_get_idf_env", return_value={}),
+        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
+        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
+        patch.object(toolchain, "run_reconfigure", side_effect=[0, 3]),
+        patch.object(toolchain, "_run_ninja", return_value=0),
+        patch.object(build_gen, "idf_macro_matches", return_value=True),
+        patch.object(
+            guard.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess([], 0, "", ""),
+        ),
+    ):
+        problems = guard.check(tree)
+    assert problems == ["in-tree bootloader reconfigure failed"]
 
 
 def test_check_requires_the_sub_log_on_a_stock_tree(tmp_path: Path) -> None:

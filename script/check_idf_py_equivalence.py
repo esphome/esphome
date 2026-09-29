@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -31,10 +32,8 @@ WATCHED = (
     "build/config/sdkconfig.h",
     "build/bootloader/bootloader.bin",
 )
-# Ninja logs whose outputs mean real work when their recorded mtime changes.
-# The top level re-logs the bootloader step's byproducts on every build, so
-# the bootloader is judged by its own sub-build log instead. With the cached
-# bootloader there is no sub-build at all; the cached bin is in WATCHED.
+# Ninja logs whose outputs mean real work when their recorded mtime changes;
+# the bootloader is judged by its own sub-build log when one exists.
 TOP_NINJA_LOG = "build/.ninja_log"
 
 
@@ -53,6 +52,10 @@ BOOTLOADER_BYPRODUCT = re.compile(r"(^|/build/)bootloader/")
 MACRO_CHANGED = (
     "IDF changed __build_process_project_includes; update "
     "IDF_BOOTLOADER_OVERRIDE in esphome/build_gen/espidf.py"
+)
+BOOTLOADER_DIFFERS = (
+    "cached bootloader is not byte identical to the in-tree build; update "
+    "_subproject_cmake_args in esphome/espidf/bootloader.py"
 )
 WORK_SUFFIXES = (".obj", ".o", ".a", ".elf", ".map", ".bin", ".ld")
 DEFAULT_GLOB = "tests/test_build_components/build/.esphome/build/*"
@@ -170,7 +173,34 @@ def check(build_path: Path) -> list[str]:
             problems.append(f"idf.py dropped {out} from {log}")
         elif mtimes_before.get(key) != mtimes_after[key]:
             problems.append(f"idf.py rebuilt {out}")
-    return problems
+    if problems:
+        return problems
+    return _bootloader_parity(build_path)
+
+
+def _bootloader_parity(build_path: Path) -> list[str]:
+    """A cached bootloader must match the in-tree build of the same tree,
+    so an IDF-side change to the ExternalProject args fails CI."""
+    # pylint: disable=protected-access
+    from esphome.espidf import bootloader, toolchain
+
+    bin_path = build_path / "build" / "bootloader" / "bootloader.bin"
+    if not bootloader.tree_uses_cached_bootloader(build_path / "build"):
+        return []
+    cached = bin_path.read_bytes()
+    os.environ[bootloader.BOOTLOADER_CACHE_ENV] = "0"
+    toolchain._cache().bootloader_enabled = None
+    try:
+        if toolchain.run_reconfigure() != 0:
+            return ["in-tree bootloader reconfigure failed"]
+        if toolchain._run_ninja("all", verbose=False, jobs=None) != 0:
+            return ["in-tree bootloader rebuild failed"]
+        if bin_path.read_bytes() != cached:
+            return [BOOTLOADER_DIFFERS]
+        return []
+    finally:
+        os.environ.pop(bootloader.BOOTLOADER_CACHE_ENV, None)
+        toolchain._cache().bootloader_enabled = None
 
 
 def main() -> int:

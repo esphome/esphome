@@ -1,7 +1,7 @@
 """Machine-global bootloader cache for the native ESP-IDF toolchain.
 
-Only a bootloader proven byte reproducible (built twice on the first miss)
-is cached; signing/secure/encryption builds keep the stock in-tree path.
+Only a bootloader built twice with identical bytes is cached; secure and
+signing builds keep the stock in-tree path.
 """
 
 # pylint: disable=protected-access
@@ -24,9 +24,15 @@ import time
 from esphome.build_helpers.ccache import parse_enable_env
 from esphome.build_helpers.tool_runner import run_build_tool
 from esphome.core import CORE, EsphomeError
-from esphome.espidf import framework, toolchain
+from esphome.espidf import framework, parse_sdkconfig, toolchain
 from esphome.framework_helpers import _rename_with_retry
-from esphome.helpers import file_compare, read_json_file, rmtree, write_file
+from esphome.helpers import (
+    copy_file_if_changed,
+    file_compare,
+    read_json_file,
+    rmtree,
+    write_file,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,21 +61,17 @@ def _compute_enabled() -> bool:
         # An unmanaged IDF checkout can change under the cache.
         return False
     try:
-        # The .esphomeinternal snapshot holds exactly what ESPHome and the
-        # user configured; the live sdkconfig is rewritten by kconfgen with
-        # every resolved option, including always-on *_SUPPORTED constants.
+        # The snapshot holds what was configured; the live sdkconfig is
+        # rewritten by kconfgen with always-on *_SUPPORTED constants.
         snapshot = CORE.relative_build_path(f"sdkconfig.{CORE.name}.esphomeinternal")
         if not snapshot.is_file() or _snapshot_blocks_cache(snapshot):
             return False
         if CORE.relative_build_path("bootloader_components").exists():
             # Project-local bootloader overrides are inputs the key can't see.
             return False
-        if not os.access(framework.get_idf_tools_path(), os.W_OK):
+        if not os.access(tools := framework.get_idf_tools_path(), os.W_OK):
             # A read-only shared prefix would fail the cache on every build.
-            _LOGGER.info(
-                "Bootloader cache off: %s is not writable",
-                framework.get_idf_tools_path(),
-            )
+            _LOGGER.info("Bootloader cache off: %s is not writable", tools)
             return False
         from esphome.build_gen.espidf import idf_macro_matches
 
@@ -89,12 +91,10 @@ def _compute_enabled() -> bool:
 def _snapshot_blocks_cache(sdkconfig_path: Path) -> bool:
     """Whether the configured options rule the cache out up front.
 
-    Secure options block because key files are inputs the cache key cannot
-    see (rotating one at the same path changes the bootloader). Reproducible
-    build off blocks so those users skip the doomed probe on every compile;
-    the probe still guards against unknown nondeterminism.
+    Secure options block because key file contents are inputs the key cannot
+    see; reproducible build off blocks to skip the doomed probe every compile.
     """
-    config = toolchain.parse_sdkconfig(sdkconfig_path)
+    config = parse_sdkconfig(sdkconfig_path)
     if any(
         _SECURE_OPTION.match(name) and value not in _DISABLED_VALUES
         for name, value in config.items()
@@ -312,17 +312,15 @@ def _install_into_build(entry: Path) -> Path:
     if (dest / "CMakeCache.txt").is_file():
         # A leftover in-tree sub-build; its ninja state must not linger.
         rmtree(dest)
-    dest.mkdir(parents=True, exist_ok=True)
     for name in _OUTPUTS:
-        shutil.copy2(entry / name, dest / name)
+        copy_file_if_changed(entry / name, dest / name)
     return dest
 
 
 def _bootloader_offset(app_config: dict | None) -> int | None:
     """The flash offset the bootloader is written to, or None when unknown."""
-    if app_config is None or "BOOTLOADER_OFFSET_IN_FLASH" not in app_config:
-        return None
-    return int(app_config["BOOTLOADER_OFFSET_IN_FLASH"])
+    value = (app_config or {}).get("BOOTLOADER_OFFSET_IN_FLASH")
+    return None if value is None else int(value)
 
 
 def _check_bootloader_size(bin_path: Path, offset: int, table_offset: int) -> None:
@@ -405,9 +403,8 @@ def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | No
                 "Bootloader build produced no %s", tmp / "config" / "sdkconfig.json"
             )
             return None
-        # Only a build proven byte identical to a second one in a different
-        # dir may be cached; timestamps or randomized signatures, present or
-        # future, fail here instead of being served stale.
+        # Only a build byte identical to a second one in a different dir may
+        # be cached; any nondeterminism fails here instead of serving stale.
         probe = _work_dir(".build-")
         cleanup.callback(_remove_dir, probe)
         if _build_standalone(probe, verbose) != 0:
@@ -427,10 +424,8 @@ def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | No
 def inject_bootloader_flash_file(flash_data: dict, build_dir: Path) -> bool:
     """Add the cached bootloader to a flasher_args ``flash_files`` map.
 
-    Gated on the tree's mode: IDF also omits the entry on purpose for some
-    secure-boot builds, and those must stay exactly as IDF wrote them.
-    False means a cached-mode tree is missing pieces and the factory image
-    would not boot.
+    Mode gated: IDF omits the entry on purpose for some secure-boot builds.
+    False means a cached-mode tree is missing pieces; the image would not boot.
     """
     if not tree_uses_cached_bootloader(build_dir):
         return True

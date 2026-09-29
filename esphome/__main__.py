@@ -924,11 +924,9 @@ def _check_and_emit_build_info() -> None:
 
 def _get_configured_xtal_freq() -> int | None:
     """Read the configured crystal frequency from the sdkconfig file."""
-    from esphome.espidf.toolchain import parse_sdkconfig
+    from esphome.espidf import parse_sdkconfig
 
     sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
-    if not sdkconfig_path.is_file():
-        return None
     with suppress(OSError, ValueError, KeyError):
         return int(parse_sdkconfig(sdkconfig_path)["CONFIG_XTAL_FREQ"])
     return None

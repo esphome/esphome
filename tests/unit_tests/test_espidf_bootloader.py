@@ -739,7 +739,7 @@ def _flash_build(tmp_path: Path, cached: bool = True, offset: int = 0x1000) -> P
         json.dumps({"BOOTLOADER_OFFSET_IN_FLASH": offset})
     )
     (build / "CMakeCache.txt").write_text(
-        f"ESPHOME_USE_CACHED_BOOTLOADER:UNINITIALIZED={int(cached)}\n"
+        f"{toolchain.USE_CACHED_BOOTLOADER_DEFINE}:UNINITIALIZED={int(cached)}\n"
     )
     (build / "bootloader").mkdir()
     (build / "bootloader" / "bootloader.bin").write_bytes(b"\xe9")
@@ -772,9 +772,9 @@ def test_inject_noop_on_a_stock_tree(tmp_path: Path) -> None:
 def test_tree_uses_cached_bootloader(tmp_path: Path) -> None:
     assert bootloader.tree_uses_cached_bootloader(tmp_path) is False
     cache = tmp_path / "CMakeCache.txt"
-    cache.write_text("ESPHOME_USE_CACHED_BOOTLOADER:UNINITIALIZED=0\n")
+    cache.write_text(f"{toolchain.USE_CACHED_BOOTLOADER_DEFINE}:UNINITIALIZED=0\n")
     assert bootloader.tree_uses_cached_bootloader(tmp_path) is False
-    cache.write_text("ESPHOME_USE_CACHED_BOOTLOADER:UNINITIALIZED=1\n")
+    cache.write_text(f"{toolchain.USE_CACHED_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n")
     assert bootloader.tree_uses_cached_bootloader(tmp_path) is True
 
 

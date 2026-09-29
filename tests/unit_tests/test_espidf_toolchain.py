@@ -1189,7 +1189,7 @@ def test_create_factory_bin_merges_cached_bootloader(setup_core: Path) -> None:
     (build / "bootloader").mkdir(parents=True)
     (build / "bootloader" / "bootloader.bin").write_bytes(b"\xe9")
     (build / "CMakeCache.txt").write_text(
-        "ESPHOME_USE_CACHED_BOOTLOADER:UNINITIALIZED=1\n"
+        f"{toolchain.USE_CACHED_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
     )
     (build / "config").mkdir()
     (build / "config" / "sdkconfig.json").write_text(
@@ -1230,7 +1230,7 @@ def test_create_factory_bin_fails_when_the_cached_bootloader_is_missing(
     build = CORE.relative_build_path("build")
     build.mkdir(parents=True)
     (build / "CMakeCache.txt").write_text(
-        "ESPHOME_USE_CACHED_BOOTLOADER:UNINITIALIZED=1\n"
+        f"{toolchain.USE_CACHED_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
     )
     (build / "flasher_args.json").write_text('{"flash_files": {}}')
     with patch.object(toolchain.subprocess, "run") as mock_run:
@@ -1280,6 +1280,8 @@ def test_resolved_c_compiler_none_without_a_usable_description(
 
 
 def test_parse_sdkconfig(tmp_path: Path) -> None:
+    from esphome.espidf import parse_sdkconfig
+
     path = tmp_path / "sdkconfig"
     path.write_text(
         "# comment\n"
@@ -1290,7 +1292,7 @@ def test_parse_sdkconfig(tmp_path: Path) -> None:
         "CONFIG_BOOL=y\n"
         "not_config=1\n"
     )
-    assert toolchain.parse_sdkconfig(path) == {
+    assert parse_sdkconfig(path) == {
         "CONFIG_INT": "240",
         "CONFIG_STR": "key.pem",
         "CONFIG_EMPTY": "",
