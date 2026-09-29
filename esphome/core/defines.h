@@ -630,7 +630,6 @@
 #define USE_ZIGBEE_WIPE_ON_BOOT
 #define USE_ZIGBEE_WIPE_ON_BOOT_MAGIC 1
 #define ZIGBEE_ENDPOINTS_COUNT 8
-#define USE_SOCKET_IMPL_BSD_SOCKETS
 #endif
 
 // Disabled feature flags

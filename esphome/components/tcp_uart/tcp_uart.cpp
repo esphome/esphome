@@ -9,7 +9,6 @@
 #include <cstring>
 
 #if !defined(USE_HOST) && !defined(USE_ZEPHYR)
-#include "esphome/components/network/ip_address.h"
 #include "lwip/dns.h"
 #include "lwip/ip4_addr.h"
 #else
@@ -19,25 +18,6 @@
 namespace esphome::tcp_uart {
 
 static const char *const TAG = "tcp_uart";
-
-#if !defined(USE_HOST) && !defined(USE_ZEPHYR)
-static void format_ipv4(uint32_t raw, char *dest, size_t dest_len) {
-  ip_addr_t addr{};
-  ip_addr_set_ip4_u32(&addr, raw);
-  char buf[network::IP_ADDRESS_BUFFER_SIZE];
-  network::IPAddress(&addr).str_to(buf);
-  size_t n = 0;
-  while (n + 1 < dest_len && buf[n] != '\0') {
-    dest[n] = buf[n];
-    ++n;
-  }
-  if (dest_len > 0) {
-    dest[n] = '\0';
-  }
-}
-#endif
-
-static uint32_t loop_time() { return App.get_loop_component_start_time(); }
 
 static void consume_buf(uint8_t *buf, size_t *len, size_t n) {
   if (n >= *len) {
@@ -52,7 +32,7 @@ float TcpUart::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 
 void TcpUart::setup() {
   // The first attempt must not wait out a full interval.
-  this->last_attempt_ms_ = loop_time() - this->reconnect_interval_ms_;
+  this->last_attempt_ms_ = App.get_loop_component_start_time() - this->reconnect_interval_ms_;
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(false);
   }
@@ -66,16 +46,6 @@ void TcpUart::dump_config() {
 }
 
 void TcpUart::on_shutdown() { this->close_sock_(); }
-
-void TcpUart::note_attempt_() { this->last_attempt_ms_ = loop_time(); }
-
-void TcpUart::forget_addr_() {
-  this->have_addr_.store(false);
-  this->resolved_addr_.store(0);
-  this->resolved_ip_[0] = '\0';
-}
-
-bool TcpUart::in_backoff_() const { return loop_time() - this->last_attempt_ms_ < this->reconnect_interval_ms_; }
 
 void TcpUart::set_link_up_(bool up) {
   if (this->connected_ == up) {
@@ -191,7 +161,9 @@ bool TcpUart::ip_ready_() {
 #if defined(USE_HOST) || defined(USE_ZEPHYR)
   return false;
 #else
-  format_ipv4(this->resolved_addr_.load(), this->resolved_ip_, sizeof(this->resolved_ip_));
+  ip4_addr_t addr;
+  ip4_addr_set_u32(&addr, this->resolved_addr_.load());
+  ip4addr_ntoa_r(&addr, this->resolved_ip_, static_cast<int>(sizeof(this->resolved_ip_)));
   return this->resolved_ip_[0] != '\0';
 #endif
 }
@@ -294,9 +266,16 @@ void TcpUart::flush_tx_() {
 }
 
 void TcpUart::loop() {
-  this->try_connect_();
+  if (this->sock_ == nullptr) {
+    if (!this->in_backoff_()) {
+      this->try_connect_();
+    }
+    return;
+  }
   this->read_socket_();
-  this->flush_tx_();
+  if (this->tx_len_ != 0) {
+    this->flush_tx_();
+  }
 }
 
 void TcpUart::write_array(const uint8_t *data, size_t len) {
@@ -309,7 +288,7 @@ void TcpUart::write_array(const uint8_t *data, size_t len) {
   }
   size_t room = sizeof(this->tx_) - this->tx_len_;
   if (len > room) {
-    uint32_t now = loop_time();
+    uint32_t now = App.get_loop_component_start_time();
     if (this->last_drop_log_ms_ == 0 || now - this->last_drop_log_ms_ >= 5000) {
       ESP_LOGW(TAG, "TX buffer full, dropped %u bytes", static_cast<unsigned>(len - room));
       this->last_drop_log_ms_ = now;

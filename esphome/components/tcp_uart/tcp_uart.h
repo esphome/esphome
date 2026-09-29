@@ -3,6 +3,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/components/uart/uart_component.h"
+#include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
@@ -51,9 +52,15 @@ class TcpUart : public uart::UARTComponent, public Component {
   void flush_tx_();
   void apply_socket_options_(socket::Socket *sock);
   void set_link_up_(bool up);
-  void note_attempt_();
-  void forget_addr_();
-  bool in_backoff_() const;
+  void note_attempt_() { this->last_attempt_ms_ = App.get_loop_component_start_time(); }
+  void forget_addr_() {
+    this->have_addr_.store(false);
+    this->resolved_addr_.store(0);
+    this->resolved_ip_[0] = '\0';
+  }
+  bool in_backoff_() const {
+    return App.get_loop_component_start_time() - this->last_attempt_ms_ < this->reconnect_interval_ms_;
+  }
 #if !defined(USE_HOST) && !defined(USE_ZEPHYR)
   static void dns_found(const char *name, const ip_addr_t *addr, void *arg);
 #endif
