@@ -4,6 +4,8 @@
 #include "esphome/components/socket/socket.h"
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
 #ifdef USE_ESP32
 #include "lwip/ip_addr.h"
@@ -11,9 +13,7 @@
 
 #include <atomic>
 #include <cstdint>
-#include <deque>
 #include <memory>
-#include <string>
 #include <vector>
 
 namespace esphome {
@@ -22,7 +22,7 @@ namespace tcp_uart {
 /// TCP client presented as a UART. Bytes are copied unchanged.
 class TcpUart : public uart::UARTComponent, public Component {
  public:
-  void set_host(const std::string &host) { this->host_ = host; }
+  void set_host(const char *host) { this->host_ = StringRef(host); }
   void set_port(uint16_t port) { this->port_ = port; }
   void set_reconnect_interval(uint32_t ms) { this->reconnect_interval_ms_ = ms; }
   void set_connected_sensor(binary_sensor::BinarySensor *sensor) { this->connected_sensor_ = sensor; }
@@ -57,7 +57,7 @@ class TcpUart : public uart::UARTComponent, public Component {
   static void dns_found_(const char *name, const ip_addr_t *addr, void *arg);
 #endif
 
-  std::string host_;
+  StringRef host_;
   uint16_t port_{0};
   std::unique_ptr<socket::Socket> sock_;
   bool connecting_{false};
@@ -70,9 +70,9 @@ class TcpUart : public uart::UARTComponent, public Component {
   std::atomic<bool> resolve_failed_{false};
   std::atomic<bool> have_addr_{false};
   std::atomic<uint32_t> resolved_addr_{0};
-  std::string resolved_ip_;
+  char resolved_ip_[16]{};
 
-  std::deque<uint8_t> rx_;
+  StaticRingBuffer<uint8_t, 1024> rx_;
   std::vector<uint8_t> tx_;
 };
 

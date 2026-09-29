@@ -7,6 +7,7 @@ from esphome.const import (
     DEVICE_CLASS_CONNECTIVITY,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
 DEPENDENCIES = ["network", "socket"]
@@ -21,7 +22,7 @@ CONF_RECONNECT_INTERVAL = "reconnect_interval"
 CONF_CONNECTED = "connected"
 
 
-def _consume_socket(config):
+def _consume_socket(config: ConfigType) -> ConfigType:
     socket.consume_sockets(1, "tcp_uart")(config)
     return config
 
@@ -43,7 +44,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_host(config[CONF_HOST]))
@@ -55,6 +56,5 @@ async def to_code(config):
     cg.add(var.set_stop_bits(1))
     cg.add(var.set_parity(uart.UART_PARITY_OPTIONS["NONE"]))
     cg.add(var.set_rx_buffer_size(1024))
-    if CONF_CONNECTED in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_CONNECTED])
-        cg.add(var.set_connected_sensor(sens))
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_CONNECTED, var.set_connected_sensor)
