@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include "esphome/core/log.h"
 
 namespace esphome::runtime_image {
 
