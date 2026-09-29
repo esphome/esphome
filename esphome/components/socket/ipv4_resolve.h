@@ -37,7 +37,7 @@ class Ipv4Resolve {
 
  private:
 #if !defined(USE_HOST) && !defined(USE_ZEPHYR)
-  static void dns_found_(const char *name, const ip_addr_t *addr, void *arg);
+  static void dns_found(const char *name, const ip_addr_t *addr, void *arg);
 #endif
   const char *tag_{nullptr};
   std::atomic<uint32_t> addr_{0};

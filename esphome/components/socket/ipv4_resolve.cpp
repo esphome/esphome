@@ -31,7 +31,7 @@ socklen_t Ipv4Resolve::to_sockaddr(struct sockaddr *dest, socklen_t destlen, uin
 }
 
 #if !defined(USE_HOST) && !defined(USE_ZEPHYR)
-void Ipv4Resolve::dns_found_(const char *name, const ip_addr_t *addr, void *arg) {
+void Ipv4Resolve::dns_found(const char *name, const ip_addr_t *addr, void *arg) {
   auto *self = static_cast<Ipv4Resolve *>(arg);
   if (addr != nullptr && IP_IS_V4(addr)) {
     self->addr_.store(ip4_addr_get_u32(ip_2_ip4(addr)));
@@ -67,7 +67,7 @@ void Ipv4Resolve::start(const char *host, uint16_t port, const char *tag) {
   {
     LwIPLock lock;
     this->resolving_.store(true);
-    err = dns_gethostbyname(host, &cached, &Ipv4Resolve::dns_found_, this);
+    err = dns_gethostbyname(host, &cached, &Ipv4Resolve::dns_found, this);
     if (err != ERR_INPROGRESS) {
       this->resolving_.store(false);
     }
