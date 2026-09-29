@@ -305,6 +305,15 @@ def test_pch_script_asks_the_compiler_on_windows(
     assert ("cannot load a precompiled header on Windows" in out) is not on
 
 
+def test_pch_script_leaves_the_header_off_when_the_compiler_cannot_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(sys, "platform", "win32")
+    scons_env = _run_script(tmp_path, cxx=tmp_path / "missing-g++")
+    assert scons_env.prepended == []
+    assert "GCC of unknown version cannot load" in capsys.readouterr().out
+
+
 def test_pch_script_compile_failure_stops_the_build(tmp_path: Path) -> None:
     """The pch holds only ESPHome's own headers: a failure is a defect."""
     with pytest.raises(RuntimeError, match="could not compile") as raised:

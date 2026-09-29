@@ -101,7 +101,8 @@ def gcc_version(cxx: Sequence[Path | str]) -> tuple[int, ...]:
         result = subprocess.run(
             [*cxx, "-dumpfullversion"], capture_output=True, text=True, check=False
         )
-    except OSError:
+    except OSError as err:
+        _LOGGER.debug("Cannot run %s: %s", cxx[0], err)
         return ()
     parts = result.stdout.strip().split(".")
     if not all(part.isdigit() for part in parts):
