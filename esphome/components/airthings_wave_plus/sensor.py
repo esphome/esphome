@@ -87,16 +87,9 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await airthings_wave_base.wave_base_to_code(var, config)
 
-    if config_radon := config.get(CONF_RADON):
-        sens = await sensor.new_sensor(config_radon)
-        cg.add(var.set_radon(sens))
-    if config_radon_long_term := config.get(CONF_RADON_LONG_TERM):
-        sens = await sensor.new_sensor(config_radon_long_term)
-        cg.add(var.set_radon_long_term(sens))
-    if config_co2 := config.get(CONF_CO2):
-        sens = await sensor.new_sensor(config_co2)
-        cg.add(var.set_co2(sens))
-    if config_illuminance := config.get(CONF_ILLUMINANCE):
-        sens = await sensor.new_sensor(config_illuminance)
-        cg.add(var.set_illuminance(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_RADON, var.set_radon)
+    await sensors(CONF_RADON_LONG_TERM, var.set_radon_long_term)
+    await sensors(CONF_CO2, var.set_co2)
+    await sensors(CONF_ILLUMINANCE, var.set_illuminance)
     cg.add(var.set_device_type(config[CONF_DEVICE_TYPE]))

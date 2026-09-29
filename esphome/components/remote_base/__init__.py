@@ -47,7 +47,7 @@ from esphome.const import (
 from esphome.core import ID, coroutine
 from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
 from esphome.util import Registry, SimpleRegistry
 
 AUTO_LOAD = ["binary_sensor"]
@@ -1149,7 +1149,7 @@ def gobox_dumper(var, config):
 
 @register_action("gobox", GoboxAction, GOBOX_SCHEMA)
 async def gobox_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_CODE], args, cg.int_)
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint64)
     cg.add(var.set_code(template_))
 
 
@@ -2104,6 +2104,61 @@ async def aeha_action(var, config, args):
     cg.add(var.set_data(template_))
     templ = await cg.templatable(config[CONF_CARRIER_FREQUENCY], args, cg.uint32)
     cg.add(var.set_carrier_frequency(templ))
+
+
+# Hob2Hood
+(
+    Hob2HoodData,
+    Hob2HoodBinarySensor,
+    Hob2HoodTrigger,
+    Hob2HoodAction,
+    Hob2HoodDumper,
+) = declare_protocol("Hob2Hood")
+
+Hob2HoodCommand = remote_base_ns.enum("Hob2HoodCommand")
+HOB2HOOD_COMMAND_OPTIONS = {
+    "light_off": Hob2HoodCommand.HOB2HOOD_COMMAND_LIGHT_OFF,
+    "light_on": Hob2HoodCommand.HOB2HOOD_COMMAND_LIGHT_ON,
+    "fan_off": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_OFF,
+    "fan_low": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_LOW,
+    "fan_medium": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_MEDIUM,
+    "fan_high": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_HIGH,
+    "fan_max": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_MAX,
+}
+
+HOB2HOOD_SCHEMA = cv.Schema(
+    {cv.Required(CONF_COMMAND): cv.enum(HOB2HOOD_COMMAND_OPTIONS, lower=True)}
+)
+
+
+@register_binary_sensor("hob2hood", Hob2HoodBinarySensor, HOB2HOOD_SCHEMA)
+def hob2hood_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                Hob2HoodData,
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("hob2hood", Hob2HoodTrigger, Hob2HoodData)
+def hob2hood_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("hob2hood", Hob2HoodDumper)
+def hob2hood_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+@register_action("hob2hood", Hob2HoodAction, HOB2HOOD_SCHEMA)
+async def hob2hood_action(
+    var: MockObj, config: ConfigType, args: TemplateArgsType
+) -> None:
+    template_ = await cg.templatable(config[CONF_COMMAND], args, Hob2HoodCommand)
+    cg.add(var.set_command(template_))
 
 
 # Haier

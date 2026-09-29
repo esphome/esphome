@@ -13,6 +13,8 @@ esphome:
             - update.check:
       - update.perform:
           force_update: true
+      - update.perform:
+          force_update: !lambda return false;
 
 wifi:
   ssid: MySSID
