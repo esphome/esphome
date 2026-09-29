@@ -26,6 +26,6 @@ const char *get_mime_type_for_format(ImageFormat format);
 /// Case-insensitive substring match of known media types; nullopt if none found
 std::optional<ImageFormat> get_format_for_mime_type(const char *mime_type);
 /// Human-readable name for a format; "unknown" if not recognized
-const char *get_format_name(ImageFormat format);
+const LogString *get_format_name(ImageFormat format);
 
 }  // namespace esphome::runtime_image

@@ -1,5 +1,6 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 #include "image_format.h"
 
 namespace esphome::runtime_image {
@@ -7,11 +8,6 @@ namespace esphome::runtime_image {
 struct MimeLookup {
   const char *mime_type;
   ImageFormat format;
-};
-
-struct FormatLookup {
-  ImageFormat format;
-  const char *name;
 };
 
 // The first entry per format is its canonical MIME type; the rest are aliases
@@ -31,21 +27,7 @@ static constexpr MimeLookup MIME_LOOKUP_TABLE[] = {
 #endif
 };
 
-static constexpr FormatLookup FORMAT_LOOKUP_TABLE[] = {
-    {ImageFormat::AUTO, "AUTO"},
-#ifdef USE_RUNTIME_IMAGE_BMP
-    {ImageFormat::BMP, "BMP"},
-#endif
-#ifdef USE_RUNTIME_IMAGE_JPEG
-    {ImageFormat::JPEG, "JPEG"},
-#endif
-#ifdef USE_RUNTIME_IMAGE_PNG
-    {ImageFormat::PNG, "PNG"},
-#endif
-#ifdef USE_RUNTIME_IMAGE_QOI
-    {ImageFormat::QOI, "QOI"},
-#endif
-};
+PROGMEM_STRING_TABLE(ImageFormatStrings, "AUTO", "BMP", "JPEG", "PNG", "QOI", "UNKNOWN");
 
 const char *get_mime_type_for_format(ImageFormat format) {
   for (const auto &entry : MIME_LOOKUP_TABLE) {
@@ -65,13 +47,8 @@ std::optional<ImageFormat> get_format_for_mime_type(const char *mime_type) {
   return std::nullopt;
 }
 
-const char *get_format_name(ImageFormat format) {
-  for (const auto &entry : FORMAT_LOOKUP_TABLE) {
-    if (entry.format == format) {
-      return entry.name;
-    }
-  }
-  return "unknown";
+const LogString *get_format_name(ImageFormat format) {
+  return ImageFormatStrings::get_log_str(static_cast<uint8_t>(format), ImageFormatStrings::LAST_INDEX);
 }
 
 }  // namespace esphome::runtime_image
