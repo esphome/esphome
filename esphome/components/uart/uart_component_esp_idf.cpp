@@ -7,6 +7,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/gpio.h"
 #include "driver/gpio.h"
+#include "hal/uart_ll.h"
 #include "esp_private/gpio.h"
 #include "soc/gpio_num.h"
 #include "soc/soc_caps.h"
@@ -162,11 +163,11 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   }
   err = uart_driver_install(this->uart_num_,        // UART number
                             this->rx_buffer_size_,  // RX ring buffer size
-                            0,  // TX ring buffer size. If zero, driver will not use a TX buffer and TX function will
-                                // block task until all data has been sent out
-                            0,  // event queue size/depth
-                            nullptr,  // event queue
-                            0         // Flags used to allocate the interrupt
+                            this->tx_buffer_size_,  // TX ring buffer size; 0 makes uart_write_bytes() block until
+                                                    // the FIFO has taken everything
+                            0,                      // event queue size/depth
+                            nullptr,                // event queue
+                            0                       // Flags used to allocate the interrupt
   );
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_driver_install failed: %s", esp_err_to_name(err));
@@ -356,6 +357,9 @@ void IDFUARTComponent::dump_config() {
                   "  RX Timeout: %u",
                   this->rx_buffer_size_, this->rx_full_threshold_, this->rx_timeout_);
   }
+  if (this->tx_buffer_size_ > 0) {
+    ESP_LOGCONFIG(TAG, "  TX Buffer Size: %zu", this->tx_buffer_size_);
+  }
   if (this->flush_timeout_ms_ > 0) {
     ESP_LOGCONFIG(TAG, "  Flush Timeout: %" PRIu32 " ms", this->flush_timeout_ms_);
   }
@@ -394,6 +398,15 @@ void IDFUARTComponent::set_rx_timeout(size_t rx_timeout) {
     }
   }
   this->rx_timeout_ = rx_timeout;
+}
+
+size_t IDFUARTComponent::available_for_write() {
+  if (this->tx_buffer_size_ == 0) {
+    return uart_ll_get_txfifo_len(UART_LL_GET_HW(this->uart_num_));
+  }
+  size_t free = 0;
+  uart_get_tx_buffer_free_size(this->uart_num_, &free);
+  return free;
 }
 
 void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {

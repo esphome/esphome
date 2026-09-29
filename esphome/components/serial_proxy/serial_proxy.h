@@ -53,6 +53,9 @@ enum class SerialProxyResult : uint8_t {
 /// Maximum bytes to read from UART in a single loop iteration
 inline constexpr size_t SERIAL_PROXY_MAX_READ_SIZE = 256;
 
+/// Longest main-loop stall a client write may cause; bytes the UART cannot buffer within it are dropped
+inline constexpr uint32_t SERIAL_PROXY_MAX_WRITE_STALL_MS = 1000;
+
 #ifdef USE_SERIAL_PROXY_TAP
 /// Observes a port's traffic without owning it, and may inject bytes of its own.
 ///
@@ -203,6 +206,9 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// client can never share the wire with the subscriber or an active tap.
   bool is_subscriber_(api::APIConnection *api_connection) const { return this->api_connection_ == api_connection; }
 #endif
+
+  /// Time the wire needs for the given number of bytes at the current framing
+  uint32_t wire_time_ms_(size_t bytes) const;
 
 #ifdef USE_SERIAL_PROXY_TAP
   /// Return the port to RAW when a subscriber goes away, so the mode never outlives it

@@ -4,6 +4,7 @@
 
 #include "esphome/core/log.h"
 
+#include <algorithm>
 #include <cinttypes>
 #include "esphome/core/util.h"
 
@@ -293,6 +294,22 @@ void SerialProxy::write_from_client(api::APIConnection *api_connection, const ui
 #endif
   if (data == nullptr || len == 0)
     return;
+  // Whatever the driver cannot buffer stalls the main loop for its wire time. At high baud
+  // rates that is brief and losing nothing is worth it; at low ones it would trip the
+  // watchdog, so cap the stall and drop the rest
+  const size_t free = this->parent_->available_for_write();
+  if (len > free) {
+    const uint32_t stall_ms = this->wire_time_ms_(len - free);
+    if (stall_ms > SERIAL_PROXY_MAX_WRITE_STALL_MS) {
+      ESP_LOGW(TAG,
+               "TX buffer full on serial proxy [%" PRIu32 "]: dropping %zu of %zu bytes (would stall %" PRIu32
+               " ms at %" PRIu32 " baud); raise the UART tx_buffer_size or pace writes",
+               this->instance_index_, len - free, len, stall_ms, this->parent_->get_baud_rate());
+      len = free;
+      if (len == 0)
+        return;
+    }
+  }
   this->write_array(data, len);
 
 #ifdef USE_SERIAL_PROXY_TAP
@@ -301,6 +318,12 @@ void SerialProxy::write_from_client(api::APIConnection *api_connection, const ui
     this->tap_->on_client_tx(data, len);
   }
 #endif
+}
+
+uint32_t SerialProxy::wire_time_ms_(size_t bytes) const {
+  const uint32_t bits_per_byte = 1 + this->parent_->get_data_bits() + this->parent_->get_stop_bits() +
+                                 (this->parent_->get_parity() != uart::UART_CONFIG_PARITY_NONE ? 1 : 0);
+  return static_cast<uint64_t>(bytes) * bits_per_byte * 1000 / std::max<uint32_t>(this->parent_->get_baud_rate(), 1);
 }
 
 SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection, uint32_t line_states) {
