@@ -6,6 +6,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/string_ref.h"
 #include "light_call.h"
+#include "esp_color_correction.h"
 #include "light_color_values.h"
 #include "light_effect.h"
 #include "light_traits.h"
@@ -44,33 +45,7 @@ class LightTargetStateReachedListener {
   virtual void on_light_target_state_reached() = 0;
 };
 
-enum LightRestoreMode : uint8_t {
-  LIGHT_RESTORE_DEFAULT_OFF,
-  LIGHT_RESTORE_DEFAULT_ON,
-  LIGHT_ALWAYS_OFF,
-  LIGHT_ALWAYS_ON,
-  LIGHT_RESTORE_INVERTED_DEFAULT_OFF,
-  LIGHT_RESTORE_INVERTED_DEFAULT_ON,
-  LIGHT_RESTORE_AND_OFF,
-  LIGHT_RESTORE_AND_ON,
-};
-
 struct LightStateRTCState {
-  LightStateRTCState(ColorMode color_mode, bool state, float brightness, float color_brightness, float red, float green,
-                     float blue, float white, float color_temp, float cold_white, float warm_white)
-      : brightness(brightness),
-        color_brightness(color_brightness),
-        red(red),
-        green(green),
-        blue(blue),
-        white(white),
-        color_temp(color_temp),
-        cold_white(cold_white),
-        warm_white(warm_white),
-        effect(0),
-        color_mode(color_mode),
-        state(state) {}
-  LightStateRTCState() = default;
   // Group 4-byte aligned members first
   float brightness{1.0f};
   float color_brightness{1.0f};
@@ -100,6 +75,21 @@ class LightState : public EntityBase, public Component {
   LightCall turn_on();
   LightCall turn_off();
   LightCall toggle();
+
+  /// The values reported to the frontend: current_values while a light publishes intermediate
+  /// states on an interval, otherwise remote_values. Each interval sample is a publish_state(),
+  /// so on_state automations run on every sample as well.
+  const LightColorValues &get_reported_values() const {
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+    if (this->transition_publish_enabled_) {
+      return this->current_values;
+    }
+#endif
+    return this->remote_values;
+  }
+
+  /// True from the call that starts a transition or flash until it reaches its target.
+  bool is_transitioning() const { return this->transformer_ != nullptr; }
   LightCall make_call();
 
   // ========== INTERNAL METHODS ==========
@@ -162,22 +152,42 @@ class LightState : public EntityBase, public Component {
   }
   uint32_t get_default_transition_length() const { return this->default_transition_length_; }
 
-  /// Set the flash transition length
+#ifdef USE_LIGHT_FLASH_TRANSITION_LENGTH
+  /// Set the flash transition length; only compiled in when a light configures one
   void set_flash_transition_length(uint32_t flash_transition_length) {
     this->flash_transition_length_ = flash_transition_length;
   }
   uint32_t get_flash_transition_length() const { return this->flash_transition_length_; }
+#else
+  // Remove before 2027.4.0
+  ESPDEPRECATED("set_flash_transition_length() does nothing unless flash_transition_length is set in YAML. Removed in "
+                "2027.4.0",
+                "2026.10.0")
+  void set_flash_transition_length(uint32_t flash_transition_length) {}
+  uint32_t get_flash_transition_length() const { return 0; }
+#endif
 
-  /// Set the gamma correction factor
-  void set_gamma_correct(float gamma_correct) { this->gamma_correct_ = gamma_correct; }
-  float get_gamma_correct() const { return this->gamma_correct_; }
+  // Remove before 2027.4.0
+  ESPDEPRECATED("set_gamma_correct() does nothing; gamma is fixed at build time by gamma_correct in YAML. Removed in "
+                "2027.4.0",
+                "2026.10.0")
+  void set_gamma_correct(float gamma_correct) {}
+  /// The gamma correction factor, read from the entry after the gamma lookup table; 0 without one
+  float get_gamma_correct() const;
+
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  void set_transition_state_publish_interval(uint32_t transition_state_publish_interval) {
+    this->transition_state_publish_interval_ = transition_state_publish_interval;
+  }
+  uint32_t get_transition_state_publish_interval() const { return this->transition_state_publish_interval_; }
+#endif
 
 #ifdef USE_LIGHT_GAMMA_LUT
-  /// Set pre-computed gamma forward lookup table (256-entry uint16 PROGMEM array)
-  void set_gamma_table(const uint16_t *forward) { this->gamma_table_ = forward; }
+  /// Set the pre-computed PROGMEM gamma curve
+  void set_gamma_table(const GammaTable *table) { this->gamma_table_ = table; }
 
-  /// Get the forward gamma lookup table
-  const uint16_t *get_gamma_table() const { return this->gamma_table_; }
+  /// Get the forward gamma lookup table, 256 PROGMEM entries
+  const uint16_t *get_gamma_table() const { return this->gamma_table_ != nullptr ? this->gamma_table_->lut : nullptr; }
 
   /// Apply gamma correction using the pre-computed forward LUT
   float gamma_correct_lut(float value) const;
@@ -189,12 +199,19 @@ class LightState : public EntityBase, public Component {
   float gamma_uncorrect_lut(float value) const { return value; }
 #endif  // USE_LIGHT_GAMMA_LUT
 
-  /// Set the restore mode of this light
-  void set_restore_mode(LightRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
+  /// Set the callback that resolves the boot-time state, called once during setup then
+  /// cleared. `restored` is true only when a persisted state actually loaded, in which
+  /// case the state argument already holds the loaded values; otherwise it is freshly
+  /// default-constructed. Values live in flash as code.
+  void set_state_callback(void (*callback)(LightStateRTCState &, bool restored)) { this->state_callback_ = callback; }
 
-  /// Set a callback to populate the initial state defaults during setup.
-  /// The callback is called once, then cleared. Values live in flash as code.
-  void set_initial_state(void (*callback)(LightStateRTCState &)) { this->initial_state_callback_ = callback; }
+  /// Set whether this light persists its state to preferences at all.
+  void set_save_enabled(bool save_enabled) { this->save_enabled_ = save_enabled; }
+
+#ifdef USE_LIGHT_RESUME_EFFECT
+  /// Set whether a plain turn-on restores the effect that was active when the light was turned off.
+  void set_resume_effect(bool resume_effect) { this->resume_effect_ = resume_effect; }
+#endif  // USE_LIGHT_RESUME_EFFECT
 
   /// Return whether the light has any effects that meet the trait requirements.
   bool supports_effects() const { return !this->effects_.empty(); }
@@ -291,6 +308,7 @@ class LightState : public EntityBase, public Component {
   friend LightOutput;
   friend LightCall;
   friend class AddressableLight;
+  friend class LightFlashTransformer;
 
   /// Internal method to start an effect with the given index
   void start_effect_(uint32_t effect_index);
@@ -306,6 +324,18 @@ class LightState : public EntityBase, public Component {
 
   /// Internal method to set the color values to target immediately (with no transition).
   void set_immediately_(const LightColorValues &target, bool set_remote_values);
+
+  /// Point remote_values at the new transformer's target and, when this light publishes
+  /// intermediate states on an interval, start the interval clock.
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  void set_transformer_remote_values_(const LightColorValues &target, bool set_remote_values);
+#else
+  void set_transformer_remote_values_(const LightColorValues &target, bool set_remote_values) {
+    if (set_remote_values) {
+      this->remote_values = target;
+    }
+  }
+#endif
 
   /// Internal method to save the current remote_values to the preferences
   void save_remote_values_();
@@ -347,28 +377,44 @@ class LightState : public EntityBase, public Component {
    */
   std::unique_ptr<std::vector<LightTargetStateReachedListener *>> target_state_reached_listeners_;
 
-  /// Callback to populate initial state defaults — called once during setup, then cleared.
+  /// Callback that resolves the boot-time state — called once during setup, then cleared.
   /// Values live in flash as function body; no per-instance data storage beyond this pointer.
-  void (*initial_state_callback_)(LightStateRTCState &){nullptr};
+  void (*state_callback_)(LightStateRTCState &, bool restored){nullptr};
 
-  /// Value for storing the index of the currently active effect. 0 if no effect is active
-  uint32_t active_effect_index_{};
   /// Default transition length for all transitions in ms.
   uint32_t default_transition_length_{};
+#ifdef USE_LIGHT_FLASH_TRANSITION_LENGTH
   /// Transition length to use for flash transitions.
-  uint32_t flash_transition_length_{};
-  /// Gamma correction factor for the light.
-  float gamma_correct_{};
+  uint32_t flash_transition_length_{};  // Keep in sync with DEFAULT_FLASH_TRANSITION_LENGTH in __init__.py
+#endif
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  uint32_t transition_state_publish_interval_{0};
+  uint32_t last_transition_state_publish_{0};
+#endif
 #ifdef USE_LIGHT_GAMMA_LUT
-  const uint16_t *gamma_table_{nullptr};
+  const GammaTable *gamma_table_{nullptr};
 #endif  // USE_LIGHT_GAMMA_LUT
 
+  /// 1-based index of the active effect, 0 if none; codegen caps effects at MAX_EFFECTS in effects.py
+  uint16_t active_effect_index_{};
+#ifdef USE_LIGHT_RESUME_EFFECT
+  /// The effect index that was active when the light was last turned off; shares the active index's word
+  uint16_t previous_effect_index_{0};
+#endif  // USE_LIGHT_RESUME_EFFECT
   /// Whether the light value should be written in the next cycle.
-  bool next_write_{true};
+  bool next_write_{true};  // a plain bool: it is the most written flag, and still shares the index's word
   // for effects, true if a transformer (transition) is active.
-  bool is_transformer_active_{false};
-  /// Restore mode of the light.
-  LightRestoreMode restore_mode_;
+  bool is_transformer_active_ : 1 {false};
+  /// Whether this light persists its state to preferences at all.
+  bool save_enabled_ : 1 {false};
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  /// True while the active transformer publishes current_values on an interval from loop().
+  bool transition_publish_enabled_ : 1 {false};
+#endif
+#ifdef USE_LIGHT_RESUME_EFFECT
+  /// Whether a plain turn-on restores the effect that was active when the light was turned off.
+  bool resume_effect_ : 1 {false};
+#endif  // USE_LIGHT_RESUME_EFFECT
 };
 
 }  // namespace esphome::light

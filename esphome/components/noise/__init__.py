@@ -5,11 +5,12 @@ from typing import Any
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ENCRYPTION, CONF_KEY
-from esphome.core import ID
+from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "noise"
 
 noise_ns = cg.esphome_ns.namespace("noise")
 
@@ -70,11 +71,16 @@ def static_encryption_key(conf: ConfigType) -> str | None:
 
 def new_psk_progmem(parent_id: ID, key: str) -> MockObj:
     """Emit the decoded key as a PROGMEM array; the component keeps a pointer
-    so the key never occupies RAM."""
-    return cg.progmem_array(
-        ID(f"{parent_id.id}_psk", is_declaration=True, type=cg.uint8),
-        list(decode_encryption_key(key)),
-    )
+    so the key never occupies RAM. Components sharing one key (api and ota)
+    share the array."""
+    decoded = decode_encryption_key(key)
+    arrays: dict[bytes, MockObj] = CORE.data.setdefault(DOMAIN, {})
+    if (array := arrays.get(decoded)) is None:
+        array = arrays[decoded] = cg.progmem_array(
+            ID(f"{parent_id.id}_psk", is_declaration=True, type=cg.uint8),
+            list(decoded),
+        )
+    return array
 
 
 def encryption_schema(config: ConfigType | None) -> ConfigType:
@@ -88,12 +94,12 @@ def encryption_schema(config: ConfigType | None) -> ConfigType:
 
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NOISE")
-    cg.add_library("esphome/noise-c", "0.1.26")
+    cg.add_library("esphome/noise-c", "0.1.30")
     # noise-c depends on libsodium, but declaring it here too lets the
     # library manager see the full set up front instead of discovering
     # libsodium only after noise-c has downloaded, so the two can download
     # in parallel. The version must match noise-c's library.json.
-    cg.add_library("esphome/libsodium", "1.10021.8")
+    cg.add_library("esphome/libsodium", "1.10021.11")
     # Enable optimized memzero/memcmp in libsodium instead of volatile byte loops
     cg.add_build_flag("-DHAVE_WEAK_SYMBOLS=1")
     cg.add_build_flag("-DHAVE_INLINE_ASM=1")

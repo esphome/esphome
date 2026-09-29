@@ -109,23 +109,4 @@ class SunTrigger final : public Trigger<>, public PollingComponent, public Paren
   double elevation_;
 };
 
-template<typename... Ts> class SunCondition final : public Condition<Ts...>, public Parented<Sun> {
- public:
-  TEMPLATABLE_VALUE(double, elevation);
-  void set_above(bool above) { above_ = above; }
-
-  bool check(const Ts &...x) override {
-    double elevation = this->elevation_.value(x...);
-    double current = this->parent_->elevation();
-    if (this->above_) {
-      return current > elevation;
-    } else {
-      return current < elevation;
-    }
-  }
-
- protected:
-  bool above_;
-};
-
 }  // namespace esphome::sun

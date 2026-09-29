@@ -9,5 +9,5 @@ wifi:
   password: password1
 
 # esp32_ble_server is only auto-loaded here, so it has no services of its own.
-esp32_improv:
+improv_ble:
   authorizer: none

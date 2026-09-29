@@ -1,0 +1,9 @@
+# A wifi power_save_mode other than NONE is forced off with a warning while
+# bk72xx_ble is configured (esphome#18592); this config must still validate.
+packages:
+  bk72xx_ble: !include common.yaml
+
+wifi:
+  ssid: MySSID
+  password: password1
+  power_save_mode: high
