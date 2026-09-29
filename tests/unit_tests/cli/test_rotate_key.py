@@ -41,6 +41,22 @@ class MockArgs:
     toolchain: Toolchain | None = None
 
 
+def _interrupt_after(writes: int) -> Any:
+    """A write_keeping_mode that lets ``writes`` calls through, then Ctrl-C."""
+    from esphome.yaml_edit import write_keeping_mode
+
+    calls = 0
+
+    def write(*args: Any, **kwargs: Any) -> None:
+        nonlocal calls
+        calls += 1
+        if calls > writes:
+            raise KeyboardInterrupt
+        write_keeping_mode(*args, **kwargs)
+
+    return write
+
+
 def setup_core(tmp_path: Path) -> None:
     CORE.reset()
     CORE.config_path = tmp_path / "test.yaml"
@@ -251,11 +267,31 @@ def test_restores_before_the_upload(
 def test_a_build_that_cannot_be_removed_shows_the_new_key(
     env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
 ) -> None:
+    """Every image is tried; the ones that stay are all named."""
     env["compile"].return_value = 1
-    CORE.firmware_bin.mkdir(parents=True)  # unlink fails on a directory
+    image = CORE.firmware_bin
+    image.mkdir(parents=True)  # unlink fails on a directory
+    stuck = image.with_name("firmware.factory.bin")
+    stuck.mkdir()
+    removable = image.with_name("firmware.ota.bin")
+    removable.write_bytes(b"")
     assert command_rotate_key(MockArgs(), CORE.config) == 1
     out = capfd.readouterr().out
-    assert f"Could not remove {CORE.firmware_bin}" in out
+    assert str(image) in out and str(stuck) in out
+    assert not removable.exists()
+    assert OLD_KEY in out and NEW_KEY in out
+
+
+def test_an_interrupt_during_the_image_cleanup_shows_the_keys(
+    env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    env["compile"].return_value = 1
+    CORE.firmware_bin.parent.mkdir(parents=True)
+    CORE.firmware_bin.write_bytes(b"")
+    with patch("pathlib.Path.glob", side_effect=KeyboardInterrupt):
+        assert command_rotate_key(MockArgs(), CORE.config) == 1
+    out = capfd.readouterr().out
+    assert f"{CORE.firmware_bin.parent}: interrupted" in out
     assert OLD_KEY in out and NEW_KEY in out
 
 
@@ -292,10 +328,10 @@ def test_a_second_interrupt_during_the_restore_shows_the_keys(
     env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
 ) -> None:
     env["compile"].return_value = 1
-    with patch("esphome.cli.rotate_key.restore_files", side_effect=KeyboardInterrupt):
+    with patch("esphome.yaml_edit.write_keeping_mode", side_effect=_interrupt_after(1)):
         assert command_rotate_key(MockArgs(), CORE.config) == 1
     out = capfd.readouterr().out
-    assert f"Interrupted restoring {CORE.config_path}" in out
+    assert f"Could not restore {CORE.config_path}: interrupted" in out
     assert OLD_KEY in out and NEW_KEY in out
 
 

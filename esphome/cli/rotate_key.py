@@ -236,21 +236,27 @@ def _restore(originals: dict[Path, Snapshot], keys: str) -> None:
     else:
         safe_print(color(AnsiFore.BOLD_YELLOW, f"Restored the previous key in {files}"))
     build_dir = CORE.firmware_bin.parent
-    images = [p for suffix in (".bin", ".uf2") for p in build_dir.glob(f"*{suffix}")]
-    if not images:
-        return
+    failed: list[str] = []
+    images: list[Path] = []
     try:
-        for image in images:
-            image.unlink()
-    except OSError as err:
+        images = [p for s in (".bin", ".uf2") for p in build_dir.glob(f"*{s}")]
+        for image in images:  # every one is tried, whatever the others did
+            try:
+                image.unlink()
+            except OSError as err:
+                failed.append(f"{image}: {err}")
+    except (OSError, KeyboardInterrupt) as err:
+        failed.append(f"{build_dir}: {str(err) or 'interrupted'}")
+    if failed:
         safe_print(
             color(
                 AnsiFore.BOLD_RED,
-                f"Could not remove {image}, which may hold the new key: {err}",
+                "Could not remove images that may hold the new key: "
+                + "; ".join(failed),
             )
         )
         safe_print(keys)
-    else:
+    elif images:
         safe_print(
             color(
                 AnsiFore.BOLD_YELLOW,
