@@ -9,8 +9,6 @@ CODEOWNERS = ["@beormund"]
 DEPENDENCIES = ["i2c"]
 rx8130_ns = cg.esphome_ns.namespace("rx8130")
 RX8130Component = rx8130_ns.class_("RX8130Component", time.RealTimeClock, i2c.I2CDevice)
-WriteAction = rx8130_ns.class_("WriteAction", automation.Action)
-ReadAction = rx8130_ns.class_("ReadAction", automation.Action)
 
 
 CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
@@ -20,27 +18,18 @@ CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
 ).extend(i2c.i2c_device_schema(0x32))
 
 
-automation.register_parented_action(
-    "rx8130.write_time",
-    WriteAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(RX8130Component),
-        }
-    ),
-    synchronous=True,
+RX8130_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(RX8130Component),
+    }
 )
 
+automation.register_apply_action(
+    "rx8130.write_time", RX8130_ACTION_SCHEMA, automation.ApplyCall("write_time()")
+)
 
-automation.register_parented_action(
-    "rx8130.read_time",
-    ReadAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(RX8130Component),
-        }
-    ),
-    synchronous=True,
+automation.register_apply_action(
+    "rx8130.read_time", RX8130_ACTION_SCHEMA, automation.ApplyCall("read_time()")
 )
 
 
