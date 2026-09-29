@@ -111,7 +111,7 @@ def set_core_data(config: ConfigType) -> ConfigType:
 
 _TOOLCHAINS = (Toolchain.PLATFORMIO, Toolchain.ARDUINO)
 _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
-_resolve_toolchain = cv.resolve_toolchain("ESP8266", _TOOLCHAINS, Toolchain.PLATFORMIO)
+_resolve_toolchain = cv.resolve_toolchain("ESP8266", _TOOLCHAINS, Toolchain.ARDUINO)
 
 
 def _validate_native_toolchain(config: ConfigType) -> ConfigType:

@@ -125,10 +125,22 @@ def test_yaml_toolchain_key_resolves() -> None:
     assert CORE.using_toolchain_arduino
 
 
-def test_yaml_toolchain_key_defaults_to_platformio() -> None:
+@pytest.mark.parametrize(
+    ("config_toolchain", "expected"),
+    [
+        (None, Toolchain.ARDUINO),
+        # An explicit `toolchain:` still wins over the default
+        (Toolchain.PLATFORMIO, Toolchain.PLATFORMIO),
+        (Toolchain.ARDUINO, Toolchain.ARDUINO),
+    ],
+)
+def test_default_toolchain_is_arduino(
+    config_toolchain: Toolchain | None, expected: Toolchain
+) -> None:
     CORE.toolchain = None
-    _resolve_toolchain({})
-    assert CORE.toolchain == Toolchain.PLATFORMIO
+    config = {} if config_toolchain is None else {CONF_TOOLCHAIN: config_toolchain}
+    _resolve_toolchain(config)
+    assert CORE.toolchain == expected
 
 
 def test_decode_pc_native_missing_tools_warns_once(
