@@ -46,12 +46,20 @@ def test_strobe_color_conflicts_with_rgb() -> None:
 def test_addressable_color_wipe_plain_defaults_full_level() -> None:
     result = ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA({"num_leds": 1})
     assert (result[CONF_RED], result[CONF_GREEN], result[CONF_BLUE]) == (1.0, 1.0, 1.0)
+    assert result[CONF_COLOR_BRIGHTNESS] == 1.0
 
 
 def test_addressable_color_wipe_color_name() -> None:
     result = ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA({"num_leds": 1, "color": "darkred"})
     assert "color" not in result
     assert (result[CONF_RED], result[CONF_GREEN], result[CONF_BLUE]) == (1.0, 0.0, 0.0)
+    assert result[CONF_COLOR_BRIGHTNESS] == pytest.approx(0x8B / 0xFF)
+
+
+def test_addressable_color_wipe_explicit_channels_unaffected() -> None:
+    result = ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA({"num_leds": 1, "red": "50%"})
+    assert result[CONF_RED] == 0.5
+    assert result[CONF_COLOR_BRIGHTNESS] == 1.0
 
 
 def test_addressable_color_wipe_color_conflicts_with_rgb() -> None:

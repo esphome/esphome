@@ -432,6 +432,7 @@ async def addressable_rainbow_effect_to_code(config, effect_id):
 
 ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA = cv.Schema(
     {
+        cv.Optional(CONF_COLOR_BRIGHTNESS): cv.percentage,
         cv.Optional(CONF_RED): cv.percentage,
         cv.Optional(CONF_GREEN): cv.percentage,
         cv.Optional(CONF_BLUE): cv.percentage,
@@ -443,7 +444,7 @@ ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA = cv.Schema(
 ).extend(COLOR_SCHEMA)
 ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA.add_extra(color_to_rgb)
 ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA.add_extra(
-    _default_missing(CONF_RED, CONF_GREEN, CONF_BLUE)
+    _default_missing(CONF_COLOR_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE)
 )
 
 
@@ -465,19 +466,21 @@ async def addressable_color_wipe_effect_to_code(config, effect_id):
     var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(var.set_add_led_interval(config[CONF_ADD_LED_INTERVAL]))
     cg.add(var.set_reverse(config[CONF_REVERSE]))
-    colors = [
-        cg.StructInitializer(
-            AddressableColorWipeEffectColor,
-            ("r", int(round(color[CONF_RED] * 255))),
-            ("g", int(round(color[CONF_GREEN] * 255))),
-            ("b", int(round(color[CONF_BLUE] * 255))),
-            ("w", int(round(color[CONF_WHITE] * 255))),
-            ("random", color[CONF_RANDOM]),
-            ("num_leds", color[CONF_NUM_LEDS]),
-            ("gradient", color[CONF_GRADIENT]),
+    colors = []
+    for color in config.get(CONF_COLORS, []):
+        color_brightness = color[CONF_COLOR_BRIGHTNESS]
+        colors.append(
+            cg.StructInitializer(
+                AddressableColorWipeEffectColor,
+                ("r", int(round(color[CONF_RED] * color_brightness * 255))),
+                ("g", int(round(color[CONF_GREEN] * color_brightness * 255))),
+                ("b", int(round(color[CONF_BLUE] * color_brightness * 255))),
+                ("w", int(round(color[CONF_WHITE] * 255))),
+                ("random", color[CONF_RANDOM]),
+                ("num_leds", color[CONF_NUM_LEDS]),
+                ("gradient", color[CONF_GRADIENT]),
+            )
         )
-        for color in config.get(CONF_COLORS, [])
-    ]
     cg.add(var.set_colors(colors))
     return var
 
