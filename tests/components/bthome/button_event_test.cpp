@@ -17,6 +17,11 @@ TEST(BTHomeButton, ReadsTheButtonAtIndexAndMapsTheHoldAlias) {
 
   parsed.buttons[0] = 0x01;
   EXPECT_EQ(button_event_at(parsed, 1), 0x01);
+
+  parsed.button_count = codec::MAX_BUTTONS;
+  parsed.buttons[codec::MAX_BUTTONS - 1] = BUTTON_HOLD;
+  EXPECT_EQ(button_event_at(parsed, codec::MAX_BUTTONS), BUTTON_HOLD);
+  EXPECT_EQ(button_event_at(parsed, codec::MAX_BUTTONS + 1), 0x00);
 }
 
 TEST(BTHomeButton, DedupsByPacketIdAndByCooldown) {
