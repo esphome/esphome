@@ -254,7 +254,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_lcd",  # LCD controller drivers - only needed by display component
     "esp_local_ctrl",  # Local control over HTTPS/BLE - ESPHome has native API
     "esp_phy",  # RF PHY - re-included by internal_temperature on the original ESP32; esp_wifi/bt/ieee802154 pull it back
-    "esp_wifi",  # WiFi stack - re-included by request_wifi(), espnow; bt pulls it back for BLE builds
+    "esp_wifi",  # WiFi stack - re-included by request_wifi(), espnow, esp32_hosted; bt pulls it back for BLE builds
     "espcoredump",  # Core dump support - ESPHome has its own debug component
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
     "ieee802154",  # 802.15.4 radio - IDF openthread and the Zigbee libs pull it back
@@ -2627,6 +2627,11 @@ async def to_code(config):
             "CONFIG_ESP32P4_SELECTS_REV_LESS_V3",
             config.get(CONF_ENGINEERING_SAMPLE, False),
         )
+
+    # ESP32-C2 defaults to the ROM's newlib "nano" printf, which does not
+    # understand %zu or %lld and crashes on any %s that follows one.
+    if variant == VARIANT_ESP32C2:
+        add_idf_sdkconfig_option("CONFIG_LIBC_NEWLIB_NANO_FORMAT", False)
 
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
