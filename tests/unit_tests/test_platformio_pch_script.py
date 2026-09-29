@@ -6,6 +6,8 @@ from collections.abc import Callable
 import os
 from pathlib import Path
 import stat
+import subprocess
+import sys
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -22,6 +24,7 @@ _SCRIPT = Path(toolchain.__file__).parent / "pch.py.script"
 
 
 class _FakePlatform:
+    name = "fake"
     packages = {"framework-x": {}, "toolchain-y": {}}
 
     def get_package_version(self, name: str) -> str | None:
@@ -72,7 +75,13 @@ class _FakeSConsEnv(dict):
 def _fake_cxx(tmp_path: Path, fail: bool = False) -> Path:
     """A compiler stand-in that records its argv and writes the -o target."""
     cxx = tmp_path / "fake-gxx"
+    # As GCC: the program's path when it exists next to the driver, else its
+    # name; the version from FAKE_GCC_VERSION
     body = (
+        'case "$1" in -print-prog-name=*) n=${1#*=};'
+        ' p="$(dirname "$0")/../libexec/gcc/arm-none-eabi/10.3.1/$n";'
+        ' [ -x "$p" ] && echo "$p" || echo "$n"; exit 0;;'
+        ' -dumpversion) echo "${FAKE_GCC_VERSION:-10.3.1}"; exit 0;; esac\n'
         'printf -- ---call---\\\\n >> "$0.argv"; printf \'%s\\n\' "$@" >> "$0.argv"\n'
     )
     if fail:
@@ -93,6 +102,7 @@ def _run_script(
     name: str = "dev",
     platform_cls: type[_FakePlatform] = _FakePlatform,
     build_files: Callable[[tuple], list] | None = None,
+    cxx: Path | None = None,
 ) -> _FakeSConsEnv:
     proj = tmp_path / name
     src = proj / "src"
@@ -101,7 +111,8 @@ def _run_script(
     (src / "esphome" / "core" / "pch_prefix.h").write_text(
         '#include "esphome/core/defines.h"\n'
     )
-    cxx = _fake_cxx(tmp_path, fail=fail)
+    if cxx is None:
+        cxx = _fake_cxx(tmp_path, fail=fail)
     args = (proj, src, str(cxx), flags or ["-DX=1"], platform_cls)
     # Distinct objects: the -include flags must land on projenv only
     global_env = _FakeSConsEnv(*args)
@@ -137,6 +148,114 @@ def test_pch_script_builds_and_prepends_relative_include(tmp_path: Path) -> None
     assert scons_env.global_env.prepended == []
 
 
+class _LibreTinyPlatform(_FakePlatform):
+    name = "libretiny"
+
+
+def _run_on_host(
+    tmp_path: Path,
+    host: str,
+    machine: str,
+    platform_cls: type[_FakePlatform],
+    cxx: Path | None = None,
+    gcc_version: str = "10.3.1",
+) -> _FakeSConsEnv:
+    with (
+        patch.object(sys, "platform", host),
+        patch("platform.machine", return_value=machine),
+    ):
+        return _run_script(
+            tmp_path,
+            platform_cls=platform_cls,
+            cxx=cxx,
+            env_vars={"FAKE_GCC_VERSION": gcc_version},
+        )
+
+
+def _fake_toolchain(tmp_path: Path) -> tuple[Path, Path]:
+    """A driver in bin/ and a cc1plus that records its argv in libexec/."""
+    toolchain = tmp_path / "toolchain"
+    (toolchain / "bin").mkdir(parents=True)
+    cxx = _fake_cxx(toolchain / "bin")
+    real = toolchain / "libexec" / "gcc" / "arm-none-eabi" / "10.3.1" / "cc1plus"
+    real.parent.mkdir(parents=True)
+    real.write_text('#!/bin/sh\nprintf \'%s\\n\' "$@" > "$0.argv"\n')
+    real.chmod(0o755)
+    return cxx, real
+
+
+def test_pch_script_gcc10_wrapper_on_apple_silicon(tmp_path: Path) -> None:
+    """The LibreTiny .gch compile and the consumers get a -B directory
+    holding a cc1plus that starts the real one."""
+    cxx, real = _fake_toolchain(tmp_path)
+    scons_env = _run_on_host(tmp_path, "darwin", "arm64", _LibreTinyPlatform, cxx)
+    wrapper = tmp_path / "dev" / pch.PCH_CC1_DIR / "cc1plus"
+    assert wrapper.stat().st_mode & stat.S_IXUSR
+    assert repr(str(real)) in wrapper.read_text(encoding="utf-8")
+    argv = Path(f"{cxx}.argv").read_text(encoding="utf-8").split("\n")
+    assert f"-B{pch.PCH_CC1_DIR}/" in argv
+    assert scons_env.prepended == [f"-B{pch.PCH_CC1_DIR}/", *pch.pch_consumer_flags()]
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="the wrapper is macOS only")
+def test_pch_script_gcc10_wrapper_starts_the_real_cc1plus(tmp_path: Path) -> None:
+    cxx, real = _fake_toolchain(tmp_path)
+    _run_on_host(tmp_path, "darwin", "arm64", _LibreTinyPlatform, cxx)
+    wrapper = tmp_path / "dev" / pch.PCH_CC1_DIR / "cc1plus"
+    result = subprocess.run(
+        [str(wrapper), "-quiet", "x.cpp"], capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 0, result.stderr
+    assert Path(f"{real}.argv").read_text(encoding="utf-8") == "-quiet\nx.cpp\n"
+
+
+def test_pch_script_gcc10_without_cc1plus_builds_plainly(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A driver without a cc1plus of its own gets no wrapper and no header."""
+    scons_env = _run_on_host(tmp_path, "darwin", "arm64", _LibreTinyPlatform)
+    assert not (tmp_path / "dev" / "esphome_pch.h.gch").exists()
+    assert scons_env.prepended == []
+    assert "compiling without it" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("host", "machine"), [("darwin", "x86_64"), ("win32", "AMD64")]
+)
+def test_pch_script_gcc10_skipped_elsewhere(
+    tmp_path: Path, host: str, machine: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Where the GCC 10 .gch cannot load, the build runs without it."""
+    scons_env = _run_on_host(tmp_path, host, machine, _LibreTinyPlatform)
+    assert not (tmp_path / "dev" / "esphome_pch.h.gch").exists()
+    assert scons_env.prepended == []
+    assert "compiling without it" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("host", "machine", "platform_cls", "gcc_version"),
+    [
+        ("darwin", "arm64", _FakePlatform, "10.3.1"),
+        ("linux", "aarch64", _LibreTinyPlatform, "10.3.1"),
+        # From GCC 12 the .gch loads at any address, so the rule retires itself
+        ("darwin", "arm64", _LibreTinyPlatform, "12.2.0"),
+        ("win32", "AMD64", _LibreTinyPlatform, "14.2.0"),
+    ],
+)
+def test_pch_script_no_wrapper_where_the_gch_loads(
+    tmp_path: Path,
+    host: str,
+    machine: str,
+    platform_cls: type[_FakePlatform],
+    gcc_version: str,
+) -> None:
+    scons_env = _run_on_host(
+        tmp_path, host, machine, platform_cls, gcc_version=gcc_version
+    )
+    assert not (tmp_path / "dev" / pch.PCH_CC1_DIR).exists()
+    assert scons_env.prepended == pch.pch_consumer_flags()
+
+
 def test_pch_script_names_match_the_python_side(tmp_path: Path) -> None:
     """The script cannot import esphome, so its copies are pinned."""
     namespace: dict[str, object] = {
@@ -152,6 +271,7 @@ def test_pch_script_names_match_the_python_side(tmp_path: Path) -> None:
     assert namespace["_CONSUMER_FLAGS"] == pch.pch_consumer_flags()
     assert namespace["_GUARD_TEXT"] == pch.PCH_GUARD_TEXT
     assert namespace["_INCLUDE_RE"].pattern == pch._INCLUDE_RE.pattern
+    assert namespace["_CC1_DIR"] == pch.PCH_CC1_DIR
 
 
 def test_pch_script_compile_failure_stops_the_build(tmp_path: Path) -> None:
