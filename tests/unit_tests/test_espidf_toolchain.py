@@ -1277,3 +1277,22 @@ def test_resolved_c_compiler_none_without_a_usable_description(
         build.mkdir(parents=True)
         (build / "project_description.json").write_text(description)
     assert toolchain._resolved_c_compiler() is None
+
+
+def test_parse_sdkconfig(tmp_path: Path) -> None:
+    path = tmp_path / "sdkconfig"
+    path.write_text(
+        "# comment\n"
+        "# CONFIG_DISABLED is not set\n"
+        "CONFIG_INT=240\n"
+        'CONFIG_STR="key.pem"\n'
+        'CONFIG_EMPTY=""\n'
+        "CONFIG_BOOL=y\n"
+        "not_config=1\n"
+    )
+    assert toolchain.parse_sdkconfig(path) == {
+        "CONFIG_INT": "240",
+        "CONFIG_STR": "key.pem",
+        "CONFIG_EMPTY": "",
+        "CONFIG_BOOL": "y",
+    }

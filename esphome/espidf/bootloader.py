@@ -90,16 +90,13 @@ def _snapshot_blocks_cache(sdkconfig_path: Path) -> bool:
     build off blocks so those users skip the doomed probe on every compile;
     the probe still guards against unknown nondeterminism.
     """
-    reproducible = False
-    for line in sdkconfig_path.read_text(encoding="utf-8").splitlines():
-        name, _, value = line.partition("=")
-        name = name.strip()
-        value = value.strip().strip('"')
-        if _SECURE_OPTION.match(name) and value not in _DISABLED_VALUES:
-            return True
-        if name == "CONFIG_APP_REPRODUCIBLE_BUILD":
-            reproducible = value not in _DISABLED_VALUES
-    return not reproducible
+    config = toolchain.parse_sdkconfig(sdkconfig_path)
+    if any(
+        _SECURE_OPTION.match(name) and value not in _DISABLED_VALUES
+        for name, value in config.items()
+    ):
+        return True
+    return config.get("CONFIG_APP_REPRODUCIBLE_BUILD", "") in _DISABLED_VALUES
 
 
 def tree_uses_cached_bootloader(build_dir: Path) -> bool:
