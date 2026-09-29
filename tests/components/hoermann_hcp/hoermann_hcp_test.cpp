@@ -347,6 +347,17 @@ TEST(HoermannHcpReadWrite, StaleStopDoesNotBlockTheNextCommand) {
   EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
 }
 
+// Nor does it block a move to a position.
+TEST(HoermannHcpReadWrite, StaleStopDoesNotBlockAPosition) {
+  TestableHoermannHcp door;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x00C0, 0x0100}));
+  ASSERT_TRUE(door.stop_door());
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x00C8, 0x2000}));
+  EXPECT_TRUE(door.set_position(0.5f));
+  EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
+}
+
 // Close on a closed door and vent at the vent position are no moves either, but half open at vent is.
 TEST(HoermannHcpReadWrite, EveryEndOpensNoStartWindow) {
   TestableHoermannHcp door;

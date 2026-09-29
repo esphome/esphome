@@ -561,6 +561,9 @@ bool HoermannHcp::queue_command_(const HoermannHcpCommand &command) {
     ESP_LOGW(TAG, "Not connected to the bus controller, dropping '%s' command", command.name);
     return false;
   }
+  // A stop still waiting for a door that has come to rest would be dropped at the fetch anyway.
+  if (this->next_command_ == &COMMAND_STOP)
+    this->next_command_ = nullptr;
   if (this->next_command_ != nullptr) {
     ESP_LOGW(TAG, "Previous command not yet fetched by the bus controller");
     return false;
@@ -579,9 +582,6 @@ bool HoermannHcp::command_door_(const HoermannHcpCommand &command) {
   // way.
   if (this->is_moving_or_starting_())
     return this->stop_door();
-  // A stop still waiting for a door that has come to rest would be dropped at the fetch anyway.
-  if (this->next_command_ == &COMMAND_STOP)
-    this->next_command_ = nullptr;
   return this->queue_command_(command);
 }
 
