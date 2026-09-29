@@ -82,6 +82,8 @@ class TcpUart : public uart::UARTComponent, public Component {
   bool connecting_{false};
   bool connected_{false};
   bool offline_drop_logged_{false};
+  // A read stopped before EAGAIN. ready() stays false until new data arrives.
+  bool rx_pending_{false};
   // Only load and store. exchange() needs libatomic on BK72xx and native ESP8266.
   std::atomic<uint8_t> resolving_{0};
   std::atomic<uint8_t> resolve_failed_{0};

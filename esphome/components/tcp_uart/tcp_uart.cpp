@@ -69,6 +69,7 @@ void TcpUart::close_sock_() {
     this->sock_.reset();
   }
   this->connecting_ = false;
+  this->rx_pending_ = false;
   this->set_link_up_(false);
   this->rx_.clear();
   this->tx_len_ = 0;
@@ -192,7 +193,7 @@ void TcpUart::try_connect_() {
     this->note_attempt_();
     return;
   }
-  this->sock_ = socket::socket(dest.ss_family, SOCK_STREAM, IPPROTO_TCP);
+  this->sock_ = socket::socket_loop_monitored(dest.ss_family, SOCK_STREAM, IPPROTO_TCP);
   if (this->sock_ == nullptr) {
     this->note_attempt_();
     return;
@@ -235,6 +236,7 @@ void TcpUart::read_socket_() {
   }
   size_t room = RX_BUFFER_SIZE - this->rx_.size();
   if (room == 0) {
+    this->rx_pending_ = true;
     return;
   }
   uint8_t tmp[128];
@@ -246,9 +248,14 @@ void TcpUart::read_socket_() {
     this->note_attempt_();
     return;
   }
+  if (count < 0) {
+    this->rx_pending_ = false;
+    return;
+  }
   for (ssize_t i = 0; i < count; i++) {
     this->rx_.push(tmp[i]);
   }
+  this->rx_pending_ = static_cast<size_t>(count) == want;
 }
 
 void TcpUart::flush_tx_() {
@@ -274,7 +281,11 @@ void TcpUart::loop() {
     }
     return;
   }
-  this->read_socket_();
+  if (this->connecting_ || this->rx_pending_ || this->sock_->ready()) {
+    if (this->connecting_ || this->rx_.size() < RX_BUFFER_SIZE) {
+      this->read_socket_();
+    }
+  }
   if (this->tx_len_ != 0) {
     this->flush_tx_();
   }
