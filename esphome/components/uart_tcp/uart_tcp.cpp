@@ -9,7 +9,6 @@
 #include <cstring>
 
 #if !defined(USE_HOST) && !defined(USE_ZEPHYR)
-#include "esphome/components/network/ip_address.h"
 #include "lwip/dns.h"
 #include "lwip/ip4_addr.h"
 #else
@@ -20,44 +19,41 @@ namespace esphome::uart_tcp {
 
 static const char *const TAG = "uart_tcp";
 
-#if !defined(USE_HOST) && !defined(USE_ZEPHYR)
-static void format_ipv4(uint32_t raw, char *dest, size_t dest_len) {
-  ip_addr_t addr{};
-  ip_addr_set_ip4_u32(&addr, raw);
-  char buf[network::IP_ADDRESS_BUFFER_SIZE];
-  network::IPAddress(&addr).str_to(buf);
-  size_t n = 0;
-  while (n + 1 < dest_len && buf[n] != '\0') {
-    dest[n] = buf[n];
-    ++n;
+static void consume_buf(uint8_t *buf, size_t *len, size_t n) {
+  if (n >= *len) {
+    *len = 0;
+    return;
   }
-  if (dest_len > 0) {
-    dest[n] = '\0';
-  }
+  std::memmove(buf, buf + n, *len - n);
+  *len -= n;
 }
-#endif
-
-static uint32_t loop_time() { return App.get_loop_component_start_time(); }
-
-float UartTcp::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 
 void UartTcp::setup() {
-  this->last_attempt_ms_ = loop_time() - this->reconnect_interval_ms_;
+  this->last_attempt_ms_ = App.get_loop_component_start_time() - this->reconnect_interval_ms_;
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(false);
   }
 }
 
 void UartTcp::dump_config() {
-  ESP_LOGCONFIG(TAG, "UART TCP:");
-  ESP_LOGCONFIG(TAG, "  Role: %s", this->server_ ? LOG_STR_LITERAL("server") : LOG_STR_LITERAL("client"));
   if (this->server_) {
-    ESP_LOGCONFIG(TAG, "  Listen: %u", this->port_);
+    ESP_LOGCONFIG(TAG,
+                  "UART TCP:\n"
+                  "  Role: %s\n"
+                  "  Listen: %u\n"
+                  "  UART baud: %" PRIu32 "\n"
+                  "  Reconnect Interval: %" PRIu32 "ms",
+                  LOG_STR_LITERAL("server"), this->port_, this->parent_->get_baud_rate(), this->reconnect_interval_ms_);
   } else {
-    ESP_LOGCONFIG(TAG, "  Host: %s:%u", this->host_.c_str(), this->port_);
+    ESP_LOGCONFIG(TAG,
+                  "UART TCP:\n"
+                  "  Role: %s\n"
+                  "  Host: %s:%u\n"
+                  "  UART baud: %" PRIu32 "\n"
+                  "  Reconnect Interval: %" PRIu32 "ms",
+                  LOG_STR_LITERAL("client"), this->host_.c_str(), this->port_, this->parent_->get_baud_rate(),
+                  this->reconnect_interval_ms_);
   }
-  ESP_LOGCONFIG(TAG, "  UART baud: %" PRIu32, this->parent_->get_baud_rate());
-  ESP_LOGCONFIG(TAG, "  Reconnect interval: %" PRIu32 " ms", this->reconnect_interval_ms_);
   LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
 }
 
@@ -83,21 +79,13 @@ void UartTcp::close_sock_() {
     this->sock_.reset();
   }
   this->connecting_ = false;
+  this->rx_pending_ = false;
   this->set_link_up_(false);
+  this->tx_len_ = 0;
   this->forget_addr_();
 }
 
 void UartTcp::close_listen_() { this->listen_.reset(); }
-
-void UartTcp::note_attempt_() { this->last_attempt_ms_ = loop_time(); }
-
-void UartTcp::forget_addr_() {
-  this->have_addr_.store(false);
-  this->resolved_addr_.store(0);
-  this->resolved_ip_[0] = '\0';
-}
-
-bool UartTcp::in_backoff_() const { return loop_time() - this->last_attempt_ms_ < this->reconnect_interval_ms_; }
 
 void UartTcp::apply_socket_options_(socket::Socket *sock) {
   int yes = 1;
@@ -144,7 +132,11 @@ void UartTcp::try_resolve_() {
   err_t err;
   {
     LwIPLock lock;
+    this->resolving_.store(true);
     err = dns_gethostbyname(this->host_.c_str(), &cached, &UartTcp::dns_found, this);
+    if (err != ERR_INPROGRESS) {
+      this->resolving_.store(false);
+    }
   }
   if (err == ERR_OK && IP_IS_V4(&cached)) {
     this->resolved_addr_.store(ip4_addr_get_u32(ip_2_ip4(&cached)));
@@ -152,7 +144,6 @@ void UartTcp::try_resolve_() {
     return;
   }
   if (err == ERR_INPROGRESS) {
-    this->resolving_.store(true);
     return;
   }
 #else
@@ -187,7 +178,9 @@ bool UartTcp::ip_ready_() {
 #if defined(USE_HOST) || defined(USE_ZEPHYR)
   return false;
 #else
-  format_ipv4(this->resolved_addr_.load(), this->resolved_ip_, sizeof(this->resolved_ip_));
+  ip4_addr_t addr;
+  ip4_addr_set_u32(&addr, this->resolved_addr_.load());
+  ip4addr_ntoa_r(&addr, this->resolved_ip_, static_cast<int>(sizeof(this->resolved_ip_)));
   return this->resolved_ip_[0] != '\0';
 #endif
 }
@@ -214,7 +207,7 @@ void UartTcp::try_connect_() {
     this->note_attempt_();
     return;
   }
-  this->sock_ = socket::socket(dest.ss_family, SOCK_STREAM, IPPROTO_TCP);
+  this->sock_ = socket::socket_loop_monitored(dest.ss_family, SOCK_STREAM, IPPROTO_TCP);
   if (this->sock_ == nullptr) {
     this->note_attempt_();
     return;
@@ -265,7 +258,7 @@ void UartTcp::accept_client_() {
   }
   struct sockaddr_storage peer;
   socklen_t peer_len = sizeof(peer);
-  auto client = this->listen_->accept(reinterpret_cast<struct sockaddr *>(&peer), &peer_len);
+  auto client = this->listen_->accept_loop_monitored(reinterpret_cast<struct sockaddr *>(&peer), &peer_len);
   if (client == nullptr) {
     return;
   }
@@ -296,7 +289,7 @@ void UartTcp::read_socket_() {
     this->set_link_up_(true);
     ESP_LOGI(TAG, "Connected to %s:%u", this->host_.c_str(), this->port_);
   }
-  uint8_t tmp[128];
+  uint8_t tmp[READ_CHUNK];
   ssize_t count = this->sock_->read(tmp, sizeof(tmp));
   if (count == 0 || (count < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
     ESP_LOGW(TAG, "Connection lost");
@@ -304,61 +297,70 @@ void UartTcp::read_socket_() {
     this->note_attempt_();
     return;
   }
-  if (count > 0) {
-    this->write_array(tmp, static_cast<size_t>(count));
-  }
-}
-
-void UartTcp::send_all_(const uint8_t *data, size_t len) {
-  if (!this->connected_ || this->sock_ == nullptr || len == 0) {
+  if (count < 0) {
+    this->rx_pending_ = false;
     return;
   }
-  size_t sent_total = 0;
-  while (sent_total < len) {
-    ssize_t sent = this->sock_->write(data + sent_total, len - sent_total);
-    if (sent > 0) {
-      sent_total += static_cast<size_t>(sent);
-      continue;
-    }
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-      return;
-    }
+  this->rx_pending_ = static_cast<size_t>(count) == sizeof(tmp);
+  this->write_array(tmp, static_cast<size_t>(count));
+}
+
+void UartTcp::flush_tx_() {
+  if (!this->connected_ || this->sock_ == nullptr || this->tx_len_ == 0) {
+    return;
+  }
+  ssize_t sent = this->sock_->write(this->tx_, this->tx_len_);
+  if (sent > 0) {
+    consume_buf(this->tx_, &this->tx_len_, static_cast<size_t>(sent));
+    return;
+  }
+  if (sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
     ESP_LOGW(TAG, "Send failed");
     this->close_sock_();
     this->note_attempt_();
-    return;
   }
 }
 
 void UartTcp::read_uart_() {
-  if (!this->connected_) {
+  size_t room = TX_BUFFER_SIZE - this->tx_len_;
+  if (room == 0) {
     return;
   }
-  uint8_t tmp[128];
-  while (this->available() > 0) {
-    size_t want = this->available();
-    if (want > sizeof(tmp)) {
-      want = sizeof(tmp);
-    }
-    if (!this->read_array(tmp, want)) {
-      break;
-    }
-    this->send_all_(tmp, want);
-    if (!this->connected_) {
-      break;
-    }
+  uint8_t tmp[READ_CHUNK];
+  size_t want = this->available();
+  if (want > sizeof(tmp)) {
+    want = sizeof(tmp);
   }
+  if (want > room) {
+    want = room;
+  }
+  if (want == 0 || !this->read_array(tmp, want)) {
+    return;
+  }
+  std::memcpy(this->tx_ + this->tx_len_, tmp, want);
+  this->tx_len_ += want;
 }
 
 void UartTcp::loop() {
   if (this->server_) {
-    this->try_listen_();
-    this->accept_client_();
-  } else {
+    if (this->listen_ == nullptr && !this->in_backoff_()) {
+      this->try_listen_();
+    }
+    if (this->sock_ == nullptr && this->listen_ != nullptr && this->listen_->ready()) {
+      this->accept_client_();
+    }
+  } else if (this->sock_ == nullptr && !this->in_backoff_()) {
     this->try_connect_();
   }
-  this->read_socket_();
-  this->read_uart_();
+  if (this->sock_ != nullptr && (this->connecting_ || this->rx_pending_ || this->sock_->ready())) {
+    this->read_socket_();
+  }
+  if (this->tx_len_ != 0) {
+    this->flush_tx_();
+  }
+  if (this->connected_ && this->available() > 0) {
+    this->read_uart_();
+  }
 }
 
 }  // namespace esphome::uart_tcp
