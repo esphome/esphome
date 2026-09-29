@@ -114,6 +114,17 @@ _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
 _resolve_toolchain = cv.resolve_toolchain("ESP8266", _TOOLCHAINS, Toolchain.ARDUINO)
 
 
+def _warn_platformio_toolchain(config: ConfigType) -> ConfigType:
+    # Remove before 2027.4.0
+    if CORE.using_toolchain_platformio:
+        _LOGGER.warning(
+            "The 'platformio' toolchain for ESP8266 is deprecated and will be "
+            "removed in ESPHome 2027.4.0. Remove 'toolchain: platformio' from "
+            "your configuration to build with the native toolchain."
+        )
+    return config
+
+
 def _validate_native_toolchain(config: ConfigType) -> ConfigType:
     """Constraints of the native (non-PlatformIO) Arduino toolchain."""
     if not CORE.using_toolchain_arduino:
@@ -319,6 +330,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     _resolve_toolchain,
+    _warn_platformio_toolchain,
     _validate_native_toolchain,
     set_core_data,
 )
