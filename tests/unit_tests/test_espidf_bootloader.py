@@ -478,9 +478,11 @@ def test_publish_keeps_the_original_error_when_the_intact_check_breaks(
     with (
         patch.object(bootloader, "_cache_root", return_value=root),
         patch.object(bootloader, "_entry_intact", side_effect=[False, OSError()]),
-        pytest.raises(FileNotFoundError, match="bootloader.map"),
+        pytest.raises(FileNotFoundError) as excinfo,
     ):
         bootloader._publish(build, "k" * 16, {})
+    # Windows omits the path from the message; the attribute carries it.
+    assert Path(excinfo.value.filename).name == "bootloader.map"
 
 
 # ----------------------------------------------------------------- install
