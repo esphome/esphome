@@ -2367,7 +2367,8 @@ def parse_args(argv):
         metavar="{" + ",".join(t.value for t in Toolchain) + "}",
         help=(
             "Select toolchain for compiling. Overrides '<platform>.toolchain' in YAML. "
-            f"Default: {Toolchain.PLATFORMIO.value}."
+            "Default: the platform's native toolchain where it has one, else "
+            f"{Toolchain.PLATFORMIO.value}."
         ),
     )
 
