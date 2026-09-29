@@ -10,8 +10,8 @@ std::string get_ha_tag_ndef(const NfcTag &tag) {
   if (!tag.has_ndef_message()) {
     return std::string();
   }
-  auto message = tag.get_ndef_message();
-  auto records = message->get_records();
+  const auto &message = tag.get_ndef_message();
+  const auto &records = message->get_records();
   for (const auto &record : records) {
     std::string payload = record->get_payload();
     size_t pos = payload.find(HA_TAG_ID_PREFIX);
