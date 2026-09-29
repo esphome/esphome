@@ -160,8 +160,8 @@ void HoermannHcp::update() {
       ESP_LOGD(TAG, "Door did not start after the command");
     }
   }
-  // A toggle held for the door's start report waits on purpose, so its deadline starts once that is over.
-  if (this->starting_ && this->light_requested_ && !this->light_command_sent_)
+  // A toggle held while the door starts or moves waits on purpose, so its deadline starts once the door rests.
+  if (this->is_moving_or_starting_() && this->light_requested_ && !this->light_command_sent_)
     this->light_since_ = now;
   // Neither fire late nor block the next request.
   if (this->light_requested_ && now - this->light_since_ > this->connection_timeout_ms_) {
@@ -346,8 +346,9 @@ const HoermannHcpCommand *HoermannHcp::take_command_() {
 }
 
 const HoermannHcpCommand *HoermannHcp::take_light_toggle_() {
-  // A motor may switch its lamp as the door starts, so a toggle waits until that has been reported.
-  if (!this->light_requested_ || this->light_command_sent_ || this->starting_ || this->light_target_ == this->light_on_)
+  // The motor ignores the lamp while its door moves and may switch it itself as it starts, so a toggle waits for rest.
+  if (!this->light_requested_ || this->light_command_sent_ || this->is_moving_or_starting_() ||
+      this->light_target_ == this->light_on_)
     return nullptr;
   this->light_command_sent_ = true;
   this->light_since_ = millis();

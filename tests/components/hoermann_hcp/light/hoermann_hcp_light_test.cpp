@@ -275,9 +275,11 @@ TEST(HoermannHcpLightTest, DoorCommandGoesBeforeTheLampCommand) {
   ASSERT_TRUE(door.close_door());
 
   EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
-  // The lamp waits for the door to report the start, which may switch the lamp on its own.
+  // The lamp waits for the door to rest: the motor ignores it while moving and may switch it as it starts.
   EXPECT_EQ(poll_command(door).first, 0x0000);
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0200, 0x0000, 0x0000, 0x0000, 0x0000}));
+  EXPECT_EQ(poll_command(door).first, 0x0000);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x4000, 0x0000, 0x0000, 0x0000, 0x0000}));
   auto [light, light_2] = poll_command(door);
   EXPECT_EQ(light, LIGHT_TOGGLE);
   EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
@@ -316,8 +318,8 @@ TEST(HoermannHcpLightTest, ToggleAgainRestartsTheDeadline) {
   EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
 }
 
-// A toggle held for the door's start report is not given up while it waits.
-TEST(HoermannHcpLightTest, ToggleHeldForTheStartIsNotGivenUp) {
+// A toggle held while the door starts and moves is not given up while it waits.
+TEST(HoermannHcpLightTest, ToggleHeldForTheDoorIsNotGivenUp) {
   TestableHoermannHcp door;
   door.connection_timeout_ms_ = 20;
   connect_controller(door);
@@ -330,6 +332,23 @@ TEST(HoermannHcpLightTest, ToggleHeldForTheStartIsNotGivenUp) {
   door.update();
   EXPECT_TRUE(door.light_requested_);
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0200, 0x0000, 0x0000, 0x0000, 0x0000}));
+  EXPECT_EQ(poll_command(door).first, 0x0000);
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  connect_controller(door);
+  door.update();
+  EXPECT_TRUE(door.light_requested_);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x4000, 0x0000, 0x0000, 0x0000, 0x0000}));
+  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
+}
+
+// The motor ignores the lamp while its door moves, so a request then goes out once the door rests.
+TEST(HoermannHcpLightTest, LampWaitsForAMovingDoorToRest) {
+  TestableHoermannHcp door;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0200, 0x0000, 0x0000, 0x0000, 0x0010}));
+  ASSERT_TRUE(door.set_light(false));
+  EXPECT_EQ(poll_command(door).first, 0x0000);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x4000, 0x0000, 0x0000, 0x0000, 0x0010}));
   EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
 }
 
@@ -348,26 +367,6 @@ TEST(HoermannHcpLightTest, LampSwitchedOnByTheStartGetsNoToggle) {
   EXPECT_EQ(poll_command(door).first, 0x0000);
 }
 
-// Switching the lamp must not disturb a cover position the door is still travelling to.
-TEST(HoermannHcpLightTest, LampCommandKeepsTheCoverTarget) {
-  TestableHoermannHcp door;
-  connect_controller(door);
-  // Stopped at 60/200 = 0.3, so a 0.5 target is armed, then the door opens.
-  door.on_write_registers(BROADCAST_REG, door_broadcast(0x003C, 0x0000));
-  ASSERT_TRUE(door.set_position(0.5f));
-  consume_command(door);
-  door.on_write_registers(BROADCAST_REG, door_broadcast(0x003E, 0x0100));
-
-  ASSERT_TRUE(door.set_light(true));
-  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
-
-  // Past the target: the door still has to be stopped despite the lamp command in between.
-  door.on_write_registers(BROADCAST_REG, door_broadcast(0x0078, 0x0100));
-  auto [stop, stop_2] = poll_command(door);
-  EXPECT_EQ(stop, 0x0140);  // COMMAND_IMPULSE
-  EXPECT_EQ(stop_2, 0x0000);
-}
-
 // A target stop goes out before a pending lamp command.
 TEST(HoermannHcpLightTest, LampRequestDoesNotDelayTheTargetStop) {
   TestableHoermannHcp door;
@@ -383,6 +382,9 @@ TEST(HoermannHcpLightTest, LampRequestDoesNotDelayTheTargetStop) {
   auto [stop, stop_2] = poll_command(door);
   EXPECT_EQ(stop, 0x0140);  // COMMAND_IMPULSE
   EXPECT_EQ(stop_2, 0x0000);
+  // The lamp follows once the door rests.
+  EXPECT_EQ(poll_command(door).first, 0x0000);
+  door.on_write_registers(BROADCAST_REG, door_broadcast(0x0082, 0x0000));
   auto [light, light_2] = poll_command(door);
   EXPECT_EQ(light, LIGHT_TOGGLE);
   EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
@@ -415,8 +417,8 @@ TEST(HoermannHcpLightTest, LampCommandDoesNotExtendTheTargetWatchdog) {
   EXPECT_EQ(idle_2, 0x0000);
 }
 
-// Giving up on the lamp leaves the cover target alone.
-TEST(HoermannHcpLightTest, LampWatchdogKeepsTheCoverTarget) {
+// A lamp held while the door moves is not given up, and leaves the cover target alone.
+TEST(HoermannHcpLightTest, HeldLampKeepsTheCoverTarget) {
   TestableHoermannHcp door;
   door.connection_timeout_ms_ = 20;
   connect_controller(door);
@@ -426,13 +428,12 @@ TEST(HoermannHcpLightTest, LampWatchdogKeepsTheCoverTarget) {
   consume_command(door);
   door.on_write_registers(BROADCAST_REG, door_broadcast(0x003E, 0x0100));
 
-  // The door takes the command but never reports the lamp.
   ASSERT_TRUE(door.set_light(true));
-  consume_command(door);
+  EXPECT_EQ(poll_command(door).first, 0x0000);
   std::this_thread::sleep_for(std::chrono::milliseconds(30));
   door.on_write_registers(BROADCAST_REG, door_broadcast(0x0050, 0x0100));
   door.update();
-  ASSERT_FALSE(door.light_requested_);
+  ASSERT_TRUE(door.light_requested_);
 
   // The target survived, so the door is still stopped on the way.
   door.on_write_registers(BROADCAST_REG, door_broadcast(0x0078, 0x0100));
