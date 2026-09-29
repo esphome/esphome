@@ -27,7 +27,7 @@ class WaveshareEPaperBase : public display::DisplayBuffer,
   void update() override;
 
   void setup() override;
-  void setupDisplay() ;
+  void setupDisplay();
   void on_safe_shutdown() override;
 
  protected:
