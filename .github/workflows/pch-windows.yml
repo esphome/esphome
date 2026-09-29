@@ -29,48 +29,42 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
+      # cmd throughout: idf_tools.py refuses to run under MSYS, which the
+      # bash shell announces, and users build from a plain Windows shell
       - name: Install esphome
-        shell: bash
+        shell: cmd
         run: |
           python -m venv venv
-          source ./venv/Scripts/activate
-          # idf_tools refuses to run under MSYS, which Git Bash announces
-          unset MSYSTEM
+          call venv\Scripts\activate.bat
           pip install -r requirements.txt
           pip install -e .
-      - name: Compiler version
-        shell: bash
-        run: |
-          source ./venv/Scripts/activate
-          # idf_tools refuses to run under MSYS, which Git Bash announces
-          unset MSYSTEM
-          esphome compile --only-generate ${{ matrix.config }} || true
       - name: Compile with the rule
-        shell: bash
+        shell: cmd
         run: |
-          set -o pipefail
-          source ./venv/Scripts/activate
-          # idf_tools refuses to run under MSYS, which Git Bash announces
-          unset MSYSTEM
-          esphome compile ${{ matrix.config }} 2>&1 | tee rule.log
-          echo "--- header lines ---"
-          grep -iE "precompiled header|dumpfullversion" rule.log || true
+          call venv\Scripts\activate.bat
+          esphome compile ${{ matrix.config }} > rule.log 2>&1
+          set RC=%ERRORLEVEL%
+          type rule.log
+          echo --- header lines ---
+          findstr /i /c:"precompiled header" rule.log
+          exit /b %RC%
       - name: Compile with the header forced on
         continue-on-error: true
-        shell: bash
+        shell: cmd
         env:
           ESPHOME_PCH_ENABLE: "1"
         run: |
-          set -o pipefail
-          source ./venv/Scripts/activate
-          # idf_tools refuses to run under MSYS, which Git Bash announces
-          unset MSYSTEM
-          esphome compile ${{ matrix.config }} 2>&1 | tee forced.log
+          call venv\Scripts\activate.bat
+          esphome compile ${{ matrix.config }} > forced.log 2>&1
+          set RC=%ERRORLEVEL%
+          type forced.log
+          exit /b %RC%
       - name: Report the forced run
-        shell: bash
+        shell: cmd
         run: |
-          echo "--- forced run ---"
-          grep -iE "precompiled header|PCH allocation|internal error|error:" forced.log | head -20 || true
+          echo --- forced run ---
+          findstr /i "precompiled PCH mingw32_gt_pch error:" forced.log
+          exit /b 0
       - name: Keep the logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
