@@ -59,7 +59,13 @@ def test_enabled_missing_snapshot_disables() -> None:
 
 
 def test_enabled_secure_option_disables() -> None:
-    _write_snapshot("CONFIG_SECURE_BOOT=y\n")
+    _write_snapshot("CONFIG_APP_REPRODUCIBLE_BUILD=y\nCONFIG_SECURE_BOOT=y\n")
+    assert bootloader._compute_enabled() is False
+
+
+def test_enabled_reproducible_build_off_disables() -> None:
+    """A frozen first-build timestamp must never be served; skip the probe."""
+    _write_snapshot("CONFIG_APP_REPRODUCIBLE_BUILD=n\n")
     assert bootloader._compute_enabled() is False
 
 
@@ -70,7 +76,7 @@ def _tools_prefix(tmp_path: Path):
 
 
 def test_enabled_clean_snapshot_checks_macro(tmp_path: Path) -> None:
-    _write_snapshot("CONFIG_FOO=y\n")
+    _write_snapshot("CONFIG_APP_REPRODUCIBLE_BUILD=y\n")
     with (
         _tools_prefix(tmp_path),
         patch.object(build_gen, "idf_macro_matches", return_value=True),
@@ -81,7 +87,7 @@ def test_enabled_clean_snapshot_checks_macro(tmp_path: Path) -> None:
 def test_enabled_macro_mismatch_disables_with_a_log(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    _write_snapshot("CONFIG_FOO=y\n")
+    _write_snapshot("CONFIG_APP_REPRODUCIBLE_BUILD=y\n")
     with (
         _tools_prefix(tmp_path),
         patch.object(build_gen, "idf_macro_matches", return_value=False),
@@ -93,7 +99,7 @@ def test_enabled_macro_mismatch_disables_with_a_log(
 
 def test_enabled_project_bootloader_components_disable(tmp_path: Path) -> None:
     """IDF compiles <project>/bootloader_components in; the key can't see it."""
-    _write_snapshot("CONFIG_FOO=y\n")
+    _write_snapshot("CONFIG_APP_REPRODUCIBLE_BUILD=y\n")
     CORE.relative_build_path("bootloader_components").mkdir(parents=True)
     with (
         _tools_prefix(tmp_path),
@@ -104,7 +110,7 @@ def test_enabled_project_bootloader_components_disable(tmp_path: Path) -> None:
 
 def test_enabled_readonly_tools_prefix_disables(tmp_path: Path) -> None:
     """A shared read-only prefix would fail the cache on every build."""
-    _write_snapshot("CONFIG_FOO=y\n")
+    _write_snapshot("CONFIG_APP_REPRODUCIBLE_BUILD=y\n")
     with (
         _tools_prefix(tmp_path),
         patch.object(bootloader.os, "access", return_value=False),
@@ -114,7 +120,7 @@ def test_enabled_readonly_tools_prefix_disables(tmp_path: Path) -> None:
 
 def test_enabled_swallows_errors_as_disabled(tmp_path: Path) -> None:
     """Any failure while deciding must read as disabled, never raise."""
-    _write_snapshot("CONFIG_FOO=y\n")
+    _write_snapshot("CONFIG_APP_REPRODUCIBLE_BUILD=y\n")
     with (
         _tools_prefix(tmp_path),
         patch.object(toolchain, "_get_idf_path", side_effect=OSError("boom")),
@@ -131,19 +137,24 @@ def test_bootloader_cache_enabled_is_cached_per_run() -> None:
     mock_compute.assert_called_once_with()
 
 
+REPRO = "CONFIG_APP_REPRODUCIBLE_BUILD=y\n"
+
+
 @pytest.mark.parametrize(
-    ("text", "secure"),
+    ("text", "blocked"),
     [
-        ("CONFIG_SECURE_BOOT=y\n", True),
-        ("CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y\n", True),
-        ("CONFIG_FLASH_ENCRYPTION_ENABLED=y\n", True),
-        ('CONFIG_SECURE_BOOT_SIGNING_KEY="key.pem"\n', True),
-        ("CONFIG_SECURE_BOOT=n\n", False),
-        ("CONFIG_SECURE_BOOT=0\n", False),
-        ('CONFIG_SECURE_BOOT_SIGNING_KEY=""\n', False),
-        ("# CONFIG_SECURE_BOOT is not set\n", False),
-        ("CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y\n", False),
-        ("", False),
+        (REPRO + "CONFIG_SECURE_BOOT=y\n", True),
+        (REPRO + "CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y\n", True),
+        (REPRO + "CONFIG_FLASH_ENCRYPTION_ENABLED=y\n", True),
+        (REPRO + 'CONFIG_SECURE_BOOT_SIGNING_KEY="key.pem"\n', True),
+        (REPRO + "CONFIG_SECURE_BOOT=n\n", False),
+        (REPRO + "CONFIG_SECURE_BOOT=0\n", False),
+        (REPRO + 'CONFIG_SECURE_BOOT_SIGNING_KEY=""\n', False),
+        (REPRO + "# CONFIG_SECURE_BOOT is not set\n", False),
+        (REPRO + "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y\n", False),
+        (REPRO, False),
+        ("CONFIG_APP_REPRODUCIBLE_BUILD=n\n", True),
+        ("", True),
     ],
     ids=[
         "secure-boot",
@@ -155,15 +166,17 @@ def test_bootloader_cache_enabled_is_cached_per_run() -> None:
         "empty-string",
         "comment-line",
         "unrelated",
-        "empty-file",
+        "repro-only",
+        "repro-off",
+        "repro-absent",
     ],
 )
-def test_has_secure_options(tmp_path: Path, text: str, secure: bool) -> None:
-    """Only an enabled secure option bypasses; disabled values are the
-    compiled-out state ESPHome writes by default."""
+def test_snapshot_blocks_cache(tmp_path: Path, text: str, blocked: bool) -> None:
+    """Enabled secure options block; so does reproducible build not being
+    explicitly enabled. Disabled secure values are the default and safe."""
     path = tmp_path / "sdkconfig"
     path.write_text(text)
-    assert bootloader._has_secure_options(path) is secure
+    assert bootloader._snapshot_blocks_cache(path) is blocked
 
 
 # ------------------------------------------------------------------ cache key

@@ -59,7 +59,7 @@ def _compute_enabled() -> bool:
         # user configured; the live sdkconfig is rewritten by kconfgen with
         # every resolved option, including always-on *_SUPPORTED constants.
         snapshot = CORE.relative_build_path(f"sdkconfig.{CORE.name}.esphomeinternal")
-        if not snapshot.is_file() or _has_secure_options(snapshot):
+        if not snapshot.is_file() or _snapshot_blocks_cache(snapshot):
             return False
         if CORE.relative_build_path("bootloader_components").exists():
             # Project-local bootloader overrides are inputs the key can't see.
@@ -76,24 +76,28 @@ def _compute_enabled() -> bool:
             return False
         return True
     except (OSError, KeyError, ValueError, EsphomeError) as err:
-        _LOGGER.debug("Bootloader cache disabled: %s", err)
+        _LOGGER.info("Bootloader cache disabled: %s", err)
         return False
 
 
-def _has_secure_options(sdkconfig_path: Path) -> bool:
-    """Whether any signing, secure boot or encryption option is enabled.
+def _snapshot_blocks_cache(sdkconfig_path: Path) -> bool:
+    """Whether the configured options rule the cache out up front.
 
-    Key files are inputs the cache key cannot see (rotating one at the same
-    path changes the bootloader), so these builds always stay in-tree.
+    Secure options block because key files are inputs the cache key cannot
+    see (rotating one at the same path changes the bootloader). Reproducible
+    build off blocks so those users skip the doomed probe on every compile;
+    the probe still guards against unknown nondeterminism.
     """
+    reproducible = False
     for line in sdkconfig_path.read_text(encoding="utf-8").splitlines():
         name, _, value = line.partition("=")
-        if (
-            _SECURE_OPTION.match(name.strip())
-            and value.strip().strip('"') not in _DISABLED_VALUES
-        ):
+        name = name.strip()
+        value = value.strip().strip('"')
+        if _SECURE_OPTION.match(name) and value not in _DISABLED_VALUES:
             return True
-    return False
+        if name == "CONFIG_APP_REPRODUCIBLE_BUILD":
+            reproducible = value not in _DISABLED_VALUES
+    return not reproducible
 
 
 def tree_uses_cached_bootloader(build_dir: Path) -> bool:
@@ -288,8 +292,8 @@ def _install_into_build(entry: Path) -> Path:
 
 
 def _bootloader_offset(app_config: dict) -> int:
-    """The flash offset the bootloader is written to."""
-    return int(app_config.get("BOOTLOADER_OFFSET_IN_FLASH", 0))
+    """The flash offset the bootloader is written to; callers check presence."""
+    return int(app_config["BOOTLOADER_OFFSET_IN_FLASH"])
 
 
 def _check_bootloader_size(bin_path: Path, app_config: dict) -> None:
@@ -329,7 +333,11 @@ def ensure_cached_bootloader(verbose: bool = False) -> bool:
     """
     app_config = toolchain._load_sdkconfig_json(toolchain._build_dir())
     compiler = toolchain._resolved_c_compiler()
-    if app_config is None or compiler is None:
+    if (
+        app_config is None
+        or "BOOTLOADER_OFFSET_IN_FLASH" not in app_config
+        or compiler is None
+    ):
         _LOGGER.debug("Bootloader cache unusable: app configure outputs missing")
         return False
     try:
