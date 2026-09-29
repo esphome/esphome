@@ -30,11 +30,15 @@ static const uint32_t EZB_PRIMARY_CHANNEL_MASK = 0x07FFF800U; /* channels 11-26 
 
 uint8_t *get_zcl_string(const char *str, uint8_t max_size, bool use_max_size = false);
 
+struct AttrValue {
+  ezb_zcl_attr_desc_t attr_desc;
+  uint8_t value[4];
+};
+
 class ZigbeeAttribute;
 
 class ZigbeeComponent final : public Component {
  public:
-  ZigbeeComponent();
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -88,7 +92,8 @@ class ZigbeeComponent final : public Component {
   // automations
   // key tuple could be replaced by single 64 (48) bit int with bit fields for endpoint, cluster, role and attr_id
   std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttribute *> attributes_;
-  ezb_af_device_desc_t dev_desc_;
+  std::vector<AttrValue> attr_values_;
+  ezb_af_device_desc_t dev_desc_ = ezb_af_create_device_desc();
   CallbackManager<void(bool)> join_cb_{};
   LazyCallbackManager<void()> start_cb_{};
   bool start_reported_{false};
@@ -96,6 +101,8 @@ class ZigbeeComponent final : public Component {
   std::atomic<bool> joined_ = false;
   std::atomic<bool> join_pending_ = false;
   std::atomic<bool> factory_new_ = false;
+  // TODO: remove when esp-zigbee-lib fixes set_value before init
+  bool string_attr_exists_(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id);
 };
 
 template<typename T>
@@ -110,10 +117,22 @@ void ZigbeeComponent::add_attr(ZigbeeAttribute *attr, uint8_t endpoint_id, uint1
   // The size byte of the zcl_str must be set to the maximum value,
   // even though the initial string may be shorter.
   if constexpr (std::is_same<T, std::string>::value) {
+    if (this->string_attr_exists_(endpoint_id, cluster_id, role, attr_id)) {
+      if (attr != nullptr) {
+        this->attributes_[{endpoint_id, cluster_id, role, attr_id}] = attr;
+      }
+      return;
+    }
     auto zcl_str = get_zcl_string(value.c_str(), max_size, true);
     add_attr_(attr, endpoint_id, cluster_id, role, attr_id, zcl_str);
     delete[] zcl_str;
   } else if constexpr (std::is_convertible<T, const char *>::value) {
+    if (this->string_attr_exists_(endpoint_id, cluster_id, role, attr_id)) {
+      if (attr != nullptr) {
+        this->attributes_[{endpoint_id, cluster_id, role, attr_id}] = attr;
+      }
+      return;
+    }
     auto zcl_str = get_zcl_string(value, max_size, true);
     add_attr_(attr, endpoint_id, cluster_id, role, attr_id, zcl_str);
     delete[] zcl_str;
@@ -133,7 +152,18 @@ void ZigbeeComponent::add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint
   if (cluster_desc == NULL) {
     return;
   }
-  esphome_zb_cluster_add_or_update_attr(cluster_id, cluster_desc, attr_id, value_p);
+  // TODO: revert when esp-zigbee-lib fixes set_value before init
+  ezb_zcl_attr_desc_t attr_desc = ezb_zcl_cluster_get_attr_desc(cluster_desc, attr_id, EZB_ZCL_STD_MANUF_CODE);
+
+  if (attr_desc != NULL) {
+    static_assert(sizeof(*value_p) <= 4);
+    AttrValue attr_value;
+    attr_value.attr_desc = attr_desc;
+    memcpy(&attr_value.value, value_p, sizeof(*value_p));
+    attr_values_.push_back(attr_value);
+  } else {
+    esphome_zb_cluster_add_attr(cluster_id, cluster_desc, attr_id, value_p);
+  }
 
   if (attr != nullptr) {
     this->attributes_[{endpoint_id, cluster_id, role, attr_id}] = attr;

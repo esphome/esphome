@@ -174,3 +174,10 @@ def held_lock() -> Callable[..., Callable[..., None]]:
         return acquire
 
     return make
+
+
+@pytest.fixture(autouse=True)
+def _default_pch_knobs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The precompiled header knobs change what the generators emit; a value
+    exported in the developer's or CI's shell must not reach the tests."""
+    monkeypatch.delenv("ESPHOME_PCH_ENABLE", raising=False)

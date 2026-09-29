@@ -260,9 +260,69 @@ async def test_uart_mock_modbus_server_read_write(
         api_client_connected() as client,
     ):
         await tracker.setup_and_start_scenario(client)
-        # The FC 0x17 injections fire last, behind four earlier 100ms delays
+        # The FC 0x17 injections fire behind four earlier 100ms delays
         await tracker.await_all(futures, timeout=4.0)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.shared_yaml("uart_mock_modbus_server_injected")
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_server_burst(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that a server reply deferred behind a queued frame is dropped.
+
+    Two requests are injected as one chunk so both sit in the rx buffer at
+    once. The reply to the first is deferred because the second is still
+    queued, and must be discarded once the second frame is parsed:
+      * device 1 reg 0x0B then device 1 reg 0x0C -- only the 0x0C reply is sent;
+      * device 1 reg 0x0D then a device 2 request -- nothing is sent.
+    The fixture's on_tx hook fires a sensor per burst reply that reaches the
+    wire, and a final plain read marks both cases settled once its reply is
+    seen.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    tracker = SensorTracker(
+        [
+            "burst_read_a",
+            "burst_read_b",
+            "burst_read_before_peer",
+            "burst_tx_a",
+            "burst_tx_b",
+            "burst_tx_before_peer",
+            "burst_tx_probe",
+        ]
+    )
+    futures = tracker.expect_all(
+        {
+            "burst_read_a": 1,
+            "burst_read_b": 1,
+            "burst_read_before_peer": 1,
+            "burst_tx_b": 1,
+            "burst_tx_probe": 1,
+        }
+    )
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        # Every request is parsed and served by its read_lambda regardless of
+        # whether its reply reaches the wire.
+        await tracker.await_all(futures, timeout=4.0)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+    assert not tracker.sensor_states["burst_tx_a"], (
+        "reply to reg 0x0B must be dropped, a later request was queued behind it"
+    )
+    assert not tracker.sensor_states["burst_tx_before_peer"], (
+        "reply to reg 0x0D must be dropped, the client moved on to device 2"
+    )
 
 
 @pytest.mark.asyncio
