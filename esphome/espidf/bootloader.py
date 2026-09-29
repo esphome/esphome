@@ -119,9 +119,13 @@ def _cache_root() -> Path:
 
 def _load_config_names() -> list[str] | None:
     """The known union of config option names the bootloader consumes."""
-    names = read_json_file(_cache_root() / "config_names.json")
+    path = _cache_root() / "config_names.json"
+    names = read_json_file(path)
     if isinstance(names, list) and names and all(isinstance(n, str) for n in names):
         return names
+    if names is not None:
+        # The next merge rewrites the full union; this only costs a miss.
+        _LOGGER.info("Ignoring corrupt %s", path)
     return None
 
 
@@ -259,16 +263,16 @@ def _publish(build_dir: Path, key: str, payload: dict) -> Path:
         # A partial entry (manual cleanup, killed publish) must not win.
         _remove_dir(entry)
     stage = _work_dir(f".stage-{key}-")
-    for name in _OUTPUTS:
-        shutil.copy2(build_dir / name, stage / name)
-    # The resolved bootloader config, kept for debugging entries.
-    shutil.copy2(build_dir / "config" / "sdkconfig.json", stage / "sdkconfig.json")
-    write_file(stage / "meta.json", json.dumps(payload, indent=2, sort_keys=True))
-    stage.chmod(0o755)  # mkdtemp creates 0o700
     try:
+        for name in _OUTPUTS:
+            shutil.copy2(build_dir / name, stage / name)
+        # The resolved bootloader config, kept for debugging entries.
+        shutil.copy2(build_dir / "config" / "sdkconfig.json", stage / "sdkconfig.json")
+        write_file(stage / "meta.json", json.dumps(payload, indent=2, sort_keys=True))
+        stage.chmod(0o755)  # mkdtemp creates 0o700
         _rename_with_retry(stage, entry)
-    except OSError:
-        # Another process published the same key first.
+    except (OSError, EsphomeError):
+        # Failed to stage, or another process published the same key first.
         _remove_dir(stage)
         if not _entry_complete(entry):
             raise
@@ -364,9 +368,9 @@ def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | No
         )
         if _entry_complete(entry):
             return _install_into_build(entry)
-    tmp = _work_dir(".build-")
-    probe = _work_dir(".build-")
-    try:
+    with contextlib.ExitStack() as cleanup:
+        tmp = _work_dir(".build-")
+        cleanup.callback(_remove_dir, tmp)
         if _build_standalone(tmp, verbose) != 0:
             return None
         if (built_config := toolchain._load_sdkconfig_json(tmp)) is None:
@@ -375,6 +379,8 @@ def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | No
         # Only a build proven byte identical to a second one in a different
         # dir may be cached; timestamps or randomized signatures, present or
         # future, fail here instead of being served stale.
+        probe = _work_dir(".build-")
+        cleanup.callback(_remove_dir, probe)
         if _build_standalone(probe, verbose) != 0:
             return None
         if not file_compare(tmp / "bootloader.bin", probe / "bootloader.bin"):
@@ -385,9 +391,6 @@ def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | No
         key = _compute_key(payload)
         entry = _publish(tmp, key, payload)
         _LOGGER.info("Cached bootloader %s for later builds", key)
-    finally:
-        _remove_dir(tmp)
-        _remove_dir(probe)
     _prune_stale_dirs()
     return _install_into_build(entry)
 

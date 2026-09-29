@@ -262,12 +262,17 @@ def test_merge_config_names_unions_and_sorts(tmp_path: Path) -> None:
     ids=["missing", "corrupt", "empty", "mixed-types", "not-a-list"],
 )
 def test_load_config_names_rejects_bad_files(
-    tmp_path: Path, content: str | None
+    tmp_path: Path, content: str | None, caplog: pytest.LogCaptureFixture
 ) -> None:
     if content is not None:
         (tmp_path / "config_names.json").write_text(content)
-    with patch.object(bootloader, "_cache_root", return_value=tmp_path):
+    with (
+        patch.object(bootloader, "_cache_root", return_value=tmp_path),
+        caplog.at_level("INFO"),
+    ):
         assert bootloader._load_config_names() is None
+    # A present-but-unusable file says so; a missing one is normal.
+    assert ("Ignoring corrupt" in caplog.text) is (content not in (None, "not json"))
 
 
 # ------------------------------------------------------------- cmake args
@@ -405,6 +410,21 @@ def test_publish_rename_failure_without_winner_raises(tmp_path: Path) -> None:
         pytest.raises(OSError),
     ):
         bootloader._publish(build, "k" * 16, {})
+    assert not list(root.glob(".stage-*"))
+
+
+def test_publish_staging_failure_cleans_the_stage(tmp_path: Path) -> None:
+    """A failed staging copy must not leave a partial stage dir behind."""
+    root = tmp_path / "cache"
+    build = tmp_path / "work"
+    _make_built_tree(build)
+    (build / "bootloader.map").unlink()  # copy2 fails mid-staging
+    with (
+        patch.object(bootloader, "_cache_root", return_value=root),
+        pytest.raises(OSError),
+    ):
+        bootloader._publish(build, "k" * 16, {})
+    assert not list(root.glob(".stage-*"))
 
 
 # ----------------------------------------------------------------- install
@@ -596,6 +616,28 @@ def test_ensure_soft_fails_without_a_version_stamp(tmp_path: Path) -> None:
     ):
         assert bootloader.ensure_cached_bootloader() is False
     mock_build.assert_not_called()
+
+
+def test_ensure_cleans_the_first_work_dir_when_the_second_fails(
+    tmp_path: Path,
+) -> None:
+    """A failed probe mkdtemp must not leak the finished build dir."""
+    real_work_dir = bootloader._work_dir
+    dirs: list[Path] = []
+
+    def one_then_fail(prefix: str) -> Path:
+        if dirs:
+            raise OSError("disk full")
+        dirs.append(real_work_dir(prefix))
+        return dirs[0]
+
+    with (
+        _orchestration_env(tmp_path),
+        patch.object(bootloader, "_work_dir", side_effect=one_then_fail),
+        patch.object(bootloader, "_build_standalone", side_effect=_make_built_tree_rc),
+    ):
+        assert bootloader.ensure_cached_bootloader() is False
+    assert not dirs[0].exists()
 
 
 def test_ensure_soft_fails_when_the_probe_build_fails(tmp_path: Path) -> None:
