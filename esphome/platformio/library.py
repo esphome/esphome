@@ -620,7 +620,12 @@ def _make_registry_client() -> Any:
     elsewhere, not by the PlatformIO registry.
     """
     from platformio.package.manager._registry import PackageManagerRegistryMixin
+    from platformio.project.helpers import get_project_cache_dir
     from platformio.registry.client import RegistryClient
+
+    # PlatformIO creates its HTTP cache dir without exist_ok, so two builds
+    # making their first registry lookup at once race on it
+    (Path(get_project_cache_dir()) / "http").mkdir(parents=True, exist_ok=True)
 
     class _Registry(PackageManagerRegistryMixin):
         def __init__(self) -> None:
