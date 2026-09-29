@@ -6,14 +6,11 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <cstdio>
 #include <cstring>
 
 #if !defined(USE_HOST) && !defined(USE_ZEPHYR)
 #include "lwip/dns.h"
-#include "lwip/ip4_addr.h"
 #else
-#include <arpa/inet.h>
 #include <netdb.h>
 #endif
 
@@ -21,21 +18,16 @@ namespace esphome::socket {
 
 static const char *const TAG = "socket";
 
-bool Ipv4Resolve::ready() {
-  if (this->text_[0] != '\0') {
-    return true;
+socklen_t Ipv4Resolve::to_sockaddr(struct sockaddr *dest, socklen_t destlen, uint16_t port) const {
+  if (!this->have_.load() || destlen < sizeof(sockaddr_in)) {
+    return 0;
   }
-  if (!this->have_.load()) {
-    return false;
-  }
-#if defined(USE_HOST) || defined(USE_ZEPHYR)
-  return false;
-#else
-  ip4_addr_t addr;
-  ip4_addr_set_u32(&addr, this->addr_.load());
-  ip4addr_ntoa_r(&addr, this->text_, static_cast<int>(sizeof(this->text_)));
-  return this->text_[0] != '\0';
-#endif
+  auto *in = reinterpret_cast<sockaddr_in *>(dest);
+  memset(in, 0, sizeof(sockaddr_in));
+  in->sin_family = AF_INET;
+  in->sin_port = htons(port);
+  in->sin_addr.s_addr = this->addr_.load();
+  return sizeof(sockaddr_in);
 }
 
 #if !defined(USE_HOST) && !defined(USE_ZEPHYR)
@@ -59,8 +51,14 @@ void Ipv4Resolve::start(const char *host, uint16_t port, const char *tag) {
   this->tag_ = tag;
   struct sockaddr_storage literal;
   if (set_sockaddr(reinterpret_cast<struct sockaddr *>(&literal), sizeof(literal), host, port) != 0) {
-    snprintf(this->text_, sizeof(this->text_), "%s", host);
-    this->have_.store(true);
+    if (literal.ss_family == AF_INET) {
+      auto *in = reinterpret_cast<sockaddr_in *>(&literal);
+      this->addr_.store(in->sin_addr.s_addr);
+      this->have_.store(true);
+      return;
+    }
+    this->failed_.store(1);
+    ESP_LOGW(tag, "Not an IPv4 address: %s", host);
     return;
   }
 #if !defined(USE_HOST) && !defined(USE_ZEPHYR)
@@ -83,15 +81,14 @@ void Ipv4Resolve::start(const char *host, uint16_t port, const char *tag) {
     return;
   }
 #else
-  struct addrinfo hints {};
+  struct addrinfo hints{};
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
   struct addrinfo *res = nullptr;
   if (getaddrinfo(host, nullptr, &hints, &res) == 0 && res != nullptr) {
-    char buf[SOCKADDR_STR_LEN];
     auto *in = reinterpret_cast<struct sockaddr_in *>(res->ai_addr);
-    if (inet_ntop(AF_INET, &in->sin_addr, buf, sizeof(buf)) != nullptr) {
-      snprintf(this->text_, sizeof(this->text_), "%s", buf);
+    if (res->ai_family == AF_INET) {
+      this->addr_.store(in->sin_addr.s_addr);
       this->have_.store(true);
     }
     freeaddrinfo(res);

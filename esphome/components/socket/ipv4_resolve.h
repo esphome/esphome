@@ -13,13 +13,12 @@
 
 namespace esphome::socket {
 
-/// One IPv4 literal or hostname. Flags are load and store only.
+/// One IPv4 literal or hostname. The address is stored as an integer. Flags are load and store only.
 class Ipv4Resolve {
  public:
   void forget() {
     this->have_.store(false);
     this->addr_.store(0);
-    this->text_[0] = '\0';
   }
   /// Drop a failed lookup so the next start() tries again.
   bool consume_failure() {
@@ -28,11 +27,11 @@ class Ipv4Resolve {
     }
     this->failed_.store(0);
     this->have_.store(false);
-    this->text_[0] = '\0';
     return true;
   }
-  bool ready();
-  const char *text() const { return this->text_; }
+  bool ready() const { return this->have_.load(); }
+  /// Write the stored address into dest. Returns 0 until ready() is true.
+  socklen_t to_sockaddr(struct sockaddr *dest, socklen_t destlen, uint16_t port) const;
   /// Resolve host. tag is used for the failure log, including the async callback.
   void start(const char *host, uint16_t port, const char *tag);
 
@@ -45,7 +44,6 @@ class Ipv4Resolve {
   std::atomic<uint8_t> resolving_{0};
   std::atomic<uint8_t> failed_{0};
   std::atomic<uint8_t> have_{0};
-  char text_[SOCKADDR_STR_LEN]{};
 };
 
 }  // namespace esphome::socket
