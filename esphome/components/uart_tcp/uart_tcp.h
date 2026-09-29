@@ -7,7 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 
-#ifndef USE_HOST
+#if !defined(USE_HOST) && !defined(USE_ZEPHYR)
 #include "lwip/ip_addr.h"
 #endif
 
@@ -47,7 +47,7 @@ class UartTcp : public Component, public uart::UARTDevice {
   void set_link_up_(bool up);
   void note_attempt_();
   bool in_backoff_() const;
-#ifndef USE_HOST
+#if !defined(USE_HOST) && !defined(USE_ZEPHYR)
   static void dns_found(const char *name, const ip_addr_t *addr, void *arg);
 #endif
 

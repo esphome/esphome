@@ -8,7 +8,7 @@
 #include <cstdio>
 #include <cstring>
 
-#ifndef USE_HOST
+#if !defined(USE_HOST) && !defined(USE_ZEPHYR)
 #include "lwip/dns.h"
 #include "lwip/ip4_addr.h"
 #else
@@ -89,7 +89,7 @@ void UartTcp::apply_socket_options_(socket::Socket *sock) {
 #endif
 }
 
-#ifndef USE_HOST
+#if !defined(USE_HOST) && !defined(USE_ZEPHYR)
 void UartTcp::dns_found(const char *name, const ip_addr_t *addr, void *arg) {
   auto *self = static_cast<UartTcp *>(arg);
   if (addr != nullptr && IP_IS_V4(addr)) {
@@ -114,7 +114,7 @@ void UartTcp::try_resolve_() {
     this->have_addr_.store(true);
     return;
   }
-#ifndef USE_HOST
+#if !defined(USE_HOST) && !defined(USE_ZEPHYR)
   ip_addr_t cached;
   err_t err;
   {
@@ -159,13 +159,10 @@ bool UartTcp::ip_ready_() {
   if (!this->have_addr_.load()) {
     return false;
   }
-  struct in_addr addr{};
-  addr.s_addr = this->resolved_addr_.load();
-  char buf[INET_ADDRSTRLEN];
-  if (inet_ntop(AF_INET, &addr, buf, sizeof(buf)) == nullptr) {
-    return false;
-  }
-  snprintf(this->resolved_ip_, sizeof(this->resolved_ip_), "%s", buf);
+  // lwIP keeps the first octet in the first byte of the address word.
+  uint32_t raw = this->resolved_addr_.load();
+  const uint8_t *octets = reinterpret_cast<const uint8_t *>(&raw);
+  snprintf(this->resolved_ip_, sizeof(this->resolved_ip_), "%u.%u.%u.%u", octets[0], octets[1], octets[2], octets[3]);
   return true;
 }
 
