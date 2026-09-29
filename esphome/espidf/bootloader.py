@@ -62,6 +62,9 @@ def _compute_enabled() -> bool:
         snapshot = CORE.relative_build_path(f"sdkconfig.{CORE.name}.esphomeinternal")
         if not snapshot.is_file() or _has_secure_options(snapshot):
             return False
+        if CORE.relative_build_path("bootloader_components").exists():
+            # Project-local bootloader overrides are inputs the key can't see.
+            return False
         from esphome.espidf.framework import get_idf_tools_path
 
         if not os.access(get_idf_tools_path(), os.W_OK):

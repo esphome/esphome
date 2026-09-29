@@ -119,6 +119,17 @@ def test_enabled_again_after_the_failure_stamp_expires(tmp_path: Path) -> None:
         assert bootloader._compute_enabled() is True
 
 
+def test_enabled_project_bootloader_components_disable(tmp_path: Path) -> None:
+    """IDF compiles <project>/bootloader_components in; the key can't see it."""
+    _write_snapshot("CONFIG_FOO=y\n")
+    CORE.relative_build_path("bootloader_components").mkdir(parents=True)
+    with (
+        _tools_prefix(tmp_path),
+        patch.object(build_gen, "idf_macro_matches", return_value=True),
+    ):
+        assert bootloader._compute_enabled() is False
+
+
 def test_enabled_readonly_tools_prefix_disables(tmp_path: Path) -> None:
     """A shared read-only prefix would fail the cache on every build."""
     _write_snapshot("CONFIG_FOO=y\n")
