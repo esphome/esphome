@@ -67,21 +67,24 @@ def test_valid_config_passes() -> None:
 
 
 def test_platformio_toolchain_skips_checks() -> None:
-    # 3.0.2 is pio-legal (>= the global 3.0.0 floor) but below the native
-    # toolchain's own 3.1.1 floor; the bogus board only the native path checks
+    # 3.0.2 is pio-legal (>= the global 3.0.0 floor) but has no native build;
+    # the bogus board only the native path checks
     CORE.toolchain = Toolchain.PLATFORMIO
     config = _config(board="not_a_board", version="3.0.2")
     assert _validate_native_toolchain(config) is config
 
 
-def test_version_below_floor_rejected() -> None:
-    # 3.1.0 has no registry package, so the native floor is 3.1.1
-    with pytest.raises(cv.Invalid, match="3.1.1 or newer"):
-        _validate_native_toolchain(_config(version="3.1.0"))
+def test_version_without_build_rejected() -> None:
+    """Only the core versions built in esphome-libs/arduino-esp8266 work."""
+    with pytest.raises(
+        cv.Invalid, match=r"3\.1\.1.*available: 3\.1\.2.*platformio"
+    ) as excinfo:
+        _validate_native_toolchain(_config(version="3.1.1"))
+    assert excinfo.value.path == [CONF_FRAMEWORK, CONF_VERSION]
 
 
-def test_version_at_floor_accepted() -> None:
-    _validate_native_toolchain(_config(version="3.1.1"))
+def test_built_version_accepted() -> None:
+    _validate_native_toolchain(_config(version="3.1.2"))
 
 
 def test_custom_platform_version_warns_and_is_dropped(
