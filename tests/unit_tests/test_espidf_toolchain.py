@@ -1096,3 +1096,11 @@ def test_print_hints_never_fails_the_build(
     with caplog.at_level("WARNING"), _hint_env(tmp_path, **run_kwargs):
         toolchain._print_hints(tmp_path / "log")
     assert caplog.records == []
+
+
+def test_get_cmake_cache_value_reads_the_configured_cache(setup_core: Path) -> None:
+    _setup_build(setup_core)
+    output = "CMAKE_OBJDUMP:FILEPATH=/tools/objdump\nESPHOME_PCH:BOOL=OFF\n"
+    with patch.object(toolchain, "_get_cmake_output", return_value=output):
+        assert toolchain.get_cmake_cache_value("ESPHOME_PCH") == "OFF"
+        assert toolchain.get_cmake_cache_value("ESPHOME_MISSING") is None
