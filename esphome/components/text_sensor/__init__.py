@@ -1,5 +1,3 @@
-from collections.abc import Callable
-
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
@@ -22,16 +20,16 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_TIMESTAMP,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    SubEntities,
     entity_duplicate_validator,
-    new_sub_entity,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
 from esphome.cpp_generator import MockObj, MockObjClass
-from esphome.types import ConfigType, Expression, SafeExpType
+from esphome.types import ConfigType
 from esphome.util import Registry
 
 DEVICE_CLASSES = [
@@ -235,14 +233,11 @@ async def new_text_sensor(config, *args):
     return var
 
 
-async def new_sub_text_sensor(
-    config: ConfigType,
-    key: str,
-    setter: Callable[[MockObj], Expression],
-    *args: SafeExpType,
-) -> MockObj | None:
-    """Create the text sensor configured under key, if any, and pass it to setter."""
-    return await new_sub_entity(new_text_sensor, config, key, setter, *args)
+def sub_text_sensors(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_text_sensor."""
+    return SubEntities(new_text_sensor, config, parent)
 
 
 @coroutine_with_priority(CoroPriority.CORE)
