@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor, socket, uart
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_PORT,
@@ -33,7 +33,9 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(TcpUart),
             cv.Required(CONF_HOST): cv.string,
             cv.Required(CONF_PORT): cv.port,
-            cv.Optional(CONF_RECONNECT_INTERVAL, default="5s"): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_RECONNECT_INTERVAL, default="5s"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_CONNECTED): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_CONNECTIVITY,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,

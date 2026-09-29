@@ -123,7 +123,7 @@ void TcpUart::try_resolve_() {
     return;
   }
 #elif defined(USE_HOST)
-  struct addrinfo hints{};
+  struct addrinfo hints {};
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
   struct addrinfo *res = nullptr;
@@ -151,7 +151,7 @@ bool TcpUart::ip_ready_() {
   if (!this->have_addr_.load()) {
     return false;
   }
-  struct in_addr addr{};
+  struct in_addr addr {};
   addr.s_addr = this->resolved_addr_.load();
   char buf[INET_ADDRSTRLEN];
   if (inet_ntop(AF_INET, &addr, buf, sizeof(buf)) == nullptr) {
