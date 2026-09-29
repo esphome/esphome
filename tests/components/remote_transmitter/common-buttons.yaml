@@ -283,3 +283,19 @@ button:
     on_press:
       - remote_transmitter.transmit_hob2hood:
           command: light_on
+  - platform: template
+    name: KeeLoq HCS301
+    on_press:
+      remote_transmitter.transmit_keeloq:
+        address: 0x57ffe7b
+        command: 0x02
+        code: 0xd19ef0a9
+  - platform: template
+    name: KeeLoq with suffix
+    on_press:
+      remote_transmitter.transmit_keeloq:
+        address: 0x116ea01
+        command: 0x08
+        code: 0xd19ef0a9
+        suffix: 0x00
+        suffix_bits: 8
