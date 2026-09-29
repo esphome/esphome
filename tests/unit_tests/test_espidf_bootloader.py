@@ -563,7 +563,9 @@ def test_ensure_returns_build_failure(tmp_path: Path) -> None:
     assert not list(root.glob(".build-*"))
 
 
-def test_ensure_soft_fails_when_build_yields_no_config(tmp_path: Path) -> None:
+def test_ensure_soft_fails_when_build_yields_no_config(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     def build_without_config(build_dir: Path, verbose: bool) -> int:
         build_dir.mkdir(parents=True, exist_ok=True)
         return 0
@@ -571,8 +573,10 @@ def test_ensure_soft_fails_when_build_yields_no_config(tmp_path: Path) -> None:
     with (
         _orchestration_env(tmp_path),
         patch.object(bootloader, "_build_standalone", side_effect=build_without_config),
+        caplog.at_level("WARNING"),
     ):
         assert bootloader.ensure_cached_bootloader() is False
+    assert "produced no" in caplog.text  # names the expected path
 
 
 @pytest.mark.parametrize("damage", ["missing-elf", "corrupt-bin"])

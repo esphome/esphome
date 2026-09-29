@@ -396,7 +396,10 @@ def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | No
         if _build_standalone(tmp, verbose) != 0:
             return None
         if (built_config := toolchain._load_sdkconfig_json(tmp)) is None:
-            _LOGGER.debug("Bootloader build produced no sdkconfig.json")
+            # After a successful build this most likely means an IDF change.
+            _LOGGER.warning(
+                "Bootloader build produced no %s", tmp / "config" / "sdkconfig.json"
+            )
             return None
         # Only a build proven byte identical to a second one in a different
         # dir may be cached; timestamps or randomized signatures, present or
