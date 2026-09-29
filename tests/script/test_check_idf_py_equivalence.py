@@ -138,11 +138,10 @@ def test_main_checks_only_the_first_found_tree(tmp_path: Path) -> None:
     """The contract does not depend on the target; one tree per batch is enough."""
     first = _make_tree(tmp_path / "a")
     _make_tree(tmp_path / "b")
-    pattern = str(tmp_path / "*" / "config" / ".esphome" / "build" / "*")
     with (
         patch.object(sys, "argv", ["check"]),
-        patch.object(guard, "REPO_ROOT", Path("/")),
-        patch.object(guard, "DEFAULT_GLOB", pattern.lstrip("/")),
+        patch.object(guard, "REPO_ROOT", tmp_path),
+        patch.object(guard, "DEFAULT_GLOB", "*/config/.esphome/build/*"),
         patch.object(guard, "check", return_value=[]) as mock_check,
     ):
         assert guard.main() == 0

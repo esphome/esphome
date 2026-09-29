@@ -35,7 +35,8 @@ def _run(
     **kwargs: object,
 ) -> tuple[int, str]:
     rc = run_build_tool(_child(code), cwd=tmp_path, env=dict(os.environ), **kwargs)
-    return rc, capsys.readouterr().out
+    # The child's print() ends lines with \r\n on Windows.
+    return rc, capsys.readouterr().out.replace("\r\n", "\n")
 
 
 def test_run_build_tool_filters_and_returns_exit_code(
@@ -132,7 +133,7 @@ def test_run_build_tool_streams_before_the_tool_exits(tmp_path: Path) -> None:
         finally:
             release.touch()
             thread.join(30)
-    assert "first\n" in lines
+    assert "first" in "".join(lines)
 
 
 def _tool_output(progress: bool = True) -> tuple[ToolOutput, io.StringIO]:
