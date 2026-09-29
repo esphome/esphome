@@ -934,7 +934,9 @@ KEELOQ_SCHEMA = cv.Schema(
             cv.Range(min=0, max=0x10),
         ),
         cv.Optional(CONF_LEVEL, default=False): cv.boolean,
-        cv.Optional("suffix", default=0): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFF)),
+        cv.Optional("suffix", default=0): cv.All(
+            cv.hex_int, cv.Range(min=0, max=0xFFFF)
+        ),
         cv.Optional("suffix_bits", default=0): cv.int_range(min=0, max=16),
     }
 )
