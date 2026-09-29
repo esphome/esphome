@@ -32,6 +32,35 @@ static constexpr uint16_t APC1_OPERATING_MODE_IDLE = 0x0000;
 static constexpr uint16_t APC1_OPERATING_MODE_STANDARD = 0x0001;
 
 class APC1Component : public uart::UARTDevice, public Component {
+  SUB_SENSOR(pm_1_0)
+  SUB_SENSOR(pm_2_5)
+  SUB_SENSOR(pm_10_0)
+  SUB_SENSOR(pm_1_0_std)
+  SUB_SENSOR(pm_2_5_std)
+  SUB_SENSOR(pm_10_0_std)
+
+  SUB_SENSOR(pm_0_3um)
+  SUB_SENSOR(pm_0_5um)
+  SUB_SENSOR(pm_1_0um)
+  SUB_SENSOR(pm_2_5um)
+  SUB_SENSOR(pm_5_0um)
+  SUB_SENSOR(pm_10_0um)
+
+  SUB_SENSOR(tvoc)
+  SUB_SENSOR(eco2)
+  SUB_SENSOR(aqi)
+
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(raw_temperature)
+  SUB_SENSOR(raw_humidity)
+
+  SUB_SENSOR(rs0)
+  SUB_SENSOR(rs2)
+  SUB_SENSOR(rs3)
+
+  SUB_SENSOR(error_code)
+
  public:
   void setup() override;
   void dump_config() override;
@@ -45,35 +74,6 @@ class APC1Component : public uart::UARTDevice, public Component {
 
   void set_set_pin(GPIOPin *set_pin) { this->set_pin_ = set_pin; }
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
-
-  void set_pm_1_0_sensor(sensor::Sensor *sensor) { this->pm_1_0_sensor_ = sensor; }
-  void set_pm_2_5_sensor(sensor::Sensor *sensor) { this->pm_2_5_sensor_ = sensor; }
-  void set_pm_10_0_sensor(sensor::Sensor *sensor) { this->pm_10_0_sensor_ = sensor; }
-  void set_pm_1_0_std_sensor(sensor::Sensor *sensor) { this->pm_1_0_std_sensor_ = sensor; }
-  void set_pm_2_5_std_sensor(sensor::Sensor *sensor) { this->pm_2_5_std_sensor_ = sensor; }
-  void set_pm_10_0_std_sensor(sensor::Sensor *sensor) { this->pm_10_0_std_sensor_ = sensor; }
-
-  void set_pm_0_3um_sensor(sensor::Sensor *sensor) { this->pm_0_3um_sensor_ = sensor; }
-  void set_pm_0_5um_sensor(sensor::Sensor *sensor) { this->pm_0_5um_sensor_ = sensor; }
-  void set_pm_1_0um_sensor(sensor::Sensor *sensor) { this->pm_1_0um_sensor_ = sensor; }
-  void set_pm_2_5um_sensor(sensor::Sensor *sensor) { this->pm_2_5um_sensor_ = sensor; }
-  void set_pm_5_0um_sensor(sensor::Sensor *sensor) { this->pm_5_0um_sensor_ = sensor; }
-  void set_pm_10_0um_sensor(sensor::Sensor *sensor) { this->pm_10_0um_sensor_ = sensor; }
-
-  void set_tvoc_sensor(sensor::Sensor *sensor) { this->tvoc_sensor_ = sensor; }
-  void set_eco2_sensor(sensor::Sensor *sensor) { this->eco2_sensor_ = sensor; }
-  void set_aqi_sensor(sensor::Sensor *sensor) { this->aqi_sensor_ = sensor; }
-
-  void set_temperature_sensor(sensor::Sensor *sensor) { this->temperature_sensor_ = sensor; }
-  void set_humidity_sensor(sensor::Sensor *sensor) { this->humidity_sensor_ = sensor; }
-  void set_raw_temperature_sensor(sensor::Sensor *sensor) { this->raw_temperature_sensor_ = sensor; }
-  void set_raw_humidity_sensor(sensor::Sensor *sensor) { this->raw_humidity_sensor_ = sensor; }
-
-  void set_rs0_sensor(sensor::Sensor *sensor) { this->rs0_sensor_ = sensor; }
-  void set_rs2_sensor(sensor::Sensor *sensor) { this->rs2_sensor_ = sensor; }
-  void set_rs3_sensor(sensor::Sensor *sensor) { this->rs3_sensor_ = sensor; }
-
-  void set_error_code_sensor(sensor::Sensor *sensor) { this->error_code_sensor_ = sensor; }
 
  protected:
   void send_command_(APC1Command cmd, uint16_t data);
@@ -95,35 +95,6 @@ class APC1Component : public uart::UARTDevice, public Component {
 
   GPIOPin *set_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
-
-  sensor::Sensor *pm_1_0_sensor_{nullptr};
-  sensor::Sensor *pm_2_5_sensor_{nullptr};
-  sensor::Sensor *pm_10_0_sensor_{nullptr};
-  sensor::Sensor *pm_1_0_std_sensor_{nullptr};
-  sensor::Sensor *pm_2_5_std_sensor_{nullptr};
-  sensor::Sensor *pm_10_0_std_sensor_{nullptr};
-
-  sensor::Sensor *pm_0_3um_sensor_{nullptr};
-  sensor::Sensor *pm_0_5um_sensor_{nullptr};
-  sensor::Sensor *pm_1_0um_sensor_{nullptr};
-  sensor::Sensor *pm_2_5um_sensor_{nullptr};
-  sensor::Sensor *pm_5_0um_sensor_{nullptr};
-  sensor::Sensor *pm_10_0um_sensor_{nullptr};
-
-  sensor::Sensor *tvoc_sensor_{nullptr};
-  sensor::Sensor *eco2_sensor_{nullptr};
-  sensor::Sensor *aqi_sensor_{nullptr};
-
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
-  sensor::Sensor *raw_temperature_sensor_{nullptr};
-  sensor::Sensor *raw_humidity_sensor_{nullptr};
-
-  sensor::Sensor *rs0_sensor_{nullptr};
-  sensor::Sensor *rs2_sensor_{nullptr};
-  sensor::Sensor *rs3_sensor_{nullptr};
-
-  sensor::Sensor *error_code_sensor_{nullptr};
 };
 
 }  // namespace esphome::apc1
