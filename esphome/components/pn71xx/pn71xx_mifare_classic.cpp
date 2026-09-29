@@ -1,14 +1,16 @@
+#include <algorithm>
 #include <array>
+#include <cinttypes>
 #include <memory>
 
-#include "pn7160.h"
+#include "pn71xx.h"
 #include "esphome/core/log.h"
 
-namespace esphome::pn7160 {
+namespace esphome::pn71xx {
 
-static const char *const TAG = "pn7160.mifare_classic";
+static const char *const TAG = "pn71xx.mifare_classic";
 
-uint8_t PN7160::read_mifare_classic_tag_(nfc::NfcTag &tag) {
+uint8_t PN71xx::read_mifare_classic_tag_(nfc::NfcTag &tag) {
   uint8_t current_block = 4;
   uint8_t message_start_index = 0;
   uint32_t message_length = 0;
@@ -17,56 +19,59 @@ uint8_t PN7160::read_mifare_classic_tag_(nfc::NfcTag &tag) {
     ESP_LOGE(TAG, "Tag auth failed while attempting to read tag data");
     return nfc::STATUS_FAILED;
   }
-  std::vector<uint8_t> data;
+  std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> block_data;
 
-  if (this->read_mifare_classic_block_(current_block, data) == nfc::STATUS_OK) {
-    if (!nfc::decode_mifare_classic_tlv(data, message_length, message_start_index)) {
+  if (this->read_mifare_classic_block_(current_block, block_data) == nfc::STATUS_OK) {
+    if (!nfc::decode_mifare_classic_tlv(block_data, message_length, message_start_index)) {
       return nfc::STATUS_FAILED;
     }
   } else {
     ESP_LOGE(TAG, "Failed to read block %u", current_block);
     return nfc::STATUS_FAILED;
   }
+  if (message_length > MIFARE_CLASSIC_MAX_NDEF_SIZE) {
+    ESP_LOGE(TAG, "NDEF message too long: %" PRIu32 " bytes", message_length);
+    return nfc::STATUS_FAILED;
+  }
 
-  uint32_t index = 0;
-  uint32_t buffer_size = nfc::get_mifare_classic_buffer_size(message_length);
-  std::vector<uint8_t> buffer;
+  const uint32_t buffer_size = nfc::get_mifare_classic_buffer_size(message_length);
+  FixedVector<uint8_t> buffer;
+  if (!buffer.try_init(buffer_size)) {
+    ESP_LOGE(TAG, "Out of memory reading NDEF message of %" PRIu32 " bytes", buffer_size);
+    return nfc::STATUS_FAILED;
+  }
 
-  while (index < buffer_size) {
+  while (buffer.size() < buffer_size) {
     if (nfc::mifare_classic_is_first_block(current_block)) {
       if (this->auth_mifare_classic_block_(current_block, nfc::MIFARE_CMD_AUTH_A, nfc::NDEF_KEY) != nfc::STATUS_OK) {
         ESP_LOGE(TAG, "Block authentication failed for %u", current_block);
         return nfc::STATUS_FAILED;
       }
     }
-    std::vector<uint8_t> block_data;
     if (this->read_mifare_classic_block_(current_block, block_data) != nfc::STATUS_OK) {
       ESP_LOGE(TAG, "Error reading block %u", current_block);
       return nfc::STATUS_FAILED;
-    } else {
-      buffer.insert(buffer.end(), block_data.begin(), block_data.end());
+    }
+    for (const uint8_t byte : block_data) {
+      buffer.push_back(byte);
     }
 
-    index += nfc::MIFARE_CLASSIC_BLOCK_SIZE;
     current_block++;
-
     if (nfc::mifare_classic_is_trailer_block(current_block)) {
       current_block++;
     }
   }
 
-  if (buffer.begin() + message_start_index < buffer.end()) {
-    buffer.erase(buffer.begin(), buffer.begin() + message_start_index);
-  } else {
+  if (message_start_index >= buffer.size()) {
     return nfc::STATUS_FAILED;
   }
-
-  tag.set_ndef_message(make_unique<nfc::NdefMessage>(buffer));
+  tag.set_ndef_message(make_unique<nfc::NdefMessage>(std::span<const uint8_t>(buffer).subspan(message_start_index)));
 
   return nfc::STATUS_OK;
 }
 
-uint8_t PN7160::read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data) {
+uint8_t PN71xx::read_mifare_classic_block_(uint8_t block_num,
+                                           std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> &data) {
   nfc::NciMessage rx;
   nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {XCHG_DATA_OID, nfc::MIFARE_CMD_READ, block_num});
   char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
@@ -84,32 +89,35 @@ uint8_t PN7160::read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_
     return nfc::STATUS_FAILED;
   }
 
-  data.insert(data.begin(), rx.get_message().begin() + 4, rx.get_message().end() - 1);
+  // payload: XCHG_DATA status byte, 16 block bytes, one trailing status byte
+  std::copy_n(rx.get_message().begin() + 4, data.size(), data.begin());
 
   ESP_LOGVV(TAG, " Block %u: %s", block_num, nfc::format_bytes_to(buf, data));
   return nfc::STATUS_OK;
 }
 
-uint8_t PN7160::auth_mifare_classic_block_(uint8_t block_num, uint8_t key_num, const uint8_t *key) {
-  nfc::NciMessage rx;
-  nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {MFC_AUTHENTICATE_OID, this->sect_to_auth_(block_num), key_num});
-
+uint8_t PN71xx::auth_mifare_classic_block_(uint8_t block_num, uint8_t key_num, const uint8_t *key) {
+  uint8_t key_select = key_num;
   switch (key_num) {
     case nfc::MIFARE_CMD_AUTH_A:
-      tx.get_message().back() = MFC_AUTHENTICATE_PARAM_KS_A;
+      key_select = MFC_AUTHENTICATE_PARAM_KS_A;
       break;
 
     case nfc::MIFARE_CMD_AUTH_B:
-      tx.get_message().back() = MFC_AUTHENTICATE_PARAM_KS_B;
+      key_select = MFC_AUTHENTICATE_PARAM_KS_B;
       break;
 
     default:
       break;
   }
-
   if (key != nullptr) {
-    tx.get_message().back() |= MFC_AUTHENTICATE_PARAM_EMBED_KEY;
-    tx.get_message().insert(tx.get_message().end(), key, key + 6);
+    key_select |= MFC_AUTHENTICATE_PARAM_EMBED_KEY;
+  }
+
+  nfc::NciMessage rx;
+  nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {MFC_AUTHENTICATE_OID, this->sect_to_auth_(block_num), key_select});
+  if (key != nullptr) {
+    tx.append(std::span<const uint8_t>(key, 6));
   }
 
   char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
@@ -129,7 +137,7 @@ uint8_t PN7160::auth_mifare_classic_block_(uint8_t block_num, uint8_t key_num, c
   return nfc::STATUS_OK;
 }
 
-uint8_t PN7160::sect_to_auth_(const uint8_t block_num) {
+uint8_t PN71xx::sect_to_auth_(const uint8_t block_num) {
   const uint8_t first_high_block = nfc::MIFARE_CLASSIC_BLOCKS_PER_SECT_LOW * nfc::MIFARE_CLASSIC_16BLOCK_SECT_START;
   if (block_num >= first_high_block) {
     return ((block_num - first_high_block) / nfc::MIFARE_CLASSIC_BLOCKS_PER_SECT_HIGH) +
@@ -138,7 +146,7 @@ uint8_t PN7160::sect_to_auth_(const uint8_t block_num) {
   return block_num / nfc::MIFARE_CLASSIC_BLOCKS_PER_SECT_LOW;
 }
 
-uint8_t PN7160::format_mifare_classic_mifare_() {
+uint8_t PN71xx::format_mifare_classic_mifare_() {
   static constexpr std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> BLANK_BUFFER = {
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   static constexpr std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> TRAILER_BUFFER = {
@@ -173,7 +181,7 @@ uint8_t PN7160::format_mifare_classic_mifare_() {
   return status;
 }
 
-uint8_t PN7160::format_mifare_classic_ndef_() {
+uint8_t PN71xx::format_mifare_classic_ndef_() {
   static constexpr std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> EMPTY_NDEF_MESSAGE = {
       0x03, 0x03, 0xD0, 0x00, 0x00, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   static constexpr std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> BLANK_BLOCK = {
@@ -237,7 +245,7 @@ uint8_t PN7160::format_mifare_classic_ndef_() {
   return status;
 }
 
-uint8_t PN7160::write_mifare_classic_block_(uint8_t block_num, const uint8_t *data, size_t len) {
+uint8_t PN71xx::write_mifare_classic_block_(uint8_t block_num, const uint8_t *data, size_t len) {
   nfc::NciMessage rx;
   nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {XCHG_DATA_OID, nfc::MIFARE_CMD_WRITE, block_num});
   char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
@@ -249,7 +257,7 @@ uint8_t PN7160::write_mifare_classic_block_(uint8_t block_num, const uint8_t *da
   }
   // write command part two
   tx.set_payload({XCHG_DATA_OID});
-  tx.get_message().insert(tx.get_message().end(), data, data + len);
+  tx.append(std::span<const uint8_t>(data, len));
 
   ESP_LOGVV(TAG, "Write XCHG_DATA_REQ 2: %s", nfc::format_bytes_to(buf, tx.get_message()));
   if (this->transceive_(tx, rx, NFCC_TAG_WRITE_TIMEOUT) != nfc::STATUS_OK) {
@@ -267,23 +275,11 @@ uint8_t PN7160::write_mifare_classic_block_(uint8_t block_num, const uint8_t *da
   return nfc::STATUS_OK;
 }
 
-uint8_t PN7160::write_mifare_classic_tag_(const std::shared_ptr<nfc::NdefMessage> &message) {
-  auto encoded = message->encode();
-
-  uint32_t message_length = encoded.size();
-  uint32_t buffer_length = nfc::get_mifare_classic_buffer_size(message_length);
-
-  encoded.insert(encoded.begin(), 0x03);
-  if (message_length < 255) {
-    encoded.insert(encoded.begin() + 1, message_length);
-  } else {
-    encoded.insert(encoded.begin() + 1, 0xFF);
-    encoded.insert(encoded.begin() + 2, (message_length >> 8) & 0xFF);
-    encoded.insert(encoded.begin() + 3, message_length & 0xFF);
-  }
-  encoded.push_back(0xFE);
-
-  encoded.resize(buffer_length, 0);
+uint8_t PN71xx::write_mifare_classic_tag_(const std::shared_ptr<nfc::NdefMessage> &message) {
+  const auto encoded = message->encode();
+  const uint32_t buffer_length = nfc::get_mifare_classic_buffer_size(encoded.size());
+  FixedVector<uint8_t> buffer;
+  nfc::fill_ndef_tlv(encoded, buffer_length, buffer);
 
   uint32_t index = 0;
   uint8_t current_block = 4;
@@ -295,7 +291,7 @@ uint8_t PN7160::write_mifare_classic_tag_(const std::shared_ptr<nfc::NdefMessage
       }
     }
 
-    if (this->write_mifare_classic_block_(current_block, encoded.data() + index, nfc::MIFARE_CLASSIC_BLOCK_SIZE) !=
+    if (this->write_mifare_classic_block_(current_block, &buffer[index], nfc::MIFARE_CLASSIC_BLOCK_SIZE) !=
         nfc::STATUS_OK) {
       return nfc::STATUS_FAILED;
     }
@@ -310,7 +306,7 @@ uint8_t PN7160::write_mifare_classic_tag_(const std::shared_ptr<nfc::NdefMessage
   return nfc::STATUS_OK;
 }
 
-uint8_t PN7160::halt_mifare_classic_tag_() {
+uint8_t PN71xx::halt_mifare_classic_tag_() {
   nfc::NciMessage rx;
   nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {XCHG_DATA_OID, nfc::MIFARE_CMD_HALT, 0});
 
@@ -323,4 +319,4 @@ uint8_t PN7160::halt_mifare_classic_tag_() {
   return nfc::STATUS_OK;
 }
 
-}  // namespace esphome::pn7160
+}  // namespace esphome::pn71xx
