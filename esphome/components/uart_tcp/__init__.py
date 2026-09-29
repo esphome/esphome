@@ -1,6 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor, socket, uart
+from esphome.components.const import CONF_HOST
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_PORT,
@@ -18,7 +19,6 @@ MULTI_CONF = True
 uart_tcp_ns = cg.esphome_ns.namespace("uart_tcp")
 UartTcp = uart_tcp_ns.class_("UartTcp", cg.Component, uart.UARTDevice)
 
-CONF_HOST = "host"
 CONF_ROLE = "role"
 CONF_RECONNECT_INTERVAL = "reconnect_interval"
 CONF_CONNECTED = "connected"
@@ -41,10 +41,14 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(UartTcp),
             cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
-            cv.Optional(CONF_ROLE, default="client"): cv.one_of("client", "server", lower=True),
+            cv.Optional(CONF_ROLE, default="client"): cv.one_of(
+                "client", "server", lower=True
+            ),
             cv.Optional(CONF_HOST): cv.string,
             cv.Required(CONF_PORT): cv.port,
-            cv.Optional(CONF_RECONNECT_INTERVAL, default="5s"): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_RECONNECT_INTERVAL, default="5s"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_CONNECTED): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_CONNECTIVITY,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,

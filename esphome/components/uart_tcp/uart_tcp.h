@@ -15,8 +15,7 @@
 #include <cstdint>
 #include <memory>
 
-namespace esphome {
-namespace uart_tcp {
+namespace esphome::uart_tcp {
 
 /// Copies raw bytes between one hardware UART and one TCP socket.
 class UartTcp : public Component, public uart::UARTDevice {
@@ -47,7 +46,7 @@ class UartTcp : public Component, public uart::UARTDevice {
   void apply_socket_options_(socket::Socket *sock);
   void set_link_up_(bool up);
 #ifdef USE_ESP32
-  static void dns_found_(const char *name, const ip_addr_t *addr, void *arg);
+  static void dns_found(const char *name, const ip_addr_t *addr, void *arg);
 #endif
 
   StringRef host_;
@@ -68,5 +67,4 @@ class UartTcp : public Component, public uart::UARTDevice {
   char resolved_ip_[16]{};
 };
 
-}  // namespace uart_tcp
-}  // namespace esphome
+}  // namespace esphome::uart_tcp
