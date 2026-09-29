@@ -455,14 +455,9 @@ async def to_code(configs):
             await animations_to_code(config.get(CONF_ANIMATIONS, []))
 
     async with LvContext():
-        # Local import: lv_list imports meter, which imports obj_spec/set_obj_properties
-        # from this module's own namespace - a top-level import here would be circular.
+        # Local import to avoid circularity
         from .widgets.lv_list import finish_list_triggers
 
-        # Must run before generate_triggers(): that's what actually processes other
-        # widgets' on_click etc. automations, which can include lvgl.list.add/remove/
-        # clear actions that fire a list's on_add/on_remove triggers - those need to
-        # already exist by then, not still be pending.
         await finish_list_triggers()
         await generate_triggers()
         await generate_align_tos(configs[0])
