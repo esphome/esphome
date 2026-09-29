@@ -7,10 +7,10 @@
 #include <cstdio>
 #include <cstring>
 
-#ifdef USE_ESP32
+#ifndef USE_HOST
 #include "lwip/dns.h"
 #include "lwip/ip4_addr.h"
-#elif defined(USE_HOST)
+#else
 #include <netdb.h>
 #endif
 
@@ -18,9 +18,9 @@ namespace esphome::tcp_uart {
 
 static const char *const TAG = "tcp_uart";
 
-uint32_t loop_time() { return App.get_loop_component_start_time(); }
+static uint32_t loop_time() { return App.get_loop_component_start_time(); }
 
-void consume_buf(uint8_t *buf, size_t *len, size_t n) {
+static void consume_buf(uint8_t *buf, size_t *len, size_t n) {
   if (n >= *len) {
     *len = 0;
     return;
@@ -32,6 +32,8 @@ void consume_buf(uint8_t *buf, size_t *len, size_t n) {
 float TcpUart::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 
 void TcpUart::setup() {
+  // The first attempt must not wait out a full interval.
+  this->last_attempt_ms_ = loop_time() - this->reconnect_interval_ms_;
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(false);
   }
@@ -40,9 +42,15 @@ void TcpUart::setup() {
 void TcpUart::dump_config() {
   ESP_LOGCONFIG(TAG, "TCP UART:");
   ESP_LOGCONFIG(TAG, "  Host: %s:%u", this->host_.c_str(), this->port_);
+  ESP_LOGCONFIG(TAG, "  Reconnect interval: %u ms", this->reconnect_interval_ms_);
+  LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
 }
 
 void TcpUart::on_shutdown() { this->close_sock_(); }
+
+void TcpUart::note_attempt_() { this->last_attempt_ms_ = loop_time(); }
+
+bool TcpUart::in_backoff_() const { return loop_time() - this->last_attempt_ms_ < this->reconnect_interval_ms_; }
 
 void TcpUart::set_link_up_(bool up) {
   if (this->connected_ == up) {
@@ -81,7 +89,7 @@ void TcpUart::apply_socket_options_(socket::Socket *sock) {
 #endif
 }
 
-#ifdef USE_ESP32
+#ifndef USE_HOST
 void TcpUart::dns_found(const char *name, const ip_addr_t *addr, void *arg) {
   auto *self = static_cast<TcpUart *>(arg);
   if (addr != nullptr && IP_IS_V4(addr)) {
@@ -106,9 +114,13 @@ void TcpUart::try_resolve_() {
     this->have_addr_.store(true);
     return;
   }
-#ifdef USE_ESP32
+#ifndef USE_HOST
   ip_addr_t cached;
-  err_t err = dns_gethostbyname(this->host_.c_str(), &cached, &TcpUart::dns_found, this);
+  err_t err;
+  {
+    LwIPLock lock;
+    err = dns_gethostbyname(this->host_.c_str(), &cached, &TcpUart::dns_found, this);
+  }
   if (err == ERR_OK && IP_IS_V4(&cached)) {
     this->resolved_addr_.store(ip4_addr_get_u32(ip_2_ip4(&cached)));
     this->have_addr_.store(true);
@@ -118,8 +130,8 @@ void TcpUart::try_resolve_() {
     this->resolving_.store(true);
     return;
   }
-#elif defined(USE_HOST)
-  struct addrinfo hints {};
+#else
+  struct addrinfo hints{};
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
   struct addrinfo *res = nullptr;
@@ -147,7 +159,7 @@ bool TcpUart::ip_ready_() {
   if (!this->have_addr_.load()) {
     return false;
   }
-  struct in_addr addr {};
+  struct in_addr addr{};
   addr.s_addr = this->resolved_addr_.load();
   char buf[INET_ADDRSTRLEN];
   if (inet_ntop(AF_INET, &addr, buf, sizeof(buf)) == nullptr) {
@@ -158,13 +170,13 @@ bool TcpUart::ip_ready_() {
 }
 
 void TcpUart::try_connect_() {
-  if (this->sock_ != nullptr || loop_time() < this->next_connect_ms_) {
+  if (this->sock_ != nullptr || this->in_backoff_()) {
     return;
   }
   if (this->resolve_failed_.exchange(false)) {
     this->have_addr_.store(false);
     this->resolved_ip_[0] = '\0';
-    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
+    this->note_attempt_();
     return;
   }
   this->try_resolve_();
@@ -175,23 +187,26 @@ void TcpUart::try_connect_() {
   socklen_t dest_len =
       socket::set_sockaddr(reinterpret_cast<struct sockaddr *>(&dest), sizeof(dest), this->resolved_ip_, this->port_);
   if (dest_len == 0) {
-    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
+    this->note_attempt_();
     return;
   }
   this->sock_ = socket::socket(dest.ss_family, SOCK_STREAM, IPPROTO_TCP);
   if (this->sock_ == nullptr) {
-    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
+    this->note_attempt_();
     return;
   }
   this->apply_socket_options_(this->sock_.get());
   int rc = this->sock_->connect(reinterpret_cast<struct sockaddr *>(&dest), dest_len);
   if (rc == 0 || errno == EINPROGRESS) {
     this->connecting_ = rc != 0;
-    this->set_link_up_(rc == 0);
+    if (rc == 0) {
+      this->set_link_up_(true);
+      ESP_LOGI(TAG, "Connected to %s:%u", this->host_.c_str(), this->port_);
+    }
     return;
   }
   this->sock_.reset();
-  this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
+  this->note_attempt_();
 }
 
 void TcpUart::read_socket_() {
@@ -200,25 +215,35 @@ void TcpUart::read_socket_() {
   }
   if (this->connecting_) {
     int err = 0;
-    socklen_t len = sizeof(err);
-    if (this->sock_->getsockopt(SOL_SOCKET, SO_ERROR, &err, &len) < 0 || err != 0) {
-      this->close_sock_();
-      this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
-      return;
+    switch (socket::poll_connect(*this->sock_, err)) {
+      case socket::ConnectPollResult::CONNECT_POLL_RESULT_PENDING:
+        return;
+      case socket::ConnectPollResult::CONNECT_POLL_RESULT_ERROR:
+        ESP_LOGW(TAG, "Connection failed: %d", err);
+        this->close_sock_();
+        this->note_attempt_();
+        return;
+      default:
+        break;
     }
     this->connecting_ = false;
     this->set_link_up_(true);
     ESP_LOGI(TAG, "Connected to %s:%u", this->host_.c_str(), this->port_);
   }
+  size_t room = RX_BUFFER_SIZE - this->rx_.size();
+  if (room == 0) {
+    return;
+  }
   uint8_t tmp[128];
-  ssize_t count = this->sock_->read(tmp, sizeof(tmp));
+  size_t want = room < sizeof(tmp) ? room : sizeof(tmp);
+  ssize_t count = this->sock_->read(tmp, want);
   if (count == 0 || (count < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
     ESP_LOGW(TAG, "Connection lost");
     this->close_sock_();
-    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
+    this->note_attempt_();
     return;
   }
-  for (ssize_t i = 0; i < count && this->rx_.size() < 1024; i++) {
+  for (ssize_t i = 0; i < count; i++) {
     this->rx_.push(tmp[i]);
   }
 }
@@ -235,7 +260,7 @@ void TcpUart::flush_tx_() {
   if (sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
     ESP_LOGW(TAG, "Send failed");
     this->close_sock_();
-    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
+    this->note_attempt_();
   }
 }
 
@@ -248,6 +273,11 @@ void TcpUart::loop() {
 void TcpUart::write_array(const uint8_t *data, size_t len) {
   size_t room = sizeof(this->tx_) - this->tx_len_;
   if (len > room) {
+    uint32_t now = loop_time();
+    if (this->last_drop_log_ms_ == 0 || now - this->last_drop_log_ms_ >= 5000) {
+      ESP_LOGW(TAG, "TX buffer full, dropped %u bytes", static_cast<unsigned>(len - room));
+      this->last_drop_log_ms_ = now;
+    }
     len = room;
   }
   std::memcpy(this->tx_ + this->tx_len_, data, len);
