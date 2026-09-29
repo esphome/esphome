@@ -57,6 +57,12 @@ namespace esphome::web_server_idf {
 
 static const char *const TAG = "web_server_idf";
 
+// Only send_json_() may hold the JSON arena: every other frame in this file is capped below one
+// arena. Measured at -Os on GCC 14; newer toolchains stay checked on purpose, older ones skip it.
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 14 && defined(__OPTIMIZE_SIZE__)
+#pragma GCC diagnostic error "-Wstack-usage=2048"
+#endif
+
 // Chunk size for streaming request bodies; matches the Arduino AsyncWebServer buffer size.
 // Buffers of this size must live on the heap - the httpd task stack is too small.
 static constexpr size_t RECV_CHUNK_SIZE = 1460;
@@ -893,9 +899,7 @@ void AsyncEventSourceResponse::process_deferred_queue_() {
   }
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
-    json::JsonBuilder builder;
-    de.message_generator_(web_server_, de.source_, builder);
-    if (this->send_json_(builder)) {
+    if (this->send_json_(de.source_, de.message_generator_)) {
       if (this->close_requested_ || deferred_queue_.empty()) {
         return;
       }
@@ -1086,7 +1090,15 @@ void AsyncEventSourceResponse::loop() {
   this->entities_iterator_.try_advance(1);
 }
 
-bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 14 && defined(__OPTIMIZE_SIZE__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstack-usage="  // the one frame that holds the arena and the JSON buffer
+#endif
+bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *generator) {
+  // The arena lives only in this frame, so no call chain ever holds two of them
+  json::JsonArena<json::JSON_ARENA_SIZE> arena;
+  json::JsonBuilder builder(&arena);
+  generator(this->web_server_, source, builder);
   char buf[JSON_BUF_SIZE];
   const size_t len = builder.serialize_to(buf, sizeof(buf));
   if (len < sizeof(buf)) {
@@ -1138,6 +1150,9 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
   drain_tail_();
   return true;
 }
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 14 && defined(__OPTIMIZE_SIZE__)
+#pragma GCC diagnostic pop
+#endif
 
 void AsyncEventSourceResponse::tail_alloc_failed_(size_t cap) {
   // Same stall clock as a socket that stops draining, so a session cannot retry forever
@@ -1250,10 +1265,8 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
     // trying to send first
     deq_push_back_with_dedup_(source, message_generator);
   } else {
-    json::JsonBuilder builder;
-    message_generator(web_server_, source, builder);
     // A send error closes the session and clears the queue; nothing is queued after that
-    if (!this->send_json_(builder) && !this->close_requested_) {
+    if (!this->send_json_(source, message_generator) && !this->close_requested_) {
       deq_push_back_with_dedup_(source, message_generator);
     }
   }
