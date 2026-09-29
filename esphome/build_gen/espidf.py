@@ -80,15 +80,10 @@ def _cmake_quote(value: str) -> str:
     return f'"{escaped}"'
 
 
-# CONFIG_APP_BUILD_BOOTLOADER is a hidden Kconfig option force-selected by
-# APP_BUILD_TYPE_APP_2NDBOOT, so sdkconfig cannot turn it off. Clearing it at
-# the CMake level puts the build into the same first-class state IDF's RAM-app
-# build type uses: the bootloader guards return early, esptool_py drops the
-# bootloader flash entry, and nothing else changes (sdkconfig.h still says 1).
-# The macro below is IDF's __build_process_project_includes (tools/cmake/
-# build.cmake, identical in all supported IDF versions) with one added set();
-# esphome.espidf.bootloader compares the live macro against this copy and
-# falls back to the in-tree bootloader build if an IDF update changes it.
+# CONFIG_APP_BUILD_BOOTLOADER is hidden and force-selected, so it can only be
+# cleared at the CMake level (the same state IDF's RAM-app build type uses).
+# The macro is IDF's __build_process_project_includes with one added set();
+# esphome.espidf.bootloader falls back to in-tree if an IDF update changes it.
 IDF_BOOTLOADER_OVERRIDE = """\
 # ESPHome cached bootloader switch; see esphome/espidf/bootloader.py.
 if(ESPHOME_USE_CACHED_BOOTLOADER)
