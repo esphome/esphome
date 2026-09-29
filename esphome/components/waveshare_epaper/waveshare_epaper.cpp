@@ -112,13 +112,10 @@ static const uint8_t PARTIAL_UPD_2IN9_LUT[PARTIAL_UPD_2IN9_LUT_SIZE] =
 };
 // clang-format on
 
-void WaveshareEPaperBase::setup() {
-
-}
+void WaveshareEPaperBase::setup() {}
 
 void WaveshareEPaperBase::setupDisplay() {
-  if(!initialized)
-  {
+  if (!initialized) {
     this->init_internal_(this->get_buffer_length_());
     this->setup_pins_();
     this->spi_setup();
