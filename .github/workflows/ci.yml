@@ -1234,6 +1234,9 @@ jobs:
             fi
           else
             echo "All components in this batch are validate-only -- skipping compile stage."
+            if [[ "${{ matrix.batch.check_idf_py }}" == "true" ]]; then
+              echo "::warning::This batch was picked for the idf.py check but compiled nothing"
+            fi
           fi
 
       - name: Print ccache statistics

@@ -265,31 +265,44 @@ def _batch(components: str, idf: bool, check: bool, a8266: bool) -> dict:
 
 
 @pytest.mark.parametrize(
-    ("batches", "component_platforms", "expected"),
+    ("batches", "component_platforms", "validate_only", "expected"),
     [
         # The compile stage builds test-<variant>.<platform>.yaml too, so a
         # component tested on esp8266 only by a variant still needs the toolchain.
         (
             [["safe_mode"]],
             {"safe_mode": {"esp8266-ard"}},
+            set(),
             [_batch("safe_mode", idf=False, check=False, a8266=True)],
         ),
         # Only the first esp32 batch runs the idf.py equivalence check.
         (
             [["a"], ["b"], ["c"]],
             {"a": {"esp8266-ard"}, "b": {"esp32-idf"}, "c": {"esp32-c3-idf"}},
+            set(),
             [
                 _batch("a", idf=False, check=False, a8266=True),
                 _batch("b", idf=True, check=True, a8266=False),
                 _batch("c", idf=True, check=False, a8266=False),
             ],
         ),
+        # A validate-only batch never compiles, so the next esp32 batch runs it.
+        (
+            [["b"], ["c"]],
+            {"b": {"esp32-idf"}, "c": {"esp32-c3-idf"}},
+            {"b"},
+            [
+                _batch("b", idf=True, check=False, a8266=False),
+                _batch("c", idf=True, check=True, a8266=False),
+            ],
+        ),
     ],
-    ids=["variant", "idf-check-once"],
+    ids=["variant", "idf-check-once", "idf-check-skips-validate-only"],
 )
 def test_main_batch_flags(
     batches: list[list[str]],
     component_platforms: dict[str, set[str]],
+    validate_only: set[str],
     expected: list[dict],
     mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
@@ -324,7 +337,14 @@ def test_main_batch_flags(
         patch("sys.argv", ["determine-jobs.py"]),
         patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
         patch.object(
-            determine_jobs, "get_changed_components", return_value=["safe_mode"]
+            determine_jobs,
+            "get_changed_components",
+            return_value=[c for batch in batches for c in batch],
+        ),
+        patch.object(
+            determine_jobs,
+            "_component_change_is_validate_only",
+            side_effect=lambda component, changed: component in validate_only,
         ),
         patch.object(
             determine_jobs,
@@ -334,7 +354,7 @@ def test_main_batch_flags(
         patch.object(
             determine_jobs,
             "get_components_with_dependencies",
-            return_value=["safe_mode"],
+            return_value=[c for batch in batches for c in batch],
         ),
         patch.object(determine_jobs, "_component_has_tests", return_value=True),
         patch.object(
