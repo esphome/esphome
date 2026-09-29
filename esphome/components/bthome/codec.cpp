@@ -4,6 +4,26 @@ namespace esphome {
 namespace bthome {
 namespace codec {
 
+constexpr uint8_t INFO_ENCRYPTED = 0x01;
+constexpr uint8_t INFO_MAC_INCLUDED = 0x02;
+constexpr uint8_t INFO_TRIGGER = 0x04;
+constexpr uint8_t INFO_VERSION_SHIFT = 5;
+constexpr uint8_t INFO_VERSION_MASK = 0x07;
+constexpr uint8_t VERSION_2 = 2;
+constexpr uint8_t OBJECT_COMMAND = 0x3B;
+constexpr uint8_t OBJECT_TEXT = 0x53;
+constexpr uint8_t OBJECT_RAW = 0x54;
+constexpr uint8_t BUTTON_NONE = 0x00;
+constexpr uint8_t COMMAND_LENGTH_MASK = 0x1F;
+constexpr size_t COMMAND_HEADER_LEN = 2;
+constexpr size_t DEVICE_INFO_LEN = 1;
+constexpr size_t LENGTH_PREFIX = 1;
+constexpr size_t MAC_LEN = 6;
+constexpr size_t OBJECT_ID_AND_VALUE = 2;
+
+namespace {
+
+// Sizes from the BTHome v2 object table. Skip only. These objects are not decoded.
 int fixed_object_len(uint8_t id) {
   switch (id) {
     case 0x00:
@@ -106,20 +126,21 @@ int fixed_object_len(uint8_t id) {
 }
 
 int object_payload_len(uint8_t id, const uint8_t *p, size_t avail) {
-  if (id == 0x3B) {
-    if (avail < 2) {
+  // Variable length. Not decoded. Skipping it keeps a button that follows.
+  if (id == OBJECT_COMMAND) {
+    if (avail < COMMAND_HEADER_LEN) {
       return -1;
     }
-    const int n = 2 + (p[0] & 0x1F);
+    const int n = static_cast<int>(COMMAND_HEADER_LEN + (p[0] & COMMAND_LENGTH_MASK));
     return (avail < static_cast<size_t>(n)) ? -1 : n;
   }
-  if (id == 0x53 || id == 0x54) {
-    // Length byte is part of the object. A declared length of 0 is still one byte,
+  if (id == OBJECT_TEXT || id == OBJECT_RAW) {
+    // The length byte counts. A declared length of 0 is still one byte,
     // otherwise a following button would be dropped with the rest of the packet.
-    if (avail < 1) {
+    if (avail < LENGTH_PREFIX) {
       return -1;
     }
-    const int n = 1 + p[0];
+    const int n = static_cast<int>(LENGTH_PREFIX + p[0]);
     if (avail < static_cast<size_t>(n)) {
       return -1;
     }
@@ -132,11 +153,13 @@ int object_payload_len(uint8_t id, const uint8_t *p, size_t avail) {
   return n;
 }
 
+}  // namespace
+
 bool encode_button(uint8_t packet_id, uint8_t event, uint8_t index, uint8_t *out, size_t cap, size_t *out_len) {
   if (out == nullptr || out_len == nullptr || index < 1 || index > MAX_BUTTONS) {
     return false;
   }
-  const size_t need = static_cast<size_t>(1 + 2 + index * 2);
+  const size_t need = DEVICE_INFO_LEN + OBJECT_ID_AND_VALUE + static_cast<size_t>(index) * OBJECT_ID_AND_VALUE;
   if (cap < need) {
     return false;
   }
@@ -146,7 +169,7 @@ bool encode_button(uint8_t packet_id, uint8_t event, uint8_t index, uint8_t *out
   out[i++] = packet_id;
   for (uint8_t button = 1; button <= index; button++) {
     out[i++] = OBJECT_BUTTON;
-    out[i++] = (button == index) ? event : 0x00;
+    out[i++] = (button == index) ? event : BUTTON_NONE;
   }
   *out_len = i;
   return true;
@@ -157,25 +180,25 @@ bool parse(const uint8_t *data, size_t len, Parsed *out) {
     return false;
   }
   *out = Parsed{};
-  if (data == nullptr || len < 1) {
+  if (data == nullptr || len < DEVICE_INFO_LEN) {
     return false;
   }
   const uint8_t info = data[0];
-  if (((info >> 5) & 0x07) != 2) {
+  if (((info >> INFO_VERSION_SHIFT) & INFO_VERSION_MASK) != VERSION_2) {
     return false;
   }
-  out->encrypted = (info & 0x01) != 0;
-  out->mac_included = (info & 0x02) != 0;
-  out->trigger_based = (info & 0x04) != 0;
+  out->encrypted = (info & INFO_ENCRYPTED) != 0;
+  out->mac_included = (info & INFO_MAC_INCLUDED) != 0;
+  out->trigger_based = (info & INFO_TRIGGER) != 0;
   if (out->encrypted) {
     return false;
   }
-  size_t offset = 1;
+  size_t offset = DEVICE_INFO_LEN;
   if (out->mac_included) {
-    if (len < 7) {
+    if (len < DEVICE_INFO_LEN + MAC_LEN) {
       return false;
     }
-    offset = 7;
+    offset = DEVICE_INFO_LEN + MAC_LEN;
   }
   while (offset < len) {
     const uint8_t id = data[offset++];

@@ -12,8 +12,6 @@ namespace codec {
 static constexpr uint8_t DEVICE_INFO_V2_TRIGGER = 0x44;
 static constexpr uint8_t OBJECT_PACKET_ID = 0x00;
 static constexpr uint8_t OBJECT_BUTTON = 0x3A;
-static constexpr uint8_t BUTTON_HOLD = 0x80;
-static constexpr uint8_t BUTTON_HOLD_ALIAS = 0xFE;
 static constexpr uint8_t MAX_BUTTONS = 8;
 
 struct Parsed {

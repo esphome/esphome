@@ -39,9 +39,10 @@ TEST(BTHomeCodec, ParsesPressBatteryAndMacIncluded) {
   ASSERT_EQ(parsed.button_count, 1);
   EXPECT_EQ(parsed.buttons[0], 0x01);
 
+  // 0xFE is kept raw. Mapping it to hold is the receiver's job.
   const uint8_t hold_alias[] = {0x44, 0x00, 0x09, 0x3A, 0xFE};
   ASSERT_TRUE(parse(hold_alias, sizeof(hold_alias), &parsed));
-  EXPECT_EQ(parsed.buttons[0], BUTTON_HOLD_ALIAS);
+  EXPECT_EQ(parsed.buttons[0], 0xFE);
 
   uint8_t mac_included[1 + 6 + 4] = {0x46, 1, 2, 3, 4, 5, 6, 0x00, 0x03, 0x3A, 0x04};
   ASSERT_TRUE(parse(mac_included, sizeof(mac_included), &parsed));
