@@ -10,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from esphome.build_helpers import ccache
+from esphome.core import CORE
 
 
 def test_resolve_opt_out() -> None:
@@ -120,3 +121,77 @@ def test_parse_enable_env_spelling_tables(
     """cv.boolean's spelling tables plus the 1/0 env convention."""
     monkeypatch.setenv("ESPHOME_CCACHE_ENABLE", raw)
     assert ccache.parse_enable_env("ESPHOME_CCACHE_ENABLE") is expected
+
+
+def test_effective_ccache_basedir_prefers_user_value(tmp_path: Path) -> None:
+    CORE.build_path = tmp_path
+    # Drive-qualified on Windows: "/custom/base" is not absolute there
+    base = "C:\\custom\\base" if os.name == "nt" else "/custom/base"
+    with patch.dict(os.environ, {"CCACHE_BASEDIR": base}, clear=True):
+        assert ccache.effective_ccache_basedir() == base
+    with patch.dict(os.environ, {}, clear=True):
+        assert ccache.effective_ccache_basedir() == str(tmp_path.resolve())
+    # Degenerate values would strip substrings ccache never rewrites
+    for bad in ("", "/", "a/b"):
+        with patch.dict(os.environ, {"CCACHE_BASEDIR": bad}, clear=True):
+            assert ccache.effective_ccache_basedir() == str(tmp_path.resolve())
+
+
+def test_resolve_absolute_ccache_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Anchor the path: ninja runs from the build directory."""
+    monkeypatch.chdir(tmp_path)
+    with patch.object(ccache, "resolve_ccache_path", return_value="bin/ccache"):
+        resolved = ccache.resolve_absolute_ccache_path()
+    assert Path(resolved) == tmp_path / "bin" / "ccache"
+    with patch.object(ccache, "resolve_ccache_path", return_value=None):
+        assert ccache.resolve_absolute_ccache_path() is None
+
+
+def test_ccache_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from esphome.core import CORE
+
+    CORE.build_path = tmp_path / "build"
+    spec = ("ESPHOME_TEST_PREFIX", "test")
+    monkeypatch.setenv("ESPHOME_TEST_PREFIX", str(tmp_path / "cache"))
+    monkeypatch.setenv("CCACHE_NOHASHDIR", "false")
+    for key in ("CCACHE_DIR", "CCACHE_BASEDIR", "CCACHE_DEPEND"):
+        monkeypatch.delenv(key, raising=False)
+    # None means resolved and disabled
+    assert ccache.ccache_env(None, spec) == {}
+    env = ccache.ccache_env("/usr/bin/ccache", spec)
+    # User-set values are respected; the rest get defaults
+    assert "CCACHE_NOHASHDIR" not in env
+    assert env["CCACHE_DEPEND"] == "1"
+    assert env["CCACHE_DIR"] == str((tmp_path / "cache").resolve() / "ccache")
+    assert env["CCACHE_BASEDIR"] == str((tmp_path / "build").resolve())
+
+
+def test_ccache_defaults_env_escapes_a_dollar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A literal $ is doubled, since ccache expands $VAR in its settings."""
+    from esphome.core import CORE
+
+    CORE.build_path = tmp_path / "a$b"
+    for key in ("CCACHE_DIR", "CCACHE_BASEDIR"):
+        monkeypatch.delenv(key, raising=False)
+    env = ccache.ccache_defaults_env(tmp_path / "c$d")
+    assert env["CCACHE_DIR"].endswith("c$$d")
+    assert env["CCACHE_BASEDIR"].endswith("a$$b")
+
+
+def _pch_ccache_env(tmp_path: Path, environ: dict[str, str]) -> dict[str, str]:
+    CORE.build_path = tmp_path / "build"
+    spec = ("ESPHOME_TEST_PREFIX", "test")
+    environ = {"ESPHOME_TEST_PREFIX": str(tmp_path / "cache"), **environ}
+    with patch.dict(os.environ, environ, clear=True):
+        return ccache.ccache_env("/usr/bin/ccache", spec)
+
+
+def test_ccache_env_includes_pch_settings(tmp_path: Path) -> None:
+    """A native build exports the ccache settings the pch needs."""
+    env = _pch_ccache_env(tmp_path, {})
+    assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
+    assert env["CCACHE_PCH_EXTSUM"] == "true"

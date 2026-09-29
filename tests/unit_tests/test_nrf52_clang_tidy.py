@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from esphome.components.nrf52 import clang_tidy, framework
 from esphome.components.nrf52.clang_tidy import (
     TIDY_PROJECT_NAME,
     _check_compile_commands_cover_sources,
@@ -79,3 +80,22 @@ def test_check_compile_commands_cover_sources_raises_naming_dropped_source(
 
     with pytest.raises(EsphomeError, match="b.cpp"):
         _check_compile_commands_cover_sources(compile_commands_path, [a, b])
+
+
+def test_prepare_environment_installs_then_returns_codechecker_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+    codechecker = tmp_path / "penv" / "bin" / "CodeChecker"
+    monkeypatch.setattr(clang_tidy.logging, "basicConfig", lambda **kwargs: None)
+    monkeypatch.setattr(
+        clang_tidy, "_setup_core", lambda work_dir: calls.append("core")
+    )
+    monkeypatch.setattr(framework, "check_and_install", lambda: calls.append("install"))
+    monkeypatch.setattr(
+        framework, "get_build_paths", lambda: {"codechecker_executable": codechecker}
+    )
+
+    assert clang_tidy.prepare_environment(tmp_path) == codechecker
+    # CORE must be set up before the installer reads the SDK version from it.
+    assert calls == ["core", "install"]

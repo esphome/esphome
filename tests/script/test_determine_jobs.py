@@ -79,6 +79,17 @@ def mock_esp32_platformio_components_to_test() -> Generator[Mock, None, None]:
 
 
 @pytest.fixture
+def mock_esp8266_native_components_to_test() -> Generator[Mock, None, None]:
+    """Mock esp8266_native_components_to_test from determine_jobs.
+
+    main() drives both the ``esp8266_native`` boolean output and the
+    ``esp8266_native_components`` CSV from this one function.
+    """
+    with patch.object(determine_jobs, "esp8266_native_components_to_test") as mock:
+        yield mock
+
+
+@pytest.fixture
 def mock_determine_cpp_unit_tests() -> Generator[Mock, None, None]:
     """Mock determine_cpp_unit_tests from helpers."""
     with patch.object(determine_jobs, "determine_cpp_unit_tests") as mock:
@@ -106,6 +117,7 @@ def clear_determine_jobs_caches() -> None:
     """Clear all cached functions before each test."""
     determine_jobs._is_clang_tidy_full_scan.cache_clear()
     determine_jobs._component_has_tests.cache_clear()
+    determine_jobs._cached_components_closure.cache_clear()
 
 
 def test_main_all_tests_should_run(
@@ -116,6 +128,7 @@ def test_main_all_tests_should_run(
     mock_should_run_import_time: Mock,
     mock_should_run_device_builder: Mock,
     mock_esp32_platformio_components_to_test: Mock,
+    mock_esp8266_native_components_to_test: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -132,6 +145,7 @@ def test_main_all_tests_should_run(
     mock_should_run_import_time.return_value = True
     mock_should_run_device_builder.return_value = True
     mock_esp32_platformio_components_to_test.return_value = ["api", "esp32"]
+    mock_esp8266_native_components_to_test.return_value = ["api", "logger"]
     mock_determine_cpp_unit_tests.return_value = (False, ["wifi", "api", "sensor"])
 
     # Mock changed_files to return non-component files (to avoid memory impact)
@@ -208,6 +222,8 @@ def test_main_all_tests_should_run(
     assert output["device_builder"] is True
     assert output["esp32_platformio"] is True
     assert output["esp32_platformio_components"] == "api,esp32"
+    assert output["esp8266_native"] is True
+    assert output["esp8266_native_components"] == "api,logger"
     assert output["changed_components"] == ["wifi", "api", "sensor"]
     # changed_components_with_tests will only include components that actually have test files
     assert "changed_components_with_tests" in output
@@ -234,6 +250,82 @@ def test_main_all_tests_should_run(
         assert len(batch["components"]) > 0
         assert isinstance(batch["needs_idf"], bool)
         assert isinstance(batch["needs_nrf"], bool)
+        assert isinstance(batch["needs_arduino8266"], bool)
+
+
+def test_main_batch_flags_count_variant_tests(
+    mock_determine_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_esp32_platformio_components_to_test: Mock,
+    mock_esp8266_native_components_to_test: Mock,
+    mock_changed_files: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The compile stage builds test-<variant>.<platform>.yaml too, so a
+    component tested on esp8266 only by a variant still needs the toolchain."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    mock_determine_integration_tests.return_value = (False, [])
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_esp32_platformio_components_to_test.return_value = []
+    mock_esp8266_native_components_to_test.return_value = []
+    mock_determine_cpp_unit_tests.return_value = (False, [])
+    mock_changed_files.return_value = ["esphome/components/safe_mode/__init__.py"]
+
+    def platforms(component: str, *, base_only: bool = True) -> set[str]:
+        return set() if base_only else {"esp8266-ard"}
+
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
+        patch.object(
+            determine_jobs, "get_changed_components", return_value=["safe_mode"]
+        ),
+        patch.object(
+            determine_jobs,
+            "filter_component_and_test_files",
+            side_effect=lambda f: f.startswith("esphome/components/"),
+        ),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            return_value=["safe_mode"],
+        ),
+        patch.object(determine_jobs, "_component_has_tests", return_value=True),
+        patch.object(
+            determine_jobs,
+            "detect_memory_impact_config",
+            return_value={"should_run": "false"},
+        ),
+        patch.object(
+            determine_jobs,
+            "create_intelligent_batches",
+            return_value=([["safe_mode"]], {}),
+        ),
+        patch.object(
+            determine_jobs, "get_component_test_platforms", side_effect=platforms
+        ),
+    ):
+        determine_jobs.main()
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["component_test_batches"] == [
+        {
+            "components": "safe_mode",
+            "needs_idf": False,
+            "needs_nrf": False,
+            "needs_arduino8266": True,
+        }
+    ]
 
 
 def test_main_no_tests_should_run(
@@ -244,6 +336,7 @@ def test_main_no_tests_should_run(
     mock_should_run_import_time: Mock,
     mock_should_run_device_builder: Mock,
     mock_esp32_platformio_components_to_test: Mock,
+    mock_esp8266_native_components_to_test: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -260,6 +353,7 @@ def test_main_no_tests_should_run(
     mock_should_run_import_time.return_value = False
     mock_should_run_device_builder.return_value = False
     mock_esp32_platformio_components_to_test.return_value = []
+    mock_esp8266_native_components_to_test.return_value = []
     mock_determine_cpp_unit_tests.return_value = (False, [])
 
     # Mock changed_files to return no component files
@@ -302,6 +396,8 @@ def test_main_no_tests_should_run(
     assert output["device_builder"] is False
     assert output["esp32_platformio"] is False
     assert output["esp32_platformio_components"] == ""
+    assert output["esp8266_native"] is False
+    assert output["esp8266_native_components"] == ""
     assert output["changed_components"] == []
     assert output["changed_components_with_tests"] == []
     assert output["component_test_count"] == 0
@@ -993,10 +1089,16 @@ _ESP32_PLATFORMIO_FULL_LIST_FILES = [
     # PlatformIO subsystem (path-prefix trigger) + build generator
     ["esphome/platformio/runner.py"],
     ["esphome/platformio/toolchain.py"],
+    # Decides which platforms take the pch script
+    ["esphome/build_helpers/pch.py"],
+    ["esphome/build_helpers/ccache.py"],
     ["esphome/build_gen/platformio.py"],
     # Workflow / harness files
     ["script/test_build_components.py"],
     [".github/workflows/ci.yml"],
+    # The base config and bus packages every generated build includes
+    ["tests/test_build_components/build_components_base.esp32-idf.yaml"],
+    ["tests/test_build_components/common/uart/esp32-idf.yaml"],
 ]
 
 
@@ -1051,6 +1153,9 @@ def test_esp32_platformio_components_to_test_returns_full_list_on_infrastructure
         # Non-PlatformIO files in esphome/build_gen/ do NOT trigger the
         # full list -- only esphome/build_gen/platformio.py is a trigger.
         (["esphome/build_gen/espidf.py"], [], []),
+        # The rest of build_helpers/ is not a trigger.
+        (["esphome/build_helpers/size_summary.py"], [], []),
+        (["esphome/build_helpers/ninja.py"], [], []),
         # Docs / unrelated files -> empty.
         (["README.md"], [], []),
         ([], [], []),
@@ -1507,6 +1612,7 @@ def test_detect_memory_impact_config_with_common_platform(tmp_path: Path) -> Non
     assert set(result["components"]) == {"wifi", "api"}
     assert result["platform"] == "esp32-idf"  # Common platform
     assert result["use_merged_config"] == "true"
+    assert result["needs_arduino8266"] is False
 
 
 @pytest.mark.usefixtures("mock_target_branch_dev")
@@ -1611,6 +1717,8 @@ def test_detect_memory_impact_config_no_common_platform(tmp_path: Path) -> None:
     assert result["platform"] == "esp8266-ard"
     assert result["components"] == ["logger"]
     assert result["use_merged_config"] == "true"
+    # The esp8266 build is native, so the job restores that toolchain
+    assert result["needs_arduino8266"] is True
 
 
 @pytest.mark.usefixtures("mock_target_branch_dev")
@@ -3149,6 +3257,81 @@ def test_memory_impact_elf_layouts_are_found(tmp_path: Path) -> None:
         elf.write_text("")
 
         assert find_elf_path(build_path) == elf, f"{platform} ELF not found"
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        "esphome/arduino8266/framework.py",
+        "esphome/build_gen/arduino8266.py",
+        "esphome/components/esp8266/build_surgery.py",
+        # Shared modules the native build depends on
+        "esphome/build_helpers/idedata.py",
+        "esphome/platformio/library.py",
+        # Top-level esphome/*.py modules the backend imports directly
+        "esphome/framework_helpers.py",
+        "esphome/writer.py",
+        # esp8266/__init__.py imports copy_ccache_script from it
+        "esphome/platformio/toolchain.py",
+        # The composite cache action must not ship unexercised
+        ".github/actions/cache-arduino8266/action.yml",
+        # The base config and bus packages every generated build includes
+        "tests/test_build_components/build_components_base.esp8266-ard.yaml",
+        "tests/test_build_components/common/uart/esp8266-ard.yaml",
+    ],
+)
+def test_esp8266_native_components_full_list_on_infra_change(changed: str) -> None:
+    """Native-ESP8266 infrastructure changes run the full test list."""
+    with (
+        patch.object(determine_jobs, "changed_files", return_value=[changed]),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            return_value=["wifi"],
+        ),
+    ):
+        result = determine_jobs.esp8266_native_components_to_test()
+        assert result == sorted(determine_jobs.ESP8266_NATIVE_TEST_COMPONENTS)
+
+
+@pytest.mark.parametrize(
+    ("changed_files", "dependency_closure", "expected"),
+    [
+        # A tested component alone does not schedule this job: the component
+        # matrix already compiles its esp8266 fixtures with this toolchain.
+        (
+            ["esphome/components/mqtt/mqtt_client.cpp"],
+            ["mqtt", "json"],
+            [],
+        ),
+        (
+            ["esphome/components/wifi/wifi_component.cpp"],
+            ["wifi", "network"],
+            [],
+        ),
+        # espidf infrastructure is not an esp8266-native trigger; the
+        # native backend depends on esphome/build_helpers/ instead.
+        (["esphome/build_gen/espidf.py"], [], []),
+        (["esphome/espidf/toolchain.py"], [], []),
+        (["README.md"], [], []),
+    ],
+)
+def test_esp8266_native_components_to_test_narrowing(
+    changed_files: list[str],
+    dependency_closure: list[str],
+    expected: list[str],
+) -> None:
+    """Only a native-build change schedules the native-ESP8266 job."""
+    with (
+        patch.object(determine_jobs, "changed_files", return_value=changed_files),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            return_value=dependency_closure,
+        ),
+    ):
+        result = determine_jobs.esp8266_native_components_to_test()
+        assert result == expected
 
 
 def test_compute_integration_test_buckets_no_durations_full_fanout() -> None:

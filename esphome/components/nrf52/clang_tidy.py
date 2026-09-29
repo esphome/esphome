@@ -18,9 +18,13 @@ CodeChecker, which adapts GCC's flags/headers for Clang-based analysis.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
 import json
 import logging
 from pathlib import Path
+
+from .framework import bluetooth_west_projects, openthread_west_projects
 
 TIDY_PROJECT_NAME = "esphome_tidy"
 
@@ -35,19 +39,36 @@ _TIDY_BOARD = "adafruit_itsybitsy_nrf52840"
 # app target emits a C++ compile command for CodeChecker to analyze directly.
 _TIDY_MAIN_CPP = "int main() { return 0; }\n"
 
-# Kconfig superset enabling every subsystem an ESPHome nrf52 component may
-# use, so the compile commands carry all of their include paths.
-_TIDY_PRJ_CONF = """\
+
+@dataclass(frozen=True)
+class _TidySubsystem:
+    """A subsystem's Kconfig and the west projects its headers come from."""
+
+    name: str
+    prj_conf: str
+    # A callable when the projects differ by SDK version
+    west_projects: tuple[str, ...] | Callable[[], tuple[str, ...]] = ()
+
+
+# Kconfig superset for the compile commands and the projects it needs
+_TIDY_SUBSYSTEMS = (
+    _TidySubsystem(
+        "base",
+        """\
 CONFIG_CPP=y
 CONFIG_STD_CPP20=y
 CONFIG_REQUIRES_FULL_LIBCPP=y
 CONFIG_NEWLIB_LIBC=y
-CONFIG_BT=y
 CONFIG_ADC=y
 # posix (time sets POSIX_CLOCK, socket sets POSIX_API); without it the
 # Zephyr POSIX headers clash with the libc ones under analysis
 CONFIG_POSIX_API=y
-#mcumgr begin
+""",
+    ),
+    _TidySubsystem("bluetooth", "CONFIG_BT=y\n", bluetooth_west_projects),
+    _TidySubsystem(
+        "mcumgr",
+        """\
 CONFIG_NET_BUF=y
 CONFIG_ZCBOR=y
 CONFIG_MCUMGR=y
@@ -62,20 +83,33 @@ CONFIG_MCUMGR_MGMT_NOTIFICATION_HOOKS=y
 CONFIG_MCUMGR_GRP_IMG_STATUS_HOOKS=y
 CONFIG_MCUMGR_GRP_IMG_UPLOAD_CHECK_HOOK=y
 CONFIG_MCUMGR_TRANSPORT_UART=y
-#mcumgr end
-#zigbee begin
+""",
+        ("mcuboot", "zcbor"),
+    ),
+    _TidySubsystem(
+        "zigbee",
+        """\
 CONFIG_ZIGBEE=y
 CONFIG_CRYPTO=y
 CONFIG_NVS=y
 CONFIG_SETTINGS=y
-#zigbee end
-#openthread begin
+""",
+    ),
+    _TidySubsystem(
+        "openthread",
+        """\
 CONFIG_NET_L2_OPENTHREAD=y
 CONFIG_OPENTHREAD_NORDIC_LIBRARY_FTD=y
 CONFIG_OPENTHREAD_FTD=y
 CONFIG_MAIN_STACK_SIZE=4096
-#openthread end
-"""
+""",
+        openthread_west_projects,
+    ),
+)
+
+_TIDY_PRJ_CONF = "".join(
+    f"# {subsystem.name}\n{subsystem.prj_conf}" for subsystem in _TIDY_SUBSYSTEMS
+)
 
 
 def _tidy_cmakelists(library_include_dirs: str, source_files: list[str]) -> str:
@@ -183,6 +217,7 @@ def _setup_core(work_dir: Path) -> None:
     from esphome.core import CORE
 
     from . import RECOMMENDED_SDK_NRF_VERSION
+    from .framework import include_west_project
 
     CORE.name = TIDY_PROJECT_NAME
     # config_path's parent is the data-dir root for per-run artifacts. The
@@ -195,6 +230,29 @@ def _setup_core(work_dir: Path) -> None:
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         RECOMMENDED_SDK_NRF_VERSION
     )
+    for subsystem in _TIDY_SUBSYSTEMS:
+        projects = subsystem.west_projects
+        for project in projects() if callable(projects) else projects:
+            include_west_project(project)
+
+
+def prepare_environment(work_dir: Path) -> Path:
+    """Install or refresh the nRF52 Python environment and SDK.
+
+    Safe to call repeatedly: an up-to-date installation is only checked.
+
+    Returns the path to the environment's ``CodeChecker`` binary.
+    """
+    from .framework import check_and_install, get_build_paths
+
+    # Surface ESPHome's INFO logs (sdk-nrf download/west update) -- they go
+    # through logging, which the clang-tidy script otherwise leaves at
+    # WARNING, so the first-run installation looks silent without this.
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    _setup_core(work_dir)
+    check_and_install()
+    return get_build_paths()["codechecker_executable"]
 
 
 def generate_compile_commands(
@@ -211,18 +269,12 @@ def generate_compile_commands(
     from esphome.framework_helpers import run_command_ok
     from esphome.helpers import rmtree
 
-    from .framework import check_and_install, get_build_env, get_build_paths
-
-    # Surface ESPHome's INFO logs (sdk-nrf download/west update) -- they go
-    # through logging, which the clang-tidy script otherwise leaves at
-    # WARNING, so the first-run installation looks silent without this.
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    from .framework import get_build_env, get_build_paths
 
     build_dir = work_dir / "build"
     compile_commands_path = build_dir / "compile_commands.json"
 
-    _setup_core(work_dir)
-    check_and_install()
+    prepare_environment(work_dir)
 
     library_include_dirs = "\n".join(
         f'  "{d}"' for d in _library_include_dirs(platformio_ini)
@@ -262,6 +314,8 @@ def generate_compile_commands(
         "zephyr_generated_headers",
         "--",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+        # As in a real build, so NDEBUG is set
+        "-DCMAKE_BUILD_TYPE=MinSizeRel",
     ]
     if not run_command_ok(
         west_cmd,
