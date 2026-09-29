@@ -57,6 +57,16 @@ void FrameParser::reset() {
   this->frame_oversize_ = false;
 }
 
+// A byte that fails a checksum may be the SOF of the next frame when the real checksum byte was
+// lost on the wire. Starting a header from it keeps that next frame instead of dropping it too.
+void FrameParser::resync_(uint8_t byte) {
+  this->reset();
+  if (byte == TF_SOF) {
+    this->header_xor_ = byte;
+    this->parse_state_ = ParseState::PARSE_STATE_HEADER;
+  }
+}
+
 bool FrameParser::feed(uint8_t byte) {
   this->event_ = FrameEvent::FRAME_EVENT_NONE;
   switch (this->parse_state_) {
@@ -98,7 +108,7 @@ bool FrameParser::feed(uint8_t byte) {
       uint8_t expected = static_cast<uint8_t>(~this->header_xor_);
       if (byte != expected) {
         this->event_ = FrameEvent::FRAME_EVENT_HEADER_CHECKSUM_MISMATCH;
-        this->reset();
+        this->resync_(byte);
         return false;
       }
       if (this->frame_oversize_) {
@@ -127,12 +137,13 @@ bool FrameParser::feed(uint8_t byte) {
       return false;
     case ParseState::PARSE_STATE_DCK: {
       uint8_t expected = static_cast<uint8_t>(~this->data_xor_);
-      bool valid = byte == expected;
-      if (!valid) {
+      if (byte != expected) {
         this->event_ = FrameEvent::FRAME_EVENT_DATA_CHECKSUM_MISMATCH;
+        this->resync_(byte);
+        return false;
       }
       this->reset();
-      return valid;
+      return true;
     }
   }
   return false;

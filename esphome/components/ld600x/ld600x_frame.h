@@ -47,6 +47,8 @@ class FrameParser final {
     PARSE_STATE_DISCARD,
   };
 
+  void resync_(uint8_t byte);
+
   ParseState parse_state_{ParseState::PARSE_STATE_SOF};
   uint8_t header_pos_{0};
   uint8_t header_xor_{0};
