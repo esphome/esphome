@@ -838,7 +838,7 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
 
     # Keep this here, NOT in codegen: config-hash and --only-generate must keep
     # working on machines that cannot run the toolchain.
-    if CORE.is_esp8266:
+    if CORE.is_esp8266 and CORE.using_toolchain_platformio:
         from esphome.components.esp8266 import check_rosetta
 
         check_rosetta()
@@ -1714,24 +1714,10 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     if exit_code != 0:
         return exit_code
     if CORE.is_host:
-        _LOGGER.info(
-            "Successfully compiled program to path '%s'", _host_program_path(config)
-        )
+        _LOGGER.info("Successfully compiled program to path '%s'", CORE.firmware_bin)
     else:
         _LOGGER.info("Successfully compiled program.")
     return 0
-
-
-def _host_program_path(config: ConfigType) -> str:
-    """Return the compiled host ELF path."""
-    if CORE.using_toolchain_esp_idf:
-        from esphome.espidf import toolchain
-
-        return str(toolchain.get_elf_path())
-    from esphome.platformio.toolchain import get_idedata
-
-    # Memoized by compile_program's own call; this is a dict lookup
-    return str(get_idedata(config).firmware_elf_path)
 
 
 def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
@@ -1778,7 +1764,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
         return exit_code
     _LOGGER.info("Successfully compiled program.")
     if CORE.is_host:
-        program_path = _host_program_path(config)
+        program_path = str(CORE.firmware_bin)
         _LOGGER.info("Running program from path '%s'", program_path)
         return run_external_process(program_path)
 
@@ -2024,6 +2010,11 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
             CORE.target_platform,
         )
         return 1
+    if (
+        check_supported := getattr(analysis_toolchain, "check_analysis_supported", None)
+    ) is not None:
+        # Raises with the reason; before the compile, not after it
+        check_supported()
 
     # Always compile to ensure fresh data (fast if no changes - just relinks)
     exit_code = write_cpp(config)
@@ -2376,7 +2367,8 @@ def parse_args(argv):
         metavar="{" + ",".join(t.value for t in Toolchain) + "}",
         help=(
             "Select toolchain for compiling. Overrides '<platform>.toolchain' in YAML. "
-            f"Default: {Toolchain.PLATFORMIO.value}."
+            "Default: the platform's native toolchain where it has one, else "
+            f"{Toolchain.PLATFORMIO.value}."
         ),
     )
 

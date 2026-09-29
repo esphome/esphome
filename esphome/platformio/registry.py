@@ -31,6 +31,18 @@ _REGISTRY_URL = (
 )
 
 
+class Download(NamedTuple):
+    """A package archive to fetch and verify."""
+
+    url: str
+    sha256: str
+    size: int | None
+
+
+# Looks a package's download up; called only when a download is needed
+Resolver = Callable[[], Download]
+
+
 def get_systype() -> str:
     """The registry system tag for the current host.
 
@@ -56,7 +68,7 @@ def get_systype() -> str:
 
 
 @cache
-def registry_download(package: str, version: str) -> tuple[str, str, int | None]:
+def registry_download(package: str, version: str) -> Download:
     """Resolve a package's download URL, sha256, and size via the registry.
 
     The metadata fetch goes through ``http_request``/``fetch_with_retry``
@@ -144,7 +156,7 @@ def registry_download(package: str, version: str) -> tuple[str, str, int | None]
                         f"The package registry returned no download URL for "
                         f"{package} {version}"
                     )
-                return (url, sha256, file.get("size"))
+                return Download(url, sha256, file.get("size"))
         raise EsphomeError(
             f"No {package} {version} build for this platform ({systype})"
         )
@@ -177,17 +189,20 @@ def _archive_path(downloads_dir: Path, name: str, version: str) -> Path:
     return downloads_dir / f"{name}-{version}"
 
 
-def _already_installed(dest: Path) -> bool:
+def is_installed(dest: Path) -> bool:
     """Whether ``dest`` holds a completed install (extraction marker)."""
     return (dest / ".esphome_extracted").is_file()
 
 
 def prefetch_packages(
-    packages: list[tuple[str, str, Path, list[str]]], downloads_dir: Path
+    packages: list[tuple[str, str, Path, list[str]]],
+    downloads_dir: Path,
+    resolvers: dict[str, Resolver] | None = None,
 ) -> None:
     """Download pending package archives in parallel under one combined bar.
 
-    ``packages`` holds ``(name, version, dest, mirrors)`` per package. Purely
+    ``packages`` holds ``(name, version, dest, mirrors)`` per package;
+    ``resolvers`` replaces the registry lookup by name. Purely
     an optimization: ``install_package`` verifies every archive and
     re-downloads anything this pass left unfinished. Mirror overrides and
     registry entries without a size stay on the sequential path so its
@@ -200,15 +215,18 @@ def prefetch_packages(
     pending: list[_PendingArchive] = []
     seen: set[Path] = set()
     for name, version, dest, mirrors in packages:
-        if mirrors or (dest / ".esphome_extracted").is_file():
+        if mirrors or is_installed(dest):
             continue
         archive = _archive_path(downloads_dir, name, version)
         if archive in seen:
             # A duplicate entry would race itself between two workers
             continue
         seen.add(archive)
+        resolve = (resolvers or {}).get(name) or partial(
+            registry_download, name, version
+        )
         try:
-            url, sha256, size = registry_download(name, version)
+            url, sha256, size = resolve()
         except EsphomeError as err:
             # The sequential install reports the real failure with context
             _LOGGER.debug("Prefetch resolve for %s failed: %s", name, err)
@@ -234,7 +252,7 @@ def prefetch_packages(
             if done := downloaded_bytes(entry.archive, entry.size):
                 return done
             # The holder deletes the archive once it has installed it
-            return entry.size if _already_installed(entry.dest) else 0
+            return entry.size if is_installed(entry.dest) else 0
 
         lock = FileLock(f"{entry.dest}.lock", fallback_to_soft=False)
         try:
@@ -245,7 +263,7 @@ def prefetch_packages(
             _LOGGER.debug("Leaving %s to its current downloader", entry.name)
             return
         try:
-            if _already_installed(entry.dest):
+            if is_installed(entry.dest):
                 # A concurrent build installed it while we waited; a
                 # re-download would orphan a fresh copy in downloads_dir
                 tracker(entry.size)
@@ -282,13 +300,15 @@ def install_package(
     mirrors: list[str],
     downloads_dir: Path,
     expect: Collection[str],
+    resolve: Resolver | None = None,
 ) -> None:
     """Download, verify, and extract one package if not already installed.
 
     The registry path is integrity-checked against the sha256 the registry
     publishes; a mirror override (URL templates with ``{VERSION}``/``{SYSTEM}``
     substitution) is trusted as configured. ``downloads_dir`` holds the
-    archive between runs so an interrupted download resumes.
+    archive between runs so an interrupted download resumes. ``resolve``
+    replaces the registry lookup.
     """
     if not expect:
         # Layout validation before marker.touch() is the only guard against
@@ -323,7 +343,9 @@ def install_package(
                 mirrors, {"VERSION": version, "SYSTEM": get_systype()}, archive
             )
         else:
-            url, sha256, size = registry_download(name, version)
+            url, sha256, size = (
+                resolve() if resolve else registry_download(name, version)
+            )
             download_with_resume(url, archive, sha256=sha256, size=size)
         _LOGGER.info("Extracting %s ...", name)
         archive_extract_all(archive, dest, progress_header="Extracting")
