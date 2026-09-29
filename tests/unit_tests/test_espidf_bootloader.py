@@ -261,6 +261,28 @@ def test_merge_config_names_unions_and_sorts(tmp_path: Path) -> None:
         assert bootloader._load_config_names() == ["A", "B", "C"]
 
 
+def test_merge_config_names_remerges_after_a_racing_writer(tmp_path: Path) -> None:
+    """A name landed by a concurrent build must survive the merge."""
+    # merge-read, verify-read (racer landed), merge-read, verify-read
+    loads = iter([None, ["OTHER"], ["OTHER"], ["A", "B", "OTHER"]])
+    with (
+        patch.object(bootloader, "_load_config_names", side_effect=loads),
+        patch.object(bootloader, "write_file") as mock_write,
+    ):
+        assert bootloader._merge_config_names(["B", "A"]) == ["A", "B", "OTHER"]
+    assert mock_write.call_count == 2  # rewrote once with the racer's name
+
+
+def test_merge_config_names_gives_up_after_bounded_retries(tmp_path: Path) -> None:
+    """A pathological racer costs at most a miss, never a spin."""
+    with (
+        patch.object(bootloader, "_load_config_names", return_value=["X"]),
+        patch.object(bootloader, "write_file") as mock_write,
+    ):
+        assert bootloader._merge_config_names(["A"]) == ["A", "X"]
+    assert mock_write.call_count == 3
+
+
 @pytest.mark.parametrize(
     "content",
     [None, "not json", "[]", '["a", 1]', '"str"'],
@@ -444,6 +466,21 @@ def test_publish_staging_failure_cleans_the_stage(tmp_path: Path) -> None:
     ):
         bootloader._publish(build, "k" * 16, {})
     assert not list(root.glob(".stage-*"))
+
+
+def test_publish_keeps_the_original_error_when_the_intact_check_breaks(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "cache"
+    build = tmp_path / "work"
+    _make_built_tree(build)
+    (build / "bootloader.map").unlink()  # the real failure
+    with (
+        patch.object(bootloader, "_cache_root", return_value=root),
+        patch.object(bootloader, "_entry_intact", side_effect=[False, OSError()]),
+        pytest.raises(FileNotFoundError, match="bootloader.map"),
+    ):
+        bootloader._publish(build, "k" * 16, {})
 
 
 # ----------------------------------------------------------------- install

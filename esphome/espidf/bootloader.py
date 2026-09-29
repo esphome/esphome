@@ -134,12 +134,18 @@ def _load_config_names() -> list[str] | None:
 
 
 def _merge_config_names(names) -> list[str]:
-    """Union-merge harvested names; the list only ever grows."""
-    merged = sorted(set(_load_config_names() or ()) | set(names))
-    write_file(
-        _cache_root() / "config_names.json",
-        json.dumps(merged, separators=(",", ":")),
-    )
+    """Union-merge harvested names; a corrupt file is replaced outright.
+
+    write_file renames into place, and re-merging until the file covers our
+    names keeps the union monotonic when two builds publish at once.
+    """
+    path = _cache_root() / "config_names.json"
+    merged = sorted(names)
+    for _ in range(3):
+        merged = sorted(set(_load_config_names() or ()) | set(merged))
+        write_file(path, json.dumps(merged, separators=(",", ":")))
+        if set(_load_config_names() or ()) >= set(merged):
+            break
     return merged
 
 
@@ -291,9 +297,11 @@ def _publish(build_dir: Path, key: str, payload: dict) -> Path:
     except (OSError, EsphomeError) as err:
         # Failed to stage, or another process published the same key first.
         _remove_dir(stage)
-        if not _entry_intact(entry):
-            raise
-        _LOGGER.debug("Reusing published %s after: %s", entry, err)
+        with contextlib.suppress(OSError):
+            if _entry_intact(entry):
+                _LOGGER.debug("Reusing published %s after: %s", entry, err)
+                return entry
+        raise  # keep the original error even if the intact check breaks
     return entry
 
 
