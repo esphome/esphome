@@ -66,6 +66,10 @@ def _compute_enabled() -> bool:
             return False
         if not os.access(framework.get_idf_tools_path(), os.W_OK):
             # A read-only shared prefix would fail the cache on every build.
+            _LOGGER.info(
+                "Bootloader cache off: %s is not writable",
+                framework.get_idf_tools_path(),
+            )
             return False
         from esphome.build_gen.espidf import idf_macro_matches
 
@@ -360,7 +364,7 @@ def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | No
     """The installed build/bootloader dir, building and publishing on a miss;
     None means fall back to the in-tree build."""
     if not (stamp := framework.read_idf_version_txt(toolchain._get_idf_path())):
-        _LOGGER.debug("Framework version.txt missing; cannot key the bootloader")
+        _LOGGER.info("Framework version.txt missing; cannot key the bootloader")
         return None
     if (names := _load_config_names()) is not None:
         entry = _cache_root() / _compute_key(

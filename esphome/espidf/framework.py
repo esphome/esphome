@@ -485,7 +485,10 @@ def read_idf_version_txt(framework_path: Path) -> str:
     """The installed framework's version.txt stamp, or empty."""
     try:
         return (framework_path / "version.txt").read_text(encoding="utf-8").strip()
-    except OSError:
+    except FileNotFoundError:
+        return ""
+    except OSError as err:
+        _LOGGER.info("Cannot read %s: %s", framework_path / "version.txt", err)
         return ""
 
 

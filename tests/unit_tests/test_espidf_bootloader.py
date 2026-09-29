@@ -108,14 +108,18 @@ def test_enabled_project_bootloader_components_disable(tmp_path: Path) -> None:
         assert bootloader._compute_enabled() is False
 
 
-def test_enabled_readonly_tools_prefix_disables(tmp_path: Path) -> None:
+def test_enabled_readonly_tools_prefix_disables(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     """A shared read-only prefix would fail the cache on every build."""
     _write_snapshot("CONFIG_APP_REPRODUCIBLE_BUILD=y\n")
     with (
         _tools_prefix(tmp_path),
         patch.object(bootloader.os, "access", return_value=False),
+        caplog.at_level("INFO"),
     ):
         assert bootloader._compute_enabled() is False
+    assert "is not writable" in caplog.text
 
 
 @pytest.mark.parametrize(
