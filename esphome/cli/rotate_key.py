@@ -16,7 +16,7 @@ from esphome.config_validation import Invalid
 from esphome.const import CONF_API, CONF_PASSWORD, CONF_PORT
 from esphome.core import CORE, EsphomeError
 from esphome.log import AnsiFore, color
-from esphome.ota_key_edit import locate_key_edits, old_key_edit
+from esphome.ota_key_edit import locate_key_edits, old_key_edit, with_sharers
 from esphome.types import ConfigType
 from esphome.upload_targets import PortType, get_port_type
 from esphome.util import (
@@ -33,7 +33,6 @@ PRECHECK_TIMEOUT = 15.0
 
 def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | None:
     """Write a new key, build with it, upload with the current one, confirm."""
-    # The device helpers live with the other upload commands
     from esphome.__main__ import (
         Purpose,
         _esphome_ota_conf,
@@ -70,7 +69,7 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
         )
     network_devices = _resolve_network_devices(devices, config, args)
 
-    if getattr(args, "prompt_new_key", False):
+    if args.prompt_new_key:
         new_key = read_secret_line("New OTA encryption key: ")
     else:
         new_key = generate_encryption_key()
@@ -82,9 +81,12 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
         return fail("The new key is the same as the current one")
 
     try:
+        edits = locate_key_edits(old_key, new_key)
         # The previous key stays in the config as old_key so an install still
         # reaches the device if it ends up running either key
-        edits = [*locate_key_edits(old_key, new_key), *old_key_edit(old_key)]
+        secret = next((edit.secret for edit in edits if edit.secret), None)
+        edits += old_key_edit(old_key, secret)
+        unchecked = with_sharers(edits)
     except EsphomeError as err:
         return fail(str(err))
 
@@ -103,7 +105,7 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
             shared.setdefault(
                 str(path.relative_to(CORE.config_dir.resolve())), set()
             ).add(what)
-    if unchecked := sorted({what for edit in edits for what in edit.unchecked}):
+    if unchecked:
         warnings.append(
             "Could not check every configuration for shared use: "
             + "; ".join(unchecked)
@@ -120,7 +122,7 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
     if warnings:
         for warning in warnings:
             safe_print(color(AnsiFore.BOLD_YELLOW, warning))
-        if not getattr(args, "yes", False):
+        if not args.yes:
             if not sys.stdin.isatty():
                 return fail("Confirm with --yes when there is no terminal")
             if safe_input("Continue? [y/N] ").strip().lower() not in ("y", "yes"):
@@ -151,8 +153,7 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
     except EsphomeError as err:
         return fail(str(err))
     except KeyboardInterrupt as err:
-        # A rollback that failed as well rides along as a note
-        if notes := getattr(err, "__notes__", None):
+        if notes := getattr(err, "__notes__", None):  # a rollback that failed too
             safe_print(keys)
             return fail("Interrupted; " + "; ".join(notes))
         return fail("Interrupted before the upload")
@@ -165,9 +166,9 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
         )
         # Global options go before the subcommand; the compile parser is strict
         cli_args = ["--dashboard"] if CORE.dashboard else []
-        if toolchain := getattr(args, "toolchain", None):
-            cli_args += ["--toolchain", str(toolchain)]
-        for key, value in getattr(args, "substitution", None) or []:
+        if args.toolchain:
+            cli_args += ["--toolchain", str(args.toolchain)]
+        for key, value in args.substitution or []:
             cli_args += ["-s", key, value]
         cli_args += ["compile", str(CORE.config_path)]
         if run_external_process(*ESPHOME_COMMAND, *cli_args) != 0:
@@ -222,9 +223,8 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
 
 
 def _restore(originals: dict[Path, Snapshot], keys: str) -> None:
-    """Put the previous key back. The image goes too, since a build made
-    meanwhile holds the new key and a later upload would install it under
-    a key the yaml no longer has; when a step fails both keys are shown."""
+    """Put the previous key back, and drop the images a build made with the
+    new key; both keys are shown when a step fails."""
     files = ", ".join(str(p) for p in originals)
     try:
         restore_files(originals)
@@ -235,11 +235,13 @@ def _restore(originals: dict[Path, Snapshot], keys: str) -> None:
         safe_print(keys)
     else:
         safe_print(color(AnsiFore.BOLD_YELLOW, f"Restored the previous key in {files}"))
-    image = CORE.firmware_bin
+    build_dir = CORE.firmware_bin.parent
+    images = [p for suffix in (".bin", ".uf2") for p in build_dir.glob(f"*{suffix}")]
+    if not images:
+        return
     try:
-        image.unlink()
-    except FileNotFoundError:
-        pass
+        for image in images:
+            image.unlink()
     except OSError as err:
         safe_print(
             color(
@@ -252,7 +254,7 @@ def _restore(originals: dict[Path, Snapshot], keys: str) -> None:
         safe_print(
             color(
                 AnsiFore.BOLD_YELLOW,
-                f"Removed {image}, which may hold the new key; compile again "
-                "before the next upload.",
+                f"Removed the images in {build_dir}, which may hold the new key; "
+                "compile again before the next upload.",
             )
         )

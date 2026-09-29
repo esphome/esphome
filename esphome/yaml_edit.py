@@ -79,8 +79,17 @@ def line_at(doc: Path, line_no: int) -> str:
     return lines[line_no]
 
 
+_DOMAIN = "yaml_edit"
+
+
 def own_documents() -> set[Path]:
-    """Every file the loader read for this configuration."""
+    """Every file the loader read for this configuration, found once per run."""
+    if (documents := CORE.data.get(_DOMAIN)) is None:
+        documents = CORE.data[_DOMAIN] = _own_documents()
+    return documents
+
+
+def _own_documents() -> set[Path]:
     documents = {str(CORE.config_path)}
 
     def walk(node: object) -> None:
@@ -95,9 +104,8 @@ def own_documents() -> set[Path]:
                 walk(value)
 
     walk(CORE.raw_config or {})
-    # A file that only contributed substitutions leaves no node behind; the
-    # tracker also lists a secrets file the loader tried and fell back from.
-    # The configuration loaded once already, so this parse cannot fail on it
+    # A file that only gave substitutions leaves no node behind; the tracker
+    # also lists a secrets file the loader only tried, hence the is_file check
     documents.update(
         map(str, yaml_util.discover_user_yaml_files(CORE.config_path).files)
     )
@@ -105,23 +113,22 @@ def own_documents() -> set[Path]:
 
 
 def source_of(mapping: ConfigType, name: str) -> tuple[Path, int] | None:
-    """The file and line ``name:`` was read from, None when validation added
-    it or a merge key brought it in from an anchor elsewhere. Mapping keys
-    keep their range through validation, values may not."""
+    """The file and line ``name:`` was read from; None when validation added
+    it or a merge key brought it in from an anchor elsewhere."""
     rng = getattr(next((k for k in mapping if k == name), None), "esp_range", None)
     if rng is None:
         return None
-    # An included mapping carries the `!include` line of its parent, so only
-    # a key in the same document can be placed against the mapping
     if (own := getattr(mapping, "esp_range", None)) is None:
-        # A mapping merge_config rebuilt has no range of its own and keeps
-        # the first mapping's key objects with the last mapping's values, so
-        # the value's range names the line that won; trusted when it came
-        # from this configuration
-        rng = getattr(mapping.get(name), "esp_range", None) or rng
-        if Path(rng.start_mark.document).resolve() not in own_documents():
+        # merge_config keeps the first mapping's keys with the last one's
+        # values, so only the value's range names the line that won
+        rng = getattr(mapping.get(name), "esp_range", None)
+        if rng is None or Path(rng.start_mark.document).resolve() not in (
+            own_documents()
+        ):
             return None
         return Path(rng.start_mark.document), rng.start_mark.line
+    # An included mapping carries its parent's `!include` line, so only a
+    # key in the same document can be checked against the mapping's lines
     if (
         rng.start_mark.document == own.start_mark.document
         and not own.start_mark.line <= rng.start_mark.line <= own.end_mark.line
@@ -131,8 +138,8 @@ def source_of(mapping: ConfigType, name: str) -> tuple[Path, int] | None:
 
 
 def editable_file(path: Path) -> Path:
-    """``path`` resolved, so a rewrite lands on a symlink's target; refuses a
-    file outside the configuration directory or under the build data."""
+    """``path`` resolved, so a symlink's target is edited; refuses a file
+    outside the config dir or under the build data."""
     resolved = path.resolve()
     if (
         not path.is_file()
@@ -146,13 +153,12 @@ def editable_file(path: Path) -> Path:
 
 
 def source_line(mapping: ConfigType, name: str) -> tuple[Path, int, str]:
-    """The file, line number and text ``name:`` was read from; refuses a
-    source that was not read from an editable file."""
+    """The file, line number and text ``name:`` was read from."""
     if (source := source_of(mapping, name)) is None:
         raise EsphomeError(f"'{name}' was not read from a file")
     doc, line_no = source
-    # Checked resolved, returned as the loader saw it: a `!secret` in a
-    # symlinked include resolves beside the link, not beside its target
+    # Returned as the loader saw it: a `!secret` in a symlinked include
+    # resolves beside the link
     editable_file(doc)
     return doc, line_no, line_at(doc, line_no)
 
@@ -178,12 +184,10 @@ def write_keeping_mode(path: Path, text: str, like: Path | None = None) -> None:
 
 
 def rewritten_text(original: str, edits: list[LineEdit]) -> str:
-    """``original`` with the edits applied; every edit must still find the
-    line it was located on."""
+    """``original`` with the edits applied; a line that changed is refused."""
     lines = original.splitlines(keepends=True)
     file_newline = "\r\n" if "\r\n" in original else "\n"
-    # Highest line first, so an insertion never shifts a later edit; an
-    # insertion after a line goes before that line's own rewrite
+    # Bottom up, so an insertion never shifts a later edit
     for edit in sorted(edits, key=lambda e: (e.line, e.insert_after), reverse=True):
         text = lines[edit.line].rstrip("\r\n") if edit.line < len(lines) else None
         if text != edit.old_line:
@@ -199,14 +203,11 @@ def rewritten_text(original: str, edits: list[LineEdit]) -> str:
 
 
 def apply_line_edits(edits: list[LineEdit]) -> dict[Path, Snapshot]:
-    """Rewrite the located lines in place and return each touched file's
-    text before and after, for a rollback. Every file is rewritten in
-    memory before any is written, so a stale line touches nothing; a file
-    that no longer loads is undone here."""
+    """Rewrite the located lines in place; returns each file's text before
+    and after for restore_files. Nothing is written while any line is stale,
+    and a file that no longer loads is put back here."""
     by_path: dict[Path, list[LineEdit]] = {}
     for edit in edits:
-        # Resolved here as well, so a hand-built edit cannot reach a symlink
-        # itself or a file outside the configuration directory
         by_path.setdefault(editable_file(edit.path), []).append(edit)
     originals = {}
     for path, own in by_path.items():
@@ -234,9 +235,8 @@ def apply_line_edits(edits: list[LineEdit]) -> dict[Path, Snapshot]:
 
 
 def restore_files(originals: dict[Path, Snapshot]) -> None:
-    """Put back the files apply_line_edits rewrote; every file is tried and
-    the ones that failed, or that the user changed meanwhile, are reported
-    together and left alone."""
+    """Put back what apply_line_edits wrote; a file that failed or changed
+    meanwhile is left alone and reported."""
     failed = []
     for path, snapshot in originals.items():
         try:

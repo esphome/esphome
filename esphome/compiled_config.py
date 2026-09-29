@@ -33,9 +33,12 @@ _CACHE_VERSION = 1
 _LAMBDA_KEY = "__esphome_lambda__"
 
 
+_CACHE_SUFFIX = ".validated.json"
+
+
 def compiled_config_path(config_filename: str) -> Path:
     """Path to the cached validated config alongside the storage sidecar."""
-    return CORE.data_dir / "storage" / f"{config_filename}.validated.json"
+    return CORE.data_dir / "storage" / f"{config_filename}{_CACHE_SUFFIX}"
 
 
 def invalidate_compiled_config() -> None:
@@ -44,7 +47,7 @@ def invalidate_compiled_config() -> None:
     configurations may share that file."""
     storage = compiled_config_path(CORE.config_filename).parent
     try:
-        caches = [p for p in storage.iterdir() if p.name.endswith(".validated.json")]
+        caches = [p for p in storage.iterdir() if p.name.endswith(_CACHE_SUFFIX)]
     except FileNotFoundError:
         return
     except OSError as err:
