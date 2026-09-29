@@ -59,12 +59,16 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+_request_listener_slot = cg.slot_counter("NFC_TAG_LISTENER_COUNT")
+
+
 async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_NFCC_ID])
 
     hub = await cg.get_variable(config[CONF_NFCC_ID])
+    _request_listener_slot(str(hub))
     cg.add(hub.register_listener(var))
     if CONF_NDEF_CONTAINS in config:
         cg.add(var.set_ndef_match_string(config[CONF_NDEF_CONTAINS]))
