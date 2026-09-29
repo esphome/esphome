@@ -12,7 +12,12 @@ from unittest.mock import call, patch
 
 import pytest
 
-from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION, KEY_VARIANT
+from esphome.components.esp32.const import (
+    KEY_ESP32,
+    KEY_FLASH_SIZE,
+    KEY_IDF_VERSION,
+    KEY_VARIANT,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
@@ -118,6 +123,7 @@ def _up_to_date_compile(ninja_side_effect=None) -> Iterator[tuple]:
     with (
         patch.object(toolchain, "need_reconfigure", return_value=False),
         patch.object(toolchain, "_cache_entries_changed", return_value=False),
+        patch.object(toolchain, "_use_cached_bootloader", return_value=False),
         patch.object(
             toolchain, "_run_ninja", return_value=0, side_effect=ninja_side_effect
         ) as mock_ninja,
@@ -710,6 +716,7 @@ def _fake_tools(env: dict[str, str] | None = None) -> Iterator:
             return_value={"PATH": "/bin", "IDF_CCACHE_ENABLE": "0", **(env or {})},
         ),
         patch.object(toolchain, "_get_idf_tool", side_effect=lambda n: f"/tools/{n}"),
+        patch.object(toolchain, "_use_cached_bootloader", return_value=False),
         patch.object(toolchain, "run_build_tool", return_value=0) as mock_run,
     ):
         yield mock_run
@@ -741,6 +748,7 @@ def test_run_reconfigure_cmake_argv_matches_idf_py(setup_core: Path) -> None:
         "-DESP_PLATFORM=1",
         f"-DSDKCONFIG={sdkconfig}",
         "-DCCACHE_ENABLE=0",
+        "-DESPHOME_USE_CACHED_BOOTLOADER=0",
         project,
     ]
     kwargs = mock_run.call_args.kwargs
@@ -775,6 +783,7 @@ def test_run_reconfigure_cmake_argv_matches_idf6_py(
         "-DPYTHON=/tools/python",
         "-DESP_PLATFORM=1",
         f"-DCCACHE_ENABLE={expected}",
+        "-DESPHOME_USE_CACHED_BOOTLOADER=0",
         str(build_dir.parent),
     ]
 
@@ -786,7 +795,8 @@ def test_run_reconfigure_without_sdkconfig_or_filter(setup_core: Path) -> None:
         assert toolchain.run_reconfigure(verbose=True) == 0
     cmd = mock_run.call_args.args[0]
     assert not any(arg.startswith("-DSDKCONFIG=") for arg in cmd)
-    assert cmd[-2] == "-DCCACHE_ENABLE=0"
+    assert cmd[-3] == "-DCCACHE_ENABLE=0"
+    assert cmd[-2] == "-DESPHOME_USE_CACHED_BOOTLOADER=0"
     assert mock_run.call_args.kwargs["filter_lines"] is None
 
 
@@ -853,6 +863,7 @@ _CONFIGURED = (
     "PYTHON_DEPS_CHECKED:UNINITIALIZED=1\n"
     "PYTHON:UNINITIALIZED=/tools/python\n"
     "ESP_PLATFORM:UNINITIALIZED=1\n"
+    "ESPHOME_USE_CACHED_BOOTLOADER:UNINITIALIZED=0\n"
 )
 
 
@@ -1104,3 +1115,114 @@ def test_get_cmake_cache_value_reads_the_configured_cache(setup_core: Path) -> N
     with patch.object(toolchain, "_get_cmake_output", return_value=output):
         assert toolchain.get_cmake_cache_value("ESPHOME_PCH") == "OFF"
         assert toolchain.get_cmake_cache_value("ESPHOME_MISSING") is None
+
+
+def test_use_cached_bootloader_fallback_wins(setup_core: Path) -> None:
+    """A mid-run fallback pins the rest of the run to the in-tree build."""
+    toolchain._cache().bootloader_fallback = True
+    assert toolchain._use_cached_bootloader() is False
+
+
+def test_use_cached_bootloader_delegates_to_predicate(setup_core: Path) -> None:
+    from esphome.espidf import bootloader
+
+    with patch.object(bootloader, "bootloader_cache_enabled", return_value=True):
+        assert toolchain._use_cached_bootloader() is True
+
+
+def test_configure_defines_follow_bootloader_mode(setup_core: Path) -> None:
+    """The define always rides along, so a mode flip reconfigures."""
+    with (
+        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
+        patch.object(toolchain, "_cache_entries", return_value={}),
+    ):
+        with patch.object(toolchain, "_use_cached_bootloader", return_value=True):
+            on = toolchain._configure_defines()
+        with patch.object(toolchain, "_use_cached_bootloader", return_value=False):
+            off = toolchain._configure_defines()
+    assert on["ESPHOME_USE_CACHED_BOOTLOADER"] == "1"
+    assert off["ESPHOME_USE_CACHED_BOOTLOADER"] == "0"
+
+
+def test_run_compile_installs_cached_bootloader(setup_core: Path) -> None:
+    from esphome.espidf import bootloader
+
+    _setup_build(setup_core)
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "_cache_entries_changed", return_value=False),
+        patch.object(toolchain, "_use_cached_bootloader", return_value=True),
+        patch.object(
+            bootloader, "ensure_cached_bootloader", return_value=0
+        ) as mock_ensure,
+        patch.object(toolchain, "run_reconfigure") as mock_reconfigure,
+        patch.object(toolchain, "_run_ninja", return_value=0),
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+    mock_ensure.assert_called_once_with(False)
+    mock_reconfigure.assert_not_called()
+
+
+@pytest.mark.parametrize("reconfigure_rc", [0, 5])
+def test_run_compile_falls_back_when_bootloader_cache_fails(
+    setup_core: Path, reconfigure_rc: int
+) -> None:
+    """A cache failure flips the run to the stock in-tree build."""
+    from esphome.espidf import bootloader
+
+    _setup_build(setup_core)
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "_cache_entries_changed", return_value=False),
+        patch.object(toolchain, "_use_cached_bootloader", return_value=True),
+        patch.object(bootloader, "ensure_cached_bootloader", return_value=1),
+        patch.object(
+            toolchain, "run_reconfigure", return_value=reconfigure_rc
+        ) as mock_reconfigure,
+        patch.object(toolchain, "_run_ninja", return_value=0) as mock_ninja,
+        patch.object(toolchain, "print_summary"),
+    ):
+        rc = toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
+    assert rc == reconfigure_rc
+    assert toolchain._cache().bootloader_fallback is True
+    mock_reconfigure.assert_called_once_with(False)
+    assert mock_ninja.called is (reconfigure_rc == 0)
+
+
+def test_create_factory_bin_merges_cached_bootloader(setup_core: Path) -> None:
+    """The cached bootloader joins the merge at its flash offset even
+    though IDF wrote no bootloader entry into flasher_args.json."""
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    (build / "bootloader").mkdir(parents=True)
+    (build / "bootloader" / "bootloader.bin").write_bytes(b"\xe9")
+    (build / "config").mkdir()
+    (build / "config" / "sdkconfig.json").write_text(
+        json.dumps({"BOOTLOADER_OFFSET_IN_FLASH": 0x1000})
+    )
+    (build / "test.bin").write_bytes(b"a")
+    (build / "flasher_args.json").write_text(
+        json.dumps(
+            {
+                "flash_files": {"0x10000": "test.bin"},
+                "extra_esptool_args": {"chip": "esp32"},
+            }
+        )
+    )
+    CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = "4MB"
+    with (
+        patch.object(toolchain, "_get_idf_env", return_value={}),
+        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
+        patch.object(
+            toolchain.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess([], 0, "", ""),
+        ) as mock_run,
+    ):
+        assert toolchain.create_factory_bin() is True
+    cmd = mock_run.call_args.args[0]
+    offset_index = cmd.index("0x1000")
+    assert cmd[offset_index + 1] == str(build / "bootloader" / "bootloader.bin")
+    # Sections stay sorted by address; the bootloader comes first.
+    assert offset_index < cmd.index("0x10000")

@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "script"))
 import check_idf_py_equivalence as guard  # noqa: E402
 
 from esphome.core import CORE  # noqa: E402
-from esphome.espidf import toolchain  # noqa: E402
+from esphome.espidf import bootloader, toolchain  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -24,12 +24,21 @@ def _reset_core() -> Iterator[None]:
     CORE.reset()
 
 
-def _make_tree(tmp_path: Path) -> Path:
+BOOTLOADER_LOG = "build/bootloader/.ninja_log"
+ALL_LOGS = (guard.TOP_NINJA_LOG, BOOTLOADER_LOG)
+
+
+def _make_tree(tmp_path: Path, bootloader_subbuild: bool = True) -> Path:
+    """A fake build tree; the sub-build shape mirrors a bypass/stock build,
+    without it the cached-bootloader shape (bin present, no sub-build)."""
     tree = tmp_path / "config" / ".esphome" / "build" / "dev"
     build = tree / "build"
-    for name in (*guard.watched("dev"), *guard.NINJA_LOGS):
+    logs = ALL_LOGS if bootloader_subbuild else (guard.TOP_NINJA_LOG,)
+    for name in (*guard.watched("dev"), *logs):
         (tree / name).parent.mkdir(parents=True, exist_ok=True)
         (tree / name).write_bytes(b"x")
+    if bootloader_subbuild:
+        (build / "bootloader" / "build.ninja").write_bytes(b"x")
     (build / "project_description.json").write_text(
         json.dumps(
             {
@@ -70,6 +79,7 @@ def _run_check(
         patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
         patch.object(toolchain, "run_reconfigure", return_value=esphome_rcs[0]),
         patch.object(toolchain, "_run_ninja", return_value=esphome_rcs[1]),
+        patch.object(bootloader, "idf_macro_matches", return_value=True),
         patch.object(guard.subprocess, "run", side_effect=run),
     ):
         return guard.check(tree), calls
@@ -150,9 +160,7 @@ def test_check_stops_when_idf_py_fails(tmp_path: Path) -> None:
     assert len(calls) == 1
 
 
-@pytest.mark.parametrize(
-    "remove", ["build/build.ninja", "build/dev.bin", *guard.NINJA_LOGS]
-)
+@pytest.mark.parametrize("remove", ["build/build.ninja", "build/dev.bin", *ALL_LOGS])
 def test_check_fails_when_an_input_is_missing(tmp_path: Path, remove: str) -> None:
     """A moved or renamed output must not compare as unchanged."""
     tree = _make_tree(tmp_path)
@@ -179,7 +187,7 @@ def test_check_stops_when_the_esphome_baseline_fails(
     assert calls == []
 
 
-@pytest.mark.parametrize("log", guard.NINJA_LOGS)
+@pytest.mark.parametrize("log", ALL_LOGS)
 def test_check_fails_when_a_ninja_log_has_no_entries(tmp_path: Path, log: str) -> None:
     """A log format change must not leave the rebuild check with nothing to compare."""
     tree = _make_tree(tmp_path)
@@ -203,6 +211,32 @@ def test_main_rejects_a_path_that_is_not_a_tree(
         capsys.readouterr().out
     )
     mock_check.assert_not_called()
+
+
+def test_check_accepts_a_cached_bootloader_tree(tmp_path: Path) -> None:
+    """No bootloader sub-build is the cached shape, not a missing input."""
+    tree = _make_tree(tmp_path, bootloader_subbuild=False)
+    problems, calls = _run_check(tree)
+    assert problems == []
+    assert len(calls) == 2
+
+
+def test_check_fails_loudly_when_the_idf_macro_changed(tmp_path: Path) -> None:
+    """An IDF bump that rewrites the overridden macro must fail CI."""
+    tree = _make_tree(tmp_path)
+    with (
+        patch.object(toolchain, "_get_idf_env", return_value={}),
+        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
+        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
+        patch.object(bootloader, "idf_macro_matches", return_value=False),
+        patch.object(guard.subprocess, "run") as mock_run,
+    ):
+        problems = guard.check(tree)
+    assert problems == [
+        "IDF changed __build_process_project_includes; update "
+        "IDF_BOOTLOADER_OVERRIDE in esphome/build_gen/espidf.py"
+    ]
+    mock_run.assert_not_called()
 
 
 def test_main_without_build_trees(

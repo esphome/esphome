@@ -80,6 +80,51 @@ def _cmake_quote(value: str) -> str:
     return f'"{escaped}"'
 
 
+# CONFIG_APP_BUILD_BOOTLOADER is a hidden Kconfig option force-selected by
+# APP_BUILD_TYPE_APP_2NDBOOT, so sdkconfig cannot turn it off. Clearing it at
+# the CMake level puts the build into the same first-class state IDF's RAM-app
+# build type uses: the bootloader guards return early, esptool_py drops the
+# bootloader flash entry, and nothing else changes (sdkconfig.h still says 1).
+# The macro below is IDF's __build_process_project_includes (tools/cmake/
+# build.cmake, identical in all supported IDF versions) with one added set();
+# esphome.espidf.bootloader compares the live macro against this copy and
+# falls back to the in-tree bootloader build if an IDF update changes it.
+IDF_BOOTLOADER_OVERRIDE = """\
+# ESPHome: with ESPHOME_USE_CACHED_BOOTLOADER the bootloader comes from a
+# machine-global cache instead of the in-tree ExternalProject. This is IDF's
+# own __build_process_project_includes macro with one added set(); see
+# esphome/espidf/bootloader.py.
+if(ESPHOME_USE_CACHED_BOOTLOADER)
+    macro(__build_process_project_includes)
+        idf_build_get_property(sdkconfig_cmake SDKCONFIG_CMAKE)
+        include(${sdkconfig_cmake})
+        # ESPHome: the bootloader comes from the machine-global cache
+        set(CONFIG_APP_BUILD_BOOTLOADER "")
+        idf_build_get_property(build_properties __BUILD_PROPERTIES)
+        foreach(build_property ${build_properties})
+            idf_build_get_property(val ${build_property})
+            set(${build_property} "${val}")
+        endforeach()
+        idf_build_get_property(build_component_targets __BUILD_COMPONENT_TARGETS)
+        foreach(component_target ${build_component_targets})
+            __component_get_property(dir ${component_target} COMPONENT_DIR)
+            __component_get_property(_name ${component_target} COMPONENT_NAME)
+            set(COMPONENT_NAME ${_name})
+            set(COMPONENT_DIR ${dir})
+            set(COMPONENT_PATH ${dir})
+            if(EXISTS ${COMPONENT_DIR}/project_include.cmake)
+                include(${COMPONENT_DIR}/project_include.cmake)
+            endif()
+        endforeach()
+    endmacro()
+endif()
+"""
+
+# The one line the override adds to IDF's macro; the staleness tripwire in
+# esphome.espidf.bootloader strips it before comparing with the live macro.
+BOOTLOADER_OVERRIDE_ADDED_LINE = 'set(CONFIG_APP_BUILD_BOOTLOADER "")'
+
+
 def get_project_cmakelists(
     minimal: bool = False, builtin_components: list[str] | None = None
 ) -> str:
@@ -202,6 +247,7 @@ set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
+{IDF_BOOTLOADER_OVERRIDE}
 {cpp_standard_options}
 
 {cxx_compile_options}
