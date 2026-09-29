@@ -547,6 +547,21 @@ def test_size_check_overflow_raises(tmp_path: Path) -> None:
 # ------------------------------------------------------------ orchestration
 
 
+def test_ensure_rechecks_managed_hooks_after_configure(tmp_path: Path) -> None:
+    """A hook that configure just downloaded must stop the first build too."""
+    hook = CORE.relative_build_path(
+        "managed_components", "vendor__boot", "project_include.cmake"
+    )
+    hook.parent.mkdir(parents=True)
+    hook.write_text("idf_build_set_property(BOOTLOADER_IGNORE_EXTRA_COMPONENT x)")
+    with (
+        _orchestration_env(tmp_path),
+        patch.object(bootloader, "_build_standalone") as mock_build,
+    ):
+        assert bootloader.ensure_cached_bootloader() is False
+    mock_build.assert_not_called()
+
+
 def test_ensure_fails_soft_without_configure_outputs(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

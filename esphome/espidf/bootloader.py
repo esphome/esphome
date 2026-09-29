@@ -72,13 +72,8 @@ def _compute_enabled() -> bool:
         if CORE.relative_build_path("bootloader_components").exists():
             # Project-local bootloader overrides are inputs the key can't see.
             return False
-        managed = CORE.relative_build_path("managed_components")
-        hooks = managed.glob("*/project_include.cmake") if managed.is_dir() else ()
-        for hook in hooks:
-            if _BOOTLOADER_PROPERTY.search(hook.read_text(encoding="utf-8")):
-                # A component wiring extra dirs into the bootloader build.
-                _LOGGER.info("Bootloader cache off: %s customizes it", hook.parent.name)
-                return False
+        if _managed_bootloader_hook() is not None:
+            return False
         if not os.access(tools := framework.get_idf_tools_path(), os.W_OK):
             # A read-only shared prefix would fail the cache on every build.
             _LOGGER.info("Bootloader cache off: %s is not writable", tools)
@@ -96,6 +91,21 @@ def _compute_enabled() -> bool:
         # More likely a regression than the environment; still fail safe.
         _LOGGER.warning("Bootloader cache disabled: %s", err)
         return False
+
+
+def _managed_bootloader_hook() -> str | None:
+    """The managed component wiring the bootloader build, or None.
+
+    Checked again after configure: a cold tree has no managed_components
+    yet when the enable check first runs.
+    """
+    managed = CORE.relative_build_path("managed_components")
+    hooks = managed.glob("*/project_include.cmake") if managed.is_dir() else ()
+    for hook in hooks:
+        if _BOOTLOADER_PROPERTY.search(hook.read_text(encoding="utf-8")):
+            _LOGGER.info("Bootloader cache off: %s customizes it", hook.parent.name)
+            return hook.parent.name
+    return None
 
 
 def _snapshot_blocks_cache(sdkconfig_path: Path) -> bool:
@@ -380,6 +390,9 @@ def ensure_cached_bootloader(verbose: bool = False) -> bool:
     False tells the caller to fall back to the in-tree build; a too-large
     bootloader raises instead, since in-tree would fail the same way.
     """
+    if _managed_bootloader_hook() is not None:
+        # Configure just downloaded it; the pre-configure scan ran too early.
+        return False
     app_config = toolchain._load_sdkconfig_json(toolchain._build_dir())
     offset = _bootloader_offset(app_config)
     table_offset = (app_config or {}).get("PARTITION_TABLE_OFFSET")
