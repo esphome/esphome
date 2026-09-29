@@ -122,11 +122,11 @@ void OnlineImage::update() {
       return;
     }
   }
-  ESP_LOGD(TAG, "Using image format: %d", format);
+  ESP_LOGD(TAG, "Using image format: %s", runtime_image::get_format_name(format));
 
   // Initialize decoder with the known format
   if (!this->begin_decode(total_size, format)) {
-    ESP_LOGE(TAG, "Failed to initialize decoder for format %d", format);
+    ESP_LOGE(TAG, "Failed to initialize decoder for format %s", runtime_image::get_format_name(format));
     this->end_connection_();
     this->download_error_callback_.call();
     return;
