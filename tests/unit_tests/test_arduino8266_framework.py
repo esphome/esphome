@@ -174,6 +174,11 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
     )
     # One spec list feeds both phases, so they cannot drift
     assert mock_prefetch.call_args.args == mock_install.call_args.args
+    # PackageSpec instances, not bare tuples: the batch header reads .name
+    assert all(
+        isinstance(spec, framework.PackageSpec)
+        for spec in mock_install.call_args.args[0]
+    )
 
 
 def test_get_build_env_prepends_toolchain_bin(tmp_path: Path) -> None:

@@ -24,6 +24,7 @@ from esphome.core import EsphomeError, Version
 from esphome.framework_helpers import str_to_lst_of_str
 from esphome.platformio.registry import (
     Download,
+    PackageSpec,
     Resolver,
     get_systype,
     install_packages,
@@ -151,14 +152,14 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
     toolchain_path = get_toolchain_path()
     # One spec per package: the prefetch and the installs must agree
     specs = (
-        (
+        PackageSpec(
             FRAMEWORK_PACKAGE,
             release.tag,
             framework_path,
             ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
             ("cores/esp8266", "tools/sdk", "libraries"),
         ),
-        (
+        PackageSpec(
             TOOLCHAIN_PACKAGE,
             TOOLCHAIN_VERSION,
             toolchain_path,
