@@ -128,14 +128,17 @@ def _cache_root() -> Path:
     )
 
 
-def _load_config_names() -> list[str] | None:
-    """The known union of config option names the bootloader consumes."""
+def _load_json(path: Path):
+    """The parsed JSON file, or None when missing or unreadable."""
     try:
-        names = json.loads(
-            (_cache_root() / "config_names.json").read_text(encoding="utf-8")
-        )
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+
+
+def _load_config_names() -> list[str] | None:
+    """The known union of config option names the bootloader consumes."""
+    names = _load_json(_cache_root() / "config_names.json")
     if isinstance(names, list) and names and all(isinstance(n, str) for n in names):
         return names
     return None
@@ -153,25 +156,16 @@ def _merge_config_names(names) -> list[str]:
 
 def _load_build_config(build_dir: Path) -> dict | None:
     """A build's generated config/sdkconfig.json, or None."""
-    try:
-        return json.loads(
-            (build_dir / "config" / "sdkconfig.json").read_text(encoding="utf-8")
-        )
-    except (OSError, ValueError):
-        return None
+    config = _load_json(build_dir / "config" / "sdkconfig.json")
+    return config if isinstance(config, dict) else None
 
 
 def _compiler_id() -> str | None:
     """The app build's resolved C compiler; None falls back to in-tree."""
-    try:
-        description = json.loads(
-            (toolchain._build_dir() / "project_description.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        compiler = description["c_compiler"]
-    except (OSError, ValueError, LookupError):
+    description = _load_json(toolchain._build_dir() / "project_description.json")
+    if not isinstance(description, dict):
         return None
+    compiler = description.get("c_compiler")
     return os.path.realpath(compiler) if compiler else None
 
 
