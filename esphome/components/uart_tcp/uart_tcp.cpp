@@ -8,10 +8,10 @@
 #include <cstdio>
 #include <cstring>
 
-#ifdef USE_ESP32
+#ifndef USE_HOST
 #include "lwip/dns.h"
 #include "lwip/ip4_addr.h"
-#elif defined(USE_HOST)
+#else
 #include <netdb.h>
 #endif
 
@@ -19,11 +19,12 @@ namespace esphome::uart_tcp {
 
 static const char *const TAG = "uart_tcp";
 
-uint32_t loop_time() { return App.get_loop_component_start_time(); }
+static uint32_t loop_time() { return App.get_loop_component_start_time(); }
 
 float UartTcp::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 
 void UartTcp::setup() {
+  this->last_attempt_ms_ = loop_time() - this->reconnect_interval_ms_;
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(false);
   }
@@ -38,6 +39,8 @@ void UartTcp::dump_config() {
     ESP_LOGCONFIG(TAG, "  Host: %s:%u", this->host_.c_str(), this->port_);
   }
   ESP_LOGCONFIG(TAG, "  UART baud: %" PRIu32, this->parent_->get_baud_rate());
+  ESP_LOGCONFIG(TAG, "  Reconnect interval: %u ms", this->reconnect_interval_ms_);
+  LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
 }
 
 void UartTcp::on_shutdown() {
@@ -67,6 +70,10 @@ void UartTcp::close_sock_() {
 
 void UartTcp::close_listen_() { this->listen_.reset(); }
 
+void UartTcp::note_attempt_() { this->last_attempt_ms_ = loop_time(); }
+
+bool UartTcp::in_backoff_() const { return loop_time() - this->last_attempt_ms_ < this->reconnect_interval_ms_; }
+
 void UartTcp::apply_socket_options_(socket::Socket *sock) {
   int yes = 1;
   sock->setblocking(false);
@@ -82,7 +89,7 @@ void UartTcp::apply_socket_options_(socket::Socket *sock) {
 #endif
 }
 
-#ifdef USE_ESP32
+#ifndef USE_HOST
 void UartTcp::dns_found(const char *name, const ip_addr_t *addr, void *arg) {
   auto *self = static_cast<UartTcp *>(arg);
   if (addr != nullptr && IP_IS_V4(addr)) {
@@ -107,9 +114,13 @@ void UartTcp::try_resolve_() {
     this->have_addr_.store(true);
     return;
   }
-#ifdef USE_ESP32
+#ifndef USE_HOST
   ip_addr_t cached;
-  err_t err = dns_gethostbyname(this->host_.c_str(), &cached, &UartTcp::dns_found, this);
+  err_t err;
+  {
+    LwIPLock lock;
+    err = dns_gethostbyname(this->host_.c_str(), &cached, &UartTcp::dns_found, this);
+  }
   if (err == ERR_OK && IP_IS_V4(&cached)) {
     this->resolved_addr_.store(ip4_addr_get_u32(ip_2_ip4(&cached)));
     this->have_addr_.store(true);
@@ -119,7 +130,7 @@ void UartTcp::try_resolve_() {
     this->resolving_.store(true);
     return;
   }
-#elif defined(USE_HOST)
+#else
   struct addrinfo hints{};
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
@@ -159,13 +170,13 @@ bool UartTcp::ip_ready_() {
 }
 
 void UartTcp::try_connect_() {
-  if (this->sock_ != nullptr || loop_time() < this->next_connect_ms_) {
+  if (this->sock_ != nullptr || this->in_backoff_()) {
     return;
   }
   if (this->resolve_failed_.exchange(false)) {
     this->have_addr_.store(false);
     this->resolved_ip_[0] = '\0';
-    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
+    this->note_attempt_();
     return;
   }
   this->try_resolve_();
@@ -176,32 +187,35 @@ void UartTcp::try_connect_() {
   socklen_t dest_len =
       socket::set_sockaddr(reinterpret_cast<struct sockaddr *>(&dest), sizeof(dest), this->resolved_ip_, this->port_);
   if (dest_len == 0) {
-    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
+    this->note_attempt_();
     return;
   }
   this->sock_ = socket::socket(dest.ss_family, SOCK_STREAM, IPPROTO_TCP);
   if (this->sock_ == nullptr) {
-    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
+    this->note_attempt_();
     return;
   }
   this->apply_socket_options_(this->sock_.get());
   int rc = this->sock_->connect(reinterpret_cast<struct sockaddr *>(&dest), dest_len);
   if (rc == 0 || errno == EINPROGRESS) {
     this->connecting_ = rc != 0;
-    this->set_link_up_(rc == 0);
+    if (rc == 0) {
+      this->set_link_up_(true);
+      ESP_LOGI(TAG, "Connected to %s:%u", this->host_.c_str(), this->port_);
+    }
     return;
   }
   this->sock_.reset();
-  this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
+  this->note_attempt_();
 }
 
 void UartTcp::try_listen_() {
-  if (this->listen_ != nullptr || loop_time() < this->next_connect_ms_) {
+  if (this->listen_ != nullptr || this->in_backoff_()) {
     return;
   }
   this->listen_ = socket::socket_ip_loop_monitored(SOCK_STREAM, IPPROTO_TCP);
   if (this->listen_ == nullptr) {
-    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
+    this->note_attempt_();
     return;
   }
   int yes = 1;
@@ -214,7 +228,7 @@ void UartTcp::try_listen_() {
       this->listen_->listen(1) != 0) {
     ESP_LOGW(TAG, "Listen on %u failed", this->port_);
     this->listen_.reset();
-    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
+    this->note_attempt_();
     return;
   }
   ESP_LOGI(TAG, "Listening on %u", this->port_);
@@ -242,11 +256,16 @@ void UartTcp::read_socket_() {
   }
   if (this->connecting_) {
     int err = 0;
-    socklen_t len = sizeof(err);
-    if (this->sock_->getsockopt(SOL_SOCKET, SO_ERROR, &err, &len) < 0 || err != 0) {
-      this->close_sock_();
-      this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
-      return;
+    switch (socket::poll_connect(*this->sock_, err)) {
+      case socket::ConnectPollResult::CONNECT_POLL_RESULT_PENDING:
+        return;
+      case socket::ConnectPollResult::CONNECT_POLL_RESULT_ERROR:
+        ESP_LOGW(TAG, "Connection failed: %d", err);
+        this->close_sock_();
+        this->note_attempt_();
+        return;
+      default:
+        break;
     }
     this->connecting_ = false;
     this->set_link_up_(true);
@@ -257,7 +276,7 @@ void UartTcp::read_socket_() {
   if (count == 0 || (count < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
     ESP_LOGW(TAG, "Connection lost");
     this->close_sock_();
-    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
+    this->note_attempt_();
     return;
   }
   if (count > 0) {
@@ -281,7 +300,7 @@ void UartTcp::send_all_(const uint8_t *data, size_t len) {
     }
     ESP_LOGW(TAG, "Send failed");
     this->close_sock_();
-    this->next_connect_ms_ = loop_time() + this->reconnect_interval_ms_;
+    this->note_attempt_();
     return;
   }
 }

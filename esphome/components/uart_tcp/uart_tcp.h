@@ -7,7 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 
-#ifdef USE_ESP32
+#ifndef USE_HOST
 #include "lwip/ip_addr.h"
 #endif
 
@@ -45,7 +45,9 @@ class UartTcp : public Component, public uart::UARTDevice {
   void send_all_(const uint8_t *data, size_t len);
   void apply_socket_options_(socket::Socket *sock);
   void set_link_up_(bool up);
-#ifdef USE_ESP32
+  void note_attempt_();
+  bool in_backoff_() const;
+#ifndef USE_HOST
   static void dns_found(const char *name, const ip_addr_t *addr, void *arg);
 #endif
 
@@ -56,7 +58,7 @@ class UartTcp : public Component, public uart::UARTDevice {
   std::unique_ptr<socket::ListenSocket> listen_;
   bool connecting_{false};
   bool connected_{false};
-  uint32_t next_connect_ms_{0};
+  uint32_t last_attempt_ms_{0};
   uint32_t reconnect_interval_ms_{5000};
   binary_sensor::BinarySensor *connected_sensor_{nullptr};
 
@@ -64,7 +66,7 @@ class UartTcp : public Component, public uart::UARTDevice {
   std::atomic<bool> resolve_failed_{false};
   std::atomic<bool> have_addr_{false};
   std::atomic<uint32_t> resolved_addr_{0};
-  char resolved_ip_[16]{};
+  char resolved_ip_[socket::SOCKADDR_STR_LEN]{};
 };
 
 }  // namespace esphome::uart_tcp
