@@ -109,6 +109,25 @@ def test_enabled_project_bootloader_components_disable(tmp_path: Path) -> None:
         assert bootloader._compute_enabled() is False
 
 
+def test_enabled_managed_component_bootloader_hook_disables(tmp_path: Path) -> None:
+    """A managed component wiring the bootloader build is an unseen input."""
+    _write_snapshot("CONFIG_APP_REPRODUCIBLE_BUILD=y\n")
+    hook = CORE.relative_build_path(
+        "managed_components", "vendor__boot", "project_include.cmake"
+    )
+    hook.parent.mkdir(parents=True)
+    hook.write_text(
+        'idf_build_set_property(BOOTLOADER_EXTRA_COMPONENT_DIRS "x" APPEND)'
+    )
+    with (
+        _tools_prefix(tmp_path),
+        patch.object(build_gen, "idf_macro_matches", return_value=True),
+    ):
+        assert bootloader._compute_enabled() is False
+        hook.write_text("# nothing bootloader related")
+        assert bootloader._compute_enabled() is True
+
+
 def test_enabled_readonly_tools_prefix_disables(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

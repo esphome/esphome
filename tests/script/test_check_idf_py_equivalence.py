@@ -103,10 +103,14 @@ def _run_check(
         return guard.check(tree), calls
 
 
-def test_check_passes_when_idf_py_changes_nothing(tmp_path: Path) -> None:
+def test_check_passes_when_idf_py_changes_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     tree = _make_tree(tmp_path)
     problems, calls = _run_check(tree)
     assert problems == []
+    # a stock tree says so instead of passing parity vacuously
+    assert "parity not exercised" in capsys.readouterr().out
     sdkconfig = f"SDKCONFIG={tree / 'sdkconfig.dev'}"
     assert calls == [
         ["/py", str(Path("/idf/tools/idf.py")), "-D", sdkconfig, "reconfigure"],

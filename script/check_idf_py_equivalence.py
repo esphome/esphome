@@ -186,6 +186,7 @@ def _bootloader_parity(build_path: Path) -> list[str]:
 
     bin_path = build_path / "build" / "bootloader" / "bootloader.bin"
     if not bootloader.tree_uses_cached_bootloader(build_path / "build"):
+        print("note: tree not in cached mode; bootloader parity not exercised")
         return []
     cached = bin_path.read_bytes()
     bin_path.unlink()  # the rebuild must produce it, never compare to itself

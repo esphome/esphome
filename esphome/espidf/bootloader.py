@@ -40,6 +40,9 @@ BOOTLOADER_CACHE_ENV = "ESPHOME_BOOTLOADER_CACHE"
 # Bump when the build or storage recipe changes; old entries then miss.
 _CACHE_SCHEMA = "1"
 _SECURE_OPTION = re.compile(r"CONFIG_(SECURE_|FLASH_ENCRYPTION)")
+_BOOTLOADER_PROPERTY = re.compile(
+    r"BOOTLOADER_(EXTRA_COMPONENT_DIRS|IGNORE_EXTRA_COMPONENT)"
+)
 _DISABLED_VALUES = frozenset(("n", "0", ""))
 # Marks a config name the app's sdkconfig does not define.
 _ABSENT = "\x00absent"
@@ -69,6 +72,13 @@ def _compute_enabled() -> bool:
         if CORE.relative_build_path("bootloader_components").exists():
             # Project-local bootloader overrides are inputs the key can't see.
             return False
+        managed = CORE.relative_build_path("managed_components")
+        hooks = managed.glob("*/project_include.cmake") if managed.is_dir() else ()
+        for hook in hooks:
+            if _BOOTLOADER_PROPERTY.search(hook.read_text(encoding="utf-8")):
+                # A component wiring extra dirs into the bootloader build.
+                _LOGGER.info("Bootloader cache off: %s customizes it", hook.parent.name)
+                return False
         if not os.access(tools := framework.get_idf_tools_path(), os.W_OK):
             # A read-only shared prefix would fail the cache on every build.
             _LOGGER.info("Bootloader cache off: %s is not writable", tools)
