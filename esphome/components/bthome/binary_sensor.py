@@ -35,7 +35,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Required(CONF_EVENT): cv.enum(BUTTON_EVENTS, lower=True),
             cv.Optional(CONF_INDEX, default=1): cv.int_range(min=1, max=8),
-            cv.Optional(CONF_PULSE_LENGTH, default="200ms"): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_PULSE_LENGTH, default="200ms"
+            ): cv.positive_time_period_milliseconds,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)

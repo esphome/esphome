@@ -9,4 +9,6 @@ CONFIG_SCHEMA = cv.Schema({})
 
 # binary_sensor.cpp needs the binary_sensor component. The host test loads
 # `bthome:` alone, so keep that file out until the platform is configured.
-FILTER_SOURCE_FILES = filter_source_files_from_defines({"binary_sensor.cpp": "USE_BTHOME_BINARY_SENSOR"})
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"binary_sensor.cpp": "USE_BTHOME_BINARY_SENSOR"}
+)
