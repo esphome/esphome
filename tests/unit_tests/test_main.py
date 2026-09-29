@@ -5999,6 +5999,26 @@ def test_compile_program_esp8266_runs_rosetta_check(tmp_path: Path) -> None:
     mock_check.assert_called_once()
 
 
+def test_compile_program_esp8266_native_skips_rosetta_check(tmp_path: Path) -> None:
+    """The native toolchain has an arm64 macOS build, so nothing is probed."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.ARDUINO
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+
+    with (
+        patch("esphome.components.esp8266.check_rosetta") as mock_check,
+        patch(
+            "esphome.components.esp8266.run_compile",
+            side_effect=EsphomeError("compile reached"),
+        ),
+        pytest.raises(EsphomeError, match="compile reached"),
+    ):
+        compile_program(MockArgs(), config)
+
+    mock_check.assert_not_called()
+
+
 def test_compile_program_skips_rosetta_check_on_other_platforms(
     tmp_path: Path,
     mock_compile_build_info_run_compile: Mock,

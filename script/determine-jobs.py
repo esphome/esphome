@@ -592,10 +592,17 @@ def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
     )
 
 
+# Checks the native ESP-IDF build in CI but does not shape it, so it is kept
+# out of ESP_IDF_INFRA_TRIGGER_FILES (hashed into the clang-tidy cache key).
+_ESP_IDF_CHECK_TRIGGER_FILES = frozenset({"script/check_idf_py_equivalence.py"})
+
+
 def _esp_idf_infra_changed(files: list[str]) -> bool:
     """Whether any changed file is ESP-IDF build/runner infrastructure."""
     return _path_or_file_trigger(
-        files, ESP_IDF_INFRA_TRIGGER_FILES, ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES
+        files,
+        ESP_IDF_INFRA_TRIGGER_FILES | _ESP_IDF_CHECK_TRIGGER_FILES,
+        ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES,
     )
 
 
@@ -1533,19 +1540,34 @@ def main() -> None:
         # Convert batches to CI matrix entries: the component list plus which
         # native toolchain installs the batch's test platforms need, so the
         # workflow only restores the matching multi-GB toolchain caches.
+        # The idf.py check does not depend on the components, so it runs once
+        # per workflow, in the first batch that compiles an esp32 test (a
+        # validate-only component is never compiled).
+        idf_py_check_assigned = False
+        skip_compile = set(validate_only_components)
         for batch in batches:
             platforms: set[str] = set()
+            compiled_platforms: set[str] = set()
             for component in batch:
                 # Variants included: the compile stage builds them, so a
                 # component tested only by test-<variant>.<platform>.yaml
                 # still needs that platform's toolchain
-                platforms.update(
-                    get_component_test_platforms(component, base_only=False)
+                component_platforms = get_component_test_platforms(
+                    component, base_only=False
                 )
+                platforms.update(component_platforms)
+                if component not in skip_compile:
+                    compiled_platforms.update(component_platforms)
+            needs_idf = any(p.startswith("esp32") for p in platforms)
+            check_idf_py = not idf_py_check_assigned and any(
+                p.startswith("esp32") for p in compiled_platforms
+            )
+            idf_py_check_assigned |= check_idf_py
             component_test_batches.append(
                 {
                     "components": " ".join(batch),
-                    "needs_idf": any(p.startswith("esp32") for p in platforms),
+                    "needs_idf": needs_idf,
+                    "check_idf_py": check_idf_py,
                     "needs_nrf": any(p.startswith("nrf52") for p in platforms),
                     "needs_arduino8266": any(
                         p.startswith("esp8266") for p in platforms
