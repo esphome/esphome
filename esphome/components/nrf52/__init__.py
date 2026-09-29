@@ -75,6 +75,7 @@ from .framework import (
     get_build_env,
     get_build_paths,
     setup_platformio_python_env,
+    toolchain_tool,
 )
 
 # force import gpio to register pin schema
@@ -843,7 +844,11 @@ def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
     write_file_if_changed(app_dir / _PCH_SUM_PATH, checksum + "\n")
 
 
-def _generate_cmake_lists() -> bool:
+def _pch_usable() -> bool:
+    return pch.pch_usable((toolchain_tool("g++"),))
+
+
+def _generate_cmake_lists(pch_on: bool) -> bool:
     """Write the project CMakeLists.txt, returning True if it changed."""
     compile_flags = get_project_compile_flags()
     link_flags = get_project_link_flags()
@@ -886,7 +891,7 @@ def _generate_cmake_lists() -> bool:
             ")",
         ]
 
-    if pch.pch_enabled():
+    if pch_on:
         lines += _PCH_CMAKE_LINES
 
     if link_flags:
@@ -945,7 +950,8 @@ def run_compile(args, config: ConfigType) -> bool:
     paths = get_build_paths()
     env = get_build_env()
 
-    cmake_lists_changed = _generate_cmake_lists()
+    pch_on = _pch_usable()
+    cmake_lists_changed = _generate_cmake_lists(pch_on)
 
     board = zephyr_data()[KEY_BOARD]
     build_dir = CORE.relative_pioenvs_path(CORE.name)
@@ -962,7 +968,7 @@ def run_compile(args, config: ConfigType) -> bool:
         _LOGGER.info("Build inputs changed, cleaning %s", build_dir)
         rmtree(build_dir)
 
-    if pch.pch_enabled():
+    if pch_on:
         pch.log_pch_in_use()
         # Zephyr turns ccache on by itself when it is installed
         env.update(pch.ccache_pch_env())
