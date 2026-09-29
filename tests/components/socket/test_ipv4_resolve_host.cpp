@@ -13,7 +13,7 @@ TEST(Ipv4Resolve, LiteralIsReadyWithoutDns) {
   lookup.start("192.168.1.1", 1, "test");
   EXPECT_TRUE(lookup.ready());
 
-  struct sockaddr_storage addr{};
+  struct sockaddr_storage addr {};
   socklen_t len = lookup.to_sockaddr(reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr), 6053);
   ASSERT_EQ(len, sizeof(sockaddr_in));
   auto *in = reinterpret_cast<sockaddr_in *>(&addr);
@@ -29,7 +29,7 @@ TEST(Ipv4Resolve, ForgetDropsTheLiteral) {
   lookup.forget();
   EXPECT_FALSE(lookup.ready());
 
-  struct sockaddr_storage addr{};
+  struct sockaddr_storage addr {};
   EXPECT_EQ(lookup.to_sockaddr(reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr), 80), 0u);
 }
 
@@ -44,7 +44,7 @@ TEST(Ipv4Resolve, ShortBufferWritesNothing) {
   Ipv4Resolve lookup;
   lookup.start("192.0.2.10", 502, "test");
   ASSERT_TRUE(lookup.ready());
-  struct sockaddr_in addr{};
+  struct sockaddr_in addr {};
   EXPECT_EQ(lookup.to_sockaddr(reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr) - 1, 502), 0u);
 }
 
