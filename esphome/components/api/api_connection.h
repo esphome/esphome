@@ -322,8 +322,7 @@ class APIConnection final : public APIServerConnectionBase {
   bool is_authenticated() {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::AUTHENTICATED;
   }
-  // Unauthenticated and within its grace period; an older unauthenticated
-  // connection is a stale half open client and no longer counts
+  // An older unauthenticated connection is a stale half open client and does not count
   bool is_still_connecting(uint32_t now) {
     return !this->is_authenticated() && now - this->last_traffic_ < CONNECT_GRACE_MS;
   }

@@ -31,8 +31,7 @@ uint8_t spare_ephemeral[SPARE_EPHEMERAL_SIZE];  // NOLINT(cppcoreguidelines-avoi
 void prepare_spare_ephemeral() {
   uint8_t *private_key = spare_ephemeral;
   uint8_t *public_key = spare_ephemeral + PRIVATE_KEY_SIZE;
-  // Same steps as noise-c's curve25519 keygen; the clamp sets the ready bit,
-  // a failure wipes the slot so the handshake generates its own key
+  // Same steps as noise-c's keygen; the clamp sets the ready bit
   if (!random_bytes(private_key, PRIVATE_KEY_SIZE)) {
     sodium_memzero(spare_ephemeral, sizeof(spare_ephemeral));
     return;

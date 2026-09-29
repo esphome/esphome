@@ -157,10 +157,8 @@ TEST(NoiseResponderHandshakeTest, FullHandshakeAndTransportRoundTrip) {
   noise_cipherstate_free(recv_cipher);
 }
 
-// Drive one full NNpsk0 handshake between a fresh initiator and responder;
-// responder_e receives the ephemeral public key the responder put on the
-// wire (the clear text start of its message, taken before the initiator
-// consumes the buffer in place)
+// One full NNpsk0 handshake; responder_e gets the ephemeral public key the responder put on the wire, read
+// before the initiator consumes the buffer in place
 static void run_handshake(NoiseResponderHandshake &responder, uint8_t responder_e[SPARE_EPHEMERAL_KEY_SIZE]) {
   const psk_t psk = make_psk(7);
   ASSERT_EQ(responder.init(ctx_for(psk), PROLOGUE, sizeof(PROLOGUE)), 0);
