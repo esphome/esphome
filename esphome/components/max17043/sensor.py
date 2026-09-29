@@ -23,9 +23,6 @@ MAX17043Component = max17043_ns.class_(
     "MAX17043Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-# Actions
-SleepAction = max17043_ns.class_("SleepAction", automation.Action)
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -72,9 +69,6 @@ MAX17043_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-automation.register_simple_action(
-    "max17043.sleep_mode",
-    SleepAction,
-    MAX17043_ACTION_SCHEMA,
-    synchronous=True,
+automation.register_apply_action(
+    "max17043.sleep_mode", MAX17043_ACTION_SCHEMA, automation.ApplyCall("sleep_mode()")
 )

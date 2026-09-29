@@ -772,7 +772,7 @@ async def to_code(config):
                 "Applying high-performance WiFi settings (PSRAM guaranteed): 512 RX buffers, 32 TX buffers"
             )
             # PSRAM is guaranteed - use aggressive settings
-            # Higher maximum values are allowed because CONFIG_LWIP_WND_SCALE is set to true in networking component
+            # Higher maximum values are allowed because CONFIG_LWIP_WND_SCALE may be set to true in networking component
             # Based on https://github.com/espressif/esp-adf/issues/297#issuecomment-783811702
 
             # Large dynamic RX buffers (requires PSRAM)
