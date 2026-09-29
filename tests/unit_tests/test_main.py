@@ -7964,3 +7964,32 @@ def test_command_rename_is_dispatched_to_the_cli_module() -> None:
     with patch("esphome.cli.rename.command_rename", return_value=7) as run:
         assert main.command_rename(args, {}) == 7
     run.assert_called_once_with(args, {})
+
+
+def test_command_rotate_key_is_dispatched_to_the_cli_module() -> None:
+    args = MockArgs()
+    with patch("esphome.cli.rotate_key.command_rotate_key", return_value=7) as run:
+        assert main.command_rotate_key(args, {}) == 7
+    run.assert_called_once_with(args, {})
+
+
+def test_parse_args_rotate_key() -> None:
+    args = parse_args(
+        [
+            "esphome",
+            "rotate-key",
+            "--device",
+            "dev.local",
+            "--prompt-new-key",
+            "-y",
+            "--username",
+            "mqtt-user",
+            "device.yaml",
+        ]
+    )
+    assert args.command == "rotate-key"
+    assert args.device == ["dev.local"]
+    assert args.prompt_new_key is True
+    assert args.yes is True
+    # MQTT device resolution reads these like upload does
+    assert args.username == "mqtt-user"

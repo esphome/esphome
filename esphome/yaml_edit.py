@@ -9,7 +9,8 @@ from pathlib import Path
 import re
 import stat
 
-from esphome.core import EsphomeError
+from esphome import compiled_config, yaml_util
+from esphome.core import CORE, EsphomeError
 from esphome.helpers import write_file
 from esphome.types import ConfigType
 
@@ -18,6 +19,10 @@ from esphome.types import ConfigType
 # quotes and the trailer, where a comment needs whitespace before its `#`
 PLAIN_SCALAR = r"[^\s#\"'>|&*!%@`\[\]{},]+"
 TRAILER = r"(?P<quote>[\"']?){value}(?P=quote)(?P<trail>(?:\s+#.*)?\s*)$"
+
+
+class RestoreError(EsphomeError):
+    """A rollback left at least one file as it was written."""
 
 
 def read_text(path: Path) -> str:
@@ -30,12 +35,23 @@ def read_text(path: Path) -> str:
 
 @dataclass
 class LineEdit:
-    """One line to rewrite; ``old_line`` is what it held when located."""
+    """One line to rewrite, or with ``insert_after`` a line to add right
+    after it; ``old_line`` is what the line held when it was located."""
 
     path: Path
     line: int
     old_line: str
     new_line: str
+    insert_after: bool = False
+
+
+@dataclass
+class Snapshot:
+    """A rewritten file's text before and after; the restore only puts
+    ``original`` back over ``written``, never over the user's own edit."""
+
+    original: str
+    written: str
 
 
 def field_line_re(
@@ -63,6 +79,31 @@ def line_at(doc: Path, line_no: int) -> str:
     return lines[line_no]
 
 
+def own_documents() -> set[Path]:
+    """Every file the loader read for this configuration."""
+    documents = {str(CORE.config_path)}
+
+    def walk(node: object) -> None:
+        if (rng := getattr(node, "esp_range", None)) is not None:
+            documents.add(rng.start_mark.document)
+        if isinstance(node, dict):
+            for key, value in node.items():
+                walk(key)
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(CORE.raw_config or {})
+    # A file that only contributed substitutions leaves no node behind; the
+    # tracker also lists a secrets file the loader tried and fell back from.
+    # The configuration loaded once already, so this parse cannot fail on it
+    documents.update(
+        map(str, yaml_util.discover_user_yaml_files(CORE.config_path).files)
+    )
+    return {p.resolve() for d in documents if (p := Path(d)).is_file()}
+
+
 def source_of(mapping: ConfigType, name: str) -> tuple[Path, int] | None:
     """The file and line ``name:`` was read from, None when validation added
     it or a merge key brought it in from an anchor elsewhere. Mapping keys
@@ -73,13 +114,47 @@ def source_of(mapping: ConfigType, name: str) -> tuple[Path, int] | None:
     # An included mapping carries the `!include` line of its parent, so only
     # a key in the same document can be placed against the mapping
     if (own := getattr(mapping, "esp_range", None)) is None:
-        return None  # a mapping built in code, its keys are not on its lines
+        # A mapping merge_config rebuilt has no range of its own and keeps
+        # the first mapping's key objects with the last mapping's values, so
+        # the value's range names the line that won; trusted when it came
+        # from this configuration
+        rng = getattr(mapping.get(name), "esp_range", None) or rng
+        if Path(rng.start_mark.document).resolve() not in own_documents():
+            return None
+        return Path(rng.start_mark.document), rng.start_mark.line
     if (
         rng.start_mark.document == own.start_mark.document
         and not own.start_mark.line <= rng.start_mark.line <= own.end_mark.line
     ):
         return None
     return Path(rng.start_mark.document), rng.start_mark.line
+
+
+def editable_file(path: Path) -> Path:
+    """``path`` resolved, so a rewrite lands on a symlink's target; refuses a
+    file outside the configuration directory or under the build data."""
+    resolved = path.resolve()
+    if (
+        not path.is_file()
+        or not resolved.is_relative_to(CORE.config_dir.resolve())
+        or resolved.is_relative_to(CORE.data_dir.resolve())
+    ):
+        raise EsphomeError(
+            f"{path} is not an editable file in the configuration directory"
+        )
+    return resolved
+
+
+def source_line(mapping: ConfigType, name: str) -> tuple[Path, int, str]:
+    """The file, line number and text ``name:`` was read from; refuses a
+    source that was not read from an editable file."""
+    if (source := source_of(mapping, name)) is None:
+        raise EsphomeError(f"'{name}' was not read from a file")
+    doc, line_no = source
+    # Checked resolved, returned as the loader saw it: a `!secret` in a
+    # symlinked include resolves beside the link, not beside its target
+    editable_file(doc)
+    return doc, line_no, line_at(doc, line_no)
 
 
 def write_keeping_mode(path: Path, text: str, like: Path | None = None) -> None:
@@ -106,9 +181,76 @@ def rewritten_text(original: str, edits: list[LineEdit]) -> str:
     """``original`` with the edits applied; every edit must still find the
     line it was located on."""
     lines = original.splitlines(keepends=True)
-    for edit in edits:
+    file_newline = "\r\n" if "\r\n" in original else "\n"
+    # Highest line first, so an insertion never shifts a later edit; an
+    # insertion after a line goes before that line's own rewrite
+    for edit in sorted(edits, key=lambda e: (e.line, e.insert_after), reverse=True):
         text = lines[edit.line].rstrip("\r\n") if edit.line < len(lines) else None
         if text != edit.old_line:
             raise EsphomeError(f"{edit.path}:{edit.line + 1} changed since it was read")
-        lines[edit.line] = edit.new_line + lines[edit.line][len(text) :]
+        ending = lines[edit.line][len(text) :]
+        if edit.insert_after:
+            # A last line without a newline gets the file's own kind
+            lines[edit.line] = text + (ending or file_newline)
+            lines.insert(edit.line + 1, edit.new_line + ending)
+        else:
+            lines[edit.line] = edit.new_line + ending
     return "".join(lines)
+
+
+def apply_line_edits(edits: list[LineEdit]) -> dict[Path, Snapshot]:
+    """Rewrite the located lines in place and return each touched file's
+    text before and after, for a rollback. Every file is rewritten in
+    memory before any is written, so a stale line touches nothing; a file
+    that no longer loads is undone here."""
+    by_path: dict[Path, list[LineEdit]] = {}
+    for edit in edits:
+        # Resolved here as well, so a hand-built edit cannot reach a symlink
+        # itself or a file outside the configuration directory
+        by_path.setdefault(editable_file(edit.path), []).append(edit)
+    originals = {}
+    for path, own in by_path.items():
+        original = read_text(path)
+        originals[path] = Snapshot(original, rewritten_text(original, own))
+    try:
+        for path, snapshot in originals.items():
+            write_keeping_mode(path, snapshot.written)
+        for path in originals:
+            try:
+                yaml_util.load_yaml(path, track_document_range=False)
+            except EsphomeError as err:
+                raise EsphomeError(f"{path} no longer loads: {err}") from err
+        compiled_config.invalidate_compiled_config()
+    except BaseException as err:
+        try:
+            restore_files(originals)
+        except RestoreError as restore_err:
+            if not isinstance(err, Exception):
+                err.add_note(str(restore_err))  # an interrupt stays one
+                raise err from None
+            raise RestoreError(f"{err}; {restore_err}") from err
+        raise
+    return originals
+
+
+def restore_files(originals: dict[Path, Snapshot]) -> None:
+    """Put back the files apply_line_edits rewrote; every file is tried and
+    the ones that failed, or that the user changed meanwhile, are reported
+    together and left alone."""
+    failed = []
+    for path, snapshot in originals.items():
+        try:
+            current = read_text(path)
+            if current == snapshot.original:
+                continue  # never written, or already put back
+            if current != snapshot.written:
+                raise EsphomeError("changed since it was written, left as is")
+            write_keeping_mode(path, snapshot.original)
+        except EsphomeError as err:
+            failed.append(f"{path}: {err}")
+    try:
+        compiled_config.invalidate_compiled_config()
+    except EsphomeError as err:
+        failed.append(str(err))
+    if failed:
+        raise RestoreError("Could not restore " + "; ".join(failed))

@@ -1,5 +1,6 @@
 import base64
 import binascii
+import secrets
 from typing import Any
 
 import esphome.codegen as cg
@@ -20,6 +21,11 @@ LIBSODIUM_VERSION = "1.10021.11"
 noise_ns = cg.esphome_ns.namespace("noise")
 
 CONFIG_SCHEMA = cv.Schema({})
+
+
+def generate_encryption_key() -> str:
+    """A fresh random key in the base64 form the yaml takes."""
+    return base64.b64encode(secrets.token_bytes(32)).decode()
 
 
 def validate_encryption_key(value: Any) -> str:
