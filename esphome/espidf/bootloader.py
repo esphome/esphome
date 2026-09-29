@@ -38,7 +38,6 @@ _DISABLED_VALUES = frozenset(("n", "0", ""))
 # Marks a config name the app's sdkconfig does not define.
 _ABSENT = "\x00absent"
 _OUTPUTS = ("bootloader.bin", "bootloader.elf", "bootloader.map")
-_DAY = 86400
 
 
 def bootloader_cache_enabled() -> bool:
@@ -70,18 +69,6 @@ def _compute_enabled() -> bool:
         if not os.access(get_idf_tools_path(), os.W_OK):
             # A read-only shared prefix would fail the cache on every build.
             return False
-        stamp = read_json_file(_failure_stamp())
-        if (
-            isinstance(stamp, dict)
-            and stamp.get("inputs") == _stamp_inputs()
-            and time.time() - stamp.get("time", 0) < _DAY
-        ):
-            _LOGGER.info(
-                "Bootloader cache off after an earlier failure; retrying "
-                "within a day, or delete %s",
-                _failure_stamp(),
-            )
-            return False
         from esphome.build_gen.espidf import idf_macro_matches
 
         if not idf_macro_matches():
@@ -107,25 +94,6 @@ def _has_secure_options(sdkconfig_path: Path) -> bool:
         ):
             return True
     return False
-
-
-def _failure_stamp() -> Path:
-    return toolchain._build_dir() / ".bootloader_cache_failed"
-
-
-def _stamp_inputs() -> dict:
-    return {
-        "idf": toolchain._get_core_framework_version(),
-        "target": toolchain._idf_target(),
-    }
-
-
-def record_failure() -> None:
-    """Pin this run and later ones to in-tree until retry or input change."""
-    toolchain._cache().bootloader_enabled = False
-    stamp = {"inputs": _stamp_inputs(), "time": time.time()}
-    with contextlib.suppress(OSError, EsphomeError):
-        write_file(_failure_stamp(), json.dumps(stamp))
 
 
 def tree_uses_cached_bootloader(build_dir: Path) -> bool:
@@ -346,7 +314,7 @@ def _check_bootloader_size(bin_path: Path, app_config: dict) -> None:
 
 def _prune_stale_dirs() -> None:
     """Drop day-old work dirs from crashed builds; live ones are younger."""
-    cutoff = time.time() - _DAY
+    cutoff = time.time() - 86400
     with contextlib.suppress(OSError):
         for path in _cache_root().glob(".*"):
             if path.is_dir() and path.stat().st_mtime < cutoff:
@@ -371,8 +339,6 @@ def ensure_cached_bootloader(verbose: bool = False) -> bool:
         return False
     if dest is None:
         return False
-    with contextlib.suppress(OSError):
-        _failure_stamp().unlink(missing_ok=True)
     # Outside the fail-safe net: the in-tree build would overflow the same way.
     _check_bootloader_size(dest / "bootloader.bin", app_config)
     return True

@@ -91,34 +91,6 @@ def test_enabled_macro_mismatch_disables_with_a_log(
     assert "changed its bootloader macro" in caplog.text
 
 
-def test_enabled_after_recorded_failure(tmp_path: Path) -> None:
-    """A recorded failure pins in-tree until retry time or an input change."""
-    _write_snapshot("CONFIG_FOO=y\n")
-    with (
-        _tools_prefix(tmp_path),
-        patch.object(build_gen, "idf_macro_matches", return_value=True),
-    ):
-        bootloader.record_failure()
-        assert toolchain._cache().bootloader_enabled is False  # this run
-        assert bootloader._compute_enabled() is False  # later runs
-        CORE.data[KEY_ESP32][KEY_IDF_VERSION] = cv.Version(6, 1, 0)
-        assert bootloader._compute_enabled() is True
-
-
-def test_enabled_again_after_the_failure_stamp_expires(tmp_path: Path) -> None:
-    """A transient failure must not pin a device to in-tree forever."""
-    _write_snapshot("CONFIG_FOO=y\n")
-    with (
-        _tools_prefix(tmp_path),
-        patch.object(build_gen, "idf_macro_matches", return_value=True),
-    ):
-        bootloader.record_failure()
-        stamp = json.loads(bootloader._failure_stamp().read_text())
-        stamp["time"] -= bootloader._DAY + 1
-        bootloader._failure_stamp().write_text(json.dumps(stamp))
-        assert bootloader._compute_enabled() is True
-
-
 def test_enabled_project_bootloader_components_disable(tmp_path: Path) -> None:
     """IDF compiles <project>/bootloader_components in; the key can't see it."""
     _write_snapshot("CONFIG_FOO=y\n")
@@ -495,11 +467,8 @@ def test_ensure_cache_hit_installs_without_building(tmp_path: Path) -> None:
         for name in bootloader._OUTPUTS:
             (root / "deadbeefdeadbeef" / name).write_bytes(b"\xe9" * 64)
         (root / "config_names.json").write_text('["A"]')
-        stamp = bootloader._failure_stamp()
-        stamp.write_text("{}")
         assert bootloader.ensure_cached_bootloader() is True
     mock_build.assert_not_called()
-    assert not stamp.exists()  # success clears a stale failure stamp
     installed = CORE.relative_build_path("build", "bootloader", "bootloader.bin")
     assert installed.read_bytes() == b"\xe9" * 64
 

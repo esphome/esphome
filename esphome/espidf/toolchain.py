@@ -714,7 +714,7 @@ def run_compile(config, verbose: bool) -> int:
         if not bootloader.ensure_cached_bootloader(verbose):
             # The stock in-tree build still works; flip this run over to it.
             _LOGGER.warning("Cached bootloader unavailable; building it in-tree")
-            bootloader.record_failure()
+            _cache().bootloader_enabled = False
             if (rc := run_reconfigure(verbose)) != 0:
                 return rc
 

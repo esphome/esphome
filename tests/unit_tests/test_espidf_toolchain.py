@@ -1169,15 +1169,14 @@ def test_run_compile_falls_back_when_bootloader_cache_fails(
     with (
         _up_to_date_compile(cached_bootloader=True) as (mock_ninja, _),
         patch.object(bootloader, "ensure_cached_bootloader", return_value=False),
-        patch.object(bootloader, "record_failure") as mock_record,
         patch.object(
             toolchain, "run_reconfigure", return_value=reconfigure_rc
         ) as mock_reconfigure,
     ):
         rc = toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
     assert rc == reconfigure_rc
-    # record_failure pins this run and stamps the tree for later ones.
-    mock_record.assert_called_once_with()
+    # The fallback pins the memoized predicate for the rest of the run.
+    assert toolchain._cache().bootloader_enabled is False
     mock_reconfigure.assert_called_once_with(False)
     assert mock_ninja.called is (reconfigure_rc == 0)
 
