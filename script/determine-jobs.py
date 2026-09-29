@@ -546,10 +546,6 @@ ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES = (
     *_SMOKE_HARNESS_TRIGGER_PATH_PREFIXES,
 )
 
-# Standalone files that, when changed, trigger the PlatformIO compile test:
-#   - esphome/build_gen/platformio.py -- the PlatformIO build generator
-#   - script/test_build_components.py -- the harness the job invokes
-#   - .github/workflows/ci.yml -- the job's own definition
 # Shared by every toolchain smoke-test job: the harness it invokes and the
 # workflow that defines it
 _SMOKE_HARNESS_TRIGGER_FILES = frozenset(
@@ -559,8 +555,14 @@ _SMOKE_HARNESS_TRIGGER_FILES = frozenset(
     }
 )
 
+# Standalone files that, when changed, trigger the PlatformIO compile test
 ESP32_PLATFORMIO_TRIGGER_FILES = _SMOKE_HARNESS_TRIGGER_FILES | {
+    # The PlatformIO build generator
     "esphome/build_gen/platformio.py",
+    # Decides which platforms take the pch script in esphome/platformio/,
+    # and the module that parses its switch and the ccache settings
+    "esphome/build_helpers/pch.py",
+    "esphome/build_helpers/ccache.py",
 }
 
 
