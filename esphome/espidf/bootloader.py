@@ -75,8 +75,12 @@ def _compute_enabled() -> bool:
             _LOGGER.info("IDF changed its bootloader macro; building in-tree")
             return False
         return True
-    except (OSError, KeyError, ValueError, EsphomeError) as err:
+    except (OSError, EsphomeError) as err:
         _LOGGER.info("Bootloader cache disabled: %s", err)
+        return False
+    except (KeyError, ValueError) as err:
+        # More likely a regression than the environment; still fail safe.
+        _LOGGER.warning("Bootloader cache disabled: %s", err)
         return False
 
 

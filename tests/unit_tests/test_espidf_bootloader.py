@@ -118,14 +118,25 @@ def test_enabled_readonly_tools_prefix_disables(tmp_path: Path) -> None:
         assert bootloader._compute_enabled() is False
 
 
-def test_enabled_swallows_errors_as_disabled(tmp_path: Path) -> None:
-    """Any failure while deciding must read as disabled, never raise."""
+@pytest.mark.parametrize(
+    ("err", "level"),
+    [(OSError("boom"), "INFO"), (ValueError("bad"), "WARNING")],
+    ids=["environment", "regression"],
+)
+def test_enabled_swallows_errors_as_disabled(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, err: Exception, level: str
+) -> None:
+    """Any failure while deciding must read as disabled, never raise;
+    likely regressions log louder than environmental errors."""
     _write_snapshot("CONFIG_APP_REPRODUCIBLE_BUILD=y\n")
     with (
         _tools_prefix(tmp_path),
-        patch.object(toolchain, "_get_idf_path", side_effect=OSError("boom")),
+        patch.object(toolchain, "_get_idf_path", side_effect=err),
+        caplog.at_level("INFO"),
     ):
         assert bootloader._compute_enabled() is False
+    record = next(r for r in caplog.records if "cache disabled" in r.message)
+    assert record.levelname == level
 
 
 def test_bootloader_cache_enabled_is_cached_per_run() -> None:
