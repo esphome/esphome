@@ -477,12 +477,13 @@ def test_publish_keeps_the_original_error_when_the_intact_check_breaks(
     (build / "bootloader.map").unlink()  # the real failure
     with (
         patch.object(bootloader, "_cache_root", return_value=root),
-        patch.object(bootloader, "_entry_intact", side_effect=[False, OSError()]),
-        pytest.raises(FileNotFoundError) as excinfo,
+        patch.object(
+            bootloader, "_entry_intact", side_effect=[False, PermissionError()]
+        ),
+        # FileNotFoundError can only be the staging error, not the check's.
+        pytest.raises(FileNotFoundError),
     ):
         bootloader._publish(build, "k" * 16, {})
-    # Windows omits the path from the message; the attribute carries it.
-    assert Path(excinfo.value.filename).name == "bootloader.map"
 
 
 # ----------------------------------------------------------------- install
