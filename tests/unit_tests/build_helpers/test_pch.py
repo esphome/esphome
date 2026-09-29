@@ -57,10 +57,23 @@ def test_gcc_relocates_pch_on_windows(version: tuple[int, ...], expected: bool) 
     assert pch.gcc_relocates_pch_on_windows(version) is expected
 
 
-def test_gcc_version_asks_the_compiler() -> None:
-    cxx = (sys.executable, "-c", "print('14.4.0')")
-    assert pch.gcc_version(cxx) == (14, 4, 0)
-    assert pch.gcc_version((sys.executable, "-c", "print('gcc')")) == ()
+@pytest.mark.parametrize(
+    ("banner", "expected"),
+    [
+        ("xtensa-esp32-elf-g++ (crosstool-NG esp-14.2.0_20260121) 14.2.0", (14, 2, 0)),
+        ("arm-zephyr-eabi-g++ (Zephyr SDK 0.16.8) 12.2.0", (12, 2, 0)),
+        ("g++.exe (Rev3, Built by MSYS2 project) 14.2.0", (14, 2, 0)),
+        ("clang version 15.0.0", None),
+        ("Apple clang version 17.0.0 (clang-1700.0.13.3)", None),
+        ("something else", ()),
+    ],
+)
+def test_gcc_version_reads_the_banner(banner: str, expected: object) -> None:
+    cxx = (sys.executable, "-c", f"print({banner!r}); print('more')")
+    assert pch.gcc_version(cxx) == expected
+
+
+def test_gcc_version_of_a_compiler_that_cannot_run() -> None:
     assert pch.gcc_version(("/nonexistent/g++",)) == ()
 
 
@@ -78,6 +91,9 @@ def test_pch_usable_asks_the_compiler_on_windows_only(
     assert "GCC 14.2.0 cannot load a precompiled header on Windows" in caplog.text
     with patch.object(pch, "gcc_version", return_value=(14, 4, 0)):
         assert pch.pch_usable(("g++",))
+    # The bug is GCC's; another compiler is not held to its table
+    with patch.object(pch, "gcc_version", return_value=None):
+        assert pch.pch_usable(("clang++",))
     # The knob overrides the rule both ways
     with patch.object(pch, "gcc_version", side_effect=AssertionError("forced")):
         monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")

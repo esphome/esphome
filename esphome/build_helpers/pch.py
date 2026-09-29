@@ -91,19 +91,25 @@ def gcc_relocates_pch_on_windows(version: Sequence[int]) -> bool:
     return tuple(version[:2]) >= fixed
 
 
-def gcc_version(cxx: Sequence[Path | str]) -> tuple[int, ...]:
-    """What ``-dumpfullversion`` says, or () when the compiler cannot run."""
+# GCC ends the first --version line with its version; clang names itself
+_VERSION_RE = re.compile(r"\d+(?:\.\d+)+")
+
+
+def gcc_version(cxx: Sequence[Path | str]) -> tuple[int, ...] | None:
+    """The GCC version from ``--version``: () when it cannot be read, None
+    for a compiler that is not GCC."""
     try:
         result = subprocess.run(
-            [*cxx, "-dumpfullversion"], capture_output=True, text=True, check=False
+            [*cxx, "--version"], capture_output=True, text=True, check=False
         )
     except OSError as err:
         _LOGGER.debug("Cannot run %s: %s", cxx[0], err)
         return ()
-    parts = result.stdout.strip().split(".")
-    if not all(part.isdigit() for part in parts):
-        return ()
-    return tuple(int(part) for part in parts)
+    banner = result.stdout.partition("\n")[0]
+    if "clang" in banner.lower():
+        return None
+    found = _VERSION_RE.findall(banner)
+    return tuple(int(part) for part in found[-1].split(".")) if found else ()
 
 
 def pch_needs_gcc_check() -> bool:
@@ -118,7 +124,7 @@ def pch_usable(cxx: Sequence[Path | str]) -> bool:
     if not pch_needs_gcc_check():
         return True
     version = gcc_version(cxx)
-    if gcc_relocates_pch_on_windows(version):
+    if version is None or gcc_relocates_pch_on_windows(version):
         return True
     _LOGGER.info(
         "GCC %s cannot load a precompiled header on Windows (GCC bug 14940, "

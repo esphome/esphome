@@ -547,9 +547,10 @@ def test_component_cmakelists_pch_gate_on_windows(
 
     content = get_component_cmakelists()
     assert (
-        "if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14.4 OR "
+        'if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND '
+        "(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14.4 OR "
         "(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15 AND "
-        "CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15.3))\n"
+        "CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15.3)))\n"
         "  message(STATUS " in content
     )
     assert (

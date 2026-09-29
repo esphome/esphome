@@ -154,13 +154,16 @@ def _gcc_loads_pch_here(cxx: str) -> bool:
     normalizes it, insists."""
     if sys.platform != "win32" or os.environ.get("ESPHOME_PCH_ENABLE") == "1":
         return True
-    reported = _driver_output(cxx, "-dumpfullversion")
-    parts = reported.split(".")
-    version = tuple(int(p) for p in parts) if all(p.isdigit() for p in parts) else ()
+    # GCC ends the first --version line with its version; clang names itself
+    banner = _driver_output(cxx, "--version").partition("\n")[0]
+    if "clang" in banner.lower():
+        return True
+    found = re.findall(r"\d+(?:\.\d+)+", banner)
+    version = tuple(int(p) for p in found[-1].split(".")) if found else ()
     if version and version[:2] >= _WINDOWS_GCC_FIXED.get(version[0], _WINDOWS_GCC_FIXED_DEFAULT):
         return True
     print(
-        f"ESPHome: GCC {reported or 'of unknown version'} cannot load a "
+        f"ESPHome: GCC {'.'.join(map(str, version)) or 'of unknown version'} cannot load a "
         "precompiled header on Windows (GCC bug 14940); compiling without it"
     )
     return False
