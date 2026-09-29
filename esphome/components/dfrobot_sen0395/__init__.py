@@ -113,13 +113,6 @@ def range_segment_list(input: Any) -> list:
     return input
 
 
-def _latency_seconds(value: Any) -> Any:
-    """Convert a TimePeriod to seconds before cg.templatable(); lambdas pass through."""
-    if isinstance(value, cv.TimePeriod):
-        return value.total_milliseconds / 1000
-    return value
-
-
 MMWAVE_SETTINGS_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(DfrobotSen0395Component),
@@ -195,15 +188,17 @@ async def dfrobot_sen0395_settings_to_code(
             cg.add(var.set_det_max4(template_))
     if CONF_OUTPUT_LATENCY in config:
         latency = config[CONF_OUTPUT_LATENCY]
-        template_ = await cg.templatable(
-            _latency_seconds(latency[CONF_DELAY_AFTER_DETECT]), args, float
-        )
-        cg.add(var.set_delay_after_detect(template_))
-
-        template_ = await cg.templatable(
-            _latency_seconds(latency[CONF_DELAY_AFTER_DISAPPEAR]), args, float
-        )
-        cg.add(var.set_delay_after_disappear(template_))
+        for key, setter in (
+            (CONF_DELAY_AFTER_DETECT, var.set_delay_after_detect),
+            (CONF_DELAY_AFTER_DISAPPEAR, var.set_delay_after_disappear),
+        ):
+            template_ = await cg.templatable(
+                latency[key],
+                args,
+                float,
+                to_exp=lambda period: period.total_milliseconds / 1000,
+            )
+            cg.add(setter(template_))
     if CONF_SENSITIVITY in config:
         template_ = await cg.templatable(config[CONF_SENSITIVITY], args, cg.int8)
         cg.add(var.set_sensitivity(template_))
