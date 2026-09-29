@@ -140,25 +140,25 @@ class ESP32Camera final : public camera::Camera {
   void set_pixel_format(ESP32CameraPixelFormat format);
   void set_frame_size(ESP32CameraFrameSize size);
   void set_jpeg_quality(uint8_t quality);
-  void set_vertical_flip(bool vertical_flip);
-  void set_horizontal_mirror(bool horizontal_mirror);
-  void set_contrast(int contrast);
-  void set_brightness(int brightness);
-  void set_saturation(int saturation);
-  void set_special_effect(ESP32SpecialEffect effect);
+  void set_vertical_flip(bool vertical_flip) { this->vertical_flip_ = vertical_flip; }
+  void set_horizontal_mirror(bool horizontal_mirror) { this->horizontal_mirror_ = horizontal_mirror; }
+  void set_contrast(int contrast) { this->contrast_ = contrast; }
+  void set_brightness(int brightness) { this->brightness_ = brightness; }
+  void set_saturation(int saturation) { this->saturation_ = saturation; }
+  void set_special_effect(ESP32SpecialEffect effect) { this->special_effect_ = effect; }
   /* -- exposure */
-  void set_aec_mode(ESP32GainControlMode mode);
-  void set_aec2(bool aec2);
-  void set_ae_level(int ae_level);
-  void set_aec_value(uint32_t aec_value);
+  void set_aec_mode(ESP32GainControlMode mode) { this->aec_mode_ = mode; }
+  void set_aec2(bool aec2) { this->aec2_ = aec2; }
+  void set_ae_level(int ae_level) { this->ae_level_ = ae_level; }
+  void set_aec_value(uint32_t aec_value) { this->aec_value_ = aec_value; }
   /* -- gains */
-  void set_agc_mode(ESP32GainControlMode mode);
-  void set_agc_value(uint8_t agc_value);
-  void set_agc_gain_ceiling(ESP32AgcGainCeiling gain_ceiling);
+  void set_agc_mode(ESP32GainControlMode mode) { this->agc_mode_ = mode; }
+  void set_agc_value(uint8_t agc_value) { this->agc_value_ = agc_value; }
+  void set_agc_gain_ceiling(ESP32AgcGainCeiling gain_ceiling) { this->agc_gain_ceiling_ = gain_ceiling; }
   /* -- white balance */
-  void set_wb_mode(ESP32WhiteBalanceMode mode);
+  void set_wb_mode(ESP32WhiteBalanceMode mode) { this->wb_mode_ = mode; }
   /* -- test */
-  void set_test_pattern(bool test_pattern);
+  void set_test_pattern(bool test_pattern) { this->test_pattern_ = test_pattern; }
   /* -- framerates */
   void set_max_update_interval(uint32_t max_update_interval);
   void set_idle_update_interval(uint32_t idle_update_interval);
