@@ -298,7 +298,7 @@ void WaveshareEPaper4P2InV2::initialize_internal_(DisplayMode mode) {
     ESP_LOGW(TAG, "wait_until_idle_ returned FALSE. Is your busy pin set?");
   }
 
-  this->clear_();
+  // this->clear_();
   this->turn_on_display_(mode);
 }
 
