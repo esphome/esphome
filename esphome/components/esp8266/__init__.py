@@ -136,6 +136,8 @@ def _validate_native_toolchain(config: ConfigType) -> ConfigType:
             "'platform_version' is ignored by 'toolchain: arduino'; the native "
             "toolchain downloads the framework and compiler directly"
         )
+    # The native path fetches its own build; source may only be the
+    # PlatformIO default the schema filled in
     if conf[CONF_SOURCE] != _format_framework_arduino_version(version):
         raise cv.Invalid(
             "'toolchain: arduino' does not support a custom framework source; "
@@ -173,7 +175,7 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     ]
 
 
-def framework_package_version(ver: cv.Version) -> str:
+def _framework_package_version(ver: cv.Version) -> str:
     """Map an Arduino core version to its PlatformIO registry package version
     (3.1.2 -> 3.30102.0; the leading 3 is the package major)."""
     if ver.major > 3:
@@ -193,7 +195,7 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
     # a PIO platformio/framework-arduinoespressif8266 value
     # List of package versions: https://api.registry.platformio.org/v3/packages/platformio/tool/framework-arduinoespressif8266
     try:
-        return f"~{framework_package_version(ver)}"
+        return f"~{_framework_package_version(ver)}"
     except EsphomeError as err:
         # Anchor the 4.x rejection to the framework version line instead of
         # aborting with a bare traceback-level error

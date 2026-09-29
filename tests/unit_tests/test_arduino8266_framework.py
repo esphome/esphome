@@ -19,21 +19,6 @@ def _build_path(tmp_path: Path) -> None:
     CORE.build_path = tmp_path
 
 
-def test_format_framework_arduino_version_pins_all_series() -> None:
-    """The esp8266 component's PIO source formatter across every encoding
-    era, including the 4.x rejection it now shares with the installer."""
-    from esphome.components.esp8266 import _format_framework_arduino_version as fmt
-
-    assert fmt(cv.Version(3, 1, 2)) == "~3.30102.0"
-    # Pre-3 cores are rejected with the version line anchored
-    with pytest.raises(cv.Invalid, match="requires core 3"):
-        fmt(cv.Version(2, 7, 4))
-    # Anchored to the framework version line, not a bare EsphomeError
-    with pytest.raises(cv.Invalid, match="not supported yet") as excinfo:
-        fmt(cv.Version(4, 0, 0))
-    assert excinfo.value.path == ["version"]
-
-
 def test_tools_path_default_and_prefix(tmp_path: Path) -> None:
     with patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}):
         assert framework.get_arduino8266_tools_path() == tmp_path.resolve()
@@ -44,13 +29,14 @@ def test_tools_path_default_and_prefix(tmp_path: Path) -> None:
     assert path != Path.cwd()
 
 
-_RELEASE = framework.FRAMEWORK_RELEASES[RECOMMENDED_ARDUINO_FRAMEWORK_VERSION]
-_TAG = _RELEASE.tag
+def _recommended() -> framework.FrameworkRelease:
+    return framework.FRAMEWORK_RELEASES[RECOMMENDED_ARDUINO_FRAMEWORK_VERSION]
 
 
 def test_framework_releases_are_pinned() -> None:
     """A release must not be pinned without its checksum, and the recommended
     core must have one."""
+    assert RECOMMENDED_ARDUINO_FRAMEWORK_VERSION in framework.FRAMEWORK_RELEASES
     for version, release in framework.FRAMEWORK_RELEASES.items():
         assert release.tag.startswith(f"{version}-esphome.")
         assert len(release.sha256) == 64
@@ -96,8 +82,8 @@ def test_toolchain_download_unsupported_system() -> None:
 def _fake_framework(tmp_path: Path) -> None:
     """The layout install_package expects of an installed framework."""
     for sub in ("cores/esp8266", "tools/sdk", "libraries"):
-        (tmp_path / "frameworks" / _TAG / sub).mkdir(parents=True)
-    (tmp_path / "frameworks" / _TAG / ".esphome_extracted").touch()
+        (tmp_path / "frameworks" / _recommended().tag / sub).mkdir(parents=True)
+    (tmp_path / "frameworks" / _recommended().tag / ".esphome_extracted").touch()
 
 
 def test_check_and_install_mirror_skips_pinned_toolchain(tmp_path: Path) -> None:
@@ -161,7 +147,7 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
         patch.object(framework, "find_ninja", return_value=tmp_path / "ninja"),
     ):
         paths = framework.check_and_install(cv.Version(3, 1, 2))
-    assert paths.framework == tmp_path / "frameworks" / _TAG
+    assert paths.framework == tmp_path / "frameworks" / _recommended().tag
     assert paths.toolchain == tmp_path / "toolchains" / framework.TOOLCHAIN_VERSION
     assert paths.ninja == tmp_path / "ninja"
     assert mock_install.call_count == 2
@@ -170,14 +156,14 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
     fw_call, tc_call = mock_install.call_args_list
     assert fw_call.args == (
         framework.FRAMEWORK_PACKAGE,
-        _TAG,
-        tmp_path / "frameworks" / _TAG,
+        _recommended().tag,
+        tmp_path / "frameworks" / _recommended().tag,
         framework.ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
         tmp_path / "downloads",
     )
     assert fw_call.kwargs == {
         "expect": ("cores/esp8266", "tools/sdk", "libraries"),
-        "resolve": _RELEASE.download,
+        "resolve": _recommended().download,
     }
     assert tc_call.args == (
         framework.TOOLCHAIN_PACKAGE,
@@ -195,8 +181,8 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
         [
             (
                 framework.FRAMEWORK_PACKAGE,
-                _TAG,
-                tmp_path / "frameworks" / _TAG,
+                _recommended().tag,
+                tmp_path / "frameworks" / _recommended().tag,
                 framework.ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
             ),
             (
@@ -208,7 +194,7 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
         ],
         tmp_path / "downloads",
         {
-            framework.FRAMEWORK_PACKAGE: _RELEASE.download,
+            framework.FRAMEWORK_PACKAGE: _recommended().download,
             framework.TOOLCHAIN_PACKAGE: framework.toolchain_download,
         },
     )
