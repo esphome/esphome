@@ -1,5 +1,5 @@
 esphome:
-  name: test-debug-borders
+  name: test-debug-outline
 
 esp32:
   board: lolin_c3_mini
@@ -21,7 +21,6 @@ display:
       number: GPIO3
 
 lvgl:
-  debug_borders: true
   widgets:
     - obj:
         id: root_obj

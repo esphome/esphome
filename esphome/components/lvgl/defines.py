@@ -35,11 +35,11 @@ KEY_WIDGET_MAP = "widget_map"
 KEY_WIDGETS_COMPLETED = "widgets_completed"
 KEY_OPTIONS = "options"
 KEY_WARNINGS = "warnings"
-KEY_DEBUG_BORDER_COUNT = "debug_border_count"
+KEY_DEBUG_OUTLINE_COUNT = "debug_outline_count"
 
-# Colours for the debug borders, in (red, green, blue) order. They are picked to stay
+# Colours for the debug outline, in (red, green, blue) order. They are picked to stay
 # distinct from each other and to show up on both light and dark backgrounds.
-DEBUG_BORDER_COLORS = (
+DEBUG_OUTLINE_COLORS = (
     (255, 0, 0),
     (0, 160, 0),
     (0, 0, 255),
@@ -120,11 +120,11 @@ def get_options() -> dict[str, Any]:
     return _get_data(KEY_OPTIONS, {})
 
 
-def next_debug_border_color() -> tuple[int, int, int]:
-    """Return the next debug border colour, cycling through the palette."""
+def next_debug_outline_color() -> tuple[int, int, int]:
+    """Return the next debug outline colour, cycling through the palette."""
     # A one-element list so that the count can be updated in place.
-    count = _get_data(KEY_DEBUG_BORDER_COUNT, [0])
-    color = DEBUG_BORDER_COLORS[count[0] % len(DEBUG_BORDER_COLORS)]
+    count = _get_data(KEY_DEBUG_OUTLINE_COUNT, [0])
+    color = DEBUG_OUTLINE_COLORS[count[0] % len(DEBUG_OUTLINE_COLORS)]
     count[0] += 1
     return color
 
@@ -711,7 +711,7 @@ CONF_COLOR_END = "color_end"
 CONF_COLOR_START = "color_start"
 CONF_CONTAINER = "container"
 CONF_CONTROL = "control"
-CONF_DEBUG_BORDERS = "debug_borders"
+CONF_DEBUG_OUTLINE = "debug_outline"
 CONF_DEFAULT_FONT = "default_font"
 CONF_DEFAULT_GROUP = "default_group"
 CONF_DIR = "dir"

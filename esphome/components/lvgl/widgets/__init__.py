@@ -21,7 +21,7 @@ from esphome.schema_extractors import EnableSchemaExtraction
 from esphome.types import Expression
 
 from ..defines import (
-    CONF_DEBUG_BORDERS,
+    CONF_DEBUG_OUTLINE,
     CONF_FLEX_ALIGN_CROSS,
     CONF_FLEX_ALIGN_MAIN,
     CONF_FLEX_ALIGN_TRACK,
@@ -50,7 +50,7 @@ from ..defines import (
     get_widgets_completed,
     join_enums,
     literal,
-    next_debug_border_color,
+    next_debug_outline_color,
 )
 from ..lv_validation import lv_int
 from ..lvcode import (
@@ -194,7 +194,7 @@ class WidgetType:
         w = Widget.create(wid, var, self, config)
         apply_theme_styles(w)
         await set_obj_properties(w, config)
-        apply_debug_border(w)
+        apply_debug_outline(w)
         await add_widgets(w, config)
         await self.to_code(w, config)
         return w
@@ -274,18 +274,19 @@ def apply_theme_styles(w: "Widget") -> None:
             w.add_style(style, lv_state)
 
 
-def apply_debug_border(w: "Widget") -> None:
+def apply_debug_outline(w: "Widget") -> None:
     """
-    When `debug_borders` is set, give this widget a border in the next palette colour.
-    Called after the user's own styles so that the debug border is always the one shown.
+    When `debug_outline` is set, outline this widget in the next palette colour.
+    An outline is drawn outside the widget's own box, so it doesn't take up layout
+    space and doesn't touch the widget's own `border_*` style, unlike a border.
     """
-    if not get_options().get(CONF_DEBUG_BORDERS):
+    if not get_options().get(CONF_DEBUG_OUTLINE):
         return
-    r, g, b = next_debug_border_color()
-    w.set_style("border_width", 1)
-    w.set_style("border_color", f"lv_color_make({r}, {g}, {b})")
-    w.set_style("border_opa", "LV_OPA_COVER")
-    w.set_style("border_post", True)
+    r, g, b = next_debug_outline_color()
+    w.set_style("outline_width", 1)
+    w.set_style("outline_pad", 0)
+    w.set_style("outline_color", f"lv_color_make({r}, {g}, {b})")
+    w.set_style("outline_opa", "LV_OPA_COVER")
 
 
 class Widget:
