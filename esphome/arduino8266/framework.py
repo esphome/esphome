@@ -7,8 +7,8 @@ ESP-IDF install in ``esphome.espidf.framework``):
     <cache>/arduino8266/toolchains/<tag>/   xtensa-lx106-elf gcc 10.3
 
 Both come from esphome-libs releases pinned below;
-``ESPHOME_ARDUINO8266_*_MIRRORS`` overrides the URLs. ninja comes from PATH
-or the ninja PyPI wheel.
+``ESPHOME_ARDUINO8266_*_MIRRORS`` overrides the URLs, with ``{VERSION}``
+standing for the release tag. ninja comes from PATH or the ninja PyPI wheel.
 """
 
 from __future__ import annotations
