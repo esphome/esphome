@@ -24,6 +24,15 @@ static const char *const TAG = "tcp_uart";
 
 uint32_t loop_time() { return App.get_loop_component_start_time(); }
 
+void consume_buf(uint8_t *buf, size_t *len, size_t n) {
+  if (n >= *len) {
+    *len = 0;
+    return;
+  }
+  std::memmove(buf, buf + n, *len - n);
+  *len -= n;
+}
+
 float TcpUart::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 
 void TcpUart::setup() {
@@ -58,7 +67,7 @@ void TcpUart::close_sock_() {
   this->connecting_ = false;
   this->set_link_up_(false);
   this->rx_.clear();
-  this->tx_.clear();
+  this->tx_len_ = 0;
 }
 
 void TcpUart::apply_socket_options_(socket::Socket *sock) {
@@ -219,12 +228,12 @@ void TcpUart::read_socket_() {
 }
 
 void TcpUart::flush_tx_() {
-  if (!this->connected_ || this->sock_ == nullptr || this->tx_.empty()) {
+  if (!this->connected_ || this->sock_ == nullptr || this->tx_len_ == 0) {
     return;
   }
-  ssize_t sent = this->sock_->write(this->tx_.data(), this->tx_.size());
+  ssize_t sent = this->sock_->write(this->tx_, this->tx_len_);
   if (sent > 0) {
-    this->tx_.erase(this->tx_.begin(), this->tx_.begin() + sent);
+    consume_buf(this->tx_, &this->tx_len_, static_cast<size_t>(sent));
     return;
   }
   if (sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -241,9 +250,12 @@ void TcpUart::loop() {
 }
 
 void TcpUart::write_array(const uint8_t *data, size_t len) {
-  for (size_t i = 0; i < len && this->tx_.size() < 1024; i++) {
-    this->tx_.push_back(data[i]);
+  size_t room = sizeof(this->tx_) - this->tx_len_;
+  if (len > room) {
+    len = room;
   }
+  std::memcpy(this->tx_ + this->tx_len_, data, len);
+  this->tx_len_ += len;
 }
 
 bool TcpUart::peek_byte(uint8_t *data) {
@@ -269,7 +281,7 @@ size_t TcpUart::available() { return this->rx_.size(); }
 
 uart::UARTFlushResult TcpUart::flush() {
   this->flush_tx_();
-  if (this->tx_.empty()) {
+  if (this->tx_len_ == 0) {
     return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
   }
   return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;

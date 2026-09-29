@@ -14,7 +14,6 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
-#include <vector>
 
 namespace esphome {
 namespace tcp_uart {
@@ -73,7 +72,8 @@ class TcpUart : public uart::UARTComponent, public Component {
   char resolved_ip_[16]{};
 
   StaticRingBuffer<uint8_t, 1024> rx_;
-  std::vector<uint8_t> tx_;
+  uint8_t tx_[1024]{};
+  size_t tx_len_{0};
 };
 
 }  // namespace tcp_uart
