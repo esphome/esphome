@@ -387,8 +387,7 @@ void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api:
   }
 #endif
 #ifdef USE_SERIAL_PROXY_CONFIGURED_IDENTITY
-  if (this->identity_manufacturer_.has_value() || this->identity_product_.has_value() ||
-      this->identity_serial_number_.has_value()) {
+  if (this->has_identity_) {
     msg.source = api::enums::SERIAL_PROXY_IDENTITY_SOURCE_CONFIGURED;
     // Nothing observes presence on a plain UART, so the device is taken to be there
     msg.flags = api::enums::SERIAL_PROXY_IDENTITY_FLAG_CONNECTED;
@@ -396,6 +395,10 @@ void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api:
     msg.manufacturer = this->identity_manufacturer_.ref_or_copy_to(nullptr, 0);
     msg.product = this->identity_product_.ref_or_copy_to(nullptr, 0);
     msg.serial_number = this->identity_serial_number_.ref_or_copy_to(nullptr, 0);
+    msg.usb.vendor_id = this->identity_usb_vendor_id_;
+    msg.usb.product_id = this->identity_usb_product_id_;
+    msg.usb.bcd_device = this->identity_usb_bcd_device_;
+    msg.usb.interface_number = this->identity_usb_interface_number_;
     return;
   }
 #endif

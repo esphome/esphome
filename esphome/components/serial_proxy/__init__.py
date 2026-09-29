@@ -44,11 +44,15 @@ SERIAL_PROXY_PORT_TYPES = {
     "USB_SERIAL": SerialProxyPortType.SERIAL_PROXY_PORT_TYPE_USB_SERIAL,
 }
 
+CONF_BCD_DEVICE = "bcd_device"
 CONF_DTR_PIN = "dtr_pin"
+CONF_INTERFACE_NUMBER = "interface_number"
+CONF_PID = "pid"
 CONF_PORT_TYPE = "port_type"
 CONF_PRODUCT = "product"
 CONF_RTS_PIN = "rts_pin"
 CONF_SERIAL_NUMBER = "serial_number"
+CONF_VID = "vid"
 
 DOMAIN = "serial_proxy"
 
@@ -65,16 +69,23 @@ def _get_data() -> SerialProxyData:
 
 
 # What the port claims to be, for a device that has no descriptors of its own to read.
-# Each value may be a lambda, run once in setup(), for identifiers that differ per unit.
+# Each string may be a lambda, run once in setup(), for identifiers that differ per unit.
+# The USB fields let a port pass as the USB device it stands in for.
 IDENTITY_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_MANUFACTURER): cv.templatable(cv.string),
             cv.Optional(CONF_PRODUCT): cv.templatable(cv.string),
             cv.Optional(CONF_SERIAL_NUMBER): cv.templatable(cv.string),
+            cv.Inclusive(CONF_VID, "usb_ids"): cv.hex_uint16_t,
+            cv.Inclusive(CONF_PID, "usb_ids"): cv.hex_uint16_t,
+            cv.Optional(CONF_BCD_DEVICE, default=0): cv.hex_uint16_t,
+            cv.Optional(CONF_INTERFACE_NUMBER, default=0): cv.uint8_t,
         }
     ),
-    cv.has_at_least_one_key(CONF_MANUFACTURER, CONF_PRODUCT, CONF_SERIAL_NUMBER),
+    cv.has_at_least_one_key(
+        CONF_MANUFACTURER, CONF_PRODUCT, CONF_SERIAL_NUMBER, CONF_VID
+    ),
 )
 
 CONFIG_SCHEMA = (
@@ -137,6 +148,14 @@ async def to_code(config: ConfigType) -> None:
         ):
             if (value := identity.get(key)) is not None:
                 cg.add(setter(await cg.templatable(value, [], cg.std_string)))
+        cg.add(
+            var.set_identity_usb(
+                identity.get(CONF_VID, 0),
+                identity.get(CONF_PID, 0),
+                identity[CONF_BCD_DEVICE],
+                identity[CONF_INTERFACE_NUMBER],
+            )
+        )
     cg.add_define("USE_SERIAL_PROXY")
 
     # Track instance count for the FINAL priority define

@@ -182,6 +182,14 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   void set_identity_serial_number(TemplatableValue<std::string> value) {
     this->identity_serial_number_ = std::move(value);
   }
+  /// Always called for a configured identity, so it also marks the port as having one
+  void set_identity_usb(uint16_t vendor_id, uint16_t product_id, uint16_t bcd_device, uint8_t interface_number) {
+    this->has_identity_ = true;
+    this->identity_usb_vendor_id_ = vendor_id;
+    this->identity_usb_product_id_ = product_id;
+    this->identity_usb_bcd_device_ = bcd_device;
+    this->identity_usb_interface_number_ = interface_number;
+  }
 #endif
 
 #ifdef USE_API
@@ -313,6 +321,11 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   TemplatableValue<std::string> identity_manufacturer_;
   TemplatableValue<std::string> identity_product_;
   TemplatableValue<std::string> identity_serial_number_;
+  bool has_identity_{false};
+  uint16_t identity_usb_vendor_id_{0};
+  uint16_t identity_usb_product_id_{0};
+  uint16_t identity_usb_bcd_device_{0};
+  uint8_t identity_usb_interface_number_{0};
 #endif
 };
 

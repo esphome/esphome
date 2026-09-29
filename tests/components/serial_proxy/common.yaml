@@ -12,3 +12,7 @@ serial_proxy:
       manufacturer: Test Vendor
       product: Test Device
       serial_number: !lambda return str_upper_case(get_mac_address());
+      vid: 0x303A
+      pid: 0x4001
+      bcd_device: 0x0101
+      interface_number: 0
