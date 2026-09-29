@@ -119,8 +119,8 @@ def _warn_platformio_toolchain(config: ConfigType) -> ConfigType:
     if CORE.using_toolchain_platformio:
         _LOGGER.warning(
             "The 'platformio' toolchain for ESP8266 is deprecated and will be "
-            "removed in ESPHome 2027.4.0. Remove 'toolchain: platformio' from "
-            "your configuration to build with the native toolchain."
+            "removed in ESPHome 2027.4.0; the native 'arduino' toolchain is the "
+            "default."
         )
     return config
 
