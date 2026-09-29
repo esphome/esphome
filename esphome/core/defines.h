@@ -144,6 +144,8 @@
 #define PN532_BINARY_SENSOR_COUNT 1
 #define PN532_ON_TAG_REMOVED_TRIGGER_COUNT 1
 #define PN532_ON_TAG_TRIGGER_COUNT 1
+#define PN71XX_ON_TAG_REMOVED_TRIGGER_COUNT 1
+#define PN71XX_ON_TAG_TRIGGER_COUNT 1
 #define REMOTE_BASE_DUMPER_COUNT 1
 #define REMOTE_BASE_LISTENER_COUNT 1
 #define USE_REMOTE_PROTOCOL_ABBWELCOME
@@ -544,7 +546,7 @@
 // rp2/__init__.py codegen also defines USE_RP2040 as a back-compat alias
 // for external custom components that may still test for it.
 #ifdef USE_RP2
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 1, 0)
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 1, 1)
 #define USE_RP2_CRASH_HANDLER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
