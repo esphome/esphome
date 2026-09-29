@@ -2,6 +2,10 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
+#if defined(USE_ZEPHYR) && !defined(USE_NRF52)
+#include "spi_zephyr.h"
+#endif
+
 namespace esphome::spi {
 
 const char *const TAG = "spi";
@@ -40,13 +44,16 @@ void SPIComponent::setup() {
     this->sdo_pin_ = NullPin::NULL_PIN;
   if (this->sdi_pin_ == nullptr)
     this->sdi_pin_ = NullPin::NULL_PIN;
-  if (this->clk_pin_ == nullptr) {
-    ESP_LOGE(TAG, "No clock pin");
-    this->mark_failed();
-    return;
-  }
-
   if (this->using_hw_) {
+    // Zephyr's hardware SPI clock line comes from board devicetree pinctrl, not a
+    // GPIOPin, so clk_pin_ may legitimately be null there.
+#if !defined(USE_ZEPHYR) || defined(USE_NRF52)
+    if (this->clk_pin_ == nullptr) {
+      ESP_LOGE(TAG, "No clock pin");
+      this->mark_failed();
+      return;
+    }
+#endif
     this->spi_bus_ =
         SPIComponent::get_bus(this->interface_, this->clk_pin_, this->sdo_pin_, this->sdi_pin_, this->data_pins_);
     if (this->spi_bus_ == nullptr) {
@@ -54,6 +61,11 @@ void SPIComponent::setup() {
       this->mark_failed();
     }
   } else {
+    if (this->clk_pin_ == nullptr) {
+      ESP_LOGE(TAG, "No clock pin");
+      this->mark_failed();
+      return;
+    }
     this->spi_bus_ = new SPIBus(this->clk_pin_, this->sdo_pin_, this->sdi_pin_);  // NOLINT
     this->clk_pin_->setup();
     this->clk_pin_->digital_write(true);
@@ -118,8 +130,19 @@ uint16_t SPIDelegateBitBash::transfer_(uint16_t data, size_t num_bits) {
   return out_data;
 }
 
-#if !defined(USE_ESP32) && !defined(USE_ARDUINO)
-// Stub for unsupported platforms (host, Zephyr, etc.) - hardware SPI is unavailable
+#if defined(USE_ZEPHYR) && !defined(USE_NRF52)
+
+SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
+                              const std::vector<uint8_t> &data_pins) {
+  if (interface == nullptr || !device_is_ready(interface)) {
+    ESP_LOGE(TAG, "SPI device is not ready");
+    return nullptr;
+  }
+  return new ZephyrSPIBus(interface);  // NOLINT
+}
+
+#elif !defined(USE_ESP32) && !defined(USE_ARDUINO)
+// Stub for unsupported platforms (host, nrf52, etc.) - hardware SPI is unavailable
 SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
                               const std::vector<uint8_t> &data_pins) {
   return nullptr;

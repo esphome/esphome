@@ -27,6 +27,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_NRF52,
     PLATFORM_RP2,
+    PLATFORM_ZEPHYR,
     Platform,
 )
 
@@ -60,11 +61,14 @@ STACKTRACE_GATES: Final[dict[str, str]] = {
     ),
     PLATFORM_RP2: r"0x[0-9a-fA-F]{3,}\b|CRASH DETECTED ON PREVIOUS BOOT",
     PLATFORM_NRF52: r"0x[0-9a-fA-F]{3,}\b|Last crash:",
+    # Same trigger language as nrf52: both decode the "Last crash:" banner
+    # logger_zephyr.cpp prints, followed by a "PC=... LR=..." register pair.
+    PLATFORM_ZEPHYR: r"0x[0-9a-fA-F]{3,}\b|Last crash:",
 }
 
 PLATFORM_HOOKS: Final[dict[str, frozenset[str]]] = {
     "show_logs": frozenset({PLATFORM_NRF52}),
-    "upload_program": frozenset({PLATFORM_NRF52}),
+    "upload_program": frozenset({PLATFORM_NRF52, PLATFORM_ZEPHYR}),
     "process_stacktrace": frozenset(STACKTRACE_GATES),
 }
 

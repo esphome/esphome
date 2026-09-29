@@ -1,0 +1,4 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/zephyr-rp2040.yaml
+
+<<: !include common.yaml

@@ -5,6 +5,10 @@
 
 #include <vector>
 
+#ifdef USE_ZEPHYR_UART_EMULATION
+#include "esphome/components/zephyr/uart_emulator.h"
+#endif
+
 namespace esphome::uart {
 
 template<typename... Ts> class UARTWriteAction final : public Action<Ts...>, public Parented<UARTComponent> {
@@ -39,5 +43,39 @@ template<typename... Ts> class UARTWriteAction final : public Action<Ts...>, pub
     const uint8_t *data;                  // Pointer to static data in flash
   } code_;
 };
+
+#ifdef USE_ZEPHYR_UART_EMULATION
+// Injects data directly into the device's RX path via a ZephyrUartEmulator, instead of
+// writing out TX -- used to model an emulated peripheral initiating an exchange unprompted.
+template<typename... Ts>
+class UARTEmulatorPushRxAction final : public Action<Ts...>, public Parented<zephyr::ZephyrUartEmulator> {
+ public:
+  void set_data_template(std::vector<uint8_t> (*func)(Ts...)) {
+    this->code_.func = func;
+    this->len_ = -1;  // Sentinel value indicates template mode
+  }
+
+  void set_data_static(const uint8_t *data, size_t len) {
+    this->code_.data = data;
+    this->len_ = len;  // Length >= 0 indicates static mode
+  }
+
+  void play(const Ts &...x) override {
+    if (this->len_ >= 0) {
+      this->parent_->push_rx(this->code_.data, static_cast<size_t>(this->len_));
+    } else {
+      auto val = this->code_.func(x...);
+      this->parent_->push_rx(val.data(), val.size());
+    }
+  }
+
+ protected:
+  ssize_t len_{-1};
+  union Code {
+    std::vector<uint8_t> (*func)(Ts...);
+    const uint8_t *data;
+  } code_;
+};
+#endif
 
 }  // namespace esphome::uart

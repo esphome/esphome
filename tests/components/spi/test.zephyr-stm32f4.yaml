@@ -1,0 +1,4 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/zephyr-stm32f4.yaml
+
+<<: !include common.yaml

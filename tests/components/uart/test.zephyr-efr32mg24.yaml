@@ -1,0 +1,18 @@
+esphome:
+  on_boot:
+    then:
+      - uart.write: 'Hello World'
+      - uart.write: [0x00, 0x20, 0x42]
+
+uart:
+  # xg24_ek2703a's only USART instance -- tx_pin/rx_pin exercise the
+  # SILABS_DBUS-based remap (same pins the board's own usart0_default
+  # already claims, PA5/PA6).
+  - id: uart_id
+    port: UART0
+    tx_pin: 5
+    rx_pin: 6
+    baud_rate: 115200
+    data_bits: 8
+    parity: NONE
+    stop_bits: 1

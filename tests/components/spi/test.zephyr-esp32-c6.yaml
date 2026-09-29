@@ -1,0 +1,4 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/zephyr-esp32-c6.yaml
+
+<<: !include common.yaml

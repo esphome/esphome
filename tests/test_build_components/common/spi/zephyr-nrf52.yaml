@@ -1,0 +1,11 @@
+# nRF52's SPIM has fully flexible pin muxing -- any valid pin works.
+substitutions:
+  clk_pin: "8"
+  mosi_pin: "6"
+  miso_pin: "7"
+
+spi:
+  - id: spi_bus
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+    miso_pin: ${miso_pin}

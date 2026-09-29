@@ -6,7 +6,8 @@ from esphome.components.nrf52.framework import (
     bluetooth_west_projects,
     include_west_project,
 )
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_variant
+from esphome.components.zephyr.variants import VARIANTS
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, Framework
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -57,6 +58,19 @@ BLEServer = zephyr_ble_server_ns.class_("BLEServer", cg.Component)
 CONF_ON_NUMERIC_COMPARISON_REQUEST = "on_numeric_comparison_request"
 CONF_ACCEPT = "accept"
 
+
+def _validate_variant(config):
+    # The standalone `platform: nrf52` target has no `variant`/VARIANTS entry --
+    # BLE is inherent to all its boards, so there's nothing to check.
+    if CORE.is_nrf52:
+        return config
+    variant_name = zephyr_variant()
+    variant = VARIANTS.get(variant_name)
+    if variant is None or "ble" not in variant.transports:
+        raise cv.Invalid(f"ble is not supported on Zephyr variant '{variant_name}'")
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -67,6 +81,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_framework(Framework.ZEPHYR),
+    _validate_variant,
 )
 
 _CALLBACK_AUTOMATIONS = (
@@ -81,8 +96,9 @@ _CALLBACK_AUTOMATIONS = (
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     zephyr_add_prj_conf("BT", True)
-    for project in bluetooth_west_projects():
-        include_west_project(project)
+    if CORE.is_nrf52:
+        for project in bluetooth_west_projects():
+            include_west_project(project)
     zephyr_add_prj_conf("BT_PERIPHERAL", True)
     zephyr_add_prj_conf("BT_RX_STACK_SIZE", 1536)
     zephyr_add_prj_conf("BT_DEVICE_NAME", CORE.name)

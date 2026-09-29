@@ -1,0 +1,17 @@
+esphome:
+  on_boot:
+    then:
+      - uart.write:
+          id: uart_id
+          data: 'Hello World'
+      - uart.write:
+          id: uart_id
+          data: [0x00, 0x20, 0x42]
+
+uart:
+  - id: uart_id
+    port: uart0
+    baud_rate: 115200
+    data_bits: 8
+    parity: NONE
+    stop_bits: 1

@@ -1,6 +1,10 @@
 import esphome.codegen as cg
 from esphome.components.nrf52.framework import include_west_project
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import (
+    ZEPHYR_VARIANT_NATIVE_SIM,
+    zephyr_add_prj_conf,
+    zephyr_variant,
+)
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -52,15 +56,28 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("HWINFO", True)
         # gdb thread support
         zephyr_add_prj_conf("DEBUG_THREAD_INFO", True)
-        # RTT sources live in the segger project
-        include_west_project("segger")
-        zephyr_add_prj_conf("USE_SEGGER_RTT", True)
-        zephyr_add_prj_conf("RTT_CONSOLE", True)
-        zephyr_add_prj_conf("LOG", True)
-        zephyr_add_prj_conf("LOG_BLOCK_IN_THREAD", True)
-        zephyr_add_prj_conf("LOG_BUFFER_SIZE", 4096)
-        zephyr_add_prj_conf("SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL", True)
-        zephyr_add_prj_conf("PRINTK", True)
+        if CORE.is_nrf52:
+            # RTT sources live in the segger project
+            include_west_project("segger")
+            zephyr_add_prj_conf("USE_SEGGER_RTT", True)
+            zephyr_add_prj_conf("RTT_CONSOLE", True)
+            zephyr_add_prj_conf("LOG", True)
+            zephyr_add_prj_conf("LOG_BLOCK_IN_THREAD", True)
+            zephyr_add_prj_conf("LOG_BUFFER_SIZE", 4096)
+            zephyr_add_prj_conf("SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL", True)
+            zephyr_add_prj_conf("PRINTK", True)
+        else:
+            # platform: zephyr only -- nrf52 keeps its original dev behavior above,
+            # unchanged by these newer debug features.
+            if zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
+                # native_sim has no real flash driver (FLASH_HAS_DRIVER_ENABLED=n),
+                # so FLASH_MAP would be a silent no-op there.
+                zephyr_add_prj_conf("FLASH_MAP", True)
+            zephyr_add_prj_conf("THREAD_MONITOR", True)
+            zephyr_add_prj_conf("THREAD_NAME", True)
+            zephyr_add_prj_conf("INIT_STACKS", True)
+            zephyr_add_prj_conf("THREAD_STACK_INFO", True)
+            zephyr_add_prj_conf("CONFIG_STATS_NAMES", True)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add_define("USE_DEBUG")
@@ -80,6 +97,9 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
-        "debug_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
+        "debug_zephyr.cpp": {
+            PlatformFramework.NRF52_ZEPHYR,
+            PlatformFramework.ZEPHYR_ZEPHYR,
+        },
     }
 )

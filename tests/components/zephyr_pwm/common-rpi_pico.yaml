@@ -1,0 +1,12 @@
+output:
+  - platform: zephyr_pwm
+    id: pwm_output_1
+    # Same slice as pwm_output_2 (pin 0 = slice 0 channel A, pin 1 = slice 0
+    # channel B) -- exercises the shared-pinctrl-group, multi-channel-per-block
+    # overlay path.
+    pin: 0
+  - platform: zephyr_pwm
+    id: pwm_output_2
+    pin:
+      number: 1
+      inverted: true

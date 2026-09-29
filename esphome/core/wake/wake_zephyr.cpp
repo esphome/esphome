@@ -6,6 +6,9 @@
 #include "esphome/core/wake.h"
 
 #include <zephyr/kernel.h>
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+#include <atomic>
+#endif
 
 namespace esphome {
 
@@ -13,13 +16,17 @@ namespace esphome {
 K_SEM_DEFINE(esphome_wake_sem, 0, 1);
 
 // === Wake-requested flag storage ===
-// Zephyr has preemptive threads and ISRs, so wake_loop_threadsafe() is genuinely
-// called cross-context. volatile uint8_t is sufficient because: (1) Cortex-M
-// 8-bit aligned store/load is a single non-tearing instruction, and (2) every
-// producer pairs the store with k_sem_give() (release barrier) and the consumer
-// pairs the load with k_sem_take() (acquire barrier).
+// On single-core targets (ESPHOME_THREAD_SINGLE), volatile uint8_t is enough: the
+// store/load is a single non-tearing instruction, and k_sem_give()/k_sem_take() already
+// provide the release/acquire barrier. native_sim simulates interrupts via host-level
+// mechanisms rather than single-core preemption, so it needs a real atomic instead.
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<uint8_t> g_wake_requested{0};
+#else
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 volatile uint8_t g_wake_requested = 0;
+#endif
 
 void wake_loop_threadsafe() {
   wake_request_set();

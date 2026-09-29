@@ -1,0 +1,1 @@
+<<: !include common-rpi_pico.yaml

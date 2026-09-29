@@ -260,6 +260,10 @@ class Application {
   // the per-iteration arch_feed_wdt() cost (this is the rate limit; component
   // loops and scheduler items still feed after every op).
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 100;
+#elif defined(USE_ZEPHYR_WATCHDOG_TIMEOUT_MS)
+  // Same auto-scale rationale as USE_ESP32 above: 1/5 of the configured watchdog
+  // timeout, keeping a constant safety margin as the user raises it.
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = USE_ZEPHYR_WATCHDOG_TIMEOUT_MS / 5U;
 #else
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 300;
 #endif

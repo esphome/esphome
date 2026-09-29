@@ -72,6 +72,23 @@ class ADCSensor final : public sensor::Sensor, public PollingComponent, public v
   /// Set the ADC channel to be used by the ADC sensor.
   /// @param channel Pointer to an adc_dt_spec structure representing the ADC channel.
   void set_adc_channel(const adc_dt_spec *channel) { this->channel_ = channel; }
+
+  /// Set whether autoranging should be enabled for the ADC (esp32_h2 only -- reconfigures
+  /// the channel gain across the four gains ESP32's Zephyr ADC driver supports).
+  /// @param autorange Boolean indicating whether to enable autoranging.
+  void set_autorange(bool autorange) { this->autorange_ = autorange; }
+#endif
+
+#ifdef USE_ZEPHYR_ADC_EMULATION
+  /// Provide the cycling voltage groups (in mV) for an emulated ADC channel
+  /// (`emulation:` config). `values` holds `group_count * group_size` entries;
+  /// each sample() call consumes one full group (`group_size` entries, one per
+  /// internal reading), then wraps to the next group.
+  void set_emulated_values(const uint32_t *values, uint8_t group_size, uint8_t group_count) {
+    this->emulated_values_ = values;
+    this->emulated_group_size_ = group_size;
+    this->emulated_group_count_ = group_count;
+  }
 #endif
   /// Set the GPIO pin to be used by the ADC sensor.
   /// @param pin Pointer to an InternalGPIOPin representing the ADC input pin.
@@ -130,7 +147,7 @@ class ADCSensor final : public sensor::Sensor, public PollingComponent, public v
  protected:
   uint8_t sample_count_{1};
   bool output_raw_{false};
-  InternalGPIOPin *pin_;
+  InternalGPIOPin *pin_{nullptr};
   SamplingMode sampling_mode_{SamplingMode::AVG};
 
 #ifdef USE_ESP32
@@ -158,6 +175,15 @@ class ADCSensor final : public sensor::Sensor, public PollingComponent, public v
 
 #ifdef USE_ZEPHYR
   const struct adc_dt_spec *channel_ = nullptr;
+  bool autorange_{false};
+  float sample_autorange_();
+#endif
+
+#ifdef USE_ZEPHYR_ADC_EMULATION
+  const uint32_t *emulated_values_{nullptr};
+  uint8_t emulated_group_size_{0};
+  uint8_t emulated_group_count_{0};
+  uint8_t emulated_group_index_{0};
 #endif
 };
 

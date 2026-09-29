@@ -1,0 +1,15 @@
+# Common I2C configuration for platform: zephyr, variant: rp2040 tests
+# RP2040 boards define their I2C pinctrl in the board DTS. The RP2040-Zero
+# board (default for this variant) has:
+#   i2c0: SDA=GP0, SCL=GP1
+#   i2c1: SDA=GP2, SCL=GP3
+
+substitutions:
+  scl_pin: "1"
+  sda_pin: "0"
+
+i2c:
+  - id: i2c_bus
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+    scan: true

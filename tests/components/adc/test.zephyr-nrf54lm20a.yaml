@@ -1,0 +1,28 @@
+sensor:
+  - id: adc_my_sensor
+    platform: adc
+    pin: 63
+    name: ADC Test sensor
+    update_interval: "1:01"
+    unit_of_measurement: "°C"
+    icon: "mdi:water-percent"
+    accuracy_decimals: 5
+    setup_priority: -100
+    force_update: true
+  - platform: adc
+    pin: 32
+    name: ADC Second sensor
+    update_interval: 5sec
+  # Declared out of ascending pin/AIN order on purpose (pin 63 above maps to
+  # AIN1, this one to AIN2) and mixed with an emulated sensor -- same
+  # position-vs-silicon-channel regression coverage as the nrf52 test, applied
+  # to nRF54LM20A's non-monotonic AIN pin order. nrf54lm20dk's own uart20
+  # pinctrl uses P1.16-P1.19, so none of the AIN pins here conflict with the
+  # default console UART (unlike nrf54l15dk, where AIN0-AIN3 do).
+  - platform: adc
+    id: adc_mixed_emulated_sensor
+    pin: 62
+    name: ADC Mixed Emulated sensor
+    update_interval: 5sec
+    emulation:
+      - 900mV

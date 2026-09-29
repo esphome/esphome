@@ -1,0 +1,28 @@
+sensor:
+  - id: adc_my_sensor
+    platform: adc
+    pin: 1
+    name: ADC Test sensor
+    update_interval: "1:01"
+    unit_of_measurement: "°C"
+    icon: "mdi:water-percent"
+    accuracy_decimals: 5
+    setup_priority: -100
+    force_update: true
+  - platform: adc
+    pin: 0
+    name: ADC Second sensor
+    update_interval: 5sec
+  # Declared out of ascending pin/AN-channel order on purpose (pin 1 above
+  # maps to AN001, this one to AN002) and mixed with an emulated sensor --
+  # same position-vs-silicon-channel regression coverage as the nrf52 test,
+  # applied to RA4M1's per-pin pinctrl-group ADC wiring. Pins 0-2 (P000-P002)
+  # are used rather than higher AN channels -- ek_ra4m1's own console UART
+  # (sci1_default) is on port4 pins 1/2, so P000-P002 stay clear of it.
+  - platform: adc
+    id: adc_mixed_emulated_sensor
+    pin: 2
+    name: ADC Mixed Emulated sensor
+    update_interval: 5sec
+    emulation:
+      - 900mV
