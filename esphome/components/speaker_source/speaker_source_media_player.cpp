@@ -196,8 +196,8 @@ size_t SpeakerSourceMediaPlayer::handle_media_output_(uint8_t pipeline, media_so
       vTaskDelay(pdMS_TO_TICKS(timeout_ms));
       return 0;
     }
-    // Playback callbacks can run while play() waits for space. Reserve before
-    // exposing PCM to the sink, then release the portion it did not accept.
+    // Reserve frames before the speaker can play them and report their progress,
+    // then release the portion it did not accept.
     const uint32_t reserved_frames = stream_info.bytes_to_frames(length);
     ps.pending_frames.fetch_add(reserved_frames, std::memory_order_relaxed);
     size_t bytes_written = ps.speaker->play(data, length, pdMS_TO_TICKS(timeout_ms));
