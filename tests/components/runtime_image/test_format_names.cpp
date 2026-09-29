@@ -12,4 +12,8 @@ TEST(RuntimeImageFormatNames, FormatNames) {
   EXPECT_STREQ(LOG_STR_ARG(get_format_name(QOI)), "QOI");
 }
 
+TEST(RuntimeImageFormatNames, OutOfRangeName) {
+  EXPECT_STREQ(LOG_STR_ARG(get_format_name(static_cast<ImageFormat>(254))), "UNKNOWN");
+}
+
 }  // namespace esphome::runtime_image::testing
