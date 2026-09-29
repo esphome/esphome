@@ -34,15 +34,26 @@ def collect_pending(
         return False
 
     pending: dict[tuple[str, str], Any] = {}
+    claimed: dict[str, str] = {}
     for tool, name, version, download in iter_tool_downloads(
         targets_csv, tool_specs, on_broken
     ):
         # Mirror the prefetch: an entry it could not verify is never trusted
         if not (download.sha256 and download.size):
             continue
+        dist_name = archive_name(download)
+        # Mirror the prefetch's dest dedupe: a name claimed by a different
+        # sha256 was verified for that entry only, not this one
+        if claimed.setdefault(dist_name, download.sha256) != download.sha256:
+            print(
+                f"leaving {name}@{version} to the installer: {dist_name} "
+                "holds a different archive",
+                file=sys.stderr,
+            )
+            continue
         # Trusted as-is: the caller only runs this pass after a prefetch
         # that verified every archive at its final name
-        if (dist_path / archive_name(download)).is_file():
+        if (dist_path / dist_name).is_file():
             pending[(name, version)] = tool
     return pending
 

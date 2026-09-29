@@ -123,6 +123,15 @@ def load_tools_info() -> dict[str, _Tool]:
             for version in tool.versions.values():
                 if (download := version.get_download_for_platform("")) is not None:
                     download.sha256 = ""
+    if os.environ.get("TEST_COLLIDE"):
+        # Test hook: a second tool whose archive shares cmake's basename
+        # but carries a different sha256
+        collide = _Tool(
+            {"5.0": _Version(_Download("https://other.test/cmake.tar.gz", 55, "ee"))},
+            "5.0",
+        )
+        collide.name = "collide-tool"
+        return {**_TOOLS, "collide-tool": collide}
     return _TOOLS
 
 

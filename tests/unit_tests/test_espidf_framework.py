@@ -2206,6 +2206,28 @@ def test_install_tool_archives_extracts_pending_in_parallel(tmp_path: Path) -> N
     assert "leaving broken broken-tool to the installer" in result.stderr
 
 
+def test_install_tool_archives_skips_colliding_dest(tmp_path: Path) -> None:
+    """A second tool sharing a dist filename with a different sha256 was
+    never verified by the prefetch; it stays with the installer."""
+    _make_dist(tmp_path, "cmake.tar.gz", "ninja-v1.zip")
+    result = _run_espidf_script(
+        tmp_path,
+        "install_tool_archives.py",
+        "esp32",
+        "8",
+        "required",
+        env_extra={"TEST_COLLIDE": "1"},
+    )
+    assert result.returncode == 0, result.stderr
+    tools = tmp_path / "tp" / "tools"
+    assert (tools / "cmake" / "3.30.2" / ".installed").is_file()
+    assert not (tools / "collide-tool").exists()
+    assert (
+        "leaving collide-tool@5.0 to the installer: cmake.tar.gz "
+        "holds a different archive" in result.stderr
+    )
+
+
 def test_install_tool_archives_single_pending_stays_sequential(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
