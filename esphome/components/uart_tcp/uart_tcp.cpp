@@ -8,13 +8,6 @@
 #include <cstdio>
 #include <cstring>
 
-#if !defined(USE_HOST) && !defined(USE_ZEPHYR)
-#include "lwip/dns.h"
-#include "lwip/ip4_addr.h"
-#else
-#include <netdb.h>
-#endif
-
 namespace esphome::uart_tcp {
 
 static const char *const TAG = "uart_tcp";
@@ -82,7 +75,7 @@ void UartTcp::close_sock_() {
   this->rx_pending_ = false;
   this->set_link_up_(false);
   this->tx_len_ = 0;
-  this->forget_addr_();
+  this->resolved_.forget();
 }
 
 void UartTcp::close_listen_() { this->listen_.reset(); }
@@ -102,107 +95,21 @@ void UartTcp::apply_socket_options_(socket::Socket *sock) {
 #endif
 }
 
-#if !defined(USE_HOST) && !defined(USE_ZEPHYR)
-void UartTcp::dns_found(const char *name, const ip_addr_t *addr, void *arg) {
-  auto *self = static_cast<UartTcp *>(arg);
-  if (addr != nullptr && IP_IS_V4(addr)) {
-    self->resolved_addr_.store(ip4_addr_get_u32(ip_2_ip4(addr)));
-    self->have_addr_.store(true);
-  } else {
-    self->resolve_failed_.store(true);
-    ESP_LOGW(TAG, "DNS failed for %s", name);
-  }
-  self->resolving_.store(false);
-}
-#endif
-
-void UartTcp::try_resolve_() {
-  if (this->have_addr_.load() || this->resolving_.load()) {
-    return;
-  }
-  struct sockaddr_storage literal;
-  if (socket::set_sockaddr(reinterpret_cast<struct sockaddr *>(&literal), sizeof(literal), this->host_.c_str(),
-                           this->port_) != 0) {
-    snprintf(this->resolved_ip_, sizeof(this->resolved_ip_), "%s", this->host_.c_str());
-    this->have_addr_.store(true);
-    return;
-  }
-#if !defined(USE_HOST) && !defined(USE_ZEPHYR)
-  ip_addr_t cached;
-  err_t err;
-  {
-    LwIPLock lock;
-    this->resolving_.store(true);
-    err = dns_gethostbyname(this->host_.c_str(), &cached, &UartTcp::dns_found, this);
-    if (err != ERR_INPROGRESS) {
-      this->resolving_.store(false);
-    }
-  }
-  if (err == ERR_OK && IP_IS_V4(&cached)) {
-    this->resolved_addr_.store(ip4_addr_get_u32(ip_2_ip4(&cached)));
-    this->have_addr_.store(true);
-    return;
-  }
-  if (err == ERR_INPROGRESS) {
-    return;
-  }
-#else
-  struct addrinfo hints {};
-  hints.ai_family = AF_INET;
-  hints.ai_socktype = SOCK_STREAM;
-  struct addrinfo *res = nullptr;
-  if (getaddrinfo(this->host_.c_str(), nullptr, &hints, &res) == 0 && res != nullptr) {
-    char buf[INET_ADDRSTRLEN];
-    auto *in = reinterpret_cast<struct sockaddr_in *>(res->ai_addr);
-    if (inet_ntop(AF_INET, &in->sin_addr, buf, sizeof(buf)) != nullptr) {
-      snprintf(this->resolved_ip_, sizeof(this->resolved_ip_), "%s", buf);
-      this->have_addr_.store(true);
-    }
-    freeaddrinfo(res);
-    if (this->have_addr_.load()) {
-      return;
-    }
-  }
-#endif
-  this->resolve_failed_.store(true);
-  ESP_LOGW(TAG, "Could not resolve %s", this->host_.c_str());
-}
-
-bool UartTcp::ip_ready_() {
-  if (this->resolved_ip_[0] != '\0') {
-    return true;
-  }
-  if (!this->have_addr_.load()) {
-    return false;
-  }
-#if defined(USE_HOST) || defined(USE_ZEPHYR)
-  return false;
-#else
-  ip4_addr_t addr;
-  ip4_addr_set_u32(&addr, this->resolved_addr_.load());
-  ip4addr_ntoa_r(&addr, this->resolved_ip_, static_cast<int>(sizeof(this->resolved_ip_)));
-  return this->resolved_ip_[0] != '\0';
-#endif
-}
-
 void UartTcp::try_connect_() {
   if (this->sock_ != nullptr || this->in_backoff_()) {
     return;
   }
-  if (this->resolve_failed_.load() != 0) {
-    this->resolve_failed_.store(0);
-    this->have_addr_.store(false);
-    this->resolved_ip_[0] = '\0';
+  if (this->resolved_.consume_failure()) {
     this->note_attempt_();
     return;
   }
-  this->try_resolve_();
-  if (!this->ip_ready_()) {
+  this->resolved_.start(this->host_.c_str(), this->port_, TAG);
+  if (!this->resolved_.ready()) {
     return;
   }
   struct sockaddr_storage dest;
-  socklen_t dest_len =
-      socket::set_sockaddr(reinterpret_cast<struct sockaddr *>(&dest), sizeof(dest), this->resolved_ip_, this->port_);
+  socklen_t dest_len = socket::set_sockaddr(reinterpret_cast<struct sockaddr *>(&dest), sizeof(dest),
+                                            this->resolved_.text(), this->port_);
   if (dest_len == 0) {
     this->note_attempt_();
     return;
@@ -223,7 +130,7 @@ void UartTcp::try_connect_() {
     return;
   }
   this->sock_.reset();
-  this->forget_addr_();
+  this->resolved_.forget();
   this->note_attempt_();
 }
 
