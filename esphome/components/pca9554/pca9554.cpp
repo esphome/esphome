@@ -168,8 +168,10 @@ bool PCA9554Component::write_register_(uint8_t reg, uint16_t value) {
   uint8_t bytes_to_write = this->reg_width_;
   uint8_t register_to_write = this->get_register_address_(reg);
 
-  //The output port config register is always only 1 byte long
-  if (reg == OUTPUT_PORT_CONFIG) {bytes_to_write = 1;}
+  // The output port config register is always only 1 byte long
+  if (reg == OUTPUT_PORT_CONFIG) {
+    bytes_to_write = 1;
+  }
 
   if (register_to_write == 0xFF) {
     this->status_set_warning();
