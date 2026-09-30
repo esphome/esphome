@@ -333,7 +333,8 @@ def _assert_sync_lock_released() -> None:
 def test_sync_runs_the_manager_for_missing_deps(tmp_path: Path) -> None:
     _write_lock(tmp_path)
     ok, mock_run = _run_sync(tmp_path)
-    assert ok
+    # The stub stages nothing, so the post-promote recheck reports failure.
+    assert not ok
     mock_run.assert_called_once()
     mirror = component_mirror.get_mirror_path()
     assert mock_run.call_args.args[0] == [
@@ -453,6 +454,69 @@ def _sync_custom_lock(tmp_path: Path, returncode: int = 0) -> bool:
         )
 
 
+def test_sync_warns_when_a_clean_sync_leaves_deps_uncovered(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A zero exit that covers nothing must trip the retry guard, not loop."""
+    _write_lock(tmp_path)
+    ok, _ = _run_sync(tmp_path)
+    assert not ok
+    assert "uncovered" in caplog.text
+
+
+def test_sync_lock_timeout_means_another_process_is_syncing(
+    tmp_path: Path,
+) -> None:
+    """Contention is fine; the other process is filling the shared mirror."""
+    from filelock import Timeout
+
+    _write_lock(tmp_path)
+    with patch("filelock.FileLock.acquire", side_effect=Timeout("x")):
+        ok, mock_run = _run_sync(tmp_path)
+    assert ok
+    mock_run.assert_not_called()
+
+
+def test_sync_lock_oserror_is_a_failure(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A broken cache is not contention; the retry guard should apply."""
+    _write_lock(tmp_path)
+    with patch("filelock.FileLock.acquire", side_effect=PermissionError("ro")):
+        ok, mock_run = _run_sync(tmp_path)
+    assert not ok
+    mock_run.assert_not_called()
+    assert "Could not lock" in caplog.text
+
+
+def test_parse_manifest_lowercases_mixed_case_keys(tmp_path: Path) -> None:
+    """The registry stores lowercase paths; a mixed-case key must match them."""
+    manifest = tmp_path / "idf_component.yml"
+    manifest.write_text("dependencies:\n  Espressif/MDNS:\n    version: 1.2.0\n")
+    deps = component_mirror.parse_manifest_service_deps(manifest)
+    assert deps == [component_mirror.ServiceDep("espressif", "mdns", "1.2.0")]
+
+
+def test_promote_moves_archives_before_indexes(tmp_path: Path) -> None:
+    """A concurrent reader must never see an index entry without its file."""
+    staging = tmp_path / "staging"
+    (staging / "components" / "ns").mkdir(parents=True)
+    (staging / "components" / "ns" / "cmp.json").write_text('{"versions": []}')
+    zip_path = staging / "components" / "ns" / "cmp" / "2.0.0" / "a.zip"
+    zip_path.parent.mkdir(parents=True)
+    zip_path.write_bytes(b"zip")
+    order: list[str] = []
+    real_replace = Path.replace
+
+    def recording_replace(self: Path, target: Path) -> Path:
+        order.append(self.name)
+        return real_replace(self, target)
+
+    with patch.object(Path, "replace", recording_replace):
+        component_mirror._promote(staging, tmp_path / "mirror")
+    assert order == ["a.zip", "cmp.json"]
+
+
 def test_sync_promotes_staged_files_and_merges_the_index(tmp_path: Path) -> None:
     """New files land through renames and existing versions survive the merge,
     so a concurrent configure never reads a truncated index."""
@@ -485,5 +549,5 @@ def test_sync_ignores_a_leftover_lock_file(tmp_path: Path) -> None:
     mirror.mkdir(parents=True)
     (mirror / ".sync.lock").touch()
     ok, mock_run = _run_sync(tmp_path)
-    assert ok
+    mock_run.assert_called_once()  # the dead lock did not block the sync
     mock_run.assert_called_once()

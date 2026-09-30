@@ -103,7 +103,8 @@ def _iter_deps(path: Path) -> Iterator[tuple[str, str, dict]]:
         return
     for key, entry in deps.items():
         if isinstance(key, str) and "/" in key and isinstance(entry, dict):
-            namespace, _, name = key.partition("/")
+            # The registry stores lowercase paths; match a mixed-case key.
+            namespace, _, name = key.lower().partition("/")
             yield namespace, name, entry
 
 
@@ -203,19 +204,29 @@ def _merge_component_index(src: Path, dst: Path) -> None:
         pass
 
 
+def _is_component_index(rel: Path) -> bool:
+    return (
+        rel.parts[0] == "components" and len(rel.parts) == 3 and rel.suffix == ".json"
+    )
+
+
 def _promote(staging: Path, mirror: Path) -> None:
-    """Move the synced files into the mirror, one atomic rename each."""
-    for src in sorted(path for path in staging.rglob("*") if path.is_file()):
-        rel = src.relative_to(staging)
-        dst = mirror / rel
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        if (
-            rel.parts[0] == "components"
-            and len(rel.parts) == 3
-            and rel.suffix == ".json"
-        ):
-            _merge_component_index(src, dst)
-        Path(src).replace(dst)
+    """Move the synced files into the mirror, one atomic rename each.
+
+    Archives land before the indexes that point at them, so a concurrent
+    configure never reads a version entry whose file is not there yet.
+    """
+    files = sorted(path for path in staging.rglob("*") if path.is_file())
+    for promote_indexes in (False, True):
+        for src in files:
+            rel = src.relative_to(staging)
+            if _is_component_index(rel) is not promote_indexes:
+                continue
+            dst = mirror / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if promote_indexes:
+                _merge_component_index(src, dst)
+            src.replace(dst)
 
 
 def sync_component_mirror(
@@ -251,16 +262,19 @@ def sync_component_mirror(
         cmd += ["--component", f"{dep.namespace}/{dep.name}=={dep.version}"]
     cmd.append(str(staging))
     # Lazy import, as in git.py: keeps filelock off the CLI startup path.
-    from filelock import FileLock
+    from filelock import FileLock, Timeout
 
     lock = FileLock(str(mirror / _SYNC_LOCK_NAME), fallback_to_soft=False)
     try:
-        # Timeout is an OSError: another esphome process is already
-        # filling the shared mirror, so skipping is the right outcome.
         lock.acquire(blocking=False)
-    except OSError as err:
-        _LOGGER.debug("Component mirror sync skipped: %s", err)
+    except Timeout:
+        # Another esphome process is already filling the shared mirror.
+        _LOGGER.debug("Component mirror sync skipped: already in progress")
         return True
+    except OSError as err:
+        # A broken cache, not contention; the retry guard should apply.
+        _LOGGER.warning("Could not lock the component mirror: %s", err)
+        return False
     _LOGGER.info("Mirroring %d IDF component(s) for offline builds...", len(to_sync))
     try:
         shutil.rmtree(staging, ignore_errors=True)
@@ -281,6 +295,15 @@ def sync_component_mirror(
             )
             return False
         _promote(staging, mirror)
+        if still := missing_deps(mirror, to_sync):
+            # A partial ref or a key the registry spells differently can
+            # sync clean yet cover nothing; retrying would loop forever.
+            _LOGGER.warning(
+                "Mirror sync left %d component(s) uncovered: %s",
+                len(still),
+                ", ".join(f"{d.namespace}/{d.name}=={d.version}" for d in still),
+            )
+            return False
     except (OSError, subprocess.SubprocessError) as err:
         _LOGGER.warning("Could not mirror IDF components: %s", err)
         return False
