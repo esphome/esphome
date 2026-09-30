@@ -7,7 +7,11 @@
 #include <cstdint>
 
 // ESPHOME_THREAD_MULTI_ATOMICS: one atomic state word. compare_exchange closes the race.
+// A callback publishes only after it has won RESOLVING -> PUBLISHING, so a second
+// callback cannot clear the address.
 // ESPHOME_THREAD_SINGLE: a volatile state word. The callback does not run beside loop().
+// After forget() it does not publish over IDLE or RESOLVED. It can still publish if
+// start() has begun another lookup.
 // ESPHOME_THREAD_MULTI_NO_ATOMICS: volatile state plus a generation. BK72xx has no
 // compare_exchange, and the DNS callback runs on the tcpip thread.
 #if defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
@@ -33,6 +37,8 @@ class Ipv4Resolve {
   static constexpr uint8_t STATE_RESOLVING = 1;
   static constexpr uint8_t STATE_RESOLVED = 2;
   static constexpr uint8_t STATE_FAILED = 3;
+  // The callback holds this between winning the lookup and storing the address.
+  static constexpr uint8_t STATE_PUBLISHING = 4;
 
   void forget();
   /// Drop a failed lookup so the next start() tries again.
