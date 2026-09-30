@@ -511,24 +511,4 @@ class IT8951DirectDisplay : public IT8951Display {
   bool alignment_warned_{false};
 };
 
-// --- Automation action ---
-template<typename... Ts> class IT8951UpdateAction : public Action<Ts...> {
- public:
-  explicit IT8951UpdateAction(IT8951Display *display) : display_(display) {}
-  TEMPLATABLE_VALUE(UpdateMode, mode)
-
- protected:
-  void play(const Ts &...x) override {
-    if (!this->display_->is_ready())
-      return;
-    if (this->mode_.has_value()) {
-      this->display_->update_mode(this->mode_.value(x...));
-    } else {
-      this->display_->update();
-    }
-  }
-
-  IT8951Display *display_;
-};
-
 }  // namespace esphome::it8951

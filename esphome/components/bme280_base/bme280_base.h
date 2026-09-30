@@ -69,7 +69,7 @@ class BME280Component : public PollingComponent {
   /// Set the oversampling value for the humidity sensor. Default is 16x.
   void set_humidity_oversampling(BME280Oversampling humidity_over_sampling);
   /// Set the IIR Filter used to increase accuracy, defaults to no IIR Filter.
-  void set_iir_filter(BME280IIRFilter iir_filter);
+  void set_iir_filter(BME280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)

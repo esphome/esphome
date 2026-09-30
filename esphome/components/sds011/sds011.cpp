@@ -106,8 +106,6 @@ void SDS011Component::loop() {
   }
 }
 
-void SDS011Component::set_rx_mode_only(bool rx_mode_only) { this->rx_mode_only_ = rx_mode_only; }
-
 void SDS011Component::sds011_write_command_(const uint8_t *command_data) {
   this->write_byte(SDS011_MSG_HEAD);
   this->write_byte(SDS011_COMMAND_ID_REQUEST);

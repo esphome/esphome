@@ -45,12 +45,19 @@ bool SendspinMediaSource::can_handle(const std::string &uri) const { return uri.
 
 // THREAD CONTEXT: Main loop (media_source.h documents play_uri as main-loop only)
 bool SendspinMediaSource::play_uri(const std::string &uri) {
+  // The queued request has been delivered, whatever the outcome, so the next stream start may request again
+  this->pending_start_ = false;
   if (!this->is_ready() || this->is_failed() || !this->has_listener()) {
     return false;
   }
 
   if (this->get_state() != media_source::MediaSourceState::IDLE) {
     ESP_LOGE(TAG, "Cannot play '%s': source is busy", uri.c_str());
+    return false;
+  }
+
+  if (!this->parent_->is_client_running()) {
+    ESP_LOGE(TAG, "Cannot play '%s': Sendspin is disabled", uri.c_str());
     return false;
   }
 
@@ -74,7 +81,6 @@ bool SendspinMediaSource::play_uri(const std::string &uri) {
   }
 
   // Tell the orchestrator we're now playing so it routes audio output from us
-  this->pending_start_ = false;
   this->set_state_(media_source::MediaSourceState::PLAYING);
 
   return true;
@@ -82,6 +88,15 @@ bool SendspinMediaSource::play_uri(const std::string &uri) {
 
 // THREAD CONTEXT: Main loop (media_source.h documents handle_command as main-loop only)
 void SendspinMediaSource::handle_command(media_source::MediaSourceCommand command) {
+  if (!this->parent_->is_client_running()) {
+    if (command == media_source::MediaSourceCommand::STOP) {
+      // Nothing is playing, so the orchestrator gets its pipeline back straight away
+      this->on_stream_end();
+    } else {
+      ESP_LOGW(TAG, "Cannot handle command: Sendspin is disabled");
+    }
+    return;
+  }
   switch (command) {
     case media_source::MediaSourceCommand::STOP: {
       if (!this->pending_start_) {

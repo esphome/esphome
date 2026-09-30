@@ -7,6 +7,8 @@ namespace esphome::version {
 
 class VersionTextSensor final : public text_sensor::TextSensor, public Component {
  public:
+  // User provided, not "= default": `new(p) VersionTextSensor()` would zero-fill .bss that is already zero.
+  VersionTextSensor() {}
   void set_hide_hash(bool hide_hash) { this->hide_hash_ = hide_hash; }
   void set_hide_timestamp(bool hide_timestamp) { this->hide_timestamp_ = hide_timestamp; }
   void setup() override;

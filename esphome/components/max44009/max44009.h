@@ -16,7 +16,7 @@ class MAX44009Sensor final : public sensor::Sensor, public PollingComponent, pub
   void setup() override;
   void dump_config() override;
   void update() override;
-  void set_mode(MAX44009Mode mode);
+  void set_mode(MAX44009Mode mode) { this->mode_ = mode; }
   bool set_continuous_mode();
   bool set_low_power_mode();
 
