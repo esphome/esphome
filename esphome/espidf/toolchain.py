@@ -318,8 +318,7 @@ def run_reconfigure(verbose: bool = False) -> int:
     """Run the CMake configure, with the arguments idf.py uses."""
     build_dir = _build_dir()
     build_dir.mkdir(parents=True, exist_ok=True)
-    # Fill the mirror first so the configure, even a first solve, installs
-    # from it instead of the registry.
+    # First, so the configure (even a first solve) installs from the mirror.
     _sync_component_mirror()
     cmd = [_get_idf_tool("cmake"), "-G", "Ninja"]
     if _idf_py().binary_dir_arg:
@@ -340,8 +339,7 @@ def run_reconfigure(verbose: bool = False) -> int:
         _LOGGER.error("CMake configure failed with exit code %d", rc)
         _print_hints(log_path)
         return rc
-    # Mirror what the solve added to the lock (transitive dependencies are
-    # not in the manifest) so the next configure works offline.
+    # Mirror what the solve added to the lock (transitive dependencies).
     _sync_component_mirror()
     return rc
 
@@ -440,8 +438,7 @@ def _print_hints(log_path: Path) -> None:
 def _sync_component_mirror() -> None:
     """Best-effort update of the local registry mirror; never fails the build."""
     if not _esphome_manages_idf():
-        # The mirror env is only injected under the same predicate in
-        # _get_idf_env, so nothing would read a sync.
+        # _get_idf_env injects no mirror env, so nothing would read a sync.
         return
     cache = _cache()
     if cache.mirror_sync_failed:
@@ -452,8 +449,7 @@ def _sync_component_mirror() -> None:
         lambda: _get_idf_tool("python"),
         _get_idf_env,
     ):
-        # One failed attempt (e.g. offline) is enough per run; the coverage
-        # check itself stays cheap and runs every time.
+        # One failed attempt (e.g. offline) is enough per run.
         cache.mirror_sync_failed = True
 
 
@@ -711,7 +707,6 @@ def run_compile(config, verbose: bool) -> int:
     else:
         _LOGGER.info("Build configuration is up to date")
         # Ninja can still re-run cmake on its own; keep the mirror current.
-        # The reconfigure branches sync inside run_reconfigure.
         _sync_component_mirror()
 
     # In testing mode, generate the linker script first, patch DRAM/IRAM sizes,

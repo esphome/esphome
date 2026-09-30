@@ -198,8 +198,7 @@ def test_parse_lock_defaults_registry_url(tmp_path: Path) -> None:
 
 
 def test_parse_manifest_keeps_only_exact_registry_pins(tmp_path: Path) -> None:
-    """git, override_path, wildcard, range and non-string specs are left to
-    the solver; the YAML shorthand's == prefix still counts as an exact pin."""
+    """Only exact pins survive, including the == shorthand prefix."""
     deps = component_mirror.parse_manifest_service_deps(_write_manifest(tmp_path))
     assert deps == _MANIFEST_DEPS
 
@@ -273,9 +272,8 @@ def test_missing_deps_covered_and_not(tmp_path: Path) -> None:
 def test_missing_deps_damaged_mirror(
     tmp_path: Path, damage: Callable[[Path], object]
 ) -> None:
-    """Every file the index references must exist; the manager downloads the
-    archive and checksums with no registry fallback once the version is
-    found locally, and a broken index must count as missing, not covered."""
+    """Every file the index references must exist, and a broken index
+    counts as missing, not covered."""
     mirror = tmp_path / "mirror"
     _add_to_mirror(mirror, _MDNS)
     damage(mirror)
@@ -283,8 +281,7 @@ def test_missing_deps_damaged_mirror(
 
 
 def test_missing_deps_covered_without_checksums_field(tmp_path: Path) -> None:
-    """An index entry from an older payload without a checksums field only
-    needs its archive."""
+    """An older payload without a checksums field only needs its archive."""
     mirror = tmp_path / "mirror"
     _add_to_mirror(mirror, _MDNS)
     index = mirror / "components/espressif/mdns.json"
@@ -314,8 +311,7 @@ def test_publish_index_first_sync(tmp_path: Path) -> None:
 
 
 def test_publish_index_replaces_a_corrupt_live_index(tmp_path: Path) -> None:
-    """An unreadable live index has nothing worth keeping; publishing over
-    it heals the mirror."""
+    """An unreadable live index is replaced wholesale; that is the heal."""
     src = _staged_index(tmp_path, [{"version": "2.0.0"}])
     dst = tmp_path / "live.json"
     dst.write_text("not json")
@@ -324,8 +320,7 @@ def test_publish_index_replaces_a_corrupt_live_index(tmp_path: Path) -> None:
 
 
 def test_publish_index_merges_and_filters(tmp_path: Path) -> None:
-    """Live versions the sync did not fetch survive; non-dict entries on
-    either side are dropped instead of raising."""
+    """Unfetched live versions survive; non-dict entries drop, not raise."""
     src = _staged_index(tmp_path, [{"version": "2.0.0"}, "junk"])
     dst = tmp_path / "live.json"
     dst.write_text(
@@ -562,8 +557,8 @@ def test_sync_lock_oserror_is_a_failure(
 def test_sync_undeletable_staging_is_a_failure(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Stale staged files must never be promoted; an undeletable staging
-    tree aborts the sync instead."""
+    """An undeletable staging tree aborts the sync; stale files must
+    never be promoted."""
     _write_lock(tmp_path)
     with patch.object(component_mirror, "rmtree", side_effect=OSError("stuck staging")):
         ok, mock_run = _run_sync(tmp_path)
@@ -574,8 +569,7 @@ def test_sync_undeletable_staging_is_a_failure(
 
 
 def test_sync_promotes_staged_files_and_merges_the_index(tmp_path: Path) -> None:
-    """New files land atomically and existing versions survive the merge,
-    so a concurrent configure never reads a truncated index."""
+    """New files land atomically and existing versions survive the merge."""
     mirror = component_mirror.get_mirror_path()
     _add_to_mirror(mirror, _NS_CMP_1)
     _write_lock(tmp_path, _ns_cmp_lock("2.0.0"))
@@ -605,8 +599,7 @@ def test_sync_failure_leaves_no_staging_behind(tmp_path: Path) -> None:
 def test_sync_failed_index_publish_keeps_the_live_index(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A publish that fails (e.g. full disk) keeps the live index and its
-    versions; the synced version stays uncovered and a later run retries."""
+    """A failed publish keeps the live index; a later run retries."""
     mirror = component_mirror.get_mirror_path()
     _add_to_mirror(mirror, _NS_CMP_1)
     _write_lock(tmp_path, _ns_cmp_lock("2.0.0"))

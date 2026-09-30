@@ -1,13 +1,12 @@
 """Local mirror of IDF component-registry packages.
 
 The component manager contacts the registry on every cmake configure, even
-with an unchanged ``dependencies.lock``. It checks
-``IDF_COMPONENT_LOCAL_STORAGE_URL`` mirrors first and stops on a hit, so a
-mirror of the pinned components (filled with its own ``registry sync``)
-removes all registry traffic and makes builds work offline. ``registry
-sync`` recurses into transitive version ranges, so a heavy tree can
-exceed the sync timeout and stay registry-served; that is the accepted
-cost of staying on the manager's CLI contract.
+with an unchanged ``dependencies.lock``, but checks
+``IDF_COMPONENT_LOCAL_STORAGE_URL`` mirrors first and stops on a hit.
+Mirroring the pinned components with its own ``registry sync`` removes all
+registry traffic and makes builds work offline. A heavy transitive tree
+can exceed the sync timeout and stay registry-served; accepted cost of
+staying on the manager's CLI contract.
 """
 
 from __future__ import annotations
@@ -65,9 +64,8 @@ def get_mirror_path() -> Path:
 def component_mirror_env() -> dict[str, str]:
     """Environment additions that serve the mirror to the component manager.
 
-    A user-supplied local storage list keeps precedence. The new-version
-    check (an extra solve per configure) is disabled unless the user set
-    it; ESPHome pins exact versions, so its answer is never actionable.
+    A user local storage list keeps precedence; the new-version check (an
+    extra solve whose answer exact pins make moot) is off unless user-set.
     """
     mirror = get_mirror_path()
     try:
@@ -87,8 +85,7 @@ def component_mirror_env() -> dict[str, str]:
 
 def _load_yaml_dict(path: Path) -> dict | None:
     """Read a small YAML mapping; missing file or bad content is None."""
-    # Deferred: keeps pyyaml off the serial upload fast path, which
-    # imports this module through the espidf toolchain.
+    # Deferred: keeps pyyaml off the serial upload fast path.
     import yaml
 
     try:
@@ -122,9 +119,8 @@ def _iter_deps(path: Path) -> Iterator[tuple[str, str, dict]]:
 def parse_lock_service_deps(lock_path: Path) -> list[ServiceDep]:
     """Pinned default-registry dependencies from a dependencies.lock.
 
-    The lock pins every dependency, transitive ones included. Git, local
-    and idf sources cannot be mirrored, and non-default registries (which
-    ESPHome-generated manifests never use) are left to the manager.
+    Git, local and idf sources cannot be mirrored; non-default registries
+    are left to the manager.
     """
     deps: list[ServiceDep] = []
     for namespace, name, entry in _iter_deps(lock_path):
@@ -143,10 +139,8 @@ def parse_lock_service_deps(lock_path: Path) -> list[ServiceDep]:
 def parse_manifest_service_deps(manifest_path: Path) -> list[ServiceDep]:
     """Exactly-pinned registry dependencies from an idf_component.yml.
 
-    The manifest exists before the first configure, so mirroring from it
-    lets a fresh solve install from the mirror instead of downloading
-    twice. Range specs are left to the solver; only an exact version can
-    be checked against the mirror without one.
+    The manifest exists before the first configure, so a fresh solve can
+    install from the mirror; range specs are left to the solver.
     """
     deps: list[ServiceDep] = []
     for namespace, name, entry in _iter_deps(manifest_path):
@@ -164,11 +158,8 @@ def parse_manifest_service_deps(manifest_path: Path) -> list[ServiceDep]:
 
 
 def project_service_deps(lock_path: Path, manifest_path: Path) -> list[ServiceDep]:
-    """The mirrorable dependencies of a build.
-
-    The lock is authoritative; the manifest covers the fresh or
-    just-changed build where the lock has not been written yet.
-    """
+    """The mirrorable dependencies of a build; the lock wins, the manifest
+    covers the build whose lock has not been written yet."""
     deps = parse_lock_service_deps(lock_path)
     seen = {(dep.namespace, dep.name) for dep in deps}
     for dep in parse_manifest_service_deps(manifest_path):
@@ -178,11 +169,10 @@ def project_service_deps(lock_path: Path, manifest_path: Path) -> list[ServiceDe
 
 
 def _mirror_has(mirror: Path, dep: ServiceDep) -> bool:
-    """Whether the mirror holds the dependency's metadata and files.
+    """Whether the mirror holds the dependency's index entry and files.
 
-    The manager downloads both the archive and the checksums file named by
-    the index entry, with no registry fallback once the version is found
-    locally, so coverage must require every referenced file.
+    The manager fetches every file the entry names with no registry
+    fallback once the version is found locally.
     """
     json_path = mirror / "components" / dep.namespace / f"{dep.name}.json"
     try:
@@ -202,11 +192,8 @@ def missing_deps(mirror: Path, deps: list[ServiceDep]) -> list[ServiceDep]:
 
 
 def _read_versions(path: Path) -> list[dict]:
-    """The version entries of an index; [] when missing or unreadable.
-
-    Treating a broken live index as empty is the heal: publishing the
-    merged index over it replaces it wholesale.
-    """
+    """The version entries of an index; [] when missing or unreadable,
+    which lets publishing replace (heal) a broken live index."""
     try:
         entries = json.loads(path.read_text(encoding="utf-8"))["versions"]
     except FileNotFoundError:
@@ -220,10 +207,8 @@ def _read_versions(path: Path) -> list[dict]:
 def _publish_index(src: Path, dst: Path) -> None:
     """Publish the staged index merged with the live one, atomically.
 
-    The staged index lists only the versions this sync fetched; replacing
-    the mirror's file outright would drop the versions it already had.
-    write_file publishes through a sibling tempfile, so a failed write
-    leaves the live index intact and raises to the caller.
+    The staged index lists only the versions this sync fetched; the
+    atomic write keeps the live index intact when it fails, and raises.
     """
     staged = json.loads(src.read_text(encoding="utf-8"))
     versions = [entry for entry in staged["versions"] if isinstance(entry, dict)]
@@ -241,10 +226,10 @@ def _is_component_index(rel: Path) -> bool:
 
 
 def _promote(staging: Path, mirror: Path) -> None:
-    """Move the synced files into the mirror, one atomic rename each.
+    """Move the synced files into the mirror, atomically per file.
 
-    Indexes sort last, so a concurrent configure never reads a version
-    entry whose archive has not landed yet.
+    Indexes go last, so a concurrent configure never reads a version
+    entry whose files have not landed yet.
     """
     files = sorted(
         (path for path in staging.rglob("*") if path.is_file()),
@@ -282,9 +267,8 @@ def sync_component_mirror(
     except (OSError, EsphomeError) as err:
         _LOGGER.warning("Could not mirror IDF components: %s", err)
         return False
-    # Sync into a staging directory: the manager writes files in place, so
-    # a configure in another process could read a truncated file from the
-    # live mirror. Promoting with renames keeps every read consistent.
+    # Staged: the manager writes in place, and a configure in another
+    # process must never read a truncated file from the live mirror.
     staging = mirror / _STAGING_DIR_NAME
     cmd = [python, "-m", "idf_component_manager", "registry", "sync"]
     for dep in to_sync:
@@ -306,15 +290,13 @@ def sync_component_mirror(
         return False
     _LOGGER.info("Mirroring %d IDF component(s) for offline builds...", len(to_sync))
     try:
-        # An undeletable staging tree raises here: promoting stale files
-        # from an earlier attempt would be worse than skipping the sync.
+        # Raises on an undeletable tree; never promote stale files.
         rmtree(staging)
         result = subprocess.run(
             cmd,
             env=env,
             capture_output=True,
-            # Not text=True: the locale codec (e.g. cp1252) can raise
-            # UnicodeDecodeError, which would escape the best-effort handler.
+            # Not text=True: the locale codec can raise UnicodeDecodeError.
             encoding="utf-8",
             errors="replace",
             timeout=_SYNC_TIMEOUT_S,
@@ -330,8 +312,8 @@ def sync_component_mirror(
             return False
         _promote(staging, mirror)
         if still := missing_deps(mirror, to_sync):
-            # A partial ref or a key the registry spells differently can
-            # sync clean yet cover nothing; retrying would loop forever.
+            # A name the registry spells differently syncs clean yet
+            # covers nothing; retrying would loop forever.
             _LOGGER.warning(
                 "Mirror sync left %d component(s) uncovered: %s",
                 len(still),
@@ -339,8 +321,7 @@ def sync_component_mirror(
             )
             return False
     except (*_BAD_INDEX_ERRORS, EsphomeError, subprocess.SubprocessError) as err:
-        # Includes a failed index publish: write_file is atomic, so the
-        # live index is intact and a later run retries the sync.
+        # Includes a failed index publish; the live index is intact.
         _LOGGER.warning("Could not mirror IDF components: %s", err)
         return False
     finally:
