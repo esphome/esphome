@@ -284,6 +284,11 @@ def validate_switch_esp32(config: ConfigType) -> ConfigType:
         if config.get(CONF_DEVICE_CLASS) == DEVICE_CLASS_OUTLET:
             ep[DEVICE_TYPE] = "MAINS_POWER_OUTLET"
     else:
+        if config.get(CONF_DEVICE_CLASS) == DEVICE_CLASS_OUTLET:
+            _LOGGER.warning(
+                "'device_class: outlet' has no effect with 'cluster: generic', "
+                "use 'cluster: on_off' to expose a MAINS_POWER_OUTLET device type"
+            )
         ep = copy.deepcopy(BINARY_OUTPUT_EP)
     setup_attributes(config, ep[CONF_CLUSTERS])
     add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))

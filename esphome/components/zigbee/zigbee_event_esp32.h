@@ -17,8 +17,8 @@ class ZBEvent {
   // is only valid during the callback execution. Since ZB events are processed
   // asynchronously in the main loop, we store our own copy inline to ensure
   // the data remains valid until the event is processed.
-  ZBEvent(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute) {
-    this->callback_id_ = EZB_ZCL_CORE_SET_ATTR_VALUE_CB_ID;
+  ZBEvent(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute)
+      : event_{}, callback_id_(EZB_ZCL_CORE_SET_ATTR_VALUE_CB_ID) {
     this->init_set_attr_value_data_(info, attribute);
   }
 
