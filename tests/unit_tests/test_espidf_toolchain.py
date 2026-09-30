@@ -1118,14 +1118,18 @@ def test_skip_bootloader_requires_flag_and_matching_macro(
 
     assert toolchain._skip_bootloader() is False
     CORE.skip_bootloader = True
-    with patch.object(build_gen, "idf_macro_matches", return_value=True):
+    with (
+        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
+        patch.object(build_gen, "idf_macro_matches", return_value=True),
+    ):
         assert toolchain._skip_bootloader() is True
     with (
+        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
         patch.object(build_gen, "idf_macro_matches", return_value=False),
-        caplog.at_level("INFO"),
+        caplog.at_level("WARNING"),
     ):
         assert toolchain._skip_bootloader() is False
-    assert "IDF changed its bootloader macro" in caplog.text
+    assert "--skip-bootloader ignored" in caplog.text
 
 
 def test_configure_defines_follow_skip_bootloader(setup_core: Path) -> None:
@@ -1154,57 +1158,56 @@ def test_tree_skips_bootloader_reads_the_define(tmp_path: Path) -> None:
     assert toolchain.tree_skips_bootloader(build) is False
 
 
-def test_create_factory_bin_skip_mode_removes_the_stale_image(
+def test_create_factory_bin_skip_mode_creates_nothing(
     setup_core: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A leftover factory image would be served by dashboard downloads."""
+    """The flip into skip mode already cleaned up; the merge just no-ops."""
     _setup_build(setup_core)
     build = CORE.relative_build_path("build")
     build.mkdir(parents=True)
     (build / "CMakeCache.txt").write_text(
         f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
     )
-    stale = toolchain.get_factory_firmware_path()
-    stale.parent.mkdir(parents=True, exist_ok=True)
-    stale.write_bytes(b"old")
-    (build / "bootloader").mkdir()
-    (build / "bootloader" / "bootloader.bin").write_bytes(b"old")
-    (build / "bootloader-prefix").mkdir()
     with (
         patch.object(toolchain.subprocess, "run") as mock_run,
         caplog.at_level("INFO"),
     ):
         assert toolchain.create_factory_bin() is True
     mock_run.assert_not_called()
-    assert not stale.exists()
-    # The full-mode sub-build goes too: its bootloader is stale, and a
-    # partial cleanup would break the flip back to full mode.
+    assert "no factory image" in caplog.text
+
+
+def test_run_reconfigure_flip_into_skip_mode_cleans_up(setup_core: Path) -> None:
+    """Full-mode leftovers are stale for OTA --bootloader and downloads, and
+    a partial cleanup would poison the flip back to full mode."""
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    (build / "bootloader").mkdir(parents=True)
+    (build / "bootloader" / "bootloader.bin").write_bytes(b"old")
+    (build / "bootloader-prefix").mkdir()
+    stale = toolchain.get_factory_firmware_path()
+    stale.parent.mkdir(parents=True, exist_ok=True)
+    stale.write_bytes(b"old")
+    with (
+        patch.object(toolchain, "_skip_bootloader", return_value=True),
+        patch.object(toolchain, "_get_idf_tool", side_effect=lambda n: f"/tools/{n}"),
+        patch.object(toolchain, "_tool_env", return_value={}),
+        patch.object(toolchain, "run_build_tool", return_value=0),
+        patch.object(toolchain, "_idf_py") as mock_idf_py,
+    ):
+        mock_idf_py.return_value.binary_dir_arg = False
+        assert toolchain.run_reconfigure() == 0
     assert not (build / "bootloader").exists()
     assert not (build / "bootloader-prefix").exists()
-    assert "not creating a factory image" in caplog.text
+    assert not stale.exists()
 
 
-def test_idf_target_from_variant(setup_core: Path) -> None:
-    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32C6"}
-    assert toolchain._idf_target() == "esp32c6"
-
-
-def test_parse_sdkconfig(tmp_path: Path) -> None:
-    from esphome.espidf import parse_sdkconfig
-
-    path = tmp_path / "sdkconfig"
-    path.write_text(
-        "# comment\n"
-        "# CONFIG_DISABLED is not set\n"
-        "CONFIG_INT=240\n"
-        'CONFIG_STR="key.pem"\n'
-        'CONFIG_EMPTY=""\n'
-        "CONFIG_BOOL=y\n"
-        "not_config=1\n"
+def test_missing_image_hint_names_the_flag(setup_core: Path) -> None:
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    assert toolchain.missing_image_hint() is None  # stock tree
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
     )
-    assert parse_sdkconfig(path) == {
-        "CONFIG_INT": "240",
-        "CONFIG_STR": "key.pem",
-        "CONFIG_EMPTY": "",
-        "CONFIG_BOOL": "y",
-    }
+    assert "--skip-bootloader" in toolchain.missing_image_hint()

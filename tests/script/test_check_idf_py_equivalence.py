@@ -34,10 +34,10 @@ def _make_tree(tmp_path: Path, skip_bootloader: bool = False) -> Path:
     (define set to 1, no bootloader bin, no sub-build)."""
     tree = tmp_path / "config" / ".esphome" / "build" / "dev"
     build = tree / "build"
-    logs = (guard.TOP_NINJA_LOG,) if skip_bootloader else ALL_LOGS
-    files = [*guard.WATCHED, "build/dev.elf", "build/dev.bin", *logs]
-    if not skip_bootloader:
-        files.append(guard.BOOTLOADER_BIN)
+    files = [
+        *guard.watched("dev", skip_bootloader),
+        *guard._ninja_logs(skip_bootloader),
+    ]
     for name in files:
         (tree / name).parent.mkdir(parents=True, exist_ok=True)
         (tree / name).write_bytes(b"x")
@@ -66,19 +66,6 @@ def _make_tree(tmp_path: Path, skip_bootloader: bool = False) -> Path:
     return tree
 
 
-def _rebuilding_ninja(tree: Path, rc: int) -> Callable[..., int]:
-    """A ninja stand-in that recreates the bin the parity check deleted."""
-
-    def run(target: str, **kwargs: object) -> int:
-        bin_path = tree / "build" / "bootloader" / "bootloader.bin"
-        if not bin_path.exists():
-            bin_path.parent.mkdir(parents=True, exist_ok=True)
-            bin_path.write_bytes(b"x")
-        return rc
-
-    return run
-
-
 def _run_check(
     tree: Path,
     side_effect: Callable[[list[str]], None] = lambda cmd: None,
@@ -99,9 +86,7 @@ def _run_check(
         patch.object(toolchain, "_get_idf_tool", return_value="/py"),
         patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
         patch.object(toolchain, "run_reconfigure", return_value=esphome_rcs[0]),
-        patch.object(
-            toolchain, "_run_ninja", side_effect=_rebuilding_ninja(tree, esphome_rcs[1])
-        ),
+        patch.object(toolchain, "_run_ninja", return_value=esphome_rcs[1]),
         patch.object(build_gen, "idf_macro_matches", return_value=macro_matches),
         patch.object(guard.subprocess, "run", side_effect=run),
     ):

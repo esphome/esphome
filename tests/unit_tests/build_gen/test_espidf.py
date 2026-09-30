@@ -684,20 +684,14 @@ def test_normalized_macro_none_without_macro() -> None:
 def test_idf_macro_matches_the_shipped_body(tmp_path: Path) -> None:
     """The override's embedded copy must equal what build.cmake ships."""
     from esphome.build_gen.espidf import idf_macro_matches
-    from esphome.espidf import toolchain
 
-    idf = _write_idf_build_cmake(tmp_path)
-    with patch.object(toolchain, "_get_idf_path", return_value=idf):
-        assert idf_macro_matches() is True
+    assert idf_macro_matches(_write_idf_build_cmake(tmp_path)) is True
 
 
 def test_idf_macro_mismatch_detected(tmp_path: Path) -> None:
     from esphome.build_gen.espidf import idf_macro_matches
-    from esphome.espidf import toolchain
 
     changed = IDF_BUILD_CMAKE.replace(
         "include(${sdkconfig_cmake})", "include(${sdkconfig_cmake} NEW_ARG)"
     )
-    idf = _write_idf_build_cmake(tmp_path, changed)
-    with patch.object(toolchain, "_get_idf_path", return_value=idf):
-        assert idf_macro_matches() is False
+    assert idf_macro_matches(_write_idf_build_cmake(tmp_path, changed)) is False

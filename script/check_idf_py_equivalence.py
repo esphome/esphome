@@ -37,13 +37,10 @@ BOOTLOADER_BIN = "build/bootloader/bootloader.bin"
 TOP_NINJA_LOG = "build/.ninja_log"
 
 
-def _ninja_logs(build_path: Path) -> list[str]:
-    """The mode comes from the configured tree, so a missing sub-build log
-    stays an error in the mode that requires one."""
-    from esphome.espidf import toolchain
-
+def _ninja_logs(skip_bootloader: bool) -> list[str]:
+    """A missing sub-build log stays an error in the mode that requires one."""
     logs = [TOP_NINJA_LOG]
-    if not toolchain.tree_skips_bootloader(build_path / "build"):
+    if not skip_bootloader:
         logs.append("build/bootloader/.ninja_log")
     return logs
 
@@ -61,18 +58,18 @@ def _digest(path: Path) -> str | None:
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
 
 
-def watched(build_path: Path, name: str) -> list[str]:
+def watched(name: str, skip_bootloader: bool) -> list[str]:
     """The files idf.py must leave untouched for this tree's mode."""
-    from esphome.espidf import toolchain
-
     files = [*WATCHED, f"build/{name}.elf", f"build/{name}.bin"]
-    if not toolchain.tree_skips_bootloader(build_path / "build"):
+    if not skip_bootloader:
         files.append(BOOTLOADER_BIN)
     return files
 
 
-def _snapshot(build_path: Path, name: str) -> dict[str, str | None]:
-    return {f: _digest(build_path / f) for f in watched(build_path, name)}
+def _snapshot(
+    build_path: Path, name: str, skip_bootloader: bool
+) -> dict[str, str | None]:
+    return {f: _digest(build_path / f) for f in watched(name, skip_bootloader)}
 
 
 def _ninja_mtimes(build_path: Path, logs: list[str]) -> dict[tuple[str, str], str]:
@@ -133,8 +130,9 @@ def check(build_path: Path) -> list[str]:
     name, version = _setup_core(build_path, description)
     # Reconfiguring must not flip the tree's bootloader mode: the check
     # validates the shape the build produced, not this process's flags.
-    CORE.skip_bootloader = toolchain.tree_skips_bootloader(build_path / "build")
-    if not idf_macro_matches():
+    skip_bootloader = toolchain.tree_skips_bootloader(build_path / "build")
+    CORE.skip_bootloader = skip_bootloader
+    if not idf_macro_matches(toolchain._get_idf_path(version)):
         return [MACRO_CHANGED]
     env = toolchain._get_idf_env(version)
     python = toolchain._get_idf_tool("python")
@@ -148,8 +146,8 @@ def check(build_path: Path) -> list[str]:
         return [f"ESPHome's CMake configure failed with exit code {rc}"]
     if (rc := toolchain._run_ninja("all", verbose=False, jobs=None)) != 0:
         return [f"ESPHome's ninja build failed with exit code {rc}"]
-    before = _snapshot(build_path, name)
-    logs = _ninja_logs(build_path)
+    before = _snapshot(build_path, name, skip_bootloader)
+    logs = _ninja_logs(skip_bootloader)
     mtimes_before = _ninja_mtimes(build_path, logs)
     # A moved or renamed output would otherwise compare as "unchanged".
     problems = [f"missing {f}" for f, digest in before.items() if digest is None]
@@ -166,7 +164,7 @@ def check(build_path: Path) -> list[str]:
         )
         if result.returncode != 0:
             return [f"idf.py {action} failed:\n{result.stdout}{result.stderr}"]
-    after = _snapshot(build_path, name)
+    after = _snapshot(build_path, name, skip_bootloader)
     mtimes_after = _ninja_mtimes(build_path, logs)
     problems = [f"idf.py changed {f}" for f in before if before[f] != after[f]]
     problems += _log_problems(build_path, mtimes_after, logs)

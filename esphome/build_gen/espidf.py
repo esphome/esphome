@@ -84,7 +84,7 @@ def _cmake_quote(value: str) -> str:
 # CONFIG_APP_BUILD_BOOTLOADER is hidden and force-selected, so it can only be
 # cleared at the CMake level (the same state IDF's RAM-app build type uses).
 # The macro is IDF's __build_process_project_includes plus two added lines;
-# esphome.espidf.toolchain builds it in-tree if an IDF update changes it.
+# the flag is ignored and the bootloader builds as usual if IDF changes it.
 IDF_BOOTLOADER_OVERRIDE = """\
 # ESPHome bootloader skip switch; see esphome/espidf/toolchain.py.
 if(ESPHOME_SKIP_BOOTLOADER)
@@ -146,12 +146,9 @@ _EXPECTED_MACRO = [
 ]
 
 
-def idf_macro_matches() -> bool:
+def idf_macro_matches(idf_path: Path) -> bool:
     """Whether IDF's macro still matches the copy the override replays."""
-    from esphome.espidf import toolchain
-
-    # pylint: disable-next=protected-access
-    build_cmake = toolchain._get_idf_path() / "tools" / "cmake" / "build.cmake"
+    build_cmake = idf_path / "tools" / "cmake" / "build.cmake"
     live = _normalized_macro(build_cmake.read_text(encoding="utf-8"))
     return live == _EXPECTED_MACRO
 

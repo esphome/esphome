@@ -828,6 +828,11 @@ def write_cpp_file() -> int:
 
 
 def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
+    if CORE.skip_bootloader and not (CORE.is_esp32 and CORE.using_toolchain_esp_idf):
+        _LOGGER.error(
+            "--skip-bootloader is only supported on ESP32 with the esp-idf toolchain"
+        )
+        return 1
     # Keep this gate here, NOT in config validation: device-builder needs
     # `esphome config` to keep succeeding with placeholders so onboarding can run.
     if CONF_WIFI in config:
@@ -923,11 +928,14 @@ def _check_and_emit_build_info() -> None:
 
 def _get_configured_xtal_freq() -> int | None:
     """Read the configured crystal frequency from the sdkconfig file."""
-    from esphome.espidf import parse_sdkconfig
-
     sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
-    with suppress(OSError, ValueError, KeyError):
-        return int(parse_sdkconfig(sdkconfig_path)["CONFIG_XTAL_FREQ"])
+    if not sdkconfig_path.is_file():
+        return None
+    with suppress(OSError, ValueError):
+        content = sdkconfig_path.read_text()
+        for line in content.splitlines():
+            if line.startswith("CONFIG_XTAL_FREQ="):
+                return int(line.split("=", 1)[1])
     return None
 
 
@@ -959,18 +967,6 @@ def _make_crystal_freq_callback(
     return check_crystal_line
 
 
-def _tree_skips_bootloader() -> bool:
-    """Whether the configured tree was built with --skip-bootloader."""
-    try:
-        if not (CORE.is_esp32 and CORE.using_toolchain_esp_idf):
-            return False
-        from esphome.espidf import toolchain
-
-        return toolchain.tree_skips_bootloader(CORE.relative_build_path("build"))
-    except Exception:  # noqa: BLE001  a hint must never mask the real error
-        return False
-
-
 def upload_using_esptool(
     config: ConfigType, port: str, file: str, speed: int
 ) -> str | int:
@@ -985,13 +981,9 @@ def upload_using_esptool(
         # and partitions included where the target needs them)
         image = native.get_factory_firmware_path()
         if not image.is_file():
-            if _tree_skips_bootloader():
-                raise EsphomeError(
-                    "This build was compiled with --skip-bootloader; "
-                    "recompile without it to flash over serial"
-                )
+            hint = getattr(native, "missing_image_hint", lambda: None)()
             raise EsphomeError(
-                f"{image} does not exist; compile the configuration first"
+                hint or f"{image} does not exist; compile the configuration first"
             )
         flash_images = [FlashImage(path=image, offset="0x0")]
     else:
@@ -1394,6 +1386,12 @@ def _upload_via_native_api(
         ota_type = espota2.OTA_TYPE_UPDATE_PARTITION_TABLE
     elif getattr(args, "bootloader", False):
         check_partition_access("--bootloader")
+        if (
+            getattr(args, "file", None) is None
+            and (native := native_backend())
+            and (hint := getattr(native, "missing_image_hint", lambda: None)())
+        ):
+            raise EsphomeError(hint)
         binary = CORE.bootloader_bin
         ota_type = espota2.OTA_TYPE_UPDATE_BOOTLOADER
     if getattr(args, "file", None) is not None:
@@ -1505,11 +1503,6 @@ def _validate_bootloader_binary(binary: Path) -> None:
     try:
         data = binary.read_bytes()
     except OSError as err:
-        if _tree_skips_bootloader():
-            raise EsphomeError(
-                "This build was compiled with --skip-bootloader; "
-                "recompile without it to update the bootloader"
-            ) from err
         raise EsphomeError(f"Cannot read bootloader file '{binary}': {err}") from err
 
     if not data:
@@ -1774,6 +1767,12 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
+    if CORE.skip_bootloader and any(
+        device.startswith(("/dev/", "COM")) for device in (args.device or [])
+    ):
+        # Fail before the compile: the result could never flash over serial.
+        _LOGGER.error("--skip-bootloader builds cannot be flashed over serial")
+        return 1
     exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
@@ -2159,6 +2158,15 @@ SIMPLE_CONFIG_ACTIONS = [
 ]
 
 
+def _add_skip_bootloader_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--skip-bootloader",
+        help="Do not build the bootloader or the factory image; "
+        "the result can only be flashed over OTA.",
+        action="store_true",
+    )
+
+
 def _add_states_args(parser: argparse.ArgumentParser) -> None:
     """Add mutually exclusive ``--states``/``--no-states`` flags to a parser.
 
@@ -2300,12 +2308,7 @@ def parse_args(argv):
         help="Only generate source code, do not compile.",
         action="store_true",
     )
-    parser_compile.add_argument(
-        "--skip-bootloader",
-        help="Do not build the bootloader or the factory image; "
-        "the result can only be flashed over OTA.",
-        action="store_true",
-    )
+    _add_skip_bootloader_arg(parser_compile)
 
     parser_upload = subparsers.add_parser(
         "upload",
@@ -2402,12 +2405,7 @@ def parse_args(argv):
     parser_run.add_argument(
         "--no-logs", help="Disable starting logs.", action="store_true"
     )
-    parser_run.add_argument(
-        "--skip-bootloader",
-        help="Do not build the bootloader or the factory image; "
-        "the result can only be flashed over OTA.",
-        action="store_true",
-    )
+    _add_skip_bootloader_arg(parser_run)
 
     _add_states_args(parser_run)
 

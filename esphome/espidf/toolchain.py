@@ -250,10 +250,6 @@ def _build_dir() -> Path:
     return Path(os.path.realpath(CORE.build_path)) / "build"
 
 
-def _idf_target() -> str:
-    return variant_to_idf_target(CORE.data[KEY_ESP32][KEY_VARIANT])
-
-
 def _cache_entries() -> dict[str, str]:
     """The ``-D`` entries idf.py passes to cmake, in idf.py's order."""
     entries = {}
@@ -290,11 +286,14 @@ def _cache_entries_changed() -> bool:
 
 
 def tree_skips_bootloader(build_dir: Path) -> bool:
-    """Whether a configured tree was set up to skip the bootloader build."""
-    cmakecache = build_dir / "CMakeCache.txt"
-    if not cmakecache.is_file():
+    """Whether a configured tree was set up to skip the bootloader build.
+
+    Total: an unreadable tree reads as the stock full build.
+    """
+    try:
+        cache = _parse_cmakecache(build_dir / "CMakeCache.txt")
+    except (OSError, ValueError):
         return False
-    cache = _parse_cmakecache(cmakecache)
     return cache.get(SKIP_BOOTLOADER_DEFINE) == "1"
 
 
@@ -304,10 +303,20 @@ def _skip_bootloader() -> bool:
         return False
     from esphome.build_gen.espidf import idf_macro_matches
 
-    if not idf_macro_matches():
-        _LOGGER.info("IDF changed its bootloader macro; building the bootloader")
+    if not idf_macro_matches(_get_idf_path()):
+        _LOGGER.warning(
+            "--skip-bootloader ignored: IDF changed its bootloader macro; "
+            "building the bootloader"
+        )
         return False
     return True
+
+
+def missing_image_hint() -> str | None:
+    """Why an expected flash image is absent, for upload error messages."""
+    if tree_skips_bootloader(_build_dir()):
+        return "this build was compiled with --skip-bootloader; recompile without it"
+    return None
 
 
 def _configure_defines() -> dict[str, str]:
@@ -340,6 +349,14 @@ def run_reconfigure(verbose: bool = False) -> int:
     """Run the CMake configure, with the arguments idf.py uses."""
     build_dir = _build_dir()
     build_dir.mkdir(parents=True, exist_ok=True)
+    if _skip_bootloader() and not tree_skips_bootloader(build_dir):
+        # Flipping into skip mode: full-mode leftovers are stale for
+        # OTA --bootloader and downloads, and a partial cleanup would
+        # poison the flip back (deleted byproducts never regenerate).
+        for stale in ("bootloader", "bootloader-prefix"):
+            if (path := build_dir / stale).is_dir():
+                rmtree(path)
+        get_factory_firmware_path().unlink(missing_ok=True)
     cmd = [_get_idf_tool("cmake"), "-G", "Ninja"]
     if _idf_py().binary_dir_arg:
         cmd += ["-B", str(build_dir)]
@@ -464,7 +481,7 @@ def _builtin_component_cache_path() -> Path | None:
     """
     if "IDF_PATH" in os.environ:
         return None
-    target = _idf_target()
+    target = variant_to_idf_target(CORE.data[KEY_ESP32][KEY_VARIANT])
     excluded = CORE.cmake_args.get("EXCLUDE_COMPONENTS", "")
     excluded_key = hashlib.sha256(excluded.encode()).hexdigest()[:12]
     return (
@@ -828,16 +845,9 @@ def create_factory_bin() -> bool:
     """Create factory.bin by merging bootloader, partition table, and app."""
     build_dir = CORE.relative_build_path("build")
     if tree_skips_bootloader(build_dir):
-        # No bootloader was built, so a merged image could not boot; a stale
-        # factory image must not linger for dashboard downloads either.
-        get_factory_firmware_path().unlink(missing_ok=True)
-        for stale in (build_dir / "bootloader", build_dir / "bootloader-prefix"):
-            # A leftover full-mode sub-build: its bootloader is stale for
-            # OTA --bootloader, and a partial cleanup would poison the flip
-            # back to full mode (deleted byproducts are never regenerated).
-            if stale.is_dir():
-                rmtree(stale)
-        _LOGGER.info("Bootloader skipped; not creating a factory image")
+        # Nothing to merge, and nothing stale: the flip into skip mode
+        # already removed the factory image and the sub-build.
+        _LOGGER.info("Bootloader skipped; no factory image")
         return True
     flasher_args_path = build_dir / "flasher_args.json"
 

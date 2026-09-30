@@ -1548,6 +1548,7 @@ class MockArgs:
     partition_table: bool = False
     bootloader: bool = False
     states: bool | None = None
+    device: list[str] | None = None
 
 
 def test_upload_program_serial_esp32(
@@ -2536,15 +2537,6 @@ def test_validate_bootloader_binary_rejects_wrong_magic(tmp_path: Path) -> None:
 
 def test_validate_bootloader_binary_missing_file(tmp_path: Path) -> None:
     with pytest.raises(EsphomeError, match="Cannot read bootloader file"):
-        _validate_bootloader_binary(tmp_path / "does-not-exist.bin")
-
-
-def test_validate_bootloader_binary_missing_file_skip_tree(tmp_path: Path) -> None:
-    """A skip-bootloader tree points at the flag, not at a vague read error."""
-    with (
-        patch("esphome.__main__._tree_skips_bootloader", return_value=True),
-        pytest.raises(EsphomeError, match="compiled with --skip-bootloader"),
-    ):
         _validate_bootloader_binary(tmp_path / "does-not-exist.bin")
 
 
@@ -6848,6 +6840,50 @@ def test_upload_using_esptool_skip_bootloader_tree_names_the_flag(
     config = {CONF_ESPHOME: {"platformio_options": {}}}
     with pytest.raises(EsphomeError, match="compiled with --skip-bootloader"):
         upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+
+def test_command_run_rejects_serial_device_with_skip_bootloader(
+    tmp_path: Path,
+) -> None:
+    """The compile could never be flashed over serial; fail before it runs."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.skip_bootloader = True
+    args = MockArgs(device=["/dev/ttyUSB0"])
+    with patch("esphome.__main__.write_cpp") as mock_write:
+        assert command_run(args, {}) == 1
+    mock_write.assert_not_called()
+
+
+def test_upload_program_ota_bootloader_skip_tree_names_the_flag(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """OTA --bootloader on a skip tree errors before picking the binary."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32"}
+    CORE.toolchain = Toolchain.ESP_IDF
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    from esphome.espidf import toolchain as espidf_toolchain
+
+    (build / "CMakeCache.txt").write_text(
+        f"{espidf_toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
+    )
+    mock_get_port_type.return_value = "NETWORK"
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(bootloader=True)
+    with pytest.raises(EsphomeError, match="compiled with --skip-bootloader"):
+        upload_program(config, args, ["192.168.1.100"])
+    mock_run_ota.assert_not_called()
 
 
 @pytest.mark.parametrize(
