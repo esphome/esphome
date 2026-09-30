@@ -132,6 +132,8 @@ def check(build_path: Path) -> list[str]:
     # validates the shape the build produced, not this process's flags.
     skip_bootloader = toolchain.tree_skips_bootloader(build_path / "build")
     CORE.skip_bootloader = skip_bootloader
+    # A prior tree's memoized decision must not leak into this one.
+    toolchain._cache().skip_bootloader = None
     if not idf_macro_matches(toolchain._get_idf_path(version)):
         return [MACRO_CHANGED]
     env = toolchain._get_idf_env(version)

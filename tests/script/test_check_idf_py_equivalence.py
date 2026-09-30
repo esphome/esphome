@@ -221,6 +221,16 @@ def test_main_rejects_a_path_that_is_not_a_tree(
     mock_check.assert_not_called()
 
 
+def test_check_resets_the_skip_memo_per_tree(tmp_path: Path) -> None:
+    """A second tree must not inherit the first tree's memoized mode."""
+    tree = _make_tree(tmp_path)
+    CORE.skip_bootloader = True
+    toolchain._cache().skip_bootloader = True  # leftover from a prior tree
+    problems, _ = _run_check(tree)
+    assert problems == []
+    assert toolchain._skip_bootloader() is False
+
+
 def test_check_accepts_a_skip_bootloader_tree(tmp_path: Path) -> None:
     """No bootloader bin or sub-build is the skip shape, not missing input."""
     tree = _make_tree(tmp_path, skip_bootloader=True)
