@@ -2,8 +2,8 @@
 even if it reaches _fire_on_add() before finish_list_triggers() has built that
 list's Trigger Pvariable.
 
-ListType.to_code() only records on_add/on_remove configs (via
-_get_list_triggers()) - finish_list_triggers() is what actually builds the
+ListType.on_create() only records on_add/on_remove configs (via
+_declare_list_triggers()) - finish_list_triggers() is what actually builds the
 Trigger Pvariables from them. An lvgl.list.add action for a list can be
 scheduled as part of a different component's own to_code() coroutine, entirely
 independent of lvgl's own, so it can reach _fire_on_add() before
