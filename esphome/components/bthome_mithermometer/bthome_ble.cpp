@@ -1,10 +1,12 @@
 #include "bthome_ble.h"
 
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
 #include <array>
+#include <cinttypes>
 #include <cstring>
 #include <span>
 
@@ -31,6 +33,9 @@ static constexpr size_t BTHOME_BINDKEY_SIZE = 16;
 static constexpr size_t BTHOME_NONCE_SIZE = 13;
 static constexpr size_t BTHOME_MIC_SIZE = 4;
 static constexpr size_t BTHOME_COUNTER_SIZE = 4;
+// If no frame with a higher counter has been accepted for this long, a lower
+// counter is accepted again (the sensor rebooted, e.g. after a battery swap).
+static constexpr uint32_t BTHOME_REPLAY_RESYNC_MS = 10 * 60 * 1000;
 
 // Both callers are log macros (LOGCONFIG / LOGVV); below CONFIG level they
 // compile away and an ungated helper trips -Wunused-function.
@@ -253,6 +258,33 @@ bool BTHomeMiThermometer::decrypt_bthome_payload_(const std::vector<uint8_t> &da
   return true;
 }
 
+// The counter of encrypted BTHome frames must increase with every new
+// transmission. The same counter is a repeat of the same advertisement and is
+// dropped silently; a lower counter is an old frame sent again by someone else
+// (replay) and is rejected, unless no frame was accepted for
+// BTHOME_REPLAY_RESYNC_MS. The last counter is kept in RAM only, so the first
+// frame after a reboot of the ESP is always accepted.
+bool BTHomeMiThermometer::check_replay_counter_(uint32_t counter) {
+  const uint32_t now = millis();
+  if (this->last_counter_.has_value()) {
+    if (counter == *this->last_counter_) {
+      ESP_LOGVV(TAG, "Duplicate BTHome frame (counter %" PRIu32 ")", counter);
+      return false;
+    }
+    if (counter < *this->last_counter_) {
+      if (now - this->last_accepted_ms_ < BTHOME_REPLAY_RESYNC_MS) {
+        ESP_LOGW(TAG, "BTHome frame rejected: counter %" PRIu32 " lower than last %" PRIu32 " (replay?)", counter,
+                 *this->last_counter_);
+        return false;
+      }
+      ESP_LOGW(TAG, "BTHome counter restarted (%" PRIu32 " -> %" PRIu32 "), resync", *this->last_counter_, counter);
+    }
+  }
+  this->last_counter_ = counter;
+  this->last_accepted_ms_ = now;
+  return true;
+}
+
 bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceData &service_data,
                                                const ble_device_base::ESPBTDevice &device) {
   if (!service_data.uuid.contains(0xD2, 0xFC)) {
@@ -311,6 +343,13 @@ bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceDat
     if (!this->decrypt_bthome_payload_(data, source_address, decrypted_payload)) {
       char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       ESP_LOGVV(TAG, "Failed to decrypt BTHome frame from %s", device.address_str_to(addr_buf));
+      return false;
+    }
+    // Only checked after the MIC has authenticated the frame. The counter is
+    // little-endian and sits right before the MIC.
+    const size_t ctr = data.size() - BTHOME_COUNTER_SIZE - BTHOME_MIC_SIZE;
+    const uint32_t counter = encode_uint32(data[ctr + 3], data[ctr + 2], data[ctr + 1], data[ctr]);
+    if (!this->check_replay_counter_(counter)) {
       return false;
     }
     payload = decrypted_payload.data();

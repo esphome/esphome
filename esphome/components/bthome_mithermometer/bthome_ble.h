@@ -32,9 +32,12 @@ class BTHomeMiThermometer final : public ble_device_base::ESPBTDeviceListener, p
                             const ble_device_base::ESPBTDevice &device);
   bool decrypt_bthome_payload_(const std::vector<uint8_t> &data, uint64_t source_address,
                                std::vector<uint8_t> &payload) const;
+  bool check_replay_counter_(uint32_t counter);
 
   uint64_t address_{0};
   optional<uint8_t> last_packet_id_{};
+  optional<uint32_t> last_counter_{};
+  uint32_t last_accepted_ms_{0};
   bool has_bindkey_{false};
   uint8_t bindkey_[16];
 
