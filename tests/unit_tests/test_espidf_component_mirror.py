@@ -310,11 +310,14 @@ def test_publish_index_first_sync(tmp_path: Path) -> None:
     assert json.loads(dst.read_text()) == {"versions": [{"version": "2.0.0"}]}
 
 
-def test_publish_index_replaces_a_corrupt_live_index(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "live", ["not json", '{"versions": null}', '{"versions": {"a": 1}}']
+)
+def test_publish_index_replaces_a_corrupt_live_index(tmp_path: Path, live: str) -> None:
     """An unreadable live index is replaced wholesale; that is the heal."""
     src = _staged_index(tmp_path, [{"version": "2.0.0"}])
     dst = tmp_path / "live.json"
-    dst.write_text("not json")
+    dst.write_text(live)
     component_mirror._publish_index(src, dst)
     assert json.loads(dst.read_text()) == {"versions": [{"version": "2.0.0"}]}
 

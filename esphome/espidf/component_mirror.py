@@ -196,12 +196,12 @@ def _read_versions(path: Path) -> list[dict]:
     which lets publishing replace (heal) a broken live index."""
     try:
         entries = json.loads(path.read_text(encoding="utf-8"))["versions"]
+        return [entry for entry in entries if isinstance(entry, dict)]
     except FileNotFoundError:
         return []
     except _BAD_INDEX_ERRORS as err:
         _LOGGER.debug("Ignoring the unreadable index %s: %s", path, err)
         return []
-    return [entry for entry in entries if isinstance(entry, dict)]
 
 
 def _publish_index(src: Path, dst: Path) -> None:
