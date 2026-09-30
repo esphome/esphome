@@ -81,7 +81,9 @@ def _fake_cxx(tmp_path: Path, fail: bool = False) -> Path:
         'case "$1" in -print-prog-name=*) n=${1#*=};'
         ' p="$(dirname "$0")/../libexec/gcc/arm-none-eabi/10.3.1/$n";'
         ' [ -x "$p" ] && echo "$p" || echo "$n"; exit 0;;'
-        ' -dumpversion) echo "${FAKE_GCC_VERSION:-10.3.1}"; exit 0;; esac\n'
+        ' -dumpversion) echo "${FAKE_GCC_VERSION:-10.3.1}"; exit 0;;'
+        ' --version) echo "${FAKE_GCC_BANNER:-fake-g++ (test) ${FAKE_GCC_VERSION:-10.3.1}}";'
+        " exit 0;; esac\n"
         'printf -- ---call---\\\\n >> "$0.argv"; printf \'%s\\n\' "$@" >> "$0.argv"\n'
     )
     if fail:
@@ -239,7 +241,8 @@ def test_pch_script_gcc10_skipped_elsewhere(
         ("linux", "aarch64", _LibreTinyPlatform, "10.3.1"),
         # From GCC 12 the .gch loads at any address, so the rule retires itself
         ("darwin", "arm64", _LibreTinyPlatform, "12.2.0"),
-        ("win32", "AMD64", _LibreTinyPlatform, "14.2.0"),
+        # Windows needs the fix for GCC bug 14940 as well
+        ("win32", "AMD64", _LibreTinyPlatform, "14.4.0"),
     ],
 )
 def test_pch_script_no_wrapper_where_the_gch_loads(
@@ -272,6 +275,54 @@ def test_pch_script_names_match_the_python_side(tmp_path: Path) -> None:
     assert namespace["_GUARD_TEXT"] == pch.PCH_GUARD_TEXT
     assert namespace["_INCLUDE_RE"].pattern == pch._INCLUDE_RE.pattern
     assert namespace["_CC1_DIR"] == pch.PCH_CC1_DIR
+    assert namespace["_WINDOWS_GCC_FIXED"] == pch.PCH_WINDOWS_GCC_FIXED
+    assert namespace["_WINDOWS_GCC_FIXED_DEFAULT"] == pch.PCH_WINDOWS_GCC_FIXED_DEFAULT
+
+
+@pytest.mark.parametrize(
+    ("version", "env_vars", "on"),
+    [
+        ("14.2.0", {}, False),
+        ("14.4.0", {}, True),
+        ("14.2.0", {"ESPHOME_PCH_ENABLE": "1"}, True),
+    ],
+)
+def test_pch_script_asks_the_compiler_on_windows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    version: str,
+    env_vars: dict[str, str],
+    on: bool,
+) -> None:
+    """The Python rule again, plus the normalized knob."""
+    monkeypatch.setattr(sys, "platform", "win32")
+    scons_env = _run_script(
+        tmp_path, env_vars={"FAKE_GCC_VERSION": version, **env_vars}
+    )
+    assert (scons_env.prepended == pch.pch_consumer_flags()) is on
+    assert (tmp_path / "dev" / "esphome_pch.h.gch").is_file() is on
+    out = capsys.readouterr().out
+    assert ("cannot load a precompiled header on Windows" in out) is not on
+
+
+def test_pch_script_spares_another_compiler_the_gcc_rule(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys, "platform", "win32")
+    scons_env = _run_script(
+        tmp_path, env_vars={"FAKE_GCC_BANNER": "clang version 15.0.0"}
+    )
+    assert scons_env.prepended == pch.pch_consumer_flags()
+
+
+def test_pch_script_leaves_the_header_off_when_the_compiler_cannot_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(sys, "platform", "win32")
+    scons_env = _run_script(tmp_path, cxx=tmp_path / "missing-g++")
+    assert scons_env.prepended == []
+    assert "GCC of unknown version cannot load" in capsys.readouterr().out
 
 
 def test_pch_script_compile_failure_stops_the_build(tmp_path: Path) -> None:
