@@ -45,7 +45,6 @@ constexpr uint16_t pressure_in_hpa_to_pa_2(float pressure_in_hpa) {
 constexpr float pressure_in_pa_2_to_hpa(uint16_t pressure_in_pa_2) { return pressure_in_pa_2 / 50.f; }
 
 void STCC4Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up STCC4...");
   this->stop_poller();  // not ready yet
 
   // Wait 100 ms after power up before attempting to communicate with the sensor
@@ -72,14 +71,14 @@ void STCC4Component::sync_setup_() {
       ESP_LOGD(TAG, "Product ID: 0x%08" PRIX32 ", Serial: 0x%016" PRIX64, product_id, serial_number);
       if (product_id != STCC4_PRODUCT_ID) {
         ESP_LOGE(TAG, "Unsupported product ID");
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
 
       // Set static ambient pressure compensation if configured
       if (this->ambient_pressure_in_pa_2_ != 0) {
         if (!this->write_ambient_pressure_compensation_(this->ambient_pressure_in_pa_2_)) {
-          this->mark_failed();
+          this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
       }
@@ -106,7 +105,7 @@ void STCC4Component::sync_setup_() {
       // Start continuous measurement
       if (!this->write_command(STCC4_CMD_START_CONTINUOUS_MEASUREMENT)) {
         ESP_LOGE(TAG, "Failed to start continuous measurement");
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
       this->schedule_continuous_update_(false);
@@ -123,7 +122,7 @@ void STCC4Component::sync_setup_() {
   }
 
   ESP_LOGE(TAG, "Failed to stop continuous measurements and read product ID");
-  this->mark_failed();
+  this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
 }
 
 void STCC4Component::finish_setup_() { this->ready_ = true; }
