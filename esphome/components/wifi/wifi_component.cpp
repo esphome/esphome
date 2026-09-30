@@ -2234,11 +2234,12 @@ bool WiFiComponent::is_ap_portal_active_() {
   return this->is_captive_portal_active_();
 }
 
-// Neither global needs a null check: codegen always instantiates the component when its
-// define is set, and the constructor assigns the global.
+// global_web_server needs no null check: codegen always instantiates WebServer when
+// USE_WEBSERVER_CAPTIVE is defined, and the constructor assigns the global.
 void WiFiComponent::start_ap_portal_() {
 #ifdef USE_CAPTIVE_PORTAL
-  captive_portal::global_captive_portal->start();
+  if (captive_portal::global_captive_portal != nullptr)
+    captive_portal::global_captive_portal->start();
 #endif
 #ifdef USE_WEBSERVER_CAPTIVE
   web_server::global_web_server->start_captive();
