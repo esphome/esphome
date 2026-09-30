@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, NamedTuple
 from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.core import EsphomeError
 from esphome.framework_helpers import _rename_with_retry
-from esphome.helpers import rmtree
+from esphome.helpers import rmtree, write_file
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
@@ -38,6 +38,8 @@ _ENV_LOCAL_STORAGE_URL = "IDF_COMPONENT_LOCAL_STORAGE_URL"
 _ENV_CHECK_NEW_VERSION = "IDF_COMPONENT_CHECK_NEW_VERSION"
 
 _DEFAULT_REGISTRY_URL = "https://components.espressif.com"
+# Everything a missing, unreadable or wrongly-shaped index file can raise.
+_BAD_INDEX_ERRORS = (OSError, ValueError, TypeError, KeyError, AttributeError)
 _SYNC_LOCK_NAME = ".sync.lock"
 _STAGING_DIR_NAME = ".staging"
 _SYNC_TIMEOUT_S = 120
@@ -101,9 +103,7 @@ def _load_yaml_dict(path: Path) -> dict | None:
     except yaml.YAMLError as err:
         _LOGGER.warning("Could not parse %s: %s", path, err)
         return None
-    if not isinstance(data, dict):
-        return None
-    return data
+    return data if isinstance(data, dict) else None
 
 
 def _iter_deps(path: Path) -> Iterator[tuple[str, str, dict]]:
@@ -150,10 +150,9 @@ def parse_manifest_service_deps(manifest_path: Path) -> list[ServiceDep]:
     """
     deps: list[ServiceDep] = []
     for namespace, name, entry in _iter_deps(manifest_path):
-        if entry.keys() != {"version"}:
-            continue
-        version = entry.get("version")
-        if not isinstance(version, str):
+        if entry.keys() != {"version"} or not isinstance(
+            version := entry["version"], str
+        ):
             continue
         # The YAML shorthand keeps its operator: "==1.2.3" is an exact pin.
         version = version.removeprefix("==")
@@ -187,61 +186,52 @@ def _mirror_has(mirror: Path, dep: ServiceDep) -> bool:
     """
     json_path = mirror / "components" / dep.namespace / f"{dep.name}.json"
     try:
-        doc = json.loads(json_path.read_text(encoding="utf-8"))
-        entry = next(
-            (e for e in doc["versions"] if e.get("version") == dep.version), None
-        )
-        if entry is None or not entry.get("url"):
-            return False
-        checksums = entry.get("checksums")
-        return (mirror / entry["url"]).is_file() and (
-            not checksums or (mirror / checksums).is_file()
-        )
-    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        for entry in json.loads(json_path.read_text(encoding="utf-8"))["versions"]:
+            if entry.get("version") == dep.version:
+                checksums = entry.get("checksums")
+                return (mirror / entry["url"]).is_file() and (
+                    not checksums or (mirror / checksums).is_file()
+                )
+    except _BAD_INDEX_ERRORS:
         return False
+    return False
 
 
 def missing_deps(mirror: Path, deps: list[ServiceDep]) -> list[ServiceDep]:
     return [dep for dep in deps if not _mirror_has(mirror, dep)]
 
 
-def _merge_component_index(src: Path, dst: Path) -> bool:
-    """Fold the mirror's existing versions of a component into the staged index.
+def _read_versions(path: Path) -> list[dict]:
+    """The version entries of an index; [] when missing or unreadable.
+
+    Treating a broken live index as empty is the heal: publishing the
+    merged index over it replaces it wholesale.
+    """
+    try:
+        entries = json.loads(path.read_text(encoding="utf-8"))["versions"]
+    except FileNotFoundError:
+        return []
+    except _BAD_INDEX_ERRORS as err:
+        _LOGGER.debug("Ignoring the unreadable index %s: %s", path, err)
+        return []
+    return [entry for entry in entries if isinstance(entry, dict)]
+
+
+def _publish_index(src: Path, dst: Path) -> None:
+    """Publish the staged index merged with the live one, atomically.
 
     The staged index lists only the versions this sync fetched; replacing
     the mirror's file outright would drop the versions it already had.
-    Returns whether the staged index should replace the live one.
+    write_file publishes through a sibling tempfile, so a failed write
+    leaves the live index intact and raises to the caller.
     """
-    try:
-        existing = json.loads(dst.read_text(encoding="utf-8"))["versions"]
-    except FileNotFoundError:
-        return True  # the first sync of this component
-    except (OSError, ValueError, TypeError, KeyError) as err:
-        # Replacing a broken live index with the staged one heals it.
-        _LOGGER.warning("Replacing the unreadable component index %s: %s", dst, err)
-        return True
-    try:
-        staged = json.loads(src.read_text(encoding="utf-8"))
-        known = {entry.get("version") for entry in staged["versions"]}
-        staged["versions"] += [
-            entry
-            for entry in existing
-            if isinstance(entry, dict) and entry.get("version") not in known
-        ]
-        # Through a sibling file: a write that fails partway must not leave
-        # src truncated, or the promotion would install a broken index.
-        merged = src.with_name(f"{src.name}.merged")
-        merged.write_text(json.dumps(staged), encoding="utf-8")
-        merged.replace(src)
-        return True
-    except (OSError, ValueError, TypeError, KeyError) as err:
-        # Keep the live index rather than dropping the versions it lists;
-        # the synced version stays uncovered and a later run retries. A
-        # partial sibling must not reach the promotion pass.
-        _LOGGER.warning("Could not merge the component index %s: %s", dst, err)
-        with suppress(OSError):
-            src.with_name(f"{src.name}.merged").unlink(missing_ok=True)
-        return False
+    staged = json.loads(src.read_text(encoding="utf-8"))
+    versions = [entry for entry in staged["versions"] if isinstance(entry, dict)]
+    known = {entry.get("version") for entry in versions}
+    staged["versions"] = versions + [
+        entry for entry in _read_versions(dst) if entry.get("version") not in known
+    ]
+    write_file(dst, json.dumps(staged))
 
 
 def _is_component_index(rel: Path) -> bool:
@@ -264,9 +254,10 @@ def _promote(staging: Path, mirror: Path) -> None:
         rel = src.relative_to(staging)
         dst = mirror / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
-        if _is_component_index(rel) and not _merge_component_index(src, dst):
-            continue
-        _rename_with_retry(src, dst, overwrite=True)
+        if _is_component_index(rel):
+            _publish_index(src, dst)
+        else:
+            _rename_with_retry(src, dst, overwrite=True)
 
 
 def sync_component_mirror(
@@ -347,7 +338,9 @@ def sync_component_mirror(
                 ", ".join(dep.spec for dep in still),
             )
             return False
-    except (OSError, subprocess.SubprocessError) as err:
+    except (*_BAD_INDEX_ERRORS, EsphomeError, subprocess.SubprocessError) as err:
+        # Includes a failed index publish: write_file is atomic, so the
+        # live index is intact and a later run retries the sync.
         _LOGGER.warning("Could not mirror IDF components: %s", err)
         return False
     finally:

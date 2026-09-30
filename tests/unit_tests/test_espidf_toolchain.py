@@ -404,6 +404,9 @@ def test_run_reconfigure_syncs_mirror_around_the_configure(
             "_sync_component_mirror",
             side_effect=lambda: calls.append("sync"),
         ),
+        # The failure branch prints hints; the real thing resolves the IDF
+        # install and can download a framework on a cold runner.
+        patch.object(toolchain, "_print_hints"),
     ):
         mock_run.side_effect = lambda *a, **k: calls.append("cmake") or cmake_rc
         assert toolchain.run_reconfigure() == cmake_rc

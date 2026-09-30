@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import json
 from pathlib import Path
 import subprocess
 from unittest.mock import MagicMock, patch
 
+from filelock import FileLock
 import pytest
 
 from esphome.core import EsphomeError
@@ -81,6 +83,10 @@ dependencies:
 _ARDUINOJSON = component_mirror.ServiceDep("bblanchon", "arduinojson", "7.4.3")
 _MDNS = component_mirror.ServiceDep("espressif", "mdns", "1.12.0")
 _TFLITE = component_mirror.ServiceDep("espressif", "esp-tflite-micro", "1.3.3~1")
+_SHORTHAND = component_mirror.ServiceDep("esphome", "shorthand", "2.1.0")
+_MANIFEST_DEPS = [_MDNS, _TFLITE, _SHORTHAND]
+_NS_CMP_1 = component_mirror.ServiceDep("ns", "cmp", "1.0.0")
+_NS_CMP_2 = component_mirror.ServiceDep("ns", "cmp", "2.0.0")
 
 
 @pytest.fixture(autouse=True)
@@ -93,6 +99,16 @@ def _write_lock(project_dir: Path, text: str = _LOCK_TEXT) -> Path:
     lock.parent.mkdir(parents=True, exist_ok=True)
     lock.write_text(text, encoding="utf-8")
     return lock
+
+
+def _ns_cmp_lock(version: str) -> str:
+    return (
+        "dependencies:\n"
+        "  ns/cmp:\n"
+        "    source:\n"
+        "      type: service\n"
+        f"    version: {version}\n"
+    )
 
 
 def _write_manifest(project_dir: Path, text: str = _MANIFEST_TEXT) -> Path:
@@ -142,18 +158,17 @@ def test_parse_lock_missing_file(tmp_path: Path) -> None:
     assert component_mirror.parse_lock_service_deps(tmp_path / "none.lock") == []
 
 
-def test_parse_lock_corrupt_yaml(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    lock = _write_lock(tmp_path, "{unbalanced")
-    assert component_mirror.parse_lock_service_deps(lock) == []
-    assert "Could not parse" in caplog.text
-
-
-def test_parse_lock_wrong_shape(tmp_path: Path) -> None:
-    assert component_mirror.parse_lock_service_deps(_write_lock(tmp_path, "[]")) == []
-    lock = _write_lock(tmp_path, "dependencies:\n  espressif/mdns: not-a-dict\n")
-    assert component_mirror.parse_lock_service_deps(lock) == []
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param("{unbalanced", id="corrupt-yaml"),
+        pytest.param("[]", id="not-a-mapping"),
+        pytest.param("dependencies:\n  espressif/mdns: not-a-dict\n", id="bad-entry"),
+        pytest.param(_ns_cmp_lock("1.2"), id="non-string-version"),
+    ],
+)
+def test_parse_lock_tolerates_bad_content(tmp_path: Path, text: str) -> None:
+    assert component_mirror.parse_lock_service_deps(_write_lock(tmp_path, text)) == []
 
 
 def test_parse_lock_unreadable_file_warns(
@@ -166,98 +181,39 @@ def test_parse_lock_unreadable_file_warns(
     assert "Could not read" in caplog.text
 
 
-def test_parse_lock_skips_non_string_version(tmp_path: Path) -> None:
-    """A YAML-typed version (float) cannot key a mirror entry."""
-    lock = _write_lock(
-        tmp_path,
-        "dependencies:\n"
-        "  ns/cmp:\n"
-        "    source:\n"
-        "      type: service\n"
-        "    version: 1.2\n",
-    )
+def test_parse_lock_non_utf8_file_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A non-UTF-8 lock is a warning, never a failed build."""
+    lock = tmp_path / "dependencies.lock"
+    lock.write_bytes(b"dependencies:\n  # caf\xe9\n")
     assert component_mirror.parse_lock_service_deps(lock) == []
-
-
-def test_merge_component_index_replaces_corrupt_existing(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A corrupt live index is replaced by the staged one, with a warning."""
-    src = tmp_path / "staged.json"
-    src.write_text('{"versions": [{"version": "2.0.0"}]}')
-    dst = tmp_path / "existing.json"
-    dst.write_text("not json")
-    assert component_mirror._merge_component_index(src, dst)
-    assert json.loads(src.read_text()) == {"versions": [{"version": "2.0.0"}]}
-    assert "Replacing the unreadable component index" in caplog.text
-
-
-def test_merge_component_index_missing_existing_is_silent(tmp_path: Path) -> None:
-    """The first sync of a component has no live index and needs no log."""
-    src = tmp_path / "staged.json"
-    src.write_text('{"versions": [{"version": "2.0.0"}]}')
-    assert component_mirror._merge_component_index(src, tmp_path / "none.json")
-
-
-def test_merge_component_index_failed_write_keeps_the_live_index(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A write that fails partway (e.g. full disk) must keep the live index
-    instead of dropping its versions, with a warning and no .merged leftover."""
-    src = tmp_path / "staged.json"
-    src.write_text('{"versions": [{"version": "2.0.0"}]}')
-    dst = tmp_path / "existing.json"
-    dst.write_text('{"versions": [{"version": "1.0.0"}]}')
-    with patch.object(Path, "write_text", side_effect=OSError("disk full")):
-        assert not component_mirror._merge_component_index(src, dst)
-    assert json.loads(src.read_text()) == {"versions": [{"version": "2.0.0"}]}
-    assert json.loads(dst.read_text()) == {"versions": [{"version": "1.0.0"}]}
-    assert not (tmp_path / "staged.json.merged").exists()
-    assert "Could not merge" in caplog.text
-
-
-def test_promote_keeps_the_live_index_when_the_merge_fails(tmp_path: Path) -> None:
-    """A failed merge skips only that index; archives still land and the
-    synced version shows as uncovered for a later retry."""
-    mirror = tmp_path / "mirror"
-    staging = tmp_path / "staging"
-    _add_to_mirror(mirror, component_mirror.ServiceDep("ns", "cmp", "1.0.0"))
-    _add_to_mirror(staging, component_mirror.ServiceDep("ns", "cmp", "2.0.0"))
-    with patch.object(component_mirror, "_merge_component_index", return_value=False):
-        component_mirror._promote(staging, mirror)
-    doc = json.loads((mirror / "components" / "ns" / "cmp.json").read_text())
-    assert {entry["version"] for entry in doc["versions"]} == {"1.0.0"}
-    assert (mirror / "components/ns/cmp/2.0.0/ns__cmp-v2.0.0.zip").is_file()
+    assert "Could not read" in caplog.text
 
 
 def test_parse_lock_defaults_registry_url(tmp_path: Path) -> None:
     """A service entry without registry_url is a default-registry dependency."""
-    lock = _write_lock(
-        tmp_path,
-        "dependencies:\n"
-        "  ns/cmp:\n"
-        "    source:\n"
-        "      type: service\n"
-        "    version: 1.0.0\n",
-    )
-    assert component_mirror.parse_lock_service_deps(lock) == [
-        component_mirror.ServiceDep("ns", "cmp", "1.0.0")
-    ]
+    lock = _write_lock(tmp_path, _ns_cmp_lock("1.0.0"))
+    assert component_mirror.parse_lock_service_deps(lock) == [_NS_CMP_1]
 
 
 def test_parse_manifest_keeps_only_exact_registry_pins(tmp_path: Path) -> None:
-    """git, override_path, wildcard and range specs are left to the solver;
-    the YAML shorthand's == prefix still counts as an exact pin."""
+    """git, override_path, wildcard, range and non-string specs are left to
+    the solver; the YAML shorthand's == prefix still counts as an exact pin."""
     deps = component_mirror.parse_manifest_service_deps(_write_manifest(tmp_path))
-    assert deps == [
-        _MDNS,
-        _TFLITE,
-        component_mirror.ServiceDep("esphome", "shorthand", "2.1.0"),
-    ]
+    assert deps == _MANIFEST_DEPS
 
 
 def test_parse_manifest_missing_file(tmp_path: Path) -> None:
     assert component_mirror.parse_manifest_service_deps(tmp_path / "none.yml") == []
+
+
+def test_parse_manifest_lowercases_mixed_case_keys(tmp_path: Path) -> None:
+    """The registry stores lowercase paths; a mixed-case key must match them."""
+    manifest = tmp_path / "idf_component.yml"
+    manifest.write_text("dependencies:\n  Espressif/MDNS:\n    version: 1.2.0\n")
+    deps = component_mirror.parse_manifest_service_deps(manifest)
+    assert deps == [component_mirror.ServiceDep("espressif", "mdns", "1.2.0")]
 
 
 def test_project_service_deps_merges_lock_and_manifest(tmp_path: Path) -> None:
@@ -268,16 +224,17 @@ def test_project_service_deps_merges_lock_and_manifest(tmp_path: Path) -> None:
         _ARDUINOJSON,
         _MDNS,
         _TFLITE,
-        component_mirror.ServiceDep("esphome", "shorthand", "2.1.0"),
+        _SHORTHAND,
     ]
 
 
 def test_project_service_deps_manifest_only(tmp_path: Path) -> None:
     """A fresh build has no lock yet; the manifest alone drives the sync."""
     manifest = _write_manifest(tmp_path)
-    assert component_mirror.project_service_deps(
-        tmp_path / "dependencies.lock", manifest
-    ) == [_MDNS, _TFLITE, component_mirror.ServiceDep("esphome", "shorthand", "2.1.0")]
+    assert (
+        component_mirror.project_service_deps(tmp_path / "dependencies.lock", manifest)
+        == _MANIFEST_DEPS
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -296,28 +253,114 @@ def test_missing_deps_covered_and_not(tmp_path: Path) -> None:
     assert component_mirror.missing_deps(mirror, deps) == deps[1:]
 
 
-def test_missing_deps_archive_gone(tmp_path: Path) -> None:
-    """Metadata without the archive must count as missing, not covered."""
+@pytest.mark.parametrize(
+    "damage",
+    [
+        pytest.param(
+            lambda m: next(m.rglob("*.zip")).unlink(),
+            id="archive-gone",
+        ),
+        pytest.param(
+            lambda m: (m / "components/espressif/mdns/1.12.0/CHECKSUMS.json").unlink(),
+            id="checksums-gone",
+        ),
+        pytest.param(
+            lambda m: (m / "components/espressif/mdns.json").write_text("{broken"),
+            id="corrupt-index",
+        ),
+    ],
+)
+def test_missing_deps_damaged_mirror(
+    tmp_path: Path, damage: Callable[[Path], object]
+) -> None:
+    """Every file the index references must exist; the manager downloads the
+    archive and checksums with no registry fallback once the version is
+    found locally, and a broken index must count as missing, not covered."""
     mirror = tmp_path / "mirror"
     _add_to_mirror(mirror, _MDNS)
-    next(mirror.rglob("*.zip")).unlink()
+    damage(mirror)
     assert component_mirror.missing_deps(mirror, [_MDNS]) == [_MDNS]
 
 
-def test_missing_deps_checksums_gone(tmp_path: Path) -> None:
-    """The manager downloads the checksums file named by the index with no
-    registry fallback, so a mirror without it must count as missing."""
+def test_missing_deps_covered_without_checksums_field(tmp_path: Path) -> None:
+    """An index entry from an older payload without a checksums field only
+    needs its archive."""
     mirror = tmp_path / "mirror"
     _add_to_mirror(mirror, _MDNS)
-    (mirror / "components/espressif/mdns/1.12.0/CHECKSUMS.json").unlink()
-    assert component_mirror.missing_deps(mirror, [_MDNS]) == [_MDNS]
+    index = mirror / "components/espressif/mdns.json"
+    doc = json.loads(index.read_text())
+    del doc["versions"][0]["checksums"]
+    index.write_text(json.dumps(doc))
+    assert component_mirror.missing_deps(mirror, [_MDNS]) == []
 
 
-def test_missing_deps_corrupt_json(tmp_path: Path) -> None:
-    mirror = tmp_path / "mirror"
-    _add_to_mirror(mirror, _MDNS)
-    (mirror / "components/espressif/mdns.json").write_text("{broken")
-    assert component_mirror.missing_deps(mirror, [_MDNS]) == [_MDNS]
+# ---------------------------------------------------------------------------
+# _publish_index / _promote
+# ---------------------------------------------------------------------------
+
+
+def _staged_index(tmp_path: Path, versions: list) -> Path:
+    src = tmp_path / "staged.json"
+    src.write_text(json.dumps({"versions": versions}), encoding="utf-8")
+    return src
+
+
+def test_publish_index_first_sync(tmp_path: Path) -> None:
+    """No live index yet: the staged one is published as is."""
+    src = _staged_index(tmp_path, [{"version": "2.0.0"}])
+    dst = tmp_path / "live.json"
+    component_mirror._publish_index(src, dst)
+    assert json.loads(dst.read_text()) == {"versions": [{"version": "2.0.0"}]}
+
+
+def test_publish_index_replaces_a_corrupt_live_index(tmp_path: Path) -> None:
+    """An unreadable live index has nothing worth keeping; publishing over
+    it heals the mirror."""
+    src = _staged_index(tmp_path, [{"version": "2.0.0"}])
+    dst = tmp_path / "live.json"
+    dst.write_text("not json")
+    component_mirror._publish_index(src, dst)
+    assert json.loads(dst.read_text()) == {"versions": [{"version": "2.0.0"}]}
+
+
+def test_publish_index_merges_and_filters(tmp_path: Path) -> None:
+    """Live versions the sync did not fetch survive; non-dict entries on
+    either side are dropped instead of raising."""
+    src = _staged_index(tmp_path, [{"version": "2.0.0"}, "junk"])
+    dst = tmp_path / "live.json"
+    dst.write_text(
+        json.dumps({"versions": [{"version": "1.0.0"}, {"version": "2.0.0"}, "bad"]})
+    )
+    component_mirror._publish_index(src, dst)
+    assert json.loads(dst.read_text()) == {
+        "versions": [{"version": "2.0.0"}, {"version": "1.0.0"}]
+    }
+
+
+def test_promote_moves_archives_before_indexes(tmp_path: Path) -> None:
+    """A concurrent reader must never see an index entry without its files."""
+    staging = tmp_path / "staging"
+    _add_to_mirror(staging, _NS_CMP_2)
+    order: list[str] = []
+    real_rename = component_mirror._rename_with_retry
+    real_write = component_mirror.write_file
+
+    def recording_rename(src: Path, dst: Path, **kwargs) -> None:
+        order.append(src.name)
+        real_rename(src, dst, **kwargs)
+
+    def recording_write(path: Path, text: str) -> None:
+        order.append(path.name)
+        real_write(path, text)
+
+    with (
+        patch.object(component_mirror, "_rename_with_retry", recording_rename),
+        patch.object(component_mirror, "write_file", recording_write),
+    ):
+        component_mirror._promote(staging, tmp_path / "mirror")
+
+    assert order[-1] == "cmp.json"
+    assert set(order[:-1]) == {"CHECKSUMS.json", "ns__cmp-v2.0.0.zip"}
 
 
 # ---------------------------------------------------------------------------
@@ -365,7 +408,7 @@ def _run_sync(
     *,
     returncode: int = 0,
     stderr: str = "",
-    side_effect: Exception | None = None,
+    side_effect: Exception | Callable | None = None,
     get_python=lambda: "/penv/python",
     get_env=lambda: {"PATH": "/penv"},
 ) -> tuple[bool, MagicMock]:
@@ -384,9 +427,17 @@ def _run_sync(
     return ok, mock_run
 
 
-def _assert_sync_lock_released() -> None:
-    from filelock import FileLock
+def _fake_registry_sync(returncode: int = 0):
+    """A subprocess.run stand-in that lays files out like `registry sync`."""
 
+    def run(cmd, **kwargs) -> subprocess.CompletedProcess:
+        _add_to_mirror(Path(cmd[-1]), _NS_CMP_2)
+        return subprocess.CompletedProcess(cmd, returncode, "", "sync failed")
+
+    return run
+
+
+def _assert_sync_lock_released() -> None:
     lock = FileLock(str(component_mirror.get_mirror_path() / ".sync.lock"))
     lock.acquire(blocking=False)
     lock.release()
@@ -473,8 +524,6 @@ def test_sync_environment_resolution_failure_is_tolerated(
 
 
 def test_sync_skips_when_another_process_holds_the_lock(tmp_path: Path) -> None:
-    from filelock import FileLock
-
     _write_lock(tmp_path)
     mirror = component_mirror.get_mirror_path()
     mirror.mkdir(parents=True)
@@ -488,35 +537,14 @@ def test_sync_skips_when_another_process_holds_the_lock(tmp_path: Path) -> None:
     mock_run.assert_not_called()
 
 
-def _fake_registry_sync(returncode: int = 0):
-    """A subprocess.run stand-in that lays files out like `registry sync`."""
-
-    def run(cmd, **kwargs) -> subprocess.CompletedProcess:
-        staging = Path(cmd[-1])
-        _add_to_mirror(staging, component_mirror.ServiceDep("ns", "cmp", "2.0.0"))
-        return subprocess.CompletedProcess(cmd, returncode, "", "sync failed")
-
-    return run
-
-
-def _sync_custom_lock(tmp_path: Path, returncode: int = 0) -> bool:
-    lock = _write_lock(
-        tmp_path,
-        "dependencies:\n"
-        "  ns/cmp:\n"
-        "    source:\n"
-        "      type: service\n"
-        "    version: 2.0.0\n",
-    )
-    with patch.object(
-        component_mirror.subprocess, "run", side_effect=_fake_registry_sync(returncode)
-    ):
-        return component_mirror.sync_component_mirror(
-            lock,
-            tmp_path / "src" / "idf_component.yml",
-            lambda: "/penv/python",
-            dict,
-        )
+def test_sync_ignores_a_leftover_lock_file(tmp_path: Path) -> None:
+    """A lock file from a dead process does not block: the OS lock is gone."""
+    _write_lock(tmp_path)
+    mirror = component_mirror.get_mirror_path()
+    mirror.mkdir(parents=True)
+    (mirror / ".sync.lock").touch()
+    _, mock_run = _run_sync(tmp_path)
+    mock_run.assert_called_once()  # the dead lock did not block the sync
 
 
 def test_sync_lock_oserror_is_a_failure(
@@ -529,58 +557,6 @@ def test_sync_lock_oserror_is_a_failure(
     assert not ok
     mock_run.assert_not_called()
     assert "Could not lock" in caplog.text
-
-
-def test_parse_manifest_lowercases_mixed_case_keys(tmp_path: Path) -> None:
-    """The registry stores lowercase paths; a mixed-case key must match them."""
-    manifest = tmp_path / "idf_component.yml"
-    manifest.write_text("dependencies:\n  Espressif/MDNS:\n    version: 1.2.0\n")
-    deps = component_mirror.parse_manifest_service_deps(manifest)
-    assert deps == [component_mirror.ServiceDep("espressif", "mdns", "1.2.0")]
-
-
-def test_promote_moves_archives_before_indexes(tmp_path: Path) -> None:
-    """A concurrent reader must never see an index entry without its file."""
-    staging = tmp_path / "staging"
-    (staging / "components" / "ns").mkdir(parents=True)
-    (staging / "components" / "ns" / "cmp.json").write_text('{"versions": []}')
-    zip_path = staging / "components" / "ns" / "cmp" / "2.0.0" / "a.zip"
-    zip_path.parent.mkdir(parents=True)
-    zip_path.write_bytes(b"zip")
-    order: list[str] = []
-    real_replace = Path.replace
-
-    def recording_replace(self: Path, target: Path) -> Path:
-        order.append(self.name)
-        return real_replace(self, target)
-
-    with patch.object(Path, "replace", recording_replace):
-        component_mirror._promote(staging, tmp_path / "mirror")
-    assert order == ["a.zip", "cmp.json"]
-
-
-def test_sync_promotes_staged_files_and_merges_the_index(tmp_path: Path) -> None:
-    """New files land through renames and existing versions survive the merge,
-    so a concurrent configure never reads a truncated index."""
-    mirror = component_mirror.get_mirror_path()
-    _add_to_mirror(mirror, component_mirror.ServiceDep("ns", "cmp", "1.0.0"))
-
-    assert _sync_custom_lock(tmp_path)
-
-    doc = json.loads((mirror / "components" / "ns" / "cmp.json").read_text())
-    assert {entry["version"] for entry in doc["versions"]} == {"1.0.0", "2.0.0"}
-    assert (mirror / "components/ns/cmp/2.0.0/ns__cmp-v2.0.0.zip").is_file()
-    assert (mirror / "components/ns/cmp/1.0.0/ns__cmp-v1.0.0.zip").is_file()
-    assert not (mirror / ".staging").exists()
-
-
-def test_sync_failure_leaves_no_staging_behind(tmp_path: Path) -> None:
-    """A failed sync promotes nothing and removes its staging directory."""
-    assert not _sync_custom_lock(tmp_path, returncode=1)
-
-    mirror = component_mirror.get_mirror_path()
-    assert not (mirror / ".staging").exists()
-    assert not (mirror / "components" / "ns").exists()
 
 
 def test_sync_undeletable_staging_is_a_failure(
@@ -597,21 +573,51 @@ def test_sync_undeletable_staging_is_a_failure(
     _assert_sync_lock_released()
 
 
-def test_sync_ignores_a_leftover_lock_file(tmp_path: Path) -> None:
-    """A lock file from a dead process does not block: the OS lock is gone."""
-    _write_lock(tmp_path)
+def test_sync_promotes_staged_files_and_merges_the_index(tmp_path: Path) -> None:
+    """New files land atomically and existing versions survive the merge,
+    so a concurrent configure never reads a truncated index."""
     mirror = component_mirror.get_mirror_path()
-    mirror.mkdir(parents=True)
-    (mirror / ".sync.lock").touch()
-    _, mock_run = _run_sync(tmp_path)
-    mock_run.assert_called_once()  # the dead lock did not block the sync
+    _add_to_mirror(mirror, _NS_CMP_1)
+    _write_lock(tmp_path, _ns_cmp_lock("2.0.0"))
+
+    ok, _ = _run_sync(tmp_path, side_effect=_fake_registry_sync())
+
+    assert ok
+    doc = json.loads((mirror / "components" / "ns" / "cmp.json").read_text())
+    assert {entry["version"] for entry in doc["versions"]} == {"1.0.0", "2.0.0"}
+    assert (mirror / "components/ns/cmp/2.0.0/ns__cmp-v2.0.0.zip").is_file()
+    assert (mirror / "components/ns/cmp/1.0.0/ns__cmp-v1.0.0.zip").is_file()
+    assert not (mirror / ".staging").exists()
 
 
-def test_parse_lock_non_utf8_file_warns(
+def test_sync_failure_leaves_no_staging_behind(tmp_path: Path) -> None:
+    """A failed sync promotes nothing and removes its staging directory."""
+    _write_lock(tmp_path, _ns_cmp_lock("2.0.0"))
+
+    ok, _ = _run_sync(tmp_path, side_effect=_fake_registry_sync(returncode=1))
+
+    assert not ok
+    mirror = component_mirror.get_mirror_path()
+    assert not (mirror / ".staging").exists()
+    assert not (mirror / "components" / "ns").exists()
+
+
+def test_sync_failed_index_publish_keeps_the_live_index(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A non-UTF-8 lock is a warning, never a failed build."""
-    lock = tmp_path / "dependencies.lock"
-    lock.write_bytes(b"dependencies:\n  # caf\xe9\n")
-    assert component_mirror.parse_lock_service_deps(lock) == []
-    assert "Could not read" in caplog.text
+    """A publish that fails (e.g. full disk) keeps the live index and its
+    versions; the synced version stays uncovered and a later run retries."""
+    mirror = component_mirror.get_mirror_path()
+    _add_to_mirror(mirror, _NS_CMP_1)
+    _write_lock(tmp_path, _ns_cmp_lock("2.0.0"))
+
+    with patch.object(
+        component_mirror, "write_file", side_effect=EsphomeError("disk full")
+    ):
+        ok, _ = _run_sync(tmp_path, side_effect=_fake_registry_sync())
+
+    assert not ok
+    assert "Could not mirror" in caplog.text
+    doc = json.loads((mirror / "components" / "ns" / "cmp.json").read_text())
+    assert {entry["version"] for entry in doc["versions"]} == {"1.0.0"}
+    _assert_sync_lock_released()

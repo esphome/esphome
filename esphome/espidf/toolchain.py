@@ -126,8 +126,7 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
             env_cache[version] |= get_framework_env(
                 *_get_esphome_esp_idf_paths(version)
             )
-            # Serve the component manager from the local registry mirror;
-            # the sync side gates on the same predicate.
+            # Serve the component manager from the local registry mirror.
             env_cache[version] |= component_mirror_env()
 
         # Cap git's repo search at the config directory so ESP-IDF's
