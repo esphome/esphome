@@ -95,6 +95,7 @@ NoiseResponderHandshake::Action NoiseResponderHandshake::action() const {
 }
 
 int NoiseResponderHandshake::read_message(uint8_t *data, size_t len) {
+  CpuFrequencyBoost boost;
   NoiseBuffer mbuf;
   noise_buffer_init(mbuf);
   noise_buffer_set_input(mbuf, data, len);
@@ -103,6 +104,7 @@ int NoiseResponderHandshake::read_message(uint8_t *data, size_t len) {
 
 int NoiseResponderHandshake::write_message(uint8_t *out, size_t capacity, size_t &out_len) {
   out_len = 0;
+  CpuFrequencyBoost boost;
   NoiseBuffer mbuf;
   noise_buffer_init(mbuf);
   noise_buffer_set_output(mbuf, out, capacity);

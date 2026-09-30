@@ -1,0 +1,9 @@
+button:
+  - platform: template
+    name: PMWCS3 Actions
+    on_press:
+      - pmwcs3.air_calibration:
+      - pmwcs3.water_calibration:
+      - pmwcs3.new_i2c_address: 0x64
+      - pmwcs3.new_i2c_address:
+          address: !lambda return 0x65;

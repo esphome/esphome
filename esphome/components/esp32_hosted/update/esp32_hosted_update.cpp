@@ -26,6 +26,8 @@ static const char *const TAG = "esp32_hosted.update";
 
 // Older coprocessor firmware versions have a 1500-byte limit per RPC call
 constexpr size_t CHUNK_SIZE = 1500;
+// OTA begin blocks while the coprocessor erases its partition
+constexpr uint32_t OTA_WDT_TIMEOUT_MS = 60000;
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
 // Interval/timeout IDs (uint32_t to avoid string comparison)
@@ -169,7 +171,7 @@ void Esp32HostedUpdate::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Mode: HTTP\n"
                 "  Source URL: %s",
-                this->source_url_.c_str());
+                this->source_url_);
 #else
   ESP_LOGCONFIG(TAG,
                 "  Mode: Embedded\n"
@@ -215,7 +217,7 @@ bool Esp32HostedUpdate::fetch_manifest_() {
 
   auto container = this->http_request_parent_->get(this->source_url_);
   if (container == nullptr || container->status_code != 200) {
-    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this->source_url_.c_str());
+    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this->source_url_);
     this->status_set_error(LOG_STR("Failed to fetch manifest"));
     return false;
   }
@@ -336,7 +338,11 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
   ESP_LOGI(TAG, "Firmware size: %zu bytes", total_size);
 
   // Begin OTA on coprocessor
-  esp_err_t err = esp_hosted_slave_ota_begin();  // NOLINT
+  esp_err_t err;
+  {
+    watchdog::WatchdogManager wdt(OTA_WDT_TIMEOUT_MS);
+    err = esp_hosted_slave_ota_begin();  // NOLINT
+  }
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to begin OTA: %s", esp_err_to_name(err));
     container->end();
@@ -425,7 +431,11 @@ bool Esp32HostedUpdate::write_embedded_firmware_to_coprocessor_() {
 
   ESP_LOGI(TAG, "Starting OTA update (%zu bytes)", this->firmware_size_);
 
-  esp_err_t err = esp_hosted_slave_ota_begin();  // NOLINT
+  esp_err_t err;
+  {
+    watchdog::WatchdogManager wdt(OTA_WDT_TIMEOUT_MS);
+    err = esp_hosted_slave_ota_begin();  // NOLINT
+  }
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to begin OTA: %s", esp_err_to_name(err));
     this->status_set_error(LOG_STR("Failed to begin OTA"));
@@ -471,8 +481,6 @@ void Esp32HostedUpdate::perform(bool force) {
   this->state_ = update::UPDATE_STATE_INSTALLING;
   this->update_info_.has_progress = false;
   this->publish_state();
-
-  watchdog::WatchdogManager watchdog(60000);
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
   if (!this->stream_firmware_to_coprocessor_())

@@ -27,16 +27,4 @@ class PipsolarOutput final : public output::FloatOutput {
   std::vector<float> possible_values_;
 };
 
-template<typename... Ts> class SetOutputAction final : public Action<Ts...> {
- public:
-  SetOutputAction(PipsolarOutput *output) : output_(output) {}
-
-  TEMPLATABLE_VALUE(float, level)
-
-  void play(const Ts &...x) override { this->output_->set_value(this->level_.value(x...)); }
-
- protected:
-  PipsolarOutput *output_;
-};
-
 }  // namespace esphome::pipsolar

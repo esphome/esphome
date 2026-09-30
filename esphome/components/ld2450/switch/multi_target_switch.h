@@ -7,7 +7,8 @@ namespace esphome::ld2450 {
 
 class MultiTargetSwitch : public switch_::Switch, public Parented<LD2450Component> {
  public:
-  MultiTargetSwitch() = default;
+  // User provided, not "= default": `new(p) MultiTargetSwitch()` would zero-fill .bss that is already zero.
+  MultiTargetSwitch() {}
 
  protected:
   void write_state(bool state) override;
