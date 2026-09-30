@@ -225,10 +225,10 @@ def model_schema(config: ConfigType) -> cv.All | cv.Schema:
         )
         .extend({model.option(x): cv.boolean for x in other_options})
     )
-    if brightness := model.get_default(CONF_BRIGHTNESS):
+    if model.get_default(CONF_BRIGHTNESS) or model.name == "CUSTOM":
         schema = schema.extend(
             {
-                cv.Optional(CONF_BRIGHTNESS, default=brightness): cv.int_range(
+                model.option(CONF_BRIGHTNESS, cv.UNDEFINED): cv.int_range(
                     0, 0xFF, min_included=True, max_included=True
                 ),
             }
