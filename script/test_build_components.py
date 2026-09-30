@@ -333,6 +333,12 @@ def extract_platform_with_version(base_file: Path) -> str:
     return base_file.stem.replace("build_components_base.", "")
 
 
+def _wants_skip_bootloader(skip: bool, command: str, platform: str) -> bool:
+    """Every esp32 target: idf variants, and esp32-ard, whose Arduino
+    core builds as an ESP-IDF component under the native toolchain."""
+    return skip and command == "compile" and platform.startswith("esp32")
+
+
 def run_esphome_test(
     component: str,
     test_file: Path,
@@ -409,8 +415,7 @@ def run_esphome_test(
 
     # Add command
     cmd.append(esphome_command)
-    if skip_bootloader and esphome_command == "compile" and platform == "esp32-idf":
-        # esp32-idf only; adding it elsewhere just logs an ignore warning.
+    if _wants_skip_bootloader(skip_bootloader, esphome_command, platform):
         cmd.append("--skip-bootloader")
 
     # Add config file
@@ -559,8 +564,7 @@ def run_grouped_test(
 
     # Add command
     cmd.append(esphome_command)
-    if skip_bootloader and esphome_command == "compile" and platform == "esp32-idf":
-        # esp32-idf only; adding it elsewhere just logs an ignore warning.
+    if _wants_skip_bootloader(skip_bootloader, esphome_command, platform):
         cmd.append("--skip-bootloader")
 
     cmd.append(str(output_file))

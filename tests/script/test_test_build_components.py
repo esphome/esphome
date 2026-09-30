@@ -98,12 +98,20 @@ def test_run_esphome_test_wraps_output_in_group(
     ("platform", "command", "skip", "expects_flag"),
     [
         ("esp32-idf", "compile", True, True),
+        ("esp32-s3-idf", "compile", True, True),
+        ("esp32-ard", "compile", True, True),
         ("esp32-idf", "compile", False, False),
         ("esp32-idf", "config", True, False),
-        ("esp32-ard", "compile", True, False),
         ("esp8266-ard", "compile", True, False),
     ],
-    ids=["idf-skip", "idf-off", "config", "arduino", "esp8266"],
+    ids=[
+        "idf-skip",
+        "idf-variant",
+        "arduino-as-idf-component",
+        "idf-off",
+        "config",
+        "esp8266",
+    ],
 )
 def test_run_esphome_test_skip_bootloader_argv(
     _ci: None,
@@ -114,7 +122,7 @@ def test_run_esphome_test_skip_bootloader_argv(
     skip: bool,
     expects_flag: bool,
 ) -> None:
-    """The flag lands only on esp32-idf compiles."""
+    """The flag lands on esp32 family compiles only."""
     seen: list[list[str]] = []
 
     def fake_run(cmd: list[str], **kwargs: object) -> _FakeCompleted:
