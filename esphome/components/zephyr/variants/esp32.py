@@ -136,7 +136,11 @@ def config_schema(config: ConfigType) -> ConfigType:
 
 
 async def to_code(config: ConfigType) -> None:
-    from .. import zephyr_add_prj_conf, zephyr_setup_preferences
+    from .. import (
+        zephyr_add_prj_conf,
+        zephyr_add_sysbuild_conf,
+        zephyr_setup_preferences,
+    )
 
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_ESP32")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
@@ -146,3 +150,5 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("REBOOT", True)
     # get_mac_address_raw() (zephyr/core.cpp) reads the efuse MAC via hwinfo_get_device_id().
     zephyr_add_prj_conf("HWINFO", True)
+    # sysbuild's own BOOT_SIGNATURE_TYPE choice overrides a per-image setting.
+    zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True)
