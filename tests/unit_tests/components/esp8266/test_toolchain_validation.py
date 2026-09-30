@@ -14,6 +14,7 @@ from esphome.components.esp8266 import (
     ARDUINO_FRAMEWORK_SCHEMA,
     _resolve_toolchain,
     _validate_native_toolchain,
+    _warn_platformio_toolchain,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -67,21 +68,24 @@ def test_valid_config_passes() -> None:
 
 
 def test_platformio_toolchain_skips_checks() -> None:
-    # 3.0.2 is pio-legal (>= the global 3.0.0 floor) but below the native
-    # toolchain's own 3.1.1 floor; the bogus board only the native path checks
+    # 3.0.2 is pio-legal (>= the global 3.0.0 floor) but has no native build;
+    # the bogus board only the native path checks
     CORE.toolchain = Toolchain.PLATFORMIO
     config = _config(board="not_a_board", version="3.0.2")
     assert _validate_native_toolchain(config) is config
 
 
-def test_version_below_floor_rejected() -> None:
-    # 3.1.0 has no registry package, so the native floor is 3.1.1
-    with pytest.raises(cv.Invalid, match="3.1.1 or newer"):
-        _validate_native_toolchain(_config(version="3.1.0"))
+def test_version_without_build_rejected() -> None:
+    """Only the core versions built in esphome-libs/arduino-esp8266 work."""
+    with pytest.raises(
+        cv.Invalid, match=r"3\.1\.1.*available: 3\.1\.2.*platformio"
+    ) as excinfo:
+        _validate_native_toolchain(_config(version="3.1.1"))
+    assert excinfo.value.path == [CONF_FRAMEWORK, CONF_VERSION]
 
 
-def test_version_at_floor_accepted() -> None:
-    _validate_native_toolchain(_config(version="3.1.1"))
+def test_built_version_accepted() -> None:
+    _validate_native_toolchain(_config(version="3.1.2"))
 
 
 def test_custom_platform_version_warns_and_is_dropped(
@@ -122,10 +126,22 @@ def test_yaml_toolchain_key_resolves() -> None:
     assert CORE.using_toolchain_arduino
 
 
-def test_yaml_toolchain_key_defaults_to_platformio() -> None:
+@pytest.mark.parametrize(
+    ("config_toolchain", "expected"),
+    [
+        (None, Toolchain.ARDUINO),
+        # An explicit `toolchain:` still wins over the default
+        (Toolchain.PLATFORMIO, Toolchain.PLATFORMIO),
+        (Toolchain.ARDUINO, Toolchain.ARDUINO),
+    ],
+)
+def test_default_toolchain_is_arduino(
+    config_toolchain: Toolchain | None, expected: Toolchain
+) -> None:
     CORE.toolchain = None
-    _resolve_toolchain({})
-    assert CORE.toolchain == Toolchain.PLATFORMIO
+    config = {} if config_toolchain is None else {CONF_TOOLCHAIN: config_toolchain}
+    _resolve_toolchain(config)
+    assert CORE.toolchain == expected
 
 
 def test_decode_pc_native_missing_tools_warns_once(
@@ -195,3 +211,18 @@ def test_copy_files_native_skips_platformio_scripts(tmp_path: Path) -> None:
     CORE.build_path = tmp_path
     esp8266.copy_files()
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("toolchain", "warns"),
+    [(Toolchain.PLATFORMIO, True), (Toolchain.ARDUINO, False)],
+)
+def test_platformio_toolchain_deprecation_warning(
+    toolchain: Toolchain, warns: bool, caplog: pytest.LogCaptureFixture
+) -> None:
+    CORE.toolchain = toolchain
+    config = _config()
+    assert _warn_platformio_toolchain(config) is config
+    assert (
+        "deprecated and will be removed in ESPHome 2027.4.0" in caplog.text
+    ) is warns
