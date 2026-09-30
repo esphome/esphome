@@ -37,13 +37,14 @@ from esphome.framework_helpers import (
     content_length,
     discard_partial_download,
     downloaded_bytes,
+    extract_workers,
     failure_reason,
     resume_fetch_job,
     run_batch_downloads,
     wait_for_download_lock,
-    warn_prefetch_failures,
+    warn_batch_failures,
 )
-from esphome.helpers import get_bool_env, get_usable_cpu_count, rmtree
+from esphome.helpers import get_bool_env, rmtree
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -702,7 +703,7 @@ def _preinstall(
     would hang, not fail). Waves skip dependencies; the installed
     manifests feed the next wave. Any failure falls back to pio run.
     """
-    workers = min(get_usable_cpu_count(), len(entries))
+    workers = extract_workers(len(entries))
     # One manager per worker (_install mutates instance state); built
     # serially because construction rewires the shared manager logger
     managers: SimpleQueue = SimpleQueue()
@@ -891,7 +892,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
         )
         # PlatformIO retries failed packages itself, without resume
         failures = run_batch_downloads("Downloading PlatformIO packages", jobs)
-        warn_prefetch_failures(failures)
+        warn_batch_failures(failures, "Could not prefetch %s: %s")
         failed_names = {name for name, _ in failures}
     elif not groups and not unresolved:
         # Record the no-work run so the parent skips the next spawn.
