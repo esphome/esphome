@@ -7,7 +7,6 @@
 
 #include "esphome/components/display/display.h"
 #include "esphome/components/spi/spi.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -400,48 +399,6 @@ class IT8951Display : public Display,
   // read after reset; the original driver retried up to 3 times with 100ms
   // between attempts).
   uint8_t dev_info_attempts_{0};
-};
-
-// it8951.pause / it8951.resume — hold back the waveform while a frame is
-// composed into controller memory, then present it.
-template<typename... Ts> class IT8951PauseAction : public Action<Ts...> {
- public:
-  explicit IT8951PauseAction(IT8951Display *display) : display_(display) {}
-
- protected:
-  void play(const Ts &...x) override { this->display_->set_refresh_paused(true); }
-
-  IT8951Display *display_;
-};
-
-template<typename... Ts> class IT8951ResumeAction : public Action<Ts...> {
- public:
-  explicit IT8951ResumeAction(IT8951Display *display) : display_(display) {}
-  TEMPLATABLE_VALUE(UpdateMode, mode)
-
- protected:
-  void play(const Ts &...x) override {
-    this->display_->set_refresh_paused(false, this->mode_.has_value() ? this->mode_.value(x...) : UPDATE_MODE_NONE);
-  }
-
-  IT8951Display *display_;
-};
-
-// it8951.refresh — present the whole screen from controller memory, whatever is
-// in it, clearing any pause. Unlike resume this does not depend on an update
-// having been requested, which is what makes it the way to show a frame that was
-// composed earlier.
-template<typename... Ts> class IT8951RefreshAction : public Action<Ts...> {
- public:
-  explicit IT8951RefreshAction(IT8951Display *display) : display_(display) {}
-  TEMPLATABLE_VALUE(UpdateMode, mode)
-
- protected:
-  void play(const Ts &...x) override {
-    this->display_->refresh_now(this->mode_.has_value() ? this->mode_.value(x...) : UPDATE_MODE_NONE);
-  }
-
-  IT8951Display *display_;
 };
 
 // One LVGL flush: where the pixels are and how to read them. Every field is

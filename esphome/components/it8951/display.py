@@ -38,8 +38,7 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_WIDTH,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, RawExpression, TemplateArgsType
+from esphome.cpp_generator import RawExpression
 from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
@@ -64,9 +63,6 @@ VCOM_REGISTER_OPTIONS = (VCOM_REGISTER_DEFAULT, VCOM_REGISTER_ALT)
 it8951_ns = cg.esphome_ns.namespace("it8951")
 IT8951Display = it8951_ns.class_("IT8951Display", display.Display, spi.SPIDevice)
 IT8951DirectDisplay = it8951_ns.class_("IT8951DirectDisplay", IT8951Display)
-IT8951PauseAction = it8951_ns.class_("IT8951PauseAction", automation.Action)
-IT8951ResumeAction = it8951_ns.class_("IT8951ResumeAction", automation.Action)
-IT8951RefreshAction = it8951_ns.class_("IT8951RefreshAction", automation.Action)
 
 # Hardware waveform modes exposed to YAML. Strings are mapped to the C++
 # UpdateMode enum so the runtime can store the mode as a uint16_t rather
@@ -516,67 +512,33 @@ automation.register_apply_action(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "it8951.pause",
-    IT8951PauseAction,
     automation.maybe_simple_id({cv.Required(CONF_ID): cv.use_id(IT8951Display)}),
-    synchronous=True,
+    automation.ApplyCall("set_refresh_paused(true)"),
 )
-async def it8951_pause_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    display_var = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, display_var)
 
-
-@automation.register_action(
+# A mode is always passed on: DEFAULT is UPDATE_MODE_NONE, which both methods
+# already read as "the caller named no waveform". Without the default an absent
+# key would emit no statement at all, making a bare resume/refresh a no-op.
+automation.register_apply_action(
     "it8951.resume",
-    IT8951ResumeAction,
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(IT8951Display),
-            cv.Optional(CONF_MODE): cv.templatable(update_mode),
+            cv.Optional(CONF_MODE, default="DEFAULT"): cv.templatable(update_mode),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_MODE, "set_refresh_paused(false, {})", UpdateMode),
 )
-async def it8951_resume_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    display_var = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, display_var)
-    if mode := config.get(CONF_MODE):
-        mode = await cg.templatable(mode, args, UpdateMode)
-        cg.add(var.set_mode(mode))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "it8951.refresh",
-    IT8951RefreshAction,
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(IT8951Display),
-            cv.Optional(CONF_MODE): cv.templatable(update_mode),
+            cv.Optional(CONF_MODE, default="DEFAULT"): cv.templatable(update_mode),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_MODE, "refresh_now", UpdateMode),
 )
-async def it8951_refresh_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    display_var = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, display_var)
-    if mode := config.get(CONF_MODE):
-        mode = await cg.templatable(mode, args, UpdateMode)
-        cg.add(var.set_mode(mode))
-    return var
