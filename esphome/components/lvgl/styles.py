@@ -155,9 +155,7 @@ async def theme_to_code(config):
             for state, props in states.items():
                 style_name = _get_theme_style_name(w_name, part, state)
                 if style_name not in style_map:
-                    style_map[style_name] = await create_style(
-                        _get_theme_style_name(w_name, part, state), props
-                    )
+                    style_map[style_name] = await create_style(style_name, props)
                 elif state in declared_states:
                     # A `theme.update` request for this combo (possibly from
                     # another LVGL instance) already created the style as an

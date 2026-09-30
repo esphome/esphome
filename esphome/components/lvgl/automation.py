@@ -126,7 +126,6 @@ async def action_to_code(
     action_id,
     template_arg,
     args,
-    config=None,
 ):
     async with LambdaContext(parameters=args, where=action_id) as context:
         for widget in widgets:
@@ -145,9 +144,7 @@ async def update_to_code(config, action_id, template_arg, args):
             lv_obj.send_event(widget.obj, UPDATE_EVENT, nullptr)
 
     widgets = await get_widgets(config[CONF_ID])
-    return await action_to_code(
-        widgets, do_update, action_id, template_arg, args, config
-    )
+    return await action_to_code(widgets, do_update, action_id, template_arg, args)
 
 
 @automation.register_condition(
@@ -499,9 +496,7 @@ async def obj_update_to_code(config, action_id, template_arg, args):
         await set_obj_properties(widget, config)
 
     widgets = await get_widgets(config[CONF_ID])
-    return await action_to_code(
-        widgets, do_update, action_id, template_arg, args, config
-    )
+    return await action_to_code(widgets, do_update, action_id, template_arg, args)
 
 
 def validate_refresh_config(config):

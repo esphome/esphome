@@ -209,9 +209,7 @@ async def list_add_text_to_code(config, action_id, template_arg, args):
                 lv.obj_move_to_index(entry, await lv_int.process(idx))
             await _fire_on_add(config[CONF_ID], w.obj, entry)
 
-    return await action_to_code(
-        widgets, do_add_text, action_id, template_arg, args, config
-    )
+    return await action_to_code(widgets, do_add_text, action_id, template_arg, args)
 
 
 # These types of widgets are not compatible with lvgl.list.add, some since they manage their own children in a way
@@ -361,7 +359,7 @@ async def list_add_to_code(config, action_id, template_arg, args):
             index=index,
         )
 
-    return await action_to_code(widgets, do_add, action_id, template_arg, args, config)
+    return await action_to_code(widgets, do_add, action_id, template_arg, args)
 
 
 async def _build_dynamic_widget(
@@ -500,9 +498,7 @@ async def list_remove_to_code(config, action_id, template_arg, args):
             # Recursively destroys the whole subtree
             lv.obj_del(child)
 
-    return await action_to_code(
-        widgets, do_remove, action_id, template_arg, args, config
-    )
+    return await action_to_code(widgets, do_remove, action_id, template_arg, args)
 
 
 @automation.register_action(
@@ -524,6 +520,4 @@ async def list_clear_to_code(config, action_id, template_arg, args):
         # lv_obj_clean recursively destroys every child's whole subtree
         lv.obj_clean(w.obj)
 
-    return await action_to_code(
-        widgets, do_clear, action_id, template_arg, args, config
-    )
+    return await action_to_code(widgets, do_clear, action_id, template_arg, args)

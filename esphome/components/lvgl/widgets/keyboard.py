@@ -55,8 +55,7 @@ class KeyboardType(WidgetType):
             await w.set_property(CONF_MODE, await KEYBOARD_MODES.process(mode))
 
     async def update_to_code(self, w: "Widget", config: dict) -> None:
-        if mode := config.get(CONF_MODE):
-            await w.set_property(CONF_MODE, await KEYBOARD_MODES.process(mode))
+        await self.to_code(w, config)
         if config.get(CONF_TEXTAREA):
             await w.set_property(
                 CONF_TEXTAREA, (await get_widgets(config, CONF_TEXTAREA))[0].obj
