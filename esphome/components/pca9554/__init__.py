@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c
+from esphome.components.gpio_expander import validate_interrupt_pin
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE,
@@ -125,7 +126,7 @@ CONFIG_SCHEMA = (
             # set, the number of pins is set from the device type using the dict
             # defintion above.
             cv.Optional(CONF_PIN_COUNT): cv.one_of(4, 8, 16),
-            cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Optional(CONF_INTERRUPT_PIN): validate_interrupt_pin,
             # cv.Optional(CONF_INTERRUPT_PIN): gpio_expander.validate_interrupt_pin,
         }
     )
