@@ -92,6 +92,10 @@ if(ESPHOME_USE_CACHED_BOOTLOADER)
         idf_build_get_property(sdkconfig_cmake SDKCONFIG_CMAKE)
         include(${sdkconfig_cmake})
         set(CONFIG_APP_BUILD_BOOTLOADER "")
+        # bt's CMakeLists reads the lowercase idf_target that the (now
+        # skipped) bootloader project_include leaks; keep it defined, or
+        # its empty TARGET_SRC_NAME sends file(GLOB_RECURSE) across /.
+        idf_build_get_property(idf_target IDF_TARGET)
         idf_build_get_property(build_properties __BUILD_PROPERTIES)
         foreach(build_property ${build_properties})
             idf_build_get_property(val ${build_property})
@@ -114,7 +118,10 @@ endif()
 
 # The one line the override adds to IDF's macro; the staleness tripwire in
 # esphome.espidf.bootloader strips it before comparing with the live macro.
-BOOTLOADER_OVERRIDE_ADDED_LINE = 'set(CONFIG_APP_BUILD_BOOTLOADER "")'
+BOOTLOADER_OVERRIDE_ADDED_LINES = (
+    'set(CONFIG_APP_BUILD_BOOTLOADER "")',
+    "idf_build_get_property(idf_target IDF_TARGET)",
+)
 
 _MACRO = re.compile(
     r"macro\(__build_process_project_includes\)(.*?)endmacro\(\)", re.DOTALL
@@ -135,7 +142,7 @@ def _normalized_macro(text: str) -> list[str] | None:
 _EXPECTED_MACRO = [
     line
     for line in _normalized_macro(IDF_BOOTLOADER_OVERRIDE)
-    if line != BOOTLOADER_OVERRIDE_ADDED_LINE
+    if line not in BOOTLOADER_OVERRIDE_ADDED_LINES
 ]
 
 
