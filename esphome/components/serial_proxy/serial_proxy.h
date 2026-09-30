@@ -230,7 +230,8 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   uint32_t instance_index_{0};
 
   /// Stall spent by writes in the current loop pass, keyed by the pass's cached start time.
-  /// Shared: writes to several ports land in the same pass and stall the same loop
+  /// Static on purpose: there is one main loop, and writes to different ports that arrive in
+  /// the same pass all stall it, so the budget is one per device rather than one per port
   static uint32_t stall_loop_time;
   static uint32_t stall_spent_ms;
 
