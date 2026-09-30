@@ -19,6 +19,7 @@ from esphome.build_helpers.ccache import (
 from esphome.build_helpers.pch import ccache_pch_env
 from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.core import Version
+from esphome.espidf.component_mirror import component_mirror_env
 from esphome.framework_helpers import (
     PathType,
     create_venv,
@@ -1291,5 +1292,9 @@ def get_framework_env(
 
     # 6. Enable ccache for the compile toolchain (default on when available).
     env.update(_ccache_env())
+
+    # 7. Point the component manager at the local registry mirror so a
+    #    covered dependencies.lock configures with zero registry requests.
+    env.update(component_mirror_env())
 
     return env

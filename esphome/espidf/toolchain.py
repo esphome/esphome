@@ -23,6 +23,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError
 from esphome.espidf import variant_to_idf_target
+from esphome.espidf.component_mirror import sync_component_mirror
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
 from esphome.helpers import add_git_ceiling_directory, write_file
@@ -38,6 +39,7 @@ class _CacheData:
     env: dict[str, dict[str, str]] = field(default_factory=dict)
     cmake_output: dict[Path, str] = field(default_factory=dict)
     cmake_tools: dict[Path, dict[str, Path]] = field(default_factory=dict)
+    mirror_sync_failed: bool = False
 
 
 def _cache() -> _CacheData:
@@ -421,6 +423,30 @@ def _print_hints(log_path: Path) -> None:
         _LOGGER.warning("%s", hints)
 
 
+def _sync_component_mirror() -> None:
+    """Best-effort update of the local registry mirror; never fails the build."""
+    if "IDF_PATH" in os.environ:
+        # User-managed IDF: ESPHome's python env, and with it the component
+        # manager CLI, is not guaranteed to exist.
+        return
+    cache = _cache()
+    if cache.mirror_sync_failed:
+        return
+    try:
+        ok = sync_component_mirror(
+            CORE.relative_build_path("dependencies.lock"),
+            lambda: _get_idf_tool("python"),
+            _get_idf_env,
+        )
+    except (OSError, subprocess.SubprocessError, EsphomeError) as err:
+        _LOGGER.debug("Component mirror sync skipped: %s", err)
+        ok = False
+    if not ok:
+        # One failed attempt (e.g. offline) is enough per process; the
+        # coverage check itself stays cheap and runs every time.
+        cache.mirror_sync_failed = True
+
+
 def _builtin_component_cache_path() -> Path | None:
     """Cache file for this build's built-in component list.
 
@@ -656,6 +682,9 @@ def run_compile(config, verbose: bool) -> int:
     3. Run full build
     """
     jobs = _build_jobs(config)
+    # Before any build tool runs: ninja can re-run cmake on its own, and the
+    # configure must find the mirror populated to stay off the network.
+    _sync_component_mirror()
     if need_reconfigure():
         if (rc := _configure_project(verbose)) != 0:
             return rc
@@ -668,6 +697,9 @@ def run_compile(config, verbose: bool) -> int:
             path = CORE.relative_build_path(name)
             if path.is_file():
                 os.utime(path)
+        # The configure may have just written or updated dependencies.lock;
+        # mirroring now makes the next build offline-capable.
+        _sync_component_mirror()
     elif _cache_entries_changed():
         _LOGGER.info("CMake cache options changed, reconfiguring")
         if (rc := run_reconfigure(verbose)) != 0:

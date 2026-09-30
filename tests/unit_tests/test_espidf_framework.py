@@ -1580,6 +1580,27 @@ def test_get_framework_env_without_python_env_uses_os_path(tmp_path: Path) -> No
     assert env["PATH"]  # taken from os.environ
 
 
+def test_get_framework_env_serves_the_component_mirror(tmp_path: Path) -> None:
+    """The mirror env vars must reach every consumer of the framework env,
+    including ninja, which can re-run cmake on its own."""
+    with (
+        patch(
+            "esphome.espidf.framework.get_idf_tools_path",
+            return_value=tmp_path / "tools",
+        ),
+        patch("esphome.espidf.framework._get_idf_version", return_value="5.1.2"),
+        patch("esphome.espidf.framework._get_idf_tool_paths", return_value=([], {})),
+        patch("esphome.espidf.framework._ccache_env", return_value={}),
+        patch(
+            "esphome.espidf.framework.component_mirror_env",
+            return_value={"IDF_COMPONENT_LOCAL_STORAGE_URL": "file:///mirror"},
+        ),
+    ):
+        env = get_framework_env(tmp_path / "fw")
+
+    assert env["IDF_COMPONENT_LOCAL_STORAGE_URL"] == "file:///mirror"
+
+
 # ---------------------------------------------------------------------------
 # _ccache_env
 # ---------------------------------------------------------------------------

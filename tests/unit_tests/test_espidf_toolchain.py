@@ -353,6 +353,73 @@ def test_run_compile_discovery_without_cmakecache(setup_core: Path) -> None:
     assert not CORE.relative_build_path("build/CMakeCache.txt").exists()
 
 
+def test_run_compile_syncs_mirror_before_and_after_configure(setup_core: Path) -> None:
+    """The mirror is refreshed before any build tool runs (ninja may re-run
+    cmake by itself) and again after a configure that may have rewritten
+    dependencies.lock, so the next build is offline-capable."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+    calls: list[str] = []
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=True),
+        patch.object(
+            toolchain,
+            "_sync_component_mirror",
+            side_effect=lambda: calls.append("sync"),
+        ),
+        patch.object(
+            toolchain,
+            "_configure_project",
+            side_effect=lambda verbose: calls.append("configure") or 0,
+        ),
+        patch.object(toolchain, "_run_ninja", return_value=0),
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    assert calls == ["sync", "configure", "sync"]
+
+
+def test_run_compile_syncs_mirror_when_up_to_date(setup_core: Path) -> None:
+    """No reconfigure still refreshes the mirror once for ninja-driven
+    cmake re-runs."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+
+    with (
+        _up_to_date_compile(),
+        patch.object(toolchain, "_sync_component_mirror") as mock_sync,
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    mock_sync.assert_called_once()
+
+
+def test_sync_component_mirror_skips_user_idf(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A user-managed IDF has no guaranteed component manager CLI."""
+    monkeypatch.setenv("IDF_PATH", "/opt/esp-idf")
+    with patch.object(toolchain, "sync_component_mirror") as mock_sync:
+        toolchain._sync_component_mirror()
+    mock_sync.assert_not_called()
+
+
+def test_sync_component_mirror_failure_not_retried(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One failed attempt (e.g. offline) must not stall every later call."""
+    monkeypatch.delenv("IDF_PATH", raising=False)
+    _setup_build(setup_core)
+    with patch.object(
+        toolchain, "sync_component_mirror", return_value=False
+    ) as mock_sync:
+        toolchain._sync_component_mirror()
+        toolchain._sync_component_mirror()
+    mock_sync.assert_called_once()
+
+
 def test_run_compile_reconfigures_after_full_write_outside_testing_mode(
     setup_core: Path,
 ) -> None:
