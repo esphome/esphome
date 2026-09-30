@@ -12,6 +12,7 @@ from esphome.components import (
     speaker,
 )
 from esphome.components.const import (
+    CONF_BITRATE,
     CONF_VOLUME_INCREMENT,
     CONF_VOLUME_INITIAL,
     CONF_VOLUME_MAX,
@@ -108,6 +109,7 @@ PIPELINE_SCHEMA = cv.Schema(
         cv.Optional(CONF_FORMAT, default="FLAC"): cv.enum(audio.AUDIO_FILE_TYPE_ENUM),
         cv.Optional(CONF_SAMPLE_RATE): cv.int_range(min=1),
         cv.Optional(CONF_NUM_CHANNELS): cv.int_range(1, 2),
+        cv.Optional(CONF_BITRATE): cv.positive_not_null_int,
     }
 )
 
