@@ -210,6 +210,38 @@ def test_get_idf_env_sets_git_ceiling_directories(setup_core: Path) -> None:
     assert str(CORE.config_dir) in env["GIT_CEILING_DIRECTORIES"].split(os.pathsep)
 
 
+def test_get_idf_env_serves_the_component_mirror(setup_core: Path) -> None:
+    """The mirror env rides the managed-IDF branch, next to its sync gate."""
+    toolchain._cache().env.clear()
+    with (
+        patch.object(
+            toolchain,
+            "get_framework_env",
+            return_value={"PATH": "/penv"},
+        ),
+        patch.object(toolchain, "_get_esphome_esp_idf_paths", return_value=((), {})),
+        patch.object(
+            toolchain,
+            "component_mirror_env",
+            return_value={"IDF_COMPONENT_LOCAL_STORAGE_URL": "file:///mirror"},
+        ),
+    ):
+        env = toolchain._get_idf_env(version="5.5.4")
+    assert env["IDF_COMPONENT_LOCAL_STORAGE_URL"] == "file:///mirror"
+
+
+def test_get_idf_env_user_idf_skips_the_mirror(setup_core: Path) -> None:
+    """A user-managed IDF gets neither the framework env nor the mirror."""
+    toolchain._cache().env.clear()
+    with (
+        patch.dict(os.environ, {"IDF_PATH": str(setup_core)}),
+        patch.object(toolchain, "component_mirror_env") as mock_env,
+    ):
+        env = toolchain._get_idf_env(version="5.5.4")
+    mock_env.assert_not_called()
+    assert "IDF_COMPONENT_LOCAL_STORAGE_URL" not in env
+
+
 def test_get_idf_env_pops_inherited_pythonpath(setup_core: Path) -> None:
     """A PYTHONPATH from the parent environment must not reach idf.py.
 
@@ -397,7 +429,7 @@ def test_run_compile_syncs_mirror_when_up_to_date(setup_core: Path) -> None:
 def test_sync_component_mirror_skips_user_idf(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A user-managed IDF has no guaranteed component manager CLI."""
+    """A user-managed IDF never gets the mirror env, so a sync is unread."""
     monkeypatch.setenv("IDF_PATH", "/opt/esp-idf")
     with patch.object(toolchain, "sync_component_mirror") as mock_sync:
         toolchain._sync_component_mirror()

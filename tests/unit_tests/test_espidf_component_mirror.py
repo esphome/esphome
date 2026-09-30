@@ -330,11 +330,14 @@ def _assert_sync_lock_released() -> None:
     lock.release()
 
 
-def test_sync_runs_the_manager_for_missing_deps(tmp_path: Path) -> None:
+def test_sync_runs_the_manager_for_missing_deps(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     _write_lock(tmp_path)
     ok, mock_run = _run_sync(tmp_path)
     # The stub stages nothing, so the post-promote recheck reports failure.
     assert not ok
+    assert "uncovered" in caplog.text
     mock_run.assert_called_once()
     mirror = component_mirror.get_mirror_path()
     assert mock_run.call_args.args[0] == [
@@ -454,29 +457,6 @@ def _sync_custom_lock(tmp_path: Path, returncode: int = 0) -> bool:
         )
 
 
-def test_sync_warns_when_a_clean_sync_leaves_deps_uncovered(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A zero exit that covers nothing must trip the retry guard, not loop."""
-    _write_lock(tmp_path)
-    ok, _ = _run_sync(tmp_path)
-    assert not ok
-    assert "uncovered" in caplog.text
-
-
-def test_sync_lock_timeout_means_another_process_is_syncing(
-    tmp_path: Path,
-) -> None:
-    """Contention is fine; the other process is filling the shared mirror."""
-    from filelock import Timeout
-
-    _write_lock(tmp_path)
-    with patch("filelock.FileLock.acquire", side_effect=Timeout("x")):
-        ok, mock_run = _run_sync(tmp_path)
-    assert ok
-    mock_run.assert_not_called()
-
-
 def test_sync_lock_oserror_is_a_failure(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -533,8 +513,7 @@ def test_sync_promotes_staged_files_and_merges_the_index(tmp_path: Path) -> None
 
 
 def test_sync_failure_leaves_no_staging_behind(tmp_path: Path) -> None:
-    """A failed sync must not leave partial downloads for the next coverage
-    check to mistake for a mirror."""
+    """A failed sync promotes nothing and removes its staging directory."""
     assert not _sync_custom_lock(tmp_path, returncode=1)
 
     mirror = component_mirror.get_mirror_path()
@@ -548,6 +527,5 @@ def test_sync_ignores_a_leftover_lock_file(tmp_path: Path) -> None:
     mirror = component_mirror.get_mirror_path()
     mirror.mkdir(parents=True)
     (mirror / ".sync.lock").touch()
-    ok, mock_run = _run_sync(tmp_path)
+    _, mock_run = _run_sync(tmp_path)
     mock_run.assert_called_once()  # the dead lock did not block the sync
-    mock_run.assert_called_once()

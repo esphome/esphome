@@ -23,7 +23,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError
 from esphome.espidf import variant_to_idf_target
-from esphome.espidf.component_mirror import sync_component_mirror
+from esphome.espidf.component_mirror import component_mirror_env, sync_component_mirror
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
 from esphome.helpers import add_git_ceiling_directory, write_file
@@ -107,6 +107,11 @@ def _get_idf_path(version: str | None = None) -> Path | None:
     return Path(_get_esphome_esp_idf_paths(version)[0])
 
 
+def _esphome_manages_idf() -> bool:
+    """A checkout supplied through IDF_PATH is the user's, not ESPHome's."""
+    return "IDF_PATH" not in os.environ
+
+
 def _get_idf_env(version: str | None = None) -> dict[str, str]:
     """Get environment variables needed for ESP-IDF build."""
     version = version or _get_core_framework_version()
@@ -117,10 +122,13 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
         env_cache[version].pop("PYTHONPATH", None)
 
         # Use provided IDF framework if available
-        if "IDF_PATH" not in os.environ:
+        if _esphome_manages_idf():
             env_cache[version] |= get_framework_env(
                 *_get_esphome_esp_idf_paths(version)
             )
+            # Serve the component manager from the local registry mirror;
+            # the sync side gates on the same predicate.
+            env_cache[version] |= component_mirror_env()
 
         # Cap git's repo search at the config directory so ESP-IDF's
         # `git describe` for the app version can't error out on an
@@ -432,9 +440,9 @@ def _print_hints(log_path: Path) -> None:
 
 def _sync_component_mirror() -> None:
     """Best-effort update of the local registry mirror; never fails the build."""
-    if "IDF_PATH" in os.environ:
-        # User-managed IDF: _get_idf_env skips get_framework_env, so the
-        # mirror env is never injected and nothing would read a sync.
+    if not _esphome_manages_idf():
+        # The mirror env is only injected under the same predicate in
+        # _get_idf_env, so nothing would read a sync.
         return
     cache = _cache()
     if cache.mirror_sync_failed:
@@ -460,7 +468,7 @@ def _builtin_component_cache_path() -> Path | None:
     of CONFIG_* options and only gate their sources on them. A checkout
     supplied through IDF_PATH is not managed by ESPHome and is never cached.
     """
-    if "IDF_PATH" in os.environ:
+    if not _esphome_manages_idf():
         return None
     target = variant_to_idf_target(CORE.data[KEY_ESP32][KEY_VARIANT])
     excluded = CORE.cmake_args.get("EXCLUDE_COMPONENTS", "")

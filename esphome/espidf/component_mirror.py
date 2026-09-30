@@ -4,7 +4,10 @@ The component manager contacts the registry on every cmake configure, even
 with an unchanged ``dependencies.lock``. It checks
 ``IDF_COMPONENT_LOCAL_STORAGE_URL`` mirrors first and stops on a hit, so a
 mirror of the pinned components (filled with its own ``registry sync``)
-removes all registry traffic and makes builds work offline.
+removes all registry traffic and makes builds work offline. ``registry
+sync`` recurses into transitive version ranges, so a heavy tree can
+exceed the sync timeout and stay registry-served; that is the accepted
+cost of staying on the manager's CLI contract.
 """
 
 from __future__ import annotations
@@ -17,10 +20,9 @@ import shutil
 import subprocess
 from typing import TYPE_CHECKING, NamedTuple
 
-import yaml
-
 from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.core import EsphomeError
+from esphome.framework_helpers import _rename_with_retry
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
@@ -47,9 +49,13 @@ class ServiceDep(NamedTuple):
     name: str
     version: str
 
+    @property
+    def spec(self) -> str:
+        return f"{self.namespace}/{self.name}=={self.version}"
+
 
 def get_mirror_path() -> Path:
-    """The machine-global mirror directory; clean-all removes it with the tools cache."""
+    """The machine-global mirror directory."""
     return tools_cache_path(*IDF_TOOLS_CACHE) / _MIRROR_DIR_NAME
 
 
@@ -78,6 +84,10 @@ def component_mirror_env() -> dict[str, str]:
 
 def _load_yaml_dict(path: Path) -> dict | None:
     """Read a small YAML mapping; missing file or bad content is None."""
+    # Deferred: keeps pyyaml off the serial upload fast path, which
+    # imports this module through the espidf toolchain.
+    import yaml
+
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -139,7 +149,7 @@ def parse_manifest_service_deps(manifest_path: Path) -> list[ServiceDep]:
     """
     deps: list[ServiceDep] = []
     for namespace, name, entry in _iter_deps(manifest_path):
-        if entry.keys() > {"version"}:
+        if entry.keys() != {"version"}:
             continue
         version = entry.get("version")
         # Exact versions start with a digit ("1.12.0", "1.3.3~1"); range
@@ -213,20 +223,20 @@ def _is_component_index(rel: Path) -> bool:
 def _promote(staging: Path, mirror: Path) -> None:
     """Move the synced files into the mirror, one atomic rename each.
 
-    Archives land before the indexes that point at them, so a concurrent
-    configure never reads a version entry whose file is not there yet.
+    Indexes sort last, so a concurrent configure never reads a version
+    entry whose archive has not landed yet.
     """
-    files = sorted(path for path in staging.rglob("*") if path.is_file())
-    for promote_indexes in (False, True):
-        for src in files:
-            rel = src.relative_to(staging)
-            if _is_component_index(rel) is not promote_indexes:
-                continue
-            dst = mirror / rel
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            if promote_indexes:
-                _merge_component_index(src, dst)
-            src.replace(dst)
+    files = sorted(
+        (path for path in staging.rglob("*") if path.is_file()),
+        key=lambda path: (_is_component_index(path.relative_to(staging)), path),
+    )
+    for src in files:
+        rel = src.relative_to(staging)
+        dst = mirror / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if _is_component_index(rel):
+            _merge_component_index(src, dst)
+        _rename_with_retry(src, dst, overwrite=True)
 
 
 def sync_component_mirror(
@@ -237,10 +247,8 @@ def sync_component_mirror(
 ) -> bool:
     """Mirror any of the build's registry components the mirror lacks.
 
-    Best effort: never raises for an expected failure, and returns False on
-    a failed attempt so callers can skip retrying for the rest of the run.
-    ``get_python``/``get_env`` are only called when a sync is needed, so
-    the covered case resolves no environment.
+    Returns False on a failed attempt so callers can skip retrying this
+    run; ``get_python``/``get_env`` are only called when a sync is needed.
     """
     mirror = get_mirror_path()
     to_sync = missing_deps(mirror, project_service_deps(lock_path, manifest_path))
@@ -259,7 +267,7 @@ def sync_component_mirror(
     staging = mirror / _STAGING_DIR_NAME
     cmd = [python, "-m", "idf_component_manager", "registry", "sync"]
     for dep in to_sync:
-        cmd += ["--component", f"{dep.namespace}/{dep.name}=={dep.version}"]
+        cmd += ["--component", dep.spec]
     cmd.append(str(staging))
     # Lazy import, as in git.py: keeps filelock off the CLI startup path.
     from filelock import FileLock, Timeout
@@ -301,7 +309,7 @@ def sync_component_mirror(
             _LOGGER.warning(
                 "Mirror sync left %d component(s) uncovered: %s",
                 len(still),
-                ", ".join(f"{d.namespace}/{d.name}=={d.version}" for d in still),
+                ", ".join(dep.spec for dep in still),
             )
             return False
     except (OSError, subprocess.SubprocessError) as err:
