@@ -1,0 +1,14 @@
+esphome:
+  name: cmake-idf
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+api:
+
+wifi:
+  ssid: cmake
+  password: cmakepassword

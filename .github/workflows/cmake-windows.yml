@@ -1,0 +1,42 @@
+name: Windows cmake lookup check
+
+on:
+  push:
+    branches:
+      - windows_cmake_lookup_ci
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: esp-idf native without host cmake
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      # cmd throughout: idf_tools.py refuses to run under MSYS, which the
+      # bash shell announces, and users build from a plain Windows shell
+      - name: Install esphome
+        shell: cmd
+        run: |
+          python -m venv venv
+          call venv\Scripts\activate.bat
+          pip install -r requirements.txt
+          pip install -e .
+      # The runner image has cmake and ninja preinstalled on PATH, which
+      # would mask the bug: users of the builder install see neither. Strip
+      # PATH to the interpreter, git and the system dirs, then prove it.
+      - name: Compile without cmake or ninja on the host PATH
+        shell: cmd
+        run: |
+          set "PATH=%CD%\venv\Scripts;%pythonLocation%;%pythonLocation%\Scripts;C:\Program Files\Git\cmd;%SystemRoot%\system32;%SystemRoot%"
+          where cmake && echo cmake still on PATH, test is invalid && exit /b 1
+          where ninja && echo ninja still on PATH, test is invalid && exit /b 1
+          esphome compile .github/cmake_windows/idf.yaml
