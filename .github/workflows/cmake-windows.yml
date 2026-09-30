@@ -30,13 +30,14 @@ jobs:
           call venv\Scripts\activate.bat
           pip install -r requirements.txt
           pip install -e .
-      # The runner image has cmake and ninja preinstalled on PATH, which
-      # would mask the bug: users of the builder install see neither. Strip
+      # The runner image has cmake preinstalled on PATH, which would mask
+      # the bug: users of the builder install have no host cmake. Strip
       # PATH to the interpreter, git and the system dirs, then prove it.
-      - name: Compile without cmake or ninja on the host PATH
+      # ninja stays reachable through the venv, as in a real install: the
+      # pip ninja package from requirements.txt puts it in Scripts.
+      - name: Compile without cmake on the host PATH
         shell: cmd
         run: |
           set "PATH=%CD%\venv\Scripts;%pythonLocation%;%pythonLocation%\Scripts;C:\Program Files\Git\cmd;%SystemRoot%\system32;%SystemRoot%"
           where cmake && echo cmake still on PATH, test is invalid && exit /b 1
-          where ninja && echo ninja still on PATH, test is invalid && exit /b 1
           esphome compile .github/cmake_windows/idf.yaml
