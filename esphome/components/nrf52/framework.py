@@ -149,6 +149,9 @@ def get_build_paths() -> dict:
     env_path = _get_python_env_path(version)
     return {
         "python_executable": get_python_env_executable_path(env_path, "python"),
+        "codechecker_executable": get_python_env_executable_path(
+            env_path, "CodeChecker"
+        ),
         "framework_path": _get_framework_path(version),
     }
 
@@ -292,6 +295,13 @@ def bluetooth_west_projects() -> tuple[str, ...]:
     if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 2, 0):
         return ("mbedtls", "oberon-psa-crypto")
     return ("tinycrypt",)
+
+
+def openthread_west_projects() -> tuple[str, ...]:
+    """Crypto for OpenThread: mbedtls, plus Oberon from SDK 2.7."""
+    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 7, 0):
+        return ("mbedtls", "openthread", "oberon-psa-crypto")
+    return ("mbedtls", "openthread")
 
 
 def _wanted_west_projects() -> set[str]:
