@@ -153,9 +153,13 @@ def parse_manifest_service_deps(manifest_path: Path) -> list[ServiceDep]:
         if entry.keys() != {"version"}:
             continue
         version = entry.get("version")
+        if not isinstance(version, str):
+            continue
+        # The YAML shorthand keeps its operator: "==1.2.3" is an exact pin.
+        version = version.removeprefix("==")
         # Exact versions start with a digit ("1.12.0", "1.3.3~1"); range
         # operators are prefixes and wildcards contain "*".
-        if isinstance(version, str) and version[:1].isdigit() and "*" not in version:
+        if version[:1].isdigit() and "*" not in version:
             deps.append(ServiceDep(namespace, name, version))
     return deps
 
@@ -175,19 +179,24 @@ def project_service_deps(lock_path: Path, manifest_path: Path) -> list[ServiceDe
 
 
 def _mirror_has(mirror: Path, dep: ServiceDep) -> bool:
-    """Whether the mirror holds the dependency's metadata and archive."""
+    """Whether the mirror holds the dependency's metadata and files.
+
+    The manager downloads both the archive and the checksums file named by
+    the index entry, with no registry fallback once the version is found
+    locally, so coverage must require every referenced file.
+    """
     json_path = mirror / "components" / dep.namespace / f"{dep.name}.json"
     try:
         doc = json.loads(json_path.read_text(encoding="utf-8"))
-        url = next(
-            (
-                entry.get("url")
-                for entry in doc["versions"]
-                if entry.get("version") == dep.version
-            ),
-            None,
+        entry = next(
+            (e for e in doc["versions"] if e.get("version") == dep.version), None
         )
-        return bool(url) and (mirror / url).is_file()
+        if entry is None or not entry.get("url"):
+            return False
+        checksums = entry.get("checksums")
+        return (mirror / entry["url"]).is_file() and (
+            not checksums or (mirror / checksums).is_file()
+        )
     except (OSError, ValueError, TypeError, KeyError, AttributeError):
         return False
 
@@ -214,9 +223,11 @@ def _merge_component_index(src: Path, dst: Path) -> None:
         merged = src.with_name(f"{src.name}.merged")
         merged.write_text(json.dumps(staged), encoding="utf-8")
         Path(merged).replace(src)
-    except (OSError, ValueError, TypeError, KeyError, AttributeError):
-        # No usable existing index; the staged one stands alone. A partial
-        # sibling must not reach the promotion pass.
+    except (OSError, ValueError, TypeError, KeyError, AttributeError) as err:
+        # No usable existing index; the staged one stands alone, and any
+        # version it does not list gets re-mirrored by a later sync. A
+        # partial sibling must not reach the promotion pass.
+        _LOGGER.debug("Not merging the existing index %s: %s", dst, err)
         with suppress(OSError):
             src.with_name(f"{src.name}.merged").unlink(missing_ok=True)
 
@@ -299,7 +310,10 @@ def sync_component_mirror(
             cmd,
             env=env,
             capture_output=True,
-            text=True,
+            # Not text=True: the locale codec (e.g. cp1252) can raise
+            # UnicodeDecodeError, which would escape the best-effort handler.
+            encoding="utf-8",
+            errors="replace",
             timeout=_SYNC_TIMEOUT_S,
             check=False,
         )

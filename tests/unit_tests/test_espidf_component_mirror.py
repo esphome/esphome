@@ -72,6 +72,8 @@ dependencies:
     override_path: /stub/libsodium
   espressif/ranged:
     version: ^1.2.0
+  esphome/shorthand:
+    version: ==2.1.0
 """
 
 _ARDUINOJSON = component_mirror.ServiceDep("bblanchon", "arduinojson", "7.4.3")
@@ -100,10 +102,9 @@ def _write_manifest(project_dir: Path, text: str = _MANIFEST_TEXT) -> Path:
 
 def _add_to_mirror(mirror: Path, dep: component_mirror.ServiceDep) -> None:
     """Lay out one component the way `registry sync` does."""
-    archive = (
-        f"components/{dep.namespace}/{dep.name}/{dep.version}/"
-        f"{dep.namespace}__{dep.name}-v{dep.version}.zip"
-    )
+    version_dir = f"components/{dep.namespace}/{dep.name}/{dep.version}"
+    archive = f"{version_dir}/{dep.namespace}__{dep.name}-v{dep.version}.zip"
+    checksums = f"{version_dir}/CHECKSUMS.json"
     json_path = mirror / "components" / dep.namespace / f"{dep.name}.json"
     json_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(
@@ -111,7 +112,9 @@ def _add_to_mirror(mirror: Path, dep: component_mirror.ServiceDep) -> None:
             {
                 "name": dep.name,
                 "namespace": dep.namespace,
-                "versions": [{"version": dep.version, "url": archive}],
+                "versions": [
+                    {"version": dep.version, "url": archive, "checksums": checksums}
+                ],
             }
         ),
         encoding="utf-8",
@@ -119,6 +122,7 @@ def _add_to_mirror(mirror: Path, dep: component_mirror.ServiceDep) -> None:
     archive_path = mirror / archive
     archive_path.parent.mkdir(parents=True, exist_ok=True)
     archive_path.write_bytes(b"zip")
+    (mirror / checksums).write_text("{}", encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -214,9 +218,14 @@ def test_parse_lock_defaults_registry_url(tmp_path: Path) -> None:
 
 
 def test_parse_manifest_keeps_only_exact_registry_pins(tmp_path: Path) -> None:
-    """git, override_path, wildcard and range specs are left to the solver."""
+    """git, override_path, wildcard and range specs are left to the solver;
+    the YAML shorthand's == prefix still counts as an exact pin."""
     deps = component_mirror.parse_manifest_service_deps(_write_manifest(tmp_path))
-    assert deps == [_MDNS, _TFLITE]
+    assert deps == [
+        _MDNS,
+        _TFLITE,
+        component_mirror.ServiceDep("esphome", "shorthand", "2.1.0"),
+    ]
 
 
 def test_parse_manifest_missing_file(tmp_path: Path) -> None:
@@ -231,6 +240,7 @@ def test_project_service_deps_merges_lock_and_manifest(tmp_path: Path) -> None:
         _ARDUINOJSON,
         _MDNS,
         _TFLITE,
+        component_mirror.ServiceDep("esphome", "shorthand", "2.1.0"),
     ]
 
 
@@ -239,7 +249,7 @@ def test_project_service_deps_manifest_only(tmp_path: Path) -> None:
     manifest = _write_manifest(tmp_path)
     assert component_mirror.project_service_deps(
         tmp_path / "dependencies.lock", manifest
-    ) == [_MDNS, _TFLITE]
+    ) == [_MDNS, _TFLITE, component_mirror.ServiceDep("esphome", "shorthand", "2.1.0")]
 
 
 # ---------------------------------------------------------------------------
@@ -263,6 +273,15 @@ def test_missing_deps_archive_gone(tmp_path: Path) -> None:
     mirror = tmp_path / "mirror"
     _add_to_mirror(mirror, _MDNS)
     next(mirror.rglob("*.zip")).unlink()
+    assert component_mirror.missing_deps(mirror, [_MDNS]) == [_MDNS]
+
+
+def test_missing_deps_checksums_gone(tmp_path: Path) -> None:
+    """The manager downloads the checksums file named by the index with no
+    registry fallback, so a mirror without it must count as missing."""
+    mirror = tmp_path / "mirror"
+    _add_to_mirror(mirror, _MDNS)
+    (mirror / "components/espressif/mdns/1.12.0/CHECKSUMS.json").unlink()
     assert component_mirror.missing_deps(mirror, [_MDNS]) == [_MDNS]
 
 
