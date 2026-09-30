@@ -583,7 +583,7 @@ def zephyr_to_code(config: ConfigType) -> None:
     # The settings subsystem finds stored preferences by key, so key migration is possible
     cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.set_cpp_standard("gnu++20")
-    # Without this, Zephyr's printk/logger prints "*float*" for %f.
+    # Without this, printf-style %f prints "*float*" on chips without an FPU (FPU enables it by default).
     zephyr_add_prj_conf("CBPRINTF_FP_SUPPORT", True)
     # platform: nrf52 has no user-facing `framework: type:` -- its internal
     # framework_type="ncs" (see zephyr_set_core_data) is Python-only, never turned into
