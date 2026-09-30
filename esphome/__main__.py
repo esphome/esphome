@@ -1774,7 +1774,9 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
         CORE.skip_bootloader
         and CORE.is_esp32
         and CORE.using_toolchain_esp_idf
-        and any(device.startswith(("/dev/", "COM")) for device in (args.device or []))
+        and any(
+            get_port_type(device) == PortType.SERIAL for device in (args.device or [])
+        )
     ):
         # Fail before the compile: the result could never flash over serial.
         # Elsewhere the flag is ignored, so serial stays fine there.
