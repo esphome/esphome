@@ -40,15 +40,6 @@ void SerialProxy::setup() {
         [this](bool connected) { this->on_usb_connection_changed_(connected); });
   }
 #endif
-#ifdef USE_SERIAL_PROXY_CONFIGURED_IDENTITY
-  // A configured identity is fixed, so run each lambda once and keep the result. This also
-  // lets fill_identity_() hand out views of the stored strings without allocating.
-  for (auto *value : {&this->identity_manufacturer_, &this->identity_product_, &this->identity_serial_number_}) {
-    if (value->has_value() && !value->is_static_string()) {
-      *value = TemplatableValue<std::string>(value->value());
-    }
-  }
-#endif
 #ifdef USE_SERIAL_PROXY_TAP
   // A tap sets itself up before this runs (its setup priority is higher), so it may
   // already be waiting on the port -- a boot-time handshake with the device, say. Leaving
@@ -383,22 +374,6 @@ void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api:
     msg.manufacturer = StringRef(scratch.manufacturer);
     msg.product = StringRef(scratch.product);
     msg.serial_number = StringRef(scratch.serial_number);
-    return;
-  }
-#endif
-#ifdef USE_SERIAL_PROXY_CONFIGURED_IDENTITY
-  if (this->has_identity_) {
-    msg.source = api::enums::SERIAL_PROXY_IDENTITY_SOURCE_CONFIGURED;
-    // Nothing observes presence on a plain UART, so the device is taken to be there
-    msg.flags = api::enums::SERIAL_PROXY_IDENTITY_FLAG_CONNECTED;
-    // setup() left only plain strings behind, so no copy buffer is ever needed
-    msg.manufacturer = this->identity_manufacturer_.ref_or_copy_to(nullptr, 0);
-    msg.product = this->identity_product_.ref_or_copy_to(nullptr, 0);
-    msg.serial_number = this->identity_serial_number_.ref_or_copy_to(nullptr, 0);
-    msg.usb.vendor_id = this->identity_usb_vendor_id_;
-    msg.usb.product_id = this->identity_usb_product_id_;
-    msg.usb.bcd_device = this->identity_usb_bcd_device_;
-    msg.usb.interface_number = this->identity_usb_interface_number_;
     return;
   }
 #endif
