@@ -1580,6 +1580,11 @@ def test_get_framework_env_without_python_env_uses_os_path(tmp_path: Path) -> No
     assert env["PATH"]  # taken from os.environ
 
 
+# ---------------------------------------------------------------------------
+# _ccache_env
+# ---------------------------------------------------------------------------
+
+
 def _ccache_patches(tmp_path: Path, which: str | None, build_path: Path | None):
     return (
         patch("esphome.espidf.framework.resolve_ccache_path", return_value=which),

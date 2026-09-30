@@ -74,6 +74,8 @@ dependencies:
     version: ^1.2.0
   esphome/shorthand:
     version: ==2.1.0
+  esphome/unquoted:
+    version: 2
 """
 
 _ARDUINOJSON = component_mirror.ServiceDep("bblanchon", "arduinojson", "7.4.3")
