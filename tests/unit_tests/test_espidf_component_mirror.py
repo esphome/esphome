@@ -150,6 +150,39 @@ def test_parse_lock_wrong_shape(tmp_path: Path) -> None:
     assert component_mirror.parse_lock_service_deps(lock) == []
 
 
+def test_parse_lock_unreadable_file_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Read trouble other than a missing file says so instead of raising."""
+    lock = tmp_path / "dependencies.lock"
+    lock.mkdir()  # read_text raises OSError, not FileNotFoundError
+    assert component_mirror.parse_lock_service_deps(lock) == []
+    assert "Could not read" in caplog.text
+
+
+def test_parse_lock_skips_non_string_version(tmp_path: Path) -> None:
+    """A YAML-typed version (float) cannot key a mirror entry."""
+    lock = _write_lock(
+        tmp_path,
+        "dependencies:\n"
+        "  ns/cmp:\n"
+        "    source:\n"
+        "      type: service\n"
+        "    version: 1.2\n",
+    )
+    assert component_mirror.parse_lock_service_deps(lock) == []
+
+
+def test_merge_component_index_ignores_corrupt_existing(tmp_path: Path) -> None:
+    """A corrupt mirror index cannot poison the staged one."""
+    src = tmp_path / "staged.json"
+    src.write_text('{"versions": [{"version": "2.0.0"}]}')
+    dst = tmp_path / "existing.json"
+    dst.write_text("not json")
+    component_mirror._merge_component_index(src, dst)
+    assert json.loads(src.read_text()) == {"versions": [{"version": "2.0.0"}]}
+
+
 def test_parse_lock_defaults_registry_url(tmp_path: Path) -> None:
     """A service entry without registry_url is a default-registry dependency."""
     lock = _write_lock(
