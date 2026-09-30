@@ -313,7 +313,7 @@ def test_sync_runs_the_manager_for_missing_deps(tmp_path: Path) -> None:
         "bblanchon/arduinojson==7.4.3",
         "--component",
         "espressif/mdns==1.12.0",
-        str(mirror),
+        str(mirror / ".staging"),
     ]
     assert mock_run.call_args.kwargs["env"] == {"PATH": "/penv"}
     _assert_sync_lock_released()
@@ -387,6 +387,62 @@ def test_sync_skips_when_another_process_holds_the_lock(tmp_path: Path) -> None:
         held.release()
     assert ok
     mock_run.assert_not_called()
+
+
+def _fake_registry_sync(returncode: int = 0):
+    """A subprocess.run stand-in that lays files out like `registry sync`."""
+
+    def run(cmd, **kwargs) -> subprocess.CompletedProcess:
+        staging = Path(cmd[-1])
+        _add_to_mirror(staging, component_mirror.ServiceDep("ns", "cmp", "2.0.0"))
+        return subprocess.CompletedProcess(cmd, returncode, "", "sync failed")
+
+    return run
+
+
+def _sync_custom_lock(tmp_path: Path, returncode: int = 0) -> bool:
+    lock = _write_lock(
+        tmp_path,
+        "dependencies:\n"
+        "  ns/cmp:\n"
+        "    source:\n"
+        "      type: service\n"
+        "    version: 2.0.0\n",
+    )
+    with patch.object(
+        component_mirror.subprocess, "run", side_effect=_fake_registry_sync(returncode)
+    ):
+        return component_mirror.sync_component_mirror(
+            lock,
+            tmp_path / "src" / "idf_component.yml",
+            lambda: "/penv/python",
+            dict,
+        )
+
+
+def test_sync_promotes_staged_files_and_merges_the_index(tmp_path: Path) -> None:
+    """New files land through renames and existing versions survive the merge,
+    so a concurrent configure never reads a truncated index."""
+    mirror = component_mirror.get_mirror_path()
+    _add_to_mirror(mirror, component_mirror.ServiceDep("ns", "cmp", "1.0.0"))
+
+    assert _sync_custom_lock(tmp_path)
+
+    doc = json.loads((mirror / "components" / "ns" / "cmp.json").read_text())
+    assert {entry["version"] for entry in doc["versions"]} == {"1.0.0", "2.0.0"}
+    assert (mirror / "components/ns/cmp/2.0.0/ns__cmp-v2.0.0.zip").is_file()
+    assert (mirror / "components/ns/cmp/1.0.0/ns__cmp-v1.0.0.zip").is_file()
+    assert not (mirror / ".staging").exists()
+
+
+def test_sync_failure_leaves_no_staging_behind(tmp_path: Path) -> None:
+    """A failed sync must not leave partial downloads for the next coverage
+    check to mistake for a mirror."""
+    assert not _sync_custom_lock(tmp_path, returncode=1)
+
+    mirror = component_mirror.get_mirror_path()
+    assert not (mirror / ".staging").exists()
+    assert not (mirror / "components" / "ns").exists()
 
 
 def test_sync_ignores_a_leftover_lock_file(tmp_path: Path) -> None:

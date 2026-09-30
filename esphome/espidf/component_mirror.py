@@ -13,6 +13,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import shutil
 import subprocess
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -35,6 +36,7 @@ _ENV_CHECK_NEW_VERSION = "IDF_COMPONENT_CHECK_NEW_VERSION"
 
 _DEFAULT_REGISTRY_URL = "https://components.espressif.com"
 _SYNC_LOCK_NAME = ".sync.lock"
+_STAGING_DIR_NAME = ".staging"
 _SYNC_TIMEOUT_S = 120
 
 
@@ -182,6 +184,40 @@ def missing_deps(mirror: Path, deps: list[ServiceDep]) -> list[ServiceDep]:
     return [dep for dep in deps if not _mirror_has(mirror, dep)]
 
 
+def _merge_component_index(src: Path, dst: Path) -> None:
+    """Fold the mirror's existing versions of a component into the staged index.
+
+    The staged index lists only the versions this sync fetched; replacing
+    the mirror's file outright would drop the versions it already had.
+    """
+    try:
+        existing = json.loads(dst.read_text(encoding="utf-8"))["versions"]
+        staged = json.loads(src.read_text(encoding="utf-8"))
+        known = {entry.get("version") for entry in staged["versions"]}
+        staged["versions"] += [
+            entry for entry in existing if entry.get("version") not in known
+        ]
+        src.write_text(json.dumps(staged), encoding="utf-8")
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        # No usable existing index; the staged one stands alone.
+        pass
+
+
+def _promote(staging: Path, mirror: Path) -> None:
+    """Move the synced files into the mirror, one atomic rename each."""
+    for src in sorted(path for path in staging.rglob("*") if path.is_file()):
+        rel = src.relative_to(staging)
+        dst = mirror / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if (
+            rel.parts[0] == "components"
+            and len(rel.parts) == 3
+            and rel.suffix == ".json"
+        ):
+            _merge_component_index(src, dst)
+        Path(src).replace(dst)
+
+
 def sync_component_mirror(
     lock_path: Path,
     manifest_path: Path,
@@ -206,10 +242,14 @@ def sync_component_mirror(
     except (OSError, EsphomeError) as err:
         _LOGGER.warning("Could not mirror IDF components: %s", err)
         return False
+    # Sync into a staging directory: the manager writes files in place, so
+    # a configure in another process could read a truncated file from the
+    # live mirror. Promoting with renames keeps every read consistent.
+    staging = mirror / _STAGING_DIR_NAME
     cmd = [python, "-m", "idf_component_manager", "registry", "sync"]
     for dep in to_sync:
         cmd += ["--component", f"{dep.namespace}/{dep.name}=={dep.version}"]
-    cmd.append(str(mirror))
+    cmd.append(str(staging))
     # Lazy import, as in git.py: keeps filelock off the CLI startup path.
     from filelock import FileLock
 
@@ -223,6 +263,7 @@ def sync_component_mirror(
         return True
     _LOGGER.info("Mirroring %d IDF component(s) for offline builds...", len(to_sync))
     try:
+        shutil.rmtree(staging, ignore_errors=True)
         result = subprocess.run(
             cmd,
             env=env,
@@ -231,16 +272,20 @@ def sync_component_mirror(
             timeout=_SYNC_TIMEOUT_S,
             check=False,
         )
+        if result.returncode != 0:
+            tail = "\n".join((result.stderr or result.stdout).strip().splitlines()[-5:])
+            _LOGGER.warning(
+                "Could not mirror IDF components (exit %d):\n%s",
+                result.returncode,
+                tail,
+            )
+            return False
+        _promote(staging, mirror)
     except (OSError, subprocess.SubprocessError) as err:
         _LOGGER.warning("Could not mirror IDF components: %s", err)
         return False
     finally:
+        shutil.rmtree(staging, ignore_errors=True)
         lock.release()
-    if result.returncode != 0:
-        tail = "\n".join((result.stderr or result.stdout).strip().splitlines()[-5:])
-        _LOGGER.warning(
-            "Could not mirror IDF components (exit %d):\n%s", result.returncode, tail
-        )
-        return False
     _LOGGER.info("Mirrored %d IDF component(s) for offline builds", len(to_sync))
     return True
