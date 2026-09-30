@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
-#include <initializer_list>
 #include <vector>
 
 #include "esphome/components/bthome_mithermometer/bthome_ble.h"
@@ -15,15 +14,13 @@ constexpr uint64_t SENSOR_ADDRESS = 0xA4C1384E1678ULL;
 // Encrypted BTHome v2 frames for SENSOR_ADDRESS, generated with Python `cryptography`
 // AESCCM(tag_length=4) and the bindkey below. Layout: device info (0x41), ciphertext,
 // counter (little-endian), MIC. Each plaintext is a single temperature object (0x02).
-constexpr std::initializer_list<uint8_t> BINDKEY = {0xEE, 0xF4, 0x18, 0xDA, 0xF6, 0x99, 0xA0, 0xC1,
-                                                    0x88, 0xF3, 0xBF, 0xD1, 0x7E, 0x45, 0x65, 0xD9};
+// Bindkey: eef418daf699a0c188f3bfd17e4565d9
 // Counter 10, 22.50 C
 const std::vector<uint8_t> COUNTER_10 = {0x41, 0xB9, 0xBD, 0x25, 0x0A, 0x00, 0x00, 0x00, 0x47, 0x51, 0x79, 0x04};
 // Counter 11, 23.48 C
 const std::vector<uint8_t> COUNTER_11 = {0x41, 0xD8, 0x9D, 0x54, 0x0B, 0x00, 0x00, 0x00, 0x4F, 0x5D, 0x89, 0xF2};
 // Counter 11 again, 4.00 C
-const std::vector<uint8_t> COUNTER_11_OTHER = {0x41, 0xD8, 0x21, 0x5C, 0x0B, 0x00,
-                                               0x00, 0x00, 0x72, 0xF8, 0x2B, 0x55};
+const std::vector<uint8_t> COUNTER_11_OTHER = {0x41, 0xD8, 0x21, 0x5C, 0x0B, 0x00, 0x00, 0x00, 0x72, 0xF8, 0x2B, 0x55};
 // Counter 9, 4.00 C
 const std::vector<uint8_t> COUNTER_9 = {0x41, 0x17, 0xB6, 0x8D, 0x09, 0x00, 0x00, 0x00, 0xFB, 0x42, 0xC4, 0x2D};
 
@@ -41,7 +38,8 @@ ble_device_base::ESPBTDevice advert(const std::vector<uint8_t> &service_data) {
 struct Harness {
   Harness() {
     this->thermometer.set_address(SENSOR_ADDRESS);
-    this->thermometer.set_bindkey(BINDKEY);
+    this->thermometer.set_bindkey(
+        {0xEE, 0xF4, 0x18, 0xDA, 0xF6, 0x99, 0xA0, 0xC1, 0x88, 0xF3, 0xBF, 0xD1, 0x7E, 0x45, 0x65, 0xD9});
     this->thermometer.set_temperature(&this->temperature);
   }
 
