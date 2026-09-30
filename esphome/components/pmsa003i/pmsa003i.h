@@ -46,6 +46,7 @@ class PMSA003IComponent final : public PollingComponent, public i2c::I2CDevice {
   void set_pmc_10_0_sensor(sensor::Sensor *pmc_10_0) { this->pmc_10_0_sensor_ = pmc_10_0; }
 
  protected:
+  void poll_until_ready_or_timeout_();
   bool read_data_(PM25AQIData *data);
 
   bool standard_units_;
