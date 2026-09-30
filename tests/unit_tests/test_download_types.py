@@ -52,13 +52,16 @@ def test_recorded_firmware_path_yields_downloads(platform: str, tmp_path: Path) 
     )
 
 
-def _nrf52_files(tmp_path: Path, *built: str) -> list[str]:
+def _nrf52_files(
+    tmp_path: Path, *built: str, framework_version: str | None = None
+) -> list[str]:
     """The files nrf52 offers for a build directory holding *built*."""
     (tmp_path / "zephyr").mkdir()
     for name in built:
         (tmp_path / name).touch()
     storage = _wizard_storage()
     storage.firmware_bin_path = tmp_path / "firmware.bin"
+    storage.framework_version = framework_version
     return [entry["file"] for entry in _download_types("nrf52", storage)]
 
 
@@ -84,3 +87,11 @@ def test_nrf52_offers_the_mcumgr_image_whenever_it_was_built(
 ) -> None:
     """The mcumgr update image is offered beside a UF2 as well as beside a HEX."""
     assert _nrf52_files(tmp_path, *built) == expected
+
+
+def test_nrf52_sdk_3_4_0_ignores_a_stale_merged_hex(tmp_path: Path) -> None:
+    """SDK 3.4.0+ offers zephyr.hex even if an older build left merged.hex."""
+    files = _nrf52_files(
+        tmp_path, "zephyr/merged.hex", "zephyr/zephyr.hex", framework_version="3.4.0"
+    )
+    assert files == ["zephyr/zephyr.hex"]

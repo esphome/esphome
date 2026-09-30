@@ -500,6 +500,10 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     HEX_MERGED_PATH = "zephyr/merged.hex"  # SDK 2.9.2 to 3.3.x, always generated
     APP_IMAGE_PATH = "zephyr/app_update.bin"
     build_dir = Path(storage_json.firmware_bin_path).parent
+    # A merged.hex left by an older SDK build must not win on SDK 3.4.0+
+    uses_zephyr_hex = storage_json.framework_version is not None and cv.Version.parse(
+        storage_json.framework_version
+    ) >= cv.Version(3, 4, 0)
     if (build_dir / UF2_PATH).is_file():
         types = [
             {
@@ -521,9 +525,9 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
                 "title": "HEX package",
                 "description": "For flashing via pyocd using SWD.",
                 "file": (
-                    HEX_MERGED_PATH
-                    if (build_dir / HEX_MERGED_PATH).is_file()
-                    else HEX_PATH
+                    HEX_PATH
+                    if uses_zephyr_hex or not (build_dir / HEX_MERGED_PATH).is_file()
+                    else HEX_MERGED_PATH
                 ),
                 "download": f"{storage_json.name}.hex",
             },
@@ -1018,10 +1022,12 @@ def run_compile(args, config: ConfigType) -> bool:
 
     # For Adafruit bootloader builds, regenerate the UF2 from a hex file.
     # merged.hex carries the correct flash addresses; SDK 3.4.0+ no longer
-    # generates it, so use zephyr.hex there.
-    hex_file = zephyr_dir / "merged.hex"
-    if framework_ver >= cv.Version(3, 4, 0) and not hex_file.is_file():
+    # generates it, so use zephyr.hex there. Chosen by version so a merged.hex
+    # left by an older SDK build is never picked.
+    if framework_ver >= cv.Version(3, 4, 0):
         hex_file = zephyr_dir / "zephyr.hex"
+    else:
+        hex_file = zephyr_dir / "merged.hex"
     if bootloader in _UF2_FAMILY_IDS and hex_file.is_file():
         # Drop the build's own wrong-offset UF2 so it isn't shipped alongside.
         app_uf2 = west_out / "zephyr.uf2"

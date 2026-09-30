@@ -94,3 +94,15 @@ def test_older_sdk_does_not_fall_back_to_zephyr_hex(
     _build(build_dir, cv.Version(3, 2, 0), ["zephyr/zephyr/zephyr.hex"])
     assert not any("-f" in c.args[0] for c in run_cmd.call_args_list)
     assert _dfu_hex(run_cmd) == str(build_dir / "zephyr" / "merged.hex")
+
+
+def test_sdk_3_4_0_ignores_a_stale_merged_hex(build_dir: Path, run_cmd: Mock) -> None:
+    """A merged.hex left by an older SDK build must not be packaged."""
+    _build(
+        build_dir,
+        cv.Version(3, 4, 0),
+        ["zephyr/merged.hex", "zephyr/zephyr/zephyr.hex"],
+    )
+    app_hex = str(build_dir / "zephyr" / "zephyr.hex")
+    assert _uf2_hex(run_cmd) == app_hex
+    assert _dfu_hex(run_cmd) == app_hex
