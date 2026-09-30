@@ -30,9 +30,9 @@ from esphome.helpers import add_git_ceiling_directory, write_file
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "espidf_toolchain"
-# The -D that switches the generated CMakeLists between the cached and the
-# in-tree bootloader; also read back from CMakeCache.txt to identify a tree.
-USE_CACHED_BOOTLOADER_DEFINE = "ESPHOME_USE_CACHED_BOOTLOADER"
+# The -D that tells the generated CMakeLists to skip the in-tree bootloader
+# build; also read back from CMakeCache.txt to identify a tree.
+SKIP_BOOTLOADER_DEFINE = "ESPHOME_SKIP_BOOTLOADER"
 
 
 @dataclass
@@ -289,13 +289,13 @@ def _cache_entries_changed() -> bool:
     return any(cache.get(k) != v for k, v in _configure_defines().items())
 
 
-def tree_uses_cached_bootloader(build_dir: Path) -> bool:
-    """Whether a configured tree was set up for the cached bootloader."""
+def tree_skips_bootloader(build_dir: Path) -> bool:
+    """Whether a configured tree was set up to skip the bootloader build."""
     cmakecache = build_dir / "CMakeCache.txt"
     if not cmakecache.is_file():
         return False
     cache = _parse_cmakecache(cmakecache)
-    return cache.get(USE_CACHED_BOOTLOADER_DEFINE) == "1"
+    return cache.get(SKIP_BOOTLOADER_DEFINE) == "1"
 
 
 def _configure_defines() -> dict[str, str]:
@@ -307,7 +307,7 @@ def _configure_defines() -> dict[str, str]:
         **_cache_entries(),
         # ESPHome's own switch; idf.py never passes it and cmake keeps the
         # cached value, so idf.py runs against the tree stay in the same mode.
-        USE_CACHED_BOOTLOADER_DEFINE: "0",
+        SKIP_BOOTLOADER_DEFINE: "0",
     }
 
 

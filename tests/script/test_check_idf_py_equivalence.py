@@ -29,18 +29,18 @@ BOOTLOADER_LOG = "build/bootloader/.ninja_log"
 ALL_LOGS = (guard.TOP_NINJA_LOG, BOOTLOADER_LOG)
 
 
-def _make_tree(tmp_path: Path, cached_bootloader: bool = False) -> Path:
+def _make_tree(tmp_path: Path, skip_bootloader: bool = False) -> Path:
     """A fake build tree; stock/bypass shape by default, or the cached
     shape (define set to 1, bin present, no sub-build)."""
     tree = tmp_path / "config" / ".esphome" / "build" / "dev"
     build = tree / "build"
-    logs = (guard.TOP_NINJA_LOG,) if cached_bootloader else ALL_LOGS
+    logs = (guard.TOP_NINJA_LOG,) if skip_bootloader else ALL_LOGS
     for name in (*guard.watched("dev"), *logs):
         (tree / name).parent.mkdir(parents=True, exist_ok=True)
         (tree / name).write_bytes(b"x")
-    define = "1" if cached_bootloader else "0"
+    define = "1" if skip_bootloader else "0"
     (build / "CMakeCache.txt").write_text(
-        f"{toolchain.USE_CACHED_BOOTLOADER_DEFINE}:UNINITIALIZED={define}\n"
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED={define}\n"
     )
     (build / "project_description.json").write_text(
         json.dumps(
@@ -232,9 +232,9 @@ def test_main_rejects_a_path_that_is_not_a_tree(
     mock_check.assert_not_called()
 
 
-def test_check_accepts_a_cached_bootloader_tree(tmp_path: Path) -> None:
+def test_check_accepts_a_skip_bootloader_tree(tmp_path: Path) -> None:
     """No bootloader sub-build is the cached shape, not a missing input."""
-    tree = _make_tree(tmp_path, cached_bootloader=True)
+    tree = _make_tree(tmp_path, skip_bootloader=True)
     problems, calls = _run_check(tree)
     assert problems == []
     assert len(calls) == 2

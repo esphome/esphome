@@ -741,7 +741,7 @@ def test_run_reconfigure_cmake_argv_matches_idf_py(setup_core: Path) -> None:
         "-DESP_PLATFORM=1",
         f"-DSDKCONFIG={sdkconfig}",
         "-DCCACHE_ENABLE=0",
-        "-DESPHOME_USE_CACHED_BOOTLOADER=0",
+        "-DESPHOME_SKIP_BOOTLOADER=0",
         project,
     ]
     kwargs = mock_run.call_args.kwargs
@@ -776,7 +776,7 @@ def test_run_reconfigure_cmake_argv_matches_idf6_py(
         "-DPYTHON=/tools/python",
         "-DESP_PLATFORM=1",
         f"-DCCACHE_ENABLE={expected}",
-        "-DESPHOME_USE_CACHED_BOOTLOADER=0",
+        "-DESPHOME_SKIP_BOOTLOADER=0",
         str(build_dir.parent),
     ]
 
@@ -789,7 +789,7 @@ def test_run_reconfigure_without_sdkconfig_or_filter(setup_core: Path) -> None:
     cmd = mock_run.call_args.args[0]
     assert not any(arg.startswith("-DSDKCONFIG=") for arg in cmd)
     assert cmd[-3] == "-DCCACHE_ENABLE=0"
-    assert cmd[-2] == "-DESPHOME_USE_CACHED_BOOTLOADER=0"
+    assert cmd[-2] == "-DESPHOME_SKIP_BOOTLOADER=0"
     assert mock_run.call_args.kwargs["filter_lines"] is None
 
 
@@ -856,7 +856,7 @@ _CONFIGURED = (
     "PYTHON_DEPS_CHECKED:UNINITIALIZED=1\n"
     "PYTHON:UNINITIALIZED=/tools/python\n"
     "ESP_PLATFORM:UNINITIALIZED=1\n"
-    "ESPHOME_USE_CACHED_BOOTLOADER:UNINITIALIZED=0\n"
+    "ESPHOME_SKIP_BOOTLOADER:UNINITIALIZED=0\n"
 )
 
 

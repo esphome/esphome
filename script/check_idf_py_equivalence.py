@@ -42,7 +42,7 @@ def _ninja_logs(build_path: Path) -> list[str]:
     from esphome.espidf import toolchain
 
     logs = [TOP_NINJA_LOG]
-    if not toolchain.tree_uses_cached_bootloader(build_path / "build"):
+    if not toolchain.tree_skips_bootloader(build_path / "build"):
         logs.append("build/bootloader/.ninja_log")
     return logs
 
