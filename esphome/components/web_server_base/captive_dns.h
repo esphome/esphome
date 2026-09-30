@@ -20,16 +20,21 @@ namespace esphome::web_server_base {
 // The server object only exists while running, so an idle owner (AP not up) pays one pointer.
 class CaptiveDNS {
  public:
-  void start(const network::IPAddress &ip) {
+  /// Returns false when the DNS server could not start; nothing is kept, so a later start retries.
+  bool start(const network::IPAddress &ip) {
     if (this->dns_server_ != nullptr)
-      return;
-    this->dns_server_ = make_unique<DNSServer>();
+      return true;
+    auto server = make_unique<DNSServer>();
 #if defined(USE_ESP32)
-    this->dns_server_->start(ip);
+    const bool started = server->start(ip);
 #elif defined(USE_ARDUINO)
-    this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
-    this->dns_server_->start(53, ESPHOME_F("*"), ip);
+    server->setErrorReplyCode(DNSReplyCode::NoError);
+    const bool started = server->start(53, ESPHOME_F("*"), ip);
 #endif
+    if (!started)
+      return false;
+    this->dns_server_ = std::move(server);
+    return true;
   }
   void stop() {
     if (this->dns_server_ == nullptr)

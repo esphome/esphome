@@ -46,7 +46,7 @@ struct DNSAnswer {
   uint32_t ip_addr;
 } __attribute__((packed));
 
-void DNSServer::start(const network::IPAddress &ip) {
+bool DNSServer::start(const network::IPAddress &ip) {
   this->server_ip_ = ip;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
@@ -57,7 +57,7 @@ void DNSServer::start(const network::IPAddress &ip) {
   this->socket_ = socket::socket_ip_loop_monitored(SOCK_DGRAM, IPPROTO_UDP).release();
   if (this->socket_ == nullptr) {
     ESP_LOGE(TAG, "Socket create failed");
-    return;
+    return false;
   }
 
   // Set socket options
@@ -72,9 +72,10 @@ void DNSServer::start(const network::IPAddress &ip) {
   if (err != 0) {
     ESP_LOGE(TAG, "Bind failed: %d", errno);
     this->destroy_socket_();
-    return;
+    return false;
   }
   ESP_LOGV(TAG, "Bound to port %d", DNS_PORT);
+  return true;
 }
 
 void DNSServer::stop() {

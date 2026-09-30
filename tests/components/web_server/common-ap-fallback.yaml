@@ -1,5 +1,12 @@
 # STA with AP fallback plus local: true opts the fallback into captive AP mode; exercises
-# the runtime start (fallback branch in wifi loop) and end (on STA connect) paths.
+# the runtime start (fallback branch in wifi loop) and end (on STA connect, and when the
+# provisioning window closes) paths.
+provisioning:
+  timeout: 1min
+
+api:
+  encryption:
+
 wifi:
   ssid: MySSID
   password: password1

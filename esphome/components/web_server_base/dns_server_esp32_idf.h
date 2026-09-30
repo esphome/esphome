@@ -13,7 +13,8 @@ namespace esphome::web_server_base {
 
 class DNSServer {
  public:
-  void start(const network::IPAddress &ip);
+  /// Returns false when the socket could not be created or bound.
+  bool start(const network::IPAddress &ip);
   void stop();
   void process_next_request();
 

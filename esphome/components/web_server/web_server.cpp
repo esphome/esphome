@@ -444,9 +444,12 @@ void WebServer::start_captive() {
   if (this->dns_.is_running())
     return;
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
-  this->dns_.start(ip);
-  this->enable_loop();
   char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  if (!this->dns_.start(ip)) {
+    ESP_LOGW(TAG, "AP mode: captive DNS failed to start; open http://%s/ manually", ip.str_to(ip_buf));
+    return;
+  }
+  this->enable_loop();
   ESP_LOGI(TAG, "AP mode: serving the web interface as captive portal at http://%s/", ip.str_to(ip_buf));
 }
 

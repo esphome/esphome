@@ -638,13 +638,14 @@ void WiFiComponent::setup() {
 
 #if defined(USE_PROVISIONING) && defined(USE_WIFI_AP)
   // The access point is a provisioning surface: once the provisioning window has
-  // closed, shut it down (mirrors the teardown done on a successful connection).
-  // The captive portal registers its own closed-callback, and the fallback block
-  // in loop() is gated so neither is started again afterwards.
+  // closed, end both portals and shut it down (mirrors the teardown done on a
+  // successful connection). The fallback block in loop() is gated so none of them
+  // is started again afterwards.
   if (provisioning::global_provisioning_manager != nullptr) {
     provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
       if (this->ap_setup_) {
         ESP_LOGD(TAG, "Provisioning window closed; disabling AP");
+        this->end_ap_portal_();
         this->wifi_mode_({}, false);
       }
     });
