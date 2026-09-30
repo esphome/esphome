@@ -64,6 +64,7 @@ def component_mirror_env() -> dict[str, str]:
     except OSError as err:
         _LOGGER.debug("Component mirror unavailable at %s: %s", mirror, err)
         return {}
+    _LOGGER.debug("Serving the IDF component mirror at %s", mirror)
     local_storage = mirror.as_uri()
     if user_value := os.environ.get(_ENV_LOCAL_STORAGE_URL):
         local_storage = f"{user_value};{local_storage}"
