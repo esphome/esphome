@@ -1227,8 +1227,14 @@ jobs:
             # Run compilation with grouping and isolation
             # Component builds are never flashed, and the bootloader has no
             # ESPHome code in it; building it here tests nothing Espressif
-            # does not already test. The toolchain jobs keep full builds.
-            python3 script/test_build_components.py -e compile -c "$compile_csv" -f --isolate "$directly_changed_csv" --skip-bootloader
+            # does not already test. The batch that feeds the idf.py
+            # equivalence check keeps the full build, so the native
+            # bootloader sub-build and both check shapes stay covered.
+            skip_flag="--skip-bootloader"
+            if [[ "${{ matrix.batch.check_idf_py }}" == "true" ]]; then
+              skip_flag=""
+            fi
+            python3 script/test_build_components.py -e compile -c "$compile_csv" -f --isolate "$directly_changed_csv" $skip_flag
             if [[ "${{ matrix.batch.check_idf_py }}" == "true" ]]; then
               # The real idf.py must find nothing to configure or build in a
               # tree built above; catches drift on ESP-IDF bumps.

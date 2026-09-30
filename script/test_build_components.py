@@ -409,7 +409,12 @@ def run_esphome_test(
 
     # Add command
     cmd.append(esphome_command)
-    if skip_bootloader and esphome_command == "compile":
+    if (
+        skip_bootloader
+        and esphome_command == "compile"
+        and platform.startswith("esp32")
+    ):
+        # esp32-idf only; adding it elsewhere just logs an ignore warning.
         cmd.append("--skip-bootloader")
 
     # Add config file
@@ -558,7 +563,12 @@ def run_grouped_test(
 
     # Add command
     cmd.append(esphome_command)
-    if skip_bootloader and esphome_command == "compile":
+    if (
+        skip_bootloader
+        and esphome_command == "compile"
+        and platform.startswith("esp32")
+    ):
+        # esp32-idf only; adding it elsewhere just logs an ignore warning.
         cmd.append("--skip-bootloader")
 
     cmd.append(str(output_file))
