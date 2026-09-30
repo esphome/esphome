@@ -18,8 +18,8 @@ namespace esphome::serial_proxy {
 
 static const char *const TAG = "serial_proxy";
 
-uint32_t SerialProxy::stall_loop_time_ = 0;
-uint32_t SerialProxy::stall_spent_ms_ = 0;
+uint32_t SerialProxy::stall_loop_time = 0;
+uint32_t SerialProxy::stall_spent_ms = 0;
 
 void SerialProxy::setup() {
   // Set up modem control pins if configured
@@ -306,12 +306,12 @@ void SerialProxy::write_from_client(api::APIConnection *api_connection, const ui
   bool trimmed = false;
   if (len > free) {
     const uint32_t loop_time = App.get_loop_component_start_time();
-    if (loop_time != stall_loop_time_) {
-      stall_loop_time_ = loop_time;
-      stall_spent_ms_ = 0;
+    if (loop_time != stall_loop_time) {
+      stall_loop_time = loop_time;
+      stall_spent_ms = 0;
     }
     const uint32_t stall_ms = this->wire_time_ms_(len - free);
-    trimmed = stall_spent_ms_ + stall_ms > SERIAL_PROXY_MAX_WRITE_STALL_MS;
+    trimmed = stall_spent_ms + stall_ms > SERIAL_PROXY_MAX_WRITE_STALL_MS;
     if (trimmed && !this->trim_warned_) {
       ESP_LOGW(TAG,
                "TX buffer full on serial proxy [%" PRIu32 "]: dropping %zu of %zu bytes (would stall %" PRIu32
@@ -321,7 +321,7 @@ void SerialProxy::write_from_client(api::APIConnection *api_connection, const ui
     if (trimmed) {
       len = free;
     } else {
-      stall_spent_ms_ += stall_ms;
+      stall_spent_ms += stall_ms;
     }
   }
   this->trim_warned_ = trimmed;

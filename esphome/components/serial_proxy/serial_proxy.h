@@ -231,8 +231,8 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 
   /// Stall spent by writes in the current loop pass, keyed by the pass's cached start time.
   /// Shared: writes to several ports land in the same pass and stall the same loop
-  static uint32_t stall_loop_time_;
-  static uint32_t stall_spent_ms_;
+  static uint32_t stall_loop_time;
+  static uint32_t stall_spent_ms;
 
   /// Subscribed API client (only one allowed at a time)
   api::APIConnection *api_connection_{nullptr};
