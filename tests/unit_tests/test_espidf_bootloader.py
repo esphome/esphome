@@ -125,6 +125,35 @@ def test_enabled_project_bootloader_components_disable(tmp_path: Path) -> None:
         assert bootloader._compute_enabled() is False
 
 
+@pytest.mark.parametrize(
+    ("config", "blocks"),
+    [
+        ({"SECURE_BOOT": True}, True),
+        ({"SECURE_BOOT_SIGNING_KEY": "keys/sb.pem"}, True),
+        ({"FLASH_ENCRYPTION_ENABLED": True}, True),
+        ({"SECURE_BOOT_V1_SUPPORTED": True, "SECURE_BOOT": False}, False),
+        ({"A": "1"}, False),
+    ],
+    ids=["secure-boot", "signing-key", "flash-enc", "capability-only", "plain"],
+)
+def test_resolved_blocks_cache(config: dict, blocks: bool) -> None:
+    """Key file contents are inputs the key cannot hash; capabilities are not."""
+    assert bootloader._resolved_blocks_cache(config) is blocks
+
+
+def test_enabled_resolved_secure_option_disables(tmp_path: Path) -> None:
+    """A menuconfig edit to the real sdkconfig never reaches the snapshot."""
+    _write_snapshot("CONFIG_APP_REPRODUCIBLE_BUILD=y\n")
+    config_dir = toolchain._build_dir() / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "sdkconfig.json").write_text('{"SECURE_BOOT": true}')
+    with (
+        _tools_prefix(tmp_path),
+        patch.object(build_gen, "idf_macro_matches", return_value=True),
+    ):
+        assert bootloader._compute_enabled() is False
+
+
 def test_enabled_recorded_bootloader_hooks_disable(tmp_path: Path) -> None:
     """A customization recorded by the last configure is an unseen input."""
     _write_snapshot("CONFIG_APP_REPRODUCIBLE_BUILD=y\n")
@@ -568,6 +597,20 @@ def test_ensure_rechecks_recorded_hooks_after_configure(tmp_path: Path) -> None:
         patch.object(bootloader, "_build_standalone") as mock_build,
     ):
         _write_hooks_record("vendor__boot")
+        assert bootloader.ensure_cached_bootloader() is False
+    mock_build.assert_not_called()
+
+
+def test_ensure_bypasses_a_resolved_secure_option(tmp_path: Path) -> None:
+    """Configure resolves hand-edited secure options the snapshot cannot see."""
+    with (
+        _orchestration_env(tmp_path),
+        patch.object(bootloader, "_build_standalone") as mock_build,
+    ):
+        build = CORE.relative_build_path("build")
+        (build / "config" / "sdkconfig.json").write_text(
+            '{"SECURE_BOOT_SIGNING_KEY": "sb.pem"}'
+        )
         assert bootloader.ensure_cached_bootloader() is False
     mock_build.assert_not_called()
 

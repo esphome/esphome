@@ -73,6 +73,11 @@ def _compute_enabled() -> bool:
             # The last configure saw a component customizing the bootloader.
             _LOGGER.info("Bootloader cache off: build customizes the bootloader")
             return False
+        resolved = toolchain._load_sdkconfig_json(toolchain._build_dir())
+        if resolved is not None and _resolved_blocks_cache(resolved):
+            # Hand edits to the real sdkconfig survive snapshot preservation.
+            _LOGGER.info("Bootloader cache off: secure options in the tree")
+            return False
         if not os.access(tools := framework.get_idf_tools_path(), os.W_OK):
             # A read-only shared prefix would fail the cache on every build.
             _LOGGER.info("Bootloader cache off: %s is not writable", tools)
@@ -118,6 +123,20 @@ def _snapshot_blocks_cache(sdkconfig_path: Path) -> bool:
     ):
         return True
     return config.get("CONFIG_APP_REPRODUCIBLE_BUILD", "") in _DISABLED_VALUES
+
+
+def _resolved_blocks_cache(app_config: dict) -> bool:
+    """Secure options in the resolved config; catches hand-edited sdkconfigs.
+
+    Key files are inputs the cache key cannot hash; *_SUPPORTED capability
+    constants are always on and say nothing about what is enabled.
+    """
+    return any(
+        name.startswith(("SECURE_", "FLASH_ENCRYPTION"))
+        and not name.endswith("_SUPPORTED")
+        and bool(value)
+        for name, value in app_config.items()
+    )
 
 
 def tree_uses_cached_bootloader(build_dir: Path) -> bool:
@@ -387,6 +406,10 @@ def ensure_cached_bootloader(verbose: bool = False) -> bool:
             _LOGGER.info("Bootloader customized by the build; building in-tree")
             return False
         app_config = toolchain._load_sdkconfig_json(toolchain._build_dir())
+        if app_config is not None and _resolved_blocks_cache(app_config):
+            # Configure just resolved a secure option the snapshot cannot see.
+            _LOGGER.info("Secure options in the resolved config; building in-tree")
+            return False
         offset = _bootloader_offset(app_config)
         table_offset = (app_config or {}).get("PARTITION_TABLE_OFFSET")
         compiler = toolchain._resolved_c_compiler()
