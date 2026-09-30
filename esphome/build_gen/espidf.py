@@ -83,7 +83,7 @@ def _cmake_quote(value: str) -> str:
 
 # CONFIG_APP_BUILD_BOOTLOADER is hidden and force-selected, so it can only be
 # cleared at the CMake level (the same state IDF's RAM-app build type uses).
-# The macro is IDF's __build_process_project_includes with one added set();
+# The macro is IDF's __build_process_project_includes plus two added lines;
 # esphome.espidf.bootloader falls back to in-tree if an IDF update changes it.
 IDF_BOOTLOADER_OVERRIDE = """\
 # ESPHome cached bootloader switch; see esphome/espidf/bootloader.py.

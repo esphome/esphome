@@ -95,10 +95,8 @@ def _compute_enabled() -> bool:
 def _recorded_bootloader_hooks() -> str | None:
     """The bootloader customization channels the last configure recorded.
 
-    The generated CMakeLists dumps them after project(), so every source
-    counts: managed and local components, main, and EXTRA_CMAKE_ARGS.
-    None means no configure has recorded them yet; rechecked after
-    configure, since the pre-configure read can be stale or missing.
+    Dumped by the generated CMakeLists after project(), so every source
+    counts; None means no configure has written the record yet.
     """
     path = toolchain._build_dir() / BOOTLOADER_HOOKS_FILE
     try:
