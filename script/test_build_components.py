@@ -344,6 +344,7 @@ def run_esphome_test(
     continue_on_fail: bool,
     use_testing_mode: bool = False,
     toolchain: str | None = None,
+    skip_bootloader: bool = False,
 ) -> TestResult:
     """Run esphome test for a single component.
 
@@ -408,6 +409,8 @@ def run_esphome_test(
 
     # Add command
     cmd.append(esphome_command)
+    if skip_bootloader and esphome_command == "compile":
+        cmd.append("--skip-bootloader")
 
     # Add config file
     cmd.append(str(output_file))
@@ -469,6 +472,7 @@ def run_grouped_test(
     esphome_command: str,
     continue_on_fail: bool,
     toolchain: str | None = None,
+    skip_bootloader: bool = False,
 ) -> TestResult:
     """Run esphome test for a group of components with shared bus configs.
 
@@ -554,6 +558,8 @@ def run_grouped_test(
 
     # Add command
     cmd.append(esphome_command)
+    if skip_bootloader and esphome_command == "compile":
+        cmd.append("--skip-bootloader")
 
     cmd.append(str(output_file))
 
@@ -614,6 +620,7 @@ def run_grouped_component_tests(
     continue_on_fail: bool,
     additional_isolated: set[str] | None = None,
     toolchain: str | None = None,
+    skip_bootloader: bool = False,
 ) -> tuple[set[tuple[str, str]], list[TestResult]]:
     """Run grouped component tests.
 
@@ -956,6 +963,7 @@ def run_grouped_component_tests(
                 esphome_command=esphome_command,
                 continue_on_fail=continue_on_fail,
                 toolchain=toolchain,
+                skip_bootloader=skip_bootloader,
             )
 
             # Mark all components as tested
@@ -980,6 +988,7 @@ def run_individual_component_test(
     tested_components: set[tuple[str, str]],
     test_results: list[TestResult],
     toolchain: str | None = None,
+    skip_bootloader: bool = False,
 ) -> None:
     """Run an individual component test if not already tested in a group.
 
@@ -1014,6 +1023,7 @@ def run_individual_component_test(
         esphome_command=esphome_command,
         continue_on_fail=continue_on_fail,
         toolchain=toolchain,
+        skip_bootloader=skip_bootloader,
     )
     test_results.append(test_result)
 
@@ -1027,6 +1037,7 @@ def test_components(
     isolated_components: set[str] | None = None,
     base_only: bool = False,
     toolchain: str | None = None,
+    skip_bootloader: bool = False,
     fail_on_no_tests: bool = False,
 ) -> int:
     """Test components with optional intelligent grouping.
@@ -1127,6 +1138,7 @@ def test_components(
             continue_on_fail=continue_on_fail,
             additional_isolated=isolated_components,
             toolchain=toolchain,
+            skip_bootloader=skip_bootloader,
         )
         test_results.extend(grouped_results)
 
@@ -1156,6 +1168,7 @@ def test_components(
                             tested_components=tested_components,
                             test_results=test_results,
                             toolchain=toolchain,
+                            skip_bootloader=skip_bootloader,
                         )
             else:
                 # Platform-specific test
@@ -1189,6 +1202,7 @@ def test_components(
                         tested_components=tested_components,
                         test_results=test_results,
                         toolchain=toolchain,
+                        skip_bootloader=skip_bootloader,
                     )
 
     silent: list[str] = []
@@ -1295,6 +1309,12 @@ def main() -> int:
         help="Select toolchain for compiling.",
     )
     parser.add_argument(
+        "--skip-bootloader",
+        action="store_true",
+        help="Pass --skip-bootloader to esphome compile; component builds "
+        "never flash, and the bootloader is covered by the toolchain jobs",
+    )
+    parser.add_argument(
         "--fail-on-no-tests",
         action="store_true",
         help="Exit non-zero when no test matched (for CI legs whose "
@@ -1321,6 +1341,7 @@ def main() -> int:
         fail_on_no_tests=args.fail_on_no_tests,
         base_only=args.base_only,
         toolchain=args.toolchain,
+        skip_bootloader=args.skip_bootloader,
     )
 
 
