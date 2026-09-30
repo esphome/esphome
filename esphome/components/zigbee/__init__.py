@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from esphome import automation, core
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import only_on_variant
 from esphome.components.esp32.const import (
@@ -18,6 +18,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 from .const import (
+    CONF_CLUSTER,
     CONF_ENDPOINT,
     CONF_MAX_EP_NUMBER,
     CONF_ON_JOIN,
@@ -30,7 +31,6 @@ from .const import (
     POWER_SOURCE,
     REPORT,
     ZigbeeComponent,
-    zigbee_ns,
 )
 from .const_zephyr import (
     CONF_IEEE802154_VENDOR_OUI,
@@ -74,6 +74,11 @@ BASE_SCHEMA = cv.Schema(
             cv.requires_component("esp32"),
             _check_report_deprecation,
             cv.enum(REPORT, lower=True),
+        ),
+        cv.OnlyWith(CONF_CLUSTER, ["esp32", "zigbee"], default="generic"): cv.All(
+            cv.requires_component("zigbee"),
+            cv.requires_component("esp32"),
+            cv.one_of(*["generic", "device_class"], lower=True),
         ),
         cv.Optional(CONF_ENDPOINT): cv.All(
             cv.requires_component("zigbee"),
@@ -197,21 +202,27 @@ async def to_code(config: ConfigType) -> None:
 
 
 async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
+    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        from .zigbee_zephyr import zephyr_setup_binary_sensor
-
-        await zephyr_setup_binary_sensor(entity, config)
+        if not config.get(CONF_ZIGBEE_ID):
+            return
+        from .zigbee_zephyr import add_binary_sensor
+    else:
+        from .zigbee_esp32 import add_component as add_binary_sensor
+    CORE.add_job(add_binary_sensor, entity, config)
 
 
 async def setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
+    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        from .zigbee_zephyr import zephyr_setup_sensor
-
-        await zephyr_setup_sensor(entity, config)
+        if not config.get(CONF_ZIGBEE_ID):
+            return
+        from .zigbee_zephyr import add_sensor
+    else:
+        from .zigbee_esp32 import add_component as add_sensor
+    CORE.add_job(add_sensor, entity, config)
 
 
 async def setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
@@ -293,23 +304,8 @@ ZIGBEE_ACTION_SCHEMA = automation.maybe_simple_id(
     )
 )
 
-FactoryResetAction = zigbee_ns.class_(
-    "FactoryResetAction", automation.Action, cg.Parented.template(ZigbeeComponent)
-)
-
-
-@automation.register_action(
+automation.register_apply_action(
     "zigbee.factory_reset",
-    FactoryResetAction,
     ZIGBEE_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("factory_reset()"),
 )
-async def reset_zigbee_to_code(
-    config: ConfigType,
-    action_id: core.ID,
-    template_arg: cg.TemplateArguments,
-    args: list[tuple],
-) -> cg.Pvariable:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

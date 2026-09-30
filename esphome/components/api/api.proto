@@ -803,6 +803,9 @@ message SwitchStateResponse {
   fixed32 key = 1 [(force) = true];
   bool state = 2;
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
+  // If the switch does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 4;
 }
 message SwitchCommandRequest {
   option (id) = 33;
@@ -1244,6 +1247,9 @@ message ClimateStateResponse {
   float current_humidity = 14;
   float target_humidity = 15;
   uint32 device_id = 16 [(field_ifdef) = "USE_DEVICES"];
+  // If the climate device does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 17;
 }
 message ClimateCommandRequest {
   option (id) = 48;
@@ -1330,6 +1336,9 @@ message WaterHeaterStateResponse {
   uint32 state = 6;
   float target_temperature_low = 7;
   float target_temperature_high = 8;
+  // If the water heater does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 9;
 }
 
 // Bitmask for WaterHeaterCommandRequest.has_fields
