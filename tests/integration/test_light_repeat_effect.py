@@ -4,7 +4,7 @@ Starting the strobe used to leave the last published colour (white here) on the 
 the first color's duration had passed since boot, then skip to the second color.
 
 A turn-on naming the effect that is already running, or a plain turn-on of a lit light, used
-to get the default transition. That faded the output towards white, which the strobe never
+to get the default transition (or the requested one). That faded the output towards white, which the strobe never
 updates, until the next strobe step snapped it back.
 """
 
@@ -32,10 +32,13 @@ async def test_light_repeat_effect(
     outputs: dict[str, list[float]] = {"GREEN": [], "BLUE": []}
     green = outputs["GREEN"]
     blue = outputs["BLUE"]
+    warnings: list[str] = []
 
     def on_log_line(line: str) -> None:
         if match := output_pattern.search(line):
             outputs[match.group(1)].append(float(match.group(2)))
+        elif "effect cannot be used with" in line:
+            warnings.append(line)
 
     async with (
         run_compiled(yaml_config, line_callback=on_log_line),
@@ -83,6 +86,10 @@ async def test_light_repeat_effect(
 
         for description, command in (
             ("Repeating the running effect", {"effect": "Slow Strobe"}),
+            (
+                "Repeating the running effect with a transition",
+                {"effect": "Slow Strobe", "transition_length": 2.0},
+            ),
             ("A plain turn-on", {}),
         ):
             green.clear()
@@ -95,5 +102,36 @@ async def test_light_repeat_effect(
             assert max(green) == pytest.approx(0.0, abs=0.01), (
                 f"{description} faded the output towards white: {green}"
             )
+
+        assert not warnings, f"Unexpected warnings: {warnings}"
+
+        # A flash requested with the running effect still flashes, here to white
+        green.clear()
+        state = await send_and_wait(state=True, effect="Slow Strobe", flash_length=0.5)
+        assert not warnings, f"Unexpected warnings: {warnings}"
+        await asyncio.sleep(0.2)
+        assert max(green) == pytest.approx(1.0, abs=0.01), (
+            f"The flash was dropped: green={green}"
+        )
+        await asyncio.sleep(0.5)
+
+        # Brightness 0 with no state turns the light off but leaves the effect
+        # running; naming that effect must still turn the light on
+        state = await send_and_wait(brightness=0.0)
+        assert state.state is False
+        state = await send_and_wait(state=True, effect="Slow Strobe")
+        assert state.state is True, "Turn-on with the running effect was dropped"
+        assert state.brightness == pytest.approx(1.0)
+        assert state.effect == "Slow Strobe"
+
+        # A lit light at brightness 0 is made visible by a turn-on naming the effect
+        state = await send_and_wait(state=True, brightness=0.0)
+        assert state.state is True
+        assert state.brightness == pytest.approx(0.0)
+        state = await send_and_wait(state=True, effect="Slow Strobe")
+        assert state.brightness == pytest.approx(1.0), (
+            "Turn-on with the running effect did not make the light visible"
+        )
+        assert state.effect == "Slow Strobe"
 
         client.light_command(key=light.key, effect="None")
