@@ -31,6 +31,7 @@ from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
+    CONF_BUILD_FLAGS,
     CONF_ESPHOME,
     CONF_GROUP,
     CONF_ID,
@@ -169,11 +170,17 @@ def generate_lv_conf_h():
     all_defines = set(
         df.LV_DEFINES + tuple(f"LV_USE_{w.upper()}" for w in WIDGET_TYPES)
     )
-    build_flags = (
-        CORE.config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS).get("build_flags", [])
+    esphome_config = CORE.config[CONF_ESPHOME]
+    # User build flags come from esphome->build_flags and from the deprecated
+    # esphome->platformio_options->build_flags (a string or a list).
+    # Remove before 2026.12.0
+
+    pio_build_flags = esphome_config.get(CONF_PLATFORMIO_OPTIONS, {}).get(
+        CONF_BUILD_FLAGS, []
     )
-    if not isinstance(build_flags, list):
-        build_flags = [build_flags]
+    if not isinstance(pio_build_flags, list):
+        pio_build_flags = [pio_build_flags]
+    build_flags = [*esphome_config.get(CONF_BUILD_FLAGS, []), *pio_build_flags]
     # Extract define names from build flags like '-DLV_USE_CHART=1', '-D LV_USE_CHART',
     # or multiple defines in one string.
     define_pattern = r'-D\s*([A-Z_][A-Z0-9_]*)(?:=[^\s\'"\]]*)?'
@@ -231,6 +238,7 @@ def multi_conf_validate(configs: list[dict]):
             CONF_COLOR_DEPTH,
             CONF_BYTE_ORDER,
             df.CONF_TRANSPARENCY_KEY,
+            df.CONF_DEBUG_OUTLINE,
         ):
             if base_config[item] != config[item]:
                 raise cv.Invalid(
@@ -386,6 +394,7 @@ async def to_code(configs):
         df.add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
     cg.add(lvgl_static.esphome_lvgl_init())
     default_group = get_default_group(config_0)
+    df.get_options()[df.CONF_DEBUG_OUTLINE] = config_0[df.CONF_DEBUG_OUTLINE]
 
     for config in configs:
         frac = config[CONF_BUFFER_SIZE]
@@ -627,6 +636,7 @@ LVGL_TOP_LEVEL_SCHEMA = (
             cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
             cv.Optional(df.CONF_RESUME_ON_INPUT, default=True): cv.boolean,
             cv.Optional(df.CONF_PAUSED, default=False): cv.boolean,
+            cv.Optional(df.CONF_DEBUG_OUTLINE, default=False): cv.boolean,
         }
     )
     .extend(DISP_BG_SCHEMA)
