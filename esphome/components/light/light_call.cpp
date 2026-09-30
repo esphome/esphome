@@ -156,11 +156,13 @@ void LightCall::perform() {
       ESP_LOGV(TAG, "  Effect: '%.*s'", (int) effect_s.size(), effect_s.c_str());
     }
 
-    this->parent_->start_effect_(this->effect_);
+    if (this->effect_ != this->parent_->active_effect_index_) {
+      this->parent_->start_effect_(this->effect_);
 
-    // Also set light color values when starting an effect
-    // For example to turn off the light
-    this->parent_->set_immediately_(v, true);
+      // Also set light color values when starting an effect
+      // For example to turn off the light
+      this->parent_->set_immediately_(v, true);
+    }
   } else {
     // INSTANT CHANGE
     this->parent_->set_immediately_(v, publish);
@@ -193,10 +195,9 @@ LightColorValues LightCall::validate_() {
   auto *name = this->parent_->get_name().c_str();
   auto traits = this->parent_->get_traits();
 
-#ifdef USE_LIGHT_RESUME_EFFECT
   // Snapshot before the adjustments below add flags of their own
+  const bool sets_values = (this->flags_ & VALUE_FLAGS_MASK) != 0;
   const bool plain_turn_on = this->has_state() && this->state_ && (this->flags_ & ~STATE_ONLY_FLAGS_MASK) == 0;
-#endif  // USE_LIGHT_RESUME_EFFECT
 
   // Color mode check
   if (this->has_color_mode() && !traits.supports_color_mode(this->color_mode_)) {
@@ -348,8 +349,18 @@ LightColorValues LightCall::validate_() {
   }
 #endif  // USE_LIGHT_RESUME_EFFECT
 
-  // If effect is already active, remove effect start
-  if (this->has_effect_() && this->effect_ == this->parent_->active_effect_index_) {
+  // A plain turn-on of a lit light keeps a running effect as it is.
+  // Effects' own calls don't publish, so they are not caught here.
+  if (plain_turn_on && this->get_publish_() && this->parent_->remote_values.is_on() &&
+      this->parent_->active_effect_index_ != 0) {
+    this->effect_ = this->parent_->active_effect_index_;
+    this->set_flag_(FLAG_HAS_EFFECT);
+  }
+
+  // If effect is already active, remove effect start. When the call changes no values, keep the flag so no
+  // default transition is added; perform() then leaves the running effect undisturbed.
+  if (this->has_effect_() && this->effect_ == this->parent_->active_effect_index_ &&
+      (sets_values || this->effect_ == 0)) {
     this->clear_flag_(FLAG_HAS_EFFECT);
   }
 
