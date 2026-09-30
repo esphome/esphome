@@ -21,6 +21,7 @@ from esphome.arduino8266.framework import InstalledPaths, toolchain_tool
 from esphome.build_gen import arduino8266
 from esphome.build_gen.arduino8266 import (
     _defines_flags,
+    _elf2bin_flash_size,
     _flag_defines,
     _flash_size_str,
     _resolve_build_config,
@@ -745,6 +746,36 @@ def test_get_flash_ld_path(tmp_path: Path) -> None:
 def test_flash_size_str() -> None:
     assert _flash_size_str(4 * 1024 * 1024) == "4M"
     assert _flash_size_str(512 * 1024) == "512K"
+
+
+def test_elf2bin_flash_size() -> None:
+    """The image-header size follows the ldscript filename like PlatformIO,
+    falling back to board_upload.maximum_size and then the board table."""
+    assert _elf2bin_flash_size("esp8285", "eagle.flash.2m.ld") == "2M"
+    assert _elf2bin_flash_size("esp01", "eagle.flash.512k.ld") == "512K"
+    assert _elf2bin_flash_size("nodemcuv2", "eagle.flash.4m1m.ld") == "4M"
+    # The testing-mode prefix still matches (search, not match)
+    assert _elf2bin_flash_size("esp8285", "testing_eagle.flash.2m.ld") == "2M"
+    # Custom ldscript name: board_upload.maximum_size wins over the board
+    CORE.platformio_options["board_upload.maximum_size"] = "2097152"
+    assert _elf2bin_flash_size("esp8285", "custom.ld") == "2M"
+    del CORE.platformio_options["board_upload.maximum_size"]
+    assert _elf2bin_flash_size("esp8285", "custom.ld") == "1M"
+
+
+def test_write_project_flash_size_follows_ldscript_override(
+    tmp_path: Path,
+) -> None:
+    """An ldscript overriding the board's flash size drives the image header
+    too (the Athom shape: esp8285 with eagle.flash.2m.ld). A 1M header over
+    a 2M layout clamps the chip below the OTA scratch area and bricks OTA."""
+    paths = _make_framework(tmp_path)
+    (paths.framework / "variants" / "esp8285").mkdir()
+    CORE.data[KEY_ESP8266][KEY_BOARD] = "esp8285"
+    CORE.platformio_options["board_build.ldscript"] = "eagle.flash.2m.ld"
+    content = _write_ninja(paths)
+    assert "--flash_size 2M" in content
+    assert "eagle.flash.2m.ld" in content
 
 
 def test_write_project_testing_mode(tmp_path: Path) -> None:
