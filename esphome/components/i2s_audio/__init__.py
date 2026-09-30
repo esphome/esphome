@@ -51,6 +51,7 @@ CONF_I2S_LRCLK_PIN = "i2s_lrclk_pin"
 CONF_I2S_AUDIO = "i2s_audio"
 CONF_I2S_AUDIO_ID = "i2s_audio_id"
 CONF_FULL_DUPLEX = "full_duplex"
+CONF_I2S_COMM_FMT = "i2s_comm_fmt"
 CONF_SPDIF_MODE = "spdif_mode"
 
 CONF_I2S_MODE = "i2s_mode"
@@ -291,32 +292,45 @@ def _bus_devices(full_config: ConfigType, domain: str, bus_id: str) -> list[Conf
 
 
 def _validate_full_duplex(full_config: ConfigType, bus_id: str) -> None:
-    """Check that a full duplex bus has one microphone and one speaker that can share its clocks."""
+    """Check that a full duplex bus has one microphone and speakers that can share its clocks and TX channel."""
     microphones = _bus_devices(full_config, CONF_MICROPHONE, bus_id)
     speakers = _bus_devices(full_config, CONF_SPEAKER, bus_id)
-    if len(microphones) != 1 or len(speakers) != 1:
+    if len(microphones) != 1 or not speakers:
         raise cv.Invalid(
-            f"'{CONF_FULL_DUPLEX}' requires exactly one i2s_audio microphone and one "
+            f"'{CONF_FULL_DUPLEX}' requires exactly one i2s_audio microphone and at least one "
             f"i2s_audio speaker on bus '{bus_id}'"
         )
-    microphone, speaker = microphones[0], speakers[0]
+    microphone = microphones[0]
     if microphone.get(CONF_PDM):
         raise cv.Invalid(f"A PDM microphone cannot use a '{CONF_FULL_DUPLEX}' bus")
-    if speaker.get(CONF_SPDIF_MODE):
-        raise cv.Invalid(f"An SPDIF speaker cannot use a '{CONF_FULL_DUPLEX}' bus")
-    # Both directions run from the same bit and word clocks
-    for key in (
-        CONF_SAMPLE_RATE,
-        CONF_BITS_PER_SAMPLE,
-        CONF_I2S_MODE,
-        CONF_USE_APLL,
-        CONF_MCLK_MULTIPLE,
-    ):
-        if microphone[key] != speaker[key]:
+    for speaker in speakers:
+        if CONF_I2S_DOUT_PIN not in speaker:
             raise cv.Invalid(
-                f"The microphone and speaker on '{CONF_FULL_DUPLEX}' bus '{bus_id}' "
-                f"must use the same '{key}'"
+                f"An internal DAC speaker cannot use a '{CONF_FULL_DUPLEX}' bus"
             )
+        if speaker.get(CONF_SPDIF_MODE):
+            raise cv.Invalid(f"An SPDIF speaker cannot use a '{CONF_FULL_DUPLEX}' bus")
+        # Both directions run from the same bit and word clocks
+        for key in (
+            CONF_SAMPLE_RATE,
+            CONF_BITS_PER_SAMPLE,
+            CONF_I2S_MODE,
+            CONF_USE_APLL,
+            CONF_MCLK_MULTIPLE,
+        ):
+            if microphone[key] != speaker[key]:
+                raise cv.Invalid(
+                    f"The microphone and speaker '{speaker[CONF_ID]}' on '{CONF_FULL_DUPLEX}' bus "
+                    f"'{bus_id}' must use the same '{key}'"
+                )
+    # The TX channel is set up once from one speaker's configuration, and the speakers take turns using it
+    first = speakers[0]
+    for speaker in speakers[1:]:
+        for key in (CONF_I2S_DOUT_PIN, CONF_CHANNEL, CONF_I2S_COMM_FMT):
+            if speaker.get(key) != first.get(key):
+                raise cv.Invalid(
+                    f"The speakers on '{CONF_FULL_DUPLEX}' bus '{bus_id}' must use the same '{key}'"
+                )
 
 
 def _final_validate(_: ConfigType) -> None:

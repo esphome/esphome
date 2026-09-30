@@ -17,6 +17,7 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 from .. import (
+    CONF_I2S_COMM_FMT,
     CONF_I2S_DOUT_PIN,
     CONF_I2S_MODE,
     CONF_LEFT,
@@ -44,7 +45,6 @@ I2SAudioSpeakerBase = i2s_audio_ns.class_(
 I2SAudioSpeaker = i2s_audio_ns.class_("I2SAudioSpeaker", I2SAudioSpeakerBase)
 
 CONF_DAC_TYPE = "dac_type"
-CONF_I2S_COMM_FMT = "i2s_comm_fmt"
 
 I2SAudioSpeakerBase = i2s_audio_ns.class_(
     "I2SAudioSpeakerBase", cg.Component, speaker.Speaker, I2SAudioOut
