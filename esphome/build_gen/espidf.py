@@ -116,8 +116,8 @@ if(ESPHOME_SKIP_BOOTLOADER)
 endif()
 """
 
-# The lines the override adds to IDF's macro; the staleness tripwire in
-# esphome.espidf.bootloader strips them before comparing with the live macro.
+# The lines the override adds to IDF's macro; idf_macro_matches() below
+# strips them before comparing with the live macro.
 BOOTLOADER_OVERRIDE_ADDED_LINES = (
     'set(CONFIG_APP_BUILD_BOOTLOADER "")',
     "idf_build_get_property(idf_target IDF_TARGET)",

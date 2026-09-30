@@ -6870,6 +6870,7 @@ def test_command_run_rejects_serial_device_with_skip_bootloader(
     """The compile could never be flashed over serial; fail before it runs."""
     setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
     CORE.skip_bootloader = True
+    CORE.toolchain = Toolchain.ESP_IDF
     args = MockArgs(device=["/dev/ttyUSB0"])
     with patch("esphome.__main__.write_cpp") as mock_write:
         assert command_run(args, {}) == 1

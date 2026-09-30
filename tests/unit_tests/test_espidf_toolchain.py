@@ -1118,17 +1118,21 @@ def test_skip_bootloader_requires_flag_and_matching_macro(
 
     assert toolchain._skip_bootloader() is False
     CORE.skip_bootloader = True
+    toolchain._cache().skip_bootloader = None  # decision is memoized per run
     with (
         patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
         patch.object(build_gen, "idf_macro_matches", return_value=True),
     ):
         assert toolchain._skip_bootloader() is True
+    toolchain._cache().skip_bootloader = None
     with (
         patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
-        patch.object(build_gen, "idf_macro_matches", return_value=False),
+        patch.object(build_gen, "idf_macro_matches", return_value=False) as mock_match,
         caplog.at_level("WARNING"),
     ):
         assert toolchain._skip_bootloader() is False
+        assert toolchain._skip_bootloader() is False
+    mock_match.assert_called_once()  # the memo also dedupes the warning
     assert "--skip-bootloader ignored" in caplog.text
 
 

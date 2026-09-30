@@ -40,6 +40,7 @@ class _CacheData:
     paths: dict[str, tuple] = field(default_factory=dict)
     env: dict[str, dict[str, str]] = field(default_factory=dict)
     cmake_output: dict[Path, str] = field(default_factory=dict)
+    skip_bootloader: bool | None = None
     cmake_tools: dict[Path, dict[str, Path]] = field(default_factory=dict)
 
 
@@ -298,7 +299,14 @@ def tree_skips_bootloader(build_dir: Path) -> bool:
 
 
 def _skip_bootloader() -> bool:
-    """Whether this tree should not build a bootloader at all."""
+    """Whether this tree should not build a bootloader at all; per-run memo."""
+    cache = _cache()
+    if cache.skip_bootloader is None:
+        cache.skip_bootloader = _compute_skip_bootloader()
+    return cache.skip_bootloader
+
+
+def _compute_skip_bootloader() -> bool:
     if not CORE.skip_bootloader:
         return False
     from esphome.build_gen.espidf import idf_macro_matches

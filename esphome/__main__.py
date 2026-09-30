@@ -1770,10 +1770,14 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
-    if CORE.skip_bootloader and any(
-        device.startswith(("/dev/", "COM")) for device in (args.device or [])
+    if (
+        CORE.skip_bootloader
+        and CORE.is_esp32
+        and CORE.using_toolchain_esp_idf
+        and any(device.startswith(("/dev/", "COM")) for device in (args.device or []))
     ):
         # Fail before the compile: the result could never flash over serial.
+        # Elsewhere the flag is ignored, so serial stays fine there.
         _LOGGER.error("--skip-bootloader builds cannot be flashed over serial")
         return 1
     exit_code = write_cpp(config)
