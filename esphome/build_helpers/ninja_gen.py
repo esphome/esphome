@@ -24,8 +24,8 @@ from esphome.build_helpers.pch import (
     PCH_SUM_NAME,
     log_pch_in_use,
     pch_consumer_flags,
-    pch_enabled,
     pch_identity,
+    pch_usable,
     write_pch_headers,
 )
 from esphome.framework_helpers import strip_win_long_path_prefix
@@ -125,15 +125,17 @@ def pch_edges(
     cxxflags: Sequence[str],
     src_flags: Sequence[str],
     identity: Sequence[str],
+    cxx: Sequence[Path | str],
 ) -> tuple[str, str] | None:
     """Emit the precompiled header for the C++ src edges.
 
     ``headers`` are folded into one prefix header, ``src_flags`` are the
-    flags every src edge carries and ``identity`` names what else the
-    compile depends on, the compiler included. Returns the ``cxx_override``
-    for ``compile_edges``, or None without a pch.
+    flags every src edge carries, ``identity`` names what else the compile
+    depends on, the compiler included, and ``cxx`` is what the host rule
+    asks. Returns the ``cxx_override`` for ``compile_edges``, or None
+    without a pch.
     """
-    if not pch_enabled():
+    if not pch_usable(cxx):
         return None
     if any(
         tok == "-include" or tok.startswith("--include") or is_joined_include(tok)
