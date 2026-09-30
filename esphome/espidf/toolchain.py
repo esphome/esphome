@@ -25,7 +25,7 @@ from esphome.core import CORE, EsphomeError
 from esphome.espidf import variant_to_idf_target
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
-from esphome.helpers import add_git_ceiling_directory, write_file
+from esphome.helpers import add_git_ceiling_directory, rmtree, write_file
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -298,6 +298,18 @@ def tree_skips_bootloader(build_dir: Path) -> bool:
     return cache.get(SKIP_BOOTLOADER_DEFINE) == "1"
 
 
+def _skip_bootloader() -> bool:
+    """Whether this tree should not build a bootloader at all."""
+    if not CORE.skip_bootloader:
+        return False
+    from esphome.build_gen.espidf import idf_macro_matches
+
+    if not idf_macro_matches():
+        _LOGGER.info("IDF changed its bootloader macro; building the bootloader")
+        return False
+    return True
+
+
 def _configure_defines() -> dict[str, str]:
     """Every ``-D`` idf.py passes to cmake, in its order."""
     return {
@@ -307,7 +319,7 @@ def _configure_defines() -> dict[str, str]:
         **_cache_entries(),
         # ESPHome's own switch; idf.py never passes it and cmake keeps the
         # cached value, so idf.py runs against the tree stay in the same mode.
-        SKIP_BOOTLOADER_DEFINE: "0",
+        SKIP_BOOTLOADER_DEFINE: "1" if _skip_bootloader() else "0",
     }
 
 
@@ -815,6 +827,18 @@ def get_idedata() -> dict | None:
 def create_factory_bin() -> bool:
     """Create factory.bin by merging bootloader, partition table, and app."""
     build_dir = CORE.relative_build_path("build")
+    if tree_skips_bootloader(build_dir):
+        # No bootloader was built, so a merged image could not boot; a stale
+        # factory image must not linger for dashboard downloads either.
+        get_factory_firmware_path().unlink(missing_ok=True)
+        for stale in (build_dir / "bootloader", build_dir / "bootloader-prefix"):
+            # A leftover full-mode sub-build: its bootloader is stale for
+            # OTA --bootloader, and a partial cleanup would poison the flip
+            # back to full mode (deleted byproducts are never regenerated).
+            if stale.is_dir():
+                rmtree(stale)
+        _LOGGER.info("Bootloader skipped; not creating a factory image")
+        return True
     flasher_args_path = build_dir / "flasher_args.json"
 
     if not flasher_args_path.is_file():

@@ -1110,6 +1110,80 @@ def test_get_cmake_cache_value_reads_the_configured_cache(setup_core: Path) -> N
         assert toolchain.get_cmake_cache_value("ESPHOME_MISSING") is None
 
 
+def test_skip_bootloader_requires_flag_and_matching_macro(
+    setup_core: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The switch is explicit, and an IDF macro change wins over it."""
+    from esphome.build_gen import espidf as build_gen
+
+    assert toolchain._skip_bootloader() is False
+    CORE.skip_bootloader = True
+    with patch.object(build_gen, "idf_macro_matches", return_value=True):
+        assert toolchain._skip_bootloader() is True
+    with (
+        patch.object(build_gen, "idf_macro_matches", return_value=False),
+        caplog.at_level("INFO"),
+    ):
+        assert toolchain._skip_bootloader() is False
+    assert "IDF changed its bootloader macro" in caplog.text
+
+
+def test_configure_defines_follow_skip_bootloader(setup_core: Path) -> None:
+    with (
+        patch.object(toolchain, "_get_idf_tool", return_value="/tools/python"),
+        patch.object(toolchain, "_cache_entries", return_value={}),
+    ):
+        with patch.object(toolchain, "_skip_bootloader", return_value=True):
+            assert (
+                toolchain._configure_defines()[toolchain.SKIP_BOOTLOADER_DEFINE] == "1"
+            )
+        with patch.object(toolchain, "_skip_bootloader", return_value=False):
+            assert (
+                toolchain._configure_defines()[toolchain.SKIP_BOOTLOADER_DEFINE] == "0"
+            )
+
+
+def test_tree_skips_bootloader_reads_the_define(tmp_path: Path) -> None:
+    build = tmp_path / "build"
+    build.mkdir()
+    assert toolchain.tree_skips_bootloader(build) is False  # not configured
+    cache = build / "CMakeCache.txt"
+    cache.write_text(f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n")
+    assert toolchain.tree_skips_bootloader(build) is True
+    cache.write_text(f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=0\n")
+    assert toolchain.tree_skips_bootloader(build) is False
+
+
+def test_create_factory_bin_skip_mode_removes_the_stale_image(
+    setup_core: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A leftover factory image would be served by dashboard downloads."""
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
+    )
+    stale = toolchain.get_factory_firmware_path()
+    stale.parent.mkdir(parents=True, exist_ok=True)
+    stale.write_bytes(b"old")
+    (build / "bootloader").mkdir()
+    (build / "bootloader" / "bootloader.bin").write_bytes(b"old")
+    (build / "bootloader-prefix").mkdir()
+    with (
+        patch.object(toolchain.subprocess, "run") as mock_run,
+        caplog.at_level("INFO"),
+    ):
+        assert toolchain.create_factory_bin() is True
+    mock_run.assert_not_called()
+    assert not stale.exists()
+    # The full-mode sub-build goes too: its bootloader is stale, and a
+    # partial cleanup would break the flip back to full mode.
+    assert not (build / "bootloader").exists()
+    assert not (build / "bootloader-prefix").exists()
+    assert "not creating a factory image" in caplog.text
+
+
 def test_idf_target_from_variant(setup_core: Path) -> None:
     CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32C6"}
     assert toolchain._idf_target() == "esp32c6"

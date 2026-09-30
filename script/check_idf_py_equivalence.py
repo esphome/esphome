@@ -29,8 +29,9 @@ WATCHED = (
     "build/compile_commands.json",
     "build/project_description.json",
     "build/config/sdkconfig.h",
-    "build/bootloader/bootloader.bin",
 )
+# Only a tree that builds the bootloader has one to watch.
+BOOTLOADER_BIN = "build/bootloader/bootloader.bin"
 # Ninja logs whose outputs mean real work when their recorded mtime changes;
 # the bootloader is judged by its own sub-build log when one exists.
 TOP_NINJA_LOG = "build/.ninja_log"
@@ -60,13 +61,18 @@ def _digest(path: Path) -> str | None:
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
 
 
-def watched(name: str) -> list[str]:
-    """Files that change if idf.py configures or builds differently."""
-    return [*WATCHED, f"build/{name}.elf", f"build/{name}.bin"]
+def watched(build_path: Path, name: str) -> list[str]:
+    """The files idf.py must leave untouched for this tree's mode."""
+    from esphome.espidf import toolchain
+
+    files = [*WATCHED, f"build/{name}.elf", f"build/{name}.bin"]
+    if not toolchain.tree_skips_bootloader(build_path / "build"):
+        files.append(BOOTLOADER_BIN)
+    return files
 
 
 def _snapshot(build_path: Path, name: str) -> dict[str, str | None]:
-    return {f: _digest(build_path / f) for f in watched(name)}
+    return {f: _digest(build_path / f) for f in watched(build_path, name)}
 
 
 def _ninja_mtimes(build_path: Path, logs: list[str]) -> dict[tuple[str, str], str]:
@@ -118,12 +124,16 @@ def check(build_path: Path) -> list[str]:
     """Return the problems found in one build tree."""
     # pylint: disable=protected-access
     from esphome.build_gen.espidf import idf_macro_matches
+    from esphome.core import CORE
     from esphome.espidf import toolchain
 
     description = json.loads(
         (build_path / "build" / "project_description.json").read_text(encoding="utf-8")
     )
     name, version = _setup_core(build_path, description)
+    # Reconfiguring must not flip the tree's bootloader mode: the check
+    # validates the shape the build produced, not this process's flags.
+    CORE.skip_bootloader = toolchain.tree_skips_bootloader(build_path / "build")
     if not idf_macro_matches():
         return [MACRO_CHANGED]
     env = toolchain._get_idf_env(version)

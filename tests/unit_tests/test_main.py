@@ -2539,6 +2539,15 @@ def test_validate_bootloader_binary_missing_file(tmp_path: Path) -> None:
         _validate_bootloader_binary(tmp_path / "does-not-exist.bin")
 
 
+def test_validate_bootloader_binary_missing_file_skip_tree(tmp_path: Path) -> None:
+    """A skip-bootloader tree points at the flag, not at a vague read error."""
+    with (
+        patch("esphome.__main__._tree_skips_bootloader", return_value=True),
+        pytest.raises(EsphomeError, match="compiled with --skip-bootloader"),
+    ):
+        _validate_bootloader_binary(tmp_path / "does-not-exist.bin")
+
+
 def test_validate_bootloader_binary_rejects_empty_file(tmp_path: Path) -> None:
     f = tmp_path / "bootloader.bin"
     f.write_bytes(b"")
@@ -6820,6 +6829,25 @@ def test_upload_using_esptool_arduino_toolchain(
     firmware_offset_idx = cmd_list.index("write-flash") + 4
     assert cmd_list[firmware_offset_idx] == "0x0"
     assert cmd_list[firmware_offset_idx + 1] == str(factory)
+
+
+def test_upload_using_esptool_skip_bootloader_tree_names_the_flag(
+    tmp_path: Path,
+) -> None:
+    """A serial flash needs the factory image the skip flag did not build."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32"}
+    CORE.toolchain = Toolchain.ESP_IDF
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    from esphome.espidf import toolchain as espidf_toolchain
+
+    (build / "CMakeCache.txt").write_text(
+        f"{espidf_toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
+    )
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+    with pytest.raises(EsphomeError, match="compiled with --skip-bootloader"):
+        upload_using_esptool(config, "/dev/ttyUSB0", None, None)
 
 
 @pytest.mark.parametrize(

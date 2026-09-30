@@ -30,12 +30,15 @@ ALL_LOGS = (guard.TOP_NINJA_LOG, BOOTLOADER_LOG)
 
 
 def _make_tree(tmp_path: Path, skip_bootloader: bool = False) -> Path:
-    """A fake build tree; stock/bypass shape by default, or the cached
-    shape (define set to 1, bin present, no sub-build)."""
+    """A fake build tree; stock shape by default, or the skip shape
+    (define set to 1, no bootloader bin, no sub-build)."""
     tree = tmp_path / "config" / ".esphome" / "build" / "dev"
     build = tree / "build"
     logs = (guard.TOP_NINJA_LOG,) if skip_bootloader else ALL_LOGS
-    for name in (*guard.watched("dev"), *logs):
+    files = [*guard.WATCHED, "build/dev.elf", "build/dev.bin", *logs]
+    if not skip_bootloader:
+        files.append(guard.BOOTLOADER_BIN)
+    for name in files:
         (tree / name).parent.mkdir(parents=True, exist_ok=True)
         (tree / name).write_bytes(b"x")
     define = "1" if skip_bootloader else "0"
@@ -55,9 +58,10 @@ def _make_tree(tmp_path: Path, skip_bootloader: bool = False) -> Path:
         "# ninja log v7\n1\t2\t10\tesp-idf/a.obj\t0\n"
         "1\t2\t10\tbootloader/bootloader.bin\t0\n"
     )
-    (build / "bootloader" / ".ninja_log").write_text(
-        "# ninja log v7\n1\t2\t10\tbootloader.elf\t0\n"
-    )
+    if not skip_bootloader:
+        (build / "bootloader" / ".ninja_log").write_text(
+            "# ninja log v7\n1\t2\t10\tbootloader.elf\t0\n"
+        )
     (tree / "sdkconfig.dev").write_text("")
     return tree
 
@@ -233,11 +237,13 @@ def test_main_rejects_a_path_that_is_not_a_tree(
 
 
 def test_check_accepts_a_skip_bootloader_tree(tmp_path: Path) -> None:
-    """No bootloader sub-build is the cached shape, not a missing input."""
+    """No bootloader bin or sub-build is the skip shape, not missing input."""
     tree = _make_tree(tmp_path, skip_bootloader=True)
     problems, calls = _run_check(tree)
     assert problems == []
     assert len(calls) == 2
+    # The baseline reconfigure must not flip the tree's mode.
+    assert CORE.skip_bootloader is True
 
 
 def test_check_requires_the_sub_log_on_a_stock_tree(tmp_path: Path) -> None:

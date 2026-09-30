@@ -148,6 +148,7 @@ class ArgsProtocol(Protocol):
     file: str | None
     no_logs: bool
     only_generate: bool
+    skip_bootloader: bool
     show_secrets: bool
     dashboard: bool
     configuration: str
@@ -958,6 +959,18 @@ def _make_crystal_freq_callback(
     return check_crystal_line
 
 
+def _tree_skips_bootloader() -> bool:
+    """Whether the configured tree was built with --skip-bootloader."""
+    try:
+        if not (CORE.is_esp32 and CORE.using_toolchain_esp_idf):
+            return False
+        from esphome.espidf import toolchain
+
+        return toolchain.tree_skips_bootloader(CORE.relative_build_path("build"))
+    except Exception:  # noqa: BLE001  a hint must never mask the real error
+        return False
+
+
 def upload_using_esptool(
     config: ConfigType, port: str, file: str, speed: int
 ) -> str | int:
@@ -972,6 +985,11 @@ def upload_using_esptool(
         # and partitions included where the target needs them)
         image = native.get_factory_firmware_path()
         if not image.is_file():
+            if _tree_skips_bootloader():
+                raise EsphomeError(
+                    "This build was compiled with --skip-bootloader; "
+                    "recompile without it to flash over serial"
+                )
             raise EsphomeError(
                 f"{image} does not exist; compile the configuration first"
             )
@@ -1487,6 +1505,11 @@ def _validate_bootloader_binary(binary: Path) -> None:
     try:
         data = binary.read_bytes()
     except OSError as err:
+        if _tree_skips_bootloader():
+            raise EsphomeError(
+                "This build was compiled with --skip-bootloader; "
+                "recompile without it to update the bootloader"
+            ) from err
         raise EsphomeError(f"Cannot read bootloader file '{binary}': {err}") from err
 
     if not data:
@@ -2277,6 +2300,12 @@ def parse_args(argv):
         help="Only generate source code, do not compile.",
         action="store_true",
     )
+    parser_compile.add_argument(
+        "--skip-bootloader",
+        help="Do not build the bootloader or the factory image; "
+        "the result can only be flashed over OTA.",
+        action="store_true",
+    )
 
     parser_upload = subparsers.add_parser(
         "upload",
@@ -2372,6 +2401,12 @@ def parse_args(argv):
     )
     parser_run.add_argument(
         "--no-logs", help="Disable starting logs.", action="store_true"
+    )
+    parser_run.add_argument(
+        "--skip-bootloader",
+        help="Do not build the bootloader or the factory image; "
+        "the result can only be flashed over OTA.",
+        action="store_true",
     )
 
     _add_states_args(parser_run)
@@ -2632,6 +2667,7 @@ def run_esphome(argv):
 
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard
+    CORE.skip_bootloader = getattr(args, "skip_bootloader", False)
     if args.toolchain is not None:
         # CLI toolchain wins over esp32.toolchain in YAML.
         CORE.toolchain = args.toolchain
