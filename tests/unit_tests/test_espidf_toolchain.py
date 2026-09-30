@@ -12,12 +12,7 @@ from unittest.mock import call, patch
 
 import pytest
 
-from esphome.components.esp32.const import (
-    KEY_ESP32,
-    KEY_FLASH_SIZE,
-    KEY_IDF_VERSION,
-    KEY_VARIANT,
-)
+from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION, KEY_VARIANT
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
@@ -117,17 +112,12 @@ def _setup_build(setup_core: Path) -> tuple[Path, Path]:
 
 
 @contextmanager
-def _up_to_date_compile(
-    ninja_side_effect=None, cached_bootloader: bool = False
-) -> Iterator[tuple]:
+def _up_to_date_compile(ninja_side_effect=None) -> Iterator[tuple]:
     """Patch run_compile's staleness checks to "up to date"; yield the ninja
     and print_summary mocks."""
     with (
         patch.object(toolchain, "need_reconfigure", return_value=False),
         patch.object(toolchain, "_cache_entries_changed", return_value=False),
-        patch.object(
-            toolchain, "_use_cached_bootloader", return_value=cached_bootloader
-        ),
         patch.object(
             toolchain, "_run_ninja", return_value=0, side_effect=ninja_side_effect
         ) as mock_ninja,
@@ -720,7 +710,6 @@ def _fake_tools(env: dict[str, str] | None = None) -> Iterator:
             return_value={"PATH": "/bin", "IDF_CCACHE_ENABLE": "0", **(env or {})},
         ),
         patch.object(toolchain, "_get_idf_tool", side_effect=lambda n: f"/tools/{n}"),
-        patch.object(toolchain, "_use_cached_bootloader", return_value=False),
         patch.object(toolchain, "run_build_tool", return_value=0) as mock_run,
     ):
         yield mock_run
@@ -1121,162 +1110,9 @@ def test_get_cmake_cache_value_reads_the_configured_cache(setup_core: Path) -> N
         assert toolchain.get_cmake_cache_value("ESPHOME_MISSING") is None
 
 
-def test_use_cached_bootloader_delegates_to_predicate(setup_core: Path) -> None:
-    from esphome.espidf import bootloader
-
-    with patch.object(bootloader, "bootloader_cache_enabled", return_value=True):
-        assert toolchain._use_cached_bootloader() is True
-
-
-def test_configure_defines_follow_bootloader_mode(setup_core: Path) -> None:
-    """The define always rides along, so a mode flip reconfigures."""
-    with (
-        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
-        patch.object(toolchain, "_cache_entries", return_value={}),
-    ):
-        with patch.object(toolchain, "_use_cached_bootloader", return_value=True):
-            on = toolchain._configure_defines()
-        with patch.object(toolchain, "_use_cached_bootloader", return_value=False):
-            off = toolchain._configure_defines()
-    assert on["ESPHOME_USE_CACHED_BOOTLOADER"] == "1"
-    assert off["ESPHOME_USE_CACHED_BOOTLOADER"] == "0"
-
-
-def test_run_compile_installs_cached_bootloader(setup_core: Path) -> None:
-    from esphome.espidf import bootloader
-
-    _setup_build(setup_core)
-    with (
-        _up_to_date_compile(cached_bootloader=True),
-        patch.object(
-            bootloader, "ensure_cached_bootloader", return_value=True
-        ) as mock_ensure,
-        patch.object(toolchain, "run_reconfigure") as mock_reconfigure,
-    ):
-        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
-    mock_ensure.assert_called_once_with(False)
-    mock_reconfigure.assert_not_called()
-
-
-@pytest.mark.parametrize("reconfigure_rc", [0, 5])
-def test_run_compile_falls_back_when_bootloader_cache_fails(
-    setup_core: Path, reconfigure_rc: int
-) -> None:
-    """A cache failure flips the run to the stock in-tree build."""
-    from esphome.espidf import bootloader
-
-    _setup_build(setup_core)
-    with (
-        _up_to_date_compile(cached_bootloader=True) as (mock_ninja, _),
-        patch.object(bootloader, "ensure_cached_bootloader", return_value=False),
-        patch.object(
-            toolchain, "run_reconfigure", return_value=reconfigure_rc
-        ) as mock_reconfigure,
-    ):
-        rc = toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
-    assert rc == reconfigure_rc
-    # The fallback pins the memoized predicate for the rest of the run.
-    assert toolchain._cache().bootloader_enabled is False
-    mock_reconfigure.assert_called_once_with(False)
-    assert mock_ninja.called is (reconfigure_rc == 0)
-
-
-def test_create_factory_bin_merges_cached_bootloader(setup_core: Path) -> None:
-    """The cached bootloader joins the merge at its flash offset even
-    though IDF wrote no bootloader entry into flasher_args.json."""
-    _setup_build(setup_core)
-    build = CORE.relative_build_path("build")
-    (build / "bootloader").mkdir(parents=True)
-    (build / "bootloader" / "bootloader.bin").write_bytes(b"\xe9")
-    (build / "CMakeCache.txt").write_text(
-        f"{toolchain.USE_CACHED_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
-    )
-    (build / "config").mkdir()
-    (build / "config" / "sdkconfig.json").write_text(
-        json.dumps({"BOOTLOADER_OFFSET_IN_FLASH": 0x1000})
-    )
-    (build / "test.bin").write_bytes(b"a")
-    (build / "flasher_args.json").write_text(
-        json.dumps(
-            {
-                "flash_files": {"0x10000": "test.bin"},
-                "extra_esptool_args": {"chip": "esp32"},
-            }
-        )
-    )
-    CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = "4MB"
-    with (
-        patch.object(toolchain, "_get_idf_env", return_value={}),
-        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
-        patch.object(
-            toolchain.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess([], 0, "", ""),
-        ) as mock_run,
-    ):
-        assert toolchain.create_factory_bin() is True
-    cmd = mock_run.call_args.args[0]
-    offset_index = cmd.index("0x1000")
-    assert cmd[offset_index + 1] == str(build / "bootloader" / "bootloader.bin")
-    # Sections stay sorted by address; the bootloader comes first.
-    assert offset_index < cmd.index("0x10000")
-
-
-def test_create_factory_bin_fails_when_the_cached_bootloader_is_missing(
-    setup_core: Path,
-) -> None:
-    """A factory image without its bootloader would not boot; fail instead."""
-    _setup_build(setup_core)
-    build = CORE.relative_build_path("build")
-    build.mkdir(parents=True)
-    (build / "CMakeCache.txt").write_text(
-        f"{toolchain.USE_CACHED_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
-    )
-    (build / "flasher_args.json").write_text('{"flash_files": {}}')
-    with patch.object(toolchain.subprocess, "run") as mock_run:
-        assert toolchain.create_factory_bin() is False
-    mock_run.assert_not_called()
-
-
 def test_idf_target_from_variant(setup_core: Path) -> None:
     CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32C6"}
     assert toolchain._idf_target() == "esp32c6"
-
-
-def test_load_sdkconfig_json(setup_core: Path, tmp_path: Path) -> None:
-    assert toolchain._load_sdkconfig_json(tmp_path) is None
-    (tmp_path / "config").mkdir()
-    (tmp_path / "config" / "sdkconfig.json").write_text('{"A": 1}')
-    assert toolchain._load_sdkconfig_json(tmp_path) == {"A": 1}
-    (tmp_path / "config" / "sdkconfig.json").write_text("[]")
-    assert toolchain._load_sdkconfig_json(tmp_path) is None
-
-
-def test_resolved_c_compiler_from_project_description(setup_core: Path) -> None:
-    _setup_build(setup_core)
-    build = CORE.relative_build_path("build")
-    build.mkdir(parents=True)
-    (build / "project_description.json").write_text(
-        json.dumps({"c_compiler": "/tools/xtensa-esp32-elf-gcc"})
-    )
-    expected = os.path.realpath("/tools/xtensa-esp32-elf-gcc")
-    assert toolchain._resolved_c_compiler() == expected
-
-
-@pytest.mark.parametrize(
-    "description",
-    [None, "not json", "{}", '{"c_compiler": ""}', "[]"],
-    ids=["missing", "corrupt", "no-key", "empty", "not-a-dict"],
-)
-def test_resolved_c_compiler_none_without_a_usable_description(
-    setup_core: Path, description: str | None
-) -> None:
-    _setup_build(setup_core)
-    if description is not None:
-        build = CORE.relative_build_path("build")
-        build.mkdir(parents=True)
-        (build / "project_description.json").write_text(description)
-    assert toolchain._resolved_c_compiler() is None
 
 
 def test_parse_sdkconfig(tmp_path: Path) -> None:

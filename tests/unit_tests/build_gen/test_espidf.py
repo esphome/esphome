@@ -175,20 +175,6 @@ def test_get_project_cmakelists_size_command_uses_json2() -> None:
     assert "--format=json2" in content
 
 
-def test_get_project_cmakelists_records_bootloader_hooks() -> None:
-    """The post-project() dump feeds espidf.bootloader's bypass check."""
-    from esphome.espidf import BOOTLOADER_HOOKS_FILE
-
-    content = _render()
-    assert f"file(WRITE ${{CMAKE_BINARY_DIR}}/{BOOTLOADER_HOOKS_FILE}" in content
-    for source in (
-        "esphome_bl_dirs BOOTLOADER_EXTRA_COMPONENT_DIRS",
-        "${BOOTLOADER_IGNORE_EXTRA_COMPONENT}",
-        "esphome_bl_args EXTRA_CMAKE_ARGS",
-    ):
-        assert source in content
-
-
 def test_get_project_cmakelists_uses_supplied_builtin_components() -> None:
     """A cached list replaces project_description.json and is still filtered
     by EXCLUDE_COMPONENTS."""

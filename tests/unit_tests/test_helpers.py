@@ -1250,17 +1250,3 @@ def test_get_usable_cpu_count_sources() -> None:
     mock_os_unknown = types.SimpleNamespace(cpu_count=lambda: None)
     with patch("esphome.helpers.os", mock_os_unknown):
         assert helpers.get_usable_cpu_count() == 1
-
-
-@pytest.mark.parametrize(
-    ("content", "expected"),
-    [('{"a": 1}', {"a": 1}), ("[1, 2]", [1, 2]), ("not json", None), (None, None)],
-    ids=["object", "list", "corrupt", "missing"],
-)
-def test_read_json_file(
-    tmp_path: Path, content: str | None, expected: dict | list | None
-) -> None:
-    path = tmp_path / "data.json"
-    if content is not None:
-        path.write_text(content)
-    assert helpers.read_json_file(path) == expected

@@ -81,7 +81,6 @@ def _run_check(
     rc: int = 0,
     esphome_rcs: tuple[int, int] = (0, 0),
     macro_matches: bool = True,
-    require_cached: bool = False,
 ) -> tuple[list[str], list[list[str]]]:
     """Run check() with idf.py replaced by ``side_effect``; return problems, calls."""
     calls: list[list[str]] = []
@@ -102,28 +101,18 @@ def _run_check(
         patch.object(build_gen, "idf_macro_matches", return_value=macro_matches),
         patch.object(guard.subprocess, "run", side_effect=run),
     ):
-        return guard.check(tree, require_cached), calls
+        return guard.check(tree), calls
 
 
-def test_check_passes_when_idf_py_changes_nothing(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_check_passes_when_idf_py_changes_nothing(tmp_path: Path) -> None:
     tree = _make_tree(tmp_path)
     problems, calls = _run_check(tree)
     assert problems == []
-    # a stock tree says so instead of passing parity vacuously
-    assert "parity not exercised" in capsys.readouterr().out
     sdkconfig = f"SDKCONFIG={tree / 'sdkconfig.dev'}"
     assert calls == [
         ["/py", str(Path("/idf/tools/idf.py")), "-D", sdkconfig, "reconfigure"],
         ["/py", str(Path("/idf/tools/idf.py")), "-D", sdkconfig, "build"],
     ]
-
-
-def test_check_requires_cached_mode_when_asked(tmp_path: Path) -> None:
-    """CI must fail, not skip, when the cache never engaged (--require flag)."""
-    problems, _ = _run_check(_make_tree(tmp_path), require_cached=True)
-    assert problems == [guard.BOOTLOADER_NOT_CACHED]
 
 
 def test_check_reports_changed_files_and_rebuilt_outputs(tmp_path: Path) -> None:
@@ -251,79 +240,6 @@ def test_check_accepts_a_cached_bootloader_tree(tmp_path: Path) -> None:
     assert len(calls) == 2
 
 
-def test_check_fails_when_the_cached_bootloader_differs_from_in_tree(
-    tmp_path: Path,
-) -> None:
-    """The parity rebuild catches IDF-side drift in the subproject args."""
-    tree = _make_tree(tmp_path, cached_bootloader=True)
-    bin_path = tree / "build" / "bootloader" / "bootloader.bin"
-    calls = {"n": 0}
-
-    def ninja(target: str, **kwargs: object) -> int:
-        calls["n"] += 1
-        if calls["n"] == 2:  # the parity rebuild
-            bin_path.parent.mkdir(parents=True, exist_ok=True)
-            bin_path.write_bytes(b"different")
-        return 0
-
-    with (
-        patch.object(toolchain, "_get_idf_env", return_value={}),
-        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
-        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
-        patch.object(toolchain, "run_reconfigure", return_value=0),
-        patch.object(toolchain, "_run_ninja", side_effect=ninja),
-        patch.object(build_gen, "idf_macro_matches", return_value=True),
-        patch.object(
-            guard.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess([], 0, "", ""),
-        ),
-    ):
-        problems = guard.check(tree)
-    assert problems == [guard.BOOTLOADER_DIFFERS]
-
-
-def test_check_reports_a_rebuild_that_produced_no_bootloader(
-    tmp_path: Path,
-) -> None:
-    """A rebuild that leaves no bin must fail, not compare the old bytes."""
-    tree = _make_tree(tmp_path, cached_bootloader=True)
-    with (
-        patch.object(toolchain, "_get_idf_env", return_value={}),
-        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
-        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
-        patch.object(toolchain, "run_reconfigure", return_value=0),
-        patch.object(toolchain, "_run_ninja", return_value=0),
-        patch.object(build_gen, "idf_macro_matches", return_value=True),
-        patch.object(
-            guard.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess([], 0, "", ""),
-        ),
-    ):
-        problems = guard.check(tree)
-    assert problems == ["in-tree rebuild produced no bootloader"]
-
-
-def test_check_reports_a_failed_parity_rebuild(tmp_path: Path) -> None:
-    tree = _make_tree(tmp_path, cached_bootloader=True)
-    with (
-        patch.object(toolchain, "_get_idf_env", return_value={}),
-        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
-        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
-        patch.object(toolchain, "run_reconfigure", side_effect=[0, 3]),
-        patch.object(toolchain, "_run_ninja", return_value=0),
-        patch.object(build_gen, "idf_macro_matches", return_value=True),
-        patch.object(
-            guard.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess([], 0, "", ""),
-        ),
-    ):
-        problems = guard.check(tree)
-    assert problems == ["in-tree bootloader reconfigure failed"]
-
-
 def test_check_requires_the_sub_log_on_a_stock_tree(tmp_path: Path) -> None:
     """The mode comes from the define, so a vanished sub-build stays an error."""
     tree = _make_tree(tmp_path)
@@ -381,4 +297,4 @@ def test_main_checks_only_the_first_found_tree(tmp_path: Path) -> None:
         patch.object(guard, "check", return_value=[]) as mock_check,
     ):
         assert guard.main() == 0
-    mock_check.assert_called_once_with(first, False)
+    mock_check.assert_called_once_with(first)

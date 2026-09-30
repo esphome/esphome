@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 from pathlib import Path
 import re
 import subprocess
@@ -40,10 +39,10 @@ TOP_NINJA_LOG = "build/.ninja_log"
 def _ninja_logs(build_path: Path) -> list[str]:
     """The mode comes from the configured tree, so a missing sub-build log
     stays an error in the mode that requires one."""
-    from esphome.espidf import bootloader
+    from esphome.espidf import toolchain
 
     logs = [TOP_NINJA_LOG]
-    if not bootloader.tree_uses_cached_bootloader(build_path / "build"):
+    if not toolchain.tree_uses_cached_bootloader(build_path / "build"):
         logs.append("build/bootloader/.ninja_log")
     return logs
 
@@ -52,14 +51,6 @@ BOOTLOADER_BYPRODUCT = re.compile(r"(^|/build/)bootloader/")
 MACRO_CHANGED = (
     "IDF changed __build_process_project_includes; update "
     "IDF_BOOTLOADER_OVERRIDE in esphome/build_gen/espidf.py"
-)
-BOOTLOADER_DIFFERS = (
-    "cached bootloader is not byte identical to the in-tree build; update "
-    "_subproject_cmake_args in esphome/espidf/bootloader.py"
-)
-BOOTLOADER_NOT_CACHED = (
-    "tree is not in cached bootloader mode, so parity was never compared; "
-    "the cache fell back or was disabled for this build"
 )
 WORK_SUFFIXES = (".obj", ".o", ".a", ".elf", ".map", ".bin", ".ld")
 DEFAULT_GLOB = "tests/test_build_components/build/.esphome/build/*"
@@ -123,7 +114,7 @@ def _setup_core(build_path: Path, description: dict) -> tuple[str, str]:
     return name, version
 
 
-def check(build_path: Path, require_cached: bool = False) -> list[str]:
+def check(build_path: Path) -> list[str]:
     """Return the problems found in one build tree."""
     # pylint: disable=protected-access
     from esphome.build_gen.espidf import idf_macro_matches
@@ -177,46 +168,7 @@ def check(build_path: Path, require_cached: bool = False) -> list[str]:
             problems.append(f"idf.py dropped {out} from {log}")
         elif mtimes_before.get(key) != mtimes_after[key]:
             problems.append(f"idf.py rebuilt {out}")
-    if problems:
-        return problems
-    return _bootloader_parity(build_path, require_cached)
-
-
-def _bootloader_parity(build_path: Path, require_cached: bool) -> list[str]:
-    """A cached bootloader must match the in-tree build of the same tree,
-    so an IDF-side change to the ExternalProject args fails CI."""
-    # pylint: disable=protected-access
-    from esphome.espidf import bootloader, toolchain
-
-    if not bootloader.tree_uses_cached_bootloader(build_path / "build"):
-        if require_cached:
-            return [BOOTLOADER_NOT_CACHED]
-        print("note: tree not in cached mode; bootloader parity not exercised")
-        return []
-    from esphome.helpers import rmtree
-
-    bin_path = build_path / "build" / "bootloader" / "bootloader.bin"
-    cached = bin_path.read_bytes()
-    # Rebuild from nothing: a warm sub-build never regenerates a deleted
-    # byproduct, and the comparison must not see leftovers of any kind.
-    rmtree(bin_path.parent)
-    if (stamps := build_path / "build" / "bootloader-prefix").is_dir():
-        rmtree(stamps)
-    os.environ[bootloader.BOOTLOADER_CACHE_ENV] = "0"
-    toolchain._cache().bootloader_enabled = None
-    try:
-        if toolchain.run_reconfigure() != 0:
-            return ["in-tree bootloader reconfigure failed"]
-        if toolchain._run_ninja("all", verbose=False, jobs=None) != 0:
-            return ["in-tree bootloader rebuild failed"]
-        if not bin_path.is_file():
-            return ["in-tree rebuild produced no bootloader"]
-        if bin_path.read_bytes() != cached:
-            return [BOOTLOADER_DIFFERS]
-        return []
-    finally:
-        os.environ.pop(bootloader.BOOTLOADER_CACHE_ENV, None)
-        toolchain._cache().bootloader_enabled = None
+    return problems
 
 
 def main() -> int:
@@ -226,13 +178,6 @@ def main() -> int:
         nargs="*",
         type=Path,
         help=f"ESPHome build dirs (default: the first native ESP-IDF tree in {DEFAULT_GLOB})",
-    )
-    parser.add_argument(
-        "--require-cached-bootloader",
-        action="store_true",
-        help="fail a tree that is not in cached bootloader mode instead of "
-        "skipping the parity comparison (CI: a cache that always falls back "
-        "must not pass silently)",
     )
     args = parser.parse_args()
     paths = args.build_paths or sorted(REPO_ROOT.glob(DEFAULT_GLOB))
@@ -256,7 +201,7 @@ def main() -> int:
 
     failed = False
     for tree in trees:
-        problems = check(tree, args.require_cached_bootloader)
+        problems = check(tree)
         print(f"{tree}: {'OK' if not problems else 'DIFFERS'}")
         for problem in problems:
             print(f"  {problem}")
