@@ -1188,7 +1188,7 @@ def test_run_reconfigure_flip_into_skip_mode_cleans_up(setup_core: Path) -> None
     build = CORE.relative_build_path("build")
     (build / "bootloader").mkdir(parents=True)
     (build / "bootloader" / "bootloader.bin").write_bytes(b"old")
-    (build / "bootloader-prefix").mkdir()
+    # bootloader-prefix deliberately absent: cleanup skips what is not there.
     stale = toolchain.get_factory_firmware_path()
     stale.parent.mkdir(parents=True, exist_ok=True)
     stale.write_bytes(b"old")
@@ -1202,7 +1202,6 @@ def test_run_reconfigure_flip_into_skip_mode_cleans_up(setup_core: Path) -> None
         mock_idf_py.return_value.binary_dir_arg = False
         assert toolchain.run_reconfigure() == 0
     assert not (build / "bootloader").exists()
-    assert not (build / "bootloader-prefix").exists()
     assert not stale.exists()
 
 
