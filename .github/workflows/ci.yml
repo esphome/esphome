@@ -1230,7 +1230,7 @@ jobs:
               # The real idf.py must find nothing to configure or build in a
               # tree built above; catches drift on ESP-IDF bumps.
               echo "Checking the native ESP-IDF build matches idf.py"
-              python3 script/check_idf_py_equivalence.py
+              python3 script/check_idf_py_equivalence.py --require-cached-bootloader
             fi
           else
             echo "All components in this batch are validate-only -- skipping compile stage."

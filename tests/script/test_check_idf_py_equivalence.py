@@ -67,7 +67,8 @@ def _rebuilding_ninja(tree: Path, rc: int) -> Callable[..., int]:
 
     def run(target: str, **kwargs: object) -> int:
         bin_path = tree / "build" / "bootloader" / "bootloader.bin"
-        if bin_path.parent.is_dir() and not bin_path.exists():
+        if not bin_path.exists():
+            bin_path.parent.mkdir(parents=True, exist_ok=True)
             bin_path.write_bytes(b"x")
         return rc
 
@@ -80,6 +81,7 @@ def _run_check(
     rc: int = 0,
     esphome_rcs: tuple[int, int] = (0, 0),
     macro_matches: bool = True,
+    require_cached: bool = False,
 ) -> tuple[list[str], list[list[str]]]:
     """Run check() with idf.py replaced by ``side_effect``; return problems, calls."""
     calls: list[list[str]] = []
@@ -100,7 +102,7 @@ def _run_check(
         patch.object(build_gen, "idf_macro_matches", return_value=macro_matches),
         patch.object(guard.subprocess, "run", side_effect=run),
     ):
-        return guard.check(tree), calls
+        return guard.check(tree, require_cached), calls
 
 
 def test_check_passes_when_idf_py_changes_nothing(
@@ -116,6 +118,12 @@ def test_check_passes_when_idf_py_changes_nothing(
         ["/py", str(Path("/idf/tools/idf.py")), "-D", sdkconfig, "reconfigure"],
         ["/py", str(Path("/idf/tools/idf.py")), "-D", sdkconfig, "build"],
     ]
+
+
+def test_check_requires_cached_mode_when_asked(tmp_path: Path) -> None:
+    """CI must fail, not skip, when the cache never engaged (--require flag)."""
+    problems, _ = _run_check(_make_tree(tmp_path), require_cached=True)
+    assert problems == [guard.BOOTLOADER_NOT_CACHED]
 
 
 def test_check_reports_changed_files_and_rebuilt_outputs(tmp_path: Path) -> None:
@@ -254,6 +262,7 @@ def test_check_fails_when_the_cached_bootloader_differs_from_in_tree(
     def ninja(target: str, **kwargs: object) -> int:
         calls["n"] += 1
         if calls["n"] == 2:  # the parity rebuild
+            bin_path.parent.mkdir(parents=True, exist_ok=True)
             bin_path.write_bytes(b"different")
         return 0
 
@@ -372,4 +381,4 @@ def test_main_checks_only_the_first_found_tree(tmp_path: Path) -> None:
         patch.object(guard, "check", return_value=[]) as mock_check,
     ):
         assert guard.main() == 0
-    mock_check.assert_called_once_with(first)
+    mock_check.assert_called_once_with(first, False)
