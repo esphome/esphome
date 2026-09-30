@@ -1,8 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-// Small DNS server that answers every query with the access point address, so a
-// phone joining the AP opens the captive portal or web_server page on its own.
-// Shared by captive_portal and the web_server AP mode.
+// ESP32 backend for CaptiveDNS: answers every A query with the access point address.
 #if defined(USE_ESP32) && (defined(USE_CAPTIVE_PORTAL) || defined(USE_WEBSERVER_CAPTIVE))
 
 #include "esphome/core/helpers.h"

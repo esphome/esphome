@@ -54,12 +54,9 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def AUTO_LOAD() -> list[str]:
-    # No config parameter on purpose: that would make this a late (dynamic) auto-load and
-    # ota.web_server's dependency on web_server_base would not be satisfied in time.
+    # No config parameter: a dynamic auto-load would satisfy ota.web_server's dependency too late
     auto_load = ["json", "web_server_base"]
-    # The AP mode DNS server (web_server_base/dns_server_esp32_idf) uses socket; only
-    # configs with a WiFi access point can end up in AP mode. CORE.raw_config is set
-    # after package merging, so a wifi block from a package is visible here.
+    # The AP mode DNS server needs socket; CORE.raw_config already has a wifi block from a package
     wifi = CORE.raw_config.get(CONF_WIFI) if CORE.raw_config else None
     if (
         CORE.is_esp32
@@ -376,10 +373,8 @@ def serve_local(config: ConfigType, wifi_config: ConfigType | None) -> bool:
 
 
 def serve_captive(config: ConfigType, full_config: ConfigType) -> bool:
-    """web_server runs its own captive portal while the AP is up: embedded interface plus
-    an access point, unless captive_portal (which owns that role) is configured. Only on
-    port 80: the OS captive portal probes and the DHCP portal URI always use port 80, so
-    a portal on another port could never be discovered."""
+    """Serve the embedded interface as a captive portal while the AP is up, unless captive_portal
+    owns that role. Port 80 only: the OS probes and the DHCP portal URI never use another port."""
     wifi_config = full_config.get(CONF_WIFI)
     return (
         "captive_portal" not in full_config
@@ -395,6 +390,7 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
     wifi_config = full_config.get(CONF_WIFI)
     captive = serve_captive(config, full_config)
     local = serve_local(config, wifi_config)
+    ap_only = wifi_is_ap_only(wifi_config)
     if captive:
         web_server_base.consume_captive_dns_sockets(config, "web_server")
     # Surface behavior that the config does not spell out.
@@ -410,9 +406,9 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
     elif captive:
         _LOGGER.info(
             "web_server will act as a captive portal while the %saccess point is active.",
-            "" if wifi_is_ap_only(wifi_config) else "fallback ",
+            "" if ap_only else "fallback ",
         )
-    if not wifi_is_ap_only(wifi_config):
+    if not ap_only:
         return
     if not local:
         _LOGGER.warning(

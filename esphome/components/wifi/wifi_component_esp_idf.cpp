@@ -1164,26 +1164,17 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   }
 
 #if (defined(USE_CAPTIVE_PORTAL) || defined(USE_WEBSERVER_CAPTIVE)) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
-  // Configure DHCP Option 114 (Captive Portal URI) if captive portal or the web_server AP
-  // mode is enabled. This provides a standards-compliant way for clients to discover the portal
-#ifdef USE_WEBSERVER_CAPTIVE
-  // web_server AP mode always serves the portal when compiled in
-  const bool has_portal = true;
-#else
-  const bool has_portal = captive_portal::global_captive_portal != nullptr;
-#endif
-  if (has_portal) {
-    // Buffer must be static - dhcps_set_option_info stores pointer, doesn't copy
-    static char captive_portal_uri[24];        // "http://" (7) + IPv4 max (15) + null
-    memcpy(captive_portal_uri, "http://", 7);  // NOLINT(bugprone-not-null-terminated-result) - str_to null-terminates
-    network::IPAddress(&info.ip).str_to(captive_portal_uri + 7);
-    err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_CAPTIVEPORTAL_URI, captive_portal_uri,
-                                 strlen(captive_portal_uri));
-    if (err != ESP_OK) {
-      ESP_LOGV(TAG, "Failed to set DHCP captive portal URI: %s", esp_err_to_name(err));
-    } else {
-      ESP_LOGV(TAG, "DHCP Captive Portal URI set to: %s", captive_portal_uri);
-    }
+  // DHCP option 114 (captive portal URI) lets clients find the portal; either define means one exists
+  // Buffer must be static - dhcps_set_option_info stores pointer, doesn't copy
+  static char captive_portal_uri[24];        // "http://" (7) + IPv4 max (15) + null
+  memcpy(captive_portal_uri, "http://", 7);  // NOLINT(bugprone-not-null-terminated-result) - str_to null-terminates
+  network::IPAddress(&info.ip).str_to(captive_portal_uri + 7);
+  err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_CAPTIVEPORTAL_URI, captive_portal_uri,
+                               strlen(captive_portal_uri));
+  if (err != ESP_OK) {
+    ESP_LOGV(TAG, "Failed to set DHCP captive portal URI: %s", esp_err_to_name(err));
+  } else {
+    ESP_LOGV(TAG, "DHCP Captive Portal URI set to: %s", captive_portal_uri);
   }
 #endif
 

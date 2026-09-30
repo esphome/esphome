@@ -637,15 +637,14 @@ void WiFiComponent::setup() {
 #endif
 
 #if defined(USE_PROVISIONING) && defined(USE_WIFI_AP)
-  // The access point is a provisioning surface: once the provisioning window has
-  // closed, end both portals and shut it down (mirrors the teardown done on a
-  // successful connection). The fallback block in loop() is gated so none of them
-  // is started again afterwards.
+  // The access point and the portals on it are provisioning surfaces: once the window has
+  // closed, end them (mirrors the teardown on a successful connection). The fallback block in
+  // loop() is gated so none of them is started again afterwards.
   if (provisioning::global_provisioning_manager != nullptr) {
     provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
+      this->end_ap_portal_();  // no-op when nothing is active, so not tied to ap_setup_
       if (this->ap_setup_) {
         ESP_LOGD(TAG, "Provisioning window closed; disabling AP");
-        this->end_ap_portal_();
         this->wifi_mode_({}, false);
       }
     });
@@ -1638,9 +1637,7 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
     this->num_retried_ = 0;
     if (this->has_ap()) {
-#ifdef USE_WIFI_AP
       this->end_ap_portal_();
-#endif
       ESP_LOGD(TAG, "Disabling AP");
       this->wifi_mode_({}, false);
     }
@@ -2237,13 +2234,11 @@ bool WiFiComponent::is_ap_portal_active_() {
   return this->is_captive_portal_active_();
 }
 
-#ifdef USE_WIFI_AP
-// global_web_server needs no null check: codegen always instantiates WebServer when
-// USE_WEBSERVER_CAPTIVE is defined, and the constructor assigns the global.
+// Neither global needs a null check: codegen always instantiates the component when its
+// define is set, and the constructor assigns the global.
 void WiFiComponent::start_ap_portal_() {
 #ifdef USE_CAPTIVE_PORTAL
-  if (captive_portal::global_captive_portal != nullptr)
-    captive_portal::global_captive_portal->start();
+  captive_portal::global_captive_portal->start();
 #endif
 #ifdef USE_WEBSERVER_CAPTIVE
   web_server::global_web_server->start_captive();
@@ -2259,7 +2254,6 @@ void WiFiComponent::end_ap_portal_() {
   web_server::global_web_server->end_captive();
 #endif
 }
-#endif  // USE_WIFI_AP
 bool WiFiComponent::is_improv_ble_active_() {
 #ifdef USE_IMPROV_BLE
   return improv_ble::global_improv_component != nullptr && improv_ble::global_improv_component->is_active();

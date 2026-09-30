@@ -440,7 +440,7 @@ void WebServer::loop() {
 
 #ifdef USE_WEBSERVER_CAPTIVE
 void WebServer::start_captive() {
-  // CaptiveDNS::start() no-ops too; this guard just avoids repeating the log and enable_loop
+  // Avoid repeating the log and enable_loop on a second start
   if (this->dns_.is_running())
     return;
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
@@ -456,15 +456,14 @@ void WebServer::start_captive() {
 void WebServer::end_captive() { this->dns_.stop(); }
 
 void WebServer::handle_not_found_(AsyncWebServerRequest *request) {
-  // OS captive portal probe (or any other unknown page) while the AP is up: send the browser
-  // to the real page. A redirect rather than the page itself, because the interface resolves
-  // its /events and REST paths relative to the page URL.
+  // OS captive portal probe while the AP is up: a redirect rather than the page itself, because
+  // the interface resolves its /events and REST paths relative to the page URL.
   if (this->dns_.is_running() && request->method() == HTTP_GET) {
-    // Captive mode requires port 80 (enforced at validation), so no port suffix is needed.
+    char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    wifi::global_wifi_component->wifi_soft_ap_ip().str_to(ip_buf);
+    // Captive mode requires port 80 (enforced at validation), so no port suffix
     char location[7 + network::IP_ADDRESS_BUFFER_SIZE + 1];
-    size_t pos = buf_append_str(location, sizeof(location), 0, "http://");
-    wifi::global_wifi_component->wifi_soft_ap_ip().str_to(location + pos);
-    buf_append_str(location, sizeof(location), strlen(location), "/");
+    buf_append_printf(location, sizeof(location), 0, "http://%s/", ip_buf);
     request->redirect(location);
     return;
   }
