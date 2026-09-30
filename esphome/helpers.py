@@ -10,7 +10,7 @@ import platform
 import re
 import stat
 import sys
-from typing import TYPE_CHECKING, TextIO
+from typing import TYPE_CHECKING, Any, TextIO
 
 from esphome.const import __version__ as ESPHOME_VERSION
 
@@ -513,7 +513,7 @@ def walk_files(path: Path):
             yield Path(root) / name
 
 
-def read_json_file(path: Path):
+def read_json_file(path: Path) -> Any:
     """The parsed JSON file, or None when missing or unreadable."""
     import json
 

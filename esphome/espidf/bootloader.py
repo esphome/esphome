@@ -9,6 +9,7 @@ signing builds keep the stock in-tree path.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 import contextlib
 from dataclasses import dataclass
 import hashlib
@@ -46,6 +47,8 @@ _BOOTLOADER_PROPERTY = re.compile(
 _DISABLED_VALUES = frozenset(("n", "0", ""))
 # Marks a config name the app's sdkconfig does not define.
 _ABSENT = "\x00absent"
+# CMake reads these from the environment on the initial configure.
+_FLAG_ENV_VARS = ("CFLAGS", "CXXFLAGS", "ASMFLAGS", "LDFLAGS")
 _OUTPUTS = ("bootloader.bin", "bootloader.elf", "bootloader.map")
 
 
@@ -64,6 +67,10 @@ def _compute_enabled() -> bool:
         # An unmanaged IDF checkout can change under the cache.
         return False
     try:
+        if toolchain._get_framework_source_override():
+            # A custom IDF source can rewire the bootloader subproject in
+            # ways the key and the macro tripwire cannot see.
+            return False
         # The snapshot holds what was configured; the live sdkconfig is
         # rewritten by kconfgen with always-on *_SUPPORTED constants.
         snapshot = CORE.relative_build_path(f"sdkconfig.{CORE.name}.esphomeinternal")
@@ -153,7 +160,7 @@ def _load_config_names() -> list[str] | None:
     return None
 
 
-def _merge_config_names(names) -> list[str]:
+def _merge_config_names(names: Iterable[str]) -> list[str]:
     """Union-merge harvested names; a corrupt file is replaced outright.
 
     write_file renames into place, and re-merging until the file covers our
@@ -230,7 +237,6 @@ def _key_payload(names: list[str], app_config: dict, compiler: str, stamp: str) 
     return {
         "schema": _CACHE_SCHEMA,
         "idf": toolchain._get_core_framework_version(),
-        "source": toolchain._get_framework_source_override() or "",
         "stamp": stamp,
         "target": toolchain._idf_target(),
         "compiler": compiler,
@@ -239,6 +245,7 @@ def _key_payload(names: list[str], app_config: dict, compiler: str, stamp: str) 
             "cmake", "@PYTHON@", "@SDKCONFIG@", "@IDF@", "@PROJECT@"
         ),
         "config": {n: app_config.get(n, _ABSENT) for n in sorted(names)},
+        "env": {n: os.environ.get(n, _ABSENT) for n in _FLAG_ENV_VARS},
     }
 
 
@@ -390,30 +397,34 @@ def ensure_cached_bootloader(verbose: bool = False) -> bool:
     False tells the caller to fall back to the in-tree build; a too-large
     bootloader raises instead, since in-tree would fail the same way.
     """
-    if _managed_bootloader_hook() is not None:
-        # Configure just downloaded it; the pre-configure scan ran too early.
-        return False
-    app_config = toolchain._load_sdkconfig_json(toolchain._build_dir())
-    offset = _bootloader_offset(app_config)
-    table_offset = (app_config or {}).get("PARTITION_TABLE_OFFSET")
-    compiler = toolchain._resolved_c_compiler()
-    if offset is None or table_offset is None or compiler is None:
-        _LOGGER.info(
-            "Bootloader cache unusable: offset=%s table_offset=%s compiler=%s",
-            offset,
-            table_offset,
-            compiler,
-        )
-        return False
     try:
+        if _managed_bootloader_hook() is not None:
+            # Configure just downloaded it; the pre-configure scan ran too early.
+            return False
+        app_config = toolchain._load_sdkconfig_json(toolchain._build_dir())
+        offset = _bootloader_offset(app_config)
+        table_offset = (app_config or {}).get("PARTITION_TABLE_OFFSET")
+        compiler = toolchain._resolved_c_compiler()
+        if offset is None or table_offset is None or compiler is None:
+            _LOGGER.info(
+                "Bootloader cache unusable: offset=%s table_offset=%s compiler=%s",
+                offset,
+                table_offset,
+                compiler,
+            )
+            return False
         dest = _install_cached(app_config, compiler, verbose)
     except (OSError, EsphomeError) as err:
         _LOGGER.warning("Bootloader cache failed: %s", err)
         return False
     if dest is None:
         return False
-    # Outside the fail-safe net: the in-tree build would overflow the same way.
-    _check_bootloader_size(dest / "bootloader.bin", offset, int(table_offset))
+    try:
+        # The size overflow raises out: the in-tree build would fail the same.
+        _check_bootloader_size(dest / "bootloader.bin", offset, int(table_offset))
+    except OSError as err:
+        _LOGGER.warning("Bootloader cache failed: %s", err)
+        return False
     return True
 
 

@@ -62,7 +62,7 @@ def _make_tree(tmp_path: Path, cached_bootloader: bool = False) -> Path:
     return tree
 
 
-def _rebuilding_ninja(tree: Path, rc: int):
+def _rebuilding_ninja(tree: Path, rc: int) -> Callable[..., int]:
     """A ninja stand-in that recreates the bin the parity check deleted."""
 
     def run(target: str, **kwargs: object) -> int:

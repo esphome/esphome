@@ -8,7 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, _patch, patch
 
 import pytest
 
@@ -54,6 +54,14 @@ def test_enabled_user_idf_path_disables(monkeypatch: pytest.MonkeyPatch) -> None
     assert bootloader._compute_enabled() is False
 
 
+def test_enabled_framework_source_override_disables() -> None:
+    """A custom IDF source can rewire the bootloader subproject."""
+    with patch.object(
+        toolchain, "_get_framework_source_override", return_value="https://fork/idf"
+    ):
+        assert bootloader._compute_enabled() is False
+
+
 def test_enabled_missing_snapshot_disables() -> None:
     """No snapshot means the config origin is unknown; fail safe."""
     assert bootloader._compute_enabled() is False
@@ -70,7 +78,7 @@ def test_enabled_reproducible_build_off_disables() -> None:
     assert bootloader._compute_enabled() is False
 
 
-def _tools_prefix(tmp_path: Path):
+def _tools_prefix(tmp_path: Path) -> _patch:
     from esphome.espidf import framework
 
     return patch.object(framework, "get_idf_tools_path", return_value=tmp_path)
@@ -223,10 +231,7 @@ def _key(
     compiler: str = "/tc/gcc",
     version: str = "5.5.5",
 ) -> str:
-    with (
-        patch.object(toolchain, "_get_core_framework_version", return_value=version),
-        patch.object(toolchain, "_get_framework_source_override", return_value=None),
-    ):
+    with patch.object(toolchain, "_get_core_framework_version", return_value=version):
         return bootloader._compute_key(
             bootloader._key_payload(names, config, compiler, "v5.5.5")
         )
@@ -255,6 +260,13 @@ def test_key_changes_with_each_input() -> None:
 def test_key_ignores_unlisted_config_values() -> None:
     """Only the names the bootloader consumes participate."""
     assert _key(["A"], {"A": "1", "Z": "app-only"}) == _key(["A"], {"A": "1"})
+
+
+def test_key_tracks_compiler_flag_env() -> None:
+    """The configure reads CFLAGS and friends from the env; the key must too."""
+    base = _key(["A"], {"A": "1"})
+    with patch.dict(os.environ, {"CFLAGS": "-Os"}):
+        assert _key(["A"], {"A": "1"}) != base
 
 
 def test_cache_root_layout(tmp_path: Path) -> None:
@@ -560,6 +572,29 @@ def test_ensure_rechecks_managed_hooks_after_configure(tmp_path: Path) -> None:
     ):
         assert bootloader.ensure_cached_bootloader() is False
     mock_build.assert_not_called()
+
+
+def test_ensure_fails_soft_when_hook_scan_errors(tmp_path: Path) -> None:
+    """An unreadable managed hook falls back instead of aborting the build."""
+    with (
+        _orchestration_env(tmp_path),
+        patch.object(bootloader, "_managed_bootloader_hook", side_effect=OSError("io")),
+    ):
+        assert bootloader.ensure_cached_bootloader() is False
+
+
+def test_ensure_fails_soft_when_size_check_cannot_stat(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A vanished installed binary falls back; only an overflow raises."""
+    with (
+        _orchestration_env(tmp_path) as root,
+        patch.object(bootloader, "_check_bootloader_size", side_effect=OSError("gone")),
+    ):
+        _make_entry(root / "deadbeefdeadbeef", b"\xe9" * 64)
+        (root / "config_names.json").write_text('["A"]')
+        assert bootloader.ensure_cached_bootloader() is False
+    assert "Bootloader cache failed" in caplog.text
 
 
 def test_ensure_fails_soft_without_configure_outputs(

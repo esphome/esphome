@@ -5,13 +5,20 @@ package without the esp32 component package, so nothing here may pull
 in codegen or validation.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
 
 def variant_to_idf_target(variant: str) -> str:
     """Map an esp32 variant name (e.g. "ESP32S3") to its ESP-IDF target name."""
     return variant.lower().replace("-", "")
 
 
-def parse_sdkconfig(path):
+def parse_sdkconfig(path: Path) -> dict[str, str]:
     """Map each CONFIG_X=value line of a text sdkconfig to its raw value.
 
     Comment lines ("# CONFIG_X is not set") are skipped and quoted values

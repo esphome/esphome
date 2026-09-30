@@ -1257,7 +1257,9 @@ def test_get_usable_cpu_count_sources() -> None:
     [('{"a": 1}', {"a": 1}), ("[1, 2]", [1, 2]), ("not json", None), (None, None)],
     ids=["object", "list", "corrupt", "missing"],
 )
-def test_read_json_file(tmp_path: Path, content: str | None, expected) -> None:
+def test_read_json_file(
+    tmp_path: Path, content: str | None, expected: dict | list | None
+) -> None:
     path = tmp_path / "data.json"
     if content is not None:
         path.write_text(content)
