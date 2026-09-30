@@ -1651,6 +1651,7 @@ message MediaPlayerSupportedFormat {
   uint32 num_channels = 3;
   MediaPlayerFormatPurpose purpose = 4;
   uint32 sample_bytes = 5;
+  uint32 bitrate = 6;
 }
 message ListEntitiesMediaPlayerResponse {
   option (id) = 63;

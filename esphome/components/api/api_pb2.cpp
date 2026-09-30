@@ -2285,6 +2285,7 @@ uint8_t *MediaPlayerSupportedFormat::encode_msg(const void *self, ProtoWriteBuff
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.num_channels);
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, static_cast<uint32_t>(msg.purpose));
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.sample_bytes);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.bitrate);
   return pos;
 }
 uint32_t MediaPlayerSupportedFormat::calc_size_msg(const void *self) {
@@ -2295,6 +2296,7 @@ uint32_t MediaPlayerSupportedFormat::calc_size_msg(const void *self) {
   size += ProtoSize::calc_uint32(1, msg.num_channels);
   size += msg.purpose ? 2 : 0;
   size += ProtoSize::calc_uint32(1, msg.sample_bytes);
+  size += ProtoSize::calc_uint32(1, msg.bitrate);
   return size;
 }
 uint8_t *ListEntitiesMediaPlayerResponse::encode_msg(const void *self,

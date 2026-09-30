@@ -3,6 +3,7 @@ from collections.abc import Callable
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import audio
+from esphome.components.const import CONF_BITRATE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENTITY_CATEGORY,
@@ -75,6 +76,10 @@ def build_supported_format_struct(
     if format_config[CONF_FORMAT] != "MP3":
         args.append(("sample_bytes", 2))
 
+    # Omitted means no preference, and the client keeps encoding as it always has.
+    if bitrate := format_config.get(CONF_BITRATE):
+        args.append(("bitrate", bitrate))
+
     return cg.StructInitializer(*args)
 
 
@@ -90,6 +95,14 @@ def validate_preferred_format(
         # Inherit settings from audio device if not manually set
         inherit_property_from(CONF_NUM_CHANNELS, audio_device_key)(config)
         inherit_property_from(CONF_SAMPLE_RATE, audio_device_key)(config)
+
+        # A constant bitrate is only meaningful for the one lossy format whose
+        # encoder Home Assistant can be told to fix
+        if CONF_BITRATE in config and config.get(CONF_FORMAT) != "MP3":
+            raise cv.Invalid(
+                f"{CONF_BITRATE} is only supported for the MP3 format",
+                path=[CONF_BITRATE],
+            )
 
         # Opus only supports 48 kHz
         if config.get(CONF_FORMAT) == "OPUS" and config.get(CONF_SAMPLE_RATE) != 48000:
