@@ -7,6 +7,7 @@ sensor:
     ble_hub_id: ble_tracker_hub
     mac_address: A4:C1:38:4E:16:78
     bindkey: eef418daf699a0c188f3bfd17e4565d9
+    replay_protection: true
     temperature:
       name: "BTHome Temperature"
     humidity:

@@ -39,10 +39,11 @@ ble_device_base::ESPBTDevice advert(const Frame &service_data) {
 }
 
 struct Harness {
-  Harness() {
+  explicit Harness(bool replay_protection = true) {
     this->thermometer.set_address(SENSOR_ADDRESS);
     this->thermometer.set_bindkey(
         {0xEE, 0xF4, 0x18, 0xDA, 0xF6, 0x99, 0xA0, 0xC1, 0x88, 0xF3, 0xBF, 0xD1, 0x7E, 0x45, 0x65, 0xD9});
+    this->thermometer.set_replay_protection(replay_protection);
     this->thermometer.set_temperature(&this->temperature);
   }
 
@@ -60,11 +61,18 @@ TEST(BTHomeMiThermometerReplay, AcceptsIncreasingCounters) {
   EXPECT_NEAR(h.temperature.state, 23.48f, 0.001f);
 }
 
-TEST(BTHomeMiThermometerReplay, DropsRepeatedCounter) {
+TEST(BTHomeMiThermometerReplay, DropsExactRepeat) {
   Harness h;
   ASSERT_TRUE(h.thermometer.parse_device(advert(COUNTER_11)));
-  EXPECT_FALSE(h.thermometer.parse_device(advert(COUNTER_11_OTHER)));
-  EXPECT_NEAR(h.temperature.state, 23.48f, 0.001f);
+  EXPECT_FALSE(h.thermometer.parse_device(advert(COUNTER_11)));
+}
+
+// Some firmwares (e.g. PVVX) send new data under the same counter.
+TEST(BTHomeMiThermometerReplay, AcceptsNewDataWithSameCounter) {
+  Harness h;
+  ASSERT_TRUE(h.thermometer.parse_device(advert(COUNTER_11)));
+  ASSERT_TRUE(h.thermometer.parse_device(advert(COUNTER_11_OTHER)));
+  EXPECT_NEAR(h.temperature.state, 4.0f, 0.001f);
 }
 
 TEST(BTHomeMiThermometerReplay, RejectsLowerCounter) {
@@ -77,6 +85,14 @@ TEST(BTHomeMiThermometerReplay, RejectsLowerCounter) {
 // The first frame after boot has nothing to compare against and is accepted.
 TEST(BTHomeMiThermometerReplay, AcceptsFirstFrameWithAnyCounter) {
   Harness h;
+  ASSERT_TRUE(h.thermometer.parse_device(advert(COUNTER_9)));
+  EXPECT_NEAR(h.temperature.state, 4.0f, 0.001f);
+}
+
+// Without replay_protection the counter is not checked at all.
+TEST(BTHomeMiThermometerReplay, DisabledAcceptsLowerCounter) {
+  Harness h(false);
+  ASSERT_TRUE(h.thermometer.parse_device(advert(COUNTER_10)));
   ASSERT_TRUE(h.thermometer.parse_device(advert(COUNTER_9)));
   EXPECT_NEAR(h.temperature.state, 4.0f, 0.001f);
 }
