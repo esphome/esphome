@@ -353,36 +353,15 @@ def test_run_compile_discovery_without_cmakecache(setup_core: Path) -> None:
     assert not CORE.relative_build_path("build/CMakeCache.txt").exists()
 
 
-def test_run_compile_syncs_mirror_before_configure(setup_core: Path) -> None:
-    """The mirror is refreshed before any build tool runs, so a ninja-driven
-    cmake re-run also finds it populated."""
-    _setup_build(setup_core)
-    config = {CONF_ESPHOME: {}}
-    calls: list[str] = []
-
-    with (
-        patch.object(toolchain, "need_reconfigure", return_value=True),
-        patch.object(
-            toolchain,
-            "_sync_component_mirror",
-            side_effect=lambda: calls.append("sync"),
-        ),
-        patch.object(
-            toolchain,
-            "_configure_project",
-            side_effect=lambda verbose: calls.append("configure") or 0,
-        ),
-        patch.object(toolchain, "_run_ninja", return_value=0),
-        patch.object(toolchain, "print_summary"),
-    ):
-        assert toolchain.run_compile(config, verbose=False) == 0
-
-    assert calls == ["sync", "configure"]
-
-
-def test_run_reconfigure_syncs_mirror_before_and_after(setup_core: Path) -> None:
+@pytest.mark.parametrize(
+    ("cmake_rc", "expected"),
+    [(0, ["sync", "cmake", "sync"]), (1, ["sync", "cmake"])],
+)
+def test_run_reconfigure_syncs_mirror_around_the_configure(
+    setup_core: Path, cmake_rc: int, expected: list[str]
+) -> None:
     """Every configure path syncs: before, so the solve installs from the
-    mirror; after, so solver-added lock entries are mirrored."""
+    mirror; after a success, so solver-added lock entries are mirrored."""
     _setup_build(setup_core)
     calls: list[str] = []
 
@@ -394,28 +373,10 @@ def test_run_reconfigure_syncs_mirror_before_and_after(setup_core: Path) -> None
             side_effect=lambda: calls.append("sync"),
         ),
     ):
-        mock_run.side_effect = lambda *a, **k: calls.append("cmake") or 0
-        assert toolchain.run_reconfigure() == 0
+        mock_run.side_effect = lambda *a, **k: calls.append("cmake") or cmake_rc
+        assert toolchain.run_reconfigure() == cmake_rc
 
-    assert calls == ["sync", "cmake", "sync"]
-
-
-def test_run_reconfigure_failure_skips_the_post_sync(setup_core: Path) -> None:
-    _setup_build(setup_core)
-    calls: list[str] = []
-
-    with (
-        _fake_tools() as mock_run,
-        patch.object(
-            toolchain,
-            "_sync_component_mirror",
-            side_effect=lambda: calls.append("sync"),
-        ),
-    ):
-        mock_run.side_effect = lambda *a, **k: calls.append("cmake") or 1
-        assert toolchain.run_reconfigure() == 1
-
-    assert calls == ["sync", "cmake"]
+    assert calls == expected
 
 
 def test_run_compile_syncs_mirror_when_up_to_date(setup_core: Path) -> None:

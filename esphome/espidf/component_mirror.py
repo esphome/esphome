@@ -22,7 +22,7 @@ from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.core import EsphomeError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Iterator, Mapping
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -92,6 +92,18 @@ def _load_yaml_dict(path: Path) -> dict | None:
     return data
 
 
+def _iter_deps(path: Path) -> Iterator[tuple[str, str, dict]]:
+    """(namespace, name, entry) for each namespaced dependency in a YAML file."""
+    data = _load_yaml_dict(path)
+    deps = data.get("dependencies") if data else None
+    if not isinstance(deps, dict):
+        return
+    for key, entry in deps.items():
+        if isinstance(key, str) and "/" in key and isinstance(entry, dict):
+            namespace, _, name = key.partition("/")
+            yield namespace, name, entry
+
+
 def parse_lock_service_deps(lock_path: Path) -> list[ServiceDep]:
     """Pinned default-registry dependencies from a dependencies.lock.
 
@@ -99,25 +111,17 @@ def parse_lock_service_deps(lock_path: Path) -> list[ServiceDep]:
     and idf sources cannot be mirrored, and non-default registries (which
     ESPHome-generated manifests never use) are left to the manager.
     """
-    data = _load_yaml_dict(lock_path)
-    if data is None or not isinstance(data.get("dependencies"), dict):
-        return []
     deps: list[ServiceDep] = []
-    for key, entry in data["dependencies"].items():
-        if not isinstance(key, str) or "/" not in key or not isinstance(entry, dict):
-            continue
+    for namespace, name, entry in _iter_deps(lock_path):
         source = entry.get("source")
         if not isinstance(source, dict) or source.get("type") != "service":
             continue
         registry_url = str(source.get("registry_url") or _DEFAULT_REGISTRY_URL)
         if registry_url.rstrip("/") != _DEFAULT_REGISTRY_URL:
-            _LOGGER.debug("Not mirroring %s: non-default registry", key)
+            _LOGGER.debug("Not mirroring %s/%s: non-default registry", namespace, name)
             continue
-        version = entry.get("version")
-        if not isinstance(version, str):
-            continue
-        namespace, _, name = key.partition("/")
-        deps.append(ServiceDep(namespace, name, version))
+        if isinstance(version := entry.get("version"), str):
+            deps.append(ServiceDep(namespace, name, version))
     return deps
 
 
@@ -129,34 +133,27 @@ def parse_manifest_service_deps(manifest_path: Path) -> list[ServiceDep]:
     twice. Range specs are left to the solver; only an exact version can
     be checked against the mirror without one.
     """
-    data = _load_yaml_dict(manifest_path)
-    if data is None or not isinstance(data.get("dependencies"), dict):
-        return []
     deps: list[ServiceDep] = []
-    for key, entry in data["dependencies"].items():
-        if not isinstance(key, str) or "/" not in key or not isinstance(entry, dict):
-            continue
-        if not entry.keys() <= {"version"}:
+    for namespace, name, entry in _iter_deps(manifest_path):
+        if entry.keys() > {"version"}:
             continue
         version = entry.get("version")
         # Exact versions start with a digit ("1.12.0", "1.3.3~1"); range
         # operators are prefixes and wildcards contain "*".
-        if not isinstance(version, str) or not version[:1].isdigit() or "*" in version:
-            continue
-        namespace, _, name = key.partition("/")
-        deps.append(ServiceDep(namespace, name, version))
+        if isinstance(version, str) and version[:1].isdigit() and "*" not in version:
+            deps.append(ServiceDep(namespace, name, version))
     return deps
 
 
-def project_service_deps(project_dir: Path) -> list[ServiceDep]:
-    """The mirrorable dependencies of a build directory.
+def project_service_deps(lock_path: Path, manifest_path: Path) -> list[ServiceDep]:
+    """The mirrorable dependencies of a build.
 
     The lock is authoritative; the manifest covers the fresh or
     just-changed build where the lock has not been written yet.
     """
-    deps = parse_lock_service_deps(project_dir / "dependencies.lock")
+    deps = parse_lock_service_deps(lock_path)
     seen = {(dep.namespace, dep.name) for dep in deps}
-    for dep in parse_manifest_service_deps(project_dir / "src" / "idf_component.yml"):
+    for dep in parse_manifest_service_deps(manifest_path):
         if (dep.namespace, dep.name) not in seen:
             deps.append(dep)
     return deps
@@ -167,13 +164,17 @@ def _mirror_has(mirror: Path, dep: ServiceDep) -> bool:
     json_path = mirror / "components" / dep.namespace / f"{dep.name}.json"
     try:
         doc = json.loads(json_path.read_text(encoding="utf-8"))
-        for entry in doc["versions"]:
-            if entry.get("version") == dep.version:
-                url = entry.get("url")
-                return bool(url) and (mirror / url).is_file()
-    except (OSError, ValueError, TypeError, KeyError):
+        url = next(
+            (
+                entry.get("url")
+                for entry in doc["versions"]
+                if entry.get("version") == dep.version
+            ),
+            None,
+        )
+        return bool(url) and (mirror / url).is_file()
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
         return False
-    return False
 
 
 def missing_deps(mirror: Path, deps: list[ServiceDep]) -> list[ServiceDep]:
@@ -181,7 +182,8 @@ def missing_deps(mirror: Path, deps: list[ServiceDep]) -> list[ServiceDep]:
 
 
 def sync_component_mirror(
-    project_dir: Path,
+    lock_path: Path,
+    manifest_path: Path,
     get_python: Callable[[], str],
     get_env: Callable[[], Mapping[str, str]],
 ) -> bool:
@@ -193,7 +195,7 @@ def sync_component_mirror(
     the covered case resolves no environment.
     """
     mirror = get_mirror_path()
-    to_sync = missing_deps(mirror, project_service_deps(project_dir))
+    to_sync = missing_deps(mirror, project_service_deps(lock_path, manifest_path))
     if not to_sync:
         return True
     try:
@@ -203,27 +205,23 @@ def sync_component_mirror(
     except (OSError, EsphomeError) as err:
         _LOGGER.warning("Could not mirror IDF components: %s", err)
         return False
+    cmd = [python, "-m", "idf_component_manager", "registry", "sync"]
+    for dep in to_sync:
+        cmd += ["--component", f"{dep.namespace}/{dep.name}=={dep.version}"]
+    cmd.append(str(mirror))
     # Lazy import, as in git.py: keeps filelock off the CLI startup path.
-    from filelock import FileLock, Timeout
+    from filelock import FileLock
 
     lock = FileLock(str(mirror / _SYNC_LOCK_NAME), fallback_to_soft=False)
     try:
+        # Timeout is an OSError: another esphome process is already
+        # filling the shared mirror, so skipping is the right outcome.
         lock.acquire(blocking=False)
-    except Timeout:
-        # Another esphome process is already filling the shared mirror.
-        _LOGGER.debug("Component mirror sync already running; skipping")
-        return True
     except OSError as err:
-        _LOGGER.debug("Could not lock component mirror: %s", err)
+        _LOGGER.debug("Component mirror sync skipped: %s", err)
         return True
+    _LOGGER.info("Mirroring %d IDF component(s) for offline builds...", len(to_sync))
     try:
-        cmd = [python, "-m", "idf_component_manager", "registry", "sync"]
-        for dep in to_sync:
-            cmd += ["--component", f"{dep.namespace}/{dep.name}=={dep.version}"]
-        cmd.append(str(mirror))
-        _LOGGER.info(
-            "Mirroring %d IDF component(s) for offline builds...", len(to_sync)
-        )
         result = subprocess.run(
             cmd,
             env=env,
@@ -238,9 +236,7 @@ def sync_component_mirror(
     finally:
         lock.release()
     if result.returncode != 0:
-        tail = "\n".join(
-            (result.stderr or result.stdout or "").strip().splitlines()[-5:]
-        )
+        tail = "\n".join((result.stderr or result.stdout).strip().splitlines()[-5:])
         _LOGGER.warning(
             "Could not mirror IDF components (exit %d):\n%s", result.returncode, tail
         )

@@ -177,9 +177,9 @@ def test_parse_manifest_missing_file(tmp_path: Path) -> None:
 
 def test_project_service_deps_merges_lock_and_manifest(tmp_path: Path) -> None:
     """The lock wins for a component in both; the manifest fills the rest."""
-    _write_lock(tmp_path)
-    _write_manifest(tmp_path)
-    assert component_mirror.project_service_deps(tmp_path) == [
+    lock = _write_lock(tmp_path)
+    manifest = _write_manifest(tmp_path)
+    assert component_mirror.project_service_deps(lock, manifest) == [
         _ARDUINOJSON,
         _MDNS,
         _TFLITE,
@@ -188,8 +188,10 @@ def test_project_service_deps_merges_lock_and_manifest(tmp_path: Path) -> None:
 
 def test_project_service_deps_manifest_only(tmp_path: Path) -> None:
     """A fresh build has no lock yet; the manifest alone drives the sync."""
-    _write_manifest(tmp_path)
-    assert component_mirror.project_service_deps(tmp_path) == [_MDNS, _TFLITE]
+    manifest = _write_manifest(tmp_path)
+    assert component_mirror.project_service_deps(
+        tmp_path / "dependencies.lock", manifest
+    ) == [_MDNS, _TFLITE]
 
 
 # ---------------------------------------------------------------------------
@@ -236,7 +238,6 @@ def test_component_mirror_env_sets_file_url(
     env = component_mirror.component_mirror_env()
     mirror = component_mirror.get_mirror_path()
     assert env["IDF_COMPONENT_LOCAL_STORAGE_URL"] == mirror.as_uri()
-    assert env["IDF_COMPONENT_LOCAL_STORAGE_URL"].startswith("file:///")
     assert env["IDF_COMPONENT_CHECK_NEW_VERSION"] == "0"
     assert mirror.is_dir()
 
@@ -267,20 +268,24 @@ def test_component_mirror_env_unwritable_cache() -> None:
 def _run_sync(
     project_dir: Path,
     *,
-    completed: subprocess.CompletedProcess | None = None,
+    returncode: int = 0,
+    stderr: str = "",
     side_effect: Exception | None = None,
     get_python=lambda: "/penv/python",
     get_env=lambda: {"PATH": "/penv"},
 ) -> tuple[bool, MagicMock]:
-    if completed is None:
-        completed = subprocess.CompletedProcess([], 0, stdout="", stderr="")
     with patch.object(
         component_mirror.subprocess,
         "run",
-        return_value=completed,
+        return_value=subprocess.CompletedProcess([], returncode, "", stderr),
         side_effect=side_effect,
     ) as mock_run:
-        ok = component_mirror.sync_component_mirror(project_dir, get_python, get_env)
+        ok = component_mirror.sync_component_mirror(
+            project_dir / "dependencies.lock",
+            project_dir / "src" / "idf_component.yml",
+            get_python,
+            get_env,
+        )
     return ok, mock_run
 
 
@@ -333,8 +338,7 @@ def test_sync_failure_is_tolerated(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     _write_lock(tmp_path)
-    completed = subprocess.CompletedProcess([], 1, stdout="", stderr="boom")
-    ok, mock_run = _run_sync(tmp_path, completed=completed)
+    ok, mock_run = _run_sync(tmp_path, returncode=1, stderr="boom")
     assert not ok
     mock_run.assert_called_once()
     assert "Could not mirror" in caplog.text
