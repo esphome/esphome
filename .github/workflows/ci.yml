@@ -1225,11 +1225,9 @@ jobs:
 
           if [ -n "$compile_csv" ]; then
             # Run compilation with grouping and isolation
-            # Component builds are never flashed, and the bootloader has no
-            # ESPHome code in it; building it here tests nothing Espressif
-            # does not already test. The batch that feeds the idf.py
-            # equivalence check keeps the full build, so the native
-            # bootloader sub-build and both check shapes stay covered.
+            # The bootloader has no ESPHome code and these builds never
+            # flash; the check_idf_py batch keeps the full build so the
+            # native sub-build and the equivalence check stay covered.
             skip_flag="--skip-bootloader"
             if [[ "${{ matrix.batch.check_idf_py }}" == "true" ]]; then
               skip_flag=""
