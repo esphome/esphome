@@ -35,7 +35,7 @@ from esphome.framework_helpers import (
     failure_reason,
     rmdir,
     run_batch_downloads,
-    warn_prefetch_failures,
+    warn_batch_failures,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -620,7 +620,12 @@ def _make_registry_client() -> Any:
     elsewhere, not by the PlatformIO registry.
     """
     from platformio.package.manager._registry import PackageManagerRegistryMixin
+    from platformio.project.helpers import get_project_cache_dir
     from platformio.registry.client import RegistryClient
+
+    # PlatformIO creates its HTTP cache dir without exist_ok, so two builds
+    # making their first registry lookup at once race on it
+    (Path(get_project_cache_dir()) / "http").mkdir(parents=True, exist_ok=True)
 
     class _Registry(PackageManagerRegistryMixin):
         def __init__(self) -> None:
@@ -1104,7 +1109,7 @@ def _prefetch_wave(
             + [(c.name, 0, partial(_clone_source, c, salt, namespace)) for c in clones],
         )
         # The sequential call below retries and raises the real error
-        warn_prefetch_failures(
+        warn_batch_failures(
             failures, "Prefetch of %s failed (retrying sequentially): %s"
         )
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught

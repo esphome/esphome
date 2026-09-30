@@ -77,6 +77,14 @@ TIMING_SCHEMA = cv.maybe_simple_value(
                     {cv.Optional(CONF_WEIGHT, default=1.0): cv.zero_to_one_float},
                 ),
                 timing_class(
+                    "ease_in",
+                    {cv.Optional(CONF_WEIGHT, default=1.0): cv.zero_to_one_float},
+                ),
+                timing_class(
+                    "ease_out",
+                    {cv.Optional(CONF_WEIGHT, default=1.0): cv.zero_to_one_float},
+                ),
+                timing_class(
                     "gravity",
                     {
                         cv.Optional(CONF_ACCELERATION, default=0.5): lv_positive_float,

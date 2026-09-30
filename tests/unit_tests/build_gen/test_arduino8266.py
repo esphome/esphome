@@ -447,6 +447,19 @@ def test_write_project_pch_disabled(
     assert "  flags = $srcflags" in content
 
 
+def test_write_project_pch_asks_the_toolchain_compiler_on_windows(
+    windows_gcc_rule: None, tmp_path: Path
+) -> None:
+    from esphome.build_helpers import pch
+
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    with patch.object(pch, "gcc_version", return_value=(10, 3, 0)) as asked:
+        content = _write_ninja(paths)
+    assert asked.call_args.args[0] == (toolchain_tool(paths.toolchain, "g++"),)
+    assert "esphome_pch" not in content
+
+
 def test_write_project_scanf_float_and_waveform_kept(tmp_path: Path) -> None:
     paths = _make_framework(tmp_path)
     CORE.data[KEY_ESP8266][KEY_SCANF_FLOAT] = True
