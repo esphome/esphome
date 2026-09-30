@@ -495,8 +495,7 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     types = []
     UF2_PATH = "zephyr/zephyr.uf2"
     DFU_PATH = "firmware.zip"
-    # SDK 2.6.1 (only generated when OTA is disabled) and SDK 3.4.0+
-    HEX_PATH = "zephyr/zephyr.hex"
+    HEX_PATH = "zephyr/zephyr.hex"  # SDK 2.6.1 without OTA, SDK 3.4.0+
     HEX_MERGED_PATH = "zephyr/merged.hex"  # SDK 2.9.2 to 3.3.x, always generated
     APP_IMAGE_PATH = "zephyr/app_update.bin"
     build_dir = Path(storage_json.firmware_bin_path).parent
