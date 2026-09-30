@@ -8,7 +8,6 @@
 #include <zephyr/drivers/uart.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/usb/usb_device.h>
-#include <zephyr/version.h>
 #ifdef USE_LOGGER_EARLY_MESSAGE
 #include <esphome/components/zephyr/reset_reason.h>
 #endif
