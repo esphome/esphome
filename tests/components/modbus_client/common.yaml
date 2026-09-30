@@ -79,7 +79,8 @@ button:
     name: "Typed Actions"
     on_press:
       - modbus_client.write_single_register:
-          address: 0x01
+          address: !lambda "return 1;"
+          expect_broadcast_write_response: true
           start_address: 0x0102
           value: !lambda "return 42;"
           on_response:
@@ -93,6 +94,7 @@ button:
           start_address: 0x10
           count: 2
           continuous: true
+          allow_broadcast_read: !lambda "return false;"
           on_response:
             then:
               - lambda: 'ESP_LOGI("modbus_client.test", "first=%u n=%u", values[0], (unsigned) values.size());'

@@ -11,7 +11,7 @@ running codegen on a config, it generates a minimal ESP-IDF CMake project:
   component, so their public include dirs land on the translation unit;
 * the repo ``sdkconfig.defaults`` enables sdkconfig-gated components (bt, ...).
 
-then runs ``idf.py reconfigure`` (configure only, no compile) and reads the
+then runs the CMake configure (no compile) and reads the
 resulting ``build/compile_commands.json``. The IDF version is the esp32
 component's recommended version.
 
@@ -380,7 +380,7 @@ def _write_tidy_project(
 def _generate_compile_commands(
     work_dir: Path, settings: _Settings, platformio_ini: Path
 ) -> Path:
-    """Generate the tidy project and run ``idf.py reconfigure`` (no build).
+    """Generate the tidy project and run the CMake configure (no build).
 
     Two-phase, like a real ESPHome build: a first configure with no builtin
     requires discovers which components actually register for the target (e.g.
@@ -411,7 +411,7 @@ def _generate_compile_commands(
     # Phase 1: discover the components available for this target.
     _write_tidy_project(work_dir, [], extra_deps, settings)
     if toolchain.run_reconfigure() != 0:
-        raise RuntimeError("idf.py reconfigure (discovery) failed")
+        raise RuntimeError("ESP-IDF CMake configure (discovery) failed")
 
     requires = sorted(
         set(get_available_components() or []) - _NON_REQUIRABLE_COMPONENTS
@@ -420,7 +420,7 @@ def _generate_compile_commands(
     # Phase 2: require every available builtin component.
     _write_tidy_project(work_dir, requires, extra_deps, settings)
     if toolchain.run_reconfigure() != 0:
-        raise RuntimeError("idf.py reconfigure failed")
+        raise RuntimeError("ESP-IDF CMake configure failed")
 
     return work_dir / "build" / "compile_commands.json"
 

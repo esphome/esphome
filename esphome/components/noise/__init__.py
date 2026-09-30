@@ -10,13 +10,14 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "noise"
 
 noise_ns = cg.esphome_ns.namespace("noise")
 
 # Keep in sync with platformio.ini and esphome/idf_component.yml.
 # LIBSODIUM_VERSION must match the version noise-c pins in its manifests.
-NOISE_C_VERSION = "0.1.21"
-LIBSODIUM_VERSION = "1.10021.4"
+NOISE_C_VERSION = "0.1.30"
+LIBSODIUM_VERSION = "1.10021.11"
 
 CONFIG_SCHEMA = cv.Schema({})
 
@@ -75,11 +76,16 @@ def static_encryption_key(conf: ConfigType) -> str | None:
 
 def new_psk_progmem(parent_id: ID, key: str) -> MockObj:
     """Emit the decoded key as a PROGMEM array; the component keeps a pointer
-    so the key never occupies RAM."""
-    return cg.progmem_array(
-        ID(f"{parent_id.id}_psk", is_declaration=True, type=cg.uint8),
-        list(decode_encryption_key(key)),
-    )
+    so the key never occupies RAM. Components sharing one key (api and ota)
+    share the array."""
+    decoded = decode_encryption_key(key)
+    arrays: dict[bytes, MockObj] = CORE.data.setdefault(DOMAIN, {})
+    if (array := arrays.get(decoded)) is None:
+        array = arrays[decoded] = cg.progmem_array(
+            ID(f"{parent_id.id}_psk", is_declaration=True, type=cg.uint8),
+            list(decoded),
+        )
+    return array
 
 
 def encryption_schema(config: ConfigType | None) -> ConfigType:

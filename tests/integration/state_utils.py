@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 import logging
 from typing import TypeVar
 
@@ -55,6 +55,58 @@ async def wait_for_state(
 
     client.subscribe_states(on_state)
     return await asyncio.wait_for(future, timeout=timeout)
+
+
+class StateWaiter:
+    """Route one state subscription to any number of predicate waits."""
+
+    def __init__(self) -> None:
+        self._waiters: list[
+            tuple[Callable[[EntityState], bool], asyncio.Future[EntityState]]
+        ] = []
+
+    def on_state(self, state: EntityState) -> None:
+        for predicate, future in self._waiters:
+            if future.done():
+                continue
+            try:
+                matched = predicate(state)
+            except Exception as exc:  # noqa: BLE001  the wait re-raises it, the callback must not die
+                future.set_exception(exc)
+                continue
+            if matched:
+                future.set_result(state)
+
+    def expect(
+        self,
+        predicate: Callable[[EntityState], bool],
+        timeout: float = 5.0,
+        label: str | None = None,
+    ) -> Awaitable[EntityState]:
+        """Arm a wait for the next state matching ``predicate`` and return the awaitable for it.
+
+        The wait is armed here, at call time, so it can be created before the action that produces
+        the state and awaited afterwards; states seen before this call never match.
+        """
+        entry = (predicate, asyncio.get_running_loop().create_future())
+        self._waiters.append(entry)
+        return self._wait(entry, timeout, label)
+
+    async def _wait(
+        self,
+        entry: tuple[Callable[[EntityState], bool], asyncio.Future[EntityState]],
+        timeout: float,
+        label: str | None,
+    ) -> EntityState:
+        try:
+            async with asyncio.timeout(timeout):
+                return await entry[1]
+        except TimeoutError:
+            raise TimeoutError(
+                f"no state matched {label or entry[0]} within {timeout}s"
+            ) from None
+        finally:
+            self._waiters.remove(entry)
 
 
 def find_entity[T: EntityInfo](
