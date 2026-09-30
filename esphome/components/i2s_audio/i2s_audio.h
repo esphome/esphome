@@ -32,12 +32,49 @@ class I2SAudioBase : public Parented<I2SAudioComponent> {
   i2s_mclk_multiple_t mclk_multiple_;
 };
 
-class I2SAudioIn : public I2SAudioBase {};
+class I2SAudioIn : public I2SAudioBase {
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+ public:
+  /// @brief Builds the RX configuration the parent uses to set up a full duplex channel pair.
+  /// @return false if this input cannot share a full duplex bus
+  virtual bool build_full_duplex_config(i2s_std_config_t &std_cfg) = 0;
+#endif
+};
 
-class I2SAudioOut : public I2SAudioBase {};
+class I2SAudioOut : public I2SAudioBase {
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+ public:
+  /// @brief Builds the TX configuration the parent uses to set up a full duplex channel pair. The channel
+  /// configuration (DMA layout, role, interrupt priority) is shared by both channels.
+  /// @return false if this output cannot share a full duplex bus
+  virtual bool build_full_duplex_config(i2s_chan_config_t &chan_cfg, i2s_std_config_t &std_cfg) { return false; }
+#endif
+};
 
 class I2SAudioComponent final : public Component {
  public:
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  void setup() override;
+
+  void set_audio_in(I2SAudioIn *audio_in) { this->audio_in_ = audio_in; }
+  void set_audio_out(I2SAudioOut *audio_out) { this->audio_out_ = audio_out; }
+
+  /// @brief True when a microphone and a speaker share this bus at the same time.
+  bool is_full_duplex() const { return this->audio_in_ != nullptr && this->audio_out_ != nullptr; }
+
+  /// @brief Enables the full duplex RX channel. Main loop only.
+  /// @return The enabled RX handle, or nullptr if the channel pair is unavailable
+  i2s_chan_handle_t acquire_rx_channel();
+  /// @brief Releases the RX channel; it keeps running while the TX side needs its clocks. Main loop only.
+  void release_rx_channel();
+
+  /// @brief Starts the shared clocks and hands over the full duplex TX channel, still disabled, so the caller
+  /// can register callbacks and preload data before enabling it. Main loop only.
+  /// @return The TX handle, or nullptr if the channel pair is unavailable
+  i2s_chan_handle_t acquire_tx_channel();
+  /// @brief Disables the TX channel and stops the shared clocks if the RX side is idle. Main loop only.
+  void release_tx_channel();
+#endif
   i2s_std_gpio_config_t get_pin_config() const {
     return {.mclk = (gpio_num_t) this->mclk_pin_,
             .bclk = (gpio_num_t) this->bclk_pin_,
@@ -68,8 +105,18 @@ class I2SAudioComponent final : public Component {
  protected:
   Mutex lock_;
 
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  /// @brief Enables the RX channel while either side is active, since it drives the shared clocks.
+  bool update_rx_channel_();
+
   I2SAudioIn *audio_in_{nullptr};
   I2SAudioOut *audio_out_{nullptr};
+  i2s_chan_handle_t rx_handle_{nullptr};
+  i2s_chan_handle_t tx_handle_{nullptr};
+  bool rx_in_use_{false};
+  bool tx_in_use_{false};
+  bool rx_enabled_{false};
+#endif
   int mclk_pin_{I2S_GPIO_UNUSED};
   int bclk_pin_{I2S_GPIO_UNUSED};
   int lrclk_pin_;

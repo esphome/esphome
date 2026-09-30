@@ -1,0 +1,31 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+i2s_audio:
+  - id: duplex_bus
+    i2s_bclk_pin: GPIO5
+    i2s_lrclk_pin: GPIO4
+    full_duplex: true
+
+microphone:
+  - platform: i2s_audio
+    id: duplex_mic
+    i2s_audio_id: duplex_bus
+    i2s_din_pin: GPIO16
+    adc_type: external
+    sample_rate: 48000
+    bits_per_sample: 32bit
+
+speaker:
+  - platform: i2s_audio
+    id: duplex_speaker
+    i2s_audio_id: duplex_bus
+    i2s_dout_pin: GPIO17
+    dac_type: external
+    sample_rate: 48000
+    bits_per_sample: 32bit

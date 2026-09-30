@@ -18,8 +18,17 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
-from esphome.const import CONF_BITS_PER_SAMPLE, CONF_CHANNEL, CONF_ID, CONF_SAMPLE_RATE
+from esphome.const import (
+    CONF_BITS_PER_SAMPLE,
+    CONF_CHANNEL,
+    CONF_ID,
+    CONF_MICROPHONE,
+    CONF_PLATFORM,
+    CONF_SAMPLE_RATE,
+    CONF_SPEAKER,
+)
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
@@ -41,6 +50,8 @@ CONF_I2S_LRCLK_PIN = "i2s_lrclk_pin"
 
 CONF_I2S_AUDIO = "i2s_audio"
 CONF_I2S_AUDIO_ID = "i2s_audio_id"
+CONF_FULL_DUPLEX = "full_duplex"
+CONF_SPDIF_MODE = "spdif_mode"
 
 CONF_I2S_MODE = "i2s_mode"
 CONF_PRIMARY = "primary"
@@ -199,6 +210,13 @@ async def register_i2s_audio_component(var: MockObj, config: ConfigType) -> None
     cg.add(var.set_use_apll(config[CONF_USE_APLL]))
     cg.add(var.set_mclk_multiple(I2S_MCLK_MULTIPLE[config[CONF_MCLK_MULTIPLE]]))
 
+    if str(config[CONF_I2S_AUDIO_ID]) in _get_data().full_duplex_buses:
+        parent = await cg.get_variable(config[CONF_I2S_AUDIO_ID])
+        if config[CONF_ID].type.inherits_from(I2SAudioIn):
+            cg.add(parent.set_audio_in(var))
+        else:
+            cg.add(parent.set_audio_out(var))
+
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -206,6 +224,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_I2S_LRCLK_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_I2S_BCLK_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_I2S_MCLK_PIN): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_FULL_DUPLEX, default=False): cv.boolean,
     },
 )
 
@@ -215,6 +234,7 @@ class I2SAudioData:
     """I2S audio component state stored in CORE.data."""
 
     port_map: dict[str, int] = field(default_factory=dict)
+    full_duplex_buses: set[str] = field(default_factory=set)
 
 
 def _get_data() -> I2SAudioData:
@@ -261,8 +281,47 @@ def _assign_ports() -> None:
             next_port += 1
 
 
+def _bus_devices(full_config: ConfigType, domain: str, bus_id: str) -> list[ConfigType]:
+    return [
+        device
+        for device in full_config.get(domain, [])
+        if device.get(CONF_PLATFORM) == CONF_I2S_AUDIO
+        and str(device[CONF_I2S_AUDIO_ID]) == bus_id
+    ]
+
+
+def _validate_full_duplex(full_config: ConfigType, bus_id: str) -> None:
+    """Check that a full duplex bus has one microphone and one speaker that can share its clocks."""
+    microphones = _bus_devices(full_config, CONF_MICROPHONE, bus_id)
+    speakers = _bus_devices(full_config, CONF_SPEAKER, bus_id)
+    if len(microphones) != 1 or len(speakers) != 1:
+        raise cv.Invalid(
+            f"'{CONF_FULL_DUPLEX}' requires exactly one i2s_audio microphone and one "
+            f"i2s_audio speaker on bus '{bus_id}'"
+        )
+    microphone, speaker = microphones[0], speakers[0]
+    if microphone.get(CONF_PDM):
+        raise cv.Invalid(f"A PDM microphone cannot use a '{CONF_FULL_DUPLEX}' bus")
+    if speaker.get(CONF_SPDIF_MODE):
+        raise cv.Invalid(f"An SPDIF speaker cannot use a '{CONF_FULL_DUPLEX}' bus")
+    # Both directions run from the same bit and word clocks
+    for key in (
+        CONF_SAMPLE_RATE,
+        CONF_BITS_PER_SAMPLE,
+        CONF_I2S_MODE,
+        CONF_USE_APLL,
+        CONF_MCLK_MULTIPLE,
+    ):
+        if microphone[key] != speaker[key]:
+            raise cv.Invalid(
+                f"The microphone and speaker on '{CONF_FULL_DUPLEX}' bus '{bus_id}' "
+                f"must use the same '{key}'"
+            )
+
+
 def _final_validate(_: ConfigType) -> None:
-    i2s_audio_configs = fv.full_config.get()[CONF_I2S_AUDIO]
+    full_config = fv.full_config.get()
+    i2s_audio_configs = full_config[CONF_I2S_AUDIO]
     variant = get_esp32_variant()
     if variant not in I2S_PORTS:
         raise cv.Invalid(f"Unsupported variant {variant}")
@@ -271,6 +330,13 @@ def _final_validate(_: ConfigType) -> None:
             f"Only {I2S_PORTS[variant]} I2S audio ports are supported on {variant}"
         )
     _assign_ports()
+
+    data = _get_data()
+    for config in i2s_audio_configs:
+        if config[CONF_FULL_DUPLEX]:
+            bus_id = str(config[CONF_ID])
+            _validate_full_duplex(full_config, bus_id)
+            data.full_duplex_buses.add(bus_id)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -298,3 +364,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_bclk_pin(config[CONF_I2S_BCLK_PIN]))
     if CONF_I2S_MCLK_PIN in config:
         cg.add(var.set_mclk_pin(config[CONF_I2S_MCLK_PIN]))
+    if config[CONF_FULL_DUPLEX]:
+        cg.add_define("USE_I2S_AUDIO_FULL_DUPLEX")
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"i2s_audio.cpp": "USE_I2S_AUDIO_FULL_DUPLEX"}
+)
