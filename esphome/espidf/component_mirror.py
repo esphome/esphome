@@ -192,15 +192,17 @@ def missing_deps(mirror: Path, deps: list[ServiceDep]) -> list[ServiceDep]:
 
 
 def _read_versions(path: Path) -> list[dict]:
-    """The version entries of an index; [] when missing or unreadable,
-    which lets publishing replace (heal) a broken live index."""
+    """The version entries of an index; [] when missing or corrupt, which
+    lets publishing replace (heal) it. An I/O error says nothing about the
+    content, so it raises and the caller retries later instead of
+    dropping the versions a valid index may list."""
     try:
         entries = json.loads(path.read_text(encoding="utf-8"))["versions"]
         return [entry for entry in entries if isinstance(entry, dict)]
     except FileNotFoundError:
         return []
-    except _BAD_INDEX_ERRORS as err:
-        _LOGGER.debug("Ignoring the unreadable index %s: %s", path, err)
+    except (ValueError, TypeError, KeyError) as err:
+        _LOGGER.debug("Ignoring the corrupt index %s: %s", path, err)
         return []
 
 

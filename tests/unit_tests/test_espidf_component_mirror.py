@@ -335,6 +335,16 @@ def test_publish_index_merges_and_filters(tmp_path: Path) -> None:
     }
 
 
+def test_publish_index_unreadable_live_index_raises(tmp_path: Path) -> None:
+    """An I/O error is not corruption; raising keeps the live versions and
+    a later run retries."""
+    src = _staged_index(tmp_path, [{"version": "2.0.0"}])
+    dst = tmp_path / "live.json"
+    dst.mkdir()  # read_text raises IsADirectoryError, not FileNotFoundError
+    with pytest.raises(OSError):
+        component_mirror._publish_index(src, dst)
+
+
 def test_promote_moves_archives_before_indexes(tmp_path: Path) -> None:
     """A concurrent reader must never see an index entry without its files."""
     staging = tmp_path / "staging"
