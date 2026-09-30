@@ -109,8 +109,9 @@ bool TAS58xx::init_() {
     ESP_LOGE(TAG, "I2C write failed during init");
     return false;
   }
-  // The mixer is written once the device reaches play, see update()
+  // The mixer is written once the I2S clocks run, see on_audio_started() and update()
   this->power_state_ = TAS58XX_CTRL_STATE_UNKNOWN;
+  this->mixer_written_ = false;
   return true;
 }
 
@@ -210,6 +211,15 @@ bool TAS58xx::read_faults_() {
   return true;
 }
 
+void TAS58xx::on_audio_started() {
+  // DSP coefficients can only be written with a running I2S clock (datasheet 7.5.3.1) and are kept when it stops
+  if (this->is_failed() || this->mixer_written_)
+    return;
+  if (!this->write_mixer_()) {
+    ESP_LOGW(TAG, "Failed to write mixer");
+  }
+}
+
 void TAS58xx::update() {
   uint8_t power_state;
   if (!this->read_faults_() || !this->read_byte(TAS58XX_POWER_STATE, &power_state)) {
@@ -219,16 +229,15 @@ void TAS58xx::update() {
   this->status_clear_warning();
 
   power_state &= TAS58XX_CTRL_STATE_MASK;
-  if (power_state == this->power_state_)
-    return;
-  ESP_LOGD(TAG, "[0x%02X] Power state: %s", this->address_, LOG_STR_ARG(power_state_name(power_state)));
-  // DSP coefficients need a running I2S clock (datasheet 7.5.3.1), which the device signals by entering play.
-  // Leave power_state_ unchanged on failure so the next update retries.
-  if (power_state == TAS58XX_CTRL_STATE_PLAY && !this->write_mixer_()) {
-    ESP_LOGW(TAG, "Failed to write mixer");
-    return;
+  if (power_state != this->power_state_) {
+    ESP_LOGD(TAG, "[0x%02X] Power state: %s", this->address_, LOG_STR_ARG(power_state_name(power_state)));
+    this->power_state_ = power_state;
   }
-  this->power_state_ = power_state;
+  // The device only plays with a running I2S clock. Fallback for speakers that do not call on_audio_started();
+  // a failed write is retried on the next update.
+  if (power_state == TAS58XX_CTRL_STATE_PLAY && !this->mixer_written_ && !this->write_mixer_()) {
+    ESP_LOGW(TAG, "Failed to write mixer");
+  }
 }
 
 void TAS58xx::dump_config() {
@@ -320,7 +329,9 @@ bool TAS58xx::write_mixer_() {
   bool ok = this->select_book_page_(this->model_->mixer_book, this->model_->mixer_page) &&
             this->write_bytes(this->model_->mixer_register, coefficients, sizeof(coefficients));
   // Always return to the control port, even after a failed write
-  return this->select_book_page_(TAS58XX_BOOK_CONTROL, TAS58XX_PAGE_0) && ok;
+  ok = this->select_book_page_(TAS58XX_BOOK_CONTROL, TAS58XX_PAGE_0) && ok;
+  this->mixer_written_ = ok;
+  return ok;
 }
 
 }  // namespace esphome::tas58xx

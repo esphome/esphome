@@ -95,6 +95,8 @@ class TAS58xx : public audio_dac::AudioDac, public PollingComponent, public i2c:
   bool is_muted() override { return this->is_muted_; }
   float volume() override { return this->volume_; }
 
+  void on_audio_started() override;
+
   void set_enable_pin(GPIOPin *enable_pin) { this->enable_pin_ = enable_pin; }
   void set_analog_gain(float analog_gain_db) { this->analog_gain_db_ = analog_gain_db; }
   void set_dac_mode(DacMode dac_mode) { this->dac_mode_ = dac_mode; }
@@ -132,6 +134,7 @@ class TAS58xx : public audio_dac::AudioDac, public PollingComponent, public i2c:
   MixerMode mixer_mode_{MIXER_MODE_STEREO};
   uint8_t ctrl_state_{0};
   uint8_t power_state_{0xFF};  // Last POWER_STATE seen by update(), 0xFF until the first read
+  bool mixer_written_{false};  // Mixer written since the last reset
 };
 
 }  // namespace esphome::tas58xx
