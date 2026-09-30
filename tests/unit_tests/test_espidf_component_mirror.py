@@ -577,3 +577,13 @@ def test_sync_ignores_a_leftover_lock_file(tmp_path: Path) -> None:
     (mirror / ".sync.lock").touch()
     _, mock_run = _run_sync(tmp_path)
     mock_run.assert_called_once()  # the dead lock did not block the sync
+
+
+def test_parse_lock_non_utf8_file_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A non-UTF-8 lock is a warning, never a failed build."""
+    lock = tmp_path / "dependencies.lock"
+    lock.write_bytes(b"dependencies:\n  # caf\xe9\n")
+    assert component_mirror.parse_lock_service_deps(lock) == []
+    assert "Could not read" in caplog.text

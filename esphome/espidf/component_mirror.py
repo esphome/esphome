@@ -93,7 +93,7 @@ def _load_yaml_dict(path: Path) -> dict | None:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return None
-    except OSError as err:
+    except (OSError, UnicodeDecodeError) as err:
         _LOGGER.warning("Could not read %s: %s", path, err)
         return None
     try:
@@ -222,7 +222,7 @@ def _merge_component_index(src: Path, dst: Path) -> None:
         # src truncated, or the promotion would install a broken index.
         merged = src.with_name(f"{src.name}.merged")
         merged.write_text(json.dumps(staged), encoding="utf-8")
-        Path(merged).replace(src)
+        merged.replace(src)
     except (OSError, ValueError, TypeError, KeyError, AttributeError) as err:
         # No usable existing index; the staged one stands alone, and any
         # version it does not list gets re-mirrored by a later sync. A
