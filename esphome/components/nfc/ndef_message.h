@@ -13,6 +13,8 @@
 namespace esphome::nfc {
 
 static constexpr uint8_t MAX_NDEF_RECORDS = 4;
+/// The records of one message, owned in place so parsing a message allocates only the records themselves
+using NdefRecords = StaticVector<std::unique_ptr<NdefRecord>, MAX_NDEF_RECORDS>;
 
 class NdefMessage {
  public:
@@ -20,13 +22,12 @@ class NdefMessage {
   NdefMessage(std::span<const uint8_t> data);
   NdefMessage(std::vector<uint8_t> &data) : NdefMessage(std::span<const uint8_t>(data)) {}
   NdefMessage(const NdefMessage &msg) {
-    records_.reserve(msg.records_.size());
     for (const auto &r : msg.records_) {
-      records_.emplace_back(r->clone());
+      records_.emplace_next() = r->clone();
     }
   }
 
-  const std::vector<std::shared_ptr<NdefRecord>> &get_records() { return this->records_; };
+  const NdefRecords &get_records() const { return this->records_; };
 
   bool add_record(std::unique_ptr<NdefRecord> record);
   bool add_text_record(const std::string &text);
@@ -36,7 +37,7 @@ class NdefMessage {
   std::vector<uint8_t> encode();
 
  protected:
-  std::vector<std::shared_ptr<NdefRecord>> records_;
+  NdefRecords records_;
 };
 
 }  // namespace esphome::nfc
