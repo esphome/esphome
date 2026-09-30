@@ -5372,7 +5372,7 @@ def test_compile_program_warns_and_ignores_skip_bootloader_elsewhere(
             side_effect=EsphomeError("stop here"),
         ),
         pytest.raises(EsphomeError, match="stop here"),
-        caplog.at_level("WARNING"),
+        caplog.at_level("INFO"),
     ):
         compile_program(MockArgs(), config)
 
