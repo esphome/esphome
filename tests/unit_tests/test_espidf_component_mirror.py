@@ -183,6 +183,21 @@ def test_merge_component_index_ignores_corrupt_existing(tmp_path: Path) -> None:
     assert json.loads(src.read_text()) == {"versions": [{"version": "2.0.0"}]}
 
 
+def test_merge_component_index_failed_write_keeps_the_staged_file(
+    tmp_path: Path,
+) -> None:
+    """A write that fails partway (e.g. full disk) must leave the complete
+    staged index in place, never a truncated one, and no .merged leftover."""
+    src = tmp_path / "staged.json"
+    src.write_text('{"versions": [{"version": "2.0.0"}]}')
+    dst = tmp_path / "existing.json"
+    dst.write_text('{"versions": [{"version": "1.0.0"}]}')
+    with patch.object(Path, "write_text", side_effect=OSError("disk full")):
+        component_mirror._merge_component_index(src, dst)
+    assert json.loads(src.read_text()) == {"versions": [{"version": "2.0.0"}]}
+    assert not (tmp_path / "staged.json.merged").exists()
+
+
 def test_parse_lock_defaults_registry_url(tmp_path: Path) -> None:
     """A service entry without registry_url is a default-registry dependency."""
     lock = _write_lock(
@@ -519,6 +534,20 @@ def test_sync_failure_leaves_no_staging_behind(tmp_path: Path) -> None:
     mirror = component_mirror.get_mirror_path()
     assert not (mirror / ".staging").exists()
     assert not (mirror / "components" / "ns").exists()
+
+
+def test_sync_undeletable_staging_is_a_failure(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Stale staged files must never be promoted; an undeletable staging
+    tree aborts the sync instead."""
+    _write_lock(tmp_path)
+    with patch.object(component_mirror, "rmtree", side_effect=OSError("stuck staging")):
+        ok, mock_run = _run_sync(tmp_path)
+    assert not ok
+    mock_run.assert_not_called()
+    assert "Could not mirror" in caplog.text
+    _assert_sync_lock_released()
 
 
 def test_sync_ignores_a_leftover_lock_file(tmp_path: Path) -> None:

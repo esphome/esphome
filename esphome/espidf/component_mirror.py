@@ -12,17 +12,18 @@ cost of staying on the manager's CLI contract.
 
 from __future__ import annotations
 
+from contextlib import suppress
 import json
 import logging
 import os
 from pathlib import Path
-import shutil
 import subprocess
 from typing import TYPE_CHECKING, NamedTuple
 
 from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.core import EsphomeError
 from esphome.framework_helpers import _rename_with_retry
+from esphome.helpers import rmtree
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
@@ -208,10 +209,16 @@ def _merge_component_index(src: Path, dst: Path) -> None:
         staged["versions"] += [
             entry for entry in existing if entry.get("version") not in known
         ]
-        src.write_text(json.dumps(staged), encoding="utf-8")
+        # Through a sibling file: a write that fails partway must not leave
+        # src truncated, or the promotion would install a broken index.
+        merged = src.with_name(f"{src.name}.merged")
+        merged.write_text(json.dumps(staged), encoding="utf-8")
+        Path(merged).replace(src)
     except (OSError, ValueError, TypeError, KeyError, AttributeError):
-        # No usable existing index; the staged one stands alone.
-        pass
+        # No usable existing index; the staged one stands alone. A partial
+        # sibling must not reach the promotion pass.
+        with suppress(OSError):
+            src.with_name(f"{src.name}.merged").unlink(missing_ok=True)
 
 
 def _is_component_index(rel: Path) -> bool:
@@ -285,7 +292,9 @@ def sync_component_mirror(
         return False
     _LOGGER.info("Mirroring %d IDF component(s) for offline builds...", len(to_sync))
     try:
-        shutil.rmtree(staging, ignore_errors=True)
+        # An undeletable staging tree raises here: promoting stale files
+        # from an earlier attempt would be worse than skipping the sync.
+        rmtree(staging)
         result = subprocess.run(
             cmd,
             env=env,
@@ -316,7 +325,9 @@ def sync_component_mirror(
         _LOGGER.warning("Could not mirror IDF components: %s", err)
         return False
     finally:
-        shutil.rmtree(staging, ignore_errors=True)
+        # Cleanup only; a leftover tree is removed by the next attempt.
+        with suppress(OSError):
+            rmtree(staging)
         lock.release()
     _LOGGER.info("Mirrored %d IDF component(s) for offline builds", len(to_sync))
     return True
