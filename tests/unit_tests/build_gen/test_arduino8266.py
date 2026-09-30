@@ -27,7 +27,12 @@ from esphome.build_gen.arduino8266 import (
     _resolve_build_config,
     get_flash_ld_path,
 )
-from esphome.components.esp8266.boards import BOARDS, ESP8266_BOARD_BUILD
+from esphome.components.esp8266.boards import (
+    BOARDS,
+    ESP8266_BOARD_BUILD,
+    KEY_FLASH_SIZE,
+    board_ld_script,
+)
 from esphome.components.esp8266.build_surgery import RATETABLE_RULE
 from esphome.components.esp8266.const import KEY_BOARD, KEY_ESP8266, KEY_SCANF_FLOAT
 import esphome.config_validation as cv
@@ -761,6 +766,15 @@ def test_elf2bin_flash_size() -> None:
     assert _elf2bin_flash_size("esp8285", "custom.ld") == "2M"
     del CORE.platformio_options["board_upload.maximum_size"]
     assert _elf2bin_flash_size("esp8285", "custom.ld") == "1M"
+
+
+def test_elf2bin_flash_size_default_matches_board_table() -> None:
+    """Without an ldscript override, every board's own ldscript parses to
+    the board-table size, so the emitted --flash_size is unchanged."""
+    for board, entry in BOARDS.items():
+        assert _elf2bin_flash_size(board, board_ld_script(entry)) == _flash_size_str(
+            entry[KEY_FLASH_SIZE]
+        ), board
 
 
 def test_write_project_flash_size_follows_ldscript_override(
