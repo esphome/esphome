@@ -25,7 +25,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@will-tm", "@j9brown"]
+CODEOWNERS = ["@j9brown"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
 
