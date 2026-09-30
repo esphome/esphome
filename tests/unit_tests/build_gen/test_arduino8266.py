@@ -768,6 +768,15 @@ def test_elf2bin_flash_size() -> None:
     assert _elf2bin_flash_size("esp8285", "custom.ld") == "1M"
 
 
+@pytest.mark.parametrize("bad", ["2MB", "3145728", "-1"])
+def test_elf2bin_flash_size_rejects_bad_maximum_size(bad: str) -> None:
+    """A non-numeric or unsupported board_upload.maximum_size fails by name
+    instead of a ValueError or a late elf2bin choices error."""
+    CORE.platformio_options["board_upload.maximum_size"] = bad
+    with pytest.raises(EsphomeError, match="board_upload.maximum_size"):
+        _elf2bin_flash_size("esp8285", "custom.ld")
+
+
 def test_elf2bin_flash_size_default_matches_board_table() -> None:
     """Without an ldscript override, every board's own ldscript parses to
     the board-table size, so the emitted --flash_size is unchanged."""

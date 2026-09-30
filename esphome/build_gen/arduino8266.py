@@ -1193,6 +1193,8 @@ def _flash_size_str(flash_size: int) -> str:
 
 # Same pattern PlatformIO's _get_flash_size applies to the ldscript path
 _LD_FLASH_SIZE_RE = re.compile(r"\.flash\.(\d+[mk]).*\.ld")
+# The framework elf2bin.py's --flash_size choices
+_ELF2BIN_FLASH_SIZES = frozenset({"256K", "512K", "1M", "2M", "4M", "8M", "16M"})
 
 
 def _elf2bin_flash_size(board: str, flash_ld_name: str) -> str:
@@ -1205,5 +1207,10 @@ def _elf2bin_flash_size(board: str, flash_ld_name: str) -> str:
         base = 1024 if token[-1] == "k" else 1024 * 1024
         return _flash_size_str(int(token[:-1]) * base)
     if max_size := _pio_option("board_upload.maximum_size", ""):
-        return _flash_size_str(int(max_size))
+        if (
+            not max_size.isdigit()
+            or (size := _flash_size_str(int(max_size))) not in _ELF2BIN_FLASH_SIZES
+        ):
+            raise EsphomeError(f"Invalid board_upload.maximum_size value {max_size!r}")
+        return size
     return _flash_size_str(BOARDS[board][KEY_FLASH_SIZE])
