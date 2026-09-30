@@ -205,31 +205,43 @@ def missing_deps(mirror: Path, deps: list[ServiceDep]) -> list[ServiceDep]:
     return [dep for dep in deps if not _mirror_has(mirror, dep)]
 
 
-def _merge_component_index(src: Path, dst: Path) -> None:
+def _merge_component_index(src: Path, dst: Path) -> bool:
     """Fold the mirror's existing versions of a component into the staged index.
 
     The staged index lists only the versions this sync fetched; replacing
     the mirror's file outright would drop the versions it already had.
+    Returns whether the staged index should replace the live one.
     """
     try:
         existing = json.loads(dst.read_text(encoding="utf-8"))["versions"]
+    except FileNotFoundError:
+        return True  # the first sync of this component
+    except (OSError, ValueError, TypeError, KeyError) as err:
+        # Replacing a broken live index with the staged one heals it.
+        _LOGGER.warning("Replacing the unreadable component index %s: %s", dst, err)
+        return True
+    try:
         staged = json.loads(src.read_text(encoding="utf-8"))
         known = {entry.get("version") for entry in staged["versions"]}
         staged["versions"] += [
-            entry for entry in existing if entry.get("version") not in known
+            entry
+            for entry in existing
+            if isinstance(entry, dict) and entry.get("version") not in known
         ]
         # Through a sibling file: a write that fails partway must not leave
         # src truncated, or the promotion would install a broken index.
         merged = src.with_name(f"{src.name}.merged")
         merged.write_text(json.dumps(staged), encoding="utf-8")
         merged.replace(src)
-    except (OSError, ValueError, TypeError, KeyError, AttributeError) as err:
-        # No usable existing index; the staged one stands alone, and any
-        # version it does not list gets re-mirrored by a later sync. A
+        return True
+    except (OSError, ValueError, TypeError, KeyError) as err:
+        # Keep the live index rather than dropping the versions it lists;
+        # the synced version stays uncovered and a later run retries. A
         # partial sibling must not reach the promotion pass.
-        _LOGGER.debug("Not merging the existing index %s: %s", dst, err)
+        _LOGGER.warning("Could not merge the component index %s: %s", dst, err)
         with suppress(OSError):
             src.with_name(f"{src.name}.merged").unlink(missing_ok=True)
+        return False
 
 
 def _is_component_index(rel: Path) -> bool:
@@ -252,8 +264,8 @@ def _promote(staging: Path, mirror: Path) -> None:
         rel = src.relative_to(staging)
         dst = mirror / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
-        if _is_component_index(rel):
-            _merge_component_index(src, dst)
+        if _is_component_index(rel) and not _merge_component_index(src, dst):
+            continue
         _rename_with_retry(src, dst, overwrite=True)
 
 

@@ -179,29 +179,55 @@ def test_parse_lock_skips_non_string_version(tmp_path: Path) -> None:
     assert component_mirror.parse_lock_service_deps(lock) == []
 
 
-def test_merge_component_index_ignores_corrupt_existing(tmp_path: Path) -> None:
-    """A corrupt mirror index cannot poison the staged one."""
+def test_merge_component_index_replaces_corrupt_existing(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A corrupt live index is replaced by the staged one, with a warning."""
     src = tmp_path / "staged.json"
     src.write_text('{"versions": [{"version": "2.0.0"}]}')
     dst = tmp_path / "existing.json"
     dst.write_text("not json")
-    component_mirror._merge_component_index(src, dst)
+    assert component_mirror._merge_component_index(src, dst)
     assert json.loads(src.read_text()) == {"versions": [{"version": "2.0.0"}]}
+    assert "Replacing the unreadable component index" in caplog.text
 
 
-def test_merge_component_index_failed_write_keeps_the_staged_file(
-    tmp_path: Path,
+def test_merge_component_index_missing_existing_is_silent(tmp_path: Path) -> None:
+    """The first sync of a component has no live index and needs no log."""
+    src = tmp_path / "staged.json"
+    src.write_text('{"versions": [{"version": "2.0.0"}]}')
+    assert component_mirror._merge_component_index(src, tmp_path / "none.json")
+
+
+def test_merge_component_index_failed_write_keeps_the_live_index(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A write that fails partway (e.g. full disk) must leave the complete
-    staged index in place, never a truncated one, and no .merged leftover."""
+    """A write that fails partway (e.g. full disk) must keep the live index
+    instead of dropping its versions, with a warning and no .merged leftover."""
     src = tmp_path / "staged.json"
     src.write_text('{"versions": [{"version": "2.0.0"}]}')
     dst = tmp_path / "existing.json"
     dst.write_text('{"versions": [{"version": "1.0.0"}]}')
     with patch.object(Path, "write_text", side_effect=OSError("disk full")):
-        component_mirror._merge_component_index(src, dst)
+        assert not component_mirror._merge_component_index(src, dst)
     assert json.loads(src.read_text()) == {"versions": [{"version": "2.0.0"}]}
+    assert json.loads(dst.read_text()) == {"versions": [{"version": "1.0.0"}]}
     assert not (tmp_path / "staged.json.merged").exists()
+    assert "Could not merge" in caplog.text
+
+
+def test_promote_keeps_the_live_index_when_the_merge_fails(tmp_path: Path) -> None:
+    """A failed merge skips only that index; archives still land and the
+    synced version shows as uncovered for a later retry."""
+    mirror = tmp_path / "mirror"
+    staging = tmp_path / "staging"
+    _add_to_mirror(mirror, component_mirror.ServiceDep("ns", "cmp", "1.0.0"))
+    _add_to_mirror(staging, component_mirror.ServiceDep("ns", "cmp", "2.0.0"))
+    with patch.object(component_mirror, "_merge_component_index", return_value=False):
+        component_mirror._promote(staging, mirror)
+    doc = json.loads((mirror / "components" / "ns" / "cmp.json").read_text())
+    assert {entry["version"] for entry in doc["versions"]} == {"1.0.0"}
+    assert (mirror / "components/ns/cmp/2.0.0/ns__cmp-v2.0.0.zip").is_file()
 
 
 def test_parse_lock_defaults_registry_url(tmp_path: Path) -> None:
