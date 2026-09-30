@@ -1206,6 +1206,39 @@ def test_run_reconfigure_flip_into_skip_mode_cleans_up(setup_core: Path) -> None
     assert not stale.exists()
 
 
+def test_run_reconfigure_skip_steady_state_cleans_nothing(setup_core: Path) -> None:
+    """Cleanup belongs to the flip; a reconfigure of a skip tree touches nothing."""
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
+    )
+    marker = build / "bootloader"
+    marker.mkdir()
+    with (
+        patch.object(toolchain, "_skip_bootloader", return_value=True),
+        patch.object(toolchain, "_get_idf_tool", side_effect=lambda n: f"/tools/{n}"),
+        patch.object(toolchain, "_tool_env", return_value={}),
+        patch.object(toolchain, "run_build_tool", return_value=0),
+        patch.object(toolchain, "_idf_py") as mock_idf_py,
+    ):
+        mock_idf_py.return_value.binary_dir_arg = False
+        assert toolchain.run_reconfigure() == 0
+    assert marker.exists()
+
+
+def test_create_factory_bin_full_mode_needs_flasher_args(setup_core: Path) -> None:
+    """Past the skip gate, a full tree without flasher_args fails as before."""
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=0\n"
+    )
+    assert toolchain.create_factory_bin() is False
+
+
 def test_missing_image_hint_names_the_flag(setup_core: Path) -> None:
     _setup_build(setup_core)
     build = CORE.relative_build_path("build")
