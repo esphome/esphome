@@ -357,12 +357,12 @@ LightColorValues LightCall::validate_() {
     this->set_flag_(FLAG_HAS_EFFECT);
   }
 
-  // If effect is already active, remove effect start. When a lit light gets no new values or flash, keep the flag
-  // and drop any transition, which has nothing to fade to; perform() then leaves the running effect undisturbed.
+  // If effect is already active, remove effect start. When a light that stays on gets no new values or flash, keep
+  // the flag and drop any transition, which has nothing to fade to; perform() then leaves the running effect
+  // undisturbed. A call that turns the light off keeps no flag, so the turn-off block below stops the effect.
   // has_brightness() catches the brightness added above to make the turn-on visible.
   if (this->has_effect_() && this->effect_ == this->parent_->active_effect_index_) {
-    if (sets_values || this->has_brightness() || this->has_flash_() || this->effect_ == 0 ||
-        !this->parent_->remote_values.is_on()) {
+    if (sets_values || this->has_brightness() || this->has_flash_() || this->effect_ == 0 || !v.is_on()) {
       this->clear_flag_(FLAG_HAS_EFFECT);
     } else {
       this->clear_flag_(FLAG_HAS_TRANSITION);

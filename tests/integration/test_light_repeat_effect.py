@@ -134,4 +134,17 @@ async def test_light_repeat_effect(
         )
         assert state.effect == "Slow Strobe"
 
+        # Turning the light off while naming the running effect must stop the effect, not just
+        # publish the light as off and leave the effect driving the outputs
+        green.clear()
+        blue.clear()
+        warnings.clear()
+        state = await send_and_wait(state=False, effect="Slow Strobe")
+        assert state.state is False
+        await asyncio.sleep(2.2)  # A full strobe cycle
+        assert max(green + blue) == pytest.approx(0.0, abs=0.01), (
+            f"The effect kept driving the outputs after turn-off: green={green}, blue={blue}"
+        )
+        assert not warnings, f"Unexpected warnings: {warnings}"
+
         client.light_command(key=light.key, effect="None")
