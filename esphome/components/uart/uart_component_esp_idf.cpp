@@ -404,6 +404,7 @@ size_t IDFUARTComponent::available_for_write() {
   if (this->tx_buffer_size_ == 0) {
     return uart_ll_get_txfifo_len(UART_LL_GET_HW(this->uart_num_));
   }
+  // The driver's figure already deducts its ring item headers, so a write of this size fits
   size_t free = 0;
   uart_get_tx_buffer_free_size(this->uart_num_, &free);
   return free;

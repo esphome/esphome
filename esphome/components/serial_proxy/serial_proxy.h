@@ -53,7 +53,9 @@ enum class SerialProxyResult : uint8_t {
 /// Maximum bytes to read from UART in a single loop iteration
 inline constexpr size_t SERIAL_PROXY_MAX_READ_SIZE = 256;
 
-/// Longest main-loop stall a client write may cause; bytes the UART cannot buffer within it are dropped
+/// Longest main-loop stall client writes may cause per loop pass; bytes the UART cannot buffer
+/// within it are dropped. Well under the shortest watchdog timeout, since the API hands the
+/// proxy up to ten writes in one pass.
 inline constexpr uint32_t SERIAL_PROXY_MAX_WRITE_STALL_MS = 1000;
 
 #ifdef USE_SERIAL_PROXY_TAP
@@ -227,6 +229,10 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Instance index for identifying this proxy in API messages
   uint32_t instance_index_{0};
 
+  /// Stall spent by writes in the current loop pass, keyed by the pass's cached start time
+  uint32_t stall_loop_time_{0};
+  uint32_t stall_spent_ms_{0};
+
   /// Subscribed API client (only one allowed at a time)
   api::APIConnection *api_connection_{nullptr};
 
@@ -253,6 +259,9 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Current modem pin states
   bool rts_state_{false};
   bool dtr_state_{false};
+
+  /// Set while writes are being trimmed, so a client streaming into a slow port warns once
+  bool trim_warned_{false};
 
 #ifdef USE_SERIAL_PROXY_TAP
   SerialProxyTap *tap_{nullptr};

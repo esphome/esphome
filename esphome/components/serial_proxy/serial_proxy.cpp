@@ -2,6 +2,7 @@
 
 #ifdef USE_SERIAL_PROXY
 
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -296,20 +297,33 @@ void SerialProxy::write_from_client(api::APIConnection *api_connection, const ui
     return;
   // Whatever the driver cannot buffer stalls the main loop for its wire time. At high baud
   // rates that is brief and losing nothing is worth it; at low ones it would trip the
-  // watchdog, so cap the stall and drop the rest
+  // watchdog, so cap the stall and drop the rest. The cap covers the whole loop pass:
+  // several writes can arrive in one, and each alone might stay under it.
   const size_t free = this->parent_->available_for_write();
+  bool trimmed = false;
   if (len > free) {
+    const uint32_t loop_time = App.get_loop_component_start_time();
+    if (loop_time != this->stall_loop_time_) {
+      this->stall_loop_time_ = loop_time;
+      this->stall_spent_ms_ = 0;
+    }
     const uint32_t stall_ms = this->wire_time_ms_(len - free);
-    if (stall_ms > SERIAL_PROXY_MAX_WRITE_STALL_MS) {
+    trimmed = this->stall_spent_ms_ + stall_ms > SERIAL_PROXY_MAX_WRITE_STALL_MS;
+    if (trimmed && !this->trim_warned_) {
       ESP_LOGW(TAG,
                "TX buffer full on serial proxy [%" PRIu32 "]: dropping %zu of %zu bytes (would stall %" PRIu32
                " ms at %" PRIu32 " baud); raise the UART tx_buffer_size or pace writes",
                this->instance_index_, len - free, len, stall_ms, this->parent_->get_baud_rate());
+    }
+    if (trimmed) {
       len = free;
-      if (len == 0)
-        return;
+    } else {
+      this->stall_spent_ms_ += stall_ms;
     }
   }
+  this->trim_warned_ = trimmed;
+  if (len == 0)
+    return;
   this->write_array(data, len);
 
 #ifdef USE_SERIAL_PROXY_TAP
