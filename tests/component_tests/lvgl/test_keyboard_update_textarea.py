@@ -1,4 +1,6 @@
-"""Regression test: on_add:/on_remove: containing an lvgl action must not deadlock."""
+"""Regression test: lvgl.keyboard.update must be able to change which
+textarea a keyboard is attached to.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +16,7 @@ from esphome.core import CORE
 @pytest.fixture(scope="module")
 def main_cpp(request: pytest.FixtureRequest) -> str:
     config_path = (
-        Path(request.fspath).parent / "config" / "list_on_add_lvgl_action_test.yaml"
+        Path(request.fspath).parent / "config" / "keyboard_update_textarea_test.yaml"
     )
     original_path = CORE.config_path
     try:
@@ -27,9 +29,5 @@ def main_cpp(request: pytest.FixtureRequest) -> str:
         CORE.reset()
 
 
-def test_on_add_with_lvgl_action_does_not_deadlock(main_cpp: str) -> None:
-    assert 'lv_label_set_text(later_label, "changed");' in main_cpp
-
-
-def test_on_remove_with_lvgl_action_does_not_deadlock(main_cpp: str) -> None:
-    assert 'lv_label_set_text(later_label, "removed");' in main_cpp
+def test_keyboard_update_changes_textarea(main_cpp: str) -> None:
+    assert "lv_keyboard_set_textarea(kb->obj, ta2);" in main_cpp
