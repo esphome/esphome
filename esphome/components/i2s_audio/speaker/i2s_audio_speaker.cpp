@@ -260,6 +260,16 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
     return err;
   }
 
+  err = this->prepare_event_queues_(event_queue_size);
+  if (err != ESP_OK) {
+    i2s_del_channel(this->tx_handle_);
+    this->tx_handle_ = nullptr;
+    this->parent_->unlock();
+  }
+  return err;
+}
+
+esp_err_t I2SAudioSpeakerBase::prepare_event_queues_(size_t event_queue_size) {
   if (this->i2s_event_queue_ == nullptr) {
     this->i2s_event_queue_ = xQueueCreate(event_queue_size, sizeof(int64_t));
   } else {
@@ -277,16 +287,41 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
 
   if (this->i2s_event_queue_ == nullptr || this->write_records_queue_ == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate I2S event queue(s)");
-    i2s_del_channel(this->tx_handle_);
-    this->tx_handle_ = nullptr;
-    this->parent_->unlock();
     return ESP_ERR_NO_MEM;
   }
 
   return ESP_OK;
 }
 
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+esp_err_t I2SAudioSpeakerBase::acquire_full_duplex_channel_(size_t event_queue_size) {
+  this->tx_handle_ = this->parent_->acquire_tx_channel();
+  if (this->tx_handle_ == nullptr) {
+    ESP_LOGE(TAG, "Full duplex channel unavailable");
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  esp_err_t err = this->prepare_event_queues_(event_queue_size);
+  if (err != ESP_OK) {
+    this->parent_->release_tx_channel();
+    this->tx_handle_ = nullptr;
+  }
+  return err;
+}
+#endif
+
 void I2SAudioSpeakerBase::stop_i2s_driver_() {
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  if (this->parent_->is_full_duplex()) {
+    // The parent owns the channel pair and its pins, so only hand the TX channel back
+    if (this->tx_handle_ != nullptr) {
+      this->parent_->release_tx_channel();
+      this->tx_handle_ = nullptr;
+    }
+    return;
+  }
+#endif
+
   if (this->tx_handle_ != nullptr) {
     i2s_channel_disable(this->tx_handle_);
     i2s_del_channel(this->tx_handle_);

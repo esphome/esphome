@@ -94,7 +94,59 @@ void I2SAudioMicrophone::start() {
   xSemaphoreTake(this->active_listeners_semaphore_, 0);
 }
 
+i2s_clock_src_t I2SAudioMicrophone::get_clock_source_() const {
+#ifdef I2S_CLK_SRC_APLL
+  if (this->use_apll_) {
+    return I2S_CLK_SRC_APLL;
+  }
+#endif
+  return I2S_CLK_SRC_DEFAULT;
+}
+
+void I2SAudioMicrophone::build_std_config_(i2s_std_config_t &std_cfg) const {
+  i2s_std_slot_config_t std_slot_cfg =
+      I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) this->slot_bit_width_, this->slot_mode_);
+  std_slot_cfg.slot_bit_width = this->slot_bit_width_;
+  std_slot_cfg.slot_mask = this->std_slot_mask_;
+
+  i2s_std_gpio_config_t pin_config = this->parent_->get_pin_config();
+  pin_config.din = this->din_pin_;
+
+  std_cfg = {
+      .clk_cfg =
+          {
+              .sample_rate_hz = this->sample_rate_,
+              .clk_src = this->get_clock_source_(),
+              .mclk_multiple = this->mclk_multiple_,
+          },
+      .slot_cfg = std_slot_cfg,
+      .gpio_cfg = pin_config,
+  };
+}
+
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+bool I2SAudioMicrophone::build_full_duplex_config(i2s_std_config_t &std_cfg) {
+  if (this->pdm_) {
+    return false;
+  }
+  this->build_std_config_(std_cfg);
+  return true;
+}
+#endif
+
 bool I2SAudioMicrophone::start_driver_() {
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  if (this->parent_->is_full_duplex()) {
+    this->rx_handle_ = this->parent_->acquire_rx_channel();
+    if (this->rx_handle_ == nullptr) {
+      ESP_LOGE(TAG, "Full duplex channel unavailable");
+      return false;
+    }
+    this->configure_stream_settings_();
+    return true;
+  }
+#endif
+
   if (!this->parent_->try_lock()) {
     return false;  // Waiting for another i2s to return lock
   }
@@ -115,18 +167,12 @@ bool I2SAudioMicrophone::start_driver_() {
     return false;
   }
 
-  i2s_clock_src_t clk_src = I2S_CLK_SRC_DEFAULT;
-#ifdef I2S_CLK_SRC_APLL
-  if (this->use_apll_) {
-    clk_src = I2S_CLK_SRC_APLL;
-  }
-#endif
-  i2s_std_gpio_config_t pin_config = this->parent_->get_pin_config();
 #if SOC_I2S_SUPPORTS_PDM_RX
   if (this->pdm_) {
+    i2s_std_gpio_config_t pin_config = this->parent_->get_pin_config();
     i2s_pdm_rx_clk_config_t clk_cfg = {
         .sample_rate_hz = this->sample_rate_,
-        .clk_src = clk_src,
+        .clk_src = this->get_clock_source_(),
         .mclk_multiple = this->mclk_multiple_,
         .dn_sample_mode = this->pdm_dsr_,
     };
@@ -162,23 +208,8 @@ bool I2SAudioMicrophone::start_driver_() {
   } else
 #endif
   {
-    i2s_std_clk_config_t clk_cfg = {
-        .sample_rate_hz = this->sample_rate_,
-        .clk_src = clk_src,
-        .mclk_multiple = this->mclk_multiple_,
-    };
-    i2s_std_slot_config_t std_slot_cfg =
-        I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) this->slot_bit_width_, this->slot_mode_);
-    std_slot_cfg.slot_bit_width = this->slot_bit_width_;
-    std_slot_cfg.slot_mask = this->std_slot_mask_;
-
-    pin_config.din = this->din_pin_;
-
-    i2s_std_config_t std_cfg = {
-        .clk_cfg = clk_cfg,
-        .slot_cfg = std_slot_cfg,
-        .gpio_cfg = pin_config,
-    };
+    i2s_std_config_t std_cfg;
+    this->build_std_config_(std_cfg);
     /* Initialize the channel */
     err = i2s_channel_init_std_mode(this->rx_handle_, &std_cfg);
   }
@@ -209,6 +240,17 @@ void I2SAudioMicrophone::stop() {
 void I2SAudioMicrophone::stop_driver_() {
   // There is no harm continuing to unload the driver if an error is ever returned by the various functions. This
   // ensures that we stop/unload the driver when it only partially starts.
+
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  if (this->parent_->is_full_duplex()) {
+    // The parent owns the channel pair, so only hand the RX channel back
+    if (this->rx_handle_ != nullptr) {
+      this->parent_->release_rx_channel();
+      this->rx_handle_ = nullptr;
+    }
+    return;
+  }
+#endif
 
   esp_err_t err;
   if (this->rx_handle_ != nullptr) {
