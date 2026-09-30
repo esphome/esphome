@@ -501,7 +501,7 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     APP_IMAGE_PATH = "zephyr/app_update.bin"
     build_dir = Path(storage_json.firmware_bin_path).parent
     # A merged.hex left by an older SDK build must not win on SDK 3.4.0+
-    uses_zephyr_hex = storage_json.framework_version is not None and cv.Version.parse(
+    uses_zephyr_hex = bool(storage_json.framework_version) and cv.Version.parse(
         storage_json.framework_version
     ) >= cv.Version(3, 4, 0)
     if (build_dir / UF2_PATH).is_file():
