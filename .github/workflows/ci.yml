@@ -1225,8 +1225,9 @@ jobs:
 
           if [ -n "$compile_csv" ]; then
             # Run compilation with grouping and isolation
-            # Component builds are never flashed, and the bootloader is
-            # covered by the toolchain jobs; skipping it saves build time.
+            # Component builds are never flashed, and the bootloader has no
+            # ESPHome code in it; building it here tests nothing Espressif
+            # does not already test. The toolchain jobs keep full builds.
             python3 script/test_build_components.py -e compile -c "$compile_csv" -f --isolate "$directly_changed_csv" --skip-bootloader
             if [[ "${{ matrix.batch.check_idf_py }}" == "true" ]]; then
               # The real idf.py must find nothing to configure or build in a
