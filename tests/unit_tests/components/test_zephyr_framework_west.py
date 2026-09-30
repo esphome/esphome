@@ -18,6 +18,7 @@ from esphome.components.zephyr.framework_west import (
 )
 from esphome.components.zephyr.variants import ZephyrModule, ZephyrSDK
 from esphome.framework_helpers import get_python_env_executable_path
+from esphome.yaml_util import make_data_base
 
 _FAKE_SDK = ZephyrSDK(manifest_url="https://example.invalid/zephyr")
 _CACHE_KEY = "v4.4.1-my-branch-00000000"
@@ -359,6 +360,37 @@ def test_generate_synthetic_manifest_root_name_override(tmp_path: Path) -> None:
 
     manifest = yaml.safe_load((manifest_dir / "west.yml").read_text())
     assert manifest["manifest"]["projects"][0]["name"] == "nrf"
+
+
+def test_generate_synthetic_manifest_accepts_yaml_config_strings(
+    tmp_path: Path,
+) -> None:
+    # sdk_source:/modules: values come from the YAML config as str subclasses
+    # (make_data_base), which yaml.safe_dump can't represent on its own.
+    url = make_data_base("https://github.com/nrfconnect/sdk-nrf")
+    module = ZephyrModule(
+        name=make_data_base("ant"),
+        manifest_url=make_data_base("https://github.com/ant-nrfconnect/sdk-ant"),
+        revision=make_data_base("v2.1.1"),
+    )
+    with patch(
+        "esphome.components.zephyr.framework_west.run_command_ok", return_value=True
+    ):
+        manifest_dir = _generate_synthetic_manifest(
+            tmp_path, url, make_data_base("v3.4.0"), [module]
+        )
+
+    projects = yaml.safe_load((manifest_dir / "west.yml").read_text())["manifest"][
+        "projects"
+    ]
+    assert projects[0]["url"] == "https://github.com/nrfconnect/sdk-nrf"
+    assert projects[0]["revision"] == "v3.4.0"
+    assert projects[1] == {
+        "name": "ant",
+        "url": "https://github.com/ant-nrfconnect/sdk-ant",
+        "revision": "v2.1.1",
+        "import": True,
+    }
 
 
 # ---------------------------------------------------------------------------

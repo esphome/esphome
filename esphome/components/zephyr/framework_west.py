@@ -152,20 +152,22 @@ def _generate_synthetic_manifest(
     """
     manifest_dir = framework / "esphome-manifest"
     root_name = west_project_name or manifest_url.rstrip("/").rsplit("/", 1)[-1]
-    root_project = {"name": root_name, "url": manifest_url, "import": True}
+    # str(): values straight from the YAML config are str subclasses carrying their
+    # source position, which yaml.safe_dump refuses to represent.
+    root_project = {"name": str(root_name), "url": str(manifest_url), "import": True}
     # A ref-less `sdk_source: {type: git}` means "track the source's default branch"
     # -- omitting revision: here matches that, same as the plain `west init -m`
     # path's `if manifest_rev: cmd += ["--mr", manifest_rev]`. Writing `revision:
     # null` instead would hand west an explicit null the manifest schema doesn't
     # expect.
     if manifest_rev:
-        root_project["revision"] = manifest_rev
+        root_project["revision"] = str(manifest_rev)
     projects = [root_project]
     projects.extend(
         {
-            "name": module.name,
-            "url": module.manifest_url,
-            "revision": module.revision,
+            "name": str(module.name),
+            "url": str(module.manifest_url),
+            "revision": str(module.revision),
             "import": True,
         }
         for module in git_modules
