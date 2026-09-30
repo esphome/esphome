@@ -5358,6 +5358,28 @@ def _setup_build_info_test(
     return build_info_path, firmware_path
 
 
+def test_compile_program_warns_and_ignores_skip_bootloader_elsewhere(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A full build is always safe; orchestrators cannot see YAML overrides."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
+    CORE.skip_bootloader = True
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    with (
+        patch(
+            "esphome.components.esp8266.check_rosetta",
+            side_effect=EsphomeError("stop here"),
+        ),
+        pytest.raises(EsphomeError, match="stop here"),
+        caplog.at_level("WARNING"),
+    ):
+        compile_program(MockArgs(), config)
+
+    assert "--skip-bootloader ignored" in caplog.text
+    assert CORE.skip_bootloader is False
+
+
 def test_compile_program_esp8266_runs_rosetta_check(tmp_path: Path) -> None:
     """Test that compile_program runs the Rosetta preflight for ESP8266 targets."""
     setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")

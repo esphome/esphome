@@ -829,10 +829,13 @@ def write_cpp_file() -> int:
 
 def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
     if CORE.skip_bootloader and not (CORE.is_esp32 and CORE.using_toolchain_esp_idf):
-        _LOGGER.error(
-            "--skip-bootloader is only supported on ESP32 with the esp-idf toolchain"
+        # Warn, do not fail: an orchestrator cannot see YAML toolchain
+        # overrides, and a full build is always a safe outcome.
+        _LOGGER.warning(
+            "--skip-bootloader ignored: only supported on ESP32 with the "
+            "esp-idf toolchain"
         )
-        return 1
+        CORE.skip_bootloader = False
     # Keep this gate here, NOT in config validation: device-builder needs
     # `esphome config` to keep succeeding with placeholders so onboarding can run.
     if CONF_WIFI in config:
