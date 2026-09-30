@@ -20,6 +20,7 @@ from esphome.components.nrf52.framework import (
     _get_penv_site_packages,
     _get_platformio_penv_path,
     _get_toolchain_platform_info,
+    _install_toolchain,
     _needs_venv_rebuild,
     _wanted_west_projects,
     check_and_install,
@@ -1108,6 +1109,31 @@ def test_get_build_env_sdk_3_4_0_uses_toolchain_root(
     tools = get_sdk_nrf_tools_path()
     assert env["ZEPHYR_SDK_INSTALL_DIR"] == str(tools / "toolchains" / "1.0.1")
     assert "Zephyr-sdk_DIR" not in env
+
+
+def test_install_toolchain_keeps_other_live_toolchain_leftovers(
+    setup_core: Path,
+) -> None:
+    """Pruning must not delete a partial download of the other toolchain in use."""
+    CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: Version.parse("3.4.0")}
+    toolchains = get_sdk_nrf_tools_path() / "toolchains"
+    toolchains.mkdir(parents=True)
+    own = toolchains / "1.0.1.toolchain.archive.part"
+    other = toolchains / f"{TOOLCHAIN_VERSION}.toolchain.archive.part"
+    retired = toolchains / "0.16.8.toolchain.archive.part"
+    for leftover in (own, other, retired):
+        leftover.write_text("")
+
+    with patch(
+        "esphome.components.nrf52.framework.download_and_extract",
+        side_effect=lambda *args, **kwargs: args[3].mkdir(parents=True),
+    ):
+        _install_toolchain()
+
+    assert not own.exists()
+    assert other.exists()
+    assert not retired.exists()
+    assert (toolchains / "1.0.1" / ".ready").exists()
 
 
 # ---------------------------------------------------------------------------

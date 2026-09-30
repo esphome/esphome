@@ -30,6 +30,7 @@ _REQUIREMENTS = Path(__file__).parent / "requirements.txt"
 TOOLCHAIN_VERSION = "0.17.4"
 # Zephyr SDK used by nRF Connect SDK 3.4.0 and newer.
 _TOOLCHAIN_VERSION_NCS_3_4_0 = "1.0.1"
+_TOOLCHAIN_VERSIONS = (TOOLCHAIN_VERSION, _TOOLCHAIN_VERSION_NCS_3_4_0)
 
 
 def _uses_sdk_ng_1_toolchain() -> bool:
@@ -601,7 +602,8 @@ def _check_and_install(version: str) -> None:
             raise EsphomeError(f"Install Zephyr requirements for {version} failure")
         zephyr_sentinel.touch()
 
-    # Shared by every SDK version; locked only while missing
+    # Shared by every SDK version that uses the same toolchain; locked only
+    # while missing
     toolchain_version = _get_toolchain_version()
     if not (_get_toolchain_path(toolchain_version) / ".ready").exists():
         with _install_lock(f"toolchain-{toolchain_version}"):
@@ -642,10 +644,17 @@ def _install_toolchain() -> None:
                 extract_dir,
                 progress_header="Extracting",
             )
-        # Best-effort prune of resume leftovers, including a previous
-        # TOOLCHAIN_VERSION's orphans; the SDK archives are hundreds of MB.
-        # A locked file must not discard the just-completed install.
+        # Best-effort prune of resume leftovers, including orphans of retired
+        # toolchain versions; the SDK archives are hundreds of MB. The other
+        # toolchain still in use may be downloading under its own lock, so its
+        # leftovers are kept. A locked file must not discard the just-completed
+        # install.
+        other_versions = tuple(
+            f"{v}." for v in _TOOLCHAIN_VERSIONS if v != toolchain_version
+        )
         for leftover in toolchains_dir.parent.glob("*.archive.part*"):
+            if leftover.name.startswith(other_versions):
+                continue
             try:
                 leftover.unlink()
             except OSError as err:
