@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 import contextlib
-from dataclasses import dataclass
 import hashlib
 import json
 import logging
@@ -25,15 +24,9 @@ import time
 from esphome.build_helpers.ccache import parse_enable_env
 from esphome.build_helpers.tool_runner import run_build_tool
 from esphome.core import CORE, EsphomeError
-from esphome.espidf import framework, parse_sdkconfig, toolchain
+from esphome.espidf import BOOTLOADER_HOOKS_FILE, framework, parse_sdkconfig, toolchain
 from esphome.framework_helpers import _rename_with_retry
-from esphome.helpers import (
-    copy_file_if_changed,
-    file_compare,
-    read_json_file,
-    rmtree,
-    write_file,
-)
+from esphome.helpers import copy_file_if_changed, file_compare, rmtree, write_file
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,9 +34,6 @@ BOOTLOADER_CACHE_ENV = "ESPHOME_BOOTLOADER_CACHE"
 # Bump when the build or storage recipe changes; old entries then miss.
 _CACHE_SCHEMA = "1"
 _SECURE_OPTION = re.compile(r"CONFIG_(SECURE_|FLASH_ENCRYPTION)")
-_BOOTLOADER_PROPERTY = re.compile(
-    r"BOOTLOADER_(EXTRA_COMPONENT_DIRS|IGNORE_EXTRA_COMPONENT)"
-)
 _DISABLED_VALUES = frozenset(("n", "0", ""))
 # Marks a config name the app's sdkconfig does not define.
 _ABSENT = "\x00absent"
@@ -79,7 +69,9 @@ def _compute_enabled() -> bool:
         if CORE.relative_build_path("bootloader_components").exists():
             # Project-local bootloader overrides are inputs the key can't see.
             return False
-        if _managed_bootloader_hook() is not None:
+        if _recorded_bootloader_hooks():
+            # The last configure saw a component customizing the bootloader.
+            _LOGGER.info("Bootloader cache off: build customizes the bootloader")
             return False
         if not os.access(tools := framework.get_idf_tools_path(), os.W_OK):
             # A read-only shared prefix would fail the cache on every build.
@@ -100,19 +92,19 @@ def _compute_enabled() -> bool:
         return False
 
 
-def _managed_bootloader_hook() -> str | None:
-    """The managed component wiring the bootloader build, or None.
+def _recorded_bootloader_hooks() -> str | None:
+    """The bootloader customization channels the last configure recorded.
 
-    Checked again after configure: a cold tree has no managed_components
-    yet when the enable check first runs.
+    The generated CMakeLists dumps them after project(), so every source
+    counts: managed and local components, main, and EXTRA_CMAKE_ARGS.
+    None means no configure has recorded them yet; rechecked after
+    configure, since the pre-configure read can be stale or missing.
     """
-    managed = CORE.relative_build_path("managed_components")
-    hooks = managed.glob("*/project_include.cmake") if managed.is_dir() else ()
-    for hook in hooks:
-        if _BOOTLOADER_PROPERTY.search(hook.read_text(encoding="utf-8")):
-            _LOGGER.info("Bootloader cache off: %s customizes it", hook.parent.name)
-            return hook.parent.name
-    return None
+    path = toolchain._build_dir() / BOOTLOADER_HOOKS_FILE
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        return None
 
 
 def _snapshot_blocks_cache(sdkconfig_path: Path) -> bool:
@@ -148,69 +140,50 @@ def _cache_root() -> Path:
     )
 
 
-def _load_config_names() -> list[str] | None:
-    """The known union of config option names the bootloader consumes."""
-    path = _cache_root() / "config_names.json"
-    names = read_json_file(path)
-    if isinstance(names, list) and names and all(isinstance(n, str) for n in names):
-        return names
-    if names is not None:
-        # The next merge rewrites the full union; this only costs a miss.
-        _LOGGER.info("Ignoring corrupt %s", path)
-    return None
+def _load_config_names() -> list[str]:
+    """The known union of config option names the bootloader consumes.
+
+    Each harvest is an immutable file named by its digest; the union over
+    them is monotonic without any cross-process locking.
+    """
+    union: set[str] = set()
+    for path in _cache_root().glob("config_names/*.json"):
+        try:
+            names = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as err:
+            _LOGGER.info("Ignoring unreadable %s: %s", path, err)
+            continue
+        if isinstance(names, list) and all(isinstance(n, str) for n in names):
+            union.update(names)
+        else:
+            _LOGGER.info("Ignoring corrupt %s", path)
+    return sorted(union)
 
 
 def _merge_config_names(names: Iterable[str]) -> list[str]:
-    """Union-merge harvested names; a corrupt file is replaced outright.
+    """Record this build's harvested names and return the resulting union.
 
-    write_file renames into place, and re-merging until the file covers our
-    names keeps the union monotonic when two builds publish at once.
+    A set that was already recorded is not rewritten; concurrent publishes
+    can only add files, never lose another's discovered names.
     """
-    path = _cache_root() / "config_names.json"
-    merged = sorted(names)
-    for _ in range(3):
-        merged = sorted(set(_load_config_names() or ()) | set(merged))
+    merged = sorted(set(names))
+    path = _cache_root() / "config_names" / f"{_compute_key(merged)}.json"
+    if not path.is_file():
         write_file(path, json.dumps(merged, separators=(",", ":")))
-        if set(_load_config_names() or ()) >= set(merged):
-            break
-    return merged
-
-
-@dataclass(frozen=True, kw_only=True)
-class _SubprojectContract:
-    """How the pinned IDF's bootloader ExternalProject configures the subproject."""
-
-    self_append_bootloader_dir: bool  # EXTRA_COMPONENT_DIRS gets the bootloader dir
-    forward_idf_build_v2: bool  # IDF_BUILD_V2 forwarded (empty: never opted in)
-
-
-_SUBPROJECT_5 = _SubprojectContract(
-    self_append_bootloader_dir=True,
-    forward_idf_build_v2=False,
-)
-_SUBPROJECT_6 = _SubprojectContract(
-    self_append_bootloader_dir=False,
-    forward_idf_build_v2=True,
-)
-
-
-def _subproject() -> _SubprojectContract:
-    from esphome.components.esp32 import idf_version
-    import esphome.config_validation as cv
-
-    return _SUBPROJECT_6 if idf_version() >= cv.Version(6, 0, 0) else _SUBPROJECT_5
+    # The union guards against our own file being unreadable right back.
+    return sorted(set(merged) | set(_load_config_names()))
 
 
 def _subproject_cmake_args(
     cmake: str, python: str, sdkconfig: str, idf_path: str, project_dir: str
 ) -> list[str]:
     """The configure argv, mirroring IDF's bootloader ExternalProject args."""
-    contract = _subproject()
-    extra_dirs = (
-        f"{idf_path}/components/bootloader"
-        if contract.self_append_bootloader_dir
-        else ""
-    )
+    from esphome.components.esp32 import idf_version
+    import esphome.config_validation as cv
+
+    # 5.x self-appends the bootloader dir to EXTRA_COMPONENT_DIRS; 6.x
+    # instead forwards IDF_BUILD_V2 (empty: the subproject never opts in).
+    idf6 = idf_version() >= cv.Version(6, 0, 0)
     args = [
         cmake,
         "-G",
@@ -220,9 +193,9 @@ def _subproject_cmake_args(
         f"-DIDF_TARGET={toolchain._idf_target()}",
         "-DPYTHON_DEPS_CHECKED=1",
         f"-DPYTHON={python}",
-        f"-DEXTRA_COMPONENT_DIRS={extra_dirs}",
+        f"-DEXTRA_COMPONENT_DIRS={'' if idf6 else f'{idf_path}/components/bootloader'}",
     ]
-    if contract.forward_idf_build_v2:
+    if idf6:
         args.append("-DIDF_BUILD_V2=")
     args += [
         f"-DPROJECT_SOURCE_DIR={project_dir}",
@@ -244,13 +217,13 @@ def _key_payload(names: list[str], app_config: dict, compiler: str, stamp: str) 
         "args": _subproject_cmake_args(
             "cmake", "@PYTHON@", "@SDKCONFIG@", "@IDF@", "@PROJECT@"
         ),
-        "config": {n: app_config.get(n, _ABSENT) for n in sorted(names)},
+        "config": {n: app_config.get(n, _ABSENT) for n in names},
         "env": {n: os.environ.get(n, _ABSENT) for n in _FLAG_ENV_VARS},
     }
 
 
-def _compute_key(payload: dict) -> str:
-    """The cache entry name for this build's bootloader inputs."""
+def _compute_key(payload: dict | list) -> str:
+    """The digest naming a cache entry or a recorded config name set."""
     text = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
@@ -294,10 +267,17 @@ def _bin_sha256(path: Path) -> str:
 
 
 def _entry_intact(entry: Path) -> bool:
-    """Complete with the published bin bytes; anything else is a miss."""
+    """Complete with the published bin bytes; anything else is a miss.
+
+    False only for provable damage; a transient read error raises so a
+    valid shared entry is never mistaken for a corrupt one and deleted.
+    """
     if not all((entry / name).is_file() for name in _OUTPUTS):
         return False
-    meta = read_json_file(entry / "meta.json")
+    try:
+        meta = json.loads((entry / "meta.json").read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        return False
     expected = meta.get("bootloader_bin_sha256") if isinstance(meta, dict) else None
     return expected == _bin_sha256(entry / "bootloader.bin")
 
@@ -305,8 +285,9 @@ def _entry_intact(entry: Path) -> bool:
 def _publish(build_dir: Path, key: str, payload: dict) -> Path:
     """Move the distilled outputs into the cache; losing a race is fine."""
     entry = _cache_root() / key
-    if not _entry_intact(entry):
+    if entry.is_dir() and not _entry_intact(entry):
         # A partial or corrupted entry (manual cleanup) must not win.
+        _LOGGER.debug("Discarding damaged entry %s", entry)
         _remove_dir(entry)
     stage = _work_dir(f".stage-{key}-")
     try:
@@ -347,6 +328,10 @@ def _install_into_build(entry: Path) -> Path:
     if (dest / "CMakeCache.txt").is_file():
         # A leftover in-tree sub-build; its ninja state must not linger.
         rmtree(dest)
+    if (stamps := dest.parent / "bootloader-prefix").is_dir():
+        # Stale ExternalProject stamps would make a later flip back to
+        # in-tree skip the sub-configure and fail on the missing cache.
+        rmtree(stamps)
     for name in _OUTPUTS:
         copy_file_if_changed(entry / name, dest / name)
     return dest
@@ -398,8 +383,10 @@ def ensure_cached_bootloader(verbose: bool = False) -> bool:
     bootloader raises instead, since in-tree would fail the same way.
     """
     try:
-        if _managed_bootloader_hook() is not None:
-            # Configure just downloaded it; the pre-configure scan ran too early.
+        if _recorded_bootloader_hooks() != "":
+            # Non-empty: configure just recorded a bootloader customization.
+            # None: this configure did not write the record at all.
+            _LOGGER.info("Bootloader customized by the build; building in-tree")
             return False
         app_config = toolchain._load_sdkconfig_json(toolchain._build_dir())
         offset = _bootloader_offset(app_config)
@@ -414,7 +401,7 @@ def ensure_cached_bootloader(verbose: bool = False) -> bool:
             )
             return False
         dest = _install_cached(app_config, compiler, verbose)
-    except (OSError, EsphomeError) as err:
+    except (OSError, ValueError, EsphomeError) as err:
         _LOGGER.warning("Bootloader cache failed: %s", err)
         return False
     if dest is None:
@@ -422,7 +409,7 @@ def ensure_cached_bootloader(verbose: bool = False) -> bool:
     try:
         # The size overflow raises out: the in-tree build would fail the same.
         _check_bootloader_size(dest / "bootloader.bin", offset, int(table_offset))
-    except OSError as err:
+    except (OSError, ValueError) as err:
         _LOGGER.warning("Bootloader cache failed: %s", err)
         return False
     return True
@@ -434,7 +421,7 @@ def _install_cached(app_config: dict, compiler: str, verbose: bool) -> Path | No
     if not (stamp := framework.read_idf_version_txt(toolchain._get_idf_path())):
         _LOGGER.info("Framework version.txt missing; cannot key the bootloader")
         return None
-    if (names := _load_config_names()) is not None:
+    if names := _load_config_names():
         entry = _cache_root() / _compute_key(
             _key_payload(names, app_config, compiler, stamp)
         )

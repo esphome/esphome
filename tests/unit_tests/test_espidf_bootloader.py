@@ -33,6 +33,14 @@ def _fresh_cache(setup_core: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     CORE.data.pop(toolchain.DOMAIN, None)
 
 
+def _write_hooks_record(text: str) -> Path:
+    """The hooks dump the generated CMakeLists writes on every configure."""
+    path = toolchain._build_dir() / "esphome_bootloader_hooks.txt"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    return path
+
+
 def _write_snapshot(text: str = "") -> Path:
     path = CORE.relative_build_path("sdkconfig.dev.esphomeinternal")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -117,22 +125,16 @@ def test_enabled_project_bootloader_components_disable(tmp_path: Path) -> None:
         assert bootloader._compute_enabled() is False
 
 
-def test_enabled_managed_component_bootloader_hook_disables(tmp_path: Path) -> None:
-    """A managed component wiring the bootloader build is an unseen input."""
+def test_enabled_recorded_bootloader_hooks_disable(tmp_path: Path) -> None:
+    """A customization recorded by the last configure is an unseen input."""
     _write_snapshot("CONFIG_APP_REPRODUCIBLE_BUILD=y\n")
-    hook = CORE.relative_build_path(
-        "managed_components", "vendor__boot", "project_include.cmake"
-    )
-    hook.parent.mkdir(parents=True)
-    hook.write_text(
-        'idf_build_set_property(BOOTLOADER_EXTRA_COMPONENT_DIRS "x" APPEND)'
-    )
+    _write_hooks_record("/some/component/dir")
     with (
         _tools_prefix(tmp_path),
         patch.object(build_gen, "idf_macro_matches", return_value=True),
     ):
         assert bootloader._compute_enabled() is False
-        hook.write_text("# nothing bootloader related")
+        _write_hooks_record("")
         assert bootloader._compute_enabled() is True
 
 
@@ -292,45 +294,43 @@ def test_merge_config_names_unions_and_sorts(tmp_path: Path) -> None:
         assert bootloader._load_config_names() == ["A", "B", "C"]
 
 
-def test_merge_config_names_remerges_after_a_racing_writer(tmp_path: Path) -> None:
-    """A name landed by a concurrent build must survive the merge."""
-    # merge-read, verify-read (racer landed), merge-read, verify-read
-    loads = iter([None, ["OTHER"], ["OTHER"], ["A", "B", "OTHER"]])
-    with (
-        patch.object(bootloader, "_load_config_names", side_effect=loads),
-        patch.object(bootloader, "write_file") as mock_write,
-    ):
-        assert bootloader._merge_config_names(["B", "A"]) == ["A", "B", "OTHER"]
-    assert mock_write.call_count == 2  # rewrote once with the racer's name
-
-
-def test_merge_config_names_gives_up_after_bounded_retries(tmp_path: Path) -> None:
-    """A pathological racer costs at most a miss, never a spin."""
-    with (
-        patch.object(bootloader, "_load_config_names", return_value=["X"]),
-        patch.object(bootloader, "write_file") as mock_write,
-    ):
-        assert bootloader._merge_config_names(["A"]) == ["A", "X"]
-    assert mock_write.call_count == 3
+def test_merge_config_names_skips_rewriting_a_recorded_set(tmp_path: Path) -> None:
+    """The same harvest recorded twice writes one immutable file."""
+    root = tmp_path / "cache"
+    with patch.object(bootloader, "_cache_root", return_value=root):
+        bootloader._merge_config_names(["A"])
+        with patch.object(bootloader, "write_file") as mock_write:
+            assert bootloader._merge_config_names(["A"]) == ["A"]
+    mock_write.assert_not_called()
 
 
 @pytest.mark.parametrize(
-    "content",
-    [None, "not json", "[]", '["a", 1]', '"str"'],
-    ids=["missing", "corrupt", "empty", "mixed-types", "not-a-list"],
+    ("content", "log"),
+    [
+        (None, ""),
+        ("not json", "Ignoring unreadable"),
+        ("[]", ""),
+        ('["a", 1]', "Ignoring corrupt"),
+        ('"str"', "Ignoring corrupt"),
+    ],
+    ids=["missing", "unreadable", "empty", "mixed-types", "not-a-list"],
 )
 def test_load_config_names_rejects_bad_files(
-    tmp_path: Path, content: str | None, caplog: pytest.LogCaptureFixture
+    tmp_path: Path, content: str | None, log: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     if content is not None:
-        (tmp_path / "config_names.json").write_text(content)
+        (tmp_path / "config_names").mkdir()
+        (tmp_path / "config_names" / "x.json").write_text(content)
     with (
         patch.object(bootloader, "_cache_root", return_value=tmp_path),
         caplog.at_level("INFO"),
     ):
-        assert bootloader._load_config_names() is None
-    # A present-but-unusable file says so; a missing one is normal.
-    assert ("Ignoring corrupt" in caplog.text) is (content not in (None, "not json"))
+        assert bootloader._load_config_names() == []
+    # A present-but-unusable file says so; missing or empty is normal.
+    if log:
+        assert log in caplog.text
+    else:
+        assert "Ignoring" not in caplog.text
 
 
 # ------------------------------------------------------------- cmake args
@@ -508,9 +508,7 @@ def test_publish_keeps_the_original_error_when_the_intact_check_breaks(
     (build / "bootloader.map").unlink()  # the real failure
     with (
         patch.object(bootloader, "_cache_root", return_value=root),
-        patch.object(
-            bootloader, "_entry_intact", side_effect=[False, PermissionError()]
-        ),
+        patch.object(bootloader, "_entry_intact", side_effect=PermissionError()),
         # FileNotFoundError can only be the staging error, not the check's.
         pytest.raises(FileNotFoundError),
     ):
@@ -529,11 +527,15 @@ def test_install_into_build_replaces_stale_subbuild(tmp_path: Path) -> None:
     dest.mkdir(parents=True)
     (dest / "CMakeCache.txt").write_text("stale in-tree sub-build")
     (dest / "old.obj").write_bytes(b"x")
+    stamps = CORE.relative_build_path("build", "bootloader-prefix", "src")
+    stamps.mkdir(parents=True)
     assert bootloader._install_into_build(entry) == dest
     for name in bootloader._OUTPUTS:
         assert (dest / name).read_bytes() == name.encode()
     assert not (dest / "CMakeCache.txt").exists()
     assert not (dest / "old.obj").exists()
+    # Stale stamps would make a later in-tree flip skip the sub-configure.
+    assert not stamps.parent.exists()
 
 
 # -------------------------------------------------------------- size check
@@ -559,26 +561,35 @@ def test_size_check_overflow_raises(tmp_path: Path) -> None:
 # ------------------------------------------------------------ orchestration
 
 
-def test_ensure_rechecks_managed_hooks_after_configure(tmp_path: Path) -> None:
-    """A hook that configure just downloaded must stop the first build too."""
-    hook = CORE.relative_build_path(
-        "managed_components", "vendor__boot", "project_include.cmake"
-    )
-    hook.parent.mkdir(parents=True)
-    hook.write_text("idf_build_set_property(BOOTLOADER_IGNORE_EXTRA_COMPONENT x)")
+def test_ensure_rechecks_recorded_hooks_after_configure(tmp_path: Path) -> None:
+    """A customization configure just recorded must stop the first build too."""
     with (
         _orchestration_env(tmp_path),
         patch.object(bootloader, "_build_standalone") as mock_build,
     ):
+        _write_hooks_record("vendor__boot")
         assert bootloader.ensure_cached_bootloader() is False
     mock_build.assert_not_called()
 
 
-def test_ensure_fails_soft_when_hook_scan_errors(tmp_path: Path) -> None:
-    """An unreadable managed hook falls back instead of aborting the build."""
+def test_ensure_fails_soft_without_a_hooks_record(tmp_path: Path) -> None:
+    """A configure that wrote no record cannot prove the bootloader is stock."""
     with (
         _orchestration_env(tmp_path),
-        patch.object(bootloader, "_managed_bootloader_hook", side_effect=OSError("io")),
+        patch.object(bootloader, "_build_standalone") as mock_build,
+    ):
+        (toolchain._build_dir() / "esphome_bootloader_hooks.txt").unlink()
+        assert bootloader.ensure_cached_bootloader() is False
+    mock_build.assert_not_called()
+
+
+def test_ensure_fails_soft_when_hooks_record_is_unreadable(tmp_path: Path) -> None:
+    """An unreadable hooks record falls back instead of aborting the build."""
+    with (
+        _orchestration_env(tmp_path),
+        patch.object(
+            bootloader, "_recorded_bootloader_hooks", side_effect=OSError("io")
+        ),
     ):
         assert bootloader.ensure_cached_bootloader() is False
 
@@ -592,7 +603,7 @@ def test_ensure_fails_soft_when_size_check_cannot_stat(
         patch.object(bootloader, "_check_bootloader_size", side_effect=OSError("gone")),
     ):
         _make_entry(root / "deadbeefdeadbeef", b"\xe9" * 64)
-        (root / "config_names.json").write_text('["A"]')
+        _seed_names(root)
         assert bootloader.ensure_cached_bootloader() is False
     assert "Bootloader cache failed" in caplog.text
 
@@ -601,9 +612,16 @@ def test_ensure_fails_soft_without_configure_outputs(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """No app config or compiler id means fall back, not crash."""
+    _write_hooks_record("")
     with caplog.at_level("INFO"):
         assert bootloader.ensure_cached_bootloader() is False
     assert "cache unusable" in caplog.text  # says which input is missing
+
+
+def _seed_names(root: Path) -> None:
+    """Record a harvested name set the way a previous publish would have."""
+    (root / "config_names").mkdir(parents=True, exist_ok=True)
+    (root / "config_names" / "seed.json").write_text('["A"]')
 
 
 @contextmanager
@@ -613,6 +631,7 @@ def _orchestration_env(tmp_path: Path) -> Iterator[Path]:
     root = tmp_path / "cache-root"
     build = CORE.relative_build_path("build")
     build.mkdir(parents=True, exist_ok=True)
+    (build / "esphome_bootloader_hooks.txt").write_text("")
     (build / "config").mkdir(exist_ok=True)
     (build / "config" / "sdkconfig.json").write_text(
         json.dumps(
@@ -639,7 +658,7 @@ def test_ensure_cache_hit_installs_without_building(tmp_path: Path) -> None:
         patch.object(bootloader, "_build_standalone") as mock_build,
     ):
         _make_entry(root / "deadbeefdeadbeef", b"\xe9" * 64)
-        (root / "config_names.json").write_text('["A"]')
+        _seed_names(root)
         assert bootloader.ensure_cached_bootloader() is True
     mock_build.assert_not_called()
     installed = CORE.relative_build_path("build", "bootloader", "bootloader.bin")
@@ -656,12 +675,12 @@ def test_ensure_cache_miss_builds_and_publishes(tmp_path: Path) -> None:
         ) as mock_build,
     ):
         root.mkdir(parents=True)
-        (root / "config_names.json").write_text('["A"]')
+        _seed_names(root)
         assert bootloader.ensure_cached_bootloader() is True
+        assert "A" in bootloader._load_config_names()
     # Both probe builds ran; entry published, names harvested, work dirs gone.
     assert len(mock_build.call_args_list) == 2
     assert (root / "deadbeefdeadbeef" / "bootloader.bin").is_file()
-    assert "A" in json.loads((root / "config_names.json").read_text())
     assert not list(root.glob(".build-*"))
     installed = CORE.relative_build_path("build", "bootloader", "bootloader.bin")
     assert installed.is_file()
@@ -692,6 +711,37 @@ def test_ensure_soft_fails_when_build_yields_no_config(
     assert "produced no" in caplog.text  # names the expected path
 
 
+def test_entry_intact_false_on_corrupt_meta(tmp_path: Path) -> None:
+    """Provably damaged metadata is a miss and may be discarded."""
+    entry = tmp_path / "k"
+    _make_entry(entry)
+    (entry / "meta.json").write_text("not json")
+    assert bootloader._entry_intact(entry) is False
+
+
+def test_entry_intact_raises_on_an_unreadable_meta(tmp_path: Path) -> None:
+    """Transient read trouble must not look like corruption."""
+    entry = tmp_path / "k"
+    _make_entry(entry)
+    (entry / "meta.json").unlink()
+    (entry / "meta.json").mkdir()  # read_text raises OSError, not ValueError
+    with pytest.raises(OSError):
+        bootloader._entry_intact(entry)
+
+
+def test_publish_keeps_an_entry_it_cannot_verify(tmp_path: Path) -> None:
+    """A transient read error must never delete a valid shared entry."""
+    with patch.object(bootloader, "_cache_root", return_value=tmp_path):
+        entry = tmp_path / "k"
+        _make_entry(entry)
+        with (
+            patch.object(bootloader, "_entry_intact", side_effect=OSError("locked")),
+            pytest.raises(OSError),
+        ):
+            bootloader._publish(tmp_path / "build", "k", {})
+    assert (entry / "bootloader.bin").is_file()
+
+
 @pytest.mark.parametrize("damage", ["missing-elf", "corrupt-bin"])
 def test_ensure_rebuilds_a_damaged_entry(tmp_path: Path, damage: str) -> None:
     """A partial or corrupted entry is a miss and gets replaced."""
@@ -707,7 +757,7 @@ def test_ensure_rebuilds_a_damaged_entry(tmp_path: Path, damage: str) -> None:
             (entry / "bootloader.elf").unlink()
         else:
             (entry / "bootloader.bin").write_bytes(b"truncated")
-        (root / "config_names.json").write_text('["A"]')
+        _seed_names(root)
         assert bootloader.ensure_cached_bootloader() is True
     assert mock_build.call_count == 2  # built and probed, not served as a hit
     for name in bootloader._OUTPUTS:

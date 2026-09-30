@@ -291,6 +291,13 @@ include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
 project({CORE.name})
 
+# Record the bootloader customization channels the cache cannot replay;
+# esphome.espidf.bootloader bypasses the cache when any is non-empty.
+idf_build_get_property(esphome_bl_dirs BOOTLOADER_EXTRA_COMPONENT_DIRS)
+idf_build_get_property(esphome_bl_args EXTRA_CMAKE_ARGS)
+file(WRITE ${{CMAKE_BINARY_DIR}}/esphome_bootloader_hooks.txt
+     "${{esphome_bl_dirs}}${{BOOTLOADER_IGNORE_EXTRA_COMPONENT}}${{esphome_bl_args}}")
+
 # Emit per-memory-type JSON size data for ESPHome to read post-build.
 # json2 stays small; raw dumps every symbol (~2s on a large map) and
 # this command runs inside the link edge, blocking everything downstream.

@@ -12,6 +12,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
+# Written by the generated CMakeLists after project(); holds the bootloader
+# customization channels the cache cannot replay (see espidf.bootloader).
+BOOTLOADER_HOOKS_FILE = "esphome_bootloader_hooks.txt"
+
 
 def variant_to_idf_target(variant: str) -> str:
     """Map an esp32 variant name (e.g. "ESP32S3") to its ESP-IDF target name."""

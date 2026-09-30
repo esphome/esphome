@@ -184,10 +184,10 @@ def _bootloader_parity(build_path: Path) -> list[str]:
     # pylint: disable=protected-access
     from esphome.espidf import bootloader, toolchain
 
-    bin_path = build_path / "build" / "bootloader" / "bootloader.bin"
     if not bootloader.tree_uses_cached_bootloader(build_path / "build"):
         print("note: tree not in cached mode; bootloader parity not exercised")
         return []
+    bin_path = build_path / "build" / "bootloader" / "bootloader.bin"
     cached = bin_path.read_bytes()
     bin_path.unlink()  # the rebuild must produce it, never compare to itself
     os.environ[bootloader.BOOTLOADER_CACHE_ENV] = "0"
