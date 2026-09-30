@@ -311,6 +311,9 @@ def run_reconfigure(verbose: bool = False) -> int:
     """Run the CMake configure, with the arguments idf.py uses."""
     build_dir = _build_dir()
     build_dir.mkdir(parents=True, exist_ok=True)
+    # Fill the mirror first so the configure, even a first solve, installs
+    # from it instead of the registry.
+    _sync_component_mirror()
     cmd = [_get_idf_tool("cmake"), "-G", "Ninja"]
     if _idf_py().binary_dir_arg:
         cmd += ["-B", str(build_dir)]
@@ -329,6 +332,10 @@ def run_reconfigure(verbose: bool = False) -> int:
         (build_dir / "CMakeCache.txt").unlink(missing_ok=True)
         _LOGGER.error("CMake configure failed with exit code %d", rc)
         _print_hints(log_path)
+        return rc
+    # Mirror what the solve added to the lock (transitive dependencies are
+    # not in the manifest) so the next configure works offline.
+    _sync_component_mirror()
     return rc
 
 
@@ -432,18 +439,13 @@ def _sync_component_mirror() -> None:
     cache = _cache()
     if cache.mirror_sync_failed:
         return
-    try:
-        ok = sync_component_mirror(
-            CORE.relative_build_path("dependencies.lock"),
-            lambda: _get_idf_tool("python"),
-            _get_idf_env,
-        )
-    except (OSError, subprocess.SubprocessError, EsphomeError) as err:
-        _LOGGER.debug("Component mirror sync skipped: %s", err)
-        ok = False
-    if not ok:
-        # One failed attempt (e.g. offline) is enough per process; the
-        # coverage check itself stays cheap and runs every time.
+    if not sync_component_mirror(
+        _build_dir().parent,
+        lambda: _get_idf_tool("python"),
+        _get_idf_env,
+    ):
+        # One failed attempt (e.g. offline) is enough per run; the coverage
+        # check itself stays cheap and runs every time.
         cache.mirror_sync_failed = True
 
 
@@ -682,8 +684,8 @@ def run_compile(config, verbose: bool) -> int:
     3. Run full build
     """
     jobs = _build_jobs(config)
-    # Before any build tool runs: ninja can re-run cmake on its own, and the
-    # configure must find the mirror populated to stay off the network.
+    # Ninja can re-run cmake on its own, so the mirror must be current even
+    # when no explicit reconfigure happens.
     _sync_component_mirror()
     if need_reconfigure():
         if (rc := _configure_project(verbose)) != 0:
@@ -697,9 +699,6 @@ def run_compile(config, verbose: bool) -> int:
             path = CORE.relative_build_path(name)
             if path.is_file():
                 os.utime(path)
-        # The configure may have just written or updated dependencies.lock;
-        # mirroring now makes the next build offline-capable.
-        _sync_component_mirror()
     elif _cache_entries_changed():
         _LOGGER.info("CMake cache options changed, reconfiguring")
         if (rc := run_reconfigure(verbose)) != 0:

@@ -1,12 +1,10 @@
 """Local mirror of IDF component-registry packages.
 
-The IDF component manager contacts the registry during every cmake configure,
-even when ``dependencies.lock`` is unchanged, which slows configures down and
-makes builds fail or stall without good internet. The manager checks
-``IDF_COMPONENT_LOCAL_STORAGE_URL`` mirrors first and stops on a hit, so
-keeping the locked registry components mirrored under the IDF tools cache
-(filled with the manager's own ``registry sync``) removes all registry
-traffic from configures and lets a fresh dependency solve work offline.
+The component manager contacts the registry on every cmake configure, even
+with an unchanged ``dependencies.lock``. It checks
+``IDF_COMPONENT_LOCAL_STORAGE_URL`` mirrors first and stops on a hit, so a
+mirror of the pinned components (filled with its own ``registry sync``)
+removes all registry traffic and makes builds work offline.
 """
 
 from __future__ import annotations
@@ -16,7 +14,6 @@ import logging
 import os
 from pathlib import Path
 import subprocess
-import time
 from typing import TYPE_CHECKING, NamedTuple
 
 import yaml
@@ -31,38 +28,35 @@ _LOGGER = logging.getLogger(__name__)
 
 # Bump the name if the manager's storage layout ever changes incompatibly;
 # the stale directory is removed with the tools cache on clean-all.
-MIRROR_DIR_NAME = "component_mirror"
+_MIRROR_DIR_NAME = "component_mirror"
 
-ENV_LOCAL_STORAGE_URL = "IDF_COMPONENT_LOCAL_STORAGE_URL"
-ENV_CHECK_NEW_VERSION = "IDF_COMPONENT_CHECK_NEW_VERSION"
+_ENV_LOCAL_STORAGE_URL = "IDF_COMPONENT_LOCAL_STORAGE_URL"
+_ENV_CHECK_NEW_VERSION = "IDF_COMPONENT_CHECK_NEW_VERSION"
 
 _DEFAULT_REGISTRY_URL = "https://components.espressif.com"
 _SYNC_LOCK_NAME = ".sync.lock"
-_SYNC_LOCK_STALE_S = 600
 _SYNC_TIMEOUT_S = 120
 
 
 class ServiceDep(NamedTuple):
-    """A registry ("service") dependency pinned in dependencies.lock."""
+    """A registry ("service") dependency pinned to an exact version."""
 
     namespace: str
     name: str
     version: str
-    registry_url: str
 
 
 def get_mirror_path() -> Path:
     """The machine-global mirror directory; clean-all removes it with the tools cache."""
-    return tools_cache_path(*IDF_TOOLS_CACHE) / MIRROR_DIR_NAME
+    return tools_cache_path(*IDF_TOOLS_CACHE) / _MIRROR_DIR_NAME
 
 
 def component_mirror_env() -> dict[str, str]:
     """Environment additions that serve the mirror to the component manager.
 
-    A user-supplied local storage list keeps precedence; the mirror is
-    appended. The new-version check is disabled unless the user asked for
-    it: ESPHome pins exact versions, so its answer is never actionable, and
-    it is a whole extra dependency solve per configure.
+    A user-supplied local storage list keeps precedence. The new-version
+    check (an extra solve per configure) is disabled unless the user set
+    it; ESPHome pins exact versions, so its answer is never actionable.
     """
     mirror = get_mirror_path()
     try:
@@ -71,34 +65,42 @@ def component_mirror_env() -> dict[str, str]:
         _LOGGER.debug("Component mirror unavailable at %s: %s", mirror, err)
         return {}
     local_storage = mirror.as_uri()
-    if user_value := os.environ.get(ENV_LOCAL_STORAGE_URL):
+    if user_value := os.environ.get(_ENV_LOCAL_STORAGE_URL):
         local_storage = f"{user_value};{local_storage}"
-    env = {ENV_LOCAL_STORAGE_URL: local_storage}
-    if ENV_CHECK_NEW_VERSION not in os.environ:
-        env[ENV_CHECK_NEW_VERSION] = "0"
+    env = {_ENV_LOCAL_STORAGE_URL: local_storage}
+    if _ENV_CHECK_NEW_VERSION not in os.environ:
+        env[_ENV_CHECK_NEW_VERSION] = "0"
     return env
 
 
-def parse_lock_service_deps(lock_path: Path) -> list[ServiceDep]:
-    """Extract the pinned registry dependencies from a dependencies.lock.
-
-    The lock pins every dependency, transitive ones included, each with its
-    source type. Only "service" (registry) entries can be mirrored; git,
-    local and idf sources are left to the manager as before.
-    """
+def _load_yaml_dict(path: Path) -> dict | None:
+    """Read a small YAML mapping; missing file or bad content is None."""
     try:
-        text = lock_path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
-        return []
+        return None
     except OSError as err:
-        _LOGGER.warning("Could not read %s: %s", lock_path, err)
-        return []
+        _LOGGER.warning("Could not read %s: %s", path, err)
+        return None
     try:
         data = yaml.safe_load(text)
     except yaml.YAMLError as err:
-        _LOGGER.warning("Could not parse %s: %s", lock_path, err)
-        return []
-    if not isinstance(data, dict) or not isinstance(data.get("dependencies"), dict):
+        _LOGGER.warning("Could not parse %s: %s", path, err)
+        return None
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
+def parse_lock_service_deps(lock_path: Path) -> list[ServiceDep]:
+    """Pinned default-registry dependencies from a dependencies.lock.
+
+    The lock pins every dependency, transitive ones included. Git, local
+    and idf sources cannot be mirrored, and non-default registries (which
+    ESPHome-generated manifests never use) are left to the manager.
+    """
+    data = _load_yaml_dict(lock_path)
+    if data is None or not isinstance(data.get("dependencies"), dict):
         return []
     deps: list[ServiceDep] = []
     for key, entry in data["dependencies"].items():
@@ -107,12 +109,56 @@ def parse_lock_service_deps(lock_path: Path) -> list[ServiceDep]:
         source = entry.get("source")
         if not isinstance(source, dict) or source.get("type") != "service":
             continue
+        registry_url = str(source.get("registry_url") or _DEFAULT_REGISTRY_URL)
+        if registry_url.rstrip("/") != _DEFAULT_REGISTRY_URL:
+            _LOGGER.debug("Not mirroring %s: non-default registry", key)
+            continue
         version = entry.get("version")
         if not isinstance(version, str):
             continue
         namespace, _, name = key.partition("/")
-        registry_url = str(source.get("registry_url") or _DEFAULT_REGISTRY_URL)
-        deps.append(ServiceDep(namespace, name, version, registry_url.rstrip("/")))
+        deps.append(ServiceDep(namespace, name, version))
+    return deps
+
+
+def parse_manifest_service_deps(manifest_path: Path) -> list[ServiceDep]:
+    """Exactly-pinned registry dependencies from an idf_component.yml.
+
+    The manifest exists before the first configure, so mirroring from it
+    lets a fresh solve install from the mirror instead of downloading
+    twice. Range specs are left to the solver; only an exact version can
+    be checked against the mirror without one.
+    """
+    data = _load_yaml_dict(manifest_path)
+    if data is None or not isinstance(data.get("dependencies"), dict):
+        return []
+    deps: list[ServiceDep] = []
+    for key, entry in data["dependencies"].items():
+        if not isinstance(key, str) or "/" not in key or not isinstance(entry, dict):
+            continue
+        if not entry.keys() <= {"version"}:
+            continue
+        version = entry.get("version")
+        # Exact versions start with a digit ("1.12.0", "1.3.3~1"); range
+        # operators are prefixes and wildcards contain "*".
+        if not isinstance(version, str) or not version[:1].isdigit() or "*" in version:
+            continue
+        namespace, _, name = key.partition("/")
+        deps.append(ServiceDep(namespace, name, version))
+    return deps
+
+
+def project_service_deps(project_dir: Path) -> list[ServiceDep]:
+    """The mirrorable dependencies of a build directory.
+
+    The lock is authoritative; the manifest covers the fresh or
+    just-changed build where the lock has not been written yet.
+    """
+    deps = parse_lock_service_deps(project_dir / "dependencies.lock")
+    seen = {(dep.namespace, dep.name) for dep in deps}
+    for dep in parse_manifest_service_deps(project_dir / "src" / "idf_component.yml"):
+        if (dep.namespace, dep.name) not in seen:
+            deps.append(dep)
     return deps
 
 
@@ -134,54 +180,20 @@ def missing_deps(mirror: Path, deps: list[ServiceDep]) -> list[ServiceDep]:
     return [dep for dep in deps if not _mirror_has(mirror, dep)]
 
 
-def _acquire_sync_lock(mirror: Path) -> bool:
-    """Take the advisory sync lock, reclaiming it when stale.
-
-    Held by another process means that process is already syncing the same
-    machine-global mirror; skipping is the right outcome, not an error.
-    """
-    lock_path = mirror / _SYNC_LOCK_NAME
-    for _ in range(2):
-        try:
-            os.close(os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
-        except FileExistsError:
-            try:
-                if time.time() - lock_path.stat().st_mtime <= _SYNC_LOCK_STALE_S:
-                    return False
-                lock_path.unlink(missing_ok=True)
-            except OSError:
-                return False
-            continue
-        except OSError:
-            return False
-        return True
-    return False
-
-
 def sync_component_mirror(
-    lock_path: Path,
+    project_dir: Path,
     get_python: Callable[[], str],
     get_env: Callable[[], Mapping[str, str]],
 ) -> bool:
-    """Mirror any locked registry components the mirror lacks; best effort.
+    """Mirror any of the build's registry components the mirror lacks.
 
-    Runs the version-matched component manager's own ``registry sync``,
-    which downloads incrementally and merges metadata, so re-syncs only
-    fetch what is missing. ``get_python``/``get_env`` are only called when a
-    sync is actually needed, keeping the covered case free of environment
-    resolution. Returns False when a sync attempt failed so callers can
-    skip retrying in the same process.
+    Best effort: never raises for an expected failure, and returns False on
+    a failed attempt so callers can skip retrying for the rest of the run.
+    ``get_python``/``get_env`` are only called when a sync is needed, so
+    the covered case resolves no environment.
     """
     mirror = get_mirror_path()
-    to_sync = missing_deps(mirror, parse_lock_service_deps(lock_path))
-    if skipped := [d for d in to_sync if d.registry_url != _DEFAULT_REGISTRY_URL]:
-        # ESPHome-generated manifests only use the default registry; a
-        # non-default dependency simply stays network-fetched as before.
-        _LOGGER.debug(
-            "Not mirroring %s: non-default registry",
-            ", ".join(f"{d.namespace}/{d.name}" for d in skipped),
-        )
-        to_sync = [d for d in to_sync if d.registry_url == _DEFAULT_REGISTRY_URL]
+    to_sync = missing_deps(mirror, project_service_deps(project_dir))
     if not to_sync:
         return True
     try:
@@ -191,8 +203,18 @@ def sync_component_mirror(
     except (OSError, EsphomeError) as err:
         _LOGGER.warning("Could not mirror IDF components: %s", err)
         return False
-    if not _acquire_sync_lock(mirror):
+    # Lazy import, as in git.py: keeps filelock off the CLI startup path.
+    from filelock import FileLock, Timeout
+
+    lock = FileLock(str(mirror / _SYNC_LOCK_NAME), fallback_to_soft=False)
+    try:
+        lock.acquire(blocking=False)
+    except Timeout:
+        # Another esphome process is already filling the shared mirror.
         _LOGGER.debug("Component mirror sync already running; skipping")
+        return True
+    except OSError as err:
+        _LOGGER.debug("Could not lock component mirror: %s", err)
         return True
     try:
         cmd = [python, "-m", "idf_component_manager", "registry", "sync"]
@@ -214,7 +236,7 @@ def sync_component_mirror(
         _LOGGER.warning("Could not mirror IDF components: %s", err)
         return False
     finally:
-        (mirror / _SYNC_LOCK_NAME).unlink(missing_ok=True)
+        lock.release()
     if result.returncode != 0:
         tail = "\n".join(
             (result.stderr or result.stdout or "").strip().splitlines()[-5:]
