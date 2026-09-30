@@ -5,6 +5,9 @@ pyupgrade==3.21.2  # .pre-commit-config.yaml rev synced by script/sync_dependenc
 prek==0.5.3  # .github/workflows/ci.yml reads this pin
 yamlrocks==0.6.1  # used by script/sync_dependency_versions.py
 
+# Adapts GCC (Zephyr/nrf52) compile commands for clang-tidy
+codechecker==6.28.2
+
 # Unit tests
 pytest==9.1.1
 pytest-cov==7.1.0

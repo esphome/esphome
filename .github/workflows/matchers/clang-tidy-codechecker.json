@@ -1,0 +1,19 @@
+{
+    "problemMatcher": [
+        {
+            "owner": "clang-tidy-codechecker",
+            "severity": "error",
+            "fileLocation": "absolute",
+            "pattern": [
+                {
+                    "regexp": "^\\[\\w+\\] (.*):(\\d+):(\\d+): (.*) \\[([a-zA-Z0-9_.\\-]+)\\]$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "message": 4,
+                    "code": 5
+                }
+            ]
+        }
+    ]
+}

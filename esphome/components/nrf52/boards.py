@@ -9,7 +9,11 @@ from .const import (
 )
 
 BOARDS_ZEPHYR = {
-    "adafruit_itsybitsy_nrf52840": {
+    # NCS 3.4.0's bundled Zephyr migrated to Hardware Model v2 board addressing;
+    # this board's board.yml declares "adafruit_itsybitsy" with "nrf52840" as an
+    # explicit soc qualifier, so the old flat "adafruit_itsybitsy_nrf52840" name no
+    # longer resolves -- it must be "adafruit_itsybitsy/nrf52840".
+    "adafruit_itsybitsy/nrf52840": {
         KEY_BOOTLOADER: [
             BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
             BOOTLOADER_ADAFRUIT,

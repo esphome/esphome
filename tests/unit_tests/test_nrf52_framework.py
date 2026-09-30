@@ -17,6 +17,7 @@ from esphome.components.nrf52.framework import (
     _REQUIREMENTS,
     DEFAULT_WEST_PROJECTS,
     TOOLCHAIN_VERSION,
+    _ensure_hidapi_build_deps,
     _get_penv_site_packages,
     _get_platformio_penv_path,
     _get_toolchain_platform_info,
@@ -24,6 +25,7 @@ from esphome.components.nrf52.framework import (
     _wanted_west_projects,
     check_and_install,
     get_build_env,
+    get_build_paths,
     get_sdk_nrf_tools_path,
     include_west_project,
     setup_platformio_python_env,
@@ -76,6 +78,103 @@ def test_get_toolchain_platform_info(
         assert _get_toolchain_platform_info() == expected
 
 
+class TestEnsureHidapiBuildDeps:
+    def test_all_present_does_nothing(self) -> None:
+        with (
+            patch("shutil.which", return_value="/usr/bin/pkg-config"),
+            patch("subprocess.run") as mock_run,
+            patch("esphome.components.nrf52.framework.run_command_ok") as mock_run_cmd,
+        ):
+            mock_run.return_value = SimpleNamespace(returncode=0)
+            _ensure_hidapi_build_deps()
+            mock_run_cmd.assert_not_called()
+
+    def test_missing_deps_without_apt_does_nothing(self) -> None:
+        """No apt (e.g. macOS/Windows) -> silently skip, not our package manager."""
+        with (
+            patch("shutil.which", side_effect=lambda name: None),
+            patch("esphome.components.nrf52.framework.run_command_ok") as mock_run_cmd,
+        ):
+            _ensure_hidapi_build_deps()
+            mock_run_cmd.assert_not_called()
+
+    def test_missing_deps_with_apt_non_root_raises(self) -> None:
+        with (
+            patch(
+                "shutil.which",
+                side_effect=lambda name: (
+                    None if name == "pkg-config" else "/usr/bin/apt"
+                ),
+            ),
+            patch("os.geteuid", return_value=1000, create=True),
+            patch("esphome.components.nrf52.framework.run_command_ok") as mock_run_cmd,
+        ):
+            with pytest.raises(EsphomeError, match="pkg-config"):
+                _ensure_hidapi_build_deps()
+            mock_run_cmd.assert_not_called()
+
+    def test_missing_deps_with_apt_root_installs(self) -> None:
+        with (
+            patch(
+                "shutil.which",
+                side_effect=lambda name: (
+                    None if name == "pkg-config" else "/usr/bin/apt"
+                ),
+            ),
+            patch("os.geteuid", return_value=0, create=True),
+            patch(
+                "esphome.components.nrf52.framework.run_command_ok", return_value=True
+            ) as mock_run_cmd,
+        ):
+            _ensure_hidapi_build_deps()
+            assert mock_run_cmd.call_args_list == [
+                call(["apt", "update"]),
+                call(
+                    [
+                        "apt",
+                        "install",
+                        "-y",
+                        "pkg-config",
+                        "libusb-1.0-0-dev",
+                        "libudev-dev",
+                    ]
+                ),
+            ]
+
+    def test_apt_update_failure_raises(self) -> None:
+        with (
+            patch(
+                "shutil.which",
+                side_effect=lambda name: (
+                    None if name == "pkg-config" else "/usr/bin/apt"
+                ),
+            ),
+            patch("os.geteuid", return_value=0, create=True),
+            patch(
+                "esphome.components.nrf52.framework.run_command_ok", return_value=False
+            ),
+            pytest.raises(EsphomeError, match="apt package index"),
+        ):
+            _ensure_hidapi_build_deps()
+
+    def test_apt_install_failure_raises(self) -> None:
+        with (
+            patch(
+                "shutil.which",
+                side_effect=lambda name: (
+                    None if name == "pkg-config" else "/usr/bin/apt"
+                ),
+            ),
+            patch("os.geteuid", return_value=0, create=True),
+            patch(
+                "esphome.components.nrf52.framework.run_command_ok",
+                side_effect=[True, False],
+            ),
+            pytest.raises(EsphomeError, match="Failed to install"),
+        ):
+            _ensure_hidapi_build_deps()
+
+
 # ---------------------------------------------------------------------------
 # Helpers and fixtures for check_and_install tests
 # ---------------------------------------------------------------------------
@@ -121,6 +220,7 @@ def mock_nrf52_ops():
             return_value="https://example.com/tc.tar.xz",
         ) as mock_download,
         patch("esphome.framework_helpers.archive_extract_all") as mock_extract,
+        patch("esphome.components.nrf52.framework._ensure_hidapi_build_deps"),
     ):
         yield SimpleNamespace(
             rmdir=mock_rmdir,
@@ -1038,6 +1138,19 @@ def test_get_build_env(
     assert "Zephyr-sdk_DIR" not in env
     # The rest of the process environment is inherited
     assert env["SOME_PREEXISTING_VAR"] == "kept"
+
+
+def test_get_build_paths_puts_codechecker_in_the_python_env(
+    nrf52_dirs: SimpleNamespace,
+) -> None:
+    """script/clang-tidy runs CodeChecker from the same venv west runs from."""
+    penv = get_sdk_nrf_tools_path() / "penvs" / f"v{_TEST_SDK_VERSION}"
+
+    paths = get_build_paths()
+
+    assert paths["codechecker_executable"] == get_python_env_executable_path(
+        penv, "CodeChecker"
+    )
 
 
 # ---------------------------------------------------------------------------
