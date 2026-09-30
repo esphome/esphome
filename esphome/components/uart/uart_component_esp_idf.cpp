@@ -401,6 +401,8 @@ void IDFUARTComponent::set_rx_timeout(size_t rx_timeout) {
 }
 
 size_t IDFUARTComponent::available_for_write() {
+  if (this->uart_num_ == UART_NUM_MAX || !uart_is_driver_installed(this->uart_num_))
+    return 0;
   if (this->tx_buffer_size_ == 0) {
     return uart_ll_get_txfifo_len(UART_LL_GET_HW(this->uart_num_));
   }
