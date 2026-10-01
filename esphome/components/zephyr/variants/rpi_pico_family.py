@@ -8,6 +8,8 @@ import subprocess
 
 from esphome.types import ConfigType
 
+from . import mcuboot_or_none
+
 _LOGGER = logging.getLogger(__name__)
 
 # Devicetree property rpi_pico pinctrl groups pack all their signal macros into.
@@ -361,3 +363,8 @@ def upload_program(host: str) -> bool:
             "device into BOOTSEL mode (hold BOOTSEL while plugging in) and retry."
         )
     return upload_using_picotool()
+
+
+def bootloader(advanced: ConfigType) -> str:
+    """Return the bootloader set_core_data() gets, rebuilt from the cached advanced: block."""
+    return mcuboot_or_none(advanced)

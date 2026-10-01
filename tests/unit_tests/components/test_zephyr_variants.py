@@ -241,3 +241,18 @@ def test_module_template_resolve_ignores_min_version_for_non_semver_ref() -> Non
         cv.Version(3, 4, 0), explicit_version="main"
     )
     assert module.revision == "main"
+
+
+from esphome.components.zephyr.variants import VARIANTS  # noqa: E402
+
+
+@pytest.mark.parametrize("variant", sorted(VARIANTS))
+def test_validated_config_round_trips_through_config_schema(variant: str) -> None:
+    """upload/logs feed the cached validated config back through CONFIG_SCHEMA."""
+    from esphome.components.zephyr import CONFIG_SCHEMA  # noqa: PLC0415
+    from esphome.const import CONF_VARIANT, KEY_CORE  # noqa: PLC0415
+    from esphome.core import CORE  # noqa: PLC0415
+
+    CORE.data[KEY_CORE] = {}
+    validated = CONFIG_SCHEMA({CONF_VARIANT: variant})
+    CONFIG_SCHEMA(validated)
