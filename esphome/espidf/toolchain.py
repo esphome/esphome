@@ -860,6 +860,15 @@ def create_factory_bin() -> bool:
         # already removed the factory image and the sub-build.
         _LOGGER.info("Bootloader skipped; no factory image")
         return True
+    if _merge_factory_bin(build_dir):
+        return True
+    # Never leave an image that does not match this build.
+    get_factory_firmware_path().unlink(missing_ok=True)
+    return False
+
+
+def _merge_factory_bin(build_dir: Path) -> bool:
+    """Run the esptool merge for a full-build tree."""
     flasher_args_path = build_dir / "flasher_args.json"
 
     if not flasher_args_path.is_file():

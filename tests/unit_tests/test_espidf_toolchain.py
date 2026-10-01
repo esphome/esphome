@@ -1225,10 +1225,14 @@ def test_create_factory_bin_fails_on_a_missing_listed_flash_file(
         f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=0\n"
     )
     (build / "flasher_args.json").write_text('{"flash_files": {"0x0": "missing.bin"}}')
+    stale = toolchain.get_factory_firmware_path()
+    stale.write_bytes(b"old")
     with patch.object(toolchain.subprocess, "run") as mock_run:
         assert toolchain.create_factory_bin() is False
     mock_run.assert_not_called()
     assert "Flash file not found" in caplog.text
+    # The image from an earlier build must not be served as this one.
+    assert not stale.exists()
 
 
 def test_create_factory_bin_skip_mode_creates_nothing(

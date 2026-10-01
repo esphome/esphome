@@ -866,7 +866,10 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
             return rc
 
         # Create factory.bin, ota.bin, and firmware.elf copy
-        toolchain.create_factory_bin()
+        if not toolchain.create_factory_bin():
+            # A build whose factory image could not be produced must not
+            # exit 0; downloads would serve an image from an older build.
+            return 1
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
         from esphome.build_helpers.idedata import warn_if_idedata_missing

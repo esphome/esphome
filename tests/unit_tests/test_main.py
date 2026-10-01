@@ -7160,6 +7160,23 @@ def test_compile_program_espidf_idedata_success_is_silent(
     assert "idedata" not in caplog.text
 
 
+def test_compile_program_espidf_failed_factory_bin_fails_the_build() -> None:
+    """A compile whose factory image could not be produced must not exit 0."""
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+    with (
+        patch("esphome.espidf.toolchain.run_compile", return_value=0),
+        patch("esphome.espidf.toolchain.create_factory_bin", return_value=False),
+        patch("esphome.espidf.toolchain.create_ota_bin") as mock_ota,
+        patch("esphome.__main__._check_and_emit_build_info"),
+    ):
+        assert compile_program(MagicMock(), {}) == 1
+    mock_ota.assert_not_called()
+
+
 def test_compile_program_espidf_idedata_none_warns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
