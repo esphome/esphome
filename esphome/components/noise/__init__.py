@@ -122,6 +122,11 @@ def _use_managed_components() -> bool:
     return idf_version() >= cv.Version(6, 0, 0)
 
 
+def enable_spare_ephemeral() -> None:
+    """Compile the spare ephemeral key slot; the component that refills it calls this."""
+    cg.add_define("USE_NOISE_SPARE_EPHEMERAL")
+
+
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NOISE")
     # libsodium is declared alongside noise-c, which depends on it, either way:
