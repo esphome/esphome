@@ -1,5 +1,7 @@
 """Tests for mipi_rgb configuration validation."""
 
+from collections.abc import Generator
+
 import pytest
 
 from esphome import config_validation as cv
@@ -10,7 +12,14 @@ from esphome import config_validation as cv
 # via ch422g) can be validated by the mipi_rgb CONFIG_SCHEMA in this test.
 import esphome.components.ch422g  # noqa: F401
 from esphome.components.display import get_display_metadata
-from esphome.components.esp32 import KEY_BOARD, VARIANT_ESP32S3
+from esphome.components.esp32 import (
+    KEY_BOARD,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+)
+from esphome.components.mipi import DriverChip
 import esphome.components.pca9554  # noqa: F401
 import esphome.components.xl9535  # noqa: F401
 from esphome.const import (
@@ -36,6 +45,19 @@ DATA_PINS = {
     CONF_GREEN: [6, 7, 8, 9, 10, 11],
     CONF_BLUE: [12, 13, 14, 15, 16],
 }
+
+
+@pytest.fixture(autouse=True)
+def _remove_test_models() -> Generator[None]:
+    """Unregister chips created by a test.
+
+    display.py modules drain DriverChip.models when first imported, so a
+    leftover TEST-* chip could become a selectable model there.
+    """
+    existing = set(DriverChip.models)
+    yield
+    for name in set(DriverChip.models) - existing:
+        del DriverChip.models[name]
 
 
 def _set_s3(set_core_config: SetCoreConfigCallable) -> None:
@@ -135,3 +157,98 @@ def test_metadata_records_rotation(
 
     config = CONFIG_SCHEMA({**base, "id": "unrotated"})
     assert get_display_metadata(config["id"]).rotation == 0
+
+
+@pytest.mark.parametrize(
+    ("variant", "board", "model"),
+    [
+        # ESP32-8048S070 is a real Sunton board wired for ESP32-S3 (e.g. its
+        # default de_pin is GPIO41, which doesn't exist on S31), so it is
+        # only meaningful as a config on that variant.
+        (VARIANT_ESP32S3, "esp32-s3-devkitc-1", "ESP32-8048S070"),
+        # P4 and S31 use the pin-agnostic CUSTOM model so this only checks
+        # that the chip itself is accepted, independent of board wiring.
+        (VARIANT_ESP32P4, "esp32-p4-evboard", "CUSTOM"),
+        # No dedicated board is registered for ESP32-S31 yet; an unknown board
+        # name simply skips per-board pin validation.
+        (VARIANT_ESP32S31, "esp32-s31-devkitc", "CUSTOM"),
+    ],
+)
+def test_configuration_succeeds_on_supported_variants(
+    variant: str, board: str, model: str, set_core_config: SetCoreConfigCallable
+) -> None:
+    """mipi_rgb requires a chip with an RGB LCD peripheral: S3, P4 or S31."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: board, KEY_VARIANT: variant},
+    )
+
+    from esphome.components.mipi_rgb.display import CONFIG_SCHEMA
+
+    config = {"model": model, "data_pins": DATA_PINS, "pclk_pin": 21}
+    if model == "CUSTOM":
+        config[CONF_INIT_SEQUENCE] = [[0xA0, 0x01]]
+        config[CONF_DIMENSIONS] = {CONF_WIDTH: 480, CONF_HEIGHT: 480}
+    CONFIG_SCHEMA(config)
+
+
+def test_st7701s_default_reset_delay() -> None:
+    """ST7701S instances default to a 50ms reset delay.
+
+    The datasheet's stated 5ms is too short in practice; ST7701S overrides the
+    DriverChip default of 10ms with its own default of 50ms.
+    """
+    from esphome.components.mipi_rgb.models.st7701s import st7701s
+
+    assert st7701s.get_default("reset_delay") == 50
+
+
+def test_st7701s_reset_delay_can_be_overridden() -> None:
+    """An explicit reset_delay overrides the ST7701S default of 50ms."""
+    from esphome.components.mipi_rgb.models.st7701s import ST7701S
+
+    chip = ST7701S("TEST-ST7701S-RESET-DELAY", width=480, height=480, reset_delay=99)
+
+    assert chip.get_default("reset_delay") == 99
+
+
+def test_st7701s_extend_inherits_reset_delay_default() -> None:
+    """extend() carries the 50ms default forward to derived board models.
+
+    Every shipped ST7701S variant is built via ``st7701s.extend(...)`` rather
+    than direct construction, so the override in ``ST7701S.__init__`` must
+    survive that path (see DriverChip.extend, which re-passes the copied
+    defaults as kwargs to the constructor).
+    """
+    from esphome.components.mipi_rgb.models.st7701s import st7701s
+
+    extended = st7701s.extend("TEST-ST7701S-EXTEND", width=480, height=480)
+
+    assert extended.get_default("reset_delay") == 50
+
+
+def test_only_on_variant_rejects_unsupported_variant(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A variant without the RGB LCD peripheral (e.g. ESP32-C3) is rejected.
+
+    Exercises the exact ``only_on_variant`` call used by ``mipi_rgb.display``
+    directly, since building a full model config with GPIO numbers that are
+    also valid on an unsupported variant like ESP32-C3 is unrelated to what
+    this checks.
+    """
+    from esphome.components.esp32 import only_on_variant
+
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_VARIANT: VARIANT_ESP32C3},
+    )
+
+    validator = only_on_variant(
+        supported=[VARIANT_ESP32S3, VARIANT_ESP32P4, VARIANT_ESP32S31]
+    )
+    with pytest.raises(
+        cv.Invalid,
+        match=r"This feature is only available on ESP32S3, ESP32P4, ESP32S31",
+    ):
+        validator({})

@@ -16,9 +16,9 @@ struct PanasonicData {
 
 class PanasonicProtocol : public RemoteProtocol<PanasonicData> {
  public:
-  void encode(RemoteTransmitData *dst, const PanasonicData &data) override;
-  optional<PanasonicData> decode(RemoteReceiveData src) override;
-  void dump(const PanasonicData &data) override;
+  void encode(RemoteTransmitData *dst, const PanasonicData &data);
+  optional<PanasonicData> decode(RemoteReceiveData src);
+  void dump(const PanasonicData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Panasonic)

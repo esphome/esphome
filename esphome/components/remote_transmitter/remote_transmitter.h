@@ -12,10 +12,11 @@
 #endif  // SOC_RMT_SUPPORTED
 #endif  // USE_ESP32
 
-// The BK7231N-style PWM block (hardware shadow-load duty updates) enables the ISR-driven
-// transmitter on these families; family-level proxy for the SDK's CFG_SOC_NAME gate.
-// See remote_transmitter_bk72xx.cpp.
-#if defined(USE_LIBRETINY_VARIANT_BK7231N) || defined(USE_LIBRETINY_VARIANT_BK7238)
+// Enables the ISR-driven transmitter on Beken. Gated on BK7238 alone: the shadow-load PWM
+// block is shared with BK7231N, but LibreTiny builds that family against an older BDK whose
+// PWM driver has no pwm_init_param()/pwm_start(). See remote_transmitter_bk72xx.cpp.
+// Keep in sync with _NON_BLOCKING_LIBRETINY_FAMILIES in __init__.py.
+#ifdef USE_LIBRETINY_VARIANT_BK7238
 #define REMOTE_TRANSMITTER_BK_PWM
 #endif
 
@@ -140,6 +141,8 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
 #endif
 
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
+  // log the failed RMT call and mark the component failed
+  void fail_(esp_err_t error, const LogString *reason);
   void configure_rmt_();
   void wait_for_rmt_();
 
@@ -155,8 +158,6 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   bool eot_level_{false};
   rmt_channel_handle_t channel_{NULL};
   rmt_encoder_handle_t encoder_{NULL};
-  esp_err_t error_code_{ESP_OK};
-  std::string error_string_;
   bool inverted_{false};
   bool non_blocking_{false};
 #endif

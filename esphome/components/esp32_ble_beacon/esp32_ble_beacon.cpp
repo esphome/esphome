@@ -3,7 +3,7 @@
 
 #ifdef USE_ESP32
 
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
 #include <esp_bt.h>
 #endif
 #include <esp_bt_main.h>
@@ -35,7 +35,7 @@ void ESP32BLEBeacon::dump_config() {
     }
   }
   *bpos = '\0';
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
   ESP_LOGCONFIG(TAG,
                 "  UUID: %s, Major: %u, Minor: %u, Min Interval: %ums, Max Interval: %ums, Measured Power: %d"
                 ", TX Power: %ddBm",
@@ -67,6 +67,8 @@ void ESP32BLEBeacon::setup() {
       this->on_advertise_();
     }
   });
+  // A beacon always needs the device to advertise, and never releases the request
+  global_ble->advertising_start();
 }
 
 void ESP32BLEBeacon::on_advertise_() {
@@ -79,7 +81,7 @@ void ESP32BLEBeacon::on_advertise_() {
   ibeacon_adv_data.ibeacon_vendor.measured_power = static_cast<uint8_t>(this->measured_power_);
 
   esp_err_t err;
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
   ESP_LOGD(TAG, "Setting BLE TX power");
   err = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, this->tx_power_);
   if (err != ESP_OK) {

@@ -5,6 +5,17 @@ sensor:
     id: source_sensor
     lambda: return 42.0;
     update_interval: 1s
+    on_value:
+      - sensor.template.publish:
+          id: sensor_publish_target
+          state: 42.0
+      - sensor.template.publish:
+          id: sensor_publish_target
+          state: !lambda "return x * 2.0;"
+
+  - platform: template
+    name: "Publish Target"
+    id: sensor_publish_target
 
   # Streaming filters (window_size == send_every) - uses StreamingFilter base class
   - platform: copy

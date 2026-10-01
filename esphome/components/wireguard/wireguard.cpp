@@ -146,18 +146,19 @@ void Wireguard::dump_config() {
       "  Peer Pre-shared Key: " LOG_SECRET("%s"),
       this->address_, this->netmask_, private_key_masked,
       this->peer_endpoint_, this->peer_port_, this->peer_public_key_,
-      (this->preshared_key_ != nullptr ? preshared_key_masked : "NOT IN USE"));
+      (this->preshared_key_ != nullptr ? preshared_key_masked : LOG_STR_LITERAL("NOT IN USE")));
   // clang-format on
   ESP_LOGCONFIG(TAG, "  Peer Allowed IPs:");
   for (const AllowedIP &allowed_ip : this->allowed_ips_) {
     ESP_LOGCONFIG(TAG, "    - %s/%s", allowed_ip.ip, allowed_ip.netmask);
   }
   ESP_LOGCONFIG(TAG, "  Peer Persistent Keepalive: %d%s", this->keepalive_,
-                (this->keepalive_ > 0 ? "s" : " (DISABLED)"));
+                (this->keepalive_ > 0 ? LOG_STR_LITERAL("s") : LOG_STR_LITERAL(" (DISABLED)")));
   ESP_LOGCONFIG(TAG, "  Reboot Timeout: %" PRIu32 "%s", (this->reboot_timeout_ / 1000),
-                (this->reboot_timeout_ != 0 ? "s" : " (DISABLED)"));
+                (this->reboot_timeout_ != 0 ? LOG_STR_LITERAL("s") : LOG_STR_LITERAL(" (DISABLED)")));
   // be careful: if proceed_allowed_ is true, require connection is false
-  ESP_LOGCONFIG(TAG, "  Require Connection to Proceed: %s", (this->proceed_allowed_ ? "NO" : "YES"));
+  ESP_LOGCONFIG(TAG, "  Require Connection to Proceed: %s",
+                (this->proceed_allowed_ ? LOG_STR_LITERAL("NO") : LOG_STR_LITERAL("YES")));
   LOG_UPDATE_INTERVAL(this);
 }
 

@@ -546,11 +546,7 @@ void Sprinkler::set_auto_advance(const bool auto_advance) {
   if (this->auto_adv_sw_->state == auto_advance) {
     return;
   }
-  if (auto_advance) {
-    this->auto_adv_sw_->turn_on();
-  } else {
-    this->auto_adv_sw_->turn_off();
-  }
+  this->auto_adv_sw_->control(auto_advance);
 }
 
 void Sprinkler::set_repeat(optional<uint32_t> repeat) {
@@ -573,11 +569,7 @@ void Sprinkler::set_queue_enable(bool queue_enable) {
   if (this->queue_enable_sw_->state == queue_enable) {
     return;
   }
-  if (queue_enable) {
-    this->queue_enable_sw_->turn_on();
-  } else {
-    this->queue_enable_sw_->turn_off();
-  }
+  this->queue_enable_sw_->control(queue_enable);
 }
 
 void Sprinkler::set_reverse(const bool reverse) {
@@ -587,11 +579,7 @@ void Sprinkler::set_reverse(const bool reverse) {
   if (this->reverse_sw_->state == reverse) {
     return;
   }
-  if (reverse) {
-    this->reverse_sw_->turn_on();
-  } else {
-    this->reverse_sw_->turn_off();
-  }
+  this->reverse_sw_->control(reverse);
 }
 
 void Sprinkler::set_standby(const bool standby) {
@@ -601,11 +589,7 @@ void Sprinkler::set_standby(const bool standby) {
   if (this->standby_sw_->state == standby) {
     return;
   }
-  if (standby) {
-    this->standby_sw_->turn_on();
-  } else {
-    this->standby_sw_->turn_off();
-  }
+  this->standby_sw_->control(standby);
 }
 
 uint32_t Sprinkler::valve_run_duration(const size_t valve_number) {
@@ -1335,7 +1319,7 @@ void Sprinkler::all_valves_off_(const bool include_pump) {
       this->set_pump_state(this->valve_pump_switch(valve_index), false);
     }
   }
-  ESP_LOGD(TAG, "All valves stopped%s", include_pump ? ", including pumps" : "");
+  ESP_LOGD(TAG, "All valves stopped%s", include_pump ? LOG_STR_LITERAL(", including pumps") : "");
 }
 
 void Sprinkler::prep_full_cycle_() {

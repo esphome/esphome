@@ -129,7 +129,7 @@ void MicroWakeWord::setup() {
       return;
     }
     std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
-    if (this->ring_buffer_.use_count() > 1) {
+    if (temp_ring_buffer != nullptr) {
       // Producer-only write: never touches consumer state. If the buffer is full, ask the inference task
       // to drain it - reset() is a consumer operation and must run on the inference task's thread.
       // Disable partial writes so audio chunks are either fully accepted or rejected and handled below.
@@ -446,9 +446,9 @@ void MicroWakeWord::loop() {
     xEventGroupClearBits(this->event_group_, EventGroupBits::TASK_STOPPING);
   }
 
-  if ((event_group_bits & EventGroupBits::TASK_STOPPED)) {
+  // Retries on a subsequent loop if the task is still running on the other core
+  if ((event_group_bits & EventGroupBits::TASK_STOPPED) && this->inference_task_.deallocate()) {
     ESP_LOGD(TAG, "Inference task is finished, freeing task resources");
-    this->inference_task_.deallocate();
     xEventGroupClearBits(this->event_group_, ALL_BITS);
     xQueueReset(this->detection_queue_);
     this->set_state_(State::STOPPED);

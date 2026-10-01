@@ -319,7 +319,7 @@ uint16_t Mcp4461Component::read_wiper_level_(uint8_t wiper_idx, bool *ok) {
   if (!(this->read_16_(reg, &buf))) {
     this->error_code_ = MCP4461_STATUS_I2C_ERROR;
     this->status_set_warning();
-    ESP_LOGW(TAG, "Error fetching %swiper %u value", (wiper_idx > 3) ? "nonvolatile " : "", wiper_idx);
+    ESP_LOGW(TAG, "Error fetching %swiper %u value", (wiper_idx > 3) ? LOG_STR_LITERAL("nonvolatile ") : "", wiper_idx);
     return 0;
   }
   if (ok != nullptr) {
@@ -377,7 +377,8 @@ void Mcp4461Component::write_wiper_level_(uint8_t wiper, uint16_t value) {
   if (!(this->mcp4461_write_(this->get_wiper_address_(wiper), value, nonvolatile))) {
     this->error_code_ = MCP4461_STATUS_I2C_ERROR;
     this->status_set_warning();
-    ESP_LOGW(TAG, "Error writing %swiper %u level %u", (wiper > 3) ? "nonvolatile " : "", wiper, value);
+    ESP_LOGW(TAG, "Error writing %swiper %u level %u", (wiper > 3) ? LOG_STR_LITERAL("nonvolatile ") : "", wiper,
+             value);
   }
 }
 

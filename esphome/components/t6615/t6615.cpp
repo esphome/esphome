@@ -88,7 +88,6 @@ void T6615Component::query_ppm_() {
 void T6615Component::dump_config() {
   ESP_LOGCONFIG(TAG, "T6615:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
-  this->check_uart_settings(19200);
 }
 
 }  // namespace esphome::t6615

@@ -551,12 +551,14 @@ void PacketTransport::dump_config() {
                 "  Ping-pong: %s",
                 this->platform_name_, YESNO(this->is_encrypted_()), YESNO(this->ping_pong_enable_));
 #ifdef USE_SENSOR
-  for (const auto &sensor : this->sensors_)
+  for (const auto &sensor : this->sensors_) {
     ESP_LOGCONFIG(TAG, "  Sensor: %s", sensor.id);
+  }
 #endif
 #ifdef USE_BINARY_SENSOR
-  for (const auto &sensor : this->binary_sensors_)
+  for (const auto &sensor : this->binary_sensors_) {
     ESP_LOGCONFIG(TAG, "  Binary Sensor: %s", sensor.id);
+  }
 #endif
   for (const auto &host : this->providers_) {
     ESP_LOGCONFIG(TAG, "  Remote host: %s", host.first.c_str());
@@ -564,15 +566,17 @@ void PacketTransport::dump_config() {
 #ifdef USE_SENSOR
     auto rs = this->remote_sensors_.find(host.first.c_str());
     if (rs != this->remote_sensors_.end()) {
-      for (const auto &key : rs->second | std::views::keys)
+      for (const auto &key : rs->second | std::views::keys) {
         ESP_LOGCONFIG(TAG, "    Sensor: %s", key.c_str());
+      }
     }
 #endif
 #ifdef USE_BINARY_SENSOR
     auto rbs = this->remote_binary_sensors_.find(host.first.c_str());
     if (rbs != this->remote_binary_sensors_.end()) {
-      for (const auto &key : rbs->second | std::views::keys)
+      for (const auto &key : rbs->second | std::views::keys) {
         ESP_LOGCONFIG(TAG, "    Binary Sensor: %s", key.c_str());
+      }
     }
 #endif
   }
