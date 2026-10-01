@@ -8,11 +8,16 @@ import json
 import os
 from pathlib import Path
 import subprocess
-from unittest.mock import call, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION, KEY_VARIANT
+from esphome.components.esp32.const import (
+    KEY_ESP32,
+    KEY_FLASH_SIZE,
+    KEY_IDF_VERSION,
+    KEY_VARIANT,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
@@ -210,6 +215,38 @@ def test_get_idf_env_sets_git_ceiling_directories(setup_core: Path) -> None:
     assert str(CORE.config_dir) in env["GIT_CEILING_DIRECTORIES"].split(os.pathsep)
 
 
+def test_get_idf_env_serves_the_component_mirror(setup_core: Path) -> None:
+    """The mirror env rides the managed-IDF branch, next to its sync gate."""
+    toolchain._cache().env.clear()
+    with (
+        patch.object(
+            toolchain,
+            "get_framework_env",
+            return_value={"PATH": "/penv"},
+        ),
+        patch.object(toolchain, "_get_esphome_esp_idf_paths", return_value=((), {})),
+        patch.object(
+            toolchain,
+            "component_mirror_env",
+            return_value={"IDF_COMPONENT_LOCAL_STORAGE_URL": "file:///mirror"},
+        ),
+    ):
+        env = toolchain._get_idf_env(version="5.5.4")
+    assert env["IDF_COMPONENT_LOCAL_STORAGE_URL"] == "file:///mirror"
+
+
+def test_get_idf_env_user_idf_skips_the_mirror(setup_core: Path) -> None:
+    """A user-managed IDF gets neither the framework env nor the mirror."""
+    toolchain._cache().env.clear()
+    with (
+        patch.dict(os.environ, {"IDF_PATH": str(setup_core)}),
+        patch.object(toolchain, "component_mirror_env") as mock_env,
+    ):
+        env = toolchain._get_idf_env(version="5.5.4")
+    mock_env.assert_not_called()
+    assert "IDF_COMPONENT_LOCAL_STORAGE_URL" not in env
+
+
 def test_get_idf_env_pops_inherited_pythonpath(setup_core: Path) -> None:
     """A PYTHONPATH from the parent environment must not reach idf.py.
 
@@ -355,6 +392,73 @@ def test_run_compile_discovery_without_cmakecache(setup_core: Path) -> None:
         assert toolchain.run_compile(config, verbose=False) == 0
 
     assert not CORE.relative_build_path("build/CMakeCache.txt").exists()
+
+
+@pytest.mark.parametrize(
+    ("cmake_rc", "expected"),
+    [(0, ["sync", "cmake", "sync"]), (1, ["sync", "cmake"])],
+)
+def test_run_reconfigure_syncs_mirror_around_the_configure(
+    setup_core: Path, cmake_rc: int, expected: list[str]
+) -> None:
+    """Every configure path syncs: before, so the solve installs from the
+    mirror; after a success, so solver-added lock entries are mirrored."""
+    _setup_build(setup_core)
+    calls: list[str] = []
+
+    with (
+        _fake_tools() as mock_run,
+        patch.object(
+            toolchain,
+            "_sync_component_mirror",
+            side_effect=lambda: calls.append("sync"),
+        ),
+        # The real hint printer resolves an IDF install (or downloads one).
+        patch.object(toolchain, "_print_hints"),
+    ):
+        mock_run.side_effect = lambda *a, **k: calls.append("cmake") or cmake_rc
+        assert toolchain.run_reconfigure() == cmake_rc
+
+    assert calls == expected
+
+
+def test_run_compile_syncs_mirror_when_up_to_date(setup_core: Path) -> None:
+    """No reconfigure still refreshes the mirror once for ninja-driven
+    cmake re-runs."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+
+    with (
+        _up_to_date_compile(),
+        patch.object(toolchain, "_sync_component_mirror") as mock_sync,
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    mock_sync.assert_called_once()
+
+
+def test_sync_component_mirror_skips_user_idf(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A user-managed IDF never gets the mirror env, so a sync is unread."""
+    monkeypatch.setenv("IDF_PATH", "/opt/esp-idf")
+    with patch.object(toolchain, "sync_component_mirror") as mock_sync:
+        toolchain._sync_component_mirror()
+    mock_sync.assert_not_called()
+
+
+def test_sync_component_mirror_failure_not_retried(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One failed attempt (e.g. offline) must not stall every later call."""
+    monkeypatch.delenv("IDF_PATH", raising=False)
+    _setup_build(setup_core)
+    with patch.object(
+        toolchain, "sync_component_mirror", return_value=False
+    ) as mock_sync:
+        toolchain._sync_component_mirror()
+        toolchain._sync_component_mirror()
+    mock_sync.assert_called_once()
 
 
 def test_run_compile_reconfigures_after_full_write_outside_testing_mode(
@@ -893,6 +997,7 @@ def test_run_reconfigure_cmake_argv_matches_idf_py(setup_core: Path) -> None:
         "-DESP_PLATFORM=1",
         f"-DSDKCONFIG={sdkconfig}",
         "-DCCACHE_ENABLE=0",
+        "-DESPHOME_SKIP_BOOTLOADER=0",
         project,
     ]
     kwargs = mock_run.call_args.kwargs
@@ -927,6 +1032,7 @@ def test_run_reconfigure_cmake_argv_matches_idf6_py(
         "-DPYTHON=/tools/python",
         "-DESP_PLATFORM=1",
         f"-DCCACHE_ENABLE={expected}",
+        "-DESPHOME_SKIP_BOOTLOADER=0",
         str(build_dir.parent),
     ]
 
@@ -938,7 +1044,8 @@ def test_run_reconfigure_without_sdkconfig_or_filter(setup_core: Path) -> None:
         assert toolchain.run_reconfigure(verbose=True) == 0
     cmd = mock_run.call_args.args[0]
     assert not any(arg.startswith("-DSDKCONFIG=") for arg in cmd)
-    assert cmd[-2] == "-DCCACHE_ENABLE=0"
+    assert cmd[-3] == "-DCCACHE_ENABLE=0"
+    assert cmd[-2] == "-DESPHOME_SKIP_BOOTLOADER=0"
     assert mock_run.call_args.kwargs["filter_lines"] is None
 
 
@@ -1005,6 +1112,7 @@ _CONFIGURED = (
     "PYTHON_DEPS_CHECKED:UNINITIALIZED=1\n"
     "PYTHON:UNINITIALIZED=/tools/python\n"
     "ESP_PLATFORM:UNINITIALIZED=1\n"
+    "ESPHOME_SKIP_BOOTLOADER:UNINITIALIZED=0\n"
 )
 
 
@@ -1256,3 +1364,206 @@ def test_get_cmake_cache_value_reads_the_configured_cache(setup_core: Path) -> N
     with patch.object(toolchain, "_get_cmake_output", return_value=output):
         assert toolchain.get_cmake_cache_value("ESPHOME_PCH") == "OFF"
         assert toolchain.get_cmake_cache_value("ESPHOME_MISSING") is None
+
+
+def test_skip_bootloader_requires_flag_and_matching_macro(
+    setup_core: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The switch is explicit, and an IDF macro change wins over it."""
+    from esphome.build_gen import espidf as build_gen
+
+    assert toolchain._skip_bootloader() is False
+    CORE.skip_bootloader = True
+    toolchain._cache().skip_bootloader = None  # decision is memoized per run
+    with (
+        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
+        patch.object(build_gen, "idf_macro_matches", return_value=True),
+    ):
+        assert toolchain._skip_bootloader() is True
+    toolchain._cache().skip_bootloader = None
+    with (
+        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
+        patch.object(build_gen, "idf_macro_matches", return_value=False) as mock_match,
+        caplog.at_level("WARNING"),
+    ):
+        assert toolchain._skip_bootloader() is False
+        assert toolchain._skip_bootloader() is False
+    mock_match.assert_called_once()  # the memo also dedupes the warning
+    assert "--skip-bootloader ignored" in caplog.text
+
+
+def test_configure_defines_follow_skip_bootloader(setup_core: Path) -> None:
+    with (
+        patch.object(toolchain, "_get_idf_tool", return_value="/tools/python"),
+        patch.object(toolchain, "_cache_entries", return_value={}),
+    ):
+        with patch.object(toolchain, "_skip_bootloader", return_value=True):
+            assert (
+                toolchain._configure_defines()[toolchain.SKIP_BOOTLOADER_DEFINE] == "1"
+            )
+        with patch.object(toolchain, "_skip_bootloader", return_value=False):
+            assert (
+                toolchain._configure_defines()[toolchain.SKIP_BOOTLOADER_DEFINE] == "0"
+            )
+
+
+def test_tree_skips_bootloader_reads_the_define(tmp_path: Path) -> None:
+    build = tmp_path / "build"
+    build.mkdir()
+    assert toolchain.tree_skips_bootloader(build) is False  # not configured
+    cache = build / "CMakeCache.txt"
+    cache.write_text(f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n")
+    assert toolchain.tree_skips_bootloader(build) is True
+    cache.write_text(f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=0\n")
+    assert toolchain.tree_skips_bootloader(build) is False
+
+
+def test_tree_skips_bootloader_unreadable_cache_reads_full(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Unreadable trees fall back to the safe full build, with a trace."""
+    build = tmp_path / "build"
+    (build / "CMakeCache.txt").mkdir(parents=True)  # read raises OSError
+    with caplog.at_level("DEBUG"):
+        assert toolchain.tree_skips_bootloader(build) is False
+    assert "assuming a full build" in caplog.text
+
+
+def test_create_factory_bin_merges_the_listed_flash_files(
+    setup_core: Path,
+) -> None:
+    """Every listed file lands in the esptool merge argv, address sorted."""
+    _setup_build(setup_core)
+    CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = "4MB"
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=0\n"
+    )
+    (build / "app.bin").write_bytes(b"app")
+    (build / "boot.bin").write_bytes(b"boot")
+    (build / "flasher_args.json").write_text(
+        '{"flash_files": {"0x10000": "app.bin", "0x0": "boot.bin"},'
+        ' "extra_esptool_args": {"chip": "esp32"}}'
+    )
+    with (
+        patch.object(toolchain, "_get_idf_env", return_value={}),
+        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
+        patch.object(
+            toolchain.subprocess, "run", return_value=MagicMock(returncode=0)
+        ) as mock_run,
+    ):
+        assert toolchain.create_factory_bin() is True
+    argv = mock_run.call_args.args[0]
+    boot = argv.index("0x0")
+    assert argv[boot + 1].endswith("boot.bin")
+    assert argv[boot + 2] == "0x10000"
+
+
+def test_create_factory_bin_fails_on_a_missing_listed_flash_file(
+    setup_core: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A partial factory image would not boot; never write one."""
+    _setup_build(setup_core)
+    CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = "4MB"
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=0\n"
+    )
+    (build / "flasher_args.json").write_text('{"flash_files": {"0x0": "missing.bin"}}')
+    stale = toolchain.get_factory_firmware_path()
+    stale.write_bytes(b"old")
+    with patch.object(toolchain.subprocess, "run") as mock_run:
+        assert toolchain.create_factory_bin() is False
+    mock_run.assert_not_called()
+    assert "Flash file not found" in caplog.text
+    # The image from an earlier build must not be served as this one.
+    assert not stale.exists()
+
+
+def test_create_factory_bin_skip_mode_creates_nothing(
+    setup_core: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The flip into skip mode already cleaned up; the merge just no-ops."""
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
+    )
+    with (
+        patch.object(toolchain.subprocess, "run") as mock_run,
+        caplog.at_level("INFO"),
+    ):
+        assert toolchain.create_factory_bin() is True
+    mock_run.assert_not_called()
+    assert "no factory image" in caplog.text
+
+
+def test_run_reconfigure_flip_into_skip_mode_cleans_up(setup_core: Path) -> None:
+    """Full-mode leftovers are stale for OTA --bootloader and downloads, and
+    a partial cleanup would poison the flip back to full mode."""
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    (build / "bootloader").mkdir(parents=True)
+    (build / "bootloader" / "bootloader.bin").write_bytes(b"old")
+    # bootloader-prefix deliberately absent: cleanup skips what is not there.
+    stale = toolchain.get_factory_firmware_path()
+    stale.parent.mkdir(parents=True, exist_ok=True)
+    stale.write_bytes(b"old")
+    with (
+        patch.object(toolchain, "_skip_bootloader", return_value=True),
+        patch.object(toolchain, "_get_idf_tool", side_effect=lambda n: f"/tools/{n}"),
+        patch.object(toolchain, "_tool_env", return_value={}),
+        patch.object(toolchain, "run_build_tool", return_value=0),
+        patch.object(toolchain, "_idf_py") as mock_idf_py,
+    ):
+        mock_idf_py.return_value.binary_dir_arg = False
+        assert toolchain.run_reconfigure() == 0
+    assert not (build / "bootloader").exists()
+    assert not stale.exists()
+
+
+def test_run_reconfigure_skip_steady_state_cleans_nothing(setup_core: Path) -> None:
+    """Cleanup belongs to the flip; a reconfigure of a skip tree touches nothing."""
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
+    )
+    marker = build / "bootloader"
+    marker.mkdir()
+    with (
+        patch.object(toolchain, "_skip_bootloader", return_value=True),
+        patch.object(toolchain, "_get_idf_tool", side_effect=lambda n: f"/tools/{n}"),
+        patch.object(toolchain, "_tool_env", return_value={}),
+        patch.object(toolchain, "run_build_tool", return_value=0),
+        patch.object(toolchain, "_idf_py") as mock_idf_py,
+    ):
+        mock_idf_py.return_value.binary_dir_arg = False
+        assert toolchain.run_reconfigure() == 0
+    assert marker.exists()
+
+
+def test_create_factory_bin_full_mode_needs_flasher_args(setup_core: Path) -> None:
+    """Past the skip gate, a full tree without flasher_args fails as before."""
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=0\n"
+    )
+    assert toolchain.create_factory_bin() is False
+
+
+def test_missing_image_hint_names_the_flag(setup_core: Path) -> None:
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    assert toolchain.missing_image_hint() is None  # stock tree
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
+    )
+    assert "--skip-bootloader" in toolchain.missing_image_hint()
