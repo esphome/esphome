@@ -99,10 +99,6 @@ from split_components_for_ci import create_intelligent_batches
 # For large PRs (>= 65 files), use split for better parallelization
 CLANG_TIDY_SPLIT_THRESHOLD = 65
 
-# Component test batch size (weighted by build count, see
-# split_components_for_ci.component_weight)
-COMPONENT_TEST_BATCH_SIZE = 40
-
 # Above the threshold, fan out across up to this many jobs, balanced by the
 # recorded per-file durations. The target is serial junit-time weight per
 # bucket, not wall time (calibrated with the conftest compile cap); it
@@ -1534,7 +1530,6 @@ def main() -> None:
         batches, _ = create_intelligent_batches(
             components=changed_components_with_tests,
             tests_dir=tests_dir,
-            batch_size=COMPONENT_TEST_BATCH_SIZE,
             directly_changed=batch_directly_changed,
         )
         # Convert batches to CI matrix entries: the component list plus which

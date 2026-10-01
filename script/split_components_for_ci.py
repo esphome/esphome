@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+from dataclasses import dataclass
 import json
+import math
 from pathlib import Path
 import sys
 
@@ -28,15 +30,32 @@ from script.analyze_component_buses import (
     create_grouping_signature,
     merge_compatible_bus_groups,
 )
-from script.helpers import get_component_test_files, split_conflicting_groups
+from script.helpers import (
+    get_component_test_files,
+    parse_test_filename,
+    split_conflicting_groups,
+)
 
-# Weighting for batch creation, roughly proportional to serial build time.
-# Every test file of an isolated component and every variant file
-# (test-<variant>.*.yaml) of a groupable component is its own build, so each
-# counts BUILD_WEIGHT. Base files of groupable components are merged into
-# shared per-platform builds, so a groupable component adds GROUPABLE_WEIGHT.
-BUILD_WEIGHT = 3
-GROUPABLE_WEIGHT = 1
+# Estimated CI seconds for one build per test platform, read from batch job
+# logs. Absolute accuracy does not matter, only the ratios between platforms.
+# A full run takes over an hour, so recording real timings is not practical.
+PLATFORM_BUILD_SECONDS = {
+    "host": 10,
+    "esp8266-ard": 30,
+    "esp32-idf": 45,
+    "rtl87xx-ard": 35,
+    "ln882x-ard": 50,
+    "rp2040-ard": 50,
+    "rp2350-ard": 50,
+    "bk72xx-ard": 60,
+}
+NRF52_BUILD_SECONDS = 45
+# Other ESP32 chips and Arduino on ESP32 share less of the ccache
+DEFAULT_BUILD_SECONDS = 90
+# Each extra component merged into a grouped build makes it larger
+GROUPED_COMPONENT_SECONDS = 5
+# Estimated build seconds per CI runner; sets how many runners are used
+TARGET_BATCH_SECONDS = 600
 
 # Platform used for batching (platform-agnostic batching)
 # Batches are split across CI runners and each runner tests all platforms
@@ -63,19 +82,96 @@ def has_test_files(component_name: str, tests_dir: Path) -> bool:
     )
 
 
-def component_weight(component_name: str, is_isolated: bool) -> int:
-    """Return the batch weight of a component from its compiled test files."""
-    test_files = get_component_test_files(component_name, all_variants=True)
-    if is_isolated:
-        return BUILD_WEIGHT * max(1, len(test_files))
-    variant_count = sum(1 for f in test_files if f.name.startswith("test-"))
-    return GROUPABLE_WEIGHT + BUILD_WEIGHT * variant_count
+def build_seconds(platform: str) -> int:
+    """Return the estimated CI seconds for one build on a test platform."""
+    if (seconds := PLATFORM_BUILD_SECONDS.get(platform)) is not None:
+        return seconds
+    if platform.startswith("nrf52"):
+        return NRF52_BUILD_SECONDS
+    return DEFAULT_BUILD_SECONDS
+
+
+@dataclass
+class _BatchItem:
+    """A component and the builds it adds to the batch it lands in."""
+
+    component: str
+    # Builds that only this component runs (isolated tests and variants)
+    own_seconds: int
+    # (signature, platform) of the shared grouped builds it joins
+    grouped_builds: frozenset[tuple[str, str]] = frozenset()
+
+    def standalone_seconds(self) -> int:
+        return self.own_seconds + sum(
+            build_seconds(platform) for _, platform in self.grouped_builds
+        )
+
+
+def _make_item(component: str, signature: str, is_isolated: bool) -> _BatchItem:
+    own_seconds = 0
+    grouped: set[tuple[str, str]] = set()
+    for test_file in get_component_test_files(component, all_variants=True):
+        test_name, platform = parse_test_filename(test_file)
+        if is_isolated or test_name != "test":
+            own_seconds += build_seconds(platform)
+        else:
+            grouped.add((signature, platform))
+    return _BatchItem(component, own_seconds, frozenset(grouped))
+
+
+class _Batch:
+    """A CI runner's components and its estimated build seconds."""
+
+    def __init__(self) -> None:
+        self.components: list[str] = []
+        self.seconds = 0
+        self.grouped_builds: set[tuple[str, str]] = set()
+
+    def added_seconds(self, item: _BatchItem) -> int:
+        """Return the seconds item would add; joining an existing build is cheap."""
+        return item.own_seconds + sum(
+            GROUPED_COMPONENT_SECONDS
+            if build in self.grouped_builds
+            else build_seconds(build[1])
+            for build in item.grouped_builds
+        )
+
+    def add(self, item: _BatchItem) -> None:
+        self.seconds += self.added_seconds(item)
+        self.grouped_builds.update(item.grouped_builds)
+        self.components.append(item.component)
+
+
+def balance_batches(items: list[_BatchItem], target_seconds: int) -> list[list[str]]:
+    """Spread items over enough runners to stay near target_seconds each.
+
+    The runner count comes from the total estimate with every grouped build
+    counted once. Heaviest items go first, each to the runner that ends up
+    lightest, so grouped components follow the builds they can join.
+    """
+    if not items:
+        return []
+    grouped_builds: dict[tuple[str, str], int] = defaultdict(int)
+    for item in items:
+        for build in item.grouped_builds:
+            grouped_builds[build] += 1
+    total = sum(item.own_seconds for item in items) + sum(
+        build_seconds(platform) + GROUPED_COMPONENT_SECONDS * (count - 1)
+        for (_, platform), count in grouped_builds.items()
+    )
+    count = min(len(items), max(1, math.ceil(total / target_seconds)))
+    batches = [_Batch() for _ in range(count)]
+    for item in sorted(items, key=lambda i: (-i.standalone_seconds(), i.component)):
+        min(batches, key=lambda b: (b.seconds + b.added_seconds(item), b.seconds)).add(
+            item
+        )
+    return [batch.components for batch in batches if batch.components]
 
 
 def create_intelligent_batches(
     components: list[str],
     tests_dir: Path,
-    batch_size: int = 40,
+    target_seconds: int = TARGET_BATCH_SECONDS,
     directly_changed: set[str] | None = None,
 ) -> tuple[list[list[str]], dict[tuple[str, str], list[str]]]:
     """Create batches optimized for component grouping.
@@ -87,7 +183,7 @@ def create_intelligent_batches(
     Args:
         components: List of component names to batch
         tests_dir: Path to tests/components directory
-        batch_size: Target size for each batch
+        target_seconds: Estimated build seconds per batch
         directly_changed: Set of directly changed components (for logging only)
 
     Returns:
@@ -168,49 +264,14 @@ def create_intelligent_batches(
     # actually be split into two at build time -- throwing off CI distribution.
     signature_groups = split_conflicting_groups(signature_groups)
 
-    # Create batches by keeping signature groups together
-    # Components with the same signature stay in the same batches
-    batches = []
-
-    # Sort signature groups to prioritize groupable components
-    # 1. Put "isolated_*" signatures last (can't be grouped with others)
-    # 2. Sort groupable signatures by size (largest first)
-    # 3. "no_buses" components CAN be grouped together
-    def sort_key(item):
-        (_platform, signature), components = item
-        is_isolated = signature.startswith(ISOLATED_SIGNATURE_PREFIX)
-        # Put "isolated_*" last (1), groupable first (0)
-        # Within each category, sort by size (largest first)
-        return (is_isolated, -len(components))
-
-    sorted_groups = sorted(signature_groups.items(), key=sort_key)
-
-    # Strategy: Create batches using weighted sizes (see component_weight)
-    # - Components with many separate builds spread across more runners
-    # - Ensures each runner has a good mix of groupable vs isolated components
-
-    current_batch = []
-    current_weight = 0
-
-    for (_platform, signature), group_components in sorted_groups:
-        is_isolated = signature.startswith(ISOLATED_SIGNATURE_PREFIX)
-
-        for component in group_components:
-            weight = component_weight(component, is_isolated)
-            # Check if adding this component would exceed the batch size
-            if current_weight + weight > batch_size and current_batch:
-                # Start a new batch
-                batches.append(current_batch)
-                current_batch = []
-                current_weight = 0
-
-            # Add component to current batch
-            current_batch.append(component)
-            current_weight += weight
-
-    # Don't forget the last batch
-    if current_batch:
-        batches.append(current_batch)
+    items = [
+        _make_item(
+            component, signature, signature.startswith(ISOLATED_SIGNATURE_PREFIX)
+        )
+        for (_platform, signature), group_components in sorted(signature_groups.items())
+        for component in group_components
+    ]
+    batches = balance_batches(items, target_seconds)
 
     return batches, signature_groups
 
@@ -227,11 +288,11 @@ def main() -> int:
         help="JSON array of component names",
     )
     parser.add_argument(
-        "--batch-size",
-        "-b",
+        "--target-seconds",
+        "-t",
         type=int,
-        default=40,
-        help="Target batch size (default: 40, weighted)",
+        default=TARGET_BATCH_SECONDS,
+        help=f"Estimated build seconds per batch (default: {TARGET_BATCH_SECONDS})",
     )
     parser.add_argument(
         "--tests-dir",
@@ -277,7 +338,7 @@ def main() -> int:
     batches, signature_groups = create_intelligent_batches(
         components=components,
         tests_dir=args.tests_dir,
-        batch_size=args.batch_size,
+        target_seconds=args.target_seconds,
         directly_changed=directly_changed,
     )
 
@@ -395,7 +456,7 @@ def main() -> int:
             file=sys.stderr,
         )
     print(f"Number of batches: {len(batches)}", file=sys.stderr)
-    print(f"Batch size target (weighted): {args.batch_size}", file=sys.stderr)
+    print(f"Target build seconds per batch: {args.target_seconds}", file=sys.stderr)
     if len(batches) > 0:
         print(
             f"Average components per batch: {actual_components / len(batches):.1f}",
