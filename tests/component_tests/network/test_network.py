@@ -172,6 +172,7 @@ def test_wake_on_lan_keeps_ipv4_under_openthread(
         "wake_on_lan_ipv4_disabled_rejected.yaml",
         "udp_ipv4_disabled_rejected.yaml",
         "esp8266_ipv4_disabled_rejected.yaml",
+        "esp32_arduino_ipv4_disabled_rejected.yaml",
     ],
 )
 def test_require_ipv4_registration_rejects_explicit_disable(
@@ -289,10 +290,10 @@ def test_esp32_arduino_keeps_ipv4_with_network_and_no_requirement(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """CONFIG_LWIP_IPV4 has no Arduino override the way CONFIG_LWIP_IPV6 does, so
-    esp32/_require_ip_on_arduino() must keep IPv4 on even with nothing else
-    requiring it -- regression test for the review finding that this used to break
-    ip_address.h's Arduino-only conversion operators."""
+    """The Arduino core does not compile with IPv4 off, so esp32/_require_ip_on_arduino()
+    must keep IPv4 on even with nothing else requiring it -- regression test for the
+    review finding that this used to break ip_address.h's Arduino-only conversion
+    operators."""
     generate_main(component_config_path("esp32_arduino_ipv6_no_ipv4_requirement.yaml"))
     define = next((d for d in CORE.defines if d.name == "USE_NETWORK_IPV4"), None)
     assert define is not None
