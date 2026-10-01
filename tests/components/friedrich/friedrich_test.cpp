@@ -110,6 +110,7 @@ TEST(FriedrichTests, OddTargetStepsUpToEven) {
   auto data = f.sent();
   ASSERT_EQ(data.data.size(), STATE_MESSAGE_LENGTH);
   EXPECT_EQ(data.data[6], TEMP_72_CODE | 0x80);
+  EXPECT_FLOAT_EQ(f.sut.target_temperature, 72.0f);  // stored value matches what was sent
 }
 
 TEST(FriedrichTests, NonHeatModesAreRaisedToSixtyFour) {

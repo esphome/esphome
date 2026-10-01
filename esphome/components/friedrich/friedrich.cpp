@@ -103,13 +103,12 @@ void FriedrichClimate::transmit_state() {
 
   ESP_LOGV(TAG, "Transmit state");
 
-  // Non-heat modes cannot go below 64°F; clamp before building state so publish_state()
-  // is never called mid-transmission.
+  // Snap to what the unit accepts (even values, 64°F minimum unless heating) and store it,
+  // so the state published after this call matches the frame sent.
   const uint8_t effective_min = this->mode == climate::CLIMATE_MODE_HEAT ? TEMP_MIN : TEMP_MIN_NOT_HEAT;
-  if (this->target_temperature < effective_min) {
-    this->target_temperature = effective_min;
-    this->publish_state();
-  }
+  uint8_t temperature = (uint8_t) roundf(clamp<float>(this->target_temperature, effective_min, TEMP_MAX));
+  temperature += temperature % 2;
+  this->target_temperature = temperature;
 
   std::array<uint8_t, STATE_MESSAGE_LENGTH> remote_state{};
 
@@ -120,13 +119,9 @@ void FriedrichClimate::transmit_state() {
   remote_state[4] = BYTE4_FIXED;
   remote_state[5] = BYTE5_FIXED;
 
-  // Set Temp (step to even)
-  uint8_t temperature_clamped = (uint8_t) roundf(clamp<float>(this->target_temperature, TEMP_MIN, TEMP_MAX));
-  if (temperature_clamped % 2 == 1) {
-    temperature_clamped++;
-  }
+  // Set Temp
   for (const auto &entry : TEMP_ENCODINGS) {
-    if (entry.fahrenheit == temperature_clamped) {
+    if (entry.fahrenheit == temperature) {
       remote_state[6] = entry.encoded;
       break;
     }

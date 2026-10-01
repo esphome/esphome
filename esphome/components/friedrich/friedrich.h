@@ -4,8 +4,8 @@
 
 namespace esphome::friedrich {
 
-// Simple enum to represent models.
-// Stub for future development of other models, currently nothing depends upon Model.
+// Extension point for other units: add new models here and branch on model_ where they differ.
+// The default must stay MW12Y3H so existing configurations do not change.
 enum Model {
   MODEL_MW12Y3H = 0,  // MW12Y3H built from a remote that only provided Fahrenheit
 };
@@ -50,7 +50,7 @@ class FriedrichClimate : public climate_ir::ClimateIR {
   /// Calculate checksum for a util message
   uint8_t checksum_util_(const uint8_t *data);
 
-  Model model_;
+  Model model_{MODEL_MW12Y3H};
 };
 
 }  // namespace esphome::friedrich
