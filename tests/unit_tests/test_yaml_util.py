@@ -841,6 +841,41 @@ def test_top_level_include_resolved_by_load_yaml(tmp_path: Path) -> None:
     assert result["key"] == "value"
 
 
+@pytest.mark.parametrize(
+    ("condition", "expected_result_or_error"),
+    [
+        ("true", True),
+        ("false", False),
+        ('"TRUE"', True),
+        ('"FALSE"', False),
+        ('"x"', "Cannot convert include condition for 'child.yaml' to a boolean"),
+        (
+            "$sub",
+            "Cannot evaluate include condition for 'child.yaml' with unresolved substitutions",
+        ),
+    ],
+)
+def test_top_level_include_with_condition_resolved_by_load_yaml(
+    tmp_path: Path, condition: bool | str | None, expected_result_or_error: bool | str
+) -> None:
+    """load_yaml evaluates the condition for a top-level !include."""
+    child = tmp_path / "child.yaml"
+    child.write_text("key: value\n")
+    main = tmp_path / "main.yaml"
+    main.write_text(f"!include {{ file: child.yaml, condition: {condition} }}\n")
+
+    if isinstance(expected_result_or_error, bool):
+        result = yaml_util.load_yaml(main)
+        assert isinstance(result, dict)
+        if expected_result_or_error:
+            assert result["key"] == "value"
+        else:
+            assert result == {}
+    else:
+        with pytest.raises(cv.Invalid, match=expected_result_or_error):
+            result = yaml_util.load_yaml(main)
+
+
 def test_include_plain_filename_loads_after_deferred_refactor() -> None:
     """!include with a plain filename (no $ expressions) still loads correctly.
 

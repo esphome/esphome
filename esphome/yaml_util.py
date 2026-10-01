@@ -1029,7 +1029,7 @@ def _load_yaml_internal(fname: Path, *, track_document_range: bool = True) -> An
     # Top-level !include returns a deferred IncludeFile; resolve it so
     # callers always receive the final content.
     if isinstance(res, IncludeFile):
-        res = res.load()
+        res = res.load() if res.should_load() else {}
     return res
 
 
