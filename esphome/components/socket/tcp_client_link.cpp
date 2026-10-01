@@ -9,7 +9,8 @@
 
 namespace esphome::socket {
 
-void set_stream_options(Socket *sock) {
+// Non-blocking options and TCP keepalive for a bridged stream socket.
+static void set_stream_options(Socket *sock) {
   int yes = 1;
   sock->setblocking(false);
   sock->setsockopt(IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes));
@@ -30,20 +31,9 @@ void TcpClientLink::begin(const char *tag) {
   this->last_attempt_ms_ = App.get_loop_component_start_time() - this->reconnect_interval_ms_;
 }
 
-void TcpClientLink::note_attempt() { this->last_attempt_ms_ = App.get_loop_component_start_time(); }
-
-bool TcpClientLink::in_backoff() const {
-  return App.get_loop_component_start_time() - this->last_attempt_ms_ < this->reconnect_interval_ms_;
-}
-
-void TcpClientLink::poll() {
+void TcpClientLink::poll_slow_() {
   if (this->sock_ == nullptr) {
-    if (!this->in_backoff()) {
-      this->try_connect_();
-    }
-    return;
-  }
-  if (this->connected_) {
+    this->try_connect_();
     return;
   }
   int err = 0;
@@ -51,7 +41,7 @@ void TcpClientLink::poll() {
     case ConnectPollResult::CONNECT_POLL_RESULT_PENDING:
       return;
     case ConnectPollResult::CONNECT_POLL_RESULT_ERROR:
-      this->drop_(err);
+      this->drop_(LOG_STR("Connect failed"), err);
       return;
     default:
       break;
@@ -84,7 +74,7 @@ void TcpClientLink::try_connect_() {
   set_stream_options(this->sock_.get());
   // An immediate success is reported by the next poll(); poll_connect() sees it writable.
   if (this->sock_->connect(reinterpret_cast<struct sockaddr *>(&dest), dest_len) != 0 && errno != EINPROGRESS) {
-    this->drop_(errno);
+    this->drop_(LOG_STR("Connect failed"), errno);
   }
 }
 
@@ -104,7 +94,7 @@ ssize_t TcpClientLink::read(uint8_t *buf, size_t len) {
     return count;
   }
   if (count == 0 || (errno != EAGAIN && errno != EWOULDBLOCK)) {
-    this->drop_(count == 0 ? 0 : errno);
+    this->drop_(LOG_STR("Connection lost"), count == 0 ? 0 : errno);
     return -1;
   }
   return 0;
@@ -121,7 +111,7 @@ ssize_t TcpClientLink::write(const uint8_t *buf, size_t len) {
   if (errno == EAGAIN || errno == EWOULDBLOCK) {
     return 0;
   }
-  this->drop_(errno);
+  this->drop_(LOG_STR("Connection lost"), errno);
   return -1;
 }
 
@@ -135,8 +125,8 @@ void TcpClientLink::close() {
   this->resolved_.forget();
 }
 
-void TcpClientLink::drop_(int err) {
-  ESP_LOGW(this->tag_, "Connection lost: %d", err);
+void TcpClientLink::drop_(const LogString *what, int err) {
+  ESP_LOGW(this->tag_, "%s: %d", LOG_STR_ARG(what), err);
   this->close();
   this->note_attempt();
 }
