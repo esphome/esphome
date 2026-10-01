@@ -45,7 +45,7 @@ def test_build_seconds() -> None:
 
 
 def test_make_item_isolated_and_grouped(tests_dir: Path) -> None:
-    """Isolated components own every build; groupable ones only variants."""
+    """Isolated components own every build; groupable ones join shared builds."""
     _add_component(
         tests_dir,
         "comp",
@@ -53,6 +53,7 @@ def test_make_item_isolated_and_grouped(tests_dir: Path) -> None:
             "test.esp32-idf.yaml",
             "test.host.yaml",
             "test-extra.esp32-idf.yaml",
+            "test-only.rp2040-ard.yaml",
             "validate.esp32-idf.yaml",
         ],
     )
@@ -60,23 +61,27 @@ def test_make_item_isolated_and_grouped(tests_dir: Path) -> None:
     isolated = split_components_for_ci._make_item(
         tests_dir, "comp", "isolated_comp", True
     )
-    assert isolated.own_seconds == 45 + 10 + 45
-    assert isolated.grouped_builds == frozenset()
+    assert isolated.own_seconds == 45 + 10 + 45 + 50
+    assert isolated.grouped_builds == {}
 
+    # The rp2040 variant has no base test to group with, so it always runs
     grouped = split_components_for_ci._make_item(tests_dir, "comp", "i2c", False)
-    assert grouped.own_seconds == 45
-    assert grouped.grouped_builds == {("i2c", "esp32-idf"), ("i2c", "host")}
+    assert grouped.own_seconds == 50
+    assert grouped.grouped_builds == {("i2c", "esp32-idf"): 90, ("i2c", "host"): 10}
 
 
 def test_grouped_component_joins_existing_build() -> None:
-    """Joining a grouped build a batch already has costs only the extra component."""
+    """A second member turns a lone build into a group that skips variants."""
     item = split_components_for_ci._BatchItem
     batch = split_components_for_ci._Batch()
-    batch.add(item("a", 0, frozenset({("i2c", "esp32-idf")})))
-    other = item("b", 0, frozenset({("i2c", "esp32-idf"), ("i2c", "host")}))
-    assert batch.added_seconds(other) == (
-        split_components_for_ci.GROUPED_COMPONENT_SECONDS + 10
-    )
+    batch.add(item("a", 0, {("i2c", "esp32-idf"): 90}))
+    assert batch.seconds == 90
+
+    other = item("b", 0, {("i2c", "esp32-idf"): 45, ("i2c", "host"): 10})
+    grouped = 45 + split_components_for_ci.GROUPED_COMPONENT_SECONDS
+    assert batch.added_seconds(other) == grouped - 90 + 10
+    batch.add(other)
+    assert batch.seconds == grouped + 10
 
 
 def test_isolated_components_balance_across_runners(tests_dir: Path) -> None:
@@ -105,8 +110,8 @@ def test_isolated_components_balance_across_runners(tests_dir: Path) -> None:
     ]
 
 
-def test_groupable_components_split_evenly(tests_dir: Path) -> None:
-    """Groupable components with variants spread evenly over the runners."""
+def test_groupable_variants_skipped_when_grouped(tests_dir: Path) -> None:
+    """Grouped members skip their variants, so the group fits one runner."""
     names = [f"comp_{i:02d}" for i in range(12)]
     for name in names:
         _add_component(
@@ -119,7 +124,21 @@ def test_groupable_components_split_evenly(tests_dir: Path) -> None:
         components=names, tests_dir=tests_dir, target_seconds=400
     )
 
-    assert [len(batch) for batch in batches] == [4, 4, 4]
+    assert batches == [names]
+
+
+def test_groupable_components_split_evenly(tests_dir: Path) -> None:
+    """A group too large for one runner spreads evenly."""
+    platforms = ["esp32-idf", "esp8266-ard", "rp2040-ard", "bk72xx-ard"]
+    names = [f"comp_{i:02d}" for i in range(12)]
+    for name in names:
+        _add_component(tests_dir, name, [f"test.{p}.yaml" for p in platforms])
+
+    batches, _ = split_components_for_ci.create_intelligent_batches(
+        components=names, tests_dir=tests_dir, target_seconds=100
+    )
+
+    assert sorted(len(batch) for batch in batches) == [2, 2, 2, 3, 3]
     assert sorted(c for batch in batches for c in batch) == names
 
 

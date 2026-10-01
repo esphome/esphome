@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import math
 from pathlib import Path
@@ -98,29 +98,44 @@ class _BatchItem:
     """A component and the builds it adds to the batch it lands in."""
 
     component: str
-    # Builds that only this component runs (isolated tests and variants)
+    # Builds that always run on their own (isolated tests, variants on a
+    # platform without a base test)
     own_seconds: int
-    # (signature, platform) of the shared grouped builds it joins
-    grouped_builds: frozenset[tuple[str, str]] = frozenset()
+    # Per (signature, platform) shared build: the seconds of this component's
+    # files on that platform when no other batch member shares the build
+    grouped_builds: dict[tuple[str, str], int] = field(default_factory=dict)
 
     def standalone_seconds(self) -> int:
-        return self.own_seconds + sum(
-            build_seconds(platform) for _, platform in self.grouped_builds
-        )
+        return self.own_seconds + sum(self.grouped_builds.values())
+
+
+def _grouped_build_seconds(platform: str, solo_seconds: list[int]) -> int:
+    """Return the seconds of one (signature, platform) build in a batch.
+
+    test_build_components only groups when two or more members share the
+    build; a grouped member then skips its variants on that platform.
+    """
+    if len(solo_seconds) <= 1:
+        return sum(solo_seconds)
+    return build_seconds(platform) + GROUPED_COMPONENT_SECONDS * (len(solo_seconds) - 1)
 
 
 def _make_item(
     tests_dir: Path, component: str, signature: str, is_isolated: bool
 ) -> _BatchItem:
-    own_seconds = 0
-    grouped: set[tuple[str, str]] = set()
+    files_by_platform: dict[str, list[str]] = defaultdict(list)
     for test_file in (tests_dir / component).glob("test[.-]*.yaml"):
         test_name, platform = parse_test_filename(test_file)
-        if is_isolated or test_name != "test":
-            own_seconds += build_seconds(platform)
+        files_by_platform[platform].append(test_name)
+    own_seconds = 0
+    grouped: dict[tuple[str, str], int] = {}
+    for platform, test_names in files_by_platform.items():
+        seconds = build_seconds(platform) * len(test_names)
+        if is_isolated or "test" not in test_names:
+            own_seconds += seconds
         else:
-            grouped.add((signature, platform))
-    return _BatchItem(component, own_seconds, frozenset(grouped))
+            grouped[(signature, platform)] = seconds
+    return _BatchItem(component, own_seconds, grouped)
 
 
 class _Batch:
@@ -129,20 +144,22 @@ class _Batch:
     def __init__(self) -> None:
         self.components: list[str] = []
         self.seconds = 0
-        self.grouped_builds: set[tuple[str, str]] = set()
+        self.grouped_builds: dict[tuple[str, str], list[int]] = defaultdict(list)
 
     def added_seconds(self, item: _BatchItem) -> int:
         """Return the seconds item would add; joining an existing build is cheap."""
-        return item.own_seconds + sum(
-            GROUPED_COMPONENT_SECONDS
-            if build in self.grouped_builds
-            else build_seconds(build[1])
-            for build in item.grouped_builds
-        )
+        added = item.own_seconds
+        for (signature, platform), solo in item.grouped_builds.items():
+            members = self.grouped_builds.get((signature, platform), [])
+            added += _grouped_build_seconds(
+                platform, [*members, solo]
+            ) - _grouped_build_seconds(platform, members)
+        return added
 
     def add(self, item: _BatchItem) -> None:
         self.seconds += self.added_seconds(item)
-        self.grouped_builds.update(item.grouped_builds)
+        for build, solo in item.grouped_builds.items():
+            self.grouped_builds[build].append(solo)
         self.components.append(item.component)
 
 
@@ -155,13 +172,13 @@ def balance_batches(items: list[_BatchItem], target_seconds: int) -> list[list[s
     """
     if not items:
         return []
-    grouped_builds: dict[tuple[str, str], int] = defaultdict(int)
+    grouped_builds: dict[tuple[str, str], list[int]] = defaultdict(list)
     for item in items:
-        for build in item.grouped_builds:
-            grouped_builds[build] += 1
+        for build, solo in item.grouped_builds.items():
+            grouped_builds[build].append(solo)
     total = sum(item.own_seconds for item in items) + sum(
-        build_seconds(platform) + GROUPED_COMPONENT_SECONDS * (count - 1)
-        for (_, platform), count in grouped_builds.items()
+        _grouped_build_seconds(platform, solos)
+        for (_, platform), solos in grouped_builds.items()
     )
     count = min(len(items), max(1, math.ceil(total / target_seconds)))
     batches = [_Batch() for _ in range(count)]
