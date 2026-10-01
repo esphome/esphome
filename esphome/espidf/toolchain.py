@@ -441,7 +441,6 @@ def _run_ninja(
     if verbose:
         cmd.append("-v")
     cmd += targets
-    target = " ".join(targets)
     log_name = "_".join(Path(t).name for t in targets)
     log_path = _build_dir() / "log" / f"ninja_{log_name}_output.log"
     rc = run_build_tool(
@@ -453,7 +452,7 @@ def _run_ninja(
         log_path=log_path,
     )
     if rc != 0:
-        _LOGGER.error("ninja %s failed with exit code %d", target, rc)
+        _LOGGER.error("ninja %s failed with exit code %d", " ".join(targets), rc)
         _print_hints(log_path)
     return rc
 
@@ -846,9 +845,8 @@ def run_compile(config, verbose: bool) -> int:
 
     write_pch_checksum()
 
-    # idf.py's ``build size`` as one ninja run: ``size`` depends on the map
-    # file, so it runs after the link and never after a failed one, and the
-    # second ninja start plus its glob re-check are saved on every build.
+    # idf.py's ``build size`` in one ninja run; size needs the map, so it
+    # runs after the link.
     rc = _run_ninja(
         "all", "size", verbose=verbose, jobs=jobs, progress=True, extra_env=_size_env()
     )

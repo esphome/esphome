@@ -1173,7 +1173,6 @@ def test_run_ninja_matches_idf_py_run_target(setup_core: Path) -> None:
             == 0
         )
     assert mock_run.call_args.args[0] == ["/tools/ninja", "-j", "2", "-v", "size"]
-    assert mock_run.call_args.kwargs["log_path"].name == "ninja_size_output.log"
     kwargs = mock_run.call_args.kwargs
     assert kwargs["cwd"] == Path(os.path.realpath(CORE.build_path)) / "build"
     assert kwargs["env"]["CLICOLOR_FORCE"] == "1"
@@ -1192,30 +1191,17 @@ def test_run_ninja_filters_and_reports_failure(
         patch.object(toolchain, "_print_hints") as mock_hints,
     ):
         mock_run.return_value = 1
-        assert toolchain._run_ninja("all", verbose=False, jobs=None, progress=True) == 1
+        assert (
+            toolchain._run_ninja("all", "size", verbose=False, jobs=None, progress=True)
+            == 1
+        )
     log_path = mock_run.call_args.kwargs["log_path"]
-    assert log_path.name == "ninja_all_output.log"
+    assert log_path.name == "ninja_all_size_output.log"
     mock_hints.assert_called_once_with(log_path)
-    assert mock_run.call_args.args[0] == ["/tools/ninja", "all"]
+    assert mock_run.call_args.args[0] == ["/tools/ninja", "all", "size"]
     assert mock_run.call_args.kwargs["filter_lines"] is toolchain.FILTER_IDF_LINES
     assert mock_run.call_args.kwargs["progress"] is True
-    assert "ninja all failed with exit code 1" in caplog.text
-
-
-def test_run_ninja_builds_several_targets_in_one_run(
-    setup_core: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """The targets go on one command line and share a log file."""
-    _setup_build(setup_core)
-    with (
-        _fake_tools() as mock_run,
-        patch.object(toolchain, "_print_hints"),
-    ):
-        mock_run.return_value = 2
-        assert toolchain._run_ninja("all", "size", verbose=False, jobs=None) == 2
-    assert mock_run.call_args.args[0] == ["/tools/ninja", "all", "size"]
-    assert mock_run.call_args.kwargs["log_path"].name == "ninja_all_size_output.log"
-    assert "ninja all size failed with exit code 2" in caplog.text
+    assert "ninja all size failed with exit code 1" in caplog.text
 
 
 @pytest.mark.parametrize("reconfigure_rc", [0, 5])

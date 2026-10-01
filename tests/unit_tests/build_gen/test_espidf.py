@@ -223,8 +223,7 @@ def test_get_project_cmakelists_size_command_uses_json2() -> None:
 
 
 def test_get_project_cmakelists_declares_map_as_link_byproduct() -> None:
-    """The size target depends on the map; the link must own it so ninja
-    builds all and size in one run, on a fresh tree too."""
+    """The link declares the map so size can build in the same ninja run."""
     content = _render()
     assert "BYPRODUCTS ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map" in content
 

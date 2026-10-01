@@ -353,6 +353,7 @@ project({CORE.name})
 # this command runs inside the link edge, blocking everything downstream.
 # The map is a BYPRODUCT so ninja knows the link writes it; IDF's size
 # target depends on the map and can then be built in the same run as all.
+# IDF's cmakev2 declares the map itself, so drop this line on that switch.
 add_custom_command(
     TARGET ${{CMAKE_PROJECT_NAME}}.elf POST_BUILD
     COMMAND ${{PYTHON}} -m esp_idf_size {size_ng_flag} --format=json2
