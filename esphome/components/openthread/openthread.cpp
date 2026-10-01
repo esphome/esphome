@@ -317,7 +317,6 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
     if (otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
       ESP_LOGE(TAG, "Failed to set pollperiod");
     }
-    ESP_LOGD(TAG, "Link Polling Period: %" PRIu32, otLinkGetPollPeriod(instance));
   }
 
   uint32_t poll_period_sec = (this->poll_period_ + 500) / 1000;
@@ -343,6 +342,10 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
            "Child Supervision Interval: %u sec",
            otThreadGetChildTimeout(instance), otChildSupervisionGetCheckTimeout(instance),
            otChildSupervisionGetInterval(instance));
+  if (this->poll_period_ > 0) {
+    // Read after the child timeout is set: OpenThread caps the effective period by one derived from it.
+    ESP_LOGD(TAG, "Link Polling Period: %" PRIu32, otLinkGetPollPeriod(instance));
+  }
 
   link_mode_config.mRxOnWhenIdle = this->poll_period_ == 0;
   link_mode_config.mDeviceType = false;
