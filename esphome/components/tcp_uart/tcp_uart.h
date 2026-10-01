@@ -1,31 +1,29 @@
 #pragma once
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
-#include "esphome/components/socket/ipv4_resolve.h"
-#include "esphome/components/socket/socket.h"
+#include "esphome/components/socket/tcp_client_link.h"
 #include "esphome/components/uart/uart_component.h"
-#include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/string_ref.h"
 
 #include <cstdint>
-#include <memory>
 
 namespace esphome::tcp_uart {
 
 /// TCP client presented as a UART. Bytes are copied unchanged.
 class TcpUart : public uart::UARTComponent, public Component {
  public:
-  void set_host(const char *host) { this->host_ = StringRef(host); }
-  void set_port(uint16_t port) { this->port_ = port; }
-  void set_reconnect_interval(uint32_t ms) { this->reconnect_interval_ms_ = ms; }
+  TcpUart() { this->rx_buffer_size_ = RX_BUFFER_SIZE; }
+
+  void set_host(const char *host) { this->link_.set_host(host); }
+  void set_port(uint16_t port) { this->link_.set_port(port); }
+  void set_reconnect_interval(uint32_t ms) { this->link_.set_reconnect_interval(ms); }
   void set_connected_sensor(binary_sensor::BinarySensor *sensor) { this->connected_sensor_ = sensor; }
 
   void setup() override;
   void loop() override;
   void dump_config() override;
-  void on_shutdown() override;
+  void on_shutdown() override { this->link_.close(); }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   void write_array(const uint8_t *data, size_t len) override;
@@ -33,42 +31,27 @@ class TcpUart : public uart::UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override { return this->rx_.size(); }
   uart::UARTFlushResult flush() override;
-  bool is_connected() override { return this->sock_ != nullptr && this->connected_; }
+  bool is_connected() override { return this->link_.connected(); }
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   void load_settings(bool dump_config) override {}
 #endif
 
  protected:
   void check_logger_conflict() override {}
-  void close_sock_();
-  void try_connect_();
+  void sync_link_();
   void read_socket_();
   void flush_tx_();
-  void apply_socket_options_(socket::Socket *sock);
-  void set_link_up_(bool up);
-  void note_attempt_() { this->last_attempt_ms_ = App.get_loop_component_start_time(); }
-  bool in_backoff_() const {
-    return App.get_loop_component_start_time() - this->last_attempt_ms_ < this->reconnect_interval_ms_;
-  }
 
   static constexpr size_t RX_BUFFER_SIZE = 1024;
   static constexpr size_t TX_BUFFER_SIZE = 1024;
   static constexpr size_t READ_CHUNK = 128;
 
-  // 4-byte members, then the port, then the flags, then the byte buffers.
-  StringRef host_;
-  std::unique_ptr<socket::Socket> sock_;
+  socket::TcpClientLink link_;
   binary_sensor::BinarySensor *connected_sensor_{nullptr};
-  uint32_t last_attempt_ms_{0};
   uint32_t last_drop_log_ms_{0};
-  uint32_t reconnect_interval_ms_{5000};
-  size_t tx_len_{0};
-  socket::Ipv4Resolve resolved_;
-
-  uint16_t port_{0};
-  bool connecting_{false};
-  bool connected_{false};
-  bool offline_drop_logged_{false};
+  uint16_t tx_len_{0};
+  // The link state loop() saw last; edges clear the buffers and publish the sensor.
+  bool link_was_up_{false};
   // A read stopped before EAGAIN. ready() stays false until new data arrives.
   bool rx_pending_{false};
   StaticRingBuffer<uint8_t, RX_BUFFER_SIZE> rx_;
