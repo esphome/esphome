@@ -65,8 +65,8 @@ enum ChargeStatus {
 // I2C watchdog timeout values (REG07[5:4]). The chip resets several other
 // registers - including CHG_CONFIG (REG03) and STAT_DIS (REG07) - back to
 // power-on defaults once this timer elapses without being reset, so a
-// watchdog left running has to be kicked on every update() or it will
-// silently re-enable charging and the STAT LED.
+// watchdog left running is kicked on its own interval (independent of
+// update_interval) or it will silently re-enable charging and the STAT LED.
 enum I2CWatchdogTimeout {
   I2C_WATCHDOG_DISABLED = 0,
   I2C_WATCHDOG_40S = 1,
@@ -116,8 +116,8 @@ class SY6970Component final : public PollingComponent, public i2c::I2CDevice {
   void set_i2c_watchdog_timeout(I2CWatchdogTimeout timeout);
 
   // Resets (kicks) the I2C watchdog timer (REG03 bit 6, self-clearing). Called
-  // automatically from update() whenever the watchdog is enabled; exposed
-  // publicly so a lambda can also call it directly if needed.
+  // automatically on its own interval whenever the watchdog is enabled;
+  // exposed publicly so a lambda can also call it directly if needed.
   void reset_i2c_watchdog();
 
  protected:
@@ -125,8 +125,14 @@ class SY6970Component final : public PollingComponent, public i2c::I2CDevice {
   bool write_register_(uint8_t reg, uint8_t value);
   bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
 
+  // Kicks the watchdog only if the last register read succeeded and the
+  // watchdog is enabled. Used by the periodic kick interval so a sustained
+  // I2C outage is not masked by still feeding the watchdog.
+  void kick_watchdog_if_healthy_();
+
   SY6970Data data_{};
   std::vector<SY6970Listener *> listeners_;
+  bool last_read_ok_{false};
 
   // Configuration values to set during setup()
   bool led_enabled_;

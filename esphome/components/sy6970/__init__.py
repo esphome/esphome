@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL
+from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@linkedupbits"]
@@ -27,45 +27,18 @@ I2CWatchdogTimeout = sy6970_ns.enum("I2CWatchdogTimeout")
 
 # The chip's own I2C watchdog (REG07[5:4]) reverts charge_enabled and the
 # STAT LED setting back to power-on defaults once it elapses; ESPHome kicks
-# it automatically on every update() while it is enabled, so "40S" (the
-# chip's power-on default) is safe to leave running rather than disabling it.
+# it on its own interval (independent of update_interval) while it is
+# enabled, so "40S" (the chip's power-on default) is safe to leave running
+# rather than disabling it, and any update_interval - including `never` -
+# stays valid.
 I2C_WATCHDOG_TIMEOUTS = {
     "DISABLED": I2CWatchdogTimeout.I2C_WATCHDOG_DISABLED,
     "40S": I2CWatchdogTimeout.I2C_WATCHDOG_40S,
     "80S": I2CWatchdogTimeout.I2C_WATCHDOG_80S,
     "160S": I2CWatchdogTimeout.I2C_WATCHDOG_160S,
 }
-I2C_WATCHDOG_TIMEOUT_SECONDS = {
-    "DISABLED": None,
-    "40S": 40,
-    "80S": 80,
-    "160S": 160,
-}
 
-
-def _validate_watchdog_vs_update_interval(config: ConfigType) -> ConfigType:
-    timeout_seconds = I2C_WATCHDOG_TIMEOUT_SECONDS[config[CONF_I2C_WATCHDOG_TIMEOUT]]
-    if timeout_seconds is None:
-        return config
-
-    update_interval = config[CONF_UPDATE_INTERVAL]
-    if not hasattr(update_interval, "total_seconds"):
-        # e.g. `update_interval: never` - nothing will ever kick the watchdog.
-        raise cv.Invalid(
-            f"`{CONF_I2C_WATCHDOG_TIMEOUT}` requires a numeric `{CONF_UPDATE_INTERVAL}` "
-            "so the watchdog can be kicked on every update; disable the watchdog "
-            f"({CONF_I2C_WATCHDOG_TIMEOUT}: DISABLED) if that is not possible."
-        )
-    if update_interval.total_seconds >= timeout_seconds:
-        raise cv.Invalid(
-            f"`{CONF_UPDATE_INTERVAL}` ({update_interval.total_seconds}s) must be shorter "
-            f"than `{CONF_I2C_WATCHDOG_TIMEOUT}` ({timeout_seconds}s), or the watchdog will "
-            "time out between updates and revert charge_enabled/the STAT LED setting."
-        )
-    return config
-
-
-CONFIG_SCHEMA = cv.All(
+CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SY6970Component),
@@ -90,8 +63,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.polling_component_schema("5s"))
-    .extend(i2c.i2c_device_schema(0x6A)),
-    _validate_watchdog_vs_update_interval,
+    .extend(i2c.i2c_device_schema(0x6A))
 )
 
 
