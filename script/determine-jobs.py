@@ -99,8 +99,8 @@ from split_components_for_ci import create_intelligent_batches
 # For large PRs (>= 65 files), use split for better parallelization
 CLANG_TIDY_SPLIT_THRESHOLD = 65
 
-# Component test batch size (weighted)
-# Isolated components count as 10x, groupable components count as 1x
+# Component test batch size (weighted by build count, see
+# split_components_for_ci.component_weight)
 COMPONENT_TEST_BATCH_SIZE = 40
 
 # Above the threshold, fan out across up to this many jobs, balanced by the

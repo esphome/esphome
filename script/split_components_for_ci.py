@@ -30,10 +30,12 @@ from script.analyze_component_buses import (
 )
 from script.helpers import get_component_test_files, split_conflicting_groups
 
-# Weighting for batch creation
-# Isolated components can't be grouped/merged, so they count as 10x
-# Groupable components can be merged into single builds, so they count as 1x
-ISOLATED_WEIGHT = 10
+# Weighting for batch creation, roughly proportional to serial build time.
+# Every test file of an isolated component and every variant file
+# (test-<variant>.*.yaml) of a groupable component is its own build, so each
+# counts BUILD_WEIGHT. Base files of groupable components are merged into
+# shared per-platform builds, so a groupable component adds GROUPABLE_WEIGHT.
+BUILD_WEIGHT = 3
 GROUPABLE_WEIGHT = 1
 
 # Platform used for batching (platform-agnostic batching)
@@ -59,6 +61,15 @@ def has_test_files(component_name: str, tests_dir: Path) -> bool:
             component_name, all_variants=True, include_validate=True
         )
     )
+
+
+def component_weight(component_name: str, is_isolated: bool) -> int:
+    """Return the batch weight of a component from its compiled test files."""
+    test_files = get_component_test_files(component_name, all_variants=True)
+    if is_isolated:
+        return BUILD_WEIGHT * max(1, len(test_files))
+    variant_count = sum(1 for f in test_files if f.name.startswith("test-"))
+    return GROUPABLE_WEIGHT + BUILD_WEIGHT * variant_count
 
 
 def create_intelligent_batches(
@@ -174,10 +185,8 @@ def create_intelligent_batches(
 
     sorted_groups = sorted(signature_groups.items(), key=sort_key)
 
-    # Strategy: Create batches using weighted sizes
-    # - Isolated components count as 10x (since they can't be grouped/merged)
-    # - Groupable components count as 1x (can be merged into single builds)
-    # - This distributes isolated components across more runners
+    # Strategy: Create batches using weighted sizes (see component_weight)
+    # - Components with many separate builds spread across more runners
     # - Ensures each runner has a good mix of groupable vs isolated components
 
     current_batch = []
@@ -185,11 +194,11 @@ def create_intelligent_batches(
 
     for (_platform, signature), group_components in sorted_groups:
         is_isolated = signature.startswith(ISOLATED_SIGNATURE_PREFIX)
-        weight_per_component = ISOLATED_WEIGHT if is_isolated else GROUPABLE_WEIGHT
 
         for component in group_components:
+            weight = component_weight(component, is_isolated)
             # Check if adding this component would exceed the batch size
-            if current_weight + weight_per_component > batch_size and current_batch:
+            if current_weight + weight > batch_size and current_batch:
                 # Start a new batch
                 batches.append(current_batch)
                 current_batch = []
@@ -197,7 +206,7 @@ def create_intelligent_batches(
 
             # Add component to current batch
             current_batch.append(component)
-            current_weight += weight_per_component
+            current_weight += weight
 
     # Don't forget the last batch
     if current_batch:
@@ -378,8 +387,8 @@ def main() -> int:
             file=sys.stderr,
         )
 
-    print(f"  - Groupable (weight=1): {groupable_count}", file=sys.stderr)
-    print(f"  - Isolated (weight=10): {isolated_count}", file=sys.stderr)
+    print(f"  - Groupable: {groupable_count}", file=sys.stderr)
+    print(f"  - Isolated: {isolated_count}", file=sys.stderr)
     if actual_components < len(components):
         print(
             f"Components skipped (no test files): {len(components) - actual_components}",
