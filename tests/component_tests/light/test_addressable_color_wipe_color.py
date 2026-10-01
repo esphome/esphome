@@ -10,31 +10,20 @@ regression in the scaling multiplication itself is caught.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
-from esphome.__main__ import generate_cpp_contents
-from esphome.config import read_config
-from esphome.core import CORE
 
-
-@pytest.fixture(scope="module")
-def main_cpp(request: pytest.FixtureRequest) -> str:
-    config_path = (
-        Path(request.fspath).parent
-        / "config"
-        / "addressable_color_wipe_color_test.yaml"
+@pytest.fixture
+def main_cpp(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> str:
+    return generate_main(
+        component_config_path("addressable_color_wipe_color_test.yaml")
     )
-    original_path = CORE.config_path
-    try:
-        CORE.config_path = config_path
-        CORE.config = read_config({})
-        generate_cpp_contents(CORE.config)
-        return CORE.cpp_main_section
-    finally:
-        CORE.config_path = original_path
-        CORE.reset()
 
 
 def test_dark_color_name_is_scaled_by_color_brightness(main_cpp: str) -> None:
