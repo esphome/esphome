@@ -174,10 +174,11 @@ def test_convert_pio_libs_arduino_framework_passes_empty_managed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """On Arduino, ESPHome's manifest entries for noise-c/libsodium are
-    rule-gated off (arduino-esp32 brings its own libsodium), so nothing
-    provides them there -- managed must be empty and they go through the
-    PlatformIO-library converter as before."""
+    """On Arduino below IDF 6.0, ESPHome's manifest entries for
+    noise-c/libsodium are rule-gated off (arduino-esp32 brings its own
+    libsodium), so nothing provides them there -- managed must be empty and they
+    go through the PlatformIO-library converter as before."""
+    _set_idf_version(cv.Version(5, 5, 5))
     monkeypatch.setattr(clang_tidy, "_parse_lib_deps", lambda ini, framework: [])
 
     captured: dict[str, set[str] | None] = {}
@@ -203,6 +204,29 @@ def test_convert_pio_libs_arduino_framework_passes_empty_managed(
     assert result == {
         "esphome/other-lib": {"override_path": str(tmp_path / "other-lib")}
     }
+
+
+def test_convert_pio_libs_arduino_idf_6_passes_manifest_deps(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """From IDF 6.0 the manifest rule enables noise-c/libsodium on Arduino too,
+    so the converter must skip them there as well or IDF sees both copies."""
+    _set_idf_version(cv.Version(6, 0, 0))
+    monkeypatch.setattr(clang_tidy, "_parse_lib_deps", lambda ini, framework: [])
+
+    captured: dict[str, set[str] | None] = {}
+
+    def fake_generate_idf_components(libraries, managed=None):
+        captured["managed"] = managed
+        return []
+
+    monkeypatch.setattr(
+        espidf_component, "generate_idf_components", fake_generate_idf_components
+    )
+
+    assert _convert_pio_libs(tmp_path / "platformio.ini", "arduino") == {}
+    assert captured["managed"] == _esphome_manifest_deps()
 
 
 def test_convert_pio_libs_espidf_framework_passes_manifest_deps(

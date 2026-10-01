@@ -265,14 +265,21 @@ def _convert_pio_libs(
     Libraries ESPHome's own manifest already provides as managed components
     (noise-c, libsodium, ...) are skipped, mirroring what the real esp32 build
     does -- converting them too would make IDF see the same requirement twice.
-    On Arduino those entries are rule-gated off in the manifest (arduino-esp32
-    brings its own libsodium), so nothing provides them there and they have to
-    go through the converter as before.
+    On Arduino below IDF 6.0 those entries are rule-gated off in the manifest
+    (arduino-esp32 brings its own libsodium), so nothing provides them there and
+    they have to go through the converter as before.
     """
+    from esphome.components.esp32 import idf_version
+    from esphome.core import Version
     from esphome.espidf.component import generate_idf_components
 
     libraries = _parse_lib_deps(platformio_ini, framework)
-    managed = set() if framework == "arduino" else _esphome_manifest_deps()
+    # Same predicate as noise._use_managed_components and the manifest rules
+    managed = (
+        _esphome_manifest_deps()
+        if framework != "arduino" or idf_version() >= Version(6, 0, 0)
+        else set()
+    )
     deps: dict[str, dict[str, str]] = {}
     for component in generate_idf_components(libraries, managed=managed):
         deps[component.get_sanitized_name()] = {"override_path": str(component.path)}

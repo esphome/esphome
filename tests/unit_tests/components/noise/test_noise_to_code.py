@@ -13,6 +13,7 @@ exercised end to end, not just mocked.
 from __future__ import annotations
 
 import asyncio
+import re
 
 import pytest
 
@@ -165,6 +166,10 @@ def test_versions_match_the_repo_manifests() -> None:
         assert deps[name]["rules"] == [
             {"if": "$ESPHOME_ARDUINO_COMPONENT == 0 || idf_version >= 6.0.0"}
         ]
-    assert f"esphome/noise-c@{noise.NOISE_C_VERSION}" in (
-        repo_root / "platformio.ini"
-    ).read_text(encoding="utf-8")
+    # Every noise-c pin in platformio.ini, not just one of them
+    pins = re.findall(
+        r"esphome/noise-c@(\S+)",
+        (repo_root / "platformio.ini").read_text(encoding="utf-8"),
+    )
+    assert set(pins) == {noise.NOISE_C_VERSION}
+    assert len(pins) >= 1
