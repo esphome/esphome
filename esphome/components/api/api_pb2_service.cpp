@@ -724,7 +724,7 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
     }
 #endif
 #ifdef USE_API_WIZARD
-    case 153 /* DeviceWizardRequest is empty */: {
+    case 156 /* DeviceWizardRequest is empty */: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
       this->log_receive_message_(LOG_STR("on_device_wizard_request"));
 #endif

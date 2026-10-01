@@ -365,8 +365,9 @@ def test_device_capabilities_rpc_requires_authentication() -> None:
 def test_device_wizard_messages_keep_their_wire_ids() -> None:
     """Message ids are part of the wire protocol and must not change."""
     for message, expected in (
-        ("DeviceWizardRequest", 153),
-        ("DeviceWizardResponse", 154),
+        ("DeviceWizardRequest", 156),
+        ("DeviceWizardResponse", 157),
+        ("WizardInputSetRequest", 158),
     ):
         body = _extract_proto_message(PROTO_TEXT, message)
         match = re.search(r"option \(id\) = (\d+);", body)
@@ -448,7 +449,7 @@ def test_wizard_messages_are_compiled_out_without_a_wizard() -> None:
         body = _extract_proto_message(PROTO_TEXT, message)
         assert f'option (ifdef) = "{define}";' in body, message
     # The request is empty, so it has no class, only its dispatch case
-    assert "#ifdef USE_API_WIZARD\n    case 153 /* DeviceWizardRequest" in SERVICE_TEXT
+    assert "#ifdef USE_API_WIZARD\n    case 156 /* DeviceWizardRequest" in SERVICE_TEXT
     classes = {**WIZARD_MESSAGE_DEFINES, **NESTED_WIZARD_MESSAGE_DEFINES}
     for message, define in classes.items():
         if message == "DeviceWizardRequest":

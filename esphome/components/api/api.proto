@@ -411,7 +411,7 @@ message DeviceCapabilitiesResponse {
 // as a device ignores messages it does not know. Clients therefore check
 // DeviceCapabilitiesResponse.wizard.configured before sending it.
 message DeviceWizardRequest {
-  option (id) = 153;
+  option (id) = 156;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_API_WIZARD";
   // Empty
@@ -443,9 +443,10 @@ message WizardEntityField {
 }
 
 // An input that the wizard fills in with the id of a Home Assistant entity chosen
-// by the user. It stands for one entity of the device's homeassistant platform
-// (sensor, binary_sensor, text_sensor, number or switch) that has no entity id yet,
-// or only a default one.
+// by the user. An input either stands for one entity of the device's homeassistant
+// platform (sensor, binary_sensor, text_sensor, number, switch, text, select or
+// button) that has no entity id yet, or only a default one, or it is a standalone
+// input that only stores the entity id for the device's own automations.
 //
 // The key is the FNV-1 hash of the input's ESPHome id, not an entity key. The client
 // sends the chosen entity id back with a WizardInputSetRequest, which the device
@@ -476,7 +477,7 @@ message WizardPage {
 
 // The pages are fixed at compile time and are shown in the order they are listed here.
 message DeviceWizardResponse {
-  option (id) = 154;
+  option (id) = 157;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_API_WIZARD";
 
@@ -486,10 +487,11 @@ message DeviceWizardResponse {
 // Sets the entity id of a wizard input (see WizardInputField.key). Clients send
 // this only when DeviceCapabilitiesResponse.wizard.configured is set. There is no
 // reply. The device ignores a request whose key matches no input or whose entity_id
-// is empty, longer than 255 bytes or has no '.', and otherwise saves the id and
-// subscribes to that entity's state.
+// is empty, longer than 255 bytes or has no '.'. Otherwise it saves the id and, when
+// the input belongs to a homeassistant platform entity, subscribes to that entity's
+// state.
 message WizardInputSetRequest {
-  option (id) = 155;
+  option (id) = 158;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_API_WIZARD_INPUTS";
 
