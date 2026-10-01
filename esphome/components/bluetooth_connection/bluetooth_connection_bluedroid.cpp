@@ -703,9 +703,8 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
     }
     case ESP_GATTC_OPEN_EVT: {
       if (!this->check_addr_(param->open.remote_bda)) {
-        // Our interface, stale address, so nobody tracks this link.
-        if (esp_gattc_if == this->gattc_if_ &&
-            (param->open.status == ESP_GATT_OK || param->open.status == ESP_GATT_ALREADY_OPEN)) {
+        // Our interface (filtered above), stale address, so nobody tracks this link.
+        if (param->open.status == ESP_GATT_OK || param->open.status == ESP_GATT_ALREADY_OPEN) {
           ESP_LOGW(TAG, "[%d] Closing link left by an abandoned open", this->connection_index_);
           this->check_and_log_error_("esp_ble_gattc_close", esp_ble_gattc_close(this->gattc_if_, param->open.conn_id));
           return true;
