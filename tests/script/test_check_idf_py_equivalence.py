@@ -16,7 +16,7 @@ import check_idf_py_equivalence as guard  # noqa: E402
 
 from esphome.build_gen import espidf as build_gen  # noqa: E402
 from esphome.core import CORE  # noqa: E402
-from esphome.espidf import toolchain  # noqa: E402
+from esphome.espidf import framework, toolchain  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -74,10 +74,12 @@ def _run_check(
     esphome_rcs: tuple[int, int] = (0, 0),
     macro_matches: bool = True,
     envs: list[dict[str, str]] | None = None,
+    versions: tuple[str | None, str] = ("5.5", "5.5"),
 ) -> tuple[list[str], list[list[str]]]:
     """Run check() with idf.py replaced by ``side_effect``; return problems, calls.
 
-    ``envs`` collects the env each idf.py call receives.
+    ``envs`` collects the env each idf.py call receives. ``versions`` is what
+    the in-process read and idf_tools report for the framework.
     """
     calls: list[list[str]] = []
 
@@ -98,6 +100,8 @@ def _run_check(
         patch.object(toolchain, "run_reconfigure", return_value=esphome_rcs[0]),
         patch.object(toolchain, "_run_ninja", return_value=esphome_rcs[1]),
         patch.object(build_gen, "idf_macro_matches", return_value=macro_matches),
+        patch.object(framework, "read_idf_version", return_value=versions[0]),
+        patch.object(framework, "idf_tools_version", return_value=versions[1]),
         patch.object(guard.subprocess, "run", side_effect=run),
         patch.dict(os.environ),
     ):
@@ -282,6 +286,17 @@ def test_check_fails_loudly_when_the_idf_macro_changed(tmp_path: Path) -> None:
     tree = _make_tree(tmp_path)
     problems, calls = _run_check(tree, macro_matches=False)
     assert problems == [guard.MACRO_CHANGED]
+    assert calls == []
+
+
+@pytest.mark.parametrize("ours", ["5.4", None])
+def test_check_fails_loudly_when_the_version_read_drifts(
+    tmp_path: Path, ours: str | None
+) -> None:
+    """An IDF bump that changes how idf_tools reads its version must fail CI."""
+    tree = _make_tree(tmp_path)
+    problems, calls = _run_check(tree, versions=(ours, "5.5"))
+    assert problems == [guard.VERSION_DRIFT.format(ours=ours, theirs="5.5")]
     assert calls == []
 
 

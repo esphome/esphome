@@ -55,6 +55,10 @@ MACRO_CHANGED = (
     "IDF changed __build_process_project_includes; update "
     "IDF_BOOTLOADER_OVERRIDE in esphome/build_gen/espidf.py"
 )
+VERSION_DRIFT = (
+    "ESPHome reads ESP-IDF version {ours!r} but idf_tools reports {theirs!r}; "
+    "update read_idf_version in esphome/espidf/framework.py"
+)
 WORK_SUFFIXES = (".obj", ".o", ".a", ".elf", ".map", ".bin", ".ld")
 DEFAULT_GLOB = "tests/test_build_components/build/.esphome/build/*"
 
@@ -127,7 +131,7 @@ def check(build_path: Path) -> list[str]:
     # pylint: disable=protected-access
     from esphome.build_gen.espidf import idf_macro_matches
     from esphome.core import CORE
-    from esphome.espidf import toolchain
+    from esphome.espidf import framework, toolchain
 
     description = json.loads(
         (build_path / "build" / "project_description.json").read_text(encoding="utf-8")
@@ -139,8 +143,14 @@ def check(build_path: Path) -> list[str]:
     CORE.skip_bootloader = skip_bootloader
     # A prior tree's memoized decision must not leak into this one.
     toolchain._cache().skip_bootloader = None
-    if not idf_macro_matches(toolchain._get_idf_path(version)):
+    idf_path = toolchain._get_idf_path(version)
+    if not idf_macro_matches(idf_path):
         return [MACRO_CHANGED]
+    # The build env reads the version in process; idf_tools stays the authority.
+    ours = framework.read_idf_version(idf_path)
+    theirs = framework.idf_tools_version(idf_path)
+    if ours != theirs:
+        return [VERSION_DRIFT.format(ours=ours, theirs=theirs)]
     # ESP-IDF's openthread stamps the configure time into its compile flags;
     # pin it before the env is cached so both configures get the same value.
     os.environ["SOURCE_DATE_EPOCH"] = "0"

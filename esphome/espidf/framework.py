@@ -329,7 +329,7 @@ _IDF_VERSION_HEADER_RE = re.compile(
 )
 
 
-def _read_idf_version(idf_framework_root: Path) -> str | None:
+def read_idf_version(idf_framework_root: Path) -> str | None:
     """Read the ESP-IDF version the way idf_tools does, without starting it."""
     try:
         text = (idf_framework_root / "version.txt").read_text(encoding="utf-8")
@@ -366,9 +366,19 @@ def _get_idf_version(
     The version is read in process; the framework's own ``idf_tools`` is
     only started for a tree neither of its sources describes.
     """
-    if (version := _read_idf_version(Path(idf_framework_root))) is not None:
+    if (version := read_idf_version(Path(idf_framework_root))) is not None:
         return version
+    return idf_tools_version(idf_framework_root, env)
 
+
+def idf_tools_version(
+    idf_framework_root: PathType, env: dict[str, str] | None = None
+) -> str:
+    """Ask the framework's own ``idf_tools`` for its version.
+
+    ``_get_idf_version`` reads the same answer in process; the CI drift
+    guard compares the two so an ``idf_tools`` change is caught.
+    """
     success, stdout, stderr = _run_idf_tools_script(
         idf_framework_root, "get_idf_version.py", "ESP-IDF version", env=env
     )
