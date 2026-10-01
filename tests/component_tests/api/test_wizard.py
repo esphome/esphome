@@ -83,6 +83,18 @@ ENTITIES = """
       - platform: homeassistant
         id: ha_number
         %(number)s
+    text:
+      - platform: homeassistant
+        id: ha_txt
+        %(text_entity)s
+    select:
+      - platform: homeassistant
+        id: ha_select
+        %(select)s
+    button:
+      - platform: homeassistant
+        id: ha_button
+        %(button)s
     """
 
 
@@ -94,6 +106,9 @@ def build_entities(entity_ids: bool) -> str:
         "binary": "entity_id: binary_sensor.a",
         "text": "entity_id: sensor.b",
         "number": "entity_id: number.a",
+        "text_entity": "entity_id: text.a",
+        "select": "entity_id: select.a",
+        "button": "entity_id: button.a",
     }
     return ENTITIES % {k: v if entity_ids else "" for k, v in ids.items()}
 
@@ -123,6 +138,9 @@ GOOD_PAGES = """
               - entity: ha_text
               - entity: ha_number
               - entity: ha_switch
+              - entity: ha_txt
+              - entity: ha_select
+              - entity: ha_button
               - id: weather_input
                 target:
                   entity:
@@ -182,7 +200,7 @@ def test_generates_flash_tables(
         in main_cpp
     )
     assert any(define.name == "USE_API_WIZARD" for define in CORE.defines)
-    assert get_define_value("API_WIZARD_INPUT_COUNT") == "8"
+    assert get_define_value("API_WIZARD_INPUT_COUNT") == "11"
     # Only ESP8266 copies text out of flash
     assert get_define_value("API_WIZARD_PAGE_SCRATCH_SIZE") is None
 
@@ -205,6 +223,9 @@ def test_inputs_have_buffers_hashes_and_default_filters(
         "ha_text",
         "ha_number",
         "ha_switch",
+        "ha_txt",
+        "ha_select",
+        "ha_button",
     ):
         assert f"{entity}->set_entity_id(api_wizard_input_{entity});" in main_cpp
         assert f"{{{fnv1_hash(entity)}u, api_wizard_input_{entity}, " in main_cpp
@@ -709,3 +730,63 @@ def test_esp8266_without_filters_has_no_filter_scratch(
     assert get_define_value("API_WIZARD_FIELD_SCRATCH_SIZE") is not None
     assert get_define_value("API_WIZARD_FILTER_SCRATCH_SIZE") is None
     assert get_define_value("API_WIZARD_LIST_SCRATCH_SIZE") is None
+
+
+@pytest.mark.parametrize(
+    ("entity", "bad_domain"),
+    [("ha_txt", "select"), ("ha_select", "text"), ("ha_button", "switch")],
+)
+def test_text_select_and_button_inputs_keep_to_their_domains(
+    tmp_path: Path, entity: str, bad_domain: str
+) -> None:
+    api = wizard_inputs(
+        f"- entity: {entity}\n  target:\n    entity:\n      - domain: {bad_domain}"
+    )
+    errors = config_errors(write_config(tmp_path, ESP32_HEADER, api))
+
+    assert any(
+        f"does not support the domain(s) {bad_domain}" in error for error in errors
+    ), errors
+
+
+@pytest.mark.parametrize("entity", ["ha_txt", "ha_select", "ha_button"])
+def test_text_select_and_button_filters_must_set_a_domain(
+    tmp_path: Path, entity: str
+) -> None:
+    api = wizard_inputs(
+        f"- entity: {entity}\n  target:\n    entity:\n      - integration: hue"
+    )
+    errors = config_errors(write_config(tmp_path, ESP32_HEADER, api))
+
+    assert any("must set domain" in error for error in errors), errors
+
+
+def test_text_select_and_button_default_to_their_domains(
+    tmp_path: Path, generate_main: Callable[[str | Path], str]
+) -> None:
+    main_cpp = generate_main(write_input_config(tmp_path, ESP32_HEADER))
+
+    # ha_txt and ha_button have no target, so they take every supported domain
+    for domain in ("input_text", "text", "button", "input_button"):
+        assert f'"{domain}",' in main_cpp
+    for entity in ("ha_txt", "ha_select", "ha_button"):
+        assert f"{entity}->set_entity_id(api_wizard_input_{entity});" in main_cpp
+
+
+@pytest.mark.parametrize(
+    "entity_yaml",
+    [
+        "text:\n  - platform: homeassistant\n    id: lonely\n",
+        "select:\n  - platform: homeassistant\n    id: lonely\n",
+        "button:\n  - platform: homeassistant\n    id: lonely\n",
+    ],
+)
+def test_new_platforms_need_an_entity_id_unless_they_are_inputs(
+    tmp_path: Path, entity_yaml: str
+) -> None:
+    errors = config_errors(write_config(tmp_path, ESP32_HEADER, "api:\n", entity_yaml))
+
+    assert any(
+        "entity_id is required unless this entity is a wizard input" in error
+        for error in errors
+    ), errors

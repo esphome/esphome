@@ -1,4 +1,5 @@
 from collections.abc import Callable
+import importlib
 import logging
 import re
 from typing import Any
@@ -418,7 +419,18 @@ WIZARD_SCHEMA = cv.All(
 )
 
 # Platforms of the homeassistant component that a wizard input can stand for
-WIZARD_INPUT_DOMAINS = ("binary_sensor", "number", "sensor", "switch", "text_sensor")
+WIZARD_INPUT_DOMAINS = (
+    "binary_sensor",
+    "button",
+    "number",
+    "select",
+    "sensor",
+    "switch",
+    "text",
+    "text_sensor",
+)
+# Platforms that act on one family of Home Assistant domains, which the input's filters must stay within
+WIZARD_DOMAIN_LIMITED_PLATFORMS = ("button", "select", "switch", "text")
 
 
 def wizard_input_ids(api_config: ConfigType) -> set[str]:
@@ -483,10 +495,9 @@ def _wizard_defines(wizard: ConfigType) -> set[str]:
 
 def _wizard_default_domains(domain: str) -> list[str] | None:
     """The domains Home Assistant entities can be picked from when the input sets no target."""
-    if domain == "switch":
-        from esphome.components.homeassistant.switch import SUPPORTED_DOMAINS
-
-        return list(SUPPORTED_DOMAINS)
+    if domain in WIZARD_DOMAIN_LIMITED_PLATFORMS:
+        platform = importlib.import_module(f"esphome.components.homeassistant.{domain}")
+        return list(platform.SUPPORTED_DOMAINS)
     if domain == "number":
         # The platform calls number.set_value, which input_number does not offer
         return ["number"]
@@ -507,16 +518,16 @@ def _validate_wizard_input(conf: ConfigType) -> ConfigType:
             f"Wizard input '{conf[CONF_ENTITY].id}' must be a homeassistant "
             f"{', '.join(WIZARD_INPUT_DOMAINS)} entity"
         )
-    if domain == "switch":
+    if domain in WIZARD_DOMAIN_LIMITED_PLATFORMS:
         supported = _wizard_default_domains(domain)
         for entity_filter in conf.get(CONF_TARGET, {}).get(CONF_ENTITY, []):
             if not (domains := entity_filter.get(CONF_DOMAIN)):
                 raise cv.Invalid(
-                    "Every filter of a homeassistant switch input must set domain"
+                    f"Every filter of a homeassistant {domain} input must set domain"
                 )
             if unsupported := [d for d in domains if d not in supported]:
                 raise cv.Invalid(
-                    f"The homeassistant switch does not support the domain(s) "
+                    f"The homeassistant {domain} does not support the domain(s) "
                     f"{', '.join(unsupported)}. Supported: {', '.join(supported)}"
                 )
     return conf

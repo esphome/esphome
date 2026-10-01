@@ -29,6 +29,12 @@ api:
             target:
               entity:
                 - domain: light
+          - entity: ha_text
+          - entity: ha_select
+            target:
+              entity:
+                - domain: input_select
+          - entity: ha_button
           - id: weather_input
             description: Weather source
             target:
@@ -70,6 +76,19 @@ text_sensor:
 number:
   - platform: homeassistant
     id: target_temp
+
+text:
+  - platform: homeassistant
+    id: ha_text
+
+select:
+  - platform: homeassistant
+    id: ha_select
+
+button:
+  - platform: homeassistant
+    id: ha_button
+    entity_id: button.restart
 
 interval:
   - interval: 1h

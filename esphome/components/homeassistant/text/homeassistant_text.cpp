@@ -79,6 +79,13 @@ void HomeassistantText::control(const std::string &value) {
     return;
   }
 
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  if (this->entity_id_[0] == '\0') {
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", this->get_name().c_str());
+    return;
+  }
+#endif
+
   static constexpr auto SERVICE_TEXT = StringRef::from_lit("text.set_value");
   static constexpr auto SERVICE_INPUT_TEXT = StringRef::from_lit("input_text.set_value");
   static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
