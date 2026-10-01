@@ -6,64 +6,6 @@
 
 namespace esphome::valve {
 
-template<typename... Ts> class OpenAction final : public Action<Ts...> {
- public:
-  explicit OpenAction(Valve *valve) : valve_(valve) {}
-
-  void play(const Ts &...x) override { this->valve_->make_call().set_command_open().perform(); }
-
- protected:
-  Valve *valve_;
-};
-
-template<typename... Ts> class CloseAction final : public Action<Ts...> {
- public:
-  explicit CloseAction(Valve *valve) : valve_(valve) {}
-
-  void play(const Ts &...x) override { this->valve_->make_call().set_command_close().perform(); }
-
- protected:
-  Valve *valve_;
-};
-
-template<typename... Ts> class StopAction final : public Action<Ts...> {
- public:
-  explicit StopAction(Valve *valve) : valve_(valve) {}
-
-  void play(const Ts &...x) override { this->valve_->make_call().set_command_stop().perform(); }
-
- protected:
-  Valve *valve_;
-};
-
-template<typename... Ts> class ToggleAction final : public Action<Ts...> {
- public:
-  explicit ToggleAction(Valve *valve) : valve_(valve) {}
-
-  void play(const Ts &...x) override { this->valve_->make_call().set_command_toggle().perform(); }
-
- protected:
-  Valve *valve_;
-};
-
-template<typename... Ts> class ValveIsOpenCondition final : public Condition<Ts...> {
- public:
-  ValveIsOpenCondition(Valve *valve) : valve_(valve) {}
-  bool check(const Ts &...x) override { return this->valve_->is_fully_open(); }
-
- protected:
-  Valve *valve_;
-};
-
-template<typename... Ts> class ValveIsClosedCondition final : public Condition<Ts...> {
- public:
-  ValveIsClosedCondition(Valve *valve) : valve_(valve) {}
-  bool check(const Ts &...x) override { return this->valve_->is_fully_closed(); }
-
- protected:
-  Valve *valve_;
-};
-
 class ValveOpenTrigger final : public Trigger<> {
  public:
   ValveOpenTrigger(Valve *a_valve) : valve_(a_valve) {
