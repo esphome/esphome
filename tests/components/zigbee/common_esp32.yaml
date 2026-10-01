@@ -45,6 +45,17 @@ sensor:
     device_class: volume_flow_rate
     cluster: device_class
 
+switch:
+  - platform: template
+    name: "Template Switch 1"
+    optimistic: true
+    cluster: on_off
+  - platform: template
+    name: "Template Switch 2"
+    optimistic: true
+    cluster: on_off
+    device_class: outlet
+
 zigbee:
   model: zigbee_test
   router: false
