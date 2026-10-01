@@ -1,12 +1,11 @@
 from typing import Any
 
-from esphome.automation import Action, register_action
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import VARIANT_ESP32P4, only_on_variant
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID, CONF_VOLTAGE
 from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
@@ -16,7 +15,6 @@ DOMAIN = "esp_ldo"
 
 esp_ldo_ns = cg.esphome_ns.namespace("esp_ldo")
 EspLdo = esp_ldo_ns.class_("EspLdo", cg.Component)
-AdjustAction = esp_ldo_ns.class_("AdjustAction", Action)
 
 CHANNELS = (1, 2, 3, 4)
 CHANNELS_INTERNAL = (1, 2)
@@ -123,9 +121,8 @@ def adjusted_ldo_id(value: Any) -> ID:
     return value
 
 
-@register_action(
+automation.register_apply_action(
     "esp_ldo.voltage.adjust",
-    AdjustAction,
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): adjusted_ldo_id,
@@ -134,16 +131,5 @@ def adjusted_ldo_id(value: Any) -> ID:
             ),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VOLTAGE, "adjust_voltage", cg.float_),
 )
-async def ldo_voltage_adjust_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-    template_ = await cg.templatable(config[CONF_VOLTAGE], args, cg.float_)
-    cg.add(var.set_voltage(template_))
-    return var

@@ -130,26 +130,6 @@ class CC1101Component final : public Component,
 };
 
 // Action Wrappers
-template<typename... Ts> class BeginTxAction final : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->begin_tx(); }
-};
-
-template<typename... Ts> class BeginRxAction final : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->begin_rx(); }
-};
-
-template<typename... Ts> class ResetAction final : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->reset(); }
-};
-
-template<typename... Ts> class SetIdleAction final : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->set_idle(); }
-};
-
 template<typename... Ts> class SendPacketAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) { this->data_func_ = func; }

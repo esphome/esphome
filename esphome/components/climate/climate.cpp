@@ -435,6 +435,7 @@ void Climate::save_state_(const ClimateTraits &traits) {
 }
 
 void Climate::publish_state() {
+  this->set_has_state(true);
   ESP_LOGV(TAG, "'%s' >>", this->name_.c_str());
   auto traits = this->get_traits();
 
