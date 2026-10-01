@@ -188,7 +188,7 @@ number:
       then:
         - light.turn_on:
             id: test_monochromatic_light
-            brightness: !lambda "return x / 100.0;"
+            brightness: !lambda "return x / 100.0f;"
 
 output:
   - platform: template

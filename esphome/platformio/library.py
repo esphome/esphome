@@ -1120,7 +1120,9 @@ def _prefetch_wave(
 
 
 def convert_libraries(
-    libraries: list[Library], backend: LibraryBackend
+    libraries: list[Library],
+    backend: LibraryBackend,
+    provided: set[str] | None = None,
 ) -> list[ConvertedLibrary]:
     """Resolve and convert a batch of PlatformIO libraries for ``backend``.
 
@@ -1141,10 +1143,18 @@ def convert_libraries(
     ``lib_ignore`` from ``esphome->platformio_options`` excludes libraries by
     short name (part after the ``/``), matched against both the top-level
     libraries and every dependency discovered during the graph walk.
+
+    ``provided`` names libraries the toolchain supplies by other means (for ESP-IDF,
+    managed components from ``add_idf_component``); unlike ``backend.provides`` they
+    carry an owner. They are excluded like ``lib_ignore`` so nothing is both
+    converted and managed, which ESP-IDF refuses to build.
     """
     nodes: dict[str, _LibNode] = {}
 
-    lib_ignore = lib_ignore_set()
+    # Folded into one set so every is_lib_ignored() call site honors both.
+    lib_ignore = lib_ignore_set() | {
+        name.split("/")[-1].lower() for name in provided or ()
+    }
 
     # The generated build files inside the shared cache bake in the dependency
     # wiring, which lib_ignore changes; salt the cache path so configs with
