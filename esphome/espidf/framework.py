@@ -381,7 +381,9 @@ def _get_idf_tool_paths(
 
     The install check and the build environment both resolve the same
     framework, so the result is cached per run and the helper script runs
-    once per build instead of once per caller.
+    once per build instead of once per caller. The script also reads
+    ``IDF_TOOLS_PATH``; every caller sets it from ``get_idf_tools_path()``,
+    so the key leaves it out.
     """
     cache = _cache().tool_paths
     key = Path(idf_framework_root)
