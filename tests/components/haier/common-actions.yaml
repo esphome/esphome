@@ -1,0 +1,21 @@
+button:
+  - platform: template
+    name: Haier Actions
+    on_press:
+      - climate.haier.display_on: haier_ac
+      - climate.haier.display_off: haier_ac
+      - climate.haier.beeper_on: haier_ac
+      - climate.haier.beeper_off: haier_ac
+      - climate.haier.start_self_cleaning: haier_ac
+      - climate.haier.start_steri_cleaning: haier_ac
+      - climate.haier.health_on: haier_ac
+      - climate.haier.health_off: haier_ac
+      - climate.haier.power_on: haier_ac
+      - climate.haier.power_off: haier_ac
+      - climate.haier.power_toggle: haier_ac
+      - climate.haier.set_vertical_airflow:
+          id: haier_ac
+          vertical_airflow: UP
+      - climate.haier.set_horizontal_airflow:
+          id: haier_ac
+          horizontal_airflow: !lambda return esphome::haier::hon_protocol::HorizontalSwingMode::LEFT;

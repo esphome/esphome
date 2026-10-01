@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import logging
 from typing import Any
 
@@ -11,9 +12,11 @@ from esphome import config_validation as cv
 from esphome.components.esphome.ota import (
     AUTO_LOAD,
     FILTER_SOURCE_FILES,
+    _encryption_schema,
     _validate_no_password_with_encryption,
     ota_esphome_final_validate,
 )
+from esphome.components.noise import encryption_schema, static_encryption_key
 from esphome.const import (
     CONF_API,
     CONF_ENCRYPTION,
@@ -27,6 +30,7 @@ from esphome.const import (
     CONF_VERSION,
 )
 from esphome.core import CORE, ID
+from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD
 import esphome.final_validate as fv
 
 
@@ -115,7 +119,6 @@ def test_non_esphome_ota_unaffected() -> None:
 
 API_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 OTHER_KEY = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
-ZEROS_KEY = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 
 
 def test_encryption_key_inherited_from_api() -> None:
@@ -197,34 +200,19 @@ def test_encryption_without_any_key_rejected() -> None:
         fv.full_config.reset(token)
 
 
-def test_encryption_explicit_all_zeros_key_rejected() -> None:
-    """The all-zeros key is the provisioning sentinel; the device would treat
-    it as no PSK and accept plaintext, so it must fail validation."""
-    full_conf = {
-        CONF_OTA: [
-            _make_ota_config(port=3232, **{CONF_ENCRYPTION: {CONF_KEY: ZEROS_KEY}})
-        ],
+def test_encryption_schema_allow_plaintext_upload() -> None:
+    """The opt in is an ota only option with no default, so a merged block
+    that does not mention it cannot clear it; the shared api schema does not
+    know it."""
+    assert _encryption_schema(None) == {}
+    assert _encryption_schema({CONF_ALLOW_PLAINTEXT_UPLOAD: True}) == {
+        CONF_ALLOW_PLAINTEXT_UPLOAD: True
     }
-    token = fv.full_config.set(full_conf)
-    try:
-        with pytest.raises(cv.Invalid, match="all-zeros key is reserved"):
-            ota_esphome_final_validate({})
-    finally:
-        fv.full_config.reset(token)
-
-
-def test_encryption_inherited_all_zeros_key_rejected() -> None:
-    """An all-zeros api key must not silently disable ota encryption either."""
-    full_conf = {
-        CONF_API: {CONF_ENCRYPTION: {CONF_KEY: ZEROS_KEY}},
-        CONF_OTA: [_make_ota_config(port=3232, **{CONF_ENCRYPTION: {}})],
-    }
-    token = fv.full_config.set(full_conf)
-    try:
-        with pytest.raises(cv.Invalid, match="all-zeros key is reserved"):
-            ota_esphome_final_validate({})
-    finally:
-        fv.full_config.reset(token)
+    assert _encryption_schema({CONF_KEY: API_KEY}) == {CONF_KEY: API_KEY}
+    with pytest.raises(cv.Invalid):
+        _encryption_schema(False)
+    with pytest.raises(cv.Invalid):
+        encryption_schema({CONF_ALLOW_PLAINTEXT_UPLOAD: True})
 
 
 def test_encryption_key_mismatch_between_merged_configs_rejected() -> None:
@@ -295,13 +283,14 @@ def test_encryption_explicit_key_with_runtime_provisioned_api_accepted() -> None
         fv.full_config.reset(token)
 
 
+@pytest.mark.parametrize("component", ["web_server", "prometheus"])
 def test_encryption_with_web_server_ota_warns(
-    caplog: pytest.LogCaptureFixture,
+    caplog: pytest.LogCaptureFixture, component: str
 ) -> None:
-    """With the web_server component the plaintext /update endpoint is always
-    on; the combination validates with a warning."""
+    """web_server and prometheus keep the shared listener up, so the
+    plaintext /update endpoint is always on and the combination warns."""
     full_conf = {
-        "web_server": {},
+        component: {},
         CONF_OTA: [
             _make_ota_config(port=3232, **{CONF_ENCRYPTION: {CONF_KEY: OTHER_KEY}}),
             {CONF_PLATFORM: "web_server", CONF_ID: ID("ota_ws", is_manual=False)},
@@ -316,12 +305,12 @@ def test_encryption_with_web_server_ota_warns(
         fv.full_config.reset(token)
 
 
-def test_encryption_with_captive_portal_web_server_ota_warns(
+def test_encryption_with_captive_portal_does_not_warn(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """captive_portal auto-loads the web_server ota platform without the
-    web_server component; encryption stays usable and only warns, so the
-    fallback AP recovery path is not lost."""
+    web_server component; its endpoint only exists while the fallback AP is
+    active and is the intended recovery path, so there is no warning."""
     full_conf = {
         "captive_portal": {},
         CONF_OTA: [
@@ -333,13 +322,136 @@ def test_encryption_with_captive_portal_web_server_ota_warns(
     try:
         with caplog.at_level(logging.WARNING):
             ota_esphome_final_validate({})
-        assert any("captive_portal" in record.message for record in caplog.records)
+        assert not any(
+            "OTA encryption does not cover" in record.message
+            for record in caplog.records
+        )
         esphome_conf = next(
             conf
             for conf in fv.full_config.get()[CONF_OTA]
             if conf.get(CONF_PLATFORM) == CONF_ESPHOME
         )
         assert esphome_conf[CONF_ENCRYPTION][CONF_KEY] == OTHER_KEY
+    finally:
+        fv.full_config.reset(token)
+
+
+@pytest.mark.parametrize("extra", [{}, {"prometheus": {}}])
+def test_encryption_with_web_server_ota_disabled_does_not_warn(
+    caplog: pytest.LogCaptureFixture, extra: dict[str, Any]
+) -> None:
+    """web_server `ota: false` only serves /update while the captive portal is
+    active, on every listener, so there is no plaintext endpoint to warn about."""
+    full_conf = {
+        "web_server": {CONF_OTA: False},
+        **extra,
+        CONF_OTA: [
+            _make_ota_config(port=3232, **{CONF_ENCRYPTION: {CONF_KEY: OTHER_KEY}}),
+            {CONF_PLATFORM: "web_server", CONF_ID: ID("ota_ws", is_manual=False)},
+        ],
+    }
+    token = fv.full_config.set(full_conf)
+    try:
+        with caplog.at_level(logging.WARNING):
+            ota_esphome_final_validate({})
+        assert not any(
+            "OTA encryption does not cover" in record.message
+            for record in caplog.records
+        )
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_password_with_api_key_warns(caplog: pytest.LogCaptureFixture) -> None:
+    """A static api key makes the device offer encryption and the CLI take
+    it, so the password is dead weight; the config validates with a warning."""
+    full_conf = {
+        CONF_API: {CONF_ENCRYPTION: {CONF_KEY: API_KEY}},
+        CONF_OTA: [_make_ota_config(port=3232, **{CONF_PASSWORD: "pw"})],
+    }
+    token = fv.full_config.set(full_conf)
+    try:
+        with caplog.at_level(logging.WARNING):
+            ota_esphome_final_validate({})
+        assert any("wastes significant flash" in r.message for r in caplog.records)
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_password_with_runtime_api_key_warns_differently(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The CLI still needs the password, but the provisioned key also
+    authenticates uploads; the warning says so without the flash advice."""
+    full_conf = {
+        CONF_API: {CONF_ENCRYPTION: {}},
+        CONF_OTA: [_make_ota_config(port=3232, **{CONF_PASSWORD: "pw"})],
+    }
+    token = fv.full_config.set(full_conf)
+    try:
+        with caplog.at_level(logging.WARNING):
+            ota_esphome_final_validate({})
+        messages = [r.message for r in caplog.records]
+        assert any("provisioned at runtime also authenticates" in m for m in messages)
+        assert not any("wastes significant flash" in m for m in messages)
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_password_without_api_key_no_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Without an api key there is no offer, so nothing to warn about."""
+    full_conf = {
+        CONF_API: {},
+        CONF_OTA: [_make_ota_config(port=3232, **{CONF_PASSWORD: "pw"})],
+    }
+    token = fv.full_config.set(full_conf)
+    try:
+        with caplog.at_level(logging.WARNING):
+            ota_esphome_final_validate({})
+        assert not any("authenticates" in r.message for r in caplog.records)
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_web_server_component_without_ota_platform_does_not_warn(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The web_server component alone has no /update endpoint."""
+    full_conf = {
+        "web_server": {},
+        CONF_OTA: [
+            _make_ota_config(port=3232, **{CONF_ENCRYPTION: {CONF_KEY: OTHER_KEY}})
+        ],
+    }
+    token = fv.full_config.set(full_conf)
+    try:
+        with caplog.at_level(logging.WARNING):
+            ota_esphome_final_validate({})
+        assert not any(
+            "OTA encryption does not cover" in r.message for r in caplog.records
+        )
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_web_server_ota_platform_alone_does_not_warn(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Only the web_server component starts the shared listener, so the ota
+    platform on its own never exposes /update."""
+    full_conf = {
+        CONF_OTA: [
+            _make_ota_config(port=3232, **{CONF_ENCRYPTION: {CONF_KEY: OTHER_KEY}}),
+            {CONF_PLATFORM: "web_server", CONF_ID: ID("ota_ws", is_manual=False)},
+        ],
+    }
+    token = fv.full_config.set(full_conf)
+    try:
+        with caplog.at_level(logging.WARNING):
+            ota_esphome_final_validate({})
+        assert not any("plaintext /update" in r.message for r in caplog.records)
     finally:
         fv.full_config.reset(token)
 
@@ -370,20 +482,88 @@ def test_auto_load_pulls_noise_only_for_encryption() -> None:
     assert "noise" in AUTO_LOAD({})
 
 
-def test_filter_source_files_excludes_noise_without_encryption() -> None:
-    """The noise transport source compiles only for encrypted builds."""
-    old_config = CORE.config
-    try:
-        CORE.config = {CONF_OTA: [_make_ota_config(port=3232)]}
-        assert FILTER_SOURCE_FILES() == ["ota_esphome_noise.cpp"]
-        CORE.config = {
-            CONF_OTA: [
-                _make_ota_config(port=3232, **{CONF_ENCRYPTION: {CONF_KEY: API_KEY}})
-            ]
-        }
-        assert FILTER_SOURCE_FILES() == []
-    finally:
-        CORE.config = old_config
+def test_static_encryption_key() -> None:
+    """Only a build-time key counts; a runtime provisioned one does not."""
+    assert static_encryption_key({}) is None
+    assert static_encryption_key({CONF_ENCRYPTION: {}}) is None
+    assert static_encryption_key({CONF_ENCRYPTION: {CONF_KEY: API_KEY}}) == API_KEY
+
+
+@pytest.mark.parametrize(
+    ("yaml_name", "defines_present", "defines_absent"),
+    [
+        # An api key alone compiles the transport in without requiring it;
+        # the ota keeps its own pointer to the key so safe mode, which never
+        # constructs the api server, can still use it
+        (
+            "api_key_offer",
+            {"USE_OTA_ENCRYPTION"},
+            {"USE_OTA_ENCRYPTION_REQUIRED", "USE_OTA_ENCRYPTION_PROVISIONED"},
+        ),
+        # A password still guards plaintext uploads on an offering device
+        (
+            "api_key_offer_password",
+            {"USE_OTA_ENCRYPTION", "USE_OTA_PASSWORD"},
+            {"USE_OTA_ENCRYPTION_REQUIRED", "USE_OTA_ENCRYPTION_PROVISIONED"},
+        ),
+        # The migration install keeps the password for the old firmware's
+        # prompt but the build it sends is authenticated by the key alone
+        (
+            "migration_password",
+            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_REQUIRED"},
+            {"USE_OTA_PASSWORD", "USE_OTA_ENCRYPTION_PROVISIONED"},
+        ),
+        # The ota encryption block is what makes the device refuse plaintext
+        (
+            "encryption_required",
+            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_REQUIRED"},
+            {"USE_OTA_ENCRYPTION_PROVISIONED"},
+        ),
+        # Without api encryption the ota key is the device's own
+        (
+            "own_key",
+            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_REQUIRED"},
+            {"USE_OTA_ENCRYPTION_PROVISIONED"},
+        ),
+        # A key provisioned at runtime lives in the api server; the device
+        # offers with it once provisioned and never requires it
+        (
+            "runtime_api_key",
+            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_PROVISIONED"},
+            {"USE_OTA_ENCRYPTION_REQUIRED"},
+        ),
+        # No api encryption at all keeps the noise glue out of the build
+        (
+            "plain",
+            set(),
+            {
+                "USE_OTA_ENCRYPTION",
+                "USE_OTA_ENCRYPTION_REQUIRED",
+                "USE_OTA_ENCRYPTION_PROVISIONED",
+            },
+        ),
+    ],
+)
+def test_encryption_offer_codegen(
+    generate_main: Callable[[str], str],
+    yaml_name: str,
+    defines_present: set[str],
+    defines_absent: set[str],
+) -> None:
+    main_cpp = generate_main(
+        f"tests/component_tests/ota/test_esphome_ota_{yaml_name}.yaml"
+    )
+    defines = {define.name for define in CORE.defines}
+    assert defines_present <= defines
+    assert not (defines_absent & defines)
+    encrypted = "USE_OTA_ENCRYPTION" in defines_present
+    own_key = encrypted and "USE_OTA_ENCRYPTION_PROVISIONED" not in defines_present
+    assert ("esphome_esphomeotacomponent_id->set_noise_psk(" in main_cpp) is own_key
+    # The api shares the ota's array instead of emitting the same key twice
+    assert main_cpp.count("_psk[] PROGMEM") == (1 if own_key else 0)
+    assert ("set_auth_password(" in main_cpp) is ("USE_OTA_PASSWORD" in defines_present)
+    # The noise transport source compiles only when the define is set
+    assert FILTER_SOURCE_FILES() == ([] if encrypted else ["ota_esphome_noise.cpp"])
 
 
 def test_password_with_encryption_rejected() -> None:
@@ -391,6 +571,16 @@ def test_password_with_encryption_rejected() -> None:
     config = {CONF_PASSWORD: "pw", CONF_ENCRYPTION: {CONF_KEY: API_KEY}}
     with pytest.raises(cv.Invalid, match="cannot be combined"):
         _validate_no_password_with_encryption(config)
+
+
+def test_password_with_migration_install_accepted() -> None:
+    """The old firmware may still ask for the password on the plaintext
+    leg of the migration install."""
+    config = {
+        CONF_PASSWORD: "pw",
+        CONF_ENCRYPTION: {CONF_KEY: API_KEY, CONF_ALLOW_PLAINTEXT_UPLOAD: True},
+    }
+    assert _validate_no_password_with_encryption(config) is config
 
 
 def test_password_alone_accepted() -> None:

@@ -15,9 +15,12 @@ class WaveshareModel(EpaperModel):
         sequence_full=(),
         sequence_partial=(),
         base_image_required=False,
+        class_name="EpaperWaveshare",
         **defaults,
     ):
-        super().__init__(name, "EpaperWaveshare", **defaults)
+        # A partial LUT is what lets EpaperWaveshare do partial refresh
+        defaults.setdefault("partial_update", lut_partial is not None)
+        super().__init__(name, class_name=class_name, **defaults)
         self.lut = lut
         self.lut_partial = lut_partial
         self.sequence_full = sequence_full

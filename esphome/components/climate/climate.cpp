@@ -368,8 +368,8 @@ optional<ClimateDeviceRestoreState> Climate::restore_state_() {
 }
 
 void Climate::save_state_(const ClimateTraits &traits) {
-#if (defined(USE_ESP32) || (defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0))) && \
-    !defined(CLANG_TIDY)
+#if (defined(USE_ESP32) || defined(USE_ESP8266)) && !defined(CLANG_TIDY)
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
 #define TEMP_IGNORE_MEMACCESS
 #endif
@@ -435,6 +435,7 @@ void Climate::save_state_(const ClimateTraits &traits) {
 }
 
 void Climate::publish_state() {
+  this->set_has_state(true);
   ESP_LOGV(TAG, "'%s' >>", this->name_.c_str());
   auto traits = this->get_traits();
 

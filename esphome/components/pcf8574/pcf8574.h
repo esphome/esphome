@@ -51,6 +51,9 @@ class PCF8574Component final : public Component,
 /// Helper class to expose a PCF8574 pin as an internal input GPIO pin.
 class PCF8574GPIOPin final : public GPIOPin {
  public:
+  // User provided, not "= default": `new(p) PCF8574GPIOPin()` would zero-fill .bss that is already zero.
+  PCF8574GPIOPin() {}
+
   void setup() override;
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
@@ -65,10 +68,10 @@ class PCF8574GPIOPin final : public GPIOPin {
   gpio::Flags get_flags() const override { return this->flags_; }
 
  protected:
-  PCF8574Component *parent_;
-  uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
+  PCF8574Component *parent_{nullptr};
+  uint8_t pin_{0};
+  bool inverted_{false};
+  gpio::Flags flags_{};
 };
 
 }  // namespace esphome::pcf8574

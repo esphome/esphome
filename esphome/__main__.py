@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING, Protocol
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
 from esphome import const, platform_hooks
+from esphome.build_helpers.native import analysis_backend, native_backend
 from esphome.const import (
-    ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
     BUNDLE_EXTENSION,
     CONF_API,
@@ -35,7 +35,6 @@ from esphome.const import (
     CONF_LOGGER,
     CONF_MDNS,
     CONF_MQTT,
-    CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
     CONF_OTA,
     CONF_PASSWORD,
@@ -61,6 +60,7 @@ from esphome.stacktrace import LogLineProcessor
 from esphome.types import ConfigType
 from esphome.upload_targets import PortType, get_port_type
 from esphome.util import (
+    ESPHOME_COMMAND,
     PICOTOOL_PACKAGE,
     FlashImage,
     detect_rp2040_bootsel,
@@ -84,7 +84,6 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-ESPHOME_COMMAND = [sys.executable, "-m", "esphome"]
 
 # Maximum buffer size for serial log reading to prevent unbounded memory growth
 SERIAL_BUFFER_MAX_SIZE = 65536
@@ -817,7 +816,9 @@ def write_cpp_file() -> int:
         from esphome.build_gen import espidf
 
         espidf.write_project()
-    else:
+    elif not CORE.using_native_toolchain:
+        # Other native builds generate their project at compile time;
+        # never write a platformio.ini for them
         from esphome.build_gen import platformio
 
         platformio.write_project()
@@ -835,7 +836,7 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
 
     # Keep this here, NOT in codegen: config-hash and --only-generate must keep
     # working on machines that cannot run the toolchain.
-    if CORE.is_esp8266:
+    if CORE.is_esp8266 and CORE.using_toolchain_platformio:
         from esphome.components.esp8266 import check_rosetta
 
         check_rosetta()
@@ -859,20 +860,14 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         toolchain.create_factory_bin()
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
-        from esphome.build_helpers.idedata import IDEDATA_BEST_EFFORT_ERRORS
+        from esphome.build_helpers.idedata import warn_if_idedata_missing
 
-        try:
-            if toolchain.get_idedata() is None:
-                _LOGGER.warning("No idedata was generated for this build")
-        except IDEDATA_BEST_EFFORT_ERRORS as err:
-            # The firmware already built; an idedata failure must not fail
-            # a successful build.
-            _LOGGER.warning(
-                "Could not generate idedata: %s (IDE, clang-tidy, and "
-                "memory-analysis data will be unavailable for this build)",
-                err,
-            )
-            _LOGGER.debug("Idedata failure detail", exc_info=True)
+        warn_if_idedata_missing(toolchain.get_idedata)
+    elif CORE.using_native_toolchain:
+        raise EsphomeError(
+            f"Toolchain '{CORE.toolchain.value}' resolved but no platform "
+            "backend claimed the build"
+        )
     else:
         from esphome.platformio import toolchain
 
@@ -975,12 +970,15 @@ def upload_using_esptool(
 
     if file is not None:
         flash_images = [FlashImage(path=file, offset="0x0")]
-    elif CORE.using_toolchain_esp_idf:
-        from esphome.espidf import toolchain
-
-        flash_images = [
-            FlashImage(path=toolchain.get_factory_firmware_path(), offset="0x0")
-        ]
+    elif (native := native_backend()) is not None:
+        # Every native backend supplies its own 0x0 flash image (bootloader
+        # and partitions included where the target needs them)
+        image = native.get_factory_firmware_path()
+        if not image.is_file():
+            raise EsphomeError(
+                f"{image} does not exist; compile the configuration first"
+            )
+        flash_images = [FlashImage(path=image, offset="0x0")]
     else:
         from esphome.platformio import toolchain
 
@@ -1335,14 +1333,20 @@ def _upload_via_native_api(
             break
 
     from esphome import espota2
+    from esphome.components.noise import static_encryption_key
 
     remote_port = int(ota_conf[CONF_PORT])
     password = ota_conf.get(CONF_PASSWORD)
     # Fail closed: an encryption block whose key did not resolve must never
     # fall back to a plaintext upload
     noise_psk = None
+    plaintext_fallback = False
+    allow_plaintext_upload = False
     if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
         noise_psk = encryption_conf.get(CONF_KEY)
+        allow_plaintext_upload = bool(
+            encryption_conf.get(espota2.CONF_ALLOW_PLAINTEXT_UPLOAD)
+        )
         if not noise_psk:
             raise EsphomeError(
                 "OTA encryption is configured but no key was resolved; "
@@ -1351,6 +1355,10 @@ def _upload_via_native_api(
         # Ensure the key is a string, as required by the underlying OTA implementation.
         # It arrives here as a SensitiveStr which aioesphomeapi rejects.
         noise_psk = str(noise_psk)
+    elif api_key := static_encryption_key(config.get(CONF_API) or {}):
+        # Remove before 2027.3.0: the api key is tried, falling back to plaintext
+        noise_psk = str(api_key)
+        plaintext_fallback = True
 
     def check_partition_access(option_string: str) -> None:
         if not ota_conf.get("allow_partition_access"):
@@ -1382,7 +1390,14 @@ def _upload_via_native_api(
         _validate_bootloader_binary(binary)
 
     return espota2.run_ota(
-        network_devices, remote_port, password, binary, ota_type, noise_psk
+        network_devices,
+        remote_port,
+        password,
+        binary,
+        ota_type,
+        noise_psk,
+        plaintext_fallback=plaintext_fallback,
+        allow_plaintext_upload=allow_plaintext_upload,
     )
 
 
@@ -1697,24 +1712,10 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     if exit_code != 0:
         return exit_code
     if CORE.is_host:
-        _LOGGER.info(
-            "Successfully compiled program to path '%s'", _host_program_path(config)
-        )
+        _LOGGER.info("Successfully compiled program to path '%s'", CORE.firmware_bin)
     else:
         _LOGGER.info("Successfully compiled program.")
     return 0
-
-
-def _host_program_path(config: ConfigType) -> str:
-    """Return the compiled host ELF path."""
-    if CORE.using_toolchain_esp_idf:
-        from esphome.espidf import toolchain
-
-        return str(toolchain.get_elf_path())
-    from esphome.platformio.toolchain import get_idedata
-
-    # Memoized by compile_program's own call; this is a dict lookup
-    return str(get_idedata(config).firmware_elf_path)
 
 
 def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
@@ -1761,7 +1762,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
         return exit_code
     _LOGGER.info("Successfully compiled program.")
     if CORE.is_host:
-        program_path = _host_program_path(config)
+        program_path = str(CORE.firmware_bin)
         _LOGGER.info("Running program from path '%s'", program_path)
         return run_external_process(program_path)
 
@@ -1953,12 +1954,12 @@ def command_update_all(args: ArgsProtocol) -> int | None:
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     import json
 
-    if CORE.using_toolchain_esp_idf:
-        # Native ESP-IDF derives idedata from the build's compile_commands.json,
-        # so the configuration must already be compiled.
-        from esphome.espidf import toolchain as espidf_toolchain
+    native_toolchain = native_backend()
 
-        idedata = espidf_toolchain.get_idedata()
+    if native_toolchain is not None:
+        # Native toolchains derive idedata from the build's
+        # compile_commands.json, so the configuration must already be compiled.
+        idedata = native_toolchain.get_idedata()
         if idedata is None:
             _LOGGER.error(
                 "No idedata available; compile the configuration first",
@@ -1997,6 +1998,22 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     from esphome.analyze_memory.cli import MemoryAnalyzerCLI
     from esphome.analyze_memory.ram_strings import RamStringsAnalyzer
 
+    # Refuse an unsupported toolchain before paying for a full compile
+    analysis_toolchain = analysis_backend()
+    if analysis_toolchain is None and not CORE.using_toolchain_platformio:
+        _LOGGER.error(
+            "analyze-memory is not supported with the '%s' toolchain on %s; "
+            "re-run with --toolchain platformio",
+            CORE.toolchain.value if CORE.toolchain else "unresolved",
+            CORE.target_platform,
+        )
+        return 1
+    if (
+        check_supported := getattr(analysis_toolchain, "check_analysis_supported", None)
+    ) is not None:
+        # Raises with the reason; before the compile, not after it
+        check_supported()
+
     # Always compile to ensure fresh data (fast if no changes - just relinks)
     exit_code = write_cpp(config)
     if exit_code != 0:
@@ -2008,13 +2025,30 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
 
     # Get idedata for analysis
     idedata = None
-    if CORE.using_toolchain_esp_idf:
-        from esphome.espidf import toolchain
+    if analysis_toolchain is not None:
+        objdump = analysis_toolchain.get_objdump_path()
+        readelf = analysis_toolchain.get_readelf_path()
+        for tool in (objdump, readelf):
+            if not tool.is_file():
+                # The analyzer would silently fall back to host
+                # binutils, which cannot read the target ELF
+                _LOGGER.error(
+                    "%s is missing; the toolchain install may be incomplete "
+                    "(recompile, or run 'esphome clean-all' if it persists)",
+                    tool,
+                )
+                return 1
+        objdump_path = str(objdump)
+        readelf_path = str(readelf)
 
-        objdump_path = str(toolchain.get_objdump_path())
-        readelf_path = str(toolchain.get_readelf_path())
-
-        firmware_elf = toolchain.get_elf_path()
+        firmware_elf = analysis_toolchain.get_elf_path()
+        if not firmware_elf.is_file():
+            # The analyzer swallows tool failures, so a missing ELF would
+            # produce an exit-0 zeroed report
+            _LOGGER.error(
+                "%s is missing; compile the configuration first", firmware_elf
+            )
+            return 1
     else:
         from esphome.platformio import toolchain
 
@@ -2068,155 +2102,9 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
 
 
 def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
-    from esphome import yaml_util
+    from esphome.cli.rename import command_rename as run
 
-    new_name = args.name
-    for c in new_name:
-        if c not in ALLOWED_NAME_CHARS:
-            safe_print(
-                color(
-                    AnsiFore.BOLD_RED,
-                    f"'{c}' is an invalid character for names. Valid characters are: "
-                    f"{ALLOWED_NAME_CHARS} (lowercase, no spaces)",
-                )
-            )
-            return 1
-    # Load existing yaml file
-    raw_contents = CORE.config_path.read_text(encoding="utf-8")
-
-    yaml = yaml_util.load_yaml(CORE.config_path)
-    if CONF_ESPHOME not in yaml or CONF_NAME not in yaml[CONF_ESPHOME]:
-        safe_print(
-            color(
-                AnsiFore.BOLD_RED, "Complex YAML files cannot be automatically renamed."
-            )
-        )
-        return 1
-    old_name = yaml[CONF_ESPHOME][CONF_NAME]
-    match = re.match(r"^\$\{?([a-zA-Z0-9_]+)\}?$", old_name)
-    if match is None:
-        # Only swap the ``name:`` line that sits directly under the
-        # top-level ``esphome:`` block. A naked ``re.sub`` would
-        # also clobber any other ``name:`` line whose value happens
-        # to match (e.g. a sensor / output / wifi entry sharing the
-        # device's hostname), silently rewriting unrelated user
-        # configuration. The pattern anchors:
-        # - at the start of the line so ``friendly_name:``,
-        #   ``device_name:`` etc. don't match the trailing ``name:``
-        #   substring; and
-        # - at the end of the value (lookahead for whitespace +
-        #   comment + EOL) so ``old_name`` doesn't match as a
-        #   prefix of a longer value (``kitchen`` vs ``kitchen2``).
-        name_pattern = re.compile(
-            rf"^(\s*)name:\s+[\"']?{re.escape(old_name)}[\"']?(?=\s*(?:#|$))"
-        )
-        out_lines: list[str] = []
-        in_esphome_block = False
-        for line in raw_contents.splitlines(keepends=True):
-            if line and not line[0].isspace() and line.strip():
-                in_esphome_block = line.lstrip().startswith("esphome:")
-                out_lines.append(line)
-                continue
-            if in_esphome_block:
-                line = name_pattern.sub(rf'\1name: "{new_name}"', line, count=1)
-            out_lines.append(line)
-        new_raw = "".join(out_lines)
-    else:
-        old_name = yaml[CONF_SUBSTITUTIONS][match.group(1)]
-        if (
-            len(
-                re.findall(
-                    rf"^\s+{match.group(1)}:\s+[\"']?{old_name}[\"']?",
-                    raw_contents,
-                    flags=re.MULTILINE,
-                )
-            )
-            > 1
-        ):
-            safe_print(
-                color(AnsiFore.BOLD_RED, "Too many matches in YAML to safely rename")
-            )
-            return 1
-
-        new_raw = re.sub(
-            rf"^(\s+{match.group(1)}):\s+[\"']?{old_name}[\"']?",
-            f'\\1: "{new_name}"',
-            raw_contents,
-            flags=re.MULTILINE,
-        )
-
-    # ``new_name == old_name`` (after substitution resolution) is
-    # a no-op rewrite that would still queue a pointless re-flash.
-    # Catch it before the path-equality check below — covers the
-    # case where the config filename doesn't match the device name
-    # (e.g. ``weird-file.yaml`` whose ``esphome.name`` is
-    # ``kitchen``; running ``esphome rename weird-file.yaml kitchen``
-    # would otherwise just re-flash the same hostname).
-    if new_name == old_name:
-        safe_print(
-            color(
-                AnsiFore.BOLD_RED,
-                f"'{new_name}' is already the device's name.",
-            )
-        )
-        return 1
-
-    new_path: Path = CORE.config_dir / (new_name + ".yaml")
-    if new_path.resolve() == CORE.config_path.resolve():
-        safe_print(
-            color(
-                AnsiFore.BOLD_RED,
-                f"'{new_name}' is already the device's name.",
-            )
-        )
-        return 1
-    if new_path.exists():
-        safe_print(
-            color(
-                AnsiFore.BOLD_RED,
-                f"Cannot rename: {new_path} already exists. "
-                "Refusing to overwrite an existing configuration.",
-            )
-        )
-        return 1
-    safe_print(
-        f"Updating {color(AnsiFore.CYAN, str(CORE.config_path))} to {color(AnsiFore.CYAN, str(new_path))}"
-    )
-    print()
-
-    new_path.write_text(new_raw, encoding="utf-8")
-
-    rc = run_external_process(*ESPHOME_COMMAND, "config", str(new_path))
-    if rc != 0:
-        safe_print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
-        new_path.unlink()
-        return 1
-
-    cli_args = [
-        "run",
-        str(new_path),
-        "--no-logs",
-        "--device",
-        CORE.address,
-    ]
-
-    if args.dashboard:
-        cli_args.insert(0, "--dashboard")
-
-    try:
-        rc = run_external_process(*ESPHOME_COMMAND, *cli_args)
-    except KeyboardInterrupt:
-        rc = 1
-    if rc != 0:
-        new_path.unlink()
-        return 1
-
-    if CORE.config_path != new_path:
-        CORE.config_path.unlink()
-
-    safe_print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
-    print()
-    return 0
+    return run(args, config)
 
 
 PRE_CONFIG_ACTIONS = {
@@ -2331,7 +2219,8 @@ def parse_args(argv):
         metavar="{" + ",".join(t.value for t in Toolchain) + "}",
         help=(
             "Select toolchain for compiling. Overrides '<platform>.toolchain' in YAML. "
-            f"Default: {Toolchain.PLATFORMIO.value}."
+            "Default: the platform's native toolchain where it has one, else "
+            f"{Toolchain.PLATFORMIO.value}."
         ),
     )
 
@@ -2454,7 +2343,7 @@ def parse_args(argv):
         "-r",
         action="store_true",
         help="Reset the device before starting serial logs.",
-        default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
+        default=get_bool_env("ESPHOME_SERIAL_LOGGING_RESET"),
     )
     _add_states_args(parser_logs)
 
@@ -2495,7 +2384,7 @@ def parse_args(argv):
         "-r",
         action="store_true",
         help="Reset the device before starting serial logs.",
-        default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
+        default=get_bool_env("ESPHOME_SERIAL_LOGGING_RESET"),
     )
     parser_run.add_argument(
         "--ota-platform",

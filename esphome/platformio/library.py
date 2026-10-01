@@ -35,7 +35,7 @@ from esphome.framework_helpers import (
     failure_reason,
     rmdir,
     run_batch_downloads,
-    warn_prefetch_failures,
+    warn_batch_failures,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -360,7 +360,7 @@ class LibraryBackend:
     """
 
     platform: str | None
-    framework: str
+    framework: str | None
     emit: Callable[["ConvertedLibrary"], None]
     cache_key: str
     # Owner-less names this returns True for are skipped by the walk;
@@ -368,6 +368,10 @@ class LibraryBackend:
     # reconciles provided_requests after resolving
     provides: Callable[[str], bool] | None = None
     provided_requests: set[str] = field(default_factory=set)
+    # Accept a library without library.json/library.properties, as
+    # PlatformIO does (its defaults: src/ or the root, plus include/). Off
+    # for backends whose emitted build files need the manifest.
+    manifest_optional: bool = False
 
 
 def ensure_list[T](obj: T | list[T]) -> list[T]:
@@ -616,11 +620,20 @@ def _make_registry_client() -> Any:
     elsewhere, not by the PlatformIO registry.
     """
     from platformio.package.manager._registry import PackageManagerRegistryMixin
+    from platformio.project.helpers import get_project_cache_dir
+    from platformio.registry.client import RegistryClient
+
+    # PlatformIO creates its HTTP cache dir without exist_ok, so two builds
+    # making their first registry lookup at once race on it
+    (Path(get_project_cache_dir()) / "http").mkdir(parents=True, exist_ok=True)
 
     class _Registry(PackageManagerRegistryMixin):
         def __init__(self) -> None:
-            self._registry_client = None
             self.pkg_type = "library"
+            self._registry_client = RegistryClient()
+            # The probe sleeps ~500 ms per lookup (see runner.patch_registry_private_packages);
+            # instance-level so the ESPHome process never patches PlatformIO's class
+            self._registry_client.allowed_private_packages = lambda: False
 
         @staticmethod
         def is_system_compatible(value: Any, custom_system: Any = None) -> bool:
@@ -855,6 +868,11 @@ def _url_or_none(value: Any) -> str | None:
     return value if parsed.scheme and parsed.netloc else None
 
 
+# URL schemes that name a local library folder; symlink:// is PlatformIO's
+# spelling for one it links instead of copying, which is the same to us
+_LOCAL_SCHEMES = ("file", "symlink")
+
+
 def _node_key(
     name: str | None, version: str | None, repository: str | None
 ) -> tuple[str, str, tuple[str | None, str | None]]:
@@ -892,7 +910,7 @@ def _node_key(
             scheme = urlsplit(candidate).scheme
         except ValueError:
             scheme = ""
-        if scheme == "file" or _url_or_none(candidate):
+        if scheme in _LOCAL_SCHEMES or _url_or_none(candidate):
             name, repository = custom_name, candidate
         else:
             # Anything with ``://`` was meant to be a URL; failing it fast
@@ -901,7 +919,7 @@ def _node_key(
     if repository:
         is_git_prefixed = repository.startswith("git+")
         split_result = urlsplit(repository.removeprefix("git+"))
-        if split_result.scheme == "file" and not is_git_prefixed:
+        if (scheme := split_result.scheme) in _LOCAL_SCHEMES and not is_git_prefixed:
             # A plain file:// URL points at a local library directory. A local
             # file URL is written file:///absolute/path (empty host) or, less
             # commonly, file://localhost/path. Anything else -- a real host, or
@@ -909,8 +927,8 @@ def _node_key(
             # rejected rather than silently resolved to the wrong directory.
             if split_result.netloc not in ("", "localhost"):
                 raise RuntimeError(
-                    f"Unsupported host in file:// library URL '{repository}'; "
-                    "use an absolute path, e.g. file:///path/to/lib"
+                    f"Unsupported host in {scheme}:// library URL '{repository}'; "
+                    f"use an absolute path, e.g. {scheme}:///path/to/lib"
                 )
             # Validate the URL path itself (always POSIX-style, leading slash),
             # not the OS path: on Windows a "/foo" path is not is_absolute()
@@ -920,8 +938,8 @@ def _node_key(
             url_path = split_result.path
             if not url_path.startswith("/") or not PurePosixPath(url_path).name:
                 raise RuntimeError(
-                    f"file:// library URL '{repository}' must be an absolute "
-                    "directory path, e.g. file:///path/to/lib"
+                    f"{scheme}:// library URL '{repository}' must be an absolute "
+                    f"directory path, e.g. {scheme}:///path/to/lib"
                 )
             path = url2pathname(url_path)
             return (name or PurePosixPath(url_path).name), "local", (path, None)
@@ -1091,7 +1109,7 @@ def _prefetch_wave(
             + [(c.name, 0, partial(_clone_source, c, salt, namespace)) for c in clones],
         )
         # The sequential call below retries and raises the real error
-        warn_prefetch_failures(
+        warn_batch_failures(
             failures, "Prefetch of %s failed (retrying sequentially): %s"
         )
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
@@ -1240,9 +1258,16 @@ def convert_libraries(
             library_properties_path = source_dir / "library.properties"
             has_json = library_json_path.is_file()
             has_properties = library_properties_path.is_file()
-            if not has_json and not has_properties and not node.is_local:
+            if (
+                not has_json
+                and not has_properties
+                and not node.is_local
+                and not backend.manifest_optional
+            ):
                 # An interrupted clone/extraction self-heals with one forced
-                # re-download; a local source has nothing to re-download
+                # re-download; a local source has nothing to re-download.
+                # A backend accepting manifest-less libraries cannot tell
+                # one from a torn download and would re-fetch every build.
                 _LOGGER.warning(
                     "Library %s at %s is missing library.json and library.properties; "
                     "re-downloading",
@@ -1256,6 +1281,12 @@ def convert_libraries(
                 component.data = parse_library_json(library_json_path)
             elif has_properties:
                 component.data = parse_library_properties(library_properties_path)
+            elif backend.manifest_optional:
+                _LOGGER.debug(
+                    "Library %s has no manifest; using PlatformIO's default layout",
+                    key,
+                )
+                component.data = {"name": component.name}
             else:
                 # Local sources are user input (EsphomeError); a registry/git
                 # miss means a corrupt cache (RuntimeError)
@@ -1282,7 +1313,7 @@ def convert_libraries(
                 # cross-platform skip stays at debug, other causes warn
                 if key in top_level_keys:
                     reason = (
-                        f"is not compatible with {backend.framework}"
+                        f"is not compatible with {backend.framework or backend.platform}"
                         if isinstance(e, IncompatiblePlatform)
                         else "has a malformed manifest"
                     )

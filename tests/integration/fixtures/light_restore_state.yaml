@@ -1,0 +1,35 @@
+esphome:
+  name: host-light-restore-state-test
+host:
+api:  # Port will be automatically injected
+logger:
+  level: DEBUG
+
+output:
+  - platform: template
+    id: out_keep
+    type: float
+    write_action:
+      - lambda: ""
+  - platform: template
+    id: out_override
+    type: float
+    write_action:
+      - lambda: ""
+
+light:
+  # restore_state: {} -- restore everything exactly as saved, no overrides
+  - platform: monochromatic
+    name: "Test Light Keep"
+    id: test_light_keep
+    output: out_keep
+    restore_state: {}
+
+  # restore_state: with explicit overrides -- these must win over whatever was saved
+  - platform: monochromatic
+    name: "Test Light Override"
+    id: test_light_override
+    output: out_override
+    restore_state:
+      state: INVERT
+      brightness: 100%
