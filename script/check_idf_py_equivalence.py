@@ -56,8 +56,8 @@ MACRO_CHANGED = (
     "IDF_BOOTLOADER_OVERRIDE in esphome/build_gen/espidf.py"
 )
 VERSION_DRIFT = (
-    "ESPHome reads ESP-IDF version {ours!r} but idf_tools reports {theirs!r}; "
-    "update read_idf_version in esphome/espidf/framework.py"
+    "ESPHome reads ESP-IDF version {ours!r} from {source} but idf_tools reports "
+    "{theirs!r}; update read_idf_version_{source} in esphome/espidf/framework.py"
 )
 WORK_SUFFIXES = (".obj", ".o", ".a", ".elf", ".map", ".bin", ".ld")
 DEFAULT_GLOB = "tests/test_build_components/build/.esphome/build/*"
@@ -146,11 +146,15 @@ def check(build_path: Path) -> list[str]:
     idf_path = toolchain._get_idf_path(version)
     if not idf_macro_matches(idf_path):
         return [MACRO_CHANGED]
-    # The build env reads the version in process; idf_tools stays the authority.
-    ours = framework.read_idf_version(idf_path)
+    # A managed tree always has version.txt, so the header branch is
+    # compared on its own or it would never be exercised here.
     theirs = framework.idf_tools_version(idf_path)
-    if ours != theirs:
-        return [VERSION_DRIFT.format(ours=ours, theirs=theirs)]
+    for source, read in (
+        ("txt", framework.read_idf_version_txt),
+        ("header", framework.read_idf_version_header),
+    ):
+        if (ours := read(idf_path)) != theirs:
+            return [VERSION_DRIFT.format(ours=ours, source=source, theirs=theirs)]
     # ESP-IDF's openthread stamps the configure time into its compile flags;
     # pin it before the env is cached so both configures get the same value.
     os.environ["SOURCE_DATE_EPOCH"] = "0"

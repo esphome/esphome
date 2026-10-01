@@ -329,58 +329,51 @@ _IDF_VERSION_HEADER_RE = re.compile(
 )
 
 
-def read_idf_version(idf_framework_root: Path) -> str | None:
-    """Read the ESP-IDF version the way idf_tools does, without starting it."""
-    try:
-        text = (idf_framework_root / "version.txt").read_text(encoding="utf-8")
-    except OSError:
-        text = ""
-    if match := _IDF_VERSION_TXT_RE.match(text):
+def _read_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+
+def read_idf_version_txt(idf_framework_root: Path) -> str | None:
+    """major.minor from ``version.txt``, as idf_tools reads it."""
+    if match := _IDF_VERSION_TXT_RE.match(
+        _read_text(idf_framework_root / "version.txt")
+    ):
         return match.group(1)
+    return None
+
+
+def read_idf_version_header(idf_framework_root: Path) -> str | None:
+    """major.minor from ``esp_idf_version.h``, as idf_tools reads it."""
     header = idf_framework_root / "components" / "esp_common" / "include"
-    try:
-        text = (header / "esp_idf_version.h").read_text(encoding="utf-8")
-    except OSError:
-        return None
-    if match := _IDF_VERSION_HEADER_RE.search(text):
+    if match := _IDF_VERSION_HEADER_RE.search(_read_text(header / "esp_idf_version.h")):
         return f"{match.group(1)}.{match.group(2)}"
     return None
 
 
-def _get_idf_version(
-    idf_framework_root: PathType, env: dict[str, str] | None = None
-) -> str:
+def _get_idf_version(idf_framework_root: PathType) -> str:
     """
     Get the ESP-IDF version from the specified framework root.
 
     Args:
         idf_framework_root: Path to the ESP-IDF framework root directory
-        env: Optional dictionary of environment variables to set
 
     Returns:
         String containing ESP-IDF version
 
     Raises:
         RuntimeError: If ESP-IDF version cannot be determined
-
-    The version is read in process; the framework's own ``idf_tools`` is
-    only started for a tree neither of its sources describes.
     """
-    if (version := read_idf_version(Path(idf_framework_root))) is not None:
-        return version
-    return idf_tools_version(idf_framework_root, env)
+    root = Path(idf_framework_root)
+    version = read_idf_version_txt(root) or read_idf_version_header(root)
+    if version is None:
+        raise RuntimeError(f"Can't get ESP-IDF version of {idf_framework_root}")
+    return version
 
 
-def idf_tools_version(
-    idf_framework_root: PathType, env: dict[str, str] | None = None
-) -> str:
-    """Ask the framework's own ``idf_tools`` for its version.
-
-    ``_get_idf_version`` reads the same answer in process; the CI drift
-    guard compares the two so an ``idf_tools`` change is caught.
-    """
+def idf_tools_version(idf_framework_root: PathType) -> str:
+    """The version from the framework's own ``idf_tools``, for the CI drift guard."""
     success, stdout, stderr = _run_idf_tools_script(
-        idf_framework_root, "get_idf_version.py", "ESP-IDF version", env=env
+        idf_framework_root, "get_idf_version.py", "ESP-IDF version"
     )
     if stdout:
         stdout = stdout.strip()
@@ -1083,7 +1076,7 @@ def _check_esp_idf_python_env_install(
 
         create_venv(python_env_path, msg=f"ESP-IDF {version}")
 
-        esp_idf_version = _get_idf_version(framework_path, env=env)
+        esp_idf_version = _get_idf_version(framework_path)
         constraint_file_path = (
             get_idf_tools_path() / f"espidf.constraints.v{esp_idf_version}.txt"
         )
@@ -1324,7 +1317,7 @@ def get_framework_env(
 
     # 4. Set framework-specific environment variables
     env["IDF_PATH"] = str(framework_path)
-    env["ESP_IDF_VERSION"] = _get_idf_version(framework_path, env)
+    env["ESP_IDF_VERSION"] = _get_idf_version(framework_path)
 
     # 5. Get and add tool paths and environment variables
     paths_to_export, export_vars = _get_idf_tool_paths(framework_path, env)
