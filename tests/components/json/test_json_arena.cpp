@@ -181,7 +181,7 @@ TEST(JsonArena, StateDocumentsFitWithoutTouchingTheFallback) {
     root["value"] = static_cast<const char *>(value_buf);
     root["state"] = static_cast<const char *>(value_buf);
     JsonArray options = root["option"].to<JsonArray>();
-    char option_bufs[40][34];
+    char option_bufs[40][44];  // room for any int, so -Wformat-truncation stays quiet
     for (int i = 0; i < 40; i++) {
       snprintf(option_bufs[i], sizeof(option_bufs[i]), "option number %02d padded to twenty", i);
       options.add(JsonString(option_bufs[i], true));
@@ -199,7 +199,7 @@ TEST(JsonArena, StateDocumentsFitWithoutTouchingTheFallback) {
   {
     JsonBuilder builder(&copied_arena);
     JsonArray options = builder.root()["option"].to<JsonArray>();
-    char option_bufs[40][34];
+    char option_bufs[40][44];  // room for any int, so -Wformat-truncation stays quiet
     for (int i = 0; i < 40; i++) {
       snprintf(option_bufs[i], sizeof(option_bufs[i]), "option number %02d padded to twenty", i);
       options.add(static_cast<const char *>(option_bufs[i]));
@@ -219,7 +219,7 @@ TEST(JsonArena, DocumentMatchesTheHeapAllocator) {
       arr.add(i);
     }
     JsonArray strings = builder.root()["s"].to<JsonArray>();
-    char buf[32];
+    char buf[40];  // room for any int, so -Wformat-truncation stays quiet
     for (int i = 0; i < 60; i++) {
       snprintf(buf, sizeof(buf), "string number %04d padded", i);
       strings.add(buf);
