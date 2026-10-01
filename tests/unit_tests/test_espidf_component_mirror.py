@@ -627,6 +627,18 @@ def test_sync_timeout_then_component_error_stops(
     _assert_sync_lock_released()
 
 
+def test_sync_unexpected_error_logs_a_traceback(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An operational failure warns in one line; a bug keeps its traceback."""
+    _write_lock(tmp_path)
+    with patch.object(component_mirror, "_promote", side_effect=KeyError("url")):
+        ok, _ = _run_sync(tmp_path)
+    assert not ok
+    record = next(r for r in caplog.records if "Could not mirror" in r.message)
+    assert record.exc_info
+
+
 def test_sync_single_component_timeout_is_not_retried(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

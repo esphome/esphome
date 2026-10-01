@@ -389,8 +389,13 @@ def sync_component_mirror(
         )
         return False
     except (*_BAD_INDEX_ERRORS, EsphomeError, subprocess.SubprocessError) as err:
-        # Includes a failed index publish; the live index is intact.
-        _LOGGER.warning("Could not mirror IDF components: %s", err)
+        # Includes a failed index publish; the live index is intact. A
+        # shape error here is a bug, so keep its traceback.
+        _LOGGER.warning(
+            "Could not mirror IDF components: %s",
+            err,
+            exc_info=isinstance(err, (TypeError, KeyError, AttributeError)),
+        )
         return False
     finally:
         # Cleanup only; a leftover tree is removed by the next attempt.
