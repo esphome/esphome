@@ -20,6 +20,7 @@ service APIConnection {
     option (needs_authentication) = false;
   }
   rpc device_capabilities (DeviceCapabilitiesRequest) returns (DeviceCapabilitiesResponse) {}
+  rpc device_wizard (DeviceWizardRequest) returns (DeviceWizardResponse) {}
   rpc list_entities (ListEntitiesRequest) returns (void) {}
   rpc subscribe_states (SubscribeStatesRequest) returns (void) {}
   rpc subscribe_logs (SubscribeLogsRequest) returns (void) {}
@@ -380,6 +381,11 @@ message ZWaveProxyCapabilities {
   uint32 home_id = 2;
 }
 
+message WizardCapabilities {
+  // True when the device has a wizard configured, so DeviceWizardRequest will be answered
+  bool configured = 1;
+}
+
 message DeviceCapabilitiesResponse {
   option (id) = 150;
   option (source) = SOURCE_SERVER;
@@ -389,6 +395,106 @@ message DeviceCapabilitiesResponse {
   ZWaveProxyCapabilities zwave_proxy = 3 [(field_ifdef) = "USE_ZWAVE_PROXY"];
   repeated SerialProxyInfo serial_proxies = 4
       [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
+  WizardCapabilities wizard = 5 [(field_ifdef) = "USE_API_WIZARD"];
+}
+
+// ==================== DEVICE WIZARD ====================
+
+// Asks the device for the onboarding wizard that Home Assistant presents when the
+// device is added.
+//
+// The wizard is read once, when the device is added, whereas capabilities are read
+// on every connect, so it is a separate message rather than part of
+// DeviceCapabilitiesResponse. It is only served on an authenticated connection.
+//
+// A device without a wizard does not have this message at all and never answers it,
+// as a device ignores messages it does not know. Clients therefore check
+// DeviceCapabilitiesResponse.wizard.configured before sending it.
+message DeviceWizardRequest {
+  option (id) = 153;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_API_WIZARD";
+  // Empty
+}
+
+// Mirrors Home Assistant's EntityFilterSelectorConfig. A device matches when it
+// satisfies every field that is set, and a selector with several filters accepts
+// an entity that matches any one of them.
+//
+// Length limits are validated in components/api/__init__.py: integration, domain
+// and device_class entries are at most 63 bytes, supported_features entries 127.
+message WizardEntityFilter {
+  string integration = 1 [(max_data_length) = 63];
+  repeated string domain = 2 [(container_pointer_no_template) = "WizardSpan<const char *>"];
+  repeated string device_class = 3 [(container_pointer_no_template) = "WizardSpan<const char *>"];
+  // Like "weather.WeatherEntityFeature.FORECAST_DAILY"
+  repeated string supported_features = 4 [(container_pointer_no_template) = "WizardSpan<const char *>"];
+}
+
+// An entity of this device that the wizard shows to the user (for example to turn
+// it on or off). The entity is identified by the same key and device_id used in
+// ListEntitiesResponse.
+message WizardEntityField {
+  fixed32 key = 1;
+  uint32 device_id = 2 [(field_ifdef) = "USE_DEVICES"];
+  // Shown next to the entity. May be a Home Assistant translation placeholder
+  // such as "[%key:component::domain::section::name%]", passed through verbatim.
+  string description = 3 [(max_data_length) = 255];
+}
+
+// An input that the wizard fills in with the id of a Home Assistant entity chosen
+// by the user. It stands for one entity of the device's homeassistant platform
+// (sensor, binary_sensor, text_sensor, number or switch) that has no entity id yet,
+// or only a default one.
+//
+// The key is the FNV-1 hash of the input's ESPHome id, not an entity key. The client
+// sends the chosen entity id back with a WizardInputSetRequest, which the device
+// saves, so the choice survives a restart.
+message WizardInputField {
+  fixed32 key = 1;
+  // Shown next to the input. May be a Home Assistant translation placeholder
+  string description = 2 [(max_data_length) = 255];
+  // Which entities the user may choose. Several filters are ORed together.
+  repeated WizardEntityFilter entity_filters = 3
+      [(field_ifdef) = "USE_API_WIZARD_ENTITY_FILTERS",
+       (container_pointer_no_template) = "WizardView<WizardEntityFilter, WizardFilterRow>"];
+  // The entity id the device currently uses, empty when none is set yet. Lets the
+  // client preselect it.
+  string entity_id = 4 [(max_data_length) = 255];
+}
+
+message WizardPage {
+  string title = 1 [(max_data_length) = 127];
+  string description = 2 [(max_data_length) = 255];
+  repeated WizardEntityField entities = 3
+      [(field_ifdef) = "USE_API_WIZARD_ENTITIES",
+       (container_pointer_no_template) = "WizardView<WizardEntityField, WizardEntityRow>"];
+  repeated WizardInputField inputs = 4
+      [(field_ifdef) = "USE_API_WIZARD_INPUTS",
+       (container_pointer_no_template) = "WizardView<WizardInputField, WizardInputRow>"];
+}
+
+// The pages are fixed at compile time and are shown in the order they are listed here.
+message DeviceWizardResponse {
+  option (id) = 154;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_API_WIZARD";
+
+  repeated WizardPage pages = 1 [(container_pointer_no_template) = "WizardView<WizardPage, WizardPageRow>"];
+}
+
+// Sets the entity id of a wizard input (see WizardInputField.key). Clients send
+// this only when DeviceCapabilitiesResponse.wizard.configured is set. There is no
+// reply. The device ignores a request whose key matches no input or whose entity_id
+// is empty, longer than 255 bytes or has no '.', and otherwise saves the id and
+// subscribes to that entity's state.
+message WizardInputSetRequest {
+  option (id) = 155;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_API_WIZARD_INPUTS";
+
+  fixed32 key = 1;
+  string entity_id = 2 [(max_data_length) = 255];
 }
 
 message ListEntitiesRequest {

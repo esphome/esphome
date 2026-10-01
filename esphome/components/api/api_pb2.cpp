@@ -291,6 +291,20 @@ uint32_t ZWaveProxyCapabilities::calc_size_msg(const void *self) {
   return size;
 }
 #endif
+#ifdef USE_API_WIZARD
+uint8_t *WizardCapabilities::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const WizardCapabilities *>(self);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.configured);
+  return pos;
+}
+uint32_t WizardCapabilities::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const WizardCapabilities *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_bool(1, msg.configured);
+  return size;
+}
+#endif
 uint8_t *DeviceCapabilitiesResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const DeviceCapabilitiesResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
@@ -307,6 +321,9 @@ uint8_t *DeviceCapabilitiesResponse::encode_msg(const void *self, ProtoWriteBuff
   for (const auto &it : msg.serial_proxies) {
     pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 4, it);
   }
+#endif
+#ifdef USE_API_WIZARD
+  pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 5, msg.wizard);
 #endif
   return pos;
 }
@@ -327,8 +344,177 @@ uint32_t DeviceCapabilitiesResponse::calc_size_msg(const void *self) {
     size += ProtoSize::calc_message_force(1, it.calculate_size());
   }
 #endif
+#ifdef USE_API_WIZARD
+  size += ProtoSize::calc_message(1, msg.wizard.calculate_size());
+#endif
   return size;
 }
+#ifdef USE_API_WIZARD_ENTITY_FILTERS
+uint8_t *WizardEntityFilter::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const WizardEntityFilter *>(self);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.integration);
+  for (const char *it : *msg.domain) {
+    pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 2, it, strlen(it));
+  }
+  for (const char *it : *msg.device_class) {
+    pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 3, it, strlen(it));
+  }
+  for (const char *it : *msg.supported_features) {
+    pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 4, it, strlen(it));
+  }
+  return pos;
+}
+uint32_t WizardEntityFilter::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const WizardEntityFilter *>(self);
+  uint32_t size = 0;
+  size += !msg.integration.empty() ? 2 + msg.integration.size() : 0;
+  if (!msg.domain->empty()) {
+    for (const char *it : *msg.domain) {
+      size += ProtoSize::calc_length_force(1, strlen(it));
+    }
+  }
+  if (!msg.device_class->empty()) {
+    for (const char *it : *msg.device_class) {
+      size += ProtoSize::calc_length_force(1, strlen(it));
+    }
+  }
+  if (!msg.supported_features->empty()) {
+    for (const char *it : *msg.supported_features) {
+      size += ProtoSize::calc_length_force(1, strlen(it));
+    }
+  }
+  return size;
+}
+#endif
+#ifdef USE_API_WIZARD_ENTITIES
+uint8_t *WizardEntityField::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const WizardEntityField *>(self);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  if (uint32_t raw = msg.key; raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, raw);
+  }
+#ifdef USE_DEVICES
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.device_id);
+#endif
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.description);
+  return pos;
+}
+uint32_t WizardEntityField::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const WizardEntityField *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_fixed32(1, msg.key);
+#ifdef USE_DEVICES
+  size += ProtoSize::calc_uint32(1, msg.device_id);
+#endif
+  size += ProtoSize::calc_length(1, msg.description.size());
+  return size;
+}
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+uint8_t *WizardInputField::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const WizardInputField *>(self);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  if (uint32_t raw = msg.key; raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, raw);
+  }
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.description);
+#ifdef USE_API_WIZARD_ENTITY_FILTERS
+  for (const auto &it : *msg.entity_filters) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 3, it);
+  }
+#endif
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.entity_id);
+  return pos;
+}
+uint32_t WizardInputField::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const WizardInputField *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_fixed32(1, msg.key);
+  size += ProtoSize::calc_length(1, msg.description.size());
+#ifdef USE_API_WIZARD_ENTITY_FILTERS
+  if (!msg.entity_filters->empty()) {
+    for (const auto &it : *msg.entity_filters) {
+      size += ProtoSize::calc_message_force(1, it.calculate_size());
+    }
+  }
+#endif
+  size += ProtoSize::calc_length(1, msg.entity_id.size());
+  return size;
+}
+#endif
+#ifdef USE_API_WIZARD
+uint8_t *WizardPage::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const WizardPage *>(self);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.title);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.description);
+#ifdef USE_API_WIZARD_ENTITIES
+  for (const auto &it : *msg.entities) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 3, it);
+  }
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+  for (const auto &it : *msg.inputs) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 4, it);
+  }
+#endif
+  return pos;
+}
+uint32_t WizardPage::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const WizardPage *>(self);
+  uint32_t size = 0;
+  size += !msg.title.empty() ? 2 + msg.title.size() : 0;
+  size += ProtoSize::calc_length(1, msg.description.size());
+#ifdef USE_API_WIZARD_ENTITIES
+  if (!msg.entities->empty()) {
+    for (const auto &it : *msg.entities) {
+      size += ProtoSize::calc_message_force(1, it.calculate_size());
+    }
+  }
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+  if (!msg.inputs->empty()) {
+    for (const auto &it : *msg.inputs) {
+      size += ProtoSize::calc_message_force(1, it.calculate_size());
+    }
+  }
+#endif
+  return size;
+}
+uint8_t *DeviceWizardResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const DeviceWizardResponse *>(self);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  for (const auto &it : *msg.pages) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 1, it);
+  }
+  return pos;
+}
+uint32_t DeviceWizardResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const DeviceWizardResponse *>(self);
+  uint32_t size = 0;
+  if (!msg.pages->empty()) {
+    for (const auto &it : *msg.pages) {
+      size += ProtoSize::calc_message_force(1, it.calculate_size());
+    }
+  }
+  return size;
+}
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+void WizardInputSetRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<WizardInputSetRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
+      break;
+    case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.entity_id = StringRef(value.data(), value.size());
+      break;
+  }
+}
+#endif
 #ifdef USE_BINARY_SENSOR
 uint8_t *ListEntitiesBinarySensorResponse::encode_msg(const void *self,
                                                       ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
@@ -4210,6 +4396,9 @@ uint32_t BluetoothSetConnectionParamsResponse::calc_size_msg(const void *self) {
 #ifndef HAS_PROTO_MESSAGE_DUMP
 static_assert(!std::is_polymorphic_v<HelloRequest>, "decodable messages carry no vtable");
 static_assert(!std::is_polymorphic_v<DisconnectRequest>, "decodable messages carry no vtable");
+#ifdef USE_API_WIZARD_INPUTS
+static_assert(!std::is_polymorphic_v<WizardInputSetRequest>, "decodable messages carry no vtable");
+#endif
 #ifdef USE_COVER
 static_assert(!std::is_polymorphic_v<CoverCommandRequest>, "decodable messages carry no vtable");
 #endif

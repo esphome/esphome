@@ -723,6 +723,26 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
+#ifdef USE_API_WIZARD
+    case 153 /* DeviceWizardRequest is empty */: {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_device_wizard_request"));
+#endif
+      this->on_device_wizard_request();
+      break;
+    }
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+    case WizardInputSetRequest::MESSAGE_TYPE: {
+      WizardInputSetRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_wizard_input_set_request"), msg);
+#endif
+      this->on_wizard_input_set_request(msg);
+      break;
+    }
+#endif
     default:
       break;
   }

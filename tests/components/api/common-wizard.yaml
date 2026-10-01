@@ -1,0 +1,85 @@
+api:
+  homeassistant_services: true
+  wizard:
+    pages:
+      - title: Features
+        description: Choose which features to enable
+        entities:
+          - id: feature_enable_switch
+            description: "[%key:component::example::feature::enable_switch%]"
+          - id: guest_mode_switch
+            description: Guest Mode
+          - id: plain_switch
+      - title: Sources
+        inputs:
+          - entity: outdoor_temp
+            description: Outdoor temperature
+            target:
+              entity:
+                - integration: met
+                  domain: sensor
+                  device_class: [temperature, humidity]
+                  supported_features: weather.WeatherEntityFeature.FORECAST_DAILY
+                - domain: [sensor, number]
+          - entity: default_temp
+          - entity: door_open
+          - entity: house_mode
+          - entity: target_temp
+          - entity: ha_light_switch
+            target:
+              entity:
+                - domain: light
+          - id: weather_input
+            description: Weather source
+            target:
+              entity:
+                - domain: weather
+          - id: unset_input
+
+switch:
+  - platform: template
+    id: feature_enable_switch
+    name: Feature Enable
+    optimistic: true
+  - platform: template
+    id: guest_mode_switch
+    name: Guest Mode
+    optimistic: true
+  - platform: template
+    id: plain_switch
+    name: Plain Switch
+    optimistic: true
+  - platform: homeassistant
+    id: ha_light_switch
+
+sensor:
+  - platform: homeassistant
+    id: outdoor_temp
+  - platform: homeassistant
+    id: default_temp
+    entity_id: sensor.default_temperature
+
+binary_sensor:
+  - platform: homeassistant
+    id: door_open
+
+text_sensor:
+  - platform: homeassistant
+    id: house_mode
+
+number:
+  - platform: homeassistant
+    id: target_temp
+
+interval:
+  - interval: 1h
+    then:
+      - if:
+          condition:
+            api.wizard.input_is_set: weather_input
+          then:
+            - homeassistant.action:
+                action: weather.get_forecasts
+                data:
+                  type: daily
+                  entity_id: !lambda 'return id(weather_input).entity_id().c_str();'

@@ -703,10 +703,27 @@ class ZWaveProxyCapabilities final : public ProtoMessage {
  protected:
 };
 #endif
+#ifdef USE_API_WIZARD
+class WizardCapabilities final : public ProtoMessage {
+ public:
+  bool configured{false};
+  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
 class DeviceCapabilitiesResponse final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 150;
-  static constexpr uint8_t ESTIMATED_SIZE = 102;
+  static constexpr uint8_t ESTIMATED_SIZE = 119;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("device_capabilities_response"); }
 #endif
@@ -722,6 +739,9 @@ class DeviceCapabilitiesResponse final : public ProtoMessage {
 #ifdef USE_SERIAL_PROXY
   std::array<SerialProxyInfo, SERIAL_PROXY_COUNT> serial_proxies{};
 #endif
+#ifdef USE_API_WIZARD
+  WizardCapabilities wizard{};
+#endif
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
@@ -734,6 +754,134 @@ class DeviceCapabilitiesResponse final : public ProtoMessage {
 
  protected:
 };
+#ifdef USE_API_WIZARD_ENTITY_FILTERS
+class WizardEntityFilter final : public ProtoMessage {
+ public:
+  StringRef integration{nullptr, 0};  // null until set, encode only
+  const WizardSpan<const char *> *domain{};
+  const WizardSpan<const char *> *device_class{};
+  const WizardSpan<const char *> *supported_features{};
+  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
+#ifdef USE_API_WIZARD_ENTITIES
+class WizardEntityField final : public ProtoMessage {
+ public:
+  uint32_t key{0};
+#ifdef USE_DEVICES
+  uint32_t device_id{0};
+#endif
+  StringRef description{nullptr, 0};  // null until set, encode only
+  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+class WizardInputField final : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  StringRef description{nullptr, 0};  // null until set, encode only
+#ifdef USE_API_WIZARD_ENTITY_FILTERS
+  const WizardView<WizardEntityFilter, WizardFilterRow> *entity_filters{};
+#endif
+  StringRef entity_id{nullptr, 0};  // null until set, encode only
+  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
+#ifdef USE_API_WIZARD
+class WizardPage final : public ProtoMessage {
+ public:
+  StringRef title{nullptr, 0};        // null until set, encode only
+  StringRef description{nullptr, 0};  // null until set, encode only
+#ifdef USE_API_WIZARD_ENTITIES
+  const WizardView<WizardEntityField, WizardEntityRow> *entities{};
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+  const WizardView<WizardInputField, WizardInputRow> *inputs{};
+#endif
+  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+class DeviceWizardResponse final : public ProtoMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 154;
+  static constexpr uint8_t ESTIMATED_SIZE = 34;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("device_wizard_response"); }
+#endif
+  const WizardView<WizardPage, WizardPageRow> *pages{};
+  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+class WizardInputSetRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 155;
+  static constexpr uint8_t ESTIMATED_SIZE = 14;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("wizard_input_set_request"); }
+#endif
+  uint32_t key{0};
+  StringRef entity_id{};
+  void decode(const uint8_t *buffer, size_t length) {
+    ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);
+  }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+  static void decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar);
+};
+#endif
 class ListEntitiesDoneResponse final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 19;
