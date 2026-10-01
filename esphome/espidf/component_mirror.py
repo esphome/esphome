@@ -156,6 +156,26 @@ def parse_manifest_service_deps(manifest_path: Path) -> list[ServiceDep]:
     return deps
 
 
+def parse_manifest_ranged_specs(manifest_path: Path) -> list[str]:
+    """Compote specs for the manifest's range-pinned entries.
+
+    On dev a range re-resolves against the registry on every fresh solve;
+    refreshing the mirrored candidate whenever the lock is absent keeps
+    that behavior, and the previous candidate stays the offline fallback.
+    """
+    specs: list[str] = []
+    for namespace, name, entry in _iter_deps(manifest_path):
+        if entry.keys() != {"version"} or not isinstance(
+            version := entry["version"], str
+        ):
+            continue
+        if version[:1] in "^~<>!" or (
+            version[:1] == "=" and not version.startswith("==")
+        ):
+            specs.append(f"{namespace}/{name}{version}")
+    return specs
+
+
 def project_service_deps(lock_path: Path, manifest_path: Path) -> list[ServiceDep]:
     """The mirrorable dependencies of a build; the lock wins, the manifest
     covers the build whose lock has not been written yet."""
@@ -265,7 +285,9 @@ def sync_component_mirror(
     """
     mirror = get_mirror_path()
     to_sync = missing_deps(mirror, project_service_deps(lock_path, manifest_path))
-    if not to_sync:
+    # Before a fresh solve, ranged pins re-resolve as they would on dev.
+    refresh = [] if lock_path.exists() else parse_manifest_ranged_specs(manifest_path)
+    if not to_sync and not refresh:
         return True
     try:
         python = get_python()
@@ -291,7 +313,8 @@ def sync_component_mirror(
         # A broken cache, not contention; the retry guard should apply.
         _LOGGER.warning("Could not lock the component mirror: %s", err)
         return False
-    _LOGGER.info("Mirroring %d IDF component(s) for offline builds...", len(to_sync))
+    specs = [dep.spec for dep in to_sync] + refresh
+    _LOGGER.info("Mirroring %d IDF component(s) for offline builds...", len(specs))
 
     def attempt(specs: list[str]) -> bool:
         """One registry sync invocation; promotes its staging on success."""
@@ -331,11 +354,11 @@ def sync_component_mirror(
         try:
             # One invocation for the whole set: one manager startup, which
             # matters on slow hosts.
-            if not attempt([dep.spec for dep in to_sync]):
+            if not attempt(specs):
                 return False
-            synced = len(to_sync)
+            synced = len(specs)
         except subprocess.TimeoutExpired:
-            if len(to_sync) == 1:
+            if len(specs) == 1:
                 raise
             # The timeout now bounds each component, completed ones are
             # promoted as they finish, and the first failure stops the
@@ -362,7 +385,7 @@ def sync_component_mirror(
             "Mirroring timed out after %d s; kept %d of %d component(s)",
             _SYNC_TIMEOUT_S,
             synced,
-            len(to_sync),
+            len(specs),
         )
         return False
     except (*_BAD_INDEX_ERRORS, EsphomeError, subprocess.SubprocessError) as err:
@@ -374,5 +397,5 @@ def sync_component_mirror(
         with suppress(OSError):
             rmtree(staging)
         lock.release()
-    _LOGGER.info("Mirrored %d IDF component(s) for offline builds", len(to_sync))
+    _LOGGER.info("Mirrored %d IDF component(s) for offline builds", len(specs))
     return True

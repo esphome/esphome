@@ -217,6 +217,12 @@ def test_parse_manifest_lowercases_mixed_case_keys(tmp_path: Path) -> None:
     assert deps == [component_mirror.ServiceDep("espressif", "mdns", "1.2.0")]
 
 
+def test_parse_manifest_ranged_specs(tmp_path: Path) -> None:
+    """Ranges, not exact pins or git/override entries, become refresh specs."""
+    specs = component_mirror.parse_manifest_ranged_specs(_write_manifest(tmp_path))
+    assert specs == ["espressif/ranged^1.2.0"]
+
+
 def test_project_service_deps_merges_lock_and_manifest(tmp_path: Path) -> None:
     """The lock wins for a component in both; the manifest fills the rest."""
     lock = _write_lock(tmp_path)
@@ -520,6 +526,37 @@ def test_sync_subprocess_errors_are_tolerated(
     assert not ok
     assert "Could not mirror" in caplog.text
     _assert_sync_lock_released()
+
+
+def test_sync_refreshes_ranged_specs_only_before_a_fresh_solve(
+    tmp_path: Path,
+) -> None:
+    """Without a lock the batch also re-resolves ranged pins, as dev would;
+    with a lock the ranged candidate is left alone."""
+    _write_manifest(tmp_path)
+    ok, mock_run = _run_sync(tmp_path)
+    assert not ok  # the stub stages nothing, so the recheck fails
+    assert "espressif/ranged^1.2.0" in mock_run.call_args.args[0]
+
+    _write_lock(tmp_path)
+    ok, mock_run = _run_sync(tmp_path)
+    assert not ok
+    assert "espressif/ranged^1.2.0" not in mock_run.call_args.args[0]
+
+
+def test_sync_ranged_refresh_runs_with_everything_else_covered(
+    tmp_path: Path,
+) -> None:
+    """A covered build still refreshes its ranged pins when the lock is
+    gone, in one invocation."""
+    manifest = _write_manifest(tmp_path)
+    mirror = component_mirror.get_mirror_path()
+    for dep in component_mirror.parse_manifest_service_deps(manifest):
+        _add_to_mirror(mirror, dep)
+    ok, mock_run = _run_sync(tmp_path)
+    assert ok
+    mock_run.assert_called_once()
+    assert "espressif/ranged^1.2.0" in mock_run.call_args.args[0]
 
 
 def test_sync_timeout_falls_back_to_one_component_at_a_time(
