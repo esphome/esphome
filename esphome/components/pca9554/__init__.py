@@ -113,8 +113,21 @@ PCA9554GPIOPin = pca9554_ns.class_(
     "PCA9554GPIOPin", cg.GPIOPin, cg.Parented.template(PCA9554Component)
 )
 
+
+def _final_validate(value: ConfigType) -> ConfigType:
+    # If the 'pin_count' config option is used, and the device type is not 'NONE'
+    # then the pin_count needs to match what is defined in the device
+    if (
+        "pin_count" in value
+        and value["device"] != "NONE"
+        and (PCA9554_DEVICE_TYPES[value["device"]]["pins"]) != (value["pin_count"])
+    ):
+        raise cv.Invalid("Defined pin_count does not match pin count of device")
+    return value
+
+
 CONF_PCA9554 = "pca9554"
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(PCA9554Component),
@@ -133,7 +146,8 @@ CONFIG_SCHEMA = (
     .extend(cv.COMPONENT_SCHEMA)
     .extend(
         i2c.i2c_device_schema(0x20)
-    )  # Note: 0x20 for the non-A part. The PCA9554A parts start at addess 0x38
+    ),  # Note: 0x20 for the non-A part. The PCA9554A parts start at addess 0x38
+    _final_validate,
 )
 
 
