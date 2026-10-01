@@ -1,6 +1,12 @@
 """Tests for the logger component."""
 
+from collections.abc import Callable
+from pathlib import Path
 import re
+
+import pytest
+
+from esphome.core import CORE
 
 
 def test_logger_pre_setup_before_other_components(generate_main):
@@ -84,3 +90,24 @@ def test_libretiny_uart0_is_emitted(generate_main):
     )
 
     assert "set_uart_selection(logger::UART_SELECTION_UART0);" in main_cpp
+
+
+def test_ram_log_strings_is_deprecated(
+    generate_main: Callable[[str | Path], str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`false` is accepted but ignored: no RAM build flag, and a warning with the removal version."""
+    generate_main("tests/component_tests/logger/test_logger_ram_log_strings.yaml")
+
+    assert not any("STORE_LOG_STR" in flag for flag in CORE.build_flags)
+    assert "esp8266_store_log_strings_in_flash: false' is ignored" in caplog.text
+    assert "2027.4.0" in caplog.text
+
+
+def test_flash_log_strings_default_does_not_warn(
+    generate_main: Callable[[str | Path], str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    generate_main("tests/component_tests/logger/test_logger.yaml")
+
+    assert "esp8266_store_log_strings_in_flash" not in caplog.text

@@ -1,7 +1,7 @@
 import logging
 
 from esphome import automation
-from esphome.automation import Condition, maybe_simple_id
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
@@ -36,7 +36,7 @@ from esphome.const import (
     DEVICE_CLASS_SHUTTER,
     DEVICE_CLASS_WINDOW,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
@@ -44,7 +44,7 @@ from esphome.core.entity_helpers import (
     setup_entity,
 )
 from esphome.cpp_generator import MockObj, MockObjClass
-from esphome.types import ConfigType, SafeExpType, TemplateArgsType
+from esphome.types import ConfigType, SafeExpType
 
 IS_PLATFORM_COMPONENT = True
 
@@ -87,8 +87,6 @@ COVER_OPERATIONS = {
 validate_cover_operation = cv.enum(COVER_OPERATIONS, upper=True)
 
 # Actions
-CoverIsOpenCondition = cover_ns.class_("CoverIsOpenCondition", Condition)
-CoverIsClosedCondition = cover_ns.class_("CoverIsClosedCondition", Condition)
 CoverOpenedTrigger = cover_ns.class_(
     "CoverOpenedTrigger", automation.Trigger.template()
 )
@@ -287,19 +285,12 @@ COVER_CONDITION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-async def cover_condition_to_code(
-    config: ConfigType, condition_id: ID, template_arg: MockObj, args: TemplateArgsType
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
-
-
-automation.register_condition(
-    "cover.is_open", CoverIsOpenCondition, COVER_CONDITION_SCHEMA
-)(cover_condition_to_code)
-automation.register_condition(
-    "cover.is_closed", CoverIsClosedCondition, COVER_CONDITION_SCHEMA
-)(cover_condition_to_code)
+automation.register_apply_condition(
+    "cover.is_open", COVER_CONDITION_SCHEMA, f"position == {COVER_OPEN}"
+)
+automation.register_apply_condition(
+    "cover.is_closed", COVER_CONDITION_SCHEMA, f"position == {COVER_CLOSED}"
+)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

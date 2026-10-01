@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from esphome import config_validation as cv, core
+import esphome.codegen as cg
 from esphome.components.safe_mode import to_code as safe_mode_to_code
 from esphome.const import (
     CONF_AREA,
@@ -23,7 +24,7 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     Toolchain,
 )
-from esphome.core import CORE, config
+from esphome.core import CORE, KEY_CONTROLLER_REGISTRY_CONTROLLERS, config
 from esphome.core.config import (
     Area,
     make_app_name_cpp,
@@ -453,6 +454,35 @@ async def test_add_looping_components_with_entries() -> None:
     # Deduplicated by type, with per-type counts as multiplier.
     assert "(2 * HasLoopOverride<esphome::wifi::WiFiComponent>::value)" in text
     assert "(1 * HasLoopOverride<esphome::logger::Logger>::value)" in text
+
+
+@pytest.mark.asyncio
+async def test_add_controller_registry_dispatch_without_controllers() -> None:
+    """Nothing is emitted when no controller registered."""
+    CORE.data.pop(KEY_CONTROLLER_REGISTRY_CONTROLLERS, None)
+
+    await config._add_controller_registry_dispatch()
+
+    assert "USE_CONTROLLER_REGISTRY" not in {d.name for d in CORE.defines}
+    assert not [s for s in CORE.global_statements if "controller" in str(s)]
+
+
+@pytest.mark.asyncio
+async def test_add_controller_registry_dispatch_with_controllers() -> None:
+    """Registered controllers become one tuple plus the dispatch include."""
+    CORE.register_controller(cg.MockObj("api_apiserver_id"))
+    CORE.register_controller(cg.MockObj("web_server_webserver_id"))
+
+    await config._add_controller_registry_dispatch()
+
+    assert "USE_CONTROLLER_REGISTRY" in {d.name for d in CORE.defines}
+    statements = [str(s) for s in CORE.global_statements]
+    assert "#include <tuple>" in statements
+    assert (
+        "static auto esphome_controllers() { return std::tuple{api_apiserver_id, web_server_webserver_id}; }"
+        in statements
+    )
+    assert '#include "esphome/core/controller_dispatch.h"' in statements
 
 
 def test_valid_include_with_angle_brackets() -> None:
@@ -1311,6 +1341,8 @@ async def test_add_platformio_options_native_idf(
             "lib_ignore": "libsodium",
             "upload_speed": "115200",
             "board_build.f_flash": "80000000L",
+            # Silently dropped on arduino only; warns here
+            "board_upload.flash_size": "2MB",
         }
     )
 
@@ -1321,6 +1353,9 @@ async def test_add_platformio_options_native_idf(
     # nothing else lands in platformio_options on the native toolchain.
     assert CORE.platformio_options == {"lib_ignore": ["libsodium"]}
     assert "esphome->platformio_options->board_build.f_flash is ignored" in caplog.text
+    assert (
+        "esphome->platformio_options->board_upload.flash_size is ignored" in caplog.text
+    )
     assert "upload_speed" not in caplog.text
     # build_flags has a first-class esphome equivalent, so it is deprecated.
     # lib_deps/lib_ignore are kept as valid platformio_options (no warning).
@@ -1434,13 +1469,21 @@ async def test_add_platformio_options_native_arduino(
             "board_build.ldscript": ["eagle.flash.2m.ld", "eagle.flash.4m2m.ld"],
             "board_build.filesystem": "littlefs",
             "upload_speed": "115200",
+            # The Athom shape: maximum_size is the elf2bin fallback,
+            # flash_size is dropped silently (PlatformIO never reads it)
+            "board_upload.maximum_size": "2097152",
+            "board_upload.flash_size": "2MB",
         }
     )
 
     assert CORE.platformio_options["board_build.f_cpu"] == "160000000L"
     assert CORE.platformio_options["board_build.ldscript"] == "eagle.flash.4m2m.ld"
+    assert CORE.platformio_options["board_upload.maximum_size"] == "2097152"
+    assert "board_upload.flash_size" not in CORE.platformio_options
     assert "board_build.f_cpu is ignored" not in caplog.text
     assert "board_build.ldscript is ignored" not in caplog.text
+    assert "board_upload.maximum_size is ignored" not in caplog.text
+    assert "board_upload.flash_size is ignored" not in caplog.text
     assert (
         "esphome->platformio_options->board_build.filesystem is ignored" in caplog.text
     )
@@ -1450,12 +1493,3 @@ async def test_add_platformio_options_native_arduino(
     assert "board_build.ldscript is ignored" in caplog.text
     assert "'arduino' toolchain" in caplog.text
     assert "upload_speed" not in caplog.text
-
-
-def test_esp8266_rejects_unsupported_cli_toolchain() -> None:
-    """Until the native backend lands, ESP8266 serves only PlatformIO."""
-    from esphome.components.esp8266 import CONFIG_SCHEMA
-
-    CORE.toolchain = Toolchain.ARDUINO
-    with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
-        CONFIG_SCHEMA({"board": "nodemcuv2"})

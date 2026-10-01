@@ -5,6 +5,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 // On ESP8266 and RP2040 the scheduler-backed MDNS.update() polling window is armed by
 // IP state listener events on whichever network interface is configured.
 #if (defined(USE_ESP8266) || defined(USE_RP2)) && \
@@ -39,12 +40,7 @@ struct MDNSString;
 // Macro to cast string literals to MDNSString* (works on all platforms)
 #define MDNS_STR(name) (reinterpret_cast<const esphome::mdns::MDNSString *>(name))
 
-#ifdef USE_ESP8266
-#include <pgmspace.h>
-#define MDNS_STR_ARG(s) ((PGM_P) (s))
-#else
-#define MDNS_STR_ARG(s) (reinterpret_cast<const char *>(s))
-#endif
+#define MDNS_STR_ARG(s) (reinterpret_cast<ESPHOME_PGM_P>(s))
 
 // Service count is calculated at compile time by Python codegen
 // MDNS_SERVICE_COUNT will always be defined

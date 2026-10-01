@@ -1,0 +1,10 @@
+substitutions:
+  pwm_platform: "esp8266_pwm"
+  output1_pin: "4"
+  output2_pin: "5"
+  output3_pin: "12"
+  output4_pin: "13"
+
+packages:
+  hbridge: !include common.yaml
+  actions: !include common-actions.yaml
