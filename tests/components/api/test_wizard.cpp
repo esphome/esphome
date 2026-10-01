@@ -1,5 +1,7 @@
+#ifdef USE_HOST
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -21,11 +23,20 @@ class WizardTestEntity : public EntityBase {
   void set_key(uint32_t key) { this->object_id_hash_ = key; }
 };
 
-static WizardTestEntity wizard_switch;
+static WizardTestEntity &wizard_switch() {
+  static WizardTestEntity entity;
+  return entity;
+}
 
 // RAM buffers of the inputs, as codegen defines them
-static char wizard_input_weather[WIZARD_ENTITY_ID_BUFFER_SIZE] = "sensor.default";
-static char wizard_input_other[WIZARD_ENTITY_ID_BUFFER_SIZE] = "";
+static char *wizard_input_weather() {
+  static char buffer[WIZARD_ENTITY_ID_BUFFER_SIZE] = "sensor.default";
+  return buffer;
+}
+static char *wizard_input_other() {
+  static char buffer[WIZARD_ENTITY_ID_BUFFER_SIZE] = "";
+  return buffer;
+}
 
 static constexpr uint32_t WEATHER_KEY = 0x0a0b0c0d;
 static constexpr uint32_t OTHER_KEY = 0x11223344;
@@ -39,12 +50,12 @@ static const WizardFilterRow WIZARD_FILTERS[] = {
     {nullptr, {WIZARD_DOMAINS, 1}, {nullptr, 0}, {nullptr, 0}},
 };
 static const WizardEntityRow WIZARD_ENTITIES[] = {
-    {[]() -> EntityBase * { return &wizard_switch; }, "Enable"},
-    {[]() -> EntityBase * { return &wizard_switch; }, nullptr},
+    {[]() -> EntityBase * { return &wizard_switch(); }, "Enable"},
+    {[]() -> EntityBase * { return &wizard_switch(); }, nullptr},
 };
 static const WizardInputRow WIZARD_INPUTS[] = {
-    {WEATHER_KEY, wizard_input_weather, "Weather", {WIZARD_FILTERS, 2}},
-    {OTHER_KEY, wizard_input_other, nullptr, {nullptr, 0}},
+    {WEATHER_KEY, wizard_input_weather(), "Weather", {WIZARD_FILTERS, 2}},
+    {OTHER_KEY, wizard_input_other(), nullptr, {nullptr, 0}},
 };
 static const WizardPageRow WIZARD_PAGES[] = {
     {"Setup", "Pick", {WIZARD_ENTITIES, 2}, {nullptr, 0}},
@@ -99,7 +110,7 @@ static Bytes encode(const ProtoMessage &msg, uint32_t (*calc)(const void *),
 }
 
 TEST(DeviceWizard, EncodesEveryPageFromFlashTables) {
-  wizard_switch.set_key(0x01020304);
+  wizard_switch().set_key(0x01020304);
 
   DeviceWizardResponse resp;
   resp.pages = &API_WIZARD_PAGES;
@@ -154,58 +165,58 @@ class DeviceWizardPreferences : public ::testing::Test {
 };
 
 TEST_F(DeviceWizardPreferences, SetInputStoresTheEntityIdInTheBuffer) {
-  EXPECT_EQ(set_input(OTHER_KEY, "sensor.outdoor"), wizard_input_other);
-  EXPECT_STREQ(wizard_input_other, "sensor.outdoor");
+  EXPECT_EQ(set_input(OTHER_KEY, "sensor.outdoor"), wizard_input_other());
+  EXPECT_STREQ(wizard_input_other(), "sensor.outdoor");
   // A shorter id replaces a longer one completely
-  EXPECT_EQ(set_input(OTHER_KEY, "light.a"), wizard_input_other);
-  EXPECT_STREQ(wizard_input_other, "light.a");
+  EXPECT_EQ(set_input(OTHER_KEY, "light.a"), wizard_input_other());
+  EXPECT_STREQ(wizard_input_other(), "light.a");
   // The longest valid id fills the buffer
   std::string longest = "sensor." + std::string(WIZARD_ENTITY_ID_BUFFER_SIZE - 1 - 7, 'x');
-  EXPECT_EQ(set_input(OTHER_KEY, longest.c_str()), wizard_input_other);
-  EXPECT_EQ(std::string(wizard_input_other), longest);
+  EXPECT_EQ(set_input(OTHER_KEY, longest.c_str()), wizard_input_other());
+  EXPECT_EQ(std::string(wizard_input_other()), longest);
 }
 
 TEST_F(DeviceWizardPreferences, SetInputIgnoresWhatIsNotAnEntityId) {
-  std::string before = wizard_input_weather;
+  std::string before = wizard_input_weather();
   EXPECT_EQ(set_input(WEATHER_KEY, ""), nullptr);
   EXPECT_EQ(set_input(WEATHER_KEY, "nodot"), nullptr);
   std::string too_long = "sensor." + std::string(WIZARD_ENTITY_ID_BUFFER_SIZE, 'x');
   EXPECT_EQ(set_input(WEATHER_KEY, too_long.c_str()), nullptr);
   EXPECT_EQ(set_input(0xdeadbeef, "sensor.a"), nullptr);
-  EXPECT_EQ(std::string(wizard_input_weather), before);
+  EXPECT_EQ(std::string(wizard_input_weather()), before);
 }
 
 TEST_F(DeviceWizardPreferences, SetupLoadsSavedEntityIdsOverTheDefaults) {
   wizard_setup();
-  EXPECT_STREQ(wizard_input_weather, "sensor.default");
+  EXPECT_STREQ(wizard_input_weather(), "sensor.default");
 
   ASSERT_NE(set_input(WEATHER_KEY, "sensor.chosen"), nullptr);
-  strcpy(wizard_input_weather, "sensor.default");
+  strcpy(wizard_input_weather(), "sensor.default");
   wizard_setup();
-  EXPECT_STREQ(wizard_input_weather, "sensor.chosen");
+  EXPECT_STREQ(wizard_input_weather(), "sensor.chosen");
 
   // A saved value that is no entity id is ignored
   const char *garbage = "no dot here";
   uint8_t saved[WIZARD_ENTITY_ID_BUFFER_SIZE - 1] = {};
-  memcpy(saved, garbage, strlen(garbage));
+  std::copy_n(garbage, strlen(garbage), saved);
   ASSERT_TRUE(global_preferences->save(WEATHER_KEY ^ 0x57495A44, saved, sizeof(saved)));
-  strcpy(wizard_input_weather, "sensor.default");
+  strcpy(wizard_input_weather(), "sensor.default");
   wizard_setup();
-  EXPECT_STREQ(wizard_input_weather, "sensor.default");
+  EXPECT_STREQ(wizard_input_weather(), "sensor.default");
 }
 
 TEST_F(DeviceWizardPreferences, StandaloneInputReadsTheBufferTheWizardWrites) {
-  strcpy(wizard_input_other, "");
-  WizardInput input(wizard_input_other);
+  strcpy(wizard_input_other(), "");
+  WizardInput input(wizard_input_other());
   EXPECT_FALSE(input.has_entity_id());
   EXPECT_TRUE(input.entity_id().empty());
 
-  ASSERT_EQ(set_input(OTHER_KEY, "weather.home"), wizard_input_other);
+  ASSERT_EQ(set_input(OTHER_KEY, "weather.home"), wizard_input_other());
   EXPECT_TRUE(input.has_entity_id());
   EXPECT_EQ(input.entity_id(), "weather.home");
 
   // A saved id comes back through the object after a restart
-  strcpy(wizard_input_other, "");
+  strcpy(wizard_input_other(), "");
   wizard_setup();
   EXPECT_EQ(input.entity_id(), "weather.home");
 }
@@ -220,11 +231,12 @@ TEST(DeviceWizard, CapabilitiesAnnounceTheWizard) {
 }
 
 TEST(DeviceWizard, EmptyViewEncodesNothing) {
-  static const WizardView<WizardPage, WizardPageRow> empty = {nullptr, 0};
+  static const WizardView<WizardPage, WizardPageRow> EMPTY_VIEW = {nullptr, 0};
   DeviceWizardResponse resp;
-  resp.pages = &empty;
+  resp.pages = &EMPTY_VIEW;
   EXPECT_EQ(resp.calculate_size(), 0u);
   EXPECT_TRUE(encode(resp, &DeviceWizardResponse::calc_size_msg, &DeviceWizardResponse::encode_msg).empty());
 }
 
 }  // namespace esphome::api
+#endif  // USE_HOST
