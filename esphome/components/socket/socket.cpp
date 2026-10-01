@@ -269,3 +269,4 @@ socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t po
 }
 }  // namespace esphome::socket
 #endif
+// CI batch weight test, do not merge
