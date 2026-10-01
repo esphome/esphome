@@ -1,5 +1,3 @@
-from collections.abc import Callable
-
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -92,21 +90,25 @@ RGB_EFFECTS = []
 ADDRESSABLE_EFFECTS = []
 
 
-def _default_missing(
-    *keys: str, value: float = 1.0
-) -> Callable[[ConfigType], ConfigType]:
-    """Build a validator that defaults each key to `value` if still unset.
+def _with_color_option(schema: cv.Schema, *default_keys: str) -> cv.Schema:
+    """Add the `color:` option to a per-item effect color schema.
 
-    Used after `color_to_rgb` so a per-item `color:` can populate red/green/blue (and
-    color_brightness) while a plain channel list still defaults to full level.
+    `color_to_rgb` must run before the keys are defaulted to full level below, so a
+    `color:` can populate `default_keys` (red/green/blue and, where the effect has
+    one, color_brightness) and a plain channel list still defaults them to full
+    level. Centralizing both steps here means a new effect schema only has to call
+    this once instead of repeating the ordering rule itself.
     """
+    schema = schema.extend(COLOR_SCHEMA)
+    schema.add_extra(color_to_rgb)
 
-    def validator(config: ConfigType) -> ConfigType:
-        for key in keys:
-            config.setdefault(key, value)
+    def _default_to_full_level(config: ConfigType) -> ConfigType:
+        for key in default_keys:
+            config.setdefault(key, 1.0)
         return config
 
-    return validator
+    schema.add_extra(_default_to_full_level)
+    return schema
 
 
 EFFECTS_REGISTRY = Registry()
@@ -306,10 +308,9 @@ STROBE_COLOR_SCHEMA = cv.Schema(
             CONF_TRANSITION_LENGTH, default="0s"
         ): cv.positive_time_period_milliseconds,
     }
-).extend(COLOR_SCHEMA)
-STROBE_COLOR_SCHEMA.add_extra(color_to_rgb)
-STROBE_COLOR_SCHEMA.add_extra(
-    _default_missing(CONF_COLOR_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE)
+)
+STROBE_COLOR_SCHEMA = _with_color_option(
+    STROBE_COLOR_SCHEMA, CONF_COLOR_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE
 )
 
 
@@ -441,10 +442,13 @@ ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA = cv.Schema(
         cv.Required(CONF_NUM_LEDS): cv.All(cv.uint32_t, cv.Range(min=1)),
         cv.Optional(CONF_GRADIENT, default=False): cv.boolean,
     }
-).extend(COLOR_SCHEMA)
-ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA.add_extra(color_to_rgb)
-ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA.add_extra(
-    _default_missing(CONF_COLOR_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE)
+)
+ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA = _with_color_option(
+    ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA,
+    CONF_COLOR_BRIGHTNESS,
+    CONF_RED,
+    CONF_GREEN,
+    CONF_BLUE,
 )
 
 
