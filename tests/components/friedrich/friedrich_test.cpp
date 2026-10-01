@@ -42,9 +42,10 @@ struct Fixture {
 
   Fixture() { this->sut.set_transmitter(&this->transmitter); }
 
-  optional<AEHAData> sent() {
+  // The last transmission decoded, or an empty frame if it could not be decoded
+  AEHAData sent() {
     remote_base::RemoteReceiveData rx(this->transmitter.last, 25, remote_base::TOLERANCE_MODE_PERCENTAGE);
-    return AEHAProtocol().decode(rx);
+    return AEHAProtocol().decode(rx).value_or(AEHAData{});
   }
 
   bool receive(const AEHAData &frame) {
@@ -88,9 +89,7 @@ TEST(FriedrichTests, OffIsAlwaysSentAsFiveByteFrame) {
   f.sut.mode = climate::CLIMATE_MODE_OFF;
   f.sut.transmit_state();
   ASSERT_EQ(f.transmitter.sends, 1);
-  auto data = f.sent();
-  ASSERT_TRUE(data.has_value());
-  EXPECT_EQ(*data, off_frame());
+  EXPECT_EQ(f.sent(), off_frame());
 }
 
 TEST(FriedrichTests, StateFrameEncodesFahrenheitTarget) {
@@ -100,9 +99,7 @@ TEST(FriedrichTests, StateFrameEncodesFahrenheitTarget) {
   f.sut.fan_mode = climate::CLIMATE_FAN_AUTO;
   f.sut.swing_mode = climate::CLIMATE_SWING_OFF;
   f.sut.transmit_state();
-  auto data = f.sent();
-  ASSERT_TRUE(data.has_value());
-  EXPECT_EQ(*data, state_frame(TEMP_72_CODE, 0x80));
+  EXPECT_EQ(f.sent(), state_frame(TEMP_72_CODE, 0x80));
 }
 
 TEST(FriedrichTests, OddTargetStepsUpToEven) {
@@ -111,8 +108,8 @@ TEST(FriedrichTests, OddTargetStepsUpToEven) {
   f.sut.target_temperature = 71;
   f.sut.transmit_state();
   auto data = f.sent();
-  ASSERT_TRUE(data.has_value());
-  EXPECT_EQ(data->data[6], TEMP_72_CODE | 0x80);
+  ASSERT_EQ(data.data.size(), STATE_MESSAGE_LENGTH);
+  EXPECT_EQ(data.data[6], TEMP_72_CODE | 0x80);
 }
 
 TEST(FriedrichTests, NonHeatModesAreRaisedToSixtyFour) {
@@ -122,8 +119,8 @@ TEST(FriedrichTests, NonHeatModesAreRaisedToSixtyFour) {
   f.sut.transmit_state();
   EXPECT_FLOAT_EQ(f.sut.target_temperature, 64.0f);
   auto data = f.sent();
-  ASSERT_TRUE(data.has_value());
-  EXPECT_EQ(data->data[6], 0x04 | 0x80);  // 64 F
+  ASSERT_EQ(data.data.size(), STATE_MESSAGE_LENGTH);
+  EXPECT_EQ(data.data[6], 0x04 | 0x80);  // 64 F
 
   f.sut.mode = climate::CLIMATE_MODE_HEAT;
   f.sut.target_temperature = 60;
