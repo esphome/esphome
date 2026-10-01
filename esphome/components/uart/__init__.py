@@ -46,6 +46,7 @@ from esphome.const import (
     CONF_SEQUENCE,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
+    CONF_TX_BUFFER_SIZE,
     CONF_TX_PIN,
     CONF_UART_ID,
     PLATFORM_HOST,
@@ -297,6 +298,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_PORT): cv.All(validate_port, cv.only_on(PLATFORM_HOST)),
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
+            cv.Optional(CONF_TX_BUFFER_SIZE): cv.All(
+                cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=129)
+            ),
             cv.Optional(CONF_RX_FULL_THRESHOLD): cv.All(
                 cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=1, max=120)
             ),
@@ -391,6 +395,8 @@ async def to_code(config):
         cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
         if CONF_FLUSH_TIMEOUT in config:
             cg.add(var.set_flush_timeout(config[CONF_FLUSH_TIMEOUT]))
+        if (tx_buffer_size := config.get(CONF_TX_BUFFER_SIZE)) is not None:
+            cg.add(var.set_tx_buffer_size(tx_buffer_size))
         # The member already defaults to UART_SCLK_DEFAULT, so only emit a real choice
         if (clock_source := config.get(CONF_CLOCK_SOURCE, "DEFAULT")) != "DEFAULT":
             cg.add(var.set_clock_source(UART_CLOCK_SOURCES[clock_source]))

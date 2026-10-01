@@ -57,6 +57,13 @@ int NoiseResponderHandshake::init(const NoiseContext &ctx, const uint8_t *prolog
     HANDSHAKE_STEP_LOG("noise_handshakestate_set_prologue", err);
     return this->fail_init_(err);
   }
+#ifdef USE_NOISE_SPARE_EPHEMERAL
+  err = consume_spare_ephemeral(this->handshake_);
+  // Not fatal: the handshake generates its own key instead
+  if (err != 0) {
+    HANDSHAKE_STEP_LOG("noise_handshakestate_set_local_ephemeral", err);
+  }
+#endif
   err = noise_handshakestate_start(this->handshake_);
   if (err != 0) {
     HANDSHAKE_STEP_LOG("noise_handshakestate_start", err);

@@ -21,12 +21,18 @@ from esphome.arduino8266.framework import InstalledPaths, toolchain_tool
 from esphome.build_gen import arduino8266
 from esphome.build_gen.arduino8266 import (
     _defines_flags,
+    _elf2bin_flash_size,
     _flag_defines,
     _flash_size_str,
     _resolve_build_config,
     get_flash_ld_path,
 )
-from esphome.components.esp8266.boards import BOARDS, ESP8266_BOARD_BUILD
+from esphome.components.esp8266.boards import (
+    BOARDS,
+    ESP8266_BOARD_BUILD,
+    KEY_FLASH_SIZE,
+    board_ld_script,
+)
 from esphome.components.esp8266.build_surgery import RATETABLE_RULE
 from esphome.components.esp8266.const import KEY_BOARD, KEY_ESP8266, KEY_SCANF_FLOAT
 import esphome.config_validation as cv
@@ -364,7 +370,100 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
         line for line in content.splitlines() if line.startswith("  flags = ")
     ]
     assert flags_lines
-    assert all(line == "  flags = $srcflags" for line in flags_lines)
+    # C++ src edges consume the precompiled header; C/assembly keep srcflags
+    assert set(flags_lines) == {"  flags = $srcflags", "  flags = $srccxxflags"}
+
+
+def test_write_project_pch(tmp_path: Path) -> None:
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    build_dir = CORE.relative_pioenvs_path(CORE.name)
+    assert "rule pch" in content
+    # Compiled from the include list, and again when the checksum changes
+    gch_edge = next(
+        line
+        for line in content.splitlines()
+        if line.startswith("build esphome_pch.h.gch: pch ")
+    )
+    assert gch_edge.endswith("esphome_pch_src.h | esphome_pch.h.gch.sum")
+    for line in content.splitlines():
+        # C++ edges wait on the .gch; the C edge must not reference it
+        if line.startswith("build obj/src/main.cpp.o:"):
+            assert line.endswith("| esphome_pch.h.gch")
+        if line.startswith("build obj/src/esphome/vendor.c.o:"):
+            assert "esphome_pch" not in line
+    assert (build_dir / "esphome_pch_src.h").read_text().splitlines() == [
+        '#include "esphome/components/esp8266/throw_stubs.h"',
+        '#include "esphome/core/pch_prefix.h"',
+    ]
+    assert "#error" in (build_dir / "esphome_pch.h").read_text()
+    assert (build_dir / "esphome_pch.h.gch.sum").read_text().strip()
+
+
+def test_write_project_pch_folds_joined_src_force_include(
+    tmp_path: Path,
+) -> None:
+    """-includefoo.h in build_src_flags must fold into the pch like the
+    separated spelling, not precede and defeat it."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    CORE.platformio_options["build_src_flags"] = "-includeesphome/core/defines.h"
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "build esphome_pch.h.gch: pch" in content
+    assert "srccxxflags" in content
+    assert "-includeesphome" not in content
+
+
+@pytest.mark.parametrize("flag", ["-includefoo.h", "--include=foo.h"])
+def test_write_project_pch_skipped_for_other_force_include_spellings(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, flag: str
+) -> None:
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH", flag)
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "esphome_pch" not in content
+    assert "prevents the precompiled header" in caplog.text
+
+
+def test_write_project_pch_skipped_when_user_force_include_precedes(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A -include in build_flags lands ahead of the pch include, so GCC
+    would never load the .gch; skip it and say so."""
+    paths = _make_framework(tmp_path)
+    _set_flags(
+        "-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH", "-include foo.h"
+    )
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "esphome_pch" not in content
+    assert "srccxxflags" not in content
+    assert "prevents the precompiled header" in caplog.text
+
+
+def test_write_project_pch_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    content = _write_ninja(paths)
+    assert "esphome_pch" not in content
+    assert "srccxxflags" not in content
+    assert "  flags = $srcflags" in content
+
+
+def test_write_project_pch_asks_the_toolchain_compiler_on_windows(
+    windows_gcc_rule: None, tmp_path: Path
+) -> None:
+    from esphome.build_helpers import pch
+
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    with patch.object(pch, "gcc_version", return_value=(10, 3, 0)) as asked:
+        content = _write_ninja(paths)
+    assert asked.call_args.args[0] == (toolchain_tool(paths.toolchain, "g++"),)
+    assert "esphome_pch" not in content
 
 
 def test_write_project_scanf_float_and_waveform_kept(tmp_path: Path) -> None:
@@ -652,6 +751,54 @@ def test_get_flash_ld_path(tmp_path: Path) -> None:
 def test_flash_size_str() -> None:
     assert _flash_size_str(4 * 1024 * 1024) == "4M"
     assert _flash_size_str(512 * 1024) == "512K"
+
+
+def test_elf2bin_flash_size() -> None:
+    """The image-header size follows the ldscript filename like PlatformIO,
+    falling back to board_upload.maximum_size and then the board table."""
+    assert _elf2bin_flash_size("esp8285", "eagle.flash.2m.ld") == "2M"
+    assert _elf2bin_flash_size("esp01", "eagle.flash.512k.ld") == "512K"
+    assert _elf2bin_flash_size("nodemcuv2", "eagle.flash.4m1m.ld") == "4M"
+    # The testing-mode prefix still matches (search, not match)
+    assert _elf2bin_flash_size("esp8285", "testing_eagle.flash.2m.ld") == "2M"
+    # Custom ldscript name: board_upload.maximum_size wins over the board
+    CORE.platformio_options["board_upload.maximum_size"] = "2097152"
+    assert _elf2bin_flash_size("esp8285", "custom.ld") == "2M"
+    del CORE.platformio_options["board_upload.maximum_size"]
+    assert _elf2bin_flash_size("esp8285", "custom.ld") == "1M"
+
+
+@pytest.mark.parametrize("bad", ["2MB", "3145728", "-1"])
+def test_elf2bin_flash_size_rejects_bad_maximum_size(bad: str) -> None:
+    """A non-numeric or unsupported board_upload.maximum_size fails by name
+    instead of a ValueError or a late elf2bin choices error."""
+    CORE.platformio_options["board_upload.maximum_size"] = bad
+    with pytest.raises(EsphomeError, match="board_upload.maximum_size"):
+        _elf2bin_flash_size("esp8285", "custom.ld")
+
+
+def test_elf2bin_flash_size_default_matches_board_table() -> None:
+    """Without an ldscript override, every board's own ldscript parses to
+    the board-table size, so the emitted --flash_size is unchanged."""
+    for board, entry in BOARDS.items():
+        assert _elf2bin_flash_size(board, board_ld_script(entry)) == _flash_size_str(
+            entry[KEY_FLASH_SIZE]
+        ), board
+
+
+def test_write_project_flash_size_follows_ldscript_override(
+    tmp_path: Path,
+) -> None:
+    """An ldscript overriding the board's flash size drives the image header
+    too (the Athom shape: esp8285 with eagle.flash.2m.ld). A 1M header over
+    a 2M layout clamps the chip below the OTA scratch area and bricks OTA."""
+    paths = _make_framework(tmp_path)
+    (paths.framework / "variants" / "esp8285").mkdir()
+    CORE.data[KEY_ESP8266][KEY_BOARD] = "esp8285"
+    CORE.platformio_options["board_build.ldscript"] = "eagle.flash.2m.ld"
+    content = _write_ninja(paths)
+    assert "--flash_size 2M" in content
+    assert "eagle.flash.2m.ld" in content
 
 
 def test_write_project_testing_mode(tmp_path: Path) -> None:
@@ -1716,3 +1863,37 @@ def test_write_project_rejects_spaced_ldscript_override(tmp_path: Path) -> None:
     CORE.relative_src_path().mkdir(parents=True, exist_ok=True)
     with pytest.raises(EsphomeError, match="Invalid flash linker script name"):
         arduino8266.write_project(paths, None)
+
+
+def test_write_project_pch_no_device_path_poison(tmp_path: Path) -> None:
+    """Regression: the -include stays relative and the .sum carries no
+    per-device path, or cross-device ccache sharing breaks."""
+    paths = _make_framework(tmp_path / "shared")
+    sums = []
+    for name in ("dev_a", "dev_b"):
+        CORE.name = name
+        CORE.build_path = tmp_path / name
+        _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+        content = _write_ninja(paths, ccache="/usr/bin/ccache")
+        assert (
+            "srccxxflags = -Winvalid-pch -Werror=invalid-pch "
+            "-include esphome_pch.h" in content
+        )
+        sums.append(
+            (CORE.relative_pioenvs_path(name) / "esphome_pch.h.gch.sum").read_text()
+        )
+    assert sums[0] == sums[1]
+
+
+def test_write_project_pch_sum_tracks_src_flags(tmp_path: Path) -> None:
+    """The header compiles with the src flags too, so they are part of what
+    ccache is told about it."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    sum_path = CORE.relative_pioenvs_path(CORE.name) / "esphome_pch.h.gch.sum"
+    sums = []
+    for value in ("1", "2"):
+        CORE.platformio_options["build_src_flags"] = f"-DSRC_ONLY={value}"
+        _write_ninja(paths)
+        sums.append(sum_path.read_text())
+    assert sums[0] != sums[1]
