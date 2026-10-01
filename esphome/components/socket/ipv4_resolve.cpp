@@ -1,6 +1,8 @@
 #include "ipv4_resolve.h"
 
-#if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
+#if (defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || \
+     defined(USE_SOCKET_IMPL_BSD_SOCKETS)) && \
+    USE_NETWORK_IPV4
 
 #include "socket.h"
 #include "esphome/core/helpers.h"
