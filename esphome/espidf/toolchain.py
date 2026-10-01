@@ -1,6 +1,7 @@
 """ESP-IDF direct build API for ESPHome."""
 
 from dataclasses import dataclass, field
+import fnmatch
 import hashlib
 import json
 import logging
@@ -23,13 +24,17 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError
 from esphome.espidf import variant_to_idf_target
+from esphome.espidf.component_mirror import component_mirror_env, sync_component_mirror
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
-from esphome.helpers import add_git_ceiling_directory, write_file
+from esphome.helpers import add_git_ceiling_directory, get_bool_env, rmtree, write_file
 
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "espidf_toolchain"
+# The -D that tells the generated CMakeLists to skip the in-tree bootloader
+# build; also read back from CMakeCache.txt to identify a tree.
+SKIP_BOOTLOADER_DEFINE = "ESPHOME_SKIP_BOOTLOADER"
 
 
 @dataclass
@@ -37,7 +42,9 @@ class _CacheData:
     paths: dict[str, tuple] = field(default_factory=dict)
     env: dict[str, dict[str, str]] = field(default_factory=dict)
     cmake_output: dict[Path, str] = field(default_factory=dict)
+    skip_bootloader: bool | None = None
     cmake_tools: dict[Path, dict[str, Path]] = field(default_factory=dict)
+    mirror_sync_failed: bool = False
 
 
 def _cache() -> _CacheData:
@@ -105,6 +112,11 @@ def _get_idf_path(version: str | None = None) -> Path | None:
     return Path(_get_esphome_esp_idf_paths(version)[0])
 
 
+def _esphome_manages_idf() -> bool:
+    """A checkout supplied through IDF_PATH is the user's, not ESPHome's."""
+    return "IDF_PATH" not in os.environ
+
+
 def _get_idf_env(version: str | None = None) -> dict[str, str]:
     """Get environment variables needed for ESP-IDF build."""
     version = version or _get_core_framework_version()
@@ -115,10 +127,12 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
         env_cache[version].pop("PYTHONPATH", None)
 
         # Use provided IDF framework if available
-        if "IDF_PATH" not in os.environ:
+        if _esphome_manages_idf():
             env_cache[version] |= get_framework_env(
                 *_get_esphome_esp_idf_paths(version)
             )
+            # Serve the component manager from the local registry mirror.
+            env_cache[version] |= component_mirror_env()
 
         # Cap git's repo search at the config directory so ESP-IDF's
         # `git describe` for the app version can't error out on an
@@ -138,7 +152,9 @@ def _get_cmake_output(build_dir) -> str:
         if not (Path(build_dir) / "CMakeCache.txt").is_file():
             raise EsphomeError(f"No ESP-IDF build found in {build_dir}")
 
-        cmd = ["cmake", "-LA", "-N", "."]
+        # Resolve to an absolute path: Windows locates a child process
+        # through the parent's PATH, not the env passed to it.
+        cmd = [_get_idf_tool("cmake"), "-LA", "-N", "."]
 
         env = _get_idf_env()
         result = subprocess.run(
@@ -282,6 +298,48 @@ def _cache_entries_changed() -> bool:
     return any(cache.get(k) != v for k, v in _configure_defines().items())
 
 
+def tree_skips_bootloader(build_dir: Path) -> bool:
+    """Whether a configured tree was set up to skip the bootloader build.
+
+    Total: an unreadable tree reads as the stock full build.
+    """
+    try:
+        cache = _parse_cmakecache(build_dir / "CMakeCache.txt")
+    except (OSError, ValueError) as err:
+        _LOGGER.debug("Cannot read %s, assuming a full build: %s", build_dir, err)
+        return False
+    return cache.get(SKIP_BOOTLOADER_DEFINE) == "1"
+
+
+def _skip_bootloader() -> bool:
+    """Whether this tree should not build a bootloader at all; per-run memo."""
+    cache = _cache()
+    if cache.skip_bootloader is None:
+        cache.skip_bootloader = _compute_skip_bootloader()
+    return cache.skip_bootloader
+
+
+def _compute_skip_bootloader() -> bool:
+    if not CORE.skip_bootloader:
+        return False
+    from esphome.build_gen.espidf import idf_macro_matches
+
+    if not idf_macro_matches(_get_idf_path()):
+        _LOGGER.warning(
+            "--skip-bootloader ignored: IDF changed its bootloader macro; "
+            "building the bootloader"
+        )
+        return False
+    return True
+
+
+def missing_image_hint() -> str | None:
+    """Why an expected flash image is absent, for upload error messages."""
+    if tree_skips_bootloader(_build_dir()):
+        return "this build was compiled with --skip-bootloader; recompile without it"
+    return None
+
+
 def _configure_defines() -> dict[str, str]:
     """Every ``-D`` idf.py passes to cmake, in its order."""
     return {
@@ -289,6 +347,9 @@ def _configure_defines() -> dict[str, str]:
         "PYTHON": _get_idf_tool("python"),
         "ESP_PLATFORM": "1",
         **_cache_entries(),
+        # ESPHome's own switch; idf.py never passes it and cmake keeps the
+        # cached value, so idf.py runs against the tree stay in the same mode.
+        SKIP_BOOTLOADER_DEFINE: "1" if _skip_bootloader() else "0",
     }
 
 
@@ -309,6 +370,16 @@ def run_reconfigure(verbose: bool = False) -> int:
     """Run the CMake configure, with the arguments idf.py uses."""
     build_dir = _build_dir()
     build_dir.mkdir(parents=True, exist_ok=True)
+    if _skip_bootloader() and not tree_skips_bootloader(build_dir):
+        # Flipping into skip mode: full-mode leftovers are stale for
+        # OTA --bootloader and downloads, and a partial cleanup would
+        # poison the flip back (deleted byproducts never regenerate).
+        for stale in ("bootloader", "bootloader-prefix"):
+            if (path := build_dir / stale).is_dir():
+                rmtree(path)
+        get_factory_firmware_path().unlink(missing_ok=True)
+    # First, so the configure (even a first solve) installs from the mirror.
+    _sync_component_mirror()
     cmd = [_get_idf_tool("cmake"), "-G", "Ninja"]
     if _idf_py().binary_dir_arg:
         cmd += ["-B", str(build_dir)]
@@ -327,6 +398,9 @@ def run_reconfigure(verbose: bool = False) -> int:
         (build_dir / "CMakeCache.txt").unlink(missing_ok=True)
         _LOGGER.error("CMake configure failed with exit code %d", rc)
         _print_hints(log_path)
+        return rc
+    # Mirror what the solve added to the lock (transitive dependencies).
+    _sync_component_mirror()
     return rc
 
 
@@ -421,6 +495,24 @@ def _print_hints(log_path: Path) -> None:
         _LOGGER.warning("%s", hints)
 
 
+def _sync_component_mirror() -> None:
+    """Best-effort update of the local registry mirror; never fails the build."""
+    if not _esphome_manages_idf():
+        # _get_idf_env injects no mirror env, so nothing would read a sync.
+        return
+    cache = _cache()
+    if cache.mirror_sync_failed:
+        return
+    if not sync_component_mirror(
+        CORE.relative_build_path("dependencies.lock"),
+        CORE.relative_build_path("src/idf_component.yml"),
+        lambda: _get_idf_tool("python"),
+        _get_idf_env,
+    ):
+        # One failed attempt (e.g. offline) is enough per run.
+        cache.mirror_sync_failed = True
+
+
 def _builtin_component_cache_path() -> Path | None:
     """Cache file for this build's built-in component list.
 
@@ -431,7 +523,7 @@ def _builtin_component_cache_path() -> Path | None:
     of CONFIG_* options and only gate their sources on them. A checkout
     supplied through IDF_PATH is not managed by ESPHome and is never cached.
     """
-    if "IDF_PATH" in os.environ:
+    if not _esphome_manages_idf():
         return None
     target = variant_to_idf_target(CORE.data[KEY_ESP32][KEY_VARIANT])
     excluded = CORE.cmake_args.get("EXCLUDE_COMPONENTS", "")
@@ -645,6 +737,65 @@ def _patch_memory_segments():
         _LOGGER.warning("Could not patch memory segments in %s", memory_ld)
 
 
+_LDGEN_FRAGMENTS_RE = re.compile(r'--fragments-list\s+"([^"]+)"')
+_LDGEN_ARCHIVE_RE = re.compile(r"^\s*archive:\s*(\S+)", re.MULTILINE)
+
+
+def _fragment_maps_app_archive(text: str) -> bool:
+    """True when an archive: spec selects libsrc.a, the archive of the src
+    component excluded as idf::src/__idf_src in build_gen/espidf.py.
+
+    The bare * is IDF's stock catch-all; its archive-level entries resolve
+    in the linker against all link inputs, so it stays safe when the
+    archive is excluded from ldgen's own inputs.
+    """
+    return any(
+        value != "*" and fnmatch.fnmatch("libsrc.a", value)
+        for value in _LDGEN_ARCHIVE_RE.findall(text)
+    )
+
+
+def _ldgen_check_skip(msg: str, strict: bool) -> None:
+    """A skipped fragment check is debug for users, fatal under strict."""
+    if strict:
+        raise EsphomeError(f"ldgen fragment check: {msg} (ESPHOME_LDGEN_STRICT)")
+    _LOGGER.debug("Skipping ldgen fragment check: %s", msg)
+
+
+def _warn_if_app_archive_mapped() -> None:
+    """Belt for the ldgen exclusion (see build_gen/espidf.py): warn if any
+    linker fragment names the app archive, since ldgen would silently skip
+    remapping it rather than fail.
+    """
+    strict = get_bool_env("ESPHOME_LDGEN_STRICT")
+    build_ninja = CORE.relative_build_path("build", "build.ninja")
+    try:
+        ninja_text = build_ninja.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        _ldgen_check_skip(f"could not read {build_ninja}: {e}", strict)
+        return
+    match = _LDGEN_FRAGMENTS_RE.search(ninja_text)
+    if match is None:
+        _ldgen_check_skip(f"no --fragments-list in {build_ninja}", strict)
+        return
+    for fragment in match.group(1).split(";"):
+        try:
+            text = Path(fragment).read_text(encoding="utf-8", errors="replace")
+        except OSError as e:
+            _ldgen_check_skip(f"could not read {fragment}: {e}", strict)
+            continue
+        if _fragment_maps_app_archive(text):
+            msg = (
+                f"Linker fragment {fragment} maps the app archive; its "
+                "entries may be skipped. Set ESPHOME_LDGEN_FULL_DEPS=1 "
+                "and rebuild."
+            )
+            if strict:
+                raise EsphomeError(msg)
+            _LOGGER.warning("%s", msg)
+            return
+
+
 def run_compile(config, verbose: bool) -> int:
     """Compile the ESP-IDF project.
 
@@ -674,6 +825,11 @@ def run_compile(config, verbose: bool) -> int:
             return rc
     else:
         _LOGGER.info("Build configuration is up to date")
+        # Ninja can still re-run cmake on its own; keep the mirror current.
+        _sync_component_mirror()
+
+    if not get_bool_env("ESPHOME_LDGEN_FULL_DEPS"):
+        _warn_if_app_archive_mapped()
 
     # In testing mode, generate the linker script first, patch DRAM/IRAM sizes,
     # then build. memory.ld is regenerated by ninja during the build phase,
@@ -796,6 +952,20 @@ def get_idedata() -> dict | None:
 def create_factory_bin() -> bool:
     """Create factory.bin by merging bootloader, partition table, and app."""
     build_dir = CORE.relative_build_path("build")
+    if tree_skips_bootloader(build_dir):
+        # Nothing to merge, and nothing stale: the flip into skip mode
+        # already removed the factory image and the sub-build.
+        _LOGGER.info("Bootloader skipped; no factory image")
+        return True
+    if _merge_factory_bin(build_dir):
+        return True
+    # Never leave an image that does not match this build.
+    get_factory_firmware_path().unlink(missing_ok=True)
+    return False
+
+
+def _merge_factory_bin(build_dir: Path) -> bool:
+    """Run the esptool merge for a full-build tree."""
     flasher_args_path = build_dir / "flasher_args.json"
 
     if not flasher_args_path.is_file():
@@ -818,10 +988,11 @@ def create_factory_bin() -> bool:
         flash_data.get("flash_files", {}).items(), key=lambda kv: int(kv[0], 16)
     ):
         file_path = build_dir / fname
-        if file_path.is_file():
-            sections.extend([addr, str(file_path)])
-        else:
-            _LOGGER.warning("Flash file not found: %s", file_path)
+        if not file_path.is_file():
+            # A partial factory image would not boot; never write one.
+            _LOGGER.error("Flash file not found: %s", file_path)
+            return False
+        sections.extend([addr, str(file_path)])
 
     if not sections:
         _LOGGER.warning("No flash sections found")
