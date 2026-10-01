@@ -80,27 +80,30 @@ void ExponentialMovingAverageSensor::process_(float value, uint32_t now) {
     this->publish_and_save_(this->alpha_ * value + (1.0f - this->alpha_) * this->accumulator_);
     return;
   }
-  const float x = static_cast<float>(dt) / static_cast<float>(this->time_constant_ms_);
-  // The share of the old average that remains after this interval.
-  const float decay = expf(-x);
+  // Computed in double with expm1(): when the interval is short compared to the time constant, the weights are
+  // tiny and float rounding of exp() would swamp them.
+  const double x = static_cast<double>(dt) / this->time_constant_ms_;
+  // The share of the old average replaced during this interval.
+  const double gain = -std::expm1(-x);
+  const double average = this->accumulator_;
   // After a reboot there is no previous reading, so only the new value can be used.
   const TimeWeighting weighting = std::isnan(previous) ? TIME_WEIGHTING_NEW : this->time_weighting_;
-  float result;
+  double result;
   switch (weighting) {
     case TIME_WEIGHTING_PREVIOUS:
-      result = decay * this->accumulator_ + (1.0f - decay) * previous;
+      result = average + gain * (previous - average);
       break;
     case TIME_WEIGHTING_LINEAR: {
       // Exact result for a value moving in a straight line from the previous reading to the new one.
-      const float w = x > 0.0f ? (1.0f - decay) / x : 1.0f;
-      result = decay * this->accumulator_ + (w - decay) * previous + (1.0f - w) * value;
+      const double weight_new = x > 0.0 ? (x + std::expm1(-x)) / x : 0.0;
+      result = average + (gain - weight_new) * (previous - average) + weight_new * (value - average);
       break;
     }
     default:
-      result = decay * this->accumulator_ + (1.0f - decay) * value;
+      result = average + gain * (value - average);
       break;
   }
-  this->publish_and_save_(result);
+  this->publish_and_save_(static_cast<float>(result));
 }
 
 void ExponentialMovingAverageSensor::publish_and_save_(float value) {

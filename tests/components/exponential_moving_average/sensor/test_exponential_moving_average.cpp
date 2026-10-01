@@ -283,6 +283,45 @@ TEST_F(ExponentialMovingAverageTest, SourceNanAtSetupIsIgnored) {
   EXPECT_FALSE(ema.has_state());
 }
 
+// Reference weights from the Taylor series, accurate for the small ratios used below.
+static double series_gain(double x) { return x - x * x / 2 + x * x * x / 6; }
+static double series_weight_new(double x) { return x / 2 - x * x / 6 + x * x * x / 24; }
+
+TEST_F(ExponentialMovingAverageTest, LinearWeightingAccurateWithLongTimeConstant) {
+  constexpr uint32_t time_constant = 43200000;  // 12 hours
+  TestableExponentialMovingAverageSensor ema(&this->source_);
+  ema.set_time_constant(time_constant);
+  ema.set_time_weighting(TIME_WEIGHTING_LINEAR);
+  ema.set_restore(false);
+  ema.setup();
+
+  const double x = 1000.0 / time_constant;
+  const double weight_new = series_weight_new(x);
+  const double weight_previous = series_gain(x) - weight_new;
+
+  ema.process_(0.0f, 0);
+  ema.process_(10.0f, 1000);
+  const double expected = weight_new * 10.0;
+  EXPECT_NEAR(ema.state, expected, expected * 1e-4);
+
+  ema.process_(20.0f, 2000);
+  const double expected2 = expected + weight_previous * (10.0 - expected) + weight_new * (20.0 - expected);
+  EXPECT_NEAR(ema.state, expected2, expected2 * 1e-4);
+}
+
+TEST_F(ExponentialMovingAverageTest, VeryShortIntervalStillMovesAverage) {
+  constexpr uint32_t time_constant = 4 * 24 * 3600000;  // 4 days, with a reading on every 16 ms loop
+  TestableExponentialMovingAverageSensor ema(&this->source_);
+  ema.set_time_constant(time_constant);
+  ema.set_restore(false);
+  ema.setup();
+
+  ema.process_(0.0f, 0);
+  ema.process_(1000.0f, 16);
+  const double expected = series_gain(16.0 / time_constant) * 1000.0;
+  EXPECT_NEAR(ema.state, expected, expected * 1e-4);
+}
+
 TEST(TimeWeightingTest, Names) {
   EXPECT_STREQ(LOG_STR_ARG(time_weighting_to_string(TIME_WEIGHTING_NEW)), "new");
   EXPECT_STREQ(LOG_STR_ARG(time_weighting_to_string(TIME_WEIGHTING_PREVIOUS)), "previous");
