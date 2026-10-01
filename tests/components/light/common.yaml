@@ -429,6 +429,10 @@ light:
               blue: 0%
               duration: 1s
               transition_length: 500ms
+            - state: true
+              color: darkred
+              duration: 1s
+              transition_length: 500ms
   - platform: partition
     id: test_addressable_transition
     name: Addressable Transition Test

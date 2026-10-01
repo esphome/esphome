@@ -3,6 +3,7 @@
 import json
 import logging
 from pathlib import Path
+import re
 import textwrap
 
 from esphome.build_helpers import pch
@@ -118,6 +119,78 @@ def _cmake_quote(value: str) -> str:
     whitespace, quotes, and '$', so only backslashes need escaping."""
     escaped = value.replace("\\", "\\\\")
     return f'"{escaped}"'
+
+
+# CONFIG_APP_BUILD_BOOTLOADER is hidden and force-selected, so it can only be
+# cleared at the CMake level (the same state IDF's RAM-app build type uses).
+# The macro is IDF's __build_process_project_includes plus two added lines;
+# the flag is ignored and the bootloader builds as usual if IDF changes it.
+IDF_BOOTLOADER_OVERRIDE = """\
+# ESPHome bootloader skip switch; see esphome/espidf/toolchain.py.
+if(ESPHOME_SKIP_BOOTLOADER)
+    macro(__build_process_project_includes)
+        idf_build_get_property(sdkconfig_cmake SDKCONFIG_CMAKE)
+        include(${sdkconfig_cmake})
+        set(CONFIG_APP_BUILD_BOOTLOADER "")
+        # bt's CMakeLists reads the lowercase idf_target that the (now
+        # skipped) bootloader project_include leaks; keep it defined, or
+        # its empty TARGET_SRC_NAME sends file(GLOB_RECURSE) across /.
+        idf_build_get_property(idf_target IDF_TARGET)
+        idf_build_get_property(build_properties __BUILD_PROPERTIES)
+        foreach(build_property ${build_properties})
+            idf_build_get_property(val ${build_property})
+            set(${build_property} "${val}")
+        endforeach()
+        idf_build_get_property(build_component_targets __BUILD_COMPONENT_TARGETS)
+        foreach(component_target ${build_component_targets})
+            __component_get_property(dir ${component_target} COMPONENT_DIR)
+            __component_get_property(_name ${component_target} COMPONENT_NAME)
+            set(COMPONENT_NAME ${_name})
+            set(COMPONENT_DIR ${dir})
+            set(COMPONENT_PATH ${dir})
+            if(EXISTS ${COMPONENT_DIR}/project_include.cmake)
+                include(${COMPONENT_DIR}/project_include.cmake)
+            endif()
+        endforeach()
+    endmacro()
+endif()
+"""
+
+# The lines the override adds to IDF's macro; idf_macro_matches() below
+# strips them before comparing with the live macro.
+BOOTLOADER_OVERRIDE_ADDED_LINES = (
+    'set(CONFIG_APP_BUILD_BOOTLOADER "")',
+    "idf_build_get_property(idf_target IDF_TARGET)",
+)
+
+_MACRO = re.compile(
+    r"macro\(__build_process_project_includes\)(.*?)endmacro\(\)", re.DOTALL
+)
+
+
+def _normalized_macro(text: str) -> list[str] | None:
+    """The macro body as comment-free, whitespace-collapsed lines."""
+    if (match := _MACRO.search(text)) is None:
+        return None
+    return [
+        re.sub(r"\s+", " ", line)
+        for raw in match.group(1).splitlines()
+        if (line := raw.split("#", 1)[0].strip())
+    ]
+
+
+_EXPECTED_MACRO = [
+    line
+    for line in _normalized_macro(IDF_BOOTLOADER_OVERRIDE)
+    if line not in BOOTLOADER_OVERRIDE_ADDED_LINES
+]
+
+
+def idf_macro_matches(idf_path: Path) -> bool:
+    """Whether IDF's macro still matches the copy the override replays."""
+    build_cmake = idf_path / "tools" / "cmake" / "build.cmake"
+    live = _normalized_macro(build_cmake.read_text(encoding="utf-8"))
+    return live == _EXPECTED_MACRO
 
 
 def get_project_cmakelists(
@@ -258,6 +331,7 @@ set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
+{IDF_BOOTLOADER_OVERRIDE}
 {ldgen_override}
 
 {cpp_standard_options}

@@ -1225,7 +1225,14 @@ jobs:
 
           if [ -n "$compile_csv" ]; then
             # Run compilation with grouping and isolation
-            python3 script/test_build_components.py -e compile -c "$compile_csv" -f --isolate "$directly_changed_csv"
+            # The bootloader has no ESPHome code and these builds never
+            # flash; the check_idf_py batch keeps the full build so the
+            # native sub-build and the equivalence check stay covered.
+            skip_flag="--skip-bootloader"
+            if [[ "${{ matrix.batch.check_idf_py }}" == "true" ]]; then
+              skip_flag=""
+            fi
+            python3 script/test_build_components.py -e compile -c "$compile_csv" -f --isolate "$directly_changed_csv" $skip_flag
             if [[ "${{ matrix.batch.check_idf_py }}" == "true" ]]; then
               # The real idf.py must find nothing to configure or build in a
               # tree built above; catches drift on ESP-IDF bumps.
