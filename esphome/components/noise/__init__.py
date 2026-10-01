@@ -100,15 +100,10 @@ def encryption_schema(config: ConfigType | None) -> ConfigType:
 def _use_managed_components() -> bool:
     """Whether noise-c and libsodium come from the ESP-IDF component registry.
 
-    Both libraries build themselves as ESP-IDF components, so on ESP32 they can
-    be pulled straight from the registry instead of going through ESPHome's
-    PlatformIO-library converter, except where arduino-esp32 bundles its own
-    libsodium (see esp32.arduino_bundles_libsodium).
-
-    Not conditional on the toolchain. The PlatformIO toolchain reads the project
-    manifest too, and anything else pulling libsodium in has to make the same
-    choice; if the two disagree, one of them adds a second copy of libsodium
-    next to this one.
+    Both build as ESP-IDF components, so on ESP32 they skip the PlatformIO library
+    converter unless arduino-esp32 bundles its own libsodium. Not toolchain
+    dependent: the PlatformIO toolchain reads the project manifest too, and every
+    consumer of libsodium must make the same choice or a second copy appears.
     """
     if not CORE.is_esp32:
         return False
@@ -125,11 +120,8 @@ def enable_spare_ephemeral() -> None:
 
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NOISE")
-    # libsodium is declared alongside noise-c, which depends on it, either way:
-    # it lets the library manager see the full set up front instead of
-    # discovering libsodium only after noise-c has downloaded, and it keeps
-    # other components that depend on it from pulling in a second copy next to
-    # this one. The version must match the one noise-c pins.
+    # libsodium is declared next to noise-c so the library manager sees both up front
+    # and nothing else pulls a second copy; the version must match noise-c's own pin
     if _use_managed_components():
         from esphome.components.esp32 import add_idf_component
 

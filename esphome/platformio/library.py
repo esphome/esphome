@@ -1144,13 +1144,10 @@ def convert_libraries(
     short name (part after the ``/``), matched against both the top-level
     libraries and every dependency discovered during the graph walk.
 
-    ``provided`` names libraries the toolchain already supplies by other means
-    (for ESP-IDF: registry-managed components declared via
-    ``add_idf_component``). Unlike ``backend.provides``, which only answers for
-    owner-less framework-bundled names, these are owner-ful registry packages.
-    They are excluded exactly like ``lib_ignore``, so a library is never both
-    converted and managed -- ESP-IDF refuses to build when two components claim
-    the same requirement.
+    ``provided`` names libraries the toolchain supplies by other means (for ESP-IDF,
+    managed components from ``add_idf_component``); unlike ``backend.provides`` they
+    carry an owner. They are excluded like ``lib_ignore`` so nothing is both
+    converted and managed, which ESP-IDF refuses to build.
     """
     nodes: dict[str, _LibNode] = {}
 

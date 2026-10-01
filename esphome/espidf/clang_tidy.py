@@ -262,12 +262,9 @@ def _convert_pio_libs(
     dependency (e.g. esphome/libsodium pulled by both noise-c and esp_wireguard)
     is deduplicated to one component instead of clashing override_path entries.
 
-    Libraries ESPHome's own manifest already provides as managed components
-    (noise-c, libsodium, ...) are skipped, mirroring what the real esp32 build
-    does -- converting them too would make IDF see the same requirement twice.
-    On Arduino below IDF 6.0 those entries are rule-gated off in the manifest
-    (arduino-esp32 brings its own libsodium), so nothing provides them there and
-    they have to go through the converter as before.
+    Libraries the manifest already provides as managed components are skipped, as
+    in the real esp32 build; converting them too would give IDF the same requirement
+    twice. Arduino below IDF 6.0 has them rule-gated off, so there they convert.
     """
     from esphome.components.esp32 import arduino_bundles_libsodium
     from esphome.espidf.component import generate_idf_components

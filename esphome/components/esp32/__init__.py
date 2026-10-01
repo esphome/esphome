@@ -322,19 +322,15 @@ ARDUINO_EXCLUDED_IDF_COMPONENTS = (
     "joltwallet__littlefs",  # LittleFS - ESPHome doesn't use filesystem
 )
 
-# Components in the list above that arduino-esp32 only declares below a given
-# IDF version. At or above it there is nothing to stub, and stubbing anyway
-# would register a component whose name matches one of ESPHome's own managed
-# components once the namespace is stripped (espressif/libsodium against
-# esphome/libsodium), which the component manager refuses to choose between.
+# Entries arduino-esp32 only declares below the given IDF version; stubbing one past
+# it clashes with ESPHome's own managed component of the same short name.
 ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF: dict[str, cv.Version] = {
     "espressif__libsodium": cv.Version(6, 0, 0),
 }
 
 
 def arduino_bundles_libsodium() -> bool:
-    """arduino-esp32 declares espressif/libsodium below IDF 6.0, and the component
-    manager cannot hold a second libsodium next to it."""
+    """arduino-esp32 ships its own libsodium below IDF 6.0."""
     return (
         CORE.using_arduino
         and idf_version()
@@ -3610,10 +3606,9 @@ def _write_idf_component_yml():
             # Don't process arduino libraries
             if name not in ARDUINO_DISABLED_LIBRARIES
         ]
-        # A library that is also declared as a managed component must not be
-        # converted as well, or IDF sees the same requirement from two
-        # components and refuses to build. Converted components still link
-        # against it via ${ESPHOME_PROJECT_MANAGED_COMPONENTS}.
+        # A library also declared as a managed component is not converted too, or
+        # IDF sees the same requirement twice; converted components reach it through
+        # ${ESPHOME_PROJECT_MANAGED_COMPONENTS}.
         managed = set(CORE.data[KEY_ESP32].get(KEY_COMPONENTS, {}))
         for component in generate_idf_components(libraries, managed=managed):
             dependencies[component.get_sanitized_name()] = {

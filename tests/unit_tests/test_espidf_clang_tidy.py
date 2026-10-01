@@ -154,8 +154,7 @@ def test_generate_compile_commands_configures_twice(
 
 
 def test_esphome_manifest_deps_reads_repo_manifest() -> None:
-    """Returns the top-level dependency names from esphome/idf_component.yml,
-    independent of any per-dependency framework rules."""
+    """Top-level dependency names, independent of the per-dependency rules."""
     manifest = yaml.safe_load(
         (REPO_ROOT / "esphome" / "idf_component.yml").read_text(encoding="utf-8")
     )
@@ -175,10 +174,8 @@ def test_convert_pio_libs_arduino_framework_passes_empty_managed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """On Arduino below IDF 6.0, ESPHome's manifest entries for
-    noise-c/libsodium are rule-gated off (arduino-esp32 brings its own
-    libsodium), so nothing provides them there -- managed must be empty and they
-    go through the PlatformIO-library converter as before."""
+    """Below IDF 6.0 the manifest gates noise-c/libsodium off on Arduino, so they
+    still go through the converter."""
     _set_idf_version(cv.Version(5, 5, 5))
     monkeypatch.setattr(clang_tidy, "_parse_lib_deps", lambda ini, framework: [])
 
@@ -211,8 +208,8 @@ def test_convert_pio_libs_arduino_idf_6_passes_manifest_deps(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """From IDF 6.0 the manifest rule enables noise-c/libsodium on Arduino too,
-    so the converter must skip them there as well or IDF sees both copies."""
+    """From IDF 6.0 the manifest enables them on Arduino too, so the converter
+    must skip them."""
     _set_idf_version(cv.Version(6, 0, 0))
     monkeypatch.setattr(clang_tidy, "_parse_lib_deps", lambda ini, framework: [])
 
@@ -234,10 +231,8 @@ def test_convert_pio_libs_espidf_framework_passes_manifest_deps(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """On ESP-IDF, libraries ESPHome's own manifest already provides as
-    managed components (noise-c, libsodium, ...) must be passed through as
-    ``managed`` so the converter skips them -- converting them too would make
-    IDF see the same requirement twice."""
+    """Manifest-provided components are passed as ``managed`` so the converter
+    skips them."""
     _set_idf_version(cv.Version(5, 5, 5), "espidf")
     monkeypatch.setattr(clang_tidy, "_parse_lib_deps", lambda ini, framework: [])
 
@@ -270,11 +265,8 @@ def _set_idf_version(version: cv.Version, framework: str = "arduino") -> None:
 def test_arduino_excluded_stubs_skips_components_esphome_manifest_provides(
     tmp_path: Path,
 ) -> None:
-    """A component ESPHome's own idf_component.yml declares for real (e.g.
-    espressif/lan867x for ethernet) must not be stubbed away -- stubbing it
-    would silently disable ethernet on Arduino. A component that is only ever
-    bundled by arduino-esp32 (never in ESPHome's own manifest) still gets a
-    stub so the arduino-bundled copy doesn't clash with noise-c's libsodium."""
+    """A component ESPHome's own manifest declares (espressif/lan867x for ethernet)
+    is not stubbed; one only arduino-esp32 bundles still is."""
     _set_idf_version(cv.Version(5, 5, 4))
 
     deps = _arduino_excluded_stubs(tmp_path)
@@ -293,8 +285,8 @@ def test_arduino_excluded_stubs_skips_components_esphome_manifest_provides(
 
 
 def test_arduino_excluded_stubs_skips_libsodium_from_idf_6(tmp_path: Path) -> None:
-    """From IDF 6.0 arduino-esp32 no longer declares espressif/libsodium, and
-    stubbing it would clash with ESPHome's own managed esphome/libsodium."""
+    """From IDF 6.0 arduino-esp32 drops espressif/libsodium; a stub would clash
+    with esphome/libsodium."""
     _set_idf_version(cv.Version(6, 0, 0))
 
     deps = _arduino_excluded_stubs(tmp_path)

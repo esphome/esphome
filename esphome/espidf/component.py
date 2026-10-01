@@ -292,12 +292,9 @@ def generate_idf_components(
 ) -> list[IDFComponent]:
     """Resolve and convert a batch of PlatformIO libraries to IDF components.
 
-    ``managed`` names the registry components already declared in the project
-    manifest (via ``add_idf_component``). Those are skipped by the converter --
-    a library must not be both converted and managed, or IDF fails component
-    discovery with "Requirement <owner>__<name> and requirement <name> are both
-    added as project_managed_components". Converted components pick the managed
-    one up through ``${ESPHOME_PROJECT_MANAGED_COMPONENTS}`` in their REQUIRES.
+    ``managed`` names registry components already in the project manifest; they
+    are not converted, since IDF rejects the same requirement from two components.
+    Converted components reach them through ``${ESPHOME_PROJECT_MANAGED_COMPONENTS}``.
     """
     backend = LibraryBackend(
         platform=ESP32_PLATFORM,

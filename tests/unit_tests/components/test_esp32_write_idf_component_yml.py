@@ -1,11 +1,7 @@
 """Tests for esp32's _write_idf_component_yml() managed-component wiring.
 
-A library that is already declared as a managed IDF component (via
-add_idf_component(), e.g. api's noise-c/libsodium) must not also be converted
-from a PlatformIO library, or ESP-IDF sees the same requirement declared by
-two components and refuses to build. _write_idf_component_yml() passes the
-set of already-managed component names to generate_idf_components() so the
-converter excludes them.
+A library already declared as a managed IDF component must not also be converted,
+or ESP-IDF sees the same requirement twice and refuses to build.
 """
 
 from __future__ import annotations
@@ -43,9 +39,8 @@ def test_write_idf_component_yml_passes_managed_components(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The names already registered via add_idf_component (e.g. noise-c from
-    api's encryption config) are passed through as ``managed`` so the
-    PlatformIO-library converter skips them."""
+    """Names registered via add_idf_component are passed as ``managed`` so the
+    converter skips them."""
     _setup_core(tmp_path)
     CORE.data[esp32.KEY_ESP32] = {
         esp32.KEY_COMPONENTS: {
@@ -90,8 +85,7 @@ def test_write_idf_component_yml_empty_managed_when_no_components(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """No managed components registered yet (no add_idf_component calls) ->
-    an empty managed set, matching the pre-existing (unfiltered) behavior."""
+    """No add_idf_component calls means an empty managed set, the old behavior."""
     _setup_core(tmp_path)
     CORE.data[esp32.KEY_ESP32] = {esp32.KEY_COMPONENTS: {}}
 
@@ -120,8 +114,7 @@ def test_write_idf_component_yml_empty_managed_when_no_components(
 def test_arduino_excluded_idf_components_depends_on_idf_version(
     version: cv.Version, libsodium_stubbed: bool
 ) -> None:
-    """arduino-esp32 only declares espressif/libsodium below IDF 6.0, so it is
-    only stubbed there. Unmapped entries are stubbed on every IDF version."""
+    """espressif/libsodium is stubbed below IDF 6.0 only; unmapped entries always."""
     CORE.reset()
     CORE.data[esp32.KEY_ESP32] = {esp32.KEY_IDF_VERSION: version}
 
@@ -142,8 +135,7 @@ def test_arduino_excluded_idf_components_depends_on_idf_version(
 def test_arduino_bundles_libsodium(
     framework: Framework, version: cv.Version, bundled: bool, tmp_path: Path
 ) -> None:
-    """Only Arduino below IDF 6.0 brings its own libsodium; noise and the
-    clang-tidy project both key the managed component decision off this."""
+    """Only Arduino below IDF 6.0 brings its own libsodium."""
     _setup_core(tmp_path)
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(framework)
     CORE.data[esp32.KEY_ESP32] = {esp32.KEY_IDF_VERSION: version}
@@ -160,9 +152,7 @@ def test_write_idf_component_yml_arduino_stubs_follow_idf_version(
     libsodium_stubbed: bool,
     tmp_path: Path,
 ) -> None:
-    """The Arduino stubs written into the manifest come from the IDF-version
-    aware helper: espressif/libsodium is stubbed below IDF 6.0 only, because
-    from 6.0 it would clash with ESPHome's own managed esphome/libsodium."""
+    """The manifest stubs follow the IDF version: espressif/libsodium below 6.0 only."""
     _setup_core(tmp_path)
     CORE.toolchain = Toolchain.PLATFORMIO
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(Framework.ARDUINO)
