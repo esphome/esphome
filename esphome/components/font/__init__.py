@@ -41,6 +41,7 @@ _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "font"
 MULTI_CONF = True
+AUTO_LOAD = ["unicode"]
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 
