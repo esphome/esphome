@@ -10,6 +10,7 @@ registry traffic and makes builds work offline.
 from __future__ import annotations
 
 from contextlib import suppress
+from dataclasses import dataclass, field
 import json
 import logging
 import os
@@ -270,6 +271,74 @@ def _promote(staging: Path, mirror: Path) -> None:
             _rename_with_retry(src, dst, overwrite=True)
 
 
+@dataclass
+class _SyncRun:
+    """Tools and progress of one registry sync."""
+
+    python: str
+    env: dict[str, str]
+    staging: Path
+    mirror: Path
+    synced: int = field(default=0, init=False)
+
+    def _attempt(self, specs: list[str]) -> bool:
+        """One registry sync invocation; promotes its staging on success."""
+        # Raises on an undeletable tree; never promote stale files.
+        rmtree(self.staging)
+        cmd = [self.python, "-m", "idf_component_manager", "registry", "sync"]
+        # latest: the default "all" follows ranged transitive specs and
+        # syncs every matching version.
+        cmd += ["--resolution", "latest"]
+        for spec in specs:
+            cmd += ["--component", spec]
+        cmd.append(str(self.staging))
+        result = subprocess.run(
+            cmd,
+            env=self.env,
+            capture_output=True,
+            # Not text=True: the locale codec can raise UnicodeDecodeError.
+            encoding="utf-8",
+            errors="replace",
+            timeout=_SYNC_TIMEOUT_S,
+            check=False,
+        )
+        if result.returncode != 0:
+            tail = "\n".join((result.stderr or result.stdout).strip().splitlines()[-5:])
+            _LOGGER.warning(
+                "Could not mirror %s (exit %d):\n%s",
+                ", ".join(specs),
+                result.returncode,
+                tail,
+            )
+            return False
+        _promote(self.staging, self.mirror)
+        return True
+
+    def sync(self, specs: list[str], exact: list[ServiceDep]) -> bool:
+        """The whole set in one invocation, per component after a timeout."""
+        try:
+            # One invocation for the whole set: one manager startup, which
+            # matters on slow hosts.
+            if not self._attempt(specs):
+                return False
+            self.synced = len(specs)
+            return True
+        except subprocess.TimeoutExpired:
+            if len(specs) == 1:
+                raise
+            _LOGGER.warning(
+                "Mirroring timed out after %d s; retrying one component at a time",
+                _SYNC_TIMEOUT_S,
+            )
+        # Per component the timeout bounds each one, finished ones stay
+        # promoted, and the first failure stops the loop.
+        for dep in exact:
+            if not self._attempt([dep.spec]):
+                return False
+            self.synced += 1
+        return True
+
+
 def sync_component_mirror(
     lock_path: Path,
     manifest_path: Path,
@@ -313,69 +382,9 @@ def sync_component_mirror(
         return False
     specs = [dep.spec for dep in to_sync] + refresh
     _LOGGER.info("Mirroring %d IDF component(s) for offline builds...", len(specs))
-
-    def attempt(specs: list[str]) -> bool:
-        """One registry sync invocation; promotes its staging on success."""
-        # Raises on an undeletable tree; never promote stale files.
-        rmtree(staging)
-        cmd = [python, "-m", "idf_component_manager", "registry", "sync"]
-        # latest: the default "all" follows ranged transitive specs and
-        # syncs every matching version.
-        cmd += ["--resolution", "latest"]
-        for spec in specs:
-            cmd += ["--component", spec]
-        cmd.append(str(staging))
-        result = subprocess.run(
-            cmd,
-            env=env,
-            capture_output=True,
-            # Not text=True: the locale codec can raise UnicodeDecodeError.
-            encoding="utf-8",
-            errors="replace",
-            timeout=_SYNC_TIMEOUT_S,
-            check=False,
-        )
-        if result.returncode != 0:
-            tail = "\n".join((result.stderr or result.stdout).strip().splitlines()[-5:])
-            _LOGGER.warning(
-                "Could not mirror %s (exit %d):\n%s",
-                ", ".join(specs),
-                result.returncode,
-                tail,
-            )
-            return False
-        _promote(staging, mirror)
-        return True
-
-    synced = 0
-
-    def sync_all() -> bool:
-        """The whole set in one invocation, per component after a timeout."""
-        nonlocal synced
-        try:
-            # One invocation for the whole set: one manager startup, which
-            # matters on slow hosts.
-            if not attempt(specs):
-                return False
-            synced = len(specs)
-            return True
-        except subprocess.TimeoutExpired:
-            if len(specs) == 1:
-                raise
-            _LOGGER.warning(
-                "Mirroring timed out after %d s; retrying one component at a time",
-                _SYNC_TIMEOUT_S,
-            )
-        # Per component the timeout bounds each one, finished ones stay
-        # promoted, and the first failure stops the loop.
-        for dep in to_sync:
-            if not attempt([dep.spec]):
-                return False
-            synced += 1
-        return True
-
+    run = _SyncRun(python, env, staging, mirror)
     try:
-        if not sync_all():
+        if not run.sync(specs, to_sync):
             return False
         if still := missing_deps(mirror, to_sync):
             # A name the registry spells differently syncs clean yet
@@ -390,7 +399,7 @@ def sync_component_mirror(
         _LOGGER.warning(
             "Mirroring timed out after %d s; kept %d of %d component(s)",
             _SYNC_TIMEOUT_S,
-            synced,
+            run.synced,
             len(specs),
         )
         return False
