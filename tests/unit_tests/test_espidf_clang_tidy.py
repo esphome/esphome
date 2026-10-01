@@ -13,6 +13,7 @@ import yaml
 
 from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION
 import esphome.config_validation as cv
+from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 from esphome.core import CORE
 from esphome.espidf import clang_tidy
 from esphome.espidf.clang_tidy import (
@@ -237,6 +238,7 @@ def test_convert_pio_libs_espidf_framework_passes_manifest_deps(
     managed components (noise-c, libsodium, ...) must be passed through as
     ``managed`` so the converter skips them -- converting them too would make
     IDF see the same requirement twice."""
+    _set_idf_version(cv.Version(5, 5, 5), "espidf")
     monkeypatch.setattr(clang_tidy, "_parse_lib_deps", lambda ini, framework: [])
 
     captured: dict[str, set[str] | None] = {}
@@ -256,9 +258,13 @@ def test_convert_pio_libs_espidf_framework_passes_manifest_deps(
     assert result == {}
 
 
-def _set_idf_version(version: cv.Version) -> None:
+def _set_idf_version(version: cv.Version, framework: str = "arduino") -> None:
     CORE.reset()
     CORE.data[KEY_ESP32] = {KEY_IDF_VERSION: version}
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: framework,
+    }
 
 
 def test_arduino_excluded_stubs_skips_components_esphome_manifest_provides(

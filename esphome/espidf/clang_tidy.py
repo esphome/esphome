@@ -269,17 +269,12 @@ def _convert_pio_libs(
     (arduino-esp32 brings its own libsodium), so nothing provides them there and
     they have to go through the converter as before.
     """
-    from esphome.components.esp32 import idf_version
-    from esphome.core import Version
+    from esphome.components.esp32 import arduino_bundles_libsodium
     from esphome.espidf.component import generate_idf_components
 
     libraries = _parse_lib_deps(platformio_ini, framework)
-    # Same predicate as noise._use_managed_components and the manifest rules
-    managed = (
-        _esphome_manifest_deps()
-        if framework != "arduino" or idf_version() >= Version(6, 0, 0)
-        else set()
-    )
+    # Same rule as noise._use_managed_components and the manifest
+    managed = set() if arduino_bundles_libsodium() else _esphome_manifest_deps()
     deps: dict[str, dict[str, str]] = {}
     for component in generate_idf_components(libraries, managed=managed):
         deps[component.get_sanitized_name()] = {"override_path": str(component.path)}

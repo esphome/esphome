@@ -332,6 +332,16 @@ ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF: dict[str, cv.Version] = {
 }
 
 
+def arduino_bundles_libsodium() -> bool:
+    """arduino-esp32 declares espressif/libsodium below IDF 6.0, and the component
+    manager cannot hold a second libsodium next to it."""
+    return (
+        CORE.using_arduino
+        and idf_version()
+        < ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF["espressif__libsodium"]
+    )
+
+
 def arduino_excluded_idf_components() -> set[str]:
     """The arduino-bundled components to stub for this build's IDF version."""
     version = idf_version()

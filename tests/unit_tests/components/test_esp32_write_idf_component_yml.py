@@ -132,6 +132,26 @@ def test_arduino_excluded_idf_components_depends_on_idf_version(
 
 
 @pytest.mark.parametrize(
+    ("framework", "version", "bundled"),
+    [
+        (Framework.ARDUINO, cv.Version(5, 5, 5), True),
+        (Framework.ARDUINO, cv.Version(6, 0, 0), False),
+        (Framework.ESP_IDF, cv.Version(5, 5, 5), False),
+    ],
+)
+def test_arduino_bundles_libsodium(
+    framework: Framework, version: cv.Version, bundled: bool, tmp_path: Path
+) -> None:
+    """Only Arduino below IDF 6.0 brings its own libsodium; noise and the
+    clang-tidy project both key the managed component decision off this."""
+    _setup_core(tmp_path)
+    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(framework)
+    CORE.data[esp32.KEY_ESP32] = {esp32.KEY_IDF_VERSION: version}
+
+    assert esp32.arduino_bundles_libsodium() is bundled
+
+
+@pytest.mark.parametrize(
     ("version", "libsodium_stubbed"),
     [(cv.Version(5, 5, 4), True), (cv.Version(6, 0, 0), False)],
 )

@@ -102,10 +102,8 @@ def _use_managed_components() -> bool:
 
     Both libraries build themselves as ESP-IDF components, so on ESP32 they can
     be pulled straight from the registry instead of going through ESPHome's
-    PlatformIO-library converter. The exception is Arduino below IDF 6.0, where
-    arduino-esp32 depends on espressif/libsodium of its own: the component
-    manager cannot choose between two managed components whose names match once
-    the namespace is stripped. IDF 6.0 drops that dependency.
+    PlatformIO-library converter, except where arduino-esp32 bundles its own
+    libsodium (see esp32.arduino_bundles_libsodium).
 
     Not conditional on the toolchain. The PlatformIO toolchain reads the project
     manifest too, and anything else pulling libsodium in has to make the same
@@ -114,12 +112,10 @@ def _use_managed_components() -> bool:
     """
     if not CORE.is_esp32:
         return False
-    if not CORE.using_arduino:
-        return True
 
-    from esphome.components.esp32 import idf_version
+    from esphome.components.esp32 import arduino_bundles_libsodium
 
-    return idf_version() >= cv.Version(6, 0, 0)
+    return not arduino_bundles_libsodium()
 
 
 def enable_spare_ephemeral() -> None:
