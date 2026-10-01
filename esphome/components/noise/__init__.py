@@ -12,6 +12,11 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "noise"
 
+# Keep in sync with platformio.ini and esphome/idf_component.yml.
+# LIBSODIUM_VERSION must match the version noise-c pins in its manifests.
+NOISE_C_VERSION = "0.1.30"
+LIBSODIUM_VERSION = "1.10021.11"
+
 noise_ns = cg.esphome_ns.namespace("noise")
 
 CONFIG_SCHEMA = cv.Schema({})
@@ -92,14 +97,39 @@ def encryption_schema(config: ConfigType | None) -> ConfigType:
     return ENCRYPTION_SCHEMA(config)
 
 
+def _use_managed_components() -> bool:
+    """Whether noise-c and libsodium come from the ESP-IDF component registry.
+
+    Both build as ESP-IDF components, so on ESP32 they skip the PlatformIO library
+    converter unless arduino-esp32 bundles its own libsodium. Not toolchain
+    dependent: the PlatformIO toolchain reads the project manifest too, and every
+    consumer of libsodium must make the same choice or a second copy appears.
+    """
+    if not CORE.is_esp32:
+        return False
+
+    from esphome.components.esp32 import arduino_bundles_libsodium
+
+    return not arduino_bundles_libsodium()
+
+
+def enable_spare_ephemeral() -> None:
+    """Compile the spare ephemeral key slot; the component that refills it calls this."""
+    cg.add_define("USE_NOISE_SPARE_EPHEMERAL")
+
+
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NOISE")
-    cg.add_library("esphome/noise-c", "0.1.30")
-    # noise-c depends on libsodium, but declaring it here too lets the
-    # library manager see the full set up front instead of discovering
-    # libsodium only after noise-c has downloaded, so the two can download
-    # in parallel. The version must match noise-c's library.json.
-    cg.add_library("esphome/libsodium", "1.10021.11")
+    # libsodium is declared next to noise-c so the library manager sees both up front
+    # and nothing else pulls a second copy; the version must match noise-c's own pin
+    if _use_managed_components():
+        from esphome.components.esp32 import add_idf_component
+
+        add_idf_component(name="esphome/noise-c", ref=NOISE_C_VERSION)
+        add_idf_component(name="esphome/libsodium", ref=LIBSODIUM_VERSION)
+    else:
+        cg.add_library("esphome/noise-c", NOISE_C_VERSION)
+        cg.add_library("esphome/libsodium", LIBSODIUM_VERSION)
     # Enable optimized memzero/memcmp in libsodium instead of volatile byte loops
     cg.add_build_flag("-DHAVE_WEAK_SYMBOLS=1")
     cg.add_build_flag("-DHAVE_INLINE_ASM=1")

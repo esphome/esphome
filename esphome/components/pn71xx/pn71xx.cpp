@@ -569,9 +569,11 @@ void PN71xx::erase_tag_(const uint8_t tag_index) {
       trigger->process(this->discovered_endpoint_[tag_index].tag);
     }
 #endif
+#ifdef NFC_TAG_LISTENER_COUNT
     for (auto *listener : this->tag_listeners_) {
       listener->tag_off(*this->discovered_endpoint_[tag_index].tag);
     }
+#endif
     char uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
     ESP_LOGI(TAG, "Tag %s removed", nfc::format_uid_to(uid_buf, this->discovered_endpoint_[tag_index].tag->get_uid()));
     // keep the remaining entries in order; selecting_endpoint_ indexes into this list
@@ -908,9 +910,11 @@ void PN71xx::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
             trigger->process(working_endpoint.tag);
           }
 #endif
+#ifdef NFC_TAG_LISTENER_COUNT
           for (auto *listener : this->tag_listeners_) {
             listener->tag_on(*working_endpoint.tag);
           }
+#endif
           working_endpoint.trig_called = true;
           break;
         }
