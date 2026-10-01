@@ -28,9 +28,6 @@ void TcpUart::dump_config() {
 
 void TcpUart::sync_link_() {
   bool up = this->link_.connected();
-  if (up == this->link_was_up_) {
-    return;
-  }
   this->link_was_up_ = up;
   if (!up) {
     this->rx_.clear();
@@ -74,7 +71,9 @@ void TcpUart::flush_tx_() {
 
 void TcpUart::loop() {
   this->link_.poll();
-  this->sync_link_();
+  if (this->link_.connected() != this->link_was_up_) {
+    this->sync_link_();
+  }
   if (!this->link_was_up_) {
     return;
   }
@@ -91,7 +90,9 @@ void TcpUart::write_array(const uint8_t *data, size_t len) {
   if (len > room) {
     uint32_t now = App.get_loop_component_start_time();
     if (this->last_drop_log_ms_ == 0 || now - this->last_drop_log_ms_ >= 5000) {
-      ESP_LOGW(TAG, "Dropped %u bytes", static_cast<unsigned>(len - room));
+      ESP_LOGW(TAG, "%s, dropped %u bytes",
+               this->link_.connected() ? LOG_STR_LITERAL("TX buffer full") : LOG_STR_LITERAL("Not connected"),
+               static_cast<unsigned>(len - room));
       this->last_drop_log_ms_ = now;
     }
     len = room;

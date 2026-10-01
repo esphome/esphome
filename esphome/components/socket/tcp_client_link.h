@@ -6,15 +6,14 @@
 
 #include "ipv4_resolve.h"
 #include "socket.h"
+#include "esphome/core/application.h"
+#include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 
 #include <cstdint>
 #include <memory>
 
 namespace esphome::socket {
-
-/// Non-blocking options and TCP keepalive for a bridged stream socket.
-void set_stream_options(Socket *sock);
 
 /// A reconnecting TCP stream driven from loop(). Owns the socket, the DNS
 /// lookup and the retry backoff. A fatal read/write error closes the link
@@ -31,7 +30,13 @@ class TcpClientLink {
   /// Call from setup(). tag names this link's log lines.
   void begin(const char *tag);
   /// Connect state machine; call every loop while acting as a client.
-  void poll();
+  /// Inline no-op while connected or waiting out the backoff.
+  void poll() {
+    if (this->connected_ || (this->sock_ == nullptr && this->in_backoff())) {
+      return;
+    }
+    this->poll_slow_();
+  }
   /// Take over an accepted socket (the server side of a bridge).
   void adopt(std::unique_ptr<Socket> sock);
   /// Returns bytes moved, 0 when nothing can move now, -1 when the link dropped.
@@ -43,13 +48,16 @@ class TcpClientLink {
   bool connected() const { return this->connected_; }
   bool ready() const { return this->sock_ != nullptr && this->sock_->ready(); }
   /// Shared retry clock, also usable for a listen socket.
-  void note_attempt();
-  bool in_backoff() const;
+  void note_attempt() { this->last_attempt_ms_ = App.get_loop_component_start_time(); }
+  bool in_backoff() const {
+    return App.get_loop_component_start_time() - this->last_attempt_ms_ < this->reconnect_interval_ms_;
+  }
 
  protected:
+  void poll_slow_();
   void try_connect_();
-  /// Close after a failure, log it and schedule the next attempt.
-  void drop_(int err);
+  /// Close after a failure, log what and errno, schedule the next attempt.
+  void drop_(const LogString *what, int err);
 
   StringRef host_;
   std::unique_ptr<Socket> sock_;
