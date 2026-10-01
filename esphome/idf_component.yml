@@ -26,7 +26,7 @@ dependencies:
   espressif/mdns:
     version: 1.12.0
   espressif/esp_wifi_remote:
-    version: 1.6.3
+    version: 1.6.5
     rules:
       - if: "target in [esp32h2, esp32p4]"
   espressif/wifi_remote_over_eppp:
@@ -38,7 +38,7 @@ dependencies:
     rules:
       - if: "target in [esp32h2, esp32p4]"
   espressif/esp_hosted:
-    version: 2.12.12
+    version: 2.12.13
     rules:
       - if: "target in [esp32h2, esp32p4]"
   zorxx/multipart-parser:
@@ -106,3 +106,14 @@ dependencies:
     version: d44c800a9e876a8394caefc2ce4915dd96dac77b
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 1"
+  # noise (api, ota). Arduino below IDF 6.0 bundles espressif/libsodium, which
+  # clashes with esphome/libsodium, so those builds use the PlatformIO libraries.
+  esphome/noise-c:
+    version: 0.1.30
+    rules:
+      - if: "$ESPHOME_ARDUINO_COMPONENT == 0 || idf_version >= 6.0.0"
+  # Declared alongside noise-c so the library converter skips esp_wireguard's copy
+  esphome/libsodium:
+    version: 1.10021.11
+    rules:
+      - if: "$ESPHOME_ARDUINO_COMPONENT == 0 || idf_version >= 6.0.0"

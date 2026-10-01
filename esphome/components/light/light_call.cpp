@@ -156,11 +156,13 @@ void LightCall::perform() {
       ESP_LOGV(TAG, "  Effect: '%.*s'", (int) effect_s.size(), effect_s.c_str());
     }
 
-    this->parent_->start_effect_(this->effect_);
+    if (this->effect_ != this->parent_->active_effect_index_) {
+      this->parent_->start_effect_(this->effect_);
 
-    // Also set light color values when starting an effect
-    // For example to turn off the light
-    this->parent_->set_immediately_(v, true);
+      // Also set light color values when starting an effect
+      // For example to turn off the light
+      this->parent_->set_immediately_(v, true);
+    }
   } else {
     // INSTANT CHANGE
     this->parent_->set_immediately_(v, publish);
@@ -192,6 +194,10 @@ void LightCall::log_and_clear_unsupported_(FieldFlags flag, const LogString *fea
 LightColorValues LightCall::validate_() {
   auto *name = this->parent_->get_name().c_str();
   auto traits = this->parent_->get_traits();
+
+  // Snapshot before the adjustments below add flags of their own
+  const bool sets_values = (this->flags_ & VALUE_FLAGS_MASK) != 0;
+  const bool plain_turn_on = this->has_state() && this->state_ && (this->flags_ & ~STATE_ONLY_FLAGS_MASK) == 0;
 
   // Color mode check
   if (this->has_color_mode() && !traits.supports_color_mode(this->color_mode_)) {
@@ -334,9 +340,34 @@ LightColorValues LightCall::validate_() {
   // validate transition length/flash length/effect not used at the same time
   bool supports_transition = color_mode & ColorCapability::BRIGHTNESS;
 
-  // If effect is already active, remove effect start
+#ifdef USE_LIGHT_RESUME_EFFECT
+  // A plain turn-on from off brings back the effect that was running when the light was turned off
+  if (this->parent_->resume_effect_ && plain_turn_on && !this->parent_->remote_values.is_on() &&
+      this->parent_->previous_effect_index_ != 0) {
+    this->effect_ = this->parent_->previous_effect_index_;
+    this->set_flag_(FLAG_HAS_EFFECT);
+  }
+#endif  // USE_LIGHT_RESUME_EFFECT
+
+  // A plain turn-on of a lit light keeps a running effect as it is.
+  // Effects' own calls don't publish, so they are not caught here.
+  if (plain_turn_on && this->get_publish_() && this->parent_->remote_values.is_on() &&
+      this->parent_->active_effect_index_ != 0) {
+    this->effect_ = this->parent_->active_effect_index_;
+    this->set_flag_(FLAG_HAS_EFFECT);
+  }
+
+  // If effect is already active, remove effect start. When a lit light that stays on gets no new values or flash,
+  // keep the flag and drop any transition, which has nothing to fade to; perform() then leaves the running effect
+  // undisturbed. A call that turns the light off keeps no flag, so the turn-off block below stops the effect.
+  // has_brightness() catches the brightness added above to make the turn-on visible.
   if (this->has_effect_() && this->effect_ == this->parent_->active_effect_index_) {
-    this->clear_flag_(FLAG_HAS_EFFECT);
+    if (sets_values || this->has_brightness() || this->has_flash_() || this->effect_ == 0 ||
+        !this->parent_->remote_values.is_on() || !v.is_on()) {
+      this->clear_flag_(FLAG_HAS_EFFECT);
+    } else {
+      this->clear_flag_(FLAG_HAS_TRANSITION);
+    }
   }
 
   // validate effect index
@@ -376,6 +407,11 @@ LightColorValues LightCall::validate_() {
   // Reason: When user turns off the light in frontend, the effect should also stop
   bool target_state = this->has_state() ? this->state_ : v.is_on();
   if (!this->has_flash_() && !target_state) {
+#ifdef USE_LIGHT_RESUME_EFFECT
+    // Remember what was running, including no effect, when a lit light is explicitly turned off
+    if (this->parent_->resume_effect_ && explicit_turn_off_request && this->parent_->remote_values.is_on())
+      this->parent_->previous_effect_index_ = this->parent_->active_effect_index_;
+#endif  // USE_LIGHT_RESUME_EFFECT
     if (this->has_effect_()) {
       log_invalid_parameter(name, LOG_STR("cannot start effect when turning off"));
       this->clear_flag_(FLAG_HAS_EFFECT);
