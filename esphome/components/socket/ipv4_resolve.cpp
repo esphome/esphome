@@ -33,17 +33,16 @@ bool Ipv4Resolve::consume_failure() {
 
 void Ipv4Resolve::forget() {
 #if defined(IPV4_RESOLVE_VOLATILE_EPOCH)
-  // No compare_exchange on this platform, and the callback runs on the tcpip
-  // thread. The generation moves first. resolving stays set until the callback
-  // sees it and drops the result, so start() cannot replace that lookup.
+  // The generation moves first; RESOLVING stays set until the callback
+  // drops the stale result, so start() cannot replace that lookup.
   this->epoch_ = this->epoch_ + 1;
   this->addr_word_ = 0;
   if (this->state_word_ != STATE_RESOLVING) {
     this->state_word_ = STATE_IDLE;
   }
 #elif defined(IPV4_RESOLVE_ATOMIC_STATE)
-  // Drop a lookup that has not published yet. PUBLISHING stays, so start()
-  // cannot queue a second callback while this one is storing the address.
+  // PUBLISHING stays, so start() cannot queue a second callback
+  // while this one is storing the address.
   uint8_t expected = STATE_RESOLVING;
   if (this->state_word_.compare_exchange_strong(expected, STATE_IDLE)) {
     this->set_addr_(0);
@@ -94,16 +93,14 @@ void Ipv4Resolve::dns_found(const char *name, const ip_addr_t *addr, void *arg) 
 #endif
   if (addr != nullptr && IP_IS_V4(addr)) {
 #if defined(IPV4_RESOLVE_ATOMIC_STATE)
-    // Store the address only after this callback owns the lookup. A second
-    // callback loses the exchange and must not clear the address.
+    // Only the callback that wins the exchange owns the lookup.
     uint8_t expected = STATE_RESOLVING;
     if (!self->state_word_.compare_exchange_strong(expected, STATE_PUBLISHING)) {
       return;
     }
     self->set_addr_(ip4_addr_get_u32(ip_2_ip4(addr)));
     expected = STATE_PUBLISHING;
-    // A lost exchange means this callback no longer owns the lookup.
-    // Leaving the address in place is safe: to_sockaddr() checks the state.
+    // Lost ownership; the leftover address is gated by to_sockaddr()'s state check.
     if (!self->state_word_.compare_exchange_strong(expected, STATE_RESOLVED)) {
       return;
     }
@@ -114,7 +111,7 @@ void Ipv4Resolve::dns_found(const char *name, const ip_addr_t *addr, void *arg) 
       return;
     }
 #else
-    // Already idle or resolved by a newer start(). Do not publish over that.
+    // Do not publish over a newer start().
     if (self->state_() != STATE_RESOLVING) {
       return;
     }

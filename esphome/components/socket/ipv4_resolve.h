@@ -6,14 +6,10 @@
 
 #include <cstdint>
 
-// ESPHOME_THREAD_MULTI_ATOMICS: one atomic state word. compare_exchange closes the race.
-// A callback publishes only after it has won RESOLVING -> PUBLISHING, so a second
-// callback cannot clear the address.
-// ESPHOME_THREAD_SINGLE: a volatile state word. The callback does not run beside loop().
-// After forget() it does not publish over IDLE or RESOLVED. It can still publish if
-// start() has begun another lookup.
-// ESPHOME_THREAD_MULTI_NO_ATOMICS: volatile state plus a generation. BK72xx has no
-// compare_exchange, and the DNS callback runs on the tcpip thread.
+// MULTI_ATOMICS: one atomic state word, races closed by compare_exchange.
+// SINGLE: volatile state, the callback never runs beside loop().
+// MULTI_NO_ATOMICS: volatile state plus a generation; BK72xx has no
+// compare_exchange and the DNS callback runs on the tcpip thread.
 #if defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
 #define IPV4_RESOLVE_VOLATILE_EPOCH
 #elif defined(ESPHOME_THREAD_SINGLE)
@@ -29,8 +25,7 @@
 
 namespace esphome::socket {
 
-/// One IPv4 literal or hostname. The address is stored as an integer.
-/// The object must outlive a pending lookup.
+/// One IPv4 literal or hostname. Must outlive a pending lookup.
 class Ipv4Resolve {
  public:
   static constexpr uint8_t STATE_IDLE = 0;
@@ -40,14 +35,17 @@ class Ipv4Resolve {
   // The callback holds this between winning the lookup and storing the address.
   static constexpr uint8_t STATE_PUBLISHING = 4;
 
+  /// Drop the stored address so the next start() resolves again.
+  /// A result already publishing may still land, so ready() can be true
+  /// right after this; after changing hosts, forget() until ready() is false.
   void forget();
   /// Drop a failed lookup so the next start() tries again.
   bool consume_failure();
   bool ready() const { return this->state_() == STATE_RESOLVED; }
   /// Write the stored address into dest. Returns 0 until ready() is true.
   socklen_t to_sockaddr(struct sockaddr *dest, socklen_t destlen, uint16_t port) const;
-  /// Resolve host. tag is used for the failure log, including the async callback.
-  /// On the host and on Zephyr this calls getaddrinfo() and blocks until it returns.
+  /// Resolve host; tag names the failure log. On host and Zephyr this
+  /// blocks in getaddrinfo().
   void start(const char *host, uint16_t port, const char *tag);
 
  private:
