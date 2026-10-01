@@ -366,7 +366,7 @@ def test_promote_moves_archives_before_indexes(tmp_path: Path) -> None:
     staging = tmp_path / "staging"
     _add_to_mirror(staging, _NS_CMP_2)
     order: list[str] = []
-    real_rename = component_mirror._rename_with_retry
+    real_rename = component_mirror.rename_with_retry
     real_write = component_mirror.write_file
 
     def recording_rename(src: Path, dst: Path, **kwargs) -> None:
@@ -378,7 +378,7 @@ def test_promote_moves_archives_before_indexes(tmp_path: Path) -> None:
         real_write(path, text)
 
     with (
-        patch.object(component_mirror, "_rename_with_retry", recording_rename),
+        patch.object(component_mirror, "rename_with_retry", recording_rename),
         patch.object(component_mirror, "write_file", recording_write),
     ):
         component_mirror._promote(staging, tmp_path / "mirror")

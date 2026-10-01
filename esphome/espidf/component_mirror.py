@@ -21,7 +21,7 @@ import zipfile
 
 from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.core import EsphomeError
-from esphome.framework_helpers import _rename_with_retry
+from esphome.framework_helpers import rename_with_retry
 from esphome.helpers import rmtree, write_file
 
 if TYPE_CHECKING:
@@ -270,7 +270,7 @@ def _promote(staging: Path, mirror: Path) -> None:
         if _is_component_index(rel):
             _publish_index(src, dst)
         else:
-            _rename_with_retry(src, dst, overwrite=True)
+            rename_with_retry(src, dst, overwrite=True)
 
 
 @dataclass
