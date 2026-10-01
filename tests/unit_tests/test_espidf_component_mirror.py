@@ -218,8 +218,12 @@ def test_parse_manifest_lowercases_mixed_case_keys(tmp_path: Path) -> None:
 
 
 def test_parse_manifest_ranged_specs(tmp_path: Path) -> None:
-    """Ranges, not exact pins or git/override entries, become refresh specs."""
-    specs = component_mirror.parse_manifest_ranged_specs(_write_manifest(tmp_path))
+    """Ranges, not exact pins, git/override entries or an empty version,
+    become refresh specs."""
+    manifest = _write_manifest(
+        tmp_path, _MANIFEST_TEXT + "  ns/empty:\n    version: ''\n"
+    )
+    specs = component_mirror.parse_manifest_ranged_specs(manifest)
     assert specs == ["espressif/ranged^1.2.0"]
 
 
@@ -412,10 +416,13 @@ def test_component_mirror_env_preserves_user_values(
     assert "IDF_COMPONENT_CHECK_NEW_VERSION" not in env
 
 
-def test_component_mirror_env_unwritable_cache() -> None:
-    """A read-only cache disables the feature instead of failing the build."""
+def test_component_mirror_env_unwritable_cache(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A read-only cache disables the feature with a warning, not a failure."""
     with patch.object(Path, "mkdir", side_effect=OSError("read-only")):
         assert component_mirror.component_mirror_env() == {}
+    assert "Component mirror unavailable" in caplog.text
 
 
 # ---------------------------------------------------------------------------

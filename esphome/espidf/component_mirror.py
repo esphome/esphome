@@ -71,7 +71,8 @@ def component_mirror_env() -> dict[str, str]:
     try:
         mirror.mkdir(parents=True, exist_ok=True)
     except OSError as err:
-        _LOGGER.debug("Component mirror unavailable at %s: %s", mirror, err)
+        # Offline support is quietly lost otherwise; say so.
+        _LOGGER.warning("Component mirror unavailable at %s: %s", mirror, err)
         return {}
     _LOGGER.info("Serving IDF components from the local mirror at %s", mirror)
     local_storage = mirror.as_uri()
@@ -169,8 +170,9 @@ def parse_manifest_ranged_specs(manifest_path: Path) -> list[str]:
             version := entry["version"], str
         ):
             continue
-        if version[:1] in "^~<>!" or (
-            version[:1] == "=" and not version.startswith("==")
+        # [:1] alone would match "": the empty string is in every string.
+        if version.startswith(("^", "~", "<", ">", "!")) or (
+            version.startswith("=") and not version.startswith("==")
         ):
             specs.append(f"{namespace}/{name}{version}")
     return specs
