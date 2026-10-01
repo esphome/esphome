@@ -320,6 +320,33 @@ def _raise_script_failure(what: str, root: PathType, stderr: str | None) -> NoRe
     )
 
 
+# What idf_tools.get_idf_version() matches: ``version.txt`` first, then the
+# version header. Both give major.minor only.
+_IDF_VERSION_TXT_RE = re.compile(r"^v(\d+\.\d+)")
+_IDF_VERSION_HEADER_RE = re.compile(
+    r"^#define\s+ESP_IDF_VERSION_MAJOR\s+(\d+).+?^#define\s+ESP_IDF_VERSION_MINOR\s+(\d+)",
+    re.DOTALL | re.MULTILINE,
+)
+
+
+def _read_idf_version(idf_framework_root: Path) -> str | None:
+    """Read the ESP-IDF version the way idf_tools does, without starting it."""
+    try:
+        text = (idf_framework_root / "version.txt").read_text(encoding="utf-8")
+    except OSError:
+        text = ""
+    if match := _IDF_VERSION_TXT_RE.match(text):
+        return match.group(1)
+    header = idf_framework_root / "components" / "esp_common" / "include"
+    try:
+        text = (header / "esp_idf_version.h").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if match := _IDF_VERSION_HEADER_RE.search(text):
+        return f"{match.group(1)}.{match.group(2)}"
+    return None
+
+
 def _get_idf_version(
     idf_framework_root: PathType, env: dict[str, str] | None = None
 ) -> str:
@@ -335,7 +362,12 @@ def _get_idf_version(
 
     Raises:
         RuntimeError: If ESP-IDF version cannot be determined
+
+    The version is read in process; the framework's own ``idf_tools`` is
+    only started for a tree neither of its sources describes.
     """
+    if (version := _read_idf_version(Path(idf_framework_root))) is not None:
+        return version
 
     success, stdout, stderr = _run_idf_tools_script(
         idf_framework_root, "get_idf_version.py", "ESP-IDF version", env=env

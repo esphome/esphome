@@ -1468,7 +1468,33 @@ def test_demote_unused_tools_already_patched_is_noop(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_get_idf_version_reads_version_txt(tmp_path: Path) -> None:
+    """version.txt is read in process, major.minor as idf_tools returns it."""
+    (tmp_path / "version.txt").write_text("v5.5.5\n", encoding="utf-8")
+    with patch("esphome.espidf.framework.run_command") as run:
+        assert _get_idf_version(tmp_path) == "5.5"
+    run.assert_not_called()
+
+
+def test_get_idf_version_falls_back_to_the_header(tmp_path: Path) -> None:
+    """A version.txt that does not match (a git ref) defers to the header."""
+    (tmp_path / "version.txt").write_text("vrelease/v6.1\n", encoding="utf-8")
+    include = tmp_path / "components" / "esp_common" / "include"
+    include.mkdir(parents=True)
+    (include / "esp_idf_version.h").write_text(
+        "#define ESP_IDF_VERSION_MAJOR   6\n"
+        "/** Minor version number (x.X.x) */\n"
+        "#define ESP_IDF_VERSION_MINOR   1\n"
+        "#define ESP_IDF_VERSION_PATCH   0\n",
+        encoding="utf-8",
+    )
+    with patch("esphome.espidf.framework.run_command") as run:
+        assert _get_idf_version(tmp_path) == "6.1"
+    run.assert_not_called()
+
+
 def test_get_idf_version_parses_stdout(tmp_path: Path) -> None:
+    """A tree with neither source falls back to the framework's idf_tools."""
     with patch(
         "esphome.espidf.framework.run_command", return_value=(True, "5.1.2\n", "")
     ):
