@@ -1341,6 +1341,8 @@ async def test_add_platformio_options_native_idf(
             "lib_ignore": "libsodium",
             "upload_speed": "115200",
             "board_build.f_flash": "80000000L",
+            # Silently dropped on arduino only; warns here
+            "board_upload.flash_size": "2MB",
         }
     )
 
@@ -1351,6 +1353,9 @@ async def test_add_platformio_options_native_idf(
     # nothing else lands in platformio_options on the native toolchain.
     assert CORE.platformio_options == {"lib_ignore": ["libsodium"]}
     assert "esphome->platformio_options->board_build.f_flash is ignored" in caplog.text
+    assert (
+        "esphome->platformio_options->board_upload.flash_size is ignored" in caplog.text
+    )
     assert "upload_speed" not in caplog.text
     # build_flags has a first-class esphome equivalent, so it is deprecated.
     # lib_deps/lib_ignore are kept as valid platformio_options (no warning).
@@ -1464,13 +1469,21 @@ async def test_add_platformio_options_native_arduino(
             "board_build.ldscript": ["eagle.flash.2m.ld", "eagle.flash.4m2m.ld"],
             "board_build.filesystem": "littlefs",
             "upload_speed": "115200",
+            # The Athom shape: maximum_size is the elf2bin fallback,
+            # flash_size is dropped silently (PlatformIO never reads it)
+            "board_upload.maximum_size": "2097152",
+            "board_upload.flash_size": "2MB",
         }
     )
 
     assert CORE.platformio_options["board_build.f_cpu"] == "160000000L"
     assert CORE.platformio_options["board_build.ldscript"] == "eagle.flash.4m2m.ld"
+    assert CORE.platformio_options["board_upload.maximum_size"] == "2097152"
+    assert "board_upload.flash_size" not in CORE.platformio_options
     assert "board_build.f_cpu is ignored" not in caplog.text
     assert "board_build.ldscript is ignored" not in caplog.text
+    assert "board_upload.maximum_size is ignored" not in caplog.text
+    assert "board_upload.flash_size is ignored" not in caplog.text
     assert (
         "esphome->platformio_options->board_build.filesystem is ignored" in caplog.text
     )
@@ -1480,12 +1493,3 @@ async def test_add_platformio_options_native_arduino(
     assert "board_build.ldscript is ignored" in caplog.text
     assert "'arduino' toolchain" in caplog.text
     assert "upload_speed" not in caplog.text
-
-
-def test_esp8266_rejects_unsupported_cli_toolchain() -> None:
-    """Until the native backend lands, ESP8266 serves only PlatformIO."""
-    from esphome.components.esp8266 import CONFIG_SCHEMA
-
-    CORE.toolchain = Toolchain.ARDUINO
-    with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
-        CONFIG_SCHEMA({"board": "nodemcuv2"})

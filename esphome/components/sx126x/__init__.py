@@ -131,23 +131,8 @@ SHAPING = {
     "NONE": SX126xPulseShape.NO_FILTER,
 }
 
-RunImageCalAction = sx126x_ns.class_(
-    "RunImageCalAction", automation.Action, cg.Parented.template(SX126x)
-)
 SendPacketAction = sx126x_ns.class_(
     "SendPacketAction", automation.Action, cg.Parented.template(SX126x)
-)
-SetModeTxAction = sx126x_ns.class_(
-    "SetModeTxAction", automation.Action, cg.Parented.template(SX126x)
-)
-SetModeRxAction = sx126x_ns.class_(
-    "SetModeRxAction", automation.Action, cg.Parented.template(SX126x)
-)
-SetModeSleepAction = sx126x_ns.class_(
-    "SetModeSleepAction", automation.Action, cg.Parented.template(SX126x)
-)
-SetModeStandbyAction = sx126x_ns.class_(
-    "SetModeStandbyAction", automation.Action, cg.Parented.template(SX126x)
 )
 
 
@@ -302,40 +287,15 @@ NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "sx126x.run_image_cal",
-    RunImageCalAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "sx126x.set_mode_tx",
-    SetModeTxAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "sx126x.set_mode_rx",
-    SetModeRxAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "sx126x.set_mode_standby",
-    SetModeStandbyAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def no_args_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
+for _name, _call in (
+    ("sx126x.run_image_cal", "run_image_cal()"),
+    ("sx126x.set_mode_tx", "set_mode_tx()"),
+    ("sx126x.set_mode_rx", "set_mode_rx()"),
+    ("sx126x.set_mode_standby", "set_mode_standby(sx126x::STDBY_XOSC)"),
+):
+    automation.register_apply_action(
+        _name, NO_ARGS_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 SET_MODE_SLEEP_ACTION_SCHEMA = automation.maybe_simple_id(
     {
@@ -344,24 +304,11 @@ SET_MODE_SLEEP_ACTION_SCHEMA = automation.maybe_simple_id(
     }
 )
 
-
-@automation.register_action(
+automation.register_apply_action(
     "sx126x.set_mode_sleep",
-    SetModeSleepAction,
     SET_MODE_SLEEP_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_COLD, "set_mode_sleep", cg.bool_),
 )
-async def set_mode_sleep_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_COLD], args, bool)
-    cg.add(var.set_cold(template_))
-    return var
 
 
 SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(

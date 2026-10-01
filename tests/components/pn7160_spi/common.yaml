@@ -24,8 +24,19 @@ pn7160_spi:
   emulation_message: https://www.home-assistant.io/tag/pulse_ce
   tag_ttl: 1000ms
   on_tag:
-    - logger.log: "Tag"
+    then:
+      - delay: 10ms
+      - lambda: |-
+          ESP_LOGD("test", "%s %zu %d %s", tag.get_tag_type().c_str(), tag.get_uid().size(), tag.has_ndef_message(),
+                   nfc::get_ha_tag_ndef(tag).c_str());
   on_tag_removed:
-    - logger.log: "Tag removed"
+    then:
+      - lambda: ESP_LOGD("test", "%s", tag.get_tag_type().c_str());
   on_emulated_tag_scan:
     - logger.log: "Tag emulated"
+
+binary_sensor:
+  - platform: nfc
+    nfcc_id: nfcc_pn7160_spi
+    name: Pulse tag
+    ndef_contains: pulse

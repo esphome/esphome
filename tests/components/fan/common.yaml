@@ -104,6 +104,9 @@ button:
             fan.is_on: test_fan
           then:
             - fan.turn_off: test_fan
+            - fan.toggle: test_fan
+            - fan.turn_off:
+                id: test_fan
       - if:
           condition:
             fan.is_off:

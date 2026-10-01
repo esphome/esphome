@@ -1129,6 +1129,26 @@ def test_resolve_ip_address_cache_miss() -> None:
         assert result[0][4][0] == "192.168.1.100"
 
 
+@pytest.mark.parametrize("hostname", ["test.local", "example.com"])
+def test_resolve_ip_address_empty_cache_entry_falls_back(hostname: str) -> None:
+    """An empty CLI cache entry must use normal DNS or mDNS resolution."""
+    cache = AddressCache.from_cli_args([f"{hostname}="], [f"{hostname}="])
+    mock_addr_info = AddrInfo(
+        family=socket.AF_INET,
+        type=socket.SOCK_STREAM,
+        proto=socket.IPPROTO_TCP,
+        sockaddr=IPv4Sockaddr(address="192.168.1.100", port=6053),
+    )
+
+    with patch("esphome.resolver.AsyncResolver") as MockResolver:
+        MockResolver.return_value.resolve.return_value = [mock_addr_info]
+
+        result = helpers.resolve_ip_address(hostname, 6053, address_cache=cache)
+
+        MockResolver.assert_called_once_with([hostname], 6053)
+        assert result[0][4][0] == "192.168.1.100"
+
+
 def test_resolve_ip_address_mixed_cached_uncached() -> None:
     """Test resolution with mix of cached and uncached hosts."""
     cache = AddressCache(mdns_cache={"cached.local": ["192.168.1.50"]})
