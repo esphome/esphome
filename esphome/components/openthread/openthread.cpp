@@ -290,7 +290,7 @@ void OpenThreadComponent::apply_poll_period(uint32_t poll_period) {
 #if CONFIG_OPENTHREAD_MTD
   this->set_poll_period(poll_period);
   if (!this->is_lock_initialized()) {
-    // The action may run before the stack is up, e.g. from a restore mode; ot_main applies the stored value.
+    // The action may run before the stack is up, e.g. from a restore mode; setup() applies the stored value.
     ESP_LOGD(TAG, "Not (yet) ready to apply");
     return;
   }
