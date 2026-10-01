@@ -12,7 +12,12 @@ from unittest.mock import call, patch
 
 import pytest
 
-from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION, KEY_VARIANT
+from esphome.components.esp32.const import (
+    KEY_ESP32,
+    KEY_FLASH_SIZE,
+    KEY_IDF_VERSION,
+    KEY_VARIANT,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
@@ -1164,6 +1169,35 @@ def test_tree_skips_bootloader_reads_the_define(tmp_path: Path) -> None:
     assert toolchain.tree_skips_bootloader(build) is True
     cache.write_text(f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=0\n")
     assert toolchain.tree_skips_bootloader(build) is False
+
+
+def test_tree_skips_bootloader_unreadable_cache_reads_full(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Unreadable trees fall back to the safe full build, with a trace."""
+    build = tmp_path / "build"
+    (build / "CMakeCache.txt").mkdir(parents=True)  # read raises OSError
+    with caplog.at_level("DEBUG"):
+        assert toolchain.tree_skips_bootloader(build) is False
+    assert "assuming a full build" in caplog.text
+
+
+def test_create_factory_bin_fails_on_a_missing_listed_flash_file(
+    setup_core: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A partial factory image would not boot; never write one."""
+    _setup_build(setup_core)
+    CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = "4MB"
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=0\n"
+    )
+    (build / "flasher_args.json").write_text('{"flash_files": {"0x0": "missing.bin"}}')
+    with patch.object(toolchain.subprocess, "run") as mock_run:
+        assert toolchain.create_factory_bin() is False
+    mock_run.assert_not_called()
+    assert "Flash file not found" in caplog.text
 
 
 def test_create_factory_bin_skip_mode_creates_nothing(

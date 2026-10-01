@@ -259,6 +259,15 @@ def test_check_accepts_a_skip_bootloader_tree(tmp_path: Path) -> None:
     assert CORE.skip_bootloader is True
 
 
+def test_check_flags_an_ineffective_override(tmp_path: Path) -> None:
+    """A skip-mode tree that still built a bootloader must fail CI."""
+    tree = _make_tree(tmp_path, skip_bootloader=True)
+    (tree / guard.BOOTLOADER_BIN).parent.mkdir(parents=True)
+    (tree / guard.BOOTLOADER_BIN).write_bytes(b"x")
+    problems, _ = _run_check(tree)
+    assert problems == [guard.OVERRIDE_INEFFECTIVE]
+
+
 def test_check_requires_the_sub_log_on_a_stock_tree(tmp_path: Path) -> None:
     """The mode comes from the define, so a vanished sub-build stays an error."""
     tree = _make_tree(tmp_path)

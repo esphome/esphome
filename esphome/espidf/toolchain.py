@@ -295,7 +295,8 @@ def tree_skips_bootloader(build_dir: Path) -> bool:
     """
     try:
         cache = _parse_cmakecache(build_dir / "CMakeCache.txt")
-    except (OSError, ValueError):
+    except (OSError, ValueError) as err:
+        _LOGGER.debug("Cannot read %s, assuming a full build: %s", build_dir, err)
         return False
     return cache.get(SKIP_BOOTLOADER_DEFINE) == "1"
 
@@ -881,10 +882,11 @@ def create_factory_bin() -> bool:
         flash_data.get("flash_files", {}).items(), key=lambda kv: int(kv[0], 16)
     ):
         file_path = build_dir / fname
-        if file_path.is_file():
-            sections.extend([addr, str(file_path)])
-        else:
-            _LOGGER.warning("Flash file not found: %s", file_path)
+        if not file_path.is_file():
+            # A partial factory image would not boot; never write one.
+            _LOGGER.error("Flash file not found: %s", file_path)
+            return False
+        sections.extend([addr, str(file_path)])
 
     if not sections:
         _LOGGER.warning("No flash sections found")

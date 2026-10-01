@@ -52,6 +52,19 @@ def test_recorded_firmware_path_yields_downloads(platform: str, tmp_path: Path) 
     )
 
 
+def test_esp32_factory_entry_requires_the_file(tmp_path: Path) -> None:
+    """A --skip-bootloader build has no factory image; do not offer one."""
+    storage = _wizard_storage()
+    storage.firmware_bin_path = tmp_path / "firmware.bin"
+
+    files = [entry["file"] for entry in _download_types("esp32", storage)]
+    assert files == ["firmware.ota.bin"]
+
+    (tmp_path / "firmware.factory.bin").touch()
+    files = [entry["file"] for entry in _download_types("esp32", storage)]
+    assert files == ["firmware.factory.bin", "firmware.ota.bin"]
+
+
 def _nrf52_files(tmp_path: Path, *built: str) -> list[str]:
     """The files nrf52 offers for a build directory holding *built*."""
     (tmp_path / "zephyr").mkdir()

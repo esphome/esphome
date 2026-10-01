@@ -33,6 +33,10 @@ WATCHED = (
 )
 # Only a tree that builds the bootloader has one to watch.
 BOOTLOADER_BIN = "build/bootloader/bootloader.bin"
+OVERRIDE_INEFFECTIVE = (
+    "skip-mode tree built a bootloader; the IDF_BOOTLOADER_OVERRIDE macro in "
+    "esphome/build_gen/espidf.py is not taking effect"
+)
 # Ninja logs whose outputs mean real work when their recorded mtime changes;
 # the bootloader is judged by its own sub-build log when one exists.
 TOP_NINJA_LOG = "build/.ninja_log"
@@ -157,6 +161,8 @@ def check(build_path: Path) -> list[str]:
     mtimes_before = _ninja_mtimes(build_path, logs)
     # A moved or renamed output would otherwise compare as "unchanged".
     problems = [f"missing {f}" for f, digest in before.items() if digest is None]
+    if skip_bootloader and (build_path / BOOTLOADER_BIN).is_file():
+        problems.append(OVERRIDE_INEFFECTIVE)
     if problems := problems + _log_problems(build_path, mtimes_before, logs):
         return problems
     for action in ("reconfigure", "build"):

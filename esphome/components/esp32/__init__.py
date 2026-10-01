@@ -642,20 +642,27 @@ def get_download_types(storage_json):
     # No recorded firmware path means nothing was built; no downloads.
     if storage_json.firmware_bin_path is None:
         return []
-    return [
-        {
-            "title": "Factory format (Previously Modern)",
-            "description": "For use with ESPHome Web and other tools.",
-            "file": "firmware.factory.bin",
-            "download": f"{storage_json.name}.factory.bin",
-        },
+    types = []
+    factory = storage_json.firmware_bin_path.parent / "firmware.factory.bin"
+    if factory.is_file():
+        # A --skip-bootloader build deliberately has no factory image.
+        types.append(
+            {
+                "title": "Factory format (Previously Modern)",
+                "description": "For use with ESPHome Web and other tools.",
+                "file": "firmware.factory.bin",
+                "download": f"{storage_json.name}.factory.bin",
+            }
+        )
+    types.append(
         {
             "title": "OTA format (Previously Legacy)",
             "description": "For OTA updating a device.",
             "file": "firmware.ota.bin",
             "download": f"{storage_json.name}.ota.bin",
-        },
-    ]
+        }
+    )
+    return types
 
 
 def only_on_variant(*, supported=None, unsupported=None, msg_prefix="This feature"):
