@@ -10,6 +10,9 @@ namespace esphome::uart_tcp {
 
 static const char *const TAG = "uart_tcp";
 
+// One client at a time; a second connection waits in the stack until the first drops.
+static constexpr int LISTEN_BACKLOG = 1;
+
 void UartTcp::setup() {
   this->link_.begin(TAG);
   if (this->connected_sensor_ != nullptr) {
@@ -57,7 +60,7 @@ void UartTcp::try_listen_() {
   socklen_t local_len =
       socket::set_sockaddr_any(reinterpret_cast<struct sockaddr *>(&local), sizeof(local), this->link_.port());
   if (local_len == 0 || this->listen_->bind(reinterpret_cast<struct sockaddr *>(&local), local_len) != 0 ||
-      this->listen_->listen(1) != 0) {
+      this->listen_->listen(LISTEN_BACKLOG) != 0) {
     ESP_LOGW(TAG, "Listen on %u failed", this->link_.port());
     this->listen_.reset();
     this->link_.note_attempt();
