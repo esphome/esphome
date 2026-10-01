@@ -264,7 +264,7 @@ void TAS58xx::dump_config() {
                 "  Analog Gain: %.1f dB\n"
                 "  DAC Mode: %s\n"
                 "  Mixer Mode: %s\n"
-                "  Volume Range: %.1f dB - %.1f dB",
+                "  Volume Range: %.1f dB to %.1f dB",
                 this->analog_gain_db_,
                 this->dac_mode_ == DAC_MODE_PBTL ? LOG_STR_LITERAL("PBTL") : LOG_STR_LITERAL("BTL"),
                 LOG_STR_ARG(mixer_mode), this->volume_min_db_, this->volume_max_db_);
