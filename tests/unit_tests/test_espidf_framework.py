@@ -1609,6 +1609,9 @@ def test_ccache_env_default_enabled_when_available(tmp_path: Path) -> None:
     assert env["CCACHE_NOHASHDIR"] == "true"
     assert env["CCACHE_DEPEND"] == "1"
     assert env["CCACHE_BASEDIR"] == str((tmp_path / "build").resolve())
+    # The pch cannot cache under ccache without these
+    assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
+    assert env["CCACHE_PCH_EXTSUM"] == "true"
 
 
 def test_ccache_env_disabled_when_binary_missing(tmp_path: Path) -> None:
@@ -1624,8 +1627,8 @@ def test_ccache_env_opt_out_via_env(tmp_path: Path) -> None:
     # short-circuits before build_path is needed.
     p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", None)
     with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "0"}, clear=True), p1, p2, p3:
-        # The canonical off spelling is exported: the raw value is inherited
-        # by idf.py, where a spelling like "disable" would read as truthy
+        # The canonical off spelling is exported, so every reader of the
+        # env sees the same answer
         assert _ccache_env() == {"IDF_CCACHE_ENABLE": "0"}
 
 
@@ -1633,7 +1636,7 @@ def test_ccache_env_opt_in_without_binary(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     # Explicit IDF_CCACHE_ENABLE=1 forces it on; without a usable binary
-    # idf.py silently skips ccache, so this branch must say so out loud.
+    # IDF's CMake silently skips ccache, so this branch must say so out loud.
     p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
     with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True), p1, p2, p3:
         env = _ccache_env()
@@ -1666,7 +1669,7 @@ def test_ccache_env_opt_in_with_working_binary(
 def test_ccache_env_opt_in_with_rejected_binary(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    # Forced on with a present-but-rejected binary: idf.py does its own
+    # Forced on with a present-but-rejected binary: IDF's CMake does its own
     # PATH lookup and uses it anyway; the warning must say so, not claim
     # the build runs without ccache.
     # A present but non-executable file: the real probe fails and logs
@@ -1683,7 +1686,7 @@ def test_ccache_env_opt_in_with_rejected_binary(
     ):
         env = _ccache_env()
     assert env["IDF_CCACHE_ENABLE"] == "1"
-    assert "idf.py will use it anyway" in caplog.text
+    assert "the build will use it anyway" in caplog.text
     # Exactly one story: the resolver's contradictory "compiling without
     # ccache" must not precede it
     assert "compiling without ccache" not in caplog.text
@@ -1712,7 +1715,7 @@ def test_ccache_env_idf_knob_unrecognized_warns_and_defers(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """An unparsable IDF_CCACHE_ENABLE warns, defers to the shared resolver,
-    and is not forwarded to idf.py as truthy."""
+    and is not forwarded to the build as truthy."""
     p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
     env_vars = {"IDF_CCACHE_ENABLE": "enabled"}
     with patch.dict("os.environ", env_vars, clear=True), p1, p2, p3:
