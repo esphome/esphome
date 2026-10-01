@@ -16,6 +16,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from esphome.components import esp32
+import esphome.config_validation as cv
 from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
@@ -105,3 +106,60 @@ def test_write_idf_component_yml_empty_managed_when_no_components(
     esp32._write_idf_component_yml()
 
     assert captured["managed"] == set()
+
+
+@pytest.mark.parametrize(
+    ("version", "libsodium_stubbed"),
+    [
+        (cv.Version(5, 5, 4), True),
+        (cv.Version(5, 99, 99), True),
+        (cv.Version(6, 0, 0), False),
+        (cv.Version(6, 1, 0), False),
+    ],
+)
+def test_arduino_excluded_idf_components_depends_on_idf_version(
+    version: cv.Version, libsodium_stubbed: bool
+) -> None:
+    """arduino-esp32 only declares espressif/libsodium below IDF 6.0, so it is
+    only stubbed there. Unmapped entries are stubbed on every IDF version."""
+    CORE.reset()
+    CORE.data[esp32.KEY_ESP32] = {esp32.KEY_IDF_VERSION: version}
+
+    excluded = esp32.arduino_excluded_idf_components()
+
+    assert ("espressif__libsodium" in excluded) is libsodium_stubbed
+    assert "espressif__cbor" in excluded
+
+
+@pytest.mark.parametrize(
+    ("version", "libsodium_stubbed"),
+    [(cv.Version(5, 5, 4), True), (cv.Version(6, 0, 0), False)],
+)
+def test_write_idf_component_yml_arduino_stubs_follow_idf_version(
+    version: cv.Version,
+    libsodium_stubbed: bool,
+    tmp_path: Path,
+) -> None:
+    """The Arduino stubs written into the manifest come from the IDF-version
+    aware helper: espressif/libsodium is stubbed below IDF 6.0 only, because
+    from 6.0 it would clash with ESPHome's own managed esphome/libsodium."""
+    _setup_core(tmp_path)
+    CORE.toolchain = Toolchain.PLATFORMIO
+    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(Framework.ARDUINO)
+    CORE.data[esp32.KEY_ESP32] = {
+        esp32.KEY_COMPONENTS: {},
+        esp32.KEY_IDF_VERSION: version,
+        esp32.KEY_ARDUINO_LIBRARIES: set(),
+    }
+
+    esp32._write_idf_component_yml()
+
+    contents = (tmp_path / "src" / "idf_component.yml").read_text(encoding="utf-8")
+    assert ("espressif/libsodium" in contents) is libsodium_stubbed
+    assert "espressif/cbor" in contents
+    stub_dir = (
+        tmp_path
+        / "component_stubs"
+        / esp32._idf_component_stub_name("espressif__libsodium")
+    )
+    assert stub_dir.is_dir() is libsodium_stubbed

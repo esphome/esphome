@@ -265,7 +265,7 @@ def _convert_pio_libs(
     Libraries ESPHome's own manifest already provides as managed components
     (noise-c, libsodium, ...) are skipped, mirroring what the real esp32 build
     does -- converting them too would make IDF see the same requirement twice.
-    On Arduino those entries are rule-disabled in the manifest (arduino-esp32
+    On Arduino those entries are rule-gated off in the manifest (arduino-esp32
     brings its own libsodium), so nothing provides them there and they have to
     go through the converter as before.
     """
@@ -293,9 +293,9 @@ def _arduino_excluded_stubs(work_dir: Path) -> dict[str, dict]:
     resolves to the same component rather than conflicting.
     """
     from esphome.components.esp32 import (
-        ARDUINO_EXCLUDED_IDF_COMPONENTS,
         _idf_component_dep_name,
         _idf_component_stub_name,
+        arduino_excluded_idf_components,
     )
 
     esphome_deps = _esphome_manifest_deps()
@@ -303,7 +303,7 @@ def _arduino_excluded_stubs(work_dir: Path) -> dict[str, dict]:
     stubs_dir = work_dir / "component_stubs"
     stubs_dir.mkdir(parents=True, exist_ok=True)
     deps: dict[str, dict] = {}
-    for component in sorted(ARDUINO_EXCLUDED_IDF_COMPONENTS):
+    for component in sorted(arduino_excluded_idf_components()):
         if _idf_component_dep_name(component) in esphome_deps:
             continue  # ESPHome needs this one for real (don't stub it away)
         stub_path = stubs_dir / _idf_component_stub_name(component)

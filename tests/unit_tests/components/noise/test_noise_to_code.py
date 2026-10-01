@@ -1,11 +1,11 @@
 """Tests for the noise-c/libsodium library wiring in the noise component.
 
-On ESP32 (but not the Arduino framework) both libraries build themselves as
-native ESP-IDF managed components, so they are declared via add_idf_component()
-instead of going through ESPHome's PlatformIO-library converter, on either
-toolchain. Elsewhere they still go through that converter via cg.add_library():
-on the Arduino framework because arduino-esp32 depends on espressif/libsodium
-of its own, and off ESP32 because there are no IDF components at all. This
+On ESP32 both libraries build themselves as native ESP-IDF managed components,
+so they are declared via add_idf_component() instead of going through ESPHome's
+PlatformIO-library converter, on either toolchain. The one exception is the
+Arduino framework below IDF 6.0, where arduino-esp32 depends on
+espressif/libsodium of its own; there, and off ESP32 (no IDF components at
+all), they still go through that converter via cg.add_library(). This
 drives the real to_code() coroutine so every branch of that decision is
 exercised end to end, not just mocked.
 """
@@ -18,6 +18,7 @@ import pytest
 
 import esphome.codegen as cg
 from esphome.components import esp32, noise
+import esphome.config_validation as cv
 from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
@@ -28,8 +29,15 @@ from esphome.const import (
 )
 from esphome.core import CORE
 
+DEFAULT_IDF_VERSION = cv.Version(5, 5, 4)
 
-def _setup_core(platform: Platform, framework: Framework, toolchain: Toolchain) -> None:
+
+def _setup_core(
+    platform: Platform,
+    framework: Framework,
+    toolchain: Toolchain,
+    idf_version: cv.Version = DEFAULT_IDF_VERSION,
+) -> None:
     CORE.reset()
     CORE.toolchain = toolchain
     CORE.data[KEY_CORE] = {
@@ -37,7 +45,10 @@ def _setup_core(platform: Platform, framework: Framework, toolchain: Toolchain) 
         KEY_TARGET_FRAMEWORK: str(framework),
     }
     if platform == Platform.ESP32:
-        CORE.data[esp32.KEY_ESP32] = {esp32.KEY_VARIANT: "ESP32"}
+        CORE.data[esp32.KEY_ESP32] = {
+            esp32.KEY_VARIANT: "ESP32",
+            esp32.KEY_IDF_VERSION: idf_version,
+        }
 
 
 def _record_calls(
@@ -64,7 +75,7 @@ def test_to_code_esp32_idf_uses_managed_idf_components(
 ) -> None:
     """On ESP32 + ESP-IDF both libraries are declared as managed IDF components
     rather than converted PlatformIO libraries. The choice is deliberately the
-    same on either toolchain, because wireguard splits on the same condition."""
+    same on either toolchain."""
     _setup_core(Platform.ESP32, Framework.ESP_IDF, toolchain)
     idf_calls, lib_calls = _record_calls(monkeypatch)
 
@@ -77,13 +88,16 @@ def test_to_code_esp32_idf_uses_managed_idf_components(
     assert lib_calls == []
 
 
-def test_to_code_esp32_arduino_uses_add_library(
+def test_to_code_esp32_arduino_below_idf6_uses_add_library(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """On the Arduino framework arduino-esp32 depends on espressif/libsodium of
-    its own, so declaring esphome/libsodium as a managed component too would
-    leave the component manager unable to pick between them."""
-    _setup_core(Platform.ESP32, Framework.ARDUINO, Toolchain.ESP_IDF)
+    """On the Arduino framework below IDF 6.0 arduino-esp32 depends on
+    espressif/libsodium of its own, so declaring esphome/libsodium as a managed
+    component too would leave the component manager unable to pick between
+    them."""
+    _setup_core(
+        Platform.ESP32, Framework.ARDUINO, Toolchain.ESP_IDF, cv.Version(5, 5, 4)
+    )
     idf_calls, lib_calls = _record_calls(monkeypatch)
 
     asyncio.run(noise.to_code({}))
@@ -93,6 +107,25 @@ def test_to_code_esp32_arduino_uses_add_library(
         ("esphome/libsodium", noise.LIBSODIUM_VERSION),
     ]
     assert idf_calls == []
+
+
+@pytest.mark.parametrize("idf_version", [cv.Version(6, 0, 0), cv.Version(6, 1, 0)])
+def test_to_code_esp32_arduino_idf6_uses_managed_idf_components(
+    idf_version: cv.Version,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """From IDF 6.0 arduino-esp32 no longer depends on espressif/libsodium, so
+    there is no clash and Arduino uses managed components like ESP-IDF does."""
+    _setup_core(Platform.ESP32, Framework.ARDUINO, Toolchain.ESP_IDF, idf_version)
+    idf_calls, lib_calls = _record_calls(monkeypatch)
+
+    asyncio.run(noise.to_code({}))
+
+    assert idf_calls == [
+        {"name": "esphome/noise-c", "ref": noise.NOISE_C_VERSION},
+        {"name": "esphome/libsodium", "ref": noise.LIBSODIUM_VERSION},
+    ]
+    assert lib_calls == []
 
 
 def test_to_code_non_esp32_uses_add_library(
@@ -126,6 +159,12 @@ def test_versions_match_the_repo_manifests() -> None:
 
     assert deps["esphome/noise-c"]["version"] == noise.NOISE_C_VERSION
     assert deps["esphome/libsodium"]["version"] == noise.LIBSODIUM_VERSION
+    # Both are skipped on Arduino below IDF 6.0, where the PlatformIO library
+    # path is used instead (see noise._use_managed_components).
+    for name in ("esphome/noise-c", "esphome/libsodium"):
+        assert deps[name]["rules"] == [
+            {"if": "$ESPHOME_ARDUINO_COMPONENT == 0 || idf_version >= 6.0.0"}
+        ]
     assert f"esphome/noise-c@{noise.NOISE_C_VERSION}" in (
         repo_root / "platformio.ini"
     ).read_text(encoding="utf-8")

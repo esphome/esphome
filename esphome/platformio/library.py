@@ -1146,21 +1146,22 @@ def convert_libraries(
 
     ``provided`` names libraries the toolchain already supplies by other means
     (for ESP-IDF: registry-managed components declared via
-    ``add_idf_component``). They are excluded exactly like ``lib_ignore``, so a
-    library is never both converted and managed -- ESP-IDF refuses to build when
-    two components claim the same requirement.
+    ``add_idf_component``). Unlike ``backend.provides``, which only answers for
+    owner-less framework-bundled names, these are owner-ful registry packages.
+    They are excluded exactly like ``lib_ignore``, so a library is never both
+    converted and managed -- ESP-IDF refuses to build when two components claim
+    the same requirement.
     """
     nodes: dict[str, _LibNode] = {}
 
-    # Libraries the toolchain supplies by other means are excluded exactly like
-    # lib_ignore, so every is_lib_ignored() call site honors both.
+    # Folded into one set so every is_lib_ignored() call site honors both.
     lib_ignore = lib_ignore_set() | {
         name.split("/")[-1].lower() for name in provided or ()
     }
 
     # The generated build files inside the shared cache bake in the dependency
-    # wiring, which the exclusion set changes; salt the cache path so configs
-    # with different exclusions don't fight over (and constantly rewrite) the
+    # wiring, which lib_ignore changes; salt the cache path so configs with
+    # different lib_ignore values don't fight over (and constantly rewrite) the
     # same converted component files.
     salt = (
         hashlib.sha256(",".join(sorted(lib_ignore)).encode()).hexdigest()[:8]

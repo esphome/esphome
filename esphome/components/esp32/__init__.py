@@ -322,6 +322,28 @@ ARDUINO_EXCLUDED_IDF_COMPONENTS = (
     "joltwallet__littlefs",  # LittleFS - ESPHome doesn't use filesystem
 )
 
+# Components in the list above that arduino-esp32 only declares below a given
+# IDF version. At or above it there is nothing to stub, and stubbing anyway
+# would register a component whose name matches one of ESPHome's own managed
+# components once the namespace is stripped (espressif/libsodium against
+# esphome/libsodium), which the component manager refuses to choose between.
+ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF: dict[str, cv.Version] = {
+    "espressif__libsodium": cv.Version(6, 0, 0),
+}
+
+
+def arduino_excluded_idf_components() -> set[str]:
+    """The arduino-bundled components to stub for this build's IDF version."""
+    version = idf_version()
+    return {
+        component
+        for component in ARDUINO_EXCLUDED_IDF_COMPONENTS
+        if (max_version := ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF.get(component))
+        is None
+        or version < max_version
+    }
+
+
 # Mapping of Arduino libraries to IDF managed components they require
 # When an Arduino library is enabled via cg.add_library(), these components
 # are automatically un-stubbed from ARDUINO_EXCLUDED_IDF_COMPONENTS.
@@ -3513,9 +3535,7 @@ def _write_idf_component_yml():
         }
 
         # Only stub components that are not required by any enabled Arduino library
-        components_to_stub = (
-            set(ARDUINO_EXCLUDED_IDF_COMPONENTS) - required_idf_components
-        )
+        components_to_stub = arduino_excluded_idf_components() - required_idf_components
 
         stubs_dir = CORE.relative_build_path("component_stubs")
         stubs_dir.mkdir(exist_ok=True)

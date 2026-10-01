@@ -11,6 +11,9 @@ from unittest.mock import patch
 import pytest
 import yaml
 
+from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION
+import esphome.config_validation as cv
+from esphome.core import CORE
 from esphome.espidf import clang_tidy
 from esphome.espidf.clang_tidy import (
     _arduino_excluded_stubs,
@@ -79,6 +82,74 @@ def test_setup_core_sets_arduino_env(
     _setup_core(tmp_path / "proj", _settings(target_framework=target_framework))
 
     assert os.environ["ESPHOME_ARDUINO_COMPONENT"] == expected
+
+
+def test_idedata_from_tidy_project(tmp_path) -> None:
+    """The tidy TU's compile entry is assembled into consumer-shaped idedata."""
+    compile_commands = tmp_path / "compile_commands.json"
+    compile_commands.write_text(
+        json.dumps(
+            [
+                {
+                    "directory": str(tmp_path),
+                    "file": str(tmp_path / "main" / "tidy.cpp"),
+                    "command": "/tc/xtensa-esp32-elf-g++ -DUSE_ESP32 "
+                    f"-I{tmp_path}/inc -c main/tidy.cpp -o tidy.o",
+                }
+            ]
+        )
+    )
+    with patch(
+        "esphome.espidf.clang_tidy.get_toolchain_includes", return_value=["/tc/inc"]
+    ):
+        data = clang_tidy._idedata_from_tidy_project(compile_commands)
+    assert data["cxx_path"] == "/tc/xtensa-esp32-elf-g++"
+    assert data["defines"] == ["USE_ESP32"]
+    assert data["includes"]["toolchain"] == ["/tc/inc"]
+    assert any(inc.endswith("/inc") for inc in data["includes"]["build"])
+
+
+def test_idedata_from_tidy_project_missing_tu_raises(tmp_path) -> None:
+    compile_commands = tmp_path / "compile_commands.json"
+    compile_commands.write_text(json.dumps([]))
+    with pytest.raises(RuntimeError, match="tidy.cpp not found"):
+        clang_tidy._idedata_from_tidy_project(compile_commands)
+
+
+@pytest.mark.parametrize(
+    ("reconfigure_rcs", "error"),
+    [
+        ((1,), "ESP-IDF CMake configure \\(discovery\\) failed"),
+        ((0, 1), "ESP-IDF CMake configure failed"),
+        ((0, 0), None),
+    ],
+    ids=["discovery", "full", "ok"],
+)
+def test_generate_compile_commands_configures_twice(
+    tmp_path: Path, reconfigure_rcs: tuple[int, ...], error: str | None
+) -> None:
+    """Discovery configure, then a configure requiring what it found."""
+    with (
+        patch.object(clang_tidy, "_setup_core"),
+        patch.object(clang_tidy, "_convert_pio_libs", return_value={}),
+        patch.object(clang_tidy, "_write_tidy_project") as mock_write,
+        patch("esphome.espidf.toolchain.run_reconfigure", side_effect=reconfigure_rcs),
+        patch(
+            "esphome.build_gen.espidf.get_available_components",
+            return_value=["lwip", "esp_timer"],
+        ),
+    ):
+        if error:
+            with pytest.raises(RuntimeError, match=error):
+                clang_tidy._generate_compile_commands(
+                    tmp_path, _settings(), tmp_path / "platformio.ini"
+                )
+            return
+        result = clang_tidy._generate_compile_commands(
+            tmp_path, _settings(), tmp_path / "platformio.ini"
+        )
+    assert result == tmp_path / "build" / "compile_commands.json"
+    assert mock_write.call_args_list[1].args[1] == ["esp_timer", "lwip"]
 
 
 def test_esphome_manifest_deps_reads_repo_manifest() -> None:
@@ -161,6 +232,11 @@ def test_convert_pio_libs_espidf_framework_passes_manifest_deps(
     assert result == {}
 
 
+def _set_idf_version(version: cv.Version) -> None:
+    CORE.reset()
+    CORE.data[KEY_ESP32] = {KEY_IDF_VERSION: version}
+
+
 def test_arduino_excluded_stubs_skips_components_esphome_manifest_provides(
     tmp_path: Path,
 ) -> None:
@@ -169,13 +245,16 @@ def test_arduino_excluded_stubs_skips_components_esphome_manifest_provides(
     would silently disable ethernet on Arduino. A component that is only ever
     bundled by arduino-esp32 (never in ESPHome's own manifest) still gets a
     stub so the arduino-bundled copy doesn't clash with noise-c's libsodium."""
+    _set_idf_version(cv.Version(5, 5, 4))
+
     deps = _arduino_excluded_stubs(tmp_path)
 
     # lan867x is a real ESPHome dependency (esphome/idf_component.yml), so it
     # must be excluded from the stub set.
     assert "espressif/lan867x" not in deps
     # espressif/libsodium (arduino-esp32's bundled copy) is a different
-    # package from ESPHome's own esphome/libsodium, so it's still stubbed.
+    # package from ESPHome's own esphome/libsodium, so below IDF 6.0, where
+    # arduino-esp32 still declares it, it is stubbed.
     assert "espressif/libsodium" in deps
     stub_info = deps["espressif/libsodium"]
     assert stub_info["version"] == "*"
@@ -183,69 +262,13 @@ def test_arduino_excluded_stubs_skips_components_esphome_manifest_provides(
     assert (stub_path / "CMakeLists.txt").is_file()
 
 
-def test_idedata_from_tidy_project(tmp_path) -> None:
-    """The tidy TU's compile entry is assembled into consumer-shaped idedata."""
-    compile_commands = tmp_path / "compile_commands.json"
-    compile_commands.write_text(
-        json.dumps(
-            [
-                {
-                    "directory": str(tmp_path),
-                    "file": str(tmp_path / "main" / "tidy.cpp"),
-                    "command": "/tc/xtensa-esp32-elf-g++ -DUSE_ESP32 "
-                    f"-I{tmp_path}/inc -c main/tidy.cpp -o tidy.o",
-                }
-            ]
-        )
-    )
-    with patch(
-        "esphome.espidf.clang_tidy.get_toolchain_includes", return_value=["/tc/inc"]
-    ):
-        data = clang_tidy._idedata_from_tidy_project(compile_commands)
-    assert data["cxx_path"] == "/tc/xtensa-esp32-elf-g++"
-    assert data["defines"] == ["USE_ESP32"]
-    assert data["includes"]["toolchain"] == ["/tc/inc"]
-    assert any(inc.endswith("/inc") for inc in data["includes"]["build"])
+def test_arduino_excluded_stubs_skips_libsodium_from_idf_6(tmp_path: Path) -> None:
+    """From IDF 6.0 arduino-esp32 no longer declares espressif/libsodium, and
+    stubbing it would clash with ESPHome's own managed esphome/libsodium."""
+    _set_idf_version(cv.Version(6, 0, 0))
 
+    deps = _arduino_excluded_stubs(tmp_path)
 
-def test_idedata_from_tidy_project_missing_tu_raises(tmp_path) -> None:
-    compile_commands = tmp_path / "compile_commands.json"
-    compile_commands.write_text(json.dumps([]))
-    with pytest.raises(RuntimeError, match="tidy.cpp not found"):
-        clang_tidy._idedata_from_tidy_project(compile_commands)
-
-
-@pytest.mark.parametrize(
-    ("reconfigure_rcs", "error"),
-    [
-        ((1,), "ESP-IDF CMake configure \\(discovery\\) failed"),
-        ((0, 1), "ESP-IDF CMake configure failed"),
-        ((0, 0), None),
-    ],
-    ids=["discovery", "full", "ok"],
-)
-def test_generate_compile_commands_configures_twice(
-    tmp_path: Path, reconfigure_rcs: tuple[int, ...], error: str | None
-) -> None:
-    """Discovery configure, then a configure requiring what it found."""
-    with (
-        patch.object(clang_tidy, "_setup_core"),
-        patch.object(clang_tidy, "_convert_pio_libs", return_value={}),
-        patch.object(clang_tidy, "_write_tidy_project") as mock_write,
-        patch("esphome.espidf.toolchain.run_reconfigure", side_effect=reconfigure_rcs),
-        patch(
-            "esphome.build_gen.espidf.get_available_components",
-            return_value=["lwip", "esp_timer"],
-        ),
-    ):
-        if error:
-            with pytest.raises(RuntimeError, match=error):
-                clang_tidy._generate_compile_commands(
-                    tmp_path, _settings(), tmp_path / "platformio.ini"
-                )
-            return
-        result = clang_tidy._generate_compile_commands(
-            tmp_path, _settings(), tmp_path / "platformio.ini"
-        )
-    assert result == tmp_path / "build" / "compile_commands.json"
-    assert mock_write.call_args_list[1].args[1] == ["esp_timer", "lwip"]
+    assert "espressif/libsodium" not in deps
+    # Other arduino-bundled components are still stubbed.
+    assert "espressif/cbor" in deps

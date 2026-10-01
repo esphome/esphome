@@ -12,12 +12,12 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "noise"
 
-noise_ns = cg.esphome_ns.namespace("noise")
-
 # Keep in sync with platformio.ini and esphome/idf_component.yml.
 # LIBSODIUM_VERSION must match the version noise-c pins in its manifests.
 NOISE_C_VERSION = "0.1.30"
 LIBSODIUM_VERSION = "1.10021.11"
+
+noise_ns = cg.esphome_ns.namespace("noise")
 
 CONFIG_SCHEMA = cv.Schema({})
 
@@ -97,26 +97,39 @@ def encryption_schema(config: ConfigType | None) -> ConfigType:
     return ENCRYPTION_SCHEMA(config)
 
 
+def _use_managed_components() -> bool:
+    """Whether noise-c and libsodium come from the ESP-IDF component registry.
+
+    Both libraries build themselves as ESP-IDF components, so on ESP32 they can
+    be pulled straight from the registry instead of going through ESPHome's
+    PlatformIO-library converter. The exception is Arduino below IDF 6.0, where
+    arduino-esp32 depends on espressif/libsodium of its own: the component
+    manager cannot choose between two managed components whose names match once
+    the namespace is stripped. IDF 6.0 drops that dependency.
+
+    Not conditional on the toolchain. The PlatformIO toolchain reads the project
+    manifest too, and anything else pulling libsodium in has to make the same
+    choice; if the two disagree, one of them adds a second copy of libsodium
+    next to this one.
+    """
+    if not CORE.is_esp32:
+        return False
+    if not CORE.using_arduino:
+        return True
+
+    from esphome.components.esp32 import idf_version
+
+    return idf_version() >= cv.Version(6, 0, 0)
+
+
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NOISE")
-    # Both libraries build themselves as ESP-IDF components, so on ESP32 they
-    # are pulled straight from the component registry instead of going through
-    # ESPHome's PlatformIO-library converter. Deliberately not conditional on
-    # the toolchain: wireguard splits on the same condition, and if the two
-    # disagree one of them converts a second libsodium next to the managed one.
-    #
-    # Not on the Arduino framework though: arduino-esp32 depends on
-    # espressif/libsodium of its own (on IDF < 6.0), so the component manager
-    # would see two managed components whose names match once the namespace is
-    # stripped, and refuse to pick between them.
-    #
-    # libsodium is declared alongside noise-c rather than left to noise-c's own
-    # manifest either way: it lets the library manager see the full set up front
-    # instead of discovering libsodium only after noise-c has downloaded, and it
-    # keeps other components that depend on it (wireguard) from converting a
-    # second copy next to the managed one. The version must match the one
-    # noise-c pins.
-    if CORE.is_esp32 and not CORE.using_arduino:
+    # libsodium is declared alongside noise-c, which depends on it, either way:
+    # it lets the library manager see the full set up front instead of
+    # discovering libsodium only after noise-c has downloaded, and it keeps
+    # other components that depend on it from pulling in a second copy next to
+    # this one. The version must match the one noise-c pins.
+    if _use_managed_components():
         from esphome.components.esp32 import add_idf_component
 
         add_idf_component(name="esphome/noise-c", ref=NOISE_C_VERSION)
