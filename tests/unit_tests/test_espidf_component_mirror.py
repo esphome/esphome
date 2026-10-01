@@ -467,6 +467,8 @@ def test_sync_runs_the_manager_for_missing_deps(
         "idf_component_manager",
         "registry",
         "sync",
+        "--resolution",
+        "latest",
         "--component",
         "bblanchon/arduinojson==7.4.3",
         "--component",

@@ -4,9 +4,7 @@ The component manager contacts the registry on every cmake configure, even
 with an unchanged ``dependencies.lock``, but checks
 ``IDF_COMPONENT_LOCAL_STORAGE_URL`` mirrors first and stops on a hit.
 Mirroring the pinned components with its own ``registry sync`` removes all
-registry traffic and makes builds work offline. A heavy transitive tree
-can exceed the sync timeout and stay registry-served; accepted cost of
-staying on the manager's CLI contract.
+registry traffic and makes builds work offline.
 """
 
 from __future__ import annotations
@@ -272,7 +270,10 @@ def sync_component_mirror(
     # Staged: the manager writes in place, and a configure in another
     # process must never read a truncated file from the live mirror.
     staging = mirror / _STAGING_DIR_NAME
+    # latest: the default "all" follows ranged transitive specs and syncs
+    # every matching version (dozens of archives for esp_hosted).
     cmd = [python, "-m", "idf_component_manager", "registry", "sync"]
+    cmd += ["--resolution", "latest"]
     for dep in to_sync:
         cmd += ["--component", dep.spec]
     cmd.append(str(staging))
