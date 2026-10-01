@@ -85,12 +85,12 @@ void ResamplerMicrophone::loop() {
 }
 
 bool ResamplerMicrophone::init_resampler_(const audio::AudioStreamInfo &input_stream_info) {
-  this->input_stream_info_ = input_stream_info;
   this->resampler_.reset();
   this->resampler_ready_ = false;
 
   if (input_stream_info.get_sample_rate() == this->target_sample_rate_) {
     // The source already delivers the target sample rate, so its audio is passed through unchanged
+    this->input_stream_info_ = input_stream_info;
     this->resampler_ready_ = true;
     return true;
   }
@@ -121,6 +121,8 @@ bool ResamplerMicrophone::init_resampler_(const audio::AudioStreamInfo &input_st
 
   this->output_buffer_.reserve(output_stream_info.ms_to_bytes(BUFFER_DURATION_MS));
   this->resampler_ = std::move(resampler);
+  // Only set on success, so a failed set up is retried with the next chunk
+  this->input_stream_info_ = input_stream_info;
   this->resampler_ready_ = true;
   return true;
 }
