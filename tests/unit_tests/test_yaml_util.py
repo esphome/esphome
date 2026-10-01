@@ -705,13 +705,83 @@ def test_include_file_load_raises_on_unresolved_expressions(tmp_path: Path) -> N
         ("price-100$.yaml", False),  # $ at end, not followed by valid substitution
     ],
 )
-def test_include_file_has_unresolved_expressions(
+def test_include_file_has_unresolved_file(
     tmp_path: Path, filename: str, expected: bool
 ) -> None:
-    """has_unresolved_expressions() detects substitution patterns in the filename."""
+    """has_unresolved_file() detects substitution patterns in the filename."""
     parent = tmp_path / "main.yaml"
     include = yaml_util.IncludeFile(parent, filename, lambda _: {})
-    assert include.has_unresolved_expressions() == expected
+    assert include.has_unresolved_file() == expected
+
+
+@pytest.mark.parametrize(
+    ("condition", "expected"),
+    [
+        (None, False),
+        (True, False),
+        (False, False),
+        ("true", False),
+        ("false", False),
+        ("$has_feature", True),  # whole substitution
+        ("${has_feature}", True),  # whole substitution
+        ("tr$ue", True),  # partial substitution
+        ("$.", False),  # malformed substitution
+        ("${1 == 1}", True),  # Jinja expression
+        ("${", False),  # malformed expression
+    ],
+)
+def test_include_file_has_unresolved_condition(
+    tmp_path: Path, condition: bool | str | None, expected: bool
+) -> None:
+    """has_unresolved_condition() detects substitution patterns in the condition."""
+    parent = tmp_path / "main.yaml"
+    include = yaml_util.IncludeFile(
+        parent, "device.yaml", lambda _: {}, condition=condition
+    )
+    assert include.has_unresolved_condition() == expected
+
+
+@pytest.mark.parametrize(
+    ("condition", "expected_result_or_error"),
+    [
+        (None, True),
+        (True, True),
+        (False, False),
+        ("true", True),
+        ("True", True),
+        ("TRUE", True),
+        ("yes", True),
+        ("on", True),
+        ("enable", True),
+        ("false", False),
+        ("False", False),
+        ("FALSE", False),
+        ("no", False),
+        ("off", False),
+        ("disable", False),
+        (
+            "$sub",
+            "Cannot evaluate include condition for 'device.yaml' with unresolved substitutions",
+        ),
+        ("", "Cannot convert include condition for 'device.yaml' to a boolean"),
+        ("trues", "Cannot convert include condition for 'device.yaml' to a boolean"),
+    ],
+)
+def test_include_file_should_load(
+    tmp_path: Path,
+    condition: bool | str | None,
+    expected_result_or_error: bool | str,
+) -> None:
+    """should_load() evaluates the condition and raises an error if it is malformed."""
+    parent = tmp_path / "main.yaml"
+    include = yaml_util.IncludeFile(
+        parent, "device.yaml", lambda _: {}, condition=condition
+    )
+    if isinstance(expected_result_or_error, bool):
+        assert include.should_load() == expected_result_or_error
+    else:
+        with pytest.raises(cv.Invalid, match=expected_result_or_error):
+            include.should_load()
 
 
 def test_mapping_include_non_string_file_rejected(tmp_path: Path) -> None:
@@ -728,7 +798,7 @@ def test_include_file_templated_filename_stays_raw_string(tmp_path: Path) -> Non
     expr = '${ "bluetooth/proxy.yaml" if enable_bluetooth_proxy else "../empty.yaml" }'
     include = yaml_util.IncludeFile(parent, expr, lambda _: {})
     assert include.file == expr
-    assert include.has_unresolved_expressions()
+    assert include.has_unresolved_file()
     assert repr(include) == f"IncludeFile({expr})"
 
 
@@ -789,7 +859,23 @@ def test_yaml_merge_include_with_filename_substitution_raises() -> None:
     """<<: !include ${expr} raises a clear error — substitutions in merge-key filenames
     are not yet supported, and the error message must say so."""
     yaml_text = "base:\n  existing: value\n  <<: !include ${filename}.yaml\n"
-    with pytest.raises(EsphomeError, match="not supported yet"):
+    with pytest.raises(
+        EsphomeError,
+        match="Substitution in include filename with merge keys is not supported yet",
+    ):
+        yaml_util.parse_yaml(
+            Path("/fake/main.yaml"), io.StringIO(yaml_text), lambda _: {}
+        )
+
+
+def test_yaml_merge_include_with_condition_substitution_raises() -> None:
+    """<<: !include { file: ${expr}, condition: {} } raises a clear error — substitutions in merge-key conditions
+    are not yet supported, and the error message must say so."""
+    yaml_text = "base:\n  existing: value\n  <<: !include\n    file: filename.yaml\n    condition: ${expr}\n"
+    with pytest.raises(
+        EsphomeError,
+        match="Substitution in include condition with merge keys is not supported yet",
+    ):
         yaml_util.parse_yaml(
             Path("/fake/main.yaml"), io.StringIO(yaml_text), lambda _: {}
         )
@@ -1094,7 +1180,7 @@ class _StubInclude:
         self._raise = raise_on_load
         self.load_calls = 0
 
-    def has_unresolved_expressions(self) -> bool:
+    def has_unresolved_file(self) -> bool:
         return self._unresolved
 
     def load(self) -> object:

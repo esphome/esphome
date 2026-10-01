@@ -362,23 +362,19 @@ def resolve_include(
     values (including command-line substitutions), so path restrictions are
     an explicit non-goal here.
     """
-    if isinstance(include.condition, bool):
-        condition = include.condition
-    elif isinstance(include.condition, str):
-        condition = cv.boolean(
-            str(
-                _expand_substitutions(
-                    include.condition,
-                    path + ["condition"],
-                    context_vars,
-                    strict_undefined,
-                    errors,
-                )
+    if isinstance(original_condition := include.condition, str):
+        condition = str(
+            _expand_substitutions(
+                original_condition,
+                path + ["condition"],
+                context_vars,
+                strict_undefined,
+                errors,
             )
         )
-    else:
-        condition = True
-    if not condition:
+        if condition != original_condition:
+            include = include.with_condition(condition)
+    if not include.should_load():
         return {}
 
     original = include.file

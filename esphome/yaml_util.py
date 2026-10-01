@@ -35,7 +35,7 @@ from esphome.core import (
     TimePeriod,
 )
 from esphome.expression import has_substitution_or_expression
-from esphome.helpers import add_class_to_obj
+from esphome.helpers import FALSY_BOOL_STRINGS, TRUTHY_BOOL_STRINGS, add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
 
 _LOGGER = logging.getLogger(__name__)
@@ -73,6 +73,12 @@ def _record_dropped_merge_key(parent_file: Path, key: Any) -> None:
 def take_dropped_merge_keys() -> list[tuple[str, str]]:
     """Return and clear the keys dropped during ``<<`` merges so far."""
     return CORE.data.pop(_MERGE_WARNINGS_KEY, [])
+
+
+def _raise_invalid(message: str) -> None:
+    from voluptuous import Invalid
+
+    raise Invalid(message)
 
 
 class SensitiveStr(str):
@@ -259,19 +265,42 @@ class IncludeFile:
         """
         if self._content is not _UNSET:
             return self._content
-        if self.has_unresolved_expressions():
-            from voluptuous import Invalid
-
-            raise Invalid(
+        if self.has_unresolved_file():
+            _raise_invalid(
                 f"Cannot load include with unresolved substitutions: {self.file}"
             )
         self._content = self.yaml_loader(self.parent_file.parent / self.file)
         self._content = add_context(self._content, self.vars)
         return self._content
 
-    def has_unresolved_expressions(self) -> bool:
+    def has_unresolved_file(self) -> bool:
         """Check if the filename contains substitution variables or Jinja expressions."""
         return has_substitution_or_expression(self.file)
+
+    def should_load(self) -> bool:
+        """Evaluates the condition and returns True if the file should be loaded."""
+        if self.condition is None:
+            return True
+        if isinstance(self.condition, bool):
+            return self.condition
+        if self.has_unresolved_condition():
+            _raise_invalid(
+                f"Cannot evaluate include condition for '{self.file}' with unresolved substitutions: {self.condition}"
+            )
+        value = self.condition.lower()
+        if value in TRUTHY_BOOL_STRINGS:
+            return True
+        if value not in FALSY_BOOL_STRINGS:
+            _raise_invalid(
+                f"Cannot convert include condition for '{self.file}' to a boolean, please use 'true' or 'false': {self.condition}"
+            )
+        return False
+
+    def has_unresolved_condition(self) -> bool:
+        """Check if the condition contains substitution variables or Jinja expressions."""
+        return isinstance(self.condition, str) and has_substitution_or_expression(
+            self.condition
+        )
 
     def with_file(self, file: str) -> IncludeFile:
         """Clone this include with *file* as the filename."""
@@ -281,6 +310,16 @@ class IncludeFile:
             self.yaml_loader,
             vars=self.vars,
             condition=self.condition,
+        )
+
+    def with_condition(self, condition: bool | str | None) -> IncludeFile:
+        """Clone this include with *condition* as the condition."""
+        return IncludeFile(
+            self.parent_file,
+            self.file,
+            self.yaml_loader,
+            vars=self.vars,
+            condition=condition,
         )
 
 
@@ -443,7 +482,7 @@ def force_load_include_files(
         if id(obj) in _seen:
             return
         _seen.add(id(obj))
-        if obj.has_unresolved_expressions():
+        if obj.has_unresolved_file():
             _load_include_candidates(
                 obj,
                 warn_on_unresolved=warn_on_unresolved,
@@ -587,14 +626,21 @@ def _resolve_merge_include(value: Any, node: yaml.Node, value_node: yaml.Node) -
     for _ in range(_MAX_MERGE_INCLUDE_DEPTH):
         if not isinstance(value, IncludeFile):
             break
-        if value.has_unresolved_expressions():
+        if value.has_unresolved_file():
             raise yaml.constructor.ConstructorError(
                 "While constructing a mapping",
                 node.start_mark,
                 "Substitution in include filename with merge keys is not supported yet.",
                 value_node.start_mark,
             )
-        value = value.load()
+        if value.has_unresolved_condition():
+            raise yaml.constructor.ConstructorError(
+                "While constructing a mapping",
+                node.start_mark,
+                "Substitution in include condition with merge keys is not supported yet.",
+                value_node.start_mark,
+            )
+        value = value.load() if value.should_load() else {}
     else:
         raise yaml.constructor.ConstructorError(
             "While constructing a mapping",
