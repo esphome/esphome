@@ -994,6 +994,7 @@ lv_point_t LvglComponent::get_touch_relative_to_obj(lv_obj_t *obj) {
 
 static void lv_container_constructor(const lv_obj_class_t *class_p, lv_obj_t *obj) {
   LV_TRACE_OBJ_CREATE("begin");
+  lv_obj_remove_flag(obj, LV_OBJ_FLAG_CLICKABLE);
   LV_UNUSED(class_p);
 }
 
@@ -1059,8 +1060,9 @@ static void *lv_alloc_draw_buf(size_t size, bool internal) {
   void *buffer;
   size = LV_ROUND_UP(size, LV_DRAW_BUF_ALIGN);
   buffer = heap_caps_aligned_alloc(LV_DRAW_BUF_ALIGN, size, internal ? MALLOC_CAP_8BIT : cap_bits);  // NOLINT
-  if (buffer == nullptr)
+  if (buffer == nullptr) {
     ESP_LOGW(esphome::lvgl::TAG, "Failed to allocate %zu bytes for %sdraw buffer", size, internal ? "internal " : "");
+  }
   return buffer;
 }
 

@@ -200,8 +200,6 @@ void TSL2591Component::set_infrared_sensor(sensor::Sensor *infrared_sensor) {
   this->infrared_sensor_ = infrared_sensor;
 }
 
-void TSL2591Component::set_visible_sensor(sensor::Sensor *visible_sensor) { this->visible_sensor_ = visible_sensor; }
-
 void TSL2591Component::set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor) {
   this->full_spectrum_sensor_ = full_spectrum_sensor;
 }
@@ -217,8 +215,6 @@ void TSL2591Component::set_actual_gain_sensor(sensor::Sensor *actual_gain_sensor
 void TSL2591Component::set_integration_time(TSL2591IntegrationTime integration_time) {
   this->integration_time_ = integration_time;
 }
-
-void TSL2591Component::set_gain(TSL2591ComponentGain gain) { this->component_gain_ = gain; }
 
 void TSL2591Component::set_device_and_glass_attenuation_factors(float device_factor, float glass_attenuation_factor) {
   this->device_factor_ = device_factor;
@@ -241,10 +237,6 @@ void TSL2591Component::set_integration_time_and_gain(TSL2591IntegrationTime inte
     this->enable();
   }
 }
-
-void TSL2591Component::set_power_save_mode(bool enable) { this->power_save_mode_enabled_ = enable; }
-
-void TSL2591Component::set_name(const char *name) { this->name_ = name; }
 
 bool TSL2591Component::is_adc_valid() {
   uint8_t status;
@@ -269,7 +261,7 @@ uint32_t TSL2591Component::get_combined_illuminance() {
       break;
     }
     // we only log this if we need any delay, since normally we don't
-    ESP_LOGD(TAG, "   after %3d ms: ADC valid? %s", d, avalid ? "true" : "false");
+    ESP_LOGD(TAG, "   after %3d ms: ADC valid? %s", d, avalid ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"));
     delay(mini_delay);
   }
   if (!avalid) {

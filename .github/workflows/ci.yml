@@ -49,7 +49,7 @@ jobs:
         # detects the activated venv via ``VIRTUAL_ENV`` so downstream jobs
         # that ``. venv/bin/activate`` see an identical layout.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can
@@ -92,6 +92,7 @@ jobs:
     outputs:
       core-ci: ${{ steps.determine.outputs.core-ci }}
       integration-tests: ${{ steps.determine.outputs.integration-tests }}
+      integration-run-all: ${{ steps.determine.outputs.integration-run-all }}
       integration-test-buckets: ${{ steps.determine.outputs.integration-test-buckets }}
       clang-tidy: ${{ steps.determine.outputs.clang-tidy }}
       clang-tidy-mode: ${{ steps.determine.outputs.clang-tidy-mode }}
@@ -101,6 +102,8 @@ jobs:
       device-builder: ${{ steps.determine.outputs.device-builder }}
       esp32-platformio: ${{ steps.determine.outputs.esp32-platformio }}
       esp32-platformio-components: ${{ steps.determine.outputs.esp32-platformio-components }}
+      esp8266-native: ${{ steps.determine.outputs.esp8266-native }}
+      esp8266-native-components: ${{ steps.determine.outputs.esp8266-native-components }}
       changed-components: ${{ steps.determine.outputs.changed-components }}
       changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
       directly-changed-components-with-tests: ${{ steps.determine.outputs.directly-changed-components-with-tests }}
@@ -152,6 +155,9 @@ jobs:
           # Extract individual fields
           echo "core-ci=$(echo "$output" | jq -r '.core_ci')" >> $GITHUB_OUTPUT
           echo "integration-tests=$(echo "$output" | jq -r '.integration_tests')" >> $GITHUB_OUTPUT
+          # A missing key must fail here, not silently disable the junit upload
+          run_all=$(echo "$output" | jq -r 'if has("integration_run_all") then .integration_run_all else error("integration_run_all missing") end')
+          echo "integration-run-all=${run_all}" >> $GITHUB_OUTPUT
           echo "integration-test-buckets=$(echo "$output" | jq -c '.integration_test_buckets')" >> $GITHUB_OUTPUT
           echo "clang-tidy=$(echo "$output" | jq -r '.clang_tidy')" >> $GITHUB_OUTPUT
           echo "clang-tidy-mode=$(echo "$output" | jq -r '.clang_tidy_mode')" >> $GITHUB_OUTPUT
@@ -161,6 +167,8 @@ jobs:
           echo "device-builder=$(echo "$output" | jq -r '.device_builder')" >> $GITHUB_OUTPUT
           echo "esp32-platformio=$(echo "$output" | jq -r '.esp32_platformio')" >> $GITHUB_OUTPUT
           echo "esp32-platformio-components=$(echo "$output" | jq -r '.esp32_platformio_components')" >> $GITHUB_OUTPUT
+          echo "esp8266-native=$(echo "$output" | jq -r '.esp8266_native')" >> $GITHUB_OUTPUT
+          echo "esp8266-native-components=$(echo "$output" | jq -r '.esp8266_native_components')" >> $GITHUB_OUTPUT
           echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
           echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "directly-changed-components-with-tests=$(echo "$output" | jq -c '.directly_changed_components_with_tests')" >> $GITHUB_OUTPUT
@@ -178,6 +186,33 @@ jobs:
         with:
           path: .temp/components_graph.json
           key: components-graph-${{ hashFiles('esphome/components/**/*.py') }}
+
+  seed-esp8266-native-cache:
+    name: Seed the esp8266 native toolchain cache
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+    # PR-branch cache saves are invisible to other PRs, so dev pushes seed
+    # the shared entry the component matrix, the memory impact jobs and
+    # test-esp8266-native restore. Only dev: the composite action saves
+    # nowhere else, so a beta/release push would download the toolchain and
+    # discard it.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    timeout-minutes: 15
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Cache the native toolchain
+        uses: ./.github/actions/cache-arduino8266
+      - name: Install the native toolchain
+        run: |
+          . venv/bin/activate
+          python -c "from esphome.arduino8266.framework import check_and_install; from esphome.components.esp8266 import RECOMMENDED_ARDUINO_FRAMEWORK_VERSION; check_and_install(RECOMMENDED_ARDUINO_FRAMEWORK_VERSION)"
 
   ci-custom:
     name: Run script/ci-custom
@@ -240,11 +275,20 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Read prek version from requirements_test.txt
+        id: prek
+        # requirements_test.txt is the only place the version is pinned, so a
+        # Dependabot bump there is picked up here without a second edit.
+        run: |
+          if ! version=$(sed -nE 's/^prek==([^[:space:]#]+).*/\1/p' requirements_test.txt) || [ -z "$version" ]; then
+            echo "::error::No prek== pin found in requirements_test.txt."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Run prek
         uses: j178/prek-action@4e14d07f9231acabce116ccfca13b13dd9755ece # v3.0.0
         with:
-          # Keep in sync with requirements_test.txt.
-          prek-version: "0.4.11"
+          prek-version: ${{ steps.prek.outputs.version }}
           # This job only runs on pull requests, so nothing ever populates
           # the cache on dev. Every run would miss and then write a per-pull
           # request copy, which is what the old seed-cache job existed to
@@ -308,7 +352,7 @@ jobs:
           . venv/bin/activate
           pytest -vv --cov-report=xml --tb=native --durations=30 -n auto tests --ignore=tests/integration/
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
       - name: Save Python virtual environment cache
         if: github.ref == 'refs/heads/dev'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -337,7 +381,7 @@ jobs:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Report empty upload to Codecov
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           run_command: empty-upload
           force: true
@@ -355,14 +399,19 @@ jobs:
       fail-fast: false
       matrix:
         bucket: ${{ fromJson(needs.determine-jobs.outputs.integration-test-buckets) }}
+    env:
+      # Registry libraries (noise-c, libsodium, ArduinoJson, lvgl) the host builds
+      # download, shared per xdist worker by tests/integration/conftest.py
+      INTEGRATION_LIBRARY_CACHE_PATH: ~/.esphome-integration-tests/pio_components
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install apt packages (cached)
         # ccache speeds up the host compiles. A cache hit never touches apt
         # (mirror outages cannot hang the job); the timeout bounds the cold
-        # path. Packages and version must match seed-apt-cache exactly;
-        # libsdl2-dev is unused here and carried only for cache-key parity.
+        # path. Packages and version must match seed-apt-cache exactly.
+        # libsdl2-dev is needed by the headless display tests, which capture
+        # screenshots.
         timeout-minutes: 10
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
@@ -373,6 +422,13 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
+      - name: Restore integration library cache
+        # A miss or a changed pin self-heals with a download, so no restore-keys
+        id: library-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_LIBRARY_CACHE_PATH }}
+          key: integration-libraries-v1-${{ runner.os }}-${{ hashFiles('esphome/components/json/__init__.py', 'esphome/components/noise/__init__.py', 'esphome/components/lvgl/__init__.py', 'esphome/components/improv_base/__init__.py') }}
       - name: Restore Python virtual environment
         id: cache-venv
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -382,7 +438,7 @@ jobs:
       - name: Set up uv
         # Only needed on cache miss to populate the venv.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can
@@ -410,12 +466,46 @@ jobs:
         run: |
           . venv/bin/activate
           mapfile -t test_files < <(echo "$BUCKET_TESTS" | jq -r '.[]')
+          if [ "${#test_files[@]}" -eq 0 ]; then
+            echo "::error::Empty integration test bucket; pytest would collect the whole tree"
+            exit 1
+          fi
           echo "Bucket ${{ matrix.bucket.name }}: running ${#test_files[@]} integration tests"
-          pytest -vv --no-cov --tb=native --durations=30 -n auto "${test_files[@]}"
+          pytest -vv --no-cov --tb=native --durations=30 -n auto --dist worksteal \
+            --junitxml=junit-integration.xml "${test_files[@]}"
+      - name: Upload test artifacts
+        # Tests that compare rendered output write the image they actually got here, so a
+        # failure can be looked at without reproducing the whole build locally.
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integration-test-artifacts-${{ matrix.bucket.name }}
+          path: test_artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload junit timings
+        # Consumed by sync-integration-durations.yml through
+        # script/update_integration_test_durations.py; only full matrix dev
+        # runs produce usable data.
+        if: github.ref == 'refs/heads/dev' && needs.determine-jobs.outputs.integration-run-all == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: junit-integration-${{ strategy.job-index }}
+          path: junit-integration.xml
+          if-no-files-found: error
+          # A full cron period of margin for the weekly refresh
+          retention-days: 14
       - name: Print ccache statistics
-        # esphome stores the PlatformIO ccache under the machine-global cache
-        # dir (see _ccache_env() in esphome/platformio/toolchain.py).
-        run: CCACHE_DIR="$HOME/.cache/esphome/platformio-ccache" ccache -s
+        # esphome stores the host build's ccache under the machine-global
+        # cache dir (see get_build_env() in esphome/host/toolchain.py).
+        run: CCACHE_DIR="$HOME/.cache/esphome/host/ccache" ccache -s
+      - name: Save integration library cache
+        # Bucket 0 only; the others would race the same immutable key.
+        if: success() && (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write')) && strategy.job-index == 0 && steps.library-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_LIBRARY_CACHE_PATH }}
+          key: ${{ steps.library-cache.outputs.cache-primary-key }}
 
   import-time:
     name: Check import esphome.__main__ time
@@ -1032,6 +1122,11 @@ jobs:
         uses: ./.github/actions/cache-sdk-nrf
         with:
           restore-only: true
+      - name: Cache the native ESP8266 toolchain
+        # Only batches whose test platforms include esp8266; never saves
+        # here, it reuses the install the dev seed job cached.
+        if: matrix.batch.needs_arduino8266
+        uses: ./.github/actions/cache-arduino8266
       - name: Validate and compile components with intelligent grouping
         run: |
           . venv/bin/activate
@@ -1131,8 +1226,20 @@ jobs:
           if [ -n "$compile_csv" ]; then
             # Run compilation with grouping and isolation
             python3 script/test_build_components.py -e compile -c "$compile_csv" -f --isolate "$directly_changed_csv"
+            if [[ "${{ matrix.batch.check_idf_py }}" == "true" ]]; then
+              # The real idf.py must find nothing to configure or build in a
+              # tree built above; catches drift on ESP-IDF bumps.
+              echo "Checking the native ESP-IDF build matches idf.py"
+              python3 script/check_idf_py_equivalence.py
+            fi
           else
             echo "All components in this batch are validate-only -- skipping compile stage."
+            if [[ "${{ matrix.batch.check_idf_py }}" == "true" ]]; then
+              # determine-jobs and this step disagree on what compiles; fail
+              # rather than let the check run nowhere.
+              echo "::error::This batch was picked for the idf.py check but compiled nothing"
+              exit 1
+            fi
           fi
 
       - name: Print ccache statistics
@@ -1172,7 +1279,7 @@ jobs:
 
           # compile validates config first, so a separate config pass is
           # redundant for this smoke test. ESP-IDF framework via PlatformIO:
-          python3 script/test_build_components.py -e compile -t esp32-idf -c "$TEST_COMPONENTS" -f --toolchain platformio
+          python3 script/test_build_components.py -e compile -t esp32-idf -c "$TEST_COMPONENTS" -f --toolchain platformio --fail-on-no-tests
 
           echo ""
           echo "ESP-IDF-via-PlatformIO build passed! Starting Arduino smoke test..."
@@ -1180,6 +1287,40 @@ jobs:
 
           # Arduino framework via PlatformIO (only components with an esp32-ard test are built):
           python3 script/test_build_components.py -e compile -t esp32-ard -c "$TEST_COMPONENTS" -f --toolchain platformio
+
+  test-esp8266-native:
+    name: Test esp8266 components with the native toolchain
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.esp8266-native == 'true'
+    env:
+      # Computed by script/determine-jobs.py (ESP8266_NATIVE_TEST_COMPONENTS)
+      TEST_COMPONENTS: ${{ needs.determine-jobs.outputs.esp8266-native-components }}
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+
+      - name: Cache the native toolchain
+        uses: ./.github/actions/cache-arduino8266
+
+      - name: Run native toolchain compile test
+        run: |
+          . venv/bin/activate
+
+          echo "Testing components: $TEST_COMPONENTS"
+          echo ""
+
+          # ESP8266 Arduino built directly (no PlatformIO); compile validates
+          # config first, so a separate config pass is redundant.
+          python3 script/test_build_components.py -e compile -t esp8266-ard -c "$TEST_COMPONENTS" -f --toolchain arduino --fail-on-no-tests
 
   device-builder:
     name: Test downstream esphome/device-builder
@@ -1209,7 +1350,7 @@ jobs:
         # install step (order-of-magnitude faster on cold boots,
         # with its own wheel cache). actions/setup-python still
         # provides the interpreter.
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can
@@ -1350,12 +1491,9 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
-      - name: Cache platformio
-        if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.platformio
-          key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
+      - name: Cache the native ESP8266 toolchain
+        if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true' && fromJSON(needs.determine-jobs.outputs.memory_impact).needs_arduino8266
+        uses: ./.github/actions/cache-arduino8266
 
       - name: Build, compile, and analyze memory
         if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
@@ -1440,11 +1578,9 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Cache platformio
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.platformio
-          key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
+      - name: Cache the native ESP8266 toolchain
+        if: fromJSON(needs.determine-jobs.outputs.memory_impact).needs_arduino8266
+        uses: ./.github/actions/cache-arduino8266
       - name: Build, compile, and analyze memory
         id: extract
         run: |
@@ -1543,6 +1679,7 @@ jobs:
     needs:
       - common
       - seed-apt-cache
+      - seed-esp8266-native-cache
       - determine-jobs
       - ci-custom
       - pylint
@@ -1558,6 +1695,7 @@ jobs:
       - clang-tidy-esp32-variants
       - test-build-components-split
       - test-esp32-platformio
+      - test-esp8266-native
       - device-builder
       - memory-impact-target-branch
       - memory-impact-pr-branch

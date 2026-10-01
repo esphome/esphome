@@ -1,0 +1,29 @@
+esphome:
+  name: sdl-headless-screenshot-test
+host:
+
+api:
+  actions:
+    # The name comes from the test so it can capture more than once while it waits for the first
+    # frame: a snapshot never writes over a file that is already there.
+    - action: take_screenshot
+      variables:
+        name: string
+      then:
+        - snapshot.take:
+            id: sdl_display
+            filename: !lambda return name;
+
+logger:
+  level: DEBUG
+
+display:
+  - platform: sdl
+    id: sdl_display
+    headless: true
+    show_test_card: true
+    update_interval: 100ms
+    # An odd width exercises the row padding in the BMP writer
+    dimensions:
+      width: 101
+      height: 64

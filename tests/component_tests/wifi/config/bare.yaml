@@ -1,0 +1,12 @@
+---
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+wifi:
+  ssid: test
+  password: testtest
+  ap:
+    ssid: fallback

@@ -312,6 +312,66 @@ def test_model_with_full_update_every(
     )
 
 
+def test_update_interval_below_model_minimum_rejected(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """update_interval faster than the model's minimum_update_interval is rejected."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="at least"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "ssd1677",
+                "dc_pin": 21,
+                "busy_pin": 22,
+                "reset_pin": 23,
+                "cs_pin": 5,
+                "dimensions": {
+                    "width": 200,
+                    "height": 200,
+                },
+                "update_interval": "500ms",
+            }
+        )
+
+
+def test_reset_duration_over_max_rejected(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """reset_duration over the 500ms cap is rejected."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="at most"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "ssd1677",
+                "dc_pin": 21,
+                "busy_pin": 22,
+                "reset_pin": 23,
+                "cs_pin": 5,
+                "dimensions": {
+                    "width": 200,
+                    "height": 200,
+                },
+                "reset_duration": "600ms",
+            }
+        )
+
+
 def test_busy_pin_input_mode_ssd1677(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
@@ -439,6 +499,23 @@ def test_enable_pin_multiple(
     assert all(pin["mode"]["output"] is True for pin in enable_pins)
 
 
+def test_uc8179_e1001_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that the reTerminal E1001 model generates the UC8179 driver and init sequence."""
+    main_cpp = generate_main(component_config_path("uc8179_e1001_test.yaml"))
+
+    # The model must instantiate the UC8179 driver class with the panel dimensions
+    assert "epaper_spi::EPaperUC8179" in main_cpp
+    assert re.search(r'"SEEED-RETERMINAL-E1001",\s*800,\s*480', main_cpp)
+
+    # The generated init sequence must contain the UC8179 resolution setting
+    # for 800x480: command 0x61, 4 data bytes 0x03 0x20 0x01 0xE0
+    # (rendered as decimal in the generated array)
+    assert "97, 4, 3, 32, 1, 224" in main_cpp
+
+
 def test_enable_pin_code_generation(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
@@ -462,6 +539,16 @@ def test_enable_pin_code_generation(
     # Both pin objects must be passed to the display via set_enable_pins() as a
     # std::vector initializer list, in the configured order.
     assert f"set_enable_pins({{{pin_25}, {pin_26}}});" in main_cpp
+
+
+def test_full_update_next_action_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The epaper_spi.full_update_next action targets the configured display."""
+    main_cpp = generate_main(component_config_path("full_update_next_test.yaml"))
+
+    assert "epaper_display->request_full_update();" in main_cpp
 
 
 def test_model_with_no_default_init_sequence_generates(

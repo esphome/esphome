@@ -13,7 +13,7 @@ regardless of which toolchain consumes the result.
 """
 
 from collections import deque
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Hashable, Iterable
 from dataclasses import dataclass, field
 from functools import partial
 import glob
@@ -35,7 +35,7 @@ from esphome.framework_helpers import (
     failure_reason,
     rmdir,
     run_batch_downloads,
-    warn_prefetch_failures,
+    warn_batch_failures,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -99,6 +99,17 @@ class Source:
     ) -> Path:
         raise NotImplementedError
 
+    def prefetch_key(self, dir_suffix: str) -> Hashable | None:
+        """Prefetch dedup identity; None = not prefetchable. Sources that
+        could write one cache dir must return equal keys (workers must never
+        share a dir); a coarser key only skips a prefetch."""
+        return None
+
+    def is_cached(self, dir_suffix: str, salt: str = "", namespace: str = "") -> bool:
+        """Whether a completed fetch exists; only consulted when
+        ``prefetch_key()`` is not None, True is the safe default."""
+        return True
+
     def source_root(self, build_path: Path) -> Path:
         """Directory holding the library's own files (manifest + sources).
 
@@ -126,6 +137,9 @@ class URLSource(Source):
         if salt:
             h.update(salt.encode())
         return base_dir / h.hexdigest()[:8] / dir_suffix
+
+    def prefetch_key(self, dir_suffix: str) -> Hashable | None:
+        return self.url if self.size else None
 
     def is_cached(self, dir_suffix: str, salt: str = "", namespace: str = "") -> bool:
         """Whether a completed extraction already exists for this source."""
@@ -177,14 +191,29 @@ class GitSource(Source):
         self.url = url
         self.ref = ref
 
-    def download(
-        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
-    ) -> Path:
+    @staticmethod
+    def _domain(salt: str, namespace: str) -> str:
         domain = DOMAIN
         if namespace:
             domain = f"{domain}/{namespace}"
         if salt:
             domain = f"{domain}/{salt}"
+        return domain
+
+    def prefetch_key(self, dir_suffix: str) -> Hashable | None:
+        # The clone target dir is hash(url@ref)/<dir_suffix>
+        return (self.url, self.ref, dir_suffix)
+
+    def is_cached(self, dir_suffix: str, salt: str = "", namespace: str = "") -> bool:
+        """Whether a completed clone already exists for this source."""
+        return git.has_complete_clone(
+            self.url, self.ref, self._domain(salt, namespace), Path(dir_suffix)
+        )
+
+    def download(
+        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
+    ) -> Path:
+        domain = self._domain(salt, namespace)
         path, _ = git.clone_or_update(
             url=self.url,
             ref=self.ref,
@@ -331,7 +360,7 @@ class LibraryBackend:
     """
 
     platform: str | None
-    framework: str
+    framework: str | None
     emit: Callable[["ConvertedLibrary"], None]
     cache_key: str
     # Owner-less names this returns True for are skipped by the walk;
@@ -339,6 +368,10 @@ class LibraryBackend:
     # reconciles provided_requests after resolving
     provides: Callable[[str], bool] | None = None
     provided_requests: set[str] = field(default_factory=set)
+    # Accept a library without library.json/library.properties, as
+    # PlatformIO does (its defaults: src/ or the root, plus include/). Off
+    # for backends whose emitted build files need the manifest.
+    manifest_optional: bool = False
 
 
 def ensure_list[T](obj: T | list[T]) -> list[T]:
@@ -587,11 +620,20 @@ def _make_registry_client() -> Any:
     elsewhere, not by the PlatformIO registry.
     """
     from platformio.package.manager._registry import PackageManagerRegistryMixin
+    from platformio.project.helpers import get_project_cache_dir
+    from platformio.registry.client import RegistryClient
+
+    # PlatformIO creates its HTTP cache dir without exist_ok, so two builds
+    # making their first registry lookup at once race on it
+    (Path(get_project_cache_dir()) / "http").mkdir(parents=True, exist_ok=True)
 
     class _Registry(PackageManagerRegistryMixin):
         def __init__(self) -> None:
-            self._registry_client = None
             self.pkg_type = "library"
+            self._registry_client = RegistryClient()
+            # The probe sleeps ~500 ms per lookup (see runner.patch_registry_private_packages);
+            # instance-level so the ESPHome process never patches PlatformIO's class
+            self._registry_client.allowed_private_packages = lambda: False
 
         @staticmethod
         def is_system_compatible(value: Any, custom_system: Any = None) -> bool:
@@ -826,6 +868,11 @@ def _url_or_none(value: Any) -> str | None:
     return value if parsed.scheme and parsed.netloc else None
 
 
+# URL schemes that name a local library folder; symlink:// is PlatformIO's
+# spelling for one it links instead of copying, which is the same to us
+_LOCAL_SCHEMES = ("file", "symlink")
+
+
 def _node_key(
     name: str | None, version: str | None, repository: str | None
 ) -> tuple[str, str, tuple[str | None, str | None]]:
@@ -863,7 +910,7 @@ def _node_key(
             scheme = urlsplit(candidate).scheme
         except ValueError:
             scheme = ""
-        if scheme == "file" or _url_or_none(candidate):
+        if scheme in _LOCAL_SCHEMES or _url_or_none(candidate):
             name, repository = custom_name, candidate
         else:
             # Anything with ``://`` was meant to be a URL; failing it fast
@@ -872,7 +919,7 @@ def _node_key(
     if repository:
         is_git_prefixed = repository.startswith("git+")
         split_result = urlsplit(repository.removeprefix("git+"))
-        if split_result.scheme == "file" and not is_git_prefixed:
+        if (scheme := split_result.scheme) in _LOCAL_SCHEMES and not is_git_prefixed:
             # A plain file:// URL points at a local library directory. A local
             # file URL is written file:///absolute/path (empty host) or, less
             # commonly, file://localhost/path. Anything else -- a real host, or
@@ -880,8 +927,8 @@ def _node_key(
             # rejected rather than silently resolved to the wrong directory.
             if split_result.netloc not in ("", "localhost"):
                 raise RuntimeError(
-                    f"Unsupported host in file:// library URL '{repository}'; "
-                    "use an absolute path, e.g. file:///path/to/lib"
+                    f"Unsupported host in {scheme}:// library URL '{repository}'; "
+                    f"use an absolute path, e.g. {scheme}:///path/to/lib"
                 )
             # Validate the URL path itself (always POSIX-style, leading slash),
             # not the OS path: on Windows a "/foo" path is not is_absolute()
@@ -891,8 +938,8 @@ def _node_key(
             url_path = split_result.path
             if not url_path.startswith("/") or not PurePosixPath(url_path).name:
                 raise RuntimeError(
-                    f"file:// library URL '{repository}' must be an absolute "
-                    "directory path, e.g. file:///path/to/lib"
+                    f"{scheme}:// library URL '{repository}' must be an absolute "
+                    f"directory path, e.g. {scheme}:///path/to/lib"
                 )
             path = url2pathname(url_path)
             return (name or PurePosixPath(url_path).name), "local", (path, None)
@@ -988,59 +1035,81 @@ def _fetch_source(
     )
 
 
+def _clone_source(
+    component: ConvertedLibrary,
+    salt: str,
+    namespace: str,
+    tracker: Callable[[int], None],
+) -> None:
+    # No byte progress from git; one tick so a cancelled batch stops here
+    tracker(0)
+    component.source.download(
+        component.get_sanitized_name(), salt=salt, namespace=namespace
+    )
+
+
 def _prefetch_wave(
     wave: list[tuple[str, ConvertedLibrary]], salt: str, namespace: str
 ) -> None:
-    """Best-effort parallel download of a wave's registry archives.
+    """Best-effort parallel fetch of a wave's registry archives and git clones.
 
-    The walk's own ``download()`` stays authoritative; duplicate URLs
+    The walk's own ``download()`` stays authoritative; duplicate sources
     prefetch once so two threads never share a cache directory. Archives
     whose size the registry did not report are left to the sequential
     loop, whose per-file bars don't interleave. A node a sibling in the
-    same wave supersedes has its archive fetched in vain (knowing better
+    same wave supersedes has its source fetched in vain (knowing better
     would need the manifests being downloaded).
     """
     try:
-        components: list[ConvertedLibrary] = []
-        seen: set[str] = set()
+        archives: list[ConvertedLibrary] = []
+        clones: list[ConvertedLibrary] = []
+        seen: set[Hashable] = set()
         for _key, component in wave:
             source = component.source
-            if not isinstance(source, URLSource) or not source.size:
+            name = component.get_sanitized_name()
+            dedup_key = source.prefetch_key(name)
+            if dedup_key is None or dedup_key in seen:
                 continue
-            if source.url in seen:
-                continue
-            seen.add(source.url)
+            seen.add(dedup_key)
             try:
-                cached = source.is_cached(
-                    component.get_sanitized_name(), salt=salt, namespace=namespace
-                )
+                cached = source.is_cached(name, salt=salt, namespace=namespace)
             except OSError as err:
                 # Best-effort, but visibly: a systematic probe failure makes
-                # every warm build re-download every archive
+                # every warm build re-fetch every source
                 _LOGGER.warning("Cache probe for %s failed: %s", component.name, err)
                 cached = False
             if cached:
                 # A warm build must stay silent
                 continue
-            components.append(component)
-        if not components:
+            (archives if isinstance(source, URLSource) else clones).append(component)
+        if not archives and not clones:
             return
         # Single-item waves (a dependency chain discovers one archive per
         # wave) go through the same runner: one download method, one bar
-        _LOGGER.info(
-            "Downloading %d library archive(s): %s",
-            len(components),
-            ", ".join(c.name for c in components),
-        )
+        if archives:
+            _LOGGER.info(
+                "Downloading %d library archive(s): %s",
+                len(archives),
+                ", ".join(c.name for c in archives),
+            )
+        if clones:
+            _LOGGER.info(
+                "Cloning %d library repo(s): %s",
+                len(clones),
+                ", ".join(c.name for c in clones),
+            )
         failures = run_batch_downloads(
             "Downloading libraries",
             [
                 (c.name, c.source.size, partial(_fetch_source, c, salt, namespace))
-                for c in components
-            ],
+                for c in archives
+            ]
+            # Size 0: clones share the worker pool without skewing the
+            # byte bar, whose total stays the archive sum
+            + [(c.name, 0, partial(_clone_source, c, salt, namespace)) for c in clones],
         )
         # The sequential call below retries and raises the real error
-        warn_prefetch_failures(
+        warn_batch_failures(
             failures, "Prefetch of %s failed (retrying sequentially): %s"
         )
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
@@ -1189,9 +1258,16 @@ def convert_libraries(
             library_properties_path = source_dir / "library.properties"
             has_json = library_json_path.is_file()
             has_properties = library_properties_path.is_file()
-            if not has_json and not has_properties and not node.is_local:
+            if (
+                not has_json
+                and not has_properties
+                and not node.is_local
+                and not backend.manifest_optional
+            ):
                 # An interrupted clone/extraction self-heals with one forced
-                # re-download; a local source has nothing to re-download
+                # re-download; a local source has nothing to re-download.
+                # A backend accepting manifest-less libraries cannot tell
+                # one from a torn download and would re-fetch every build.
                 _LOGGER.warning(
                     "Library %s at %s is missing library.json and library.properties; "
                     "re-downloading",
@@ -1205,6 +1281,12 @@ def convert_libraries(
                 component.data = parse_library_json(library_json_path)
             elif has_properties:
                 component.data = parse_library_properties(library_properties_path)
+            elif backend.manifest_optional:
+                _LOGGER.debug(
+                    "Library %s has no manifest; using PlatformIO's default layout",
+                    key,
+                )
+                component.data = {"name": component.name}
             else:
                 # Local sources are user input (EsphomeError); a registry/git
                 # miss means a corrupt cache (RuntimeError)
@@ -1231,7 +1313,7 @@ def convert_libraries(
                 # cross-platform skip stays at debug, other causes warn
                 if key in top_level_keys:
                     reason = (
-                        f"is not compatible with {backend.framework}"
+                        f"is not compatible with {backend.framework or backend.platform}"
                         if isinstance(e, IncompatiblePlatform)
                         else "has a malformed manifest"
                     )
