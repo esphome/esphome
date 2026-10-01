@@ -148,6 +148,7 @@ class ArgsProtocol(Protocol):
     file: str | None
     no_logs: bool
     only_generate: bool
+    skip_bootloader: bool
     show_secrets: bool
     dashboard: bool
     configuration: str
@@ -827,6 +828,14 @@ def write_cpp_file() -> int:
 
 
 def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
+    if CORE.skip_bootloader and not (CORE.is_esp32 and CORE.using_toolchain_esp_idf):
+        # Info, not a warning: an orchestrator cannot see YAML toolchain
+        # overrides, this is its expected no-op, and a full build is safe.
+        _LOGGER.info(
+            "--skip-bootloader ignored: only supported on ESP32 with the "
+            "esp-idf toolchain"
+        )
+        CORE.skip_bootloader = False
     # Keep this gate here, NOT in config validation: device-builder needs
     # `esphome config` to keep succeeding with placeholders so onboarding can run.
     if CONF_WIFI in config:
@@ -857,7 +866,10 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
             return rc
 
         # Create factory.bin, ota.bin, and firmware.elf copy
-        toolchain.create_factory_bin()
+        if not toolchain.create_factory_bin():
+            # A build whose factory image could not be produced must not
+            # exit 0; downloads would serve an image from an older build.
+            return 1
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
         from esphome.build_helpers.idedata import warn_if_idedata_missing
@@ -975,8 +987,9 @@ def upload_using_esptool(
         # and partitions included where the target needs them)
         image = native.get_factory_firmware_path()
         if not image.is_file():
+            hint = getattr(native, "missing_image_hint", lambda: None)()
             raise EsphomeError(
-                f"{image} does not exist; compile the configuration first"
+                hint or f"{image} does not exist; compile the configuration first"
             )
         flash_images = [FlashImage(path=image, offset="0x0")]
     else:
@@ -1379,6 +1392,12 @@ def _upload_via_native_api(
         ota_type = espota2.OTA_TYPE_UPDATE_PARTITION_TABLE
     elif getattr(args, "bootloader", False):
         check_partition_access("--bootloader")
+        if (
+            getattr(args, "file", None) is None
+            and (native := native_backend())
+            and (hint := getattr(native, "missing_image_hint", lambda: None)())
+        ):
+            raise EsphomeError(hint)
         binary = CORE.bootloader_bin
         ota_type = espota2.OTA_TYPE_UPDATE_BOOTLOADER
     if getattr(args, "file", None) is not None:
@@ -1754,6 +1773,18 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
+    if (
+        CORE.skip_bootloader
+        and CORE.is_esp32
+        and CORE.using_toolchain_esp_idf
+        and any(
+            get_port_type(device) == PortType.SERIAL for device in (args.device or [])
+        )
+    ):
+        # Fail before the compile: the result could never flash over serial.
+        # Elsewhere the flag is ignored, so serial stays fine there.
+        _LOGGER.error("--skip-bootloader builds cannot be flashed over serial")
+        return 1
     exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
@@ -2139,6 +2170,15 @@ SIMPLE_CONFIG_ACTIONS = [
 ]
 
 
+def _add_skip_bootloader_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--skip-bootloader",
+        help="Do not build the bootloader or the factory image; "
+        "the result can only be flashed over OTA.",
+        action="store_true",
+    )
+
+
 def _add_states_args(parser: argparse.ArgumentParser) -> None:
     """Add mutually exclusive ``--states``/``--no-states`` flags to a parser.
 
@@ -2280,6 +2320,7 @@ def parse_args(argv):
         help="Only generate source code, do not compile.",
         action="store_true",
     )
+    _add_skip_bootloader_arg(parser_compile)
 
     parser_upload = subparsers.add_parser(
         "upload",
@@ -2376,6 +2417,7 @@ def parse_args(argv):
     parser_run.add_argument(
         "--no-logs", help="Disable starting logs.", action="store_true"
     )
+    _add_skip_bootloader_arg(parser_run)
 
     _add_states_args(parser_run)
 
@@ -2635,6 +2677,7 @@ def run_esphome(argv):
 
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard
+    CORE.skip_bootloader = getattr(args, "skip_bootloader", False)
     if args.toolchain is not None:
         # CLI toolchain wins over esp32.toolchain in YAML.
         CORE.toolchain = args.toolchain

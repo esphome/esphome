@@ -26,11 +26,14 @@ from esphome.core import CORE, EsphomeError
 from esphome.espidf import variant_to_idf_target
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
-from esphome.helpers import add_git_ceiling_directory, get_bool_env, write_file
+from esphome.helpers import add_git_ceiling_directory, get_bool_env, rmtree, write_file
 
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "espidf_toolchain"
+# The -D that tells the generated CMakeLists to skip the in-tree bootloader
+# build; also read back from CMakeCache.txt to identify a tree.
+SKIP_BOOTLOADER_DEFINE = "ESPHOME_SKIP_BOOTLOADER"
 
 
 @dataclass
@@ -38,6 +41,7 @@ class _CacheData:
     paths: dict[str, tuple] = field(default_factory=dict)
     env: dict[str, dict[str, str]] = field(default_factory=dict)
     cmake_output: dict[Path, str] = field(default_factory=dict)
+    skip_bootloader: bool | None = None
     cmake_tools: dict[Path, dict[str, Path]] = field(default_factory=dict)
 
 
@@ -285,6 +289,48 @@ def _cache_entries_changed() -> bool:
     return any(cache.get(k) != v for k, v in _configure_defines().items())
 
 
+def tree_skips_bootloader(build_dir: Path) -> bool:
+    """Whether a configured tree was set up to skip the bootloader build.
+
+    Total: an unreadable tree reads as the stock full build.
+    """
+    try:
+        cache = _parse_cmakecache(build_dir / "CMakeCache.txt")
+    except (OSError, ValueError) as err:
+        _LOGGER.debug("Cannot read %s, assuming a full build: %s", build_dir, err)
+        return False
+    return cache.get(SKIP_BOOTLOADER_DEFINE) == "1"
+
+
+def _skip_bootloader() -> bool:
+    """Whether this tree should not build a bootloader at all; per-run memo."""
+    cache = _cache()
+    if cache.skip_bootloader is None:
+        cache.skip_bootloader = _compute_skip_bootloader()
+    return cache.skip_bootloader
+
+
+def _compute_skip_bootloader() -> bool:
+    if not CORE.skip_bootloader:
+        return False
+    from esphome.build_gen.espidf import idf_macro_matches
+
+    if not idf_macro_matches(_get_idf_path()):
+        _LOGGER.warning(
+            "--skip-bootloader ignored: IDF changed its bootloader macro; "
+            "building the bootloader"
+        )
+        return False
+    return True
+
+
+def missing_image_hint() -> str | None:
+    """Why an expected flash image is absent, for upload error messages."""
+    if tree_skips_bootloader(_build_dir()):
+        return "this build was compiled with --skip-bootloader; recompile without it"
+    return None
+
+
 def _configure_defines() -> dict[str, str]:
     """Every ``-D`` idf.py passes to cmake, in its order."""
     return {
@@ -292,6 +338,9 @@ def _configure_defines() -> dict[str, str]:
         "PYTHON": _get_idf_tool("python"),
         "ESP_PLATFORM": "1",
         **_cache_entries(),
+        # ESPHome's own switch; idf.py never passes it and cmake keeps the
+        # cached value, so idf.py runs against the tree stay in the same mode.
+        SKIP_BOOTLOADER_DEFINE: "1" if _skip_bootloader() else "0",
     }
 
 
@@ -312,6 +361,14 @@ def run_reconfigure(verbose: bool = False) -> int:
     """Run the CMake configure, with the arguments idf.py uses."""
     build_dir = _build_dir()
     build_dir.mkdir(parents=True, exist_ok=True)
+    if _skip_bootloader() and not tree_skips_bootloader(build_dir):
+        # Flipping into skip mode: full-mode leftovers are stale for
+        # OTA --bootloader and downloads, and a partial cleanup would
+        # poison the flip back (deleted byproducts never regenerate).
+        for stale in ("bootloader", "bootloader-prefix"):
+            if (path := build_dir / stale).is_dir():
+                rmtree(path)
+        get_factory_firmware_path().unlink(missing_ok=True)
     cmd = [_get_idf_tool("cmake"), "-G", "Ninja"]
     if _idf_py().binary_dir_arg:
         cmd += ["-B", str(build_dir)]
@@ -861,6 +918,20 @@ def get_idedata() -> dict | None:
 def create_factory_bin() -> bool:
     """Create factory.bin by merging bootloader, partition table, and app."""
     build_dir = CORE.relative_build_path("build")
+    if tree_skips_bootloader(build_dir):
+        # Nothing to merge, and nothing stale: the flip into skip mode
+        # already removed the factory image and the sub-build.
+        _LOGGER.info("Bootloader skipped; no factory image")
+        return True
+    if _merge_factory_bin(build_dir):
+        return True
+    # Never leave an image that does not match this build.
+    get_factory_firmware_path().unlink(missing_ok=True)
+    return False
+
+
+def _merge_factory_bin(build_dir: Path) -> bool:
+    """Run the esptool merge for a full-build tree."""
     flasher_args_path = build_dir / "flasher_args.json"
 
     if not flasher_args_path.is_file():
@@ -883,10 +954,11 @@ def create_factory_bin() -> bool:
         flash_data.get("flash_files", {}).items(), key=lambda kv: int(kv[0], 16)
     ):
         file_path = build_dir / fname
-        if file_path.is_file():
-            sections.extend([addr, str(file_path)])
-        else:
-            _LOGGER.warning("Flash file not found: %s", file_path)
+        if not file_path.is_file():
+            # A partial factory image would not boot; never write one.
+            _LOGGER.error("Flash file not found: %s", file_path)
+            return False
+        sections.extend([addr, str(file_path)])
 
     if not sections:
         _LOGGER.warning("No flash sections found")
