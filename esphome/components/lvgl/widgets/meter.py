@@ -612,9 +612,7 @@ async def indicator_update_to_code(config, action_id, template_arg, args):
     async def set_value(w: Widget):
         await set_indicator_values(w.parent, w, config)
 
-    return await action_to_code(
-        widget, set_value, action_id, template_arg, args, config
-    )
+    return await action_to_code(widget, set_value, action_id, template_arg, args)
 
 
 async def set_indicator_values(scale: MockObj, indicator: Widget, config):
