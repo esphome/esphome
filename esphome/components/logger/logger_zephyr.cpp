@@ -20,6 +20,13 @@ __attribute__((weak)) void print_coredump() {}
 
 namespace esphome::logger {
 
+// Zephyr 3.7 renamed z_arch_esf_t to struct arch_esf; the old name was later removed.
+#if KERNEL_VERSION_NUMBER >= 0x030700
+using FatalErrorEsf = ::arch_esf;
+#else
+using FatalErrorEsf = z_arch_esf_t;
+#endif
+
 __attribute__((section(".noinit"))) struct {
   uint32_t magic;
   uint32_t reason;
@@ -168,7 +175,7 @@ void Logger::dump_crash_() {
   }
 }
 
-void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
+void k_sys_fatal_error_handler(unsigned int reason, const FatalErrorEsf *esf) {
   crash_buf.magic = App.get_config_hash();
   crash_buf.reason = reason;
   if (esf) {
@@ -192,7 +199,7 @@ void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
 
 extern "C" {
 
-void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
+void k_sys_fatal_error_handler(unsigned int reason, const esphome::logger::FatalErrorEsf *esf) {
   esphome::logger::k_sys_fatal_error_handler(reason, esf);
 }
 }
