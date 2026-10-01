@@ -153,6 +153,7 @@ void BluedroidGattClient::tracker_connect_() {
   this->services_released_ = false;
   this->seen_mtu_ = false;
   this->mtu_failed_ = false;
+  this->cancel_open_sent_ = false;
   this->enable_loop();
   this->set_state(ClientState::CONNECTING);
   if (this->connection_type_ == ConnectionType::V3_WITHOUT_CACHE) {
@@ -211,7 +212,10 @@ void BluedroidGattClient::cancel_pending_open_() {
   esp_ble_gattc_cancel_open_params_t params{};
   params.gattc_if = this->gattc_if_;
   memcpy(params.remote_bda, this->remote_bda_, sizeof(esp_bd_addr_t));
-  this->check_and_log_error_("esp_ble_gattc_cancel_open", esp_ble_gattc_cancel_open(&params));
+  // A refused cancel schedules no CANCEL_OPEN_EVT, so the teardown stays cancellable.
+  if (this->check_and_log_error_("esp_ble_gattc_cancel_open", esp_ble_gattc_cancel_open(&params)) == ESP_OK) {
+    this->cancel_open_sent_ = true;
+  }
 #endif
 }
 
@@ -240,12 +244,10 @@ bool BluedroidGattClient::cancel_gatt_disconnect() {
   if (this->state() != ClientState::CONNECTING || !this->disconnect_pending()) {
     return false;
   }
-#ifdef BLUEDROID_HAS_CANCEL_OPEN
-  if (this->conn_id_ == UNSET_CONN_ID) {
+  if (this->cancel_open_sent_) {
     // The cancel already went out, so CANCEL_OPEN_EVT ends it.
     return false;
   }
-#endif
   this->want_disconnect_ = false;
   return true;
 }
