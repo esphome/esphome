@@ -351,11 +351,14 @@ project({CORE.name})
 # Emit per-memory-type JSON size data for ESPHome to read post-build.
 # json2 stays small; raw dumps every symbol (~2s on a large map) and
 # this command runs inside the link edge, blocking everything downstream.
+# The map is a BYPRODUCT so ninja knows the link writes it; IDF's size
+# target depends on the map and can then be built in the same run as all.
 add_custom_command(
     TARGET ${{CMAKE_PROJECT_NAME}}.elf POST_BUILD
     COMMAND ${{PYTHON}} -m esp_idf_size {size_ng_flag} --format=json2
             -o ${{CMAKE_BINARY_DIR}}/esp_idf_size.json
             ${{CMAKE_PROJECT_NAME}}.map
+    BYPRODUCTS ${{CMAKE_BINARY_DIR}}/${{CMAKE_PROJECT_NAME}}.map
     WORKING_DIRECTORY ${{CMAKE_BINARY_DIR}}
     VERBATIM
 )
