@@ -11,6 +11,6 @@ uart_tcp:
     role: client
     host: 192.0.2.20
     port: 502
-    reconnect_interval: 5s
+    reconnect_interval: 10s
     connected:
       name: UART TCP Connected

@@ -38,7 +38,6 @@ void UartTcp::sync_link_() {
   this->link_was_up_ = up;
   if (!up) {
     this->tx_len_ = 0;
-    this->rx_pending_ = false;
   }
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(up);
