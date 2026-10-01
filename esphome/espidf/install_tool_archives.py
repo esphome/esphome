@@ -28,10 +28,14 @@ def collect_pending(
     """The {(name, version): tool} jobs whose verified archive is on disk."""
     dist_path = Path(g.idf_tools_path) / "dist"
 
+    broken: set[str] = set()
+
     def on_broken(name: str, e: ToolBinaryError) -> bool:
-        # Repairing a broken installed binary is the installer's job
+        # Repairing a broken installed binary is the installer's job, but
+        # the prefetch listed the tool, so it must still claim its filename
         print(f"leaving broken {name} to the installer: {e}", file=sys.stderr)
-        return False
+        broken.add(name)
+        return True
 
     pending: dict[tuple[str, str], Any] = {}
     claimed: dict[str, str] = {}
@@ -51,6 +55,8 @@ def collect_pending(
                 file=sys.stderr,
             )
             continue
+        if name in broken:
+            continue
         # Trusted as-is: the caller only runs this pass after a prefetch
         # that verified every archive at its final name
         if (dist_path / dist_name).is_file():
@@ -58,8 +64,9 @@ def collect_pending(
     return pending
 
 
-def install_one(tool: Any, name: str, version: str) -> bool:
-    """Whether the tool was extracted; a failure is left to the installer."""
+def install_one(tool: Any, name: str, version: str) -> bool | str:
+    """True when extracted, False when failed and cleaned, the dest path
+    when a torn dir survived cleanup; failures go back to the installer."""
     try:
         tool.install(version)
     # check_binary_valid exits via SystemExit; the installer redoes failures
@@ -84,6 +91,7 @@ def install_one(tool: Any, name: str, version: str) -> bool:
                 "fails",
                 file=sys.stderr,
             )
+            return dest
         return False
     # Per-tool completion keeps the multi-minute unpack phase visibly alive
     print(f"extracted {name}@{version}", flush=True)
@@ -118,9 +126,16 @@ def main() -> None:
     finally:
         # Ctrl-C drops queued extractions; in-flight ones finish whole
         ex.shutdown(wait=True, cancel_futures=True)
-    if failed := sum(not result for result in results):
+    if failed := sum(result is not True for result in results):
         # Nonzero exit makes the caller warn; the installer redoes these
         print(f"{failed} of {len(results)} pre-extractions failed", file=sys.stderr)
+        # Repeated last so it is not lost in the streamed install output
+        for dest in (r for r in results if isinstance(r, str)):
+            print(
+                f"partial tool dir survived: {dest}; delete it manually if "
+                "the build fails",
+                file=sys.stderr,
+            )
         sys.exit(1)
 
 

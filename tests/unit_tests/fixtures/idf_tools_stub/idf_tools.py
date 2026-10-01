@@ -123,6 +123,21 @@ def load_tools_info() -> dict[str, _Tool]:
             for version in tool.versions.values():
                 if (download := version.get_download_for_platform("")) is not None:
                     download.sha256 = ""
+    if os.environ.get("TEST_BROKEN_COLLIDE"):
+        # Test hook: a broken tool claims shared.tar.gz first; a later good
+        # tool shares the basename under a different sha256
+        first = _Tool(
+            {"6.0": _Version(_Download("https://gh.test/shared.tar.gz", 66, "f1"))},
+            "6.0",
+            broken=True,
+        )
+        first.name = "broken-first-tool"
+        shadowed = _Tool(
+            {"7.0": _Version(_Download("https://other.test/shared.tar.gz", 77, "f2"))},
+            "7.0",
+        )
+        shadowed.name = "shadowed-tool"
+        return {**_TOOLS, "broken-first-tool": first, "shadowed-tool": shadowed}
     if os.environ.get("TEST_COLLIDE"):
         # Test hook: a second tool whose archive shares cmake's basename
         # but carries a different sha256

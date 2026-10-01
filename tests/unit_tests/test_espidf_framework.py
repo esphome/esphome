@@ -2227,6 +2227,27 @@ def test_install_tool_archives_skips_colliding_dest(
     )
 
 
+def test_install_tool_archives_broken_tool_still_claims_its_dest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The prefetch verified the broken tool's archive, so a later tool
+    sharing its filename under another sha256 must not extract from it."""
+    _make_dist(tmp_path, "cmake.tar.gz", "ninja-v1.zip", "shared.tar.gz")
+    monkeypatch.setenv("TEST_BROKEN_COLLIDE", "1")
+    _run_espidf_script_inprocess(
+        tmp_path, monkeypatch, "install_tool_archives.py", "esp32", "8", "required"
+    )
+    tools = tmp_path / "tp" / "tools"
+    assert not (tools / "broken-first-tool").exists()
+    assert not (tools / "shadowed-tool").exists()
+    assert (
+        "leaving shadowed-tool@7.0 to the installer: shared.tar.gz "
+        "holds a different archive" in capsys.readouterr().err
+    )
+
+
 def test_install_tool_archives_single_pending_stays_sequential(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2345,6 +2366,10 @@ def test_install_tool_archives_surviving_torn_dir_escalates(
     err = capsys.readouterr().err
     assert "could not remove" in err
     assert "1 of 2 pre-extractions failed" in err
+    # The surviving dir is named again after the summary, where the caller's
+    # warning points
+    assert err.rstrip().endswith("delete it manually if the build fails")
+    assert "partial tool dir survived" in err
     assert (tmp_path / "tp" / "tools" / "cmake" / "3.30.2" / ".installed").is_file()
 
 
