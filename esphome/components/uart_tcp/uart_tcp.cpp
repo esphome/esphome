@@ -35,9 +35,6 @@ void UartTcp::on_shutdown() {
 
 void UartTcp::sync_link_() {
   bool up = this->link_.connected();
-  if (up == this->link_was_up_) {
-    return;
-  }
   this->link_was_up_ = up;
   if (!up) {
     this->tx_len_ = 0;
@@ -119,7 +116,9 @@ void UartTcp::loop() {
   } else {
     this->link_.poll();
   }
-  this->sync_link_();
+  if (this->link_.connected() != this->link_was_up_) {
+    this->sync_link_();
+  }
   if (!this->link_was_up_) {
     return;
   }
