@@ -11,24 +11,9 @@ static const char *const TAG = "openthread";
 
 namespace esphome::openthread {
 
-static void on_thread_state_changed(otChangedFlags flags, struct openthread_context *ot_context, void *user_data) {
-  // Delegate connection status tracking to common callback
+static void on_thread_state_changed(otChangedFlags flags, struct openthread_context *, void *) {
   if (global_openthread_component != nullptr) {
     OpenThreadComponent::on_state_changed(flags, global_openthread_component);
-  }
-  if (flags & OT_CHANGED_THREAD_ROLE) {
-    otDeviceRole role = otThreadGetDeviceRole(ot_context->instance);
-    ESP_LOGI(TAG, "Thread role changed to %s", otThreadDeviceRoleToString(role));
-  }
-  if (flags & OT_CHANGED_THREAD_NETDATA) {
-    ESP_LOGI(TAG, "Thread network data updated");
-  }
-  if (flags & (OT_CHANGED_THREAD_ROLE | OT_CHANGED_THREAD_NETDATA)) {
-    char buf[NET_IPV6_ADDR_LEN];
-    for (const otNetifAddress *addr = otIp6GetUnicastAddresses(ot_context->instance); addr != nullptr;
-         addr = addr->mNext) {
-      ESP_LOGI(TAG, "  Address: %s", net_addr_ntop(AF_INET6, &addr->mAddress, buf, sizeof(buf)));
-    }
   }
 }
 
