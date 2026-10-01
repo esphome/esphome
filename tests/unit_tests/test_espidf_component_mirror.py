@@ -459,21 +459,21 @@ def test_sync_runs_the_manager_for_missing_deps(
     # The stub stages nothing, so the post-promote recheck reports failure.
     assert not ok
     assert "uncovered" in caplog.text
-    mock_run.assert_called_once()
     mirror = component_mirror.get_mirror_path()
-    assert mock_run.call_args.args[0] == [
-        "/penv/python",
-        "-m",
-        "idf_component_manager",
-        "registry",
-        "sync",
-        "--resolution",
-        "latest",
-        "--component",
-        "bblanchon/arduinojson==7.4.3",
-        "--component",
-        "espressif/mdns==1.12.0",
-        str(mirror / ".staging"),
+    assert [call.args[0] for call in mock_run.call_args_list] == [
+        [
+            "/penv/python",
+            "-m",
+            "idf_component_manager",
+            "registry",
+            "sync",
+            "--resolution",
+            "latest",
+            "--component",
+            spec,
+            str(mirror / ".staging"),
+        ]
+        for spec in ("bblanchon/arduinojson==7.4.3", "espressif/mdns==1.12.0")
     ]
     assert mock_run.call_args.kwargs["env"] == {"PATH": "/penv"}
     _assert_sync_lock_released()
@@ -518,19 +518,25 @@ def test_sync_subprocess_errors_are_tolerated(
 def test_sync_timeout_keeps_the_finished_components(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A timed-out sync promotes what completed, so later runs only fetch
-    the remainder instead of starting over."""
-    _write_lock(tmp_path, _ns_cmp_lock("2.0.0"))
+    """Each component syncs in its own invocation, so the ones that finish
+    before a timeout stay promoted and later runs fetch only the rest."""
+    _write_lock(tmp_path)
 
     def slow_sync(cmd, **kwargs):
-        _add_to_mirror(Path(cmd[-1]), _NS_CMP_2)
-        raise subprocess.TimeoutExpired(cmd=cmd, timeout=120)
+        namespace, _, rest = cmd[-2].partition("/")
+        name, _, version = rest.partition("==")
+        if name != "arduinojson":
+            raise subprocess.TimeoutExpired(cmd=cmd, timeout=120)
+        _add_to_mirror(
+            Path(cmd[-1]), component_mirror.ServiceDep(namespace, name, version)
+        )
+        return subprocess.CompletedProcess(cmd, 0, "", "")
 
     ok, _ = _run_sync(tmp_path, side_effect=slow_sync)
     assert not ok
-    assert "timed out" in caplog.text
+    assert "kept 1 of 2" in caplog.text
     mirror = component_mirror.get_mirror_path()
-    assert component_mirror.missing_deps(mirror, [_NS_CMP_2]) == []
+    assert component_mirror.missing_deps(mirror, [_ARDUINOJSON, _MDNS]) == [_MDNS]
     assert not (mirror / ".staging").exists()
     _assert_sync_lock_released()
 
@@ -570,7 +576,7 @@ def test_sync_ignores_a_leftover_lock_file(tmp_path: Path) -> None:
     mirror.mkdir(parents=True)
     (mirror / ".sync.lock").touch()
     _, mock_run = _run_sync(tmp_path)
-    mock_run.assert_called_once()  # the dead lock did not block the sync
+    mock_run.assert_called()  # the dead lock did not block the sync
 
 
 def test_sync_lock_oserror_is_a_failure(

@@ -270,13 +270,6 @@ def sync_component_mirror(
     # Staged: the manager writes in place, and a configure in another
     # process must never read a truncated file from the live mirror.
     staging = mirror / _STAGING_DIR_NAME
-    # latest: the default "all" follows ranged transitive specs and syncs
-    # every matching version (dozens of archives for esp_hosted).
-    cmd = [python, "-m", "idf_component_manager", "registry", "sync"]
-    cmd += ["--resolution", "latest"]
-    for dep in to_sync:
-        cmd += ["--component", dep.spec]
-    cmd.append(str(staging))
     # Lazy import, as in git.py: keeps filelock off the CLI startup path.
     from filelock import FileLock, Timeout
 
@@ -292,28 +285,51 @@ def sync_component_mirror(
         _LOGGER.warning("Could not lock the component mirror: %s", err)
         return False
     _LOGGER.info("Mirroring %d IDF component(s) for offline builds...", len(to_sync))
+    synced = 0
     try:
-        # Raises on an undeletable tree; never promote stale files.
-        rmtree(staging)
-        result = subprocess.run(
-            cmd,
-            env=env,
-            capture_output=True,
-            # Not text=True: the locale codec can raise UnicodeDecodeError.
-            encoding="utf-8",
-            errors="replace",
-            timeout=_SYNC_TIMEOUT_S,
-            check=False,
-        )
-        if result.returncode != 0:
-            tail = "\n".join((result.stderr or result.stdout).strip().splitlines()[-5:])
-            _LOGGER.warning(
-                "Could not mirror IDF components (exit %d):\n%s",
-                result.returncode,
-                tail,
+        # One component per invocation: the timeout bounds each component,
+        # every completed one is promoted immediately so a slow link banks
+        # progress, and the first failure stops the loop so a build never
+        # waits for more than one timeout.
+        for dep in to_sync:
+            # Raises on an undeletable tree; never promote stale files.
+            rmtree(staging)
+            result = subprocess.run(
+                [
+                    python,
+                    "-m",
+                    "idf_component_manager",
+                    "registry",
+                    "sync",
+                    # latest: the default "all" follows ranged transitive
+                    # specs and syncs every matching version.
+                    "--resolution",
+                    "latest",
+                    "--component",
+                    dep.spec,
+                    str(staging),
+                ],
+                env=env,
+                capture_output=True,
+                # Not text=True: the locale codec can raise UnicodeDecodeError.
+                encoding="utf-8",
+                errors="replace",
+                timeout=_SYNC_TIMEOUT_S,
+                check=False,
             )
-            return False
-        _promote(staging, mirror)
+            if result.returncode != 0:
+                tail = "\n".join(
+                    (result.stderr or result.stdout).strip().splitlines()[-5:]
+                )
+                _LOGGER.warning(
+                    "Could not mirror %s (exit %d):\n%s",
+                    dep.spec,
+                    result.returncode,
+                    tail,
+                )
+                return False
+            _promote(staging, mirror)
+            synced += 1
         if still := missing_deps(mirror, to_sync):
             # A name the registry spells differently syncs clean yet
             # covers nothing; retrying would loop forever.
@@ -324,16 +340,10 @@ def sync_component_mirror(
             )
             return False
     except subprocess.TimeoutExpired:
-        # Keep what finished: a component's index is staged only after its
-        # files, so promoting salvages it and each run converges instead
-        # of paying the timeout again from scratch on a slow link.
-        with suppress(*_BAD_INDEX_ERRORS, EsphomeError):
-            _promote(staging, mirror)
-        kept = len(to_sync) - len(missing_deps(mirror, to_sync))
         _LOGGER.warning(
             "Mirroring timed out after %d s; kept %d of %d component(s)",
             _SYNC_TIMEOUT_S,
-            kept,
+            synced,
             len(to_sync),
         )
         return False
