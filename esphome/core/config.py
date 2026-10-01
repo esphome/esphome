@@ -549,7 +549,9 @@ def _add_library_str(lib: str) -> None:
 # platformio_options keys the native ESP8266 Arduino generator (a later PR
 # in this chain) will honor; its ignored-option warning will consume the same
 # list so the two cannot drift
-NATIVE_ARDUINO_PIO_OPTIONS = frozenset({"board_build.f_cpu", "board_build.ldscript"})
+NATIVE_ARDUINO_PIO_OPTIONS = frozenset(
+    {"board_build.f_cpu", "board_build.ldscript", "board_upload.maximum_size"}
+)
 # The full set that survives into CORE.platformio_options under the native
 # arduino toolchain: lib_ignore is the only specially-translated key below
 # that is stored rather than translated away. Consumed by the esp8266 native
@@ -609,9 +611,13 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
                 # through to the ignored-option warning). Other native
                 # toolchains have no equivalent and fall through too.
                 cg.add_platformio_option(key, vals[-1])
-            elif key != "upload_speed":
-                # upload_speed needs no handling: it is read from the raw
-                # config at upload time (upload_using_esptool)
+            elif key != "upload_speed" and not (
+                key == "board_upload.flash_size" and CORE.using_toolchain_arduino
+            ):
+                # upload_speed is read from the raw config at upload time.
+                # board_upload.flash_size is dropped silently on arduino:
+                # PlatformIO's esp8266 builder never reads it either, and
+                # published configs (Athom) commonly set it.
                 _LOGGER.warning(
                     "esphome->platformio_options->%s is ignored when building with "
                     "the native '%s' toolchain",
