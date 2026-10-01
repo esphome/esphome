@@ -54,10 +54,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_HOST], config[CONF_PORT])
     await cg.register_component(var, config)
-    cg.add(var.set_host(config[CONF_HOST]))
-    cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
     # The socket is not clocked. These only satisfy UARTComponent and a consumer check.
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))

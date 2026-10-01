@@ -30,8 +30,7 @@ void TcpUart::sync_link_() {
   bool up = this->link_.connected();
   this->link_was_up_ = up;
   if (!up) {
-    this->rx_.clear();
-    this->rx_pending_ = false;
+    this->rx_start_ = this->rx_end_ = 0;
     this->tx_len_ = 0;
   }
   if (this->connected_sensor_ != nullptr) {
@@ -40,14 +39,17 @@ void TcpUart::sync_link_() {
 }
 
 void TcpUart::read_socket_() {
-  size_t room = RX_BUFFER_SIZE - this->rx_.size();
+  if (this->rx_start_ != 0) {
+    this->rx_end_ -= this->rx_start_;
+    std::memmove(this->rx_, this->rx_ + this->rx_start_, this->rx_end_);
+    this->rx_start_ = 0;
+  }
+  size_t room = RX_BUFFER_SIZE - this->rx_end_;
   if (room == 0) {
-    this->rx_pending_ = true;
+    // Only a read that filled all free space gets here, so rx_pending_ is already set.
     return;
   }
-  uint8_t tmp[READ_CHUNK];
-  size_t want = room < sizeof(tmp) ? room : sizeof(tmp);
-  ssize_t count = this->link_.read(tmp, want);
+  ssize_t count = this->link_.read(this->rx_ + this->rx_end_, room);
   if (count <= 0) {
     // A dropped link (-1) is cleaned up by sync_link_() on the next loop.
     if (count == 0) {
@@ -55,10 +57,8 @@ void TcpUart::read_socket_() {
     }
     return;
   }
-  for (ssize_t i = 0; i < count; i++) {
-    this->rx_.push(tmp[i]);
-  }
-  this->rx_pending_ = static_cast<size_t>(count) == want;
+  this->rx_end_ += static_cast<uint16_t>(count);
+  this->rx_pending_ = static_cast<size_t>(count) == room;
 }
 
 void TcpUart::flush_tx_() {
@@ -102,21 +102,19 @@ void TcpUart::write_array(const uint8_t *data, size_t len) {
 }
 
 bool TcpUart::peek_byte(uint8_t *data) {
-  if (this->rx_.empty()) {
+  if (this->rx_start_ == this->rx_end_) {
     return false;
   }
-  *data = this->rx_.front();
+  *data = this->rx_[this->rx_start_];
   return true;
 }
 
 bool TcpUart::read_array(uint8_t *data, size_t len) {
-  if (this->rx_.size() < len) {
+  if (this->available() < len) {
     return false;
   }
-  for (size_t i = 0; i < len; i++) {
-    data[i] = this->rx_.front();
-    this->rx_.pop();
-  }
+  std::memcpy(data, this->rx_ + this->rx_start_, len);
+  this->rx_start_ += static_cast<uint16_t>(len);
   return true;
 }
 
