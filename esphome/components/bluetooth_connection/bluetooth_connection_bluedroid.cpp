@@ -651,6 +651,11 @@ void BluedroidGattClient::handle_disconnect_evt_(esp_ble_gattc_cb_param_t *param
     // Active close delivers CLOSE_EVT first; never walk back to DISCONNECTING.
     return;
   }
+  if (this->conn_id_ == UNSET_CONN_ID) {
+    // No CONNECT_EVT for this attempt yet, so the event belongs to an earlier
+    // link, such as one the teardown timeout forced down.
+    return;
+  }
   // Passive disconnect: wait for CLOSE_EVT before going IDLE (reconnecting
   // earlier makes the controller reject with 133 or assert) and before
   // reporting - the wrapper frees the slot on the report, and a freed slot
