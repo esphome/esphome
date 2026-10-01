@@ -159,9 +159,8 @@ def parse_manifest_service_deps(manifest_path: Path) -> list[ServiceDep]:
 def parse_manifest_ranged_specs(manifest_path: Path) -> list[str]:
     """Compote specs for the manifest's range-pinned entries.
 
-    On dev a range re-resolves against the registry on every fresh solve;
-    refreshing the mirrored candidate whenever the lock is absent keeps
-    that behavior, and the previous candidate stays the offline fallback.
+    Refreshed before every fresh solve, as a range resolves on dev; the
+    previous candidate stays the offline fallback.
     """
     specs: list[str] = []
     for namespace, name, entry in _iter_deps(manifest_path):
@@ -217,10 +216,9 @@ def missing_deps(mirror: Path, deps: list[ServiceDep]) -> list[ServiceDep]:
 
 
 def _read_versions(path: Path) -> list[dict]:
-    """The version entries of an index; [] when missing or corrupt, which
-    lets publishing replace (heal) it. An I/O error says nothing about the
-    content, so it raises and the caller retries later instead of
-    dropping the versions a valid index may list."""
+    """The version entries of an index; [] when missing or corrupt, so
+    publishing heals it. An I/O error raises: the content may be valid,
+    so the caller retries later instead of dropping its versions."""
     try:
         entries = json.loads(path.read_text(encoding="utf-8"))["versions"]
         return [entry for entry in entries if isinstance(entry, dict)]
@@ -360,9 +358,8 @@ def sync_component_mirror(
         except subprocess.TimeoutExpired:
             if len(specs) == 1:
                 raise
-            # The timeout now bounds each component, completed ones are
-            # promoted as they finish, and the first failure stops the
-            # loop, so a slow link banks progress every run.
+            # Per component the timeout bounds each one, finished ones
+            # stay promoted, and the first failure stops the loop.
             _LOGGER.warning(
                 "Mirroring timed out after %d s; retrying one component at a time",
                 _SYNC_TIMEOUT_S,
@@ -389,8 +386,8 @@ def sync_component_mirror(
         )
         return False
     except (*_BAD_INDEX_ERRORS, EsphomeError, subprocess.SubprocessError) as err:
-        # Includes a failed index publish; the live index is intact. A
-        # shape error here is a bug, so keep its traceback.
+        # Includes a failed index publish; the live index is intact.
+        # A shape error is a bug: keep its traceback.
         _LOGGER.warning(
             "Could not mirror IDF components: %s",
             err,
