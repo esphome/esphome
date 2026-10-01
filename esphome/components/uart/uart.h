@@ -37,9 +37,10 @@ class UARTDevice {
 
   bool read_array(uint8_t *data, size_t len) { return this->parent_->read_array(data, len); }
   template<size_t N> optional<std::array<uint8_t, N>> read_array() {  // NOLINT
-    std::array<uint8_t, N> res;
-    if (!this->read_array(res.data(), N)) {
-      return {};
+    // One object returned on both paths; a separate empty optional trips GCC's -Wmaybe-uninitialized.
+    optional<std::array<uint8_t, N>> res(std::in_place);
+    if (!this->read_array(res->data(), N)) {
+      res.reset();
     }
     return res;
   }

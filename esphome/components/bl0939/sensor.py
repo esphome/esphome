@@ -94,27 +94,12 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if voltage_config := config.get(CONF_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
-    if current_1_config := config.get(CONF_CURRENT_1):
-        sens = await sensor.new_sensor(current_1_config)
-        cg.add(var.set_current_sensor_1(sens))
-    if current_2_config := config.get(CONF_CURRENT_2):
-        sens = await sensor.new_sensor(current_2_config)
-        cg.add(var.set_current_sensor_2(sens))
-    if active_power_1_config := config.get(CONF_ACTIVE_POWER_1):
-        sens = await sensor.new_sensor(active_power_1_config)
-        cg.add(var.set_power_sensor_1(sens))
-    if active_power_2_config := config.get(CONF_ACTIVE_POWER_2):
-        sens = await sensor.new_sensor(active_power_2_config)
-        cg.add(var.set_power_sensor_2(sens))
-    if energy_1_config := config.get(CONF_ENERGY_1):
-        sens = await sensor.new_sensor(energy_1_config)
-        cg.add(var.set_energy_sensor_1(sens))
-    if energy_2_config := config.get(CONF_ENERGY_2):
-        sens = await sensor.new_sensor(energy_2_config)
-        cg.add(var.set_energy_sensor_2(sens))
-    if energy_total_config := config.get(CONF_ENERGY_TOTAL):
-        sens = await sensor.new_sensor(energy_total_config)
-        cg.add(var.set_energy_sensor_sum(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT_1, var.set_current_sensor_1)
+    await sensors(CONF_CURRENT_2, var.set_current_sensor_2)
+    await sensors(CONF_ACTIVE_POWER_1, var.set_power_sensor_1)
+    await sensors(CONF_ACTIVE_POWER_2, var.set_power_sensor_2)
+    await sensors(CONF_ENERGY_1, var.set_energy_sensor_1)
+    await sensors(CONF_ENERGY_2, var.set_energy_sensor_2)
+    await sensors(CONF_ENERGY_TOTAL, var.set_energy_sensor_sum)

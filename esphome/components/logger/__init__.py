@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import Any
 
@@ -64,6 +65,8 @@ from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
+_LOGGER = logging.getLogger(__name__)
+
 CODEOWNERS = ["@esphome/core"]
 logger_ns = cg.esphome_ns.namespace("logger")
 LOG_LEVELS = {
@@ -106,6 +109,7 @@ DEFAULT = "DEFAULT"
 
 CONF_INITIAL_LEVEL = "initial_level"
 CONF_LOGGER_ID = "logger_id"
+CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH = "esp8266_store_log_strings_in_flash"
 CONF_RUNTIME_TAG_LEVELS = "runtime_tag_levels"
 CONF_TASK_LOG_BUFFER_SIZE = "task_log_buffer_size"
 CONF_WAIT_FOR_CDC = "wait_for_cdc"
@@ -220,6 +224,18 @@ def validate_initial_no_higher_than_global(config: ConfigType) -> ConfigType:
     return config
 
 
+def warn_ram_log_strings(config: ConfigType) -> ConfigType:
+    # Remove before 2027.4.0
+    if config.get(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH) is False:
+        _LOGGER.warning(
+            "'%s: false' is ignored and will be rejected in 2027.4.0. Log format strings "
+            "always stay in flash now; copying them into RAM gave no speed gain and the "
+            "lost RAM caused crashes. Remove the option",
+            CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH,
+        )
+    return config
+
+
 def validate_wait_for_cdc(config: ConfigType) -> ConfigType:
     if config.get(CONF_WAIT_FOR_CDC) and config.get(CONF_HARDWARE_UART) != USB_CDC:
         raise cv.Invalid("wait_for_cdc requires hardware_uart: USB_CDC")
@@ -233,7 +249,6 @@ LoggerMessageTrigger = logger_ns.class_(
 )
 
 
-CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH = "esp8266_store_log_strings_in_flash"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -333,6 +348,7 @@ CONFIG_SCHEMA = cv.All(
     validate_local_no_higher_than_global,
     validate_initial_no_higher_than_global,
     validate_wait_for_cdc,
+    warn_ram_log_strings,
 )
 
 
@@ -451,9 +467,6 @@ async def _late_logger_init(config: ConfigType) -> None:
         cg.add_build_flag("-DCORE_DEBUG_LEVEL=5")
     if CORE.is_esp32 and is_at_least_very_verbose:
         cg.add_build_flag("-DENABLE_I2C_DEBUG_BUFFER")
-    if config.get(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH):
-        cg.add_build_flag("-DUSE_STORE_LOG_STR_IN_FLASH")
-
     if CORE.is_esp32:
         if config[CONF_HARDWARE_UART] == USB_CDC:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
@@ -502,6 +515,7 @@ async def _late_logger_init(config: ConfigType) -> None:
         zephyr_add_prj_conf("RESET_ON_FATAL_ERROR", False)
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
         if has_serial_logging:
+            zephyr_add_prj_conf("SERIAL", True)
             if config[CONF_HARDWARE_UART] == UART0:
                 zephyr_add_overlay("""&uart0 { status = "okay";};""")
             if config[CONF_HARDWARE_UART] == UART1:

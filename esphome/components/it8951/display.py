@@ -36,8 +36,7 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_WIDTH,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, RawExpression, TemplateArgsType
+from esphome.cpp_generator import RawExpression
 from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
@@ -61,7 +60,6 @@ VCOM_REGISTER_OPTIONS = (VCOM_REGISTER_DEFAULT, VCOM_REGISTER_ALT)
 
 it8951_ns = cg.esphome_ns.namespace("it8951")
 IT8951Display = it8951_ns.class_("IT8951Display", display.Display, spi.SPIDevice)
-IT8951UpdateAction = it8951_ns.class_("IT8951UpdateAction", automation.Action)
 
 # Hardware waveform modes exposed to YAML. Strings are mapped to the C++
 # UpdateMode enum so the runtime can store the mode as a uint16_t rather
@@ -80,6 +78,7 @@ UPDATE_MODE_OPTIONS = {
     "A2": UpdateMode.UPDATE_MODE_A2,
     "FAST": UpdateMode.UPDATE_MODE_DU,
     "FULL": UpdateMode.UPDATE_MODE_GC16,
+    "DEFAULT": UpdateMode.UPDATE_MODE_NONE,
 }
 # Maps the YAML mode string directly to the C++ UpdateMode enum value, so the
 # config option and the it8951.update action share one validator.
@@ -419,26 +418,13 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_transform(RawExpression(str(transform_value))))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "it8951.update",
-    IT8951UpdateAction,
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(IT8951Display),
-            cv.Optional(CONF_MODE): cv.templatable(update_mode),
+            cv.Optional(CONF_MODE, default="DEFAULT"): cv.templatable(update_mode),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_MODE, "update_mode", UpdateMode),
 )
-async def it8951_update_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    display_var = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, display_var)
-    if mode := config.get(CONF_MODE):
-        mode = await cg.templatable(mode, args, UpdateMode)
-        cg.add(var.set_mode(mode))
-    return var
