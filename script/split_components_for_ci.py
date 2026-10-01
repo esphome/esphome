@@ -54,7 +54,9 @@ NRF52_BUILD_SECONDS = 45
 DEFAULT_BUILD_SECONDS = 90
 # Each extra component merged into a grouped build makes it larger
 GROUPED_COMPONENT_SECONDS = 5
-# Estimated build seconds per CI runner; sets how many runners are used
+# Estimated build seconds per CI runner; sets how many runners are used.
+# Approximate: the runner count charges each grouped build once, but a large
+# group spreads over several runners, which each pay for that build.
 TARGET_BATCH_SECONDS = 600
 
 # Platform used for batching (platform-agnostic batching)
@@ -107,10 +109,12 @@ class _BatchItem:
         )
 
 
-def _make_item(component: str, signature: str, is_isolated: bool) -> _BatchItem:
+def _make_item(
+    tests_dir: Path, component: str, signature: str, is_isolated: bool
+) -> _BatchItem:
     own_seconds = 0
     grouped: set[tuple[str, str]] = set()
-    for test_file in get_component_test_files(component, all_variants=True):
+    for test_file in (tests_dir / component).glob("test[.-]*.yaml"):
         test_name, platform = parse_test_filename(test_file)
         if is_isolated or test_name != "test":
             own_seconds += build_seconds(platform)
@@ -266,7 +270,10 @@ def create_intelligent_batches(
 
     items = [
         _make_item(
-            component, signature, signature.startswith(ISOLATED_SIGNATURE_PREFIX)
+            tests_dir,
+            component,
+            signature,
+            signature.startswith(ISOLATED_SIGNATURE_PREFIX),
         )
         for (_platform, signature), group_components in sorted(signature_groups.items())
         for component in group_components

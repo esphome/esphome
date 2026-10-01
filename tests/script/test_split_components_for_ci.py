@@ -57,11 +57,13 @@ def test_make_item_isolated_and_grouped(tests_dir: Path) -> None:
         ],
     )
 
-    isolated = split_components_for_ci._make_item("comp", "isolated_comp", True)
+    isolated = split_components_for_ci._make_item(
+        tests_dir, "comp", "isolated_comp", True
+    )
     assert isolated.own_seconds == 45 + 10 + 45
     assert isolated.grouped_builds == frozenset()
 
-    grouped = split_components_for_ci._make_item("comp", "i2c", False)
+    grouped = split_components_for_ci._make_item(tests_dir, "comp", "i2c", False)
     assert grouped.own_seconds == 45
     assert grouped.grouped_builds == {("i2c", "esp32-idf"), ("i2c", "host")}
 
@@ -119,6 +121,16 @@ def test_groupable_components_split_evenly(tests_dir: Path) -> None:
 
     assert [len(batch) for batch in batches] == [4, 4, 4]
     assert sorted(c for batch in batches for c in batch) == names
+
+
+def test_make_item_reads_tests_dir(tmp_path: Path) -> None:
+    """Costs come from the given tests_dir, not the repository tree."""
+    other = tmp_path / "other"
+    other.mkdir()
+    _add_component(other, "comp", ["test.esp32-idf.yaml"])
+
+    item = split_components_for_ci._make_item(other, "comp", "isolated_comp", True)
+    assert item.own_seconds == 45
 
 
 def test_balance_batches_empty() -> None:
