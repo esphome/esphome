@@ -12,10 +12,11 @@ from esphome import config_validation as cv
 from esphome.components.esphome.ota import (
     AUTO_LOAD,
     FILTER_SOURCE_FILES,
+    _encryption_schema,
     _validate_no_password_with_encryption,
     ota_esphome_final_validate,
 )
-from esphome.components.noise import static_encryption_key
+from esphome.components.noise import encryption_schema, static_encryption_key
 from esphome.const import (
     CONF_API,
     CONF_ENCRYPTION,
@@ -29,6 +30,7 @@ from esphome.const import (
     CONF_VERSION,
 )
 from esphome.core import CORE, ID
+from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD
 import esphome.final_validate as fv
 
 
@@ -196,6 +198,21 @@ def test_encryption_without_any_key_rejected() -> None:
             ota_esphome_final_validate({})
     finally:
         fv.full_config.reset(token)
+
+
+def test_encryption_schema_allow_plaintext_upload() -> None:
+    """The opt in is an ota only option with no default, so a merged block
+    that does not mention it cannot clear it; the shared api schema does not
+    know it."""
+    assert _encryption_schema(None) == {}
+    assert _encryption_schema({CONF_ALLOW_PLAINTEXT_UPLOAD: True}) == {
+        CONF_ALLOW_PLAINTEXT_UPLOAD: True
+    }
+    assert _encryption_schema({CONF_KEY: API_KEY}) == {CONF_KEY: API_KEY}
+    with pytest.raises(cv.Invalid):
+        _encryption_schema(False)
+    with pytest.raises(cv.Invalid):
+        encryption_schema({CONF_ALLOW_PLAINTEXT_UPLOAD: True})
 
 
 def test_encryption_key_mismatch_between_merged_configs_rejected() -> None:
@@ -476,43 +493,43 @@ def test_static_encryption_key() -> None:
     ("yaml_name", "defines_present", "defines_absent"),
     [
         # An api key alone compiles the transport in without requiring it;
-        # the device uses the api server's key, not a copy
+        # the ota keeps its own pointer to the key so safe mode, which never
+        # constructs the api server, can still use it
         (
             "api_key_offer",
-            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_FROM_API"},
+            {"USE_OTA_ENCRYPTION"},
             {"USE_OTA_ENCRYPTION_REQUIRED", "USE_OTA_ENCRYPTION_PROVISIONED"},
         ),
         # A password still guards plaintext uploads on an offering device
         (
             "api_key_offer_password",
-            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_FROM_API", "USE_OTA_PASSWORD"},
+            {"USE_OTA_ENCRYPTION", "USE_OTA_PASSWORD"},
             {"USE_OTA_ENCRYPTION_REQUIRED", "USE_OTA_ENCRYPTION_PROVISIONED"},
+        ),
+        # The migration install keeps the password for the old firmware's
+        # prompt but the build it sends is authenticated by the key alone
+        (
+            "migration_password",
+            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_REQUIRED"},
+            {"USE_OTA_PASSWORD", "USE_OTA_ENCRYPTION_PROVISIONED"},
         ),
         # The ota encryption block is what makes the device refuse plaintext
         (
             "encryption_required",
-            {
-                "USE_OTA_ENCRYPTION",
-                "USE_OTA_ENCRYPTION_REQUIRED",
-                "USE_OTA_ENCRYPTION_FROM_API",
-            },
+            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_REQUIRED"},
             {"USE_OTA_ENCRYPTION_PROVISIONED"},
         ),
         # Without api encryption the ota key is the device's own
         (
             "own_key",
             {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_REQUIRED"},
-            {"USE_OTA_ENCRYPTION_FROM_API", "USE_OTA_ENCRYPTION_PROVISIONED"},
+            {"USE_OTA_ENCRYPTION_PROVISIONED"},
         ),
         # A key provisioned at runtime lives in the api server; the device
         # offers with it once provisioned and never requires it
         (
             "runtime_api_key",
-            {
-                "USE_OTA_ENCRYPTION",
-                "USE_OTA_ENCRYPTION_FROM_API",
-                "USE_OTA_ENCRYPTION_PROVISIONED",
-            },
+            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_PROVISIONED"},
             {"USE_OTA_ENCRYPTION_REQUIRED"},
         ),
         # No api encryption at all keeps the noise glue out of the build
@@ -522,7 +539,6 @@ def test_static_encryption_key() -> None:
             {
                 "USE_OTA_ENCRYPTION",
                 "USE_OTA_ENCRYPTION_REQUIRED",
-                "USE_OTA_ENCRYPTION_FROM_API",
                 "USE_OTA_ENCRYPTION_PROVISIONED",
             },
         ),
@@ -541,8 +557,10 @@ def test_encryption_offer_codegen(
     assert defines_present <= defines
     assert not (defines_absent & defines)
     encrypted = "USE_OTA_ENCRYPTION" in defines_present
-    own_key = encrypted and "USE_OTA_ENCRYPTION_FROM_API" not in defines_present
+    own_key = encrypted and "USE_OTA_ENCRYPTION_PROVISIONED" not in defines_present
     assert ("esphome_esphomeotacomponent_id->set_noise_psk(" in main_cpp) is own_key
+    # The api shares the ota's array instead of emitting the same key twice
+    assert main_cpp.count("_psk[] PROGMEM") == (1 if own_key else 0)
     assert ("set_auth_password(" in main_cpp) is ("USE_OTA_PASSWORD" in defines_present)
     # The noise transport source compiles only when the define is set
     assert FILTER_SOURCE_FILES() == ([] if encrypted else ["ota_esphome_noise.cpp"])
@@ -553,6 +571,16 @@ def test_password_with_encryption_rejected() -> None:
     config = {CONF_PASSWORD: "pw", CONF_ENCRYPTION: {CONF_KEY: API_KEY}}
     with pytest.raises(cv.Invalid, match="cannot be combined"):
         _validate_no_password_with_encryption(config)
+
+
+def test_password_with_migration_install_accepted() -> None:
+    """The old firmware may still ask for the password on the plaintext
+    leg of the migration install."""
+    config = {
+        CONF_PASSWORD: "pw",
+        CONF_ENCRYPTION: {CONF_KEY: API_KEY, CONF_ALLOW_PLAINTEXT_UPLOAD: True},
+    }
+    assert _validate_no_password_with_encryption(config) is config
 
 
 def test_password_alone_accepted() -> None:
