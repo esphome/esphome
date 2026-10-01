@@ -119,23 +119,29 @@ async def to_code(config):
             sens = await sensor.new_sensor(config[key])
             cg.add(getattr(var, func_name)(sens))
 
-    if CONF_TEMPERATURE_SOURCE in config:
-        sens = await cg.get_variable(config[CONF_TEMPERATURE_SOURCE])
+    if (temperature_source := config.get(CONF_TEMPERATURE_SOURCE)) is not None:
+        sens = await cg.get_variable(temperature_source)
         cg.add(var.set_temperature_source(sens))
 
-    if CONF_HUMIDITY_SOURCE in config:
-        sens = await cg.get_variable(config[CONF_HUMIDITY_SOURCE])
+    if (humidity_source := config.get(CONF_HUMIDITY_SOURCE)) is not None:
+        sens = await cg.get_variable(humidity_source)
         cg.add(var.set_humidity_source(sens))
 
-    if CONF_AMBIENT_PRESSURE_COMPENSATION in config:
+    if (
+        ambient_pressure_compensation := config.get(CONF_AMBIENT_PRESSURE_COMPENSATION)
+    ) is not None:
         cg.add(
             var.set_ambient_pressure_compensation(
-                config[CONF_AMBIENT_PRESSURE_COMPENSATION] * 1000  # convert bar to hPa
+                ambient_pressure_compensation * 1000  # convert bar to hPa
             )
         )
 
-    if CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE in config:
-        sens = await cg.get_variable(config[CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE])
+    if (
+        ambient_pressure_compensation_source := config.get(
+            CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE
+        )
+    ) is not None:
+        sens = await cg.get_variable(ambient_pressure_compensation_source)
         cg.add(var.set_ambient_pressure_source(sens))
 
     cg.add(var.set_measurement_mode(config[CONF_MEASUREMENT_MODE]))
