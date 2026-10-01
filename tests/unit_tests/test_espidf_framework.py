@@ -1500,6 +1500,14 @@ def test_get_idf_version_raises_without_a_source(tmp_path: Path) -> None:
         _get_idf_version(tmp_path)
 
 
+def test_get_idf_version_wraps_an_unreadable_source(tmp_path: Path) -> None:
+    """A source that cannot be decoded keeps the RuntimeError contract."""
+    (tmp_path / "version.txt").write_bytes(b"\xff\xfev")
+    with pytest.raises(RuntimeError, match="Can't get ESP-IDF version") as info:
+        _get_idf_version(tmp_path)
+    assert isinstance(info.value.__cause__, UnicodeError)
+
+
 def test_idf_tools_version_runs_the_framework_script(tmp_path: Path) -> None:
     with patch(
         "esphome.espidf.framework.run_command", return_value=(True, "5.5\n", "")

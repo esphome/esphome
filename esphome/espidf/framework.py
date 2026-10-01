@@ -364,9 +364,12 @@ def _get_idf_version(idf_framework_root: PathType) -> str:
         RuntimeError: If ESP-IDF version cannot be determined
     """
     root = Path(idf_framework_root)
-    version = read_idf_version_txt(root) or read_idf_version_header(root)
+    try:
+        version = read_idf_version_txt(root) or read_idf_version_header(root)
+    except (OSError, UnicodeError) as e:
+        raise RuntimeError(f"Can't get ESP-IDF version of {root}: {e}") from e
     if version is None:
-        raise RuntimeError(f"Can't get ESP-IDF version of {idf_framework_root}")
+        raise RuntimeError(f"Can't get ESP-IDF version of {root}")
     return version
 
 
