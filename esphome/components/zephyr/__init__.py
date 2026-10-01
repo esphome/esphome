@@ -51,6 +51,7 @@ from .const import (
     CONF_MODULES,
     CONF_NINJA_VERSION,
     CONF_OVERLAYS,
+    CONF_RUNNER,
     CONF_SHIELD_SOURCE,
     CONF_SHIELDS,
     CONF_SINGLE_SLOT,
@@ -70,6 +71,7 @@ from .const import (
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
     KEY_RUNNER,
+    KEY_SDK_SOURCE_RESOLVED_REF,
     KEY_SHIELD_ROOT,
     KEY_SHIELDS,
     KEY_SINGLE_SLOT,
@@ -99,6 +101,7 @@ from .variants import (
     ZephyrModuleTemplate,
     get_variant_module,
     resolve_sdk,
+    set_core_data,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -675,13 +678,15 @@ def zephyr_to_code(config: ConfigType) -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _modules_to_code(config: ConfigType) -> None:
-    # .get(): nrf52's config dict has no modules key.
-    #
     # Runs at the lowest priority so every component has already requested its own
     # modules -- a user-supplied zephyr: modules: entry must always win, and a
     # version-only override needs every request already recorded to have something to
     # attach to (final resolution happens later still, in resolve_zephyr_modules()).
-    for module_conf in config.get(CONF_MODULES, []):
+    _apply_module_overrides(config.get(CONF_MODULES, []))
+
+
+def _apply_module_overrides(module_confs: list[ConfigType]) -> None:
+    for module_conf in module_confs:
         name = module_conf[CONF_NAME]
         source = module_conf.get(CONF_SOURCE)
         if source is None:
@@ -964,7 +969,7 @@ def _validate_watchdog_timeout(value):
     # variants can't reach it) and enforced later once VARIANTS[variant] is known.
     if isinstance(value, (int, float)) and value == 0:
         return cv.TimePeriod(seconds=0)
-    period = cv.positive_time_period_seconds(value)
+    period = cv.positive_time_period_milliseconds(value)
     if period == cv.TimePeriod(seconds=0):
         return period
     return cv.Range(max=cv.TimePeriod(seconds=60))(period)
@@ -1502,6 +1507,46 @@ async def to_code(config: ConfigType) -> None:
     await get_variant_module(variant).to_code(config)
 
 
+def _restore_upload_data(zephyr_config: ConfigType) -> None:
+    """Rebuild what upload reads from CORE.data[KEY_ZEPHYR] out of the cached validated
+    config, which skips validation. Re-validating that dict isn't an option: validation
+    adds keys its own schema rejects, and would re-resolve moving git refs the build
+    already pinned."""
+    if KEY_FRAMEWORK_VERSION not in CORE.data.get(KEY_CORE, {}):
+        raise EsphomeError(
+            "Zephyr framework version is missing from the build metadata; "
+            "please re-validate and recompile."
+        )
+    variant = zephyr_config[CONF_VARIANT]
+    variant_data = VARIANTS[variant]
+    framework = zephyr_config[CONF_FRAMEWORK]
+    advanced = zephyr_config.get(CONF_ADVANCED, {})
+    sdk_source = framework.get(CONF_SOURCE)
+    if sdk_source is not None:
+        # The cache holds paths as strings; the schema turns them back into Paths.
+        resolved_ref = sdk_source.get(KEY_SDK_SOURCE_RESOLVED_REF)
+        sdk_source = _FRAMEWORK_SOURCE_SCHEMA(
+            {k: v for k, v in sdk_source.items() if k != KEY_SDK_SOURCE_RESOLVED_REF}
+        )
+        if resolved_ref is not None:
+            sdk_source[KEY_SDK_SOURCE_RESOLVED_REF] = resolved_ref
+    set_core_data(
+        variant,
+        zephyr_config[CONF_BOARD],
+        _get_family_module(variant_data.family).bootloader(advanced)
+        if variant_data.family
+        else "",
+        CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION],
+        zephyr_config,
+        framework_type=resolve_sdk(variant_data, framework.get(CONF_TYPE))[0],
+        sdk_source=sdk_source,
+        runner=advanced.get(CONF_RUNNER),
+    )
+    _apply_module_overrides(
+        cv.ensure_list(_MODULE_SCHEMA)(zephyr_config.get(CONF_MODULES, []))
+    )
+
+
 def upload_program(config: ConfigType, args, host: str) -> bool:
     if KEY_ZEPHYR not in CORE.data:
         zephyr_config = config.get(CORE.target_platform)
@@ -1510,7 +1555,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 "Zephyr platform configuration is missing; "
                 "please re-validate and recompile."
             )
-        CONFIG_SCHEMA(zephyr_config)
+        _restore_upload_data(zephyr_config)
 
     if host == "BOOTSEL":
         from .variants import rpi_pico_family

@@ -24,6 +24,8 @@ from esphome.core import CORE, EsphomeError
 from esphome.types import ConfigType
 
 from ..const import (
+    BOOTLOADER_MCUBOOT,
+    CONF_BOOTLOADER,
     CONF_NINJA_VERSION,
     CONF_SINGLE_SLOT,
     CONF_SNIPPETS,
@@ -353,6 +355,16 @@ def _sdk_min_version(
     if sdk_name == variant.sdk_name:
         return variant.min_version_override or sdk.min_version
     return sdk.min_version
+
+
+def mcuboot_or_none(advanced: dict) -> str:
+    """Return MCUboot if advanced: bootloader: selects it, else "" -- the value
+    variants with an opt-in bootloader pass to set_core_data()."""
+    return (
+        BOOTLOADER_MCUBOOT
+        if advanced.get(CONF_BOOTLOADER) == BOOTLOADER_MCUBOOT
+        else ""
+    )
 
 
 def qualify_board(

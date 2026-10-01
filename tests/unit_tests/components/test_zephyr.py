@@ -13,6 +13,7 @@ from esphome.components.zephyr import (
     _resolve_board_source,
     _resolve_shield_source,
     _resolve_snippet_source,
+    _restore_upload_data,
     _variant_config_schema,
     add_extra_build_file,
     add_extra_script,
@@ -1740,26 +1741,147 @@ def test_upload_program_resolves_variant_and_flashes(
 # ---------------------------------------------------------------------------
 
 
-def test_upload_program_repopulates_zephyr_data_when_missing_from_cache() -> None:
-    CORE.data.pop(KEY_ZEPHYR, None)
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
-    zephyr_config = {"variant": "NATIVESIM"}
-    config = {PLATFORM_ZEPHYR: zephyr_config}
+_UPLOAD_FIELDS = (
+    "variant",
+    "family",
+    "framework_type",
+    "bootloader",
+    "runner",
+    "west_version",
+    "ninja_version",
+    "sdk_source",
+    "module_requests",
+    "module_overrides",
+)
 
-    def fake_schema(cfg):
-        CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NATIVESIM")
-        return cfg
+
+def _validate_zephyr_config(user_config: dict) -> dict:
+    """Validate like a compile does, then apply the to_code-time module overrides."""
+    from esphome.components.zephyr import _apply_module_overrides
+    from esphome.components.zephyr.const import CONF_MODULES
+
+    CORE.data[KEY_CORE] = {}
+    validated = _variant_config_schema(user_config)
+    _apply_module_overrides(validated.get(CONF_MODULES, []))
+    return validated
+
+
+def _restore_from_cache(validated: dict) -> tuple[dict, dict]:
+    """Return (compile-time upload fields, fields restored from a JSON round trip)."""
+    import json
+
+    from esphome.compiled_config import _decode_object, _json_default
+
+    expected = {k: zephyr_data_snapshot()[k] for k in _UPLOAD_FIELDS}
+    framework_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    cached = json.loads(
+        json.dumps(validated, default=_json_default), object_hook=_decode_object
+    )
+    CORE.data.pop(KEY_ZEPHYR)
+    CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: framework_version}
+    _restore_upload_data(cached)
+    return expected, {k: zephyr_data_snapshot()[k] for k in _UPLOAD_FIELDS}
+
+
+def zephyr_data_snapshot() -> dict:
+    return dict(CORE.data[KEY_ZEPHYR])
+
+
+@pytest.mark.parametrize("variant", sorted(VARIANTS))
+def test_upload_program_restores_what_validation_set(variant: str) -> None:
+    validated = _validate_zephyr_config({CONF_VARIANT: variant})
+    expected, restored = _restore_from_cache(validated)
+    assert restored == expected
+
+
+def test_upload_program_restore_keeps_pinned_git_source_without_resolving() -> None:
+    sha = "0123456789abcdef0123456789abcdef01234567"
+    sdk = VARIANTS["ESP32"].sdk
+
+    def fake_resolve(source: dict, refresh: object) -> str:
+        source["resolved_ref"] = sha
+        return sdk.default_version
 
     with patch(
-        "esphome.components.zephyr.CONFIG_SCHEMA", side_effect=fake_schema
-    ) as mock_schema:
-        result = upload_program(config, object(), "some_host")
+        "esphome.components.zephyr.dts_fetch.resolve_sdk_source_version",
+        side_effect=fake_resolve,
+    ) as resolve:
+        validated = _validate_zephyr_config(
+            {
+                CONF_VARIANT: "ESP32",
+                CONF_FRAMEWORK: {CONF_SOURCE: {CONF_TYPE: TYPE_GIT, "ref": "main"}},
+            }
+        )
+        resolve.reset_mock()
+        expected, restored = _restore_from_cache(validated)
 
-    mock_schema.assert_called_once_with(zephyr_config)
-    assert CORE.data[KEY_ZEPHYR]["variant"] == "NATIVESIM"
-    # NATIVESIM isn't esp32-family -- no uploader for it yet, but the repopulation
-    # above is what let zephyr_variant_family() run at all instead of KeyError-ing.
-    assert result is False
+    resolve.assert_not_called()
+    assert restored["sdk_source"]["resolved_ref"] == sha
+    assert restored == expected
+
+
+def test_upload_program_restore_turns_local_source_path_back_into_path(
+    tmp_path: Path,
+) -> None:
+    CORE.config_path = tmp_path / "test.yaml"
+    sdk = VARIANTS["ESP32"].sdk
+    with patch(
+        "esphome.components.zephyr.dts_fetch.resolve_sdk_source_version",
+        return_value=sdk.default_version,
+    ):
+        validated = _validate_zephyr_config(
+            {
+                CONF_VARIANT: "ESP32",
+                CONF_FRAMEWORK: {
+                    CONF_SOURCE: {CONF_TYPE: TYPE_LOCAL, CONF_PATH: str(tmp_path)}
+                },
+            }
+        )
+        expected, restored = _restore_from_cache(validated)
+
+    assert restored["sdk_source"][CONF_PATH] == tmp_path
+    assert restored == expected
+
+
+def test_upload_program_restore_reapplies_user_module_overrides(
+    tmp_path: Path,
+) -> None:
+    from esphome.components.zephyr.const import CONF_MODULES
+
+    CORE.config_path = tmp_path / "test.yaml"
+    validated = _validate_zephyr_config(
+        {
+            CONF_VARIANT: "ESP32",
+            CONF_MODULES: [
+                {
+                    CONF_NAME: "git_mod",
+                    CONF_SOURCE: {
+                        CONF_TYPE: TYPE_GIT,
+                        CONF_URL: "https://example.com/m",
+                    },
+                },
+                {
+                    CONF_NAME: "local_mod",
+                    CONF_SOURCE: {CONF_TYPE: TYPE_LOCAL, CONF_PATH: str(tmp_path)},
+                },
+                {CONF_NAME: "tweaked_mod", CONF_VERSION: "1.2.3"},
+            ],
+        }
+    )
+    expected, restored = _restore_from_cache(validated)
+
+    assert set(restored["module_overrides"]) == {"git_mod", "local_mod", "tweaked_mod"}
+    assert restored == expected
+
+
+def test_upload_program_raises_when_framework_version_not_restored() -> None:
+    CORE.data.pop(KEY_ZEPHYR, None)
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+
+    with pytest.raises(EsphomeError, match="re-validate and recompile"):
+        upload_program(
+            {PLATFORM_ZEPHYR: {CONF_VARIANT: "ESP32"}}, object(), "some_host"
+        )
 
 
 def test_upload_program_raises_when_zephyr_config_missing_from_cache() -> None:
