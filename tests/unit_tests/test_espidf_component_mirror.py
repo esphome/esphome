@@ -505,17 +505,33 @@ def test_sync_failure_is_tolerated(
     _assert_sync_lock_released()
 
 
-@pytest.mark.parametrize(
-    "side_effect",
-    [OSError("no such file"), subprocess.TimeoutExpired(cmd=[], timeout=120)],
-)
 def test_sync_subprocess_errors_are_tolerated(
-    tmp_path: Path, side_effect: Exception, caplog: pytest.LogCaptureFixture
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     _write_lock(tmp_path)
-    ok, _ = _run_sync(tmp_path, side_effect=side_effect)
+    ok, _ = _run_sync(tmp_path, side_effect=OSError("no such file"))
     assert not ok
     assert "Could not mirror" in caplog.text
+    _assert_sync_lock_released()
+
+
+def test_sync_timeout_keeps_the_finished_components(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A timed-out sync promotes what completed, so later runs only fetch
+    the remainder instead of starting over."""
+    _write_lock(tmp_path, _ns_cmp_lock("2.0.0"))
+
+    def slow_sync(cmd, **kwargs):
+        _add_to_mirror(Path(cmd[-1]), _NS_CMP_2)
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=120)
+
+    ok, _ = _run_sync(tmp_path, side_effect=slow_sync)
+    assert not ok
+    assert "timed out" in caplog.text
+    mirror = component_mirror.get_mirror_path()
+    assert component_mirror.missing_deps(mirror, [_NS_CMP_2]) == []
+    assert not (mirror / ".staging").exists()
     _assert_sync_lock_released()
 
 

@@ -323,6 +323,20 @@ def sync_component_mirror(
                 ", ".join(dep.spec for dep in still),
             )
             return False
+    except subprocess.TimeoutExpired:
+        # Keep what finished: a component's index is staged only after its
+        # files, so promoting salvages it and each run converges instead
+        # of paying the timeout again from scratch on a slow link.
+        with suppress(*_BAD_INDEX_ERRORS, EsphomeError):
+            _promote(staging, mirror)
+        kept = len(to_sync) - len(missing_deps(mirror, to_sync))
+        _LOGGER.warning(
+            "Mirroring timed out after %d s; kept %d of %d component(s)",
+            _SYNC_TIMEOUT_S,
+            kept,
+            len(to_sync),
+        )
+        return False
     except (*_BAD_INDEX_ERRORS, EsphomeError, subprocess.SubprocessError) as err:
         # Includes a failed index publish; the live index is intact.
         _LOGGER.warning("Could not mirror IDF components: %s", err)
