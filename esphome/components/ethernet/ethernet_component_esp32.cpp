@@ -41,6 +41,10 @@
 #include "esp_eth_mac_dm9051.h"
 #include "esp_eth_phy_dm9051.h"
 #endif
+#ifdef USE_ETHERNET_KSZ8851SNL
+#include "esp_eth_mac_ksz8851snl.h"
+#include "esp_eth_phy_ksz8851snl.h"
+#endif
 #endif  // ESP_IDF_VERSION >= 6.0.0
 
 // LAN867x header exists on all IDF versions (external component since IDF 5.3)
@@ -264,6 +268,8 @@ void EthernetComponent::ethernet_lazy_init_() {
   eth_enc28j60_config_t enc28j60_config = ETH_ENC28J60_DEFAULT_CONFIG(host, &devcfg);
 #elif defined(USE_ETHERNET_CH390)
   eth_ch390_config_t ch390_config = ETH_CH390_DEFAULT_CONFIG(host, &devcfg);
+#elif defined(USE_ETHERNET_KSZ8851SNL)
+  eth_ksz8851snl_config_t ksz8851snl_config = ETH_KSZ8851SNL_DEFAULT_CONFIG(host, &devcfg);
 #endif
 
 #if defined(USE_ETHERNET_W5500)
@@ -289,6 +295,11 @@ void EthernetComponent::ethernet_lazy_init_() {
   ch390_config.int_gpio_num = this->interrupt_pin_;
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   ch390_config.poll_period_ms = this->polling_interval_;
+#endif
+#elif defined(USE_ETHERNET_KSZ8851SNL)
+  ksz8851snl_config.int_gpio_num = this->interrupt_pin_;
+#ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
+  ksz8851snl_config.poll_period_ms = this->polling_interval_;
 #endif
 #endif
 
@@ -418,6 +429,12 @@ void EthernetComponent::ethernet_lazy_init_() {
     case ETHERNET_TYPE_CH390: {
       mac = esp_eth_mac_new_ch390(&ch390_config, &mac_config);
       this->phy_ = esp_eth_phy_new_ch390(&phy_config);
+      break;
+    }
+#elif defined(USE_ETHERNET_KSZ8851SNL)
+    case ETHERNET_TYPE_KSZ8851SNL: {
+      mac = esp_eth_mac_new_ksz8851snl(&ksz8851snl_config, &mac_config);
+      this->phy_ = esp_eth_phy_new_ksz8851snl(&phy_config);
       break;
     }
 #endif
@@ -592,6 +609,10 @@ void EthernetComponent::dump_config() {
 #elif defined(USE_ETHERNET_CH390)
     case ETHERNET_TYPE_CH390:
       eth_type = "CH390";
+      break;
+#elif defined(USE_ETHERNET_KSZ8851SNL)
+    case ETHERNET_TYPE_KSZ8851SNL:
+      eth_type = "KSZ8851SNL";
       break;
 #endif
 #ifdef USE_ETHERNET_OPENETH
