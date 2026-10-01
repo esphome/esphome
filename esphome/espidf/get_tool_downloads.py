@@ -28,11 +28,10 @@ from idf_tools import ToolBinaryError, get_idf_download_url_apply_mirrors
 def collect_downloads() -> list[dict]:
     init_idf_tools(sys.argv[1])
 
-    def on_broken(name: str, e: ToolBinaryError) -> bool:
+    def on_broken(name: str, e: ToolBinaryError) -> None:
         # A broken installed binary is idf_tools' problem to repair on
         # install; note it and treat the version as not installed.
         print(f"tool {name} failed its binary check: {e}", file=sys.stderr)
-        return True
 
     return [
         {

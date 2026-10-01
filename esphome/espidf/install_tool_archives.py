@@ -30,12 +30,11 @@ def collect_pending(
 
     broken: set[str] = set()
 
-    def on_broken(name: str, e: ToolBinaryError) -> bool:
+    def on_broken(name: str, e: ToolBinaryError) -> None:
         # Repairing a broken installed binary is the installer's job, but
         # the prefetch listed the tool, so it must still claim its filename
         print(f"leaving broken {name} to the installer: {e}", file=sys.stderr)
         broken.add(name)
-        return True
 
     pending: dict[tuple[str, str], Any] = {}
     claimed: dict[str, str] = {}

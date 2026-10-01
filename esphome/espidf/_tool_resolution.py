@@ -37,11 +37,11 @@ def archive_name(download: object) -> str:
 def iter_tool_downloads(
     targets_csv: str,
     tool_specs: list[str],
-    on_broken: Callable[[str, ToolBinaryError], bool],
+    on_broken: Callable[[str, ToolBinaryError], None],
 ) -> Iterator[tuple[object, str, str, object]]:
     """Yield (tool, name, version, download) per uninstalled tool, mirroring
-    ``idf_tools.py install``'s expansion; ``on_broken(name, err)`` returns
-    True to treat a tool with a failing installed binary as not installed."""
+    ``idf_tools.py install``'s expansion; ``on_broken(name, err)`` is told
+    about a failing installed binary, and the tool counts as not installed."""
     targets = add_and_check_targets(IDFEnv.get_idf_env(), targets_csv)
     tools_info = load_tools_info()
     for name in expand_tools_arg(tool_specs, tools_info, targets):
@@ -58,8 +58,7 @@ def iter_tool_downloads(
         try:
             tool.find_installed_versions()
         except ToolBinaryError as e:
-            if not on_broken(name, e):
-                continue
+            on_broken(name, e)
         if version in tool.versions_installed or version not in tool.versions:
             continue
         download = tool.versions[version].get_download_for_platform(CURRENT_PLATFORM)
