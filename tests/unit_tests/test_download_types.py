@@ -64,6 +64,11 @@ def test_esp32_factory_entry_requires_the_file(tmp_path: Path) -> None:
     files = [entry["file"] for entry in _download_types("esp32", storage)]
     assert files == ["firmware.factory.bin", "firmware.ota.bin"]
 
+    # A storage loaded from disk holds the path as a string.
+    storage.firmware_bin_path = str(tmp_path / "firmware.bin")
+    files = [entry["file"] for entry in _download_types("esp32", storage)]
+    assert files == ["firmware.factory.bin", "firmware.ota.bin"]
+
 
 def _nrf52_files(tmp_path: Path, *built: str) -> list[str]:
     """The files nrf52 offers for a build directory holding *built*."""

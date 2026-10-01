@@ -8,7 +8,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
-from unittest.mock import call, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -1180,6 +1180,37 @@ def test_tree_skips_bootloader_unreadable_cache_reads_full(
     with caplog.at_level("DEBUG"):
         assert toolchain.tree_skips_bootloader(build) is False
     assert "assuming a full build" in caplog.text
+
+
+def test_create_factory_bin_merges_the_listed_flash_files(
+    setup_core: Path,
+) -> None:
+    """Every listed file lands in the esptool merge argv, address sorted."""
+    _setup_build(setup_core)
+    CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = "4MB"
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=0\n"
+    )
+    (build / "app.bin").write_bytes(b"app")
+    (build / "boot.bin").write_bytes(b"boot")
+    (build / "flasher_args.json").write_text(
+        '{"flash_files": {"0x10000": "app.bin", "0x0": "boot.bin"},'
+        ' "extra_esptool_args": {"chip": "esp32"}}'
+    )
+    with (
+        patch.object(toolchain, "_get_idf_env", return_value={}),
+        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
+        patch.object(
+            toolchain.subprocess, "run", return_value=MagicMock(returncode=0)
+        ) as mock_run,
+    ):
+        assert toolchain.create_factory_bin() is True
+    argv = mock_run.call_args.args[0]
+    boot = argv.index("0x0")
+    assert argv[boot + 1].endswith("boot.bin")
+    assert argv[boot + 2] == "0x10000"
 
 
 def test_create_factory_bin_fails_on_a_missing_listed_flash_file(

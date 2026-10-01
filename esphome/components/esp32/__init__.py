@@ -643,7 +643,7 @@ def get_download_types(storage_json):
     if storage_json.firmware_bin_path is None:
         return []
     types = []
-    factory = storage_json.firmware_bin_path.parent / "firmware.factory.bin"
+    factory = Path(storage_json.firmware_bin_path).parent / "firmware.factory.bin"
     if factory.is_file():
         # A --skip-bootloader build deliberately has no factory image.
         types.append(
