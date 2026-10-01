@@ -163,6 +163,53 @@ def test_has_discovered_components_after_configure(tmp_path: Path) -> None:
     assert has_discovered_components()
 
 
+@pytest.mark.parametrize("minimal", [False, True])
+def test_get_project_cmakelists_emits_ldgen_override(
+    minimal: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Both renders override the ldgen dep walker to drop the app archive,
+    after include(project.cmake) which defines the original."""
+    monkeypatch.delenv("ESPHOME_LDGEN_FULL_DEPS", raising=False)
+    monkeypatch.delenv("ESPHOME_LDGEN_STRICT", raising=False)
+    content = _render(minimal=minimal)
+    assert "REMOVE_ITEM ${out_list_var} idf::src __idf_src" in content
+    # Quoted so spaced elements survive and an empty list stays defined
+    assert 'set(${out_list_var} "${${out_list_var}}" PARENT_SCOPE)' in content
+    assert 'message(WARNING "ESPHome ldgen app archive exclusion' in content
+    assert 'message(STATUS "ESPHome ldgen override target not found' in content
+    assert 'message(WARNING "ESPHome ldgen override never filtered' in content
+    assert content.index("tools/cmake/project.cmake") < content.index(
+        "function(__ldgen_get_lib_deps_of_target"
+    )
+    # The never-filtered check must run after project() has walked the deps
+    assert content.index("project(test)") < content.index("esphome_ldgen_armed GLOBAL")
+
+
+def test_get_project_cmakelists_ldgen_strict_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ESPHOME_LDGEN_STRICT turns both degradation paths into hard errors so
+    CI fails right away when an IDF bump breaks the override."""
+    monkeypatch.delenv("ESPHOME_LDGEN_FULL_DEPS", raising=False)
+    monkeypatch.setenv("ESPHOME_LDGEN_STRICT", "1")
+    content = _render()
+    assert 'message(FATAL_ERROR "ESPHome ldgen app archive exclusion' in content
+    assert 'message(FATAL_ERROR "ESPHome ldgen override target not found' in content
+    assert 'message(FATAL_ERROR "ESPHome ldgen override never filtered' in content
+    assert "@SEVERITY@" not in content
+    assert "@MISSING@" not in content
+
+
+def test_get_project_cmakelists_ldgen_full_deps_escape_hatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ESPHOME_LDGEN_FULL_DEPS restores stock ldgen behavior."""
+    monkeypatch.setenv("ESPHOME_LDGEN_FULL_DEPS", "true")
+    content = _render()
+    assert "__ldgen_get_lib_deps_of_target" not in content
+    assert "esphome_ldgen_armed" not in content
+
+
 def test_get_project_cmakelists_size_command_uses_json2() -> None:
     """The POST_BUILD size command uses the cheap json2 format, with --ng
     only on the 1.x tool bundled with IDF < 6."""
@@ -623,3 +670,75 @@ def test_pch_checksum_disabled_writes_nothing(
     _make_pch_project(tmp_path)
     write_pch_checksum()
     assert not CORE.relative_build_path(_PCH_SUM_PATH).exists()
+
+
+# The macro body as shipped in tools/cmake/build.cmake; byte identical in
+# IDF 5.5.5 and 6.1.0, so one fixture covers both supported versions.
+IDF_BUILD_CMAKE = """\
+some_other_cmake()
+
+macro(__build_process_project_includes)
+    # Include the sdkconfig cmake file, since the following operations require
+    # knowledge of config values.
+    idf_build_get_property(sdkconfig_cmake SDKCONFIG_CMAKE)
+    include(${sdkconfig_cmake})
+
+    # Make each build property available as a read-only variable
+    idf_build_get_property(build_properties __BUILD_PROPERTIES)
+    foreach(build_property ${build_properties})
+        idf_build_get_property(val ${build_property})
+        set(${build_property} "${val}")
+    endforeach()
+
+    idf_build_get_property(build_component_targets __BUILD_COMPONENT_TARGETS)
+
+    # Include each component's project_include.cmake
+    foreach(component_target ${build_component_targets})
+        __component_get_property(dir ${component_target} COMPONENT_DIR)
+        __component_get_property(_name ${component_target} COMPONENT_NAME)
+        set(COMPONENT_NAME ${_name})
+        set(COMPONENT_DIR ${dir})
+        set(COMPONENT_PATH ${dir})  # this is deprecated, users are encouraged to use COMPONENT_DIR;
+                                    # retained for compatibility
+        if(EXISTS ${COMPONENT_DIR}/project_include.cmake)
+            include(${COMPONENT_DIR}/project_include.cmake)
+        endif()
+    endforeach()
+endmacro()
+"""
+
+
+def _write_idf_build_cmake(tmp_path: Path, text: str = IDF_BUILD_CMAKE) -> Path:
+    idf = tmp_path / "idf"
+    (idf / "tools" / "cmake").mkdir(parents=True)
+    (idf / "tools" / "cmake" / "build.cmake").write_text(text)
+    return idf
+
+
+def test_normalized_macro_strips_comments_and_whitespace() -> None:
+    from esphome.build_gen.espidf import _normalized_macro
+
+    text = "macro(__build_process_project_includes)\n  a( b )  # tail\n\n  # only\n  c(d)\nendmacro()"
+    assert _normalized_macro(text) == ["a( b )", "c(d)"]
+
+
+def test_normalized_macro_none_without_macro() -> None:
+    from esphome.build_gen.espidf import _normalized_macro
+
+    assert _normalized_macro("nothing here") is None
+
+
+def test_idf_macro_matches_the_shipped_body(tmp_path: Path) -> None:
+    """The override's embedded copy must equal what build.cmake ships."""
+    from esphome.build_gen.espidf import idf_macro_matches
+
+    assert idf_macro_matches(_write_idf_build_cmake(tmp_path)) is True
+
+
+def test_idf_macro_mismatch_detected(tmp_path: Path) -> None:
+    from esphome.build_gen.espidf import idf_macro_matches
+
+    changed = IDF_BUILD_CMAKE.replace(
+        "include(${sdkconfig_cmake})", "include(${sdkconfig_cmake} NEW_ARG)"
+    )
+    assert idf_macro_matches(_write_idf_build_cmake(tmp_path, changed)) is False
