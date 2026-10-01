@@ -108,8 +108,8 @@ void UartTcp::try_connect_() {
     return;
   }
   struct sockaddr_storage dest;
-  socklen_t dest_len = socket::set_sockaddr(reinterpret_cast<struct sockaddr *>(&dest), sizeof(dest),
-                                            this->resolved_.text(), this->port_);
+  socklen_t dest_len =
+      this->resolved_.to_sockaddr(reinterpret_cast<struct sockaddr *>(&dest), sizeof(dest), this->port_);
   if (dest_len == 0) {
     this->note_attempt_();
     return;
