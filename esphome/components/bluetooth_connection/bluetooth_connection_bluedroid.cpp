@@ -72,8 +72,8 @@ void BluedroidGattClient::loop() {
     if (millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
       if (this->conn_id_ == UNSET_CONN_ID) {
         this->cancel_pending_open_();
-      } else {
-        // Lost CLOSE_EVT can leave the ACL link up.
+      } else if (st == ClientState::CONNECTING) {
+        // CONNECT_EVT came but OPEN_EVT was lost, so our open still holds the ACL link.
         this->check_and_log_error_("esp_ble_gap_disconnect", esp_ble_gap_disconnect(this->remote_bda_));
       }
       ESP_LOGE(TAG, "[%d] Timeout waiting for teardown, forcing IDLE", this->connection_index_);
@@ -154,6 +154,7 @@ void BluedroidGattClient::tracker_connect_() {
   this->seen_mtu_ = false;
   this->mtu_failed_ = false;
   this->cancel_open_sent_ = false;
+  this->conn_id_ = UNSET_CONN_ID;
   this->enable_loop();
   this->set_state(ClientState::CONNECTING);
   if (this->connection_type_ == ConnectionType::V3_WITHOUT_CACHE) {
@@ -608,6 +609,8 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
     this->listener_->on_connection_state(false, 0, param->open.status);
     return;
   }
+  // ALREADY_OPEN on an existing link sends no CONNECT_EVT, so take the id here.
+  this->conn_id_ = param->open.conn_id;
   if (this->disconnect_pending()) {
     // Open resolved with a teardown scheduled: close now (conn_id_ stays set
     // so CLOSE_EVT still matches).
@@ -684,6 +687,10 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
     case ESP_GATTC_CONNECT_EVT: {
       if (!this->check_addr_(param->connect.remote_bda))
         return false;
+      // Every client interface gets CONNECT_EVT for every new link; only an
+      // attempt in flight owns it. An idle slot must not adopt another slot's link.
+      if (this->state() != ClientState::CONNECTING)
+        break;
       this->conn_id_ = param->connect.conn_id;
       // MTU request here rather than OPEN_EVT, matching the IDF examples.
       auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->connect.conn_id);
