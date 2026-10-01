@@ -20,7 +20,10 @@ void ResamplerMicrophone::setup() {
                                                     input_stream_info.get_channels(), this->target_sample_rate_);
 
   // Allocate now for the expected source format; process_audio_ only sets up again if that format changes
-  this->init_resampler_(input_stream_info);
+  if (!this->init_resampler_(input_stream_info)) {
+    this->mark_failed();
+    return;
+  }
 
   this->source_->add_data_callback([this](const std::vector<uint8_t> &data) { this->process_audio_(data); });
 
@@ -147,7 +150,8 @@ void ResamplerMicrophone::process_audio_(const std::vector<uint8_t> &data) {
     // Stays within the reserved capacity, so this never reallocates
     this->output_buffer_.resize(this->audio_stream_info_.frames_to_bytes(max_output_frames));
 
-    // The resampler's internal buffers hold at most BUFFER_DURATION_MS of audio, so feed it in steps of that size
+    // The resampler's internal buffers hold at most BUFFER_DURATION_MS of audio, so feed it in steps of that size.
+    // 0 dB keeps the microphone level that downstream detectors are tuned for; overshoot saturates instead of wrapping.
     esp_audio_libs::resampler::ResamplerResults results = this->resampler_->resample(
         input, this->output_buffer_.data(), std::min(input_frames, max_input_frames), max_output_frames, 0.0f);
 
