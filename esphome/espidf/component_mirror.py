@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 import subprocess
 from typing import TYPE_CHECKING, NamedTuple
+import zipfile
 
 from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.core import EsphomeError
@@ -177,9 +178,15 @@ def _mirror_has(mirror: Path, dep: ServiceDep) -> bool:
         for entry in json.loads(json_path.read_text(encoding="utf-8"))["versions"]:
             if entry.get("version") == dep.version:
                 checksums = entry.get("checksums")
-                return (mirror / entry["url"]).is_file() and (
-                    not checksums or (mirror / checksums).is_file()
+                # is_zipfile rejects an archive torn by a crash or an
+                # old race, so the next sync replaces it (self-heal).
+                archive = mirror / entry["url"]
+                valid = (
+                    zipfile.is_zipfile(archive)
+                    if archive.suffix == ".zip"
+                    else archive.is_file()
                 )
+                return valid and (not checksums or (mirror / checksums).is_file())
     except _BAD_INDEX_ERRORS:
         return False
     return False

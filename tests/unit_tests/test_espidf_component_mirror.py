@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import subprocess
 from unittest.mock import MagicMock, patch
+import zipfile
 
 from filelock import FileLock
 import pytest
@@ -139,7 +140,8 @@ def _add_to_mirror(mirror: Path, dep: component_mirror.ServiceDep) -> None:
     )
     archive_path = mirror / archive
     archive_path.parent.mkdir(parents=True, exist_ok=True)
-    archive_path.write_bytes(b"zip")
+    with zipfile.ZipFile(archive_path, "w") as zf:
+        zf.writestr("idf_component.yml", "")
     (mirror / checksums).write_text("{}", encoding="utf-8")
 
 
@@ -266,6 +268,10 @@ def test_missing_deps_covered_and_not(tmp_path: Path) -> None:
         pytest.param(
             lambda m: (m / "components/espressif/mdns.json").write_text("{broken"),
             id="corrupt-index",
+        ),
+        pytest.param(
+            lambda m: next(m.rglob("*.zip")).write_bytes(b"PK\x03\x04torn"),
+            id="truncated-archive",
         ),
     ],
 )
