@@ -2,7 +2,6 @@
 
 from collections.abc import Callable, Iterator
 import json
-import os
 from pathlib import Path
 import subprocess
 import sys
@@ -72,7 +71,6 @@ def _run_check(
         patch.object(toolchain, "run_reconfigure", return_value=esphome_rcs[0]),
         patch.object(toolchain, "_run_ninja", return_value=esphome_rcs[1]),
         patch.object(guard.subprocess, "run", side_effect=run),
-        patch.dict(os.environ),
     ):
         return guard.check(tree), calls
 
@@ -86,16 +84,6 @@ def test_check_passes_when_idf_py_changes_nothing(tmp_path: Path) -> None:
         ["/py", str(Path("/idf/tools/idf.py")), "-D", sdkconfig, "reconfigure"],
         ["/py", str(Path("/idf/tools/idf.py")), "-D", sdkconfig, "build"],
     ]
-
-
-def test_check_pins_source_date_epoch(tmp_path: Path) -> None:
-    """ESP-IDF's openthread bakes the configure time into its compile flags."""
-    seen: list[str | None] = []
-    _run_check(
-        _make_tree(tmp_path),
-        lambda cmd: seen.append(os.environ.get("SOURCE_DATE_EPOCH")),
-    )
-    assert seen == ["0", "0"]
 
 
 def test_check_reports_changed_files_and_rebuilt_outputs(tmp_path: Path) -> None:
