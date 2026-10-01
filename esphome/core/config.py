@@ -46,7 +46,7 @@ from esphome.const import (
 )
 from esphome.core import (
     CORE,
-    KEY_CONTROLLER_REGISTRY_COUNT,
+    KEY_CONTROLLER_REGISTRY_CONTROLLERS,
     CoroPriority,
     coroutine_with_priority,
 )
@@ -549,13 +549,21 @@ def _add_library_str(lib: str) -> None:
 # platformio_options keys the native ESP8266 Arduino generator (a later PR
 # in this chain) will honor; its ignored-option warning will consume the same
 # list so the two cannot drift
-NATIVE_ARDUINO_PIO_OPTIONS = frozenset({"board_build.f_cpu", "board_build.ldscript"})
+NATIVE_ARDUINO_PIO_OPTIONS = frozenset(
+    {"board_build.f_cpu", "board_build.ldscript", "board_upload.maximum_size"}
+)
 # The full set that survives into CORE.platformio_options under the native
 # arduino toolchain: lib_ignore is the only specially-translated key below
 # that is stored rather than translated away. Consumed by the esp8266 native
 # backend (later in this chain) for its ignored-option warning; defined here
 # so it stays adjacent to the routing.
-NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS = NATIVE_ARDUINO_PIO_OPTIONS | {"lib_ignore"}
+# build_src_flags and board_build.flash_mode are not user-routable, so
+# not in the set above
+NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS = NATIVE_ARDUINO_PIO_OPTIONS | {
+    "lib_ignore",
+    "build_src_flags",
+    "board_build.flash_mode",
+}
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -603,9 +611,13 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
                 # through to the ignored-option warning). Other native
                 # toolchains have no equivalent and fall through too.
                 cg.add_platformio_option(key, vals[-1])
-            elif key != "upload_speed":
-                # upload_speed needs no handling: it is read from the raw
-                # config at upload time (upload_using_esptool)
+            elif key != "upload_speed" and not (
+                key == "board_upload.flash_size" and CORE.using_toolchain_arduino
+            ):
+                # upload_speed is read from the raw config at upload time.
+                # board_upload.flash_size is dropped silently on arduino:
+                # PlatformIO's esp8266 builder never reads it either, and
+                # published configs (Athom) commonly set it.
                 _LOGGER.warning(
                     "esphome->platformio_options->%s is ignored when building with "
                     "the native '%s' toolchain",
@@ -674,12 +686,22 @@ async def _add_platform_defines() -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _add_controller_registry_define() -> None:
-    # Generate StaticVector size for ControllerRegistry
-    controller_count = CORE.data.get(KEY_CONTROLLER_REGISTRY_COUNT, 0)
-    if controller_count > 0:
-        cg.add_define("USE_CONTROLLER_REGISTRY")
-        cg.add_define("CONTROLLER_REGISTRY_MAX", controller_count)
+async def _add_controller_registry_dispatch() -> None:
+    # controller_dispatch.h defines ControllerRegistry::notify_*() as direct
+    # calls on the controllers returned by esphome_controllers(), emitted as
+    #   static auto esphome_controllers() { return std::tuple{a, b}; }
+    controllers = CORE.data.get(KEY_CONTROLLER_REGISTRY_CONTROLLERS)
+    if not controllers:
+        return
+    cg.add_define("USE_CONTROLLER_REGISTRY")
+    controllers = cg.ArrayInitializer(*controllers)
+    cg.add_global(cg.RawStatement("#include <tuple>"))
+    cg.add_global(
+        cg.RawStatement(
+            f"static auto esphome_controllers() {{ return std::tuple{controllers}; }}"
+        )
+    )
+    cg.add_global(cg.RawStatement('#include "esphome/core/controller_dispatch.h"'))
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -755,7 +777,7 @@ async def to_code(config: ConfigType) -> None:
     )
 
     CORE.add_job(_add_platform_defines)
-    CORE.add_job(_add_controller_registry_define)
+    CORE.add_job(_add_controller_registry_dispatch)
     CORE.add_job(_add_looping_components)
 
     CORE.add_job(_add_automations, config)
@@ -769,6 +791,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-Wno-unused-variable")
     cg.add_build_flag("-Wno-unused-but-set-variable")
     cg.add_build_flag("-Wno-sign-compare")
+    cg.add_build_flag("-Wno-unused-function")
     # C++20 deprecated ++/--, compound assignment, and chained assignment on
     # volatile lvalues; GCC warns via -Wvolatile, on by default at gnu++20.
     # C++23 (P2327R1) removed the deprecation for compound assignment, so the
