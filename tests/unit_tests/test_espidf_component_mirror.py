@@ -466,20 +466,21 @@ def test_sync_runs_the_manager_for_missing_deps(
     assert not ok
     assert "uncovered" in caplog.text
     mirror = component_mirror.get_mirror_path()
-    assert [call.args[0] for call in mock_run.call_args_list] == [
-        [
-            "/penv/python",
-            "-m",
-            "idf_component_manager",
-            "registry",
-            "sync",
-            "--resolution",
-            "latest",
-            "--component",
-            spec,
-            str(mirror / ".staging"),
-        ]
-        for spec in ("bblanchon/arduinojson==7.4.3", "espressif/mdns==1.12.0")
+    # The whole set goes in one invocation: one manager startup.
+    mock_run.assert_called_once()
+    assert mock_run.call_args.args[0] == [
+        "/penv/python",
+        "-m",
+        "idf_component_manager",
+        "registry",
+        "sync",
+        "--resolution",
+        "latest",
+        "--component",
+        "bblanchon/arduinojson==7.4.3",
+        "--component",
+        "espressif/mdns==1.12.0",
+        str(mirror / ".staging"),
     ]
     assert mock_run.call_args.kwargs["env"] == {"PATH": "/penv"}
     _assert_sync_lock_released()
@@ -521,29 +522,86 @@ def test_sync_subprocess_errors_are_tolerated(
     _assert_sync_lock_released()
 
 
-def test_sync_timeout_keeps_the_finished_components(
+def test_sync_timeout_falls_back_to_one_component_at_a_time(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Each component syncs in its own invocation, so the ones that finish
-    before a timeout stay promoted and later runs fetch only the rest."""
+    """A timed-out batch retries per component, so the ones that finish
+    stay promoted and later runs fetch only the rest."""
     _write_lock(tmp_path)
 
     def slow_sync(cmd, **kwargs):
-        namespace, _, rest = cmd[-2].partition("/")
-        name, _, version = rest.partition("==")
-        if name != "arduinojson":
+        specs = [arg for arg in cmd if "==" in arg]
+        if specs != ["bblanchon/arduinojson==7.4.3"]:
+            # The batch, and later the mdns retry, exceed the timeout.
             raise subprocess.TimeoutExpired(cmd=cmd, timeout=120)
+        namespace, _, rest = specs[0].partition("/")
+        name, _, version = rest.partition("==")
         _add_to_mirror(
             Path(cmd[-1]), component_mirror.ServiceDep(namespace, name, version)
         )
         return subprocess.CompletedProcess(cmd, 0, "", "")
 
-    ok, _ = _run_sync(tmp_path, side_effect=slow_sync)
+    ok, mock_run = _run_sync(tmp_path, side_effect=slow_sync)
     assert not ok
+    assert mock_run.call_count == 3  # batch, arduinojson, mdns
+    assert "retrying one component" in caplog.text
     assert "kept 1 of 2" in caplog.text
     mirror = component_mirror.get_mirror_path()
     assert component_mirror.missing_deps(mirror, [_ARDUINOJSON, _MDNS]) == [_MDNS]
     assert not (mirror / ".staging").exists()
+    _assert_sync_lock_released()
+
+
+def test_sync_timeout_then_per_component_completes(tmp_path: Path) -> None:
+    """When every component fits on its own, the fallback finishes the job."""
+    _write_lock(tmp_path)
+
+    def slow_sync(cmd, **kwargs):
+        specs = [arg for arg in cmd if "==" in arg]
+        if len(specs) > 1:
+            raise subprocess.TimeoutExpired(cmd=cmd, timeout=120)
+        namespace, _, rest = specs[0].partition("/")
+        name, _, version = rest.partition("==")
+        _add_to_mirror(
+            Path(cmd[-1]), component_mirror.ServiceDep(namespace, name, version)
+        )
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    ok, mock_run = _run_sync(tmp_path, side_effect=slow_sync)
+    assert ok
+    assert mock_run.call_count == 3  # batch, then one call per component
+    mirror = component_mirror.get_mirror_path()
+    assert component_mirror.missing_deps(mirror, [_ARDUINOJSON, _MDNS]) == []
+
+
+def test_sync_timeout_then_component_error_stops(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A hard error in the fallback loop stops it like any other failure."""
+    _write_lock(tmp_path)
+    effects = [
+        subprocess.TimeoutExpired(cmd=[], timeout=120),
+        subprocess.CompletedProcess([], 1, "", "boom"),
+    ]
+    ok, mock_run = _run_sync(tmp_path, side_effect=effects)
+    assert not ok
+    assert mock_run.call_count == 2
+    assert "Could not mirror" in caplog.text
+    _assert_sync_lock_released()
+
+
+def test_sync_single_component_timeout_is_not_retried(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """With one missing component the batch was already the retry; a build
+    pays the timeout once."""
+    _write_lock(tmp_path, _ns_cmp_lock("2.0.0"))
+    ok, mock_run = _run_sync(
+        tmp_path, side_effect=subprocess.TimeoutExpired(cmd=[], timeout=120)
+    )
+    assert not ok
+    mock_run.assert_called_once()
+    assert "kept 0 of 1" in caplog.text
     _assert_sync_lock_released()
 
 

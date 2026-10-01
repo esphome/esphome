@@ -292,51 +292,62 @@ def sync_component_mirror(
         _LOGGER.warning("Could not lock the component mirror: %s", err)
         return False
     _LOGGER.info("Mirroring %d IDF component(s) for offline builds...", len(to_sync))
+
+    def attempt(specs: list[str]) -> bool:
+        """One registry sync invocation; promotes its staging on success."""
+        # Raises on an undeletable tree; never promote stale files.
+        rmtree(staging)
+        cmd = [python, "-m", "idf_component_manager", "registry", "sync"]
+        # latest: the default "all" follows ranged transitive specs and
+        # syncs every matching version.
+        cmd += ["--resolution", "latest"]
+        for spec in specs:
+            cmd += ["--component", spec]
+        cmd.append(str(staging))
+        result = subprocess.run(
+            cmd,
+            env=env,
+            capture_output=True,
+            # Not text=True: the locale codec can raise UnicodeDecodeError.
+            encoding="utf-8",
+            errors="replace",
+            timeout=_SYNC_TIMEOUT_S,
+            check=False,
+        )
+        if result.returncode != 0:
+            tail = "\n".join((result.stderr or result.stdout).strip().splitlines()[-5:])
+            _LOGGER.warning(
+                "Could not mirror %s (exit %d):\n%s",
+                ", ".join(specs),
+                result.returncode,
+                tail,
+            )
+            return False
+        _promote(staging, mirror)
+        return True
+
     synced = 0
     try:
-        # One component per invocation: the timeout bounds each component,
-        # every completed one is promoted immediately so a slow link banks
-        # progress, and the first failure stops the loop so a build never
-        # waits for more than one timeout.
-        for dep in to_sync:
-            # Raises on an undeletable tree; never promote stale files.
-            rmtree(staging)
-            result = subprocess.run(
-                [
-                    python,
-                    "-m",
-                    "idf_component_manager",
-                    "registry",
-                    "sync",
-                    # latest: the default "all" follows ranged transitive
-                    # specs and syncs every matching version.
-                    "--resolution",
-                    "latest",
-                    "--component",
-                    dep.spec,
-                    str(staging),
-                ],
-                env=env,
-                capture_output=True,
-                # Not text=True: the locale codec can raise UnicodeDecodeError.
-                encoding="utf-8",
-                errors="replace",
-                timeout=_SYNC_TIMEOUT_S,
-                check=False,
-            )
-            if result.returncode != 0:
-                tail = "\n".join(
-                    (result.stderr or result.stdout).strip().splitlines()[-5:]
-                )
-                _LOGGER.warning(
-                    "Could not mirror %s (exit %d):\n%s",
-                    dep.spec,
-                    result.returncode,
-                    tail,
-                )
+        try:
+            # One invocation for the whole set: one manager startup, which
+            # matters on slow hosts.
+            if not attempt([dep.spec for dep in to_sync]):
                 return False
-            _promote(staging, mirror)
-            synced += 1
+            synced = len(to_sync)
+        except subprocess.TimeoutExpired:
+            if len(to_sync) == 1:
+                raise
+            # The timeout now bounds each component, completed ones are
+            # promoted as they finish, and the first failure stops the
+            # loop, so a slow link banks progress every run.
+            _LOGGER.warning(
+                "Mirroring timed out after %d s; retrying one component at a time",
+                _SYNC_TIMEOUT_S,
+            )
+            for dep in to_sync:
+                if not attempt([dep.spec]):
+                    return False
+                synced += 1
         if still := missing_deps(mirror, to_sync):
             # A name the registry spells differently syncs clean yet
             # covers nothing; retrying would loop forever.
