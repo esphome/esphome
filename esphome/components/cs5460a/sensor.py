@@ -17,8 +17,6 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@balrog-kun"]
@@ -32,7 +30,6 @@ PGA_GAIN_OPTIONS = {
 }
 
 CS5460AComponent = cs5460a_ns.class_("CS5460AComponent", spi.SPIDevice, cg.Component)
-CS5460ARestartAction = cs5460a_ns.class_("CS5460ARestartAction", automation.Action)
 
 CONF_SAMPLES = "samples"
 CONF_PHASE_OFFSET = "phase_offset"
@@ -131,21 +128,12 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_power_sensor(sens))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "cs5460a.restart",
-    CS5460ARestartAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(CS5460AComponent),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("restart()"),
 )
-async def restart_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
