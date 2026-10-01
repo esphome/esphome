@@ -12,50 +12,50 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
-DEPENDENCIES = ["network", "socket", "uart"]
+DEPENDENCIES = ["network", "uart"]
 AUTO_LOAD = ["binary_sensor", "socket"]
 MULTI_CONF = True
 
 uart_tcp_ns = cg.esphome_ns.namespace("uart_tcp")
 UartTcp = uart_tcp_ns.class_("UartTcp", cg.Component, uart.UARTDevice)
 
-ROLE = "role"
+CONF_ROLE = "role"
 CONF_RECONNECT_INTERVAL = "reconnect_interval"
 CONF_CONNECTED = "connected"
 
 
-def _validate(config: ConfigType) -> ConfigType:
-    if config[ROLE] == "server" and CONF_HOST in config:
-        raise cv.Invalid("host is only used when role is client", path=[CONF_HOST])
-    if config[ROLE] == "client" and CONF_HOST not in config:
-        raise cv.Invalid("host is required when role is client", path=[CONF_HOST])
-    listens = 1 if config[ROLE] == "server" else 0
-    if listens:
+def _consume_sockets(config: ConfigType) -> ConfigType:
+    if config[CONF_ROLE] == "server":
         socket.consume_sockets(1, "uart_tcp", socket.SocketType.TCP_LISTEN)(config)
-    socket.consume_sockets(1, "uart_tcp")(config)
-    return config
+    return socket.consume_sockets(1, "uart_tcp")(config)
 
+
+BASE_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(UartTcp),
+        cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
+        cv.Required(CONF_PORT): cv.port,
+        cv.Optional(
+            CONF_RECONNECT_INTERVAL, default="5s"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_CONNECTED): binary_sensor.binary_sensor_schema(
+            device_class=DEVICE_CLASS_CONNECTIVITY,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 CONFIG_SCHEMA = cv.All(
-    cv.Schema(
+    cv.typed_schema(
         {
-            cv.GenerateID(): cv.declare_id(UartTcp),
-            cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
-            cv.Optional(ROLE, default="client"): cv.one_of(
-                "client", "server", lower=True
-            ),
-            cv.Optional(CONF_HOST): cv.string,
-            cv.Required(CONF_PORT): cv.port,
-            cv.Optional(
-                CONF_RECONNECT_INTERVAL, default="5s"
-            ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_CONNECTED): binary_sensor.binary_sensor_schema(
-                device_class=DEVICE_CLASS_CONNECTIVITY,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            ),
-        }
-    ).extend(cv.COMPONENT_SCHEMA),
-    _validate,
+            "client": BASE_SCHEMA.extend({cv.Required(CONF_HOST): cv.string}),
+            "server": BASE_SCHEMA,
+        },
+        key=CONF_ROLE,
+        default_type="client",
+        lower=True,
+    ),
+    _consume_sockets,
 )
 
 
@@ -63,7 +63,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    cg.add(var.set_server(config[ROLE] == "server"))
+    cg.add(var.set_server(config[CONF_ROLE] == "server"))
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
     if (host := config.get(CONF_HOST)) is not None:
