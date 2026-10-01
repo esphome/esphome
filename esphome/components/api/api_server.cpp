@@ -171,6 +171,13 @@ void APIServer::loop() {
     this->accept_new_connections_();
   }
 
+  const bool connected = network::is_connected();
+#ifdef USE_NOISE_SPARE_EPHEMERAL
+  if (connected && !noise::has_spare_ephemeral()) {
+    this->refill_spare_ephemeral_();
+  }
+#endif
+
 #ifdef USE_API_OUTGOING_CONNECTION
   if (!this->shutting_down_) {
     this->outgoing_conn_.loop(this);
@@ -193,8 +200,7 @@ void APIServer::loop() {
   }
 
   // Process clients and remove disconnected ones in a single pass
-  // Check network connectivity once for all clients
-  if (!network::is_connected()) {
+  if (!connected) {
     // Network is down - disconnect all clients
     for (auto &client : this->active_clients()) {
       client->on_fatal_error();
@@ -221,6 +227,19 @@ void APIServer::loop() {
     }
   }
 }
+
+#ifdef USE_NOISE_SPARE_EPHEMERAL
+// An OTA handshake is not visible here and just pays the refill it triggered
+void APIServer::refill_spare_ephemeral_() {
+  const uint32_t now = App.get_loop_component_start_time();
+  for (auto &client : this->active_clients()) {
+    if (client->is_still_connecting(now)) {
+      return;
+    }
+  }
+  noise::prepare_spare_ephemeral();
+}
+#endif
 
 void APIServer::remove_client_(uint8_t client_index) {
   auto &client = this->clients_[client_index];
