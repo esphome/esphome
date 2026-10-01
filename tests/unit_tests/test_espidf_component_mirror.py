@@ -296,6 +296,17 @@ def test_missing_deps_damaged_mirror(
     assert component_mirror.missing_deps(mirror, [_MDNS]) == [_MDNS]
 
 
+def test_missing_deps_deletes_a_torn_archive(tmp_path: Path) -> None:
+    """A torn archive is removed on detection, so the manager falls back to
+    the registry even before a heal sync runs."""
+    mirror = tmp_path / "mirror"
+    _add_to_mirror(mirror, _MDNS)
+    torn = next(mirror.rglob("*.zip"))
+    torn.write_bytes(b"PK\x03\x04torn")
+    assert component_mirror.missing_deps(mirror, [_MDNS]) == [_MDNS]
+    assert not torn.exists()
+
+
 def test_missing_deps_covered_without_checksums_field(tmp_path: Path) -> None:
     """An older payload without a checksums field only needs its archive."""
     mirror = tmp_path / "mirror"

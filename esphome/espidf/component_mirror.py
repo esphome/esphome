@@ -203,12 +203,20 @@ def _mirror_has(mirror: Path, dep: ServiceDep) -> bool:
                 # is_zipfile rejects an archive torn by a crash or an
                 # old race, so the next sync replaces it (self-heal).
                 archive = mirror / entry["url"]
-                valid = (
-                    zipfile.is_zipfile(archive)
-                    if archive.suffix == ".zip"
-                    else archive.is_file()
+                if (
+                    archive.suffix == ".zip"
+                    and archive.is_file()
+                    and not (zipfile.is_zipfile(archive))
+                ):
+                    # Deleted, the manager falls back to the registry even
+                    # when the heal sync cannot run; kept, it installs the
+                    # torn file and the configure fails.
+                    with suppress(OSError):
+                        archive.unlink()
+                    return False
+                return archive.is_file() and (
+                    not checksums or (mirror / checksums).is_file()
                 )
-                return valid and (not checksums or (mirror / checksums).is_file())
     except _BAD_INDEX_ERRORS:
         return False
     return False
