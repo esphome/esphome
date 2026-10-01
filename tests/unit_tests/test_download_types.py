@@ -52,20 +52,31 @@ def test_recorded_firmware_path_yields_downloads(platform: str, tmp_path: Path) 
     )
 
 
-def test_esp32_factory_entry_requires_the_file(tmp_path: Path) -> None:
-    """A --skip-bootloader build has no factory image; do not offer one."""
+def test_esp32_skip_bootloader_tree_offers_no_factory_entry(tmp_path: Path) -> None:
+    """A --skip-bootloader tree has no factory image; do not offer one.
+
+    An unreadable tree (PlatformIO, capability probes passing a bare
+    path) reads as a full build and keeps the entry.
+    """
+    from esphome.espidf.toolchain import SKIP_BOOTLOADER_DEFINE
+
     storage = _wizard_storage()
     storage.firmware_bin_path = tmp_path / "firmware.bin"
 
     files = [entry["file"] for entry in _download_types("esp32", storage)]
-    assert files == ["firmware.ota.bin"]
-
-    (tmp_path / "firmware.factory.bin").touch()
-    files = [entry["file"] for entry in _download_types("esp32", storage)]
     assert files == ["firmware.factory.bin", "firmware.ota.bin"]
 
-    # A storage loaded from disk holds the path as a string.
+    cache = tmp_path / "CMakeCache.txt"
+    cache.write_text(f"{SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n")
+    files = [entry["file"] for entry in _download_types("esp32", storage)]
+    assert files == ["firmware.ota.bin"]
+
+    # A capability probe passes the path as a plain string.
     storage.firmware_bin_path = str(tmp_path / "firmware.bin")
+    files = [entry["file"] for entry in _download_types("esp32", storage)]
+    assert files == ["firmware.ota.bin"]
+
+    cache.write_text(f"{SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=0\n")
     files = [entry["file"] for entry in _download_types("esp32", storage)]
     assert files == ["firmware.factory.bin", "firmware.ota.bin"]
 

@@ -642,10 +642,12 @@ def get_download_types(storage_json):
     # No recorded firmware path means nothing was built; no downloads.
     if storage_json.firmware_bin_path is None:
         return []
+    from esphome.espidf.toolchain import tree_skips_bootloader
+
     types = []
-    factory = Path(storage_json.firmware_bin_path).parent / "firmware.factory.bin"
-    if factory.is_file():
-        # A --skip-bootloader build deliberately has no factory image.
+    # A --skip-bootloader tree deliberately has no factory image; an
+    # unreadable tree (PlatformIO, capability probes) reads as full.
+    if not tree_skips_bootloader(Path(storage_json.firmware_bin_path).parent):
         types.append(
             {
                 "title": "Factory format (Previously Modern)",
