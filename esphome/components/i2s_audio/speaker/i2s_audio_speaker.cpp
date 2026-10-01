@@ -77,6 +77,12 @@ void I2SAudioSpeakerBase::loop() {
     ESP_LOGV(TAG, "Started");
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::TASK_RUNNING);
     this->state_ = speaker::STATE_RUNNING;
+#ifdef USE_AUDIO_DAC
+    // The task raises TASK_RUNNING only after enabling the channel, so the clocks are already running
+    if (this->audio_dac_ != nullptr) {
+      this->audio_dac_->on_audio_started();
+    }
+#endif  // USE_AUDIO_DAC
   }
   if (event_group_bits & SpeakerEventGroupBits::TASK_STOPPING) {
     ESP_LOGV(TAG, "Stopping");
