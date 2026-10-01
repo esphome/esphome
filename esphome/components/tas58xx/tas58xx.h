@@ -29,18 +29,26 @@ enum MixerMode : uint8_t {
 
 /// Fault binary sensors that map to a single fault bit. The Python FAULT_SENSORS list uses the same names.
 enum FaultSensor : uint8_t {
-  FAULT_SENSOR_LEFT_CHANNEL_DC_FAULT = 0,
+  FAULT_SENSOR_LEFT_CHANNEL_DC_FAULT,
   FAULT_SENSOR_RIGHT_CHANNEL_DC_FAULT,
   FAULT_SENSOR_LEFT_CHANNEL_OVER_CURRENT,
   FAULT_SENSOR_RIGHT_CHANNEL_OVER_CURRENT,
   FAULT_SENSOR_OTP_CRC_CHECK,
   FAULT_SENSOR_BQ_WRITE_FAILED,
+  FAULT_SENSOR_LOAD_EEPROM_ERROR,
   FAULT_SENSOR_CLOCK_FAULT,
   FAULT_SENSOR_PVDD_OVER_VOLTAGE,
   FAULT_SENSOR_PVDD_UNDER_VOLTAGE,
+  FAULT_SENSOR_RIGHT_CHANNEL_CBC_OVER_CURRENT,
+  FAULT_SENSOR_LEFT_CHANNEL_CBC_OVER_CURRENT,
   FAULT_SENSOR_OVER_TEMP_SHUTDOWN,
-  FAULT_SENSOR_OVER_TEMP_WARNING,
-  FAULT_SENSOR_COUNT,
+  FAULT_SENSOR_LEFT_CHANNEL_CBC_OVER_CURRENT_WARNING,
+  FAULT_SENSOR_RIGHT_CHANNEL_CBC_OVER_CURRENT_WARNING,
+  FAULT_SENSOR_OVER_TEMP_146C_WARNING,    // tas582x OTW Level 4
+  FAULT_SENSOR_OVER_TEMP_WARNING,         // tas582x OTW Level 3 - keep tas5805 naming
+  // FAULT_SENSOR_OVER_TEMP_122C_WARNING, // tas582x OTW Level 2 - not currently included
+  // FAULT_SENSOR_OVER_TEMP_112C_WARNING, // tas582x OTW Level 1 - not currently included
+  FAULT_SENSOR_COUNT,  // keep last
 };
 
 /// Everything that differs between models of the family. One constant instance exists per model, see
@@ -72,6 +80,7 @@ struct ModelInfo {
 };
 
 extern const ModelInfo TAS5805M_MODEL;
+extern const ModelInfo TAS5825M_MODEL;
 
 class TAS58xx : public audio_dac::AudioDac, public PollingComponent, public i2c::I2CDevice {
  public:

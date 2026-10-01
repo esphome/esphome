@@ -23,6 +23,9 @@ CONF_VOLUME_MIN_DB = "volume_min_db"
 CONF_VOLUME_MAX_DB = "volume_max_db"
 CONF_TAS58XX_ID = "tas58xx_id"
 
+DAC_TAS5805M = "tas5805m"
+DAC_TAS5825M = "tas5825m"
+
 tas58xx_ns = cg.esphome_ns.namespace("tas58xx")
 TAS58xx = tas58xx_ns.class_("TAS58xx", AudioDac, cg.PollingComponent, i2c.I2CDevice)
 
@@ -54,12 +57,19 @@ class Model:
 
 
 MODELS: dict[str, Model] = {
-    "tas5805m": Model(
-        model_info=tas58xx_ns.TAS5805M_MODEL,
+    DAC_TAS5805M: Model(
+            model_info=tas58xx_ns.TAS5805M_MODEL,
+            analog_gain_min_db=-15.5,
+            volume_min_db=-103.0,
+            volume_max_db=24.0,
+            default_address=0x2D,
+    ),
+    DAC_TAS5825M: Model(
+        model_info=tas58xx_ns.TAS5825M_MODEL,
         analog_gain_min_db=-15.5,
         volume_min_db=-103.0,
         volume_max_db=24.0,
-        default_address=0x2D,
+        default_address=0x4C,
     ),
 }
 
