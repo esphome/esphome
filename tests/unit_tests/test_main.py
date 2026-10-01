@@ -6460,6 +6460,30 @@ def test_parse_args_logs_states() -> None:
     assert args.states is True
 
 
+@pytest.mark.parametrize("command", ["logs", "run"])
+@pytest.mark.parametrize(
+    ("env_value", "expected"),
+    [(None, False), ("false", False), ("0", False), ("true", True), ("1", True)],
+)
+def test_parse_args_serial_logging_reset_env(
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+    env_value: str | None,
+    expected: bool,
+) -> None:
+    """The serial reset environment default must be a boolean for both commands."""
+    if env_value is None:
+        monkeypatch.delenv("ESPHOME_SERIAL_LOGGING_RESET", raising=False)
+    else:
+        monkeypatch.setenv("ESPHOME_SERIAL_LOGGING_RESET", env_value)
+
+    args = parse_args(["esphome", command, "device.yaml"])
+    assert args.reset is expected
+    if not expected:
+        args = parse_args(["esphome", command, "--reset", "device.yaml"])
+        assert args.reset is True
+
+
 def test_parse_args_argcomplete_only_runs_when_completing() -> None:
     """Only import and invoke argcomplete when _ARGCOMPLETE is set.
 

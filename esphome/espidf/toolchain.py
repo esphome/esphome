@@ -142,7 +142,9 @@ def _get_cmake_output(build_dir) -> str:
         if not (Path(build_dir) / "CMakeCache.txt").is_file():
             raise EsphomeError(f"No ESP-IDF build found in {build_dir}")
 
-        cmd = ["cmake", "-LA", "-N", "."]
+        # Resolve to an absolute path: Windows locates a child process
+        # through the parent's PATH, not the env passed to it.
+        cmd = [_get_idf_tool("cmake"), "-LA", "-N", "."]
 
         env = _get_idf_env()
         result = subprocess.run(

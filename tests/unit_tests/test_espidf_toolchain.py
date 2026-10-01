@@ -264,6 +264,7 @@ def test_get_cmake_output_with_configured_build(setup_core: Path) -> None:
     )
     with (
         patch.object(toolchain, "_get_idf_env", return_value={}),
+        patch.object(toolchain, "_get_idf_tool", return_value="/idf/tools/cmake"),
         patch.object(toolchain.subprocess, "run", return_value=completed) as mock_run,
     ):
         assert toolchain._get_cmake_output(build_dir) == completed.stdout
@@ -271,6 +272,9 @@ def test_get_cmake_output_with_configured_build(setup_core: Path) -> None:
         assert toolchain._get_cmake_output(build_dir) == completed.stdout
 
     mock_run.assert_called_once()
+    # The resolved path, never a bare "cmake": Windows locates the child
+    # through the parent's PATH, where the IDF-managed cmake is missing.
+    assert mock_run.call_args.args[0][0] == "/idf/tools/cmake"
     assert toolchain._get_cmake_tool_path("CMAKE_ADDR2LINE") == Path("/tool/addr2line")
 
 

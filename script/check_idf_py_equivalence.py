@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -136,6 +137,9 @@ def check(build_path: Path) -> list[str]:
     toolchain._cache().skip_bootloader = None
     if not idf_macro_matches(toolchain._get_idf_path(version)):
         return [MACRO_CHANGED]
+    # ESP-IDF's openthread stamps the configure time into its compile flags;
+    # pin it before the env is cached so both configures get the same value.
+    os.environ["SOURCE_DATE_EPOCH"] = "0"
     env = toolchain._get_idf_env(version)
     python = toolchain._get_idf_tool("python")
     idf_py = toolchain._get_idf_path(version) / "tools" / "idf.py"

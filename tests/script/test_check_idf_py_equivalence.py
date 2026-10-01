@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Iterator
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -72,23 +73,33 @@ def _run_check(
     rc: int = 0,
     esphome_rcs: tuple[int, int] = (0, 0),
     macro_matches: bool = True,
+    envs: list[dict[str, str]] | None = None,
 ) -> tuple[list[str], list[list[str]]]:
-    """Run check() with idf.py replaced by ``side_effect``; return problems, calls."""
+    """Run check() with idf.py replaced by ``side_effect``; return problems, calls.
+
+    ``envs`` collects the env each idf.py call receives.
+    """
     calls: list[list[str]] = []
 
     def run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess:
         calls.append(cmd)
+        if envs is not None:
+            envs.append(kwargs["env"])
         side_effect(cmd)
         return subprocess.CompletedProcess(cmd, rc, "out\n", "err\n")
 
     with (
-        patch.object(toolchain, "_get_idf_env", return_value={}),
+        # Snapshot at call time like the real cached env.
+        patch.object(
+            toolchain, "_get_idf_env", side_effect=lambda *_: dict(os.environ)
+        ),
         patch.object(toolchain, "_get_idf_tool", return_value="/py"),
         patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
         patch.object(toolchain, "run_reconfigure", return_value=esphome_rcs[0]),
         patch.object(toolchain, "_run_ninja", return_value=esphome_rcs[1]),
         patch.object(build_gen, "idf_macro_matches", return_value=macro_matches),
         patch.object(guard.subprocess, "run", side_effect=run),
+        patch.dict(os.environ),
     ):
         return guard.check(tree), calls
 
@@ -102,6 +113,13 @@ def test_check_passes_when_idf_py_changes_nothing(tmp_path: Path) -> None:
         ["/py", str(Path("/idf/tools/idf.py")), "-D", sdkconfig, "reconfigure"],
         ["/py", str(Path("/idf/tools/idf.py")), "-D", sdkconfig, "build"],
     ]
+
+
+def test_check_pins_source_date_epoch(tmp_path: Path) -> None:
+    """ESP-IDF's openthread bakes the configure time into its compile flags."""
+    envs: list[dict[str, str]] = []
+    _run_check(_make_tree(tmp_path), envs=envs)
+    assert [env.get("SOURCE_DATE_EPOCH") for env in envs] == ["0", "0"]
 
 
 def test_check_reports_changed_files_and_rebuilt_outputs(tmp_path: Path) -> None:

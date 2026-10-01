@@ -2381,7 +2381,7 @@ def parse_args(argv):
         "-r",
         action="store_true",
         help="Reset the device before starting serial logs.",
-        default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
+        default=get_bool_env("ESPHOME_SERIAL_LOGGING_RESET"),
     )
     _add_states_args(parser_logs)
 
@@ -2423,7 +2423,7 @@ def parse_args(argv):
         "-r",
         action="store_true",
         help="Reset the device before starting serial logs.",
-        default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
+        default=get_bool_env("ESPHOME_SERIAL_LOGGING_RESET"),
     )
     parser_run.add_argument(
         "--ota-platform",
