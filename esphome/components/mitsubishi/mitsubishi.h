@@ -54,40 +54,40 @@ class MitsubishiClimate final : public climate_ir::ClimateIR {
   void set_supports_dry(bool supports_dry) { this->set_mode_supported_(climate::CLIMATE_MODE_DRY, supports_dry); }
   void set_supports_fan_only(bool supports_fan_only) {
     this->set_mode_supported_(climate::CLIMATE_MODE_FAN_ONLY, supports_fan_only);
-  void set_fahrenheit_compatibility(bool fahrenheit_compatibility) {
-    this->fahrenheit_compatibility_ = fahrenheit_compatibility;
-  }
+    void set_fahrenheit_compatibility(bool fahrenheit_compatibility) {
+      this->fahrenheit_compatibility_ = fahrenheit_compatibility;
+    }
 
-  void set_fan_mode(SetFanMode fan_mode) {
-    this->fan_mode_ = fan_mode;
-    this->fan_modes_ = MITSUBISHI_BASE_FAN_MODES;
-    if (fan_mode == MITSUBISHI_FAN_Q4L)
-      this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);
-    if (fan_mode >= MITSUBISHI_FAN_4L)
-      this->fan_modes_.insert(climate::CLIMATE_FAN_MIDDLE);  // Shouldn't be used for this but it helps
-  }
+    void set_fan_mode(SetFanMode fan_mode) {
+      this->fan_mode_ = fan_mode;
+      this->fan_modes_ = MITSUBISHI_BASE_FAN_MODES;
+      if (fan_mode == MITSUBISHI_FAN_Q4L)
+        this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);
+      if (fan_mode >= MITSUBISHI_FAN_4L)
+        this->fan_modes_.insert(climate::CLIMATE_FAN_MIDDLE);  // Shouldn't be used for this but it helps
+    }
 
-  void set_horizontal_default(HorizontalDirection horizontal_direction) {
-    this->default_horizontal_direction_ = horizontal_direction;
-  }
-  void set_vertical_default(VerticalDirection vertical_direction) {
-    this->default_vertical_direction_ = vertical_direction;
-  }
+    void set_horizontal_default(HorizontalDirection horizontal_direction) {
+      this->default_horizontal_direction_ = horizontal_direction;
+    }
+    void set_vertical_default(VerticalDirection vertical_direction) {
+      this->default_vertical_direction_ = vertical_direction;
+    }
 
- protected:
-  // Transmit via IR the state of this climate controller.
-  void transmit_state() override;
-  // Handle received IR Buffer
-  bool on_receive(remote_base::RemoteReceiveData data) override;
-  bool parse_state_frame_(const uint8_t frame[]);
-  uint8_t reconvert_from_fahrenheit_(float c_temp);
-  float temp_code_to_celsius_(uint8_t code);
+   protected:
+    // Transmit via IR the state of this climate controller.
+    void transmit_state() override;
+    // Handle received IR Buffer
+    bool on_receive(remote_base::RemoteReceiveData data) override;
+    bool parse_state_frame_(const uint8_t frame[]);
+    uint8_t reconvert_from_fahrenheit_(float c_temp);
+    float temp_code_to_celsius_(uint8_t code);
 
-  SetFanMode fan_mode_;
-  bool fahrenheit_compatibility_;
+    SetFanMode fan_mode_;
+    bool fahrenheit_compatibility_;
 
-  HorizontalDirection default_horizontal_direction_;
-  VerticalDirection default_vertical_direction_;
-};
+    HorizontalDirection default_horizontal_direction_;
+    VerticalDirection default_vertical_direction_;
+  };
 
 }  // namespace esphome::mitsubishi
