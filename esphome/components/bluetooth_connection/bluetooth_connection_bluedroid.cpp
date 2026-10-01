@@ -794,9 +794,13 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
     case ESP_GATTC_CANCEL_OPEN_EVT: {
       if (!this->check_addr_(param->cancel_open.remote_bda))
         return false;
-      // ERROR means OPEN_EVT follows and settles the slot.
-      if (param->cancel_open.status == ESP_GATT_OK && this->state() == ClientState::CONNECTING &&
-          this->disconnect_pending()) {
+      if (param->cancel_open.status != ESP_GATT_OK) {
+        // Too late to cancel: OPEN_EVT follows and settles the slot, so a
+        // racing reconnect may still keep the link.
+        this->cancel_open_sent_ = false;
+        break;
+      }
+      if (this->state() == ClientState::CONNECTING && this->disconnect_pending()) {
         ESP_LOGD(TAG, "[%d] Pending open cancelled", this->connection_index_);
         this->release_services();
         this->set_idle_();
