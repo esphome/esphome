@@ -75,6 +75,7 @@ from .framework import (
     get_build_env,
     get_build_paths,
     setup_platformio_python_env,
+    toolchain_tool,
 )
 
 # force import gpio to register pin schema
@@ -437,7 +438,8 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("SERIAL", False, False)
 
     # disable stuff to make image smaller by default
-    zephyr_add_prj_conf("NCS_BOOT_BANNER", False, False)
+    if framework_ver >= cv.Version(2, 9, 2):
+        zephyr_add_prj_conf("NCS_BOOT_BANNER", False, False)
     zephyr_add_prj_conf("BOOT_BANNER", False, False)
     zephyr_add_prj_conf("PRINTK", False, False)
     zephyr_add_prj_conf("CONSOLE", False, False)
@@ -494,8 +496,8 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     types = []
     UF2_PATH = "zephyr/zephyr.uf2"
     DFU_PATH = "firmware.zip"
-    HEX_PATH = "zephyr/zephyr.hex"  # SDK 2.6.1, only generated when OTA is disabled
-    HEX_MERGED_PATH = "zephyr/merged.hex"  # SDK 2.9.2, always generated
+    HEX_PATH = "zephyr/zephyr.hex"  # SDK 2.6.1 without OTA, SDK 3.4.0+
+    HEX_MERGED_PATH = "zephyr/merged.hex"  # SDK 2.9.2 to 3.3.x, always generated
     APP_IMAGE_PATH = "zephyr/app_update.bin"
     build_dir = Path(storage_json.firmware_bin_path).parent
     if (build_dir / UF2_PATH).is_file():
@@ -843,7 +845,11 @@ def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
     write_file_if_changed(app_dir / _PCH_SUM_PATH, checksum + "\n")
 
 
-def _generate_cmake_lists() -> bool:
+def _pch_usable() -> bool:
+    return pch.pch_usable((toolchain_tool("g++"),))
+
+
+def _generate_cmake_lists(pch_on: bool) -> bool:
     """Write the project CMakeLists.txt, returning True if it changed."""
     compile_flags = get_project_compile_flags()
     link_flags = get_project_link_flags()
@@ -886,7 +892,7 @@ def _generate_cmake_lists() -> bool:
             ")",
         ]
 
-    if pch.pch_enabled():
+    if pch_on:
         lines += _PCH_CMAKE_LINES
 
     if link_flags:
@@ -945,7 +951,8 @@ def run_compile(args, config: ConfigType) -> bool:
     paths = get_build_paths()
     env = get_build_env()
 
-    cmake_lists_changed = _generate_cmake_lists()
+    pch_on = _pch_usable()
+    cmake_lists_changed = _generate_cmake_lists(pch_on)
 
     board = zephyr_data()[KEY_BOARD]
     build_dir = CORE.relative_pioenvs_path(CORE.name)
@@ -962,7 +969,12 @@ def run_compile(args, config: ConfigType) -> bool:
         _LOGGER.info("Build inputs changed, cleaning %s", build_dir)
         rmtree(build_dir)
 
-    if pch.pch_enabled():
+    # SDK 3.4.0+ no longer generates merged.hex; drop one left by an older SDK
+    # build so it is never packaged or offered for download.
+    for stale_hex in (build_dir / "merged.hex", build_dir / "zephyr" / "merged.hex"):
+        stale_hex.unlink(missing_ok=True)
+
+    if pch_on:
         pch.log_pch_in_use()
         # Zephyr turns ccache on by itself when it is installed
         env.update(pch.ccache_pch_env())
@@ -1006,13 +1018,18 @@ def run_compile(args, config: ConfigType) -> bool:
         west_out = zephyr_dir / "zephyr"
         _copy_if_exists(west_out / "zephyr.uf2", zephyr_dir / "zephyr.uf2")
         _copy_if_exists(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
+        _copy_if_exists(west_out / "zephyr.hex", zephyr_dir / "zephyr.hex")
         _copy_if_exists(build_dir / "merged.hex", zephyr_dir / "merged.hex")
 
-    # For Adafruit bootloader builds, regenerate the UF2 from merged.hex,
-    # whose records carry the correct flash addresses. The build's own
-    # zephyr.uf2 uses the board's default offset, which is wrong in some cases.
-    merged_hex = zephyr_dir / "merged.hex"
-    if bootloader in _UF2_FAMILY_IDS and merged_hex.is_file():
+    # For Adafruit bootloader builds, regenerate the UF2 from a hex file.
+    # merged.hex carries the correct flash addresses; SDK 3.4.0+ no longer
+    # generates it, so use zephyr.hex there. Chosen by version so a merged.hex
+    # left by an older SDK build is never picked.
+    if framework_ver >= cv.Version(3, 4, 0):
+        hex_file = zephyr_dir / "zephyr.hex"
+    else:
+        hex_file = zephyr_dir / "merged.hex"
+    if bootloader in _UF2_FAMILY_IDS and hex_file.is_file():
         # Drop the build's own wrong-offset UF2 so it isn't shipped alongside.
         app_uf2 = west_out / "zephyr.uf2"
         if app_uf2.is_file():
@@ -1029,12 +1046,12 @@ def run_compile(args, config: ConfigType) -> bool:
                 "-c",
                 "-o",
                 str(zephyr_dir / "zephyr.uf2"),
-                str(merged_hex),
+                str(hex_file),
             ],
             env=env,
             stream_output=True,
         ):
-            raise EsphomeError("Failed to generate UF2 from merged hex")
+            raise EsphomeError(f"Failed to generate UF2 from {hex_file.name}")
 
     if bootloader in (
         BOOTLOADER_ADAFRUIT,
@@ -1042,9 +1059,6 @@ def run_compile(args, config: ConfigType) -> bool:
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     ):
-        # no fallback is needed for adafruit case. merged merged.hex is always generated.
-        # get_download_types needs fallback for mcuboot (non adafruit)
-        hex_file = zephyr_dir / "merged.hex"
         dfu_package = build_dir / "firmware.zip"
         genpkg_cmd = [
             str(paths["python_executable"]),

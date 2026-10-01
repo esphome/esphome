@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -33,6 +35,71 @@ def test_pch_enabled(value: str | None, expected: bool) -> None:
     env = {} if value is None else {"ESPHOME_PCH_ENABLE": value}
     with patch.dict(os.environ, env, clear=True):
         assert pch.pch_enabled() is expected
+
+
+@pytest.mark.parametrize(
+    ("version", "expected"),
+    [
+        ((), False),
+        ((10, 3), False),
+        ((12, 2, 1), False),
+        ((14, 2, 0), False),
+        ((14, 3), False),
+        ((14, 4), True),
+        ((14,), False),
+        ((15, 2, 0), False),
+        ((15, 3), True),
+        ((16, 0), True),
+        ((17, 1), True),
+    ],
+)
+def test_gcc_relocates_pch_on_windows(version: tuple[int, ...], expected: bool) -> None:
+    assert pch.gcc_relocates_pch_on_windows(version) is expected
+
+
+@pytest.mark.parametrize(
+    ("banner", "expected"),
+    [
+        ("xtensa-esp32-elf-g++ (crosstool-NG esp-14.2.0_20260121) 14.2.0", (14, 2, 0)),
+        ("arm-zephyr-eabi-g++ (Zephyr SDK 0.16.8) 12.2.0", (12, 2, 0)),
+        ("g++.exe (Rev3, Built by MSYS2 project) 14.2.0", (14, 2, 0)),
+        ("clang version 15.0.0", None),
+        ("Apple clang version 17.0.0 (clang-1700.0.13.3)", None),
+        ("something else", ()),
+    ],
+)
+def test_gcc_version_reads_the_banner(banner: str, expected: object) -> None:
+    cxx = (sys.executable, "-c", f"print({banner!r}); print('more')")
+    assert pch.gcc_version(cxx) == expected
+
+
+def test_gcc_version_of_a_compiler_that_cannot_run() -> None:
+    assert pch.gcc_version(("/nonexistent/g++",)) == ()
+
+
+def test_pch_usable_asks_the_compiler_on_windows_only(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO, logger=pch.__name__)
+    monkeypatch.delenv("ESPHOME_PCH_ENABLE")
+    monkeypatch.setattr(pch.sys, "platform", "darwin")
+    with patch.object(pch, "gcc_version", side_effect=AssertionError("off Windows")):
+        assert pch.pch_usable(("g++",))
+    monkeypatch.setattr(pch.sys, "platform", "win32")
+    with patch.object(pch, "gcc_version", return_value=(14, 2, 0)):
+        assert not pch.pch_usable(("g++",))
+    assert "GCC 14.2.0 cannot load a precompiled header on Windows" in caplog.text
+    with patch.object(pch, "gcc_version", return_value=(14, 4, 0)):
+        assert pch.pch_usable(("g++",))
+    # The bug is GCC's; another compiler is not held to its table
+    with patch.object(pch, "gcc_version", return_value=None):
+        assert pch.pch_usable(("clang++",))
+    # The knob overrides the rule both ways
+    with patch.object(pch, "gcc_version", side_effect=AssertionError("forced")):
+        monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+        assert pch.pch_usable(("g++",))
+        monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+        assert not pch.pch_usable(("g++",))
 
 
 def test_ccache_pch_env_enabled() -> None:
@@ -109,7 +176,9 @@ def test_pch_checksum_tracks_closure_content(tmp_path: Path) -> None:
     assert base != pch.pch_checksum(tmp_path, ["root.h"], ["id"])
 
 
-@pytest.mark.parametrize("platform", ["esp32", "esp8266", "rp2"])
+@pytest.mark.parametrize(
+    "platform", ["bk72xx", "esp32", "esp8266", "ln882x", "rp2", "rtl87xx"]
+)
 def test_pch_script_enabled(platform: str, monkeypatch: pytest.MonkeyPatch) -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
     assert pch.pch_script_enabled()
