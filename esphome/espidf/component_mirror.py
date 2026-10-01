@@ -314,7 +314,7 @@ class _SyncRun:
         _promote(self.staging, self.mirror)
         return True
 
-    def sync(self, specs: list[str], exact: list[ServiceDep]) -> bool:
+    def sync(self, specs: list[str]) -> bool:
         """The whole set in one invocation, per component after a timeout."""
         try:
             # One invocation for the whole set: one manager startup, which
@@ -332,8 +332,8 @@ class _SyncRun:
             )
         # Per component the timeout bounds each one, finished ones stay
         # promoted, and the first failure stops the loop.
-        for dep in exact:
-            if not self._attempt([dep.spec]):
+        for spec in specs:
+            if not self._attempt([spec]):
                 return False
             self.synced += 1
         return True
@@ -384,7 +384,7 @@ def sync_component_mirror(
     _LOGGER.info("Mirroring %d IDF component(s) for offline builds...", len(specs))
     run = _SyncRun(python, env, staging, mirror)
     try:
-        if not run.sync(specs, to_sync):
+        if not run.sync(specs):
             return False
         if still := missing_deps(mirror, to_sync):
             # A name the registry spells differently syncs clean yet
@@ -417,5 +417,5 @@ def sync_component_mirror(
         with suppress(OSError):
             rmtree(staging)
         lock.release()
-    _LOGGER.info("Mirrored %d IDF component(s) for offline builds", len(specs))
+    _LOGGER.info("Mirrored %d IDF component(s) for offline builds", run.synced)
     return True

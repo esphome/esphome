@@ -559,6 +559,23 @@ def test_sync_ranged_refresh_runs_with_everything_else_covered(
     assert "espressif/ranged^1.2.0" in mock_run.call_args.args[0]
 
 
+def test_sync_timeout_retries_ranged_specs_too(tmp_path: Path) -> None:
+    """The fallback covers refresh specs, not only the exact pins."""
+    _write_manifest(
+        tmp_path,
+        "dependencies:\n  ns/one:\n    version: ^1.0\n  ns/two:\n    version: ^2.0\n",
+    )
+    effects = [
+        subprocess.TimeoutExpired(cmd=[], timeout=120),
+        subprocess.CompletedProcess([], 0, "", ""),
+        subprocess.CompletedProcess([], 0, "", ""),
+    ]
+    ok, mock_run = _run_sync(tmp_path, side_effect=effects)
+    assert ok
+    retried = [call.args[0][-2] for call in mock_run.call_args_list[1:]]
+    assert retried == ["ns/one^1.0", "ns/two^2.0"]
+
+
 def test_sync_timeout_falls_back_to_one_component_at_a_time(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
