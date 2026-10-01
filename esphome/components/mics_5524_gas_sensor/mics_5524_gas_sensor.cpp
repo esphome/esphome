@@ -5,6 +5,7 @@
 #include <cstdarg>
 #include <cstdio>
 
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::mics_5524_gas_sensor {
@@ -33,7 +34,7 @@ void MiCS5524GasSensor::publish_log_(LogLevel level, const char *message) {
     // The per-update line: at a 1 s update interval a text state per second would
     // flood the Home Assistant recorder, so it is mirrored at most every
     // LOG_SENSOR_DEBUG_INTERVAL_MS (the console log keeps every line).
-    const uint32_t now = millis();
+    const uint32_t now = App.get_loop_component_start_time();
     if (this->last_log_sensor_debug_ != 0 && now - this->last_log_sensor_debug_ < LOG_SENSOR_DEBUG_INTERVAL_MS)
       return;
     this->last_log_sensor_debug_ = now;
@@ -104,7 +105,7 @@ void MiCS5524GasSensor::setup() {
   }
 
   if (this->warmup_time_ > 0) {
-    this->warmup_end_ = millis() + this->warmup_time_;
+    this->warmup_end_ = App.get_loop_component_start_time() + this->warmup_time_;
     this->log_message_(LOG_LEVEL_INFO, "warm-up of %" PRIu32 " s - no readings published before that",
                        this->warmup_time_ / 1000);
   }
@@ -117,7 +118,7 @@ void MiCS5524GasSensor::setup() {
                          reference_name(this->conversion_), this->reference_);
     } else {
       const uint32_t delay = std::max(this->calibration_delay_, this->warmup_time_);
-      this->calibration_due_ = millis() + delay;
+      this->calibration_due_ = App.get_loop_component_start_time() + delay;
       this->calibration_pending_ = true;
       this->log_message_(LOG_LEVEL_INFO, "%s calibration scheduled in %" PRIu32 " s - the sensor must be in clean air",
                          reference_name(this->conversion_), delay / 1000);
@@ -143,8 +144,8 @@ void MiCS5524GasSensor::log_config_() {
   }
   ESP_LOGCONFIG(TAG, "  VCC: %.2f V, RL: %.2f kOhm, AO multiplier: x%.3f", this->vcc_, this->rl_,
                 this->voltage_multiplier_);
-  ESP_LOGCONFIG(TAG, "  Range: %.1f - %.1f ppm, samples: %u x %" PRIu32 " ms", this->min_ppm_, this->max_ppm_,
-                static_cast<unsigned>(this->samples_), this->sample_interval_);
+  ESP_LOGCONFIG(TAG, "  Range: %.1f - %.1f ppm, AO samples per reading: %u, calibration spacing: %" PRIu32 " ms",
+                this->min_ppm_, this->max_ppm_, static_cast<unsigned>(this->samples_), this->sample_interval_);
   if (this->has_reference()) {
     ESP_LOGCONFIG(TAG, "  %s: %.4f (%s)", reference_name(this->conversion_), this->reference_,
                   this->reference_configured_ ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("calibrated/restored"));
@@ -158,6 +159,7 @@ void MiCS5524GasSensor::log_config_() {
 
 void MiCS5524GasSensor::dump_config() {
   LOG_SENSOR("", "MiCS-5524 gas sensor", this);
+  LOG_UPDATE_INTERVAL(this);
   this->log_config_();
 }
 
@@ -165,12 +167,12 @@ float MiCS5524GasSensor::sample_voltage_() {
   if (this->source_ == nullptr)
     return NAN;
 
+  // The conversions are taken back to back: the sampler averages internally as
+  // configured (`samples` / `sampling_mode`), and waiting between them would block
+  // the main loop for the whole `sample_count x sample_interval` window.
   float sum = 0.0f;
-  for (uint8_t i = 0; i < this->samples_; i++) {
-    if (i > 0)
-      delay(this->sample_interval_);
+  for (uint8_t i = 0; i < this->samples_; i++)
     sum += this->source_->sample();
-  }
   return (sum / static_cast<float>(this->samples_)) * this->voltage_multiplier_;
 }
 
@@ -224,11 +226,12 @@ void MiCS5524GasSensor::update() {
     return;
   }
 
-  if (this->warmup_time_ > 0 && millis() < this->warmup_end_) {
+  if (this->warmup_time_ > 0 && App.get_loop_component_start_time() < this->warmup_end_) {
     if (!this->warmup_notified_) {
       this->warmup_notified_ = true;
       this->publish_state(NAN);
-      this->log_message_(LOG_LEVEL_INFO, "warming up, %" PRIu32 " s to go", (this->warmup_end_ - millis()) / 1000);
+      this->log_message_(LOG_LEVEL_INFO, "warming up, %" PRIu32 " s to go",
+                         (this->warmup_end_ - App.get_loop_component_start_time()) / 1000);
     }
     return;
   }
@@ -303,7 +306,7 @@ void MiCS5524GasSensor::request_calibration() {
     return;
   }
   if (this->calibration_pending_) {
-    const uint32_t now = millis();
+    const uint32_t now = App.get_loop_component_start_time();
     this->log_message_(LOG_LEVEL_WARN, "calibration already requested - starting in %" PRIu32 " s",
                        (this->calibration_due_ > now ? this->calibration_due_ - now : 0) / 1000);
     return;
@@ -313,7 +316,7 @@ void MiCS5524GasSensor::request_calibration() {
     return;
   }
 
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   this->calibration_due_ = now;
   this->calibration_pending_ = true;
   // A request (button, on_boot lambda) must never capture an unstable reading, so
@@ -332,7 +335,7 @@ void MiCS5524GasSensor::loop() {
     return;
 
   if (this->calibration_pending_) {
-    if (millis() >= this->calibration_due_)
+    if (App.get_loop_component_start_time() >= this->calibration_due_)
       this->begin_calibration_();
     return;
   }
@@ -340,7 +343,7 @@ void MiCS5524GasSensor::loop() {
   if (!this->calibrating_)
     return;
 
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (now - this->calibration_last_sample_ < this->sample_interval_)
     return;
 
@@ -351,8 +354,7 @@ void MiCS5524GasSensor::loop() {
 void MiCS5524GasSensor::begin_calibration_() {
   this->calibration_pending_ = false;
   this->calibrating_ = true;
-  this->calibration_start_ = millis();
-  this->calibration_last_sample_ = this->calibration_start_;
+  this->calibration_last_sample_ = App.get_loop_component_start_time();
   this->calibration_count_ = 0;
   this->calibration_attempts_ = 0;
   this->calibration_sum_ = 0.0f;

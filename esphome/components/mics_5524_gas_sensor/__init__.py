@@ -25,7 +25,10 @@ import esphome.codegen as cg
 from esphome.components import sensor
 
 CODEOWNERS = ["@nliaudat"]
-AUTO_LOAD = ["sensor", "voltage_sampler"]
+
+# No ``AUTO_LOAD`` here: for a platform component ESPHome processes the list of the
+# platform module, and ``sensor.py`` declares ``sensor``, ``voltage_sampler`` and
+# ``adc`` (the last one for the internal ADC sensor of a ``pin:`` configuration).
 
 mics_5524_gas_sensor_ns = cg.esphome_ns.namespace("mics_5524_gas_sensor")
 

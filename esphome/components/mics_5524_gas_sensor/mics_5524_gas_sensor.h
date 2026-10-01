@@ -3,12 +3,12 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <string>
 
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/voltage_sampler/voltage_sampler.h"
@@ -33,7 +33,10 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   void dump_config() override;
 
   // ------------------------------------------------------------------ config
-  void set_gas(const std::string &gas) { this->gas_ = gas; }
+  /// Name of the gas this channel reports (e.g. `'H2'`).  Code generation passes a
+  /// literal that lives in flash for the life of the program, so it is kept as a
+  /// view instead of copied onto the heap.
+  void set_gas(const char *gas) { this->gas_ = StringRef(gas); }
   void set_conversion(uint8_t conversion) { this->conversion_ = conversion; }
   void set_threshold(float threshold) { this->threshold_ = threshold; }
   void set_gain(float gain) { this->gain_ = gain; }
@@ -97,7 +100,8 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
 
  protected:
   bool is_vendor_model_() const { return this->conversion_ == micsmath::CONVERSION_MODEL_DFROBOT; }
-  /// Averaged, scaled analog output voltage of the sensor (V).
+  /// Averaged, scaled analog output voltage of the sensor (V).  The `samples_`
+  /// conversions are taken back to back, so the call returns without waiting.
   float sample_voltage_();
   /// Sensor resistance (kOhm) for the datasheet model.
   float current_rs_() const;
@@ -128,7 +132,7 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   void log_message_(LogLevel level, const char *format, ...);
 
   // ------------------------------------------------------------- configuration
-  std::string gas_{"CUSTOM"};
+  StringRef gas_{StringRef::from_lit("CUSTOM")};
   uint8_t conversion_{micsmath::CONVERSION_MODEL_DFROBOT};
   float threshold_{0.0f};
   float gain_{1.0f};
@@ -142,6 +146,8 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   float vcc_{5.0f};
   float voltage_multiplier_{1.0f};
   uint8_t samples_{4};
+  /// Minimum spacing between two clean-air calibration samples (ms); a normal
+  /// reading never waits for it.  The ~16 ms main loop tick is the practical floor.
   uint32_t sample_interval_{20};
   uint32_t warmup_time_{0};
   bool log_ppm_{false};  ///< log the published value at INFO on every update (`log_ppm: true`)
@@ -158,7 +164,6 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   bool calibrating_{false};
   bool calibration_pending_{false};
   uint32_t calibration_due_{0};
-  uint32_t calibration_start_{0};
   uint32_t calibration_last_sample_{0};
   uint32_t calibration_count_{0};
   uint32_t calibration_attempts_{0};
@@ -180,7 +185,7 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   sensor::Sensor *rs_sensor_{nullptr};
   sensor::Sensor *voltage_sensor_{nullptr};
   text_sensor::TextSensor *log_sensor_{nullptr};
-  uint32_t last_log_sensor_debug_{0};  ///< `millis()` of the last mirrored DEBUG message
+  uint32_t last_log_sensor_debug_{0};  ///< `App.get_loop_component_start_time()` of the last mirrored DEBUG message
 
   ESPPreferenceObject reference_pref_{};
 };
