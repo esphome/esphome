@@ -10,6 +10,8 @@ namespace esphome::tcp_uart {
 
 static const char *const TAG = "tcp_uart";
 
+static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
+
 void TcpUart::setup() {
   this->link_.begin(TAG);
   if (this->connected_sensor_ != nullptr) {
@@ -89,7 +91,7 @@ void TcpUart::write_array(const uint8_t *data, size_t len) {
   size_t room = this->link_.connected() ? sizeof(this->tx_) - this->tx_len_ : 0;
   if (len > room) {
     uint32_t now = App.get_loop_component_start_time();
-    if (this->last_drop_log_ms_ == 0 || now - this->last_drop_log_ms_ >= 5000) {
+    if (this->last_drop_log_ms_ == 0 || now - this->last_drop_log_ms_ >= DROP_LOG_INTERVAL_MS) {
       ESP_LOGW(TAG, "%s, dropped %u bytes",
                this->link_.connected() ? LOG_STR_LITERAL("TX buffer full") : LOG_STR_LITERAL("Not connected"),
                static_cast<unsigned>(len - room));
