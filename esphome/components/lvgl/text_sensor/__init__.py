@@ -8,7 +8,7 @@ import esphome.config_validation as cv
 from ..defines import CONF_WIDGET
 from ..lvcode import EVENT_ARG, UPDATE_EVENT, LambdaContext, LvContext, lvgl_static
 from ..types import LV_EVENT, LvText
-from ..widgets import get_widgets, wait_for_widgets
+from ..widgets import get_widgets
 
 CONFIG_SCHEMA = text_sensor_schema(TextSensor).extend(
     {
@@ -21,7 +21,6 @@ async def to_code(config):
     sensor = await new_text_sensor(config)
     widget = await get_widgets(config, CONF_WIDGET)
     widget = widget[0]
-    await wait_for_widgets()
     async with LambdaContext(EVENT_ARG) as pressed_ctx:
         pressed_ctx.add(sensor.publish_state(widget.get_value()))
     async with LvContext() as ctx:
