@@ -12,7 +12,7 @@ namespace esphome::mdns {
 
 static const char *const TAG = "mdns";
 
-#ifndef USE_OPENTHREAD
+#if !defined(USE_OPENTHREAD) || defined(USE_OPENTHREAD_BORDER_ROUTER)
 static esp_err_t add_service(const MDNSService &service) {
   // Stack buffer for up to 16 txt records, heap fallback for more
   SmallBufferWithHeapFallback<16, mdns_txt_item_t> txt_records(service.txt_records.size());
@@ -30,7 +30,7 @@ static esp_err_t add_service(const MDNSService &service) {
 #endif
 
 static void register_esp32(MDNSComponent *comp, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
-#ifdef USE_OPENTHREAD
+#if defined(USE_OPENTHREAD) && !defined(USE_OPENTHREAD_BORDER_ROUTER)
   // OpenThread handles service registration via SRP client
   // Services are compiled by MDNSComponent::compile_records_() and consumed by OpenThreadSrpComponent
 #else
@@ -62,7 +62,7 @@ static void register_esp32(MDNSComponent *comp, StaticVector<MDNSService, MDNS_S
 #endif
 }
 
-#if defined(USE_MDNS_SUPPORTS_ENABLE_DISABLE) && !defined(USE_OPENTHREAD)
+#if defined(USE_MDNS_SUPPORTS_ENABLE_DISABLE) && (!defined(USE_OPENTHREAD) || defined(USE_OPENTHREAD_BORDER_ROUTER))
 bool MDNSComponent::set_service_enabled(const char *service_type, const char *proto, bool enabled) {
   // services_ is compiled in setup()
   if (!this->is_ready()) {
@@ -87,12 +87,12 @@ bool MDNSComponent::set_service_enabled(const char *service_type, const char *pr
   ESP_LOGW(TAG, "Service %s not found", service_type);
   return false;
 }
-#endif  // USE_MDNS_SUPPORTS_ENABLE_DISABLE && !USE_OPENTHREAD
+#endif
 
 void MDNSComponent::setup() { this->setup_buffers_and_register_(register_esp32); }
 
 void MDNSComponent::on_shutdown() {
-#ifndef USE_OPENTHREAD
+#if !defined(USE_OPENTHREAD) || defined(USE_OPENTHREAD_BORDER_ROUTER)
   mdns_free();
   delay(40);  // Allow the mdns packets announcing service removal to be sent
 #endif
