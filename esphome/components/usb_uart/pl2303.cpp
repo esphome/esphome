@@ -194,8 +194,9 @@ std::vector<CdcEps> USBUartTypePL2303::parse_descriptors(usb_device_handle_t dev
     }
   }
 
-  if (cdc_devs.empty())
+  if (cdc_devs.empty()) {
     ESP_LOGE(TAG, "PL2303: failed to find bulk IN+OUT endpoints");
+  }
 
   return cdc_devs;
 }

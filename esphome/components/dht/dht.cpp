@@ -20,8 +20,8 @@ void DHT::dump_config() {
                 "DHT:\n"
                 "  %sModel: %s\n"
                 "  Internal pull-up: %s",
-                this->is_auto_detect_ ? "Auto-detected " : "",
-                this->model_ == DHT_MODEL_DHT11 ? "DHT11" : "DHT22 or equivalent",
+                this->is_auto_detect_ ? LOG_STR_LITERAL("Auto-detected ") : "",
+                this->model_ == DHT_MODEL_DHT11 ? LOG_STR_LITERAL("DHT11") : LOG_STR_LITERAL("DHT22 or equivalent"),
                 ONOFF(this->t_pin_->get_flags() & gpio::FLAG_PULLUP));
   LOG_PIN("  Pin: ", this->t_pin_);
   LOG_UPDATE_INTERVAL(this);
@@ -154,8 +154,9 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
     }
   }
   if (error_code != 0) {
-    if (report_errors)
+    if (report_errors) {
       ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
+    }
     return false;
   }
 

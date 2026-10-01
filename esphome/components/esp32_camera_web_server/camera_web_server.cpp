@@ -210,8 +210,9 @@ esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
     if (!image) {
       // A shutdown is not a lost frame: wait_for_image_() returns empty as soon
       // as running_ clears, and the loop condition below ends the stream anyway.
-      if (this->running_)
+      if (this->running_) {
         ESP_LOGW(TAG, "STREAM: failed to acquire frame");
+      }
       res = ESP_FAIL;
     }
     if (res == ESP_OK) {

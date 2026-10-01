@@ -16,7 +16,7 @@ struct UpdateInfo {
   std::string firmware_url;
   std::string md5;
   bool has_progress{false};
-  float progress;
+  float progress{0};
 };
 
 enum UpdateState : uint8_t {

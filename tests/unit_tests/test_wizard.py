@@ -37,7 +37,6 @@ def wizard_answers() -> list[str]:
         "nodemcuv2",  # board
         "SSID",  # ssid
         "psk",  # wifi password
-        "",  # ota password (empty for no password)
     ]
 
 
@@ -99,6 +98,25 @@ def test_config_file_should_include_ota(default_config: dict[str, Any]):
 
     # Then
     assert "ota:" in config
+
+
+def test_config_file_should_use_encryption_when_api_key_set(
+    default_config: dict[str, Any],
+):
+    """
+    With an API encryption key and no OTA password the OTA block reuses the key
+    """
+    # Given
+    default_config["api_encryption_key"] = (
+        "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    )
+
+    # When
+    config = wz.wizard_file(**default_config)
+
+    # Then
+    assert "ota:\n  - platform: esphome\n    encryption:" in config
+    assert "password" not in config.split("ota:")[1].split("wifi:")[0]
 
 
 def test_config_file_should_include_ota_when_password_set(
@@ -630,15 +648,15 @@ def test_wizard_write_protects_existing_config(
     assert config_file.read_text() == original_content
 
 
-def test_wizard_accepts_ota_password(
+def test_wizard_uses_the_api_key_for_ota(
     tmp_path: Path, monkeypatch: MonkeyPatch, wizard_answers: list[str]
 ):
     """
-    The wizard should pass ota_password to wizard_write when the user provides one
+    The wizard generates an api key and does not ask for an OTA password;
+    the key secures OTA updates
     """
 
     # Given
-    wizard_answers[5] = "my_ota_password"  # Set OTA password
     config_file = tmp_path / "test.yaml"
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
@@ -653,8 +671,9 @@ def test_wizard_accepts_ota_password(
     # Then
     assert retval == 0
     call_kwargs = wizard_write_mock.call_args.kwargs
-    assert "ota_password" in call_kwargs
-    assert call_kwargs["ota_password"] == "my_ota_password"
+    assert "api_encryption_key" in call_kwargs
+    assert "ota_password" not in call_kwargs
+    assert input_mock.call_count == len(wizard_answers)
 
 
 def test_wizard_accepts_rpipico_board(tmp_path: Path, monkeypatch: MonkeyPatch):

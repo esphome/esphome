@@ -33,7 +33,7 @@ class Mk2PVRouterListener {
 };
 
 // Reads frames via UART, validates their CRC, and publishes tag/value pairs to listeners.
-class Mk2PVRouter final : public Component, public uart::UARTDevice {
+class Mk2PVRouter : public Component, public uart::UARTDevice {
  public:
 #ifdef MK2PVROUTER_LISTENER_COUNT
   void register_mk2pvrouter_listener(Mk2PVRouterListener *listener);
@@ -43,7 +43,6 @@ class Mk2PVRouter final : public Component, public uart::UARTDevice {
 
  protected:
   static constexpr size_t CRC_SUFFIX_LEN = 1;
-  static constexpr uint32_t BAUD_RATE = 9600;
 
   enum class State : uint8_t {
     WAITING_FOR_START,

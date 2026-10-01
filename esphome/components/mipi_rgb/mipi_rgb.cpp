@@ -1,11 +1,11 @@
-#if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
+#if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S31)
 #include "mipi_rgb.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <driver/gpio.h>
-#include <esp_lcd_panel_rgb.h>
+#include <esp_lcd_panel_ops.h>
 #include <span>
 
 namespace esphome::mipi_rgb {
@@ -44,8 +44,10 @@ void MipiRgb::setup_enables_() {
 void MipiRgbSpi::setup() {
   this->setup_enables_();
   this->spi_setup();
-  this->write_init_sequence_();
   this->common_setup_();
+  if (this->is_failed())
+    return;
+  this->write_init_sequence_();
 }
 void MipiRgbSpi::write_command_(uint8_t value) {
   this->enable();
@@ -177,11 +179,6 @@ void MipiRgb::common_setup_() {
   ESP_LOGCONFIG(TAG, "MipiRgb setup complete");
 }
 
-void MipiRgb::loop() {
-  if (this->handle_ != nullptr)
-    esp_lcd_rgb_panel_restart(this->handle_);
-}
-
 void MipiRgb::update() {
   if (this->is_failed())
     return;
@@ -243,8 +240,9 @@ void MipiRgb::write_to_display_(int x_start, int y_start, int w, int h, const ui
       ptr += stride;  // next line
     }
   }
-  if (err != ESP_OK)
+  if (err != ESP_OK) {
     ESP_LOGE(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
+  }
 }
 
 bool MipiRgb::check_buffer_() {
@@ -263,7 +261,7 @@ bool MipiRgb::check_buffer_() {
 }
 
 void MipiRgb::draw_pixel_at(int x, int y, Color color) {
-  if (!this->get_clipping().inside(x, y) || this->is_failed())
+  if (this->is_point_clipped(x, y) || this->is_failed())
     return;
 
   switch (this->rotation_) {
@@ -400,4 +398,5 @@ void MipiRgb::dump_config() {
 }
 
 }  // namespace esphome::mipi_rgb
-#endif  // defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
+#endif  // defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) ||
+        // defined(USE_ESP32_VARIANT_ESP32S31)

@@ -213,7 +213,6 @@ void UFM01Component::dump_config() {
   LOG_BINARY_SENSOR("  ", "Empty Tube", this->empty_tube_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Flow Rate Out Of Range", this->flow_rate_out_of_range_binary_sensor_);
 #endif
-  this->check_uart_settings(2400, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
 }
 
 void UFM01Component::on_active_frame_(uint8_t data[FRAME_SIZE]) {
@@ -262,7 +261,7 @@ bool UFM01Component::process_active_stream_() {
     }
     if ((this->read_index_ == 0 && this->data_[0] != FRAME_START_BYTE_1) ||
         (this->read_index_ == 1 && this->data_[1] != FRAME_START_BYTE_2)) {
-      ESP_LOGD(TAG, "not start of data at %d (is 0x%02X)", this->read_index_, this->data_[this->read_index_]);
+      ESP_LOGD(TAG, "not start of data at %" PRId32 " (is 0x%02X)", this->read_index_, this->data_[this->read_index_]);
       this->read_index_ = 0;
       continue;
     }

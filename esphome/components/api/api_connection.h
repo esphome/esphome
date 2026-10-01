@@ -244,6 +244,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg);
   void on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg);
   void on_serial_proxy_request(const SerialProxyRequest &msg);
+  void on_serial_proxy_set_mode_request(const SerialProxySetModeRequest &msg);
   void send_serial_proxy_data(const SerialProxyDataReceived &msg);
 #endif
 
@@ -316,8 +317,14 @@ class APIConnection final : public APIServerConnectionBase {
   void on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg);
 #endif
 
+  // How long a new connection holds off the spare ephemeral refill
+  static constexpr uint32_t CONNECT_GRACE_MS = 1000;
   bool is_authenticated() {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::AUTHENTICATED;
+  }
+  // An older unauthenticated connection is a stale half open client and does not count
+  bool is_still_connecting(uint32_t now) {
+    return !this->is_authenticated() && now - this->last_traffic_ < CONNECT_GRACE_MS;
   }
   bool is_connection_setup() {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::CONNECTED ||
@@ -345,11 +352,7 @@ class APIConnection final : public APIServerConnectionBase {
   /// Returns false as soon as the TCP buffer is full. Marked nodiscard so we
   /// have no silent failures: every caller must handle (or log) a refusal.
   template<typename T> [[nodiscard]] bool send_message(const T &msg) {
-    if constexpr (T::ESTIMATED_SIZE == 0) {
-      return this->send_message_(0, T::MESSAGE_TYPE, &encode_msg_noop, &msg);
-    } else {
-      return this->send_message_(msg.calculate_size(), T::MESSAGE_TYPE, &proto_encode_msg<T>, &msg);
-    }
+    return this->send_message_(T::calc_size_msg(&msg), T::MESSAGE_TYPE, &T::encode_msg, &msg);
   }
 
   /// Clear the shared write buffer and reserve space for the first message.
@@ -405,16 +408,6 @@ class APIConnection final : public APIServerConnectionBase {
   void process_state_subscriptions_();
 #endif
 
-  // Size thunk — converts void* back to concrete type for direct calculate_size() call
-  template<typename T> static uint32_t calc_size(const void *msg) {
-    return static_cast<const T *>(msg)->calculate_size();
-  }
-
-  // Shared no-op encode thunk for empty messages (ESTIMATED_SIZE == 0)
-  static uint8_t *encode_msg_noop(const void *, ProtoWriteBuffer &buf PROTO_ENCODE_DEBUG_PARAM) {
-    return buf.get_pos();
-  }
-
   // Non-template buffer management for send_message
   bool send_message_(uint32_t payload_size, uint16_t message_type, MessageEncodeFn encode_fn, const void *msg);
 
@@ -433,11 +426,7 @@ class APIConnection final : public APIServerConnectionBase {
   // Hot paths (state/info) go through fill_and_encode_entity_state/info instead.
   // batch_message_type_ is already set by dispatch_message_ before reaching here.
   template<typename T> static uint16_t encode_message_to_buffer(T &msg, APIConnection *conn, uint32_t remaining_size) {
-    if constexpr (T::ESTIMATED_SIZE == 0) {
-      return encode_to_buffer_slow(0, &encode_msg_noop, &msg, conn, remaining_size);
-    } else {
-      return encode_to_buffer_slow(msg.calculate_size(), &proto_encode_msg<T>, &msg, conn, remaining_size);
-    }
+    return encode_to_buffer_slow(T::calc_size_msg(&msg), &T::encode_msg, &msg, conn, remaining_size);
   }
 
   // Non-template core — fills state fields and encodes
@@ -449,7 +438,7 @@ class APIConnection final : public APIServerConnectionBase {
   template<typename T>
   static uint16_t fill_and_encode_entity_state(EntityBase *entity, T &msg, APIConnection *conn,
                                                uint32_t remaining_size) {
-    return fill_and_encode_entity_state(entity, msg, &calc_size<T>, &proto_encode_msg<T>, conn, remaining_size);
+    return fill_and_encode_entity_state(entity, msg, &T::calc_size_msg, &T::encode_msg, conn, remaining_size);
   }
 
   // Non-template core — fills info fields, allocates buffers, and encodes
@@ -461,7 +450,7 @@ class APIConnection final : public APIServerConnectionBase {
   template<typename T>
   static uint16_t fill_and_encode_entity_info(EntityBase *entity, T &msg, APIConnection *conn,
                                               uint32_t remaining_size) {
-    return fill_and_encode_entity_info(entity, msg, &calc_size<T>, &proto_encode_msg<T>, conn, remaining_size);
+    return fill_and_encode_entity_info(entity, msg, &T::calc_size_msg, &T::encode_msg, conn, remaining_size);
   }
 
   // Non-template core — fills device_class, then delegates to fill_and_encode_entity_info
@@ -475,8 +464,8 @@ class APIConnection final : public APIServerConnectionBase {
   static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, T &msg,
                                                                 StringRef &device_class_field, APIConnection *conn,
                                                                 uint32_t remaining_size) {
-    return fill_and_encode_entity_info_with_device_class(entity, msg, device_class_field, &calc_size<T>,
-                                                         &proto_encode_msg<T>, conn, remaining_size);
+    return fill_and_encode_entity_info_with_device_class(entity, msg, device_class_field, &T::calc_size_msg,
+                                                         &T::encode_msg, conn, remaining_size);
   }
 
 #ifdef USE_VOICE_ASSISTANT

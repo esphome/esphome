@@ -163,6 +163,65 @@ def test_has_discovered_components_after_configure(tmp_path: Path) -> None:
     assert has_discovered_components()
 
 
+@pytest.mark.parametrize("minimal", [False, True])
+def test_get_project_cmakelists_emits_ldgen_override(
+    minimal: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Both renders override the ldgen dep walker to drop the app archive,
+    after include(project.cmake) which defines the original."""
+    monkeypatch.delenv("ESPHOME_LDGEN_FULL_DEPS", raising=False)
+    monkeypatch.delenv("ESPHOME_LDGEN_STRICT", raising=False)
+    content = _render(minimal=minimal)
+    assert "REMOVE_ITEM ${out_list_var} idf::src __idf_src" in content
+    # Quoted so spaced elements survive and an empty list stays defined
+    assert 'set(${out_list_var} "${${out_list_var}}" PARENT_SCOPE)' in content
+    assert 'message(WARNING "ESPHome ldgen app archive exclusion' in content
+    assert 'message(STATUS "ESPHome ldgen override target not found' in content
+    assert 'message(WARNING "ESPHome ldgen override never filtered' in content
+    assert content.index("tools/cmake/project.cmake") < content.index(
+        "function(__ldgen_get_lib_deps_of_target"
+    )
+    # The never-filtered check must run after project() has walked the deps
+    assert content.index("project(test)") < content.index("esphome_ldgen_armed GLOBAL")
+
+
+def test_get_project_cmakelists_ldgen_strict_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ESPHOME_LDGEN_STRICT turns both degradation paths into hard errors so
+    CI fails right away when an IDF bump breaks the override."""
+    monkeypatch.delenv("ESPHOME_LDGEN_FULL_DEPS", raising=False)
+    monkeypatch.setenv("ESPHOME_LDGEN_STRICT", "1")
+    content = _render()
+    assert 'message(FATAL_ERROR "ESPHome ldgen app archive exclusion' in content
+    assert 'message(FATAL_ERROR "ESPHome ldgen override target not found' in content
+    assert 'message(FATAL_ERROR "ESPHome ldgen override never filtered' in content
+    assert "@SEVERITY@" not in content
+    assert "@MISSING@" not in content
+
+
+def test_get_project_cmakelists_ldgen_full_deps_escape_hatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ESPHOME_LDGEN_FULL_DEPS restores stock ldgen behavior."""
+    monkeypatch.setenv("ESPHOME_LDGEN_FULL_DEPS", "true")
+    content = _render()
+    assert "__ldgen_get_lib_deps_of_target" not in content
+    assert "esphome_ldgen_armed" not in content
+
+
+def test_get_project_cmakelists_size_command_uses_json2() -> None:
+    """The POST_BUILD size command uses the cheap json2 format, with --ng
+    only on the 1.x tool bundled with IDF < 6."""
+    content = _render()
+    assert "-m esp_idf_size --ng --format=json2" in content
+
+    CORE.data[KEY_ESP32][KEY_IDF_VERSION] = cv.Version(6, 0, 0)
+    content = _render()
+    assert "--ng" not in content
+    assert "--format=json2" in content
+
+
 def test_get_project_cmakelists_uses_supplied_builtin_components() -> None:
     """A cached list replaces project_description.json and is still filtered
     by EXCLUDE_COMPONENTS."""
@@ -488,3 +547,126 @@ def test_get_component_cmakelists_no_compile_features() -> None:
         content = get_component_cmakelists()
 
     assert "target_compile_features" not in content
+
+
+def _make_pch_project(tmp_path: Path) -> Path:
+    """A build path with the core headers, an sdkconfig and a lock file."""
+    from esphome.build_helpers.pch import PCH_DEFAULT_HEADERS
+
+    CORE.build_path = tmp_path
+    for header in PCH_DEFAULT_HEADERS:
+        path = tmp_path / "src" / header
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('#include "esphome/core/defines.h"\n')
+    (tmp_path / "src" / "esphome" / "core" / "defines.h").write_text("#define M 1\n")
+    (tmp_path / "sdkconfig.test").write_text("CONFIG_X=y\n")
+    (tmp_path / "dependencies.lock").write_text("espressif/mdns: 1.12.0\n")
+    return tmp_path
+
+
+def _pch_checksum() -> str:
+    from esphome.build_gen.espidf import _PCH_SUM_PATH, write_pch_checksum
+
+    with patch.object(CORE, "name", "test"):
+        write_pch_checksum()
+    return CORE.relative_build_path(_PCH_SUM_PATH).read_text()
+
+
+def test_component_cmakelists_pch_block(monkeypatch: pytest.MonkeyPatch) -> None:
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        "target_precompile_headers(${COMPONENT_LIB} PRIVATE\n"
+        '    "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/'
+        'esphome/core/pch_prefix.h>"\n)'
+    ) in content
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    assert "target_precompile_headers" not in get_component_cmakelists()
+
+
+def test_component_cmakelists_pch_gate_on_windows(
+    windows_gcc_rule: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The block carries the rule and records its choice; the knob drops
+    the gate."""
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        'if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND '
+        "(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14.4 OR "
+        "(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15 AND "
+        "CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15.3)))\n"
+        "  message(STATUS " in content
+    )
+    assert (
+        '  set(ESPHOME_PCH OFF CACHE BOOL "ESPHome precompiled header in use" FORCE)\nelse()\n'
+        in content
+    )
+    assert (
+        '  set(ESPHOME_PCH ON CACHE BOOL "ESPHome precompiled header in use" FORCE)\n  target_precompile_headers(${COMPONENT_LIB} PRIVATE\n'
+        in content
+    )
+    assert "endif()" in content
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+    content = get_component_cmakelists()
+    assert "if(CMAKE_CXX_COMPILER_VERSION" not in content
+    assert "\ntarget_precompile_headers(${COMPONENT_LIB} PRIVATE\n" in content
+
+
+@pytest.mark.parametrize(("choice", "written"), [("OFF", False), ("ON", True)])
+def test_pch_checksum_follows_the_cmake_choice_on_windows(
+    windows_gcc_rule: None, tmp_path: Path, choice: str, written: bool
+) -> None:
+    from esphome.build_gen.espidf import _PCH_SUM_PATH, write_pch_checksum
+
+    _make_pch_project(tmp_path)
+    with (
+        patch(
+            "esphome.espidf.toolchain.get_cmake_cache_value", return_value=choice
+        ) as asked,
+        patch.object(CORE, "name", "test"),
+    ):
+        write_pch_checksum()
+    assert asked.call_args.args == ("ESPHOME_PCH",)
+    assert CORE.relative_build_path(_PCH_SUM_PATH).exists() is written
+
+
+@pytest.mark.parametrize(
+    ("file", "content"),
+    [
+        ("src/esphome/core/defines.h", "#define M 2\n"),
+        ("sdkconfig.test", "CONFIG_X=n\n"),
+        ("dependencies.lock", "espressif/mdns: 1.13.0\n"),
+    ],
+)
+def test_pch_checksum_tracks_its_inputs(
+    tmp_path: Path, file: str, content: str
+) -> None:
+    """The checksum stands in for the .gch in ccache, so it has to change
+    with a core header, the sdkconfig and a managed component version."""
+    project = _make_pch_project(tmp_path)
+    first = _pch_checksum()
+    assert len(first.strip()) == 64
+    (project / file).write_text(content)
+    assert _pch_checksum() != first
+
+
+def test_pch_checksum_is_the_same_for_two_devices(tmp_path: Path) -> None:
+    sums = []
+    for name in ("dev_a", "dev_b"):
+        _make_pch_project(tmp_path / name)
+        sums.append(_pch_checksum())
+    assert sums[0] == sums[1]
+
+
+def test_pch_checksum_disabled_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from esphome.build_gen.espidf import _PCH_SUM_PATH, write_pch_checksum
+
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    _make_pch_project(tmp_path)
+    write_pch_checksum()
+    assert not CORE.relative_build_path(_PCH_SUM_PATH).exists()

@@ -8,6 +8,8 @@ namespace esphome::template_ {
 
 class TemplateSensor final : public sensor::Sensor, public PollingComponent {
  public:
+  // User provided, not "= default": `new(p) TemplateSensor()` would zero-fill .bss that is already zero.
+  TemplateSensor() {}
   template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
   void update() override;

@@ -4,9 +4,11 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
-from ..display import CONF_SDL_ID, Sdl, sdl_ns
+from ..display import CONF_SDL_ID, Sdl, headless_final_validate, sdl_ns
 
 SdlTouchscreen = sdl_ns.class_("SdlTouchscreen", touchscreen.Touchscreen)
+
+FINAL_VALIDATE_SCHEMA = headless_final_validate("touchscreen")
 
 
 CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(

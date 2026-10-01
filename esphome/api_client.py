@@ -23,9 +23,7 @@ from esphome.util import safe_print
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from aioesphomeapi.api_pb2 import (
-        SubscribeLogsResponse,  # pylint: disable=no-name-in-module
-    )
+    from aioesphomeapi.api_pb2 import SubscribeLogsResponse  # pylint: disable=no-name-in-module
 
 
 _LOGGER = logging.getLogger(__name__)
