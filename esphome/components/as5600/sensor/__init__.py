@@ -87,18 +87,8 @@ async def to_code(config: ConfigType) -> None:
     if out_of_range_mode_config := config.get(CONF_OUT_OF_RANGE_MODE):
         cg.add(var.set_out_of_range_mode(out_of_range_mode_config))
 
-    if raw_position_config := config.get(CONF_RAW_POSITION):
-        sens = await sensor.new_sensor(raw_position_config)
-        cg.add(var.set_raw_position_sensor(sens))
-
-    if gain_config := config.get(CONF_GAIN):
-        sens = await sensor.new_sensor(gain_config)
-        cg.add(var.set_gain_sensor(sens))
-
-    if magnitude_config := config.get(CONF_MAGNITUDE):
-        sens = await sensor.new_sensor(magnitude_config)
-        cg.add(var.set_magnitude_sensor(sens))
-
-    if status_config := config.get(CONF_STATUS):
-        sens = await sensor.new_sensor(status_config)
-        cg.add(var.set_status_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_RAW_POSITION, var.set_raw_position_sensor)
+    await sensors(CONF_GAIN, var.set_gain_sensor)
+    await sensors(CONF_MAGNITUDE, var.set_magnitude_sensor)
+    await sensors(CONF_STATUS, var.set_status_sensor)

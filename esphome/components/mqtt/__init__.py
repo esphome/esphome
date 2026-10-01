@@ -3,7 +3,6 @@ import esphome.codegen as cg
 from esphome.components import logger, socket
 from esphome.components.esp32 import (
     add_idf_component,
-    add_idf_sdkconfig_option,
     idf_version,
     include_builtin_idf_component,
 )
@@ -243,8 +242,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Inclusive(CONF_CLIENT_CERTIFICATE, "cert-key-pair"): cv.All(
                 cv.string, cv.only_on_esp32
             ),
-            cv.Inclusive(CONF_CLIENT_CERTIFICATE_KEY, "cert-key-pair"): cv.All(
-                cv.string, cv.only_on_esp32
+            cv.Inclusive(CONF_CLIENT_CERTIFICATE_KEY, "cert-key-pair"): cv.sensitive(
+                cv.All(cv.string, cv.only_on_esp32)
             ),
             cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
@@ -451,10 +450,6 @@ async def to_code(config):
         if CONF_CLIENT_CERTIFICATE in config:
             cg.add(var.set_cl_certificate(config[CONF_CLIENT_CERTIFICATE]))
             cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
-
-        # prevent error -0x428e
-        # See https://github.com/espressif/esp-idf/issues/139
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_HARDWARE_MPI", False)
 
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
         cg.add_define("USE_MQTT_IDF_ENQUEUE")

@@ -994,6 +994,7 @@ lv_point_t LvglComponent::get_touch_relative_to_obj(lv_obj_t *obj) {
 
 static void lv_container_constructor(const lv_obj_class_t *class_p, lv_obj_t *obj) {
   LV_TRACE_OBJ_CREATE("begin");
+  lv_obj_remove_flag(obj, LV_OBJ_FLAG_CLICKABLE);
   LV_UNUSED(class_p);
 }
 
