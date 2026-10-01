@@ -348,26 +348,35 @@ def sync_component_mirror(
         return True
 
     synced = 0
-    try:
+
+    def sync_all() -> bool:
+        """The whole set in one invocation, per component after a timeout."""
+        nonlocal synced
         try:
             # One invocation for the whole set: one manager startup, which
             # matters on slow hosts.
             if not attempt(specs):
                 return False
             synced = len(specs)
+            return True
         except subprocess.TimeoutExpired:
             if len(specs) == 1:
                 raise
-            # Per component the timeout bounds each one, finished ones
-            # stay promoted, and the first failure stops the loop.
             _LOGGER.warning(
                 "Mirroring timed out after %d s; retrying one component at a time",
                 _SYNC_TIMEOUT_S,
             )
-            for dep in to_sync:
-                if not attempt([dep.spec]):
-                    return False
-                synced += 1
+        # Per component the timeout bounds each one, finished ones stay
+        # promoted, and the first failure stops the loop.
+        for dep in to_sync:
+            if not attempt([dep.spec]):
+                return False
+            synced += 1
+        return True
+
+    try:
+        if not sync_all():
+            return False
         if still := missing_deps(mirror, to_sync):
             # A name the registry spells differently syncs clean yet
             # covers nothing; retrying would loop forever.
