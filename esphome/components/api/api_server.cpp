@@ -3,6 +3,9 @@
 #include <cerrno>
 #include <cinttypes>
 #include "api_connection.h"
+#ifdef USE_API_WIZARD
+#include "api_wizard.h"
+#endif
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
@@ -60,6 +63,10 @@ void APIServer::socket_failed_(const LogString *msg) {
 }
 
 void APIServer::setup() {
+#ifdef USE_API_WIZARD_INPUTS
+  // Before any entity subscribes to the entity ids of the wizard inputs
+  wizard_setup();
+#endif
 #ifdef USE_API_NOISE
   // Always reserve the slot: flash preferences are positional on esp8266, so
   // a yaml key build must keep the layout of a runtime key build

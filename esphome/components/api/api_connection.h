@@ -273,6 +273,12 @@ class APIConnection final : public APIServerConnectionBase {
   void on_ping_request();
   void on_device_info_request();
   void on_device_capabilities_request();
+#ifdef USE_API_WIZARD
+  void on_device_wizard_request();
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+  void on_wizard_input_set_request(const WizardInputSetRequest &msg);
+#endif
   void on_list_entities_request() { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
   void on_subscribe_states_request() {
     this->flags_.state_subscription = true;
@@ -302,6 +308,10 @@ class APIConnection final : public APIServerConnectionBase {
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
   void on_subscribe_home_assistant_states_request();
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  /// Tell this client about the subscriptions whose entity id is stored in the given buffer, as the buffer changed
+  void resend_state_subscriptions(const char *entity_id);
+#endif
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   void on_execute_service_request(const ExecuteServiceRequest &msg);
@@ -384,6 +394,9 @@ class APIConnection final : public APIServerConnectionBase {
   bool send_ping_response_();
   bool send_device_info_response_();
   bool send_device_capabilities_response_();
+#ifdef USE_API_WIZARD
+  bool send_device_wizard_response_();
+#endif
 #ifdef USE_API_NOISE
   bool send_noise_encryption_set_key_response_(const NoiseEncryptionSetKeyRequest &msg);
 #endif
@@ -728,6 +741,9 @@ class APIConnection final : public APIServerConnectionBase {
     uint8_t batch_first_message : 1;          // For batch buffer allocation
     uint8_t should_try_send_immediately : 1;  // True after initial states are sent
     uint8_t may_have_remaining_data : 1;      // Read loop hit limit, retry without ready check
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+    uint8_t home_assistant_states : 1;  // Client subscribed to Home Assistant states
+#endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
     uint8_t log_only_mode : 1;
 #endif

@@ -26,6 +26,10 @@
 #include "esphome/components/select/select_traits.h"
 #endif
 
+#ifdef USE_API_WIZARD
+#include "api_wizard.h"
+#endif
+
 // Standard library includes that might be needed
 #include <set>
 #include <vector>

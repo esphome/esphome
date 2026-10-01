@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import logging
 import re
 from typing import Any
@@ -25,22 +26,29 @@ from esphome.const import (
     CONF_CAPTURE_RESPONSE,
     CONF_DATA,
     CONF_DATA_TEMPLATE,
+    CONF_DEVICE_CLASS,
+    CONF_DOMAIN,
     CONF_ENCRYPTION,
+    CONF_ENTITY_ID,
     CONF_EVENT,
     CONF_ID,
+    CONF_INTERNAL,
     CONF_KEY,
     CONF_MAX_CONNECTIONS,
     CONF_ON_CLIENT_CONNECTED,
     CONF_ON_CLIENT_DISCONNECTED,
     CONF_ON_ERROR,
     CONF_ON_SUCCESS,
+    CONF_PAGES,
     CONF_PASSWORD,
+    CONF_PLATFORM,
     CONF_PORT,
     CONF_REBOOT_TIMEOUT,
     CONF_RESPONSE_TEMPLATE,
     CONF_SERVICE,
     CONF_SERVICES,
     CONF_TAG,
+    CONF_TARGET,
     CONF_THEN,
     CONF_TRIGGER_ID,
     CONF_TYPE,
@@ -48,6 +56,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.helpers import fnv1_hash
 from esphome.types import ConfigFragmentType, ConfigType
 
@@ -90,6 +99,7 @@ HomeAssistantActionResponseTrigger = api_ns.class_(
     "HomeAssistantActionResponseTrigger", automation.Trigger
 )
 APIConnectedCondition = api_ns.class_("APIConnectedCondition", Condition)
+WizardInput = api_ns.class_("WizardInput")
 APIRespondAction = api_ns.class_("APIRespondAction", automation.Action)
 APIUnregisterServiceCallAction = api_ns.class_(
     "APIUnregisterServiceCallAction", automation.Action
@@ -135,6 +145,13 @@ CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
 CONF_MAX_SEND_QUEUE = "max_send_queue"
 CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
+CONF_ENTITIES = "entities"
+CONF_ENTITY = "entity"
+CONF_INPUTS = "inputs"
+CONF_INTEGRATION = "integration"
+CONF_SUPPORTED_FEATURES = "supported_features"
+CONF_TITLE = "title"
+CONF_WIZARD = "wizard"
 
 # Schema defaults that also match the C++ initializers in api_server.h; codegen
 # skips the setter when the config equals them.
@@ -282,6 +299,228 @@ ACTIONS_SCHEMA = automation.validate_automation(
     ),
 )
 
+# Wizard string limits; api.proto documents the same values
+WIZARD_TITLE_MAX_LENGTH = 127
+WIZARD_DESCRIPTION_MAX_LENGTH = 255
+WIZARD_FILTER_MAX_LENGTH = 63
+WIZARD_SUPPORTED_FEATURE_MAX_LENGTH = 127
+
+
+def _wizard_text(max_length: int) -> Callable[[Any], str]:
+    """A string passed to Home Assistant verbatim, so it may be a [%key:...%] translation placeholder."""
+    return cv.All(cv.string_strict, cv.Length(max=max_length))
+
+
+def _wizard_strings(max_length: int) -> Callable[[Any], list[str]]:
+    """A single string or a list of strings, always validated to a non-empty list."""
+    return cv.All(
+        cv.ensure_list(cv.All(cv.string_strict, cv.Length(min=1, max=max_length))),
+        cv.Length(min=1),
+    )
+
+
+# Mirrors Home Assistant's EntityFilterSelectorConfig
+WIZARD_ENTITY_FILTER_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_INTEGRATION): cv.All(
+                cv.string_strict, cv.Length(min=1, max=WIZARD_FILTER_MAX_LENGTH)
+            ),
+            cv.Optional(CONF_DOMAIN): _wizard_strings(WIZARD_FILTER_MAX_LENGTH),
+            cv.Optional(CONF_DEVICE_CLASS): _wizard_strings(WIZARD_FILTER_MAX_LENGTH),
+            cv.Optional(CONF_SUPPORTED_FEATURES): _wizard_strings(
+                WIZARD_SUPPORTED_FEATURE_MAX_LENGTH
+            ),
+        }
+    ),
+    cv.has_at_least_one_key(
+        CONF_INTEGRATION, CONF_DOMAIN, CONF_DEVICE_CLASS, CONF_SUPPORTED_FEATURES
+    ),
+)
+
+WIZARD_ENTITY_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(cg.EntityBase),
+        cv.Optional(CONF_DESCRIPTION): _wizard_text(WIZARD_DESCRIPTION_MAX_LENGTH),
+    }
+)
+
+
+# An input is either standalone (id declares a new WizardInput) or linked to a homeassistant entity
+WIZARD_INPUT_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_ID): cv.declare_id(WizardInput),
+            cv.Optional(CONF_ENTITY): cv.use_id(cg.EntityBase),
+            cv.Optional(CONF_DESCRIPTION): _wizard_text(WIZARD_DESCRIPTION_MAX_LENGTH),
+            cv.Optional(CONF_TARGET): cv.Schema(
+                {
+                    cv.Required(CONF_ENTITY): cv.All(
+                        cv.ensure_list(WIZARD_ENTITY_FILTER_SCHEMA), cv.Length(min=1)
+                    ),
+                }
+            ),
+        }
+    ),
+    cv.has_exactly_one_key(CONF_ID, CONF_ENTITY),
+)
+
+WIZARD_PAGE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_TITLE): _wizard_text(WIZARD_TITLE_MAX_LENGTH),
+            cv.Optional(CONF_DESCRIPTION): _wizard_text(WIZARD_DESCRIPTION_MAX_LENGTH),
+            cv.Optional(CONF_ENTITIES): cv.All(
+                cv.ensure_list(WIZARD_ENTITY_SCHEMA), cv.Length(min=1)
+            ),
+            cv.Optional(CONF_INPUTS): cv.All(
+                cv.ensure_list(WIZARD_INPUT_SCHEMA), cv.Length(min=1)
+            ),
+        }
+    ),
+    cv.has_at_least_one_key(CONF_ENTITIES, CONF_INPUTS),
+)
+
+
+def _wizard_inputs(wizard: ConfigType) -> list[ConfigType]:
+    return [conf for page in wizard[CONF_PAGES] for conf in page.get(CONF_INPUTS, [])]
+
+
+def _wizard_input_id(conf: ConfigType) -> ID:
+    """The ID that names an input: the one a standalone input declares, or its linked entity."""
+    return conf[CONF_ID] if CONF_ID in conf else conf[CONF_ENTITY]
+
+
+def _validate_unique_wizard_inputs(wizard: ConfigType) -> ConfigType:
+    """An input is identified on the wire by a hash of its ID, so IDs and hashes must be unique."""
+    seen: dict[int, str] = {}
+    for conf in _wizard_inputs(wizard):
+        input_id = _wizard_input_id(conf).id
+        if (key := fnv1_hash(input_id)) in seen:
+            if seen[key] == input_id:
+                raise cv.Invalid(f"Wizard input '{input_id}' is used more than once")
+            raise cv.Invalid(
+                f"Wizard inputs '{seen[key]}' and '{input_id}' have the same hash, rename one"
+            )
+        seen[key] = input_id
+    return wizard
+
+
+WIZARD_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_PAGES): cv.All(
+                cv.ensure_list(WIZARD_PAGE_SCHEMA), cv.Length(min=1)
+            ),
+        }
+    ),
+    _validate_unique_wizard_inputs,
+)
+
+# Platforms of the homeassistant component that a wizard input can stand for
+WIZARD_INPUT_DOMAINS = ("binary_sensor", "number", "sensor", "switch", "text_sensor")
+
+
+def wizard_input_ids(api_config: ConfigType) -> set[str]:
+    """The IDs of the entities that are linked inputs of the wizard in the given api config."""
+    if (wizard := api_config.get(CONF_WIZARD)) is None:
+        return set()
+    return {
+        conf[CONF_ENTITY].id for conf in _wizard_inputs(wizard) if CONF_ENTITY in conf
+    }
+
+
+def _wizard_buffer_name(entity_id: ID) -> str:
+    return f"api_wizard_input_{entity_id.id}"
+
+
+def wizard_input_buffer(entity_id: ID) -> str | None:
+    """Name of the RAM buffer holding the Home Assistant entity ID of a wizard input.
+
+    Returns None when the entity is not an input of the wizard. The buffer is defined by the api
+    codegen, and the homeassistant entity of the input is given it in place of a constant.
+    """
+    if entity_id.id not in wizard_input_ids(CORE.config.get(DOMAIN, {})):
+        return None
+    return _wizard_buffer_name(entity_id)
+
+
+def _wizard_input_declaration(
+    config: fv.FinalValidateConfig, entity_id: ID
+) -> tuple[str, ConfigType]:
+    """The domain (like sensor) and the config an input ID is declared in."""
+    path = config.get_path_for_id(entity_id)[:-1]
+    return path[0], config.get_config_for_path(path)
+
+
+def _wizard_input_filters(conf: ConfigType) -> list[ConfigType]:
+    """The entity filters of an input, with the defaults of a linked switch or number."""
+    if (filters := conf.get(CONF_TARGET, {}).get(CONF_ENTITY)) is not None:
+        return filters
+    if CONF_ENTITY in conf:
+        domain, _ = _wizard_input_declaration(CORE.config, conf[CONF_ENTITY])
+        if domains := _wizard_default_domains(domain):
+            return [{CONF_DOMAIN: domains}]
+    return []
+
+
+def _wizard_defines(wizard: ConfigType) -> set[str]:
+    """The defines for the parts of the wizard the configuration uses, so the rest is not compiled."""
+    inputs = _wizard_inputs(wizard)
+    defines = {"USE_API_WIZARD"}
+    if any(CONF_ENTITIES in page for page in wizard[CONF_PAGES]):
+        defines.add("USE_API_WIZARD_ENTITIES")
+    if inputs:
+        defines.add("USE_API_WIZARD_INPUTS")
+    if any(CONF_ENTITY in conf for conf in inputs):
+        defines.add("USE_API_WIZARD_LINKED_INPUTS")
+    if any(CONF_ID in conf for conf in inputs):
+        defines.add("USE_API_WIZARD_STANDALONE_INPUTS")
+    if any(_wizard_input_filters(conf) for conf in inputs):
+        defines.add("USE_API_WIZARD_ENTITY_FILTERS")
+    return defines
+
+
+def _wizard_default_domains(domain: str) -> list[str] | None:
+    """The domains Home Assistant entities can be picked from when the input sets no target."""
+    if domain == "switch":
+        from esphome.components.homeassistant.switch import SUPPORTED_DOMAINS
+
+        return list(SUPPORTED_DOMAINS)
+    if domain == "number":
+        # The platform calls number.set_value, which input_number does not offer
+        return ["number"]
+    return None
+
+
+def _validate_wizard_input(conf: ConfigType) -> ConfigType:
+    if CONF_ENTITY not in conf:
+        return conf
+    domain, declaration = _wizard_input_declaration(
+        fv.full_config.get(), conf[CONF_ENTITY]
+    )
+    if (
+        declaration.get(CONF_PLATFORM) != "homeassistant"
+        or domain not in WIZARD_INPUT_DOMAINS
+    ):
+        raise cv.Invalid(
+            f"Wizard input '{conf[CONF_ENTITY].id}' must be a homeassistant "
+            f"{', '.join(WIZARD_INPUT_DOMAINS)} entity"
+        )
+    if domain == "switch":
+        supported = _wizard_default_domains(domain)
+        for entity_filter in conf.get(CONF_TARGET, {}).get(CONF_ENTITY, []):
+            if not (domains := entity_filter.get(CONF_DOMAIN)):
+                raise cv.Invalid(
+                    "Every filter of a homeassistant switch input must set domain"
+                )
+            if unsupported := [d for d in domains if d not in supported]:
+                raise cv.Invalid(
+                    f"The homeassistant switch does not support the domain(s) "
+                    f"{', '.join(unsupported)}. Supported: {', '.join(supported)}"
+                )
+    return conf
+
 
 def _consume_api_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for API component."""
@@ -318,6 +557,7 @@ CONFIG_SCHEMA = cv.All(
             ): ACTIONS_SCHEMA,
             cv.Exclusive(CONF_ACTIONS, group_of_exclusion=CONF_ACTIONS): ACTIONS_SCHEMA,
             cv.Optional(CONF_ENCRYPTION): encryption_schema,
+            cv.Optional(CONF_WIZARD): WIZARD_SCHEMA,
             cv.Optional(CONF_BATCH_DELAY, default=DEFAULT_BATCH_DELAY): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
@@ -429,7 +669,42 @@ def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _validate_esp8266_action_strings
+def _validate_wizard_entity_exposed(value: ID) -> ID:
+    """Reject entities that are internal, as they are not exposed over the API."""
+    fconf = fv.full_config.get()
+    declaration = fconf.get_config_for_path(fconf.get_path_for_id(value)[:-1])
+    if declaration.get(CONF_INTERNAL, False):
+        raise cv.Invalid(
+            f"Entity '{value.id}' is internal, so it is not exposed over the API "
+            "and cannot be used in the wizard"
+        )
+    return value
+
+
+_WIZARD_FINAL_VALIDATE_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_WIZARD): {
+            cv.Optional(CONF_PAGES): [
+                {
+                    cv.Optional(CONF_ENTITIES): [
+                        {cv.Optional(CONF_ID): _validate_wizard_entity_exposed}
+                    ],
+                    cv.Optional(CONF_INPUTS): [_validate_wizard_input],
+                }
+            ]
+        }
+    },
+    extra=cv.ALLOW_EXTRA,
+)
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    _validate_esp8266_action_strings(config)
+    _WIZARD_FINAL_VALIDATE_SCHEMA(config)
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def _add_action_strings(
@@ -455,6 +730,164 @@ def _add_action_strings(
         ID(f"api_action{index}_strings", is_declaration=True, type=cg.const_char_ptr),
         entries,
     )
+
+
+WIZARD_ENTITY_ID_BUFFER_SIZE = (
+    256  # api_wizard.h; Home Assistant entity IDs are at most 255 bytes
+)
+
+
+class _WizardTables:
+    """Emits the wizard as constant tables that stay in flash (see api_wizard.h).
+
+    On ESP8266 constants are RAM unless they are PROGMEM, so there every table and string is
+    PROGMEM and the C++ copies them out as it encodes. The scratch sizes it needs are collected
+    here for the longest text of each kind.
+    """
+
+    def __init__(self, wizard: ConfigType) -> None:
+        self.wizard = wizard
+        self.defines = _wizard_defines(wizard)
+        self._count = 0
+        self._flash = CORE.is_esp8266
+        self._strings: dict[str, str] = {}
+        self.inputs = 0
+        # Bytes of text copied out at a time: page (title and description), field description,
+        # filter integration and one list entry. Each has room for the terminator.
+        self.page_scratch = self.field_scratch = 1
+        self.filter_scratch = self.list_scratch = 1
+
+    def _global(self, statement: str) -> None:
+        cg.add_global(cg.RawStatement(statement))
+
+    def _name(self) -> str:
+        name = f"api_wizard_{self._count}"
+        self._count += 1
+        return name
+
+    def _text(self, value: str | None) -> str:
+        """C++ expression for a string; an unset one is not sent."""
+        if not self._flash:
+            return str(cg.safe_exp(value or ""))
+        if not value:
+            return "nullptr"
+        if (name := self._strings.get(value)) is None:
+            name = self._strings[value] = self._name()
+            self._global(f"static const char {name}[] PROGMEM = {cg.safe_exp(value)};")
+        return name
+
+    @staticmethod
+    def _size(value: str | None) -> int:
+        """Bytes a string takes when copied out, with its terminator."""
+        return len((value or "").encode("utf-8")) + 1
+
+    def _array(self, cpp_type: str, rows: list[str]) -> str:
+        """Emit a constant array of rows and return a span initializer over it."""
+        if not rows:
+            return "{nullptr, 0}"
+        name = self._name()
+        progmem = " PROGMEM" if self._flash else ""
+        self._global(
+            f"static const {cpp_type} {name}[]{progmem} = {{\n  "
+            + ",\n  ".join(rows)
+            + ",\n};"
+        )
+        return f"{{{name}, {len(rows)}}}"
+
+    def _strings_span(self, values: list[str] | None) -> str:
+        for value in values or []:
+            self.list_scratch = max(self.list_scratch, self._size(value))
+        return self._array("char *const", [self._text(v) for v in values or []])
+
+    def _filter(self, conf: ConfigType) -> str:
+        self.filter_scratch = max(
+            self.filter_scratch, self._size(conf.get(CONF_INTEGRATION))
+        )
+        return (
+            f"{{{self._text(conf.get(CONF_INTEGRATION))}, "
+            f"{self._strings_span(conf.get(CONF_DOMAIN))}, "
+            f"{self._strings_span(conf.get(CONF_DEVICE_CLASS))}, "
+            f"{self._strings_span(conf.get(CONF_SUPPORTED_FEATURES))}}}"
+        )
+
+    def _description(self, conf: ConfigType) -> str:
+        self.field_scratch = max(
+            self.field_scratch, self._size(conf.get(CONF_DESCRIPTION))
+        )
+        return self._text(conf.get(CONF_DESCRIPTION))
+
+    @staticmethod
+    async def _getter(entity_id: ID) -> str:
+        """A function returning the entity, as entities only exist once setup() has created them."""
+        entity = await cg.get_variable(entity_id)
+        return f"[]() -> esphome::EntityBase * {{ return {entity}; }}"
+
+    async def _entity(self, conf: ConfigType) -> str:
+        return f"{{{await self._getter(conf[CONF_ID])}, {self._description(conf)}}}"
+
+    def _buffer(self, entity_id: ID, default: str | None) -> str:
+        """Emit the RAM buffer of an input, holding the default until the wizard sets another."""
+        name = _wizard_buffer_name(entity_id)
+        self._global(
+            f"static char {name}[{WIZARD_ENTITY_ID_BUFFER_SIZE}] = {cg.safe_exp(default or '')};"
+        )
+        return name
+
+    def _input(self, conf: ConfigType) -> str:
+        self.inputs += 1
+        input_id = _wizard_input_id(conf)
+        if CONF_ENTITY in conf:
+            # Linked: the homeassistant entity uses the buffer, and its entity_id is the default
+            _, declaration = _wizard_input_declaration(CORE.config, input_id)
+            default = declaration.get(CONF_ENTITY_ID)
+        else:
+            default = (
+                None  # Starts empty until the wizard sets it or a saved value loads
+            )
+        buffer = self._buffer(input_id, default)
+        if CONF_ID in conf:
+            cg.new_Pvariable(input_id, cg.RawExpression(buffer))
+        row = f"{{{fnv1_hash(input_id.id)}u, {buffer}, {self._description(conf)}"
+        if "USE_API_WIZARD_ENTITY_FILTERS" in self.defines:
+            filters = [self._filter(f) for f in _wizard_input_filters(conf)]
+            row += f", {self._array('esphome::api::WizardFilterRow', filters)}"
+        return row + "}"
+
+    async def _page(self, conf: ConfigType) -> str:
+        self.page_scratch = max(
+            self.page_scratch,
+            self._size(conf.get(CONF_TITLE)) + self._size(conf.get(CONF_DESCRIPTION)),
+        )
+        row = (
+            f"{{{self._text(conf.get(CONF_TITLE))}, "
+            f"{self._text(conf.get(CONF_DESCRIPTION))}"
+        )
+        if "USE_API_WIZARD_ENTITIES" in self.defines:
+            entities = [await self._entity(e) for e in conf.get(CONF_ENTITIES, [])]
+            row += f", {self._array('esphome::api::WizardEntityRow', entities)}"
+        if "USE_API_WIZARD_INPUTS" in self.defines:
+            inputs = [self._input(i) for i in conf.get(CONF_INPUTS, [])]
+            row += f", {self._array('esphome::api::WizardInputRow', inputs)}"
+        return row + "}"
+
+    async def emit(self) -> None:
+        """Emit every table, then API_WIZARD_PAGES (declared extern in api_wizard.h) over the pages."""
+        pages = [await self._page(page) for page in self.wizard[CONF_PAGES]]
+        span = self._array("esphome::api::WizardPageRow", pages)
+        self._global(
+            "const esphome::api::WizardView<esphome::api::WizardPage, esphome::api::WizardPageRow> "
+            f"esphome::api::API_WIZARD_PAGES = {span};"
+        )
+        for define in sorted(self.defines):
+            cg.add_define(define)
+        if "USE_API_WIZARD_INPUTS" in self.defines:
+            cg.add_define("API_WIZARD_INPUT_COUNT", self.inputs)
+        if self._flash:
+            cg.add_define("API_WIZARD_PAGE_SCRATCH_SIZE", self.page_scratch)
+            cg.add_define("API_WIZARD_FIELD_SCRATCH_SIZE", self.field_scratch)
+            if "USE_API_WIZARD_ENTITY_FILTERS" in self.defines:
+                cg.add_define("API_WIZARD_FILTER_SCRATCH_SIZE", self.filter_scratch)
+                cg.add_define("API_WIZARD_LIST_SCRATCH_SIZE", self.list_scratch)
 
 
 @coroutine_with_priority(CoroPriority.WEB)
@@ -581,6 +1014,9 @@ async def to_code(config: ConfigType) -> None:
     if CORE.is_esp8266 and has_user_actions:
         # Stack buffer that list-entities copies PROGMEM strings into, sized for the largest action
         cg.add_define("API_USER_ACTION_STRINGS_SCRATCH_SIZE", max(scratch_size, 1))
+
+    if (wizard := config.get(CONF_WIZARD)) is not None:
+        await _WizardTables(wizard).emit()
 
     if CONF_ON_CLIENT_CONNECTED in config:
         cg.add_define("USE_API_CLIENT_CONNECTED_TRIGGER")
@@ -994,6 +1430,16 @@ async def api_connected_to_code(
     return var
 
 
+WIZARD_INPUT_IS_SET_SCHEMA = cv.maybe_simple_value(
+    {cv.Required(CONF_ID): cv.use_id(WizardInput)}, key=CONF_ID
+)
+
+# Only for standalone inputs: a linked input is read through its homeassistant entity
+automation.register_apply_condition(
+    "api.wizard.input_is_set", WIZARD_INPUT_IS_SET_SCHEMA, "has_entity_id()"
+)
+
+
 # user_services.cpp is only needed when user defined actions exist; the
 # frame helpers are fully #ifdef'd on the protocol defines set in to_code
 # (both are set when encryption is configured without a key).
@@ -1002,6 +1448,7 @@ _define_filter = filter_source_files_from_defines(
         "user_services.cpp": "USE_API_USER_DEFINED_ACTIONS",
         "api_frame_helper_noise.cpp": "USE_API_NOISE",
         "api_frame_helper_plaintext.cpp": "USE_API_PLAINTEXT",
+        "api_wizard.cpp": "USE_API_WIZARD",
     }
 )
 

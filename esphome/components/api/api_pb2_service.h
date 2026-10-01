@@ -29,6 +29,13 @@ class APIServerConnectionBase {
 
   void on_device_capabilities_request(){};
 
+#ifdef USE_API_WIZARD
+  void on_device_wizard_request(){};
+#endif
+
+#ifdef USE_API_WIZARD_INPUTS
+  void on_wizard_input_set_request(const WizardInputSetRequest &value){};
+#endif
   void on_list_entities_request(){};
 
   void on_subscribe_states_request(){};

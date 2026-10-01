@@ -5,6 +5,7 @@ from esphome.types import ConfigType
 
 from .. import (
     HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA,
+    final_validate_entity_id,
     homeassistant_ns,
     setup_home_assistant_entity,
 )
@@ -21,6 +22,8 @@ CONFIG_SCHEMA = (
     .extend(HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
 )
+
+FINAL_VALIDATE_SCHEMA = final_validate_entity_id
 
 
 async def to_code(config: ConfigType) -> None:
