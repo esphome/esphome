@@ -842,7 +842,7 @@ class WizardPage final : public ProtoMessage {
 };
 class DeviceWizardResponse final : public ProtoMessage {
  public:
-  static constexpr uint16_t MESSAGE_TYPE = 154;
+  static constexpr uint16_t MESSAGE_TYPE = 157;
   static constexpr uint8_t ESTIMATED_SIZE = 34;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("device_wizard_response"); }
@@ -864,7 +864,7 @@ class DeviceWizardResponse final : public ProtoMessage {
 #ifdef USE_API_WIZARD_INPUTS
 class WizardInputSetRequest final : public ProtoDecodableMessage {
  public:
-  static constexpr uint16_t MESSAGE_TYPE = 155;
+  static constexpr uint16_t MESSAGE_TYPE = 158;
   static constexpr uint8_t ESTIMATED_SIZE = 14;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("wizard_input_set_request"); }
