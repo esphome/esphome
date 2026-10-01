@@ -27,7 +27,7 @@ class STCC4Component final : public PollingComponent, public sensirion_common::S
   void set_measurement_mode(MeasurementMode mode) { this->measurement_mode_ = mode; }
 
  protected:
-  void sync_setup_();
+  void poll_until_ready_for_setup_or_timeout_(uint32_t start_time);
   void finish_setup_();
   void schedule_continuous_update_(bool retry_for_clock_drift);
   bool read_measurement_(uint8_t sensirion_options);
@@ -50,7 +50,6 @@ class STCC4Component final : public PollingComponent, public sensirion_common::S
   uint16_t ambient_pressure_in_pa_2_{0};
   bool ambient_pressure_unit_warning_logged_{false};
   bool ready_{false};
-  uint8_t setup_retry_count_{0};
 };
 
 }  // namespace esphome::stcc4

@@ -9,19 +9,28 @@ namespace esphome::stcc4 {
 static const char *const TAG = "stcc4";
 
 // I2C Commands
-static const uint16_t STCC4_CMD_START_CONTINUOUS_MEASUREMENT = 0x218b;
-static const uint16_t STCC4_CMD_STOP_CONTINUOUS_MEASUREMENT = 0x3f86;
-static const uint16_t STCC4_CMD_MEASURE_SINGLE_SHOT = 0x219d;
-static const uint16_t STCC4_CMD_READ_MEASUREMENT = 0xec05;
-static const uint16_t STCC4_CMD_GET_PRODUCT_ID = 0x365b;
-static const uint16_t STCC4_CMD_SET_RHT_COMPENSATION = 0xe000;
-static const uint16_t STCC4_CMD_SET_PRESSURE_COMPENSATION = 0xe016;
+static constexpr uint16_t STCC4_CMD_START_CONTINUOUS_MEASUREMENT = 0x218b;
+static constexpr uint16_t STCC4_CMD_STOP_CONTINUOUS_MEASUREMENT = 0x3f86;
+static constexpr uint16_t STCC4_CMD_MEASURE_SINGLE_SHOT = 0x219d;
+static constexpr uint16_t STCC4_CMD_READ_MEASUREMENT = 0xec05;
+static constexpr uint16_t STCC4_CMD_GET_PRODUCT_ID = 0x365b;
+static constexpr uint16_t STCC4_CMD_SET_RHT_COMPENSATION = 0xe000;
+static constexpr uint16_t STCC4_CMD_SET_PRESSURE_COMPENSATION = 0xe016;
 
 // Exit sleep is an 8-bit command (single byte 0x00), not 16-bit
-static const uint8_t STCC4_CMD_EXIT_SLEEP_MODE = 0x00;
+static constexpr uint8_t STCC4_CMD_EXIT_SLEEP_MODE = 0x00;
 
-static const uint32_t STCC4_PRODUCT_ID = 0x0901018a;
+static constexpr uint32_t STCC4_PRODUCT_ID = 0x0901018a;
 
+// Timeout for determining when the device is ready for use, in milliseconds.
+// While waiting for the previous measurement to finish, the device will NACK all I2C requests
+// and it can take up to 1200 ms for the operation to complete according to the datasheet.
+static constexpr uint32_t READY_TIMEOUT_MS = 1200;
+
+// Poll interval for determining when the device is ready for use, in milliseconds.
+static constexpr uint32_t READY_POLL_INTERVAL_MS = 100;
+
+// Convert units the the device's representation according to the datasheet.
 constexpr uint16_t temperature_in_c_to_ticks(float temperature_in_c) {
   return uint16_t((std::clamp(temperature_in_c, -45.f, 130.f) + 45.f) * 65535.f / 175.f);
 }
@@ -51,18 +60,16 @@ void STCC4Component::setup() {
   this->set_timeout(100, [this]() {
     // Send exit sleep mode command (8-bit, NACK expected), wait 5 ms to exit sleep
     this->write_command(STCC4_CMD_EXIT_SLEEP_MODE);
-    this->set_timeout(5, [this]() { this->sync_setup_(); });
+    this->set_timeout(5, [this]() { this->poll_until_ready_for_setup_or_timeout_(millis()); });
   });
 }
 
-void STCC4Component::sync_setup_() {
-  // Stop continuous measurements
-  // While waiting for the current measurement to finish, the device will NACK all I2C requests
-  // and it can take up to 1200 ms for the operation to complete. We have to be prepared for the
-  // stop command itself to be NACKed if a previous stop already blocked communication with the device
-  // which may happen during a warm reboot.
+void STCC4Component::poll_until_ready_for_setup_or_timeout_(uint32_t start_time) {
+  // Stop continuous measurements in case they were previously running
+  // The device may NACK this request if it is not ready to communicate yet
   if (this->write_command(STCC4_CMD_STOP_CONTINUOUS_MEASUREMENT)) {
     // Read product ID to verify communication (6 words: 2 for product_id + 4 for serial)
+    // The device may NACK this request if it is not ready to communicate yet
     uint16_t raw_product_id[6];
     if (this->get_register(STCC4_CMD_GET_PRODUCT_ID, raw_product_id, 6, 1)) {
       uint32_t product_id = (uint32_t(raw_product_id[0]) << 16) | raw_product_id[1];
@@ -114,10 +121,10 @@ void STCC4Component::sync_setup_() {
     }
   }
 
-  if (this->setup_retry_count_ < 12) {  // retry for at least 1200 ms in total
+  if (millis() - start_time < READY_TIMEOUT_MS) {
     ESP_LOGVV(TAG, "Retry sync");
-    this->setup_retry_count_ += 1;
-    this->set_timeout(100, [this]() { this->sync_setup_(); });
+    this->set_timeout(READY_POLL_INTERVAL_MS,
+                      [this, start_time]() { this->poll_until_ready_for_setup_or_timeout_(start_time); });
     return;
   }
 
