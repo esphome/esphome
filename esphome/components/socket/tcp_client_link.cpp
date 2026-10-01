@@ -5,11 +5,17 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
 #include <cerrno>
 
 namespace esphome::socket {
 
+// After this long in SYN, the stack's own retries are cut short.
+static constexpr uint32_t CONNECT_TIMEOUT_MS = 10000;
+
 // Non-blocking options and TCP keepalive for a bridged stream socket.
+// Keepalive is best-effort: the raw lwIP implementation (ESP8266, RP2040)
+// rejects it, so a half-open link there is only detected by a failed write.
 static void set_stream_options(Socket *sock) {
   int yes = 1;
   sock->setblocking(false);
@@ -39,6 +45,12 @@ void TcpClientLink::poll_slow_() {
   int err = 0;
   switch (poll_connect(*this->sock_, err)) {
     case ConnectPollResult::CONNECT_POLL_RESULT_PENDING:
+      // Give up before the stack's SYN retries do, so the interval stays honest
+      // and the next attempt resolves the host again.
+      if (App.get_loop_component_start_time() - this->last_attempt_ms_ >=
+          std::max(this->reconnect_interval_ms_, CONNECT_TIMEOUT_MS)) {
+        this->drop_(LOG_STR("Connect failed"), ETIMEDOUT);
+      }
       return;
     case ConnectPollResult::CONNECT_POLL_RESULT_ERROR:
       this->drop_(LOG_STR("Connect failed"), err);
@@ -68,10 +80,12 @@ void TcpClientLink::try_connect_() {
   }
   this->sock_ = socket_loop_monitored(dest.ss_family, SOCK_STREAM, IPPROTO_TCP);
   if (this->sock_ == nullptr) {
-    this->note_attempt();
+    this->drop_(LOG_STR("Connect failed"), errno);
     return;
   }
   set_stream_options(this->sock_.get());
+  // Starts the pending-connect clock that poll() times out against.
+  this->note_attempt();
   // An immediate success is reported by the next poll(); poll_connect() sees it writable.
   if (this->sock_->connect(reinterpret_cast<struct sockaddr *>(&dest), dest_len) != 0 && errno != EINPROGRESS) {
     this->drop_(LOG_STR("Connect failed"), errno);
