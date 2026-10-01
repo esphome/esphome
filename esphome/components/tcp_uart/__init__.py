@@ -17,7 +17,7 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
-DEPENDENCIES = ["network", "socket"]
+DEPENDENCIES = ["network"]
 AUTO_LOAD = ["uart", "binary_sensor", "socket"]
 MULTI_CONF = True
 
@@ -26,11 +26,6 @@ TcpUart = tcp_uart_ns.class_("TcpUart", uart.UARTComponent, cg.Component)
 
 CONF_RECONNECT_INTERVAL = "reconnect_interval"
 CONF_CONNECTED = "connected"
-
-
-def _consume_socket(config: ConfigType) -> ConfigType:
-    socket.consume_sockets(1, "tcp_uart")(config)
-    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -54,7 +49,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    _consume_socket,
+    socket.consume_sockets(1, "tcp_uart"),
 )
 
 
@@ -69,6 +64,5 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_parity(config[CONF_PARITY]))
-    cg.add(var.set_rx_buffer_size(1024))
     binary_sensors = binary_sensor.sub_binary_sensors(config)
     await binary_sensors(CONF_CONNECTED, var.set_connected_sensor)
