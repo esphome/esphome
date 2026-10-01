@@ -249,9 +249,8 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_POLL_PERIOD): cv.All(
                 cv.positive_time_period_milliseconds,
-                # OpenThread's own cap: values above kMaxExternalPeriod (0x3FFFFFF ms, ~18.6h)
-                # are silently clamped by otLinkSetPollPeriod() (data_poll_sender.hpp).
-                cv.Range(max=TimePeriodMilliseconds(milliseconds=0x3FFFFFF)),
+                # 32767 s: twice this is the largest check timeout that fits a uint16_t
+                cv.Range(max=TimePeriodMilliseconds(milliseconds=0x1F3FC18)),
             ),
         }
     ).extend(_CONNECTION_SCHEMA),
