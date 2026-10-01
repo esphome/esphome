@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from ctypes.util import find_library
+from dataclasses import dataclass, field
 import json
 import logging
 import os
@@ -18,7 +19,7 @@ from esphome.build_helpers.ccache import (
 )
 from esphome.build_helpers.pch import ccache_pch_env
 from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
-from esphome.core import Version
+from esphome.core import CORE, Version
 from esphome.framework_helpers import (
     PathType,
     create_venv,
@@ -41,6 +42,21 @@ from esphome.helpers import write_file_if_changed
 _LOGGER = logging.getLogger(__name__)
 
 _SCRIPTS_DIR = Path(__file__).parent
+
+DOMAIN = "espidf_framework"
+
+
+@dataclass
+class _FrameworkCache:
+    tool_paths: dict[Path, tuple[list[str], dict[str, str]]] = field(
+        default_factory=dict
+    )
+
+
+def _cache() -> _FrameworkCache:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = _FrameworkCache()
+    return CORE.data[DOMAIN]
 
 
 ESPHOME_STAMP_FILE = ".esphome.stamp.json"
@@ -362,7 +378,15 @@ def _get_idf_tool_paths(
 
     Raises:
         RuntimeError: If ESP-IDF tool paths cannot be determined
+
+    The install check and the build environment both resolve the same
+    framework, so the result is cached per run and the helper script runs
+    once per build instead of once per caller.
     """
+    cache = _cache().tool_paths
+    key = Path(idf_framework_root)
+    if (cached := cache.get(key)) is not None:
+        return cached
 
     success, stdout, stderr = _run_idf_tools_script(
         idf_framework_root, "get_idf_tool_paths.py", "ESP-IDF tool paths", env=env
@@ -373,11 +397,13 @@ def _get_idf_tool_paths(
     # Extract json values
     try:
         data = json.loads(stdout)
-        return data["paths_to_export"], data["export_vars"]
+        result = (data["paths_to_export"], data["export_vars"])
     except Exception as e:
         raise RuntimeError(
             f"Can't extract ESP-IDF tool paths of {idf_framework_root}"
         ) from e
+    cache[key] = result
+    return result
 
 
 def _get_python_version(
@@ -927,6 +953,7 @@ def _check_esphome_idf_framework_install(
             # Validate via the managed tool-path resolution, not ``idf_tools.py check``:
             # ``check`` probes tools on the system PATH and aborts if any fail to run (e.g. a
             # broken Homebrew openocd), which forced a toolchain reinstall on every build.
+            # The resolved paths stay cached for get_framework_env.
             try:
                 _get_idf_tool_paths(framework_path, env)
                 install = False

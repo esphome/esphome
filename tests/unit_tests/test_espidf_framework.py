@@ -1511,6 +1511,30 @@ def test_get_idf_tool_paths_raises_on_failure(tmp_path: Path) -> None:
         _get_idf_tool_paths(tmp_path)
 
 
+def test_get_idf_tool_paths_runs_the_script_once_per_build(tmp_path: Path) -> None:
+    payload = json.dumps({"paths_to_export": ["/a"], "export_vars": {"X": "1"}})
+    env = {"IDF_TOOLS_PATH": str(tmp_path / "tools")}
+    with patch(
+        "esphome.espidf.framework.run_command", return_value=(True, payload, "")
+    ) as run:
+        first = _get_idf_tool_paths(tmp_path, env)
+        second = _get_idf_tool_paths(tmp_path, env)
+    assert run.call_count == 1
+    assert first == second == (["/a"], {"X": "1"})
+
+
+def test_get_idf_tool_paths_does_not_cache_a_failure(tmp_path: Path) -> None:
+    payload = json.dumps({"paths_to_export": ["/a"], "export_vars": {}})
+    with patch(
+        "esphome.espidf.framework.run_command",
+        side_effect=[(False, "", "err"), (True, payload, "")],
+    ) as run:
+        with pytest.raises(RuntimeError, match="Can't get ESP-IDF tool paths"):
+            _get_idf_tool_paths(tmp_path)
+        assert _get_idf_tool_paths(tmp_path) == (["/a"], {})
+    assert run.call_count == 2
+
+
 def test_get_python_version_parses_stdout(tmp_path: Path) -> None:
     with patch(
         "esphome.espidf.framework.run_command", return_value=(True, "3.11.0\n", "")
