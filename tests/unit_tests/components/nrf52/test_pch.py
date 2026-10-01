@@ -7,6 +7,7 @@ import pytest
 
 from esphome.components import nrf52
 from esphome.components.zephyr.const import KEY_BOARD
+import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
 from esphome.core import CORE, EsphomeError
 
@@ -110,6 +111,7 @@ def run_cmd(tmp_path: Path) -> Mock:
     CORE.build_path = tmp_path / "build"
     CORE.name = "livingroom"
     CORE.toolchain = Toolchain.SDK_NRF
+    CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: cv.Version(3, 2, 0)}
     with (
         patch.object(nrf52, "check_and_install"),
         patch.object(nrf52, "_generate_cmake_lists", return_value=False),
