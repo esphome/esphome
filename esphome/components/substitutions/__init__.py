@@ -374,8 +374,6 @@ def resolve_include(
         )
         if condition != original_condition:
             include = include.with_condition(condition)
-    if not include.should_load():
-        return {}
 
     original = include.file
     filename = str(
@@ -387,8 +385,8 @@ def resolve_include(
     if substituted:
         include = include.with_file(filename)
     try:
-        return include.load()
-    except esphome.core.EsphomeError as err:
+        return include.load() if include.should_load() else {}
+    except (esphome.core.EsphomeError, cv.Invalid) as err:
         resolved = f" (expanded from '{original}')" if substituted else ""
         raise cv.Invalid(
             f"Error including file '{filename}'{resolved}: {err}"
