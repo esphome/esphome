@@ -26,8 +26,8 @@ FAULT_SENSORS = (
     "over_temp_shutdown",
     "left_channel_cbc_over_current_warning",
     "right_channel_cbc_over_current_warning",
-    "over_temp_146c_warning",   # tas582x OTW Level 4
-    "over_temp_warning",        # tas582x OTW Level 3 - keep tas5805 naming
+    "over_temp_146c_warning",  # tas582x OTW Level 4
+    "over_temp_warning",  # tas582x OTW Level 3 - keep tas5805 naming
     # "over_temp_122c_warning", # tas582x OTW Level 2 - not currently included
     # "over_temp_112c_warning", # tas582x OTW Level 1 - not currently included
 )
@@ -75,6 +75,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
             f"- Remove from YAML for 'model: {hub_conf[CONF_MODEL]}'"
         )
     return config
+
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 

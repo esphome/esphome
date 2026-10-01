@@ -58,11 +58,11 @@ class Model:
 
 MODELS: dict[str, Model] = {
     DAC_TAS5805M: Model(
-            model_info=tas58xx_ns.TAS5805M_MODEL,
-            analog_gain_min_db=-15.5,
-            volume_min_db=-103.0,
-            volume_max_db=24.0,
-            default_address=0x2D,
+        model_info=tas58xx_ns.TAS5805M_MODEL,
+        analog_gain_min_db=-15.5,
+        volume_min_db=-103.0,
+        volume_max_db=24.0,
+        default_address=0x2D,
     ),
     DAC_TAS5825M: Model(
         model_info=tas58xx_ns.TAS5825M_MODEL,
