@@ -90,16 +90,11 @@ void STCC4Component::poll_until_ready_for_setup_or_timeout_(uint32_t start_time)
         }
       }
 
-      // Setup dynamic compensation sources if configured
+      // Apply the dynamic compensation sources' current values, if configured
       if (this->temperature_source_ != nullptr && this->humidity_source_ != nullptr) {
-        this->temperature_source_->add_on_state_callback(
-            [this](float) { this->update_rht_compensation_from_source_(); });
-        this->humidity_source_->add_on_state_callback([this](float) { this->update_rht_compensation_from_source_(); });
         this->update_rht_compensation_from_source_();
       }
       if (this->ambient_pressure_source_ != nullptr) {
-        this->ambient_pressure_source_->add_on_state_callback(
-            [this](float) { this->update_ambient_pressure_compensation_from_source_(); });
         this->update_ambient_pressure_compensation_from_source_();
       }
 
@@ -132,7 +127,18 @@ void STCC4Component::poll_until_ready_for_setup_or_timeout_(uint32_t start_time)
   this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
 }
 
-void STCC4Component::finish_setup_() { this->ready_ = true; }
+void STCC4Component::finish_setup_() {
+  this->ready_ = true;
+  // Follow the sources only once measuring started, so a failed setup stops writing to the device
+  if (this->temperature_source_ != nullptr && this->humidity_source_ != nullptr) {
+    this->temperature_source_->add_on_state_callback([this](float) { this->update_rht_compensation_from_source_(); });
+    this->humidity_source_->add_on_state_callback([this](float) { this->update_rht_compensation_from_source_(); });
+  }
+  if (this->ambient_pressure_source_ != nullptr) {
+    this->ambient_pressure_source_->add_on_state_callback(
+        [this](float) { this->update_ambient_pressure_compensation_from_source_(); });
+  }
+}
 
 void STCC4Component::dump_config() {
   ESP_LOGCONFIG(TAG, "STCC4:");

@@ -102,22 +102,16 @@ CONFIG_SCHEMA = (
     .add_extra(validate_config)
 )
 
-SENSOR_MAP = {
-    CONF_CO2: "set_co2_sensor",
-    CONF_TEMPERATURE: "set_temperature_sensor",
-    CONF_HUMIDITY: "set_humidity_sensor",
-}
 
-
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    for key, func_name in SENSOR_MAP.items():
-        if key in config:
-            sens = await sensor.new_sensor(config[key])
-            cg.add(getattr(var, func_name)(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CO2, var.set_co2_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
 
     if (temperature_source := config.get(CONF_TEMPERATURE_SOURCE)) is not None:
         sens = await cg.get_variable(temperature_source)
