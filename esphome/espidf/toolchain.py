@@ -24,6 +24,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError
 from esphome.espidf import variant_to_idf_target
+from esphome.espidf.component_mirror import component_mirror_env, sync_component_mirror
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
 from esphome.helpers import add_git_ceiling_directory, get_bool_env, rmtree, write_file
@@ -43,6 +44,7 @@ class _CacheData:
     cmake_output: dict[Path, str] = field(default_factory=dict)
     skip_bootloader: bool | None = None
     cmake_tools: dict[Path, dict[str, Path]] = field(default_factory=dict)
+    mirror_sync_failed: bool = False
 
 
 def _cache() -> _CacheData:
@@ -110,6 +112,11 @@ def _get_idf_path(version: str | None = None) -> Path | None:
     return Path(_get_esphome_esp_idf_paths(version)[0])
 
 
+def _esphome_manages_idf() -> bool:
+    """A checkout supplied through IDF_PATH is the user's, not ESPHome's."""
+    return "IDF_PATH" not in os.environ
+
+
 def _get_idf_env(version: str | None = None) -> dict[str, str]:
     """Get environment variables needed for ESP-IDF build."""
     version = version or _get_core_framework_version()
@@ -120,10 +127,12 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
         env_cache[version].pop("PYTHONPATH", None)
 
         # Use provided IDF framework if available
-        if "IDF_PATH" not in os.environ:
+        if _esphome_manages_idf():
             env_cache[version] |= get_framework_env(
                 *_get_esphome_esp_idf_paths(version)
             )
+            # Serve the component manager from the local registry mirror.
+            env_cache[version] |= component_mirror_env()
 
         # Cap git's repo search at the config directory so ESP-IDF's
         # `git describe` for the app version can't error out on an
@@ -369,6 +378,8 @@ def run_reconfigure(verbose: bool = False) -> int:
             if (path := build_dir / stale).is_dir():
                 rmtree(path)
         get_factory_firmware_path().unlink(missing_ok=True)
+    # First, so the configure (even a first solve) installs from the mirror.
+    _sync_component_mirror()
     cmd = [_get_idf_tool("cmake"), "-G", "Ninja"]
     if _idf_py().binary_dir_arg:
         cmd += ["-B", str(build_dir)]
@@ -387,6 +398,9 @@ def run_reconfigure(verbose: bool = False) -> int:
         (build_dir / "CMakeCache.txt").unlink(missing_ok=True)
         _LOGGER.error("CMake configure failed with exit code %d", rc)
         _print_hints(log_path)
+        return rc
+    # Mirror what the solve added to the lock (transitive dependencies).
+    _sync_component_mirror()
     return rc
 
 
@@ -481,6 +495,24 @@ def _print_hints(log_path: Path) -> None:
         _LOGGER.warning("%s", hints)
 
 
+def _sync_component_mirror() -> None:
+    """Best-effort update of the local registry mirror; never fails the build."""
+    if not _esphome_manages_idf():
+        # _get_idf_env injects no mirror env, so nothing would read a sync.
+        return
+    cache = _cache()
+    if cache.mirror_sync_failed:
+        return
+    if not sync_component_mirror(
+        CORE.relative_build_path("dependencies.lock"),
+        CORE.relative_build_path("src/idf_component.yml"),
+        lambda: _get_idf_tool("python"),
+        _get_idf_env,
+    ):
+        # One failed attempt (e.g. offline) is enough per run.
+        cache.mirror_sync_failed = True
+
+
 def _builtin_component_cache_path() -> Path | None:
     """Cache file for this build's built-in component list.
 
@@ -491,7 +523,7 @@ def _builtin_component_cache_path() -> Path | None:
     of CONFIG_* options and only gate their sources on them. A checkout
     supplied through IDF_PATH is not managed by ESPHome and is never cached.
     """
-    if "IDF_PATH" in os.environ:
+    if not _esphome_manages_idf():
         return None
     target = variant_to_idf_target(CORE.data[KEY_ESP32][KEY_VARIANT])
     excluded = CORE.cmake_args.get("EXCLUDE_COMPONENTS", "")
@@ -793,6 +825,8 @@ def run_compile(config, verbose: bool) -> int:
             return rc
     else:
         _LOGGER.info("Build configuration is up to date")
+        # Ninja can still re-run cmake on its own; keep the mirror current.
+        _sync_component_mirror()
 
     if not get_bool_env("ESPHOME_LDGEN_FULL_DEPS"):
         _warn_if_app_archive_mapped()

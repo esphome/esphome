@@ -215,6 +215,38 @@ def test_get_idf_env_sets_git_ceiling_directories(setup_core: Path) -> None:
     assert str(CORE.config_dir) in env["GIT_CEILING_DIRECTORIES"].split(os.pathsep)
 
 
+def test_get_idf_env_serves_the_component_mirror(setup_core: Path) -> None:
+    """The mirror env rides the managed-IDF branch, next to its sync gate."""
+    toolchain._cache().env.clear()
+    with (
+        patch.object(
+            toolchain,
+            "get_framework_env",
+            return_value={"PATH": "/penv"},
+        ),
+        patch.object(toolchain, "_get_esphome_esp_idf_paths", return_value=((), {})),
+        patch.object(
+            toolchain,
+            "component_mirror_env",
+            return_value={"IDF_COMPONENT_LOCAL_STORAGE_URL": "file:///mirror"},
+        ),
+    ):
+        env = toolchain._get_idf_env(version="5.5.4")
+    assert env["IDF_COMPONENT_LOCAL_STORAGE_URL"] == "file:///mirror"
+
+
+def test_get_idf_env_user_idf_skips_the_mirror(setup_core: Path) -> None:
+    """A user-managed IDF gets neither the framework env nor the mirror."""
+    toolchain._cache().env.clear()
+    with (
+        patch.dict(os.environ, {"IDF_PATH": str(setup_core)}),
+        patch.object(toolchain, "component_mirror_env") as mock_env,
+    ):
+        env = toolchain._get_idf_env(version="5.5.4")
+    mock_env.assert_not_called()
+    assert "IDF_COMPONENT_LOCAL_STORAGE_URL" not in env
+
+
 def test_get_idf_env_pops_inherited_pythonpath(setup_core: Path) -> None:
     """A PYTHONPATH from the parent environment must not reach idf.py.
 
@@ -360,6 +392,73 @@ def test_run_compile_discovery_without_cmakecache(setup_core: Path) -> None:
         assert toolchain.run_compile(config, verbose=False) == 0
 
     assert not CORE.relative_build_path("build/CMakeCache.txt").exists()
+
+
+@pytest.mark.parametrize(
+    ("cmake_rc", "expected"),
+    [(0, ["sync", "cmake", "sync"]), (1, ["sync", "cmake"])],
+)
+def test_run_reconfigure_syncs_mirror_around_the_configure(
+    setup_core: Path, cmake_rc: int, expected: list[str]
+) -> None:
+    """Every configure path syncs: before, so the solve installs from the
+    mirror; after a success, so solver-added lock entries are mirrored."""
+    _setup_build(setup_core)
+    calls: list[str] = []
+
+    with (
+        _fake_tools() as mock_run,
+        patch.object(
+            toolchain,
+            "_sync_component_mirror",
+            side_effect=lambda: calls.append("sync"),
+        ),
+        # The real hint printer resolves an IDF install (or downloads one).
+        patch.object(toolchain, "_print_hints"),
+    ):
+        mock_run.side_effect = lambda *a, **k: calls.append("cmake") or cmake_rc
+        assert toolchain.run_reconfigure() == cmake_rc
+
+    assert calls == expected
+
+
+def test_run_compile_syncs_mirror_when_up_to_date(setup_core: Path) -> None:
+    """No reconfigure still refreshes the mirror once for ninja-driven
+    cmake re-runs."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+
+    with (
+        _up_to_date_compile(),
+        patch.object(toolchain, "_sync_component_mirror") as mock_sync,
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    mock_sync.assert_called_once()
+
+
+def test_sync_component_mirror_skips_user_idf(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A user-managed IDF never gets the mirror env, so a sync is unread."""
+    monkeypatch.setenv("IDF_PATH", "/opt/esp-idf")
+    with patch.object(toolchain, "sync_component_mirror") as mock_sync:
+        toolchain._sync_component_mirror()
+    mock_sync.assert_not_called()
+
+
+def test_sync_component_mirror_failure_not_retried(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One failed attempt (e.g. offline) must not stall every later call."""
+    monkeypatch.delenv("IDF_PATH", raising=False)
+    _setup_build(setup_core)
+    with patch.object(
+        toolchain, "sync_component_mirror", return_value=False
+    ) as mock_sync:
+        toolchain._sync_component_mirror()
+        toolchain._sync_component_mirror()
+    mock_sync.assert_called_once()
 
 
 def test_run_compile_reconfigures_after_full_write_outside_testing_mode(
