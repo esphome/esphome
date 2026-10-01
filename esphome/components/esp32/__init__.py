@@ -322,6 +322,34 @@ ARDUINO_EXCLUDED_IDF_COMPONENTS = (
     "joltwallet__littlefs",  # LittleFS - ESPHome doesn't use filesystem
 )
 
+# Entries arduino-esp32 only declares below the given IDF version; stubbing one past
+# it clashes with ESPHome's own managed component of the same short name.
+ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF: dict[str, cv.Version] = {
+    "espressif__libsodium": cv.Version(6, 0, 0),
+}
+
+
+def arduino_bundles_libsodium() -> bool:
+    """arduino-esp32 ships its own libsodium below IDF 6.0."""
+    return (
+        CORE.using_arduino
+        and idf_version()
+        < ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF["espressif__libsodium"]
+    )
+
+
+def arduino_excluded_idf_components() -> set[str]:
+    """The arduino-bundled components to stub for this build's IDF version."""
+    version = idf_version()
+    return {
+        component
+        for component in ARDUINO_EXCLUDED_IDF_COMPONENTS
+        if (max_version := ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF.get(component))
+        is None
+        or version < max_version
+    }
+
+
 # Mapping of Arduino libraries to IDF managed components they require
 # When an Arduino library is enabled via cg.add_library(), these components
 # are automatically un-stubbed from ARDUINO_EXCLUDED_IDF_COMPONENTS.
@@ -3513,9 +3541,7 @@ def _write_idf_component_yml():
         }
 
         # Only stub components that are not required by any enabled Arduino library
-        components_to_stub = (
-            set(ARDUINO_EXCLUDED_IDF_COMPONENTS) - required_idf_components
-        )
+        components_to_stub = arduino_excluded_idf_components() - required_idf_components
 
         stubs_dir = CORE.relative_build_path("component_stubs")
         stubs_dir.mkdir(exist_ok=True)
@@ -3580,7 +3606,11 @@ def _write_idf_component_yml():
             # Don't process arduino libraries
             if name not in ARDUINO_DISABLED_LIBRARIES
         ]
-        for component in generate_idf_components(libraries):
+        # A library also declared as a managed component is not converted too, or
+        # IDF sees the same requirement twice; converted components reach it through
+        # ${ESPHOME_PROJECT_MANAGED_COMPONENTS}.
+        managed = set(CORE.data[KEY_ESP32].get(KEY_COMPONENTS, {}))
+        for component in generate_idf_components(libraries, managed=managed):
             dependencies[component.get_sanitized_name()] = {
                 "override_path": str(component.path)
             }
