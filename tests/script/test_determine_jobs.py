@@ -2594,7 +2594,7 @@ def test_detect_platform_hint_from_filename_case_insensitive(
     assert result == expected_platform
 
 
-def test_component_batching_beta_branch_40_per_batch(
+def test_component_batching_beta_branch_groups_evenly(
     tmp_path: Path,
     mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
@@ -2604,11 +2604,10 @@ def test_component_batching_beta_branch_40_per_batch(
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Test that beta/release branches create batches with 40 actual components each.
+    """Test that beta/release branches group every component and split evenly.
 
     For beta/release branches, all components should be groupable (not isolated),
-    and each batch should contain 40 actual components with weight 1 each.
-    This matches the original behavior before consolidation.
+    so they share one grouped build per runner and spread evenly.
     """
     # Create 120 test components with test files
     component_names = [f"comp_{i:03d}" for i in range(120)]
@@ -2672,15 +2671,9 @@ def test_component_batching_beta_branch_40_per_batch(
     assert "component_test_batches" in output
     batches = output["component_test_batches"]
 
-    # Should have 3 batches (120 components / 40 per batch = 3)
-    assert len(batches) == 3, f"Expected 3 batches, got {len(batches)}"
-
-    # Each batch should have approximately 40 components (all weight=1, groupable)
-    for i, batch in enumerate(batches):
-        batch_components = batch["components"].split()
-        assert len(batch_components) == 40, (
-            f"Batch {i} should have 40 components, got {len(batch_components)}"
-        )
+    # One grouped esp32-idf build plus 5 s per extra component is 640 s,
+    # so two runners of 60 components each
+    assert [len(batch["components"].split()) for batch in batches] == [60, 60]
 
     # Verify all 120 components are in batches
     all_components = []
