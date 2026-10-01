@@ -10,29 +10,29 @@ enum Model {
   MODEL_MW12Y3H = 0,  // MW12Y3H built from a remote that only provided Fahrenheit
 };
 
-const uint8_t TEMP_MIN = 60;  // F, actually 64 For anything but Heating
-const uint8_t TEMP_MAX = 88;  // F
+// The unit reports temperatures in Fahrenheit (see traits()); the unit only accepts even values.
+const uint8_t TEMP_MIN = 60;  // actually 64 for anything but heating
+const uint8_t TEMP_MAX = 88;
+const uint8_t TEMP_MIN_NOT_HEAT = 64;
+const uint8_t TEMP_STEP = 2;
+const uint8_t TEMP_DEFAULT = 72;
 
 const uint8_t STATE_MESSAGE_LENGTH = 14;
 
 class FriedrichClimate : public climate_ir::ClimateIR {
  public:
   FriedrichClimate()
-      : ClimateIR(roundf(fahrenheit_to_celsius(TEMP_MIN)), roundf(fahrenheit_to_celsius(TEMP_MAX)), 1.0f, true, true,
+      : ClimateIR(TEMP_MIN, TEMP_MAX, TEMP_STEP, true, true,
                   {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_FAN_MEDIUM,
                    climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_QUIET},
                   {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
 
-  // Retained for future Celsius support; use_fahrenheit: false is currently rejected at config validation.
-  void set_fahrenheit(bool value) {
-    this->fahrenheit_ = value;
-    this->temperature_step_ = value ? 2.0f : 1.0f;
-  }
-
   void set_model(Model model) { this->model_ = model; }
 
  protected:
+  void setup() override;
   void dump_config() override;
+  climate::ClimateTraits traits() override;
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
   /// Transmit via IR power off command.
@@ -50,9 +50,6 @@ class FriedrichClimate : public climate_ir::ClimateIR {
   /// Calculate checksum for a util message
   uint8_t checksum_util_(const uint8_t *data);
 
-  // true if currently on - friedrich transmit an on flag on when the remote moves from off to on
-  bool power_{false};
-  bool fahrenheit_{true};
   Model model_;
 };
 

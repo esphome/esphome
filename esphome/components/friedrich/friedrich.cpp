@@ -67,8 +67,24 @@ const uint8_t BYTE11_FIXED = 0x00;
 const uint8_t BYTE12_ECO_OFF = 0x04;
 const uint8_t BYTE12_ECO_ON = 0x00;  // hardware feature, not yet exposed
 
+climate::ClimateTraits FriedrichClimate::traits() {
+  auto traits = ClimateIR::traits();
+  traits.set_temperature_unit(TemperatureUnit::FAHRENHEIT);
+  return traits;
+}
+
+void FriedrichClimate::setup() {
+  ClimateIR::setup();
+  // The base class defaults assume Celsius. This also discards a value saved in Celsius by an earlier version.
+  if (std::isnan(this->target_temperature) || this->target_temperature < TEMP_MIN) {
+    this->target_temperature = TEMP_DEFAULT;
+  }
+  this->target_temperature = std::min<float>(this->target_temperature, TEMP_MAX);
+}
+
 void FriedrichClimate::dump_config() {
-  ClimateIR::dump_config();
+  LOG_CLIMATE("", "Friedrich Climate", this);
+  ESP_LOGCONFIG(TAG, "  Temperature range: %u to %u °F", TEMP_MIN, TEMP_MAX);
   const char *model_str;
   switch (this->model_) {
     case MODEL_MW12Y3H:
@@ -77,7 +93,6 @@ void FriedrichClimate::dump_config() {
       break;
   }
   ESP_LOGCONFIG(TAG, "  Model: %s", model_str);
-  ESP_LOGCONFIG(TAG, "  Using Fahrenheit: %s", YESNO(this->fahrenheit_));
 }
 
 void FriedrichClimate::transmit_state() {
@@ -90,9 +105,9 @@ void FriedrichClimate::transmit_state() {
 
   // Non-heat modes cannot go below 64°F; clamp before building state so publish_state()
   // is never called mid-transmission.
-  float effective_min_c = fahrenheit_to_celsius(this->mode == climate::CLIMATE_MODE_HEAT ? TEMP_MIN : 64);
-  if (this->target_temperature < effective_min_c) {
-    this->target_temperature = effective_min_c;
+  const uint8_t effective_min = this->mode == climate::CLIMATE_MODE_HEAT ? TEMP_MIN : TEMP_MIN_NOT_HEAT;
+  if (this->target_temperature < effective_min) {
+    this->target_temperature = effective_min;
     this->publish_state();
   }
 
@@ -105,9 +120,8 @@ void FriedrichClimate::transmit_state() {
   remote_state[4] = BYTE4_FIXED;
   remote_state[5] = BYTE5_FIXED;
 
-  // Set Temp (F, step to even)
-  uint8_t temperature_clamped =
-      (uint8_t) roundf(clamp<float>(celsius_to_fahrenheit(this->target_temperature), TEMP_MIN, TEMP_MAX));
+  // Set Temp (step to even)
+  uint8_t temperature_clamped = (uint8_t) roundf(clamp<float>(this->target_temperature, TEMP_MIN, TEMP_MAX));
   if (temperature_clamped % 2 == 1) {
     temperature_clamped++;
   }
@@ -185,24 +199,19 @@ void FriedrichClimate::transmit_state() {
   remote_state[STATE_MESSAGE_LENGTH - 1] = this->checksum_state_(remote_state.data());
 
   this->transmit_(remote_state.data(), remote_state.size());
-
-  this->power_ = true;
 }
 
 void FriedrichClimate::transmit_off_() {
   ESP_LOGV(TAG, "Transmit off");
 
-  if (this->power_) {
-    std::array<uint8_t, STATE_MESSAGE_LENGTH> remote_state{};
-    remote_state[0] = BYTE0_FIXED;
-    remote_state[1] = BYTE1_FIXED;
-    remote_state[2] = BYTE2_FIXED;
-    remote_state[3] = BYTE3_POWER_OFF;
-    remote_state[4] = this->checksum_util_(remote_state.data());
+  std::array<uint8_t, STATE_MESSAGE_LENGTH_UTIL> remote_state{};
+  remote_state[0] = BYTE0_FIXED;
+  remote_state[1] = BYTE1_FIXED;
+  remote_state[2] = BYTE2_FIXED;
+  remote_state[3] = BYTE3_POWER_OFF;
+  remote_state[4] = this->checksum_util_(remote_state.data());
 
-    this->transmit_(remote_state.data(), remote_state.size());
-    this->power_ = false;
-  }
+  this->transmit_(remote_state.data(), remote_state.size());
 }
 
 void FriedrichClimate::transmit_(const uint8_t *data, uint8_t len) {
@@ -216,7 +225,6 @@ void FriedrichClimate::transmit_(const uint8_t *data, uint8_t len) {
   aeha_data.address = CARRIER_ADDRESS;
   aeha_data.data.assign(data, data + len);
   remote_base::AEHAProtocol protocol;
-  protocol.dump(aeha_data);
   protocol.encode(dst, aeha_data);
   transmit.perform();
 }
@@ -245,47 +253,53 @@ bool FriedrichClimate::on_receive(remote_base::RemoteReceiveData src) {
   optional<remote_base::AEHAData> odata = remote_base::AEHAProtocol().decode(src);
   if (odata.has_value()) {
     const remote_base::AEHAData &data = odata.value();
+    // Other vendors also use AEHA; only accept frames with our address and fixed header bytes.
+    if (data.address != CARRIER_ADDRESS || data.data.size() < STATE_MESSAGE_LENGTH_UTIL ||
+        data.data.at(0) != BYTE0_FIXED || data.data.at(1) != BYTE1_FIXED || data.data.at(2) != BYTE2_FIXED) {
+      return false;
+    }
     if (data.data.size() == STATE_MESSAGE_LENGTH_UTIL &&
         data.data.at(STATE_MESSAGE_LENGTH_UTIL - 1) == checksum_util_(data.data.data())) {
       // Not looking for other types of messages
       if (data.data.at(3) == BYTE3_POWER_OFF) {
         ESP_LOGV(TAG, "Received off message");
         this->mode = climate::CLIMATE_MODE_OFF;
-        this->power_ = false;
         received = true;
       }
     } else if (data.data.size() == STATE_MESSAGE_LENGTH &&
-               data.data.at(STATE_MESSAGE_LENGTH - 1) == checksum_state_(data.data.data())) {
+               data.data.at(STATE_MESSAGE_LENGTH - 1) == checksum_state_(data.data.data()) &&
+               data.data.at(3) == BYTE3_FIXED && data.data.at(4) == BYTE4_FIXED && data.data.at(5) == BYTE5_FIXED) {
+      // Ignore frames with a mode this component does not expose (e.g. MIN_HEAT, COIL_DRY)
+      climate::ClimateMode new_mode;
+      switch (data.data.at(7)) {
+        case BYTE7_MODE_COOL:
+          new_mode = climate::CLIMATE_MODE_COOL;
+          break;
+        case BYTE7_MODE_HEAT:
+          new_mode = climate::CLIMATE_MODE_HEAT;
+          break;
+        case BYTE7_MODE_DRY:
+          new_mode = climate::CLIMATE_MODE_DRY;
+          break;
+        case BYTE7_MODE_FAN:
+          new_mode = climate::CLIMATE_MODE_FAN_ONLY;
+          break;
+        case BYTE7_MODE_AUTO:
+          new_mode = climate::CLIMATE_MODE_HEAT_COOL;
+          break;
+        default:
+          ESP_LOGV(TAG, "Ignoring unknown mode 0x%02X", data.data.at(7));
+          return false;
+      }
+      this->mode = new_mode;
       received = true;
       // Strip the power-on flag (bit 7) to isolate the temperature encoding.
       uint8_t byte6 = data.data.at(6) & ~BYTE6_POWER_ON;
-      // Only Fahrenheit is supported; use_fahrenheit: false is rejected at config validation.
       for (const auto &entry : TEMP_ENCODINGS) {
         if (entry.encoded == byte6) {
-          this->target_temperature = fahrenheit_to_celsius(entry.fahrenheit);
+          this->target_temperature = entry.fahrenheit;
           break;
         }
-      }
-
-      // Set mode
-      uint8_t byte7 = data.data.at(7);
-      switch (byte7) {
-        case BYTE7_MODE_COOL:
-          this->mode = climate::CLIMATE_MODE_COOL;
-          break;
-        case BYTE7_MODE_HEAT:
-          this->mode = climate::CLIMATE_MODE_HEAT;
-          break;
-        case BYTE7_MODE_DRY:
-          this->mode = climate::CLIMATE_MODE_DRY;
-          break;
-        case BYTE7_MODE_FAN:
-          this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-          break;
-        case BYTE7_MODE_AUTO:
-        default:
-          this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-          break;
       }
 
       // Set fan

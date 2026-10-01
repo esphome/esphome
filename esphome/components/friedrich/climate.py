@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import climate_ir, remote_base
 import esphome.config_validation as cv
-from esphome.const import CONF_MODEL, CONF_USE_FAHRENHEIT
+from esphome.const import CONF_HUMIDITY_SENSOR, CONF_MODEL, CONF_SENSOR
 
 CODEOWNERS = ["@rwrozelle"]
 
@@ -18,15 +18,16 @@ MODELS = {
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(FriedrichClimate).extend(
     {
         cv.Optional(CONF_MODEL, default="MW12Y3H"): cv.enum(MODELS, upper=True),
-        cv.Optional(CONF_USE_FAHRENHEIT, default=True): cv.boolean,
     }
 )
 
 
 def final_validate(config):
-    if not config[CONF_USE_FAHRENHEIT]:
+    if CONF_SENSOR in config:
+        raise cv.Invalid("'sensor' is not supported by the Friedrich climate component")
+    if CONF_HUMIDITY_SENSOR in config:
         raise cv.Invalid(
-            "use_fahrenheit: false is not yet implemented for the Friedrich climate component"
+            "'humidity_sensor' is not supported by the Friedrich climate component"
         )
 
 
@@ -37,4 +38,3 @@ async def to_code(config):
     remote_base.request_protocol("aeha")  # used from C++
     var = await climate_ir.new_climate_ir(config)
     cg.add(var.set_model(config[CONF_MODEL]))
-    cg.add(var.set_fahrenheit(config[CONF_USE_FAHRENHEIT]))
