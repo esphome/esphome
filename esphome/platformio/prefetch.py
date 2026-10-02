@@ -417,10 +417,7 @@ def _uri_jobs(
         if manager.get_package(spec):
             continue
         name = _spec_name(spec, url)
-        # One trust rule for every branch: a custom name (Foo=https://...)
-        # or a platform key is also the destination dir; a URL-derived
-        # lib_deps name comes from the manifest instead, so its dedupe key
-        # could collide with another name and race one directory
+        # Only a name that is also the install dir may pre-install
         safe_name = trusted_names or spec.has_custom_name()
         if is_vcs:
             if safe_name:
