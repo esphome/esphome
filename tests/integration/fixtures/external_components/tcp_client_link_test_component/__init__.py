@@ -1,12 +1,11 @@
 import esphome.codegen as cg
-from esphome.components.const import CONF_HOST
+from esphome.components import socket
+from esphome.components.const import CONF_HOST, CONF_RECONNECT_INTERVAL
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PORT
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["socket"]
-
-CONF_RECONNECT_INTERVAL = "reconnect_interval"
 
 tcp_client_link_test_component_ns = cg.esphome_ns.namespace(
     "tcp_client_link_test_component"
@@ -28,6 +27,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
+    socket.require_tcp_client_link()
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_host(config[CONF_HOST]))

@@ -299,7 +299,7 @@ jobs:
       # Pushes any fixes the hooks made back to the pull request. This step
       # must keep its default name: the GitHub App that performs the push
       # locates the workflow run by that name.
-      - uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43 # v1.1.0
+      - uses: pre-commit-ci/lite-action@062bca0919bc9d6e66755cc05074b70c77e111fc # v1.2.0
         if: always()
         with:
           msg: apply automatic formatting fixes

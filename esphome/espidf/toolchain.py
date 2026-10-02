@@ -366,7 +366,9 @@ def _tool_env() -> dict[str, str]:
     return env
 
 
-def run_reconfigure(verbose: bool = False) -> int:
+def run_reconfigure(
+    verbose: bool = False, extra_env: dict[str, str] | None = None
+) -> int:
     """Run the CMake configure, with the arguments idf.py uses."""
     build_dir = _build_dir()
     build_dir.mkdir(parents=True, exist_ok=True)
@@ -389,7 +391,7 @@ def run_reconfigure(verbose: bool = False) -> int:
     rc = run_build_tool(
         cmd,
         cwd=build_dir,
-        env=_tool_env(),
+        env={**_tool_env(), **(extra_env or {})},
         filter_lines=None if verbose else FILTER_IDF_LINES,
         log_path=log_path,
     )

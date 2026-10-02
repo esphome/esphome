@@ -222,6 +222,24 @@ def test_get_project_cmakelists_size_command_uses_json2() -> None:
     assert "--format=json2" in content
 
 
+def test_get_project_cmakelists_drops_empty_lwip_sources() -> None:
+    """The filter comes after project(), where the lwip target exists."""
+    from esphome.build_gen.espidf import (
+        LWIP_EMPTY_SOURCES,
+        LWIP_FULL_SOURCES_ENV,
+        lwip_empty_source_gate,
+    )
+
+    content = _render()
+    filter_at = content.index(
+        "set_property(TARGET ${esphome_lwip_lib} PROPERTY SOURCES"
+    )
+    assert filter_at > content.index("project(")
+    assert f"NOT DEFINED ENV{{{LWIP_FULL_SOURCES_ENV}}}" in content
+    for entry in LWIP_EMPTY_SOURCES:
+        assert lwip_empty_source_gate(*entry) in content
+
+
 def test_get_project_cmakelists_declares_map_as_link_byproduct() -> None:
     """The link declares the map so size can build in the same ninja run."""
     content = _render()
