@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from logging import getLogger
 
 from esphome import automation, core
@@ -69,11 +70,15 @@ from esphome.core.entity_helpers import (
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass, ProgmemAssignmentExpression
 from esphome.types import ConfigType
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "binary_sensor"
+
+CONF_TIMING_ID = "timing_id"
+DEFAULT_INVALID_COOLDOWN = "1s"  # Keep in sync with invalid_cooldown_ in automation.h
 DEVICE_CLASSES = [
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_BATTERY_CHARGING,
@@ -130,10 +135,9 @@ ClickTrigger = binary_sensor_ns.class_("ClickTrigger", automation.Trigger.templa
 DoubleClickTrigger = binary_sensor_ns.class_(
     "DoubleClickTrigger", automation.Trigger.template()
 )
-MultiClickTriggerBase = binary_sensor_ns.class_(
-    "MultiClickTriggerBase", automation.Trigger.template(), cg.Component
+MultiClickTrigger = binary_sensor_ns.class_(
+    "MultiClickTrigger", automation.Trigger.template(), cg.Component
 )
-MultiClickTrigger = binary_sensor_ns.class_("MultiClickTrigger", MultiClickTriggerBase)
 MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 
 
@@ -485,13 +489,16 @@ _BINARY_SENSOR_SCHEMA = (
             cv.Optional(CONF_ON_MULTI_CLICK): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MultiClickTrigger),
+                    cv.GenerateID(CONF_TIMING_ID): cv.declare_id(
+                        MultiClickTriggerEvent
+                    ),
                     cv.Required(CONF_TIMING): cv.All(
                         [parse_multi_click_timing_str],
                         validate_multi_click_timing,
                         cv.Length(min=1, max=255),
                     ),
                     cv.Optional(
-                        CONF_INVALID_COOLDOWN, default="1s"
+                        CONF_INVALID_COOLDOWN, default=DEFAULT_INVALID_COOLDOWN
                     ): cv.positive_time_period_milliseconds,
                 }
             ),
@@ -585,13 +592,41 @@ async def _build_binary_sensor_automations(var, config):
             )
             for tim in conf[CONF_TIMING]
         ]
-        trigger = cg.new_Pvariable(
-            conf[CONF_TRIGGER_ID], cg.TemplateArguments(len(timings)), var, timings
-        )
-        if CONF_INVALID_COOLDOWN in conf:
-            cg.add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
+        table = _multi_click_timing_table(conf[CONF_TIMING_ID], timings)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, table, len(timings))
+        if (
+            cooldown := conf[CONF_INVALID_COOLDOWN]
+        ) != cv.positive_time_period_milliseconds(DEFAULT_INVALID_COOLDOWN):
+            cg.add(trigger.set_invalid_cooldown(cooldown))
         await cg.register_component(trigger, conf)
         await automation.build_automation(trigger, [], conf)
+
+
+@dataclass
+class BinarySensorData:
+    # Rendered timing events -> the PROGMEM table shared by every trigger using them.
+    multi_click_timings: dict[tuple[str, ...], MockObj] = field(default_factory=dict)
+
+
+def _get_data() -> BinarySensorData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = BinarySensorData()
+    return CORE.data[DOMAIN]
+
+
+def _multi_click_timing_table(
+    timing_id: ID, timings: list[cg.StructInitializer]
+) -> MockObj:
+    tables = _get_data().multi_click_timings
+    key = tuple(str(t) for t in timings)
+    if (table := tables.get(key)) is None:
+        cg.add_global(
+            ProgmemAssignmentExpression(
+                MultiClickTriggerEvent, timing_id, cg.ArrayInitializer(*timings)
+            )
+        )
+        table = tables[key] = MockObj(timing_id, ".")
+    return table
 
 
 @setup_entity("binary_sensor")

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <cinttypes>
 #include <utility>
 
@@ -70,10 +69,11 @@ class DoubleClickTrigger final : public Trigger<> {
   uint32_t max_length_;  /// Maximum length of click. 0 means no maximum.
 };
 
-/// Non-template base for MultiClickTrigger (keeps large method bodies out of the header).
-class MultiClickTriggerBase : public Trigger<>, public Component {
+class MultiClickTrigger final : public Trigger<>, public Component {
  public:
-  explicit MultiClickTriggerBase(BinarySensor *parent) : parent_(parent) {}
+  /// `timing` is a codegen PROGMEM table shared by triggers with the same timing.
+  MultiClickTrigger(BinarySensor *parent, const MultiClickTriggerEvent *timing, uint8_t timing_count)
+      : parent_(parent), timing_(timing), timing_count_(timing_count) {}
 
   void setup() override {
     this->last_state_ = this->parent_->get_state_default(false);
@@ -85,8 +85,8 @@ class MultiClickTriggerBase : public Trigger<>, public Component {
   void set_invalid_cooldown(uint32_t invalid_cooldown) { this->invalid_cooldown_ = invalid_cooldown; }
 
   void cancel();
-  MultiClickTriggerBase(const MultiClickTriggerBase &) = delete;
-  MultiClickTriggerBase &operator=(const MultiClickTriggerBase &) = delete;
+  MultiClickTrigger(const MultiClickTrigger &) = delete;
+  MultiClickTrigger &operator=(const MultiClickTrigger &) = delete;
 
  protected:
   void on_state_(bool state);
@@ -94,30 +94,20 @@ class MultiClickTriggerBase : public Trigger<>, public Component {
   void schedule_is_valid_(uint32_t min_length);
   void schedule_is_not_valid_(uint32_t max_length);
   void trigger_();
+  MultiClickTriggerEvent timing_at_(size_t index) const {
+    MultiClickTriggerEvent evt;
+    progmem_memcpy(&evt, &this->timing_[index], sizeof(evt));  // bool field: no direct byte loads from flash
+    return evt;
+  }
 
   BinarySensor *parent_;
-  const MultiClickTriggerEvent *timing_{nullptr};
-  uint32_t invalid_cooldown_{1000};
+  const MultiClickTriggerEvent *timing_;
+  uint32_t invalid_cooldown_{1000};  // Must match DEFAULT_INVALID_COOLDOWN in __init__.py
   optional<size_t> at_index_{};
-  uint8_t timing_count_{0};
+  uint8_t timing_count_;
   bool last_state_{false};
   bool is_in_cooldown_{false};
   bool is_valid_{false};
-};
-
-/// Template wrapper that provides inline std::array storage for timing events.
-/// N is set by code generation to match the exact number of timing events configured in YAML.
-template<size_t N> class MultiClickTrigger final : public MultiClickTriggerBase {
- public:
-  MultiClickTrigger(BinarySensor *parent, std::initializer_list<MultiClickTriggerEvent> timing)
-      : MultiClickTriggerBase(parent) {
-    init_array_from(this->timing_storage_, timing);
-    this->timing_ = this->timing_storage_.data();
-    this->timing_count_ = N;
-  }
-
- protected:
-  std::array<MultiClickTriggerEvent, N> timing_storage_{};
 };
 
 }  // namespace esphome::binary_sensor
