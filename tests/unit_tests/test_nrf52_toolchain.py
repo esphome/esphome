@@ -24,6 +24,7 @@ def _set_sdk_version(version: cv.Version) -> None:
 
 
 def test_binutils_come_from_the_pinned_zephyr_sdk() -> None:
+    _set_sdk_version(cv.Version(2, 9, 0))
     bin_path = (
         get_sdk_nrf_tools_path()
         / "toolchains"
@@ -32,6 +33,21 @@ def test_binutils_come_from_the_pinned_zephyr_sdk() -> None:
         / "bin"
     )
     # Windows hosts get the .exe binaries (CI covers both)
+    suffix = ".exe" if os.name == "nt" else ""
+    assert toolchain.get_objdump_path() == bin_path / f"arm-zephyr-eabi-objdump{suffix}"
+    assert toolchain.get_readelf_path() == bin_path / f"arm-zephyr-eabi-readelf{suffix}"
+
+
+def test_binutils_use_new_toolchain_for_sdk_3_4_0() -> None:
+    _set_sdk_version(cv.Version(3, 4, 0))
+    bin_path = (
+        get_sdk_nrf_tools_path()
+        / "toolchains"
+        / "1.0.1"
+        / "gnu"
+        / "arm-zephyr-eabi"
+        / "bin"
+    )
     suffix = ".exe" if os.name == "nt" else ""
     assert toolchain.get_objdump_path() == bin_path / f"arm-zephyr-eabi-objdump{suffix}"
     assert toolchain.get_readelf_path() == bin_path / f"arm-zephyr-eabi-readelf{suffix}"

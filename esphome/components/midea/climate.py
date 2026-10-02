@@ -214,15 +214,10 @@ async def to_code(config):
         cg.add(var.set_custom_presets(config[CONF_CUSTOM_PRESETS]))
     if CONF_CUSTOM_FAN_MODES in config:
         cg.add(var.set_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))
-    if CONF_OUTDOOR_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_OUTDOOR_TEMPERATURE])
-        cg.add(var.set_outdoor_temperature_sensor(sens))
-    if CONF_POWER_USAGE in config:
-        sens = await sensor.new_sensor(config[CONF_POWER_USAGE])
-        cg.add(var.set_power_sensor(sens))
-    if CONF_HUMIDITY_SETPOINT in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
-        cg.add(var.set_humidity_setpoint_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_OUTDOOR_TEMPERATURE, var.set_outdoor_temperature_sensor)
+    await sensors(CONF_POWER_USAGE, var.set_power_sensor)
+    await sensors(CONF_HUMIDITY_SETPOINT, var.set_humidity_setpoint_sensor)
     # MideaUART uses the Arduino WiFi API for the network-notify frame
     # (WiFi auto-enables Network via dependency mapping). On ESP-IDF the
     # library talks to esp_wifi directly, so no library entry is needed.
