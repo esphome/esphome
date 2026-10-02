@@ -1,12 +1,14 @@
 from collections.abc import Callable, MutableMapping
 from dataclasses import dataclass
 from enum import StrEnum
+from ipaddress import IPv4Network
 import logging
 
 import esphome.codegen as cg
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
-from esphome.core import CORE
+from esphome.core import CORE, ID
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -138,6 +140,44 @@ def require_wake_loop_threadsafe() -> None:
     # Add deprecated defines for backward compat with external component C++ code
     cg.add_define("USE_WAKE_LOOP_THREADSAFE")
     cg.add_define("USE_SOCKET_SELECT_SUPPORT")
+
+
+socket_ns = cg.esphome_ns.namespace("socket")
+Ipv4AllowEntry = socket_ns.struct("Ipv4AllowEntry")
+
+# For an allow list config option; an empty list allows every peer.
+IPV4_ALLOW_SCHEMA = cv.ensure_list(cv.ipv4network)
+
+
+def _network_order(value: int) -> int:
+    """The uint32 whose little endian memory bytes are the big endian address.
+
+    Every supported target is little endian, so this equals the sockaddr's
+    s_addr value for the address.
+    """
+    return int.from_bytes(value.to_bytes(4, "big"), "little")
+
+
+def add_ipv4_allow(
+    setter: MockObj, networks: list[IPv4Network], owner_id: ID | str
+) -> None:
+    """Emit a flash array for validated IPV4_ALLOW_SCHEMA entries and wire it to setter.
+
+    Emits nothing for an empty list; an empty allow list allows every peer.
+    """
+    if not networks:
+        return
+    entries = [
+        cg.StructInitializer(
+            Ipv4AllowEntry,
+            ("addr", _network_order(int(net.network_address))),
+            ("mask", _network_order(int(net.netmask))),
+        )
+        for net in networks
+    ]
+    arr_id = ID(f"{owner_id}_ipv4_allow", is_declaration=True, type=Ipv4AllowEntry)
+    arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*entries))
+    cg.add(setter(arr, len(entries)))
 
 
 def require_ipv4_resolve() -> None:
