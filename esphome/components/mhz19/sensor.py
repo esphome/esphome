@@ -77,13 +77,9 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if co2 := config.get(CONF_CO2):
-        sens = await sensor.new_sensor(co2)
-        cg.add(var.set_co2_sensor(sens))
-
-    if temperature := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature)
-        cg.add(var.set_temperature_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CO2, var.set_co2_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
 
     if (
         automatic_baseline_calibration := config.get(
