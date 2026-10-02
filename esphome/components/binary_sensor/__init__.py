@@ -78,8 +78,9 @@ CODEOWNERS = ["@esphome/core"]
 DOMAIN = "binary_sensor"
 
 CONF_TIMING_ID = "timing_id"
-DEFAULT_INVALID_COOLDOWN = "1s"  # Keep in sync with invalid_cooldown_ in automation.h
-_DEFAULT_INVALID_COOLDOWN_MS = 1000
+DEFAULT_INVALID_COOLDOWN_MS = (
+    1000  # Keep in sync with invalid_cooldown_ in automation.h
+)
 DEVICE_CLASSES = [
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_BATTERY_CHARGING,
@@ -499,7 +500,8 @@ _BINARY_SENSOR_SCHEMA = (
                         cv.Length(min=1, max=255),
                     ),
                     cv.Optional(
-                        CONF_INVALID_COOLDOWN, default=DEFAULT_INVALID_COOLDOWN
+                        CONF_INVALID_COOLDOWN,
+                        default=f"{DEFAULT_INVALID_COOLDOWN_MS}ms",
                     ): cv.positive_time_period_milliseconds,
                 }
             ),
@@ -597,7 +599,7 @@ async def _build_binary_sensor_automations(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, table, len(timings))
         if (
             cooldown := conf[CONF_INVALID_COOLDOWN]
-        ).total_milliseconds != _DEFAULT_INVALID_COOLDOWN_MS:
+        ).total_milliseconds != DEFAULT_INVALID_COOLDOWN_MS:
             cg.add(trigger.set_invalid_cooldown(cooldown))
         await cg.register_component(trigger, conf)
         await automation.build_automation(trigger, [], conf)
