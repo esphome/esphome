@@ -44,7 +44,8 @@ class TcpClientLink {
   ssize_t read(uint8_t *buf, size_t len);
   /// Copy into the outgoing buffer; returns how many bytes fit.
   size_t queue(const uint8_t *data, size_t len);
-  /// Direct access to the buffer's free tail; tx_commit() what was filled.
+  /// Direct access to the buffer's free tail. Fill at most tx_free() bytes,
+  /// then tx_commit() the count; neither is bounds checked.
   uint8_t *tx_tail() { return this->tx_ + this->tx_len_; }
   void tx_commit(size_t len) { this->tx_len_ += static_cast<uint16_t>(len); }
   size_t tx_free() const { return this->connected_ ? TX_BUFFER_SIZE - this->tx_len_ : 0; }
