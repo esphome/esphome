@@ -1,0 +1,22 @@
+esphome:
+  name: uart-tcp-bridge-test
+
+host:
+
+api:
+
+logger:
+  level: INFO
+
+uart:
+  - id: uart_bus
+    baud_rate: 115200
+    port: PTY_PATH
+
+uart_tcp:
+  - id: bridge
+    uart_id: uart_bus
+    role: server
+    port: 18126
+    connected:
+      name: Bridge Connected
