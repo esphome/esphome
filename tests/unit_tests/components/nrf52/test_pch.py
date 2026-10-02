@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from esphome.components import nrf52
+from esphome.components.nrf52 import framework
 from esphome.components.zephyr.const import KEY_BOARD
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
@@ -105,6 +106,23 @@ def test_pch_checksum_waits_for_the_first_configure(tmp_path: Path) -> None:
     assert not build_dir.exists()
 
 
+def _fake_build_env(ccache: str | None) -> dict[str, str]:
+    """The real get_build_env with only the install path lookups stubbed."""
+    with (
+        patch.object(framework, "_get_version_str", return_value="v1"),
+        patch.object(framework, "_get_python_env_path", return_value=Path("/penv")),
+        patch.object(
+            framework,
+            "get_python_env_executable_path",
+            return_value=Path("/penv/bin/python"),
+        ),
+        patch.object(framework, "_get_framework_path", return_value=Path("/fw")),
+        patch.object(framework, "_get_toolchain_version", return_value="t1"),
+        patch.object(framework, "_get_toolchain_path", return_value=Path("/tc")),
+    ):
+        return framework.get_build_env(ccache)
+
+
 @pytest.fixture
 def run_cmd(tmp_path: Path) -> Mock:
     CORE.config_path = tmp_path / "test.yaml"
@@ -113,6 +131,7 @@ def run_cmd(tmp_path: Path) -> Mock:
     CORE.toolchain = Toolchain.SDK_NRF
     CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: cv.Version(3, 2, 0)}
     with (
+        patch.dict("os.environ", {}, clear=True),
         patch.object(nrf52, "check_and_install"),
         patch.object(nrf52, "_generate_cmake_lists", return_value=False),
         patch.object(
@@ -120,18 +139,18 @@ def run_cmd(tmp_path: Path) -> Mock:
             "get_build_paths",
             return_value={"python_executable": "python3", "framework_path": tmp_path},
         ),
-        patch.object(nrf52, "get_build_env", return_value={}),
+        patch.object(nrf52, "get_build_env", side_effect=_fake_build_env),
+        patch.object(nrf52, "resolve_ccache_path", return_value="/usr/bin/ccache"),
         patch.object(nrf52, "zephyr_data", return_value={KEY_BOARD: "board"}),
         patch.object(nrf52, "run_command_ok", return_value=False) as run,
     ):
         yield run
 
 
-def test_ccache_pch_settings_reach_west(run_cmd: Mock) -> None:
-    # clear=True also drops ambient CCACHE_* overrides; the header is on
-    # explicitly since Windows hosts start with it off
+def test_shared_ccache_settings_reach_west(run_cmd: Mock, tmp_path: Path) -> None:
+    # The header is on explicitly since Windows hosts start with it off
     with (
-        patch.dict("os.environ", {"ESPHOME_PCH_ENABLE": "1"}, clear=True),
+        patch.dict("os.environ", {"ESPHOME_PCH_ENABLE": "1"}),
         pytest.raises(EsphomeError, match="nRF52 native build failed"),
     ):
         nrf52.run_compile(None, {})
@@ -140,23 +159,43 @@ def test_ccache_pch_settings_reach_west(run_cmd: Mock) -> None:
     assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
     # Without depend mode a Kconfig flip reuses a stale .gch
     assert env["CCACHE_DEPEND"] == "1"
+    # The full managed set, not a bespoke subset
+    assert env["CCACHE_DIR"].endswith("ccache")
+    assert env["CCACHE_NOHASHDIR"] == "true"
+    assert env["CCACHE_BASEDIR"] == str((tmp_path / "build").resolve())
+    assert "CCACHE_DISABLE" not in env
 
 
-def test_ccache_depend_respects_a_user_override(run_cmd: Mock) -> None:
+def test_user_exported_ccache_values_win(run_cmd: Mock) -> None:
+    user = {"ESPHOME_PCH_ENABLE": "1", "CCACHE_DEPEND": "0", "CCACHE_DIR": "/mine"}
     with (
-        patch.object(nrf52, "get_build_env", return_value={"CCACHE_DEPEND": "0"}),
-        patch.dict("os.environ", {"ESPHOME_PCH_ENABLE": "1"}, clear=True),
+        patch.dict("os.environ", user),
         pytest.raises(EsphomeError, match="nRF52 native build failed"),
     ):
         nrf52.run_compile(None, {})
-    assert run_cmd.call_args.kwargs["env"]["CCACHE_DEPEND"] == "0"
+    env = run_cmd.call_args.kwargs["env"]
+    assert env["CCACHE_DEPEND"] == "0"
+    assert env["CCACHE_DIR"] == "/mine"
 
 
-def test_disabled_leaves_the_west_environment_alone(
-    run_cmd: Mock, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
-    with pytest.raises(EsphomeError, match="nRF52 native build failed"):
+def test_no_ccache_disables_the_zephyr_launcher(run_cmd: Mock) -> None:
+    """ESPHOME_CCACHE_ENABLE=0 must also stop Zephyr's self-enabled ccache."""
+    with (
+        patch.object(nrf52, "resolve_ccache_path", return_value=None),
+        pytest.raises(EsphomeError, match="nRF52 native build failed"),
+    ):
         nrf52.run_compile(None, {})
-    assert "CCACHE_PCH_EXTSUM" not in run_cmd.call_args.kwargs["env"]
-    assert "CCACHE_DEPEND" not in run_cmd.call_args.kwargs["env"]
+    env = run_cmd.call_args.kwargs["env"]
+    assert env["CCACHE_DISABLE"] == "1"
+    assert "CCACHE_DEPEND" not in env
+
+
+def test_disabled_pch_still_gets_the_shared_settings(run_cmd: Mock) -> None:
+    with (
+        patch.dict("os.environ", {"ESPHOME_PCH_ENABLE": "0"}),
+        pytest.raises(EsphomeError, match="nRF52 native build failed"),
+    ):
+        nrf52.run_compile(None, {})
+    env = run_cmd.call_args.kwargs["env"]
+    assert "CCACHE_PCH_EXTSUM" not in env
+    assert env["CCACHE_DEPEND"] == "1"

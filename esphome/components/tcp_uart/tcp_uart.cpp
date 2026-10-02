@@ -14,6 +14,9 @@ static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
 
 void TcpUart::setup() {
   this->link_.begin(TAG);
+#ifdef USE_SOCKET_TCP_LISTENER
+  this->listener_.begin(TAG);
+#endif
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(false);
   }
@@ -22,10 +25,22 @@ void TcpUart::setup() {
 void TcpUart::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "TCP UART:\n"
-                "  Host: %s:%u\n"
+                "  %s: %s:%u\n"
                 "  Reconnect Interval: %" PRIu32 "ms",
-                this->link_.host(), this->link_.port(), this->link_.reconnect_interval());
+                this->server_ ? LOG_STR_LITERAL("Listen") : LOG_STR_LITERAL("Host"),
+                this->server_ ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
+                this->link_.reconnect_interval());
+#ifdef USE_SOCKET_TCP_LISTENER
+  this->listener_.dump_config();
+#endif
   LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
+}
+
+void TcpUart::on_shutdown() {
+  this->link_.close();
+#ifdef USE_SOCKET_TCP_LISTENER
+  this->listener_.close();
+#endif
 }
 
 void TcpUart::sync_link_() {
@@ -63,7 +78,17 @@ void TcpUart::read_socket_() {
 }
 
 void TcpUart::loop() {
+#ifdef USE_SOCKET_TCP_LISTENER
+  if (this->server_) {
+    // link_was_up_ holds the accept until the previous drop's edge has run,
+    // so the sensor and the cleared RX buffer always see the disconnect.
+    this->listener_.poll(this->link_, !this->link_was_up_);
+  } else {
+    this->link_.poll();
+  }
+#else
   this->link_.poll();
+#endif
   if (this->link_.connected() != this->link_was_up_) {
     this->sync_link_();
   }
