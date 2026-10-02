@@ -348,6 +348,24 @@ project({CORE.name})
 
 {ldgen_override_check}
 
+# IDF lists every ppp and ipv6 lwip source whatever the config; with the
+# option off each one compiles to an empty object. Drop them so a clean
+# build skips the compiles, keyed on the options the files' guards use.
+if(TARGET __idf_lwip AND (NOT CONFIG_LWIP_PPP_SUPPORT OR NOT CONFIG_LWIP_IPV6))
+    get_target_property(esphome_lwip_srcs __idf_lwip SOURCES)
+    set(esphome_lwip_kept)
+    foreach(src ${{esphome_lwip_srcs}})
+        if(NOT CONFIG_LWIP_PPP_SUPPORT AND src MATCHES "/netif/ppp/")
+            continue()
+        endif()
+        if(NOT CONFIG_LWIP_IPV6 AND src MATCHES "/core/ipv6/")
+            continue()
+        endif()
+        list(APPEND esphome_lwip_kept "${{src}}")
+    endforeach()
+    set_property(TARGET __idf_lwip PROPERTY SOURCES ${{esphome_lwip_kept}})
+endif()
+
 # Emit per-memory-type JSON size data for ESPHome to read post-build.
 # json2 stays small; raw dumps every symbol (~2s on a large map) and
 # this command runs inside the link edge, blocking everything downstream.

@@ -222,6 +222,17 @@ def test_get_project_cmakelists_size_command_uses_json2() -> None:
     assert "--format=json2" in content
 
 
+def test_get_project_cmakelists_drops_empty_lwip_sources() -> None:
+    """The ppp and ipv6 lwip sources leave the build when their option is
+    off; the filter must come after project() where the target exists."""
+    content = _render()
+    start = content.index("project(")
+    block = content[content.index("__idf_lwip", start) :]
+    assert 'NOT CONFIG_LWIP_PPP_SUPPORT AND src MATCHES "/netif/ppp/"' in block
+    assert 'NOT CONFIG_LWIP_IPV6 AND src MATCHES "/core/ipv6/"' in block
+    assert "set_property(TARGET __idf_lwip PROPERTY SOURCES" in block
+
+
 def test_get_project_cmakelists_declares_map_as_link_byproduct() -> None:
     """The link declares the map so size can build in the same ninja run."""
     content = _render()
