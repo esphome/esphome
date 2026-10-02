@@ -10,6 +10,10 @@
 #include <lwip/dns.h>
 #include <cinttypes>
 #include "esp_event.h"
+#if USE_NETWORK_IPV6
+#include <esp_netif_net_stack.h>
+#include <lwip/netif.h>
+#endif
 #ifdef USE_PSRAM
 #include <esp_psram.h>
 #endif
@@ -828,6 +832,29 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
 }
 #endif /* USE_NETWORK_IPV6 */
 
+#if USE_NETWORK_IPV6
+// Create the link-local address unless the interface already has one, including one still in
+// duplicate address detection: recreating it would restart DAD. esp_netif_get_ip6_linklocal()
+// only reports a preferred address, so ask lwIP for the slot state instead.
+esp_err_t EthernetComponent::ensure_ip6_linklocal_() {
+  if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(this->eth_netif_)); netif != nullptr) {
+    u8_t state;
+    {
+      LwIPLock lock;
+      state = netif_ip6_addr_state(netif, 0);
+    }
+    if (ip6_addr_istentative(state) || ip6_addr_isvalid(state)) {
+      return ESP_OK;
+    }
+  }
+  esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_);
+  if (err == ESP_OK) {
+    ESP_LOGD(TAG, "IPv6 link-local address created");
+  }
+  return err;
+}
+#endif /* USE_NETWORK_IPV6 */
+
 void EthernetComponent::finish_connect_() {
 #if USE_NETWORK_IPV6
   // Retry IPv6 link-local setup if it failed during initial connect
@@ -838,12 +865,7 @@ void EthernetComponent::finish_connect_() {
   // - Cable unplugged/network interruption (#10705)
   // We can now retry since we're in CONNECTED state and the interface is definitely up.
   if (!this->ipv6_setup_done_) {
-    // Usually already created on link-up; recreating it would restart duplicate address detection.
-    esp_ip6_addr_t link_local;
-    if (esp_netif_get_ip6_linklocal(this->eth_netif_, &link_local) != ESP_OK &&
-        esp_netif_create_ip6_linklocal(this->eth_netif_) == ESP_OK) {
-      ESP_LOGD(TAG, "IPv6 link-local address created (retry succeeded)");
-    }
+    this->ensure_ip6_linklocal_();
     // Always set the flag to prevent continuous retries
     // If IPv6 setup fails here with the interface up and stable, it's
     // likely a persistent issue (IPv6 disabled at router, hardware
@@ -938,13 +960,7 @@ void EthernetComponent::start_connect_() {
   // - At bootup when link isn't ready (#10281)
   // - After disconnection/cable unplugged (#10705)
   // We'll retry in finish_connect_() if it fails here.
-  // Skip it when the link-local already exists; recreating it would restart duplicate address detection.
-  esp_ip6_addr_t link_local;
-  if (esp_netif_get_ip6_linklocal(this->eth_netif_, &link_local) == ESP_OK) {
-    err = ESP_OK;
-  } else {
-    err = esp_netif_create_ip6_linklocal(this->eth_netif_);
-  }
+  err = this->ensure_ip6_linklocal_();
   if (err != ESP_OK) {
     if (err == ESP_ERR_ESP_NETIF_INVALID_PARAMS) {
       // This is a programming error, not a transient failure
