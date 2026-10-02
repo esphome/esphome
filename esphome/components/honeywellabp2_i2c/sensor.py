@@ -70,6 +70,5 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_max_pressure(pressure_config[CONF_MAX_PRESSURE]))
         cg.add(var.set_transfer_function(pressure_config[TRANSFER_FUNCTION]))
 
-    if temperature_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature_config)
-        cg.add(var.set_temperature_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
