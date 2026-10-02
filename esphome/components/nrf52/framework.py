@@ -225,11 +225,14 @@ def get_build_env(ccache: str | None) -> dict:
         env.setdefault("CCACHE_DISABLE", "1")
     else:
         env.update(ccache_env(ccache, SDK_NRF_TOOLS_CACHE))
-        # Safe to drop from the hash: the map's from side paths are
-        # pinned by other hashed inputs, so a differing per build value
-        # cannot change the output.
+        # Only the per build map entry is dropped from the hash; its from
+        # side covers no compiled sources, so the value cannot change the
+        # output. User supplied maps stay hashed.
+        device_map = (
+            f"-fmacro-prefix-map={CORE.relative_build_path('zephyr')}=CMAKE_SOURCE_DIR"
+        )
         env["CCACHE_IGNOREOPTIONS"] = (
-            f"{env.get('CCACHE_IGNOREOPTIONS', '')} -fmacro-prefix-map=*".strip()
+            f"{env.get('CCACHE_IGNOREOPTIONS', '')} {device_map}".strip()
         )
     return env
 
@@ -333,8 +336,16 @@ def _patch_gen_defines_dts_path(framework_path: Path) -> None:
     if not gen_defines.exists():
         return
     content = gen_defines.read_text(encoding="utf-8")
+    if "{os.path.basename(edt.dts_path)}" in content:
+        return
     patched = content.replace("  {edt.dts_path}", "  {os.path.basename(edt.dts_path)}")
     if patched == content:
+        # Upstream reformatted the comment; sharing silently degrading
+        # would be invisible, so say it out loud.
+        _LOGGER.warning(
+            "gen_defines.py no longer matches; the devicetree header "
+            "stays per device and ccache sharing between devices degrades"
+        )
         return
     tmp = gen_defines.with_suffix(".py.tmp")
     tmp.write_text(patched, encoding="utf-8")

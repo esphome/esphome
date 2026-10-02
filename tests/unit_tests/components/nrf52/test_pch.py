@@ -7,7 +7,7 @@ import pytest
 
 from esphome.components import nrf52
 from esphome.components.nrf52 import framework
-from esphome.components.zephyr.const import KEY_BOARD
+from esphome.components.zephyr.const import KEY_BOARD, KEY_SYSBUILD
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
 from esphome.core import CORE, EsphomeError
@@ -71,6 +71,7 @@ def _write_checksum(
     app: str,
     conf: str = "CONFIG_X=y\n",
     configured: bool = True,
+    sysbuild: bool = False,
 ) -> Path:
     """Write the checksum for a build dir whose app image sits in ``app``."""
     CORE.build_path = tmp_path
@@ -86,8 +87,12 @@ def _write_checksum(
         (build_dir / app).mkdir(parents=True, exist_ok=True)
         (build_dir / app / "CMakeCache.txt").write_text("")
     with (
-        patch.dict(CORE.data, {KEY_CORE: {KEY_FRAMEWORK_VERSION: "2.9.2"}}),
-        patch.object(nrf52, "zephyr_data", return_value={KEY_BOARD: "board"}),
+        patch.dict(CORE.data, {KEY_CORE: {KEY_FRAMEWORK_VERSION: cv.Version(2, 9, 2)}}),
+        patch.object(
+            nrf52,
+            "zephyr_data",
+            return_value={KEY_BOARD: "board", KEY_SYSBUILD: sysbuild},
+        ),
     ):
         nrf52._write_pch_checksum(build_dir, source_dir)
     return build_dir / app / SUM
@@ -98,6 +103,17 @@ def test_pch_checksum_is_written_next_to_the_gch(tmp_path: Path, app: str) -> No
     """Sysbuild nests the app image; without it the build dir is the app."""
     sum_path = _write_checksum(tmp_path, app)
     assert len(sum_path.read_text().strip()) == 64
+
+
+def test_pch_checksum_tracks_the_kconfig_side_inputs(tmp_path: Path) -> None:
+    """West projects and the sysbuild flag reach autoconf without a .conf
+    line; the sum must move with them or stale objects get served."""
+    first = _write_checksum(tmp_path, "zephyr").read_text()
+    with patch.object(nrf52, "_wanted_west_projects", return_value={"extra"}):
+        second = _write_checksum(tmp_path, "zephyr").read_text()
+    assert first != second
+    third = _write_checksum(tmp_path, "zephyr", sysbuild=True).read_text()
+    assert first != third
 
 
 def test_pch_checksum_tracks_the_zephyr_configuration(tmp_path: Path) -> None:

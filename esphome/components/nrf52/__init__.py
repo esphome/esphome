@@ -27,6 +27,7 @@ from esphome.components.zephyr.const import (
     CONF_CDC_ACM,
     KEY_BOARD,
     KEY_BOOTLOADER,
+    KEY_SYSBUILD,
     KEY_ZEPHYR,
     CdcAcm,
 )
@@ -72,6 +73,7 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
 from .framework import (
+    _wanted_west_projects,
     check_and_install,
     get_build_env,
     get_build_paths,
@@ -837,6 +839,9 @@ def _write_pch_checksum(build_dir: Path, source_dir: Path) -> Path:
         (
             str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             zephyr_data()[KEY_BOARD],
+            # Kconfig inputs that reach autoconf.h without a .conf line
+            ",".join(sorted(_wanted_west_projects())),
+            str(zephyr_data().get(KEY_SYSBUILD)),
             # What the Zephyr configuration is generated from
             *(
                 path.read_text(encoding="utf-8")

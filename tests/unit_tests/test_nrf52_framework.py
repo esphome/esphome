@@ -1121,8 +1121,10 @@ def test_get_build_env_with_ccache(
     assert env["CCACHE_DEPEND"] == "1"
     assert env["CCACHE_BASEDIR"] == str((tmp_path / "build").resolve())
     assert "CCACHE_DISABLE" not in env
-    # Zephyr maps the prefixes to fixed tokens; the option value is noise
-    assert "-fmacro-prefix-map=*" in env["CCACHE_IGNOREOPTIONS"]
+    # Only the per build map entry leaves the hash; user maps stay in
+    assert env["CCACHE_IGNOREOPTIONS"] == (
+        f"-fmacro-prefix-map={tmp_path / 'build' / 'zephyr'}=CMAKE_SOURCE_DIR"
+    )
 
 
 def test_get_build_env_sdk_3_4_0_uses_toolchain_root(
@@ -1266,3 +1268,15 @@ def test_patch_gen_defines_relativizes_the_dts_path(tmp_path: Path) -> None:
     framework._patch_gen_defines_dts_path(tmp_path)  # idempotent
     assert gen.read_text() == before
     framework._patch_gen_defines_dts_path(tmp_path / "absent")  # tolerant
+
+
+def test_patch_gen_defines_warns_when_the_anchor_is_gone(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A reformatted upstream must not silently cost the sharing."""
+    gen = tmp_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
+    gen.parent.mkdir(parents=True)
+    gen.write_text("s = 'something else entirely'\n")
+    with caplog.at_level("WARNING"):
+        framework._patch_gen_defines_dts_path(tmp_path)
+    assert "gen_defines.py no longer matches" in caplog.text
