@@ -5372,11 +5372,13 @@ def test_compile_program_quietly_ignores_skip_bootloader_elsewhere(
             side_effect=EsphomeError("stop here"),
         ),
         pytest.raises(EsphomeError, match="stop here"),
-        caplog.at_level("INFO"),
+        caplog.at_level("DEBUG"),
     ):
         compile_program(MockArgs(), config)
 
-    assert "--skip-bootloader ignored" not in caplog.text
+    assert [
+        r.levelno for r in caplog.records if "--skip-bootloader ignored" in r.message
+    ] == [logging.DEBUG]
     assert CORE.skip_bootloader is False
 
 
