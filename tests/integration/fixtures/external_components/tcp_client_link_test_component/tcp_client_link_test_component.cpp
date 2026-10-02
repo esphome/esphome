@@ -21,7 +21,8 @@ void TcpClientLinkTestComponent::loop() {
   ssize_t count = this->link_.read(buf, sizeof(buf));
   if (count > 0) {
     ESP_LOGI(TAG, "Echoing %d bytes", static_cast<int>(count));
-    this->link_.write(buf, static_cast<size_t>(count));
+    this->link_.queue(buf, static_cast<size_t>(count));
+    this->link_.flush_tx();
   }
 }
 

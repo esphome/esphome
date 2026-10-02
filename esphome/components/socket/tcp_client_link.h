@@ -16,8 +16,9 @@
 namespace esphome::socket {
 
 /// A reconnecting TCP stream driven from loop(). Owns the socket, the DNS
-/// lookup and the retry backoff. A fatal read/write error closes the link
-/// and schedules the next attempt; the caller sees the edge via connected().
+/// lookup, the retry backoff and the outgoing buffer. A fatal read/write
+/// error closes the link and schedules the next attempt; the caller sees
+/// the edge via connected().
 class TcpClientLink {
  public:
   void set_host(const char *host) { this->host_ = StringRef(host); }
@@ -41,19 +42,20 @@ class TcpClientLink {
   void adopt(std::unique_ptr<Socket> sock);
   /// Returns bytes moved, 0 when nothing can move now, -1 when the link dropped.
   ssize_t read(uint8_t *buf, size_t len);
-  ssize_t write(const uint8_t *buf, size_t len);
   /// Copy into the outgoing buffer; returns how many bytes fit.
   size_t queue(const uint8_t *data, size_t len);
   /// Direct access to the buffer's free tail; tx_commit() what was filled.
-  uint8_t *tx_tail(size_t &room) {
-    room = this->tx_free();
-    return this->tx_ + this->tx_len_;
-  }
+  uint8_t *tx_tail() { return this->tx_ + this->tx_len_; }
   void tx_commit(size_t len) { this->tx_len_ += static_cast<uint16_t>(len); }
   size_t tx_free() const { return this->connected_ ? TX_BUFFER_SIZE - this->tx_len_ : 0; }
-  bool tx_empty() const { return this->tx_len_ == 0; }
-  /// Send the front of the buffer; a partial write keeps the rest.
-  void flush_tx();
+  /// Send the front of the buffer; true once it is empty.
+  /// A partial write keeps the rest; inline no-op while nothing is queued.
+  bool flush_tx() {
+    if (this->tx_len_ != 0) {
+      this->flush_tx_slow_();
+    }
+    return this->tx_len_ == 0;
+  }
   /// Close without scheduling a reconnect (shutdown).
   void close();
 
@@ -65,9 +67,12 @@ class TcpClientLink {
     return App.get_loop_component_start_time() - this->last_attempt_ms_ < this->reconnect_interval_ms_;
   }
 
+ protected:
   static constexpr size_t TX_BUFFER_SIZE = 1024;
 
- protected:
+  /// The raw stream write behind flush_tx(); drops the link on a fatal error.
+  ssize_t write(const uint8_t *buf, size_t len);
+  void flush_tx_slow_();
   void poll_slow_();
   void try_connect_();
   /// Close after a failure, log what and errno, schedule the next attempt.

@@ -52,7 +52,7 @@ class TcpUart : public uart::UARTComponent, public Component {
   // rx_[rx_start_, rx_end_) holds unread bytes; read_socket_() compacts to the front.
   uint16_t rx_start_{0};
   uint16_t rx_end_{0};
-  // The link state loop() saw last; edges clear the buffers and publish the sensor.
+  // The link state loop() saw last; edges clear rx_ and publish the sensor.
   bool link_was_up_{false};
   // A read stopped before EAGAIN. ready() stays false until new data arrives.
   bool rx_pending_{false};

@@ -73,9 +73,7 @@ void TcpUart::loop() {
   if (this->rx_pending_ || this->link_.ready()) {
     this->read_socket_();
   }
-  if (!this->link_.tx_empty()) {
-    this->link_.flush_tx();
-  }
+  this->link_.flush_tx();
 }
 
 void TcpUart::write_array(const uint8_t *data, size_t len) {
@@ -109,11 +107,8 @@ bool TcpUart::read_array(uint8_t *data, size_t len) {
 }
 
 uart::UARTFlushResult TcpUart::flush() {
-  this->link_.flush_tx();
-  if (this->link_.tx_empty()) {
-    return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
-  }
-  return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  return this->link_.flush_tx() ? uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS
+                                : uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
 }
 
 }  // namespace esphome::tcp_uart

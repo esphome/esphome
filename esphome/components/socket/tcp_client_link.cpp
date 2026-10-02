@@ -140,11 +140,13 @@ size_t TcpClientLink::queue(const uint8_t *data, size_t len) {
   return len;
 }
 
-void TcpClientLink::flush_tx() {
+void TcpClientLink::flush_tx_slow_() {
   ssize_t sent = this->write(this->tx_, this->tx_len_);
   if (sent > 0) {
     this->tx_len_ -= static_cast<uint16_t>(sent);
-    std::memmove(this->tx_, this->tx_ + sent, this->tx_len_);
+    if (this->tx_len_ != 0) {
+      std::memmove(this->tx_, this->tx_ + sent, this->tx_len_);
+    }
   }
 }
 
