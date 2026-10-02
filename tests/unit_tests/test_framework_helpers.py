@@ -27,7 +27,6 @@ from esphome.framework_helpers import (
     _7z_extract_all,
     _BatchDownloadProgress,
     _detect_archive_root,
-    _rename_with_retry,
     _tar_extract_all,
     _zip_extract_all,
     archive_extract_all,
@@ -40,6 +39,7 @@ from esphome.framework_helpers import (
     get_project_link_flags,
     get_python_env_executable_path,
     get_system_python_path,
+    rename_with_retry,
     rmdir,
     run_batch_downloads,
     run_command,
@@ -1013,7 +1013,7 @@ class TestDownloadWithResume:
         with (
             patch("requests.get", return_value=_mock_response(b"data")) as mock_get,
             patch(
-                "esphome.framework_helpers._rename_with_retry",
+                "esphome.framework_helpers.rename_with_retry",
                 side_effect=[PermissionError("locked"), None],
             ) as rename,
         ):
@@ -1030,7 +1030,7 @@ class TestDownloadWithResume:
         with (
             patch("requests.get", return_value=_mock_response(b"data")),
             patch(
-                "esphome.framework_helpers._rename_with_retry",
+                "esphome.framework_helpers.rename_with_retry",
                 side_effect=PermissionError("locked"),
             ),
             pytest.raises(EsphomeError, match="after 1 attempts"),
@@ -2019,7 +2019,7 @@ class TestZipExtractAllBranches:
 
 
 # ---------------------------------------------------------------------------
-# _rename_with_retry
+# rename_with_retry
 # ---------------------------------------------------------------------------
 
 
@@ -2028,7 +2028,7 @@ class TestRenameWithRetry:
         src = tmp_path / "src.txt"
         src.write_text("data")
         dst = tmp_path / "dst.txt"
-        _rename_with_retry(src, dst)
+        rename_with_retry(src, dst)
         assert dst.read_text() == "data"
         assert not src.exists()
 
@@ -2050,7 +2050,7 @@ class TestRenameWithRetry:
             patch.object(Path, "rename", flaky_rename),
             patch("esphome.framework_helpers.time.sleep"),
         ):
-            _rename_with_retry(src, dst, attempts=3)
+            rename_with_retry(src, dst, attempts=3)
         assert dst.read_text() == "data"
 
     def test_raises_after_all_attempts_fail(self, tmp_path: Path) -> None:
@@ -2062,14 +2062,14 @@ class TestRenameWithRetry:
             patch("esphome.framework_helpers.time.sleep"),
             pytest.raises(PermissionError),
         ):
-            _rename_with_retry(src, dst, attempts=3)
+            rename_with_retry(src, dst, attempts=3)
 
     def test_attempts_zero_is_noop(self, tmp_path: Path) -> None:
         """Zero attempts means the for-loop body never runs; src is untouched."""
         src = tmp_path / "src.txt"
         src.write_text("data")
         dst = tmp_path / "dst.txt"
-        _rename_with_retry(src, dst, attempts=0)
+        rename_with_retry(src, dst, attempts=0)
         assert src.exists()
         assert not dst.exists()
 
