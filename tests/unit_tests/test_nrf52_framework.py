@@ -1079,7 +1079,7 @@ def test_get_build_env(
     """
     monkeypatch.setenv("SOME_PREEXISTING_VAR", "kept")
 
-    env = get_build_env()
+    env = get_build_env(None)
 
     tools = get_sdk_nrf_tools_path()
     venv_bin_dir = get_python_env_executable_path(
@@ -1096,6 +1096,24 @@ def test_get_build_env(
     assert "Zephyr-sdk_DIR" not in env
     # The rest of the process environment is inherited
     assert env["SOME_PREEXISTING_VAR"] == "kept"
+    # No managed settings without a resolved binary; the self-enabled
+    # Zephyr ccache must not cache
+    assert "CCACHE_DIR" not in env or "CCACHE_DIR" in os.environ
+    assert env["CCACHE_DISABLE"] == "1"
+
+
+def test_get_build_env_with_ccache(
+    nrf52_dirs: SimpleNamespace, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A resolved ccache brings the shared managed settings."""
+    for key in ("CCACHE_DIR", "CCACHE_DEPEND", "CCACHE_NOHASHDIR", "CCACHE_BASEDIR"):
+        monkeypatch.delenv(key, raising=False)
+    CORE.build_path = tmp_path / "build"
+    env = get_build_env("/usr/bin/ccache")
+    assert env["CCACHE_DIR"] == str(get_sdk_nrf_tools_path() / "ccache")
+    assert env["CCACHE_DEPEND"] == "1"
+    assert env["CCACHE_BASEDIR"] == str((tmp_path / "build").resolve())
+    assert "CCACHE_DISABLE" not in env
 
 
 def test_get_build_env_sdk_3_4_0_uses_toolchain_root(
@@ -1104,7 +1122,7 @@ def test_get_build_env_sdk_3_4_0_uses_toolchain_root(
     """For NCS >= 3.4.0, ZEPHYR_SDK_INSTALL_DIR still points at the toolchain root."""
     CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: Version.parse("3.4.0")}
 
-    env = get_build_env()
+    env = get_build_env(None)
 
     tools = get_sdk_nrf_tools_path()
     assert env["ZEPHYR_SDK_INSTALL_DIR"] == str(tools / "toolchains" / "1.0.1")
