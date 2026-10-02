@@ -5,8 +5,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from esphome.build_helpers import pch
 from esphome.components import nrf52
 from esphome.components.nrf52 import framework
+from esphome.components.nrf52.toolchain import get_elf_path
 from esphome.components.zephyr.const import KEY_BOARD, KEY_SYSBUILD
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
@@ -55,8 +57,6 @@ def test_cmake_lists_pch_block_disabled(tmp_path: Path) -> None:
 def test_the_zephyr_compiler_decides_on_windows(
     windows_gcc_rule: None, version: tuple[int, ...], on: bool
 ) -> None:
-    from esphome.build_helpers import pch
-
     # platformdirs would pick its Windows backend from the patched sys.platform
     with (
         patch.object(nrf52, "toolchain_tool", lambda name: Path(f"/sdk/{name}.exe")),
@@ -133,8 +133,6 @@ def test_pch_checksum_lands_where_the_build_writes_the_image(
 ) -> None:
     """One layout rule: the sum must sit in get_elf_path's app dir, or a
     layout drift silently costs the first build's sharing."""
-    from esphome.components.nrf52.toolchain import get_elf_path
-
     app = "zephyr" if version >= cv.Version(2, 9, 2) else "."
     sum_path = _write_checksum(tmp_path, app, version=version)
     CORE.name = "livingroom"
