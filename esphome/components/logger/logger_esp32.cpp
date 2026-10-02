@@ -164,7 +164,9 @@ const LogString *Logger::get_uart_selection_() {
 
 }  // namespace esphome::logger
 
-#ifdef USE_ESP32_LOG_V2
+// The version guard keeps builds that define USE_ESP32_LOG_V2 unconditionally (static analysis) off
+// IDF private headers that only 6.1 has
+#if defined(USE_ESP32_LOG_V2) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
 #include <esp_private/log_message.h>
 #include <esp_log_write.h>
 #include <esp_rom_sys.h>
@@ -222,5 +224,5 @@ void __wrap_esp_log_format(esp_log_msg_t *message) {  // NOLINT
   esp_log_vprint_func(message->format, message->args);
 }
 }  // extern "C"
-#endif  // USE_ESP32_LOG_V2
+#endif  // USE_ESP32_LOG_V2 && IDF >= 6.1
 #endif
