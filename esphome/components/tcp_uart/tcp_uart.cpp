@@ -107,8 +107,13 @@ bool TcpUart::read_array(uint8_t *data, size_t len) {
 }
 
 uart::UARTFlushResult TcpUart::flush() {
-  return this->link_.flush_tx() ? uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS
-                                : uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  bool emptied = this->link_.flush_tx();
+  if (!this->link_.connected()) {
+    // A down link cannot have delivered anything, whether this flush dropped
+    // it or an earlier loop() write did.
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
+  }
+  return emptied ? uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS : uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
 }
 
 }  // namespace esphome::tcp_uart
