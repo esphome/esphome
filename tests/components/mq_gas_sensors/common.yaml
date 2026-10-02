@@ -11,21 +11,21 @@ sensor:
     pin: GPIO34
     adc_attenuation: 12db
     adc_samples: 4
-    divider:
+    voltage_divider:
       r1: 10.0
       r2: 20.0
     adc_input_max: 3.34
     rl: 10.0
     vcc: 5.0
     warmup_time: 30s
-    samples: 4
+    sample_count: 4
     sample_interval: 20ms
     min_ppm: 0.0
     max_ppm: 10000.0
     log_ppm: true
     calibration:
       delay: 10s
-      samples: 5
+      sample_count: 5
     temperature: mq8_air_temperature
     humidity: mq8_air_humidity
     ratio_sensor: mq8_ratio

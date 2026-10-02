@@ -1,7 +1,8 @@
 # Config-only fixture: the schema paths the compile fixture does not need - an
 # external voltage sampler instead of `pin:`, the mqdatascience coefficient
 # dataset with the scaled clamp, the compensation opt-out, a sensor type without
-# a correction model and a type without built-in coefficients (a/b required).
+# a correction model and a type without built-in coefficients
+# (coefficient_a/coefficient_b required).
 sensor:
   - platform: adc
     id: mq_validate_adc
@@ -29,7 +30,7 @@ sensor:
     sensor_type: mq-8
     gas: h2
     voltage: mq_validate_adc
-    divider:
+    voltage_divider:
       r1: 10.0
       r2: 20.0
     adc_input_max: 3.34
@@ -37,7 +38,7 @@ sensor:
     ratio_in_clean_air: 70.0
     ratio_mode: r0_rs
     correction_mode: none
-    samples: 4
+    sample_count: 4
     sample_interval: 50ms
     log_ppm: true
     temperature: mq_validate_air_temperature
@@ -69,7 +70,8 @@ sensor:
     temperature: mq_validate_air_temperature
     humidity: mq_validate_air_humidity
 
-  # No built-in coefficients: a/b must come from the YAML, plus the ADC limits of
+  # No built-in coefficients: coefficient_a/coefficient_b must come from the YAML,
+  # plus the ADC limits of
   # an external sampler and a bounded calibration window.
   - platform: mq_gas_sensors
     id: mq_validate_mq136
@@ -77,8 +79,8 @@ sensor:
     sensor_type: MQ-136
     voltage: mq_validate_adc
     voltage_multiplier: 1.5
-    a: 36.0
-    b: -2.0
+    coefficient_a: 36.0
+    coefficient_b: -2.0
     regression_method: linear
     min_ppm: 1.0
     max_ppm: 200.0
@@ -89,5 +91,5 @@ sensor:
       ratio_in_clean_air: 1.0
       delay: 5s
       duration: 30s
-      samples: 10
+      sample_count: 10
       persist: false

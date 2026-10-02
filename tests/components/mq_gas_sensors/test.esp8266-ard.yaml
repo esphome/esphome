@@ -1,0 +1,5 @@
+substitutions:
+  mics_pin: A0
+
+packages:
+  mics_5524_gas_sensor: !include common.yaml

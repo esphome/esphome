@@ -71,20 +71,20 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   void set_log_ppm(bool log_ppm) { this->log_ppm_ = log_ppm; }
 
   /// Console level of a `log_message_()` call.  The order mirrors the verbosity
-  /// of ESP-IDF's `esp_log_level_t`: `LOG_ERROR` is always printed, `LOG_DEBUG`
+  /// of ESP-IDF's `esp_log_level_t`: `LOG_LEVEL_ERROR` is always printed, `LOG_LEVEL_DEBUG`
   /// only with `logger: level: DEBUG`.  The message is mirrored to `log_sensor:`
   /// either way, so the measurement chain stays readable from Home Assistant.
   enum LogLevel : uint8_t {
-    LOG_DEBUG = 0,
-    LOG_INFO = 1,
-    LOG_WARN = 2,
-    LOG_ERROR = 3,
+    LOG_LEVEL_DEBUG = 0,
+    LOG_LEVEL_INFO = 1,
+    LOG_LEVEL_WARN = 2,
+    LOG_LEVEL_ERROR = 3,
   };
 
   /// Size of the message buffer of `log_message_()` (also the text sensor limit).
   static constexpr size_t LOG_BUFFER_SIZE = 160;
 
-  /// Minimum interval between two *per-update* (`LOG_DEBUG`) messages mirrored to
+  /// Minimum interval between two *per-update* (`LOG_LEVEL_DEBUG`) messages mirrored to
   /// `log_sensor_`.  The sensor may poll at 1 Hz, and a text state per second would
   /// flood the Home Assistant recorder - calibration messages, warnings and errors
   /// are always mirrored immediately (the console log is never throttled).
@@ -103,7 +103,8 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   float get_sensor_voltage() const { return this->sensor_voltage_; }
 
  protected:
-  /// Averaged, scaled analog output voltage of the sensor (V).
+  /// Averaged, scaled analog output voltage of the sensor (V).  The `samples_`
+  /// conversions are taken back to back, so the call returns without waiting.
   float sample_voltage_();
   /// RS in kOhm for the current `sensor_voltage_`.
   float current_rs_() const;
@@ -123,11 +124,11 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   void log_config_();
   /// Log the value published by the next `publish_state()` at `INFO`
   /// (`'<type> <gas>': <ppm> ppm`), the "normal mode" counterpart of the
-  /// `LOG_DEBUG` chain in `update()`.  No-op when `log_ppm:` is off or the
+  /// `LOG_LEVEL_DEBUG` chain in `update()`.  No-op when `log_ppm:` is off or the
   /// reading is invalid; console only - the chain is what reaches `log_sensor_`.
   void log_reading_(float ppm);
   /// Publish a message to `log_sensor_` (no-op when it is not configured);
-  /// `LOG_DEBUG` messages are rate limited to `LOG_SENSOR_DEBUG_INTERVAL_MS`.
+  /// `LOG_LEVEL_DEBUG` messages are rate limited to `LOG_SENSOR_DEBUG_INTERVAL_MS`.
   void publish_log_(LogLevel level, const char *message);
   /// Log a message on the console and mirror it to `log_sensor_`; it is prefixed
   /// with the sensor type and the gas (`'MQ-8 H2': ...`) so several sensors stay
@@ -135,8 +136,8 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   void log_message_(LogLevel level, const char *format, ...);
 
   // ------------------------------------------------------------- configuration
-  StringRef type_{"MQ"};
-  StringRef gas_{"CUSTOM"};
+  StringRef type_{StringRef::from_lit("MQ")};
+  StringRef gas_{StringRef::from_lit("CUSTOM")};
   voltage_sampler::VoltageSampler *source_{nullptr};
   sensor::Sensor *temperature_source_{nullptr};
   sensor::Sensor *humidity_source_{nullptr};
@@ -193,7 +194,7 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *correction_sensor_{nullptr};
   text_sensor::TextSensor *log_sensor_{nullptr};
-  uint32_t last_log_sensor_debug_{0};  ///< loop tick of the last mirrored DEBUG message
+  uint32_t last_log_sensor_debug_{0};  ///< `App.get_loop_component_start_time()` of the last mirrored DEBUG message
 
   ESPPreferenceObject r0_pref_{};
 };

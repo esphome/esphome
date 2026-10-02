@@ -17,15 +17,18 @@ Optional extras ported from https://github.com/abcdaaaaaaaaa/MQDataScience:
 
 * ``correction_mode: mqdatascience`` compensates the RS/R0 ratio for the
   ambient temperature and humidity (``temperature:``/``humidity:`` sensor ids).
-* ``curve: mqdatascience`` selects their ``a`` / ``b`` coefficient dataset
-  instead of the SolderedElectronics/MQUnifiedsensor one.
+* ``curve: mqdatascience`` selects their ``coefficient_a`` / ``coefficient_b``
+  dataset instead of the SolderedElectronics/MQUnifiedsensor one.
 """
 
 import esphome.codegen as cg
 from esphome.components import sensor
 
 CODEOWNERS = ["@nliaudat"]
-AUTO_LOAD = ["sensor", "voltage_sampler"]
+
+# No ``AUTO_LOAD`` here: for a platform component ESPHome processes the list of the
+# platform module, and ``sensor.py`` declares ``sensor``, ``voltage_sampler`` and
+# ``adc`` (the last one for the internal ADC sensor of a ``pin:`` configuration).
 
 mq_gas_sensors_ns = cg.esphome_ns.namespace("mq_gas_sensors")
 
@@ -49,9 +52,12 @@ CONF_ADC_SAMPLES = "adc_samples"
 CONF_RL = "rl"
 CONF_R0 = "r0"
 CONF_VCC = "vcc"
+CONF_COEFFICIENT_A = "coefficient_a"
+CONF_COEFFICIENT_B = "coefficient_b"
 CONF_REGRESSION_METHOD = "regression_method"
 CONF_RATIO_MODE = "ratio_mode"
 CONF_RATIO_IN_CLEAN_AIR = "ratio_in_clean_air"
+CONF_SAMPLE_COUNT = "sample_count"
 CONF_SAMPLE_INTERVAL = "sample_interval"
 CONF_MIN_PPM = "min_ppm"
 CONF_MAX_PPM = "max_ppm"
