@@ -17,3 +17,4 @@ sensor:
     raw: true
     attenuation: 6db
     sampling_mode: max
+    samples: 4

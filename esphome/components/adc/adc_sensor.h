@@ -128,8 +128,8 @@ class ADCSensor final : public sensor::Sensor, public PollingComponent, public v
 #endif  // USE_RP2
 
  protected:
-  uint8_t sample_count_{1};
-  bool output_raw_{false};  // Must match CONF_RAW default in sensor.py
+  uint8_t sample_count_{1};  // Must match DEFAULT_SAMPLES in sensor.py
+  bool output_raw_{false};   // Must match CONF_RAW default in sensor.py
   InternalGPIOPin *pin_;
   SamplingMode sampling_mode_{SamplingMode::AVG};  // Must match DEFAULT_SAMPLING_MODE in sensor.py
 

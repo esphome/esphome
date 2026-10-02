@@ -41,6 +41,8 @@ def test_adc_default_setters_are_not_emitted(
     assert "adc_defaults->set_output_raw(" not in main_cpp
     assert "adc_defaults->set_attenuation(" not in main_cpp
     assert "adc_defaults->set_sampling_mode(" not in main_cpp
+    assert "adc_defaults->set_sample_count(" not in main_cpp
     assert "adc_custom->set_output_raw(true);" in main_cpp
     assert "adc_custom->set_attenuation(ADC_ATTEN_DB_6);" in main_cpp
     assert "adc_custom->set_sampling_mode(adc::SamplingMode::MAX);" in main_cpp
+    assert "adc_custom->set_sample_count(4);" in main_cpp
