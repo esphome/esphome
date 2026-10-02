@@ -1,0 +1,32 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+binary_sensor:
+  - platform: template
+    id: repeat_a
+    filters:
+      - autorepeat:
+          - delay: 2s
+            time_off: 200ms
+            time_on: 800ms
+          - delay: 5s
+            time_off: 100ms
+            time_on: 400ms
+  - platform: template
+    id: repeat_b
+    filters:
+      - autorepeat:
+          - delay: 2s
+            time_off: 200ms
+            time_on: 800ms
+          - delay: 5s
+            time_off: 100ms
+            time_on: 400ms
+  - platform: template
+    id: repeat_default
+    filters:
+      - autorepeat:
