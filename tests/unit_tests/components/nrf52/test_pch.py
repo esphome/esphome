@@ -123,8 +123,11 @@ def test_pch_checksum_tracks_the_zephyr_configuration(tmp_path: Path) -> None:
 
 def test_pch_checksum_written_before_the_first_configure(tmp_path: Path) -> None:
     """The first build's compiles hash the sum in place of the .gch; an
-    unconfigured tree defaults to the sysbuild layout."""
-    assert _write_checksum(tmp_path, "zephyr", configured=False).is_file()
+    unconfigured tree decides the layout by the configured sysbuild flag."""
+    assert _write_checksum(
+        tmp_path, "zephyr", configured=False, sysbuild=True
+    ).is_file()
+    assert _write_checksum(tmp_path, ".", configured=False).is_file()
 
 
 def _fake_build_env(ccache: str | None) -> dict[str, str]:

@@ -227,13 +227,19 @@ def get_build_env(ccache: str | None) -> dict:
         env.update(ccache_env(ccache, SDK_NRF_TOOLS_CACHE))
         # Only the per build map entry is dropped from the hash; its from
         # side covers no compiled sources, so the value cannot change the
-        # output. User supplied maps stay hashed.
-        device_map = (
-            f"-fmacro-prefix-map={CORE.relative_build_path('zephyr')}=CMAKE_SOURCE_DIR"
-        )
-        env["CCACHE_IGNOREOPTIONS"] = (
-            f"{env.get('CCACHE_IGNOREOPTIONS', '')} {device_map}".strip()
-        )
+        # output. User supplied maps stay hashed. as_posix matches CMake's
+        # spelling; ccache splits the list on spaces, so a path with
+        # whitespace cannot be expressed and stays hashed.
+        source_dir = CORE.relative_build_path("zephyr").as_posix()
+        if any(ch.isspace() for ch in source_dir):
+            _LOGGER.debug(
+                "Whitespace in %s; the per build map stays hashed", source_dir
+            )
+        else:
+            device_map = f"-fmacro-prefix-map={source_dir}=CMAKE_SOURCE_DIR"
+            env["CCACHE_IGNOREOPTIONS"] = (
+                f"{env.get('CCACHE_IGNOREOPTIONS', '')} {device_map}".strip()
+            )
     return env
 
 

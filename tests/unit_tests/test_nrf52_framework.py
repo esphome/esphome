@@ -1123,8 +1123,20 @@ def test_get_build_env_with_ccache(
     assert "CCACHE_DISABLE" not in env
     # Only the per build map entry leaves the hash; user maps stay in
     assert env["CCACHE_IGNOREOPTIONS"] == (
-        f"-fmacro-prefix-map={tmp_path / 'build' / 'zephyr'}=CMAKE_SOURCE_DIR"
+        f"-fmacro-prefix-map={(tmp_path / 'build' / 'zephyr').as_posix()}"
+        "=CMAKE_SOURCE_DIR"
     )
+
+
+def test_get_build_env_skips_the_map_entry_on_whitespace(
+    nrf52_dirs: SimpleNamespace, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """ccache splits the ignore list on spaces; a spaced path cannot be
+    expressed, so the entry is left hashed rather than emitted broken."""
+    monkeypatch.delenv("CCACHE_IGNOREOPTIONS", raising=False)
+    CORE.build_path = tmp_path / "with space" / "build"
+    env = get_build_env("/usr/bin/ccache")
+    assert "CCACHE_IGNOREOPTIONS" not in env
 
 
 def test_get_build_env_sdk_3_4_0_uses_toolchain_root(
