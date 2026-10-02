@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.components import socket
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
@@ -18,5 +19,6 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
+    socket.require_ipv4_resolve()
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
