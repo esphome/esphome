@@ -465,7 +465,9 @@ RMII_SCHEMA = cv.All(
                     CLK_MODES_DEPRECATED, upper=True, space="_"
                 ),
                 cv.Optional(CONF_CLK): CLK_SCHEMA,
-                cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
+                cv.Optional(CONF_PHY_ADDR, default=DEFAULT_PHY_ADDR): cv.int_range(
+                    min=0, max=31
+                ),
                 cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
                 cv.Optional(CONF_PHY_REGISTERS): cv.ensure_list(PHY_REGISTER_SCHEMA),
             }
@@ -482,7 +484,9 @@ GENERIC_SCHEMA = cv.All(
             {
                 cv.Required(CONF_MDC_PIN): pins.internal_gpio_output_pin_number,
                 cv.Required(CONF_MDIO_PIN): pins.internal_gpio_output_pin_number,
-                cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
+                cv.Optional(CONF_PHY_ADDR, default=DEFAULT_PHY_ADDR): cv.int_range(
+                    min=0, max=31
+                ),
                 cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
                 cv.Optional(CONF_PHY_REGISTERS): cv.ensure_list(PHY_REGISTER_SCHEMA),
             }
