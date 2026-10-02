@@ -1,47 +1,69 @@
 #pragma once
 
+#include "headers.h"
+
 #include <cstdint>
+#include <cstring>
 
 namespace esphome::socket {
 
-/// IPv4 addresses that may connect. An empty list allows every address.
-/// A single address is stored as /32. Addresses and masks are host byte order.
+/// One allowed IPv4 network, in network byte order with host bits cleared.
+/// Codegen validates and emits these into flash; cv.ipv4network makes an
+/// invalid or non contiguous mask unrepresentable.
+struct Ipv4AllowEntry {
+  uint32_t addr;
+  uint32_t mask;
+};
+
+/// IPv4 peers that may connect. An empty list allows every peer.
 class Ipv4Allow {
  public:
-  static constexpr uint8_t MAX = 8;
-
-  /// Host bits in addr are cleared. Returns false when the list is already full.
-  bool add(uint32_t addr, uint32_t mask) {
-    if (this->count_ >= MAX) {
-      return false;
-    }
-    this->addr_[this->count_] = addr & mask;
-    this->mask_[this->count_] = mask;
-    this->count_++;
-    return true;
+  void set(const Ipv4AllowEntry *entries, uint8_t count) {
+    this->entries_ = entries;
+    this->count_ = count;
   }
 
-  /// True when the list is empty or addr falls into one entry.
+  /// True when the list is empty or the peer falls into one entry.
+  /// A v4 mapped IPv6 peer is unwrapped; any other family fails a non empty list.
+  bool allows(const struct sockaddr *peer) const {
+    if (this->count_ == 0) {
+      return true;
+    }
+    uint32_t addr;
+    if (peer->sa_family == AF_INET) {
+      addr = reinterpret_cast<const struct sockaddr_in *>(peer)->sin_addr.s_addr;
+    }
+#ifdef AF_INET6
+    else if (peer->sa_family == AF_INET6) {
+      static constexpr uint8_t V4_MAPPED_PREFIX[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF};
+      const uint8_t *bytes = reinterpret_cast<const struct sockaddr_in6 *>(peer)->sin6_addr.s6_addr;
+      if (memcmp(bytes, V4_MAPPED_PREFIX, sizeof(V4_MAPPED_PREFIX)) != 0) {
+        return false;
+      }
+      memcpy(&addr, bytes + sizeof(V4_MAPPED_PREFIX), sizeof(addr));
+    }
+#endif
+    else {
+      return false;
+    }
+    return this->allows(addr);
+  }
+
+  /// addr is network byte order, as it sits in a sockaddr_in.
   bool allows(uint32_t addr) const {
     if (this->count_ == 0) {
       return true;
     }
-    for (uint8_t i = 0; i < this->count_; i++) {
-      if ((addr & this->mask_[i]) == this->addr_[i]) {
+    for (uint8_t i = 0; i != this->count_; i++) {
+      if ((addr & this->entries_[i].mask) == this->entries_[i].addr) {
         return true;
       }
     }
     return false;
   }
 
-  bool empty() const { return this->count_ == 0; }
-  uint8_t size() const { return this->count_; }
-  uint32_t addr_at(uint8_t index) const { return this->addr_[index]; }
-  uint32_t mask_at(uint8_t index) const { return this->mask_[index]; }
-
  private:
-  uint32_t addr_[MAX]{};
-  uint32_t mask_[MAX]{};
+  const Ipv4AllowEntry *entries_{nullptr};
   uint8_t count_{0};
 };
 
