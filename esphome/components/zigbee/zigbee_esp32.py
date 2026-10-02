@@ -27,6 +27,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
     CONF_WIFI,
+    DEVICE_CLASS_OUTLET,
 )
 from esphome.core import CORE
 from esphome.coroutine import CoroPriority, coroutine_with_priority
@@ -67,8 +68,10 @@ from .const_esp32 import (
 from .zigbee_ep_esp32 import (
     ANALOG_INPUT_EP,
     BINARY_INPUT_EP,
+    BINARY_OUTPUT_EP,
     BINARY_SENSOR_EP_CONFIGS,
     SENSOR_EP_CONFIGS,
+    SWITCH_EP_CONFIGS,
     add_ep,
     create_ep,
 )
@@ -270,6 +273,23 @@ def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
             )
     else:
         ep = copy.deepcopy(BINARY_INPUT_EP)
+    setup_attributes(config, ep[CONF_CLUSTERS])
+    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
+    return config
+
+
+def validate_switch_esp32(config: ConfigType) -> ConfigType:
+    if config[CONF_CLUSTER] == "on_off":
+        ep = copy.deepcopy(SWITCH_EP_CONFIGS["on_off"])
+        if config.get(CONF_DEVICE_CLASS) == DEVICE_CLASS_OUTLET:
+            ep[DEVICE_TYPE] = "MAINS_POWER_OUTLET"
+    else:
+        if config.get(CONF_DEVICE_CLASS) == DEVICE_CLASS_OUTLET:
+            _LOGGER.warning(
+                "'device_class: outlet' has no effect with 'cluster: generic', "
+                "use 'cluster: on_off' to expose a MAINS_POWER_OUTLET device type"
+            )
+        ep = copy.deepcopy(BINARY_OUTPUT_EP)
     setup_attributes(config, ep[CONF_CLUSTERS])
     add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
     return config
