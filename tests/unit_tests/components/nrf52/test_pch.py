@@ -7,13 +7,14 @@ import pytest
 
 from esphome.components import nrf52
 from esphome.components.zephyr.const import KEY_BOARD
+import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
 from esphome.core import CORE, EsphomeError
 
 SUM = "CMakeFiles/app.dir/cmake_pch.hxx.gch.sum"
 
 
-def _generate_cmake(tmp_path: Path) -> str:
+def _generate_cmake(tmp_path: Path, pch_on: bool = True) -> str:
     CORE.config_path = tmp_path / "test.yaml"
     CORE.build_path = tmp_path / "build"
     CORE.name = "livingroom"
@@ -25,7 +26,7 @@ def _generate_cmake(tmp_path: Path) -> str:
         patch.object(nrf52, "get_project_compile_flags", return_value=["-Os"]),
         patch.object(nrf52, "get_project_link_flags", return_value=[]),
     ):
-        nrf52._generate_cmake_lists()
+        nrf52._generate_cmake_lists(pch_on)
     return (tmp_path / "build" / "zephyr" / "CMakeLists.txt").read_text()
 
 
@@ -43,13 +44,25 @@ def test_cmake_lists_precompile_the_core_headers(tmp_path: Path) -> None:
     assert "if(NOT esphome_pch_headers)\n  message(FATAL_ERROR" in text
 
 
-def test_cmake_lists_pch_block_disabled(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
-    text = _generate_cmake(tmp_path)
+def test_cmake_lists_pch_block_disabled(tmp_path: Path) -> None:
+    text = _generate_cmake(tmp_path, pch_on=False)
     assert "precompile" not in text
     assert "zephyr_interface" not in text
+
+
+@pytest.mark.parametrize(("version", "on"), [((12, 2, 0), False), ((14, 4, 0), True)])
+def test_the_zephyr_compiler_decides_on_windows(
+    windows_gcc_rule: None, version: tuple[int, ...], on: bool
+) -> None:
+    from esphome.build_helpers import pch
+
+    # platformdirs would pick its Windows backend from the patched sys.platform
+    with (
+        patch.object(nrf52, "toolchain_tool", lambda name: Path(f"/sdk/{name}.exe")),
+        patch.object(pch, "gcc_version", return_value=version) as asked,
+    ):
+        assert nrf52._pch_usable() is on
+    assert asked.call_args.args[0] == (Path("/sdk/g++.exe"),)
 
 
 def _write_checksum(tmp_path: Path, app: str, conf: str = "CONFIG_X=y\n") -> Path:
@@ -98,6 +111,7 @@ def run_cmd(tmp_path: Path) -> Mock:
     CORE.build_path = tmp_path / "build"
     CORE.name = "livingroom"
     CORE.toolchain = Toolchain.SDK_NRF
+    CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: cv.Version(3, 2, 0)}
     with (
         patch.object(nrf52, "check_and_install"),
         patch.object(nrf52, "_generate_cmake_lists", return_value=False),
@@ -114,15 +128,28 @@ def run_cmd(tmp_path: Path) -> Mock:
 
 
 def test_ccache_pch_settings_reach_west(run_cmd: Mock) -> None:
-    # clear=True also drops ambient CCACHE_* and ESPHOME_PCH_* overrides
+    # clear=True also drops ambient CCACHE_* overrides; the header is on
+    # explicitly since Windows hosts start with it off
     with (
-        patch.dict("os.environ", {}, clear=True),
+        patch.dict("os.environ", {"ESPHOME_PCH_ENABLE": "1"}, clear=True),
         pytest.raises(EsphomeError, match="nRF52 native build failed"),
     ):
         nrf52.run_compile(None, {})
     env = run_cmd.call_args.kwargs["env"]
     assert env["CCACHE_PCH_EXTSUM"] == "true"
     assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
+    # Without depend mode a Kconfig flip reuses a stale .gch
+    assert env["CCACHE_DEPEND"] == "1"
+
+
+def test_ccache_depend_respects_a_user_override(run_cmd: Mock) -> None:
+    with (
+        patch.object(nrf52, "get_build_env", return_value={"CCACHE_DEPEND": "0"}),
+        patch.dict("os.environ", {"ESPHOME_PCH_ENABLE": "1"}, clear=True),
+        pytest.raises(EsphomeError, match="nRF52 native build failed"),
+    ):
+        nrf52.run_compile(None, {})
+    assert run_cmd.call_args.kwargs["env"]["CCACHE_DEPEND"] == "0"
 
 
 def test_disabled_leaves_the_west_environment_alone(
@@ -132,3 +159,4 @@ def test_disabled_leaves_the_west_environment_alone(
     with pytest.raises(EsphomeError, match="nRF52 native build failed"):
         nrf52.run_compile(None, {})
     assert "CCACHE_PCH_EXTSUM" not in run_cmd.call_args.kwargs["env"]
+    assert "CCACHE_DEPEND" not in run_cmd.call_args.kwargs["env"]

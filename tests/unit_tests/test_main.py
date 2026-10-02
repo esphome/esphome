@@ -42,7 +42,6 @@ from esphome.__main__ import (
     command_config_hash,
     command_dashboard,
     command_idedata,
-    command_rename,
     command_run,
     command_update_all,
     command_wizard,
@@ -101,7 +100,6 @@ from esphome.const import (
     CONF_PASSWORD,
     CONF_PLATFORM,
     CONF_PORT,
-    CONF_SUBSTITUTIONS,
     CONF_TOPIC,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
@@ -1550,6 +1548,7 @@ class MockArgs:
     partition_table: bool = False
     bootloader: bool = False
     states: bool | None = None
+    device: list[str] | None = None
 
 
 def test_upload_program_serial_esp32(
@@ -4448,627 +4447,6 @@ def test_command_config_hash(
     assert output == f"0x{CORE.config_hash:08x}"
 
 
-def test_command_rename_invalid_characters(
-    tmp_path: Path, capfd: CaptureFixture[str]
-) -> None:
-    """Test command_rename with invalid characters in name."""
-    setup_core(tmp_path=tmp_path)
-
-    # Test with invalid character (space)
-    args = MockArgs(name="invalid name")
-    result = command_rename(args, {})
-
-    assert result == 1
-    captured = capfd.readouterr()
-    assert "invalid character" in captured.out.lower()
-
-
-def test_command_rename_complex_yaml(
-    tmp_path: Path, capfd: CaptureFixture[str]
-) -> None:
-    """Test command_rename with complex YAML that cannot be renamed."""
-    config_file = tmp_path / "test.yaml"
-    config_file.write_text("# Complex YAML without esphome section\nsome_key: value\n")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-
-    args = MockArgs(name="newname")
-    result = command_rename(args, {})
-
-    assert result == 1
-    captured = capfd.readouterr()
-    assert "complex yaml" in captured.out.lower()
-
-
-def test_command_rename_success(
-    tmp_path: Path,
-    capfd: CaptureFixture[str],
-    mock_run_external_process: Mock,
-) -> None:
-    """Test successful rename of a simple configuration."""
-    config_file = tmp_path / "oldname.yaml"
-    config_file.write_text("""
-esphome:
-  name: oldname
-
-esp32:
-  board: nodemcu-32s
-
-wifi:
-  ssid: "test"
-  password: "test1234"
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-
-    # Set up CORE.config to avoid ValueError when accessing CORE.address
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
-
-    args = MockArgs(name="newname", dashboard=False)
-
-    # Simulate successful validation and upload
-    mock_run_external_process.return_value = 0
-
-    result = command_rename(args, {})
-
-    assert result == 0
-
-    # Verify new file was created
-    new_file = tmp_path / "newname.yaml"
-    assert new_file.exists()
-
-    # Verify old file was removed
-    assert not config_file.exists()
-
-    # Verify content was updated
-    content = new_file.read_text()
-    assert (
-        'name: "newname"' in content
-        or "name: 'newname'" in content
-        or "name: newname" in content
-    )
-
-    captured = capfd.readouterr()
-    assert "SUCCESS" in captured.out
-
-
-def test_command_rename_with_substitutions(
-    tmp_path: Path,
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename with substitutions in YAML."""
-    config_file = tmp_path / "oldname.yaml"
-    config_file.write_text("""
-substitutions:
-  device_name: oldname
-
-esphome:
-  name: ${device_name}
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-
-    # Set up CORE.config to avoid ValueError when accessing CORE.address
-    CORE.config = {
-        CONF_ESPHOME: {CONF_NAME: "oldname"},
-        CONF_SUBSTITUTIONS: {"device_name": "oldname"},
-    }
-
-    args = MockArgs(name="newname", dashboard=False)
-
-    mock_run_external_process.return_value = 0
-
-    result = command_rename(args, {})
-
-    assert result == 0
-
-    # Verify substitution was updated
-    new_file = tmp_path / "newname.yaml"
-    content = new_file.read_text()
-    assert 'device_name: "newname"' in content
-
-
-def test_command_rename_validation_failure(
-    tmp_path: Path,
-    capfd: CaptureFixture[str],
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename when validation fails."""
-    config_file = tmp_path / "oldname.yaml"
-    config_file.write_text("""
-esphome:
-  name: oldname
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-
-    args = MockArgs(name="newname", dashboard=False)
-
-    # First call for validation fails
-    mock_run_external_process.return_value = 1
-
-    result = command_rename(args, {})
-
-    assert result == 1
-
-    # Verify new file was created but then removed due to failure
-    new_file = tmp_path / "newname.yaml"
-    assert not new_file.exists()
-
-    # Verify old file still exists (not removed on failure)
-    assert config_file.exists()
-
-    captured = capfd.readouterr()
-    assert "Rename failed" in captured.out
-
-
-def test_command_rename_install_failure_reverts(
-    tmp_path: Path,
-    capfd: CaptureFixture[str],
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename when the install (esphome run) step fails."""
-    config_file = tmp_path / "oldname.yaml"
-    config_file.write_text("""
-esphome:
-  name: oldname
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
-
-    args = MockArgs(name="newname", dashboard=False)
-
-    # First call (config validation) succeeds; second (esphome run) fails.
-    mock_run_external_process.side_effect = [0, 1]
-
-    result = command_rename(args, {})
-
-    assert result == 1
-
-    # New file was unlinked when install failed.
-    new_file = tmp_path / "newname.yaml"
-    assert not new_file.exists()
-
-    # Old file is preserved so the device stays reachable under the
-    # original hostname.
-    assert config_file.exists()
-
-
-def test_command_rename_target_exists_refuses(
-    tmp_path: Path,
-    capfd: CaptureFixture[str],
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename refuses when the target filename already exists.
-
-    Without this guard, the rename would overwrite the unrelated
-    device's YAML and OTA-install our firmware to the wrong device.
-    """
-    config_file = tmp_path / "oldname.yaml"
-    config_file.write_text("""
-esphome:
-  name: oldname
-
-esp32:
-  board: nodemcu-32s
-""")
-    target_file = tmp_path / "newname.yaml"
-    target_file.write_text("""
-esphome:
-  name: someoneelse
-
-esp32:
-  board: nodemcu-32s
-""")
-    target_original = target_file.read_text()
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
-
-    args = MockArgs(name="newname", dashboard=False)
-
-    result = command_rename(args, {})
-
-    assert result == 1
-    # No subprocess work happened — refusal is up-front.
-    mock_run_external_process.assert_not_called()
-    # Target file untouched: same content, still on disk.
-    assert target_file.exists()
-    assert target_file.read_text() == target_original
-    # Source file untouched.
-    assert config_file.exists()
-
-    captured = capfd.readouterr()
-    assert "already exists" in captured.out
-
-
-def test_command_rename_same_name_refuses(
-    tmp_path: Path,
-    capfd: CaptureFixture[str],
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename refuses when the new name matches the current name.
-
-    A same-name rename would otherwise re-write the YAML and queue
-    a redundant compile + install — wasted work the user almost
-    certainly didn't intend.
-    """
-    config_file = tmp_path / "samename.yaml"
-    config_file.write_text("""
-esphome:
-  name: samename
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "samename"}}
-
-    args = MockArgs(name="samename", dashboard=False)
-
-    result = command_rename(args, {})
-
-    assert result == 1
-    mock_run_external_process.assert_not_called()
-    # File preserved verbatim — no rewrite happened.
-    assert config_file.exists()
-
-    captured = capfd.readouterr()
-    assert "already" in captured.out.lower()
-
-
-def test_command_rename_does_not_touch_friendly_name_substring(
-    tmp_path: Path,
-    mock_run_external_process: Mock,
-) -> None:
-    r"""Test rename does not match the ``name:`` substring of ``friendly_name:``.
-
-    Without anchoring the regex at line start, the pattern
-    ``\s*name:\s+<old>`` could match the trailing ``name:``
-    substring inside ``friendly_name: <old>``. The rewrite would
-    flip both lines to the new name, leaving the user with a
-    silently corrupted ``friendly_name``.
-    """
-    config_file = tmp_path / "oldname.yaml"
-    config_file.write_text("""
-esphome:
-  name: oldname
-  friendly_name: oldname
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
-
-    args = MockArgs(name="newname", dashboard=False)
-    mock_run_external_process.return_value = 0
-
-    result = command_rename(args, {})
-
-    assert result == 0
-    new_file = tmp_path / "newname.yaml"
-    content = new_file.read_text()
-    # esphome.name swapped.
-    assert 'name: "newname"' in content
-    # friendly_name kept verbatim.
-    assert "friendly_name: oldname" in content
-
-
-def test_command_rename_does_not_match_old_name_as_value_prefix(
-    tmp_path: Path,
-    mock_run_external_process: Mock,
-) -> None:
-    r"""Test rename does not match ``old_name`` as a prefix of a longer value.
-
-    With ``old_name = kitchen`` the value ``kitchen2`` (a sensor
-    or wifi entry) would otherwise match the unanchored
-    ``["']?kitchen["']?`` pattern at the prefix and get
-    rewritten to the new name. The end-of-value lookahead keeps
-    the match restricted to whole tokens.
-    """
-    config_file = tmp_path / "kitchen.yaml"
-    config_file.write_text("""
-esphome:
-  name: kitchen
-
-esp32:
-  board: nodemcu-32s
-
-wifi:
-  ap:
-    ssid: kitchen2
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
-
-    args = MockArgs(name="garage", dashboard=False)
-    mock_run_external_process.return_value = 0
-
-    result = command_rename(args, {})
-
-    assert result == 0
-    new_file = tmp_path / "garage.yaml"
-    content = new_file.read_text()
-    assert 'name: "garage"' in content
-    # The wifi ssid value is unrelated and stays intact.
-    assert "ssid: kitchen2" in content
-
-
-def test_command_rename_same_resolved_name_refuses(
-    tmp_path: Path,
-    capfd: CaptureFixture[str],
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename refuses when ``new_name`` matches the resolved device name.
-
-    The path-equality check only catches the case where the
-    config filename matches the device name. For a config whose
-    filename and ``esphome.name`` differ (here ``weird-file.yaml``
-    holds ``esphome.name: kitchen``), running
-    ``esphome rename weird-file.yaml kitchen`` would otherwise
-    fall through to the rewrite + install: the YAML's name stays
-    ``kitchen``, the file is renamed to ``kitchen.yaml``, and the
-    device gets a redundant flash. Refuse up-front so the
-    "already the device's name" message matches reality.
-    """
-    config_file = tmp_path / "weird-file.yaml"
-    config_file.write_text("""
-esphome:
-  name: kitchen
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
-
-    args = MockArgs(name="kitchen", dashboard=False)
-
-    result = command_rename(args, {})
-
-    assert result == 1
-    mock_run_external_process.assert_not_called()
-    # Source file untouched, no derived target written.
-    assert config_file.exists()
-    assert not (tmp_path / "kitchen.yaml").exists()
-
-    captured = capfd.readouterr()
-    assert "already" in captured.out.lower()
-
-
-def test_command_rename_target_path_equals_source_refuses(
-    tmp_path: Path,
-    capfd: CaptureFixture[str],
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename refuses when the new path resolves to the source file.
-
-    Reachable only when the YAML's filename and ``esphome.name``
-    disagree — here ``kitchen.yaml`` holds ``esphome.name: garage``
-    and the user runs ``esphome rename kitchen.yaml kitchen``. The
-    name-equality check above passes (``garage != kitchen``), but
-    ``<config_dir>/kitchen.yaml`` resolves to the source file
-    itself, so the rewrite would clobber the source mid-rename.
-    Refuse rather than silently overwriting.
-    """
-    config_file = tmp_path / "kitchen.yaml"
-    config_file.write_text("""
-esphome:
-  name: garage
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "garage"}}
-
-    args = MockArgs(name="kitchen", dashboard=False)
-
-    result = command_rename(args, {})
-
-    assert result == 1
-    mock_run_external_process.assert_not_called()
-    # Source file still present and unmodified.
-    assert config_file.exists()
-    assert "name: garage" in config_file.read_text()
-
-    captured = capfd.readouterr()
-    assert "already" in captured.out.lower()
-
-
-def test_command_rename_does_not_touch_lookalike_name_in_other_blocks(
-    tmp_path: Path,
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename only swaps the esphome.name line.
-
-    A device whose name happens to match a sensor's / output's
-    ``name:`` value must not have those other names rewritten —
-    they're independent. Without an anchor for the esphome block
-    a naive regex would clobber every line whose value matches.
-    """
-    config_file = tmp_path / "kitchen.yaml"
-    config_file.write_text("""
-esphome:
-  name: kitchen
-
-esp32:
-  board: nodemcu-32s
-
-sensor:
-  - platform: template
-    name: kitchen
-    lambda: 'return 0;'
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
-
-    args = MockArgs(name="garage", dashboard=False)
-    mock_run_external_process.return_value = 0
-
-    result = command_rename(args, {})
-
-    assert result == 0
-
-    new_file = tmp_path / "garage.yaml"
-    content = new_file.read_text()
-    # esphome.name renamed.
-    assert 'name: "garage"' in content
-    # Sensor's name is the user's entity name — must not be touched.
-    assert "    name: kitchen\n" in content
-
-
-def test_command_rename_preserves_trailing_comment(
-    tmp_path: Path,
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename preserves a trailing ``# comment`` on the name line."""
-    config_file = tmp_path / "kitchen.yaml"
-    config_file.write_text("""
-esphome:
-  name: kitchen  # primary device
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
-
-    args = MockArgs(name="garage", dashboard=False)
-    mock_run_external_process.return_value = 0
-
-    result = command_rename(args, {})
-
-    assert result == 0
-
-    new_file = tmp_path / "garage.yaml"
-    content = new_file.read_text()
-    assert "# primary device" in content
-
-
-def test_command_rename_handles_double_quoted_value(
-    tmp_path: Path,
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename matches when the existing value is double-quoted."""
-    config_file = tmp_path / "kitchen.yaml"
-    config_file.write_text("""
-esphome:
-  name: "kitchen"
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
-
-    args = MockArgs(name="garage", dashboard=False)
-    mock_run_external_process.return_value = 0
-
-    result = command_rename(args, {})
-
-    assert result == 0
-    new_file = tmp_path / "garage.yaml"
-    assert 'name: "garage"' in new_file.read_text()
-
-
-def test_command_rename_handles_single_quoted_value(
-    tmp_path: Path,
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename matches when the existing value is single-quoted."""
-    config_file = tmp_path / "kitchen.yaml"
-    config_file.write_text("""
-esphome:
-  name: 'kitchen'
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
-
-    args = MockArgs(name="garage", dashboard=False)
-    mock_run_external_process.return_value = 0
-
-    result = command_rename(args, {})
-
-    assert result == 0
-    new_file = tmp_path / "garage.yaml"
-    assert 'name: "garage"' in new_file.read_text()
-
-
-def test_command_rename_too_many_substitution_matches_refuses(
-    tmp_path: Path,
-    capfd: CaptureFixture[str],
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename refuses when ``${var}`` resolves to multiple matches.
-
-    When ``esphome.name: ${device_name}`` and the substitution
-    definition ``device_name: foo`` appears more than once in the
-    YAML (e.g. inside multiple included blocks), the regex rewrite
-    can't tell which one to flip. Rather than silently picking one
-    or rewriting both, the command refuses.
-    """
-    config_file = tmp_path / "oldname.yaml"
-    config_file.write_text("""
-substitutions:
-  device_name: oldname
-
-esphome:
-  name: ${device_name}
-
-# A copy-pasted block that re-declares the substitution at the
-# same indent level - happens when users splice in a packaged
-# fragment without renaming the variable.
-example:
-  device_name: oldname
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {
-        CONF_ESPHOME: {CONF_NAME: "oldname"},
-        CONF_SUBSTITUTIONS: {"device_name": "oldname"},
-    }
-
-    args = MockArgs(name="newname", dashboard=False)
-
-    result = command_rename(args, {})
-
-    assert result == 1
-    mock_run_external_process.assert_not_called()
-    # File untouched.
-    assert config_file.exists()
-    assert "device_name: oldname" in config_file.read_text()
-
-    captured = capfd.readouterr()
-    assert "Too many matches" in captured.out
-
-
 def test_command_update_all_path_string_conversion(
     tmp_path: Path,
     mock_run_external_process: Mock,
@@ -5978,6 +5356,28 @@ def _setup_build_info_test(
         create_firmware_file()
 
     return build_info_path, firmware_path
+
+
+def test_compile_program_warns_and_ignores_skip_bootloader_elsewhere(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A full build is always safe; orchestrators cannot see YAML overrides."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
+    CORE.skip_bootloader = True
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    with (
+        patch(
+            "esphome.components.esp8266.check_rosetta",
+            side_effect=EsphomeError("stop here"),
+        ),
+        pytest.raises(EsphomeError, match="stop here"),
+        caplog.at_level("INFO"),
+    ):
+        compile_program(MockArgs(), config)
+
+    assert "--skip-bootloader ignored" in caplog.text
+    assert CORE.skip_bootloader is False
 
 
 def test_compile_program_esp8266_runs_rosetta_check(tmp_path: Path) -> None:
@@ -7060,6 +6460,30 @@ def test_parse_args_logs_states() -> None:
     assert args.states is True
 
 
+@pytest.mark.parametrize("command", ["logs", "run"])
+@pytest.mark.parametrize(
+    ("env_value", "expected"),
+    [(None, False), ("false", False), ("0", False), ("true", True), ("1", True)],
+)
+def test_parse_args_serial_logging_reset_env(
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+    env_value: str | None,
+    expected: bool,
+) -> None:
+    """The serial reset environment default must be a boolean for both commands."""
+    if env_value is None:
+        monkeypatch.delenv("ESPHOME_SERIAL_LOGGING_RESET", raising=False)
+    else:
+        monkeypatch.setenv("ESPHOME_SERIAL_LOGGING_RESET", env_value)
+
+    args = parse_args(["esphome", command, "device.yaml"])
+    assert args.reset is expected
+    if not expected:
+        args = parse_args(["esphome", command, "--reset", "device.yaml"])
+        assert args.reset is True
+
+
 def test_parse_args_argcomplete_only_runs_when_completing() -> None:
     """Only import and invoke argcomplete when _ARGCOMPLETE is set.
 
@@ -7445,6 +6869,70 @@ def test_upload_using_esptool_arduino_toolchain(
     assert cmd_list[firmware_offset_idx + 1] == str(factory)
 
 
+def test_upload_using_esptool_skip_bootloader_tree_names_the_flag(
+    tmp_path: Path,
+) -> None:
+    """A serial flash needs the factory image the skip flag did not build."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32"}
+    CORE.toolchain = Toolchain.ESP_IDF
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    from esphome.espidf import toolchain as espidf_toolchain
+
+    (build / "CMakeCache.txt").write_text(
+        f"{espidf_toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
+    )
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+    with pytest.raises(EsphomeError, match="compiled with --skip-bootloader"):
+        upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+
+def test_command_run_rejects_serial_device_with_skip_bootloader(
+    tmp_path: Path,
+) -> None:
+    """The compile could never be flashed over serial; fail before it runs."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.skip_bootloader = True
+    CORE.toolchain = Toolchain.ESP_IDF
+    args = MockArgs(device=["/dev/ttyUSB0"])
+    with patch("esphome.__main__.write_cpp") as mock_write:
+        assert command_run(args, {}) == 1
+    mock_write.assert_not_called()
+
+
+def test_upload_program_ota_bootloader_skip_tree_names_the_flag(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """OTA --bootloader on a skip tree errors before picking the binary."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32"}
+    CORE.toolchain = Toolchain.ESP_IDF
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    from esphome.espidf import toolchain as espidf_toolchain
+
+    (build / "CMakeCache.txt").write_text(
+        f"{espidf_toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
+    )
+    mock_get_port_type.return_value = "NETWORK"
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(bootloader=True)
+    with pytest.raises(EsphomeError, match="compiled with --skip-bootloader"):
+        upload_program(config, args, ["192.168.1.100"])
+    mock_run_ota.assert_not_called()
+
+
 @pytest.mark.parametrize(
     ("toolchain", "pio_project_written"),
     [
@@ -7670,6 +7158,23 @@ def test_compile_program_espidf_idedata_success_is_silent(
     ):
         assert compile_program(MagicMock(), {}) == 0
     assert "idedata" not in caplog.text
+
+
+def test_compile_program_espidf_failed_factory_bin_fails_the_build() -> None:
+    """A compile whose factory image could not be produced must not exit 0."""
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+    with (
+        patch("esphome.espidf.toolchain.run_compile", return_value=0),
+        patch("esphome.espidf.toolchain.create_factory_bin", return_value=False),
+        patch("esphome.espidf.toolchain.create_ota_bin") as mock_ota,
+        patch("esphome.__main__._check_and_emit_build_info"),
+    ):
+        assert compile_program(MagicMock(), {}) == 1
+    mock_ota.assert_not_called()
 
 
 def test_compile_program_espidf_idedata_none_warns(
@@ -8028,3 +7533,11 @@ def test_command_analyze_memory_host_refuses_before_compiling(
         command_analyze_memory(MockArgs(), {})
     mock_write_cpp.assert_not_called()
     mock_compile_program.assert_not_called()
+
+
+def test_command_rename_is_dispatched_to_the_cli_module() -> None:
+    """__main__ keeps a thin wrapper and imports the command when it runs."""
+    args = MockArgs(name="newname")
+    with patch("esphome.cli.rename.command_rename", return_value=7) as run:
+        assert main.command_rename(args, {}) == 7
+    run.assert_called_once_with(args, {})

@@ -44,6 +44,7 @@ from esphome.espidf.framework import (
     check_esp_idf_install,
     get_framework_env,
     get_idf_tools_path,
+    idf_tools_version,
 )
 from esphome.framework_helpers import _tar_extract_all, get_python_env_executable_path
 
@@ -1468,19 +1469,59 @@ def test_demote_unused_tools_already_patched_is_noop(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_get_idf_version_parses_stdout(tmp_path: Path) -> None:
+def _write_idf_version_header(root: Path, major: int, minor: int) -> None:
+    include = root / "components" / "esp_common" / "include"
+    include.mkdir(parents=True)
+    (include / "esp_idf_version.h").write_text(
+        f"#define ESP_IDF_VERSION_MAJOR   {major}\n"
+        "/** Minor version number (x.X.x) */\n"
+        f"#define ESP_IDF_VERSION_MINOR   {minor}\n"
+        "#define ESP_IDF_VERSION_PATCH   0\n",
+        encoding="utf-8",
+    )
+
+
+def test_get_idf_version_reads_version_txt(tmp_path: Path) -> None:
+    """version.txt wins and gives major.minor, as idf_tools returns it."""
+    (tmp_path / "version.txt").write_text("v5.5.5\n", encoding="utf-8")
+    _write_idf_version_header(tmp_path, 6, 1)
+    assert _get_idf_version(tmp_path) == "5.5"
+
+
+def test_get_idf_version_falls_back_to_the_header(tmp_path: Path) -> None:
+    """A version.txt that does not match (a git ref) defers to the header."""
+    (tmp_path / "version.txt").write_text("vrelease/v6.1\n", encoding="utf-8")
+    _write_idf_version_header(tmp_path, 6, 1)
+    assert _get_idf_version(tmp_path) == "6.1"
+
+
+def test_get_idf_version_raises_without_a_source(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="Can't get ESP-IDF version"):
+        _get_idf_version(tmp_path)
+
+
+def test_get_idf_version_wraps_an_unreadable_source(tmp_path: Path) -> None:
+    """A source that cannot be decoded keeps the RuntimeError contract."""
+    (tmp_path / "version.txt").write_bytes(b"\xff\xfev")
+    with pytest.raises(RuntimeError, match="Can't get ESP-IDF version") as info:
+        _get_idf_version(tmp_path)
+    assert isinstance(info.value.__cause__, UnicodeError)
+
+
+def test_idf_tools_version_runs_the_framework_script(tmp_path: Path) -> None:
     with patch(
-        "esphome.espidf.framework.run_command", return_value=(True, "5.1.2\n", "")
-    ):
-        assert _get_idf_version(tmp_path) == "5.1.2"
+        "esphome.espidf.framework.run_command", return_value=(True, "5.5\n", "")
+    ) as run:
+        assert idf_tools_version(tmp_path) == "5.5"
+    assert run.call_args.args[0][1].endswith("get_idf_version.py")
 
 
-def test_get_idf_version_raises_on_failure(tmp_path: Path) -> None:
+def test_idf_tools_version_raises_on_failure(tmp_path: Path) -> None:
     with (
         patch("esphome.espidf.framework.run_command", return_value=(False, "", "boom")),
         pytest.raises(RuntimeError, match="Can't get ESP-IDF version"),
     ):
-        _get_idf_version(tmp_path)
+        idf_tools_version(tmp_path)
 
 
 def test_get_idf_tool_paths_parses_json(tmp_path: Path) -> None:
@@ -1509,6 +1550,30 @@ def test_get_idf_tool_paths_raises_on_failure(tmp_path: Path) -> None:
         pytest.raises(RuntimeError, match="Can't get ESP-IDF tool paths"),
     ):
         _get_idf_tool_paths(tmp_path)
+
+
+def test_get_idf_tool_paths_runs_the_script_once_per_build(tmp_path: Path) -> None:
+    payload = json.dumps({"paths_to_export": ["/a"], "export_vars": {"X": "1"}})
+    env = {"IDF_TOOLS_PATH": str(tmp_path / "tools")}
+    with patch(
+        "esphome.espidf.framework.run_command", return_value=(True, payload, "")
+    ) as run:
+        first = _get_idf_tool_paths(tmp_path, env)
+        second = _get_idf_tool_paths(tmp_path, env)
+    assert run.call_count == 1
+    assert first == second == (["/a"], {"X": "1"})
+
+
+def test_get_idf_tool_paths_does_not_cache_a_failure(tmp_path: Path) -> None:
+    payload = json.dumps({"paths_to_export": ["/a"], "export_vars": {}})
+    with patch(
+        "esphome.espidf.framework.run_command",
+        side_effect=[(False, "", "err"), (True, payload, "")],
+    ) as run:
+        with pytest.raises(RuntimeError, match="Can't get ESP-IDF tool paths"):
+            _get_idf_tool_paths(tmp_path)
+        assert _get_idf_tool_paths(tmp_path) == (["/a"], {})
+    assert run.call_count == 2
 
 
 def test_get_python_version_parses_stdout(tmp_path: Path) -> None:
@@ -1627,8 +1692,8 @@ def test_ccache_env_opt_out_via_env(tmp_path: Path) -> None:
     # short-circuits before build_path is needed.
     p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", None)
     with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "0"}, clear=True), p1, p2, p3:
-        # The canonical off spelling is exported: the raw value is inherited
-        # by idf.py, where a spelling like "disable" would read as truthy
+        # The canonical off spelling is exported, so every reader of the
+        # env sees the same answer
         assert _ccache_env() == {"IDF_CCACHE_ENABLE": "0"}
 
 
@@ -1636,7 +1701,7 @@ def test_ccache_env_opt_in_without_binary(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     # Explicit IDF_CCACHE_ENABLE=1 forces it on; without a usable binary
-    # idf.py silently skips ccache, so this branch must say so out loud.
+    # IDF's CMake silently skips ccache, so this branch must say so out loud.
     p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
     with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True), p1, p2, p3:
         env = _ccache_env()
@@ -1669,7 +1734,7 @@ def test_ccache_env_opt_in_with_working_binary(
 def test_ccache_env_opt_in_with_rejected_binary(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    # Forced on with a present-but-rejected binary: idf.py does its own
+    # Forced on with a present-but-rejected binary: IDF's CMake does its own
     # PATH lookup and uses it anyway; the warning must say so, not claim
     # the build runs without ccache.
     # A present but non-executable file: the real probe fails and logs
@@ -1686,7 +1751,7 @@ def test_ccache_env_opt_in_with_rejected_binary(
     ):
         env = _ccache_env()
     assert env["IDF_CCACHE_ENABLE"] == "1"
-    assert "idf.py will use it anyway" in caplog.text
+    assert "the build will use it anyway" in caplog.text
     # Exactly one story: the resolver's contradictory "compiling without
     # ccache" must not precede it
     assert "compiling without ccache" not in caplog.text
@@ -1715,7 +1780,7 @@ def test_ccache_env_idf_knob_unrecognized_warns_and_defers(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """An unparsable IDF_CCACHE_ENABLE warns, defers to the shared resolver,
-    and is not forwarded to idf.py as truthy."""
+    and is not forwarded to the build as truthy."""
     p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
     env_vars = {"IDF_CCACHE_ENABLE": "enabled"}
     with patch.dict("os.environ", env_vars, clear=True), p1, p2, p3:
