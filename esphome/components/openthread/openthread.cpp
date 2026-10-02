@@ -289,6 +289,13 @@ void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
 
 void OpenThreadComponent::apply_poll_period(uint32_t poll_period) {
 #if CONFIG_OPENTHREAD_MTD
+  // Same limit as the YAML schema, which cannot check lambda values.
+  static constexpr uint32_t max_poll_period_ms = 7200 * 1000;
+  if (poll_period > max_poll_period_ms) {
+    ESP_LOGW(TAG, "poll_period %" PRIu32 " ms exceeds the maximum, using %" PRIu32 " ms", poll_period,
+             max_poll_period_ms);
+    poll_period = max_poll_period_ms;
+  }
   this->set_poll_period(poll_period);
   if (!this->is_lock_initialized()) {
     // The action may run before the stack is up, e.g. from a restore mode; setup() applies the stored value.

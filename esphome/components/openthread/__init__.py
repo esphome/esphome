@@ -231,6 +231,12 @@ def _validate_tlv_hex(value: Any) -> str:
     return s
 
 
+# The child timeout is 4 * poll_period, and OpenThread limits it to 8 hours.
+_POLL_PERIOD = cv.All(
+    cv.positive_time_period_milliseconds,
+    cv.Range(max=TimePeriodMilliseconds(seconds=7200)),
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -247,11 +253,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.decibel,
                 _validate_txpower,
             ),
-            cv.Optional(CONF_POLL_PERIOD): cv.All(
-                cv.positive_time_period_milliseconds,
-                # 32767 s: twice this is the largest check timeout that fits a uint16_t
-                cv.Range(max=TimePeriodMilliseconds(milliseconds=0x1F3FC18)),
-            ),
+            cv.Optional(CONF_POLL_PERIOD): _POLL_PERIOD,
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
@@ -343,9 +345,7 @@ POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(OpenThreadComponent),
-            cv.Required(CONF_POLL_PERIOD): cv.templatable(
-                cv.positive_time_period_milliseconds
-            ),
+            cv.Required(CONF_POLL_PERIOD): cv.templatable(_POLL_PERIOD),
         }
     ),
 )

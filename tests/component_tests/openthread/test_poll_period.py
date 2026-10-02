@@ -1,10 +1,10 @@
-"""poll_period is capped so 2 * poll_period fits the uint16_t supervision check timeout."""
+"""poll_period is capped at 7200 s so the child timeout (4 * poll_period) stays within 8 hours."""
 
 import pytest
 
 from esphome import config_validation as cv
 from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32C6
-from esphome.components.openthread import CONFIG_SCHEMA
+from esphome.components.openthread import CONFIG_SCHEMA, POLL_PERIOD_ACTION_SCHEMA
 from esphome.const import PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -24,8 +24,8 @@ def test_poll_period_at_maximum_accepted(
     set_core_config(
         PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32C6}
     )
-    assert CONFIG_SCHEMA(_config("32767s"))["poll_period"].total_milliseconds == (
-        32767 * 1000
+    assert CONFIG_SCHEMA(_config("7200s"))["poll_period"].total_milliseconds == (
+        7200 * 1000
     )
 
 
@@ -36,4 +36,14 @@ def test_poll_period_above_maximum_rejected(
         PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32C6}
     )
     with pytest.raises(cv.Invalid):
-        CONFIG_SCHEMA(_config("32768s"))
+        CONFIG_SCHEMA(_config("7201s"))
+
+
+def test_action_poll_period_at_maximum_accepted() -> None:
+    result = POLL_PERIOD_ACTION_SCHEMA({"poll_period": "7200s", "id": "ot"})
+    assert result["poll_period"].total_milliseconds == 7200 * 1000
+
+
+def test_action_poll_period_above_maximum_rejected() -> None:
+    with pytest.raises(cv.Invalid):
+        POLL_PERIOD_ACTION_SCHEMA({"poll_period": "7201s", "id": "ot"})
