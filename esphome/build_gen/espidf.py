@@ -3,6 +3,7 @@
 import json
 import logging
 from pathlib import Path
+import re
 import textwrap
 
 from esphome.build_helpers import pch
@@ -20,7 +21,7 @@ from esphome.framework_helpers import (
     get_project_cxx_compile_flags,
     get_project_link_flags,
 )
-from esphome.helpers import mkdir_p, write_file_if_changed
+from esphome.helpers import get_bool_env, mkdir_p, write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +35,46 @@ idf_build_get_property(esphome_cxx_compile_options CXX_COMPILE_OPTIONS)
 list(FILTER esphome_cxx_compile_options EXCLUDE REGEX "^-std=")
 list(APPEND esphome_cxx_compile_options "-std={standard}")
 idf_build_set_property(CXX_COMPILE_OPTIONS "${{esphome_cxx_compile_options}}")"""
+
+# Drops the app archive from ldgen's inputs so app-only edits skip the
+# sections.ld regeneration. Safe: no mapping fragment references it
+# (run_compile re-checks each build). Filters only the top-level call;
+# the prior definition stays reachable with an underscore prefix.
+_LDGEN_OVERRIDE = """\
+if(COMMAND __ldgen_get_lib_deps_of_target)
+    set_property(GLOBAL PROPERTY ESPHOME_LDGEN_ARMED 1)
+    function(__ldgen_get_lib_deps_of_target target out_list_var)
+        if(NOT COMMAND ___ldgen_get_lib_deps_of_target)
+            message(FATAL_ERROR "ESPHome ldgen override lost the original "
+                "implementation; set ESPHOME_LDGEN_FULL_DEPS=1 and rebuild.")
+        endif()
+        ___ldgen_get_lib_deps_of_target(${target} ${out_list_var})
+        if(out_list_var STREQUAL "ldgen_libraries")
+            set_property(GLOBAL PROPERTY ESPHOME_LDGEN_FILTERED 1)
+            list(LENGTH ${out_list_var} esphome_ldgen_before)
+            list(REMOVE_ITEM ${out_list_var} idf::src __idf_src)
+            list(LENGTH ${out_list_var} esphome_ldgen_after)
+            if(esphome_ldgen_before EQUAL esphome_ldgen_after)
+                message(@SEVERITY@ "ESPHome ldgen app archive exclusion matched "
+                    "nothing; app edits will regenerate sections.ld.")
+            endif()
+        endif()
+        set(${out_list_var} "${${out_list_var}}" PARENT_SCOPE)
+    endfunction()
+else()
+    message(@MISSING@ "ESPHome ldgen override target not found; "
+        "app edits will regenerate sections.ld.")
+endif()"""
+
+# Runs after project() so the walk has happened; catches the remaining
+# silent path where the top-level out-var was renamed.
+_LDGEN_OVERRIDE_CHECK = """\
+get_property(esphome_ldgen_armed GLOBAL PROPERTY ESPHOME_LDGEN_ARMED)
+get_property(esphome_ldgen_filtered GLOBAL PROPERTY ESPHOME_LDGEN_FILTERED)
+if(esphome_ldgen_armed AND NOT esphome_ldgen_filtered)
+    message(@SEVERITY@ "ESPHome ldgen override never filtered the app "
+        "archive; app edits will regenerate sections.ld.")
+endif()"""
 
 
 def get_available_components() -> list[str] | None:
@@ -80,6 +121,78 @@ def _cmake_quote(value: str) -> str:
     return f'"{escaped}"'
 
 
+# CONFIG_APP_BUILD_BOOTLOADER is hidden and force-selected, so it can only be
+# cleared at the CMake level (the same state IDF's RAM-app build type uses).
+# The macro is IDF's __build_process_project_includes plus two added lines;
+# the flag is ignored and the bootloader builds as usual if IDF changes it.
+IDF_BOOTLOADER_OVERRIDE = """\
+# ESPHome bootloader skip switch; see esphome/espidf/toolchain.py.
+if(ESPHOME_SKIP_BOOTLOADER)
+    macro(__build_process_project_includes)
+        idf_build_get_property(sdkconfig_cmake SDKCONFIG_CMAKE)
+        include(${sdkconfig_cmake})
+        set(CONFIG_APP_BUILD_BOOTLOADER "")
+        # bt's CMakeLists reads the lowercase idf_target that the (now
+        # skipped) bootloader project_include leaks; keep it defined, or
+        # its empty TARGET_SRC_NAME sends file(GLOB_RECURSE) across /.
+        idf_build_get_property(idf_target IDF_TARGET)
+        idf_build_get_property(build_properties __BUILD_PROPERTIES)
+        foreach(build_property ${build_properties})
+            idf_build_get_property(val ${build_property})
+            set(${build_property} "${val}")
+        endforeach()
+        idf_build_get_property(build_component_targets __BUILD_COMPONENT_TARGETS)
+        foreach(component_target ${build_component_targets})
+            __component_get_property(dir ${component_target} COMPONENT_DIR)
+            __component_get_property(_name ${component_target} COMPONENT_NAME)
+            set(COMPONENT_NAME ${_name})
+            set(COMPONENT_DIR ${dir})
+            set(COMPONENT_PATH ${dir})
+            if(EXISTS ${COMPONENT_DIR}/project_include.cmake)
+                include(${COMPONENT_DIR}/project_include.cmake)
+            endif()
+        endforeach()
+    endmacro()
+endif()
+"""
+
+# The lines the override adds to IDF's macro; idf_macro_matches() below
+# strips them before comparing with the live macro.
+BOOTLOADER_OVERRIDE_ADDED_LINES = (
+    'set(CONFIG_APP_BUILD_BOOTLOADER "")',
+    "idf_build_get_property(idf_target IDF_TARGET)",
+)
+
+_MACRO = re.compile(
+    r"macro\(__build_process_project_includes\)(.*?)endmacro\(\)", re.DOTALL
+)
+
+
+def _normalized_macro(text: str) -> list[str] | None:
+    """The macro body as comment-free, whitespace-collapsed lines."""
+    if (match := _MACRO.search(text)) is None:
+        return None
+    return [
+        re.sub(r"\s+", " ", line)
+        for raw in match.group(1).splitlines()
+        if (line := raw.split("#", 1)[0].strip())
+    ]
+
+
+_EXPECTED_MACRO = [
+    line
+    for line in _normalized_macro(IDF_BOOTLOADER_OVERRIDE)
+    if line not in BOOTLOADER_OVERRIDE_ADDED_LINES
+]
+
+
+def idf_macro_matches(idf_path: Path) -> bool:
+    """Whether IDF's macro still matches the copy the override replays."""
+    build_cmake = idf_path / "tools" / "cmake" / "build.cmake"
+    live = _normalized_macro(build_cmake.read_text(encoding="utf-8"))
+    return live == _EXPECTED_MACRO
+
+
 def get_project_cmakelists(
     minimal: bool = False, builtin_components: list[str] | None = None
 ) -> str:
@@ -124,6 +237,22 @@ def get_project_cmakelists(
         if CORE.cpp_standard
         else ""
     )
+
+    # Stops the ~3s sections.ld regeneration on app-only edits; see
+    # _LDGEN_OVERRIDE. ESPHOME_LDGEN_FULL_DEPS=1 restores stock behavior;
+    # ESPHOME_LDGEN_STRICT=1 (CI) fails the configure when an IDF bump
+    # breaks the override instead of degrading to stock deps.
+    if get_bool_env("ESPHOME_LDGEN_FULL_DEPS"):
+        ldgen_override = ""
+        ldgen_override_check = ""
+    else:
+        strict = get_bool_env("ESPHOME_LDGEN_STRICT")
+        severity = "FATAL_ERROR" if strict else "WARNING"
+        missing = "FATAL_ERROR" if strict else "STATUS"
+        ldgen_override = _LDGEN_OVERRIDE.replace("@SEVERITY@", severity).replace(
+            "@MISSING@", missing
+        )
+        ldgen_override_check = _LDGEN_OVERRIDE_CHECK.replace("@SEVERITY@", severity)
 
     # CMake variables registered via cg.add_cmake_arg(). Emitted before
     # include(project.cmake) so values like EXCLUDE_COMPONENTS are already
@@ -202,6 +331,9 @@ set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
+{IDF_BOOTLOADER_OVERRIDE}
+{ldgen_override}
+
 {cpp_standard_options}
 
 {cxx_compile_options}
@@ -214,14 +346,20 @@ include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
 project({CORE.name})
 
+{ldgen_override_check}
+
 # Emit per-memory-type JSON size data for ESPHome to read post-build.
 # json2 stays small; raw dumps every symbol (~2s on a large map) and
 # this command runs inside the link edge, blocking everything downstream.
+# The map is a BYPRODUCT so ninja knows the link writes it; IDF's size
+# target depends on the map and can then be built in the same run as all.
+# IDF's cmakev2 declares the map itself, so drop this line on that switch.
 add_custom_command(
     TARGET ${{CMAKE_PROJECT_NAME}}.elf POST_BUILD
     COMMAND ${{PYTHON}} -m esp_idf_size {size_ng_flag} --format=json2
             -o ${{CMAKE_BINARY_DIR}}/esp_idf_size.json
             ${{CMAKE_PROJECT_NAME}}.map
+    BYPRODUCTS ${{CMAKE_BINARY_DIR}}/${{CMAKE_PROJECT_NAME}}.map
     WORKING_DIRECTORY ${{CMAKE_BINARY_DIR}}
     VERBATIM
 )
