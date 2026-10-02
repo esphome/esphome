@@ -3,18 +3,21 @@ wifi:
   password: password1
 
 tcp_uart:
-  - id: tcp_uart_1
-    host: 192.0.2.10
-    port: 502
+  - id: tcp_uart_server
+    role: server
+    port: 5020
     reconnect_interval: 10s
+    allowed_ips:
+      - 192.0.2.20
+      - 192.0.2.0/24
     connected:
-      name: TCP UART Connected
+      name: TCP UART Server Connected
 
 interval:
   - interval: 60s
     then:
       - lambda: |-
           uint8_t byte;
-          if (id(tcp_uart_1).available() && id(tcp_uart_1).read_byte(&byte)) {
-            id(tcp_uart_1).write_byte(byte);
+          if (id(tcp_uart_server).available() && id(tcp_uart_server).read_byte(&byte)) {
+            id(tcp_uart_server).write_byte(byte);
           }
