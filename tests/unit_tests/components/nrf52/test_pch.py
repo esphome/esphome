@@ -1,14 +1,12 @@
 """nrf52 sdk-nrf precompiled header: the CMake block and the ccache checksum."""
 
-import os
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
-from esphome.build_helpers.ccache import ccache_env
-from esphome.build_helpers.tools_cache import SDK_NRF_TOOLS_CACHE
 from esphome.components import nrf52
+from esphome.components.nrf52 import framework
 from esphome.components.zephyr.const import KEY_BOARD
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
@@ -109,13 +107,20 @@ def test_pch_checksum_waits_for_the_first_configure(tmp_path: Path) -> None:
 
 
 def _fake_build_env(ccache: str | None) -> dict[str, str]:
-    """The real one: os.environ plus the shared ccache settings."""
-    env = dict(os.environ)
-    if ccache is None:
-        env.setdefault("CCACHE_DISABLE", "1")
-    else:
-        env.update(ccache_env(ccache, SDK_NRF_TOOLS_CACHE))
-    return env
+    """The real get_build_env with only the install path lookups stubbed."""
+    with (
+        patch.object(framework, "_get_version_str", return_value="v1"),
+        patch.object(framework, "_get_python_env_path", return_value=Path("/penv")),
+        patch.object(
+            framework,
+            "get_python_env_executable_path",
+            return_value=Path("/penv/bin/python"),
+        ),
+        patch.object(framework, "_get_framework_path", return_value=Path("/fw")),
+        patch.object(framework, "_get_toolchain_version", return_value="t1"),
+        patch.object(framework, "_get_toolchain_path", return_value=Path("/tc")),
+    ):
+        return framework.get_build_env(ccache)
 
 
 @pytest.fixture
