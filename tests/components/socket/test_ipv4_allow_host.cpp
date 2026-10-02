@@ -69,6 +69,19 @@ TEST(Ipv4Allow, UnwrapsAV4MappedIpv6Peer) {
   EXPECT_TRUE(empty.allows(reinterpret_cast<const struct sockaddr *>(&native_peer)));
 }
 
+TEST(Ipv4Allow, InstancesKeepIndependentLists) {
+  // One bridge per allow list; each instance points at its own entries.
+  static const Ipv4AllowEntry other[] = {{htonl(0x0A000000), htonl(0xFF000000)}};
+  Ipv4Allow first;
+  Ipv4Allow second;
+  first.set(ENTRIES, 2);
+  second.set(other, 1);
+  EXPECT_TRUE(first.allows(htonl(0xC0A8AF14)));
+  EXPECT_FALSE(second.allows(htonl(0xC0A8AF14)));
+  EXPECT_TRUE(second.allows(htonl(0x0A00002A)));
+  EXPECT_FALSE(first.allows(htonl(0x0A00002A)));
+}
+
 }  // namespace esphome::socket::testing
 
 #endif
