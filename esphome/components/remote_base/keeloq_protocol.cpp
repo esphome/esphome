@@ -203,14 +203,28 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
   }
 
   while (out.suffix_bits < 16) {
-    if (src.expect_mark(2 * BIT_TIME_US) && src.expect_space(BIT_TIME_US)) {
-      out.suffix_bits++;
-    } else if (src.expect_mark(BIT_TIME_US) && src.expect_space(2 * BIT_TIME_US)) {
-      out.suffix |= 1 << out.suffix_bits;
-      out.suffix_bits++;
+    bool one;
+    if (src.expect_mark(2 * BIT_TIME_US)) {
+      one = false;
+    } else if (src.expect_mark(BIT_TIME_US)) {
+      one = true;
     } else {
       break;
     }
+    // The last bit's space is merged into the guard gap, or the capture ends at idle.
+    const uint32_t space = one ? 2 * BIT_TIME_US : BIT_TIME_US;
+    if (!src.expect_space(space) && !src.peek_space_at_least(space) && src.is_valid()) {
+      break;
+    }
+    if (one) {
+      out.suffix |= 1 << out.suffix_bits;
+    }
+    out.suffix_bits++;
+  }
+  // More PWM after the word is a following frame, not a suffix.
+  if (src.is_valid() && !src.peek_space_at_least(BIT_TIME_US)) {
+    out.suffix = 0;
+    out.suffix_bits = 0;
   }
 
   return out;
