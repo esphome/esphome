@@ -140,6 +140,17 @@ def require_wake_loop_threadsafe() -> None:
     cg.add_define("USE_SOCKET_SELECT_SUPPORT")
 
 
+def require_ipv4_resolve() -> None:
+    """Compile the shared IPv4 lookup; call from a consumer's to_code."""
+    cg.add_define("USE_SOCKET_IPV4_RESOLVE")
+
+
+def require_tcp_client_link() -> None:
+    """Compile the reconnecting TCP client link; call from a consumer's to_code."""
+    require_ipv4_resolve()
+    cg.add_define("USE_SOCKET_TCP_CLIENT_LINK")
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.SplitDefault(
@@ -184,7 +195,8 @@ async def to_code(config: ConfigType) -> None:
 
 
 # Each implementation file is fully #ifdef'd on the define set in to_code
-# for the selected implementation.
+# for the selected implementation. The helper files compile only for
+# consumers that called the matching require_ function.
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
         "lwip_raw_common_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
@@ -192,5 +204,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
         "lwip_raw_udp_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
         "bsd_sockets_impl.cpp": "USE_SOCKET_IMPL_BSD_SOCKETS",
         "lwip_sockets_impl.cpp": "USE_SOCKET_IMPL_LWIP_SOCKETS",
+        "ipv4_resolve.cpp": "USE_SOCKET_IPV4_RESOLVE",
+        "tcp_client_link.cpp": "USE_SOCKET_TCP_CLIENT_LINK",
     }
 )
