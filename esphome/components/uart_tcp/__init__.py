@@ -1,6 +1,12 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor, socket, uart
-from esphome.components.const import CONF_HOST, CONF_RECONNECT_INTERVAL, CONF_ROLE
+from esphome.components.const import (
+    CONF_ALLOWED_IPS,
+    CONF_CONNECTED,
+    CONF_HOST,
+    CONF_RECONNECT_INTERVAL,
+    CONF_ROLE,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -18,9 +24,6 @@ MULTI_CONF = True
 
 uart_tcp_ns = cg.esphome_ns.namespace("uart_tcp")
 UartTcp = uart_tcp_ns.class_("UartTcp", cg.Component, uart.UARTDevice)
-
-CONF_ALLOWED_IPS = "allowed_ips"
-CONF_CONNECTED = "connected"
 
 
 BASE_SCHEMA = cv.Schema(
