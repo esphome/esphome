@@ -1493,3 +1493,20 @@ async def test_add_platformio_options_native_arduino(
     assert "board_build.ldscript is ignored" in caplog.text
     assert "'arduino' toolchain" in caplog.text
     assert "upload_speed" not in caplog.text
+
+
+def test_filter_source_files_drops_util_cpp_without_mqtt() -> None:
+    """util.cpp compiles only on MQTT builds; the header stubs it otherwise."""
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp8266",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    CORE.defines = set()
+
+    excluded = config.FILTER_SOURCE_FILES()
+    assert "util.cpp" in excluded
+    # The platform map still contributes through the composed function.
+    assert "static_task.cpp" in excluded
+
+    CORE.defines = {core.Define("USE_API"), core.Define("USE_MQTT")}
+    assert "util.cpp" not in config.FILTER_SOURCE_FILES()
