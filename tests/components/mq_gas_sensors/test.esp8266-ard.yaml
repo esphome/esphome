@@ -1,5 +1,5 @@
 substitutions:
-  mics_pin: A0
+  mq_pin: A0
 
 packages:
-  mics_5524_gas_sensor: !include common.yaml
+  mq_gas_sensors: !include common.yaml

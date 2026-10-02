@@ -1,5 +1,5 @@
 substitutions:
-  mics_pin: GPIO26
+  mq_pin: GPIO26
 
 packages:
-  mics_5524_gas_sensor: !include common.yaml
+  mq_gas_sensors: !include common.yaml

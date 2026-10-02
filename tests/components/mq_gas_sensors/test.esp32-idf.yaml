@@ -1,2 +1,5 @@
+substitutions:
+  mq_pin: GPIO34
+
 packages:
   mq_gas_sensors: !include common.yaml

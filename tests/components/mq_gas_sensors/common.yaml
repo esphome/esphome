@@ -8,7 +8,7 @@ sensor:
     name: MQ-8 hydrogen
     sensor_type: MQ-8
     gas: H2
-    pin: GPIO34
+    pin: ${mq_pin}
     adc_attenuation: 12db
     adc_samples: 4
     voltage_divider:
