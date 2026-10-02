@@ -53,7 +53,7 @@ class ZephyrSDK:
     # Default/minimum supported Zephyr version; a variant overrides these via its own
     # *_version_override fields. 4.4.1: fixes a C++ compile error in ethernet.h that any
     # wifi_mgmt.h consumer hits.
-    default_version: str = "4.4.1"
+    default_version: str = "4.4.2"
     min_version: cv.Version = cv.Version(4, 4, 1)
     # False: boards_repo_url is checked out directly at tag f"v{version}" (mainline's own
     # tag scheme). True: boards_repo_url's *checkout ref* isn't derivable from version at
@@ -573,7 +573,7 @@ NCS: ZephyrSDK = ZephyrSDK(
     manifest_url="https://github.com/nrfconnect/sdk-nrf",
     boards_repo_url="https://github.com/nrfconnect/sdk-zephyr",
     tools_subdir="sdk-nrf",
-    default_version="3.4.0",
+    default_version="3.4.1",
     min_version=cv.Version(3, 4, 0),
     resolve_boards_ref_via_manifest=True,
     modules={"zigbee": NCS_ZIGBEE_TEMPLATE},
