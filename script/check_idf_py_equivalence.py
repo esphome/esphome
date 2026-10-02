@@ -59,6 +59,14 @@ VERSION_DRIFT = (
     "ESPHome reads ESP-IDF version {ours!r} from {source} but idf_tools reports "
     "{theirs!r}; update read_idf_version_{source} in esphome/espidf/framework.py"
 )
+LWIP_NOT_EMPTY = (
+    "lwip source {source} compiles to a non-empty object with {option} off; "
+    "drop it from LWIP_EMPTY_SOURCES in esphome/build_gen/espidf.py"
+)
+LWIP_NOTHING_CHECKED = (
+    "no lwip object matched LWIP_EMPTY_SOURCES; the build tree layout or the "
+    "patterns in esphome/build_gen/espidf.py changed"
+)
 WORK_SUFFIXES = (".obj", ".o", ".a", ".elf", ".map", ".bin", ".ld")
 DEFAULT_GLOB = "tests/test_build_components/build/.esphome/build/*"
 
@@ -105,6 +113,56 @@ def _log_problems(
             problems.append(f"missing {log}")
         elif not any(k[0] == log and k[1].endswith(WORK_SUFFIXES) for k in mtimes):
             problems.append(f"no build entries parsed from {log}")
+    return problems
+
+
+def _lwip_empty_source_problems(build_path: Path, env: dict[str, str]) -> list[str]:
+    """Compile the lwip sources the generated CMakeLists drops; any with symbols
+    is a problem. ``env`` is the cached build env the configure reads."""
+    # pylint: disable=protected-access
+    from esphome.build_gen.espidf import LWIP_EMPTY_SOURCES, LWIP_FULL_SOURCES_ENV
+    from esphome.espidf import toolchain
+
+    env[LWIP_FULL_SOURCES_ENV] = "1"
+    try:
+        if (rc := toolchain.run_reconfigure()) != 0:
+            return [
+                f"CMake configure with every lwip source failed with exit code {rc}"
+            ]
+        rc = toolchain._run_ninja("esp-idf/lwip/liblwip.a", verbose=False, jobs=None)
+        if rc != 0:
+            return [f"building every lwip source failed with exit code {rc}"]
+    finally:
+        del env[LWIP_FULL_SOURCES_ENV]
+    config = json.loads(
+        (build_path / "build" / "config" / "sdkconfig.json").read_text(encoding="utf-8")
+    )
+    nm = toolchain._parse_cmakecache(build_path / "build" / "CMakeCache.txt")[
+        "CMAKE_NM"
+    ]
+    objects = sorted((build_path / "build" / "esp-idf" / "lwip").rglob("*.obj"))
+    problems = []
+    checked = 0
+    for option, regex in LWIP_EMPTY_SOURCES:
+        if config.get(option.removeprefix("CONFIG_")):
+            continue
+        for obj in objects:
+            source = str(obj).removesuffix(".obj")
+            if not re.search(regex, source):
+                continue
+            checked += 1
+            symbols = subprocess.run(
+                [nm, "--defined-only", str(obj)],
+                capture_output=True,
+                text=True,
+                check=False,
+            ).stdout.strip()
+            if symbols:
+                problems.append(
+                    LWIP_NOT_EMPTY.format(source=Path(source).name, option=option)
+                )
+    if not checked:
+        problems.append(LWIP_NOTHING_CHECKED)
     return problems
 
 
@@ -159,6 +217,9 @@ def check(build_path: Path) -> list[str]:
     # pin it before the env is cached so both configures get the same value.
     os.environ["SOURCE_DATE_EPOCH"] = "0"
     env = toolchain._get_idf_env(version)
+    # Proves the sources the generated CMakeLists drops are empty on this IDF.
+    if problems := _lwip_empty_source_problems(build_path, env):
+        return problems
     python = toolchain._get_idf_tool("python")
     idf_py = toolchain._get_idf_path(version) / "tools" / "idf.py"
     sdkconfig = build_path / f"sdkconfig.{name}"

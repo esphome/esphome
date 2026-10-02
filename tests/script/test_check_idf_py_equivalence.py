@@ -103,6 +103,7 @@ def _run_check(
         patch.object(framework, "read_idf_version_txt", return_value=versions[0]),
         patch.object(framework, "read_idf_version_header", return_value=versions[1]),
         patch.object(framework, "idf_tools_version", return_value=versions[2]),
+        patch.object(guard, "_lwip_empty_source_problems", return_value=[]),
         patch.object(guard.subprocess, "run", side_effect=run),
         patch.dict(os.environ),
     ):
@@ -317,6 +318,73 @@ def test_main_without_build_trees(
     ):
         assert guard.main() == 1
     assert "No native ESP-IDF build tree found" in capsys.readouterr().out
+
+
+def _make_lwip_objects(tree: Path, names: list[str]) -> None:
+    objects = tree / "build" / "esp-idf" / "lwip" / "CMakeFiles" / "__idf_lwip.dir"
+    for name in names:
+        (objects / name).parent.mkdir(parents=True, exist_ok=True)
+        (objects / name).write_bytes(b"x")
+    (tree / "build" / "config").mkdir(parents=True, exist_ok=True)
+    (tree / "build" / "config" / "sdkconfig.json").write_text(
+        json.dumps({"LWIP_PPP_SUPPORT": False, "LWIP_IPV6": True})
+    )
+    with (tree / "build" / "CMakeCache.txt").open("a") as cache:
+        cache.write("CMAKE_NM:FILEPATH=/tools/nm\n")
+
+
+def _run_lwip_check(
+    tree: Path, non_empty: set[str]
+) -> tuple[list[str], list[list[str]], dict[str, str]]:
+    """Run the lwip check with nm faked; return problems, nm calls and the
+    env the configure saw."""
+    env: dict[str, str] = {}
+    seen: dict[str, str] = {}
+    calls: list[list[str]] = []
+
+    def run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess:
+        calls.append(cmd)
+        out = "symbol\n" if Path(cmd[-1]).name in non_empty else ""
+        return subprocess.CompletedProcess(cmd, 0, out, "")
+
+    with (
+        patch.object(
+            toolchain, "run_reconfigure", side_effect=lambda: seen.update(env) or 0
+        ),
+        patch.object(toolchain, "_run_ninja", return_value=0),
+        patch.object(guard.subprocess, "run", side_effect=run),
+    ):
+        return guard._lwip_empty_source_problems(tree, env), calls, seen
+
+
+def test_lwip_check_passes_on_empty_objects_and_toggles_the_env(tmp_path: Path) -> None:
+    """Only the dropped sources are inspected; the full-sources switch is set
+    for the configure and gone afterwards."""
+    tree = _make_tree(tmp_path)
+    _make_lwip_objects(
+        tree, ["lwip/src/netif/ppp/auth.c.obj", "lwip/src/core/ipv6/ip6.c.obj"]
+    )
+    problems, calls, seen = _run_lwip_check(tree, non_empty=set())
+    assert problems == []
+    assert [Path(c[-1]).name for c in calls] == ["auth.c.obj"]
+    assert seen == {build_gen.LWIP_FULL_SOURCES_ENV: "1"}
+
+
+def test_lwip_check_flags_a_dropped_source_with_symbols(tmp_path: Path) -> None:
+    tree = _make_tree(tmp_path)
+    _make_lwip_objects(tree, ["lwip/src/netif/ppp/auth.c.obj"])
+    problems, _, _ = _run_lwip_check(tree, non_empty={"auth.c.obj"})
+    assert problems == [
+        guard.LWIP_NOT_EMPTY.format(source="auth.c", option="CONFIG_LWIP_PPP_SUPPORT")
+    ]
+
+
+def test_lwip_check_fails_when_nothing_matched(tmp_path: Path) -> None:
+    """A moved tree or stale pattern must not pass as 'all empty'."""
+    tree = _make_tree(tmp_path)
+    _make_lwip_objects(tree, ["lwip/src/core/ipv6/ip6.c.obj"])
+    problems, _, _ = _run_lwip_check(tree, non_empty=set())
+    assert problems == [guard.LWIP_NOTHING_CHECKED]
 
 
 @pytest.mark.parametrize(("problems", "rc"), [([], 0), (["idf.py changed x"], 1)])

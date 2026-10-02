@@ -66,32 +66,44 @@ else()
         "app edits will regenerate sections.ld.")
 endif()"""
 
-# IDF compiles every lwip source whatever the config; with its option off
-# each of these compiles to an empty object. Dropping them skips the
-# compiles and changes nothing in the link. Runs after project() so the
-# lwip target exists. Remove once IDF gates these sources itself.
+# lwip sources that compile to empty objects with the option off (their own
+# #if guard); the drift guard proves that on the pinned IDF. (option, regex)
+LWIP_EMPTY_SOURCES: tuple[tuple[str, str], ...] = (
+    ("CONFIG_LWIP_PPP_SUPPORT", "/netif/ppp/"),
+    ("CONFIG_LWIP_IPV6", "/core/ipv6/"),
+    ("CONFIG_LWIP_AUTOIP", r"/core/ipv4/autoip\.c$"),
+    ("CONFIG_LWIP_IPV4_NAPT", r"/core/ipv4/ip4_napt\.c$"),
+    ("CONFIG_LWIP_STATS", r"/core/stats\.c$"),
+)
+# Set in the environment to keep every lwip source.
+LWIP_FULL_SOURCES_ENV = "ESPHOME_LWIP_FULL_SOURCES"
+
+# Drops the empty objects after project(), once the lwip target exists.
 _LWIP_EMPTY_SOURCES_FILTER = """\
 idf_build_get_property(esphome_build_components BUILD_COMPONENTS)
-if(lwip IN_LIST esphome_build_components)
+if(lwip IN_LIST esphome_build_components AND NOT DEFINED ENV{@FULL_ENV@})
     idf_component_get_property(esphome_lwip_lib lwip COMPONENT_LIB)
     get_target_property(esphome_lwip_srcs ${esphome_lwip_lib} SOURCES)
-    if(NOT CONFIG_LWIP_PPP_SUPPORT)
-        list(FILTER esphome_lwip_srcs EXCLUDE REGEX "/netif/ppp/")
-    endif()
-    if(NOT CONFIG_LWIP_IPV6)
-        list(FILTER esphome_lwip_srcs EXCLUDE REGEX "/core/ipv6/")
-    endif()
-    if(NOT CONFIG_LWIP_AUTOIP)
-        list(FILTER esphome_lwip_srcs EXCLUDE REGEX "/core/ipv4/autoip\\\\.c$")
-    endif()
-    if(NOT CONFIG_LWIP_IPV4_NAPT)
-        list(FILTER esphome_lwip_srcs EXCLUDE REGEX "/core/ipv4/ip4_napt\\\\.c$")
-    endif()
-    if(NOT CONFIG_LWIP_STATS)
-        list(FILTER esphome_lwip_srcs EXCLUDE REGEX "/core/stats\\\\.c$")
-    endif()
+@FILTERS@
     set_property(TARGET ${esphome_lwip_lib} PROPERTY SOURCES ${esphome_lwip_srcs})
 endif()"""
+_LWIP_EMPTY_SOURCE_FILTER = """\
+    if(NOT @OPTION@)
+        list(FILTER esphome_lwip_srcs EXCLUDE REGEX "@REGEX@")
+    endif()"""
+
+
+def _lwip_empty_sources_filter() -> str:
+    filters = "\n".join(
+        _LWIP_EMPTY_SOURCE_FILTER.replace("@OPTION@", option).replace(
+            "@REGEX@", regex.replace("\\", "\\\\")
+        )
+        for option, regex in LWIP_EMPTY_SOURCES
+    )
+    return _LWIP_EMPTY_SOURCES_FILTER.replace(
+        "@FULL_ENV@", LWIP_FULL_SOURCES_ENV
+    ).replace("@FILTERS@", filters)
+
 
 # Runs after project() so the walk has happened; catches the remaining
 # silent path where the top-level out-var was renamed.
@@ -375,7 +387,7 @@ project({CORE.name})
 
 {ldgen_override_check}
 
-{_LWIP_EMPTY_SOURCES_FILTER}
+{_lwip_empty_sources_filter()}
 
 # Emit per-memory-type JSON size data for ESPHome to read post-build.
 # json2 stays small; raw dumps every symbol (~2s on a large map) and
