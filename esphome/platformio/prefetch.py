@@ -426,7 +426,7 @@ def _uri_jobs(
         # PlatformIO downloads URL specs with no checksum
         dl_path = Path(manager.compute_download_path(url, ""))
         if dl_path.is_file():
-            if spec.has_custom_name():
+            if trusted_names or spec.has_custom_name():
                 # Only a custom name (Foo=https://...) is the destination
                 # dir; a URI-derived name's destination comes from the
                 # archive manifest, so its dedupe key could collide with

@@ -797,6 +797,11 @@ def test_uri_jobs_skips_installed_cached_and_seen(tmp_path: Path) -> None:
     jobs, failed, installable = pf._uri_jobs(m, spec, set())
     assert (jobs, failed) == ([], 0)
     assert [n for n, _ in installable] == ["a"]
+    # a cached platform archive with a derived name is trusted the same way
+    derived = [_FakeSpec(uri="https://x/a.zip", name="a")]
+    assert pf._uri_jobs(m, derived, set())[2] == []
+    _, _, installable = pf._uri_jobs(m, derived, set(), trusted_names=True)
+    assert [n for n, _ in installable] == ["a"]
     dl.unlink()
     # a registry job already claimed this download path
     assert pf._uri_jobs(m, spec, {str(dl)}) == ([], 0, [])
