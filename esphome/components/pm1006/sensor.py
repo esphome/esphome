@@ -62,6 +62,5 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if CONF_PM_2_5 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_2_5])
-        cg.add(var.set_pm_2_5_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_PM_2_5, var.set_pm_2_5_sensor)
