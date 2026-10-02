@@ -127,6 +127,22 @@ def test_pch_checksum_tracks_the_zephyr_configuration(tmp_path: Path) -> None:
     assert _write_checksum(tmp_path, "zephyr", "CONFIG_X=n\n").read_text() != first
 
 
+@pytest.mark.parametrize("version", [cv.Version(2, 9, 2), cv.Version(2, 9, 1)])
+def test_pch_checksum_lands_where_the_build_writes_the_image(
+    tmp_path: Path, version: cv.Version
+) -> None:
+    """One layout rule: the sum must sit in get_elf_path's app dir, or a
+    layout drift silently costs the first build's sharing."""
+    from esphome.components.nrf52.toolchain import get_elf_path
+
+    app = "zephyr" if version >= cv.Version(2, 9, 2) else "."
+    sum_path = _write_checksum(tmp_path, app, version=version)
+    CORE.name = "livingroom"
+    with patch.dict(CORE.data, {KEY_CORE: {KEY_FRAMEWORK_VERSION: version}}):
+        expected = get_elf_path().parent.parent / SUM
+    assert sum_path.resolve() == expected.resolve()
+
+
 def test_pch_checksum_written_before_the_first_configure(tmp_path: Path) -> None:
     """The first build's compiles hash the sum in place of the .gch."""
     assert _write_checksum(tmp_path, "zephyr", configured=False).is_file()
