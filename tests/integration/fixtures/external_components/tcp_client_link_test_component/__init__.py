@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.components import socket
 from esphome.components.const import CONF_HOST
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PORT
@@ -28,6 +29,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
+    socket.require_tcp_client_link()
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_host(config[CONF_HOST]))
