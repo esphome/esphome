@@ -224,6 +224,11 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   if (this->current_carrier_frequency_ != this->temp_.get_carrier_frequency()) {
     this->current_carrier_frequency_ = this->temp_.get_carrier_frequency();
     this->configure_rmt_();
+    if (this->is_failed()) {  // the carrier change failed, there is no channel to send on
+      this->transmit_trigger_.trigger();
+      this->fire_complete_(false);
+      return;
+    }
   }
 
   this->rmt_temp_.clear();
@@ -305,6 +310,11 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   if (this->current_carrier_frequency_ != this->temp_.get_carrier_frequency()) {
     this->current_carrier_frequency_ = this->temp_.get_carrier_frequency();
     this->configure_rmt_();
+    if (this->is_failed()) {  // the carrier change failed, there is no channel to send on
+      this->transmit_trigger_.trigger();
+      this->fire_complete_(false);
+      return;
+    }
   }
 
   this->rmt_temp_.clear();
@@ -347,7 +357,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     return;
   }
   this->transmit_trigger_.trigger();
-  bool sent = true;
+  bool sent = send_times != 0;  // same answer as the ISR backend for a frame sent zero times
   for (uint32_t i = 0; i < send_times; i++) {
     rmt_transmit_config_t config;
     memset(&config, 0, sizeof(config));

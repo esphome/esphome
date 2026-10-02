@@ -1557,6 +1557,7 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
     return;
   }
 #endif
+  ESP_LOGW(TAG, "IR/RF transmit for unknown key %" PRIu32, msg.key);
   if (want_reply) {
     // nothing will ever report for an unknown key, so answer as not started right away
 #ifdef USE_DEVICES

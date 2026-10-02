@@ -60,6 +60,8 @@ class Infrared : public ir_rf_base::IrRfEntity {
   void on_call_(const InfraredCall &) {}
   /// Perform the actual transmission (called by InfraredCall); false only when no frame was handed
   /// to the transmitter, in which case no completion follows
+  /// A platform that transmits without a remote_base transmitter calls api_transmit_done_() when
+  /// its frame is out, so an API client is not answered by the 30 s safety net
   virtual bool control(const InfraredCall &call) {
     return this->transmit_raw_(call, call.get_carrier_frequency().value_or(0));
   }

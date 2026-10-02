@@ -151,6 +151,12 @@ class IrRfEntity : public Component, public EntityBase, public remote_base::Remo
       this->enable_loop();
   }
   void finish_api_reply_(bool success);
+  /// For a platform whose control() transmits without a remote_base transmitter: answers the API
+  /// request once its own transmit has finished, instead of the 30 s safety net answering it
+  void api_transmit_done_(bool sent) {
+    if (this->api_reply_ == ApiReply::API_REPLY_WAITING)
+      this->finish_api_reply_(sent);
+  }
   bool send_api_reply_();
   void clear_api_reply_() {
     this->api_reply_ = ApiReply::API_REPLY_NONE;
@@ -162,9 +168,13 @@ class IrRfEntity : public Component, public EntityBase, public remote_base::Remo
 
   remote_base::RemoteReceiverBase *receiver_{nullptr};
   remote_base::RemoteTransmitterBase *transmitter_{nullptr};
+#if defined(USE_API) && defined(USE_IR_RF)
+  // in 16 ms ticks: 30 s to report completion (plus the frame's own air time, capped) or to get
+  // an owed reply through a full TCP buffer
+  uint16_t api_reply_deadline_{0};
+#endif
 #ifdef USE_IR_RF_TRANSMIT_COMPLETE
-  uint16_t api_reply_deadline_{0};  // in 16 ms ticks: 30 s plus the frame's own air time, capped
-  uint16_t inflight_seq_{0};        // seq of the API frame this entity submitted last
+  uint16_t inflight_seq_{0};  // seq of the API frame this entity submitted last
 #endif
   // short members last, so the derived traits start on the next word without a gap
   bool supports_transmitter_{false};
@@ -237,6 +247,7 @@ template<typename Call, typename Entity> class IrRfCall : public IrRfCallData {
 
   /// Perform the transmission; returns true if a frame was handed to the transmitter
   bool perform() {
+    // make_call() always sets the parent; only a hand built call can be without one
     Entity *parent = this->parent_;
     if (parent == nullptr)
       return false;

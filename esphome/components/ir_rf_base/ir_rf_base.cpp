@@ -15,13 +15,23 @@ namespace esphome::ir_rf_base {
 
 static const char *const TAG = "ir_rf";
 
-#ifdef USE_IR_RF_TRANSMIT_COMPLETE
-// Safety net for a transmitter that never reports completion (for example a failed component):
-// the request is answered as failed this long after its frame should have left the wire
+#if defined(USE_API) && defined(USE_IR_RF)
+// Safety net for a transmitter that never reports completion (for example a failed component)
+// and for a client whose TCP buffer never drains: the request is answered as failed this long
+// after its frame should have left the wire, and an owed reply is dropped this long after it
+// was first refused
 static constexpr uint32_t API_REPLY_TIMEOUT_MS = 30000;
+#endif
+#ifdef USE_IR_RF_TRANSMIT_COMPLETE
 // Longest air time added to the deadline, in 16 ms ticks (8 min); with the 30 s above the
 // deadline stays within the signed 16 bit tick window loop() compares against
 static constexpr uint16_t API_REPLY_MAX_AIR_TICKS = 30000;
+#endif
+
+#if defined(USE_API) && defined(USE_IR_RF)
+static uint16_t api_reply_ticks_from_now() {
+  return static_cast<uint16_t>((App.get_loop_component_start_time() >> 4) + (API_REPLY_TIMEOUT_MS >> 4));
+}
 #endif
 
 void IrRfEntity::setup() {
@@ -87,8 +97,9 @@ bool IrRfEntity::transmit_raw_(const IrRfCallData &call, uint32_t carrier_freque
   }
 
 #ifdef USE_IR_RF_TRANSMIT_COMPLETE
-  if (call.wants_api_reply()) {
-    // only an API frame claims the seq, so a YAML transmit cannot take over a pending reply
+  // only the API frame expect_api_reply_() armed claims the seq and extends the deadline it set;
+  // a YAML transmit cannot take over a pending reply
+  if (call.wants_api_reply() && this->api_reply_ == ApiReply::API_REPLY_WAITING) {
     this->inflight_seq_ = transmit_call.get_seq();
     // a long frame must not be answered as failed while still on the wire: the 30 s safety net
     // starts after this frame's own air time (capped so the tick comparison cannot wrap)
@@ -140,10 +151,7 @@ bool IrRfEntity::expect_api_reply_(api::APIConnection *conn) {
     return false;
   }
   this->api_reply_connection_ = conn;
-#ifdef USE_IR_RF_TRANSMIT_COMPLETE
-  this->api_reply_deadline_ =
-      static_cast<uint16_t>((App.get_loop_component_start_time() >> 4) + (API_REPLY_TIMEOUT_MS >> 4));
-#endif
+  this->api_reply_deadline_ = api_reply_ticks_from_now();
   this->api_reply_ = ApiReply::API_REPLY_WAITING;
   return true;
 }
@@ -161,7 +169,10 @@ void IrRfEntity::refuse_api_call_(api::APIConnection *conn) {
 
 void IrRfEntity::finish_api_reply_(bool success) {
   this->api_reply_ = success ? ApiReply::API_REPLY_OWED_OK : ApiReply::API_REPLY_OWED_FAILED;
-  this->send_api_reply_();
+  if (!this->send_api_reply_()) {
+    // the retry has its own window, so a client that never drains cannot hold the slot forever
+    this->api_reply_deadline_ = api_reply_ticks_from_now();
+  }
 }
 
 bool IrRfEntity::send_api_reply_() {
@@ -186,15 +197,16 @@ void IrRfEntity::loop() {
     this->disable_loop();
     return;
   }
+  const auto remaining = static_cast<int16_t>(this->api_reply_deadline_ - (App.get_loop_component_start_time() >> 4));
   if (this->api_reply_ != ApiReply::API_REPLY_WAITING) {
-    this->send_api_reply_();
+    if (this->send_api_reply_() || remaining > 0)
+      return;
+    ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("reply dropped, client not reading"));
+    this->clear_api_reply_();
     return;
   }
-#ifdef USE_IR_RF_TRANSMIT_COMPLETE
-  const auto remaining = static_cast<int16_t>(this->api_reply_deadline_ - (App.get_loop_component_start_time() >> 4));
   if (remaining > 0)
     return;
-#endif
   ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("never reported completion"));
   this->finish_api_reply_(false);
 }

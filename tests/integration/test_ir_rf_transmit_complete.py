@@ -12,20 +12,11 @@ import asyncio
 import re
 
 from aioesphomeapi import InfraredInfo, RadioFrequencyInfo
+from aioesphomeapi.api_pb2 import InfraredRFTransmitCompleteResponse
 import pytest
 
 from .state_utils import find_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
-
-try:
-    from aioesphomeapi.api_pb2 import InfraredRFTransmitCompleteResponse
-except ImportError:  # aioesphomeapi older than the API 1.18 message
-    InfraredRFTransmitCompleteResponse = None
-
-needs_complete_message = pytest.mark.skipif(
-    InfraredRFTransmitCompleteResponse is None,
-    reason="needs an aioesphomeapi with InfraredRFTransmitCompleteResponse",
-)
 
 FRAME_COUNT = 5
 # 10 marks and 10 spaces of 500 us, sent twice: 20 ms per frame
@@ -51,7 +42,6 @@ async def test_ir_rf_transmit_complete_boot(
     assert find_entity(entities, "ir_transmitter", InfraredInfo) is not None
 
 
-@needs_complete_message
 @pytest.mark.shared_yaml("ir_rf_transmit_complete")
 @pytest.mark.asyncio
 async def test_ir_rf_transmit_complete(
