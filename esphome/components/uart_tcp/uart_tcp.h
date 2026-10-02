@@ -33,7 +33,6 @@ class UartTcp : public Component, public uart::UARTDevice {
   void read_uart_();
   void discard_uart_();
 
-  static constexpr size_t TX_BUFFER_SIZE = 1024;
   static constexpr size_t READ_CHUNK = 128;
 
   socket::TcpClientLink link_;

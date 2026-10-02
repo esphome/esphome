@@ -133,7 +133,7 @@ void UartTcp::loop() {
       this->try_listen_();
     }
     // link_was_up_ holds the accept until the previous drop's edge has run,
-    // so the old client's buffered bytes never reach the new one.
+    // so the sensor and the stale UART discard always see the disconnect.
     if (this->listen_ != nullptr && !this->link_.connected() && !this->link_was_up_ && this->listen_->ready()) {
       this->accept_client_();
     }
