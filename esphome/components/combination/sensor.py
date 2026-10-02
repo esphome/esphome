@@ -203,6 +203,5 @@ async def to_code(config: ConfigType) -> None:
         else:
             cg.add(var.add_source(source))
 
-    if CONF_STD_DEV in config:
-        sens = await sensor.new_sensor(config[CONF_STD_DEV])
-        cg.add(var.set_std_dev_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_STD_DEV, var.set_std_dev_sensor)
