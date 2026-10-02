@@ -78,7 +78,7 @@ void UartTcp::try_listen_() {
 }
 
 void UartTcp::accept_client_() {
-  struct sockaddr_storage peer{};
+  struct sockaddr_storage peer {};
   socklen_t peer_len = sizeof(peer);
   auto client = this->listen_->accept_loop_monitored(reinterpret_cast<struct sockaddr *>(&peer), &peer_len);
   if (client == nullptr) {

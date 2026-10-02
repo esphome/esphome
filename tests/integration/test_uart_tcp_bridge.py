@@ -81,7 +81,9 @@ async def test_uart_tcp_bridge(
 
             await lines.wait_for(f"Listening on {locked_port}")
             try:
-                _reader, rejected = await asyncio.open_connection("127.0.0.1", locked_port)
+                _reader, rejected = await asyncio.open_connection(
+                    "127.0.0.1", locked_port
+                )
                 rejected.close()
             except OSError:
                 pass
