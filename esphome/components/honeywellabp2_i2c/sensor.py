@@ -63,12 +63,11 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if pressure_config := config.get(CONF_PRESSURE):
-        sens = await sensor.new_sensor(pressure_config)
-        cg.add(var.set_pressure_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    if await sensors(CONF_PRESSURE, var.set_pressure_sensor):
+        pressure_config = config[CONF_PRESSURE]
         cg.add(var.set_min_pressure(pressure_config[CONF_MIN_PRESSURE]))
         cg.add(var.set_max_pressure(pressure_config[CONF_MAX_PRESSURE]))
         cg.add(var.set_transfer_function(pressure_config[TRANSFER_FUNCTION]))
 
-    sensors = sensor.sub_sensors(config)
     await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
