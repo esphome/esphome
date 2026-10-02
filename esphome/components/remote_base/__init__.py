@@ -943,6 +943,7 @@ KEELOQ_SCHEMA = cv.Schema(
 
 
 def _keeloq_suffix_fits(config):
+    # A lambda is only known on the device. A plain value has to fit the width.
     suffix = config[CONF_SUFFIX]
     bits = config[CONF_SUFFIX_BITS]
     if isinstance(suffix, int) and isinstance(bits, int) and suffix >> bits:

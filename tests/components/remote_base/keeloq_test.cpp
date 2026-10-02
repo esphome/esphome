@@ -69,6 +69,8 @@ TEST(KeeloqProtocolTest, SuffixRoundTripsWhenTheGuardSwallowsTheLastSpace) {
   expect_round_trip(0x00, 8);
   expect_round_trip(0x80, 8);
   expect_round_trip(0xA5, 8);
+  expect_round_trip(0x0000, 16);
+  expect_round_trip(0x8000, 16);
   expect_round_trip(0, 1);
   expect_round_trip(1, 1);
 }
@@ -76,7 +78,28 @@ TEST(KeeloqProtocolTest, SuffixRoundTripsWhenTheGuardSwallowsTheLastSpace) {
 TEST(KeeloqProtocolTest, SuffixRoundTripsWhenTheCaptureEndsAtIdle) {
   expect_round_trip(0x00, 8, true);
   expect_round_trip(0x80, 8, true);
+  expect_round_trip(0x8000, 16, true);
   expect_round_trip(1, 1, true);
+}
+
+TEST(KeeloqProtocolTest, ExtraBitsThatEndAtIdleStayASuffix) {
+  RawTimings timings = encode(frame(0, 0));
+  if (!timings.empty() && timings.front() < 0) {
+    timings.erase(timings.begin());
+  }
+  ASSERT_LT(timings.back(), 0);
+  timings.pop_back();
+  for (uint8_t i = 0; i < 4; i++) {
+    timings.push_back(static_cast<int32_t>(2 * BIT_US));
+    timings.push_back(-static_cast<int32_t>(BIT_US));
+  }
+
+  auto decoded = decode(timings);
+  ASSERT_TRUE(decoded.has_value());
+  if (decoded.has_value()) {
+    EXPECT_EQ(decoded->suffix, 0);
+    EXPECT_EQ(decoded->suffix_bits, 4);
+  }
 }
 
 TEST(KeeloqProtocolTest, FollowingPwmIsNotASuffix) {
@@ -88,7 +111,7 @@ TEST(KeeloqProtocolTest, FollowingPwmIsNotASuffix) {
   ASSERT_FALSE(timings.empty());
   ASSERT_LT(timings.back(), 0);
   timings.pop_back();
-  for (int i = 0; i < 4; i++) {
+  for (uint8_t i = 0; i < 4; i++) {
     timings.push_back(static_cast<int32_t>(2 * BIT_US));
     timings.push_back(-static_cast<int32_t>(BIT_US));
   }

@@ -203,7 +203,7 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
   }
 
   while (out.suffix_bits < 16) {
-    bool one;
+    bool one = false;
     if (src.expect_mark(2 * BIT_TIME_US)) {
       one = false;
     } else if (src.expect_mark(BIT_TIME_US)) {

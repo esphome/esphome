@@ -15,8 +15,7 @@ struct KeeloqData {
   uint8_t suffix_bits{0};
 
   bool operator==(const KeeloqData &rhs) const {
-    // Treat 0x10 as a special, wildcard button press
-    // This allows us to match on just the address if wanted.
+    // 0x10 matches any command. The suffix is not compared: the binary sensor does not take it.
     if (address != rhs.address) {
       return false;
     }
