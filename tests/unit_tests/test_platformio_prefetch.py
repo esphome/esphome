@@ -711,6 +711,17 @@ def test_uri_jobs_vcs_specs_installable_without_probe(tmp_path: Path) -> None:
     assert (jobs, failed) == ([], 0)
     assert [n for n, _ in installable] == ["tool", "mercurial"]
 
+    # Platform packages carry no custom name but their platform.json keys
+    # match the tool manifests, so trusted_names admits derived names too
+    with patch("esphome.net_retry.http_request"):
+        _, _, installable = pf._uri_jobs(
+            m,
+            [_FakeSpec(uri="git+https://x/derived#v2", name="derived")],
+            set(),
+            trusted_names=True,
+        )
+    assert [n for n, _ in installable] == ["derived"]
+
     m.get_package.return_value = object()  # already installed: warm and silent
     with patch("esphome.net_retry.http_request"):
         assert pf._uri_jobs(

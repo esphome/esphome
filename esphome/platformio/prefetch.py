@@ -394,7 +394,7 @@ def _spec_name(spec: Any, url: str) -> str:
 
 
 def _uri_jobs(
-    manager: Any, specs: list[Any], seen: set[str]
+    manager: Any, specs: list[Any], seen: set[str], trusted_names: bool = False
 ) -> tuple[list[tuple[str, int, Any]], int, list[tuple[str, Any]]]:
     """Jobs for direct-URL specs; a HEAD sizes each for the combined bar.
 
@@ -402,6 +402,8 @@ def _uri_jobs(
     error) and the ``(name, spec)`` pairs to pre-install: downloaded
     archives, plus VCS specs, which have no archive -- the pre-install
     itself clones them, in parallel instead of one at a time in pio run.
+    ``trusted_names`` marks platform packages, whose platform.json keys
+    match their tool manifests (pio's own packages have no custom name).
     """
     from esphome.net_retry import fetch_with_retry, http_request
 
@@ -418,9 +420,10 @@ def _uri_jobs(
             continue
         name = _spec_name(spec, url)
         if is_vcs:
-            # Same rule as the archives below: only a custom name is also
-            # the destination dir, so derived names stay with pio run
-            if spec.has_custom_name():
+            # Same rule as the archives below: only a name that is also the
+            # destination dir is safe, so a lib_deps spec whose name derives
+            # from its URL stays with pio run
+            if trusted_names or spec.has_custom_name():
                 installable.append((name, spec))
             continue
         # PlatformIO downloads URL specs with no checksum
@@ -770,8 +773,9 @@ def _preinstall(
             raise
 
     _LOGGER.info(
-        "Installing %d PlatformIO package(s) with %d extraction worker(s): %s",
+        "Installing %d PlatformIO package(s)%s with %d worker(s): %s",
         len(entries),
+        f" ({clones} clone(s))" if clones else "",
         workers,
         ", ".join(name for name, *_ in entries),
     )
@@ -906,8 +910,10 @@ def _prefetch(build_dir: Path, env: str) -> None:
     unresolved = 0
     for mgr, batch, is_platform in ((p.pm, specs, True), (lm, lib_specs, False)):
         entries: list[tuple[str, Any]] = []
-        for build_jobs in (_registry_jobs, _uri_jobs):
-            batch_jobs, failed, installable = build_jobs(mgr, batch, seen)
+        for batch_jobs, failed, installable in (
+            _registry_jobs(mgr, batch, seen),
+            _uri_jobs(mgr, batch, seen, trusted_names=is_platform),
+        ):
             jobs += batch_jobs
             unresolved += failed
             entries += installable
