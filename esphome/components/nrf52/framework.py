@@ -10,6 +10,7 @@ import platform
 import shutil
 import sys
 
+from esphome.build_helpers.ccache import ccache_env
 from esphome.build_helpers.tools_cache import SDK_NRF_TOOLS_CACHE, tools_cache_path
 from esphome.components.zephyr.const import KEY_SYSBUILD, KEY_ZEPHYR
 import esphome.config_validation as cv
@@ -194,7 +195,14 @@ def get_build_paths() -> dict:
     }
 
 
-def get_build_env() -> dict:
+def get_build_env(ccache: str | None) -> dict:
+    """Build the west/sdk-nrf process environment.
+
+    ``ccache`` is the resolved binary (resolve_ccache_path), or None when
+    ccache is disabled or the caller never compiles; it brings the shared
+    managed-ccache settings and the pch sloppiness, so every caller that
+    may compile gets the same cache.
+    """
     version = _get_version_str()
     venv_bin_dir = get_python_env_executable_path(
         _get_python_env_path(version), "python"
@@ -211,6 +219,12 @@ def get_build_env() -> dict:
     # non-root builds failed to locate the SDK with it, while
     # ZEPHYR_SDK_INSTALL_DIR fixed the same invocation.
     env["ZEPHYR_SDK_INSTALL_DIR"] = str(_get_toolchain_path(_get_toolchain_version()))
+    if ccache is None:
+        # Zephyr wraps compiles with any ccache it finds; unmanaged it
+        # must not cache (a sysbuild image never sees USE_CCACHE=0).
+        env.setdefault("CCACHE_DISABLE", "1")
+    else:
+        env.update(ccache_env(ccache, SDK_NRF_TOOLS_CACHE))
     return env
 
 
