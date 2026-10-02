@@ -15,7 +15,6 @@ static constexpr uint8_t MAX_BUTTONS = 8;
 struct Parsed {
   bool ok;
   bool encrypted;
-  bool mac_included;
   bool trigger_based;
   bool has_packet_id;
   uint8_t packet_id;

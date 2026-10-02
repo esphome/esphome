@@ -3,7 +3,6 @@
 namespace esphome::bthome::codec {
 
 constexpr uint8_t INFO_ENCRYPTED = 0x01;
-constexpr uint8_t INFO_MAC_INCLUDED = 0x02;
 constexpr uint8_t INFO_TRIGGER = 0x04;
 constexpr uint8_t INFO_VERSION_SHIFT = 5;
 constexpr uint8_t INFO_VERSION_MASK = 0x07;
@@ -16,7 +15,6 @@ constexpr uint8_t COMMAND_LENGTH_MASK = 0x1F;
 constexpr size_t COMMAND_HEADER_LEN = 2;
 constexpr size_t DEVICE_INFO_LEN = 1;
 constexpr size_t LENGTH_PREFIX = 1;
-constexpr size_t MAC_LEN = 6;
 constexpr size_t OBJECT_ID_AND_VALUE = 2;
 
 namespace {
@@ -184,22 +182,16 @@ bool parse(const uint8_t *data, size_t len, Parsed *out) {
     return false;
   }
   const uint8_t info = data[0];
+  // Bits 1-4 are reserved. They are ignored, not consumed as extra bytes.
   if (((info >> INFO_VERSION_SHIFT) & INFO_VERSION_MASK) != VERSION_2) {
     return false;
   }
   out->encrypted = (info & INFO_ENCRYPTED) != 0;
-  out->mac_included = (info & INFO_MAC_INCLUDED) != 0;
   out->trigger_based = (info & INFO_TRIGGER) != 0;
   if (out->encrypted) {
     return false;
   }
   size_t offset = DEVICE_INFO_LEN;
-  if (out->mac_included) {
-    if (len < DEVICE_INFO_LEN + MAC_LEN) {
-      return false;
-    }
-    offset = DEVICE_INFO_LEN + MAC_LEN;
-  }
   while (offset < len) {
     const uint8_t id = data[offset++];
     const int plen = object_payload_len(id, data + offset, len - offset);

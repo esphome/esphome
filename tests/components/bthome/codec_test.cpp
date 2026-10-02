@@ -22,7 +22,7 @@ TEST(BTHomeCodec, EncodesPressAndIndex) {
   EXPECT_FALSE(encode_button(1, 0x01, 0, buf, sizeof(buf), &n));
 }
 
-TEST(BTHomeCodec, ParsesPressBatteryAndMacIncluded) {
+TEST(BTHomeCodec, ParsesPressBatteryAndAReservedInfoBit) {
   const uint8_t press[] = {0x44, 0x00, 0x07, 0x3A, 0x01};
   Parsed parsed{};
   ASSERT_TRUE(parse(press, sizeof(press), &parsed));
@@ -50,9 +50,11 @@ TEST(BTHomeCodec, ParsesPressBatteryAndMacIncluded) {
   ASSERT_TRUE(parse(hold_alias, sizeof(hold_alias), &parsed));
   EXPECT_EQ(parsed.buttons[0], 0xFE);
 
-  uint8_t mac_included[1 + 6 + 4] = {0x46, 1, 2, 3, 4, 5, 6, 0x00, 0x03, 0x3A, 0x04};
-  ASSERT_TRUE(parse(mac_included, sizeof(mac_included), &parsed));
-  EXPECT_TRUE(parsed.mac_included);
+  // Bit 1 is reserved. A button still starts at the next byte.
+  const uint8_t reserved_bit[] = {0x46, 0x00, 0x03, 0x3A, 0x04};
+  ASSERT_TRUE(parse(reserved_bit, sizeof(reserved_bit), &parsed));
+  EXPECT_FALSE(parsed.encrypted);
+  EXPECT_TRUE(parsed.trigger_based);
   EXPECT_EQ(parsed.packet_id, 3);
   EXPECT_EQ(parsed.buttons[0], 0x04);
 }
@@ -73,6 +75,21 @@ TEST(BTHomeCodec, KeepsEarlierButtonsWhenALaterObjectStopsTheWalk) {
 
   const uint8_t truncated_text[] = {0x44, 0x3A, 0x02, 0x53, 0x04, 0x41};
   ASSERT_TRUE(parse(truncated_text, sizeof(truncated_text), &parsed));
+  ASSERT_EQ(parsed.button_count, 1);
+  EXPECT_EQ(parsed.buttons[0], 0x02);
+}
+
+TEST(BTHomeCodec, SkipsDimmerAndCommandBeforeAButton) {
+  // 0x3C is event plus steps. The button after it stays at index 1.
+  const uint8_t dimmer[] = {0x44, 0x3C, 0x01, 0x03, 0x3A, 0x01};
+  Parsed parsed{};
+  ASSERT_TRUE(parse(dimmer, sizeof(dimmer), &parsed));
+  ASSERT_EQ(parsed.button_count, 1);
+  EXPECT_EQ(parsed.buttons[0], 0x01);
+
+  // 0x3B: length byte (1 argument) plus the opcode. Then the button.
+  const uint8_t command[] = {0x44, 0x3B, 0x01, 0x03, 0x05, 0x3A, 0x02};
+  ASSERT_TRUE(parse(command, sizeof(command), &parsed));
   ASSERT_EQ(parsed.button_count, 1);
   EXPECT_EQ(parsed.buttons[0], 0x02);
 }
