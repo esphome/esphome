@@ -12,6 +12,9 @@ uart:
   - id: uart_bus
     baud_rate: 115200
     port: PTY_PATH
+  - id: uart_locked
+    baud_rate: 115200
+    port: PTY_LOCKED
 
 uart_tcp:
   - id: bridge
@@ -20,3 +23,9 @@ uart_tcp:
     port: 18126
     connected:
       name: Bridge Connected
+  - id: locked
+    uart_id: uart_locked
+    role: server
+    port: 18127
+    allowed_ips:
+      - 192.0.2.1

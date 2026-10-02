@@ -1,5 +1,7 @@
 #include "uart_tcp.h"
 
+#include "esphome/components/socket/socket.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -76,7 +78,9 @@ void UartTcp::try_listen_() {
 }
 
 void UartTcp::accept_client_() {
-  auto client = this->listen_->accept_loop_monitored(nullptr, nullptr);
+  struct sockaddr_storage peer{};
+  socklen_t peer_len = sizeof(peer);
+  auto client = this->listen_->accept_loop_monitored(reinterpret_cast<struct sockaddr *>(&peer), &peer_len);
   if (client == nullptr) {
     // A reset during the handshake or a signal only affects that connection.
     if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ECONNABORTED || errno == EINTR) {
@@ -87,6 +91,17 @@ void UartTcp::accept_client_() {
     this->listen_.reset();
     ESP_LOGW(TAG, "Accept failed: %d", err);
     this->link_.note_attempt();
+    return;
+  }
+  if (!this->allowed_.allows(reinterpret_cast<struct sockaddr *>(&peer))) {
+    uint32_t now = millis();
+    if (this->last_reject_ms_ == 0 || now - this->last_reject_ms_ >= 5000) {
+      this->last_reject_ms_ = now == 0 ? 1 : now;
+      char text[socket::SOCKADDR_STR_LEN];
+      size_t written = socket::format_sockaddr_to(reinterpret_cast<struct sockaddr *>(&peer), peer_len, text);
+      const char *who = written != 0 ? text : "client";
+      ESP_LOGW(TAG, "Rejected %s", who);
+    }
     return;
   }
   this->link_.adopt(std::move(client));

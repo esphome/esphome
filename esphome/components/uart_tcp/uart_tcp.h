@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/socket/ipv4_allow.h"
 #include "esphome/components/socket/tcp_client_link.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
@@ -16,6 +17,7 @@ class UartTcp : public Component, public uart::UARTDevice {
   void set_host(const char *host) { this->link_.set_host(host); }
   void set_port(uint16_t port) { this->link_.set_port(port); }
   void set_server(bool server) { this->server_ = server; }
+  void set_allowed(const socket::Ipv4AllowEntry *entries, size_t count) { this->allowed_.set(entries, count); }
   void set_reconnect_interval(uint32_t ms) { this->link_.set_reconnect_interval(ms); }
   void set_connected_sensor(binary_sensor::BinarySensor *sensor) { this->connected_sensor_ = sensor; }
 
@@ -37,7 +39,9 @@ class UartTcp : public Component, public uart::UARTDevice {
 
   socket::TcpClientLink link_;
   std::unique_ptr<socket::ListenSocket> listen_;
+  socket::Ipv4Allow allowed_;
   binary_sensor::BinarySensor *connected_sensor_{nullptr};
+  uint32_t last_reject_ms_{0};
   bool server_{false};
   // The link state loop() saw last; edges clear the buffer and publish the sensor.
   bool link_was_up_{false};

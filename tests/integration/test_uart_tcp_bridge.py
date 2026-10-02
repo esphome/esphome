@@ -2,7 +2,8 @@
 
 The UART bus is backed by a pty; pytest holds the controller side and connects
 as the TCP client. Covers both transfer directions, the stale-byte discard
-at every accept, and the drop plus client replacement path.
+at every accept, a peer rejected by allowed_ips, and the drop plus client
+replacement path.
 """
 
 from __future__ import annotations
@@ -25,14 +26,20 @@ async def test_uart_tcp_bridge(
     unused_tcp_port_factory,
 ) -> None:
     server_port = unused_tcp_port_factory()
+    locked_port = unused_tcp_port_factory()
     controller_fd, device_fd = os.openpty()
+    locked_controller_fd, locked_device_fd = os.openpty()
     os.set_blocking(controller_fd, False)
     # uart's validate_port wants a two segment device path; Linux ptys live at
     # /dev/pts/N, so hand the config a /tmp symlink instead.
     pty_link = f"/tmp/uart-tcp-pty-{os.getpid()}"
+    locked_link = f"/tmp/uart-tcp-pty-locked-{os.getpid()}"
     pathlib.Path(pty_link).symlink_to(os.ttyname(device_fd))
+    pathlib.Path(locked_link).symlink_to(os.ttyname(locked_device_fd))
     yaml_config = yaml_config.replace("port: 18126", f"port: {server_port}")
+    yaml_config = yaml_config.replace("port: 18127", f"port: {locked_port}")
     yaml_config = yaml_config.replace("PTY_PATH", pty_link)
+    yaml_config = yaml_config.replace("PTY_LOCKED", locked_link)
 
     lines = LineWaiter()
     loop = asyncio.get_running_loop()
@@ -72,6 +79,14 @@ async def test_uart_tcp_bridge(
             assert device_info.name == "uart-tcp-bridge-test"
             await lines.wait_for("Listening on")
 
+            await lines.wait_for(f"Listening on {locked_port}")
+            try:
+                _reader, rejected = await asyncio.open_connection("127.0.0.1", locked_port)
+                rejected.close()
+            except OSError:
+                pass
+            await lines.wait_for("Rejected")
+
             # Bytes written before any client connects must never reach one.
             os.write(controller_fd, b"STALE")
             await asyncio.sleep(0.2)
@@ -107,4 +122,7 @@ async def test_uart_tcp_bridge(
         loop.remove_reader(controller_fd)
         os.close(controller_fd)
         os.close(device_fd)
+        os.close(locked_controller_fd)
+        os.close(locked_device_fd)
         pathlib.Path(pty_link).unlink()
+        pathlib.Path(locked_link).unlink()

@@ -20,6 +20,7 @@ uart_tcp_ns = cg.esphome_ns.namespace("uart_tcp")
 UartTcp = uart_tcp_ns.class_("UartTcp", cg.Component, uart.UARTDevice)
 
 CONF_CONNECTED = "connected"
+CONF_ALLOWED_IPS = "allowed_ips"
 
 
 def _consume_sockets(config: ConfigType) -> ConfigType:
@@ -47,7 +48,11 @@ CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
             "client": BASE_SCHEMA.extend({cv.Required(CONF_HOST): cv.string}),
-            "server": BASE_SCHEMA,
+            "server": BASE_SCHEMA.extend(
+                {
+                    cv.Optional(CONF_ALLOWED_IPS): socket.IPV4_ALLOW_SCHEMA,
+                }
+            ),
         },
         key=CONF_ROLE,
         default_type="client",
@@ -67,5 +72,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
     if (host := config.get(CONF_HOST)) is not None:
         cg.add(var.set_host(host))
+    if (networks := config.get(CONF_ALLOWED_IPS)) is not None:
+        socket.add_ipv4_allow(var.set_allowed, networks, config[CONF_ID])
     binary_sensors = binary_sensor.sub_binary_sensors(config)
     await binary_sensors(CONF_CONNECTED, var.set_connected_sensor)
