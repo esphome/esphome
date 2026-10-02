@@ -310,21 +310,29 @@ def setup_platformio_python_env() -> None:
     _prepend_env_path("PATH", str(env_python_path.parent))
 
 
+def _patch_framework_file(path: Path, old: str, new: str) -> bool:
+    """Replace ``old`` with ``new`` in a framework script, atomically and
+    keeping the file mode (helpers.write_file would flatten it to 0o644).
+    Returns False when nothing matched."""
+    content = path.read_text(encoding="utf-8")
+    patched = content.replace(old, new)
+    if patched == content:
+        return False
+    tmp = path.with_suffix(".py.tmp")
+    tmp.write_text(patched, encoding="utf-8")
+    shutil.copymode(path, tmp)
+    tmp.replace(path)
+    return True
+
+
 def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
     # SDK v2.6.1 ships uf2conv.py with '\s+' — an unrecognised escape that
     # Python 3.12+ flags with SyntaxWarning (a future version will reject it).
     uf2conv = framework_path / "zephyr" / "scripts" / "build" / "uf2conv.py"
-    if not uf2conv.exists():
-        return
-    content = uf2conv.read_text(encoding="utf-8")
-    patched = content.replace("re.split('\\s+', line)", "re.split('\\\\s+', line)")
-    if patched == content:
-        return
-    # Write atomically so a concurrent build never sees a truncated file
-    tmp = uf2conv.with_suffix(".py.tmp")
-    tmp.write_text(patched, encoding="utf-8")
-    shutil.copymode(uf2conv, tmp)
-    tmp.replace(uf2conv)
+    if uf2conv.exists():
+        _patch_framework_file(
+            uf2conv, "re.split('\\s+', line)", "re.split('\\\\s+', line)"
+        )
 
 
 def _patch_gen_defines_dts_path(framework_path: Path) -> None:
@@ -335,22 +343,19 @@ def _patch_gen_defines_dts_path(framework_path: Path) -> None:
     gen_defines = framework_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
     if not gen_defines.exists():
         return
-    content = gen_defines.read_text(encoding="utf-8")
-    if "{os.path.basename(edt.dts_path)}" in content:
+    if _patch_framework_file(
+        gen_defines, "  {edt.dts_path}", "  {os.path.basename(edt.dts_path)}"
+    ):
         return
-    patched = content.replace("  {edt.dts_path}", "  {os.path.basename(edt.dts_path)}")
-    if patched == content:
+    if "{os.path.basename(edt.dts_path)}" not in gen_defines.read_text(
+        encoding="utf-8"
+    ):
         # Upstream reformatted the comment; sharing silently degrading
         # would be invisible, so say it out loud.
         _LOGGER.warning(
             "gen_defines.py no longer matches; the devicetree header "
             "stays per device and ccache sharing between devices degrades"
         )
-        return
-    tmp = gen_defines.with_suffix(".py.tmp")
-    tmp.write_text(patched, encoding="utf-8")
-    shutil.copymode(gen_defines, tmp)
-    tmp.replace(gen_defines)
 
 
 # West projects every build needs; components add others with include_west_project()
