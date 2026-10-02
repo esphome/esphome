@@ -16,8 +16,8 @@ def tools_cache_path(env_var: str, subdir: str) -> Path:
     from esphome.helpers import get_str_env
 
     if prefix := get_str_env(env_var, "").strip():
-        # resolve(): symlinked prefixes otherwise trip idf.py's
-        # venv-mismatch warning on every build
+        # resolve(): a symlinked prefix would otherwise record a second
+        # spelling of the same paths in the build tree
         return Path(prefix).expanduser().resolve()
     # appauthor=False keeps the Windows path short (no vendor segment);
     # deep IDF trees run into MAX_PATH otherwise
@@ -33,4 +33,14 @@ def tools_cache_path(env_var: str, subdir: str) -> Path:
 IDF_TOOLS_CACHE = ("ESPHOME_ESP_IDF_PREFIX", "idf")
 SDK_NRF_TOOLS_CACHE = ("ESPHOME_SDK_NRF_PREFIX", "sdk-nrf")
 ARDUINO8266_TOOLS_CACHE = ("ESPHOME_ARDUINO8266_PREFIX", "arduino8266")
-TOOLS_CACHE_SPECS = (IDF_TOOLS_CACHE, SDK_NRF_TOOLS_CACHE, ARDUINO8266_TOOLS_CACHE)
+# The host backend installs nothing; the entry only holds its ccache dir
+HOST_TOOLS_CACHE = ("ESPHOME_HOST_PREFIX", "host")
+# PlatformIO installs into its own dirs; the entry is its ccache dir itself
+PLATFORMIO_CCACHE = ("ESPHOME_PLATFORMIO_CCACHE_DIR", "platformio-ccache")
+TOOLS_CACHE_SPECS = (
+    IDF_TOOLS_CACHE,
+    SDK_NRF_TOOLS_CACHE,
+    ARDUINO8266_TOOLS_CACHE,
+    HOST_TOOLS_CACHE,
+    PLATFORMIO_CCACHE,
+)

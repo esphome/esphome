@@ -13,6 +13,7 @@ from esphome.components.logger import request_log_listener
 from esphome.components.noise import (  # noqa: F401
     ENCRYPTION_SCHEMA,
     decode_encryption_key,
+    enable_spare_ephemeral,
     encryption_schema,
     new_psk_progmem,
     validate_encryption_key,
@@ -81,7 +82,7 @@ def AUTO_LOAD(config: ConfigType) -> list[str]:
 
 
 api_ns = cg.esphome_ns.namespace("api")
-APIServer = api_ns.class_("APIServer", cg.Component, cg.Controller)
+APIServer = api_ns.class_("APIServer", cg.Component)
 HomeAssistantServiceCallAction = api_ns.class_(
     "HomeAssistantServiceCallAction", automation.Action
 )
@@ -462,8 +463,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    # Track controller registration for StaticVector sizing
-    CORE.register_controller()
+    CORE.register_controller(var)
 
     # Request a log listener slot for API log streaming
     request_log_listener()
@@ -614,6 +614,7 @@ async def to_code(config: ConfigType) -> None:
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")
         cg.add_define("USE_API_NOISE")
+        enable_spare_ephemeral()
     else:
         cg.add_define("USE_API_PLAINTEXT")
 

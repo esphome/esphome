@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/spi/spi.h"
 
@@ -106,16 +105,6 @@ class CS5460AComponent final : public Component,
   uint32_t expect_data_ts_;
   uint32_t prev_raw_current_{0};
   uint32_t prev_raw_energy_{0};
-};
-
-template<typename... Ts> class CS5460ARestartAction final : public Action<Ts...> {
- public:
-  CS5460ARestartAction(CS5460AComponent *cs5460a) : cs5460a_(cs5460a) {}
-
-  void play(const Ts &...x) override { cs5460a_->restart(); }
-
- protected:
-  CS5460AComponent *cs5460a_;
 };
 
 }  // namespace esphome::cs5460a
