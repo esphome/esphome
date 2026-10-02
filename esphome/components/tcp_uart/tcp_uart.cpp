@@ -33,7 +33,6 @@ void TcpUart::sync_link_() {
   this->link_was_up_ = up;
   if (!up) {
     this->rx_start_ = this->rx_end_ = 0;
-    this->tx_len_ = 0;
   }
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(up);
@@ -63,14 +62,6 @@ void TcpUart::read_socket_() {
   this->rx_pending_ = static_cast<size_t>(count) == room;
 }
 
-void TcpUart::flush_tx_() {
-  ssize_t sent = this->link_.write(this->tx_, this->tx_len_);
-  if (sent > 0) {
-    this->tx_len_ -= static_cast<uint16_t>(sent);
-    std::memmove(this->tx_, this->tx_ + sent, this->tx_len_);
-  }
-}
-
 void TcpUart::loop() {
   this->link_.poll();
   if (this->link_.connected() != this->link_was_up_) {
@@ -82,25 +73,20 @@ void TcpUart::loop() {
   if (this->rx_pending_ || this->link_.ready()) {
     this->read_socket_();
   }
-  if (this->tx_len_ != 0) {
-    this->flush_tx_();
-  }
+  this->link_.flush_tx();
 }
 
 void TcpUart::write_array(const uint8_t *data, size_t len) {
-  size_t room = this->link_.connected() ? sizeof(this->tx_) - this->tx_len_ : 0;
-  if (len > room) {
+  size_t queued = this->link_.queue(data, len);
+  if (queued < len) {
     uint32_t now = App.get_loop_component_start_time();
     if (this->last_drop_log_ms_ == 0 || now - this->last_drop_log_ms_ >= DROP_LOG_INTERVAL_MS) {
       ESP_LOGW(TAG, "%s, dropped %u bytes",
                this->link_.connected() ? LOG_STR_LITERAL("TX buffer full") : LOG_STR_LITERAL("Not connected"),
-               static_cast<unsigned>(len - room));
+               static_cast<unsigned>(len - queued));
       this->last_drop_log_ms_ = now;
     }
-    len = room;
   }
-  std::memcpy(this->tx_ + this->tx_len_, data, len);
-  this->tx_len_ += static_cast<uint16_t>(len);
 }
 
 bool TcpUart::peek_byte(uint8_t *data) {
@@ -121,11 +107,8 @@ bool TcpUart::read_array(uint8_t *data, size_t len) {
 }
 
 uart::UARTFlushResult TcpUart::flush() {
-  this->flush_tx_();
-  if (this->tx_len_ == 0) {
-    return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
-  }
-  return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  return this->link_.flush_tx() ? uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS
+                                : uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
 }
 
 }  // namespace esphome::tcp_uart
