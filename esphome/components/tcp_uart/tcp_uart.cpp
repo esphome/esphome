@@ -14,6 +14,9 @@ static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
 
 void TcpUart::setup() {
   this->link_.begin(TAG);
+#ifdef USE_SOCKET_TCP_LISTENER
+  this->listener_.begin(TAG);
+#endif
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(false);
   }
@@ -22,10 +25,22 @@ void TcpUart::setup() {
 void TcpUart::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "TCP UART:\n"
-                "  Host: %s:%u\n"
+                "  %s: %s:%u\n"
                 "  Reconnect Interval: %" PRIu32 "ms",
-                this->link_.host(), this->link_.port(), this->link_.reconnect_interval());
+                this->server_ ? LOG_STR_LITERAL("Listen") : LOG_STR_LITERAL("Host"),
+                this->server_ ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
+                this->link_.reconnect_interval());
+#ifdef USE_SOCKET_TCP_LISTENER
+  this->listener_.dump_config();
+#endif
   LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
+}
+
+void TcpUart::on_shutdown() {
+  this->link_.close();
+#ifdef USE_SOCKET_TCP_LISTENER
+  this->listener_.close();
+#endif
 }
 
 void TcpUart::sync_link_() {
@@ -33,7 +48,6 @@ void TcpUart::sync_link_() {
   this->link_was_up_ = up;
   if (!up) {
     this->rx_start_ = this->rx_end_ = 0;
-    this->tx_len_ = 0;
   }
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(up);
@@ -63,16 +77,18 @@ void TcpUart::read_socket_() {
   this->rx_pending_ = static_cast<size_t>(count) == room;
 }
 
-void TcpUart::flush_tx_() {
-  ssize_t sent = this->link_.write(this->tx_, this->tx_len_);
-  if (sent > 0) {
-    this->tx_len_ -= static_cast<uint16_t>(sent);
-    std::memmove(this->tx_, this->tx_ + sent, this->tx_len_);
-  }
-}
-
 void TcpUart::loop() {
+#ifdef USE_SOCKET_TCP_LISTENER
+  if (this->server_) {
+    // link_was_up_ holds the accept until the previous drop's edge has run,
+    // so the sensor and the cleared RX buffer always see the disconnect.
+    this->listener_.poll(this->link_, !this->link_was_up_);
+  } else {
+    this->link_.poll();
+  }
+#else
   this->link_.poll();
+#endif
   if (this->link_.connected() != this->link_was_up_) {
     this->sync_link_();
   }
@@ -82,25 +98,20 @@ void TcpUart::loop() {
   if (this->rx_pending_ || this->link_.ready()) {
     this->read_socket_();
   }
-  if (this->tx_len_ != 0) {
-    this->flush_tx_();
-  }
+  this->link_.flush_tx();
 }
 
 void TcpUart::write_array(const uint8_t *data, size_t len) {
-  size_t room = this->link_.connected() ? sizeof(this->tx_) - this->tx_len_ : 0;
-  if (len > room) {
+  size_t queued = this->link_.queue(data, len);
+  if (queued < len) {
     uint32_t now = App.get_loop_component_start_time();
     if (this->last_drop_log_ms_ == 0 || now - this->last_drop_log_ms_ >= DROP_LOG_INTERVAL_MS) {
       ESP_LOGW(TAG, "%s, dropped %u bytes",
                this->link_.connected() ? LOG_STR_LITERAL("TX buffer full") : LOG_STR_LITERAL("Not connected"),
-               static_cast<unsigned>(len - room));
+               static_cast<unsigned>(len - queued));
       this->last_drop_log_ms_ = now;
     }
-    len = room;
   }
-  std::memcpy(this->tx_ + this->tx_len_, data, len);
-  this->tx_len_ += static_cast<uint16_t>(len);
 }
 
 bool TcpUart::peek_byte(uint8_t *data) {
@@ -121,11 +132,13 @@ bool TcpUart::read_array(uint8_t *data, size_t len) {
 }
 
 uart::UARTFlushResult TcpUart::flush() {
-  this->flush_tx_();
-  if (this->tx_len_ == 0) {
-    return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
+  bool emptied = this->link_.flush_tx();
+  if (!this->link_.connected()) {
+    // A down link cannot have delivered anything, whether this flush dropped
+    // it or an earlier loop() write did.
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
   }
-  return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  return emptied ? uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS : uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
 }
 
 }  // namespace esphome::tcp_uart
