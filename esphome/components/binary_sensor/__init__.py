@@ -70,7 +70,7 @@ from esphome.core.entity_helpers import (
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass, ProgmemAssignmentExpression
+from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 from esphome.util import Registry
 
@@ -79,6 +79,7 @@ DOMAIN = "binary_sensor"
 
 CONF_TIMING_ID = "timing_id"
 DEFAULT_INVALID_COOLDOWN = "1s"  # Keep in sync with invalid_cooldown_ in automation.h
+_DEFAULT_INVALID_COOLDOWN_MS = 1000
 DEVICE_CLASSES = [
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_BATTERY_CHARGING,
@@ -596,7 +597,7 @@ async def _build_binary_sensor_automations(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, table, len(timings))
         if (
             cooldown := conf[CONF_INVALID_COOLDOWN]
-        ) != cv.positive_time_period_milliseconds(DEFAULT_INVALID_COOLDOWN):
+        ).total_milliseconds != _DEFAULT_INVALID_COOLDOWN_MS:
             cg.add(trigger.set_invalid_cooldown(cooldown))
         await cg.register_component(trigger, conf)
         await automation.build_automation(trigger, [], conf)
@@ -620,12 +621,7 @@ def _multi_click_timing_table(
     tables = _get_data().multi_click_timings
     key = tuple(str(t) for t in timings)
     if (table := tables.get(key)) is None:
-        cg.add_global(
-            ProgmemAssignmentExpression(
-                MultiClickTriggerEvent, timing_id, cg.ArrayInitializer(*timings)
-            )
-        )
-        table = tables[key] = MockObj(timing_id, ".")
+        table = tables[key] = cg.progmem_array(timing_id, cg.ArrayInitializer(*timings))
     return table
 
 
