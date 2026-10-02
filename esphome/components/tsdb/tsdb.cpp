@@ -268,7 +268,7 @@ static size_t file_size_of(const std::string &path) {
     fclose(file);
     return 0;
   }
-  const long size = ftell(file);
+  const int64_t size = static_cast<int64_t>(ftell(file));
   fclose(file);
   return size > 0 ? static_cast<size_t>(size) : 0;
 }
@@ -316,7 +316,8 @@ void TsdbComponent::log_init_failure_(const char *stage) {
     if (!blank && !this->format_attempted_) {
       // Nothing was overwritten, so this partition holds leftovers of an older
       // partition table - and OTA re-flashes never erase those.
-      ESP_LOGE(TAG, "    nothing was formatted: a partition that is not all 0xFF is never overwritten",
+      ESP_LOGE(TAG,
+               "    nothing was formatted: a partition that is not all 0xFF is never overwritten"
                " - erase the region once over USB: esptool erase-region 0x%08" PRIx32 " 0x%" PRIx32,
                static_cast<uint32_t>(partition->address), static_cast<uint32_t>(partition->size));
     }

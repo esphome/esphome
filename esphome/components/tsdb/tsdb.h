@@ -1,5 +1,12 @@
 #pragma once
 
+// The component talks to the ESP-IDF only esp_tsdb engine on a LittleFS partition, so
+// this header is only ever used with that framework. The guard also keeps `esp_err.h`
+// out of the clang-tidy headers TU (`.temp/all-include.cpp`), which is compiled for the
+// Arduino, RP2040, LibreTiny and Zephyr runs too, where no IDF header is on the path.
+// `USE_ESP_IDF` is a build flag set by ESP-IDF builds and by the IDF tidy environments.
+#ifdef USE_ESP_IDF
+
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -180,3 +187,5 @@ class TsdbComponent : public PollingComponent {
 };
 
 }  // namespace esphome::tsdb
+
+#endif  // USE_ESP_IDF
