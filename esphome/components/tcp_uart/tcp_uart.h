@@ -31,6 +31,8 @@ class TcpUart : public uart::UARTComponent, public Component {
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override { return static_cast<size_t>(this->rx_end_ - this->rx_start_); }
+  // Same room write_array() grants, so consumers can apply backpressure.
+  size_t available_for_write() override { return this->link_.connected() ? sizeof(this->tx_) - this->tx_len_ : 0; }
   uart::UARTFlushResult flush() override;
   bool is_connected() override { return this->link_.connected(); }
 #if defined(USE_ESP8266) || defined(USE_ESP32)
