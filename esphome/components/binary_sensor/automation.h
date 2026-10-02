@@ -12,7 +12,7 @@
 namespace esphome::binary_sensor {
 
 struct MultiClickTriggerEvent {
-  bool state;
+  uint32_t state;  // Not bool: all-word fields allow aligned loads from PROGMEM on ESP8266
   uint32_t min_length;
   uint32_t max_length;
 };
@@ -94,11 +94,6 @@ class MultiClickTrigger final : public Trigger<>, public Component {
   void schedule_is_valid_(uint32_t min_length);
   void schedule_is_not_valid_(uint32_t max_length);
   void trigger_();
-  MultiClickTriggerEvent timing_at_(size_t index) const {
-    MultiClickTriggerEvent evt;
-    progmem_memcpy(&evt, &this->timing_[index], sizeof(evt));  // bool field: no direct byte loads from flash
-    return evt;
-  }
 
   BinarySensor *parent_;
   const MultiClickTriggerEvent *timing_;

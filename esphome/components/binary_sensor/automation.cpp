@@ -32,7 +32,7 @@ void MultiClickTrigger::on_state_(bool state) {
 
   if (!this->at_index_.has_value()) {
     // Start matching
-    MultiClickTriggerEvent evt = this->timing_at_(0);
+    MultiClickTriggerEvent evt = this->timing_[0];
     if (evt.state == state) {
       ESP_LOGV(TAG, "START min=%" PRIu32 " max=%" PRIu32, evt.min_length, evt.max_length);
       ESP_LOGV(TAG, "Multi Click: Starting multi click action!");
@@ -62,7 +62,7 @@ void MultiClickTrigger::on_state_(bool state) {
     return;
   }
 
-  MultiClickTriggerEvent evt = this->timing_at_(at_index);
+  MultiClickTriggerEvent evt = this->timing_[at_index];
 
   if (evt.max_length != 4294967294UL) {
     ESP_LOGV(TAG, "A i=%zu min=%" PRIu32 " max=%" PRIu32, at_index, evt.min_length, evt.max_length);  // NOLINT
