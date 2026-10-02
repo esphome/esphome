@@ -563,7 +563,7 @@ async def to_code(config):
                     port_label,
                 )
             )
-            zephyr_setup_uart_pinctrl(
+            tx_name, rx_name = zephyr_setup_uart_pinctrl(
                 zephyr_data()[KEY_BOARD],
                 port_label,
                 config[CONF_TX_PIN][CONF_NUMBER] if CONF_TX_PIN in config else None,
@@ -571,6 +571,8 @@ async def to_code(config):
                 config[CONF_BAUD_RATE],
                 node_known,
             )
+            cg.add(var.set_tx_pin_name(tx_name))
+            cg.add(var.set_rx_pin_name(rx_name))
         else:
             cg.add(var.set_name(config[CONF_PORT]))
     elif CONF_EMULATION in config:

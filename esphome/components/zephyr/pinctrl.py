@@ -18,6 +18,9 @@ from .variants import VARIANTS
 
 _LOGGER = logging.getLogger(__name__)
 
+# dump_config display string for a pin left at the board's own wiring.
+_BOARD_DEFAULT = "board default"
+
 
 def _resolve_i2c_pinctrl_states(
     board: str,
@@ -297,16 +300,23 @@ def zephyr_setup_uart_pinctrl(
     rx_pin: int | None,
     baud_rate: int,
     node_known: bool = True,
-) -> None:
+) -> tuple[str, str]:
     """Add the TX/RX pinctrl overlay (if either pin is given) and the bus-enable
     overlay for `port_label`, mirroring zephyr_setup_i2c_pinctrl()/
     zephyr_setup_spi_pinctrl()'s shape. node_known=False skips the bus-enable
-    override -- it'd forward-reference an undeclared label."""
-    from . import zephyr_add_overlay, zephyr_variant, zephyr_variant_family  # noqa: PLC0415 -- avoids circular import at module load
+    override -- it'd forward-reference an undeclared label.
+
+    Returns (tx, rx) as dump_config display strings, like zephyr_setup_i2c_pinctrl().
+    A pin that isn't remapped (or couldn't be applied) shows "board default"."""
+    from . import zephyr_add_overlay, zephyr_data, zephyr_variant, zephyr_variant_family  # noqa: PLC0415 -- avoids circular import at module load
+
+    variant_name = zephyr_data().get("variant") or ""
+    tx_display = _pin_display(tx_pin, variant_name)
+    rx_display = _pin_display(rx_pin, variant_name)
 
     if tx_pin is None and rx_pin is None:
         if not node_known:
-            return
+            return tx_display, rx_display
         from .dts_lookup import has_pinctrl_configured
 
         if not has_pinctrl_configured(board, port_label):
@@ -319,7 +329,7 @@ def zephyr_setup_uart_pinctrl(
                 port_label,
             )
         zephyr_add_overlay(f'&{port_label} {{ status = "okay"; }};')
-        return
+        return tx_display, rx_display
 
     if not node_known:
         _LOGGER.warning(
@@ -329,7 +339,7 @@ def zephyr_setup_uart_pinctrl(
             port_label,
             board,
         )
-        return
+        return _BOARD_DEFAULT, _BOARD_DEFAULT
 
     prefix = port_label.upper()
     family = zephyr_variant_family()
@@ -394,12 +404,13 @@ def zephyr_setup_uart_pinctrl(
         f"current-speed = <{baud_rate}>; "
         f"{pinctrl_props} pinctrl-names = {names_prop}; }};"
     )
+    return tx_display, rx_display
 
 
 def _pin_display(pin: int | None, variant_name: str) -> str:
     """dump_config display string for a flat pin number."""
     if pin is None:
-        return "board default"
+        return _BOARD_DEFAULT
     if (variant_info := VARIANTS.get(variant_name)) is not None:
         return pin_summary(variant_info, pin)
     if CORE.is_nrf52:

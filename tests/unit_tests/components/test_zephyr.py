@@ -1022,10 +1022,11 @@ def test_zephyr_setup_uart_pinctrl_no_pins_enables_bus_only() -> None:
         "esphome.components.zephyr.dts_lookup.has_pinctrl_configured",
         return_value=True,
     ):
-        zephyr_setup_uart_pinctrl("some_board", "uart0", None, None, 115200)
+        names = zephyr_setup_uart_pinctrl("some_board", "uart0", None, None, 115200)
     overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
     assert '&uart0 { status = "okay"; };' in overlay
     assert "current-speed" not in overlay
+    assert names == ("board default", "board default")
 
 
 def test_zephyr_setup_uart_pinctrl_no_pins_warns_when_board_has_no_pinctrl() -> None:
@@ -1037,6 +1038,19 @@ def test_zephyr_setup_uart_pinctrl_no_pins_warns_when_board_has_no_pinctrl() -> 
         zephyr_setup_uart_pinctrl("some_board", "uart0", None, None, 115200)
     overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
     assert '&uart0 { status = "okay"; };' in overlay
+
+
+def test_zephyr_setup_uart_pinctrl_unknown_node_reports_board_default() -> None:
+    # The pins can't be applied to a node ESPHome didn't find, so the log must not
+    # claim them.
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32C6")
+    names = zephyr_setup_uart_pinctrl(
+        "some_board", "uart0", 16, 17, 115200, node_known=False
+    )
+    assert names == ("board default", "board default")
+    assert "overlay" not in CORE.data[KEY_ZEPHYR] or not CORE.data[KEY_ZEPHYR][
+        "overlay"
+    ].get("")
 
 
 def test_zephyr_setup_uart_pinctrl_esp32_uses_gpio_macros_and_role_decode() -> None:
@@ -1054,8 +1068,9 @@ def test_zephyr_setup_uart_pinctrl_esp32_uses_gpio_macros_and_role_decode() -> N
             }[group],
         ),
     ):
-        zephyr_setup_uart_pinctrl("some_board", "uart0", 16, 17, 115200)
+        names = zephyr_setup_uart_pinctrl("some_board", "uart0", 16, 17, 115200)
     overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert names == ("GPIO16", "GPIO17")
     assert "UART0_TX_GPIO16" in overlay
     assert "UART0_RX_GPIO17" in overlay
     # Content-decoded role wins over position: TX value lands in group2, since
@@ -1082,8 +1097,9 @@ def test_zephyr_setup_uart_pinctrl_esp32_partial_override_preserves_other_signal
             return_value=[_ESP32_TX_PINMUX, _ESP32_RX_PINMUX],
         ),
     ):
-        zephyr_setup_uart_pinctrl("some_board", "uart0", 16, None, 115200)
+        names = zephyr_setup_uart_pinctrl("some_board", "uart0", 16, None, 115200)
     overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert names == ("GPIO16", "board default")
     assert "pinmux = <UART0_TX_GPIO16>" in overlay
     # RX's original real value is restated as its raw integer, not dropped.
     assert f"<{_ESP32_RX_PINMUX}>" in overlay
@@ -1104,8 +1120,9 @@ def test_zephyr_setup_uart_pinctrl_nordic_uses_nrf_psel_and_role_decode() -> Non
             }[group],
         ),
     ):
-        zephyr_setup_uart_pinctrl("some_board", "uart20", 36, 37, 115200)
+        names = zephyr_setup_uart_pinctrl("some_board", "uart20", 36, 37, 115200)
     overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert names == ("GPIO36, P1.4", "GPIO37, P1.5")
     assert "NRF_PSEL(UART_TX, 1, 4)" in overlay
     assert "NRF_PSEL(UART_RX, 1, 5)" in overlay
     # Content-decoded role wins over position: TX value lands in group2, since
