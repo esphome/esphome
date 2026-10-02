@@ -33,7 +33,7 @@ class Ipv4Allow {
     if (peer->sa_family == AF_INET) {
       addr = reinterpret_cast<const struct sockaddr_in *>(peer)->sin_addr.s_addr;
     }
-#ifdef AF_INET6
+#if USE_NETWORK_IPV6
     else if (peer->sa_family == AF_INET6) {
       static constexpr uint8_t V4_MAPPED_PREFIX[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF};
       const uint8_t *bytes = reinterpret_cast<const struct sockaddr_in6 *>(peer)->sin6_addr.s6_addr;
