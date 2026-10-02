@@ -53,9 +53,8 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_AMBIENT in config:
-        sens = await sensor.new_sensor(config[CONF_AMBIENT])
-        cg.add(var.set_ambient_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_AMBIENT, var.set_ambient_sensor)
 
     if CONF_OBJECT in config:
         sens = await sensor.new_sensor(config[CONF_OBJECT])
