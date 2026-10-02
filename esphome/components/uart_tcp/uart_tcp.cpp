@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 
 #include <algorithm>
+#include <cerrno>
 #include <cinttypes>
 
 namespace esphome::uart_tcp {
@@ -51,29 +52,33 @@ void UartTcp::sync_link_() {
 
 void UartTcp::try_listen_() {
   this->listen_ = socket::socket_ip_loop_monitored(SOCK_STREAM, IPPROTO_TCP);
-  if (this->listen_ == nullptr) {
-    this->link_.note_attempt();
-    return;
-  }
-  int yes = 1;
-  this->listen_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-  this->listen_->setblocking(false);
-  struct sockaddr_storage local;
-  socklen_t local_len =
-      socket::set_sockaddr_any(reinterpret_cast<struct sockaddr *>(&local), sizeof(local), this->link_.port());
-  if (local_len == 0 || this->listen_->bind(reinterpret_cast<struct sockaddr *>(&local), local_len) != 0 ||
-      this->listen_->listen(LISTEN_BACKLOG) != 0) {
-    ESP_LOGW(TAG, "Listen on %u failed", this->link_.port());
+  if (this->listen_ != nullptr) {
+    int yes = 1;
+    this->listen_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+    this->listen_->setblocking(false);
+    struct sockaddr_storage local;
+    socklen_t local_len =
+        socket::set_sockaddr_any(reinterpret_cast<struct sockaddr *>(&local), sizeof(local), this->link_.port());
+    if (local_len != 0 && this->listen_->bind(reinterpret_cast<struct sockaddr *>(&local), local_len) == 0 &&
+        this->listen_->listen(LISTEN_BACKLOG) == 0) {
+      ESP_LOGI(TAG, "Listening on %u", this->link_.port());
+      return;
+    }
     this->listen_.reset();
-    this->link_.note_attempt();
-    return;
   }
-  ESP_LOGI(TAG, "Listening on %u", this->link_.port());
+  ESP_LOGW(TAG, "Listen on %u failed: %d", this->link_.port(), errno);
+  this->link_.note_attempt();
 }
 
 void UartTcp::accept_client_() {
   auto client = this->listen_->accept_loop_monitored(nullptr, nullptr);
   if (client == nullptr) {
+    if (errno != EAGAIN && errno != EWOULDBLOCK) {
+      // Rebuild the listener after the backoff instead of spinning on it.
+      ESP_LOGW(TAG, "Accept failed: %d", errno);
+      this->listen_.reset();
+      this->link_.note_attempt();
+    }
     return;
   }
   this->link_.adopt(std::move(client));
