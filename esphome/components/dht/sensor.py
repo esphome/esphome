@@ -61,11 +61,8 @@ async def to_code(config: ConfigType) -> None:
     pin = await gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature_sensor(sens))
-    if CONF_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
-        cg.add(var.set_humidity_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
 
     cg.add(var.set_dht_model(config[CONF_MODEL]))
