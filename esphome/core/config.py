@@ -7,7 +7,11 @@ from pathlib import Path
 
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.config_helpers import filter_source_files_from_platform, iter_include_files
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    filter_source_files_from_platform,
+    iter_include_files,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AREA,
@@ -888,7 +892,7 @@ async def to_code(config: ConfigType) -> None:
 
 
 # Platform-specific source files for core
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_filter_platform_sources = filter_source_files_from_platform(
     {
         "static_task.cpp": {
             PlatformFramework.ESP32_ARDUINO,
@@ -941,3 +945,11 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         # as they are only included when needed by the preprocessor
     }
 )
+
+# util.cpp holds only the out-of-line MQTT connectivity helpers; without
+# USE_MQTT the header provides inline stubs and the file must not compile.
+_filter_define_sources = filter_source_files_from_defines({"util.cpp": "USE_MQTT"})
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    return _filter_platform_sources() + _filter_define_sources()

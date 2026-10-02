@@ -534,8 +534,8 @@ def _record_compile_calls(
     def record_save(components: list[str]) -> None:
         calls.append(("save", components))
 
-    def record_ninja(target: str, **kwargs: object) -> int:
-        if target == "all":
+    def record_ninja(*targets: str, **kwargs: object) -> int:
+        if "all" in targets:
             calls.append(("build",))
         return 0
 
@@ -886,7 +886,7 @@ def test_run_compile_full_deps_skips_fragment_check(
 def test_run_compile_passes_compile_process_limit(
     setup_core: Path, limit: int | None
 ) -> None:
-    """compile_process_limit is the job limit for both ninja runs."""
+    """compile_process_limit is the job limit of the one ninja run."""
     _setup_build(setup_core)
     esphome = {} if limit is None else {CONF_COMPILE_PROCESS_LIMIT: limit}
 
@@ -894,8 +894,14 @@ def test_run_compile_passes_compile_process_limit(
         assert toolchain.run_compile({CONF_ESPHOME: esphome}, verbose=False) == 0
 
     assert mock_run.call_args_list == [
-        call("all", verbose=False, jobs=limit, progress=True),
-        call("size", verbose=False, jobs=limit, extra_env=toolchain._size_env()),
+        call(
+            "all",
+            "size",
+            verbose=False,
+            jobs=limit,
+            progress=True,
+            extra_env=toolchain._size_env(),
+        ),
     ]
 
 
@@ -1185,14 +1191,17 @@ def test_run_ninja_filters_and_reports_failure(
         patch.object(toolchain, "_print_hints") as mock_hints,
     ):
         mock_run.return_value = 1
-        assert toolchain._run_ninja("all", verbose=False, jobs=None, progress=True) == 1
+        assert (
+            toolchain._run_ninja("all", "size", verbose=False, jobs=None, progress=True)
+            == 1
+        )
     log_path = mock_run.call_args.kwargs["log_path"]
-    assert log_path.name == "ninja_all_output.log"
+    assert log_path.name == "ninja_all_size_output.log"
     mock_hints.assert_called_once_with(log_path)
-    assert mock_run.call_args.args[0] == ["/tools/ninja", "all"]
+    assert mock_run.call_args.args[0] == ["/tools/ninja", "all", "size"]
     assert mock_run.call_args.kwargs["filter_lines"] is toolchain.FILTER_IDF_LINES
     assert mock_run.call_args.kwargs["progress"] is True
-    assert "ninja all failed with exit code 1" in caplog.text
+    assert "ninja all size failed with exit code 1" in caplog.text
 
 
 @pytest.mark.parametrize("reconfigure_rc", [0, 5])
@@ -1215,17 +1224,12 @@ def test_run_compile_reconfigures_when_cache_entries_change(
     assert mock_ninja.called is (reconfigure_rc == 0)
 
 
-@pytest.mark.parametrize("failing", ["all", "size"])
-def test_run_compile_stops_on_ninja_failure(setup_core: Path, failing: str) -> None:
-    """A failed build skips size; either failure skips the summary."""
+def test_run_compile_stops_on_ninja_failure(setup_core: Path) -> None:
+    """A failed ninja run skips the summary."""
     _setup_build(setup_core)
-    with _up_to_date_compile(lambda target, **kw: 7 if target == failing else 0) as (
-        mock_ninja,
-        mock_summary,
-    ):
+    with _up_to_date_compile(lambda *targets, **kw: 7) as (mock_ninja, mock_summary):
         assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 7
-    targets = [c.args[0] for c in mock_ninja.call_args_list]
-    assert targets == (["all"] if failing == "all" else ["all", "size"])
+    assert [c.args for c in mock_ninja.call_args_list] == [("all", "size")]
     mock_summary.assert_not_called()
 
 
@@ -1236,11 +1240,11 @@ def test_run_compile_testing_mode_builds_memory_ld_first(
     """Testing mode builds and patches memory.ld before the main build."""
     _setup_build(setup_core)
     CORE.testing_mode = True
-    targets: list[str] = []
+    targets: list[tuple[str, ...]] = []
 
-    def record(target: str, **kwargs: object) -> int:
-        targets.append(target)
-        return memory_ld_rc if target.endswith("memory.ld") else 0
+    def record(*run_targets: str, **kwargs: object) -> int:
+        targets.append(run_targets)
+        return memory_ld_rc if run_targets[0].endswith("memory.ld") else 0
 
     with (
         _up_to_date_compile(record),
@@ -1249,10 +1253,10 @@ def test_run_compile_testing_mode_builds_memory_ld_first(
         assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == memory_ld_rc
     memory_ld = str(Path("esp-idf", "esp_system", "ld", "memory.ld"))
     if memory_ld_rc:
-        assert targets == [memory_ld]
+        assert targets == [(memory_ld,)]
         mock_patch.assert_not_called()
     else:
-        assert targets == [memory_ld, "all", "size"]
+        assert targets == [(memory_ld,), ("all", "size")]
         mock_patch.assert_called_once()
 
 
