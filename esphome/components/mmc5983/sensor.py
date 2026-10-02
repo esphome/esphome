@@ -45,12 +45,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if x_config := config.get(CONF_FIELD_STRENGTH_X):
-        sens = await sensor.new_sensor(x_config)
-        cg.add(var.set_x_sensor(sens))
-    if y_config := config.get(CONF_FIELD_STRENGTH_Y):
-        sens = await sensor.new_sensor(y_config)
-        cg.add(var.set_y_sensor(sens))
-    if z_config := config.get(CONF_FIELD_STRENGTH_Z):
-        sens = await sensor.new_sensor(z_config)
-        cg.add(var.set_z_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_FIELD_STRENGTH_X, var.set_x_sensor)
+    await sensors(CONF_FIELD_STRENGTH_Y, var.set_y_sensor)
+    await sensors(CONF_FIELD_STRENGTH_Z, var.set_z_sensor)

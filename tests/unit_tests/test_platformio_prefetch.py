@@ -1727,7 +1727,7 @@ def test_preinstall_uses_distinct_managers_in_parallel(tmp_path: Path) -> None:
             barrier.wait()
 
     seed = _WaveManager(str(tmp_path))
-    with patch.object(pf, "get_usable_cpu_count", return_value=2):
+    with patch("esphome.framework_helpers.get_usable_cpu_count", return_value=2):
         pf._preinstall(
             seed,
             [
