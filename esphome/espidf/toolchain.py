@@ -428,21 +428,21 @@ def _build_jobs(config) -> int | None:
 
 
 def _run_ninja(
-    target: str,
-    *,
+    *targets: str,
     verbose: bool,
     jobs: int | None,
     progress: bool = False,
     extra_env: dict[str, str] | None = None,
 ) -> int:
-    """Build one ninja target, with the flags and env idf.py uses."""
+    """Build ninja targets in one run, with the flags and env idf.py uses."""
     cmd = [_get_idf_tool("ninja")]
     if jobs is not None:
         cmd += ["-j", str(jobs)]
     if verbose:
         cmd.append("-v")
-    cmd.append(target)
-    log_path = _build_dir() / "log" / f"ninja_{Path(target).name}_output.log"
+    cmd += targets
+    log_name = "_".join(Path(t).name for t in targets)
+    log_path = _build_dir() / "log" / f"ninja_{log_name}_output.log"
     rc = run_build_tool(
         cmd,
         cwd=_build_dir(),
@@ -452,7 +452,7 @@ def _run_ninja(
         log_path=log_path,
     )
     if rc != 0:
-        _LOGGER.error("ninja %s failed with exit code %d", target, rc)
+        _LOGGER.error("ninja %s failed with exit code %d", " ".join(targets), rc)
         _print_hints(log_path)
     return rc
 
@@ -845,10 +845,11 @@ def run_compile(config, verbose: bool) -> int:
 
     write_pch_checksum()
 
-    # idf.py's ``build size``, minus the second ``ninja all`` it runs first.
-    rc = _run_ninja("all", verbose=verbose, jobs=jobs, progress=True)
-    if rc == 0:
-        rc = _run_ninja("size", verbose=verbose, jobs=jobs, extra_env=_size_env())
+    # idf.py's ``build size`` in one ninja run; size needs the map, so it
+    # runs after the link.
+    rc = _run_ninja(
+        "all", "size", verbose=verbose, jobs=jobs, progress=True, extra_env=_size_env()
+    )
     if rc == 0:
         size_json = CORE.relative_build_path("build", "esp_idf_size.json")
         partitions = CORE.relative_build_path("partitions.csv")
