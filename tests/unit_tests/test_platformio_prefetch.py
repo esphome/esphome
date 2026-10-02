@@ -711,8 +711,7 @@ def test_uri_jobs_vcs_specs_installable_without_probe(tmp_path: Path) -> None:
     assert (jobs, failed) == ([], 0)
     assert [n for n, _ in installable] == ["tool", "mercurial"]
 
-    # Platform packages carry no custom name but their platform.json keys
-    # match the tool manifests, so trusted_names admits derived names too
+    # trusted_names admits platform packages, which have no custom name
     with patch("esphome.net_retry.http_request"):
         _, _, installable = pf._uri_jobs(
             m,

@@ -399,11 +399,9 @@ def _uri_jobs(
     """Jobs for direct-URL specs; a HEAD sizes each for the combined bar.
 
     Also returns how many HEAD probes errored (an absent length is not an
-    error) and the ``(name, spec)`` pairs to pre-install: downloaded
-    archives, plus VCS specs, which have no archive -- the pre-install
-    itself clones them, in parallel instead of one at a time in pio run.
-    ``trusted_names`` marks platform packages, whose platform.json keys
-    match their tool manifests (pio's own packages have no custom name).
+    error) and the ``(name, spec)`` pairs to pre-install, including VCS
+    specs, which the pre-install clones itself. ``trusted_names`` marks
+    platform packages, whose platform.json keys match their manifests.
     """
     from esphome.net_retry import fetch_with_retry, http_request
 
@@ -420,9 +418,8 @@ def _uri_jobs(
             continue
         name = _spec_name(spec, url)
         if is_vcs:
-            # Same rule as the archives below: only a name that is also the
-            # destination dir is safe, so a lib_deps spec whose name derives
-            # from its URL stays with pio run
+            # Like the archives below: only a name that is also the dest
+            # dir is safe; URL-derived lib_deps names stay with pio run
             if trusted_names or spec.has_custom_name():
                 installable.append((name, spec))
             continue
@@ -735,9 +732,7 @@ def _preinstall(
     would hang, not fail). Waves skip dependencies; the installed
     manifests feed the next wave. Any failure falls back to pio run.
     """
-    # Clones first: they wait on the network, so they must not queue
-    # behind CPU-bound archive extractions; sorting here covers the
-    # dependency waves too
+    # Clones wait on the network: sort them first, dependency waves too
     entries = sorted(entries, key=lambda entry: not _is_clone_entry(entry))
     clones = sum(map(_is_clone_entry, entries))
     # Network-bound clones get a wider pool than CPU-bound extraction
