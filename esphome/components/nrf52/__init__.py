@@ -73,12 +73,12 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
 from .framework import (
-    _wanted_west_projects,
     check_and_install,
     get_build_env,
     get_build_paths,
     setup_platformio_python_env,
     toolchain_tool,
+    wanted_west_projects,
 )
 
 # force import gpio to register pin schema
@@ -826,14 +826,11 @@ _PCH_SUM_PATH = "CMakeFiles/app.dir/cmake_pch.hxx.gch.sum"
 def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
     """Write the checksum ccache reads in place of the .gch; before the
     first build too, or its compiles hash the path laden .gch instead.
-    The app image dir is nested under sysbuild, flat otherwise; an
-    unconfigured tree decides by the configured sysbuild flag."""
-    nested = bool(zephyr_data().get(KEY_SYSBUILD))
-    if (build_dir / "zephyr" / "CMakeCache.txt").is_file():
-        nested = True
-    elif (build_dir / "CMakeCache.txt").is_file():
-        nested = False
-    app_dir = build_dir / "zephyr" if nested else build_dir
+    The app image dir follows the SDK version, like get_elf_path;
+    2.9.2+ always wraps the build in sysbuild."""
+    app_dir = build_dir
+    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 9, 2):
+        app_dir = build_dir / "zephyr"
     checksum = pch.pch_checksum(
         CORE.relative_src_path(),
         pch.PCH_DEFAULT_HEADERS,
@@ -841,7 +838,7 @@ def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
             str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             zephyr_data()[KEY_BOARD],
             # Kconfig inputs that reach autoconf.h without a .conf line
-            ",".join(sorted(_wanted_west_projects())),
+            ",".join(sorted(wanted_west_projects())),
             str(zephyr_data().get(KEY_SYSBUILD)),
             # What the Zephyr configuration is generated from
             *(

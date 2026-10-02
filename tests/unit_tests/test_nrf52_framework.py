@@ -22,12 +22,12 @@ from esphome.components.nrf52.framework import (
     _get_toolchain_platform_info,
     _install_toolchain,
     _needs_venv_rebuild,
-    _wanted_west_projects,
     check_and_install,
     get_build_env,
     get_sdk_nrf_tools_path,
     include_west_project,
     setup_platformio_python_env,
+    wanted_west_projects,
 )
 from esphome.components.zephyr.const import KEY_SYSBUILD, KEY_ZEPHYR
 import esphome.config_validation as cv
@@ -539,7 +539,7 @@ class TestCheckAndInstall:
         """Zephyr 4.1 moved the Cortex-M core headers to the cmsis_6 module."""
         CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: Version.parse(sdk_version)}
 
-        assert ("cmsis_6" in _wanted_west_projects()) is has_cmsis_6
+        assert ("cmsis_6" in wanted_west_projects()) is has_cmsis_6
 
     def test_default_projects_never_read_the_stamp(
         self,

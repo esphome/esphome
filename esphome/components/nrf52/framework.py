@@ -403,7 +403,7 @@ def bluetooth_west_projects() -> tuple[str, ...]:
     return ("tinycrypt",)
 
 
-def _wanted_west_projects() -> set[str]:
+def wanted_west_projects() -> set[str]:
     projects = set(_get_data().west_projects)
     # Zephyr 4.1 moved the Cortex-M core headers to cmsis_6
     if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 1, 0):
@@ -641,7 +641,7 @@ def _check_and_install(version: str) -> None:
     framework_path = _get_framework_path(version)
     sentinel = framework_path / ".ready"
     zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
-    projects = _wanted_west_projects()
+    projects = wanted_west_projects()
     if not sentinel.exists() or not zephyr_reqs.exists():
         _install_framework(env_python_path, framework_path, version, projects)
         framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]

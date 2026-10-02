@@ -72,8 +72,10 @@ def _write_checksum(
     conf: str = "CONFIG_X=y\n",
     configured: bool = True,
     sysbuild: bool = False,
+    version: cv.Version | None = None,
 ) -> Path:
     """Write the checksum for a build dir whose app image sits in ``app``."""
+    version = version or cv.Version(2, 9, 2)
     CORE.build_path = tmp_path
     header = tmp_path / "src" / "esphome" / "core" / "pch_prefix.h"
     header.parent.mkdir(parents=True, exist_ok=True)
@@ -87,7 +89,7 @@ def _write_checksum(
         (build_dir / app).mkdir(parents=True, exist_ok=True)
         (build_dir / app / "CMakeCache.txt").write_text("")
     with (
-        patch.dict(CORE.data, {KEY_CORE: {KEY_FRAMEWORK_VERSION: cv.Version(2, 9, 2)}}),
+        patch.dict(CORE.data, {KEY_CORE: {KEY_FRAMEWORK_VERSION: version}}),
         patch.object(
             nrf52,
             "zephyr_data",
@@ -98,10 +100,14 @@ def _write_checksum(
     return build_dir / app / SUM
 
 
-@pytest.mark.parametrize("app", ["zephyr", "."])
-def test_pch_checksum_is_written_next_to_the_gch(tmp_path: Path, app: str) -> None:
-    """Sysbuild nests the app image; without it the build dir is the app."""
-    sum_path = _write_checksum(tmp_path, app)
+@pytest.mark.parametrize(
+    ("app", "version"), [("zephyr", cv.Version(2, 9, 2)), (".", cv.Version(2, 9, 1))]
+)
+def test_pch_checksum_is_written_next_to_the_gch(
+    tmp_path: Path, app: str, version: cv.Version
+) -> None:
+    """The SDK version decides the layout, like get_elf_path."""
+    sum_path = _write_checksum(tmp_path, app, version=version)
     assert len(sum_path.read_text().strip()) == 64
 
 
@@ -109,7 +115,7 @@ def test_pch_checksum_tracks_the_kconfig_side_inputs(tmp_path: Path) -> None:
     """West projects and the sysbuild flag reach autoconf without a .conf
     line; the sum must move with them or stale objects get served."""
     first = _write_checksum(tmp_path, "zephyr").read_text()
-    with patch.object(nrf52, "_wanted_west_projects", return_value={"extra"}):
+    with patch.object(nrf52, "wanted_west_projects", return_value={"extra"}):
         second = _write_checksum(tmp_path, "zephyr").read_text()
     assert first != second
     third = _write_checksum(tmp_path, "zephyr", sysbuild=True).read_text()
@@ -122,12 +128,8 @@ def test_pch_checksum_tracks_the_zephyr_configuration(tmp_path: Path) -> None:
 
 
 def test_pch_checksum_written_before_the_first_configure(tmp_path: Path) -> None:
-    """The first build's compiles hash the sum in place of the .gch; an
-    unconfigured tree decides the layout by the configured sysbuild flag."""
-    assert _write_checksum(
-        tmp_path, "zephyr", configured=False, sysbuild=True
-    ).is_file()
-    assert _write_checksum(tmp_path, ".", configured=False).is_file()
+    """The first build's compiles hash the sum in place of the .gch."""
+    assert _write_checksum(tmp_path, "zephyr", configured=False).is_file()
 
 
 def _fake_build_env(ccache: str | None) -> dict[str, str]:
