@@ -11,6 +11,13 @@ enum NumberMode : uint8_t {
   NUMBER_MODE_SLIDER = 2,
 };
 
+/// Boundaries and step for a number; codegen emits one PROGMEM table per distinct set.
+struct NumberRange {
+  float min_value;
+  float max_value;
+  float step;
+};
+
 class NumberTraits {
  public:
   // Set/get the number value boundaries.

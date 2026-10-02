@@ -1,0 +1,26 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+number:
+  - platform: template
+    id: first_number
+    min_value: 0
+    max_value: 10
+    step: 1
+    optimistic: true
+  - platform: template
+    id: same_range_number
+    min_value: 0
+    max_value: 10
+    step: 1
+    optimistic: true
+  - platform: template
+    id: other_range_number
+    min_value: -5
+    max_value: 5
+    step: 0.5
+    optimistic: true

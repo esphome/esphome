@@ -1,3 +1,5 @@
+from dataclasses import dataclass, field
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server, zigbee
@@ -89,10 +91,11 @@ from esphome.core.entity_helpers import (
     setup_entity,
     setup_unit_of_measurement,
 )
-from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_generator import FloatLiteral, MockObj, MockObjClass
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "number"
 DEVICE_CLASSES = [
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
@@ -280,13 +283,38 @@ async def _build_number_automations(var, config):
         await automation.build_automation(trigger, [(float, "x")], conf)
 
 
+@dataclass
+class NumberData:
+    ranges: dict[tuple[float, float, float], MockObj] = field(default_factory=dict)
+
+
+def _get_data() -> NumberData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = NumberData()
+    return CORE.data[DOMAIN]
+
+
+def _number_range(min_value: float, max_value: float, step: float) -> MockObj:
+    """Return a pointer to a PROGMEM table with these values, one table per distinct set."""
+    ranges = _get_data().ranges
+    key = (float(min_value), float(max_value), float(step))
+    if (range_ := ranges.get(key)) is None:
+        name = f"NUMBER_RANGE_{len(ranges)}"
+        values = ", ".join(str(FloatLiteral(v)) for v in key)
+        cg.add_global(
+            cg.RawStatement(
+                f"static constexpr number::NumberRange {name} PROGMEM = {{{values}}};"
+            )
+        )
+        range_ = ranges[key] = MockObj(f"&{name}")
+    return range_
+
+
 @setup_entity("number")
 async def setup_number_core_(
     var, config, *, min_value: float, max_value: float, step: float
 ):
-    cg.add(var.traits.set_min_value(min_value))
-    cg.add(var.traits.set_max_value(max_value))
-    cg.add(var.traits.set_step(step))
+    cg.add(var.set_range(_number_range(min_value, max_value, step)))
 
     # Skip the setter when the config matches the C++ initializer (DEFAULT_MODE).
     # The validated value is the enum key string, not the C++ enum expression.
