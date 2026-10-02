@@ -73,9 +73,8 @@ async def to_code(config: ConfigType) -> None:
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
 
-    if pressure_config := config.get(CONF_PRESSURE):
-        sens = await sensor.new_sensor(pressure_config)
-        cg.add(var.set_pressure_sensor(sens))
-        cg.add(var.set_pressure_oversampling(pressure_config[CONF_OVERSAMPLING]))
+    if await sensors(CONF_PRESSURE, var.set_pressure_sensor):
+        oversampling = config[CONF_PRESSURE][CONF_OVERSAMPLING]
+        cg.add(var.set_pressure_oversampling(oversampling))
 
     cg.add(var.set_k_value(config[CONF_K_VALUE]))
