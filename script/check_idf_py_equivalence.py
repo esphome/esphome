@@ -116,54 +116,45 @@ def _log_problems(
     return problems
 
 
-def _lwip_empty_source_problems(build_path: Path, env: dict[str, str]) -> list[str]:
-    """Compile the lwip sources the generated CMakeLists drops; any with symbols
-    is a problem. ``env`` is the cached build env the configure reads."""
+def _lwip_empty_source_problems(build_path: Path) -> list[str]:
+    """Compile the lwip sources the generated CMakeLists drops; any with
+    symbols is a problem. Leaves the tree configured with every source."""
     # pylint: disable=protected-access
     from esphome.build_gen.espidf import LWIP_EMPTY_SOURCES, LWIP_FULL_SOURCES_ENV
     from esphome.espidf import toolchain
 
-    env[LWIP_FULL_SOURCES_ENV] = "1"
-    try:
-        if (rc := toolchain.run_reconfigure()) != 0:
-            return [
-                f"CMake configure with every lwip source failed with exit code {rc}"
-            ]
-        rc = toolchain._run_ninja("esp-idf/lwip/liblwip.a", verbose=False, jobs=None)
-        if rc != 0:
-            return [f"building every lwip source failed with exit code {rc}"]
-    finally:
-        del env[LWIP_FULL_SOURCES_ENV]
+    if (rc := toolchain.run_reconfigure(extra_env={LWIP_FULL_SOURCES_ENV: "1"})) != 0:
+        return [f"CMake configure with every lwip source failed with exit code {rc}"]
+    if rc := toolchain._run_ninja("esp-idf/lwip/liblwip.a", verbose=False, jobs=None):
+        return [f"building every lwip source failed with exit code {rc}"]
+    build = build_path / "build"
     config = json.loads(
-        (build_path / "build" / "config" / "sdkconfig.json").read_text(encoding="utf-8")
+        (build / "config" / "sdkconfig.json").read_text(encoding="utf-8")
     )
-    nm = toolchain._parse_cmakecache(build_path / "build" / "CMakeCache.txt")[
-        "CMAKE_NM"
+    objects = [
+        str(obj).removesuffix(".obj")
+        for obj in (build / "esp-idf" / "lwip").rglob("*.obj")
     ]
-    objects = sorted((build_path / "build" / "esp-idf" / "lwip").rglob("*.obj"))
-    problems = []
-    checked = 0
-    for option, regex in LWIP_EMPTY_SOURCES:
-        if config.get(option.removeprefix("CONFIG_")):
-            continue
-        for obj in objects:
-            source = str(obj).removesuffix(".obj")
-            if not re.search(regex, source):
-                continue
-            checked += 1
-            symbols = subprocess.run(
-                [nm, "--defined-only", str(obj)],
-                capture_output=True,
-                text=True,
-                check=False,
-            ).stdout.strip()
-            if symbols:
-                problems.append(
-                    LWIP_NOT_EMPTY.format(source=Path(source).name, option=option)
-                )
-    if not checked:
-        problems.append(LWIP_NOTHING_CHECKED)
-    return problems
+    dropped = [
+        (option, source)
+        for option, regex in LWIP_EMPTY_SOURCES
+        if not config.get(option.removeprefix("CONFIG_"))
+        for source in objects
+        if re.search(regex, source)
+    ]
+    if not dropped:
+        return [LWIP_NOTHING_CHECKED]
+    nm = toolchain._parse_cmakecache(build / "CMakeCache.txt")["CMAKE_NM"]
+    return [
+        LWIP_NOT_EMPTY.format(source=Path(source).name, option=option)
+        for option, source in dropped
+        if subprocess.run(
+            [nm, "--defined-only", f"{source}.obj"],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+    ]
 
 
 def _setup_core(build_path: Path, description: dict) -> tuple[str, str]:
@@ -217,9 +208,6 @@ def check(build_path: Path) -> list[str]:
     # pin it before the env is cached so both configures get the same value.
     os.environ["SOURCE_DATE_EPOCH"] = "0"
     env = toolchain._get_idf_env(version)
-    # Proves the sources the generated CMakeLists drops are empty on this IDF.
-    if problems := _lwip_empty_source_problems(build_path, env):
-        return problems
     python = toolchain._get_idf_tool("python")
     idf_py = toolchain._get_idf_path(version) / "tools" / "idf.py"
     sdkconfig = build_path / f"sdkconfig.{name}"
@@ -263,7 +251,8 @@ def check(build_path: Path) -> list[str]:
             problems.append(f"idf.py dropped {out} from {log}")
         elif mtimes_before.get(key) != mtimes_after[key]:
             problems.append(f"idf.py rebuilt {out}")
-    return problems
+    # Last: it reconfigures the tree, which would otherwise relink above.
+    return problems or _lwip_empty_source_problems(build_path)
 
 
 def main() -> int:

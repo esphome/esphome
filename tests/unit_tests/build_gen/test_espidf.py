@@ -223,20 +223,21 @@ def test_get_project_cmakelists_size_command_uses_json2() -> None:
 
 
 def test_get_project_cmakelists_drops_empty_lwip_sources() -> None:
-    """The empty lwip sources leave the build when their option is off; the
-    filter must come after project() where the lwip target exists."""
-    from esphome.build_gen.espidf import LWIP_EMPTY_SOURCES, LWIP_FULL_SOURCES_ENV
+    """The filter comes after project(), where the lwip target exists."""
+    from esphome.build_gen.espidf import (
+        LWIP_EMPTY_SOURCES,
+        LWIP_FULL_SOURCES_ENV,
+        lwip_empty_source_gate,
+    )
 
     content = _render()
     filter_at = content.index(
         "set_property(TARGET ${esphome_lwip_lib} PROPERTY SOURCES"
     )
     assert filter_at > content.index("project(")
-    block = content[content.index("idf_component_get_property(esphome_lwip_lib") :]
     assert f"NOT DEFINED ENV{{{LWIP_FULL_SOURCES_ENV}}}" in content
-    for option, regex in LWIP_EMPTY_SOURCES:
-        gate = block[block.index(f"if(NOT {option})") :]
-        assert regex.replace("\\", "\\\\") in gate[: gate.index("endif()")]
+    for entry in LWIP_EMPTY_SOURCES:
+        assert lwip_empty_source_gate(*entry) in content
 
 
 def test_get_project_cmakelists_declares_map_as_link_byproduct() -> None:
