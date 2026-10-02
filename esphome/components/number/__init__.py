@@ -91,7 +91,7 @@ from esphome.core.entity_helpers import (
     setup_entity,
     setup_unit_of_measurement,
 )
-from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass, ProgmemAssignmentExpression
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -287,9 +287,21 @@ async def _build_number_automations(var, config):
         await automation.build_automation(trigger, [(float, "x")], conf)
 
 
+# A shared table only pays for set_range() and the table itself once this many numbers use it.
+RANGE_TABLE_MIN_USERS = 3
+
+
+@dataclass
+class NumberRangeUsage:
+    range_id: ID
+    users: int = 0
+
+
 @dataclass
 class NumberData:
-    ranges: dict[tuple[float, float, float], MockObj] = field(default_factory=dict)
+    ranges: dict[tuple[float, float, float], NumberRangeUsage] = field(
+        default_factory=dict
+    )
 
 
 def _get_data() -> NumberData:
@@ -298,24 +310,70 @@ def _get_data() -> NumberData:
     return CORE.data[DOMAIN]
 
 
-def _number_range(
-    range_id: ID, min_value: float, max_value: float, step: float
-) -> MockObj:
-    """Return a PROGMEM table with these values; numbers with the same values share one."""
-    ranges = _get_data().ranges
+class _SetRangeStatement(cg.Statement):
+    """Picks the shared table or the plain setters at render time, once every number is known."""
+
+    __slots__ = ("var", "values", "usage", "declares")
+
+    def __init__(
+        self,
+        var: MockObj,
+        values: tuple[float, float, float],
+        usage: NumberRangeUsage,
+        declares: bool,
+    ) -> None:
+        self.var = var
+        self.values = values
+        self.usage = usage
+        self.declares = declares
+
+    def __str__(self) -> str:
+        if self.usage.users < RANGE_TABLE_MIN_USERS:
+            return _range_setters(self.var, *self.values)
+        table = MockObj(self.usage.range_id, ".")
+        text = f"{cg.statement(self.var.set_range(table))}"
+        if self.declares:
+            decl = ProgmemAssignmentExpression(
+                NumberRange, self.usage.range_id, cg.safe_exp([self.values])
+            )
+            text = f"{decl};\n{text}"
+        return text
+
+
+def _range_setters(var: MockObj, min_value, max_value, step) -> str:
+    return "\n".join(
+        str(cg.statement(expr))
+        for expr in (
+            var.traits.set_min_value(min_value),
+            var.traits.set_max_value(max_value),
+            var.traits.set_step(step),
+        )
+    )
+
+
+def _add_range(var: MockObj, range_id: ID, min_value, max_value, step) -> None:
+    values = (min_value, max_value, step)
+    # Lambda bounds (e.g. lvgl arc/bar) are runtime expressions and can't go in a table.
+    if not all(isinstance(v, (int, float)) for v in values):
+        cg.add(var.traits.set_min_value(min_value))
+        cg.add(var.traits.set_max_value(max_value))
+        cg.add(var.traits.set_step(step))
+        return
     key = (float(min_value), float(max_value), float(step))
-    if (range_ := ranges.get(key)) is None:
-        range_ = ranges[key] = cg.progmem_array(range_id, [key])
-    return range_
+    ranges = _get_data().ranges
+    declares = key not in ranges
+    if declares:
+        ranges[key] = NumberRangeUsage(range_id)
+    usage = ranges[key]
+    usage.users += 1
+    cg.add(_SetRangeStatement(var, key, usage, declares))
 
 
 @setup_entity("number")
 async def setup_number_core_(
     var, config, *, min_value: float, max_value: float, step: float
 ):
-    cg.add(
-        var.set_range(_number_range(config[CONF_RANGE_ID], min_value, max_value, step))
-    )
+    _add_range(var, config[CONF_RANGE_ID], min_value, max_value, step)
 
     # Skip the setter when the config matches the C++ initializer (DEFAULT_MODE).
     # The validated value is the enum key string, not the C++ enum expression.
