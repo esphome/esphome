@@ -303,7 +303,7 @@ esp_err_t I2SAudioSpeakerBase::prepare_event_queues_(size_t event_queue_size) {
 esp_err_t I2SAudioSpeakerBase::acquire_full_duplex_channel_(size_t event_queue_size) {
   this->tx_handle_ = this->parent_->acquire_tx_channel();
   if (this->tx_handle_ == nullptr) {
-    ESP_LOGE(TAG, "Full duplex channel unavailable");
+    ESP_LOGE(TAG, "Full duplex channel busy or unavailable");
     return ESP_ERR_INVALID_STATE;
   }
 

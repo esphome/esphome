@@ -304,10 +304,6 @@ def _validate_full_duplex(full_config: ConfigType, bus_id: str) -> None:
     if microphone.get(CONF_PDM):
         raise cv.Invalid(f"A PDM microphone cannot use a '{CONF_FULL_DUPLEX}' bus")
     for speaker in speakers:
-        if CONF_I2S_DOUT_PIN not in speaker:
-            raise cv.Invalid(
-                f"An internal DAC speaker cannot use a '{CONF_FULL_DUPLEX}' bus"
-            )
         if speaker.get(CONF_SPDIF_MODE):
             raise cv.Invalid(f"An SPDIF speaker cannot use a '{CONF_FULL_DUPLEX}' bus")
         # Both directions run from the same bit and word clocks

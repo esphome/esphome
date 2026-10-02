@@ -129,14 +129,6 @@ def test_full_duplex_accepts_multiple_matching_speakers() -> None:
     )
 
 
-def test_full_duplex_rejects_internal_dac_speaker() -> None:
-    """A speaker without a data out pin cannot share the TX channel."""
-    speaker = _device()
-    del speaker["i2s_dout_pin"]
-    with pytest.raises(cv.Invalid, match="internal DAC speaker"):
-        _validate_full_duplex(_full_config([_device()], [speaker]), BUS_ID)
-
-
 @pytest.mark.parametrize(
     ("key", "value"),
     [

@@ -63,7 +63,8 @@ void I2SAudioComponent::release_rx_channel() {
 }
 
 i2s_chan_handle_t I2SAudioComponent::acquire_tx_channel() {
-  if (this->tx_handle_ == nullptr)
+  // Speakers sharing the bus take turns; a second one must not get the channel while the first is playing
+  if (this->tx_handle_ == nullptr || this->tx_in_use_)
     return nullptr;
   this->tx_in_use_ = true;
   if (!this->update_rx_channel_()) {

@@ -70,9 +70,10 @@ class I2SAudioComponent final : public Component {
 
   /// @brief Starts the shared clocks and hands over the full duplex TX channel, still disabled, so the caller
   /// can register callbacks and preload data before enabling it. Main loop only.
-  /// @return The TX handle, or nullptr if the channel pair is unavailable
+  /// @return The TX handle, or nullptr if the channel pair is unavailable or another speaker holds it
   i2s_chan_handle_t acquire_tx_channel();
-  /// @brief Disables the TX channel and stops the shared clocks if the RX side is idle. Main loop only.
+  /// @brief Disables the TX channel and stops the shared clocks if the RX side is idle. Only the speaker that
+  /// acquired the channel may call this. Main loop only.
   void release_tx_channel();
 #endif
   i2s_std_gpio_config_t get_pin_config() const {
