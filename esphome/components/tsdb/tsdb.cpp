@@ -314,10 +314,11 @@ void TsdbComponent::log_init_failure_(const char *stage) {
     ESP_LOGE(TAG, "  partition '%s': %s", this->partition_label_.c_str(),
              blank ? LOG_STR_LITERAL("all 0xFF (blank)") : LOG_STR_LITERAL("NOT blank (data present)"));
     if (!blank && !this->format_attempted_)
-      ESP_LOGE(TAG,
-               "    nothing was formatted: a partition that is not all 0xFF is never overwritten, so erase it once over "
-               "USB (esptool erase-region 0x%08" PRIx32 " 0x%" PRIx32 ") if it holds leftovers of an older partition table",
-               static_cast<uint32_t>(partition->address), static_cast<uint32_t>(partition->size));
+      ESP_LOGE(
+          TAG,
+          "    nothing was formatted: a partition that is not all 0xFF is never overwritten, so erase it once over "
+          "USB (esptool erase-region 0x%08" PRIx32 " 0x%" PRIx32 ") if it holds leftovers of an older partition table",
+          static_cast<uint32_t>(partition->address), static_cast<uint32_t>(partition->size));
   }
 
   if (this->mounted_) {
