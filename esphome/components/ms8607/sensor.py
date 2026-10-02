@@ -72,9 +72,8 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
     await sensors(CONF_PRESSURE, var.set_pressure_sensor)
 
-    if humidity_config := config.get(CONF_HUMIDITY):
-        sens = await sensor.new_sensor(humidity_config)
-        cg.add(var.set_humidity_sensor(sens))
+    if await sensors(CONF_HUMIDITY, var.set_humidity_sensor):
+        humidity_config = config[CONF_HUMIDITY]
         humidity_device = cg.new_Pvariable(humidity_config[CONF_HUMIDITY_I2C_ID])
         await i2c.register_i2c_device(humidity_device, humidity_config)
         cg.add(var.set_humidity_device(humidity_device))
