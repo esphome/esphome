@@ -1,7 +1,8 @@
 """Integration test for socket::TcpClientLink on host.
 
 Pytest runs a real TCP server; the device echoes through the link.
-Covers connect, read, write, a server-initiated drop and the reconnect.
+Covers connect, read, write, a server-initiated drop, the reconnect and
+that no bytes from the first session leak into the second.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import pytest
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 PAYLOAD = b"hello link"
+SECOND_PAYLOAD = b"second session"
 
 
 @pytest.mark.asyncio
@@ -27,6 +29,7 @@ async def test_socket_tcp_client_link(
     yaml_config = yaml_config.replace("port: 18123", f"port: {server_port}")
 
     echoed: list[bytes] = []
+    second_echoed: list[bytes] = []
     echo_done = asyncio.Event()
     reconnected = asyncio.Event()
     link_down = asyncio.Event()
@@ -56,6 +59,14 @@ async def test_socket_tcp_client_link(
             # Drop the connection so the link has to reconnect.
             writer.close()
             return
+        # Second session: the first bytes back must be this session's echo;
+        # anything left over from the first session would arrive ahead of it.
+        writer.write(SECOND_PAYLOAD)
+        await writer.drain()
+        with contextlib.suppress(TimeoutError, asyncio.IncompleteReadError):
+            second_echoed.append(
+                await asyncio.wait_for(reader.readexactly(len(SECOND_PAYLOAD)), 10)
+            )
         reconnected.set()
 
     server = await asyncio.start_server(handle, "127.0.0.1", server_port)
@@ -83,6 +94,9 @@ async def test_socket_tcp_client_link(
                 await asyncio.wait_for(second_link_up.wait(), timeout=15.0)
             except TimeoutError:
                 pytest.fail("Link did not reconnect after the server dropped it")
+            assert second_echoed and second_echoed[0] == SECOND_PAYLOAD, (
+                "Second session echo wrong; stale bytes from the first session?"
+            )
     finally:
         server.close()
         await server.wait_closed()
