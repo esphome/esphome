@@ -368,6 +368,13 @@ def final_validate(config):
             "The AP will not be usable for configuration or monitoring. "
             "Add 'captive_portal:' or 'web_server:' to your configuration."
         )
+    if "esp32_hosted" in full_config and any(
+        CONF_EAP in net for net in config.get(CONF_NETWORKS, [])
+    ):
+        raise cv.Invalid(
+            "WPA2 Enterprise ('eap:') is not supported with esp32_hosted; "
+            "the coprocessor firmware does not include enterprise authentication"
+        )
 
 
 def _consume_wifi_sockets(config: ConfigType) -> ConfigType:
