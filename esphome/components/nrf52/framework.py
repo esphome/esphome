@@ -199,8 +199,9 @@ def get_build_env(ccache: str | None) -> dict:
     """Build the west/sdk-nrf process environment.
 
     ``ccache`` is the resolved binary (resolve_ccache_path), or None when
-    disabled; it brings the shared managed-ccache settings and the pch
-    sloppiness, so every caller that may compile gets the same cache.
+    ccache is disabled or the caller never compiles; it brings the shared
+    managed-ccache settings and the pch sloppiness, so every caller that
+    may compile gets the same cache.
     """
     version = _get_version_str()
     venv_bin_dir = get_python_env_executable_path(
