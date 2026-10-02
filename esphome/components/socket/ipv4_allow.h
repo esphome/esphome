@@ -1,6 +1,7 @@
 #pragma once
 
 #include "headers.h"
+#include "esphome/core/hal.h"
 
 #include <cstdint>
 #include <cstring>
@@ -8,8 +9,8 @@
 namespace esphome::socket {
 
 /// One allowed IPv4 network, in network byte order with host bits cleared.
-/// Codegen validates and emits these into a read only array; cv.ipv4network
-/// makes an invalid or non contiguous mask unrepresentable.
+/// Codegen validates and emits these into flash (PROGMEM on esp8266);
+/// cv.ipv4network makes an invalid or non contiguous mask unrepresentable.
 struct Ipv4AllowEntry {
   uint32_t addr;
   uint32_t mask;
@@ -55,7 +56,9 @@ class Ipv4Allow {
       return true;
     }
     for (uint8_t i = 0; i != this->count_; i++) {
-      if ((addr & this->entries_[i].mask) == this->entries_[i].addr) {
+      Ipv4AllowEntry entry;
+      progmem_memcpy(&entry, &this->entries_[i], sizeof(entry));
+      if ((addr & entry.mask) == entry.addr) {
         return true;
       }
     }

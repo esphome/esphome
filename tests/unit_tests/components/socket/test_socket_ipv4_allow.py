@@ -29,7 +29,7 @@ def test_add_ipv4_allow_wires_the_setter_with_cleared_host_bits() -> None:
     networks = [IPv4Network("192.168.175.33/24", strict=False)]
     with (
         patch.object(socket.cg, "add") as add,
-        patch.object(socket.cg, "static_const_array") as array,
+        patch.object(socket.cg, "progmem_array") as array,
     ):
         socket.add_ipv4_allow(setter, networks, "bridge")
     entry = array.call_args.args[1].args[0]

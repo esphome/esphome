@@ -165,6 +165,7 @@ def add_ipv4_allow(
 ) -> None:
     """Emit a flash array for validated IPV4_ALLOW_SCHEMA entries and wire it to setter.
 
+    PROGMEM on esp8266; allows() reads entries through progmem_memcpy.
     Emits nothing for an empty list; an empty allow list allows every peer.
     """
     if not networks:
@@ -178,7 +179,7 @@ def add_ipv4_allow(
         for net in networks
     ]
     arr_id = ID(f"{owner_id}_ipv4_allow", is_declaration=True, type=Ipv4AllowEntry)
-    arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*entries))
+    arr = cg.progmem_array(arr_id, cg.ArrayInitializer(*entries))
     cg.add(setter(arr, len(entries)))
 
 
