@@ -73,12 +73,9 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_measurement_duration(config[CONF_MEASUREMENT_DURATION]))
 
-    if peak_config := config.get(CONF_PEAK):
-        sens = await sensor.new_sensor(peak_config)
-        cg.add(var.set_peak_sensor(sens))
-    if rms_config := config.get(CONF_RMS):
-        sens = await sensor.new_sensor(rms_config)
-        cg.add(var.set_rms_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_PEAK, var.set_peak_sensor)
+    await sensors(CONF_RMS, var.set_rms_sensor)
 
 
 SOUND_LEVEL_ACTION_SCHEMA = automation.maybe_simple_id(
