@@ -223,6 +223,15 @@ CLK_MODES_DEPRECATED = {
 
 spi_host_device_t = cg.global_ns.enum("spi_host_device_t")
 
+# Must match the member initializers in ethernet_component.h; setters are skipped
+# when the config already equals them.
+DEFAULT_SPI_INTERFACE = "spi2"
+DEFAULT_PHY_ADDR = 0
+DEFAULT_MDC_PIN = 23
+DEFAULT_MDIO_PIN = 18
+DEFAULT_CLK_MODE = "CLK_EXT_IN"
+DEFAULT_CLK_PIN = 0
+
 SPI_INTERFACE_MAP = {
     "spi2": spi_host_device_t.SPI2_HOST,
     "spi3": spi_host_device_t.SPI3_HOST,
@@ -689,6 +698,15 @@ async def to_code(config: ConfigType) -> None:
     CORE.add_job(final_step)
 
 
+def _add_mdio_setters(var: cg.MockObj, config: ConfigType) -> None:
+    if (phy_addr := config[CONF_PHY_ADDR]) != DEFAULT_PHY_ADDR:
+        cg.add(var.set_phy_addr(phy_addr))
+    if (mdc_pin := config[CONF_MDC_PIN]) != DEFAULT_MDC_PIN:
+        cg.add(var.set_mdc_pin(mdc_pin))
+    if (mdio_pin := config[CONF_MDIO_PIN]) != DEFAULT_MDIO_PIN:
+        cg.add(var.set_mdio_pin(mdio_pin))
+
+
 async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
     from esphome.components.esp32 import (
         add_idf_component,
@@ -707,7 +725,8 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
             cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
             cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
             cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
-            cg.add(var.set_interface(SPI_INTERFACE_MAP[config[CONF_INTERFACE]]))
+            if (interface := config[CONF_INTERFACE]) != DEFAULT_SPI_INTERFACE:
+                cg.add(var.set_interface(SPI_INTERFACE_MAP[interface]))
         cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
         if CONF_INTERRUPT_PIN in config:
             cg.add(var.set_interrupt_pin(config[CONF_INTERRUPT_PIN]))
@@ -736,9 +755,7 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
     elif config[CONF_TYPE] in ("GENERIC", "YT8531"):
         # RGMII data pins come from the IDF default config; set MDC/MDIO + PHY addr.
-        cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
-        cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
-        cg.add(var.set_mdio_pin(config[CONF_MDIO_PIN]))
+        _add_mdio_setters(var, config)
         if CONF_POWER_PIN in config:
             cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
         for register_value in config.get(CONF_PHY_REGISTERS, []):
@@ -749,11 +766,11 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
             )
             cg.add(var.add_phy_register(reg))
     else:
-        cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
-        cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
-        cg.add(var.set_mdio_pin(config[CONF_MDIO_PIN]))
-        cg.add(var.set_clk_mode(config[CONF_CLK][CONF_MODE]))
-        cg.add(var.set_clk_pin(config[CONF_CLK][CONF_PIN]))
+        _add_mdio_setters(var, config)
+        if (clk_mode := config[CONF_CLK][CONF_MODE]) != DEFAULT_CLK_MODE:
+            cg.add(var.set_clk_mode(clk_mode))
+        if (clk_pin := config[CONF_CLK][CONF_PIN]) != DEFAULT_CLK_PIN:
+            cg.add(var.set_clk_pin(clk_pin))
         if CONF_POWER_PIN in config:
             cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
         for register_value in config.get(CONF_PHY_REGISTERS, []):

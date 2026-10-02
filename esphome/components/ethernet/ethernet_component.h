@@ -267,7 +267,7 @@ class EthernetComponent final : public Component {
   int reset_pin_{-1};
   int phy_addr_spi_{-1};
   int clock_speed_;
-  spi_host_device_t interface_{SPI2_HOST};
+  spi_host_device_t interface_{SPI2_HOST};  // Must match DEFAULT_SPI_INTERFACE in __init__.py
 #ifdef USE_SPI
   // When set, the SPI bus is owned and initialized by this spi component
   // and the ethernet chip only adds a device to it.
@@ -279,14 +279,14 @@ class EthernetComponent final : public Component {
 #else
   // Group all 32-bit members first
   int power_pin_{-1};
-  emac_rmii_clock_mode_t clk_mode_{EMAC_CLK_EXT_IN};
+  emac_rmii_clock_mode_t clk_mode_{EMAC_CLK_EXT_IN};  // Must match DEFAULT_CLK_MODE in __init__.py
   std::vector<PHYRegister> phy_registers_{};
 
   // Group all 8-bit members together
-  uint8_t clk_pin_{0};
-  uint8_t phy_addr_{0};
-  uint8_t mdc_pin_{23};
-  uint8_t mdio_pin_{18};
+  uint8_t clk_pin_{0};                             // Must match DEFAULT_CLK_PIN in __init__.py
+  uint8_t phy_addr_{0};                            // Must match DEFAULT_PHY_ADDR in __init__.py
+  uint8_t mdc_pin_{23};                            // Must match DEFAULT_MDC_PIN in __init__.py
+  uint8_t mdio_pin_{18};                           // Must match DEFAULT_MDIO_PIN in __init__.py
 #endif  // USE_ETHERNET_SPI
 
   // ESP32 pointers
