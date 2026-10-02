@@ -14,6 +14,9 @@
 #include <lwip/dns.h>
 #include <cinttypes>
 #include "esp_event.h"
+#ifdef USE_PSRAM
+#include <esp_psram.h>
+#endif
 
 // IDF 6.0 moved per-chip PHY/MAC drivers to the Espressif Component Registry;
 // they are no longer included via esp_eth.h and need explicit includes.
@@ -41,6 +44,10 @@
 #ifdef USE_ETHERNET_DM9051
 #include "esp_eth_mac_dm9051.h"
 #include "esp_eth_phy_dm9051.h"
+#endif
+#ifdef USE_ETHERNET_KSZ8851SNL
+#include "esp_eth_mac_ksz8851snl.h"
+#include "esp_eth_phy_ksz8851snl.h"
 #endif
 #endif  // ESP_IDF_VERSION >= 6.0.0
 
@@ -74,6 +81,32 @@ static const char *const TAG = "ethernet";
 
 // PHY register size for hex logging
 static constexpr size_t PHY_REG_SIZE = 2;
+
+// Dual wifi + ethernet SPI builds: the one place internal RAM is short and lwip's other buffers are
+// already in PSRAM. Not with L2 TAP, whose filter lives in the glue's input path this replaces.
+#if defined(USE_PSRAM) && defined(USE_ETHERNET_SPI) && defined(USE_WIFI) && !defined(CONFIG_ESP_NETIF_L2_TAP)
+#define USE_ETHERNET_RX_PSRAM
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - reported by dump_config()
+static bool rx_psram_installed = false;
+
+// ESP-IDF ethernet drivers malloc() every received frame in internal RAM, where it stays until lwIP
+// hands it to the application. Move it to PSRAM; if that fails the frame is passed on where it is.
+static esp_err_t eth_input_to_psram(esp_eth_handle_t handle, uint8_t *buffer, uint32_t length, void *priv) {
+  auto *copy = static_cast<uint8_t *>(heap_caps_malloc(length, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  if (copy != nullptr) {
+    memcpy(copy, buffer, length);
+    free(buffer);  // NOLINT(cppcoreguidelines-no-malloc) - allocated by the driver with malloc()
+    buffer = copy;
+  } else {
+    static bool warned = false;  // once, this runs per frame in the driver's task
+    if (!warned) {
+      warned = true;
+      ESP_LOGW(TAG, "PSRAM allocation failed, frame kept in internal RAM (reported once)");
+    }
+  }
+  return esp_netif_receive(static_cast<esp_netif_t *>(priv), buffer, length, nullptr);
+}
+#endif
 
 void EthernetComponent::log_error_and_mark_failed_(esp_err_t err, const char *message) {
   ESP_LOGE(TAG, "%s: (%d) %s", message, err, esp_err_to_name(err));
@@ -239,6 +272,8 @@ void EthernetComponent::ethernet_lazy_init_() {
   eth_enc28j60_config_t enc28j60_config = ETH_ENC28J60_DEFAULT_CONFIG(host, &devcfg);
 #elif defined(USE_ETHERNET_CH390)
   eth_ch390_config_t ch390_config = ETH_CH390_DEFAULT_CONFIG(host, &devcfg);
+#elif defined(USE_ETHERNET_KSZ8851SNL)
+  eth_ksz8851snl_config_t ksz8851snl_config = ETH_KSZ8851SNL_DEFAULT_CONFIG(host, &devcfg);
 #endif
 
 #if defined(USE_ETHERNET_W5500)
@@ -264,6 +299,11 @@ void EthernetComponent::ethernet_lazy_init_() {
   ch390_config.int_gpio_num = this->interrupt_pin_;
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   ch390_config.poll_period_ms = this->polling_interval_;
+#endif
+#elif defined(USE_ETHERNET_KSZ8851SNL)
+  ksz8851snl_config.int_gpio_num = this->interrupt_pin_;
+#ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
+  ksz8851snl_config.poll_period_ms = this->polling_interval_;
 #endif
 #endif
 
@@ -395,6 +435,12 @@ void EthernetComponent::ethernet_lazy_init_() {
       this->phy_ = esp_eth_phy_new_ch390(&phy_config);
       break;
     }
+#elif defined(USE_ETHERNET_KSZ8851SNL)
+    case ETHERNET_TYPE_KSZ8851SNL: {
+      mac = esp_eth_mac_new_ksz8851snl(&ksz8851snl_config, &mac_config);
+      this->phy_ = esp_eth_phy_new_ksz8851snl(&phy_config);
+      break;
+    }
 #endif
 #endif
     default: {
@@ -457,6 +503,16 @@ void EthernetComponent::ethernet_lazy_init_() {
   /* attach Ethernet driver to TCP/IP stack */
   err = esp_netif_attach(this->eth_netif_, esp_eth_new_netif_glue(this->eth_handle_));
   ESPHL_ERROR_CHECK(err, "ETH netif attach error");
+#ifdef USE_ETHERNET_RX_PSRAM
+  // The glue frees every receive buffer with free(), so the replacement buffer must come from the heap
+  if (esp_psram_is_initialized()) {
+    err = esp_eth_update_input_path(this->eth_handle_, eth_input_to_psram, this->eth_netif_);
+    rx_psram_installed = err == ESP_OK;
+    if (!rx_psram_installed) {
+      ESP_LOGW(TAG, "PSRAM RX path not installed: %s", esp_err_to_name(err));
+    }
+  }
+#endif
 
   // Register user defined event handers
   err = esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &EthernetComponent::eth_event_handler, nullptr);
@@ -558,6 +614,10 @@ void EthernetComponent::dump_config() {
     case ETHERNET_TYPE_CH390:
       eth_type = "CH390";
       break;
+#elif defined(USE_ETHERNET_KSZ8851SNL)
+    case ETHERNET_TYPE_KSZ8851SNL:
+      eth_type = "KSZ8851SNL";
+      break;
 #endif
 #ifdef USE_ETHERNET_OPENETH
     case ETHERNET_TYPE_OPENETH:
@@ -634,6 +694,13 @@ void EthernetComponent::dump_config() {
                 this->clk_pin_, this->mdc_pin_, this->mdio_pin_, this->phy_addr_);
 #endif
   ESP_LOGCONFIG(TAG, "  Type: %s", eth_type);
+#ifdef USE_ETHERNET_RX_PSRAM
+  // Only known once the driver is up; with enable_on_boot: false that is after this dump
+  if (this->ethernet_initialized_) {
+    ESP_LOGCONFIG(TAG, "  RX frames: %s",
+                  rx_psram_installed ? LOG_STR_LITERAL("PSRAM") : LOG_STR_LITERAL("internal RAM"));
+  }
+#endif
 }
 
 network::IPAddresses EthernetComponent::get_ip_addresses() {

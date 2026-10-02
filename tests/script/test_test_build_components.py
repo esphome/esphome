@@ -94,6 +94,87 @@ def test_run_esphome_test_wraps_output_in_group(
     assert out.index("::group::") < out.index("> [foo]") < out.index("::endgroup::")
 
 
+@pytest.mark.parametrize(
+    ("platform", "command", "skip", "expects_flag"),
+    [
+        ("esp32-idf", "compile", True, True),
+        ("esp32-s3-idf", "compile", True, True),
+        ("esp32-ard", "compile", True, True),
+        ("esp32-idf", "compile", False, False),
+        ("esp32-idf", "config", True, False),
+        ("esp8266-ard", "compile", True, False),
+    ],
+    ids=[
+        "idf-skip",
+        "idf-variant",
+        "arduino-as-idf-component",
+        "idf-off",
+        "config",
+        "esp8266",
+    ],
+)
+def test_run_esphome_test_skip_bootloader_argv(
+    _ci: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    platform: str,
+    command: str,
+    skip: bool,
+    expects_flag: bool,
+) -> None:
+    """The flag lands on esp32 family compiles only."""
+    seen: list[list[str]] = []
+
+    def fake_run(cmd: list[str], **kwargs: object) -> _FakeCompleted:
+        seen.append(cmd)
+        return _FakeCompleted(0)
+
+    monkeypatch.setattr(tbc.subprocess, "run", fake_run)
+    repo_root = Path(tbc.__file__).parent.parent
+    test_file = repo_root / "tests" / "components" / "foo" / f"test.{platform}.yaml"
+    tbc.run_esphome_test(
+        component="foo",
+        test_file=test_file,
+        platform=platform,
+        platform_with_version=platform,
+        base_file=_make_base_file(tmp_path),
+        build_dir=tmp_path,
+        esphome_command=command,
+        continue_on_fail=True,
+        skip_bootloader=skip,
+    )
+    assert ("--skip-bootloader" in seen[0]) is expects_flag
+
+
+def test_run_grouped_test_skip_bootloader_argv(
+    _ci: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The grouped command site adds the flag the same way."""
+    seen: list[list[str]] = []
+
+    def fake_run(cmd: list[str], **kwargs: object) -> _FakeCompleted:
+        seen.append(cmd)
+        return _FakeCompleted(0)
+
+    monkeypatch.setattr(tbc.subprocess, "run", fake_run)
+    repo_root = Path(tbc.__file__).parent.parent
+    tests_dir = repo_root / "tests" / "components"
+    tbc.run_grouped_test(
+        components=["gpio"],
+        platform="esp32-idf",
+        platform_with_version="esp32-idf",
+        base_file=_make_base_file(tmp_path),
+        build_dir=tmp_path,
+        tests_dir=tests_dir,
+        esphome_command="compile",
+        continue_on_fail=True,
+        skip_bootloader=True,
+    )
+    assert "--skip-bootloader" in seen[0]
+
+
 def test_run_esphome_test_closes_group_before_failure_report(
     _ci: None,
     monkeypatch: pytest.MonkeyPatch,

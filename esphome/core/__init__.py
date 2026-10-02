@@ -589,6 +589,8 @@ class EsphomeCore:
         self.vscode = False
         # True if running in testing mode (disables validation checks for grouped testing)
         self.testing_mode = False
+        # True if this build skips the bootloader and factory image (OTA only)
+        self.skip_bootloader = False
         # The name of the node
         self.name: str | None = None
         # The friendly name of the node
@@ -692,6 +694,7 @@ class EsphomeCore:
         from esphome.pins import PIN_SCHEMA_REGISTRY
 
         self.dashboard = False
+        self.skip_bootloader = False
         self.name = None
         self.friendly_name = None
         self.area = None
@@ -995,6 +998,12 @@ class EsphomeCore:
         """The native ESP8266 Arduino build toolchain (unlike
         ``using_arduino``, which is the target framework)."""
         return self.toolchain == Toolchain.ARDUINO
+
+    @property
+    def using_toolchain_host(self):
+        """The native host build toolchain: the system compiler driven by
+        ninja (the only toolchain the host platform serves)."""
+        return self.toolchain == Toolchain.HOST
 
     @property
     def using_native_toolchain(self):
