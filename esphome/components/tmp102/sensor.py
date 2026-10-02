@@ -13,7 +13,6 @@ from esphome.types import ConfigType
 
 from . import (
     ALERT_POLARITIES,
-    CONF_ALERT,
     CONF_ALERT_POLARITY,
     CONF_EXTENDED_MODE,
     CONF_FAULT_QUEUE,
@@ -21,7 +20,6 @@ from . import (
     CONF_TEMPERATURE_HIGH,
     CONF_TEMPERATURE_LOW,
     CONF_THERMOSTAT_MODE,
-    CONF_THRESHOLD_STATUS,
     CONVERSION_RATES,
     THERMOSTAT_MODES,
     TMP102Component,
@@ -52,12 +50,6 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_FAULT_QUEUE): cv.one_of(1, 2, 4, 6, int=True),
             cv.Optional(CONF_TEMPERATURE_HIGH): cv.temperature,
             cv.Optional(CONF_TEMPERATURE_LOW): cv.temperature,
-            cv.Optional(CONF_ALERT): cv.invalid(
-                "Move alert to binary_sensor with platform: tmp102 and tmp102_id"
-            ),
-            cv.Optional(CONF_THRESHOLD_STATUS): cv.invalid(
-                "Move threshold_status to text_sensor with platform: tmp102 and tmp102_id"
-            ),
         }
     )
 )

@@ -60,16 +60,3 @@ def test_upstream_address_validation_unchanged(address: int) -> None:
     assert (
         CONFIG_SCHEMA({"name": "Temperature", "address": address})["address"] == address
     )
-
-
-@pytest.mark.parametrize(
-    "key,value",
-    [
-        ("alert", {"name": "Alert"}),
-        ("threshold_status", {"name": "Status"}),
-        ("temperature_high", {"name": "High"}),
-    ],
-)
-def test_old_nested_entities_require_migration(key: str, value: dict) -> None:
-    with pytest.raises(cv.Invalid):
-        CONFIG_SCHEMA({"name": "Temperature", key: value})

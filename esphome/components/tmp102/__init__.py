@@ -22,8 +22,6 @@ TMP102LimitType = tmp102_ns.enum("TMP102LimitType")
 
 CONF_EXTENDED_MODE = "extended_mode"
 CONF_ONE_SHOT_MODE = "one_shot_mode"
-CONF_ALERT = "alert"
-CONF_THRESHOLD_STATUS = "threshold_status"
 CONF_TEMPERATURE_HIGH = "temperature_high"
 CONF_TEMPERATURE_LOW = "temperature_low"
 CONF_ALERT_POLARITY = "alert_polarity"

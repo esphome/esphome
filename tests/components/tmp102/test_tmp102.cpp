@@ -405,6 +405,7 @@ TEST_F(TMP102Test, FailureOfAnySetupWriteMarksComponentFailed) {
     failed.set_i2c_bus(&this->bus_);
     failed.set_i2c_address(0x48);
     failed.set_configure(true);
+    failed.set_threshold_status_text_sensor(&this->status_);
     this->bus_.fail_write = reg;
     failed.setup();
     EXPECT_TRUE(failed.is_failed());
@@ -412,6 +413,7 @@ TEST_F(TMP102Test, FailureOfAnySetupWriteMarksComponentFailed) {
     failed.update();
     EXPECT_EQ(this->bus_.transactions, transactions);
     EXPECT_FALSE(failed.set_limit_temperature(TMP102_LIMIT_HIGH, 90));
+    EXPECT_EQ(this->status_.state, "Rejected: sensor failed");
   }
 }
 

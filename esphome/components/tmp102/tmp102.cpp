@@ -85,7 +85,8 @@ void TMP102Component::setup() {
 #endif
   if (!saved) {
     ESP_LOGW(TAG, "Failed to save threshold preferences");
-    this->publish_threshold_status("Preference save failed");
+    this->publish_threshold_status(corrected ? "Invalid restored thresholds reset; preference save failed"
+                                             : "Preference save failed");
   } else {
     this->publish_threshold_status(corrected ? "Invalid restored thresholds; reset to initial" : "OK");
   }
@@ -101,10 +102,6 @@ void TMP102Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this);
 #ifdef USE_TMP102_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Alert", this->alert_sensor_);
-#endif
-#ifdef USE_TMP102_NUMBER
-  LOG_NUMBER("  ", "Temperature High", this->high_limit_control_);
-  LOG_NUMBER("  ", "Temperature Low", this->low_limit_control_);
 #endif
 #ifdef USE_TMP102_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Threshold Status", this->threshold_status_sensor_);
@@ -272,8 +269,11 @@ bool TMP102Component::validate_limit_temperature_(TMP102LimitType limit, float t
 }
 
 bool TMP102Component::set_limit_temperature(TMP102LimitType limit, float temperature) {
-  if (this->is_failed())
+  if (this->is_failed()) {
+    ESP_LOGW(TAG, "Rejected threshold change: sensor setup failed");
+    this->publish_threshold_status("Rejected: sensor failed");
     return false;
+  }
   if (!this->validate_limit_temperature_(limit, temperature)) {
     return false;
   }
