@@ -56,11 +56,13 @@ void UartTcp::try_listen_() {
   if (this->listen_ != nullptr) {
     int yes = 1;
     this->listen_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-    this->listen_->setblocking(false);
     struct sockaddr_storage local;
     socklen_t local_len =
         socket::set_sockaddr_any(reinterpret_cast<struct sockaddr *>(&local), sizeof(local), this->link_.port());
-    if (local_len != 0 && this->listen_->bind(reinterpret_cast<struct sockaddr *>(&local), local_len) == 0 &&
+    // A blocking listener would stall loop() inside accept(), so its
+    // setblocking result is part of the success condition.
+    if (this->listen_->setblocking(false) == 0 && local_len != 0 &&
+        this->listen_->bind(reinterpret_cast<struct sockaddr *>(&local), local_len) == 0 &&
         this->listen_->listen(LISTEN_BACKLOG) == 0) {
       ESP_LOGI(TAG, "Listening on %u", this->link_.port());
       return;
