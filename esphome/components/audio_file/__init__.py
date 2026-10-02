@@ -19,7 +19,7 @@ from esphome.const import (
     CONF_URL,
 )
 from esphome.core import CORE, ID, HexInt
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import MockObj, ProgmemAssignmentExpression
 from esphome.external_files import download_web_files_in_config
 from esphome.types import ConfigType
 
@@ -217,9 +217,9 @@ def audio_files_schema() -> cv.All:
 
 
 def generate_audio_file_code(file_config: ConfigType) -> MockObj:
-    """Generate the progmem data, AudioFile struct, and Pvariable for one file.
+    """Generate the progmem data and a flash AudioFile for one file.
 
-    Returns the created Pvariable. Caller is responsible for any further
+    Returns a const pointer to the AudioFile. Caller is responsible for any further
     registration (the audio_file component additionally registers each file in
     its named C++ registry; other consumers may skip that).
     """
@@ -230,17 +230,33 @@ def generate_audio_file_code(file_config: ConfigType) -> MockObj:
     else:
         data, media_file_type = read_audio_file_and_type(file_config)
 
-    rhs = [HexInt(x) for x in data]
-    prog_arr = cg.progmem_array(file_config[CONF_RAW_DATA_ID], rhs)
-
-    media_files_struct = cg.StructInitializer(
+    # Everything is global and constant so the AudioFile lives in flash; the id stays
+    # a pointer so id() in lambdas and the play actions keep working.
+    data_id = file_config[CONF_RAW_DATA_ID]
+    cg.add_global(
+        ProgmemAssignmentExpression(
+            data_id.type, data_id, cg.safe_exp([HexInt(x) for x in data])
+        )
+    )
+    media_file = cg.StructInitializer(
         audio.AudioFile,
-        ("data", prog_arr),
-        ("length", len(rhs)),
+        ("data", MockObj(data_id, ".")),
+        ("length", len(data)),
         ("file_type", media_file_type),
     )
-
-    return cg.new_Pvariable(file_config[CONF_ID], media_files_struct)
+    file_var_id = file_config[CONF_ID]
+    storage = f"{file_var_id}__file"
+    cg.add_global(
+        cg.RawStatement(f"static constexpr audio::AudioFile {storage} = {media_file};")
+    )
+    cg.add_global(
+        cg.RawStatement(
+            f"static const audio::AudioFile *const {file_var_id} = &{storage};"
+        )
+    )
+    var = MockObj(file_var_id, "->")
+    CORE.register_variable(file_var_id, var)
+    return var
 
 
 CONFIG_SCHEMA = cv.All(
