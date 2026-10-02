@@ -6,10 +6,6 @@ namespace esphome::socket {
 
 /// IPv4 addresses that may connect. An empty list allows every address.
 /// A single address is stored as /32. Addresses and masks are host byte order.
-///
-/// tcp_uart's server role is the first caller. uart_tcp uses the same list
-/// once its server role is on dev, which is why this lives next to the socket
-/// helpers instead of inside the first caller.
 class Ipv4Allow {
  public:
   static constexpr uint8_t MAX = 8;
