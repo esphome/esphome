@@ -12,6 +12,8 @@ static const char *const TAG = "uart_tcp";
 
 // One client at a time; a second connection waits in the stack until the first drops.
 static constexpr int LISTEN_BACKLOG = 1;
+// Bytes per 16 ms loop pass at 10 bits per byte: baud / 10 / 62.5.
+static constexpr uint32_t BAUD_PACE_DIVISOR = 625;
 
 void UartTcp::setup() {
   this->link_.begin(TAG);
@@ -85,6 +87,11 @@ void UartTcp::read_socket_() {
   // A hardware write blocks until the driver takes every byte. Leave what does
   // not fit in the socket, so TCP flow control throttles the peer.
   size_t room = this->parent_->available_for_write();
+  if (room == SIZE_MAX) {
+    // Capacity unknown on this platform; pace to one loop pass of UART time
+    // (16 ms at 10 bits per byte) so a blocking write stays short.
+    room = std::max<size_t>(1, this->parent_->get_baud_rate() / BAUD_PACE_DIVISOR);
+  }
   if (room == 0) {
     this->rx_pending_ = true;
     return;
@@ -104,15 +111,13 @@ void UartTcp::read_socket_() {
 }
 
 void UartTcp::discard_uart_() {
+  // Drain exactly what was buffered while the link was down; later bytes are live.
   uint8_t dump[32];
-  size_t left = 4096;
-  while (left != 0 && this->available() != 0) {
-    size_t n = std::min(this->available(), sizeof(dump));
-    if (n > left) {
-      n = left;
-    }
+  size_t left = this->available();
+  while (left != 0) {
+    size_t n = std::min(left, sizeof(dump));
     if (!this->read_array(dump, n)) {
-      break;
+      return;
     }
     left -= n;
   }
@@ -138,7 +143,9 @@ void UartTcp::loop() {
     if (this->listen_ == nullptr && !this->link_.in_backoff()) {
       this->try_listen_();
     }
-    if (this->listen_ != nullptr && !this->link_.connected() && this->listen_->ready()) {
+    // link_was_up_ holds the accept until the previous drop's edge has run,
+    // so the old client's buffered bytes never reach the new one.
+    if (this->listen_ != nullptr && !this->link_.connected() && !this->link_was_up_ && this->listen_->ready()) {
       this->accept_client_();
     }
   } else {
