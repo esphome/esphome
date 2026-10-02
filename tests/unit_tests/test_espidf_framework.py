@@ -44,6 +44,7 @@ from esphome.espidf.framework import (
     check_esp_idf_install,
     get_framework_env,
     get_idf_tools_path,
+    idf_tools_version,
 )
 from esphome.framework_helpers import _tar_extract_all, get_python_env_executable_path
 
@@ -1468,19 +1469,59 @@ def test_demote_unused_tools_already_patched_is_noop(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_get_idf_version_parses_stdout(tmp_path: Path) -> None:
+def _write_idf_version_header(root: Path, major: int, minor: int) -> None:
+    include = root / "components" / "esp_common" / "include"
+    include.mkdir(parents=True)
+    (include / "esp_idf_version.h").write_text(
+        f"#define ESP_IDF_VERSION_MAJOR   {major}\n"
+        "/** Minor version number (x.X.x) */\n"
+        f"#define ESP_IDF_VERSION_MINOR   {minor}\n"
+        "#define ESP_IDF_VERSION_PATCH   0\n",
+        encoding="utf-8",
+    )
+
+
+def test_get_idf_version_reads_version_txt(tmp_path: Path) -> None:
+    """version.txt wins and gives major.minor, as idf_tools returns it."""
+    (tmp_path / "version.txt").write_text("v5.5.5\n", encoding="utf-8")
+    _write_idf_version_header(tmp_path, 6, 1)
+    assert _get_idf_version(tmp_path) == "5.5"
+
+
+def test_get_idf_version_falls_back_to_the_header(tmp_path: Path) -> None:
+    """A version.txt that does not match (a git ref) defers to the header."""
+    (tmp_path / "version.txt").write_text("vrelease/v6.1\n", encoding="utf-8")
+    _write_idf_version_header(tmp_path, 6, 1)
+    assert _get_idf_version(tmp_path) == "6.1"
+
+
+def test_get_idf_version_raises_without_a_source(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="Can't get ESP-IDF version"):
+        _get_idf_version(tmp_path)
+
+
+def test_get_idf_version_wraps_an_unreadable_source(tmp_path: Path) -> None:
+    """A source that cannot be decoded keeps the RuntimeError contract."""
+    (tmp_path / "version.txt").write_bytes(b"\xff\xfev")
+    with pytest.raises(RuntimeError, match="Can't get ESP-IDF version") as info:
+        _get_idf_version(tmp_path)
+    assert isinstance(info.value.__cause__, UnicodeError)
+
+
+def test_idf_tools_version_runs_the_framework_script(tmp_path: Path) -> None:
     with patch(
-        "esphome.espidf.framework.run_command", return_value=(True, "5.1.2\n", "")
-    ):
-        assert _get_idf_version(tmp_path) == "5.1.2"
+        "esphome.espidf.framework.run_command", return_value=(True, "5.5\n", "")
+    ) as run:
+        assert idf_tools_version(tmp_path) == "5.5"
+    assert run.call_args.args[0][1].endswith("get_idf_version.py")
 
 
-def test_get_idf_version_raises_on_failure(tmp_path: Path) -> None:
+def test_idf_tools_version_raises_on_failure(tmp_path: Path) -> None:
     with (
         patch("esphome.espidf.framework.run_command", return_value=(False, "", "boom")),
         pytest.raises(RuntimeError, match="Can't get ESP-IDF version"),
     ):
-        _get_idf_version(tmp_path)
+        idf_tools_version(tmp_path)
 
 
 def test_get_idf_tool_paths_parses_json(tmp_path: Path) -> None:
