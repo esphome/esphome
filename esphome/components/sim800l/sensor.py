@@ -27,8 +27,7 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config):
-    sim800l_component = await cg.get_variable(config[CONF_SIM800L_ID])
+    hub = await cg.get_variable(config[CONF_SIM800L_ID])
 
-    if CONF_RSSI in config:
-        sens = await sensor.new_sensor(config[CONF_RSSI])
-        cg.add(sim800l_component.set_rssi_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_RSSI, hub.set_rssi_sensor)
