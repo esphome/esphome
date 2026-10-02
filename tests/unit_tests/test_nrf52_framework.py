@@ -1131,7 +1131,7 @@ def test_get_build_env_with_ccache(
 def test_get_build_env_skips_the_map_entry_on_whitespace(
     nrf52_dirs: SimpleNamespace, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """ccache splits the ignore list on spaces; a spaced path cannot be
+    """The ignore list splits on spaces; a spaced path cannot be
     expressed, so the entry is left hashed rather than emitted broken."""
     monkeypatch.delenv("CCACHE_IGNOREOPTIONS", raising=False)
     CORE.build_path = tmp_path / "with space" / "build"
