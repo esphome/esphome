@@ -3,8 +3,8 @@
 import pytest
 from voluptuous import Invalid
 
-from esphome.components.const import CONF_ENABLE_IPV4
 from esphome.components.network import (
+    CONF_ENABLE_IPV4,
     _validate_ipv6_only,
     final_validate_no_manual_ip_if_ipv6_only,
     validate_enable_ipv4,

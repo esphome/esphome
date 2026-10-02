@@ -3,7 +3,6 @@ import logging
 from typing import Any
 
 import esphome.codegen as cg
-from esphome.components.const import CONF_ENABLE_IPV4
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.components.zephyr import zephyr_add_prj_conf
@@ -26,6 +25,8 @@ CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
 
 _LOGGER = logging.getLogger(__name__)
+
+CONF_ENABLE_IPV4 = "enable_ipv4"
 
 # High performance networking tracking infrastructure
 # Components can request high performance networking and this configures lwip and WiFi settings
