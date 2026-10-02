@@ -405,7 +405,7 @@ def _uri_jobs(
     """
     from esphome.net_retry import fetch_with_retry, http_request
 
-    candidates: list[tuple[str, str, Path, Any]] = []
+    candidates: list[tuple[str, str, Path, Any, bool]] = []
     installable: list[tuple[str, Any]] = []
     for spec in specs:
         url = spec.uri
