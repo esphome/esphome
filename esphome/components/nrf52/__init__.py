@@ -978,6 +978,9 @@ def run_compile(args, config: ConfigType) -> bool:
         pch.log_pch_in_use()
         # Zephyr turns ccache on by itself when it is installed
         env.update(pch.ccache_pch_env())
+        # Depend mode, or a Kconfig flip reuses a stale .gch: autoconf.h is
+        # all #defines, which vanish from the preprocessed creation hash.
+        env.setdefault("CCACHE_DEPEND", "1")
         _write_pch_checksum(build_dir, source_dir)
 
     west_cmd = _west_build_command(

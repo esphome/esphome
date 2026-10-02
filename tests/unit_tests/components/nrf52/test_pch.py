@@ -138,6 +138,18 @@ def test_ccache_pch_settings_reach_west(run_cmd: Mock) -> None:
     env = run_cmd.call_args.kwargs["env"]
     assert env["CCACHE_PCH_EXTSUM"] == "true"
     assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
+    # Without depend mode a Kconfig flip reuses a stale .gch
+    assert env["CCACHE_DEPEND"] == "1"
+
+
+def test_ccache_depend_respects_a_user_override(run_cmd: Mock) -> None:
+    with (
+        patch.object(nrf52, "get_build_env", return_value={"CCACHE_DEPEND": "0"}),
+        patch.dict("os.environ", {"ESPHOME_PCH_ENABLE": "1"}, clear=True),
+        pytest.raises(EsphomeError, match="nRF52 native build failed"),
+    ):
+        nrf52.run_compile(None, {})
+    assert run_cmd.call_args.kwargs["env"]["CCACHE_DEPEND"] == "0"
 
 
 def test_disabled_leaves_the_west_environment_alone(
@@ -147,3 +159,4 @@ def test_disabled_leaves_the_west_environment_alone(
     with pytest.raises(EsphomeError, match="nRF52 native build failed"):
         nrf52.run_compile(None, {})
     assert "CCACHE_PCH_EXTSUM" not in run_cmd.call_args.kwargs["env"]
+    assert "CCACHE_DEPEND" not in run_cmd.call_args.kwargs["env"]
