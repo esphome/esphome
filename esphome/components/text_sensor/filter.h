@@ -3,8 +3,6 @@
 #include "esphome/core/defines.h"
 #ifdef USE_TEXT_SENSOR_FILTER
 
-#include <array>
-
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -127,16 +125,17 @@ struct Substitution {
 bool substitute_filter_apply(const Substitution *substitutions, size_t count, std::string &value);
 
 /// A simple filter that replaces a substring with another substring.
-/// N is set by code generation to match the exact number of substitutions configured in YAML.
-template<size_t N> class SubstituteFilter : public Filter {
+/// `substitutions` is a codegen table in flash, shared by filters with the same list.
+class SubstituteFilter : public Filter {
  public:
-  explicit SubstituteFilter(const std::initializer_list<Substitution> &substitutions) {
-    init_array_from(this->substitutions_, substitutions);
+  SubstituteFilter(const Substitution *substitutions, size_t count) : substitutions_(substitutions), count_(count) {}
+  bool new_value(std::string &value) override {
+    return substitute_filter_apply(this->substitutions_, this->count_, value);
   }
-  bool new_value(std::string &value) override { return substitute_filter_apply(this->substitutions_.data(), N, value); }
 
  protected:
-  std::array<Substitution, N> substitutions_{};
+  const Substitution *substitutions_;
+  size_t count_;
 };
 
 /// Non-template helper (implementation in filter.cpp)
@@ -166,17 +165,16 @@ bool map_filter_apply(const Substitution *mappings, size_t count, std::string &v
  *
  * Break-even point: ~35-40 mappings, but ESPHome configs rarely exceed 20
  *
- * N is set by code generation to match the exact number of mappings configured in YAML.
+ * `mappings` is a codegen table in flash, shared by filters with the same list.
  */
-template<size_t N> class MapFilter : public Filter {
+class MapFilter : public Filter {
  public:
-  explicit MapFilter(const std::initializer_list<Substitution> &mappings) {
-    init_array_from(this->mappings_, mappings);
-  }
-  bool new_value(std::string &value) override { return map_filter_apply(this->mappings_.data(), N, value); }
+  MapFilter(const Substitution *mappings, size_t count) : mappings_(mappings), count_(count) {}
+  bool new_value(std::string &value) override { return map_filter_apply(this->mappings_, this->count_, value); }
 
  protected:
-  std::array<Substitution, N> mappings_{};
+  const Substitution *mappings_;
+  size_t count_;
 };
 
 }  // namespace esphome::text_sensor

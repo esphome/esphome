@@ -1,3 +1,5 @@
+from dataclasses import dataclass, field
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
@@ -40,6 +42,7 @@ DEVICE_CLASSES = [
 
 
 IS_PLATFORM_COMPONENT = True
+DOMAIN = "text_sensor"
 
 text_sensor_ns = cg.esphome_ns.namespace("text_sensor")
 TextSensor = text_sensor_ns.class_("TextSensor", cg.EntityBase)
@@ -58,6 +61,7 @@ AppendFilter = text_sensor_ns.class_("AppendFilter", Filter)
 PrependFilter = text_sensor_ns.class_("PrependFilter", Filter)
 SubstituteFilter = text_sensor_ns.class_("SubstituteFilter", Filter)
 MapFilter = text_sensor_ns.class_("MapFilter", Filter)
+Substitution = text_sensor_ns.struct("Substitution")
 
 
 @FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
@@ -101,34 +105,46 @@ def validate_mapping(value):
     )(value)
 
 
+@dataclass
+class TextSensorData:
+    # (from, to) pairs -> the PROGMEM table shared by every filter using them.
+    substitution_tables: dict[tuple[tuple[str, str], ...], MockObj] = field(
+        default_factory=dict
+    )
+
+
+def _get_data() -> TextSensorData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = TextSensorData()
+    return CORE.data[DOMAIN]
+
+
+def _substitution_table(filter_id: ID, config: list[ConfigType]) -> MockObj:
+    """Return a PROGMEM Substitution table for these pairs; equal lists share one."""
+    tables = _get_data().substitution_tables
+    key = tuple((conf[CONF_FROM], conf[CONF_TO]) for conf in config)
+    if (table := tables.get(key)) is None:
+        table_id = ID(f"{filter_id}_table", is_declaration=True, type=Substitution)
+        pairs = [
+            cg.StructInitializer(Substitution, ("from", src), ("to", dst))
+            for src, dst in key
+        ]
+        table = tables[key] = cg.progmem_array(table_id, cg.ArrayInitializer(*pairs))
+    return table
+
+
 @FILTER_REGISTRY.register(
     "substitute", SubstituteFilter, cv.ensure_list(validate_mapping)
 )
 async def substitute_filter_to_code(config, filter_id):
-    substitutions = [
-        cg.StructInitializer(
-            cg.MockObj("Substitution", "esphome::text_sensor::"),
-            ("from", conf[CONF_FROM]),
-            ("to", conf[CONF_TO]),
-        )
-        for conf in config
-    ]
-    return cg.new_Pvariable(
-        filter_id, cg.TemplateArguments(len(substitutions)), substitutions
-    )
+    table = _substitution_table(filter_id, config)
+    return cg.new_Pvariable(filter_id, table, len(config))
 
 
 @FILTER_REGISTRY.register("map", MapFilter, cv.ensure_list(validate_mapping))
 async def map_filter_to_code(config, filter_id):
-    mappings = [
-        cg.StructInitializer(
-            cg.MockObj("Substitution", "esphome::text_sensor::"),
-            ("from", conf[CONF_FROM]),
-            ("to", conf[CONF_TO]),
-        )
-        for conf in config
-    ]
-    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(mappings)), mappings)
+    table = _substitution_table(filter_id, config)
+    return cg.new_Pvariable(filter_id, table, len(config))
 
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
