@@ -371,9 +371,10 @@ def final_validate(config):
     if "esp32_hosted" in full_config and any(
         CONF_EAP in net for net in config.get(CONF_NETWORKS, [])
     ):
-        raise cv.Invalid(
-            "WPA2 Enterprise ('eap:') is not supported with esp32_hosted; "
-            "the coprocessor firmware does not include enterprise authentication"
+        _LOGGER.warning(
+            "WPA2 Enterprise ('eap:') is not supported by the esp32_hosted coprocessor "
+            "firmware ESPHome provides; it only works with custom coprocessor firmware "
+            "built with enterprise authentication enabled."
         )
 
 
