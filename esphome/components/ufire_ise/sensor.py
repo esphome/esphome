@@ -56,13 +56,9 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature_sensor(sens))
-
-    if CONF_PH in config:
-        sens = await sensor.new_sensor(config[CONF_PH])
-        cg.add(var.set_ph_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_PH, var.set_ph_sensor)
 
     if CONF_TEMPERATURE_SENSOR in config:
         sens = await cg.get_variable(config[CONF_TEMPERATURE_SENSOR])
