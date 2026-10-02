@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from esphome import automation
@@ -92,7 +93,7 @@ from esphome.core.entity_helpers import (
     setup_unit_of_measurement,
 )
 from esphome.cpp_generator import MockObj, MockObjClass, ProgmemAssignmentExpression
-from esphome.types import ConfigType, Expression, SafeExpType
+from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "number"
@@ -292,21 +293,9 @@ RANGE_TABLE_MIN_USERS = 3
 
 
 @dataclass
-class NumberRangeUsage:
-    range_id: ID
-    values: tuple[float, float, float]
-    users: int = 0
-
-    @property
-    def shared(self) -> bool:
-        return self.users >= RANGE_TABLE_MIN_USERS
-
-
-@dataclass
 class NumberData:
-    ranges: dict[tuple[float, float, float], NumberRangeUsage] = field(
-        default_factory=dict
-    )
+    # (min, max, step) -> range_id of every number using it; the first one names the table.
+    ranges: dict[tuple[float, float, float], list[ID]] = field(default_factory=dict)
 
 
 def _get_data() -> NumberData:
@@ -315,50 +304,16 @@ def _get_data() -> NumberData:
     return CORE.data[DOMAIN]
 
 
-class _RangeTableStatement(cg.Statement):
-    """Global PROGMEM table, rendered only if enough numbers ended up sharing the range."""
+class _RenderTimeStatement(cg.Statement):
+    """Text chosen when main.cpp is written, after every number has been counted."""
 
-    __slots__ = ("usage",)
+    __slots__ = ("render",)
 
-    def __init__(self, usage: NumberRangeUsage) -> None:
-        self.usage = usage
-
-    def __str__(self) -> str:
-        if not self.usage.shared:
-            return ""
-        decl = ProgmemAssignmentExpression(
-            NumberRange, self.usage.range_id, cg.safe_exp([self.usage.values])
-        )
-        return f"{decl};"
-
-
-class _SetRangeStatement(cg.Statement):
-    """set_range() on the shared table, or the plain setters, decided once every number is known."""
-
-    __slots__ = ("var", "usage")
-
-    def __init__(self, var: MockObj, usage: NumberRangeUsage) -> None:
-        self.var = var
-        self.usage = usage
+    def __init__(self, render: Callable[[], str]) -> None:
+        self.render = render
 
     def __str__(self) -> str:
-        if self.usage.shared:
-            table = MockObj(self.usage.range_id, ".")
-            return str(cg.statement(self.var.set_range(table)))
-        return "\n".join(
-            str(cg.statement(expr))
-            for expr in _range_setters(self.var, *self.usage.values)
-        )
-
-
-def _range_setters(
-    var: MockObj, min_value: SafeExpType, max_value: SafeExpType, step: SafeExpType
-) -> tuple[Expression, Expression, Expression]:
-    return (
-        var.traits.set_min_value(min_value),
-        var.traits.set_max_value(max_value),
-        var.traits.set_step(step),
-    )
+        return self.render()
 
 
 def _add_range(
@@ -368,18 +323,34 @@ def _add_range(
     max_value: SafeExpType,
     step: SafeExpType,
 ) -> None:
+    setters = (
+        var.traits.set_min_value(min_value),
+        var.traits.set_max_value(max_value),
+        var.traits.set_step(step),
+    )
     # Lambda bounds (e.g. lvgl arc/bar) are runtime expressions and can't go in a table.
     if not all(isinstance(v, (int, float)) for v in (min_value, max_value, step)):
-        for expr in _range_setters(var, min_value, max_value, step):
+        for expr in setters:
             cg.add(expr)
         return
     key = (float(min_value), float(max_value), float(step))
-    ranges = _get_data().ranges
-    if (usage := ranges.get(key)) is None:
-        usage = ranges[key] = NumberRangeUsage(range_id, key)
-        cg.add_global(_RangeTableStatement(usage))
-    usage.users += 1
-    cg.add(_SetRangeStatement(var, usage))
+    users = _get_data().ranges.setdefault(key, [])
+    users.append(range_id)
+    table = users[0]
+
+    def render_table() -> str:
+        if len(users) < RANGE_TABLE_MIN_USERS:
+            return ""
+        return f"{ProgmemAssignmentExpression(NumberRange, table, cg.safe_exp([key]))};"
+
+    def render_call() -> str:
+        if len(users) < RANGE_TABLE_MIN_USERS:
+            return "\n".join(str(cg.statement(expr)) for expr in setters)
+        return str(cg.statement(var.set_range(MockObj(table, "."))))
+
+    if len(users) == 1:
+        cg.add_global(_RenderTimeStatement(render_table))
+    cg.add(_RenderTimeStatement(render_call))
 
 
 @setup_entity("number")
