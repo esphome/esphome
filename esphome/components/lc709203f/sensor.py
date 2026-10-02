@@ -79,13 +79,9 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_pack_size(config.get(CONF_SIZE)))
     cg.add(var.set_pack_voltage(BATTERY_VOLTAGE_OPTIONS[config[CONF_VOLTAGE]]))
 
-    if voltage_config := config.get(CONF_BATTERY_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
-
-    if level_config := config.get(CONF_BATTERY_LEVEL):
-        sens = await sensor.new_sensor(level_config)
-        cg.add(var.set_battery_remaining_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_BATTERY_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_remaining_sensor)
 
     if temp_config := config.get(CONF_TEMPERATURE):
         sens = await sensor.new_sensor(temp_config)
