@@ -13,9 +13,13 @@ import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError
 
 from .const import ZEPHYR_VARIANT_ESP32, ZEPHYR_VARIANT_NATIVE_SIM
+from .gpio import pin_summary
 from .variants import VARIANTS
 
 _LOGGER = logging.getLogger(__name__)
+
+# dump_config display string for a pin left at the board's own wiring.
+_BOARD_DEFAULT = "board default"
 
 
 def _resolve_i2c_pinctrl_states(
@@ -296,16 +300,23 @@ def zephyr_setup_uart_pinctrl(
     rx_pin: int | None,
     baud_rate: int,
     node_known: bool = True,
-) -> None:
+) -> tuple[str, str]:
     """Add the TX/RX pinctrl overlay (if either pin is given) and the bus-enable
     overlay for `port_label`, mirroring zephyr_setup_i2c_pinctrl()/
     zephyr_setup_spi_pinctrl()'s shape. node_known=False skips the bus-enable
-    override -- it'd forward-reference an undeclared label."""
-    from . import zephyr_add_overlay, zephyr_variant, zephyr_variant_family  # noqa: PLC0415 -- avoids circular import at module load
+    override -- it'd forward-reference an undeclared label.
+
+    Returns (tx, rx) as dump_config display strings, like zephyr_setup_i2c_pinctrl().
+    A pin that isn't remapped (or couldn't be applied) shows "board default"."""
+    from . import zephyr_add_overlay, zephyr_data, zephyr_variant, zephyr_variant_family  # noqa: PLC0415 -- avoids circular import at module load
+
+    variant_name = zephyr_data().get("variant") or ""
+    tx_display = _pin_display(tx_pin, variant_name)
+    rx_display = _pin_display(rx_pin, variant_name)
 
     if tx_pin is None and rx_pin is None:
         if not node_known:
-            return
+            return tx_display, rx_display
         from .dts_lookup import has_pinctrl_configured
 
         if not has_pinctrl_configured(board, port_label):
@@ -318,7 +329,7 @@ def zephyr_setup_uart_pinctrl(
                 port_label,
             )
         zephyr_add_overlay(f'&{port_label} {{ status = "okay"; }};')
-        return
+        return tx_display, rx_display
 
     if not node_known:
         _LOGGER.warning(
@@ -328,7 +339,7 @@ def zephyr_setup_uart_pinctrl(
             port_label,
             board,
         )
-        return
+        return _BOARD_DEFAULT, _BOARD_DEFAULT
 
     prefix = port_label.upper()
     family = zephyr_variant_family()
@@ -393,21 +404,34 @@ def zephyr_setup_uart_pinctrl(
         f"current-speed = <{baud_rate}>; "
         f"{pinctrl_props} pinctrl-names = {names_prop}; }};"
     )
+    return tx_display, rx_display
+
+
+def _pin_display(pin: int | None, variant_name: str) -> str:
+    """dump_config display string for a flat pin number."""
+    if pin is None:
+        return _BOARD_DEFAULT
+    if (variant_info := VARIANTS.get(variant_name)) is not None:
+        return pin_summary(variant_info, pin)
+    if CORE.is_nrf52:
+        # No variant info on platform: nrf52; same 32-pins-per-port split as its overlay.
+        return f"GPIO{pin}, P{pin // 32}.{pin % 32}"
+    return f"GPIO{pin}"
 
 
 def zephyr_setup_i2c_pinctrl(
     board: str, bus_label: str, sda: int | None, scl: int | None
 ) -> tuple[str, str]:
     """Resolve I2C pin assignments and add the variant-specific pinctrl overlay,
-    returning (sda, scl) as dump_config display strings -- "GPIO{n}" for
-    whichever pin was actually given, "board default" for whichever wasn't
-    (independently, not all-or-nothing: giving only one remaps just that
-    signal, leaving the other at the board's own existing wiring)."""
+    returning (sda, scl) as dump_config display strings -- flat pin plus the variant's
+    own name (e.g. "GPIO37, PC5") for whichever pin was actually given, "board default" for
+    whichever wasn't (independently, not all-or-nothing: giving only one remaps
+    just that signal, leaving the other at the board's own existing wiring)."""
     from . import zephyr_add_overlay, zephyr_data, zephyr_variant, zephyr_variant_family  # noqa: PLC0415 -- avoids circular import at module load
 
     variant_name = zephyr_data().get("variant") or ""
-    sda_display = f"GPIO{sda}" if sda is not None else "board default"
-    scl_display = f"GPIO{scl}" if scl is not None else "board default"
+    sda_display = _pin_display(sda, variant_name)
+    scl_display = _pin_display(scl, variant_name)
 
     if sda is None and scl is None:
         # Bus is already enabled unconditionally by the caller -- board's own

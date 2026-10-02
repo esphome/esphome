@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from esphome.components.zephyr.const import KEY_ZEPHYR
-from esphome.components.zephyr.gpio import _validate_gpio_pin
+from esphome.components.zephyr.gpio import _validate_gpio_pin, pin_summary
 from esphome.components.zephyr.variants import VARIANTS
 import esphome.config_validation as cv
 from esphome.core import CORE
@@ -81,3 +81,32 @@ def test_flat_int_pin_still_accepted_on_renesas_variant() -> None:
 def test_gpio_prefixed_pin_still_accepted_on_renesas_variant() -> None:
     _set_zephyr_variant("RA4M1")
     assert _validate_gpio_pin("GPIO22") == 22
+
+
+# ---------------------------------------------------------------------------
+# pin_summary -- same text as ZephyrGPIOPin::dump_summary()
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("variant", "num", "expected"),
+    [
+        ("EFR32MG24", 37, "GPIO37, PC5"),  # lettered ports, 16 pins each
+        ("EFR32MG24", 0, "GPIO0, PA0"),
+        ("NRF52", 13, "GPIO13, P0.13"),  # port-banked, 32 pins each
+        ("NRF52", 45, "GPIO45, P1.13"),
+        ("RA4M1", 22, "GPIO22, P106"),  # Renesas: pin zero-padded to 2 digits
+        ("RA4M1", 0, "GPIO0, P000"),
+        ("ESP32H2", 5, "GPIO5"),  # flat numbering, no port notation
+        ("RP2040", 29, "GPIO29"),
+    ],
+)
+def test_pin_summary_uses_the_variants_own_notation(
+    variant: str, num: int, expected: str
+) -> None:
+    assert pin_summary(VARIANTS[variant], num) == expected
+
+
+def test_pin_summary_falls_back_to_flat_for_port_past_the_last_letter() -> None:
+    # EFR32MG24 has ports A-D (4 * 16 pins) -- pin 64 would be a fifth port.
+    assert pin_summary(VARIANTS["EFR32MG24"], 64) == "GPIO64"

@@ -7,7 +7,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart.zephyr";
+static const char *const TAG = "uart";
 
 void ZephyrUartComponent::uart_irq_handler_s(const struct device *dev, void *user_data) {
   static_cast<ZephyrUartComponent *>(user_data)->uart_irq_handler_();
@@ -101,6 +101,10 @@ void ZephyrUartComponent::drain_polled_rx_() {
 void ZephyrUartComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART (Zephyr):");
   ESP_LOGCONFIG(TAG, "  Port: %s", this->port_label_);
+  if (this->tx_pin_name_[0] != '\0') {
+    ESP_LOGCONFIG(TAG, "  TX Pin: %s", this->tx_pin_name_);
+    ESP_LOGCONFIG(TAG, "  RX Pin: %s", this->rx_pin_name_);
+  }
   if (this->uart_dev_ == nullptr) {
     ESP_LOGCONFIG(TAG, "  Status: NOT READY");
     return;

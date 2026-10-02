@@ -1,4 +1,5 @@
 import re
+from typing import TYPE_CHECKING
 
 from esphome import pins
 import esphome.codegen as cg
@@ -12,6 +13,9 @@ from esphome.const import (
 )
 
 from .const import zephyr_ns
+
+if TYPE_CHECKING:
+    from .variants import ZephyrVariant
 
 ZephyrGPIOPin = zephyr_ns.class_("ZephyrGPIOPin", cg.InternalGPIOPin)
 
@@ -115,6 +119,39 @@ ZEPHYR_PIN_SCHEMA = pins.gpio_base_schema(
 )
 
 
+def _pin_name_prefix(
+    variant_info: "ZephyrVariant", port: int
+) -> tuple[str | None, bool]:
+    """Return (prefix, zero_pad_pin) for the variant's own pin notation: "PC" for
+    lettered ports, "P0." for port-banked families, "P4" zero-padded for Renesas.
+    prefix is None for families with flat GPIO numbering (esp32, rp2040/rp2350)."""
+    if (port_labels := variant_info.gpio_port_labels) is not None:
+        # Lettered ports (e.g. Silicon Labs' gpioa/gpiob/...) use that vendor's own
+        # pin-naming convention directly -- "PA5", not Nordic's "P0.05" style.
+        return f"P{port_labels[port].upper()}", False
+    if variant_info.family in _PORT_BANKED_FAMILIES:
+        return f"P{port}.", False
+    if variant_info.family in _CONCAT_PORT_FAMILIES:
+        # Renesas RA's own notation always zero-pads the pin to 2 digits (P106, not P16).
+        return f"P{port}", True
+    return None, False
+
+
+def pin_summary(variant_info: "ZephyrVariant", num: int) -> str:
+    """Return the flat pin plus the variant's own name for it ("GPIO37, PC5"), or just
+    "GPIO{num}" where the family has no port notation. Same text as
+    ZephyrGPIOPin::dump_summary()."""
+    port, pin = divmod(num, variant_info.gpio_port_width)
+    if variant_info.gpio_port_labels is not None and port >= len(
+        variant_info.gpio_port_labels
+    ):
+        return f"GPIO{num}"
+    prefix, zero_pad = _pin_name_prefix(variant_info, port)
+    if prefix is None:
+        return f"GPIO{num}"
+    return f"GPIO{num}, {prefix}{pin:02d}" if zero_pad else f"GPIO{num}, {prefix}{pin}"
+
+
 @pins.PIN_SCHEMA_REGISTRY.register(PLATFORM_ZEPHYR, ZEPHYR_PIN_SCHEMA)
 async def zephyr_pin_to_code(config):
     from . import zephyr_data
@@ -133,17 +170,12 @@ async def zephyr_pin_to_code(config):
         ),
         gpio_port_width,
     ]
-    if port_labels is not None:
-        # Lettered ports (e.g. Silicon Labs' gpioa/gpiob/...) use that vendor's own
-        # pin-naming convention directly -- "PA5", not Nordic's "P0.05" style.
-        args.append(f"P{node_suffix.upper()}")
-    elif variant_info.family in _PORT_BANKED_FAMILIES:
-        args.append(f"P{port}.")
-    elif variant_info.family in _CONCAT_PORT_FAMILIES:
-        # Renesas RA's own notation always zero-pads the pin to 2 digits (P106, not
-        # P16) -- the trailing `True` tells dump_summary() to format accordingly.
-        args.append(f"P{port}")
-        args.append(True)
+    prefix, zero_pad = _pin_name_prefix(variant_info, port)
+    if prefix is not None:
+        args.append(prefix)
+        if zero_pad:
+            # Tells dump_summary() to zero-pad the pin number to 2 digits.
+            args.append(True)
     var = cg.new_Pvariable(*args)
     cg.add(var.set_pin(num))
     # Only set if true to avoid bloating setup() function

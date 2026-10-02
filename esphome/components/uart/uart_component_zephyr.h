@@ -29,6 +29,9 @@ class ZephyrUartComponent : public UARTComponent, public Component {
     this->configured_dev_ = dev;
     this->port_label_ = label;
   }
+  /// Pin names shown in dump_config() only; the wiring itself comes from the pinctrl overlay.
+  void set_tx_pin_name(const char *name) { this->tx_pin_name_ = name; }
+  void set_rx_pin_name(const char *name) { this->rx_pin_name_ = name; }
 
  protected:
   void check_logger_conflict() override {}
@@ -40,6 +43,8 @@ class ZephyrUartComponent : public UARTComponent, public Component {
   const struct device *configured_dev_{nullptr};
   const struct device *uart_dev_{nullptr};
   const char *port_label_{""};
+  const char *tx_pin_name_{""};
+  const char *rx_pin_name_{""};
   // Set in setup() when the driver has no interrupt-driven RX API (e.g. Segger RTT),
   // detected via uart_irq_rx_ready() returning -ENOSYS.
   bool polled_rx_{false};
