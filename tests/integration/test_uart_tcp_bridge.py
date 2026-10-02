@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import pathlib
 
 import pytest
 
@@ -26,8 +27,12 @@ async def test_uart_tcp_bridge(
     server_port = unused_tcp_port_factory()
     controller_fd, device_fd = os.openpty()
     os.set_blocking(controller_fd, False)
+    # uart's validate_port wants a two segment device path; Linux ptys live at
+    # /dev/pts/N, so hand the config a /tmp symlink instead.
+    pty_link = f"/tmp/uart-tcp-pty-{os.getpid()}"
+    pathlib.Path(pty_link).symlink_to(os.ttyname(device_fd))
     yaml_config = yaml_config.replace("port: 18126", f"port: {server_port}")
-    yaml_config = yaml_config.replace("PTY_PATH", os.ttyname(device_fd))
+    yaml_config = yaml_config.replace("PTY_PATH", pty_link)
 
     lines = LineWaiter()
     loop = asyncio.get_running_loop()
@@ -102,3 +107,4 @@ async def test_uart_tcp_bridge(
         loop.remove_reader(controller_fd)
         os.close(controller_fd)
         os.close(device_fd)
+        pathlib.Path(pty_link).unlink()
