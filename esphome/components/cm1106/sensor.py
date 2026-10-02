@@ -54,9 +54,8 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    if co2_config := config.get(CONF_CO2):
-        sens = await sensor.new_sensor(co2_config)
-        cg.add(var.set_co2_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CO2, var.set_co2_sensor)
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
