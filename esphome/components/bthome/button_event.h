@@ -9,7 +9,7 @@
 
 namespace esphome::bthome {
 
-// BTHome v2 hold. Older transmitters sent 0xFE for the same gesture.
+// BTHome v2 hold. Older Shelly BLU firmware sent 0xFE for the same gesture.
 static constexpr uint8_t BUTTON_HOLD = 0x80;
 static constexpr uint8_t BUTTON_HOLD_ALIAS = 0xFE;
 static constexpr uint32_t NO_PACKET_COOLDOWN_MS = 1200;
