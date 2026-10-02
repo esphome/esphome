@@ -10,13 +10,14 @@ namespace esphome::uart_tcp {
 
 static const char *const TAG = "uart_tcp";
 
-// One client at a time; a second connection waits in the stack until the first drops.
-static constexpr int LISTEN_BACKLOG = 1;
 // Bytes per 16 ms loop pass at 10 bits per byte: baud / 10 / 62.5.
 static constexpr uint32_t BAUD_PACE_DIVISOR = 625;
 
 void UartTcp::setup() {
   this->link_.begin(TAG);
+#ifdef USE_SOCKET_TCP_LISTENER
+  this->listener_.begin(TAG);
+#endif
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(false);
   }
@@ -30,12 +31,17 @@ void UartTcp::dump_config() {
                 this->server_ ? LOG_STR_LITERAL("Listen") : LOG_STR_LITERAL("Host"),
                 this->server_ ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
                 this->link_.reconnect_interval());
+#ifdef USE_SOCKET_TCP_LISTENER
+  this->listener_.dump_config();
+#endif
   LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
 }
 
 void UartTcp::on_shutdown() {
   this->link_.close();
-  this->listen_.reset();
+#ifdef USE_SOCKET_TCP_LISTENER
+  this->listener_.close();
+#endif
 }
 
 void UartTcp::sync_link_() {
@@ -48,49 +54,6 @@ void UartTcp::sync_link_() {
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(up);
   }
-}
-
-void UartTcp::try_listen_() {
-  this->listen_ = socket::socket_ip_loop_monitored(SOCK_STREAM, IPPROTO_TCP);
-  int err = errno;
-  if (this->listen_ != nullptr) {
-    int yes = 1;
-    this->listen_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-    struct sockaddr_storage local;
-    socklen_t local_len =
-        socket::set_sockaddr_any(reinterpret_cast<struct sockaddr *>(&local), sizeof(local), this->link_.port());
-    // A blocking listener would stall loop() inside accept(), so its
-    // setblocking result is part of the success condition.
-    if (this->listen_->setblocking(false) == 0 && local_len != 0 &&
-        this->listen_->bind(reinterpret_cast<struct sockaddr *>(&local), local_len) == 0 &&
-        this->listen_->listen(LISTEN_BACKLOG) == 0) {
-      ESP_LOGI(TAG, "Listening on %u", this->link_.port());
-      return;
-    }
-    // Captured before reset(); the close inside can overwrite errno.
-    err = errno;
-    this->listen_.reset();
-  }
-  ESP_LOGW(TAG, "Listen on %u failed: %d", this->link_.port(), err);
-  this->link_.note_attempt();
-}
-
-void UartTcp::accept_client_() {
-  auto client = this->listen_->accept_loop_monitored(nullptr, nullptr);
-  if (client == nullptr) {
-    // A reset during the handshake or a signal only affects that connection.
-    if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ECONNABORTED || errno == EINTR) {
-      return;
-    }
-    // Rebuild the listener after the backoff instead of spinning on it.
-    int err = errno;
-    this->listen_.reset();
-    ESP_LOGW(TAG, "Accept failed: %d", err);
-    this->link_.note_attempt();
-    return;
-  }
-  this->link_.adopt(std::move(client));
-  ESP_LOGI(TAG, "Client connected");
 }
 
 void UartTcp::read_socket_() {
@@ -141,18 +104,17 @@ void UartTcp::read_uart_() {
 }
 
 void UartTcp::loop() {
+#ifdef USE_SOCKET_TCP_LISTENER
   if (this->server_) {
-    if (this->listen_ == nullptr && !this->link_.in_backoff()) {
-      this->try_listen_();
-    }
     // link_was_up_ holds the accept until the previous drop's edge has run,
     // so the sensor and the stale UART discard always see the disconnect.
-    if (this->listen_ != nullptr && !this->link_.connected() && !this->link_was_up_ && this->listen_->ready()) {
-      this->accept_client_();
-    }
+    this->listener_.poll(this->link_, !this->link_was_up_);
   } else {
     this->link_.poll();
   }
+#else
+  this->link_.poll();
+#endif
   if (this->link_.connected() != this->link_was_up_) {
     this->sync_link_();
   }

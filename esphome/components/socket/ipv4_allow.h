@@ -39,13 +39,20 @@ class Ipv4Allow {
       return true;
     }
     for (size_t i = 0; i != this->count_; i++) {
-      Ipv4AllowEntry entry;
-      progmem_memcpy(&entry, &this->entries_[i], sizeof(entry));
-      if ((addr & entry.mask) == entry.addr) {
+      Ipv4AllowEntry e = this->entry(i);
+      if ((addr & e.mask) == e.addr) {
         return true;
       }
     }
     return false;
+  }
+
+  size_t size() const { return this->count_; }
+  /// A copy of entry i, read from flash.
+  Ipv4AllowEntry entry(size_t i) const {
+    Ipv4AllowEntry e;
+    progmem_memcpy(&e, &this->entries_[i], sizeof(e));
+    return e;
   }
 
  private:

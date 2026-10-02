@@ -5,6 +5,7 @@ from ipaddress import IPv4Address, IPv4Network
 import logging
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_ROLE
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.core import CORE, ID
@@ -162,6 +163,7 @@ def add_ipv4_allow(
     """
     if not networks:
         return
+    cg.add_define("USE_SOCKET_IPV4_ALLOW")
     entries = [
         cg.StructInitializer(
             Ipv4AllowEntry,
@@ -184,6 +186,23 @@ def require_tcp_client_link() -> None:
     """Compile the reconnecting TCP client link; call from a consumer's to_code."""
     require_ipv4_resolve()
     cg.add_define("USE_SOCKET_TCP_CLIENT_LINK")
+
+
+def require_tcp_listener() -> None:
+    """Compile the TCP listener; call from a server role's to_code."""
+    require_tcp_client_link()
+    cg.add_define("USE_SOCKET_TCP_LISTENER")
+
+
+def consume_role_sockets(component: str) -> Callable[[ConfigType], ConfigType]:
+    """Socket accounting for a role keyed client or server schema."""
+
+    def validator(config: ConfigType) -> ConfigType:
+        if config[CONF_ROLE] == "server":
+            consume_sockets(1, component, SocketType.TCP_LISTEN)(config)
+        return consume_sockets(1, component)(config)
+
+    return validator
 
 
 CONFIG_SCHEMA = cv.Schema(
@@ -239,5 +258,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
         "lwip_sockets_impl.cpp": "USE_SOCKET_IMPL_LWIP_SOCKETS",
         "ipv4_resolve.cpp": "USE_SOCKET_IPV4_RESOLVE",
         "tcp_client_link.cpp": "USE_SOCKET_TCP_CLIENT_LINK",
+        "tcp_listener.cpp": "USE_SOCKET_TCP_LISTENER",
     }
 )

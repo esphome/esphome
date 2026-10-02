@@ -19,13 +19,8 @@ MULTI_CONF = True
 uart_tcp_ns = cg.esphome_ns.namespace("uart_tcp")
 UartTcp = uart_tcp_ns.class_("UartTcp", cg.Component, uart.UARTDevice)
 
+CONF_ALLOWED_IPS = "allowed_ips"
 CONF_CONNECTED = "connected"
-
-
-def _consume_sockets(config: ConfigType) -> ConfigType:
-    if config[CONF_ROLE] == "server":
-        socket.consume_sockets(1, "uart_tcp", socket.SocketType.TCP_LISTEN)(config)
-    return socket.consume_sockets(1, "uart_tcp")(config)
 
 
 BASE_SCHEMA = cv.Schema(
@@ -47,22 +42,30 @@ CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
             "client": BASE_SCHEMA.extend({cv.Required(CONF_HOST): cv.string}),
-            "server": BASE_SCHEMA,
+            "server": BASE_SCHEMA.extend(
+                {cv.Optional(CONF_ALLOWED_IPS): socket.IPV4_ALLOW_SCHEMA}
+            ),
         },
         key=CONF_ROLE,
         default_type="client",
         lower=True,
     ),
-    _consume_sockets,
+    socket.consume_role_sockets("uart_tcp"),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    socket.require_tcp_client_link()
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    cg.add(var.set_server(config[CONF_ROLE] == "server"))
+    if config[CONF_ROLE] == "server":
+        socket.require_tcp_listener()
+        cg.add(var.set_server(True))
+        socket.add_ipv4_allow(
+            var.set_allow, config.get(CONF_ALLOWED_IPS), config[CONF_ID]
+        )
+    else:
+        socket.require_tcp_client_link()
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
     if (host := config.get(CONF_HOST)) is not None:

@@ -18,9 +18,13 @@ def test_network_order_swaps_to_sockaddr_value() -> None:
 
 def test_add_ipv4_allow_emits_nothing_for_an_empty_list() -> None:
     setter = MagicMock()
-    with patch.object(socket.cg, "add") as add:
+    with (
+        patch.object(socket.cg, "add") as add,
+        patch.object(socket.cg, "add_define") as add_define,
+    ):
         socket.add_ipv4_allow(setter, [], "bridge")
     add.assert_not_called()
+    add_define.assert_not_called()
     setter.assert_not_called()
 
 
@@ -29,6 +33,7 @@ def test_add_ipv4_allow_wires_the_setter_with_cleared_host_bits() -> None:
     networks = [IPv4Network("192.168.175.33/24", strict=False)]
     with (
         patch.object(socket.cg, "add") as add,
+        patch.object(socket.cg, "add_define") as add_define,
         patch.object(socket.cg, "progmem_array") as array,
     ):
         socket.add_ipv4_allow(setter, networks, "bridge")
@@ -37,6 +42,7 @@ def test_add_ipv4_allow_wires_the_setter_with_cleared_host_bits() -> None:
     assert str(socket._network_order(IPv4Address("255.255.255.0"))) in rendered
     setter.assert_called_once_with(array.return_value, 1)
     add.assert_called_once()
+    add_define.assert_called_once_with("USE_SOCKET_IPV4_ALLOW")
 
 
 def test_schema_caps_the_list_length() -> None:
