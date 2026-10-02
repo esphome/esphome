@@ -66,6 +66,33 @@ else()
         "app edits will regenerate sections.ld.")
 endif()"""
 
+# IDF compiles every lwip source whatever the config; with its option off
+# each of these compiles to an empty object. Dropping them skips the
+# compiles and changes nothing in the link. Runs after project() so the
+# lwip target exists. Remove once IDF gates these sources itself.
+_LWIP_EMPTY_SOURCES_FILTER = """\
+idf_build_get_property(esphome_build_components BUILD_COMPONENTS)
+if(lwip IN_LIST esphome_build_components)
+    idf_component_get_property(esphome_lwip_lib lwip COMPONENT_LIB)
+    get_target_property(esphome_lwip_srcs ${esphome_lwip_lib} SOURCES)
+    if(NOT CONFIG_LWIP_PPP_SUPPORT)
+        list(FILTER esphome_lwip_srcs EXCLUDE REGEX "/netif/ppp/")
+    endif()
+    if(NOT CONFIG_LWIP_IPV6)
+        list(FILTER esphome_lwip_srcs EXCLUDE REGEX "/core/ipv6/")
+    endif()
+    if(NOT CONFIG_LWIP_AUTOIP)
+        list(FILTER esphome_lwip_srcs EXCLUDE REGEX "/core/ipv4/autoip\\\\.c$")
+    endif()
+    if(NOT CONFIG_LWIP_IPV4_NAPT)
+        list(FILTER esphome_lwip_srcs EXCLUDE REGEX "/core/ipv4/ip4_napt\\\\.c$")
+    endif()
+    if(NOT CONFIG_LWIP_STATS)
+        list(FILTER esphome_lwip_srcs EXCLUDE REGEX "/core/stats\\\\.c$")
+    endif()
+    set_property(TARGET ${esphome_lwip_lib} PROPERTY SOURCES ${esphome_lwip_srcs})
+endif()"""
+
 # Runs after project() so the walk has happened; catches the remaining
 # silent path where the top-level out-var was renamed.
 _LDGEN_OVERRIDE_CHECK = """\
@@ -348,23 +375,7 @@ project({CORE.name})
 
 {ldgen_override_check}
 
-# IDF lists every ppp and ipv6 lwip source whatever the config; with the
-# option off each one compiles to an empty object. Drop them so a clean
-# build skips the compiles, keyed on the options the files' guards use.
-if(TARGET __idf_lwip AND (NOT CONFIG_LWIP_PPP_SUPPORT OR NOT CONFIG_LWIP_IPV6))
-    get_target_property(esphome_lwip_srcs __idf_lwip SOURCES)
-    set(esphome_lwip_kept)
-    foreach(src ${{esphome_lwip_srcs}})
-        if(NOT CONFIG_LWIP_PPP_SUPPORT AND src MATCHES "/netif/ppp/")
-            continue()
-        endif()
-        if(NOT CONFIG_LWIP_IPV6 AND src MATCHES "/core/ipv6/")
-            continue()
-        endif()
-        list(APPEND esphome_lwip_kept "${{src}}")
-    endforeach()
-    set_property(TARGET __idf_lwip PROPERTY SOURCES ${{esphome_lwip_kept}})
-endif()
+{_LWIP_EMPTY_SOURCES_FILTER}
 
 # Emit per-memory-type JSON size data for ESPHome to read post-build.
 # json2 stays small; raw dumps every symbol (~2s on a large map) and
