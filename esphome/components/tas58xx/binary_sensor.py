@@ -5,6 +5,7 @@ from esphome.const import CONF_MODEL, DEVICE_CLASS_PROBLEM, ENTITY_CATEGORY_DIAG
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
+from . import FILTER_SOURCE_FILES  # noqa: F401  pylint: disable=unused-import
 from .audio_dac import CONF_TAS58XX_ID, DAC_TAS5825M, TAS58xx, tas58xx_ns
 
 CONF_HAVE_FAULT = "have_fault"
@@ -23,7 +24,7 @@ COMMON_FAULT_SENSORS = (
     "over_temp_shutdown",
     "over_temp_warning",  # tas582x OTW Level 3 - use tas5805 naming
 )
-# Additional faults available on TAS5805M
+# Additional faults available on TAS5825M
 TAS5825M_ONLY_FAULT_SENSORS = (
     "load_eeprom_error",
     "right_channel_cbc_over_current",
@@ -31,8 +32,8 @@ TAS5825M_ONLY_FAULT_SENSORS = (
     "left_channel_cbc_over_current_warning",
     "right_channel_cbc_over_current_warning",
     "over_temp_146c_warning",  # tas582x OTW Level 4
-    # "over_temp_122c_warning", # tas582x OTW Level 2 - not currently included
-    # "over_temp_112c_warning", # tas582x OTW Level 1 - not currently included
+    # "over_temp_122c_warning",  # tas582x OTW Level 2 - not currently included
+    # "over_temp_112c_warning",  # tas582x OTW Level 1 - not currently included
 )
 
 # Each name matches a FaultSensor value in tas58xx.h
@@ -69,6 +70,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
             f"- Remove from YAML for 'model: {hub_conf[CONF_MODEL]}'"
         )
     return config
+
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 

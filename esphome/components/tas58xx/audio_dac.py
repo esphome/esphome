@@ -11,6 +11,8 @@ from esphome.const import CONF_ENABLE_PIN, CONF_ID, CONF_MODEL
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+from . import FILTER_SOURCE_FILES  # noqa: F401  pylint: disable=unused-import
+
 _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["i2c"]
@@ -172,6 +174,7 @@ for _name, _call in (
 
 async def to_code(config: ConfigType) -> None:
     model = MODELS[config[CONF_MODEL]]
+    cg.add_define(f"USE_TAS58XX_{config[CONF_MODEL].upper()}")
     var = cg.new_Pvariable(config[CONF_ID], cg.RawExpression(f"&{model.model_info}"))
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

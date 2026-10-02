@@ -101,8 +101,8 @@ const ModelInfo TAS5825M_MODEL = {
             29,  // FAULT_SENSOR_LEFT_CHANNEL_CBC_OVER_CURRENT_WARNING
             28,  // FAULT_SENSOR_RIGHT_CHANNEL_CBC_OVER_CURRENT_WARNING
             27,  // FAULT_SENSOR_OVER_TEMP_146C_WARNING
-         // 25,  // FAULT_SENSOR_OVER_TEMP_122C_WARNING // not currently included
-         // 24,  // FAULT_SENSOR_OVER_TEMP_112C_WARNING // not currently included
+                 // 25,  // FAULT_SENSOR_OVER_TEMP_122C_WARNING // not currently included
+                 // 24,  // FAULT_SENSOR_OVER_TEMP_112C_WARNING // not currently included
         },
 };
 
