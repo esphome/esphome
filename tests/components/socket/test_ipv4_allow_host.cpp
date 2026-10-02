@@ -1,45 +1,38 @@
 #include <gtest/gtest.h>
 
-#include <cstring>
+#include <iterator>
 
 #include "esphome/components/socket/ipv4_allow.h"
+#include "esphome/components/socket/socket.h"
 
 #ifdef USE_HOST
 
 namespace esphome::socket::testing {
 
-// 192.168.175.20/32 and 192.168.175.0/24, network order, host bits cleared.
+// 192.168.175.20/32 and 192.168.175.0/24, network order, host bits cleared,
+// mirroring what add_ipv4_allow emits.
 static const Ipv4AllowEntry ENTRIES[] = {
     {htonl(0xC0A8AF14), htonl(0xFFFFFFFF)},
     {htonl(0xC0A8AF00), htonl(0xFFFFFF00)},
 };
 
-static struct sockaddr_storage v4_peer(uint32_t addr_host_order) {
-  struct sockaddr_storage storage {};
-  auto *in = reinterpret_cast<struct sockaddr_in *>(&storage);
-  in->sin_family = AF_INET;
-  in->sin_addr.s_addr = htonl(addr_host_order);
-  return storage;
-}
-
-static struct sockaddr_storage v6_peer(const uint8_t bytes[16]) {
-  struct sockaddr_storage storage {};
-  auto *in6 = reinterpret_cast<struct sockaddr_in6 *>(&storage);
-  in6->sin6_family = AF_INET6;
-  std::memcpy(in6->sin6_addr.s6_addr, bytes, 16);
-  return storage;
+// Runs the peer through the same parser production addresses go through.
+static bool allows_peer(const Ipv4Allow &list, const char *ip) {
+  struct sockaddr_storage peer {};
+  EXPECT_NE(set_sockaddr(reinterpret_cast<struct sockaddr *>(&peer), sizeof(peer), ip, 0), 0);
+  return list.allows(reinterpret_cast<const struct sockaddr *>(&peer));
 }
 
 TEST(Ipv4Allow, EmptyAllowsEveryPeer) {
   Ipv4Allow list;
   EXPECT_TRUE(list.allows(htonl(0xC0A8AF01)));
-  auto peer = v4_peer(0x0A000001);
-  EXPECT_TRUE(list.allows(reinterpret_cast<const struct sockaddr *>(&peer)));
+  EXPECT_TRUE(allows_peer(list, "10.0.0.1"));
+  EXPECT_TRUE(allows_peer(list, "fe80::1"));
 }
 
 TEST(Ipv4Allow, MatchesHostAndNetworkEntries) {
   Ipv4Allow list;
-  list.set(ENTRIES, 2);
+  list.set(ENTRIES, std::size(ENTRIES));
   EXPECT_TRUE(list.allows(htonl(0xC0A8AF14)));
   EXPECT_TRUE(list.allows(htonl(0xC0A8AF01)));
   EXPECT_TRUE(list.allows(htonl(0xC0A8AFFF)));
@@ -48,34 +41,26 @@ TEST(Ipv4Allow, MatchesHostAndNetworkEntries) {
 
 TEST(Ipv4Allow, ChecksTheV4PeerInsideASockaddr) {
   Ipv4Allow list;
-  list.set(ENTRIES, 2);
-  auto allowed = v4_peer(0xC0A8AF42);
-  auto denied = v4_peer(0x0A000001);
-  EXPECT_TRUE(list.allows(reinterpret_cast<const struct sockaddr *>(&allowed)));
-  EXPECT_FALSE(list.allows(reinterpret_cast<const struct sockaddr *>(&denied)));
+  list.set(ENTRIES, std::size(ENTRIES));
+  EXPECT_TRUE(allows_peer(list, "192.168.175.66"));
+  EXPECT_FALSE(allows_peer(list, "10.0.0.1"));
 }
 
 TEST(Ipv4Allow, UnwrapsAV4MappedIpv6Peer) {
   Ipv4Allow list;
-  list.set(ENTRIES, 2);
-  const uint8_t mapped[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0xC0, 0xA8, 0xAF, 0x42};
-  const uint8_t native[16] = {0xFE, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
-  auto mapped_peer = v6_peer(mapped);
-  auto native_peer = v6_peer(native);
-  EXPECT_TRUE(list.allows(reinterpret_cast<const struct sockaddr *>(&mapped_peer)));
+  list.set(ENTRIES, std::size(ENTRIES));
+  EXPECT_TRUE(allows_peer(list, "::ffff:192.168.175.66"));
   // A native IPv6 peer cannot match an IPv4 list.
-  EXPECT_FALSE(list.allows(reinterpret_cast<const struct sockaddr *>(&native_peer)));
-  Ipv4Allow empty;
-  EXPECT_TRUE(empty.allows(reinterpret_cast<const struct sockaddr *>(&native_peer)));
+  EXPECT_FALSE(allows_peer(list, "fe80::1"));
 }
 
 TEST(Ipv4Allow, InstancesKeepIndependentLists) {
   // One bridge per allow list; each instance points at its own entries.
-  static const Ipv4AllowEntry other[] = {{htonl(0x0A000000), htonl(0xFF000000)}};
+  static const Ipv4AllowEntry OTHER[] = {{htonl(0x0A000000), htonl(0xFF000000)}};
   Ipv4Allow first;
   Ipv4Allow second;
-  first.set(ENTRIES, 2);
-  second.set(other, 1);
+  first.set(ENTRIES, std::size(ENTRIES));
+  second.set(OTHER, std::size(OTHER));
   EXPECT_TRUE(first.allows(htonl(0xC0A8AF14)));
   EXPECT_FALSE(second.allows(htonl(0xC0A8AF14)));
   EXPECT_TRUE(second.allows(htonl(0x0A00002A)));

@@ -1,16 +1,16 @@
 #pragma once
 
 #include "headers.h"
+#include "socket.h"
 #include "esphome/core/hal.h"
 
+#include <cstddef>
 #include <cstdint>
-#include <cstring>
 
 namespace esphome::socket {
 
-/// One allowed IPv4 network, in network byte order with host bits cleared.
-/// Codegen validates and emits these into flash (PROGMEM on esp8266);
-/// cv.ipv4network makes an invalid or non contiguous mask unrepresentable.
+/// One allowed IPv4 network, network byte order, host bits cleared.
+/// Lives in flash; read via progmem_memcpy.
 struct Ipv4AllowEntry {
   uint32_t addr;
   uint32_t mask;
@@ -19,35 +19,18 @@ struct Ipv4AllowEntry {
 /// IPv4 peers that may connect. An empty list allows every peer.
 class Ipv4Allow {
  public:
-  void set(const Ipv4AllowEntry *entries, uint8_t count) {
+  void set(const Ipv4AllowEntry *entries, size_t count) {
     this->entries_ = entries;
     this->count_ = count;
   }
 
-  /// True when the list is empty or the peer falls into one entry.
   /// A v4 mapped IPv6 peer is unwrapped; any other family fails a non empty list.
   bool allows(const struct sockaddr *peer) const {
     if (this->count_ == 0) {
       return true;
     }
     uint32_t addr;
-    if (peer->sa_family == AF_INET) {
-      addr = reinterpret_cast<const struct sockaddr_in *>(peer)->sin_addr.s_addr;
-    }
-#if USE_NETWORK_IPV6
-    else if (peer->sa_family == AF_INET6) {
-      static constexpr uint8_t V4_MAPPED_PREFIX[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF};
-      const uint8_t *bytes = reinterpret_cast<const struct sockaddr_in6 *>(peer)->sin6_addr.s6_addr;
-      if (memcmp(bytes, V4_MAPPED_PREFIX, sizeof(V4_MAPPED_PREFIX)) != 0) {
-        return false;
-      }
-      memcpy(&addr, bytes + sizeof(V4_MAPPED_PREFIX), sizeof(addr));
-    }
-#endif
-    else {
-      return false;
-    }
-    return this->allows(addr);
+    return sockaddr_to_ipv4(peer, &addr) && this->allows(addr);
   }
 
   /// addr is network byte order, as it sits in a sockaddr_in.
@@ -55,7 +38,7 @@ class Ipv4Allow {
     if (this->count_ == 0) {
       return true;
     }
-    for (uint8_t i = 0; i != this->count_; i++) {
+    for (size_t i = 0; i != this->count_; i++) {
       Ipv4AllowEntry entry;
       progmem_memcpy(&entry, &this->entries_[i], sizeof(entry));
       if ((addr & entry.mask) == entry.addr) {
@@ -67,7 +50,7 @@ class Ipv4Allow {
 
  private:
   const Ipv4AllowEntry *entries_{nullptr};
-  uint8_t count_{0};
+  size_t count_{0};
 };
 
 }  // namespace esphome::socket

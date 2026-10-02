@@ -1,19 +1,21 @@
 from collections.abc import Callable, MutableMapping
 from dataclasses import dataclass
 from enum import StrEnum
-from ipaddress import IPv4Network
+from ipaddress import IPv4Address, IPv4Network
 import logging
 
 import esphome.codegen as cg
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.core import CORE, ID
-from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
+
+socket_ns = cg.esphome_ns.namespace("socket")
+Ipv4AllowEntry = socket_ns.struct("Ipv4AllowEntry")
 
 CONF_IMPLEMENTATION = "implementation"
 IMPLEMENTATION_LWIP_TCP = "lwip_tcp"
@@ -142,39 +144,29 @@ def require_wake_loop_threadsafe() -> None:
     cg.add_define("USE_SOCKET_SELECT_SUPPORT")
 
 
-socket_ns = cg.esphome_ns.namespace("socket")
-Ipv4AllowEntry = socket_ns.struct("Ipv4AllowEntry")
-
-# For an allow list config option; an empty list allows every peer.
-# The cap keeps len(entries) inside set()'s uint8_t count, so a long list
-# fails validation instead of wrapping into an allow all.
+# For an Ipv4Allow config option; a sanity cap on the list length.
 IPV4_ALLOW_SCHEMA = cv.All(cv.ensure_list(cv.ipv4network), cv.Length(max=255))
 
 
-def _network_order(value: int) -> int:
-    """The uint32 whose little endian memory bytes are the big endian address.
-
-    Every supported target is little endian, so this equals the sockaddr's
-    s_addr value for the address.
-    """
-    return int.from_bytes(value.to_bytes(4, "big"), "little")
+def _network_order(addr: IPv4Address) -> int:
+    """The s_addr value for addr on the little endian targets."""
+    return int.from_bytes(addr.packed, "little")
 
 
 def add_ipv4_allow(
-    setter: MockObj, networks: list[IPv4Network], owner_id: ID | str
+    setter: cg.MockObj, networks: list[IPv4Network], owner_id: ID | str
 ) -> None:
     """Emit a flash array for validated IPV4_ALLOW_SCHEMA entries and wire it to setter.
 
-    PROGMEM on esp8266; allows() reads entries through progmem_memcpy.
-    Emits nothing for an empty list; an empty allow list allows every peer.
+    PROGMEM on esp8266. Emits nothing for an empty list.
     """
     if not networks:
         return
     entries = [
         cg.StructInitializer(
             Ipv4AllowEntry,
-            ("addr", _network_order(int(net.network_address))),
-            ("mask", _network_order(int(net.netmask))),
+            ("addr", _network_order(net.network_address)),
+            ("mask", _network_order(net.netmask)),
         )
         for net in networks
     ]
