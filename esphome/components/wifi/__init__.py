@@ -373,8 +373,7 @@ def final_validate(config):
     ):
         _LOGGER.warning(
             "WPA2 Enterprise ('eap:') is not supported by the esp32_hosted coprocessor "
-            "firmware ESPHome provides; it only works with custom coprocessor firmware "
-            "built with enterprise authentication enabled."
+            "firmware ESPHome provides"
         )
 
 
