@@ -10,6 +10,8 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/time/real_time_clock.h"
 
+#include "esp_err.h"
+
 #include "tsdb_math.h"
 
 namespace esphome::tsdb {
@@ -103,6 +105,10 @@ class TsdbComponent : public PollingComponent {
  protected:
   bool mount_filesystem_();
   bool open_database_();
+  /// Verbose ERROR dump of the stage, the partition, the state of the database
+  /// file and the heap, logged once by `setup()` when the history cannot be
+  /// brought up (the component then marks itself failed and stops writing).
+  void log_init_failure_(const char *stage);
   void close_database_();
   void handle_requests_();
   bool write_record_();
@@ -113,7 +119,7 @@ class TsdbComponent : public PollingComponent {
   void publish_stats_();
   void dump_csv_(uint32_t rows);
   void publish_log_(const char *message);
-  static uint64_t free_space_probe();  // the callback shape esp_tsdb requires
+  static uint64_t free_space_probe_();  // the callback shape esp_tsdb requires
 
   // ------------------------------------------------------------------ config
   std::string file_{"history.tsdb"};
@@ -161,6 +167,16 @@ class TsdbComponent : public PollingComponent {
   uint32_t dump_requested_{0};
   bool clear_requested_{false};
   bool warned_time_{false};
+  /// `setup()` phase that failed (`nullptr` while healthy); named by
+  /// `dump_config()` so the config dump says *where* it gave up.
+  const char *failed_stage_{nullptr};
+  /// `esp_err_t` of `esp_vfs_littlefs_register()` as `mount_filesystem_()` saw
+  /// it: the error the component logs instead is always the same
+  /// (`ESP_FAIL` - the VFS component re-maps a LittleFS failure), so the real
+  /// reason (a corrupt superblock, an I/O error) only exists in this code.
+  esp_err_t mount_error_{ESP_OK};
+  bool format_attempted_{false};    ///< the partition was blank, so `format_on_first_boot_` formatted it
+  esp_err_t format_error_{ESP_OK};  ///< result of that `esp_littlefs_format()` (`ESP_OK` = not attempted)
 };
 
 }  // namespace esphome::tsdb

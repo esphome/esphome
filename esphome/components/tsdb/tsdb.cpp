@@ -9,6 +9,7 @@
 #include "esphome/core/helpers.h"
 
 #include "esp_err.h"
+#include "esp_heap_caps.h"
 #include "esp_littlefs.h"
 #include "esp_partition.h"
 #include "esp_tsdb.h"
@@ -34,11 +35,18 @@ static constexpr size_t CSV_LINE_SIZE = 256;
 /// the newest `dump_rows` rows that are *stored*.
 static constexpr uint32_t DUMP_WINDOW_MARGIN = 2;
 
+/// `setup()` phases, named verbatim by the failure diagnostics and by
+/// `dump_config()` so the log points at the step that gave up instead of
+/// "see the errors above".
+static const char *const INIT_STAGE_CONFIG = "the configuration";
+static const char *const INIT_STAGE_MOUNT = "mounting the LittleFS partition";
+static const char *const INIT_STAGE_OPEN = "opening the database";
+
 /// The esp_tsdb free-space callback takes no context argument, so the label of
 /// the mounted partition is kept here. Two tsdb instances on different
 /// partitions would share it - the guard is advisory (it only caps
 /// `max_records` early), so that is acceptable.
-static const char *g_free_space_label = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static const char *g_free_space_label = nullptr;
 
 // The host test asserts the same numbers; these tie the component to the real
 // engine, so an esp_tsdb release that changes the file format breaks the build
@@ -117,15 +125,25 @@ void TsdbComponent::set_column_max_sensor(size_t index, sensor::Sensor *sensor) 
 void TsdbComponent::setup() {
   if (this->columns_.empty()) {
     ESP_LOGE(TAG, "tsdb: no columns configured");
-    this->mark_failed();
+    this->failed_stage_ = INIT_STAGE_CONFIG;
+    this->log_init_failure_(this->failed_stage_);
+    // The status text is what ESPHome prints as `tsdb is marked FAILED: ...`
+    // (the `mark_failed(LogString *)` overload). It repeats the stage above
+    // because that argument is stored and read after `setup()` returned, so it
+    // has to be a static literal - `LOG_STR` is what the core components use.
+    this->mark_failed(LOG_STR("no columns configured"));
     return;
   }
   if (!this->mount_filesystem_()) {
-    this->mark_failed();
+    this->failed_stage_ = INIT_STAGE_MOUNT;
+    this->log_init_failure_(this->failed_stage_);
+    this->mark_failed(LOG_STR("mounting the LittleFS partition"));
     return;
   }
   if (!this->open_database_()) {
-    this->mark_failed();
+    this->failed_stage_ = INIT_STAGE_OPEN;
+    this->log_init_failure_(this->failed_stage_);
+    this->mark_failed(LOG_STR("opening the database"));
     return;
   }
   this->publish_log_("history opened");
@@ -144,8 +162,10 @@ bool TsdbComponent::mount_filesystem_() {
   const esp_partition_t *partition = esp_partition_find_first(
       ESP_PARTITION_TYPE_DATA, static_cast<esp_partition_subtype_t>(LITTLEFS_SUBTYPE), this->partition_label_.c_str());
   if (partition == nullptr) {
-    ESP_LOGE(TAG, "%s: no data/littlefs partition labelled '%s' - check the partition table (partition_size:)",
-             this->partition_label_.c_str(), this->partition_label_.c_str());
+    ESP_LOGE(TAG,
+             "%s: no data/littlefs partition labelled '%s' (partition_size: %" PRIu32
+             " KB) - flash the partition table over USB: OTA never moves partitions",
+             this->file_.c_str(), this->partition_label_.c_str(), this->partition_size_ / 1024);
     return false;
   }
 
@@ -158,16 +178,26 @@ bool TsdbComponent::mount_filesystem_() {
   conf.grow_on_mount = false;
 
   esp_err_t err = esp_vfs_littlefs_register(&conf);
+  this->mount_error_ = err;
   if (err != ESP_OK && this->format_on_first_boot_ && partition_is_blank(partition)) {
     ESP_LOGW(TAG, "%s: partition '%s' is unformatted - formatting it (first boot)", this->file_.c_str(),
              this->partition_label_.c_str());
-    err = esp_littlefs_format(this->partition_label_.c_str());
-    if (err == ESP_OK)
+    this->format_attempted_ = true;
+    this->format_error_ = esp_littlefs_format(this->partition_label_.c_str());
+    if (this->format_error_ == ESP_OK) {
       err = esp_vfs_littlefs_register(&conf);
+    } else {
+      // Named on a line of its own: the block below reports the error of the
+      // *register* call, which would otherwise make a partition that could not
+      // be written look like a filesystem that could not be read.
+      ESP_LOGE(TAG, "%s: formatting partition '%s' failed: %s (%d)", this->file_.c_str(),
+               this->partition_label_.c_str(), esp_err_to_name(this->format_error_),
+               static_cast<int>(this->format_error_));
+    }
   }
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "%s: mounting '%s' on %s failed: %s", this->file_.c_str(), this->partition_label_.c_str(),
-             this->mount_point_.c_str(), esp_err_to_name(err));
+    ESP_LOGE(TAG, "%s: mounting '%s' on %s failed: %s (%d)", this->file_.c_str(), this->partition_label_.c_str(),
+             this->mount_point_.c_str(), esp_err_to_name(err), static_cast<int>(err));
     return false;
   }
 
@@ -228,6 +258,102 @@ static uint32_t read_stored_columns(const std::string &path) {
   return tsdbmath::stored_columns(header, read);
 }
 
+// ---------------------------------------------------------------------------- diagnostics
+/// Size of `path` in bytes, or 0 when it is absent or unreadable.
+static size_t file_size_of(const std::string &path) {
+  FILE *file = fopen(path.c_str(), "rb");
+  if (file == nullptr)
+    return 0;
+  if (fseek(file, 0, SEEK_END) != 0) {
+    fclose(file);
+    return 0;
+  }
+  const long size = ftell(file);
+  fclose(file);
+  return size > 0 ? static_cast<size_t>(size) : 0;
+}
+
+/// Verbose dump logged at ERROR when `setup()` cannot bring the history up.
+///
+/// The component marks itself failed and stops writing, so this is the only
+/// chance to record *why*: the stage, the partition geometry, the state of the
+/// database file and the heap all end up in the boot log, next to the failing
+/// call from esp_tsdb - no second `tsdb` debug session and no guessing. The two
+/// things that make an open fail without a message of its own are the free heap
+/// (the engine allocates its buffer pool before it even touches the file) and
+/// the partition geometry (a table that OTA never moved) and, after a mount
+/// failure, whether the partition even held data - which is what decides
+/// between "nothing was formatted" and "the flash could not be written".
+void TsdbComponent::log_init_failure_(const char *stage) {
+  const std::string path = this->mount_point_ + "/" + this->file_;
+  ESP_LOGE(TAG, "history is NOT available: setup failed at %s (writing stays disabled)", stage);
+
+  const esp_partition_t *partition = esp_partition_find_first(
+      ESP_PARTITION_TYPE_DATA, static_cast<esp_partition_subtype_t>(LITTLEFS_SUBTYPE), this->partition_label_.c_str());
+  if (partition == nullptr) {
+    ESP_LOGE(TAG, "  partition '%s': NOT FOUND (configured %" PRIu32 " bytes, data/littlefs)",
+             this->partition_label_.c_str(), this->partition_size_);
+  } else {
+    ESP_LOGE(TAG, "  partition '%s': at 0x%08" PRIx32 ", %" PRIu32 " bytes (configured %" PRIu32 " bytes)",
+             partition->label, static_cast<uint32_t>(partition->address), static_cast<uint32_t>(partition->size),
+             this->partition_size_);
+  }
+
+  if (this->failed_stage_ == INIT_STAGE_MOUNT && partition != nullptr) {
+    // The mount stage, and the one state that used to be indistinguishable from
+    // a broken filesystem: a partition that holds anything but a mountable
+    // LittleFS is *never* formatted (that would discard history). `NOT blank`
+    // with no format attempted therefore means leftovers of an older partition
+    // table are in the way - and OTA re-flashes never erase them.
+    const bool blank = partition_is_blank(partition);
+    ESP_LOGE(TAG, "  mount: esp_vfs_littlefs_register() -> %s (%d)", esp_err_to_name(this->mount_error_),
+             static_cast<int>(this->mount_error_));
+    ESP_LOGE(TAG, "    format_on_first_boot %u, format attempted %u (%s (%d))",
+             static_cast<unsigned>(this->format_on_first_boot_), static_cast<unsigned>(this->format_attempted_),
+             esp_err_to_name(this->format_error_), static_cast<int>(this->format_error_));
+    ESP_LOGE(TAG, "  partition '%s': %s", this->partition_label_.c_str(),
+             blank ? LOG_STR_LITERAL("all 0xFF (blank)") : LOG_STR_LITERAL("NOT blank (data present)"));
+    if (!blank && !this->format_attempted_)
+      ESP_LOGE(TAG,
+               "    nothing was formatted: a partition that is not all 0xFF is never overwritten, so erase it once over "
+               "USB (esptool erase-region 0x%08" PRIx32 " 0x%" PRIx32 ") if it holds leftovers of an older partition table",
+               static_cast<uint32_t>(partition->address), static_cast<uint32_t>(partition->size));
+  }
+
+  if (this->mounted_) {
+    size_t total = 0;
+    size_t used = 0;
+    if (esp_littlefs_info(this->partition_label_.c_str(), &total, &used) == ESP_OK) {
+      ESP_LOGE(TAG, "  %s: mounted, %" PRIu32 " of %" PRIu32 " bytes used", this->mount_point_.c_str(),
+               static_cast<uint32_t>(used), static_cast<uint32_t>(total));
+    } else {
+      ESP_LOGE(TAG, "  %s: mounted (usage unknown)", this->mount_point_.c_str());
+    }
+  } else {
+    ESP_LOGE(TAG, "  %s: NOT mounted", this->mount_point_.c_str());
+  }
+
+  const bool exists = database_file_exists(path);
+  ESP_LOGE(TAG, "  %s: %s", path.c_str(), exists ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("missing"));
+  if (exists) {
+    ESP_LOGE(TAG, "    %" PRIu32 " bytes, stored schema %" PRIu32 " columns (configured %" PRIu32 ")",
+             static_cast<uint32_t>(file_size_of(path)), read_stored_columns(path),
+             static_cast<uint32_t>(this->columns_.size()));
+  }
+
+  ESP_LOGE(TAG,
+           "  config: max file %" PRIu32 " bytes, index stride %" PRIu32 ", buffer pool %" PRIu32
+           " bytes (paged: %u), memory mode %u, page size %" PRIu32 ", min free %" PRIu32 " bytes",
+           this->max_file_size_, this->index_stride_, this->buffer_pool_size_,
+           static_cast<unsigned>(this->paged_allocation_), static_cast<unsigned>(this->memory_mode_), this->page_size_,
+           this->min_free_bytes_);
+
+  ESP_LOGE(TAG, "  heap: %" PRIu32 " bytes internal free (%" PRIu32 " largest block), %" PRIu32 " bytes PSRAM free",
+           static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL)),
+           static_cast<uint32_t>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL)),
+           static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)));
+}
+
 bool TsdbComponent::open_database_() {
   std::vector<const char *> names;
   names.reserve(this->columns_.size());
@@ -256,7 +382,7 @@ bool TsdbComponent::open_database_() {
   config.use_paged_allocation = this->paged_allocation_;
   config.page_size = this->page_size_;
   config.min_free_bytes = this->min_free_bytes_;
-  config.free_space_cb = this->min_free_bytes_ > 0 ? free_space_probe : nullptr;
+  config.free_space_cb = this->min_free_bytes_ > 0 ? free_space_probe_ : nullptr;
 
   this->db_ = tsdb_open(&config);
   if (this->db_ == nullptr && this->recreate_on_schema_change_) {
@@ -293,8 +419,13 @@ bool TsdbComponent::open_database_() {
     }
   }
   if (this->db_ == nullptr) {
-    ESP_LOGE(TAG, "%s: esp_tsdb could not open %s (buffer %" PRIu32 " bytes, memory mode %u)", this->file_.c_str(),
-             path.c_str(), this->buffer_pool_size_, static_cast<unsigned>(this->memory_mode_));
+    ESP_LOGE(TAG,
+             "%s: esp_tsdb refused to open %s (%s, %" PRIu32 " columns, up to %" PRIu32 " records, buffer pool %" PRIu32
+             " bytes, memory mode %u, paged %u)",
+             this->file_.c_str(), path.c_str(),
+             database_file_exists(path) ? LOG_STR_LITERAL("file present") : LOG_STR_LITERAL("file missing"),
+             static_cast<uint32_t>(names.size()), max_records, this->buffer_pool_size_,
+             static_cast<unsigned>(this->memory_mode_), static_cast<unsigned>(this->paged_allocation_));
     return false;
   }
 
@@ -320,7 +451,7 @@ void TsdbComponent::close_database_() {
 
 /// Free bytes of the mounted partition, probed by the engine before it grows the
 /// file. UINT64_MAX means "unknown", which never triggers a spurious cap.
-uint64_t TsdbComponent::free_space_probe() {
+uint64_t TsdbComponent::free_space_probe_() {
   if (g_free_space_label == nullptr)
     return UINT64_MAX;
   size_t total = 0;
@@ -579,8 +710,8 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
 
   // The margin over-provisions the window, so it can hold a few rows more than
   // asked for; `skip` trims those to the newest `rows`.
-  uint32_t window_records = 0;
-  if (tsdb_query_count_h(db, start, end, &window_records) != ESP_OK) {
+  uint32_t available = 0;
+  if (tsdb_query_count_h(db, start, end, &available) != ESP_OK) {
     // Without the count the newest rows cannot be told from the oldest ones of
     // the over-provisioned window: dumping anyway would print old rows as the
     // newest ones, so the dump fails instead.
@@ -589,8 +720,8 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
     return;
   }
   uint32_t window_start = start;
-  uint32_t skip = tsdbmath::dump_skip(window_records, rows);
-  if (tsdbmath::dump_needs_widening(window_records, rows, window_start, oldest)) {
+  uint32_t skip = tsdbmath::dump_skip(available, rows);
+  if (tsdbmath::dump_needs_widening(available, rows, window_start, oldest)) {
     // A gap wider than the margin left the time-selected window with fewer rows
     // than asked for although older rows exist (`on_missing: skip` writes nothing
     // while a sensor is out). Widening once to the oldest record makes the dump
@@ -598,7 +729,7 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
     // `total_records` of the statistics above - no second count pass is needed.
     ESP_LOGW(TAG,
              "%s: csv-dump window holds %" PRIu32 " of %" PRIu32 " rows (a gap) - widening it to the whole history",
-             this->file_.c_str(), window_records, rows);
+             this->file_.c_str(), available, rows);
     window_start = oldest;
     skip = tsdbmath::dump_skip(stats.total_records, rows);
   }
@@ -674,7 +805,9 @@ void TsdbComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  missing columns: %u, require time: %u", static_cast<unsigned>(this->missing_policy_),
                 static_cast<unsigned>(this->require_time_));
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "  the database is NOT available (see the errors above)");
+    ESP_LOGE(TAG, "  the database is NOT available: setup failed at %s",
+             this->failed_stage_ != nullptr ? this->failed_stage_ : LOG_STR_LITERAL("an unknown stage"));
+    ESP_LOGE(TAG, "    the reason is in the ERROR block that setup() logged above, before this dump");
     return;
   }
   ESP_LOGCONFIG(TAG, "  records: %" PRIu32 ", writes: %" PRIu32 ", dropped: %" PRIu32 ", errors: %" PRIu32,
