@@ -821,14 +821,16 @@ _PCH_CMAKE_LINES = [
 _PCH_SUM_PATH = "CMakeFiles/app.dir/cmake_pch.hxx.gch.sum"
 
 
-def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
-    """Write the checksum ccache reads in place of the .gch. The app binary
-    dir only exists after the first configure; sysbuild nests it."""
+def _write_pch_checksum(build_dir: Path, source_dir: Path) -> Path:
+    """Write the checksum ccache reads in place of the .gch; before the
+    first build too, or its compiles hash the path laden .gch instead.
+    The app image dir is nested under sysbuild, flat otherwise; an
+    unconfigured tree gets the sysbuild default. Returns the sum path."""
     app_dir = build_dir / "zephyr"
-    if not (app_dir / "CMakeCache.txt").is_file():
+    if (build_dir / "CMakeCache.txt").is_file() and not (
+        app_dir / "CMakeCache.txt"
+    ).is_file():
         app_dir = build_dir
-    if not (app_dir / "CMakeCache.txt").is_file():
-        return
     checksum = pch.pch_checksum(
         CORE.relative_src_path(),
         pch.PCH_DEFAULT_HEADERS,
@@ -843,7 +845,9 @@ def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
             ),
         ),
     )
-    write_file_if_changed(app_dir / _PCH_SUM_PATH, checksum + "\n")
+    sum_path = app_dir / _PCH_SUM_PATH
+    write_file_if_changed(sum_path, checksum + "\n")
+    return sum_path
 
 
 def _pch_usable() -> bool:

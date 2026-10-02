@@ -66,7 +66,12 @@ def test_the_zephyr_compiler_decides_on_windows(
     assert asked.call_args.args[0] == (Path("/sdk/g++.exe"),)
 
 
-def _write_checksum(tmp_path: Path, app: str, conf: str = "CONFIG_X=y\n") -> Path:
+def _write_checksum(
+    tmp_path: Path,
+    app: str,
+    conf: str = "CONFIG_X=y\n",
+    configured: bool = True,
+) -> Path:
     """Write the checksum for a build dir whose app image sits in ``app``."""
     CORE.build_path = tmp_path
     header = tmp_path / "src" / "esphome" / "core" / "pch_prefix.h"
@@ -77,8 +82,9 @@ def _write_checksum(tmp_path: Path, app: str, conf: str = "CONFIG_X=y\n") -> Pat
     (source_dir / "prj.conf").write_text(conf)
     (source_dir / "CMakeLists.txt").write_text("not part of the checksum\n")
     build_dir = tmp_path / ".pioenvs" / "livingroom"
-    (build_dir / app).mkdir(parents=True, exist_ok=True)
-    (build_dir / app / "CMakeCache.txt").write_text("")
+    if configured:
+        (build_dir / app).mkdir(parents=True, exist_ok=True)
+        (build_dir / app / "CMakeCache.txt").write_text("")
     with (
         patch.dict(CORE.data, {KEY_CORE: {KEY_FRAMEWORK_VERSION: "2.9.2"}}),
         patch.object(nrf52, "zephyr_data", return_value={KEY_BOARD: "board"}),
@@ -99,11 +105,10 @@ def test_pch_checksum_tracks_the_zephyr_configuration(tmp_path: Path) -> None:
     assert _write_checksum(tmp_path, "zephyr", "CONFIG_X=n\n").read_text() != first
 
 
-def test_pch_checksum_waits_for_the_first_configure(tmp_path: Path) -> None:
-    CORE.build_path = tmp_path
-    build_dir = tmp_path / ".pioenvs" / "livingroom"
-    nrf52._write_pch_checksum(build_dir, tmp_path / "zephyr")
-    assert not build_dir.exists()
+def test_pch_checksum_written_before_the_first_configure(tmp_path: Path) -> None:
+    """The first build's compiles hash the sum in place of the .gch; an
+    unconfigured tree defaults to the sysbuild layout."""
+    assert _write_checksum(tmp_path, "zephyr", configured=False).is_file()
 
 
 def _fake_build_env(ccache: str | None) -> dict[str, str]:
@@ -130,6 +135,7 @@ def run_cmd(tmp_path: Path) -> Mock:
     CORE.name = "livingroom"
     CORE.toolchain = Toolchain.SDK_NRF
     CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: cv.Version(3, 2, 0)}
+    (tmp_path / "build" / "zephyr").mkdir(parents=True)
     with (
         patch.dict("os.environ", {}, clear=True),
         patch.object(nrf52, "check_and_install"),

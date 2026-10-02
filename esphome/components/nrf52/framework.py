@@ -225,6 +225,12 @@ def get_build_env(ccache: str | None) -> dict:
         env.setdefault("CCACHE_DISABLE", "1")
     else:
         env.update(ccache_env(ccache, SDK_NRF_TOOLS_CACHE))
+        # Safe to drop from the hash: the map's from side paths are
+        # pinned by other hashed inputs, so a differing per build value
+        # cannot change the output.
+        env["CCACHE_IGNOREOPTIONS"] = (
+            f"{env.get('CCACHE_IGNOREOPTIONS', '')} -fmacro-prefix-map=*".strip()
+        )
     return env
 
 
@@ -316,6 +322,24 @@ def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
     tmp.write_text(patched, encoding="utf-8")
     shutil.copymode(uf2conv, tmp)
     tmp.replace(uf2conv)
+
+
+def _patch_gen_defines_dts_path(framework_path: Path) -> None:
+    # The devicetree header embeds the absolute zephyr.dts.pre path in its
+    # top comment, the only per device byte in it, which blocks ccache
+    # sharing between devices and sysbuild images. Upstream already
+    # relativizes the bindings dirs on the next line; send this upstream.
+    gen_defines = framework_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
+    if not gen_defines.exists():
+        return
+    content = gen_defines.read_text(encoding="utf-8")
+    patched = content.replace("  {edt.dts_path}", "  {os.path.basename(edt.dts_path)}")
+    if patched == content:
+        return
+    tmp = gen_defines.with_suffix(".py.tmp")
+    tmp.write_text(patched, encoding="utf-8")
+    shutil.copymode(gen_defines, tmp)
+    tmp.replace(gen_defines)
 
 
 # West projects every build needs; components add others with include_west_project()
@@ -596,6 +620,8 @@ def _check_and_install(version: str) -> None:
         sentinel.touch()
     else:
         _fetch_missing_west_projects(env_python_path, framework_path, version, projects)
+    # Every run: existing installs need it too, and it is a no-op once applied
+    _patch_gen_defines_dts_path(framework_path)
 
     zephyr_sentinel = python_env_path / ".zephyr_reqs_ready"
     if (

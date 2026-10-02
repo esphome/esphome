@@ -11,7 +11,7 @@ from unittest.mock import ANY, call, patch
 import platformdirs
 import pytest
 
-from esphome.components.nrf52 import _resolve_toolchain
+from esphome.components.nrf52 import _resolve_toolchain, framework
 from esphome.components.nrf52.framework import (
     _PLATFORMIO_PENV_REQUIREMENTS,
     _REQUIREMENTS,
@@ -1121,6 +1121,8 @@ def test_get_build_env_with_ccache(
     assert env["CCACHE_DEPEND"] == "1"
     assert env["CCACHE_BASEDIR"] == str((tmp_path / "build").resolve())
     assert "CCACHE_DISABLE" not in env
+    # Zephyr maps the prefixes to fixed tokens; the option value is noise
+    assert "-fmacro-prefix-map=*" in env["CCACHE_IGNOREOPTIONS"]
 
 
 def test_get_build_env_sdk_3_4_0_uses_toolchain_root(
@@ -1250,3 +1252,17 @@ def test_resolve_toolchain_rejects_unsupported() -> None:
     CORE.toolchain = Toolchain.ARDUINO
     with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
         _resolve_toolchain({})
+
+
+def test_patch_gen_defines_relativizes_the_dts_path(tmp_path: Path) -> None:
+    """The absolute dts.pre path is the only per device byte in the
+    devicetree header; the patch makes gen_defines emit the basename."""
+    gen = tmp_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
+    gen.parent.mkdir(parents=True)
+    gen.write_text("s = f'DTS input file:\\n  {edt.dts_path}\\n'\n")
+    framework._patch_gen_defines_dts_path(tmp_path)
+    assert "{os.path.basename(edt.dts_path)}" in gen.read_text()
+    before = gen.read_text()
+    framework._patch_gen_defines_dts_path(tmp_path)  # idempotent
+    assert gen.read_text() == before
+    framework._patch_gen_defines_dts_path(tmp_path / "absent")  # tolerant
