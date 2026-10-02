@@ -225,11 +225,9 @@ def get_build_env(ccache: str | None) -> dict:
         env.setdefault("CCACHE_DISABLE", "1")
     else:
         env.update(ccache_env(ccache, SDK_NRF_TOOLS_CACHE))
-        # Only the per build map entry is dropped from the hash; its from
-        # side covers no compiled sources, so the value cannot change the
-        # output. User supplied maps stay hashed. as_posix matches CMake's
-        # spelling; ccache splits the list on spaces, so a path with
-        # whitespace cannot be expressed and stays hashed.
+        # Drop only the per build map entry (posix, CMake's spelling);
+        # its from side covers no compiled sources. A spaced path cannot
+        # survive ccache's space split list, so it stays hashed.
         source_dir = CORE.relative_build_path("zephyr").as_posix()
         if any(ch.isspace() for ch in source_dir):
             _LOGGER.debug(
@@ -353,10 +351,9 @@ def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
 
 
 def _patch_gen_defines_dts_path(framework_path: Path) -> None:
-    # The devicetree header embeds the absolute zephyr.dts.pre path in its
-    # top comment, the only per device byte in it, which blocks ccache
-    # sharing between devices and sysbuild images. Upstream already
-    # relativizes the bindings dirs on the next line; send this upstream.
+    # The absolute zephyr.dts.pre path in the header's top comment is
+    # its only per device byte and blocks ccache sharing; emit the
+    # basename. Upstream candidate.
     gen_defines = framework_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
     if not gen_defines.exists():
         return
