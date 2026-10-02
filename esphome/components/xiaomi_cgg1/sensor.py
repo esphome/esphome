@@ -67,12 +67,7 @@ async def to_code(config: ConfigType) -> None:
     if CONF_BINDKEY in config:
         cg.add(var.set_bindkey(config[CONF_BINDKEY]))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature(sens))
-    if CONF_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
-        cg.add(var.set_humidity(sens))
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
-        cg.add(var.set_battery_level(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature)
+    await sensors(CONF_HUMIDITY, var.set_humidity)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
