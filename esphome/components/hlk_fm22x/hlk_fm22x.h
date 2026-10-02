@@ -141,41 +141,4 @@ class HlkFm22xComponent final : public PollingComponent, public uart::UARTDevice
   CallbackManager<void(uint8_t)> enrollment_failed_callback_;
 };
 
-template<typename... Ts> class EnrollmentAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  TEMPLATABLE_VALUE(std::string, name)
-  TEMPLATABLE_VALUE(uint8_t, direction)
-
-  void play(const Ts &...x) override {
-    auto name = this->name_.value(x...);
-    auto direction = (HlkFm22xFaceDirection) this->direction_.value(x...);
-    this->parent_->enroll_face(name, direction);
-  }
-};
-
-template<typename... Ts> class DeleteAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  TEMPLATABLE_VALUE(int16_t, face_id)
-
-  void play(const Ts &...x) override {
-    auto face_id = this->face_id_.value(x...);
-    this->parent_->delete_face(face_id);
-  }
-};
-
-template<typename... Ts> class DeleteAllAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->delete_all_faces(); }
-};
-
-template<typename... Ts> class ScanAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->scan_face(); }
-};
-
-template<typename... Ts> class ResetAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->reset(); }
-};
-
 }  // namespace esphome::hlk_fm22x

@@ -53,12 +53,10 @@ from esphome.const import (
 )
 from esphome.core import (
     CORE,
-    ID,
     CoroPriority,
     TimePeriodMilliseconds,
     coroutine_with_priority,
 )
-from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -140,6 +138,7 @@ ETHERNET_TYPES = {
     "GENERIC": EthernetType.ETHERNET_TYPE_GENERIC,
     "YT8531": EthernetType.ETHERNET_TYPE_YT8531,
     "CH390": EthernetType.ETHERNET_TYPE_CH390,
+    "KSZ8851SNL": EthernetType.ETHERNET_TYPE_KSZ8851SNL,
 }
 
 # PHY types that need compile-time defines for conditional compilation
@@ -162,6 +161,7 @@ _PHY_TYPE_TO_DEFINE = {
     "GENERIC": "USE_ETHERNET_GENERIC",
     "YT8531": "USE_ETHERNET_YT8531",
     "CH390": "USE_ETHERNET_CH390",
+    "KSZ8851SNL": "USE_ETHERNET_KSZ8851SNL",
 }
 
 
@@ -186,13 +186,14 @@ _IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
     "ENC28J60": IDFRegistryComponent("espressif/enc28j60", "1.0.1"),
     "LAN8670": IDFRegistryComponent("espressif/lan867x", "2.0.0"),
     "CH390": IDFRegistryComponent("espressif/ch390", "0.3.0"),
+    "KSZ8851SNL": IDFRegistryComponent("espressif/ksz8851snl", "1.2.0"),
 }
 
 # These types are always external IDF components (never built-in to ESP-IDF)
 _ALWAYS_EXTERNAL_IDF_COMPONENTS = {"LAN8670", "ENC28J60", "CH390"}
 
 # ESP32-only SPI ethernet types (W5100 is RP2040-only, no ESP-IDF driver)
-SPI_ETHERNET_TYPES = {"W5500", "DM9051", "ENC28J60", "CH390"}
+SPI_ETHERNET_TYPES = {"W5500", "DM9051", "ENC28J60", "CH390", "KSZ8851SNL"}
 # RP2-supported ethernet types (SPI and PIO QSPI). Applies to the whole
 # RP2 family (RP2040 and RP2350); the chip-specific W5100 caveat in the
 # comment above is about ESP-IDF driver coverage, not the RP2 platform.
@@ -536,6 +537,12 @@ SPI_SCHEMA_ENC28J60 = _spi_schema(default_clock="20MHz", max_clock=int(20e6))
 # https://www.wch-ic.com/downloads/CH390DS1_PDF.html
 SPI_SCHEMA_CH390 = _spi_schema(max_clock=int(72e6))
 
+# The KSZ8851SNL rates fSCLK at 40 MHz maximum, so the shared 80 MHz ceiling is
+# out of spec while the 26.67 MHz default is not. KSZ8851SNL/SNLI datasheet
+# DS00002381C, table 7-1:
+# https://ww1.microchip.com/downloads/aemDocuments/documents/UNG/ProductDocuments/DataSheets/KSZ8851SNL-Single-Port-Ethernet-Controller-with-SPI-DS00002381C.pdf
+SPI_SCHEMA_KSZ8851SNL = _spi_schema(max_clock=int(40e6))
+
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
@@ -551,6 +558,7 @@ CONFIG_SCHEMA = cv.All(
             "OPENETH": cv.All(BASE_SCHEMA, cv.only_on([Platform.ESP32])),
             "DM9051": SPI_SCHEMA,
             "CH390": SPI_SCHEMA_CH390,
+            "KSZ8851SNL": SPI_SCHEMA_KSZ8851SNL,
             "ENC28J60": SPI_SCHEMA_ENC28J60,
             "W6100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
             "W6300": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
@@ -924,24 +932,15 @@ def _filter_source_files() -> list[str]:
 FILTER_SOURCE_FILES = _filter_source_files
 
 
-async def _new_pvariable_to_code(
-    config: ConfigType,
-    id_: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return cg.new_Pvariable(id_, template_arg)
-
-
-for _name, _cls in (
-    ("ethernet.connected", EthernetConnectedCondition),
-    ("ethernet.enabled", EthernetEnabledCondition),
-):
-    automation.register_condition(_name, _cls, cv.Schema({}))(_new_pvariable_to_code)
-for _name, _cls in (
-    ("ethernet.enable", EthernetEnableAction),
-    ("ethernet.disable", EthernetDisableAction),
-):
-    automation.register_action(_name, _cls, cv.Schema({}), synchronous=True)(
-        _new_pvariable_to_code
-    )
+automation.register_bare_condition(
+    "ethernet.connected", EthernetConnectedCondition, cv.Schema({})
+)
+automation.register_bare_condition(
+    "ethernet.enabled", EthernetEnabledCondition, cv.Schema({})
+)
+automation.register_bare_action(
+    "ethernet.enable", EthernetEnableAction, cv.Schema({}), synchronous=True
+)
+automation.register_bare_action(
+    "ethernet.disable", EthernetDisableAction, cv.Schema({}), synchronous=True
+)

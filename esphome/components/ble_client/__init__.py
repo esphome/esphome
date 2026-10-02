@@ -410,26 +410,20 @@ BLE_REMOVE_BOND_ACTION_SCHEMA = cv.All(
 )
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ble_client.disconnect",
     BLEDisconnectAction,
     BLE_CONNECT_ACTION_SCHEMA,
     synchronous=False,
 )
-async def ble_disconnect_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ble_client.connect",
     BLEConnectAction,
     BLE_CONNECT_ACTION_SCHEMA,
     synchronous=False,
 )
-async def ble_connect_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 @automation.register_action(
@@ -515,15 +509,12 @@ async def passkey_reply_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ble_client.remove_bond",
     BLERemoveBondAction,
     BLE_REMOVE_BOND_ACTION_SCHEMA,
     synchronous=True,
 )
-async def remove_bond_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 async def _to_code_esp32(config: ConfigType) -> cg.MockObj:

@@ -108,6 +108,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   int handle_search_cmpl_(esp_gatt_status_t status);
   void deliver_pending_search_();
   void unconditional_disconnect_();
+  void cancel_pending_open_();
   void set_idle_();
   void set_disconnecting_();
   esp_err_t update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
@@ -144,6 +145,9 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   bool seen_mtu_ : 1 {false};
   // The MTU request was refused at CONNECT_EVT; OPEN_EVT reports instead.
   bool mtu_failed_ : 1 {false};
+  // esp_ble_gattc_cancel_open() was accepted; CANCEL_OPEN_EVT or OPEN_EVT ends
+  // the attempt, so the scheduled teardown can no longer be cancelled.
+  bool cancel_open_sent_ : 1 {false};
   // Search issued at OPEN_EVT overlaps the MTU exchange; discover_services()
   // completes from it. Reset by set_idle_().
   static_assert(static_cast<uint8_t>(SearchState::REPORT_PENDING) < (1 << 4), "search_state_ bitfield too narrow");
