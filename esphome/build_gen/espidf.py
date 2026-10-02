@@ -3,6 +3,7 @@
 import json
 import logging
 from pathlib import Path
+import re
 import textwrap
 
 from esphome.build_helpers import pch
@@ -65,6 +66,43 @@ else()
         "app edits will regenerate sections.ld.")
 endif()"""
 
+# lwip sources that compile to empty objects with the option off (their own
+# #if guard). (option, regex valid for both Python and CMake); a source is
+# only dropped when its option is defined and off, so a renamed option
+# keeps it.
+LWIP_EMPTY_SOURCES: tuple[tuple[str, str], ...] = (
+    ("CONFIG_LWIP_PPP_SUPPORT", "/netif/ppp/"),
+    ("CONFIG_LWIP_IPV6", "/core/ipv6/"),
+    ("CONFIG_LWIP_AUTOIP", "/core/ipv4/autoip[.]c$"),
+    ("CONFIG_LWIP_STATS", "/core/stats[.]c$"),
+)
+# Drift guard only: keep every lwip source.
+LWIP_FULL_SOURCES_ENV = "ESPHOME_LWIP_FULL_SOURCES"
+
+# Drops the empty objects after project(), once the lwip target exists.
+_LWIP_EMPTY_SOURCES_FILTER = f"""\
+idf_build_get_property(esphome_build_components BUILD_COMPONENTS)
+if(lwip IN_LIST esphome_build_components AND NOT DEFINED ENV{{{LWIP_FULL_SOURCES_ENV}}})
+    idf_component_get_property(esphome_lwip_lib lwip COMPONENT_LIB)
+    get_target_property(esphome_lwip_srcs ${{esphome_lwip_lib}} SOURCES)
+@FILTERS@
+    set_property(TARGET ${{esphome_lwip_lib}} PROPERTY SOURCES ${{esphome_lwip_srcs}})
+endif()"""
+
+
+def lwip_empty_source_gate(option: str, regex: str) -> str:
+    return (
+        f"    if(DEFINED {option} AND NOT {option})\n"
+        f'        list(FILTER esphome_lwip_srcs EXCLUDE REGEX "{regex}")\n'
+        "    endif()"
+    )
+
+
+def _lwip_empty_sources_filter() -> str:
+    gates = "\n".join(lwip_empty_source_gate(*entry) for entry in LWIP_EMPTY_SOURCES)
+    return _LWIP_EMPTY_SOURCES_FILTER.replace("@FILTERS@", gates)
+
+
 # Runs after project() so the walk has happened; catches the remaining
 # silent path where the top-level out-var was renamed.
 _LDGEN_OVERRIDE_CHECK = """\
@@ -118,6 +156,78 @@ def _cmake_quote(value: str) -> str:
     whitespace, quotes, and '$', so only backslashes need escaping."""
     escaped = value.replace("\\", "\\\\")
     return f'"{escaped}"'
+
+
+# CONFIG_APP_BUILD_BOOTLOADER is hidden and force-selected, so it can only be
+# cleared at the CMake level (the same state IDF's RAM-app build type uses).
+# The macro is IDF's __build_process_project_includes plus two added lines;
+# the flag is ignored and the bootloader builds as usual if IDF changes it.
+IDF_BOOTLOADER_OVERRIDE = """\
+# ESPHome bootloader skip switch; see esphome/espidf/toolchain.py.
+if(ESPHOME_SKIP_BOOTLOADER)
+    macro(__build_process_project_includes)
+        idf_build_get_property(sdkconfig_cmake SDKCONFIG_CMAKE)
+        include(${sdkconfig_cmake})
+        set(CONFIG_APP_BUILD_BOOTLOADER "")
+        # bt's CMakeLists reads the lowercase idf_target that the (now
+        # skipped) bootloader project_include leaks; keep it defined, or
+        # its empty TARGET_SRC_NAME sends file(GLOB_RECURSE) across /.
+        idf_build_get_property(idf_target IDF_TARGET)
+        idf_build_get_property(build_properties __BUILD_PROPERTIES)
+        foreach(build_property ${build_properties})
+            idf_build_get_property(val ${build_property})
+            set(${build_property} "${val}")
+        endforeach()
+        idf_build_get_property(build_component_targets __BUILD_COMPONENT_TARGETS)
+        foreach(component_target ${build_component_targets})
+            __component_get_property(dir ${component_target} COMPONENT_DIR)
+            __component_get_property(_name ${component_target} COMPONENT_NAME)
+            set(COMPONENT_NAME ${_name})
+            set(COMPONENT_DIR ${dir})
+            set(COMPONENT_PATH ${dir})
+            if(EXISTS ${COMPONENT_DIR}/project_include.cmake)
+                include(${COMPONENT_DIR}/project_include.cmake)
+            endif()
+        endforeach()
+    endmacro()
+endif()
+"""
+
+# The lines the override adds to IDF's macro; idf_macro_matches() below
+# strips them before comparing with the live macro.
+BOOTLOADER_OVERRIDE_ADDED_LINES = (
+    'set(CONFIG_APP_BUILD_BOOTLOADER "")',
+    "idf_build_get_property(idf_target IDF_TARGET)",
+)
+
+_MACRO = re.compile(
+    r"macro\(__build_process_project_includes\)(.*?)endmacro\(\)", re.DOTALL
+)
+
+
+def _normalized_macro(text: str) -> list[str] | None:
+    """The macro body as comment-free, whitespace-collapsed lines."""
+    if (match := _MACRO.search(text)) is None:
+        return None
+    return [
+        re.sub(r"\s+", " ", line)
+        for raw in match.group(1).splitlines()
+        if (line := raw.split("#", 1)[0].strip())
+    ]
+
+
+_EXPECTED_MACRO = [
+    line
+    for line in _normalized_macro(IDF_BOOTLOADER_OVERRIDE)
+    if line not in BOOTLOADER_OVERRIDE_ADDED_LINES
+]
+
+
+def idf_macro_matches(idf_path: Path) -> bool:
+    """Whether IDF's macro still matches the copy the override replays."""
+    build_cmake = idf_path / "tools" / "cmake" / "build.cmake"
+    live = _normalized_macro(build_cmake.read_text(encoding="utf-8"))
+    return live == _EXPECTED_MACRO
 
 
 def get_project_cmakelists(
@@ -258,6 +368,7 @@ set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
+{IDF_BOOTLOADER_OVERRIDE}
 {ldgen_override}
 
 {cpp_standard_options}
@@ -274,14 +385,20 @@ project({CORE.name})
 
 {ldgen_override_check}
 
+{_lwip_empty_sources_filter()}
+
 # Emit per-memory-type JSON size data for ESPHome to read post-build.
 # json2 stays small; raw dumps every symbol (~2s on a large map) and
 # this command runs inside the link edge, blocking everything downstream.
+# The map is a BYPRODUCT so ninja knows the link writes it; IDF's size
+# target depends on the map and can then be built in the same run as all.
+# IDF's cmakev2 declares the map itself, so drop this line on that switch.
 add_custom_command(
     TARGET ${{CMAKE_PROJECT_NAME}}.elf POST_BUILD
     COMMAND ${{PYTHON}} -m esp_idf_size {size_ng_flag} --format=json2
             -o ${{CMAKE_BINARY_DIR}}/esp_idf_size.json
             ${{CMAKE_PROJECT_NAME}}.map
+    BYPRODUCTS ${{CMAKE_BINARY_DIR}}/${{CMAKE_PROJECT_NAME}}.map
     WORKING_DIRECTORY ${{CMAKE_BINARY_DIR}}
     VERBATIM
 )

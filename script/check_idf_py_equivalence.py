@@ -30,14 +30,44 @@ WATCHED = (
     "build/compile_commands.json",
     "build/project_description.json",
     "build/config/sdkconfig.h",
-    "build/bootloader/bootloader.bin",
 )
-# Ninja logs whose outputs mean real work when their recorded mtime changes.
-# The top level re-logs the bootloader step's byproducts on every build, so
-# the bootloader is judged by its own sub-build log instead.
+# Only a tree that builds the bootloader has one to watch.
+BOOTLOADER_BIN = "build/bootloader/bootloader.bin"
+OVERRIDE_INEFFECTIVE = (
+    "skip-mode tree built a bootloader; the IDF_BOOTLOADER_OVERRIDE macro in "
+    "esphome/build_gen/espidf.py is not taking effect"
+)
+# Ninja logs whose outputs mean real work when their recorded mtime changes;
+# the bootloader is judged by its own sub-build log when one exists.
 TOP_NINJA_LOG = "build/.ninja_log"
-NINJA_LOGS = (TOP_NINJA_LOG, "build/bootloader/.ninja_log")
+
+
+def _ninja_logs(skip_bootloader: bool) -> list[str]:
+    """A missing sub-build log stays an error in the mode that requires one."""
+    logs = [TOP_NINJA_LOG]
+    if not skip_bootloader:
+        logs.append("build/bootloader/.ninja_log")
+    return logs
+
+
 BOOTLOADER_BYPRODUCT = re.compile(r"(^|/build/)bootloader/")
+MACRO_CHANGED = (
+    "IDF changed __build_process_project_includes; update "
+    "IDF_BOOTLOADER_OVERRIDE in esphome/build_gen/espidf.py"
+)
+VERSION_DRIFT = (
+    "ESPHome reads ESP-IDF version {ours!r} from {source} but idf_tools reports "
+    "{theirs!r}; update read_idf_version_{source} in esphome/espidf/framework.py"
+)
+LWIP_NOT_EMPTY = (
+    "lwip source {source} compiles to a non-empty object with {option} off; "
+    "drop it from LWIP_EMPTY_SOURCES in esphome/build_gen/espidf.py"
+)
+LWIP_NOTHING_MATCHED = (
+    "no lwip object matched {regex!r} for {option}; the lwip layout or the "
+    "pattern in esphome/build_gen/espidf.py changed"
+)
+LWIP_NM_FAILED = "nm failed on lwip object {source}: {error}"
 WORK_SUFFIXES = (".obj", ".o", ".a", ".elf", ".map", ".bin", ".ld")
 DEFAULT_GLOB = "tests/test_build_components/build/.esphome/build/*"
 
@@ -46,19 +76,24 @@ def _digest(path: Path) -> str | None:
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
 
 
-def watched(name: str) -> list[str]:
-    """Files that change if idf.py configures or builds differently."""
-    return [*WATCHED, f"build/{name}.elf", f"build/{name}.bin"]
+def watched(name: str, skip_bootloader: bool) -> list[str]:
+    """The files idf.py must leave untouched for this tree's mode."""
+    files = [*WATCHED, f"build/{name}.elf", f"build/{name}.bin"]
+    if not skip_bootloader:
+        files.append(BOOTLOADER_BIN)
+    return files
 
 
-def _snapshot(build_path: Path, name: str) -> dict[str, str | None]:
-    return {f: _digest(build_path / f) for f in watched(name)}
+def _snapshot(
+    build_path: Path, name: str, skip_bootloader: bool
+) -> dict[str, str | None]:
+    return {f: _digest(build_path / f) for f in watched(name, skip_bootloader)}
 
 
-def _ninja_mtimes(build_path: Path) -> dict[tuple[str, str], str]:
+def _ninja_mtimes(build_path: Path, logs: list[str]) -> dict[tuple[str, str], str]:
     """(log, output) -> recorded mtime; compaction-safe, unlike a line count."""
     mtimes = {}
-    for name in NINJA_LOGS:
+    for name in logs:
         log = build_path / name
         lines = log.read_text(encoding="utf-8").splitlines() if log.is_file() else []
         for fields in (line.split("\t") for line in lines if not line.startswith("#")):
@@ -69,14 +104,61 @@ def _ninja_mtimes(build_path: Path) -> dict[tuple[str, str], str]:
     return mtimes
 
 
-def _log_problems(build_path: Path, mtimes: dict[tuple[str, str], str]) -> list[str]:
+def _log_problems(
+    build_path: Path, mtimes: dict[tuple[str, str], str], logs: list[str]
+) -> list[str]:
     """A missing or unparsable ninja log would otherwise compare as unchanged."""
     problems = []
-    for log in NINJA_LOGS:
+    for log in logs:
         if not (build_path / log).is_file():
             problems.append(f"missing {log}")
         elif not any(k[0] == log and k[1].endswith(WORK_SUFFIXES) for k in mtimes):
             problems.append(f"no build entries parsed from {log}")
+    return problems
+
+
+def _lwip_empty_source_problems(build_path: Path) -> list[str]:
+    """Compile the lwip sources the generated CMakeLists drops; any with
+    symbols is a problem. Leaves the tree configured with every source."""
+    # pylint: disable=protected-access
+    from esphome.build_gen.espidf import LWIP_EMPTY_SOURCES, LWIP_FULL_SOURCES_ENV
+    from esphome.espidf import toolchain
+
+    if (rc := toolchain.run_reconfigure(extra_env={LWIP_FULL_SOURCES_ENV: "1"})) != 0:
+        return [f"CMake configure with every lwip source failed with exit code {rc}"]
+    if rc := toolchain._run_ninja("esp-idf/lwip/liblwip.a", verbose=False, jobs=None):
+        return [f"building every lwip source failed with exit code {rc}"]
+    build = build_path / "build"
+    config = json.loads(
+        (build / "config" / "sdkconfig.json").read_text(encoding="utf-8")
+    )
+    objects = [
+        obj.as_posix().removesuffix(".obj")
+        for obj in (build / "esp-idf" / "lwip").rglob("*.obj")
+    ]
+    nm = toolchain._parse_cmakecache(build / "CMakeCache.txt")["CMAKE_NM"]
+    problems = []
+    for option, regex in LWIP_EMPTY_SOURCES:
+        # Absent means the option is invisible here; the filter keeps those.
+        if config.get(option.removeprefix("CONFIG_"), True):
+            continue
+        matched = [source for source in objects if re.search(regex, source)]
+        if not matched:
+            problems.append(LWIP_NOTHING_MATCHED.format(regex=regex, option=option))
+        for source in matched:
+            name = Path(source).name
+            result = subprocess.run(
+                [nm, "--defined-only", f"{source}.obj"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode:
+                problems.append(
+                    LWIP_NM_FAILED.format(source=name, error=result.stderr.strip())
+                )
+            elif result.stdout.strip():
+                problems.append(LWIP_NOT_EMPTY.format(source=name, option=option))
     return problems
 
 
@@ -101,12 +183,32 @@ def _setup_core(build_path: Path, description: dict) -> tuple[str, str]:
 def check(build_path: Path) -> list[str]:
     """Return the problems found in one build tree."""
     # pylint: disable=protected-access
-    from esphome.espidf import toolchain
+    from esphome.build_gen.espidf import idf_macro_matches
+    from esphome.core import CORE
+    from esphome.espidf import framework, toolchain
 
     description = json.loads(
         (build_path / "build" / "project_description.json").read_text(encoding="utf-8")
     )
     name, version = _setup_core(build_path, description)
+    # Reconfiguring must not flip the tree's bootloader mode: the check
+    # validates the shape the build produced, not this process's flags.
+    skip_bootloader = toolchain.tree_skips_bootloader(build_path / "build")
+    CORE.skip_bootloader = skip_bootloader
+    # A prior tree's memoized decision must not leak into this one.
+    toolchain._cache().skip_bootloader = None
+    idf_path = toolchain._get_idf_path(version)
+    if not idf_macro_matches(idf_path):
+        return [MACRO_CHANGED]
+    # A managed tree always has version.txt, so the header branch is
+    # compared on its own or it would never be exercised here.
+    theirs = framework.idf_tools_version(idf_path)
+    for source, read in (
+        ("txt", framework.read_idf_version_txt),
+        ("header", framework.read_idf_version_header),
+    ):
+        if (ours := read(idf_path)) != theirs:
+            return [VERSION_DRIFT.format(ours=ours, source=source, theirs=theirs)]
     # ESP-IDF's openthread stamps the configure time into its compile flags;
     # pin it before the env is cached so both configures get the same value.
     os.environ["SOURCE_DATE_EPOCH"] = "0"
@@ -122,11 +224,14 @@ def check(build_path: Path) -> list[str]:
         return [f"ESPHome's CMake configure failed with exit code {rc}"]
     if (rc := toolchain._run_ninja("all", verbose=False, jobs=None)) != 0:
         return [f"ESPHome's ninja build failed with exit code {rc}"]
-    before = _snapshot(build_path, name)
-    mtimes_before = _ninja_mtimes(build_path)
+    before = _snapshot(build_path, name, skip_bootloader)
+    logs = _ninja_logs(skip_bootloader)
+    mtimes_before = _ninja_mtimes(build_path, logs)
     # A moved or renamed output would otherwise compare as "unchanged".
     problems = [f"missing {f}" for f, digest in before.items() if digest is None]
-    if problems := problems + _log_problems(build_path, mtimes_before):
+    if skip_bootloader and (build_path / BOOTLOADER_BIN).is_file():
+        problems.append(OVERRIDE_INEFFECTIVE)
+    if problems := problems + _log_problems(build_path, mtimes_before, logs):
         return problems
     for action in ("reconfigure", "build"):
         result = subprocess.run(
@@ -139,10 +244,10 @@ def check(build_path: Path) -> list[str]:
         )
         if result.returncode != 0:
             return [f"idf.py {action} failed:\n{result.stdout}{result.stderr}"]
-    after = _snapshot(build_path, name)
-    mtimes_after = _ninja_mtimes(build_path)
+    after = _snapshot(build_path, name, skip_bootloader)
+    mtimes_after = _ninja_mtimes(build_path, logs)
     problems = [f"idf.py changed {f}" for f in before if before[f] != after[f]]
-    problems += _log_problems(build_path, mtimes_after)
+    problems += _log_problems(build_path, mtimes_after, logs)
     for key in sorted(mtimes_before.keys() | mtimes_after.keys()):
         log, out = key
         if not out.endswith(WORK_SUFFIXES):
@@ -151,7 +256,8 @@ def check(build_path: Path) -> list[str]:
             problems.append(f"idf.py dropped {out} from {log}")
         elif mtimes_before.get(key) != mtimes_after[key]:
             problems.append(f"idf.py rebuilt {out}")
-    return problems
+    # Last: it reconfigures the tree, which would otherwise relink above.
+    return problems or _lwip_empty_source_problems(build_path)
 
 
 def main() -> int:

@@ -1,0 +1,22 @@
+esphome:
+  name: test-color-wipe-color
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+light:
+  - platform: fastled_clockless
+    id: wipe_light
+    chipset: WS2811
+    pin: GPIO13
+    num_leds: 10
+    effects:
+      - addressable_color_wipe:
+          name: Wipe
+          colors:
+            - color: darkred
+              num_leds: 1
+            - red: 50%
+              num_leds: 1
