@@ -91,11 +91,13 @@ from esphome.core.entity_helpers import (
     setup_entity,
     setup_unit_of_measurement,
 )
-from esphome.cpp_generator import FloatLiteral, MockObj, MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "number"
+CONF_RANGE_ID = "range_id"
+
 DEVICE_CLASSES = [
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
@@ -162,6 +164,7 @@ IS_PLATFORM_COMPONENT = True
 number_ns = cg.esphome_ns.namespace("number")
 Number = number_ns.class_("Number", cg.EntityBase)
 NumberPtr = Number.operator("ptr")
+NumberRange = number_ns.struct("NumberRange")
 
 # Triggers
 ValueRangeTrigger = number_ns.class_(
@@ -208,6 +211,7 @@ _NUMBER_SCHEMA = (
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
+            cv.GenerateID(CONF_RANGE_ID): cv.declare_id(NumberRange),
             cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
                 {
@@ -294,19 +298,14 @@ def _get_data() -> NumberData:
     return CORE.data[DOMAIN]
 
 
-def _number_range(min_value: float, max_value: float, step: float) -> MockObj:
-    """Return a pointer to a PROGMEM table with these values, one table per distinct set."""
+def _number_range(
+    range_id: ID, min_value: float, max_value: float, step: float
+) -> MockObj:
+    """Return a PROGMEM table with these values; numbers with the same values share one."""
     ranges = _get_data().ranges
     key = (float(min_value), float(max_value), float(step))
     if (range_ := ranges.get(key)) is None:
-        name = f"NUMBER_RANGE_{len(ranges)}"
-        values = ", ".join(str(FloatLiteral(v)) for v in key)
-        cg.add_global(
-            cg.RawStatement(
-                f"static constexpr number::NumberRange {name} PROGMEM = {{{values}}};"
-            )
-        )
-        range_ = ranges[key] = MockObj(f"&{name}")
+        range_ = ranges[key] = cg.progmem_array(range_id, [key])
     return range_
 
 
@@ -314,7 +313,9 @@ def _number_range(min_value: float, max_value: float, step: float) -> MockObj:
 async def setup_number_core_(
     var, config, *, min_value: float, max_value: float, step: float
 ):
-    cg.add(var.set_range(_number_range(min_value, max_value, step)))
+    cg.add(
+        var.set_range(_number_range(config[CONF_RANGE_ID], min_value, max_value, step))
+    )
 
     # Skip the setter when the config matches the C++ initializer (DEFAULT_MODE).
     # The validated value is the enum key string, not the C++ enum expression.

@@ -23,16 +23,16 @@ def test_range_table_shared_per_distinct_values(
     """Numbers with the same range share one PROGMEM table."""
     main_cpp = generate_main(component_config_path("range.yaml"))
 
-    assert (
-        "static constexpr number::NumberRange NUMBER_RANGE_0 PROGMEM = "
-        "{0.0f, 10.0f, 1.0f};" in main_cpp
+    shared = (
+        "number::NumberRange number_numberrange_id[] PROGMEM = {{0.0f, 10.0f, 1.0f}};"
     )
-    assert (
-        "static constexpr number::NumberRange NUMBER_RANGE_1 PROGMEM = "
-        "{-5.0f, 5.0f, 0.5f};" in main_cpp
+    other = (
+        "number::NumberRange number_numberrange_id_3[] PROGMEM = {{-5.0f, 5.0f, 0.5f}};"
     )
-    assert main_cpp.count("NumberRange NUMBER_RANGE_") == 2
-    assert "first_number->set_range(&NUMBER_RANGE_0);" in main_cpp
-    assert "same_range_number->set_range(&NUMBER_RANGE_0);" in main_cpp
-    assert "other_range_number->set_range(&NUMBER_RANGE_1);" in main_cpp
+    assert shared in main_cpp
+    assert other in main_cpp
+    assert main_cpp.count("number::NumberRange ") == 2
+    assert "first_number->set_range(number_numberrange_id);" in main_cpp
+    assert "same_range_number->set_range(number_numberrange_id);" in main_cpp
+    assert "other_range_number->set_range(number_numberrange_id_3);" in main_cpp
     assert "traits.set_min_value(" not in main_cpp
