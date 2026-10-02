@@ -35,6 +35,24 @@ def test_basic_unchanged(tmp_path: Path, generate_main: Callable[[Path], str]) -
     assert "USE_TMP102_" not in defines
 
 
+def test_advanced_options_enable_configuration_once(
+    tmp_path: Path, generate_main: Callable[[Path], str]
+) -> None:
+    config = base_config()
+    config["sensor"][0].update(
+        extended_mode=False,
+        conversion_rate="1Hz",
+        one_shot_mode=False,
+        alert_polarity="active_high",
+        thermostat_mode="interrupt",
+        fault_queue=2,
+        temperature_high=30,
+        temperature_low=25,
+    )
+    source = generate_main(write_config(tmp_path, config))
+    assert source.count("set_configure(true)") == 1
+
+
 @pytest.mark.parametrize("kind", ["number", "binary_sensor", "text_sensor", "all"])
 def test_optional_platforms(
     tmp_path: Path, kind: str, generate_main: Callable[[Path], str]

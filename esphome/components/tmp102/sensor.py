@@ -61,6 +61,7 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+    configure = False
     for key, setter in (
         (CONF_EXTENDED_MODE, var.set_extended_mode),
         (CONF_CONVERSION_RATE, var.set_conversion_rate),
@@ -71,6 +72,8 @@ async def to_code(config: ConfigType) -> None:
         (CONF_TEMPERATURE_HIGH, var.set_temperature_high),
         (CONF_TEMPERATURE_LOW, var.set_temperature_low),
     ):
-        if key in config:
-            cg.add(setter(config[key]))
-            cg.add(var.set_configure(True))
+        if (value := config.get(key)) is not None:
+            cg.add(setter(value))
+            configure = True
+    if configure:
+        cg.add(var.set_configure(True))

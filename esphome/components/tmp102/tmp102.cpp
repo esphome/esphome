@@ -128,11 +128,9 @@ void TMP102Component::dump_config() {
   if (this->temperature_low_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Temperature Low: %.1f°C", *this->temperature_low_);
   }
-#ifdef USE_TMP102_BINARY_SENSOR
-  if (this->alert_sensor_ != nullptr && this->thermostat_mode_ == TMP102_THERMOSTAT_MODE_INTERRUPT) {
-    ESP_LOGW(TAG, "Alert sensor reflects comparator status; register reads clear the interrupt-mode ALERT pin");
+  if (this->thermostat_mode_ == TMP102_THERMOSTAT_MODE_INTERRUPT) {
+    ESP_LOGW(TAG, "Register reads clear the interrupt-mode ALERT pin");
   }
-#endif
 }
 
 void TMP102Component::update() {
