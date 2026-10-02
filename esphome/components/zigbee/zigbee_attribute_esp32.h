@@ -20,6 +20,9 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 namespace esphome::zigbee {
 
@@ -47,12 +50,23 @@ class ZigbeeAttribute final : public Component {
   template<typename T> void set_attr(const T &value);
   uint8_t attr_type() { return attr_type_; }
   void set_report(ZigbeeReportT report);
+
+  template<typename F> void add_on_value_callback(F &&callback) { on_value_callback_.add(std::forward<F>(callback)); }
+  void on_value(ezb_zcl_attribute_t attribute) {
+    if (attribute.data.type == this->attr_type() && attribute.data.value) {
+      this->on_value_callback_.call(attribute);
+    }
+  }
+
 #ifdef USE_SENSOR
   template<typename T> void connect(sensor::Sensor *sensor);
   template<typename T, typename F> void connect(sensor::Sensor *sensor, F &&f);
 #endif
 #ifdef USE_BINARY_SENSOR
   template<typename T> void connect(binary_sensor::BinarySensor *sensor);
+#endif
+#ifdef USE_SWITCH
+  template<typename T> void connect(switch_::Switch *device);
 #endif
   bool report_enabled = false;
 
@@ -71,6 +85,7 @@ class ZigbeeAttribute final : public Component {
   bool set_attr_requested_{false};
   bool report_requested_{false};
   bool force_report_{false};
+  LazyCallbackManager<void(ezb_zcl_attribute_t attribute)> on_value_callback_{};
   template<typename T> T scale_value_(float value);
   template<typename T> T invalid_value_();
 };
@@ -133,6 +148,13 @@ template<typename T, typename F> void ZigbeeAttribute::connect(sensor::Sensor *s
 #ifdef USE_BINARY_SENSOR
 template<typename T> void ZigbeeAttribute::connect(binary_sensor::BinarySensor *sensor) {
   sensor->add_on_state_callback([this](bool value) { this->set_attr((T) (this->scale_ * value)); });
+}
+#endif
+#ifdef USE_SWITCH
+template<typename T> void ZigbeeAttribute::connect(switch_::Switch *device) {
+  this->add_on_value_callback(
+      [device](ezb_zcl_attribute_t attribute) { device->control(*(T *) attribute.data.value); });
+  device->add_on_state_callback([this](bool value) { this->set_attr((T) (this->scale_ * value)); });
 }
 #endif
 
