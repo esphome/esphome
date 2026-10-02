@@ -53,9 +53,6 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
-    if CONF_MOISTURE in config:
-        sens = await sensor.new_sensor(config[CONF_MOISTURE])
-        cg.add(var.set_moisture(sens))
-    if CONF_CONDUCTIVITY in config:
-        sens = await sensor.new_sensor(config[CONF_CONDUCTIVITY])
-        cg.add(var.set_conductivity(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_MOISTURE, var.set_moisture)
+    await sensors(CONF_CONDUCTIVITY, var.set_conductivity)
