@@ -93,10 +93,6 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_update_interval_min(update_interval))
     cg.add(var.set_rx_mode_only(config[CONF_RX_ONLY]))
 
-    if CONF_PM_2_5 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_2_5])
-        cg.add(var.set_pm_2_5_sensor(sens))
-
-    if CONF_PM_10_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_10_0])
-        cg.add(var.set_pm_10_0_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_PM_2_5, var.set_pm_2_5_sensor)
+    await sensors(CONF_PM_10_0, var.set_pm_10_0_sensor)

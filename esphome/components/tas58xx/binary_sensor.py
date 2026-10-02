@@ -40,12 +40,11 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_TAS58XX_ID])
-    if sensor_config := config.get(CONF_HAVE_FAULT):
-        sens = await binary_sensor.new_binary_sensor(sensor_config)
-        cg.add(parent.set_have_fault_binary_sensor(sens))
+    hub = await cg.get_variable(config[CONF_TAS58XX_ID])
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_HAVE_FAULT, hub.set_have_fault_binary_sensor)
     for key in FAULT_SENSORS:
         if sensor_config := config.get(key):
             sens = await binary_sensor.new_binary_sensor(sensor_config)
             fault = getattr(FaultSensor, f"FAULT_SENSOR_{key.upper()}")
-            cg.add(parent.set_fault_binary_sensor(fault, sens))
+            cg.add(hub.set_fault_binary_sensor(fault, sens))

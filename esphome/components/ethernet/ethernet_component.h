@@ -220,6 +220,9 @@ class EthernetComponent final : public Component {
  protected:
   void start_connect_();
   void finish_connect_();
+#if LWIP_IPV6
+  esp_err_t ensure_ip6_linklocal_();
+#endif
   void dump_connect_params_();
 
 #ifdef USE_ESP32
