@@ -115,7 +115,7 @@ ssize_t TcpClientLink::read(uint8_t *buf, size_t len) {
   return 0;
 }
 
-ssize_t TcpClientLink::write(const uint8_t *buf, size_t len) {
+ssize_t TcpClientLink::write_(const uint8_t *buf, size_t len) {
   if (!this->connected_ || len == 0) {
     return 0;
   }
@@ -141,7 +141,7 @@ size_t TcpClientLink::queue(const uint8_t *data, size_t len) {
 }
 
 void TcpClientLink::flush_tx_slow_() {
-  ssize_t sent = this->write(this->tx_, this->tx_len_);
+  ssize_t sent = this->write_(this->tx_, this->tx_len_);
   if (sent > 0) {
     this->tx_len_ -= static_cast<uint16_t>(sent);
     if (this->tx_len_ != 0) {

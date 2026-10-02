@@ -71,7 +71,7 @@ class TcpClientLink {
   static constexpr size_t TX_BUFFER_SIZE = 1024;
 
   /// The raw stream write behind flush_tx(); drops the link on a fatal error.
-  ssize_t write(const uint8_t *buf, size_t len);
+  ssize_t write_(const uint8_t *buf, size_t len);
   void flush_tx_slow_();
   void poll_slow_();
   void try_connect_();
