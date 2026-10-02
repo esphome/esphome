@@ -3,7 +3,10 @@
 from ipaddress import IPv4Network
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from esphome.components import socket
+import esphome.config_validation as cv
 
 
 def test_network_order_swaps_to_sockaddr_value() -> None:
@@ -34,3 +37,10 @@ def test_add_ipv4_allow_wires_the_setter_with_cleared_host_bits() -> None:
     assert entry.args["mask"].i == socket._network_order(0xFFFFFF00)
     setter.assert_called_once_with(array.return_value, 1)
     add.assert_called_once()
+
+
+def test_schema_rejects_a_list_that_would_wrap_the_count() -> None:
+    """256 entries would wrap set()'s uint8_t count into an allow all."""
+    assert len(socket.IPV4_ALLOW_SCHEMA([f"10.0.{i}.0/24" for i in range(255)])) == 255
+    with pytest.raises(cv.Invalid):
+        socket.IPV4_ALLOW_SCHEMA([f"10.0.{i}.0/24" for i in range(256)])

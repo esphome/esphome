@@ -8,8 +8,8 @@
 namespace esphome::socket {
 
 /// One allowed IPv4 network, in network byte order with host bits cleared.
-/// Codegen validates and emits these into flash; cv.ipv4network makes an
-/// invalid or non contiguous mask unrepresentable.
+/// Codegen validates and emits these into a read only array; cv.ipv4network
+/// makes an invalid or non contiguous mask unrepresentable.
 struct Ipv4AllowEntry {
   uint32_t addr;
   uint32_t mask;

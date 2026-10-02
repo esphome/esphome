@@ -146,7 +146,9 @@ socket_ns = cg.esphome_ns.namespace("socket")
 Ipv4AllowEntry = socket_ns.struct("Ipv4AllowEntry")
 
 # For an allow list config option; an empty list allows every peer.
-IPV4_ALLOW_SCHEMA = cv.ensure_list(cv.ipv4network)
+# The cap keeps len(entries) inside set()'s uint8_t count, so a long list
+# fails validation instead of wrapping into an allow all.
+IPV4_ALLOW_SCHEMA = cv.All(cv.ensure_list(cv.ipv4network), cv.Length(max=255))
 
 
 def _network_order(value: int) -> int:
