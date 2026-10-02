@@ -9,6 +9,9 @@
 
 namespace esphome::socket::testing {
 
+// The size_t count packs into the pointer's padding; no RAM over a uint8_t.
+static_assert(sizeof(Ipv4Allow) == 2 * sizeof(void *), "unexpected padding in Ipv4Allow");
+
 // 192.168.175.20/32 and 192.168.175.0/24, network order, host bits cleared,
 // mirroring what add_ipv4_allow emits.
 static const Ipv4AllowEntry ENTRIES[] = {
