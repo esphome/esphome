@@ -90,19 +90,19 @@ const ModelInfo TAS5825M_MODEL = {
             0,   // FAULT_SENSOR_RIGHT_CHANNEL_OVER_CURRENT
             15,  // FAULT_SENSOR_OTP_CRC_CHECK
             14,  // FAULT_SENSOR_BQ_WRITE_FAILED
-            13,  // FAULT_SENSOR_LOAD_EEPROM_ERROR
             10,  // FAULT_SENSOR_CLOCK_FAULT
             9,   // FAULT_SENSOR_PVDD_OVER_VOLTAGE
             8,   // FAULT_SENSOR_PVDD_UNDER_VOLTAGE
+            16,  // FAULT_SENSOR_OVER_TEMP_SHUTDOWN
+            26,  // FAULT_SENSOR_OVER_TEMP_WARNING
+            13,  // FAULT_SENSOR_LOAD_EEPROM_ERROR
             18,  // FAULT_SENSOR_RIGHT_CHANNEL_CBC_OVER_CURRENT
             17,  // FAULT_SENSOR_LEFT_CHANNEL_CBC_OVER_CURRENT
-            16,  // FAULT_SENSOR_OVER_TEMP_SHUTDOWN
             29,  // FAULT_SENSOR_LEFT_CHANNEL_CBC_OVER_CURRENT_WARNING
             28,  // FAULT_SENSOR_RIGHT_CHANNEL_CBC_OVER_CURRENT_WARNING
             27,  // FAULT_SENSOR_OVER_TEMP_146C_WARNING
-            26,  // FAULT_SENSOR_OVER_TEMP
-                 // 25,  // FAULT_SENSOR_OVER_TEMP_122C_WARNING // not currently included
-                 // 24,  // FAULT_SENSOR_OVER_TEMP_112C_WARNING // not currently included
+         // 25,  // FAULT_SENSOR_OVER_TEMP_122C_WARNING // not currently included
+         // 24,  // FAULT_SENSOR_OVER_TEMP_112C_WARNING // not currently included
         },
 };
 
