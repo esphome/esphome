@@ -58,9 +58,6 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_clear_impedance(config[CONF_CLEAR_IMPEDANCE]))
 
-    if CONF_WEIGHT in config:
-        sens = await sensor.new_sensor(config[CONF_WEIGHT])
-        cg.add(var.set_weight(sens))
-    if CONF_IMPEDANCE in config:
-        sens = await sensor.new_sensor(config[CONF_IMPEDANCE])
-        cg.add(var.set_impedance(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_WEIGHT, var.set_weight)
+    await sensors(CONF_IMPEDANCE, var.set_impedance)
