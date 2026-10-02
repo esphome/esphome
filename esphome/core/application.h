@@ -818,15 +818,15 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #if defined(USE_ESP8266)
   // SDK os_timer_arm() accepts at most 0x68D7A3 ms without system_timer_reinit();
   // the SDK feeds both watchdogs while the cont task is suspended, so no WDT cap needed.
-  static constexpr uint32_t max_sleep_base = 0x68D7A3;
+  static constexpr uint32_t MAX_SLEEP_BASE = 0x68D7A3;
 #elif defined(USE_HOST)
   // arch_feed_wdt() is a no-op on host and ESPHOME_SUSPEND_LOOP is rejected by
   // the config validator, so delay_time is already bounded by loop_interval_.
-  static constexpr uint32_t max_sleep_base = std::numeric_limits<uint32_t>::max();
+  static constexpr uint32_t MAX_SLEEP_BASE = std::numeric_limits<uint32_t>::max();
 #else
-  static constexpr uint32_t max_sleep_base = WDT_FEED_INTERVAL_MS * 2;
+  static constexpr uint32_t MAX_SLEEP_BASE = WDT_FEED_INTERVAL_MS * 2;
 #endif
-  uint32_t max_sleep = max_sleep_base;
+  uint32_t max_sleep = MAX_SLEEP_BASE;
 #ifdef USE_STATUS_LED
   if ((this->app_state_ & STATUS_LED_MASK) != 0) {
     max_sleep = std::min(max_sleep, STATUS_LED_DISPATCH_INTERVAL_MS);
