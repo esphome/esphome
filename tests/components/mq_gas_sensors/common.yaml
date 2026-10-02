@@ -9,7 +9,6 @@ sensor:
     sensor_type: MQ-8
     gas: H2
     pin: ${mq_pin}
-    adc_attenuation: 12db
     adc_samples: 4
     voltage_divider:
       r1: 10.0
