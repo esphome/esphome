@@ -18,6 +18,13 @@
 #include "esphome/core/log.h"
 
 #include <cstring>
+#include <esp_idf_version.h>
+
+// cancel_open exists from ESP-IDF 5.5.5 and 6.0.1.
+#if (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 5) && ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)) || \
+    ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 1)
+#define BLUEDROID_HAS_CANCEL_OPEN
+#endif
 
 namespace esphome::bluetooth_connection {
 
@@ -64,6 +71,12 @@ void BluedroidGattClient::loop() {
     // The one teardown safety net: a lost CLOSE_EVT, or a scheduled
     // teardown whose OPEN_EVT never arrives.
     if (millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
+      if (this->conn_id_ == UNSET_CONN_ID) {
+        this->cancel_pending_open_();
+      } else if (st == ClientState::CONNECTING) {
+        // CONNECT_EVT came but OPEN_EVT was lost, so our open still holds the ACL link.
+        this->check_and_log_error_("esp_ble_gap_disconnect", esp_ble_gap_disconnect(this->remote_bda_));
+      }
       ESP_LOGE(TAG, "[%d] Timeout waiting for teardown, forcing IDLE", this->connection_index_);
       // Release before idling: a lost completion must not leak the cache.
       this->release_services();
@@ -141,6 +154,8 @@ void BluedroidGattClient::tracker_connect_() {
   this->services_released_ = false;
   this->seen_mtu_ = false;
   this->mtu_failed_ = false;
+  this->cancel_open_sent_ = false;
+  this->conn_id_ = UNSET_CONN_ID;
   this->enable_loop();
   this->set_state(ClientState::CONNECTING);
   if (this->connection_type_ == ConnectionType::V3_WITHOUT_CACHE) {
@@ -184,10 +199,26 @@ int BluedroidGattClient::gatt_disconnect() {
     // Arm the safety window: a lost OPEN_EVT must not leak the teardown.
     this->disconnecting_started_ = millis();
     this->enable_loop();
+    if (this->conn_id_ == UNSET_CONN_ID) {
+      // CANCEL_OPEN_EVT or a racing OPEN_EVT settles the slot.
+      this->cancel_pending_open_();
+    }
     return 0;
   }
   this->unconditional_disconnect_();
   return 0;
+}
+
+void BluedroidGattClient::cancel_pending_open_() {
+#ifdef BLUEDROID_HAS_CANCEL_OPEN
+  esp_ble_gattc_cancel_open_params_t params{};
+  params.gattc_if = this->gattc_if_;
+  memcpy(params.remote_bda, this->remote_bda_, sizeof(esp_bd_addr_t));
+  // A refused cancel schedules no CANCEL_OPEN_EVT, so the teardown stays cancellable.
+  if (this->check_and_log_error_("esp_ble_gattc_cancel_open", esp_ble_gattc_cancel_open(&params)) == ESP_OK) {
+    this->cancel_open_sent_ = true;
+  }
+#endif
 }
 
 void BluedroidGattClient::unconditional_disconnect_() {
@@ -213,6 +244,10 @@ bool BluedroidGattClient::cancel_gatt_disconnect() {
   // still in flight) is cancellable; once closing started the terminal
   // report settles the race.
   if (this->state() != ClientState::CONNECTING || !this->disconnect_pending()) {
+    return false;
+  }
+  if (this->cancel_open_sent_) {
+    // The cancel already went out, so CANCEL_OPEN_EVT ends it.
     return false;
   }
   this->want_disconnect_ = false;
@@ -601,6 +636,8 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
     this->listener_->on_connection_state(false, 0, param->open.status);
     return;
   }
+  // ALREADY_OPEN on an existing link sends no CONNECT_EVT, so take the id here.
+  this->conn_id_ = param->open.conn_id;
   if (this->disconnect_pending()) {
     // Open resolved with a teardown scheduled: close now (conn_id_ stays set
     // so CLOSE_EVT still matches).
@@ -644,6 +681,11 @@ void BluedroidGattClient::handle_disconnect_evt_(esp_ble_gattc_cb_param_t *param
     // Active close delivers CLOSE_EVT first; never walk back to DISCONNECTING.
     return;
   }
+  if (this->conn_id_ == UNSET_CONN_ID) {
+    // No CONNECT_EVT for this attempt yet, so the event belongs to an earlier
+    // link, such as one the teardown timeout forced down.
+    return;
+  }
   // Passive disconnect: wait for CLOSE_EVT before going IDLE (reconnecting
   // earlier makes the controller reject with 133 or assert) and before
   // reporting - the wrapper frees the slot on the report, and a freed slot
@@ -672,6 +714,10 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
     case ESP_GATTC_CONNECT_EVT: {
       if (!this->check_addr_(param->connect.remote_bda))
         return false;
+      // Every client interface gets CONNECT_EVT for every new link; only an
+      // attempt in flight owns it. An idle slot must not adopt another slot's link.
+      if (this->state() != ClientState::CONNECTING)
+        break;
       this->conn_id_ = param->connect.conn_id;
       // MTU request here rather than OPEN_EVT, matching the IDF examples.
       auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->connect.conn_id);
@@ -683,8 +729,15 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       break;
     }
     case ESP_GATTC_OPEN_EVT: {
-      if (!this->check_addr_(param->open.remote_bda))
+      if (!this->check_addr_(param->open.remote_bda)) {
+        // Our interface (filtered above), stale address, so nobody tracks this link.
+        if (param->open.status == ESP_GATT_OK || param->open.status == ESP_GATT_ALREADY_OPEN) {
+          ESP_LOGW(TAG, "[%d] Closing link left by an abandoned open", this->connection_index_);
+          this->check_and_log_error_("esp_ble_gattc_close", esp_ble_gattc_close(this->gattc_if_, param->open.conn_id));
+          return true;
+        }
         return false;
+      }
       this->handle_open_evt_(param);
       break;
     }
@@ -775,6 +828,24 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       this->listener_->on_notify_data(param->notify.handle, param->notify.value, param->notify.value_len);
       break;
     }
+#ifdef BLUEDROID_HAS_CANCEL_OPEN
+    case ESP_GATTC_CANCEL_OPEN_EVT: {
+      if (!this->check_addr_(param->cancel_open.remote_bda))
+        return false;
+      if (param->cancel_open.status != ESP_GATT_OK) {
+        // Too late to cancel: OPEN_EVT follows and settles the slot. The latch
+        // stays set because the event cannot be tied to this attempt's cancel.
+        break;
+      }
+      if (this->state() == ClientState::CONNECTING && this->disconnect_pending()) {
+        ESP_LOGD(TAG, "[%d] Pending open cancelled", this->connection_index_);
+        this->release_services();
+        this->set_idle_();
+        this->listener_->on_connection_state(false, 0, ESP_GATT_CONN_CONN_CANCEL);
+      }
+      break;
+    }
+#endif
     default:
       break;
   }
