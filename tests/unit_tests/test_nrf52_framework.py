@@ -1078,6 +1078,7 @@ def test_get_build_env(
     containerized non-root builds and was removed.
     """
     monkeypatch.setenv("SOME_PREEXISTING_VAR", "kept")
+    monkeypatch.delenv("CCACHE_DISABLE", raising=False)
 
     env = get_build_env(None)
 
@@ -1106,7 +1107,13 @@ def test_get_build_env_with_ccache(
     nrf52_dirs: SimpleNamespace, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A resolved ccache brings the shared managed settings."""
-    for key in ("CCACHE_DIR", "CCACHE_DEPEND", "CCACHE_NOHASHDIR", "CCACHE_BASEDIR"):
+    for key in (
+        "CCACHE_DIR",
+        "CCACHE_DEPEND",
+        "CCACHE_NOHASHDIR",
+        "CCACHE_BASEDIR",
+        "CCACHE_DISABLE",
+    ):
         monkeypatch.delenv(key, raising=False)
     CORE.build_path = tmp_path / "build"
     env = get_build_env("/usr/bin/ccache")
