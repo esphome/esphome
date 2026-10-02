@@ -23,7 +23,9 @@ def test_helper_files_filtered_until_required() -> None:
             Define("USE_SOCKET_IPV4_RESOLVE"),
             Define("USE_SOCKET_TCP_CLIENT_LINK"),
         }
-        assert "tcp_client_link.cpp" not in socket.FILTER_SOURCE_FILES()
+        filtered = socket.FILTER_SOURCE_FILES()
+        assert "ipv4_resolve.cpp" not in filtered
+        assert "tcp_client_link.cpp" not in filtered
 
 
 def test_require_tcp_client_link_pulls_in_the_resolver() -> None:
