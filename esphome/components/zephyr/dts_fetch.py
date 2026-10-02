@@ -149,9 +149,8 @@ def _git_sparse_fetch(
 
 
 def _framework_base_version() -> str:
-    """Return the SDK version string without PlatformIO build suffix (e.g. '2.6.1-b' → '2.6.1')."""
-    ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    return f"{ver.major}.{ver.minor}.{ver.patch}"
+    """Return the SDK version string, keeping any pre-release suffix (e.g. '4.5.0-rc1')."""
+    return str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
 
 
 def _parse_zephyr_version_file(version_file: Path) -> str:

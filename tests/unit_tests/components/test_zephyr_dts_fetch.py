@@ -31,8 +31,10 @@ from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE
 
 
-def _set_framework_version(major: int, minor: int, patch: int) -> None:
-    CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: cv.Version(major, minor, patch)}
+def _set_framework_version(major: int, minor: int, patch: int, extra: str = "") -> None:
+    CORE.data[KEY_CORE] = {
+        KEY_FRAMEWORK_VERSION: cv.Version(major, minor, patch, extra)
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +45,11 @@ def _set_framework_version(major: int, minor: int, patch: int) -> None:
 def test_framework_base_version_formats_major_minor_patch() -> None:
     _set_framework_version(4, 4, 1)
     assert _framework_base_version() == "4.4.1"
+
+
+def test_framework_base_version_keeps_release_candidate_suffix() -> None:
+    _set_framework_version(4, 5, 0, "rc1")
+    assert _framework_base_version() == "4.5.0-rc1"
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +142,16 @@ def test_native_dts_path_matches_the_machine_global_cache_key(
     assert _native_dts_path(sdk) == expected
 
 
+def test_native_dts_path_keeps_release_candidate_suffix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ESPHOME_SDK_ZEPHYR_PREFIX", str(tmp_path))
+    _set_framework_version(4, 5, 0, "rc1")
+    expected = tmp_path / "frameworks" / "sdk-zephyr-v4.5.0-rc1" / "zephyr"
+    expected.mkdir(parents=True)
+    assert _native_dts_path(MAINLINE) == expected
+
+
 def test_native_dts_path_none_when_not_on_disk(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -215,6 +232,40 @@ def test_resolve_boards_ref_reads_manifest_revision_for_manifest_resolved_sdk(
         patch("subprocess.run", side_effect=fake_run),
     ):
         assert _resolve_boards_ref(NCS, "3.4.0") == "ncs-v3.4.0"
+
+
+def test_resolve_boards_ref_keeps_release_candidate_suffix() -> None:
+    assert _resolve_boards_ref(MAINLINE, "4.5.0-rc1") == "v4.5.0-rc1"
+
+
+def test_resolve_boards_ref_clones_manifest_at_release_candidate_tag(
+    tmp_path: Path,
+) -> None:
+    def fake_run(cmd, **kwargs):
+        dest = Path(cmd[-1])
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / "west.yml").write_text(
+            "manifest:\n"
+            "  projects:\n"
+            "    - name: zephyr\n"
+            "      repo-path: sdk-zephyr\n"
+            "      revision: ncs-v3.4.0-rc1\n"
+        )
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    with (
+        patch(
+            "esphome.components.zephyr.dts_fetch._manifest_revision_cache_root",
+            return_value=tmp_path / "zephyr_manifest_revision_cache",
+        ),
+        patch("subprocess.run", side_effect=fake_run) as mock_run,
+    ):
+        assert _resolve_boards_ref(NCS, "3.4.0-rc1") == "ncs-v3.4.0-rc1"
+
+    assert (
+        mock_run.call_args.args[0][mock_run.call_args.args[0].index("--branch") + 1]
+        == "v3.4.0-rc1"
+    )
 
 
 def test_resolve_boards_ref_returns_none_when_git_fails(tmp_path: Path) -> None:
@@ -334,6 +385,27 @@ def test_sparse_clone_dts_returns_cached_path_without_reinvoking_git(
         patch("subprocess.run") as mock_run,
     ):
         result = _sparse_clone_dts("ESP32H2", "zephyr", MAINLINE)
+
+    mock_run.assert_not_called()
+    assert result == dest
+
+
+def test_sparse_clone_dts_caches_release_candidate_separately(
+    tmp_path: Path,
+) -> None:
+    _set_framework_version(4, 5, 0, "rc1")
+    dest = tmp_path / "zephyr_dts_cache" / "ESP32" / "zephyr" / "4.5.0-rc1"
+    (dest / "boards").mkdir(parents=True)
+    (dest / ".resolved_ref").write_text(f"v4.5.0-rc1#{_SPARSE_CHECKOUT_SCHEMA}")
+
+    with (
+        patch(
+            "esphome.components.zephyr.dts_fetch._dts_cache_root",
+            return_value=tmp_path / "zephyr_dts_cache",
+        ),
+        patch("subprocess.run") as mock_run,
+    ):
+        result = _sparse_clone_dts("ESP32", "zephyr", MAINLINE)
 
     mock_run.assert_not_called()
     assert result == dest
