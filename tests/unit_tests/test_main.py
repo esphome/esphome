@@ -5358,7 +5358,7 @@ def _setup_build_info_test(
     return build_info_path, firmware_path
 
 
-def test_compile_program_warns_and_ignores_skip_bootloader_elsewhere(
+def test_compile_program_quietly_ignores_skip_bootloader_elsewhere(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A full build is always safe; orchestrators cannot see YAML overrides."""
@@ -5376,7 +5376,7 @@ def test_compile_program_warns_and_ignores_skip_bootloader_elsewhere(
     ):
         compile_program(MockArgs(), config)
 
-    assert "--skip-bootloader ignored" in caplog.text
+    assert "--skip-bootloader ignored" not in caplog.text
     assert CORE.skip_bootloader is False
 
 
