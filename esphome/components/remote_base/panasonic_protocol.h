@@ -8,7 +8,8 @@
 namespace esphome::remote_base {
 
 struct PanasonicData {
-  uint16_t address;
+  uint16_t nbits;
+  uint32_t address;
   uint32_t command;
 
   bool operator==(const PanasonicData &rhs) const { return address == rhs.address && command == rhs.command; }
@@ -25,11 +26,13 @@ DECLARE_REMOTE_PROTOCOL(Panasonic)
 
 template<typename... Ts> class PanasonicAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  TEMPLATABLE_VALUE(uint16_t, address)
+  TEMPLATABLE_VALUE(uint16_t, nbits)
+  TEMPLATABLE_VALUE(uint32_t, address)
   TEMPLATABLE_VALUE(uint32_t, command)
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     PanasonicData data{};
+    data.nbits = this->nbits_.value(x...);
     data.address = this->address_.value(x...);
     data.command = this->command_.value(x...);
     PanasonicProtocol().encode(dst, data);

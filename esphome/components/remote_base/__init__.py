@@ -1928,7 +1928,8 @@ async def toshibaac_action(var, config, args):
 ) = declare_protocol("Panasonic")
 PANASONIC_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
+        cv.Optional(CONF_NBITS, default=48): cv.one_of(48, 56, int=True),
+        cv.Required(CONF_ADDRESS): cv.hex_uint32_t,
         cv.Required(CONF_COMMAND): cv.hex_uint32_t,
     }
 )
@@ -1942,6 +1943,7 @@ def panasonic_binary_sensor(var, config):
                 PanasonicData,
                 ("address", config[CONF_ADDRESS]),
                 ("command", config[CONF_COMMAND]),
+                ("nbits", config[CONF_NBITS]),
             )
         )
     )
@@ -1959,7 +1961,9 @@ def panasonic_dumper(var, config):
 
 @register_action("panasonic", PanasonicAction, PANASONIC_SCHEMA)
 async def panasonic_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint16)
+    cg.add(var.set_nbits(template_))
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint32)
     cg.add(var.set_address(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint32)
     cg.add(var.set_command(template_))
