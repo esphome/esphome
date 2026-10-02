@@ -20,8 +20,12 @@ commands.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
 import logging
 from pathlib import Path
+
+from .framework import bluetooth_west_projects
 
 TIDY_PROJECT_NAME = "esphome_tidy"
 
@@ -33,19 +37,36 @@ _TIDY_BOARD = "adafruit_itsybitsy_nrf52840"
 # app target emits a C++ compile command to harvest flags/includes from.
 _TIDY_MAIN_CPP = "int main() { return 0; }\n"
 
-# Kconfig superset enabling every subsystem an ESPHome nrf52 component may
-# use, so the compile commands carry all of their include paths.
-_TIDY_PRJ_CONF = """\
+
+@dataclass(frozen=True)
+class _TidySubsystem:
+    """A subsystem's Kconfig and the west projects its headers come from."""
+
+    name: str
+    prj_conf: str
+    # A callable when the projects differ by SDK version
+    west_projects: tuple[str, ...] | Callable[[], tuple[str, ...]] = ()
+
+
+# Kconfig superset for the compile commands and the projects it needs
+_TIDY_SUBSYSTEMS = (
+    _TidySubsystem(
+        "base",
+        """\
 CONFIG_CPP=y
 CONFIG_STD_CPP20=y
 CONFIG_REQUIRES_FULL_LIBCPP=y
 CONFIG_NEWLIB_LIBC=y
-CONFIG_BT=y
 CONFIG_ADC=y
 # posix (time sets POSIX_CLOCK, socket sets POSIX_API); without it the
 # Zephyr POSIX headers clash with the libc ones under analysis
 CONFIG_POSIX_API=y
-#mcumgr begin
+""",
+    ),
+    _TidySubsystem("bluetooth", "CONFIG_BT=y\n", bluetooth_west_projects),
+    _TidySubsystem(
+        "mcumgr",
+        """\
 CONFIG_NET_BUF=y
 CONFIG_ZCBOR=y
 CONFIG_MCUMGR=y
@@ -60,14 +81,23 @@ CONFIG_MCUMGR_MGMT_NOTIFICATION_HOOKS=y
 CONFIG_MCUMGR_GRP_IMG_STATUS_HOOKS=y
 CONFIG_MCUMGR_GRP_IMG_UPLOAD_CHECK_HOOK=y
 CONFIG_MCUMGR_TRANSPORT_UART=y
-#mcumgr end
-#zigbee begin
+""",
+        ("mcuboot", "zcbor"),
+    ),
+    _TidySubsystem(
+        "zigbee",
+        """\
 CONFIG_ZIGBEE=y
 CONFIG_CRYPTO=y
 CONFIG_NVS=y
 CONFIG_SETTINGS=y
-#zigbee end
-"""
+""",
+    ),
+)
+
+_TIDY_PRJ_CONF = "".join(
+    f"# {subsystem.name}\n{subsystem.prj_conf}" for subsystem in _TIDY_SUBSYSTEMS
+)
 
 
 def _tidy_cmakelists(library_include_dirs: str) -> str:
@@ -166,6 +196,7 @@ def _setup_core(work_dir: Path) -> None:
     from esphome.core import CORE
 
     from . import RECOMMENDED_SDK_NRF_VERSION
+    from .framework import include_west_project
 
     CORE.name = TIDY_PROJECT_NAME
     # config_path's parent is the data-dir root for per-run artifacts. The
@@ -178,6 +209,10 @@ def _setup_core(work_dir: Path) -> None:
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         RECOMMENDED_SDK_NRF_VERSION
     )
+    for subsystem in _TIDY_SUBSYSTEMS:
+        projects = subsystem.west_projects
+        for project in projects() if callable(projects) else projects:
+            include_west_project(project)
 
 
 def generate_compile_commands(work_dir: Path, platformio_ini: Path) -> Path:
@@ -237,6 +272,8 @@ def generate_compile_commands(work_dir: Path, platformio_ini: Path) -> Path:
         "zephyr_generated_headers",
         "--",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+        # As in a real build, so NDEBUG is set
+        "-DCMAKE_BUILD_TYPE=MinSizeRel",
     ]
     if not run_command_ok(
         west_cmd,

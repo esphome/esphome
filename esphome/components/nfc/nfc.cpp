@@ -23,7 +23,7 @@ uint8_t guess_tag_type(uint8_t uid_length) {
   }
 }
 
-int8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data) {
+int8_t get_mifare_classic_ndef_start_index(const std::span<const uint8_t> data) {
   for (uint8_t i = 0; i < MIFARE_CLASSIC_BLOCK_SIZE; i++) {
     if (data[i] == 0x00) {
       // Do nothing, skip
@@ -36,7 +36,8 @@ int8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data) {
   return -1;
 }
 
-bool decode_mifare_classic_tlv(std::vector<uint8_t> &data, uint32_t &message_length, uint8_t &message_start_index) {
+bool decode_mifare_classic_tlv(const std::span<const uint8_t> data, uint32_t &message_length,
+                               uint8_t &message_start_index) {
   if (data.size() < MIFARE_CLASSIC_BLOCK_SIZE) {
     ESP_LOGE(TAG, "Error, data too short for NDEF detection.");
     return false;
@@ -66,6 +67,25 @@ uint32_t get_mifare_ultralight_buffer_size(uint32_t message_length) {
   if (buffer_size % MIFARE_ULTRALIGHT_READ_SIZE != 0)
     buffer_size = ((buffer_size / MIFARE_ULTRALIGHT_READ_SIZE) + 1) * MIFARE_ULTRALIGHT_READ_SIZE;
   return buffer_size;
+}
+
+void fill_ndef_tlv(const std::span<const uint8_t> message, const uint32_t buffer_length, FixedVector<uint8_t> &buffer) {
+  buffer.init(buffer_length);
+  buffer.push_back(0x03);
+  if (message.size() < 255) {
+    buffer.push_back(message.size());
+  } else {
+    buffer.push_back(0xFF);
+    buffer.push_back((message.size() >> 8) & 0xFF);
+    buffer.push_back(message.size() & 0xFF);
+  }
+  for (const uint8_t byte : message) {
+    buffer.push_back(byte);
+  }
+  buffer.push_back(0xFE);
+  while (buffer.size() < buffer_length) {
+    buffer.push_back(0x00);
+  }
 }
 
 uint32_t get_mifare_classic_buffer_size(uint32_t message_length) {

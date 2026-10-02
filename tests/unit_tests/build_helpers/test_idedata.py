@@ -676,3 +676,36 @@ def test_load_or_build_idedata_cache_hit_skips_rebuild(tmp_path: Path) -> None:
         )
     mock_build.assert_not_called()
     assert data["cached"] is True
+
+
+def test_warn_if_idedata_missing_is_silent_on_success(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        idedata.warn_if_idedata_missing(lambda: {"cc_path": "gcc"})
+    assert "idedata" not in caplog.text
+
+
+def test_warn_if_idedata_missing_warns_on_none(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        idedata.warn_if_idedata_missing(lambda: None)
+    assert "No idedata was generated for this build" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "error", [EsphomeError("db unusable"), ValueError("bad"), OSError("gone")]
+)
+def test_warn_if_idedata_missing_downgrades_failures(
+    caplog: pytest.LogCaptureFixture, error: Exception
+) -> None:
+    """The firmware already built; a broken idedata must not fail the build."""
+
+    def broken() -> dict | None:
+        raise error
+
+    with caplog.at_level(logging.DEBUG):
+        idedata.warn_if_idedata_missing(broken)
+    assert f"Could not generate idedata: {error}" in caplog.text
+    assert "Idedata failure detail" in caplog.text

@@ -9,6 +9,8 @@
 #include "light_output.h"
 #include "transformers.h"
 
+#include <limits>
+
 namespace esphome::light {
 
 static const char *const TAG = "light";
@@ -94,10 +96,17 @@ void LightState::dump_config() {
   ESP_LOGCONFIG(TAG, "Light '%s'", this->get_name().c_str());
   auto traits = this->get_traits();
   if (traits.supports_color_capability(ColorCapability::BRIGHTNESS)) {
+#ifdef USE_LIGHT_GAMMA_LUT
+    // Read the stored gamma * 100 directly so dump_config does not pull in get_gamma_correct()
+    const unsigned gamma_x100 =
+        this->gamma_table_ != nullptr ? progmem_read_uint16(&this->gamma_table_->gamma_x100) : 0;
+#else
+    const unsigned gamma_x100 = 0;
+#endif
     ESP_LOGCONFIG(TAG,
                   "  Default Transition Length: %.1fs\n"
-                  "  Gamma Correct: %.2f",
-                  this->default_transition_length_ / 1e3f, this->gamma_correct_);
+                  "  Gamma Correct: %u.%02u",
+                  this->default_transition_length_ / 1e3f, gamma_x100 / 100, gamma_x100 % 100);
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
     // The define is build wide; only lights that set the option have an interval
     if (this->transition_state_publish_interval_ != 0) {
@@ -296,6 +305,14 @@ void LightState::current_values_as_ct(float *color_temperature, float *white_bri
   *white_brightness = this->gamma_correct_lut(*white_brightness);
 }
 
+float LightState::get_gamma_correct() const {
+#ifdef USE_LIGHT_GAMMA_LUT
+  if (this->gamma_table_ != nullptr)
+    return progmem_read_uint16(&this->gamma_table_->gamma_x100) * 0.01f;
+#endif  // USE_LIGHT_GAMMA_LUT
+  return 0.0f;
+}
+
 #ifdef USE_LIGHT_GAMMA_LUT
 float LightState::gamma_correct_lut(float value) const {
   if (value <= 0.0f)
@@ -307,10 +324,10 @@ float LightState::gamma_correct_lut(float value) const {
   float scaled = value * 255.0f;
   auto idx = static_cast<uint8_t>(scaled);
   if (idx >= 255)
-    return progmem_read_uint16(&this->gamma_table_[255]) / 65535.0f;
+    return progmem_read_uint16(&this->gamma_table_->lut[255]) / 65535.0f;
   float frac = scaled - idx;
-  float a = progmem_read_uint16(&this->gamma_table_[idx]);
-  float b = progmem_read_uint16(&this->gamma_table_[idx + 1]);
+  float a = progmem_read_uint16(&this->gamma_table_->lut[idx]);
+  float b = progmem_read_uint16(&this->gamma_table_->lut[idx + 1]);
   return (a + frac * (b - a)) / 65535.0f;
 }
 float LightState::gamma_uncorrect_lut(float value) const {
@@ -321,12 +338,12 @@ float LightState::gamma_uncorrect_lut(float value) const {
   if (this->gamma_table_ == nullptr)
     return value;
   uint16_t target = static_cast<uint16_t>(value * 65535.0f);
-  uint8_t lo = gamma_table_reverse_search(this->gamma_table_, target);
+  uint8_t lo = gamma_table_reverse_search(this->gamma_table_->lut, target);
   if (lo >= 255)
     return 1.0f;
   // Interpolate between lo and lo+1
-  uint16_t a = progmem_read_uint16(&this->gamma_table_[lo]);
-  uint16_t b = progmem_read_uint16(&this->gamma_table_[lo + 1]);
+  uint16_t a = progmem_read_uint16(&this->gamma_table_->lut[lo]);
+  uint16_t b = progmem_read_uint16(&this->gamma_table_->lut[lo + 1]);
   if (b == a)
     return lo / 255.0f;
   float frac = static_cast<float>(target - a) / static_cast<float>(b - a);
@@ -335,11 +352,14 @@ float LightState::gamma_uncorrect_lut(float value) const {
 #endif  // USE_LIGHT_GAMMA_LUT
 
 void LightState::start_effect_(uint32_t effect_index) {
+  // An external add_effects() can exceed the codegen cap; ignore an index the uint16_t can't hold
+  if (effect_index > std::numeric_limits<uint16_t>::max())
+    return;
   this->stop_effect_();
   if (effect_index == 0)
     return;
 
-  this->active_effect_index_ = effect_index;
+  this->active_effect_index_ = static_cast<uint16_t>(effect_index);
   auto *effect = this->get_active_effect_();
   effect->start_internal();
   // Enable loop while effect is active
@@ -435,7 +455,7 @@ void LightState::save_remote_values_() {
   saved.color_temp = this->remote_values.get_color_temperature();
   saved.cold_white = this->remote_values.get_cold_white();
   saved.warm_white = this->remote_values.get_warm_white();
-  saved.effect = this->active_effect_index_;
+  saved.effect = static_cast<uint32_t>(this->active_effect_index_);  // the saved layout stays uint32_t
   this->rtc_.save(&saved);
 }
 

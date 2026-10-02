@@ -249,7 +249,130 @@ def test_main_all_tests_should_run(
         # Should contain at least one component (no empty batches)
         assert len(batch["components"]) > 0
         assert isinstance(batch["needs_idf"], bool)
+        assert isinstance(batch["check_idf_py"], bool)
         assert isinstance(batch["needs_nrf"], bool)
+        assert isinstance(batch["needs_arduino8266"], bool)
+
+
+def _batch(components: str, idf: bool, check: bool, a8266: bool) -> dict:
+    return {
+        "components": components,
+        "needs_idf": idf,
+        "check_idf_py": check,
+        "needs_nrf": False,
+        "needs_arduino8266": a8266,
+    }
+
+
+@pytest.mark.parametrize(
+    ("batches", "component_platforms", "validate_only", "expected"),
+    [
+        # The compile stage builds test-<variant>.<platform>.yaml too, so a
+        # component tested on esp8266 only by a variant still needs the toolchain.
+        (
+            [["safe_mode"]],
+            {"safe_mode": {"esp8266-ard"}},
+            set(),
+            [_batch("safe_mode", idf=False, check=False, a8266=True)],
+        ),
+        # Only the first esp32 batch runs the idf.py equivalence check.
+        (
+            [["a"], ["b"], ["c"]],
+            {"a": {"esp8266-ard"}, "b": {"esp32-idf"}, "c": {"esp32-c3-idf"}},
+            set(),
+            [
+                _batch("a", idf=False, check=False, a8266=True),
+                _batch("b", idf=True, check=True, a8266=False),
+                _batch("c", idf=True, check=False, a8266=False),
+            ],
+        ),
+        # A validate-only batch never compiles, so the next esp32 batch runs it.
+        (
+            [["b"], ["c"]],
+            {"b": {"esp32-idf"}, "c": {"esp32-c3-idf"}},
+            {"b"},
+            [
+                _batch("b", idf=True, check=False, a8266=False),
+                _batch("c", idf=True, check=True, a8266=False),
+            ],
+        ),
+    ],
+    ids=["variant", "idf-check-once", "idf-check-skips-validate-only"],
+)
+def test_main_batch_flags(
+    batches: list[list[str]],
+    component_platforms: dict[str, set[str]],
+    validate_only: set[str],
+    expected: list[dict],
+    mock_determine_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_esp32_platformio_components_to_test: Mock,
+    mock_esp8266_native_components_to_test: Mock,
+    mock_changed_files: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each batch carries the toolchain flags its test platforms need."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    mock_determine_integration_tests.return_value = (False, [])
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_esp32_platformio_components_to_test.return_value = []
+    mock_esp8266_native_components_to_test.return_value = []
+    mock_determine_cpp_unit_tests.return_value = (False, [])
+    mock_changed_files.return_value = ["esphome/components/safe_mode/__init__.py"]
+
+    def platforms(component: str, *, base_only: bool = True) -> set[str]:
+        return set() if base_only else component_platforms[component]
+
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
+        patch.object(
+            determine_jobs,
+            "get_changed_components",
+            return_value=[c for batch in batches for c in batch],
+        ),
+        patch.object(
+            determine_jobs,
+            "_component_change_is_validate_only",
+            side_effect=lambda component, changed: component in validate_only,
+        ),
+        patch.object(
+            determine_jobs,
+            "filter_component_and_test_files",
+            side_effect=lambda f: f.startswith("esphome/components/"),
+        ),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            return_value=[c for batch in batches for c in batch],
+        ),
+        patch.object(determine_jobs, "_component_has_tests", return_value=True),
+        patch.object(
+            determine_jobs,
+            "detect_memory_impact_config",
+            return_value={"should_run": "false"},
+        ),
+        patch.object(
+            determine_jobs, "create_intelligent_batches", return_value=(batches, {})
+        ),
+        patch.object(
+            determine_jobs, "get_component_test_platforms", side_effect=platforms
+        ),
+    ):
+        determine_jobs.main()
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["component_test_batches"] == expected
 
 
 def test_main_no_tests_should_run(
@@ -1013,6 +1136,9 @@ _ESP32_PLATFORMIO_FULL_LIST_FILES = [
     # PlatformIO subsystem (path-prefix trigger) + build generator
     ["esphome/platformio/runner.py"],
     ["esphome/platformio/toolchain.py"],
+    # Decides which platforms take the pch script
+    ["esphome/build_helpers/pch.py"],
+    ["esphome/build_helpers/ccache.py"],
     ["esphome/build_gen/platformio.py"],
     # Workflow / harness files
     ["script/test_build_components.py"],
@@ -1074,6 +1200,9 @@ def test_esp32_platformio_components_to_test_returns_full_list_on_infrastructure
         # Non-PlatformIO files in esphome/build_gen/ do NOT trigger the
         # full list -- only esphome/build_gen/platformio.py is a trigger.
         (["esphome/build_gen/espidf.py"], [], []),
+        # The rest of build_helpers/ is not a trigger.
+        (["esphome/build_helpers/size_summary.py"], [], []),
+        (["esphome/build_helpers/ninja.py"], [], []),
         # Docs / unrelated files -> empty.
         (["README.md"], [], []),
         ([], [], []),
@@ -1149,8 +1278,10 @@ def test_should_run_esp32_platformio_with_branch() -> None:
 @pytest.mark.parametrize(
     ("changed_files", "expected"),
     [
-        # ESP-IDF runner / framework / build generator -> trigger
-        (["esphome/espidf/runner.py"], True),
+        # ESP-IDF toolchain / framework / build generator -> trigger
+        (["esphome/espidf/toolchain.py"], True),
+        (["esphome/build_helpers/tool_runner.py"], True),
+        (["script/check_idf_py_equivalence.py"], True),
         (["esphome/espidf/framework.py"], True),
         (["esphome/build_gen/espidf.py"], True),
         # Shared native-build modules the IDF build imports -> trigger
@@ -1168,7 +1299,7 @@ def test_should_run_esp32_platformio_with_branch() -> None:
     ],
 )
 def test_esp_idf_infra_changed(changed_files: list[str], expected: bool) -> None:
-    """ESP-IDF build/runner infra paths are detected; other paths are not."""
+    """ESP-IDF build infra paths are detected; other paths are not."""
     assert determine_jobs._esp_idf_infra_changed(changed_files) is expected
 
 
@@ -1530,6 +1661,7 @@ def test_detect_memory_impact_config_with_common_platform(tmp_path: Path) -> Non
     assert set(result["components"]) == {"wifi", "api"}
     assert result["platform"] == "esp32-idf"  # Common platform
     assert result["use_merged_config"] == "true"
+    assert result["needs_arduino8266"] is False
 
 
 @pytest.mark.usefixtures("mock_target_branch_dev")
@@ -1634,6 +1766,8 @@ def test_detect_memory_impact_config_no_common_platform(tmp_path: Path) -> None:
     assert result["platform"] == "esp8266-ard"
     assert result["components"] == ["logger"]
     assert result["use_merged_config"] == "true"
+    # The esp8266 build is native, so the job restores that toolchain
+    assert result["needs_arduino8266"] is True
 
 
 @pytest.mark.usefixtures("mock_target_branch_dev")
@@ -2460,7 +2594,7 @@ def test_detect_platform_hint_from_filename_case_insensitive(
     assert result == expected_platform
 
 
-def test_component_batching_beta_branch_40_per_batch(
+def test_component_batching_beta_branch_groups_evenly(
     tmp_path: Path,
     mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
@@ -2470,11 +2604,10 @@ def test_component_batching_beta_branch_40_per_batch(
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Test that beta/release branches create batches with 40 actual components each.
+    """Test that beta/release branches group every component and split evenly.
 
     For beta/release branches, all components should be groupable (not isolated),
-    and each batch should contain 40 actual components with weight 1 each.
-    This matches the original behavior before consolidation.
+    so they share one grouped build per runner and spread evenly.
     """
     # Create 120 test components with test files
     component_names = [f"comp_{i:03d}" for i in range(120)]
@@ -2538,15 +2671,9 @@ def test_component_batching_beta_branch_40_per_batch(
     assert "component_test_batches" in output
     batches = output["component_test_batches"]
 
-    # Should have 3 batches (120 components / 40 per batch = 3)
-    assert len(batches) == 3, f"Expected 3 batches, got {len(batches)}"
-
-    # Each batch should have approximately 40 components (all weight=1, groupable)
-    for i, batch in enumerate(batches):
-        batch_components = batch["components"].split()
-        assert len(batch_components) == 40, (
-            f"Batch {i} should have 40 components, got {len(batch_components)}"
-        )
+    # One grouped esp32-idf build plus 5 s per extra component is 640 s,
+    # so two runners of 60 components each
+    assert [len(batch["components"].split()) for batch in batches] == [60, 60]
 
     # Verify all 120 components are in batches
     all_components = []
@@ -3212,13 +3339,13 @@ def test_esp8266_native_components_full_list_on_infra_change(changed: str) -> No
 @pytest.mark.parametrize(
     ("changed_files", "dependency_closure", "expected"),
     [
-        # Tested component changed -- narrow to the intersection.
+        # A tested component alone does not schedule this job: the component
+        # matrix already compiles its esp8266 fixtures with this toolchain.
         (
             ["esphome/components/mqtt/mqtt_client.cpp"],
             ["mqtt", "json"],
-            ["mqtt"],
+            [],
         ),
-        # Components outside the test set return an empty list (job skipped).
         (
             ["esphome/components/wifi/wifi_component.cpp"],
             ["wifi", "network"],
@@ -3236,7 +3363,7 @@ def test_esp8266_native_components_to_test_narrowing(
     dependency_closure: list[str],
     expected: list[str],
 ) -> None:
-    """Component changes narrow the native-ESP8266 test list."""
+    """Only a native-build change schedules the native-ESP8266 job."""
     with (
         patch.object(determine_jobs, "changed_files", return_value=changed_files),
         patch.object(

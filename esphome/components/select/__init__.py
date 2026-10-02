@@ -20,12 +20,14 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass, TemplateArguments
+from esphome.cpp_generator import MockObj, MockObjClass, TemplateArguments
 from esphome.cpp_types import global_ns
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -121,6 +123,13 @@ async def new_select(config, *args, options: list[str]):
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_select(var, config, options=options)
     return var
+
+
+def sub_selects(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_select."""
+    return SubEntities(new_select, config, parent)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

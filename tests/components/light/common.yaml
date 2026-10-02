@@ -188,7 +188,7 @@ number:
       then:
         - light.turn_on:
             id: test_monochromatic_light
-            brightness: !lambda "return x / 100.0;"
+            brightness: !lambda "return x / 100.0f;"
 
 output:
   - platform: template
@@ -217,6 +217,7 @@ light:
     name: Binary Light
     output: light_test_binary
     restore_mode: RESTORE_AND_ON
+    resume_effect: true
     effects:
       - strobe:
     on_state:
@@ -254,6 +255,7 @@ light:
       state: INITIAL
       brightness: INITIAL
   - platform: monochromatic
+    flash_transition_length: 100ms
     id: test_monochromatic_light
     name: Monochromatic Light
     output: test_ledc_1
@@ -425,6 +427,10 @@ light:
               red: 0%
               green: 100%
               blue: 0%
+              duration: 1s
+              transition_length: 500ms
+            - state: true
+              color: darkred
               duration: 1s
               transition_length: 500ms
   - platform: partition
