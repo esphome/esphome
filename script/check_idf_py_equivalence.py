@@ -59,6 +59,15 @@ VERSION_DRIFT = (
     "ESPHome reads ESP-IDF version {ours!r} from {source} but idf_tools reports "
     "{theirs!r}; update read_idf_version_{source} in esphome/espidf/framework.py"
 )
+LWIP_NOT_EMPTY = (
+    "lwip source {source} compiles to a non-empty object with {option} off; "
+    "drop it from LWIP_EMPTY_SOURCES in esphome/build_gen/espidf.py"
+)
+LWIP_NOTHING_MATCHED = (
+    "no lwip object matched {regex!r} for {option}; the lwip layout or the "
+    "pattern in esphome/build_gen/espidf.py changed"
+)
+LWIP_NM_FAILED = "nm failed on lwip object {source}: {error}"
 WORK_SUFFIXES = (".obj", ".o", ".a", ".elf", ".map", ".bin", ".ld")
 DEFAULT_GLOB = "tests/test_build_components/build/.esphome/build/*"
 
@@ -105,6 +114,51 @@ def _log_problems(
             problems.append(f"missing {log}")
         elif not any(k[0] == log and k[1].endswith(WORK_SUFFIXES) for k in mtimes):
             problems.append(f"no build entries parsed from {log}")
+    return problems
+
+
+def _lwip_empty_source_problems(build_path: Path) -> list[str]:
+    """Compile the lwip sources the generated CMakeLists drops; any with
+    symbols is a problem. Leaves the tree configured with every source."""
+    # pylint: disable=protected-access
+    from esphome.build_gen.espidf import LWIP_EMPTY_SOURCES, LWIP_FULL_SOURCES_ENV
+    from esphome.espidf import toolchain
+
+    if (rc := toolchain.run_reconfigure(extra_env={LWIP_FULL_SOURCES_ENV: "1"})) != 0:
+        return [f"CMake configure with every lwip source failed with exit code {rc}"]
+    if rc := toolchain._run_ninja("esp-idf/lwip/liblwip.a", verbose=False, jobs=None):
+        return [f"building every lwip source failed with exit code {rc}"]
+    build = build_path / "build"
+    config = json.loads(
+        (build / "config" / "sdkconfig.json").read_text(encoding="utf-8")
+    )
+    objects = [
+        obj.as_posix().removesuffix(".obj")
+        for obj in (build / "esp-idf" / "lwip").rglob("*.obj")
+    ]
+    nm = toolchain._parse_cmakecache(build / "CMakeCache.txt")["CMAKE_NM"]
+    problems = []
+    for option, regex in LWIP_EMPTY_SOURCES:
+        # Absent means the option is invisible here; the filter keeps those.
+        if config.get(option.removeprefix("CONFIG_"), True):
+            continue
+        matched = [source for source in objects if re.search(regex, source)]
+        if not matched:
+            problems.append(LWIP_NOTHING_MATCHED.format(regex=regex, option=option))
+        for source in matched:
+            name = Path(source).name
+            result = subprocess.run(
+                [nm, "--defined-only", f"{source}.obj"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode:
+                problems.append(
+                    LWIP_NM_FAILED.format(source=name, error=result.stderr.strip())
+                )
+            elif result.stdout.strip():
+                problems.append(LWIP_NOT_EMPTY.format(source=name, option=option))
     return problems
 
 
@@ -202,7 +256,8 @@ def check(build_path: Path) -> list[str]:
             problems.append(f"idf.py dropped {out} from {log}")
         elif mtimes_before.get(key) != mtimes_after[key]:
             problems.append(f"idf.py rebuilt {out}")
-    return problems
+    # Last: it reconfigures the tree, which would otherwise relink above.
+    return problems or _lwip_empty_source_problems(build_path)
 
 
 def main() -> int:
