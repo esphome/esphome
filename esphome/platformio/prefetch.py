@@ -417,26 +417,25 @@ def _uri_jobs(
         if manager.get_package(spec):
             continue
         name = _spec_name(spec, url)
+        # One trust rule for every branch: a custom name (Foo=https://...)
+        # or a platform key is also the destination dir; a URL-derived
+        # lib_deps name comes from the manifest instead, so its dedupe key
+        # could collide with another name and race one directory
+        safe_name = trusted_names or spec.has_custom_name()
         if is_vcs:
-            # Like the archives below: only a name that is also the dest
-            # dir is safe; URL-derived lib_deps names stay with pio run
-            if trusted_names or spec.has_custom_name():
+            if safe_name:
                 installable.append((name, spec))
             continue
         # PlatformIO downloads URL specs with no checksum
         dl_path = Path(manager.compute_download_path(url, ""))
         if dl_path.is_file():
-            if trusted_names or spec.has_custom_name():
-                # Only a custom name (Foo=https://...) is the destination
-                # dir; a URI-derived name's destination comes from the
-                # archive manifest, so its dedupe key could collide with
-                # another name and race one directory. pio run installs it.
+            if safe_name:
                 installable.append((name, spec))  # fetched by an earlier run
             continue
         if str(dl_path) in seen:
             continue  # another spec already claimed this .part
         seen.add(str(dl_path))
-        candidates.append((name, url, dl_path, spec))
+        candidates.append((name, url, dl_path, spec, safe_name))
 
     errors: list[str] = []
 
@@ -463,16 +462,17 @@ def _uri_jobs(
     if not candidates:
         return [], 0, installable
     with ThreadPoolExecutor(max_workers=min(_RESOLVE_WORKERS, len(candidates))) as ex:
-        sizes = list(ex.map(_head_size, [url for _, url, _, _ in candidates]))
+        sizes = list(ex.map(_head_size, [url for _, url, _, _, _ in candidates]))
     jobs: list[tuple[str, int, Any]] = []
     failed = 0
-    for (name, url, dl_path, spec), size in zip(candidates, sizes, strict=True):
+    for (name, url, dl_path, spec, safe_name), size in zip(
+        candidates, sizes, strict=True
+    ):
         if size < 0:
             failed += 1
         elif size:
             jobs.append((name, size, _uri_fetch_job(manager, url, dl_path, size)))
-            if spec.has_custom_name():
-                # See above: derived-name specs stay with pio run's installer
+            if safe_name:
                 installable.append((name, spec))
         else:
             # Missing or unusable Content-Length; visible under -v

@@ -679,6 +679,16 @@ def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
     assert failed == 0
     assert [(n, s) for n, s, _ in jobs] == [("big", 2222)]
     assert [n for n, _ in installable] == ["repo", "big"]
+    # A derived-name platform archive sized in the same run is trusted too
+    with patch("esphome.net_retry.http_request", return_value=resp):
+        jobs, _, installable = pf._uri_jobs(
+            m,
+            [_FakeSpec(uri="https://x/fresh.zip", name="fresh")],
+            set(),
+            trusted_names=True,
+        )
+    assert [n for n, _, _ in jobs] == ["fresh"]
+    assert [n for n, _ in installable] == ["fresh"]
     # a successful HEAD with no Content-Length is a clean skip
     resp.headers = {}
     with patch("esphome.net_retry.http_request", return_value=resp):
