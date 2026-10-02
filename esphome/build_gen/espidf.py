@@ -67,12 +67,13 @@ else()
 endif()"""
 
 # lwip sources that compile to empty objects with the option off (their own
-# #if guard). (option, regex valid for both Python and CMake)
+# #if guard). (option, regex valid for both Python and CMake); a source is
+# only dropped when its option is defined and off, so a renamed option
+# keeps it.
 LWIP_EMPTY_SOURCES: tuple[tuple[str, str], ...] = (
     ("CONFIG_LWIP_PPP_SUPPORT", "/netif/ppp/"),
     ("CONFIG_LWIP_IPV6", "/core/ipv6/"),
     ("CONFIG_LWIP_AUTOIP", "/core/ipv4/autoip[.]c$"),
-    ("CONFIG_LWIP_IPV4_NAPT", "/core/ipv4/ip4_napt[.]c$"),
     ("CONFIG_LWIP_STATS", "/core/stats[.]c$"),
 )
 # Drift guard only: keep every lwip source.
@@ -91,7 +92,7 @@ endif()"""
 
 def lwip_empty_source_gate(option: str, regex: str) -> str:
     return (
-        f"    if(NOT {option})\n"
+        f"    if(DEFINED {option} AND NOT {option})\n"
         f'        list(FILTER esphome_lwip_srcs EXCLUDE REGEX "{regex}")\n'
         "    endif()"
     )

@@ -335,14 +335,22 @@ def _make_lwip_tree(tmp_path: Path, objects: list[str], config: dict) -> Path:
 
 
 def _run_lwip_check(
-    tree: Path, non_empty: set[str], calls: list[list[str]]
+    tree: Path,
+    non_empty: set[str] = frozenset(),
+    failing: set[str] = frozenset(),
+    calls: list[list[str]] | None = None,
 ) -> list[str]:
     """Run the lwip check with nm faked; ``calls`` collects the nm commands."""
 
     def run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess:
-        calls.append(cmd)
-        out = "symbol\n" if Path(cmd[-1]).name in non_empty else ""
-        return subprocess.CompletedProcess(cmd, 0, out, "")
+        if calls is not None:
+            calls.append(cmd)
+        name = Path(cmd[-1]).name
+        if name in failing:
+            return subprocess.CompletedProcess(cmd, 1, "", "bad object")
+        return subprocess.CompletedProcess(
+            cmd, 0, "symbol\n" if name in non_empty else "", ""
+        )
 
     with (
         patch.object(toolchain, "run_reconfigure", return_value=0) as reconfigure,
@@ -357,13 +365,18 @@ def _run_lwip_check(
 
 
 def test_lwip_check_inspects_only_the_dropped_sources(tmp_path: Path) -> None:
+    """An option that is on, or absent (invisible), keeps its sources unchecked."""
     tree = _make_lwip_tree(
         tmp_path,
-        ["lwip/src/netif/ppp/auth.c.obj", "lwip/src/core/ipv6/ip6.c.obj"],
+        [
+            "lwip/src/netif/ppp/auth.c.obj",
+            "lwip/src/core/ipv6/ip6.c.obj",
+            "lwip/src/core/ipv4/autoip.c.obj",
+        ],
         {"LWIP_PPP_SUPPORT": False, "LWIP_IPV6": True},
     )
     calls: list[list[str]] = []
-    assert _run_lwip_check(tree, set(), calls) == []
+    assert _run_lwip_check(tree, calls=calls) == []
     assert [Path(c[-1]).name for c in calls] == ["auth.c.obj"]
 
 
@@ -371,17 +384,33 @@ def test_lwip_check_flags_a_dropped_source_with_symbols(tmp_path: Path) -> None:
     tree = _make_lwip_tree(
         tmp_path, ["lwip/src/netif/ppp/auth.c.obj"], {"LWIP_PPP_SUPPORT": False}
     )
-    assert _run_lwip_check(tree, {"auth.c.obj"}, []) == [
+    assert _run_lwip_check(tree, non_empty={"auth.c.obj"}) == [
         guard.LWIP_NOT_EMPTY.format(source="auth.c", option="CONFIG_LWIP_PPP_SUPPORT")
     ]
 
 
-def test_lwip_check_fails_when_nothing_matched(tmp_path: Path) -> None:
-    """A moved tree or stale pattern must not pass as all empty."""
+def test_lwip_check_flags_a_failed_nm(tmp_path: Path) -> None:
+    """A broken nm must not pass as an empty object."""
     tree = _make_lwip_tree(
-        tmp_path, ["lwip/src/core/ipv6/ip6.c.obj"], {"LWIP_IPV6": True}
+        tmp_path, ["lwip/src/netif/ppp/auth.c.obj"], {"LWIP_PPP_SUPPORT": False}
     )
-    assert _run_lwip_check(tree, set(), []) == [guard.LWIP_NOTHING_CHECKED]
+    assert _run_lwip_check(tree, failing={"auth.c.obj"}) == [
+        guard.LWIP_NM_FAILED.format(source="auth.c", error="bad object")
+    ]
+
+
+def test_lwip_check_fails_per_pattern_that_matched_nothing(tmp_path: Path) -> None:
+    """A stale pattern is reported even while the others still match."""
+    tree = _make_lwip_tree(
+        tmp_path,
+        ["lwip/src/netif/ppp/auth.c.obj"],
+        {"LWIP_PPP_SUPPORT": False, "LWIP_STATS": False},
+    )
+    assert _run_lwip_check(tree) == [
+        guard.LWIP_NOTHING_MATCHED.format(
+            regex="/core/stats[.]c$", option="CONFIG_LWIP_STATS"
+        )
+    ]
 
 
 @pytest.mark.parametrize(("problems", "rc"), [([], 0), (["idf.py changed x"], 1)])

@@ -63,10 +63,11 @@ LWIP_NOT_EMPTY = (
     "lwip source {source} compiles to a non-empty object with {option} off; "
     "drop it from LWIP_EMPTY_SOURCES in esphome/build_gen/espidf.py"
 )
-LWIP_NOTHING_CHECKED = (
-    "no lwip object matched LWIP_EMPTY_SOURCES; the build tree layout or the "
-    "patterns in esphome/build_gen/espidf.py changed"
+LWIP_NOTHING_MATCHED = (
+    "no lwip object matched {regex!r} for {option}; the lwip layout or the "
+    "pattern in esphome/build_gen/espidf.py changed"
 )
+LWIP_NM_FAILED = "nm failed on lwip object {source}: {error}"
 WORK_SUFFIXES = (".obj", ".o", ".a", ".elf", ".map", ".bin", ".ld")
 DEFAULT_GLOB = "tests/test_build_components/build/.esphome/build/*"
 
@@ -132,29 +133,33 @@ def _lwip_empty_source_problems(build_path: Path) -> list[str]:
         (build / "config" / "sdkconfig.json").read_text(encoding="utf-8")
     )
     objects = [
-        str(obj).removesuffix(".obj")
+        obj.as_posix().removesuffix(".obj")
         for obj in (build / "esp-idf" / "lwip").rglob("*.obj")
     ]
-    dropped = [
-        (option, source)
-        for option, regex in LWIP_EMPTY_SOURCES
-        if not config.get(option.removeprefix("CONFIG_"))
-        for source in objects
-        if re.search(regex, source)
-    ]
-    if not dropped:
-        return [LWIP_NOTHING_CHECKED]
     nm = toolchain._parse_cmakecache(build / "CMakeCache.txt")["CMAKE_NM"]
-    return [
-        LWIP_NOT_EMPTY.format(source=Path(source).name, option=option)
-        for option, source in dropped
-        if subprocess.run(
-            [nm, "--defined-only", f"{source}.obj"],
-            capture_output=True,
-            text=True,
-            check=False,
-        ).stdout.strip()
-    ]
+    problems = []
+    for option, regex in LWIP_EMPTY_SOURCES:
+        # Absent means the option is invisible here; the filter keeps those.
+        if config.get(option.removeprefix("CONFIG_"), True):
+            continue
+        matched = [source for source in objects if re.search(regex, source)]
+        if not matched:
+            problems.append(LWIP_NOTHING_MATCHED.format(regex=regex, option=option))
+        for source in matched:
+            name = Path(source).name
+            result = subprocess.run(
+                [nm, "--defined-only", f"{source}.obj"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode:
+                problems.append(
+                    LWIP_NM_FAILED.format(source=name, error=result.stderr.strip())
+                )
+            elif result.stdout.strip():
+                problems.append(LWIP_NOT_EMPTY.format(source=name, option=option))
+    return problems
 
 
 def _setup_core(build_path: Path, description: dict) -> tuple[str, str]:
