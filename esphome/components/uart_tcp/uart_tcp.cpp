@@ -41,6 +41,9 @@ void UartTcp::sync_link_() {
   this->link_was_up_ = up;
   if (!up) {
     this->tx_len_ = 0;
+  } else {
+    // The driver kept whatever arrived while the link was down.
+    this->discard_uart_();
   }
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(up);
@@ -79,8 +82,16 @@ void UartTcp::accept_client_() {
 }
 
 void UartTcp::read_socket_() {
+  // A hardware write blocks until the driver takes every byte. Leave what does
+  // not fit in the socket, so TCP flow control throttles the peer.
+  size_t room = this->parent_->available_for_write();
+  if (room == 0) {
+    this->rx_pending_ = true;
+    return;
+  }
   uint8_t tmp[READ_CHUNK];
-  ssize_t count = this->link_.read(tmp, sizeof(tmp));
+  size_t want = std::min(room, sizeof(tmp));
+  ssize_t count = this->link_.read(tmp, want);
   if (count <= 0) {
     // A dropped link (-1) is cleaned up by sync_link_() on the next loop.
     if (count == 0) {
@@ -88,8 +99,23 @@ void UartTcp::read_socket_() {
     }
     return;
   }
-  this->rx_pending_ = static_cast<size_t>(count) == sizeof(tmp);
+  this->rx_pending_ = static_cast<size_t>(count) == want;
   this->write_array(tmp, static_cast<size_t>(count));
+}
+
+void UartTcp::discard_uart_() {
+  uint8_t dump[32];
+  size_t left = 4096;
+  while (left != 0 && this->available() != 0) {
+    size_t n = std::min(this->available(), sizeof(dump));
+    if (n > left) {
+      n = left;
+    }
+    if (!this->read_array(dump, n)) {
+      break;
+    }
+    left -= n;
+  }
 }
 
 void UartTcp::flush_tx_() {

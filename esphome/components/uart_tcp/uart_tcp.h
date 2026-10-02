@@ -31,6 +31,7 @@ class UartTcp : public Component, public uart::UARTDevice {
   void accept_client_();
   void read_socket_();
   void read_uart_();
+  void discard_uart_();
   void flush_tx_();
 
   static constexpr size_t TX_BUFFER_SIZE = 1024;
