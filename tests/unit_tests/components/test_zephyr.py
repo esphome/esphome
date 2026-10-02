@@ -39,6 +39,7 @@ from esphome.components.zephyr.const import CONF_BOARD_SOURCE, KEY_ZEPHYR
 from esphome.components.zephyr.pinctrl import (
     _build_i2c_pinctrl_states_overlay,
     _build_uart_pinctrl_states_overlay,
+    _pin_display,
     _positional_uart_group_roles,
     _resolve_i2c_pinctrl_states,
     _resolve_uart_pinctrl_states,
@@ -452,6 +453,31 @@ def test_zephyr_setup_i2c_pinctrl_returns_per_pin_display_strings() -> None:
     CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32H2")
     sda, scl = zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=5, scl=None)
     assert (sda, scl) == ("GPIO5", "board default")
+
+
+@pytest.mark.parametrize(
+    ("variant", "pin", "expected"),
+    [
+        ("EFR32MG24", 37, "GPIO37, PC5"),
+        ("NRF52", 45, "GPIO45, P1.13"),
+        ("ESP32H2", 5, "GPIO5"),
+    ],
+)
+def test_pin_display_uses_the_variants_own_pin_name(
+    variant: str, pin: int, expected: str
+) -> None:
+    _set_non_nrf52_target_platform()
+    assert _pin_display(pin, variant) == expected
+
+
+def test_pin_display_board_default_when_pin_not_given() -> None:
+    _set_non_nrf52_target_platform()
+    assert _pin_display(None, "EFR32MG24") == "board default"
+
+
+def test_pin_display_legacy_nrf52_platform_splits_32_pins_per_port() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_NRF52}
+    assert _pin_display(45, "") == "GPIO45, P1.13"
 
 
 # ESP32_PINMUX(gpio, sig_i, sig_o) for ESP32-H2's I2C0 signal IDs (scl=45, sda=46) --
