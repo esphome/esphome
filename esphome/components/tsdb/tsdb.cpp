@@ -46,7 +46,7 @@ static const char *const INIT_STAGE_OPEN = "opening the database";
 /// the mounted partition is kept here. Two tsdb instances on different
 /// partitions would share it - the guard is advisory (it only caps
 /// `max_records` early), so that is acceptable.
-static const char *g_free_space_label = nullptr;
+static const char *g_free_space_label = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // The host test asserts the same numbers; these tie the component to the real
 // engine, so an esp_tsdb release that changes the file format breaks the build
@@ -313,12 +313,13 @@ void TsdbComponent::log_init_failure_(const char *stage) {
              esp_err_to_name(this->format_error_), static_cast<int>(this->format_error_));
     ESP_LOGE(TAG, "  partition '%s': %s", this->partition_label_.c_str(),
              blank ? LOG_STR_LITERAL("all 0xFF (blank)") : LOG_STR_LITERAL("NOT blank (data present)"));
-    if (!blank && !this->format_attempted_)
-      ESP_LOGE(
-          TAG,
-          "    nothing was formatted: a partition that is not all 0xFF is never overwritten, so erase it once over "
-          "USB (esptool erase-region 0x%08" PRIx32 " 0x%" PRIx32 ") if it holds leftovers of an older partition table",
-          static_cast<uint32_t>(partition->address), static_cast<uint32_t>(partition->size));
+    if (!blank && !this->format_attempted_) {
+      // Nothing was overwritten, so this partition holds leftovers of an older
+      // partition table - and OTA re-flashes never erase those.
+      ESP_LOGE(TAG, "    nothing was formatted: a partition that is not all 0xFF is never overwritten",
+               " - erase the region once over USB: esptool erase-region 0x%08" PRIx32 " 0x%" PRIx32,
+               static_cast<uint32_t>(partition->address), static_cast<uint32_t>(partition->size));
+    }
   }
 
   if (this->mounted_) {
@@ -383,7 +384,7 @@ bool TsdbComponent::open_database_() {
   config.use_paged_allocation = this->paged_allocation_;
   config.page_size = this->page_size_;
   config.min_free_bytes = this->min_free_bytes_;
-  config.free_space_cb = this->min_free_bytes_ > 0 ? free_space_probe_ : nullptr;
+  config.free_space_cb = this->min_free_bytes_ > 0 ? free_space_probe : nullptr;
 
   this->db_ = tsdb_open(&config);
   if (this->db_ == nullptr && this->recreate_on_schema_change_) {
@@ -452,7 +453,7 @@ void TsdbComponent::close_database_() {
 
 /// Free bytes of the mounted partition, probed by the engine before it grows the
 /// file. UINT64_MAX means "unknown", which never triggers a spurious cap.
-uint64_t TsdbComponent::free_space_probe_() {
+uint64_t TsdbComponent::free_space_probe() {
   if (g_free_space_label == nullptr)
     return UINT64_MAX;
   size_t total = 0;
@@ -711,8 +712,8 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
 
   // The margin over-provisions the window, so it can hold a few rows more than
   // asked for; `skip` trims those to the newest `rows`.
-  uint32_t available = 0;
-  if (tsdb_query_count_h(db, start, end, &available) != ESP_OK) {
+  uint32_t window_records = 0;
+  if (tsdb_query_count_h(db, start, end, &window_records) != ESP_OK) {
     // Without the count the newest rows cannot be told from the oldest ones of
     // the over-provisioned window: dumping anyway would print old rows as the
     // newest ones, so the dump fails instead.
@@ -721,8 +722,8 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
     return;
   }
   uint32_t window_start = start;
-  uint32_t skip = tsdbmath::dump_skip(available, rows);
-  if (tsdbmath::dump_needs_widening(available, rows, window_start, oldest)) {
+  uint32_t skip = tsdbmath::dump_skip(window_records, rows);
+  if (tsdbmath::dump_needs_widening(window_records, rows, window_start, oldest)) {
     // A gap wider than the margin left the time-selected window with fewer rows
     // than asked for although older rows exist (`on_missing: skip` writes nothing
     // while a sensor is out). Widening once to the oldest record makes the dump
@@ -730,7 +731,7 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
     // `total_records` of the statistics above - no second count pass is needed.
     ESP_LOGW(TAG,
              "%s: csv-dump window holds %" PRIu32 " of %" PRIu32 " rows (a gap) - widening it to the whole history",
-             this->file_.c_str(), available, rows);
+             this->file_.c_str(), window_records, rows);
     window_start = oldest;
     skip = tsdbmath::dump_skip(stats.total_records, rows);
   }
