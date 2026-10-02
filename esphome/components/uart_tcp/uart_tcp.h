@@ -32,7 +32,6 @@ class UartTcp : public Component, public uart::UARTDevice {
   void read_socket_();
   void read_uart_();
   void discard_uart_();
-  void flush_tx_();
 
   static constexpr size_t TX_BUFFER_SIZE = 1024;
   static constexpr size_t READ_CHUNK = 128;
@@ -40,13 +39,11 @@ class UartTcp : public Component, public uart::UARTDevice {
   socket::TcpClientLink link_;
   std::unique_ptr<socket::ListenSocket> listen_;
   binary_sensor::BinarySensor *connected_sensor_{nullptr};
-  uint16_t tx_len_{0};
   bool server_{false};
   // The link state loop() saw last; edges clear the buffer and publish the sensor.
   bool link_was_up_{false};
   // A read stopped before EAGAIN. ready() stays false until new data arrives.
   bool rx_pending_{false};
-  uint8_t tx_[TX_BUFFER_SIZE]{};
 };
 
 }  // namespace esphome::uart_tcp

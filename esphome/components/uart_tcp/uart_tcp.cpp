@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <cinttypes>
-#include <cstring>
 
 namespace esphome::uart_tcp {
 
@@ -41,9 +40,7 @@ void UartTcp::on_shutdown() {
 void UartTcp::sync_link_() {
   bool up = this->link_.connected();
   this->link_was_up_ = up;
-  if (!up) {
-    this->tx_len_ = 0;
-  } else {
+  if (up) {
     // The driver kept whatever arrived while the link was down.
     this->discard_uart_();
   }
@@ -123,18 +120,10 @@ void UartTcp::discard_uart_() {
   }
 }
 
-void UartTcp::flush_tx_() {
-  ssize_t sent = this->link_.write(this->tx_, this->tx_len_);
-  if (sent > 0) {
-    this->tx_len_ -= static_cast<uint16_t>(sent);
-    std::memmove(this->tx_, this->tx_ + sent, this->tx_len_);
-  }
-}
-
 void UartTcp::read_uart_() {
-  size_t want = std::min<size_t>(this->available(), TX_BUFFER_SIZE - this->tx_len_);
-  if (want != 0 && this->read_array(this->tx_ + this->tx_len_, want)) {
-    this->tx_len_ += static_cast<uint16_t>(want);
+  size_t want = std::min<size_t>(this->available(), this->link_.tx_free());
+  if (want != 0 && this->read_array(this->link_.tx_tail(), want)) {
+    this->link_.tx_commit(want);
   }
 }
 
@@ -162,9 +151,7 @@ void UartTcp::loop() {
   }
   // UART bytes picked up here go out in the same pass.
   this->read_uart_();
-  if (this->tx_len_ != 0) {
-    this->flush_tx_();
-  }
+  this->link_.flush_tx();
 }
 
 }  // namespace esphome::uart_tcp
