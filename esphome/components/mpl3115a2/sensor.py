@@ -71,6 +71,5 @@ async def to_code(config: ConfigType) -> None:
         sens = await sensor.new_sensor(config[CONF_ALTITUDE])
         cg.add(var.set_altitude(sens))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature)
