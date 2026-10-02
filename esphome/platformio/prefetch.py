@@ -62,6 +62,9 @@ def _preserved_sys_path() -> Iterator[None]:
 # Concurrent registry resolutions / HEAD probes (each is network-bound)
 _RESOLVE_WORKERS = 8
 
+# Concurrent VCS clones; network-bound, so wider than the extraction pool
+_CLONE_WORKERS = 8
+
 # A hung child must not block the build; downloads resume on the next run
 _PREFETCH_TIMEOUT = 20 * 60
 
@@ -378,6 +381,12 @@ def _is_vcs_spec_uri(url: str) -> bool:
     return not url.startswith(("file://", "symlink://", "http://", "https://"))
 
 
+def _is_clone_entry(entry: tuple) -> bool:
+    """Whether this pre-install entry's spec is cloned, not extracted."""
+    url = entry[1].uri
+    return bool(url) and _is_vcs_spec_uri(url)
+
+
 def _spec_name(spec: Any, url: str) -> str:
     """The spec's name; the URL basename fallback is defensive only
     (PackageSpec derives a name from the URI itself)."""
@@ -409,7 +418,10 @@ def _uri_jobs(
             continue
         name = _spec_name(spec, url)
         if is_vcs:
-            installable.append((name, spec))
+            # Same rule as the archives below: only a custom name is also
+            # the destination dir, so derived names stay with pio run
+            if spec.has_custom_name():
+                installable.append((name, spec))
             continue
         # PlatformIO downloads URL specs with no checksum
         dl_path = Path(manager.compute_download_path(url, ""))
@@ -720,7 +732,13 @@ def _preinstall(
     would hang, not fail). Waves skip dependencies; the installed
     manifests feed the next wave. Any failure falls back to pio run.
     """
-    workers = extract_workers(len(entries))
+    # Clones first: they wait on the network, so they must not queue
+    # behind CPU-bound archive extractions; sorting here covers the
+    # dependency waves too
+    entries = sorted(entries, key=lambda entry: not _is_clone_entry(entry))
+    clones = sum(map(_is_clone_entry, entries))
+    # Network-bound clones get a wider pool than CPU-bound extraction
+    workers = max(extract_workers(len(entries)), min(clones, _CLONE_WORKERS))
     # One manager per worker (_install mutates instance state); built
     # serially because construction rewires the shared manager logger
     managers: SimpleQueue = SimpleQueue()
@@ -933,14 +951,8 @@ def _prefetch(build_dir: Path, env: str) -> None:
             if name not in failed_names
         }
         if to_install:
-            # Clones first: they wait on the network, so they must not
-            # queue behind CPU-bound archive extractions
-            ordered = sorted(
-                to_install.values(),
-                key=lambda entry: not ((url := entry[1].uri) and _is_vcs_spec_uri(url)),
-            )
             try:
-                _preinstall(mgr, ordered)
+                _preinstall(mgr, list(to_install.values()))
                 if is_platform:
                     platform_packages_installed = True
             except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught

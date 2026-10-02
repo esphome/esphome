@@ -671,7 +671,7 @@ def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
             m,
             [
                 _FakeSpec(uri="https://x/big.zip", name="big", custom_name=True),
-                _FakeSpec(uri="git+https://x/repo.git", name="repo"),
+                _FakeSpec(uri="git+https://x/repo.git", name="repo", custom_name=True),
                 _FakeSpec(name="registry"),
             ],
             set(),
@@ -689,17 +689,19 @@ def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
 
 def test_uri_jobs_vcs_specs_installable_without_probe(tmp_path: Path) -> None:
     """VCS specs never probe the network here (there is no archive); an
-    uninstalled one is handed to the pre-install, an installed one and
-    file/symlink specs are skipped."""
+    uninstalled custom-named one is handed to the pre-install, while
+    derived names, installed specs, and file/symlink specs are skipped."""
     m = _fake_manager(tmp_path)
     with patch("esphome.net_retry.http_request") as mock_head:
         jobs, failed, installable = pf._uri_jobs(
             m,
             [
-                _FakeSpec(uri="git+https://x/tool.git#1.0", name="tool"),
-                _FakeSpec(uri="hg+https://x/old", name="mercurial"),
-                # Name falls back to the URL basename, fragment excluded
-                _FakeSpec(uri="git+https://x/noname#v2", name=None),
+                _FakeSpec(
+                    uri="git+https://x/tool.git#1.0", name="tool", custom_name=True
+                ),
+                _FakeSpec(uri="hg+https://x/old", name="mercurial", custom_name=True),
+                # A derived name is not the destination dir; pio run clones it
+                _FakeSpec(uri="git+https://x/derived#v2", name="derived"),
                 _FakeSpec(uri="file:///local/dir", name="local"),
                 _FakeSpec(uri="symlink:///local/dir", name="link"),
             ],
@@ -707,12 +709,18 @@ def test_uri_jobs_vcs_specs_installable_without_probe(tmp_path: Path) -> None:
         )
     mock_head.assert_not_called()
     assert (jobs, failed) == ([], 0)
-    assert [n for n, _ in installable] == ["tool", "mercurial", "noname"]
+    assert [n for n, _ in installable] == ["tool", "mercurial"]
 
     m.get_package.return_value = object()  # already installed: warm and silent
     with patch("esphome.net_retry.http_request"):
         assert pf._uri_jobs(
-            m, [_FakeSpec(uri="git+https://x/tool.git#1.0", name="tool")], set()
+            m,
+            [
+                _FakeSpec(
+                    uri="git+https://x/tool.git#1.0", name="tool", custom_name=True
+                )
+            ],
+            set(),
         ) == ([], 0, [])
 
 
@@ -902,6 +910,44 @@ def test_dependency_entries_filter_seen_names(tmp_path: Path) -> None:
     ]
     m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(name=dep["name"])
     assert pf._dependency_entries(m, [("top@1", _FakeSpec(name="top"))], {"dep"}) == []
+
+
+def test_preinstall_widens_the_pool_for_clones(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Network-bound clones all run at once even when the CPU-sized
+    extraction pool would serialize them; the barrier deadlocks otherwise."""
+    m = _fake_manager(tmp_path)
+    monkeypatch.setattr(pf, "extract_workers", lambda jobs=None: 1)
+    barrier = threading.Barrier(3)
+    m._install.side_effect = lambda spec, **kw: barrier.wait(timeout=5)
+    pf._preinstall(
+        m,
+        [
+            (f"g{i}", _FakeSpec(uri=f"git+https://x/g{i}.git", name=f"g{i}"))
+            for i in range(3)
+        ],
+    )
+    assert barrier.broken is False
+
+
+def test_preinstall_orders_clones_before_extractions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A clone must not queue behind CPU-bound archive extractions."""
+    m = _fake_manager(tmp_path)
+    monkeypatch.setattr(pf, "extract_workers", lambda jobs=None: 1)
+    calls: list[str] = []
+    m._install.side_effect = lambda spec, **kw: calls.append(spec.name)
+    pf._preinstall(
+        m,
+        [
+            ("a@1", _FakeSpec(name="a")),
+            ("b@1", _FakeSpec(name="b")),
+            ("g@1", _FakeSpec(uri="git+https://x/g.git", name="g")),
+        ],
+    )
+    assert calls[0] == "g"
 
 
 def test_preinstall_cleanup_cannot_displace_the_inflight_error(
