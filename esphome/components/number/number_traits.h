@@ -11,7 +11,7 @@ enum NumberMode : uint8_t {
   NUMBER_MODE_SLIDER = 2,
 };
 
-/// Boundaries and step for a number; codegen emits one PROGMEM table per distinct set.
+/// Boundaries and step for a number; codegen shares one PROGMEM table between numbers with the same values.
 struct NumberRange {
   float min_value;
   float max_value;

@@ -92,7 +92,7 @@ from esphome.core.entity_helpers import (
     setup_unit_of_measurement,
 )
 from esphome.cpp_generator import MockObj, MockObjClass, ProgmemAssignmentExpression
-from esphome.types import ConfigType
+from esphome.types import ConfigType, Expression, SafeExpType
 
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "number"
@@ -294,7 +294,12 @@ RANGE_TABLE_MIN_USERS = 3
 @dataclass
 class NumberRangeUsage:
     range_id: ID
+    values: tuple[float, float, float]
     users: int = 0
+
+    @property
+    def shared(self) -> bool:
+        return self.users >= RANGE_TABLE_MIN_USERS
 
 
 @dataclass
@@ -310,63 +315,71 @@ def _get_data() -> NumberData:
     return CORE.data[DOMAIN]
 
 
-class _SetRangeStatement(cg.Statement):
-    """Picks the shared table or the plain setters at render time, once every number is known."""
+class _RangeTableStatement(cg.Statement):
+    """Global PROGMEM table, rendered only if enough numbers ended up sharing the range."""
 
-    __slots__ = ("var", "values", "usage", "declares")
+    __slots__ = ("usage",)
 
-    def __init__(
-        self,
-        var: MockObj,
-        values: tuple[float, float, float],
-        usage: NumberRangeUsage,
-        declares: bool,
-    ) -> None:
-        self.var = var
-        self.values = values
+    def __init__(self, usage: NumberRangeUsage) -> None:
         self.usage = usage
-        self.declares = declares
 
     def __str__(self) -> str:
-        if self.usage.users < RANGE_TABLE_MIN_USERS:
-            return _range_setters(self.var, *self.values)
-        table = MockObj(self.usage.range_id, ".")
-        text = f"{cg.statement(self.var.set_range(table))}"
-        if self.declares:
-            decl = ProgmemAssignmentExpression(
-                NumberRange, self.usage.range_id, cg.safe_exp([self.values])
-            )
-            text = f"{decl};\n{text}"
-        return text
-
-
-def _range_setters(var: MockObj, min_value, max_value, step) -> str:
-    return "\n".join(
-        str(cg.statement(expr))
-        for expr in (
-            var.traits.set_min_value(min_value),
-            var.traits.set_max_value(max_value),
-            var.traits.set_step(step),
+        if not self.usage.shared:
+            return ""
+        decl = ProgmemAssignmentExpression(
+            NumberRange, self.usage.range_id, cg.safe_exp([self.usage.values])
         )
+        return f"{decl};"
+
+
+class _SetRangeStatement(cg.Statement):
+    """set_range() on the shared table, or the plain setters, decided once every number is known."""
+
+    __slots__ = ("var", "usage")
+
+    def __init__(self, var: MockObj, usage: NumberRangeUsage) -> None:
+        self.var = var
+        self.usage = usage
+
+    def __str__(self) -> str:
+        if self.usage.shared:
+            table = MockObj(self.usage.range_id, ".")
+            return str(cg.statement(self.var.set_range(table)))
+        return "\n".join(
+            str(cg.statement(expr))
+            for expr in _range_setters(self.var, *self.usage.values)
+        )
+
+
+def _range_setters(
+    var: MockObj, min_value: SafeExpType, max_value: SafeExpType, step: SafeExpType
+) -> tuple[Expression, Expression, Expression]:
+    return (
+        var.traits.set_min_value(min_value),
+        var.traits.set_max_value(max_value),
+        var.traits.set_step(step),
     )
 
 
-def _add_range(var: MockObj, range_id: ID, min_value, max_value, step) -> None:
-    values = (min_value, max_value, step)
+def _add_range(
+    var: MockObj,
+    range_id: ID,
+    min_value: SafeExpType,
+    max_value: SafeExpType,
+    step: SafeExpType,
+) -> None:
     # Lambda bounds (e.g. lvgl arc/bar) are runtime expressions and can't go in a table.
-    if not all(isinstance(v, (int, float)) for v in values):
-        cg.add(var.traits.set_min_value(min_value))
-        cg.add(var.traits.set_max_value(max_value))
-        cg.add(var.traits.set_step(step))
+    if not all(isinstance(v, (int, float)) for v in (min_value, max_value, step)):
+        for expr in _range_setters(var, min_value, max_value, step):
+            cg.add(expr)
         return
     key = (float(min_value), float(max_value), float(step))
     ranges = _get_data().ranges
-    declares = key not in ranges
-    if declares:
-        ranges[key] = NumberRangeUsage(range_id)
-    usage = ranges[key]
+    if (usage := ranges.get(key)) is None:
+        usage = ranges[key] = NumberRangeUsage(range_id, key)
+        cg.add_global(_RangeTableStatement(usage))
     usage.users += 1
-    cg.add(_SetRangeStatement(var, key, usage, declares))
+    cg.add(_SetRangeStatement(var, usage))
 
 
 @setup_entity("number")
