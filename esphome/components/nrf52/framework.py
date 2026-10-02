@@ -314,14 +314,25 @@ def _patch_framework_file(path: Path, old: str, new: str) -> bool:
     """Replace ``old`` with ``new`` in a framework script, atomically and
     keeping the file mode (helpers.write_file would flatten it to 0o644).
     Returns False when nothing matched."""
+    import tempfile
+
     content = path.read_text(encoding="utf-8")
     patched = content.replace(old, new)
     if patched == content:
         return False
-    tmp = path.with_suffix(".py.tmp")
-    tmp.write_text(patched, encoding="utf-8")
-    shutil.copymode(path, tmp)
-    tmp.replace(path)
+    # Unique sibling tmp: the install lock is best effort, so two builds
+    # may patch at once and a shared tmp name could rename a half
+    # written file into place.
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(patched)
+        shutil.copymode(path, tmp)
+        tmp.replace(path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     return True
 
 

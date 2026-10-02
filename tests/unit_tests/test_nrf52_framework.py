@@ -1264,6 +1264,7 @@ def test_patch_gen_defines_relativizes_the_dts_path(tmp_path: Path) -> None:
     gen.write_text("s = f'DTS input file:\\n  {edt.dts_path}\\n'\n")
     framework._patch_gen_defines_dts_path(tmp_path)
     assert "{os.path.basename(edt.dts_path)}" in gen.read_text()
+    assert not list(gen.parent.glob("*.tmp"))  # no leftovers
     before = gen.read_text()
     framework._patch_gen_defines_dts_path(tmp_path)  # idempotent
     assert gen.read_text() == before
