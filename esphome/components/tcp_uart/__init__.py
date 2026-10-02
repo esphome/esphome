@@ -4,6 +4,7 @@ from esphome.components.const import (
     CONF_DATA_BITS,
     CONF_HOST,
     CONF_PARITY,
+    CONF_RECONNECT_INTERVAL,
     CONF_STOP_BITS,
 )
 import esphome.config_validation as cv
@@ -24,7 +25,6 @@ MULTI_CONF = True
 tcp_uart_ns = cg.esphome_ns.namespace("tcp_uart")
 TcpUart = tcp_uart_ns.class_("TcpUart", uart.UARTComponent, cg.Component)
 
-CONF_RECONNECT_INTERVAL = "reconnect_interval"
 CONF_CONNECTED = "connected"
 
 
