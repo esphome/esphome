@@ -42,6 +42,18 @@ class TcpClientLink {
   /// Returns bytes moved, 0 when nothing can move now, -1 when the link dropped.
   ssize_t read(uint8_t *buf, size_t len);
   ssize_t write(const uint8_t *buf, size_t len);
+  /// Copy into the outgoing buffer; returns how many bytes fit.
+  size_t queue(const uint8_t *data, size_t len);
+  /// Direct access to the buffer's free tail; tx_commit() what was filled.
+  uint8_t *tx_tail(size_t &room) {
+    room = this->tx_free();
+    return this->tx_ + this->tx_len_;
+  }
+  void tx_commit(size_t len) { this->tx_len_ += static_cast<uint16_t>(len); }
+  size_t tx_free() const { return this->connected_ ? TX_BUFFER_SIZE - this->tx_len_ : 0; }
+  bool tx_empty() const { return this->tx_len_ == 0; }
+  /// Send the front of the buffer; a partial write keeps the rest.
+  void flush_tx();
   /// Close without scheduling a reconnect (shutdown).
   void close();
 
@@ -52,6 +64,8 @@ class TcpClientLink {
   bool in_backoff() const {
     return App.get_loop_component_start_time() - this->last_attempt_ms_ < this->reconnect_interval_ms_;
   }
+
+  static constexpr size_t TX_BUFFER_SIZE = 1024;
 
  protected:
   void poll_slow_();
@@ -66,7 +80,9 @@ class TcpClientLink {
   uint32_t reconnect_interval_ms_{5000};
   Ipv4Resolve resolved_;
   uint16_t port_{0};
+  uint16_t tx_len_{0};
   bool connected_{false};
+  uint8_t tx_[TX_BUFFER_SIZE]{};
 };
 
 }  // namespace esphome::socket

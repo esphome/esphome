@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cstring>
 
 namespace esphome::socket {
 
@@ -129,6 +130,24 @@ ssize_t TcpClientLink::write(const uint8_t *buf, size_t len) {
   return -1;
 }
 
+size_t TcpClientLink::queue(const uint8_t *data, size_t len) {
+  size_t room = this->tx_free();
+  if (len > room) {
+    len = room;
+  }
+  std::memcpy(this->tx_ + this->tx_len_, data, len);
+  this->tx_len_ += static_cast<uint16_t>(len);
+  return len;
+}
+
+void TcpClientLink::flush_tx() {
+  ssize_t sent = this->write(this->tx_, this->tx_len_);
+  if (sent > 0) {
+    this->tx_len_ -= static_cast<uint16_t>(sent);
+    std::memmove(this->tx_, this->tx_ + sent, this->tx_len_);
+  }
+}
+
 void TcpClientLink::close() {
   if (this->sock_ != nullptr) {
     this->sock_->shutdown(SHUT_RDWR);
@@ -136,6 +155,7 @@ void TcpClientLink::close() {
     this->sock_.reset();
   }
   this->connected_ = false;
+  this->tx_len_ = 0;
   this->resolved_.forget();
 }
 
