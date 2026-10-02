@@ -304,13 +304,11 @@ def _get_data() -> NumberData:
     return CORE.data[DOMAIN]
 
 
+@dataclass(slots=True)
 class _RenderTimeStatement(cg.Statement):
     """Text chosen when main.cpp is written, after every number has been counted."""
 
-    __slots__ = ("render",)
-
-    def __init__(self, render: Callable[[], str]) -> None:
-        self.render = render
+    render: Callable[[], str]
 
     def __str__(self) -> str:
         return self.render()
