@@ -115,8 +115,7 @@ class RadioFrequency : public ir_rf_base::IrRfEntity {
   /// Platforms must override this to implement hardware-specific transmission.
   /// Returns false only when no frame was handed to the transmitter, in which case no
   /// completion follows.
-  /// A platform that transmits without a remote_base transmitter calls api_transmit_done_() when
-  /// its frame is out, so an API client is not answered by the 30 s safety net
+  /// Without a remote_base transmitter, call api_transmit_done_() once the frame is out
   virtual bool control(const RadioFrequencyCall &call) = 0;
 
   // Traits describing capabilities

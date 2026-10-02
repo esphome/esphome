@@ -16,10 +16,8 @@ namespace esphome::ir_rf_base {
 static const char *const TAG = "ir_rf";
 
 #if defined(USE_API) && defined(USE_IR_RF)
-// Safety net for a transmitter that never reports completion (for example a failed component)
-// and for a client whose TCP buffer never drains: the request is answered as failed this long
-// after its frame should have left the wire, and an owed reply is dropped this long after it
-// was first refused
+// A missing completion is answered as failed this long after the frame should have left the
+// wire, and an owed reply the client never reads is dropped this long after the first refusal
 static constexpr uint32_t API_REPLY_TIMEOUT_MS = 30000;
 #endif
 #ifdef USE_IR_RF_TRANSMIT_COMPLETE
@@ -97,8 +95,7 @@ bool IrRfEntity::transmit_raw_(const IrRfCallData &call, uint32_t carrier_freque
   }
 
 #ifdef USE_IR_RF_TRANSMIT_COMPLETE
-  // only the API frame expect_api_reply_() armed claims the seq and extends the deadline it set;
-  // a YAML transmit cannot take over a pending reply
+  // only the API frame expect_api_reply_() armed claims the seq and extends its deadline
   if (call.wants_api_reply() && this->api_reply_ == ApiReply::API_REPLY_WAITING) {
     this->inflight_seq_ = transmit_call.get_seq();
     // a long frame must not be answered as failed while still on the wire: the 30 s safety net
@@ -170,7 +167,7 @@ void IrRfEntity::refuse_api_call_(api::APIConnection *conn) {
 void IrRfEntity::finish_api_reply_(bool success) {
   this->api_reply_ = success ? ApiReply::API_REPLY_OWED_OK : ApiReply::API_REPLY_OWED_FAILED;
   if (!this->send_api_reply_()) {
-    // the retry has its own window, so a client that never drains cannot hold the slot forever
+    // the retry gets its own window
     this->api_reply_deadline_ = api_reply_ticks_from_now();
   }
 }
