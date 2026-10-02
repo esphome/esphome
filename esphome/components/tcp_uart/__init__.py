@@ -54,6 +54,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
+    socket.require_tcp_client_link()
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_HOST], config[CONF_PORT])
     await cg.register_component(var, config)
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
