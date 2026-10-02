@@ -151,11 +151,14 @@ TYPED_FILE_SCHEMA = cv.typed_schema(
 )
 
 
+CONF_FILE_DATA_ID = "file_data_id"
+
 MEDIA_FILE_TYPE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.declare_id(audio.AudioFile),
         cv.Required(CONF_FILE): _file_schema,
         cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
+        cv.GenerateID(CONF_FILE_DATA_ID): cv.declare_id(audio.AudioFile),
     }
 )
 
@@ -230,8 +233,8 @@ def generate_audio_file_code(file_config: ConfigType) -> MockObj:
     else:
         data, media_file_type = read_audio_file_and_type(file_config)
 
-    # Everything is global and constant so the AudioFile lives in flash; the id stays
-    # a pointer so id() in lambdas and the play actions keep working.
+    # Global constants so the AudioFile lives in flash; the id stays a plain pointer
+    # because actions render id arguments as ``::<id>``.
     data_id = file_config[CONF_RAW_DATA_ID]
     cg.add_global(
         ProgmemAssignmentExpression(
@@ -245,13 +248,13 @@ def generate_audio_file_code(file_config: ConfigType) -> MockObj:
         ("file_type", media_file_type),
     )
     file_var_id = file_config[CONF_ID]
-    storage = f"{file_var_id}__file"
+    storage = file_config[CONF_FILE_DATA_ID]
     cg.add_global(
-        cg.RawStatement(f"static constexpr audio::AudioFile {storage} = {media_file};")
+        cg.RawStatement(f"static constexpr {storage.type} {storage} = {media_file};")
     )
     cg.add_global(
         cg.RawStatement(
-            f"static const audio::AudioFile *const {file_var_id} = &{storage};"
+            f"static const {storage.type} *const {file_var_id} = &{storage};"
         )
     )
     var = MockObj(file_var_id, "->")

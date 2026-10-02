@@ -12,8 +12,11 @@ def test_audio_file_is_constant_in_flash(
     main_cpp = generate_main(component_config_path("audio_file.yaml"))
 
     assert (
-        "static constexpr audio::AudioFile chime__file = audio::AudioFile{" in main_cpp
+        "static constexpr audio::AudioFile audio_audiofile_id = audio::AudioFile{"
+        in main_cpp
     )
-    assert "static const audio::AudioFile *const chime = &chime__file;" in main_cpp
+    assert (
+        "static const audio::AudioFile *const chime = &audio_audiofile_id;" in main_cpp
+    )
     assert "new(chime)" not in main_cpp
     assert 'audio_file::add_named_audio_file(chime, "chime");' in main_cpp

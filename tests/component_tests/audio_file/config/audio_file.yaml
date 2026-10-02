@@ -11,4 +11,4 @@ audio_file:
   - id: chime
     file:
       type: local
-      path: test.wav
+      path: ../../../components/audio_file/test.wav
