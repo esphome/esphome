@@ -1,0 +1,12 @@
+esphome:
+  name: ardtest
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+network:
+  enable_ipv6: true
+
+api:

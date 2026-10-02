@@ -1,3 +1,4 @@
+import functools
 import logging
 from pathlib import Path
 import platform
@@ -7,6 +8,7 @@ from typing import Any
 
 from esphome.build_helpers.native import native_backend
 import esphome.codegen as cg
+from esphome.components import network
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -333,6 +335,7 @@ CONFIG_SCHEMA = cv.All(
     _warn_platformio_toolchain,
     _validate_native_toolchain,
     set_core_data,
+    functools.partial(network.require_ipv4, name=PLATFORM_ESP8266),
 )
 
 
