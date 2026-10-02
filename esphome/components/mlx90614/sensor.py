@@ -55,9 +55,5 @@ async def to_code(config: ConfigType) -> None:
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_AMBIENT, var.set_ambient_sensor)
-
-    if CONF_OBJECT in config:
-        sens = await sensor.new_sensor(config[CONF_OBJECT])
-        cg.add(var.set_object_sensor(sens))
-
+    if await sensors(CONF_OBJECT, var.set_object_sensor):
         cg.add(var.set_emissivity(config[CONF_OBJECT][CONF_EMISSIVITY]))
