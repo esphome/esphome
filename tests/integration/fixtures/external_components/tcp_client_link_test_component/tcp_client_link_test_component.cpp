@@ -1,8 +1,6 @@
 #include "tcp_client_link_test_component.h"
 #include "esphome/core/log.h"
 
-#include <algorithm>
-
 namespace esphome::tcp_client_link_test_component {
 
 static const char *const TAG = "tcp_link_test";
@@ -19,18 +17,12 @@ void TcpClientLinkTestComponent::loop() {
   if (!up) {
     return;
   }
-  // Retries a partial echo; inline no-op when nothing is queued.
-  this->link_.flush_tx();
-  if (!this->link_.ready()) {
+  // Echo only once the previous echo is fully sent, so it never drops bytes.
+  if (!this->link_.flush_tx() || !this->link_.ready()) {
     return;
   }
   uint8_t buf[64];
-  // Read only what the outgoing buffer can take, so the echo never drops bytes.
-  size_t want = std::min(sizeof(buf), this->link_.tx_free());
-  if (want == 0) {
-    return;
-  }
-  ssize_t count = this->link_.read(buf, want);
+  ssize_t count = this->link_.read(buf, sizeof(buf));
   if (count > 0) {
     ESP_LOGI(TAG, "Echoing %d bytes", static_cast<int>(count));
     this->link_.queue(buf, static_cast<size_t>(count));

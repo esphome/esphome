@@ -94,7 +94,7 @@ async def test_socket_tcp_client_link(
                 await asyncio.wait_for(second_link_up.wait(), timeout=15.0)
             except TimeoutError:
                 pytest.fail("Link did not reconnect after the server dropped it")
-            assert second_echoed and second_echoed[0] == SECOND_PAYLOAD, (
+            assert second_echoed == [SECOND_PAYLOAD], (
                 "Second session echo wrong; stale bytes from the first session?"
             )
     finally:
