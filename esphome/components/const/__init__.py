@@ -7,6 +7,7 @@ BYTE_ORDER_BIG = "big_endian"
 
 CONF_ACCELEROMETER_ODR = "accelerometer_odr"
 CONF_ACCELEROMETER_RANGE = "accelerometer_range"
+CONF_AQI = "aqi"
 CONF_B_CONSTANT = "b_constant"
 CONF_BREATH_VOC_EQUIVALENT = "breath_voc_equivalent"
 CONF_BYTE_ORDER = "byte_order"
