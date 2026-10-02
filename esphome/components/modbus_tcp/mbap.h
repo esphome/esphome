@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace esphome::modbus {
+namespace esphome::modbus_tcp {
 
 // Header only. Loading the modbus hub would link its RTU stack, and socket
 // would publish this header from esphome.h into every network build.
@@ -75,4 +75,4 @@ inline bool rtu_crc_ok(const uint8_t *frame, size_t len) {
   return len >= 4 && len <= 256 && crc16(frame, static_cast<uint16_t>(len)) == 0;
 }
 
-}  // namespace esphome::modbus
+}  // namespace esphome::modbus_tcp

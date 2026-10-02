@@ -6,11 +6,11 @@
 
 namespace {
 
-using esphome::modbus::Mbap;
-using esphome::modbus::MbapTake;
-using esphome::modbus::rtu_crc_ok;
-using esphome::modbus::take_mbap;
-using esphome::modbus::write_mbap;
+using esphome::modbus_tcp::Mbap;
+using esphome::modbus_tcp::MbapTake;
+using esphome::modbus_tcp::rtu_crc_ok;
+using esphome::modbus_tcp::take_mbap;
+using esphome::modbus_tcp::write_mbap;
 
 TEST(MbapTest, RoundTrip) {
   const uint8_t pdu[] = {0x03, 0x00, 0x00, 0x00, 0x01};
