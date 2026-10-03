@@ -49,9 +49,21 @@ struct ThermostatClimateTimer {
 
 struct ThermostatClimateTargetTempConfig {
  public:
-  ThermostatClimateTargetTempConfig();
-  ThermostatClimateTargetTempConfig(float default_temperature);
-  ThermostatClimateTargetTempConfig(float default_temperature_low, float default_temperature_high);
+  constexpr ThermostatClimateTargetTempConfig() = default;
+  constexpr ThermostatClimateTargetTempConfig(float default_temperature) : default_temperature(default_temperature) {}
+  constexpr ThermostatClimateTargetTempConfig(float default_temperature_low, float default_temperature_high)
+      : default_temperature_low(default_temperature_low), default_temperature_high(default_temperature_high) {}
+  /// Full form used by the generated preset tables in flash.
+  constexpr ThermostatClimateTargetTempConfig(float default_temperature, float default_temperature_low,
+                                              float default_temperature_high, optional<climate::ClimateMode> mode,
+                                              optional<climate::ClimateFanMode> fan_mode,
+                                              optional<climate::ClimateSwingMode> swing_mode)
+      : default_temperature(default_temperature),
+        default_temperature_low(default_temperature_low),
+        default_temperature_high(default_temperature_high),
+        fan_mode_(fan_mode),
+        swing_mode_(swing_mode),
+        mode_(mode) {}
 
   void set_fan_mode(climate::ClimateFanMode fan_mode) { this->fan_mode_ = fan_mode; }
   void set_swing_mode(climate::ClimateSwingMode swing_mode) { this->swing_mode_ = swing_mode; }
@@ -175,8 +187,12 @@ class ThermostatClimate final : public climate::Climate, public Component {
   void set_supports_humidification(bool supports_humidification);
   void set_supports_two_points(bool supports_two_points) { this->supports_two_points_ = supports_two_points; }
 
-  void set_preset_config(std::initializer_list<PresetEntry> presets) { this->preset_config_ = presets; }
-  void set_custom_preset_config(std::initializer_list<CustomPresetEntry> presets);
+  /// `presets` is a PROGMEM table that outlives the thermostat.
+  void set_preset_config(const PresetEntry *presets, uint8_t count) {
+    this->preset_config_ = presets;
+    this->preset_count_ = count;
+  }
+  void set_custom_preset_config(const CustomPresetEntry *presets, uint8_t count);
 
   Trigger<> *get_cool_action_trigger();
   Trigger<> *get_supplemental_cool_action_trigger();
@@ -328,6 +344,9 @@ class ThermostatClimate final : public climate::Climate, public Component {
   bool humidification_required_();
 
   void dump_preset_config_(const char *preset_name, const ThermostatClimateTargetTempConfig &config);
+  /// Copies of table entries; the tables live in PROGMEM and hold byte-sized fields.
+  PresetEntry preset_entry_(uint8_t index) const;
+  CustomPresetEntry custom_preset_entry_(uint8_t index) const;
 
   /// Minimum allowable duration in seconds for action timers
   const uint8_t min_timer_duration_{1};
@@ -348,6 +367,9 @@ class ThermostatClimate final : public climate::Climate, public Component {
   /// If set to DEFAULT_PRESET then the default preset is always used. When MEMORY prior
   /// state will attempt to be restored if possible
   OnBootRestoreFrom on_boot_restore_from_{OnBootRestoreFrom::MEMORY};
+
+  uint8_t preset_count_{0};
+  uint8_t custom_preset_count_{0};
 
   /// Whether the controller supports auto/cooling/drying/fanning/heating.
   ///
@@ -522,13 +544,13 @@ class ThermostatClimate final : public climate::Climate, public Component {
   /// Climate action timers
   std::array<ThermostatClimateTimer, THERMOSTAT_TIMER_COUNT> timer_{};
 
-  /// The set of standard preset configurations this thermostat supports (Eg. AWAY, ECO, etc)
-  FixedVector<PresetEntry> preset_config_{};
-  /// The set of custom preset configurations this thermostat supports (eg. "My Custom Preset")
-  FixedVector<CustomPresetEntry> custom_preset_config_{};
+  /// Standard preset configurations (Eg. AWAY, ECO, etc), a PROGMEM table of preset_count_ entries
+  const PresetEntry *preset_config_{nullptr};
+  /// Custom preset configurations (eg. "My Custom Preset"), a PROGMEM table of custom_preset_count_ entries
+  const CustomPresetEntry *custom_preset_config_{nullptr};
 
  private:
-  /// Default custom preset to use on start up (pointer to entry in custom_preset_config_)
+  /// Default custom preset to use on start up (name pointer from an entry in custom_preset_config_)
   const char *default_custom_preset_{nullptr};
 };
 
