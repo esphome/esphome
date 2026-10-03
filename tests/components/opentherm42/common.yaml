@@ -45,6 +45,10 @@ opentherm42:
   configuration_information_ventilation_heat_recovery_product_version_number_and_type_update_every: 7
   configuration_information_solar_storage_product_version_number_and_type_update_every: 7
   sensor_and_informational_data_boiler_fan_speed_update_every: 3
+  pre_defined_remote_boiler_parameters_flags_update_every: 6
+  pre_defined_remote_boiler_parameters_ventilation_heat_recovery_flags_update_every: 6
+  pre_defined_remote_boiler_parameters_dhwsetp_update_every: 6
+  pre_defined_remote_boiler_parameters_max_chsetp_update_every: 6
   transparent_boiler_parameters_update_every: 7
   fault_history_data_fault_buffer_update_every: 7
 
@@ -151,6 +155,23 @@ number:
     sensor_and_informational_data_co2_level:
       name: "Sensor and Informational Data: CO2 level"
       update_every: 5
+    # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature setpoint (degrees C, 0..127).
+    # A single number entity serves both directions -- see hub.h's RequestKind comment.
+    pre_defined_remote_boiler_parameters_dhw_setpoint:
+      name: "Pre-Defined Remote Boiler Parameters: DHW Setpoint"
+      initial_value: 60.0
+      update_every: 6
+    # §5.3.5 Class 5, ID 57: max CH water Setpoint -- maximum allowable CH water Setpoint (degrees C, 0..127).
+    pre_defined_remote_boiler_parameters_max_ch_water_setpoint:
+      name: "Pre-Defined Remote Boiler Parameters: max CH water Setpoint"
+      initial_value: 80.0
+      update_every: 6
+    # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value -- nominal relative value for ventilation
+    # (0-100%), i.e. the value for the mid position in case of a 3-speed ventilation system.
+    pre_defined_remote_boiler_parameters_nominal_ventilation_value:
+      name: "Pre-Defined Remote Boiler Parameters: Nominal ventilation value"
+      initial_value: 50
+      update_every: 6
     # §5.3.6 Class 6, IDs 11/89/106: TSP values are opaque and manufacturer-specific, so unlike every
     # other option here there's no spec-provided name/description -- name and index come from whatever
     # the boiler's own documentation says slot N means.
@@ -395,6 +416,24 @@ text_sensor:
     # [ 0 = DHW preheat system, 1 = DHW parallel system ]
     configuration_information_solar_storage_configuration_system_type:
       name: "Configuration Information: Solar Storage configuration: System type"
+    # §5.3.5 Class 5, ID 6 HB bit 0: DHW Setpoint [ transfer disabled, transfer enabled ]
+    pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint:
+      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter transfer-enable flags: DHW Setpoint"
+    # §5.3.5 Class 5, ID 6 HB bit 1: max CHsetpoint [ transfer disabled, transfer enabled ]
+    pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint:
+      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter transfer-enable flags: max CHsetpoint"
+    # §5.3.5 Class 5, ID 6 LB bit 0: DHW Setpoint [ read-only, read/write ]
+    pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint:
+      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter read-write flags: DHW Setpoint"
+    # §5.3.5 Class 5, ID 6 LB bit 1: max CHsetpoint [ read-only, read/write ]
+    pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint:
+      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter read-write flags: max CHsetpoint"
+    # §5.3.5 Class 5, ID 86 HB bit 0: Nominal ventilation value [ transfer disabled, transfer enabled ]
+    pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value:
+      name: "Pre-Defined Remote Boiler Parameters: Transfer-enable flags ventilation-heat-recovery: Nominal ventilation value"
+    # §5.3.5 Class 5, ID 86 LB bit 0: Nominal ventilation value [ read-only, read/write ]
+    pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value:
+      name: "Pre-Defined Remote Boiler Parameters: Read-write flags ventilation-heat-recovery: Nominal ventilation value"
     # §5.3.3 Class 3, ID 4 LB: the most recent Request-Response-Code's meaning.
     remote_request_last_response:
       name: "Remote request: Last response"
@@ -629,6 +668,18 @@ sensor:
     sensor_and_informational_data_dhw_burner_operation_hours:
       name: "Sensor and Informational Data: DHW burner operation hours"
       update_every: 8
+    # §5.3.5 Class 5, ID 48 HB: DHWsetp upp-bound -- upper bound for adjustment of DHW setp (degrees C).
+    pre_defined_remote_boiler_parameters_dhwsetp_upper_bound:
+      name: "Pre-Defined Remote Boiler Parameters: DHWsetp upp-bound"
+    # §5.3.5 Class 5, ID 48 LB: DHWsetp low-bound -- lower bound for adjustment of DHW setp (degrees C).
+    pre_defined_remote_boiler_parameters_dhwsetp_lower_bound:
+      name: "Pre-Defined Remote Boiler Parameters: DHWsetp low-bound"
+    # §5.3.5 Class 5, ID 49 HB: max CHsetp upp-bound -- upper bound for adjustment of maxCHsetp (degrees C).
+    pre_defined_remote_boiler_parameters_max_chsetp_upper_bound:
+      name: "Pre-Defined Remote Boiler Parameters: max CHsetp upp-bound"
+    # §5.3.5 Class 5, ID 49 LB: max CHsetp low-bnd -- lower bound for adjustment of maxCHsetp (degrees C).
+    pre_defined_remote_boiler_parameters_max_chsetp_lower_bound:
+      name: "Pre-Defined Remote Boiler Parameters: max CHsetp low-bnd"
     # §5.3.6 Class 6, ID 10 HB: Number of transparent-boiler-parameter's supported by the boiler.
     transparent_boiler_parameters_number_of_tsps:
       name: "Transparent Boiler Parameters: Number of TSP's"

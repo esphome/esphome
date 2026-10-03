@@ -168,6 +168,26 @@ enum class RequestKind : uint8_t {
   CH_PUMP_OPERATION_HOURS,               // ID 121
   DHW_PUMP_VALVE_OPERATION_HOURS,        // ID 122
   DHW_BURNER_OPERATION_HOURS,            // ID 123
+  // ID 98 (RF sensor status information -- pairing a wireless room sensor's type/battery/signal to the
+  // boiler) is intentionally not implemented: skipped by decision, not an oversight.
+
+  // §5.3.5 Class 5, ID 6: Remote-parameter transfer-enable + read/write flags for DHW Setpoint / max
+  // CHsetpoint (HB and LB read in one conversation).
+  REMOTE_PARAMETER_FLAGS,
+  // §5.3.5 Class 5, ID 86: same, for ventilation/heat-recovery's Nominal ventilation value.
+  REMOTE_PARAMETER_FLAGS_VENTILATION,
+  // §5.3.5 Class 5, ID 48: HB DHWsetp upp-bound, LB DHWsetp low-bound (two signed 8-bit values).
+  DHWSETP_BOUNDS,
+  // §5.3.5 Class 5, ID 49: HB max CHsetp upp-bound, LB max CHsetp low-bnd.
+  MAX_CHSETP_BOUNDS,
+  // §5.3.5 Class 5, IDs 56/57/87: R/W ids -- same single-number-entity, READ-is-authoritative
+  // pattern as Class 4's IDs 27/38/78/79 above.
+  DHW_SETPOINT,                    // ID 56 (write)
+  DHW_SETPOINT_READ,               // ID 56 (read)
+  MAX_CH_WATER_SETPOINT,           // ID 57 (write)
+  MAX_CH_WATER_SETPOINT_READ,      // ID 57 (read)
+  NOMINAL_VENTILATION_VALUE,       // ID 87 (write)
+  NOMINAL_VENTILATION_VALUE_READ,  // ID 87 (read)
 
   // §5.3.6 Class 6, IDs 10/88/105 HB: number of TSPs supported, one per family.
   NUMBER_OF_TSPS,
@@ -401,6 +421,18 @@ class OpenTherm42Hub : public Component {
   }
   void set_sensor_and_informational_data_boiler_fan_speed_update_every(uint32_t update_every) {
     this->pending_group_update_every_.emplace_back(RequestKind::BOILER_FAN_SPEED, update_every);
+  }
+  void set_pre_defined_remote_boiler_parameters_flags_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::REMOTE_PARAMETER_FLAGS, update_every);
+  }
+  void set_pre_defined_remote_boiler_parameters_ventilation_heat_recovery_flags_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION, update_every);
+  }
+  void set_pre_defined_remote_boiler_parameters_dhwsetp_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::DHWSETP_BOUNDS, update_every);
+  }
+  void set_pre_defined_remote_boiler_parameters_max_chsetp_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::MAX_CHSETP_BOUNDS, update_every);
   }
   // §5.3.6 Class 6, IDs 11/89/106: TSP slots from all three families (see tsp_slots_) round-robin
   // through one shared RequestKind::TSP conversation -- one cadence governs how fast that rotation
@@ -780,6 +812,38 @@ class OpenTherm42Hub : public Component {
     this->reset_counter_pending_ = true;
     this->reset_counter_data_id_ = data_id;
   }
+
+  // §5.3.5 Class 5, ID 6: Remote-parameter transfer-enable/read-write flags. Each bit is a small
+  // 2-state named enum, so a text_sensor showing the spec's own wording rather than a bare on/off
+  // -- see hub.cpp's handle_response_() REMOTE_PARAMETER_FLAGS case.
+  OT42_SET_PLAIN_TEXT_SENSOR(pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint,
+                             pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint,
+                             pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint,
+                             pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint,
+                             pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint_text_sensor_)
+
+  // §5.3.5 Class 5, ID 86: same flags, for ventilation/heat-recovery's Nominal ventilation value.
+  OT42_SET_PLAIN_TEXT_SENSOR(
+      pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value,
+      pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(
+      pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value,
+      pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_)
+
+  // §5.3.5 Class 5, IDs 48/49: adjustment bounds.
+  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_dhwsetp_upper_bound, dhwsetp_upper_bound_sensor_)
+  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_dhwsetp_lower_bound, dhwsetp_lower_bound_sensor_)
+  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_max_chsetp_upper_bound, max_chsetp_upper_bound_sensor_)
+  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_max_chsetp_lower_bound, max_chsetp_lower_bound_sensor_)
+
+  // §5.3.5 Class 5, IDs 56/57/87: the remote boiler parameters themselves -- a single number entity
+  // per id, same pattern as IDs 27/38/78/79 above.
+  OT42_SET_NUMBER(pre_defined_remote_boiler_parameters_dhw_setpoint, dhw_setpoint_number_)
+  OT42_SET_NUMBER(pre_defined_remote_boiler_parameters_max_ch_water_setpoint, max_ch_water_setpoint_number_)
+  OT42_SET_NUMBER(pre_defined_remote_boiler_parameters_nominal_ventilation_value, nominal_ventilation_value_number_)
 
   // §5.3.6 Class 6, IDs 10/88/105 HB: number of TSPs supported, one per family.
   OT42_SET_SENSOR(transparent_boiler_parameters_number_of_tsps, number_of_tsps_sensor_)
@@ -1168,6 +1232,33 @@ class OpenTherm42Hub : public Component {
   sensor::Sensor *dhw_burner_operation_hours_sensor_{nullptr};
   bool reset_counter_pending_{false};
   uint8_t reset_counter_data_id_{0};
+
+  // §5.3.5 Class 5 entities.
+  text_sensor::TextSensor *pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_{
+      nullptr};
+  text_sensor::TextSensor *pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint_text_sensor_{
+      nullptr};
+  text_sensor::TextSensor *pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint_text_sensor_{nullptr};
+  text_sensor::TextSensor *pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint_text_sensor_{nullptr};
+  text_sensor::TextSensor *
+      pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_{
+          nullptr};
+  text_sensor::TextSensor *
+      pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_{
+          nullptr};
+
+  sensor::Sensor *dhwsetp_upper_bound_sensor_{nullptr};
+  sensor::Sensor *dhwsetp_lower_bound_sensor_{nullptr};
+  sensor::Sensor *max_chsetp_upper_bound_sensor_{nullptr};
+  sensor::Sensor *max_chsetp_lower_bound_sensor_{nullptr};
+
+  number::Number *dhw_setpoint_number_{nullptr};
+  number::Number *max_ch_water_setpoint_number_{nullptr};
+  number::Number *nominal_ventilation_value_number_{nullptr};
+  // §5.3.5 Class 5, IDs 56/57/87 (write side): see set_write_value()'s declaration comment.
+  float dhw_setpoint_write_value_{0};
+  float max_ch_water_setpoint_write_value_{0};
+  float nominal_ventilation_value_write_value_{0};
 
   // §5.3.6 Class 6 entities.
   sensor::Sensor *number_of_tsps_sensor_{nullptr};
