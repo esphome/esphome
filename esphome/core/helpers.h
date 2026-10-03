@@ -129,22 +129,63 @@ template<> constexpr int64_t byteswap(int64_t n) { return __builtin_bswap64(n); 
 /// @name Container utilities
 ///@{
 
-/// Lightweight read-only view over a const array stored in RODATA (will typically be in flash memory)
-/// Avoids copying data from flash to RAM by keeping a pointer to the flash data.
-/// Similar to std::span but with minimal overhead for embedded systems.
-
+/// Read-only list: a codegen table that outlives it (often in flash) or a heap copy it owns.
+/// Iterators are raw pointers like FixedVector. A copy is a non-owning view of the same storage,
+/// so only the original frees an owned copy. Elements are whole words, safe to read from ESP8266 flash.
 template<typename T> class ConstVector {
- public:
-  constexpr ConstVector(const T *data, size_t size) : data_(data), size_(size) {}
+  static_assert(std::is_trivially_copyable_v<T> && sizeof(T) % sizeof(uint32_t) == 0,
+                "ConstVector elements must be whole words so ESP8266 can read them from flash");
 
-  const constexpr T &operator[](size_t i) const { return data_[i]; }
-  constexpr size_t size() const { return size_; }
-  constexpr bool empty() const { return size_ == 0; }
+ public:
+  using value_type = T;
+
+  constexpr ConstVector() = default;
+  constexpr ConstVector(const T *data, size_t size) : data_(data), size_(size) {}
+  ConstVector(const ConstVector &other) : data_(other.data_), size_(other.size()) {}
+  ConstVector &operator=(const ConstVector &other) {
+    if (this != &other) {
+      this->release_();
+      this->data_ = other.data_;
+      this->size_ = other.size();
+    }
+    return *this;
+  }
+  ~ConstVector() { this->release_(); }
+
+  const T *begin() const { return this->data_; }
+  const T *end() const { return this->data_ + this->size(); }
+  const T *data() const { return this->data_; }
+  size_t size() const { return this->size_ & ~OWNED_BIT; }
+  bool empty() const { return this->size() == 0; }
+  const T &operator[](size_t index) const { return this->data_[index]; }
+  const T &at(size_t index) const { return this->data_[index]; }
+
+  /// Codegen only, during setup: points at storage that must outlive this; nothing is freed.
+  void assign_static(const T *data, size_t size) {
+    this->data_ = data;
+    this->size_ = size;
+  }
+  /// Copies the list into a heap array this owns, freeing a previous owned copy.
+  void assign_copy(const T *data, size_t size) {
+    auto *table = new T[size];  // NOLINT(cppcoreguidelines-owning-memory)
+    std::copy(data, data + size, table);
+    this->release_();
+    this->data_ = table;
+    this->size_ = size | OWNED_BIT;
+  }
 
  protected:
-  const T *data_;
-  size_t size_;
+  static constexpr size_t OWNED_BIT = size_t{1} << (sizeof(size_t) * 8 - 1);
+
+  void release_() {
+    if (this->size_ & OWNED_BIT)
+      delete[] this->data_;  // NOLINT(cppcoreguidelines-owning-memory)
+  }
+
+  const T *data_{nullptr};
+  size_t size_{0};  // top bit set when data_ is an owned heap copy
 };
+static_assert(sizeof(ConstVector<const char *>) == 2 * sizeof(void *), "ConstVector must stay a pointer and a size");
 
 /// Small buffer optimization - stores data inline when small, heap-allocates for large data
 /// This avoids heap fragmentation for common small allocations while supporting arbitrary sizes.
