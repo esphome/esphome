@@ -41,13 +41,27 @@ TEST(ConstVector, CopyIsOwnedAndSizeMasksTheFlag) {
   EXPECT_STREQ(list[1], "y");
 }
 
-TEST(ConstVector, CopyingTheViewDoesNotTransferOwnership) {
+TEST(ConstVector, StaticAfterAnOwnedCopyFreesTheCopy) {
   ProbeVector list;
   list.assign_copy(TABLE, 3);
-  ConstVector<const char *, true> view = list;
-  EXPECT_EQ(view.data(), list.data());
-  EXPECT_EQ(view.size(), 3U);
-  EXPECT_TRUE(list.owned());
+  list.assign_static(TABLE, 2);
+  EXPECT_FALSE(list.owned());
+  EXPECT_EQ(list.data(), TABLE);
+  EXPECT_EQ(list.size(), 2U);
+}
+
+TEST(ConstVector, EmptyCopyAllocatesNothing) {
+  ProbeVector list;
+  list.assign_copy(TABLE, 3);
+  list.assign_copy(TABLE, 0);
+  EXPECT_FALSE(list.owned());
+  EXPECT_EQ(list.data(), nullptr);
+  EXPECT_TRUE(list.empty());
+}
+
+TEST(ConstVector, OwningVariantIsNotCopyable) {
+  static_assert(!std::is_copy_constructible_v<ConstVector<const char *, true>>);
+  static_assert(!std::is_copy_assignable_v<ConstVector<const char *, true>>);
 }
 
 TEST(ConstVector, CopyFromItsOwnStorage) {

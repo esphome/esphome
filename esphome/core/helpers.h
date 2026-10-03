@@ -153,7 +153,7 @@ template<typename T, bool Owning = false> class ConstVector {
 };
 
 /// Owning variant: a codegen table that outlives it, or a heap copy of a runtime list it owns.
-/// Ownership is the top bit of the size; copying gives a non-owning view, so only the original frees.
+/// Ownership is the top bit of the size; it is not copyable, so a copy can never outlive the owner.
 /// Elements must be whole words so ESP8266 can read a codegen table from flash.
 template<typename T> class ConstVector<T, true> {
   static_assert(std::is_trivially_copyable_v<T> && sizeof(T) % sizeof(uint32_t) == 0,
@@ -164,15 +164,8 @@ template<typename T> class ConstVector<T, true> {
 
   constexpr ConstVector() = default;
   constexpr ConstVector(const T *data, size_t size) : data_(data), size_(size) {}
-  ConstVector(const ConstVector &other) : data_(other.data_), size_(other.size()) {}
-  ConstVector &operator=(const ConstVector &other) {
-    if (this != &other) {
-      this->release_();
-      this->data_ = other.data_;
-      this->size_ = other.size();
-    }
-    return *this;
-  }
+  ConstVector(const ConstVector &) = delete;
+  ConstVector &operator=(const ConstVector &) = delete;
   ~ConstVector() { this->release_(); }
 
   const T *begin() const { return this->data_; }
@@ -183,13 +176,21 @@ template<typename T> class ConstVector<T, true> {
   const T &operator[](size_t index) const { return this->data_[index]; }
   const T &at(size_t index) const { return this->data_[index]; }
 
-  /// Codegen only, during setup before any copy: points at storage that must outlive this.
+  /// Points at storage that must outlive this (codegen tables); frees a previous owned copy.
   void assign_static(const T *data, size_t size) {
+    if (this->size_ & OWNED_BIT)
+      this->free_owned_();
     this->data_ = data;
     this->size_ = size;
   }
   /// Copies the list into a heap array this owns, freeing a previous owned copy.
   void assign_copy(const T *data, size_t size) {
+    if (size == 0) {
+      this->release_();
+      this->data_ = nullptr;
+      this->size_ = 0;
+      return;
+    }
     auto *table = new T[size];  // NOLINT(cppcoreguidelines-owning-memory)
     std::copy(data, data + size, table);
     this->release_();
@@ -202,7 +203,11 @@ template<typename T> class ConstVector<T, true> {
 
   void release_() {
     if (this->size_ & OWNED_BIT)
-      delete[] this->data_;  // NOLINT(cppcoreguidelines-owning-memory)
+      this->free_owned_();
+  }
+  // Kept out of line so the codegen assign_static call sites only grow by the flag test.
+  __attribute__((noinline)) void free_owned_() {
+    delete[] this->data_;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 
   const T *data_{nullptr};
