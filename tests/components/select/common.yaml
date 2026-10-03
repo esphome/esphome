@@ -70,3 +70,18 @@ button:
           if (id(select_test_select).traits.get_options().size() != fresh.size())
             id(select_test_select).traits.set_options(fresh);
           id(select_test_select).traits.set_options({"one", "two", "three"});
+      - lambda: |-
+          const char *value = "two";
+          const auto &options = id(select_test_select).traits.get_options();
+          const auto *it = std::find_if(options.begin(), options.end(),
+                                        [value](const char *option) { return strcmp(option, value) == 0; });
+          if (it == options.end())
+            return;
+          uint32_t index = (uint32_t) (it - options.begin());
+          ESP_LOGD("test", "index %u", (unsigned) index);
+          const auto *it2 = std::find(options.begin(), options.end(), options[0]);
+          ESP_LOGD("test", "first at %d", (int) (it2 - options.begin()));
+      - lambda: |-
+          auto &options = id(select_test_select).traits.get_options();
+          for (size_t i = 0; i < options.size(); i++)
+            ESP_LOGD("test", "%u: %s", (unsigned) i, options.at(i));
