@@ -1191,6 +1191,17 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
     return false;
   }
 
+#ifdef USE_WIFI_AP_NAPT
+  if (this->ap_napt_) {
+    err = esp_netif_napt_enable(s_ap_netif);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_netif_napt_enable failed: %d", err);
+    } else {
+      ESP_LOGI(TAG, "IPv4 NAPT enabled for AP");
+    }
+  }
+#endif
+
   return true;
 }
 

@@ -708,6 +708,13 @@ void WiFiComponent::start() {
       ESP_LOGV(TAG, "Setting Power Save Option failed");
     }
 
+#ifdef USE_WIFI_APSTA
+    if (this->has_ap() && this->ap_coexist_) {
+      // loop() starts the coexist AP on its first pass, so ap_timeout does not apply.
+      this->last_connected_ = millis();
+      this->ap_timeout_ = 0;  // 0 disables the fallback gate this mode never reaches
+    }
+#endif
     this->transition_to_phase_(WiFiRetryPhase::INITIAL_CONNECT);
 #ifdef USE_WIFI_FAST_CONNECT
     WiFiAP params;
@@ -879,7 +886,13 @@ void WiFiComponent::loop() {
         provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed();
 #endif
     if (this->has_ap() && !this->ap_setup_ && !provisioning_closed) {
-      if (this->ap_timeout_ != 0 && (now - this->last_connected_ > this->ap_timeout_)) {
+#ifdef USE_WIFI_APSTA
+      if (this->ap_coexist_) {
+        ESP_LOGI(TAG, "Starting coexist AP");
+        this->setup_ap_config_();
+      } else
+#endif
+          if (this->ap_timeout_ != 0 && (now - this->last_connected_ > this->ap_timeout_)) {
         ESP_LOGI(TAG, "Starting fallback AP");
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL
@@ -1641,8 +1654,22 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
         captive_portal::global_captive_portal->end();
       }
 #endif
-      ESP_LOGD(TAG, "Disabling AP");
-      this->wifi_mode_({}, false);
+#ifdef USE_WIFI_APSTA
+      if (this->ap_coexist_) {
+        // Coexistence mode: AP stays up permanently; do not disable after STA connects.
+        ESP_LOGD(TAG, "STA connected; AP remains active (coexist mode)");
+#ifdef USE_ESP32
+        wifi_mode_t mode;
+        esp_wifi_get_mode(&mode);
+        ESP_LOGVV(TAG, "WiFi mode after STA connect (coexist): %d", mode);
+#endif
+      } else {
+#endif
+        ESP_LOGD(TAG, "Disabling AP");
+        this->wifi_mode_({}, false);
+#ifdef USE_WIFI_APSTA
+      }
+#endif
     }
 #ifdef USE_IMPROV_BLE
     if (this->is_improv_ble_active_()) {
