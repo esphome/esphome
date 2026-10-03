@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 import subprocess
 from unittest.mock import patch
@@ -28,7 +29,7 @@ from esphome.components.zephyr.dts_fetch import (
 from esphome.components.zephyr.variants import MAINLINE, NCS, SILABS, ZephyrSDK
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
-from esphome.core import CORE
+from esphome.core import CORE, TimePeriodSeconds
 
 
 def _set_framework_version(major: int, minor: int, patch: int, extra: str = "") -> None:
@@ -117,6 +118,109 @@ def test_resolve_sdk_source_version_sets_resolved_ref_on_cache_hit(
     # No clone attempted -- only the rev-parse for the resolved ref.
     mock_run.assert_called_once()
     assert mock_run.call_args.args[0][-2:] == ["rev-parse", "HEAD"]
+
+
+_VERSION_441 = "VERSION_MAJOR = 4\nVERSION_MINOR = 4\nPATCHLEVEL = 1\n"
+_VERSION_442 = "VERSION_MAJOR = 4\nVERSION_MINOR = 4\nPATCHLEVEL = 2\n"
+_SOURCE = {"type": "git", "url": "https://example.invalid/zephyr", "ref": "main"}
+
+
+def _stale_cache(tmp_path: Path) -> Path:
+    """A cached sdk_source clone whose VERSION is older than any refresh interval."""
+    dest = tmp_path / _sdk_source_cache_key(_SOURCE["url"], _SOURCE["ref"])
+    (dest / ".git").mkdir(parents=True)
+    (dest / "VERSION").write_text(_VERSION_441)
+    os.utime(dest / "VERSION", (0, 0))
+    return dest
+
+
+def _resolve_with(tmp_path: Path, git) -> tuple[str, list[list[str]]]:
+    """Run resolve_sdk_source_version with `git(cmd)` handling every git call except
+    rev-parse; return the version and the commands run."""
+    calls: list[list[str]] = []
+
+    def run(cmd, **kwargs):
+        calls.append(cmd)
+        if "rev-parse" in cmd:
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout=f"{_FAKE_RESOLVED_SHA}\n", stderr=""
+            )
+        git(cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    with (
+        patch(
+            "esphome.components.zephyr.dts_fetch._sdk_source_version_cache_root",
+            return_value=tmp_path,
+        ),
+        patch("subprocess.run", side_effect=run),
+    ):
+        version = resolve_sdk_source_version(
+            dict(_SOURCE), refresh=TimePeriodSeconds(seconds=1)
+        )
+    return version, calls
+
+
+def _offline(cmd: list[str]) -> None:
+    raise subprocess.CalledProcessError(
+        128, cmd, stderr="Cloning...\nfatal: unable to access: Could not resolve host"
+    )
+
+
+def test_resolve_sdk_source_version_refresh_updates_cache_in_place(
+    tmp_path: Path,
+) -> None:
+    dest = _stale_cache(tmp_path)
+
+    def git(cmd: list[str]) -> None:
+        if "reset" in cmd:
+            (dest / "VERSION").write_text(_VERSION_442)
+
+    version, calls = _resolve_with(tmp_path, git)
+
+    assert version == "4.4.2"
+    assert not [c for c in calls if "clone" in c]
+    assert ["git", "-C", str(dest), "fetch", "--depth=1", "origin", "main"] in calls
+    assert ["git", "-C", str(dest), "reset", "--hard", "FETCH_HEAD"] in calls
+    # Refresh timer restarted even if VERSION's content didn't change.
+    assert (dest / "VERSION").stat().st_mtime > 0
+
+
+def test_resolve_sdk_source_version_failed_refresh_raises_and_keeps_cache(
+    tmp_path: Path,
+) -> None:
+    dest = _stale_cache(tmp_path)
+
+    with pytest.raises(cv.Invalid, match="Could not resolve host"):
+        _resolve_with(tmp_path, _offline)
+    assert (dest / ".git").is_dir()
+    assert (dest / "VERSION").read_text() == _VERSION_441
+
+
+def test_resolve_sdk_source_version_clones_when_not_cached(tmp_path: Path) -> None:
+    def git(cmd: list[str]) -> None:
+        dest = Path(cmd[-1])
+        (dest / ".git").mkdir(parents=True)
+        (dest / "VERSION").write_text(_VERSION_442)
+
+    version, calls = _resolve_with(tmp_path, git)
+
+    assert version == "4.4.2"
+    assert calls[0][:2] == ["git", "clone"]
+
+
+def test_resolve_sdk_source_version_failed_clone_leaves_no_partial_dir(
+    tmp_path: Path,
+) -> None:
+    dest = tmp_path / _sdk_source_cache_key(_SOURCE["url"], _SOURCE["ref"])
+
+    def git(cmd: list[str]) -> None:
+        Path(cmd[-1]).mkdir(parents=True)
+        _offline(cmd)
+
+    with pytest.raises(cv.Invalid, match="Can't check sdk_source version"):
+        _resolve_with(tmp_path, git)
+    assert not dest.exists()
 
 
 # ---------------------------------------------------------------------------
