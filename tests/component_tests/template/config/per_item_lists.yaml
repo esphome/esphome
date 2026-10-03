@@ -18,6 +18,9 @@ sensor:
     filters:
       - multiply: 2.0
       - offset: 1.0
+      - or:
+          - throttle: 2s
+          - delta: 1.0
 
 binary_sensor:
   - platform: template
@@ -40,7 +43,9 @@ interval:
     then:
       - if:
           condition:
-            lambda: return id(counter) == 0;
+            and:
+              - lambda: return id(counter) == 0;
+              - binary_sensor.is_on: button
           then:
             - lambda: id(counter) += 1;
             - logger.log: even

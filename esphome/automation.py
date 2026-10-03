@@ -654,7 +654,7 @@ async def and_condition_to_code(
 ) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
     return cg.new_Pvariable(
-        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), *conditions
     )
 
 
@@ -667,7 +667,7 @@ async def or_condition_to_code(
 ) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
     return cg.new_Pvariable(
-        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), *conditions
     )
 
 
@@ -680,7 +680,7 @@ async def all_condition_to_code(
 ) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
     return cg.new_Pvariable(
-        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), *conditions
     )
 
 
@@ -693,7 +693,7 @@ async def any_condition_to_code(
 ) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
     return cg.new_Pvariable(
-        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), *conditions
     )
 
 
@@ -717,7 +717,7 @@ async def xor_condition_to_code(
 ) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
     return cg.new_Pvariable(
-        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), *conditions
     )
 
 

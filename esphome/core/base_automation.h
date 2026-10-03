@@ -21,6 +21,9 @@ template<size_t N, typename... Ts> class AndCondition : public Condition<Ts...> 
   explicit AndCondition(std::initializer_list<Condition<Ts...> *> conditions) {
     init_array_from(this->conditions_, conditions);
   }
+  // Codegen passes each condition as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
+  template<typename... Cs>
+  requires(sizeof...(Cs) == N) explicit AndCondition(Cs *...conditions) : conditions_{conditions...} {}
   bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (!condition->check(x...))
@@ -39,6 +42,9 @@ template<size_t N, typename... Ts> class OrCondition : public Condition<Ts...> {
   explicit OrCondition(std::initializer_list<Condition<Ts...> *> conditions) {
     init_array_from(this->conditions_, conditions);
   }
+  // Codegen passes each condition as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
+  template<typename... Cs>
+  requires(sizeof...(Cs) == N) explicit OrCondition(Cs *...conditions) : conditions_{conditions...} {}
   bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (condition->check(x...))
@@ -66,6 +72,9 @@ template<size_t N, typename... Ts> class XorCondition : public Condition<Ts...> 
   explicit XorCondition(std::initializer_list<Condition<Ts...> *> conditions) {
     init_array_from(this->conditions_, conditions);
   }
+  // Codegen passes each condition as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
+  template<typename... Cs>
+  requires(sizeof...(Cs) == N) explicit XorCondition(Cs *...conditions) : conditions_{conditions...} {}
   bool check(const Ts &...x) override {
     size_t result = 0;
     for (auto *condition : this->conditions_) {
@@ -310,10 +319,9 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
  public:
   explicit IfAction(Condition<Ts...> *condition) : condition_(condition) {}
 
-  // Precondition: add_then/add_else must be called at most once per instance.
-  // Codegen always batches the full action list into a single call. Calling
-  // twice would re-append the same inline continuation pointer and form a
-  // self-loop in the next_ chain.
+  // Precondition: add_then/add_else, and likewise finish_then/finish_else, must be called at most
+  // once per instance. Calling either twice re-appends the same inline continuation pointer and
+  // forms a self-loop in the next_ chain.
   void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
     this->then_.add_action(&this->then_continuation_);
