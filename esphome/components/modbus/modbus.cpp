@@ -314,7 +314,7 @@ bool ModbusPeerHub::parse_modbus_client_frame_() {
   // a response immediately. We need to clear the rx buffer first so the response doesn't snag tx_blocked.
   // This requires copying the frame data to a local buffer beforehand.
   const uint16_t pdu_len = frame_length - 3;  // less the address byte and the CRC
-  uint8_t pdu_buffer[MAX_FRAME_SIZE] = {};
+  uint8_t pdu_buffer[MAX_PDU_SIZE] = {};
   std::memcpy(pdu_buffer, this->rx_buffer_.data() + 1, pdu_len);
   std::span<const uint8_t> pdu(pdu_buffer, pdu_len);
   this->clear_rx_buffer_(LOG_STR("parse succeeded"), false, frame_length);
