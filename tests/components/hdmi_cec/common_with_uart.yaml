@@ -1,0 +1,31 @@
+uart:
+  id: cec_uart
+  tx_pin: ${uart_pin}  # has diode to cec pin, with kathode here on uart
+  baud_rate: 38400
+
+hdmi_cec:
+  id: cec
+  pin:   # to HDMI pin 13 (CEC), with HDMI pin 17 (DDC/CEC ground)
+    number: ${cec_pin}
+    mode:
+      input: true
+      pullup: true
+
+  address: 0x5
+  physical_address: 0x4000
+  uart_id: cec_uart
+  promiscuous_mode: true
+  monitor_mode: false
+  on_message:
+    - opcode: 0x8F  # Give Device Power Status
+      then:
+        hdmi_cec.send:
+          destination: 0      # answer to TV
+          data: [0x90, 0x01]  # power is 'standby'
+    - opcode: 0x8C  # Give Device VendorID
+      then:
+        - lambda: |-
+            id(cec).send(0xf, {0x87, 0x00, 0x09, 0xb0}); // broadcast myself as Onkyo
+    - data: [0x44, 0x41]  # Volume Up from TV remote
+      then:
+        - logger.log: "HDMI-CEC Volume Up"
