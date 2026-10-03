@@ -1,6 +1,6 @@
 #include "uart_event.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include <algorithm>
 
 namespace esphome::uart {
 
@@ -12,13 +12,6 @@ void UARTEvent::dump_config() { LOG_EVENT("", "UART Event", this); }
 
 void UARTEvent::loop() { this->read_data_(); }
 
-void UARTEvent::add_event_matcher(const char *event_name, const uint8_t *match_data, size_t match_data_len) {
-  this->matchers_.push_back({event_name, match_data, match_data_len});
-  if (match_data_len > this->max_matcher_len_) {
-    this->max_matcher_len_ = match_data_len;
-  }
-}
-
 void UARTEvent::read_data_() {
   while (this->available()) {
     uint8_t data;
@@ -26,12 +19,18 @@ void UARTEvent::read_data_() {
     this->buffer_.push_back(data);
 
     bool match_found = false;
-    for (const auto &matcher : this->matchers_) {
+    for (uint16_t i = 0; i < this->matcher_count_; i++) {
+      const UARTEventMatcher &matcher = this->matchers_[i];
       if (this->buffer_.size() < matcher.data_len) {
         continue;
       }
 
-      if (std::equal(matcher.data, matcher.data + matcher.data_len, this->buffer_.end() - matcher.data_len)) {
+      const uint8_t *tail = this->buffer_.data() + this->buffer_.size() - matcher.data_len;
+      size_t pos = 0;
+      // The pattern may be in flash, which ESP8266 can only read a byte at a time through progmem_read_byte
+      while (pos < matcher.data_len && progmem_read_byte(matcher.data + pos) == tail[pos])
+        pos++;
+      if (pos == matcher.data_len) {
         this->trigger(matcher.event_name);
         this->buffer_.clear();
         match_found = true;
