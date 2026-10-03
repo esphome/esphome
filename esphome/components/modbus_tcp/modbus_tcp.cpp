@@ -24,18 +24,7 @@ static void note_drop(uint32_t &last_ms, const LogString *message) {
   ESP_LOGW(TAG, "%s", LOG_STR_ARG(message));
 }
 
-void ModbusTcp::dump_config() {
-  // The hub reads these to time its side. They do not set the socket.
-  ESP_LOGCONFIG(TAG,
-                "Modbus TCP:\n"
-                "  Copied for the modbus hub. The socket is not clocked:\n"
-                "  Baud Rate: %u baud\n"
-                "  Data Bits: %u\n"
-                "  Parity: %s\n"
-                "  Stop bits: %u",
-                this->get_baud_rate(), this->get_data_bits(), LOG_STR_ARG(uart::parity_to_str(this->get_parity())),
-                this->get_stop_bits());
-}
+void ModbusTcp::dump_config() { ESP_LOGCONFIG(TAG, "Modbus TCP"); }
 
 bool ModbusTcp::is_connected() { return this->parent_ != nullptr && this->parent_->is_connected(); }
 
