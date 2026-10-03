@@ -5,6 +5,7 @@
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include <vector>
 #include "usb/usb_host.h"
 #include <freertos/FreeRTOS.h>
@@ -12,6 +13,7 @@
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
 #include <atomic>
+#include <span>
 
 namespace esphome::usb_host {
 
@@ -117,6 +119,25 @@ struct UsbEvent {
 
 // callback function type.
 
+// USB string descriptors hold at most 126 characters; one more for the terminator
+static constexpr size_t DESC_STRING_BUF_SIZE = 128;
+
+/// Identity of a connected USB device, copied out of the descriptors the USB host
+/// stack caches for the lifetime of the connection
+struct UsbDeviceInfo {
+  uint16_t vendor_id;
+  uint16_t product_id;
+  uint16_t bcd_device;
+  char manufacturer[DESC_STRING_BUF_SIZE];
+  char product[DESC_STRING_BUF_SIZE];
+  char serial_number[DESC_STRING_BUF_SIZE];
+};
+
+/// Copy a USB string descriptor into a NUL-terminated buffer. A missing descriptor copies as
+/// an empty string. Returns false when when a descriptor contains non-ASCII characters,
+/// UTF-16 to UTF-8 conversion is not currently implemented.
+bool copy_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer);
+
 enum ClientState {
   USB_CLIENT_INIT = 0,
   USB_CLIENT_OPEN,
@@ -144,6 +165,23 @@ class USBClient : public Component {
   bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
                         const std::vector<uint8_t> &data = {});
 
+  /// Whether a device has been opened and its setup by the subclass has finished
+  bool is_connected() const { return this->state_ == USB_CLIENT_CONNECTED; }
+
+  /// Copy the connected device's identity out of the cached USB descriptors.
+  /// Returns false when no device is connected or the host stack refused the query.
+  bool get_device_info(UsbDeviceInfo &info) const;
+
+  /// Register a callback for the device this client claims being connected (true) or
+  /// removed (false). Fires only for a device that was fully opened, so a device another
+  /// client claims is never reported. Called from the main loop: connected once the device
+  /// has been enumerated and the subclass has finished its setup of it (whether or not that
+  /// setup succeeded), removed after on_disconnected() has run. This tracks the device's
+  /// presence, not whether a given channel is usable.
+  template<typename F> void add_on_connection_callback(F &&callback) {
+    this->connection_callback_.add(std::forward<F>(callback));
+  }
+
   // Lock-free event queue and pool for USB task to main loop communication
   // Must be public for access from static callbacks
   LockFreeQueue<UsbEvent, USB_EVENT_QUEUE_SIZE> event_queue;
@@ -161,6 +199,13 @@ class USBClient : public Component {
   TransferRequest *get_trq_();  // Lock-free allocation using atomic bitmask (multi-consumer safe)
   virtual void disconnect();
   virtual void on_connected() {}
+
+  /// Whether the subclass reports the device as connected itself, once its own setup of
+  /// the device has finished, rather than as soon as the device has been opened
+  virtual bool reports_connection_itself() const { return false; }
+  /// Report the claimed device to the connection callbacks. Idempotent; a subclass that
+  /// reports itself calls this once the device is ready to use.
+  void report_connected_();
   virtual void on_disconnected() {
     // Reset all requests to available (all bits to 0)
     this->trq_in_use_.store(0);
@@ -181,8 +226,12 @@ class USBClient : public Component {
   // Bit i = 1: requests_[i] is in use, Bit i = 0: requests_[i] is available
   // Supports multiple concurrent consumers and producers (both threads can allocate/deallocate)
   std::atomic<trq_bitmask_t> trq_in_use_;
+  LazyCallbackManager<void(bool)> connection_callback_;
   uint16_t vid_{};
   uint16_t pid_{};
+  // Whether the connection callbacks were told about the current device, so a removal is
+  // only ever reported for a device that was reported connected
+  bool connection_reported_{false};
 };
 class USBHost final : public Component {
  public:
