@@ -32,6 +32,8 @@ void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
 void GreeClimate::transmit_state() {
   uint8_t remote_state[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00};
   const Model model = this->model_;
+  // YAW1F uses the YAG byte layout with different framing (see below)
+  const bool yag_layout = model == GREE_YAG || model == GREE_YAW1F;
 
   remote_state[0] = this->fan_speed_() | this->operation_mode_();
   remote_state[1] = this->temperature_();
@@ -42,21 +44,21 @@ void GreeClimate::transmit_state() {
     remote_state[4] = this->vertical_swing_();
   }
 
-  if (model == GREE_YX1FF || model == GREE_YAG) {
+  if (model == GREE_YX1FF || yag_layout) {
     remote_state[2] = 0x60;
     remote_state[3] = 0x50;
     remote_state[4] = this->vertical_swing_();
   }
 
-  if (model == GREE_YAG) {
-    remote_state[5] = 0x40;
+  if (yag_layout) {
+    remote_state[5] = model == GREE_YAW1F ? 0x80 : 0x40;
 
     if (this->vertical_swing_() == GREE_VDIR_SWING || this->horizontal_swing_() == GREE_HDIR_SWING) {
       remote_state[0] |= (1 << 6);
     }
   }
 
-  if (model == GREE_YAC || model == GREE_YAG) {
+  if (model == GREE_YAC || yag_layout) {
     remote_state[4] |= (this->horizontal_swing_() << 4);
   }
 
@@ -103,44 +105,54 @@ void GreeClimate::transmit_state() {
   auto *data = transmit.get_data();
   data->set_carrier_frequency(GREE_IR_FREQUENCY);
 
-  data->mark(GREE_HEADER_MARK);
-  if (model == GREE_YAC1FB9) {
-    data->space(GREE_YAC1FB9_HEADER_SPACE);
-  } else {
-    data->space(GREE_HEADER_SPACE);
-  }
-
-  for (int i = 0; i < 4; i++) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(GREE_BIT_MARK);
-      bool bit = remote_state[i] & mask;
-      data->space(bit ? GREE_ONE_SPACE : GREE_ZERO_SPACE);
+  auto encode = [&](const uint8_t *state) {
+    data->mark(GREE_HEADER_MARK);
+    if (model == GREE_YAC1FB9 || model == GREE_YAW1F) {
+      data->space(GREE_YAC1FB9_HEADER_SPACE);
+    } else {
+      data->space(GREE_HEADER_SPACE);
     }
-  }
 
-  data->mark(GREE_BIT_MARK);
-  data->space(GREE_ZERO_SPACE);
-  data->mark(GREE_BIT_MARK);
-  data->space(GREE_ONE_SPACE);
-  data->mark(GREE_BIT_MARK);
-  data->space(GREE_ZERO_SPACE);
-
-  data->mark(GREE_BIT_MARK);
-  if (model == GREE_YAC1FB9) {
-    data->space(GREE_YAC1FB9_MESSAGE_SPACE);
-  } else {
-    data->space(GREE_MESSAGE_SPACE);
-  }
-
-  for (int i = 4; i < 8; i++) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(GREE_BIT_MARK);
-      bool bit = remote_state[i] & mask;
-      data->space(bit ? GREE_ONE_SPACE : GREE_ZERO_SPACE);
+    for (int i = 0; i < 4; i++) {
+      for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
+        data->mark(GREE_BIT_MARK);
+        bool bit = state[i] & mask;
+        data->space(bit ? GREE_ONE_SPACE : GREE_ZERO_SPACE);
+      }
     }
-  }
 
-  data->mark(GREE_BIT_MARK);
+    data->mark(GREE_BIT_MARK);
+    data->space(GREE_ZERO_SPACE);
+    data->mark(GREE_BIT_MARK);
+    data->space(GREE_ONE_SPACE);
+    data->mark(GREE_BIT_MARK);
+    data->space(GREE_ZERO_SPACE);
+
+    data->mark(GREE_BIT_MARK);
+    if (model == GREE_YAC1FB9 || model == GREE_YAW1F) {
+      data->space(GREE_YAC1FB9_MESSAGE_SPACE);
+    } else {
+      data->space(GREE_MESSAGE_SPACE);
+    }
+
+    for (int i = 4; i < 8; i++) {
+      for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
+        data->mark(GREE_BIT_MARK);
+        bool bit = state[i] & mask;
+        data->space(bit ? GREE_ONE_SPACE : GREE_ZERO_SPACE);
+      }
+    }
+
+    data->mark(GREE_BIT_MARK);
+  };
+
+  encode(remote_state);
+  if (model == GREE_YAW1F) {
+    // The YAW1F remote follows every command with a second message, 00 00 00 A0 | 00 00 00 A0
+    static const uint8_t followup[8] = {0x00, 0x00, 0x00, 0xA0, 0x00, 0x00, 0x00, 0xA0};
+    data->space(GREE_YAW1F_FOLLOWUP_SPACE);
+    encode(followup);
+  }
   data->space(0);
 
   transmit.perform();
