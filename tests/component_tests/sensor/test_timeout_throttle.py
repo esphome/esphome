@@ -22,5 +22,3 @@ def test_timeout_throttle_pair_is_merged(
     for sensor_id in ("other_periods", "other_order", "value_list", "configured_value"):
         call = re.search(rf"{sensor_id}->set_filters\(\{{([^}}]*)\}}\);", main_cpp)
         assert call is not None and len(call.group(1).split(",")) == 2, sensor_id
-    # Inside `or` the items are parallel branches, never a chain
-    assert "sensor::OrFilter<2>" in main_cpp

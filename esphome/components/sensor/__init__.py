@@ -1,5 +1,6 @@
 import logging
 import math
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
@@ -300,7 +301,7 @@ ThrottleWithPriorityNanFilter = sensor_ns.class_(
 TimeoutFilterBase = sensor_ns.class_("TimeoutFilterBase", Filter, cg.Component)
 TimeoutFilterLast = sensor_ns.class_("TimeoutFilterLast", TimeoutFilterBase)
 TimeoutFilterConfigured = sensor_ns.class_("TimeoutFilterConfigured", TimeoutFilterBase)
-TimeoutThrottleFilter = sensor_ns.class_("TimeoutThrottleFilter", TimeoutFilterBase)
+TimeoutThrottleFilter = sensor_ns.class_("TimeoutThrottleFilter", TimeoutFilterLast)
 DebounceFilter = sensor_ns.class_("DebounceFilter", Filter)
 HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter)
 DeltaFilter = sensor_ns.class_("DeltaFilter", Filter)
@@ -691,7 +692,9 @@ THROTTLE_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
 )
 
 
-def _is_nan_only(values: list) -> bool:
+def _is_nan_only(values: Any) -> bool:
+    if not isinstance(values, list):
+        values = [values]
     return bool(values) and all(isinstance(v, float) and math.isnan(v) for v in values)
 
 
@@ -963,8 +966,7 @@ def _timeout_throttle_period(
         return None
     if timeout[CONF_VALUE] != "last" or timeout[CONF_TIMEOUT] != throttle[CONF_TIMEOUT]:
         return None
-    values = throttle[CONF_VALUE]
-    if not _is_nan_only(values if isinstance(values, list) else [values]):
+    if not _is_nan_only(throttle[CONF_VALUE]):
         return None
     return timeout[CONF_TIMEOUT]
 

@@ -15,7 +15,7 @@ static const char *const TAG = "sensor.filter";
 
 /// Shared pass check for throttle_with_priority (NaN only): passes and stamps `last_input` when the
 /// period has elapsed, on the first value, or for NaN.
-static inline bool throttle_nan_passes(uint32_t &last_input, uint32_t period, float value) {
+static bool throttle_nan_passes(uint32_t &last_input, uint32_t period, float value) {
   const uint32_t now = App.get_loop_component_start_time();
   if (last_input == 0 || now - last_input >= period || std::isnan(value)) {
     last_input = now;
