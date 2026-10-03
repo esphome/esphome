@@ -196,13 +196,14 @@ struct ProgmemStringRef {
 };
 
 inline bool operator==(const std::string &lhs, ProgmemStringRef rhs) {
-  return lhs.size() == rhs.len && memcmp_P(lhs.data(), rhs.str, rhs.len) == 0;
+  return lhs.size() == rhs.len && (rhs.len == 0 || memcmp_P(lhs.data(), rhs.str, rhs.len) == 0);
 }
 
 inline bool operator!=(const std::string &lhs, ProgmemStringRef rhs) { return !(lhs == rhs); }
 
 inline bool operator==(const StringRef &lhs, ProgmemStringRef rhs) {
-  return lhs.size() == rhs.len && memcmp_P(lhs.c_str(), rhs.str, rhs.len) == 0;
+  // A StringRef may be {nullptr, 0}, and memcmp_P with a null pointer is undefined even for 0 bytes
+  return lhs.size() == rhs.len && (rhs.len == 0 || memcmp_P(lhs.c_str(), rhs.str, rhs.len) == 0);
 }
 
 inline bool operator!=(const StringRef &lhs, ProgmemStringRef rhs) { return !(lhs == rhs); }
