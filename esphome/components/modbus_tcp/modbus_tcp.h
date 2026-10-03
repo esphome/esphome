@@ -12,11 +12,11 @@ class TcpUart;
 namespace esphome::modbus_tcp {
 
 /// RTU toward the modbus hub, Modbus TCP on a raw tcp_uart.
-/// Master side only. A response is delivered once, and only after a request,
+/// Client side only. A response is delivered once, and only after a request,
 /// when it carries that request's transaction id.
 class ModbusTcp : public uart::UARTComponent, public Component {
  public:
-  ModbusTcp() { this->rx_buffer_size_ = RX_BUFFER_SIZE; }
+  ModbusTcp() { this->rx_buffer_size_ = RTU_FRAME_SIZE; }
 
   void set_parent(tcp_uart::TcpUart *parent) { this->parent_ = parent; }
 
@@ -27,7 +27,7 @@ class ModbusTcp : public uart::UARTComponent, public Component {
   void write_array(const uint8_t *data, size_t len) override;
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
-  size_t available() override { return static_cast<size_t>(this->rx_end_ - this->rx_start_); }
+  size_t available() override { return this->rx_len_; }
   size_t available_for_write() override;
   uart::UARTFlushResult flush() override;
   bool is_connected() override;
@@ -39,11 +39,10 @@ class ModbusTcp : public uart::UARTComponent, public Component {
   void check_logger_conflict() override {}
   void read_parent_();
   void deliver_mbap_();
-  void queue_rtu_(const uint8_t *data, size_t len);
   void send_rtu_as_mbap_();
 
-  static constexpr size_t RX_BUFFER_SIZE = 1024;
   static constexpr size_t TCP_FRAME_SIZE = 260;
+  // One RTU frame. The hub reads it before the next request, so nothing else is waiting.
   static constexpr size_t RTU_FRAME_SIZE = 256;
 
   tcp_uart::TcpUart *parent_{nullptr};
@@ -51,13 +50,12 @@ class ModbusTcp : public uart::UARTComponent, public Component {
   uint16_t txn_{0};
   uint16_t tcp_len_{0};
   uint16_t tx_len_{0};
-  uint16_t rx_start_{0};
-  uint16_t rx_end_{0};
+  uint16_t rx_len_{0};
   // Set only after a request is sent. txn_ starts at 0, which is not a request.
   bool txn_pending_{false};
   uint8_t tcp_buf_[TCP_FRAME_SIZE]{};
   uint8_t tx_[RTU_FRAME_SIZE]{};
-  uint8_t rx_[RX_BUFFER_SIZE]{};
+  uint8_t rx_[RTU_FRAME_SIZE]{};
 };
 
 }  // namespace esphome::modbus_tcp

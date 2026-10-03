@@ -25,8 +25,10 @@ static void note_drop(uint32_t &last_ms, const LogString *message) {
 }
 
 void ModbusTcp::dump_config() {
+  // The hub reads these to time its side. They do not set the socket.
   ESP_LOGCONFIG(TAG,
                 "Modbus TCP:\n"
+                "  Copied for the modbus hub. The socket is not clocked:\n"
                 "  Baud Rate: %u baud\n"
                 "  Data Bits: %u\n"
                 "  Parity: %s\n"
@@ -41,8 +43,7 @@ void ModbusTcp::loop() {
   if (!this->is_connected()) {
     this->tcp_len_ = 0;
     this->tx_len_ = 0;
-    this->rx_start_ = 0;
-    this->rx_end_ = 0;
+    this->rx_len_ = 0;
     this->txn_pending_ = false;
     return;
   }
@@ -52,13 +53,35 @@ void ModbusTcp::loop() {
   this->read_parent_();
 }
 
-void ModbusTcp::write_array(const uint8_t *data, size_t len) { this->queue_rtu_(data, len); }
+void ModbusTcp::write_array(const uint8_t *data, size_t len) {
+  // A complete frame is only still here because the transport could not take it.
+  // The hub has moved on, so the next write replaces it instead of appending.
+  if (this->tx_len_ != 0 && rtu_crc_ok(this->tx_, this->tx_len_)) {
+    note_drop(this->last_drop_log_ms_, LOG_STR("Dropping a held Modbus frame"));
+    this->tx_len_ = 0;
+  }
+  size_t before = this->tx_len_;
+  size_t room = sizeof(this->tx_) - this->tx_len_;
+  size_t n = std::min(len, room);
+  std::memcpy(this->tx_ + this->tx_len_, data, n);
+  this->tx_len_ += static_cast<uint16_t>(n);
+  if (n < len) {
+    note_drop(this->last_drop_log_ms_, LOG_STR("RTU frame too long, dropped"));
+    this->tx_len_ = 0;
+    return;
+  }
+  // The hub writes one whole RTU frame and does not flush unless a flow-control
+  // pin is set. A frame that arrives in that one write already carries its CRC.
+  if (before == 0 && rtu_crc_ok(this->tx_, this->tx_len_)) {
+    this->send_rtu_as_mbap_();
+  }
+}
 
 bool ModbusTcp::peek_byte(uint8_t *data) {
-  if (this->rx_start_ == this->rx_end_) {
+  if (this->rx_len_ == 0) {
     return false;
   }
-  *data = this->rx_[this->rx_start_];
+  *data = this->rx_[0];
   return true;
 }
 
@@ -66,8 +89,11 @@ bool ModbusTcp::read_array(uint8_t *data, size_t len) {
   if (this->available() < len) {
     return false;
   }
-  std::memcpy(data, this->rx_ + this->rx_start_, len);
-  this->rx_start_ += static_cast<uint16_t>(len);
+  std::memcpy(data, this->rx_, len);
+  this->rx_len_ = static_cast<uint16_t>(this->rx_len_ - len);
+  if (this->rx_len_ != 0) {
+    std::memmove(this->rx_, this->rx_ + len, this->rx_len_);
+  }
   return true;
 }
 
@@ -130,22 +156,17 @@ void ModbusTcp::deliver_mbap_() {
           break;
         }
         size_t rtu_len = frame.pdu_len + 3;
-        if (this->rx_end_ + rtu_len > RX_BUFFER_SIZE && this->rx_start_ != 0) {
-          this->rx_end_ = static_cast<uint16_t>(this->rx_end_ - this->rx_start_);
-          std::memmove(this->rx_, this->rx_ + this->rx_start_, this->rx_end_);
-          this->rx_start_ = 0;
-        }
-        if (this->rx_end_ + rtu_len > RX_BUFFER_SIZE) {
+        if (static_cast<size_t>(this->rx_len_) + rtu_len > sizeof(this->rx_)) {
           note_drop(this->last_drop_log_ms_, LOG_STR("RX buffer full, dropped the response"));
           break;
         }
-        size_t at = this->rx_end_;
+        size_t at = this->rx_len_;
         this->rx_[at] = frame.unit;
         std::memcpy(this->rx_ + at + 1, frame.pdu, frame.pdu_len);
         uint16_t crc = crc16(this->rx_ + at, static_cast<uint16_t>(frame.pdu_len + 1));
         this->rx_[at + frame.pdu_len + 1] = crc & 0xFF;
         this->rx_[at + frame.pdu_len + 2] = crc >> 8;
-        this->rx_end_ = static_cast<uint16_t>(at + rtu_len);
+        this->rx_len_ = static_cast<uint16_t>(at + rtu_len);
         this->txn_pending_ = false;
         break;
       }
@@ -161,30 +182,6 @@ void ModbusTcp::deliver_mbap_() {
   this->tcp_len_ = static_cast<uint16_t>(this->tcp_len_ - pos);
   if (this->tcp_len_ != 0) {
     std::memmove(this->tcp_buf_, this->tcp_buf_ + pos, this->tcp_len_);
-  }
-}
-
-void ModbusTcp::queue_rtu_(const uint8_t *data, size_t len) {
-  // A complete frame is only still here because the transport could not take it.
-  // The hub has moved on, so the next write replaces it instead of appending.
-  if (this->tx_len_ != 0 && rtu_crc_ok(this->tx_, this->tx_len_)) {
-    note_drop(this->last_drop_log_ms_, LOG_STR("Dropping a held Modbus frame"));
-    this->tx_len_ = 0;
-  }
-  size_t before = this->tx_len_;
-  size_t room = sizeof(this->tx_) - this->tx_len_;
-  size_t n = std::min(len, room);
-  std::memcpy(this->tx_ + this->tx_len_, data, n);
-  this->tx_len_ += static_cast<uint16_t>(n);
-  if (n < len) {
-    note_drop(this->last_drop_log_ms_, LOG_STR("RTU frame too long, dropped"));
-    this->tx_len_ = 0;
-    return;
-  }
-  // The hub writes one whole RTU frame and does not flush unless a flow-control
-  // pin is set. A frame that arrives in that one write already carries its CRC.
-  if (before == 0 && rtu_crc_ok(this->tx_, this->tx_len_)) {
-    this->send_rtu_as_mbap_();
   }
 }
 
