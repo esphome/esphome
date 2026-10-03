@@ -46,7 +46,7 @@ BatchClose close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size
 
 #endif  // USE_BLUETOOTH_PROXY_CONNECTIONS
 
-#if defined(USE_ESP32) && defined(USE_BLE_GATT_CLIENT)
+#if defined(USE_ESP32_BLE) && defined(USE_BLE_GATT_CLIENT)
 namespace esphome::bluetooth_connection {
 
 // Address-scoped Bluedroid maintenance. Gated with the connection surface:
@@ -65,4 +65,4 @@ conn_err_t clear_gatt_cache(uint64_t address) {
 }
 
 }  // namespace esphome::bluetooth_connection
-#endif  // USE_ESP32 && USE_BLE_GATT_CLIENT
+#endif  // USE_ESP32_BLE && USE_BLE_GATT_CLIENT
