@@ -1,0 +1,29 @@
+modbus_gateway:
+  - id: gate
+    uart_id: uart_bus
+    response_timeout: 500ms
+    cache_time: 200ms
+    ports:
+      - uart_id: inverter_bus
+        cache: false
+      - id: local_bus
+
+modbus:
+  - id: local_hub
+    uart_id: local_bus
+    role: client
+    send_wait_time: 200ms
+
+modbus_controller:
+  - id: bms_view
+    modbus_id: local_hub
+    address: 1
+    update_interval: 60s
+
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: bms_view
+    name: SOC
+    register_type: holding
+    address: 0
+    value_type: U_WORD
