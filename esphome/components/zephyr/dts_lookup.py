@@ -679,7 +679,10 @@ def _build_edt(board: str, zephyr_base: Path, shields: list[str], snippets: list
         f.write("\n".join(f'#include "{path}"' for path in raw_files))
         wrapper_path = Path(f.name)
 
-    preprocessed = _preprocess_dts_file(wrapper_path, zephyr_base, [str(board_dir)])
+    try:
+        preprocessed = _preprocess_dts_file(wrapper_path, zephyr_base, [str(board_dir)])
+    finally:
+        wrapper_path.unlink(missing_ok=True)
 
     with tempfile.NamedTemporaryFile(
         suffix=".dts", mode="w", delete=False, encoding="utf-8"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import tempfile
 
 import pytest
 
@@ -1417,3 +1418,25 @@ def test_get_edt_no_warning_without_dts_base(
     CORE.data[KEY_ZEPHYR] = _empty_zd()
     assert _get_edt("my_board") is None
     assert "Can't read board" not in caplog.text
+
+
+def test_get_edt_leaves_no_temp_files(monkeypatch, tmp_path: Path) -> None:
+    """Both the cpp wrapper and its output are removed, on success and on failure."""
+    _board_tree(tmp_path)
+    temp_dir = tmp_path / "tmp"
+    temp_dir.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(temp_dir))
+    monkeypatch.setattr(dts_lookup, "_load_edtlib", _fake_edtlib(lambda *a, **k: 1))
+
+    monkeypatch.setattr(dts_lookup, "_preprocess_dts_file", _fake_preprocess_dts_file)
+    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    assert _get_edt("my_board") == 1
+    assert not list(temp_dir.iterdir())
+
+    monkeypatch.undo()
+    monkeypatch.setattr(tempfile, "tempdir", str(temp_dir))
+    monkeypatch.setattr(dts_lookup, "_load_edtlib", _fake_edtlib(lambda *a, **k: 1))
+    monkeypatch.setattr(dts_lookup, "_find_cpp", lambda: None)
+    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    assert _get_edt("my_board") is None
+    assert not list(temp_dir.iterdir())
