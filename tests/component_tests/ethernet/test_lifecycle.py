@@ -66,11 +66,21 @@ class EthernetLifecycleTest(unittest.TestCase):
                     ["xcrun", "--sdk", "macosx", "--show-sdk-path"], text=True
                 ).strip()
                 command.extend(["-isystem", str(Path(sdk) / "usr/include/c++/v1")])
-            result = subprocess.run(
-                [*command, str(cpp), "-o", str(binary)],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            subprocess.run([str(binary)], check=True, timeout=15)
+            for triggers in (False, True):
+                with self.subTest(triggers=triggers):
+                    flags = (
+                        [
+                            "-DUSE_ETHERNET_CONNECT_TRIGGER",
+                            "-DUSE_ETHERNET_DISCONNECT_TRIGGER",
+                        ]
+                        if triggers
+                        else []
+                    )
+                    result = subprocess.run(
+                        [*command, *flags, str(cpp), "-o", str(binary)],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    subprocess.run([str(binary)], check=True, timeout=15)

@@ -126,12 +126,8 @@ void EthernetComponent::log_error_and_mark_failed_(esp_err_t err, const char *me
   }
 
 void EthernetComponent::loop() {
-  if (this->pending_enable_) {
-    if (!this->driver_stopped_.load(std::memory_order_acquire)) {
-      return;
-    }
-    this->pending_enable_ = false;
-    this->enable();
+  if (this->pending_enable_ && !this->driver_stopped_.load(std::memory_order_acquire)) {
+    return;
   }
   const uint32_t now = App.get_loop_component_start_time();
 
@@ -182,6 +178,12 @@ void EthernetComponent::loop() {
         this->disable_loop();
       }
       break;
+  }
+
+  // Process the stopped connection and its automation before consuming the restart intent.
+  // An on_disconnect action may cancel the pending enable or start the driver itself.
+  if (this->pending_enable_ && this->driver_stopped_.load(std::memory_order_acquire)) {
+    this->enable();
   }
 }
 
@@ -550,7 +552,7 @@ void EthernetComponent::ethernet_lazy_init_() {
 void EthernetComponent::enable() {
   if (!this->disabled_)
     return;
-  if (!this->driver_stopped_.load(std::memory_order_acquire)) {
+  if (!this->driver_stopped_.load(std::memory_order_acquire) || this->state_ != EthernetComponentState::STOPPED) {
     this->pending_enable_ = true;
     this->enable_loop();
     return;
