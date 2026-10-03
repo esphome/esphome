@@ -109,6 +109,42 @@ static void invalidate_entity(switch_::Switch *entity) {
 
 // clang-format off
 const SimpleSensorInfo OpenTherm42Hub::SIMPLE_SENSORS[] = {
+    {RequestKind::RELATIVE_MODULATION_LEVEL, 17, SimpleValueKind::F88, &OpenTherm42Hub::relative_modulation_level_sensor_, "Relative Modulation Level (id=17)"},
+    {RequestKind::CH_WATER_PRESSURE, 18, SimpleValueKind::F88, &OpenTherm42Hub::ch_water_pressure_sensor_, "CH water pressure (id=18)"},
+    {RequestKind::DHW_FLOW_RATE, 19, SimpleValueKind::F88, &OpenTherm42Hub::dhw_flow_rate_sensor_, "DHW flow rate (id=19)"},
+    {RequestKind::BOILER_WATER_TEMPERATURE, 25, SimpleValueKind::F88, &OpenTherm42Hub::boiler_water_temperature_sensor_, "Boiler water temp. (id=25)"},
+    {RequestKind::DHW_TEMPERATURE, 26, SimpleValueKind::F88, &OpenTherm42Hub::dhw_temperature_sensor_, "DHW temperature (id=26)"},
+    {RequestKind::RETURN_WATER_TEMPERATURE, 28, SimpleValueKind::F88, &OpenTherm42Hub::return_water_temperature_sensor_, "Return water temperature (id=28)"},
+    {RequestKind::SOLAR_STORAGE_TEMPERATURE, 29, SimpleValueKind::F88, &OpenTherm42Hub::solar_storage_temperature_sensor_, "Solar storage temperature (id=29)"},
+    {RequestKind::SOLAR_COLLECTOR_TEMPERATURE, 30, SimpleValueKind::S16, &OpenTherm42Hub::solar_collector_temperature_sensor_, "Solar collector temperature (id=30)"},
+    {RequestKind::FLOW_TEMPERATURE_CH2, 31, SimpleValueKind::F88, &OpenTherm42Hub::flow_temperature_ch2_sensor_, "Flow temperature CH2 (id=31)"},
+    {RequestKind::DHW2_TEMPERATURE, 32, SimpleValueKind::F88, &OpenTherm42Hub::dhw2_temperature_sensor_, "DHW2 temperature (id=32)"},
+    {RequestKind::EXHAUST_TEMPERATURE, 33, SimpleValueKind::S16, &OpenTherm42Hub::exhaust_temperature_sensor_, "Exhaust temperature (id=33)"},
+    {RequestKind::BOILER_HEAT_EXCHANGER_TEMPERATURE, 34, SimpleValueKind::F88, &OpenTherm42Hub::boiler_heat_exchanger_temperature_sensor_, "Boiler heat exchanger temperature (id=34)"},
+    {RequestKind::FLAME_CURRENT, 36, SimpleValueKind::F88, &OpenTherm42Hub::flame_current_sensor_, "Flame current (id=36)"},
+    {RequestKind::RELATIVE_VENTILATION, 77, SimpleValueKind::U8_LB, &OpenTherm42Hub::relative_ventilation_sensor_, "Relative ventilation (id=77)"},
+    {RequestKind::SUPPLY_INLET_TEMPERATURE, 80, SimpleValueKind::F88, &OpenTherm42Hub::supply_inlet_temperature_sensor_, "Supply inlet temperature (id=80)"},
+    {RequestKind::SUPPLY_OUTLET_TEMPERATURE, 81, SimpleValueKind::F88, &OpenTherm42Hub::supply_outlet_temperature_sensor_, "Supply outlet temperature (id=81)"},
+    {RequestKind::EXHAUST_INLET_TEMPERATURE, 82, SimpleValueKind::F88, &OpenTherm42Hub::exhaust_inlet_temperature_sensor_, "Exhaust inlet temperature (id=82)"},
+    {RequestKind::EXHAUST_OUTLET_TEMPERATURE, 83, SimpleValueKind::F88, &OpenTherm42Hub::exhaust_outlet_temperature_sensor_, "Exhaust outlet temperature (id=83)"},
+    {RequestKind::ACTUAL_EXHAUST_FAN_SPEED, 84, SimpleValueKind::U16, &OpenTherm42Hub::actual_exhaust_fan_speed_sensor_, "Actual exhaust fan speed (id=84)"},
+    {RequestKind::ACTUAL_INLET_FAN_SPEED, 85, SimpleValueKind::U16, &OpenTherm42Hub::actual_inlet_fan_speed_sensor_, "Actual inlet fan speed (id=85)"},
+    {RequestKind::COOLING_OPERATION_HOURS, 96, SimpleValueKind::U16, &OpenTherm42Hub::cooling_operation_hours_sensor_, "Cooling Operation hours (id=96)"},
+    {RequestKind::POWER_CYCLES, 97, SimpleValueKind::U16, &OpenTherm42Hub::power_cycles_sensor_, "Power Cycles (id=97)"},
+    {RequestKind::ELECTRICITY_PRODUCER_STARTS, 109, SimpleValueKind::U16, &OpenTherm42Hub::electricity_producer_starts_sensor_, "Electricity producer starts (id=109)"},
+    {RequestKind::ELECTRICITY_PRODUCER_HOURS, 110, SimpleValueKind::U16, &OpenTherm42Hub::electricity_producer_hours_sensor_, "Electricity producer hours (id=110)"},
+    {RequestKind::ELECTRICITY_PRODUCTION, 111, SimpleValueKind::U16, &OpenTherm42Hub::electricity_production_sensor_, "Electricity production (id=111)"},
+    {RequestKind::CUMULATIVE_ELECTRICITY_PRODUCTION, 112, SimpleValueKind::U16, &OpenTherm42Hub::cumulative_electricity_production_sensor_, "Cumulative Electricity production (id=112)"},
+    {RequestKind::NUMBER_OF_UNSUCCESSFUL_BURNER_STARTS, 113, SimpleValueKind::U16, &OpenTherm42Hub::number_of_unsuccessful_burner_starts_sensor_, "Number of un-successful burner starts (id=113)"},
+    {RequestKind::NUMBER_OF_TIMES_FLAME_SIGNAL_TOO_LOW, 114, SimpleValueKind::U16, &OpenTherm42Hub::number_of_times_flame_signal_too_low_sensor_, "Number of times flame signal was too low (id=114)"},
+    {RequestKind::SUCCESSFUL_BURNER_STARTS, 116, SimpleValueKind::U16, &OpenTherm42Hub::successful_burner_starts_sensor_, "Successful Burner starts (id=116)"},
+    {RequestKind::CH_PUMP_STARTS, 117, SimpleValueKind::U16, &OpenTherm42Hub::ch_pump_starts_sensor_, "CH pump starts (id=117)"},
+    {RequestKind::DHW_PUMP_VALVE_STARTS, 118, SimpleValueKind::U16, &OpenTherm42Hub::dhw_pump_valve_starts_sensor_, "DHW pump/valve starts (id=118)"},
+    {RequestKind::DHW_BURNER_STARTS, 119, SimpleValueKind::U16, &OpenTherm42Hub::dhw_burner_starts_sensor_, "DHW burner starts (id=119)"},
+    {RequestKind::BURNER_OPERATION_HOURS, 120, SimpleValueKind::U16, &OpenTherm42Hub::burner_operation_hours_sensor_, "Burner operation hours (id=120)"},
+    {RequestKind::CH_PUMP_OPERATION_HOURS, 121, SimpleValueKind::U16, &OpenTherm42Hub::ch_pump_operation_hours_sensor_, "CH pump operation hours (id=121)"},
+    {RequestKind::DHW_PUMP_VALVE_OPERATION_HOURS, 122, SimpleValueKind::U16, &OpenTherm42Hub::dhw_pump_valve_operation_hours_sensor_, "DHW pump/valve operation hours (id=122)"},
+    {RequestKind::DHW_BURNER_OPERATION_HOURS, 123, SimpleValueKind::U16, &OpenTherm42Hub::dhw_burner_operation_hours_sensor_, "DHW burner operation hours (id=123)"},
     {RequestKind::NUMBER_OF_TSPS, 10, SimpleValueKind::U8_HB, &OpenTherm42Hub::number_of_tsps_sensor_, "Number of TSP's (id=10)"},
     {RequestKind::NUMBER_OF_TSPS_VENTILATION, 88, SimpleValueKind::U8_HB, &OpenTherm42Hub::number_of_tsps_ventilation_sensor_, "Number of TSP's ventilation/heat-recovery (id=88)"},
     {RequestKind::NUMBER_OF_TSPS_SOLAR_STORAGE, 105, SimpleValueKind::U8_HB, &OpenTherm42Hub::number_of_tsps_solar_storage_sensor_, "Number of TSP's Solar Storage (id=105)"},
@@ -333,6 +369,9 @@ void OpenTherm42Hub::build_schedule_() {
     this->add_entry_(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE);
   }
 
+  if (this->boiler_fan_speed_setpoint_sensor_ != nullptr || this->boiler_fan_speed_sensor_ != nullptr) {
+    this->add_entry_(RequestKind::BOILER_FAN_SPEED);
+  }
   // Every plain read-only sensor: scheduled if its entity is configured, at whatever cadence
   // set_simple_sensor_update_every() staged for its id (see pending_simple_sensor_update_every_'s
   // declaration comment), falling back to the default (every pass) if none was staged
@@ -411,6 +450,19 @@ Frame OpenTherm42Hub::build_next_request_() {
     frame.value_hb = slot.index;
     frame.value_lb = this->tsp_write_value_;
     this->log_outgoing_frame_(frame);
+    return frame;
+  }
+  if (this->reset_counter_pending_) {
+    this->reset_counter_pending_ = false;
+    const SimpleSensorInfo *info = this->find_simple_sensor_by_id_(this->reset_counter_data_id_);
+    Frame frame{};
+    if (info != nullptr) {
+      this->pending_request_kind_ = info->kind;
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = info->id;
+      frame.set_value_u16(0);
+      this->log_outgoing_frame_(frame);
+    }
     return frame;
   }
   // ASAP: a dirty write jumps the queue immediately, ahead of the ordinary pass-pull below -- see
@@ -557,6 +609,11 @@ Frame OpenTherm42Hub::build_entry_request_(RequestKind kind) {
       break;
     case RequestKind::REMOTE_REQUEST:
       break;  // built directly in build_next_request_() before this switch, unreachable here
+
+    case RequestKind::BOILER_FAN_SPEED:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 35;
+      break;
 
     case RequestKind::TSP:
       // Only reached for the periodic-read rotation -- on-demand writes are intercepted by the
@@ -1212,6 +1269,25 @@ bool OpenTherm42Hub::handle_response_feeds_and_time_(const Frame &frame, Message
 
 bool OpenTherm42Hub::handle_response_setpoints_and_parameters_(const Frame &frame, MessageType type) {
   switch (this->pending_request_kind_) {
+    case RequestKind::BOILER_FAN_SPEED:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::BOILER_FAN_SPEED, type);
+        OT42_LOG_REJECTION(invalidate_now, "Boiler fan speed (id=35) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::BOILER_FAN_SPEED);
+        }
+        return true;
+      }
+      // §5.3.4 ID 35: wire value is in Hz (RPM/60); convert to RPM to match the sensor's unit.
+      if (this->boiler_fan_speed_setpoint_sensor_ != nullptr) {
+        this->boiler_fan_speed_setpoint_sensor_->publish_state(frame.value_hb * 60);
+      }
+      if (this->boiler_fan_speed_sensor_ != nullptr) {
+        this->boiler_fan_speed_sensor_->publish_state(frame.value_lb * 60);
+      }
+      return true;
+
     case RequestKind::TSP: {
       // Deliberately not gated by should_invalidate_now_(): every TSP slot shares this one
       // RequestKind, so a single per-kind last-success timestamp can't tell which specific slot most
@@ -1523,6 +1599,15 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       }
       return;
 
+    case RequestKind::BOILER_FAN_SPEED:
+      if (this->boiler_fan_speed_setpoint_sensor_ != nullptr) {
+        invalidate_entity(this->boiler_fan_speed_setpoint_sensor_);
+      }
+      if (this->boiler_fan_speed_sensor_ != nullptr) {
+        invalidate_entity(this->boiler_fan_speed_sensor_);
+      }
+      return;
+
     case RequestKind::TSP:
       if (this->pending_tsp_slot_index_ < this->tsp_slots_.size()) {
         number::Number *tsp_number = this->tsp_slots_[this->pending_tsp_slot_index_].number;
@@ -1606,6 +1691,8 @@ static const char *bespoke_request_kind_name(RequestKind kind) {
       return "Brand version (id=94)";
     case RequestKind::BRAND_SERIAL_NUMBER:
       return "Brand serial number (id=95)";
+    case RequestKind::BOILER_FAN_SPEED:
+      return "Boiler fan speed (id=35)";
     default:
       return nullptr;
   }
