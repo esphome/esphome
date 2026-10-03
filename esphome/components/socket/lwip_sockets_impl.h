@@ -84,6 +84,9 @@ class LwIPSocketImpl {
 
   int get_fd() const { return this->fd_; }
 
+  /// UDP rx drop counter parity with LWIPRawUDPImpl; drops are not counted here.
+  uint16_t get_rx_dropped() const { return 0; }
+
  protected:
   // fd_ < 0 means "not open" — used both pre-open (initial state) and post-close. This
   // replaces a separate closed_ flag: close() sets fd_ = -1 after lwip_close(), and the
