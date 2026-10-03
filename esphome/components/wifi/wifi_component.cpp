@@ -1653,6 +1653,13 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     // Refresh is_connected() cache; loop()'s refresh ran before this transition.
     this->update_connected_state_();
+
+#ifdef USE_LIBRETINY
+    // start() applies power save before the interface is up, which Beken ignores
+    if (!this->wifi_apply_power_save_()) {
+      ESP_LOGV(TAG, "Setting Power Save Option failed");
+    }
+#endif
     this->num_retried_ = 0;
     this->print_connect_params_();
 
