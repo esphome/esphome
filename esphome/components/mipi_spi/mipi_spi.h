@@ -194,7 +194,7 @@ class MipiSpi : public display::Display,
       }
     }
     this->reset_params_();
-    // init sequence no longer needed
+    // Marks init as done, so later commands log at verbose level instead of debug
     this->init_sequence_len_ = 0;
   }
 
