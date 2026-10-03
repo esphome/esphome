@@ -121,20 +121,21 @@ void MipiDsi::setup() {
     return;
   }
   size_t index = 0;
-  auto &vec = this->init_sequence_;
-  while (index != vec.size()) {
-    if (vec.size() - index < 2) {
+  const uint8_t *seq = this->init_sequence_;
+  const size_t len = this->init_sequence_len_;
+  while (index != len) {
+    if (len - index < 2) {
       this->mark_failed(LOG_STR("Malformed init sequence"));
       return;
     }
-    uint8_t cmd = vec[index++];
-    uint8_t x = vec[index++];
+    uint8_t cmd = seq[index++];
+    uint8_t x = seq[index++];
     if (x == DELAY_FLAG) {
       ESP_LOGD(TAG, "Delay %dms", cmd);
       delay(cmd);
     } else {
       uint8_t num_args = x & 0x7F;
-      if (vec.size() - index < num_args) {
+      if (len - index < num_args) {
         this->mark_failed(LOG_STR("Malformed init sequence"));
         return;
       }
@@ -145,13 +146,15 @@ void MipiDsi::setup() {
           delay(duration);
         }
       }
-      const auto *ptr = vec.data() + index;
+      // The sequence is in flash; hand the driver a RAM copy
+      uint8_t args[0x80];
+      memcpy(args, seq + index, num_args);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
       char hex_buf[format_hex_pretty_size(MIPI_DSI_MAX_CMD_LOG_BYTES)];
 #endif
       ESP_LOGVV(TAG, "Command %02X, length %d, byte(s) %s", cmd, num_args,
-                format_hex_pretty_to(hex_buf, ptr, num_args, '.'));
-      err = esp_lcd_panel_io_tx_param(this->io_handle_, cmd, ptr, num_args);
+                format_hex_pretty_to(hex_buf, args, num_args, '.'));
+      err = esp_lcd_panel_io_tx_param(this->io_handle_, cmd, args, num_args);
       if (err != ESP_OK) {
         this->smark_failed(LOG_STR("lcd_panel_io_tx_param failed"), err);
         return;

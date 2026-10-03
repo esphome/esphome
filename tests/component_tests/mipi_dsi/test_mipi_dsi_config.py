@@ -201,7 +201,8 @@ def test_code_generation(
         "new(p4_nano) mipi_dsi::MipiDsi(800, 1280, display::COLOR_BITNESS_565, 16);"
         in main_cpp
     )
-    assert "set_init_sequence({224, 1, 0, 225, 1, 147, 226, 1," in main_cpp
+    assert "PROGMEM = {224, 1, 0, 225, 1, 147, 226, 1," in main_cpp
+    assert "p4_nano->set_init_sequence(mipi_dsi_init_sequence" in main_cpp
     assert "p4_nano->set_lane_bit_rate(1500.0f);" in main_cpp
     assert "p4_nano->set_rotation(display::DISPLAY_ROTATION_90_DEGREES);" in main_cpp
     assert "p4_86->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);" not in main_cpp
