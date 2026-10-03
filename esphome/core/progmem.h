@@ -57,17 +57,6 @@ std::string progmem_string(ProgmemStr str);
 inline std::string progmem_string(ProgmemStr str) { return std::string(str); }
 #endif
 
-#ifdef USE_ESP8266
-/// A string literal in flash with its byte length, compared against a RAM string without a copy.
-struct ProgmemStringRef {
-  PGM_P str;
-  size_t len;
-};
-inline bool operator==(const std::string &lhs, ProgmemStringRef rhs) {
-  return lhs.size() == rhs.len && memcmp_P(lhs.data(), rhs.str, rhs.len) == 0;
-}
-#endif
-
 /// Helper for C++20 string literal template arguments
 template<size_t N> struct FixedString {
   char data[N]{};

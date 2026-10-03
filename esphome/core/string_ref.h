@@ -188,6 +188,18 @@ inline bool operator==(const __FlashStringHelper *lhs, const StringRef &rhs) { r
 inline bool operator!=(const StringRef &lhs, const __FlashStringHelper *rhs) { return !(lhs == rhs); }
 
 inline bool operator!=(const __FlashStringHelper *lhs, const StringRef &rhs) { return !(rhs == lhs); }
+
+/// Codegen use only: a flash string literal with its byte length, compared without a runtime strlen.
+struct ProgmemStringRef {
+  PGM_P str;
+  size_t len;
+};
+
+inline bool operator==(const std::string &lhs, ProgmemStringRef rhs) {
+  return lhs.size() == rhs.len && memcmp_P(lhs.data(), rhs.str, rhs.len) == 0;
+}
+
+inline bool operator!=(const std::string &lhs, ProgmemStringRef rhs) { return !(lhs == rhs); }
 #endif  // USE_ESP8266
 
 inline bool operator<(const StringRef &lhs, const StringRef &rhs) {

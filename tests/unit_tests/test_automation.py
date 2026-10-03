@@ -957,30 +957,24 @@ async def test_apply_condition_compares_config_value(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("platform", "expected"),
+    ("platform", "value", "expected"),
     [
-        ("esp32", '"two"'),
-        ("esp8266", '::esphome::ProgmemStringRef{PSTR("two"), 3}'),
+        ("esp32", "two", '"two"'),
+        ("esp8266", "two", '::esphome::ProgmemStringRef{PSTR("two"), 3}'),
+        # The length is in bytes, not characters
+        ("esp8266", "é", '::esphome::ProgmemStringRef{PSTR("\\303\\251"), 2}'),
     ],
 )
 async def test_apply_condition_string_constant(
     registries: tuple[Registry, Registry],
     mock_cg: MockCodegen,
     platform: str,
+    value: str,
     expected: str,
 ) -> None:
     check = ApplyCall("state == {}", (("state", cg.std_string),))
-    await _run_apply_condition(registries, check, {"state": "two"}, platform=platform)
+    await _run_apply_condition(registries, check, {"state": value}, platform=platform)
     assert f"return ::{PARENT_OBJ}->state == {expected};" in _apply_definition(mock_cg)
-
-
-@pytest.mark.asyncio
-async def test_apply_condition_string_constant_length_is_bytes(
-    registries: tuple[Registry, Registry], mock_cg: MockCodegen
-) -> None:
-    check = ApplyCall("state == {}", (("state", cg.std_string),))
-    await _run_apply_condition(registries, check, {"state": "é"}, platform="esp8266")
-    assert ", 2};" in _apply_definition(mock_cg)
 
 
 @pytest.mark.asyncio

@@ -231,6 +231,16 @@ def flash_compare(config: ConfigType, value: str) -> str:
     return str(cg.safe_exp(value))
 
 
+def _default_std_string(
+    members: list[tuple[str, Any, Any]], renderer: Callable[[ConfigType, str], str]
+) -> list[tuple[str, Any, Any]]:
+    """Give ``cg.std_string`` members without a renderer the given default."""
+    return [
+        (key, t, fn or (renderer if t is cg.std_string else None))
+        for key, t, fn in members
+    ]
+
+
 def literal_with_length(config: ConfigType, value: str) -> str:
     """Renderer for a ``(const char *, size_t)`` target: a plain literal plus its byte length.
 
@@ -434,10 +444,7 @@ def register_apply_action(
     statements_spec = [
         (
             c.target,
-            [
-                (key, t, fn or (flash_string if t is cg.std_string else None))
-                for key, t, fn in c.members
-            ],
+            _default_std_string(c.members, flash_string),
         )
         for c in (f if isinstance(f, ApplyCall) else f.call() for f in fields)
     ]
@@ -485,15 +492,12 @@ def register_apply_condition(
     ``check`` is applied to the parent: ``"is_playing()"`` becomes ``parent->is_playing()``; an
     ``ApplyCall`` such as ``ApplyCall("state == {}", ((CONF_STATE, cg.bool_),))`` compares
     against config values, all of which must be present. Write ``== false`` to negate.
-    A ``cg.std_string`` constant compares with ``==`` against a ``std::string`` and stays in
-    flash on ESP8266; other string types are plain literals.
+    A ``cg.std_string`` constant stays in flash on ESP8266 and supports only ``==`` or ``!=``
+    against a ``std::string`` member; other string types are plain literals.
     Generates one static predicate and an ``ApplyCondition`` templated on it.
     """
     call = check if isinstance(check, ApplyCall) else ApplyCall(check)
-    members = [
-        (key, t, fn or (flash_compare if t is cg.std_string else None))
-        for key, t, fn in call.members
-    ]
+    members = _default_std_string(call.members, flash_compare)
     _check_key_in_schema(name, schema, id_key)
     for conf_key, _, _ in members:
         _check_key_in_schema(name, schema, conf_key)
