@@ -22,6 +22,7 @@ struct NumberRange {
 static_assert(std::is_same_v<decltype(NumberRange::min_value), float>, "NumberRange fields must stay float");
 static_assert(std::is_same_v<decltype(NumberRange::max_value), float>, "NumberRange fields must stay float");
 static_assert(std::is_same_v<decltype(NumberRange::step), float>, "NumberRange fields must stay float");
+static_assert(sizeof(NumberRange) == 3 * sizeof(float), "NumberRange is read from flash with word loads");
 
 class NumberTraits {
  public:
