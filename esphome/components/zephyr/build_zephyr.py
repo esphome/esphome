@@ -224,6 +224,22 @@ def generate_cmake_lists(mode: str) -> bool:
     )
 
 
+def _module_revision(
+    python_executable: Path, framework_path: Path, env: dict, module: str
+) -> str | None:
+    """The commit `module` is pinned to in this workspace, or None if west can't say."""
+    result = subprocess.run(
+        [str(python_executable), "-m", "west", "list", module, "-f", "{sha}"],
+        env=env,
+        cwd=str(framework_path),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    revision = result.stdout.strip()
+    return revision if result.returncode == 0 and revision else None
+
+
 def run_west_blobs_fetch(
     python_executable: Path,
     framework_path: Path,
@@ -232,15 +248,20 @@ def run_west_blobs_fetch(
     allow_regex: str,
     sentinel_name: str,
 ) -> None:
-    """Fetch west blobs for a HAL module, gated on a per-SDK sentinel file.
+    """Fetch west blobs for a HAL module once per module revision.
 
-    Uses --allow-regex to limit the download to the relevant chip's blobs
+    The sentinel records the module revision the blobs were fetched for, so a
+    `west update` that moves the module (e.g. a moving framework: source:) fetches
+    again. Uses --allow-regex to limit the download to the relevant chip's blobs
     and --auto-accept to skip interactive license prompts.
-    The sentinel lives next to the framework's .ready file so the fetch
-    only runs once per SDK install, not on every compile.
     """
     sentinel = framework_path / sentinel_name
-    if sentinel.exists():
+    revision = _module_revision(python_executable, framework_path, env, module)
+    if (
+        revision is not None
+        and sentinel.is_file()
+        and sentinel.read_text().strip() == revision
+    ):
         return
     _LOGGER.info("Fetching %s binary blobs matching '%s' ...", module, allow_regex)
     cmd = [
@@ -256,7 +277,7 @@ def run_west_blobs_fetch(
     ]
     if not run_command_ok(cmd, env=env, cwd=str(framework_path)):
         raise EsphomeError(f"Failed to fetch {module} binary blobs")
-    sentinel.touch()
+    sentinel.write_text(revision or "")
 
 
 def run_west_build(

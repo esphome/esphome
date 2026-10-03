@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import tempfile
 
 import pytest
 
@@ -1351,3 +1352,91 @@ def test_validate_board_revision_returns_none_for_board_without_revisions(
     )
     CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
     assert validate_board_revision("my_board@1.0.0") is None
+
+
+# ---------------------------------------------------------------------------
+# _get_edt -- one warning naming why the devicetree couldn't be read
+# ---------------------------------------------------------------------------
+
+
+def _board_tree(tmp_path: Path) -> None:
+    board = tmp_path / "boards" / "espressif" / "my_board"
+    board.mkdir(parents=True)
+    (board / "my_board.dts").write_text("/ { };")
+
+
+def _fake_edtlib(ctor):
+    return lambda base: type("_FakeEdtlib", (), {"EDT": staticmethod(ctor)})
+
+
+def test_get_edt_warns_once_when_cpp_missing(
+    monkeypatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    _board_tree(tmp_path)
+    monkeypatch.setattr(dts_lookup, "_find_cpp", lambda: None)
+    monkeypatch.setattr(dts_lookup, "_load_edtlib", _fake_edtlib(lambda *a, **k: 1))
+    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+
+    assert _get_edt("my_board") is None
+    assert _get_edt("my_board") is None
+
+    warnings = [r for r in caplog.records if "Can't read board" in r.message]
+    assert len(warnings) == 1
+    assert "C preprocessor 'cpp' not found" in warnings[0].message
+
+
+def test_get_edt_warns_when_board_not_found(
+    monkeypatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    (tmp_path / "boards").mkdir()
+    monkeypatch.setattr(dts_lookup, "_load_edtlib", _fake_edtlib(lambda *a, **k: 1))
+    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+
+    assert _get_edt("missing_board") is None
+    assert "board directory not found" in caplog.text
+
+
+def test_get_edt_warns_when_devicetree_parse_fails(
+    monkeypatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    _board_tree(tmp_path)
+
+    def _reject(*args, **kwargs):
+        raise ValueError("unknown binding for compatible 'acme,bus'")
+
+    monkeypatch.setattr(dts_lookup, "_preprocess_dts_file", _fake_preprocess_dts_file)
+    monkeypatch.setattr(dts_lookup, "_load_edtlib", _fake_edtlib(_reject))
+    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+
+    assert _get_edt("my_board") is None
+    assert "devicetree parse failed: unknown binding" in caplog.text
+
+
+def test_get_edt_no_warning_without_dts_base(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    assert _get_edt("my_board") is None
+    assert "Can't read board" not in caplog.text
+
+
+def test_get_edt_leaves_no_temp_files(monkeypatch, tmp_path: Path) -> None:
+    """Both the cpp wrapper and its output are removed, on success and on failure."""
+    _board_tree(tmp_path)
+    temp_dir = tmp_path / "tmp"
+    temp_dir.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(temp_dir))
+    monkeypatch.setattr(dts_lookup, "_load_edtlib", _fake_edtlib(lambda *a, **k: 1))
+
+    monkeypatch.setattr(dts_lookup, "_preprocess_dts_file", _fake_preprocess_dts_file)
+    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    assert _get_edt("my_board") == 1
+    assert not list(temp_dir.iterdir())
+
+    monkeypatch.undo()
+    monkeypatch.setattr(tempfile, "tempdir", str(temp_dir))
+    monkeypatch.setattr(dts_lookup, "_load_edtlib", _fake_edtlib(lambda *a, **k: 1))
+    monkeypatch.setattr(dts_lookup, "_find_cpp", lambda: None)
+    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    assert _get_edt("my_board") is None
+    assert not list(temp_dir.iterdir())

@@ -190,6 +190,49 @@ def _resolve_git_head(dest: Path) -> str:
     return result.stdout.strip()
 
 
+def _fetch_sdk_source_version(url: str, ref: str | None, dest: Path) -> None:
+    """Update the cached clone of url@ref in place, or clone it if not cached yet.
+
+    A failed refresh raises rather than silently building from stale source, and
+    leaves the cache intact so the next refresh stays incremental.
+    """
+    label = f"{url}@{ref or 'default branch'}"
+    _LOGGER.info("[zephyr] Checking sdk_source version (%s) ...", label)
+    cached = (dest / ".git").is_dir()
+    if cached:
+        cmds = [
+            ["git", "-C", str(dest), "fetch", "--depth=1", "origin", ref or "HEAD"],
+            ["git", "-C", str(dest), "reset", "--hard", "FETCH_HEAD"],
+        ]
+    else:
+        shutil.rmtree(dest, ignore_errors=True)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        clone = ["git", "clone", "--depth=1", "--filter=blob:none", "--sparse"]
+        if ref:
+            clone += ["--branch", ref]
+        cmds = [[*clone, url, str(dest)]]
+    try:
+        for cmd in cmds:
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        if not cached:
+            shutil.rmtree(dest, ignore_errors=True)
+        # Last line is git's actual error; earlier ones are progress output.
+        lines = (exc.stderr or "").strip().splitlines()
+        reason = lines[-1] if lines else "git failed"
+        raise cv.Invalid(f"Can't check sdk_source version ({label}): {reason}") from exc
+    except FileNotFoundError as exc:
+        raise cv.Invalid("sdk_source: requires git to be installed") from exc
+    version_file = dest / "VERSION"
+    if not version_file.is_file():
+        raise cv.Invalid(
+            f"'{label}' has no top-level VERSION file -- "
+            "is this really a Zephyr repository?"
+        )
+    # Restart the refresh timer; reset leaves an unchanged file's mtime alone.
+    version_file.touch()
+
+
 def resolve_sdk_source_version(source: ConfigType, refresh: TimePeriodSeconds) -> str:
     """Return the 'major.minor.patch' version of a zephyr: sdk_source:, read directly from
     its VERSION file rather than guessed -- several places elsewhere in the codebase (build
@@ -228,30 +271,7 @@ def resolve_sdk_source_version(source: ConfigType, refresh: TimePeriodSeconds) -
         needs_fetch = True
 
     if needs_fetch:
-        shutil.rmtree(dest, ignore_errors=True)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        _LOGGER.info(
-            "[zephyr] Checking sdk_source version (%s@%s) ...",
-            url,
-            ref or "default branch",
-        )
-        cmd = ["git", "clone", "--depth=1", "--filter=blob:none", "--sparse"]
-        if ref:
-            cmd += ["--branch", ref]
-        cmd += [url, str(dest)]
-        try:
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as exc:
-            raise cv.Invalid(
-                f"Can't check sdk_source version: {exc.stderr.strip()}"
-            ) from exc
-        except FileNotFoundError as exc:
-            raise cv.Invalid("sdk_source: requires git to be installed") from exc
-        if not version_file.is_file():
-            raise cv.Invalid(
-                f"'{url}@{ref or 'default branch'}' has no top-level VERSION file -- "
-                "is this really a Zephyr repository?"
-            )
+        _fetch_sdk_source_version(url, ref, dest)
 
     source[KEY_SDK_SOURCE_RESOLVED_REF] = _resolve_git_head(dest)
     return _parse_zephyr_version_file(version_file)

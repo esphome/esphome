@@ -265,7 +265,7 @@ def resolve_zephyr_bus(
             "Verify the board name or check the board's DTS file."
         )
     else:
-        detail = "Install gcc/cpp (C preprocessor) for automatic DTS detection."
+        detail = "Couldn't read the board's devicetree (see the warning above)."
     override_hint = f"    {override_key}: {platform}0  # replace with your board's Zephyr {platform.upper()} bus label"
     raise EsphomeError(
         f"Cannot determine {platform.upper()} bus label for board '{board}'. "
@@ -480,9 +480,9 @@ def resolve_uart_node_label(
     mapping = _discover_uart_node_labels(board)
     if mapping is None:
         raise EsphomeError(
-            f"Cannot determine the console UART for board '{board}' -- its DTS "
-            "could not be resolved. Install gcc/cpp (C preprocessor) for automatic "
-            "DTS detection, or verify the board name."
+            f"Cannot determine the console UART for board '{board}' -- couldn't "
+            "read its devicetree (see the warning above). Select the UART "
+            "explicitly with '&<label>'."
         )
     label = mapping.get(hw_uart)
     if label is None:
@@ -571,28 +571,45 @@ def _get_edt(board: str):
         return None if result is _NOT_FOUND else result
 
     dts_base = zd.get("dts_base_path")
-
-    edtlib = _load_edtlib(Path(dts_base) if dts_base else None)
-    if edtlib is None:
-        cache[cache_key] = _NOT_FOUND
-        return None
     if not dts_base:
+        # fetch_board_dts() already warned (or this build has no DTS tree at all).
         cache[cache_key] = _NOT_FOUND
         return None
 
-    zephyr_base = Path(dts_base)
+    try:
+        edt = _build_edt(board, Path(dts_base), shields, snippets)
+    except _DtsReadError as err:
+        _LOGGER.warning(
+            "[zephyr] Can't read board '%s''s devicetree: %s. Bus, pinctrl and label "
+            "checks will fall back to guesses or need an explicit label.",
+            board,
+            err,
+        )
+        cache[cache_key] = _NOT_FOUND
+        return None
+    cache[cache_key] = edt
+    return edt
+
+
+class _DtsReadError(Exception):
+    """Why a board's devicetree couldn't be read."""
+
+
+def _build_edt(board: str, zephyr_base: Path, shields: list[str], snippets: list[str]):
+    """Parse board's devicetree with its revision/shield/snippet overlays."""
+    edtlib = _load_edtlib(zephyr_base)
+    if edtlib is None:
+        raise _DtsReadError("the devicetree Python library is unavailable")
 
     board_dir = _find_board_dir(zephyr_base, board)
     if board_dir is None:
-        _LOGGER.debug("[zephyr] Board directory not found for '%s'", board)
-        cache[cache_key] = _NOT_FOUND
-        return None
+        raise _DtsReadError(
+            "board directory not found in the SDK or board_source: trees"
+        )
 
     dts_file = _find_dts_file(board_dir, board)
     if dts_file is None:
-        _LOGGER.debug("[zephyr] No .dts file found for '%s' in %s", board, board_dir)
-        cache[cache_key] = _NOT_FOUND
-        return None
+        raise _DtsReadError(f"no .dts file in {board_dir}")
 
     # Raw paths, not pre-processed individually -- an overlay's macros (e.g. a
     # pinctrl helper) may only be in scope via the base tree's own #includes,
@@ -625,6 +642,7 @@ def _get_edt(board: str):
                 board,
             )
 
+    zd = CORE.data[KEY_ZEPHYR]
     shield_root = zd.get(KEY_SHIELD_ROOT)
     shield_search_roots = (
         [Path(shield_root), zephyr_base] if shield_root else [zephyr_base]
@@ -661,10 +679,10 @@ def _get_edt(board: str):
         f.write("\n".join(f'#include "{path}"' for path in raw_files))
         wrapper_path = Path(f.name)
 
-    preprocessed = _preprocess_dts_file(wrapper_path, zephyr_base, [str(board_dir)])
-    if preprocessed is None:
-        cache[cache_key] = _NOT_FOUND
-        return None
+    try:
+        preprocessed = _preprocess_dts_file(wrapper_path, zephyr_base, [str(board_dir)])
+    finally:
+        wrapper_path.unlink(missing_ok=True)
 
     with tempfile.NamedTemporaryFile(
         suffix=".dts", mode="w", delete=False, encoding="utf-8"
@@ -675,15 +693,11 @@ def _get_edt(board: str):
     try:
         bindings_dir = zephyr_base / "dts" / "bindings"
         bindings_dirs = [str(bindings_dir)] if bindings_dir.is_dir() else []
-        edt = edtlib.EDT(
+        return edtlib.EDT(
             str(tmp_path), bindings_dirs, warn_reg_unit_address_mismatch=False
         )
-        cache[cache_key] = edt
-        return edt
     except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        _LOGGER.debug("[zephyr] edtlib parsing failed for '%s': %s", board, exc)
-        cache[cache_key] = _NOT_FOUND
-        return None
+        raise _DtsReadError(f"devicetree parse failed: {exc}") from exc
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -823,17 +837,12 @@ def _find_board_yaml(board_dir: Path, board: str) -> Path | None:
 
 def _preprocess_dts_file(
     src_file: Path, zephyr_base: Path, extra_include_dirs: list[str]
-) -> str | None:
+) -> str:
     """Run cpp over src_file the same way west's own DTS build does
-    (assembler-with-cpp, no standard includes), or None if cpp is unavailable
-    or preprocessing fails."""
+    (assembler-with-cpp, no standard includes). Raises _DtsReadError on failure."""
     cpp = _find_cpp()
     if cpp is None:
-        _LOGGER.debug(
-            "[zephyr] 'cpp' not found in PATH; DTS preprocessing unavailable. "
-            "Install gcc/cpp to enable automatic bus detection."
-        )
-        return None
+        raise _DtsReadError("C preprocessor 'cpp' not found in PATH")
 
     include_dirs = _get_dts_include_paths(zephyr_base) + extra_include_dirs
 
@@ -846,10 +855,10 @@ def _preprocess_dts_file(
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)  # noqa: S603
         return result.stdout
     except subprocess.CalledProcessError as exc:
-        _LOGGER.debug(
-            "[zephyr] cpp failed on %s: %s", src_file.name, exc.stderr.strip()
-        )
-        return None
+        lines = (exc.stderr or "").strip().splitlines()
+        raise _DtsReadError(
+            f"cpp failed: {lines[-1] if lines else 'no output'}"
+        ) from exc
 
 
 def _find_in_search_roots(
