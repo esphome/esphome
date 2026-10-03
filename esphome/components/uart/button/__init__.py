@@ -1,9 +1,10 @@
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import button, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA
 
-from .. import payload_table, uart_ns, validate_raw_payload
+from .. import uart_ns, validate_raw_payload
 
 CODEOWNERS = ["@ssieb"]
 
@@ -30,4 +31,4 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     data = config[CONF_DATA]
-    cg.add(var.set_data(payload_table(data), len(data)))
+    cg.add(var.set_data(automation.progmem_bytes("uart_data", data), len(data)))

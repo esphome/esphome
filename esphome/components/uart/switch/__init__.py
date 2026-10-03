@@ -1,9 +1,10 @@
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import switch, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_SEND_EVERY
 
-from .. import payload_table, uart_ns, validate_raw_payload
+from .. import uart_ns, validate_raw_payload
 
 DEPENDENCIES = ["uart"]
 
@@ -41,11 +42,19 @@ async def to_code(config):
     data = config[CONF_DATA]
     if isinstance(data, dict):
         if data_on := data.get(CONF_TURN_ON):
-            cg.add(var.set_data_on(payload_table(data_on), len(data_on)))
+            cg.add(
+                var.set_data_on(
+                    automation.progmem_bytes("uart_data", data_on), len(data_on)
+                )
+            )
         if data_off := data.get(CONF_TURN_OFF):
-            cg.add(var.set_data_off(payload_table(data_off), len(data_off)))
+            cg.add(
+                var.set_data_off(
+                    automation.progmem_bytes("uart_data", data_off), len(data_off)
+                )
+            )
     else:
-        cg.add(var.set_data_on(payload_table(data), len(data)))
+        cg.add(var.set_data_on(automation.progmem_bytes("uart_data", data), len(data)))
         cg.add(var.set_single_state(True))
     if CONF_SEND_EVERY in config:
         cg.add(var.set_send_every(config[CONF_SEND_EVERY]))
