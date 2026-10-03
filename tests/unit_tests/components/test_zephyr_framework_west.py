@@ -208,6 +208,23 @@ def test_failed_update_leaves_no_ready_sentinel_and_is_retried(
     assert (framework / ".ready").is_file()
 
 
+def test_rebuilt_venv_updates_workspace_without_reclone(tmp_path: Path) -> None:
+    """A missing venv (e.g. its interpreter was removed) must not wipe the workspace."""
+    _run_check_and_install(tmp_path, None)
+    framework = tmp_path / "sdk-zephyr" / "frameworks" / _CACHE_KEY
+    (framework / "keep").touch()
+    python = get_python_env_executable_path(
+        tmp_path / "sdk-zephyr" / "penvs" / "v4.4.1", "python"
+    )
+    python.unlink()
+
+    calls, mock_run = _run_check_and_install(tmp_path, None)
+
+    assert not [c for c in calls if c[2:4] == ["west", "init"]]
+    assert mock_run.call_args.args[0][2:4] == ["west", "update"]
+    assert (framework / "keep").exists()
+
+
 def test_complete_official_install_skips_update(tmp_path: Path) -> None:
     _run_check_and_install(tmp_path, None)
     calls, mock_run = _run_check_and_install(tmp_path, None)

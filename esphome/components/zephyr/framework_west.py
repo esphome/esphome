@@ -385,14 +385,15 @@ def _check_and_install(
     label = str(source[CONF_PATH]) if is_local else (manifest_rev or "default branch")
 
     sentinel = framework / ".ready"
-    needs_init = install_venv or not (framework / ".west").is_dir()
+    needs_init = not (framework / ".west").is_dir()
     # .ready is only written after a complete `west update`; without it a previous
     # update was interrupted and the workspace may be half-fetched.
     incomplete = not needs_init and not sentinel.exists()
     # local: (a user-edited checkout) can change between builds, so always re-run
     # `west update` -- cheap/no-op if unchanged. The official source is pinned to an
     # immutable tag and never needs this.
-    needs_refresh = is_local or incomplete
+    # A rebuilt venv only needs an update, not a fresh clone of the workspace.
+    needs_refresh = is_local or incomplete or install_venv
 
     # A git source: is pinned to one commit per run (dts_fetch.resolve_sdk_source_version()),
     # but the workspace directory is keyed by ref name, so a moved branch must be
@@ -488,7 +489,7 @@ def _check_and_install(
         if result.returncode != 0:
             raise EsphomeError(f"Can't update Zephyr SDK {ver_tag} ({label})")
 
-        if needs_init or pinned or incomplete:
+        if needs_init or pinned or incomplete or install_venv:
             zephyr_reqs = zephyr_dir / "scripts" / "requirements.txt"
             if zephyr_reqs.exists():
                 _LOGGER.info("Installing Zephyr Python requirements ...")
