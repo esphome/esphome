@@ -97,18 +97,11 @@ bool Font::get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uin
   if (gd == nullptr) {
     return false;
   }
-  // The glyph is in flash and the LVGL fields are narrower, so copy whole words first.
-  int advance, offset_x, offset_y, width, height;
-  progmem_memcpy(&advance, &gd->advance, sizeof(advance));
-  progmem_memcpy(&offset_x, &gd->offset_x, sizeof(offset_x));
-  progmem_memcpy(&offset_y, &gd->offset_y, sizeof(offset_y));
-  progmem_memcpy(&width, &gd->width, sizeof(width));
-  progmem_memcpy(&height, &gd->height, sizeof(height));
-  dsc->adv_w = advance;
-  dsc->ofs_x = offset_x;
-  dsc->ofs_y = fe->height_ - height - offset_y - fe->lv_font_.base_line;
-  dsc->box_w = width;
-  dsc->box_h = height;
+  dsc->adv_w = gd->advance;
+  dsc->ofs_x = gd->offset_x;
+  dsc->ofs_y = fe->height_ - gd->height - gd->offset_y - fe->lv_font_.base_line;
+  dsc->box_w = gd->width;
+  dsc->box_h = gd->height;
   dsc->is_placeholder = 0;
   dsc->format = (lv_font_glyph_format_t) fe->get_bpp();
   dsc->gid.index = unicode_letter;
