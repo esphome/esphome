@@ -1974,6 +1974,7 @@ const char *MediaPlayerSupportedFormat::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("num_channels"), this->num_channels);
   dump_field(out, ESPHOME_PSTR("purpose"), static_cast<enums::MediaPlayerFormatPurpose>(this->purpose));
   dump_field(out, ESPHOME_PSTR("sample_bytes"), this->sample_bytes);
+  dump_field(out, ESPHOME_PSTR("bitrate"), this->bitrate);
   return out.c_str();
 }
 const char *ListEntitiesMediaPlayerResponse::dump_to(DumpBuffer &out) const {

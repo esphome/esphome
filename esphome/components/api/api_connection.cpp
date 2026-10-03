@@ -1108,6 +1108,7 @@ uint16_t APIConnection::try_send_media_player_info(EntityBase *entity, APIConnec
     media_format.num_channels = supported_format.num_channels;
     media_format.purpose = static_cast<enums::MediaPlayerFormatPurpose>(supported_format.purpose);
     media_format.sample_bytes = supported_format.sample_bytes;
+    media_format.bitrate = supported_format.bitrate;
   }
   return fill_and_encode_entity_info(media_player, msg, conn, remaining_size);
 }
