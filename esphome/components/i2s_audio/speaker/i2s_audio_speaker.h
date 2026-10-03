@@ -126,6 +126,18 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   esp_err_t init_i2s_channel_(const i2s_chan_config_t &chan_cfg, const i2s_std_config_t &std_cfg,
                               size_t event_queue_size);
 
+  /// @brief Creates the lockstep queues, or empties them if they already exist.
+  /// @param event_queue_size Size of each queue
+  /// @return ESP_OK if successful, or ESP_ERR_NO_MEM
+  esp_err_t prepare_event_queues_(size_t event_queue_size);
+
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  /// @brief Takes the TX channel of the parent's full duplex pair and prepares the event queues.
+  /// @param event_queue_size Size of the event queue
+  /// @return ESP_OK if successful, or an error code. On failure, hands the channel back to the parent.
+  esp_err_t acquire_full_duplex_channel_(size_t event_queue_size);
+#endif
+
   /// @brief Stops the I2S driver and unlocks the I2S port
   void stop_i2s_driver_();
 

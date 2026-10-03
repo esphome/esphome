@@ -423,15 +423,51 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
   }
 #endif  // USE_ESP32_VARIANT_ESP32
 
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  if (this->parent_->is_full_duplex()) {
+    // The parent set up the channel once from the configured format, so the stream must produce exactly that
+    const audio::AudioStreamInfo required = this->full_duplex_stream_info_();
+    if (this->output_stream_info_ != required) {
+      ESP_LOGE(TAG, "Full duplex requires %u-bit, %u channel audio at %" PRIu32 " Hz",
+               (unsigned) required.get_bits_per_sample(), (unsigned) required.get_channels(),
+               required.get_sample_rate());
+      return ESP_ERR_NOT_SUPPORTED;
+    }
+    // The speaker task will enable the channel after preloading.
+    return this->acquire_full_duplex_channel_(I2S_EVENT_QUEUE_COUNT);
+  }
+#endif  // USE_I2S_AUDIO_FULL_DUPLEX
+
   if (!this->parent_->try_lock()) {
     ESP_LOGE(TAG, "Parent bus is busy");
     return ESP_ERR_INVALID_STATE;
   }
 
-  // The DMA buffers hold output-format (post-narrowing) samples, so size them from the output stream info.
-  uint32_t dma_buffer_length = dma_buffer_frames(this->output_stream_info_);
+  i2s_chan_config_t chan_cfg;
+  i2s_std_config_t std_cfg;
+  this->build_i2s_config_(this->output_stream_info_, chan_cfg, std_cfg);
 
-  i2s_role_t i2s_role = this->i2s_role_;
+  // The speaker task will enable the channel after preloading.
+  return this->init_i2s_channel_(chan_cfg, std_cfg, I2S_EVENT_QUEUE_COUNT);
+}
+
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+audio::AudioStreamInfo I2SAudioSpeaker::full_duplex_stream_info_() const {
+  return audio::AudioStreamInfo(static_cast<uint8_t>(this->slot_bit_width_),
+                                this->slot_mode_ == I2S_SLOT_MODE_STEREO ? 2 : 1, this->sample_rate_);
+}
+
+bool I2SAudioSpeaker::build_full_duplex_config(i2s_chan_config_t &chan_cfg, i2s_std_config_t &std_cfg) {
+  this->build_i2s_config_(this->full_duplex_stream_info_(), chan_cfg, std_cfg);
+  return true;
+}
+#endif  // USE_I2S_AUDIO_FULL_DUPLEX
+
+void I2SAudioSpeaker::build_i2s_config_(const audio::AudioStreamInfo &output_stream_info, i2s_chan_config_t &chan_cfg,
+                                        i2s_std_config_t &std_cfg) const {
+  // The DMA buffers hold output-format (post-narrowing) samples, so size them from the output stream info.
+  uint32_t dma_buffer_length = dma_buffer_frames(output_stream_info);
+
   i2s_clock_src_t clk_src = I2S_CLK_SRC_DEFAULT;
 
 #if SOC_CLK_APLL_SUPPORTED
@@ -444,9 +480,9 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
   ESP_LOGV(TAG, "I2S DMA config: %zu buffers x %lu frames", (size_t) DMA_BUFFERS_COUNT,
            (unsigned long) dma_buffer_length);
 
-  i2s_chan_config_t chan_cfg = {
+  chan_cfg = {
       .id = this->parent_->get_port(),
-      .role = i2s_role,
+      .role = this->i2s_role_,
       .dma_desc_num = DMA_BUFFERS_COUNT,
       .dma_frame_num = dma_buffer_length,
       .auto_clear = true,
@@ -455,22 +491,22 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
 
   // Build standard I2S clock/slot/gpio configuration
   i2s_std_clk_config_t clk_cfg = {
-      .sample_rate_hz = audio_stream_info.get_sample_rate(),
+      .sample_rate_hz = output_stream_info.get_sample_rate(),
       .clk_src = clk_src,
       .mclk_multiple = this->mclk_multiple_,
   };
 
   i2s_slot_mode_t slot_mode = this->slot_mode_;
   i2s_std_slot_mask_t slot_mask = this->std_slot_mask_;
-  if (audio_stream_info.get_channels() == 1) {
+  if (output_stream_info.get_channels() == 1) {
     slot_mode = I2S_SLOT_MODE_MONO;
-  } else if (audio_stream_info.get_channels() == 2) {
+  } else if (output_stream_info.get_channels() == 2) {
     slot_mode = I2S_SLOT_MODE_STEREO;
     slot_mask = I2S_STD_SLOT_BOTH;
   }
 
   // Configure the data bit width from the output (post-narrowing) format, which is what is clocked out.
-  const i2s_data_bit_width_t data_bit_width = (i2s_data_bit_width_t) this->output_stream_info_.get_bits_per_sample();
+  const i2s_data_bit_width_t data_bit_width = (i2s_data_bit_width_t) output_stream_info.get_bits_per_sample();
   i2s_std_slot_config_t slot_cfg;
   switch (this->i2s_comm_fmt_) {
     case I2SCommFmt::PCM:
@@ -506,20 +542,11 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
   i2s_std_gpio_config_t gpio_cfg = this->parent_->get_pin_config();
   gpio_cfg.dout = this->dout_pin_;
 
-  i2s_std_config_t std_cfg = {
+  std_cfg = {
       .clk_cfg = clk_cfg,
       .slot_cfg = slot_cfg,
       .gpio_cfg = gpio_cfg,
   };
-
-  esp_err_t err = this->init_i2s_channel_(chan_cfg, std_cfg, I2S_EVENT_QUEUE_COUNT);
-  if (err != ESP_OK) {
-    return err;
-  }
-
-  // The speaker task will enable the channel after preloading.
-
-  return ESP_OK;
 }
 
 }  // namespace esphome::i2s_audio
