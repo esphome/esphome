@@ -1,0 +1,28 @@
+api:
+wifi:
+  ap:
+    ssid: "Thermostat"
+    password: "MySecretThemostat"
+
+time:
+  - platform: sntp
+    id: my_time
+
+opentherm42:
+  id: my_opentherm42
+  in_pin: 4
+  out_pin: 5
+  # §4.4.1: tolerate a DATA_INVALID for up to 5s before actually invalidating an entity, since real
+  # hardware has been observed answering DATA_INVALID transiently for a second or two.
+  max_data_invalid: 3
+  # §5.2's mandatory heartbeat (id=0) -- unconditionally required, see hub.h's Entry.
+  control_and_status_information_boiler_status_update_every: 1
+
+number:
+  - platform: opentherm42
+    # §5.3.1 Class 1, ID 1: Control Setpoint, i.e. CH water temperature setpoint (degrees C, 0..100).
+    # The CHenable bit has priority: the boiler must ignore this value while CH is disabled.
+    control_and_status_information_control_setpoint:
+      name: "Control and Status Information: Control Setpoint"
+      initial_value: 40.0
+      update_every: 1
