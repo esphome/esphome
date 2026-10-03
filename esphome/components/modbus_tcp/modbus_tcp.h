@@ -12,13 +12,14 @@ class TcpUart;
 namespace esphome::modbus_tcp {
 
 /// RTU toward the modbus hub, Modbus TCP on a raw tcp_uart.
-/// Client side only. A response is delivered once, and only after a request,
-/// when it carries that request's transaction id.
+/// Client: a response is delivered only when it carries that request's transaction id.
+/// Server: a request is delivered as one RTU frame, and the hub's reply uses that id.
 class ModbusTcp : public uart::UARTComponent, public Component {
  public:
   ModbusTcp() { this->rx_buffer_size_ = RTU_FRAME_SIZE; }
 
   void set_parent(tcp_uart::TcpUart *parent) { this->parent_ = parent; }
+  void set_server(bool server) { this->server_ = server; }
 
   void loop() override;
   void dump_config() override;
@@ -51,8 +52,10 @@ class ModbusTcp : public uart::UARTComponent, public Component {
   uint16_t tcp_len_{0};
   uint16_t tx_len_{0};
   uint16_t rx_len_{0};
-  // Set only after a request is sent. txn_ starts at 0, which is not a request.
+  // Client: set after a request is sent. Server: set after a request is delivered.
+  // txn_ starts at 0. For a client that is not a request. For a server it may be.
   bool txn_pending_{false};
+  bool server_{false};
   uint8_t tcp_buf_[TCP_FRAME_SIZE]{};
   uint8_t tx_[RTU_FRAME_SIZE]{};
   uint8_t rx_[RTU_FRAME_SIZE]{};

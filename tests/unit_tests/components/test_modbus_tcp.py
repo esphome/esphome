@@ -1,4 +1,4 @@
-"""A modbus_tcp link is the master side. A server hub cannot sit on it."""
+"""The hub on a modbus_tcp link has to use the same role as the link."""
 
 import pytest
 
@@ -16,7 +16,7 @@ def _run(config, full):
         fv.full_config.reset(token)
 
 
-def test_server_hub_on_the_link_is_rejected() -> None:
+def test_server_hub_on_a_client_link_is_rejected() -> None:
     link = ID("mb_link", is_declaration=True)
     config = {"id": link, "tcp_uart_id": ID("sock")}
     full = {"modbus": [{"id": ID("hub"), "uart_id": ID("mb_link"), "role": "server"}]}
@@ -29,6 +29,21 @@ def test_client_hub_on_the_link_passes() -> None:
     config = {"id": link, "tcp_uart_id": ID("sock")}
     full = {"modbus": [{"id": ID("hub"), "uart_id": ID("mb_link"), "role": "client"}]}
     assert _run(config, full) is None
+
+
+def test_server_hub_on_a_server_link_passes() -> None:
+    link = ID("mb_link", is_declaration=True)
+    config = {"id": link, "tcp_uart_id": ID("sock"), "role": "server"}
+    full = {"modbus": [{"id": ID("hub"), "uart_id": ID("mb_link"), "role": "server"}]}
+    assert _run(config, full) is None
+
+
+def test_client_hub_on_a_server_link_is_rejected() -> None:
+    link = ID("mb_link", is_declaration=True)
+    config = {"id": link, "tcp_uart_id": ID("sock"), "role": "server"}
+    full = {"modbus": [{"id": ID("hub"), "uart_id": ID("mb_link"), "role": "client"}]}
+    with pytest.raises(cv.Invalid, match="role: server"):
+        _run(config, full)
 
 
 def test_server_hub_on_another_uart_passes() -> None:

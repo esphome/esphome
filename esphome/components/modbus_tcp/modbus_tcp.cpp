@@ -24,7 +24,10 @@ static void note_drop(uint32_t &last_ms, const LogString *message) {
   ESP_LOGW(TAG, "%s", LOG_STR_ARG(message));
 }
 
-void ModbusTcp::dump_config() { ESP_LOGCONFIG(TAG, "Modbus TCP"); }
+void ModbusTcp::dump_config() {
+  ESP_LOGCONFIG(TAG, "Modbus TCP");
+  ESP_LOGCONFIG(TAG, "  Role: %s", this->server_ ? LOG_STR_LITERAL("server") : LOG_STR_LITERAL("client"));
+}
 
 bool ModbusTcp::is_connected() { return this->parent_ != nullptr && this->parent_->is_connected(); }
 
@@ -136,6 +139,30 @@ void ModbusTcp::deliver_mbap_() {
       case MbapTake::BAD:
         break;
       case MbapTake::FRAME: {
+        if (this->server_) {
+          // One request at a time. The hub still has the last one.
+          if (this->txn_pending_ || this->rx_len_ != 0) {
+            note_drop(this->last_drop_log_ms_, LOG_STR("Request already in progress, dropped"));
+            break;
+          }
+          size_t rtu_len = frame.pdu_len + 3;
+          if (rtu_len > sizeof(this->rx_)) {
+            note_drop(this->last_drop_log_ms_, LOG_STR("RTU frame too long, dropped"));
+            break;
+          }
+          this->rx_[0] = frame.unit;
+          std::memcpy(this->rx_ + 1, frame.pdu, frame.pdu_len);
+          uint16_t crc = crc16(this->rx_, static_cast<uint16_t>(frame.pdu_len + 1));
+          this->rx_[frame.pdu_len + 1] = crc & 0xFF;
+          this->rx_[frame.pdu_len + 2] = crc >> 8;
+          this->rx_len_ = static_cast<uint16_t>(rtu_len);
+          // Address 0 is a broadcast. Nothing answers it.
+          if (frame.unit != 0) {
+            this->txn_ = frame.txn;
+            this->txn_pending_ = true;
+          }
+          break;
+        }
         if (!this->txn_pending_ || frame.txn != this->txn_) {
           uint32_t now = App.get_loop_component_start_time();
           if (this->last_drop_log_ms_ == 0 || now - this->last_drop_log_ms_ >= DROP_LOG_INTERVAL_MS) {
@@ -181,13 +208,29 @@ void ModbusTcp::send_rtu_as_mbap_() {
   if (!this->is_connected()) {
     note_drop(this->last_drop_log_ms_, LOG_STR("Not connected, dropped the Modbus frame"));
     this->tx_len_ = 0;
+    if (this->server_) {
+      this->txn_pending_ = false;
+    }
     return;
   }
-  uint16_t txn = this->txn_ == 0xFFFF ? 1 : static_cast<uint16_t>(this->txn_ + 1);
+  uint16_t txn;
+  if (this->server_) {
+    if (!this->txn_pending_) {
+      note_drop(this->last_drop_log_ms_, LOG_STR("Reply without a request, dropped"));
+      this->tx_len_ = 0;
+      return;
+    }
+    txn = this->txn_;
+  } else {
+    txn = this->txn_ == 0xFFFF ? 1 : static_cast<uint16_t>(this->txn_ + 1);
+  }
   uint8_t frame[TCP_FRAME_SIZE];
   size_t n = write_mbap(frame, sizeof(frame), txn, this->tx_[0], this->tx_ + 1, this->tx_len_ - 3);
   if (n == 0) {
     this->tx_len_ = 0;
+    if (this->server_) {
+      this->txn_pending_ = false;
+    }
     return;
   }
   // A short queue would put a partial MBAP on the wire. Hold the RTU and retry.
@@ -196,8 +239,12 @@ void ModbusTcp::send_rtu_as_mbap_() {
     note_drop(this->last_drop_log_ms_, LOG_STR("TX buffer full, holding the Modbus frame"));
     return;
   }
-  this->txn_ = txn;
-  this->txn_pending_ = true;
+  if (this->server_) {
+    this->txn_pending_ = false;
+  } else {
+    this->txn_ = txn;
+    this->txn_pending_ = true;
+  }
   this->tx_len_ = 0;
   this->parent_->write_array(frame, n);
   // tcp_uart may already have run this pass. Flush so the request leaves now.
