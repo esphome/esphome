@@ -330,6 +330,9 @@ class MultiplyFilter : public Filter {
   TemplatableFn<float> multiplier_;
 };
 
+// Value tables are read in place from flash, which ESP8266 only allows for whole words.
+static_assert(sizeof(TemplatableFn<float>) == sizeof(void *), "TemplatableFn<float> must stay a single pointer");
+
 /// Base class for filters that compare sensor values against a fixed list of configured values.
 class ValueListFilter : public Filter {
  protected:
