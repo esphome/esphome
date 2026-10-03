@@ -471,10 +471,10 @@ def progmem_array(id_, rhs) -> "MockObj":
 def shared_progmem_array(
     name: str, type_: "MockObjClass", rhs: SafeExpType
 ) -> "MockObj":
-    """Emit a PROGMEM array once per distinct type and contents; later calls reuse it.
+    """Emit a global PROGMEM array once per distinct type and contents; later calls reuse it.
 
-    The name is made unique against every config id and registered variable. Call it at
-    setup() top level: the array is a static local that later reuses must be able to see.
+    The array is ``static constexpr``, so elements must be constant expressions and lambdas
+    must be captureless. Its name is made unique against every config id and variable.
     """
     from esphome.config import iter_ids
     from esphome.config_validation import RESERVED_IDS
@@ -486,10 +486,11 @@ def shared_progmem_array(
         used = {str(i) for i, _ in iter_ids(CORE.config)}
         used |= {str(i) for i in CORE.variables}
         used |= set(RESERVED_IDS) | CORE.loaded_integrations
-        unique = ensure_unique_string(name, used)
-        array = arrays[key] = progmem_array(
-            ID(unique, is_declaration=True, type=type_), rhs
-        )
+        id_ = ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
+        # Global, so any scope can use it; anything a lambda references is already declared.
+        CORE.add_global(ProgmemAssignmentExpression(type_, id_, rhs))
+        array = arrays[key] = MockObj(id_, ".")
+        CORE.register_variable(id_, array)
     return array
 
 
