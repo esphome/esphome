@@ -71,6 +71,7 @@ from esphome.const import (
     CONF_TARGET_TEMPERATURE_CHANGE_ACTION,
     CONF_VISUAL,
 )
+from esphome.helpers import cpp_string_escape
 from esphome.types import ConfigType
 
 CONF_DEFAULT_PRESET = "default_preset"
@@ -117,6 +118,7 @@ ClimatePreset = climate_ns.enum("ClimatePreset")
 
 PRESET_CONFIG_SCHEMA = cv.Schema(
     {
+        # Still accepted for existing configs; presets are flash table entries, not variables.
         cv.GenerateID(): cv.declare_id(ThermostatClimateTargetTempConfig),
         cv.Required(CONF_NAME): cv.string_strict,
         cv.Optional(CONF_MODE): validate_climate_mode,
@@ -997,7 +999,7 @@ async def to_code(config: ConfigType) -> None:
                 custom_presets.append(
                     cg.StructInitializer(
                         ThermostatCustomPresetEntry,
-                        ("name", cg.RawExpression(f'"{name}"')),
+                        ("name", cg.RawExpression(cpp_string_escape(name))),
                         ("config", target),
                     )
                 )
