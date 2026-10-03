@@ -92,8 +92,9 @@ inline constexpr RCSwitchBase RC_SWITCH_PROTOCOLS[] PROGMEM = {
 /// RAM copy of RC_SWITCH_PROTOCOLS[index] (0 when out of range) for the transmit actions and the dumper, made with
 /// progmem_memcpy so no byte load ever touches the flash table on ESP8266
 RCSwitchBase rc_switch_protocol(uint8_t index);
-/// RAM copy of a protocol stored in flash, made with progmem_memcpy
-RCSwitchBase rc_switch_protocol(const RCSwitchBase *protocol);
+/// RAM copy of a protocol stored in flash, made with progmem_memcpy (own name: `rc_switch_protocol(0)` stays
+/// unambiguous)
+RCSwitchBase rc_switch_protocol_copy(const RCSwitchBase *protocol);
 
 uint64_t decode_binary_string(const std::string &data);
 

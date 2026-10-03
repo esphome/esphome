@@ -12,10 +12,10 @@ RCSwitchBase rc_switch_protocol(uint8_t index) {
   // entry 0 is the all-zero protocol, so an out of range index from a lambda transmits nothing
   if (index >= std::size(RC_SWITCH_PROTOCOLS))
     index = 0;
-  return rc_switch_protocol(&RC_SWITCH_PROTOCOLS[index]);
+  return rc_switch_protocol_copy(&RC_SWITCH_PROTOCOLS[index]);
 }
 
-RCSwitchBase rc_switch_protocol(const RCSwitchBase *protocol) {
+RCSwitchBase rc_switch_protocol_copy(const RCSwitchBase *protocol) {
   RCSwitchBase copy;
   progmem_memcpy(&copy, protocol, sizeof(copy));
   return copy;

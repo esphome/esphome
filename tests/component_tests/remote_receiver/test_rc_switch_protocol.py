@@ -16,7 +16,7 @@ def test_rc_switch_protocols_share_flash_tables(
         "remote_base::RCSwitchBase rc_switch_custom_protocol_2[] PROGMEM = "
         "{remote_base::RCSwitchBase(320, 9920, 320, 960, 960, 320, false)};"
     ) in main_cpp
-    assert main_cpp.count("rc_switch_protocol(rc_switch_custom_protocol_2)") == 2
+    assert main_cpp.count("rc_switch_protocol_copy(rc_switch_custom_protocol_2)") == 2
     # Receivers point into flash instead of holding a copy.
     assert "->set_protocol(&remote_base::RC_SWITCH_PROTOCOLS[1]);" in main_cpp
     assert "->set_protocol(rc_switch_custom_protocol_2);" in main_cpp

@@ -1566,7 +1566,7 @@ def rc_switch_protocol_value(config: int | ConfigType) -> MockObj:
     """RAM copy of a constant protocol for the transmit actions, read from its flash table."""
     if isinstance(config, int):
         return rc_switch_protocol(config)
-    return rc_switch_protocol(rc_switch_protocol_in_flash(config))
+    return rc_switch_protocol_copy(rc_switch_protocol_in_flash(config))
 
 
 RC_SWITCH_RAW_SCHEMA = cv.Schema(
@@ -1644,6 +1644,7 @@ RC_SWITCH_TRANSMITTER = cv.Schema(
 )
 
 rc_switch_protocol = ns.rc_switch_protocol
+rc_switch_protocol_copy = ns.rc_switch_protocol_copy
 RC_SWITCH_PROTOCOLS = ns.RC_SWITCH_PROTOCOLS
 RCSwitchData = ns.struct("RCSwitchData")
 RCSwitchBase = ns.class_("RCSwitchBase")
