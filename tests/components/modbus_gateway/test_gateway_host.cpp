@@ -207,7 +207,7 @@ TEST_F(GatewayRoute, BroadcastIsNotAnsweredAndHoldsTheBus) {
   this->gate_.loop();
   EXPECT_EQ(this->bms_.tx, broadcast);
 
-  // A slave must not answer a broadcast. A frame that arrives anyway is dropped.
+  // A broadcast is not answered. A frame that arrives anyway is dropped.
   this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x01}));
   usleep(50000);
   this->gate_.loop();

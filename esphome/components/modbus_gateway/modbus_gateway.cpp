@@ -14,7 +14,7 @@ static const char *const TAG = "modbus_gateway";
 
 static constexpr uint32_t BAD_LOG_INTERVAL_MS = 5000;
 // The Modbus client hub's default. A broadcast is never answered. The pause
-// lets the slave finish the write before the next frame.
+// lets the device finish the write before the next frame.
 static constexpr uint32_t BROADCAST_TURNAROUND_MS = 600;
 
 // Same character size as the Modbus hub: start bit, data bits, parity and stop bits.
@@ -355,7 +355,7 @@ bool ModbusGateway::start_next_(uint32_t now) {
     this->active_ = static_cast<int8_t>(index);
     this->sent_ms_ = now;
     this->bus_len_ = 0;
-    // Address 0 is a broadcast. Slaves must not answer. loop() holds the bus
+    // Address 0 is a broadcast. Nothing may answer. loop() holds the bus
     // for the turnaround and drops anything that arrives meanwhile.
     this->awaiting_ = this->request_[0] != 0;
     this->next_port_ = static_cast<uint8_t>((index + 1) % this->port_count_);
