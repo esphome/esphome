@@ -108,6 +108,7 @@ class Tuya final : public Component, public uart::UARTDevice {
   TuyaInitState get_init_state();
 #ifdef USE_TIME
   void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
+  void set_force_time_sync(bool force_time_sync) { this->force_time_sync_ = force_time_sync; }
 #endif
   void add_ignore_mcu_update_on_datapoints(uint8_t ignore_mcu_update_on_datapoints) {
     this->ignore_mcu_update_on_datapoints_.push_back(ignore_mcu_update_on_datapoints);
@@ -138,9 +139,13 @@ class Tuya final : public Component, public uart::UARTDevice {
   uint8_t get_wifi_rssi_();
 
 #ifdef USE_TIME
+  void register_local_time_sync_callback_();
+  void check_force_time_sync_();
   void send_local_time_();
   void send_gmt_time_();
   time::RealTimeClock *time_id_{nullptr};
+  bool force_time_sync_{false};
+  uint8_t last_force_time_sync_minute_{0xFF};
   bool time_sync_callback_registered_{false};
   bool gmt_time_sync_callback_registered_{false};
 #endif
