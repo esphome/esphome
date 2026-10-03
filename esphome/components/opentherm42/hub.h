@@ -77,6 +77,55 @@ enum class RequestKind : uint8_t {
   BRAND_SERIAL_NUMBER,
   // §5.3.3 Class 3, ID 4: a remote request command. Sent on demand (button press), not scheduled.
   REMOTE_REQUEST,
+
+  // §5.3.4 Class 4: write-only numbers this master provides to the boiler. ROOM_TEMPERATURE (ID 24)
+  // and TRCH2 (ID 37) are special cases: like the sensor-feed ids further below (27/38/78/79), they're
+  // this master's own external sensor readings with nothing for the component to invent a
+  // config-time default for, so they take no initial_value and only join the essential rotation once
+  // OpenTherm42SensorFeedNumber::control() has supplied a real value (see
+  // set_sensor_feed_write_value()) -- but unlike those, they have no READ-DATA counterpart at all, so
+  // control() also publishes .state directly there instead of leaving that to a READ_ACK.
+  ROOM_SETPOINT,      // ID 16
+  ROOM_SETPOINT_CH2,  // ID 23
+  ROOM_TEMPERATURE,   // ID 24 -- see note above; uses OpenTherm42SensorFeedNumber, not OpenTherm42Number
+  TRCH2,              // ID 37 -- see note above; uses OpenTherm42SensorFeedNumber, not OpenTherm42Number
+  // §5.3.4 Class 4, IDs 20/21/22: Day-of-week/Time, Date, Year -- written once per essential rotation
+  // from the configured time_id, so the boiler's clock stays in sync with this master's.
+  DAY_TIME,
+  DATE,
+  YEAR,
+  // §5.3.4 Class 4, IDs 20/21/22 (read side): independently configurable from the write side above
+  // -- unlike every other R/W id in this component (27/38/78/79 below, 56/57/87 in Class 5), the
+  // write here has no config marker of its own (it's driven purely by time_id being set), so
+  // there's no "_set" marker to pair a "_READ" suffix against. These three kinds are simply the
+  // informational-rotation reads, schedulable with or without time_id configured (see
+  // build_schedule_()) -- "what time does the boiler's own clock report" is useful diagnostic
+  // information even for a setup that never writes to it. All three feed a single combined
+  // date_time_text_sensor_ (see handle_response_()/publish_date_time_text_()), so none of them --
+  // including YEAR_READ, despite being a single plain u16 like other SIMPLE_SENSORS entries -- are
+  // dispatched through the generic SIMPLE_SENSORS table.
+  DAY_TIME_READ,
+  DATE_READ,
+  YEAR_READ,
+  // §5.3.4 Class 4, IDs 27/38/78/79: R/W ids, but unlike Class 5's pre-defined remote boiler
+  // parameters (see below), the spec gives the boiler no ownership of these values -- they're this
+  // master's own external sensor readings (outside temperature, relative humidity, ...) pushed to the
+  // boiler, same nature as ROOM_TEMPERATURE/TRCH2 (IDs 24/37) above, just with a READ-DATA counterpart
+  // those don't have. WRITE and READ are independently-scheduled RequestKinds (see build_schedule_()): the
+  // WRITE side only joins the essential rotation once OpenTherm42SensorFeedNumber::control() has
+  // supplied a real value (see set_sensor_feed_write_value()) -- no config-time default is invented,
+  // and the WRITE-ACK's echoed value is NOT trusted for display (real hardware has been observed
+  // acking a write while echoing an unrelated/stale value, despite genuinely accepting the write).
+  // Only a successful READ_DATA, on its own independent informational-rotation schedule, ever updates
+  // the number's displayed .state (see handle_response_()).
+  OUTSIDE_TEMPERATURE,                 // ID 27 (write)
+  OUTSIDE_TEMPERATURE_READ,            // ID 27 (read)
+  RELATIVE_HUMIDITY,                   // ID 38 (write)
+  RELATIVE_HUMIDITY_READ,              // ID 38 (read)
+  RELATIVE_HUMIDITY_EXHAUST_AIR,       // ID 78 (write)
+  RELATIVE_HUMIDITY_EXHAUST_AIR_READ,  // ID 78 (read)
+  CO2_LEVEL,                           // ID 79 (write)
+  CO2_LEVEL_READ,                      // ID 79 (read)
   // §5.3.4 Class 4, ID 35: HB Boiler fan speed Setpoint + LB Boiler fan speed -- two sensors from one
   // conversation, so it doesn't fit the single-sensor SimpleSensorInfo table below.
   BOILER_FAN_SPEED,
@@ -618,6 +667,51 @@ class OpenTherm42Hub : public Component {
   OT42_SET_SENSOR(remote_request_last_response_code, remote_request_last_response_code_sensor_)
   OT42_SET_PLAIN_TEXT_SENSOR(remote_request_last_response, remote_request_last_response_text_sensor_)
 
+  // §5.3.4 Class 4, IDs 20/21/22: the clock this master's Day-of-week/Time, Date and Year writes are
+  // sourced from. Left unset (nullptr), those three ids are simply never sent.
+  void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
+  // Synthetic diagnostic entities for the time-sync writes above -- see const.py's comment on
+  // CONF_SENSOR_AND_INFORMATIONAL_DATA_TIME_SYNCHRONIZED/_SYNC_TIME for why these aren't real
+  // spec-defined data-ids. True only once the most recent attempt at all three writes succeeded.
+  OT42_SET_BINARY_SENSOR(sensor_and_informational_data_time_synchronized, time_synchronized_binary_sensor_)
+  // Queues an immediate Day-of-week/Time/Date/Year resync, ahead of everything else -- same
+  // priority tier as Class 3's remote requests. Called by OpenTherm42SyncTimeButton::press_action().
+  void push_time_sync() {
+    this->time_sync_pending_ = true;
+    this->time_sync_step_ = 0;
+  }
+  // §5.3.4 Class 4, IDs 20/21/22 (read side): independent of time_id -- see
+  // RequestKind::DAY_TIME_READ's comment above.
+  OT42_SET_PLAIN_TEXT_SENSOR(sensor_and_informational_data_date_time, date_time_text_sensor_)
+  // Governs the 3-step DAY_TIME_READ/DATE_READ/YEAR_READ burst's cadence -- DAY_TIME_READ is
+  // entries_'s sole representative for the group, see build_schedule_(). Called explicitly from
+  // Python at wiring time (text_sensor.new_text_sensor() doesn't go through cg.register_component(),
+  // so there's no auto-wired set_update_every() on the entity itself to defer this call to its own
+  // setup(), unlike OpenTherm42Number/OpenTherm42SensorFeedNumber -- see those classes' own
+  // set_update_every()). Wiring happens before ANY component's setup(), including this hub's own,
+  // so build_schedule_() hasn't populated entries_ yet when this runs -- stored here and consumed
+  // by build_schedule_() itself when it creates the DAY_TIME_READ entry, rather than looked up
+  // immediately.
+  void set_sensor_and_informational_data_date_time_update_every(uint32_t update_every) {
+    this->date_time_read_update_every_ = update_every;
+  }
+
+  // §5.3.4 Class 4: write-only numbers.
+  OT42_SET_NUMBER(sensor_and_informational_data_room_setpoint, room_setpoint_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_room_setpoint_ch2, room_setpoint_ch2_number_)
+
+  // §5.3.4 Class 4, IDs 24/37 and IDs 27/38/78/79: this master's own external sensor readings -- a
+  // single OpenTherm42SensorFeedNumber entity per id. control() routes through
+  // set_sensor_feed_write_value() to join the schedule once a real value exists -- see the
+  // RequestKind comments and that class's own comment for why (IDs 24/37 have no READ-DATA
+  // counterpart, so control() also publishes .state directly there; 27/38/78/79 do, and only a
+  // successful READ_DATA ever updates theirs).
+  OT42_SET_NUMBER(sensor_and_informational_data_room_temperature, room_temperature_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_trch2, trch2_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_outside_temperature, outside_temperature_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_relative_humidity, relative_humidity_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_relative_humidity_exhaust_air, relative_humidity_exhaust_air_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_co2_level, co2_level_number_)
   // Called by OpenTherm42SensorFeedNumber::control() (ids 24/27/37/38/78/79 only) every time the user
   // commands a new value. The first call for a given id adds its WRITE RequestKind to the schedule,
   // since before that there's nothing legitimate to send -- see that class's comment for why these
@@ -766,6 +860,22 @@ class OpenTherm42Hub : public Component {
   // that case; the very next call resumes from the new pass_counter_, so a sparse schedule like
   // this self-corrects within a few calls rather than needing to search further ahead here.
   optional<Frame> pull_next_due_entry_();
+  // Builds the DAY_TIME_READ (0)/DATE_READ (1)/YEAR_READ (2) READ_DATA frame for the given burst
+  // step -- shared by the pass-pull (which kicks off the burst) and the date_time_read_pending_
+  // intercept (which continues it).
+  Frame build_date_time_read_step_(uint8_t step);
+  // Fills in a Day-of-week/Time (step 0), Date (step 1), or Year (step 2) WRITE_DATA frame's id and
+  // value from time_id_ -- shared by the regular schedule and push_time_sync()'s on-demand burst.
+  void build_time_sync_frame_(uint8_t step, Frame &frame);
+  // Recomputes and publishes time_synchronized_binary_sensor_ from day_time_write_ok_/
+  // date_write_ok_/year_write_ok_ -- called after each of the three writes' response.
+  void publish_time_synchronized_();
+  // Rebuilds date_time_text_sensor_'s displayed string from whichever of read_day_of_week_/
+  // read_hour_/read_minute_/read_month_/read_day_of_month_/read_year_ are currently known,
+  // substituting a placeholder token for any that aren't -- called after each of the three reads'
+  // response (DAY_TIME_READ/DATE_READ/YEAR_READ), success or failure. No-op if the sensor isn't
+  // configured.
+  void publish_date_time_text_();
   // Interprets a received frame according to which request it answers; logs and discards it if the
   // boiler replied with a message type that isn't legal for that data-id. Dispatches to the three
   // handlers below (split out of this function to stay under clang-tidy's statement-count limit),
@@ -862,6 +972,16 @@ class OpenTherm42Hub : public Component {
   bool sweep_had_error_{false};
   binary_sensor::BinarySensor *sweep_had_errors_binary_sensor_{nullptr};
 
+  // Set when the pass-pull picks the DAY_TIME_READ representative entry -- steps through
+  // DAY_TIME_READ (0)/DATE_READ (1)/YEAR_READ (2) one at a time via build_date_time_read_step_(),
+  // ahead of the ASAP scan and the ordinary pass-pull, so the shared date_time_text_sensor_
+  // refreshes as one coherent unit rather than field-by-field -- see build_next_request_().
+  bool date_time_read_pending_{false};
+  uint8_t date_time_read_step_{0};
+  // Set at wiring time by set_sensor_and_informational_data_date_time_update_every(), consumed
+  // once by build_schedule_() when it creates the DAY_TIME_READ entry -- see that setter's
+  // declaration comment for why this can't just update entries_ directly.
+  uint32_t date_time_read_update_every_{1};
   // Same wiring-time-staged-then-consumed pattern as date_time_read_update_every_ above, for the
   // three bespoke (non-SIMPLE_SENSORS) 1:1 sensors -- see their set_..._update_every() comments.
   uint32_t oem_fault_code_solar_storage_update_every_{1};
@@ -962,6 +1082,50 @@ class OpenTherm42Hub : public Component {
   uint8_t remote_request_code_{0};
   sensor::Sensor *remote_request_last_response_code_sensor_{nullptr};
   text_sensor::TextSensor *remote_request_last_response_text_sensor_{nullptr};
+
+  // §5.3.4 Class 4 entities.
+  time::RealTimeClock *time_id_{nullptr};
+  // Synthetic time-sync status/action entities -- see set_time_id()'s neighboring setters.
+  binary_sensor::BinarySensor *time_synchronized_binary_sensor_{nullptr};
+  bool day_time_write_ok_{false};
+  bool date_write_ok_{false};
+  bool year_write_ok_{false};
+  bool time_sync_pending_{false};
+  uint8_t time_sync_step_{0};
+  // §5.3.4 Class 4, IDs 20/21/22 (read side): the boiler's own reported clock, tracked per
+  // wire-subfield since DAY_TIME_READ/DATE_READ/YEAR_READ are three independent conversations
+  // that can each succeed or fail on their own -- see publish_date_time_text_().
+  text_sensor::TextSensor *date_time_text_sensor_{nullptr};
+  optional<uint8_t> read_day_of_week_{};
+  optional<uint8_t> read_hour_{};
+  optional<uint8_t> read_minute_{};
+  optional<uint8_t> read_month_{};
+  optional<uint8_t> read_day_of_month_{};
+  optional<uint16_t> read_year_{};
+
+  number::Number *room_setpoint_number_{nullptr};
+  number::Number *room_setpoint_ch2_number_{nullptr};
+  // §5.3.4 Class 4, IDs 16/23 (write side): see set_write_value()'s declaration comment.
+  float room_setpoint_write_value_{0};
+  float room_setpoint_ch2_write_value_{0};
+
+  number::Number *room_temperature_number_{nullptr};
+  number::Number *trch2_number_{nullptr};
+  number::Number *outside_temperature_number_{nullptr};
+  number::Number *relative_humidity_number_{nullptr};
+  number::Number *relative_humidity_exhaust_air_number_{nullptr};
+  number::Number *co2_level_number_{nullptr};
+  // §5.3.4 Class 4, IDs 24/37 and IDs 27/38/78/79 (write side): the value most recently commanded via
+  // OpenTherm42SensorFeedNumber::control(), routed through set_sensor_feed_write_value(). NAN means
+  // "never commanded" -- which also means the id's WRITE RequestKind isn't in entries_ yet (see
+  // that method). Kept on the hub rather than the entity so hub.h doesn't need to know
+  // OpenTherm42SensorFeedNumber's concrete type -- same reasoning as tsp_write_value_ below.
+  float room_temperature_write_value_{NAN};
+  float trch2_write_value_{NAN};
+  float outside_temperature_write_value_{NAN};
+  float relative_humidity_write_value_{NAN};
+  float relative_humidity_exhaust_air_write_value_{NAN};
+  float co2_level_write_value_{NAN};
 
   sensor::Sensor *boiler_fan_speed_setpoint_sensor_{nullptr};
   sensor::Sensor *boiler_fan_speed_sensor_{nullptr};

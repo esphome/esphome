@@ -6,6 +6,8 @@ from esphome.const import (
     CONF_INITIAL_VALUE,
     CONF_NUMBER,
     CONF_PLATFORM,
+    DEVICE_CLASS_CARBON_DIOXIDE,
+    DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     ENTITY_CATEGORY_CONFIG,
 )
@@ -18,6 +20,14 @@ from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_2_TSETCH2,
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_VENTILATION_HEAT_RECOVERY,
     CONF_OPENTHERM42_ID,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_SETPOINT,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_SETPOINT_CH2,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_TEMPERATURE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_TRCH2,
     CONF_TRANSPARENT_BOILER_PARAMETERS,
     CONF_TRANSPARENT_BOILER_PARAMETERS_SOLAR_STORAGE,
     CONF_TRANSPARENT_BOILER_PARAMETERS_VENTILATION_HEAT_RECOVERY,
@@ -98,6 +108,19 @@ TYPES: dict[str, tuple[cv.Schema, dict, int]] = {
         {"min_value": 0, "max_value": 100, "step": 1},
         71,
     ),
+    # §5.3.4 Class 4, ID 16: Room Setpoint -- current room temperature setpoint (degrees C, -40..127).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_SETPOINT: (
+        _number_schema("°C", -40, 127, 2, device_class=DEVICE_CLASS_TEMPERATURE),
+        {"min_value": -40, "max_value": 127, "step": 0.1},
+        16,
+    ),
+    # §5.3.4 Class 4, ID 23: Room Setpoint CH2 -- current room setpoint for the 2nd CH circuit
+    # (degrees C, -40..127).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_SETPOINT_CH2: (
+        _number_schema("°C", -40, 127, 2, device_class=DEVICE_CLASS_TEMPERATURE),
+        {"min_value": -40, "max_value": 127, "step": 0.1},
+        23,
+    ),
 }
 
 # §5.3.4 Class 4, IDs 24/37 and IDs 27/38/78/79: this master's own external sensor readings, pushed to the
@@ -106,7 +129,95 @@ TYPES: dict[str, tuple[cv.Schema, dict, int]] = {
 # needs the OpenTherm data-id, which the hub uses to route control()'s value to the right internal
 # field (see hub.h's set_sensor_feed_write_value()). Keyed by marker -> (schema, number.new_number
 # traits, id).
-SENSOR_FEED_TYPES: dict[str, tuple[cv.Schema, dict, int]] = {}
+SENSOR_FEED_TYPES: dict[str, tuple[cv.Schema, dict, int]] = {
+    # §5.3.4 Class 4, ID 24: Room temperature -- this master's own sensed room temperature
+    # (degrees C, -40..127), pushed to the boiler. A sensor-value feed rather than a demand, so
+    # it's CONFIG rather than primary.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_TEMPERATURE: (
+        number.number_schema(
+            OpenTherm42SensorFeedNumber,
+            unit_of_measurement="°C",
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        {"min_value": -40, "max_value": 127, "step": 0.1},
+        24,
+    ),
+    # §5.3.4 Class 4, ID 37: TrCH2 -- room temperature for the 2nd CH circuit (degrees C, -40..127).
+    # Same nature as ID 24 above.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_TRCH2: (
+        number.number_schema(
+            OpenTherm42SensorFeedNumber,
+            unit_of_measurement="°C",
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        {"min_value": -40, "max_value": 127, "step": 0.1},
+        37,
+    ),
+    # §5.3.4 Class 4, ID 27: Outside temperature (degrees C, -40..127). A sensor-value feed, so CONFIG.
+    # update_every governs the READ side (id has a READ-DATA counterpart, unlike 24/37 above) --
+    # see hub.h's set_sensor_feed_update_every().
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE: (
+        number.number_schema(
+            OpenTherm42SensorFeedNumber,
+            unit_of_measurement="°C",
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ).extend(
+            {
+                cv.Optional(CONF_UPDATE_EVERY, default=5): cv.int_range(min=1),
+            }
+        ),
+        {"min_value": -40, "max_value": 127, "step": 0.1},
+        27,
+    ),
+    # §5.3.4 Class 4, ID 38: Relative Humidity (0..100%). Same nature as ID 27 above.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY: (
+        number.number_schema(
+            OpenTherm42SensorFeedNumber,
+            unit_of_measurement="%",
+            device_class=DEVICE_CLASS_HUMIDITY,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ).extend(
+            {
+                cv.Optional(CONF_UPDATE_EVERY, default=5): cv.int_range(min=1),
+            }
+        ),
+        {"min_value": 0, "max_value": 100, "step": 1},
+        38,
+    ),
+    # §5.3.4 Class 4, ID 78 LB: Relative humidity exhaust air (0..100%). Same nature as ID 27 above.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR: (
+        number.number_schema(
+            OpenTherm42SensorFeedNumber,
+            unit_of_measurement="%",
+            device_class=DEVICE_CLASS_HUMIDITY,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ).extend(
+            {
+                cv.Optional(CONF_UPDATE_EVERY, default=5): cv.int_range(min=1),
+            }
+        ),
+        {"min_value": 0, "max_value": 100, "step": 1},
+        78,
+    ),
+    # §5.3.4 Class 4, ID 79: CO2 level exhaust air (0..2000 ppm). Same nature as ID 27 above.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL: (
+        number.number_schema(
+            OpenTherm42SensorFeedNumber,
+            unit_of_measurement="ppm",
+            device_class=DEVICE_CLASS_CARBON_DIOXIDE,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ).extend(
+            {
+                cv.Optional(CONF_UPDATE_EVERY, default=5): cv.int_range(min=1),
+            }
+        ),
+        {"min_value": 0, "max_value": 2000, "step": 1},
+        79,
+    ),
+}
 
 # §5.3.6 Class 6, IDs 11/89/106: one list of user-named TSP slots per family, keyed by which data-id
 # reads/writes that family's transparent-boiler-parameters.
