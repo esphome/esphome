@@ -1538,13 +1538,6 @@ def validate_rc_switch_raw_code(value):
     return value
 
 
-def rc_switch_protocol_value(config: int | ConfigType) -> MockObj:
-    """RAM copy of a constant protocol for the transmit actions, read from its flash table."""
-    if isinstance(config, int):
-        return rc_switch_protocol(config)
-    return rc_switch_protocol(rc_switch_protocol_in_flash(config))
-
-
 def build_rc_switch_protocol(config):
     if isinstance(config, int):
         return rc_switch_protocol(config)
@@ -1567,6 +1560,13 @@ def rc_switch_protocol_in_flash(config: int | ConfigType) -> MockObj:
     return cg.shared_progmem_array(
         "rc_switch_custom_protocol", RCSwitchBase, [build_rc_switch_protocol(config)]
     )
+
+
+def rc_switch_protocol_value(config: int | ConfigType) -> MockObj:
+    """RAM copy of a constant protocol for the transmit actions, read from its flash table."""
+    if isinstance(config, int):
+        return rc_switch_protocol(config)
+    return rc_switch_protocol(rc_switch_protocol_in_flash(config))
 
 
 RC_SWITCH_RAW_SCHEMA = cv.Schema(

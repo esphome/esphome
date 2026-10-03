@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 #include "esphome/core/component.h"
 #include "remote_base.h"
 
@@ -66,6 +68,9 @@ class RCSwitchBase {
   uint32_t one_high_{};
   uint32_t one_low_{};
   uint32_t inverted_{};  // bool widened so every field is a word: the table is read from flash
+
+  // A bool here would still pad to 28 bytes, so the size check below alone would not catch it.
+  static_assert(std::is_same_v<decltype(inverted_), uint32_t>, "inverted_ must stay a word for flash reads");
 };
 
 // Constant-initialized and kept in flash on every platform. The decoder reads entries in place
@@ -231,7 +236,7 @@ class RCSwitchRawReceiver : public RemoteReceiverBinarySensorBase {
  protected:
   bool matches(RemoteReceiveData src) override;
 
-  const RCSwitchBase *protocol_;  // in flash; decoded in place (word-only fields)
+  const RCSwitchBase *protocol_{nullptr};  // in flash; decoded in place (word-only fields)
   uint64_t code_;
   uint64_t mask_{0xFFFFFFFFFFFFFFFF};
   uint8_t nbits_;
