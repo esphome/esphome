@@ -30,7 +30,7 @@ void TcpUart::dump_config() {
                 this->server_ ? LOG_STR_LITERAL("Listen") : LOG_STR_LITERAL("Host"),
                 this->server_ ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
                 this->link_.reconnect_interval());
-  ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 "ms", this->timeout_ms_);
+  ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 "ms", this->link_.idle_timeout());
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.dump_config();
 #endif
@@ -47,12 +47,8 @@ void TcpUart::on_shutdown() {
 void TcpUart::sync_link_() {
   bool up = this->link_.connected();
   this->link_was_up_ = up;
-  if (up) {
-    // The limit is measured from the moment the link came up, not from boot.
-    this->note_io_();
-  } else {
+  if (!up) {
     this->rx_start_ = this->rx_end_ = 0;
-    this->last_io_ms_ = 0;
   }
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(up);
@@ -68,7 +64,7 @@ void TcpUart::read_socket_() {
   size_t room = RX_BUFFER_SIZE - this->rx_end_;
   if (room == 0) {
     // Unread bytes are waiting on the consumer. The peer is not idle.
-    this->note_io_();
+    this->link_.note_io();
     return;
   }
   ssize_t count = this->link_.read(this->rx_ + this->rx_end_, room);
@@ -81,7 +77,6 @@ void TcpUart::read_socket_() {
   }
   this->rx_end_ += static_cast<uint16_t>(count);
   this->rx_pending_ = static_cast<size_t>(count) == room;
-  this->note_io_();
 }
 
 void TcpUart::loop() {
@@ -109,11 +104,11 @@ void TcpUart::loop() {
   if (!this->link_.connected()) {
     return;
   }
-  this->flush_tx_();
+  this->link_.flush_tx();
   if (!this->link_.connected()) {
     return;
   }
-  this->check_idle_();
+  this->link_.check_idle();
 }
 
 void TcpUart::write_array(const uint8_t *data, size_t len) {
@@ -147,19 +142,13 @@ bool TcpUart::read_array(uint8_t *data, size_t len) {
 }
 
 uart::UARTFlushResult TcpUart::flush() {
-  bool emptied = this->flush_tx_();
+  bool emptied = this->link_.flush_tx();
   if (!this->link_.connected()) {
     // A down link cannot have delivered anything, whether this flush dropped
     // it or an earlier loop() write did.
     return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
   }
   return emptied ? uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS : uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
-}
-
-void TcpUart::close_idle_() {
-  ESP_LOGW(TAG, "Link idle, closing");
-  this->link_.close();
-  this->link_.note_attempt();
 }
 
 }  // namespace esphome::tcp_uart

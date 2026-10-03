@@ -31,7 +31,7 @@ void UartTcp::dump_config() {
                 this->server_ ? LOG_STR_LITERAL("Listen") : LOG_STR_LITERAL("Host"),
                 this->server_ ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
                 this->link_.reconnect_interval());
-  ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 "ms", this->timeout_ms_);
+  ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 "ms", this->link_.idle_timeout());
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.dump_config();
 #endif
@@ -51,10 +51,6 @@ void UartTcp::sync_link_() {
   if (up) {
     // The driver kept whatever arrived while the link was down.
     this->discard_uart_();
-    // The limit is measured from the moment the link came up, not from boot.
-    this->note_io_();
-  } else {
-    this->last_io_ms_ = 0;
   }
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(up);
@@ -73,7 +69,7 @@ void UartTcp::read_socket_() {
   if (room == 0) {
     // The UART cannot take more. The peer is not idle.
     this->rx_pending_ = true;
-    this->note_io_();
+    this->link_.note_io();
     return;
   }
   uint8_t tmp[READ_CHUNK];
@@ -88,7 +84,6 @@ void UartTcp::read_socket_() {
   }
   this->rx_pending_ = static_cast<size_t>(count) == want;
   this->write_array(tmp, static_cast<size_t>(count));
-  this->note_io_();
 }
 
 void UartTcp::discard_uart_() {
@@ -138,21 +133,11 @@ void UartTcp::loop() {
   }
   // UART bytes picked up here go out in the same pass.
   this->read_uart_();
-  size_t before = this->link_.tx_free();
   this->link_.flush_tx();
-  if (this->link_.tx_free() > before) {
-    this->note_io_();
-  }
   if (!this->link_.connected()) {
     return;
   }
-  this->check_idle_();
-}
-
-void UartTcp::close_idle_() {
-  ESP_LOGW(TAG, "Link idle, closing");
-  this->link_.close();
-  this->link_.note_attempt();
+  this->link_.check_idle();
 }
 
 }  // namespace esphome::uart_tcp

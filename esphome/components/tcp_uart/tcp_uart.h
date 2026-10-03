@@ -21,7 +21,7 @@ class TcpUart : public uart::UARTComponent, public Component {
   void set_port(uint16_t port) { this->link_.set_port(port); }
   void set_reconnect_interval(uint32_t ms) { this->link_.set_reconnect_interval(ms); }
   void set_connected_sensor(binary_sensor::BinarySensor *sensor) { this->connected_sensor_ = sensor; }
-  void set_timeout(uint32_t ms) { this->timeout_ms_ = ms; }
+  void set_timeout(uint32_t ms) { this->link_.set_idle_timeout(ms); }
 #ifdef USE_SOCKET_TCP_LISTENER
   void set_server(bool server) { this->server_ = server; }
 #ifdef USE_SOCKET_IPV4_ALLOW
@@ -51,31 +51,6 @@ class TcpUart : public uart::UARTComponent, public Component {
   void check_logger_conflict() override {}
   void sync_link_();
   void read_socket_();
-  void close_idle_();
-  // 0 disables. Unsigned elapsed time, so a wrapped millis() does not close early.
-  // A zero loop clock means it has not started; last_io_ 0 means there is no link yet.
-  void note_io_() {
-    uint32_t now = App.get_loop_component_start_time();
-    this->last_io_ms_ = now == 0 ? 1 : now;
-  }
-  bool flush_tx_() {
-    size_t before = this->link_.tx_free();
-    bool emptied = this->link_.flush_tx();
-    if (this->link_.tx_free() > before) {
-      this->note_io_();
-    }
-    return emptied;
-  }
-  void check_idle_() {
-    if (this->timeout_ms_ == 0 || this->last_io_ms_ == 0) {
-      return;
-    }
-    uint32_t now = App.get_loop_component_start_time();
-    if (now == 0 || now - this->last_io_ms_ < this->timeout_ms_) {
-      return;
-    }
-    this->close_idle_();
-  }
 
   static constexpr size_t RX_BUFFER_SIZE = 1024;
 
@@ -85,8 +60,6 @@ class TcpUart : public uart::UARTComponent, public Component {
 #endif
   binary_sensor::BinarySensor *connected_sensor_{nullptr};
   uint32_t last_drop_log_ms_{0};
-  uint32_t last_io_ms_{0};
-  uint32_t timeout_ms_{0};
   // rx_[rx_start_, rx_end_) holds unread bytes; read_socket_() compacts to the front.
   uint16_t rx_start_{0};
   uint16_t rx_end_{0};
