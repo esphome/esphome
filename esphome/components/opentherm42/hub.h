@@ -25,6 +25,25 @@ enum class RequestKind : uint8_t {
   STATUS,
   // §5.3.1 Class 1, ID 1: control setpoint.
   CONTROL_SETPOINT,
+  // §5.3.1 Class 1, ID 8: control setpoint 2 (TsetCH2).
+  CONTROL_SETPOINT_2,
+  // §5.3.1 Class 1, ID 70: master status for ventilation/heat-recovery <-> its status reply, the same
+  // one-conversation write+read pattern as STATUS.
+  VENTILATION_STATUS,
+  // §5.3.1 Class 1, ID 71: control setpoint ventilation/heat-recovery.
+  CONTROL_SETPOINT_VENTILATION,
+  // §5.3.1 Class 1, ID 5: application-specific fault flags + OEM fault code.
+  FAULT_FLAGS,
+  // §5.3.1 Class 1, ID 72: application-specific fault flags + OEM fault code, ventilation/heat-recovery.
+  VENTILATION_FAULT_FLAGS,
+  // §5.3.1 Class 1, ID 101: master/boiler solar storage status.
+  SOLAR_STORAGE_STATUS,
+  // §5.3.1 Class 1, ID 102: solar storage specific fault flags (HB reserved) + OEM fault code.
+  SOLAR_STORAGE_FAULT_FLAGS,
+  // §5.3.1 Class 1, ID 115: OEM diagnostic code.
+  OEM_DIAGNOSTIC_CODE,
+  // §5.3.1 Class 1, ID 73: OEM diagnostic code, ventilation/heat-recovery.
+  OEM_DIAGNOSTIC_CODE_VENTILATION,
 };
 
 class OpenTherm42Hub;
@@ -184,6 +203,24 @@ class OpenTherm42Hub : public Component {
   void set_control_and_status_information_boiler_status_update_every(uint32_t update_every) {
     this->pending_group_update_every_.emplace_back(RequestKind::STATUS, update_every);
   }
+  // Every id below spans more than one entity (see hub.h's scheduling-redesign notes and the
+  // catalog in the PR this introduced them) -- each hub option is only present in config, and thus
+  // only ever set here, when at least one of that group's entities is configured (enforced by
+  // validate_requires_hub_option() in opentherm42/__init__.py). Same staging reasoning as STATUS's
+  // own setter above -- entries_ doesn't exist yet at wiring time.
+  void set_control_and_status_information_status_ventilation_heat_recovery_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::VENTILATION_STATUS, update_every);
+  }
+  void set_control_and_status_information_application_specific_fault_flags_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::FAULT_FLAGS, update_every);
+  }
+  void set_control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_update_every(
+      uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::VENTILATION_FAULT_FLAGS, update_every);
+  }
+  void set_control_and_status_information_solar_storage_mode_and_status_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::SOLAR_STORAGE_STATUS, update_every);
+  }
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
@@ -191,8 +228,30 @@ class OpenTherm42Hub : public Component {
   void loop() override;
   void dump_config() override;
 
+  // §5.3.1 Class 1, ID 0 HB: Master status.
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_ch_enable, master_status_write_, 0)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_dhw_enable, master_status_write_, 1)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_cooling_enable, master_status_write_, 2)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_otc_active, master_status_write_, 3)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_ch2_enable, master_status_write_, 4)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_summer_winter_mode, master_status_write_, 5)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_dhw_blocking, master_status_write_, 6)
+
+  // §5.3.1 Class 1, ID 70 HB: Master status for ventilation/heat-recovery.
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_for_ventilation_heat_recovery_ventilation_enable,
+                      ventilation_status_write_, 0)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_for_ventilation_heat_recovery_bypass_position,
+                      ventilation_status_write_, 1)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_for_ventilation_heat_recovery_bypass_mode,
+                      ventilation_status_write_, 2)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_for_ventilation_heat_recovery_free_ventilation_mode,
+                      ventilation_status_write_, 3)
+
   // §5.3.1 Class 1, IDs 1/8/71: numeric setpoints.
   OT42_SET_NUMBER(control_and_status_information_control_setpoint, control_setpoint_number_)
+  OT42_SET_NUMBER(control_and_status_information_control_setpoint_2_tsetch2, control_setpoint_2_number_)
+  OT42_SET_NUMBER(control_and_status_information_control_setpoint_ventilation_heat_recovery,
+                  control_setpoint_ventilation_number_)
   // Called by every OpenTherm42Number's control()/setup() (every write-capable number except ids
   // 24/27/37/38/78/79 -- see set_sensor_feed_write_value() for those) to push the value that
   // build_next_request_() should send next for that data-id, and mark its Entry dirty so it's sent
@@ -210,6 +269,106 @@ class OpenTherm42Hub : public Component {
   // a fallback, same as everything else.
   void set_number_update_every(uint8_t id, uint32_t update_every);
 
+  // §5.3.1 Class 1, ID 0 LB: Boiler status.
+  OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_fault_indication, boiler_status_read_, 0)
+  OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_ch_mode, boiler_status_read_, 1)
+  OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_dhw_mode, boiler_status_read_, 2)
+  OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_flame_status, boiler_status_read_, 3)
+  OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_cooling_status, boiler_status_read_, 4)
+  OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_ch2_mode, boiler_status_read_, 5)
+  OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_diagnostic_service_indication, boiler_status_read_, 6)
+  OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_electricity_production, boiler_status_read_, 7)
+
+  // §5.3.1 Class 1, ID 70 LB: Status ventilation/heat-recovery (bits 5 and 7 are reserved).
+  OT42_FLAG_READ_BIT(control_and_status_information_status_ventilation_heat_recovery_fault_indication,
+                     ventilation_status_read_, 0)
+  OT42_FLAG_READ_BIT(control_and_status_information_status_ventilation_heat_recovery_ventilation_mode,
+                     ventilation_status_read_, 1)
+  OT42_FLAG_READ_BIT(control_and_status_information_status_ventilation_heat_recovery_bypass_status,
+                     ventilation_status_read_, 2)
+  OT42_FLAG_READ_BIT(control_and_status_information_status_ventilation_heat_recovery_bypass_automatic_status,
+                     ventilation_status_read_, 3)
+  OT42_FLAG_READ_BIT(control_and_status_information_status_ventilation_heat_recovery_free_ventilation_status,
+                     ventilation_status_read_, 4)
+  OT42_FLAG_READ_BIT(control_and_status_information_status_ventilation_heat_recovery_diagnostic_indication,
+                     ventilation_status_read_, 6)
+
+  // §5.3.1 Class 1, ID 5 HB: Application-specific fault flags (bits 6,7 reserved); LB: OEM fault code.
+  OT42_FLAG_READ_BIT(control_and_status_information_application_specific_fault_flags_service_request, fault_flags_read_,
+                     0)
+  OT42_FLAG_READ_BIT(control_and_status_information_application_specific_fault_flags_lockout_reset, fault_flags_read_,
+                     1)
+  OT42_FLAG_READ_BIT(control_and_status_information_application_specific_fault_flags_low_water_press, fault_flags_read_,
+                     2)
+  OT42_FLAG_READ_BIT(control_and_status_information_application_specific_fault_flags_gas_flame_fault, fault_flags_read_,
+                     3)
+  OT42_FLAG_READ_BIT(control_and_status_information_application_specific_fault_flags_air_press_fault, fault_flags_read_,
+                     4)
+  OT42_FLAG_READ_BIT(control_and_status_information_application_specific_fault_flags_water_over_temp, fault_flags_read_,
+                     5)
+  OT42_SET_SENSOR(control_and_status_information_oem_fault_code, oem_fault_code_sensor_)
+
+  // §5.3.1 Class 1, ID 72 HB: Application-specific fault flags, ventilation/heat-recovery (bits 4-7
+  // reserved); LB: OEM fault code ventilation/heat-recovery.
+  OT42_FLAG_READ_BIT(
+      control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_service_request,
+      ventilation_fault_flags_read_, 0)
+  OT42_FLAG_READ_BIT(
+      control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_exhaust_fan_fault,
+      ventilation_fault_flags_read_, 1)
+  OT42_FLAG_READ_BIT(
+      control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_inlet_fan_fault,
+      ventilation_fault_flags_read_, 2)
+  OT42_FLAG_READ_BIT(
+      control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_frost_protection,
+      ventilation_fault_flags_read_, 3)
+  OT42_SET_SENSOR(control_and_status_information_oem_fault_code_ventilation_heat_recovery,
+                  oem_fault_code_ventilation_sensor_)
+
+  // §5.3.1 Class 1, ID 101: Master/boiler solar storage status (HB and LB each carry their own Solar
+  // mode sub-field, at different bit offsets -- see handle_response_()). HB is master-authored
+  // (same "R -" idiom as ID 0/70's master status) with no readback, so it's a select, not a
+  // sensor; LB's own Solar mode/status sub-fields are small named enums, shown as text_sensors.
+  OT42_SET_BINARY_SENSOR(control_and_status_information_solar_storage_mode_and_status_fault_indication,
+                         solar_storage_fault_indication_binary_sensor_)
+  OT42_SET_SELECT(control_and_status_information_master_solar_storage_status_solar_mode,
+                  master_solar_storage_status_solar_mode_select_)
+  // Called by OpenTherm42Select's control()/setup() to push the commanded solar-mode index somewhere
+  // that survives has_state()==false -- build_next_request_() reads this instead of
+  // ->active_index(), and handle_response_()'s SOLAR_STORAGE_STATUS success path republishes the
+  // select from it, so a later successful conversation recovers a previously-invalidated select
+  // instead of leaving it stuck at Unknown (and silently sending index 0 on the wire in the
+  // meantime, since active_index() itself returns nullopt once invalidated).
+  void set_solar_storage_solar_mode_write_value(uint8_t value) { this->solar_storage_solar_mode_write_value_ = value; }
+  OT42_SET_PLAIN_TEXT_SENSOR(control_and_status_information_solar_storage_mode_and_status_solar_mode,
+                             solar_storage_mode_and_status_solar_mode_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(control_and_status_information_solar_storage_mode_and_status_solar_status,
+                             solar_storage_mode_and_status_solar_status_text_sensor_)
+
+  // §5.3.1 Class 1, ID 102 LB: OEM fault code Solar Storage (HB is entirely reserved -- no entity).
+  OT42_SET_SENSOR(control_and_status_information_oem_fault_code_solar_storage, oem_fault_code_solar_storage_sensor_)
+  // 1:1 but bespoke (not dispatched through SIMPLE_SENSORS -- see build_next_request_()/
+  // handle_response_()'s SOLAR_STORAGE_FAULT_FLAGS/OEM_DIAGNOSTIC_CODE(_VENTILATION) cases), so
+  // these can't reuse set_simple_sensor_update_every()'s generic id-keyed dispatch. Called at
+  // wiring time (sensor.new_sensor() doesn't go through cg.register_component()) -- stored here and
+  // consumed once by build_schedule_(), same reasoning as
+  // set_sensor_and_informational_data_date_time_update_every()'s declaration comment.
+  void set_control_and_status_information_oem_fault_code_solar_storage_update_every(uint32_t update_every) {
+    this->oem_fault_code_solar_storage_update_every_ = update_every;
+  }
+
+  // §5.3.1 Class 1, IDs 115/73: OEM diagnostic codes.
+  OT42_SET_SENSOR(control_and_status_information_oem_diagnostic_code, oem_diagnostic_code_sensor_)
+  OT42_SET_SENSOR(control_and_status_information_oem_diagnostic_code_ventilation_heat_recovery,
+                  oem_diagnostic_code_ventilation_sensor_)
+  // See set_control_and_status_information_oem_fault_code_solar_storage_update_every() above.
+  void set_control_and_status_information_oem_diagnostic_code_update_every(uint32_t update_every) {
+    this->oem_diagnostic_code_update_every_ = update_every;
+  }
+  void set_control_and_status_information_oem_diagnostic_code_ventilation_heat_recovery_update_every(
+      uint32_t update_every) {
+    this->oem_diagnostic_code_ventilation_update_every_ = update_every;
+  }
   // Generic counterpart for every id dispatched through the SIMPLE_SENSORS table (see
   // find_simple_sensor_by_id_()) -- one shared setter instead of ~44 individually-named ones, since
   // they all funnel into the exact same id-keyed lookup mechanism already. Called at wiring time
@@ -376,6 +535,11 @@ class OpenTherm42Hub : public Component {
   bool sweep_had_error_{false};
   binary_sensor::BinarySensor *sweep_had_errors_binary_sensor_{nullptr};
 
+  // Same wiring-time-staged-then-consumed pattern as date_time_read_update_every_ above, for the
+  // three bespoke (non-SIMPLE_SENSORS) 1:1 sensors -- see their set_..._update_every() comments.
+  uint32_t oem_fault_code_solar_storage_update_every_{1};
+  uint32_t oem_diagnostic_code_update_every_{1};
+  uint32_t oem_diagnostic_code_ventilation_update_every_{1};
   // Staged by set_simple_sensor_update_every() at wiring time, consumed once by build_schedule_()'s
   // SIMPLE_SENSORS loop, then cleared -- only needed transiently during setup(), so shrink_to_fit()
   // afterward gives the memory back rather than holding it forever.
@@ -391,11 +555,32 @@ class OpenTherm42Hub : public Component {
 
   // §5.3.1 Class 1 entities.
   FlagWriteBits master_status_write_;
+  FlagWriteBits ventilation_status_write_;
   FlagReadBits boiler_status_read_;
+  FlagReadBits ventilation_status_read_;
+  FlagReadBits fault_flags_read_;
+  FlagReadBits ventilation_fault_flags_read_;
 
   number::Number *control_setpoint_number_{nullptr};
+  number::Number *control_setpoint_2_number_{nullptr};
+  number::Number *control_setpoint_ventilation_number_{nullptr};
   // §5.3.1 Class 1, IDs 1/8/71 (write side): see set_write_value()'s declaration comment.
   float control_setpoint_write_value_{0};
+  float control_setpoint_2_write_value_{0};
+  float control_setpoint_ventilation_write_value_{0};
+
+  sensor::Sensor *oem_fault_code_sensor_{nullptr};
+  sensor::Sensor *oem_fault_code_ventilation_sensor_{nullptr};
+  sensor::Sensor *oem_fault_code_solar_storage_sensor_{nullptr};
+  sensor::Sensor *oem_diagnostic_code_sensor_{nullptr};
+  sensor::Sensor *oem_diagnostic_code_ventilation_sensor_{nullptr};
+  select::Select *master_solar_storage_status_solar_mode_select_{nullptr};
+  // §5.3.1 Class 1, ID 101 HB (write side): see set_solar_storage_solar_mode_write_value()'s
+  // declaration comment.
+  uint8_t solar_storage_solar_mode_write_value_{0};
+  text_sensor::TextSensor *solar_storage_mode_and_status_solar_mode_text_sensor_{nullptr};
+  text_sensor::TextSensor *solar_storage_mode_and_status_solar_status_text_sensor_{nullptr};
+  binary_sensor::BinarySensor *solar_storage_fault_indication_binary_sensor_{nullptr};
 
   bool reset_counter_pending_{false};
   uint8_t reset_counter_data_id_{0};

@@ -15,6 +15,8 @@ from esphome.types import ConfigType
 from .. import OpenTherm42Hub, opentherm42_ns
 from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT,
+    CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_2_TSETCH2,
+    CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_VENTILATION_HEAT_RECOVERY,
     CONF_OPENTHERM42_ID,
     CONF_UPDATE_EVERY,
 )
@@ -78,6 +80,20 @@ TYPES: dict[str, tuple[cv.Schema, dict, int]] = {
         _number_schema("°C", 0, 100, 1, device_class=DEVICE_CLASS_TEMPERATURE),
         {"min_value": 0, "max_value": 100, "step": 0.1},
         1,
+    ),
+    # §5.3.1 Class 1, ID 8: Control Setpoint 2 (TsetCH2), i.e. setpoint for the 2nd CH circuit
+    # (degrees C, 0..100).
+    CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_2_TSETCH2: (
+        _number_schema("°C", 0, 100, 2, device_class=DEVICE_CLASS_TEMPERATURE),
+        {"min_value": 0, "max_value": 100, "step": 0.1},
+        8,
+    ),
+    # §5.3.1 Class 1, ID 71 LB: Control Setpoint ventilation/heat-recovery. Relative ventilation
+    # position (0-100%): 0% is the minimum set ventilation, 100% is the maximum set ventilation.
+    CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_VENTILATION_HEAT_RECOVERY: (
+        _number_schema("%", 0, 100, 2),
+        {"min_value": 0, "max_value": 100, "step": 1},
+        71,
     ),
 }
 
