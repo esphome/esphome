@@ -72,10 +72,6 @@ struct ThermostatClimateTargetTempConfig {
   float default_temperature{NAN};
   float default_temperature_low{NAN};
   float default_temperature_high{NAN};
-  float cool_deadband_{NAN};
-  float cool_overrun_{NAN};
-  float heat_deadband_{NAN};
-  float heat_overrun_{NAN};
   optional<climate::ClimateFanMode> fan_mode_{};
   optional<climate::ClimateSwingMode> swing_mode_{};
   optional<climate::ClimateMode> mode_{};
