@@ -1,0 +1,141 @@
+import esphome.codegen as cg
+from esphome.components import text_sensor
+import esphome.config_validation as cv
+from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC
+
+from .. import OpenTherm42Hub
+from ..const import (
+    CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_CH2_PRESENT,
+    CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_CONTROL_TYPE,
+    CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_COOLING_CONFIG,
+    CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_DHW_CONFIG,
+    CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_DHW_PRESENT,
+    CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_HEAT_COOL_MODE_CONTROL,
+    CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_MASTER_LOW_OFF_AND_PUMP_CONTROL_FUNCTION,
+    CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_REMOTE_WATER_FILLING_FUNCTION,
+    CONF_CONFIGURATION_INFORMATION_BRAND,
+    CONF_CONFIGURATION_INFORMATION_BRAND_SERIAL_NUMBER,
+    CONF_CONFIGURATION_INFORMATION_BRAND_VERSION,
+    CONF_CONFIGURATION_INFORMATION_CONFIGURATION_VENTILATION_HEAT_RECOVERY_BYPASS,
+    CONF_CONFIGURATION_INFORMATION_CONFIGURATION_VENTILATION_HEAT_RECOVERY_SPEED_CONTROL,
+    CONF_CONFIGURATION_INFORMATION_CONFIGURATION_VENTILATION_HEAT_RECOVERY_SYSTEM_TYPE,
+    CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_CONFIGURATION_SYSTEM_TYPE,
+    CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_SOLAR_MODE,
+    CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_SOLAR_STATUS,
+    CONF_OPENTHERM42_ID,
+    CONF_UPDATE_EVERY,
+)
+
+# device_class is left unset throughout: Home Assistant text sensors only support "date" and
+# "timestamp", and none of these are that.
+TYPES: dict[str, cv.Schema] = {
+    # §5.3.2 Class 2, ID 93: Brand -- the boiler manufacturer's brand name, read one ASCII character
+    # at a time (index in HB, character in LB) until the boiler-reported character count is reached.
+    # entity_category is DIAGNOSTIC: a static Class 2 identification string the boiler reports once,
+    # the same nature as HA's own example of a diagnostic entity ("a sensor showing... MAC address").
+    # 1:1 (no other entity shares this conversation), so update_every lives on the entity itself --
+    # see opentherm42/__init__.py's UPDATE_EVERY_OPTIONS for the 1:N alternative.
+    CONF_CONFIGURATION_INFORMATION_BRAND: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ).extend(
+        {
+            cv.Optional(CONF_UPDATE_EVERY, default=7): cv.int_range(min=1),
+        }
+    ),
+    # §5.3.2 Class 2, ID 94: Brand version, read the same way as ID 93.
+    CONF_CONFIGURATION_INFORMATION_BRAND_VERSION: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ).extend(
+        {
+            cv.Optional(CONF_UPDATE_EVERY, default=7): cv.int_range(min=1),
+        }
+    ),
+    # §5.3.2 Class 2, ID 95: Brand serial number, read the same way as ID 93.
+    CONF_CONFIGURATION_INFORMATION_BRAND_SERIAL_NUMBER: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ).extend(
+        {
+            cv.Optional(CONF_UPDATE_EVERY, default=7): cv.int_range(min=1),
+        }
+    ),
+    # §5.3.2 Class 2, ID 3 HB bit 0: DHW present [ dhw not present, dhw is present ] -- a small named
+    # enum (each bit is really a 2-state code), so a text_sensor showing the spec's own wording
+    # rather than a bare on/off. Same DIAGNOSTIC nature as the brand strings above: a static
+    # capability flag the boiler reports once, not watched day-to-day.
+    CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_DHW_PRESENT: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 3 HB bit 1: Control type [ modulating, on/off ].
+    CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_CONTROL_TYPE: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 3 HB bit 2: Cooling config [ cooling not supported, cooling supported ].
+    CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_COOLING_CONFIG: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 3 HB bit 3: DHW config [ instantaneous or not-specified, storage tank ].
+    CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_DHW_CONFIG: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 3 HB bit 4: Master low-off&pump control function [ allowed, not allowed ].
+    CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_MASTER_LOW_OFF_AND_PUMP_CONTROL_FUNCTION: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 3 HB bit 5: CH2 present [ CH2 not present, CH2 present ].
+    CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_CH2_PRESENT: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 3 HB bit 6: Remote water filling function [ available or unknown, not
+    # available ]. Unknown for applications with protocol version 2.2 or older.
+    CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_REMOTE_WATER_FILLING_FUNCTION: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 3 HB bit 7: Heat/cool mode control [ switching done by master, switching
+    # done by boiler ].
+    CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_HEAT_COOL_MODE_CONTROL: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 74 HB bit 0: System type [ 0 = central exhaust ventilation, 1 = heat-recovery
+    # ventilation ].
+    CONF_CONFIGURATION_INFORMATION_CONFIGURATION_VENTILATION_HEAT_RECOVERY_SYSTEM_TYPE: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 74 HB bit 1: Bypass [ not present, present ].
+    CONF_CONFIGURATION_INFORMATION_CONFIGURATION_VENTILATION_HEAT_RECOVERY_BYPASS: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 74 HB bit 2: Speed control [ 3-speed, variable ].
+    CONF_CONFIGURATION_INFORMATION_CONFIGURATION_VENTILATION_HEAT_RECOVERY_SPEED_CONTROL: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 103 HB bit 0: Solar Storage configuration: system type
+    # [ 0 = DHW preheat system, 1 = DHW parallel system ].
+    CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_CONFIGURATION_SYSTEM_TYPE: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.1 Class 1, ID 101 LB bits 3,2,1: Solar Storage mode and status: Solar mode -- the
+    # boiler's own reported mode (Off/DHW Eco/DHW Comfort/DHW Single Boost/DHW Continuous Boost),
+    # a small named enum, so a text_sensor rather than a raw numeric code. Independent of the
+    # select platform's master_solar_storage_status_solar_mode (ID 101 HB) -- see hub.h.
+    CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_SOLAR_MODE: text_sensor.text_sensor_schema(),
+    # §5.3.1 Class 1, ID 101 LB bits 5,4: Solar Storage mode and status: Solar status (Standby/
+    # Loading By Sun/Loading By Boiler/Anti-Legionella).
+    CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_SOLAR_STATUS: text_sensor.text_sensor_schema(),
+}
+
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_OPENTHERM42_ID): cv.use_id(OpenTherm42Hub),
+        **{cv.Optional(marker): schema for marker, schema in TYPES.items()},
+    }
+)
+
+
+async def to_code(config: dict) -> None:
+    hub = await cg.get_variable(config[CONF_OPENTHERM42_ID])
+    for marker in TYPES:
+        if (marker_config := config.get(marker)) is not None:
+            var = await text_sensor.new_text_sensor(marker_config)
+            cg.add(getattr(hub, f"set_{marker}_text_sensor")(var))
+            if (update_every := marker_config.get(CONF_UPDATE_EVERY)) is not None:
+                cg.add(getattr(hub, f"set_{marker}_update_every")(update_every))
