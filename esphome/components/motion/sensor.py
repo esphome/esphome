@@ -1,4 +1,6 @@
 #  YAML config keys
+import math
+
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
@@ -6,6 +8,7 @@ from esphome.const import (
     CONF_TYPE,
     ICON_ACCELERATION,
     ICON_ROTATE_RIGHT,
+    ICON_SCREEN_ROTATION,
     STATE_CLASS_MEASUREMENT,
     UNIT_DEGREE_PER_SECOND,
     UNIT_DEGREES,
@@ -13,7 +16,6 @@ from esphome.const import (
 )
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import std_ns
-import esphome.final_validate as fv
 
 from . import (
     AXES,
@@ -21,6 +23,7 @@ from . import (
     KEY_ACCELEROMETER,
     KEY_GYROSCOPE,
     SENSOR_SCHEMA,
+    get_motion_config,
     motion_ns,
 )
 
@@ -28,7 +31,14 @@ MotionData = motion_ns.class_("MotionData")
 
 CONF_PITCH = "pitch"
 CONF_ROLL = "roll"
+CONF_ORIENTATION = "orientation"
+CONF_FLAT_THRESHOLD = "flat_threshold"
 ICON_SEESAW = "mdi:seesaw"
+
+# Minimum tilt angle (degrees) before the device is considered tilted enough to
+# report an orientation. Below this the device is treated as flat (sensor reports
+# NAN). Configured in degrees; converted to the sine of the angle for the C++ side.
+DEFAULT_FLAT_THRESHOLD = 30.0
 
 
 def _accel_sensor_schema():
@@ -58,6 +68,28 @@ def _level_sensor_schema():
     ).extend(SENSOR_SCHEMA)
 
 
+def _orientation_sensor_schema():
+    # Reports a discrete rotation (0/90/180/270) or NAN when flat, so it is not a
+    # continuous measurement (no state_class).
+    return (
+        sensor.sensor_schema(
+            unit_of_measurement=UNIT_DEGREES,
+            icon=ICON_SCREEN_ROTATION,
+            accuracy_decimals=0,
+        )
+        .extend(SENSOR_SCHEMA)
+        .extend(
+            {
+                # 90 is excluded: sin(90) == 1.0 would make the C++ comparison always
+                # true, so orientation would report NAN (flat) on every reading.
+                cv.Optional(
+                    CONF_FLAT_THRESHOLD, default=DEFAULT_FLAT_THRESHOLD
+                ): cv.float_range(min=0.0, max=90.0, max_included=False),
+            }
+        )
+    )
+
+
 _ACCELERATIONS = ["acceleration_" + a for a in AXES]
 _GYROSCOPES = ["gyroscope_" + g for g in AXES]
 _ANGULAR_RATES = ["angular_rate_" + r for r in AXES]
@@ -68,20 +100,20 @@ CONFIG_SCHEMA = cv.typed_schema(
         **{x: _gyro_sensor_schema() for x in _GYROSCOPES},
         **{x: _gyro_sensor_schema() for x in _ANGULAR_RATES},
         **{x: _level_sensor_schema() for x in (CONF_PITCH, CONF_ROLL)},
+        CONF_ORIENTATION: _orientation_sensor_schema(),
     }
 )
 
 
 def _final_validate(config: dict) -> None:
-    full_config = fv.full_config.get()
-    motion_path = full_config.get_path_for_id(config[CONF_MOTION_ID])[:-1]
-    motion_config = full_config.get_config_for_path(motion_path)
+    motion_config = get_motion_config(config[CONF_MOTION_ID])
     has_accel = motion_config.get(KEY_ACCELEROMETER, False)
     has_gyro = motion_config.get(KEY_GYROSCOPE, False)
 
     sensor_type = config[CONF_TYPE]
     if (
-        sensor_type in _ACCELERATIONS or sensor_type in (CONF_ROLL, CONF_PITCH)
+        sensor_type in _ACCELERATIONS
+        or sensor_type in (CONF_ROLL, CONF_PITCH, CONF_ORIENTATION)
     ) and not has_accel:
         raise cv.Invalid(
             "The motion device does not measure acceleration", path=[CONF_TYPE]
@@ -95,11 +127,22 @@ def _final_validate(config: dict) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def build_sensor_expr(sensor_type: str, data: MockObj) -> MockObj:
+def build_sensor_expr(
+    sensor_type: str, data: MockObj, config: dict | None = None
+) -> MockObj:
     """Build the C++ expression for a motion sensor type."""
 
     # Note that <numbers> is included via this component's header file.
     pif = std_ns.namespace("numbers").pi_v.template(cg.float_)
+    if sensor_type == CONF_ORIENTATION:
+        threshold_deg = (
+            config.get(CONF_FLAT_THRESHOLD, DEFAULT_FLAT_THRESHOLD)
+            if config is not None
+            else DEFAULT_FLAT_THRESHOLD
+        )
+        # The C++ helper compares against the sine of the tilt angle.
+        threshold = round(math.sin(math.radians(threshold_deg)), 6)
+        return motion_ns.orientation_degrees(data, threshold)
     if sensor_type == CONF_ROLL:
         ay = data.acceleration[1]
         az = data.acceleration[2]
@@ -120,9 +163,9 @@ async def to_code(config):
     var = await sensor.new_sensor(config)
     parent = await cg.get_variable(config[CONF_MOTION_ID])
     data = MockObj("data")
-    expr = build_sensor_expr(sensor_type, data)
+    expr = build_sensor_expr(sensor_type, data, config)
     value_lambda = await cg.process_lambda(
         var.publish_state(expr),
-        [(MotionData.operator("ref"), str(data))],
+        [(MotionData.operator("const").operator("ref"), str(data))],
     )
     cg.add(parent.add_listener(value_lambda))
