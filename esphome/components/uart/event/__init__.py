@@ -56,6 +56,8 @@ def validate_event_types(value) -> list[tuple[str, list[int]]]:
 
     if not processed:
         raise cv.Invalid("event_types must contain at least one event mapping.")
+    if len(processed) > 0xFFFF:
+        raise cv.Invalid("event_types can have at most 65535 entries.")
     if any(len(data) > 0xFFFF for _, data in processed):
         raise cv.Invalid("Event match data can be at most 65535 bytes.")
 

@@ -4,7 +4,10 @@ from collections.abc import Callable
 from pathlib import Path
 import re
 
+import pytest
+
 from esphome.components.uart.event import validate_event_types
+import esphome.config_validation as cv
 
 
 def test_debug_delimiter_and_event_matchers_use_shared_tables(
@@ -31,3 +34,8 @@ def test_debug_delimiter_and_event_matchers_use_shared_tables(
 
 def test_event_string_patterns_are_utf8_bytes() -> None:
     assert validate_event_types([{"euro": "€"}]) == [("euro", [0xE2, 0x82, 0xAC])]
+
+
+def test_event_types_count_is_capped() -> None:
+    with pytest.raises(cv.Invalid, match="at most 65535 entries"):
+        validate_event_types([{f"e{i}": "x"} for i in range(0x10000)])
