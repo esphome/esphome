@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <type_traits>
 
 namespace esphome::number {
 
@@ -17,6 +18,11 @@ struct NumberRange {
   float max_value;
   float step;
 };
+// Read straight from flash on ESP8266, so every field must stay a word.
+static_assert(std::is_same_v<decltype(NumberRange::min_value), float> &&
+                  std::is_same_v<decltype(NumberRange::max_value), float> &&
+                  std::is_same_v<decltype(NumberRange::step), float>,
+              "NumberRange fields must stay float");
 
 class NumberTraits {
  public:
