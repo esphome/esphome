@@ -1,0 +1,8 @@
+climate:
+  - platform: mill_panelheater_gen2
+    id: mill_heater
+    name: Mill Panel Heater Gen2
+    uart_id: uart_bus
+    rated_power: 900
+    power:
+      name: Mill Panel Heater Gen2 Estimated Power

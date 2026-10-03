@@ -1,0 +1,9 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
+  mill_panelheater_gen2: !include common.yaml
+
+esp8266:
+  board: d1_mini
+
+logger:
+  baud_rate: 0
