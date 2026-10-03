@@ -92,7 +92,7 @@ class ThermostatClimate final : public climate::Climate, public Component {
   void loop() override;
 
   void set_default_preset(const char *custom_preset);
-  void set_default_preset(climate::ClimatePreset preset);
+  void set_default_preset(climate::ClimatePreset preset) { this->default_preset_ = preset; }
   void set_on_boot_restore_from(thermostat::OnBootRestoreFrom on_boot_restore_from) {
     this->on_boot_restore_from_ = on_boot_restore_from;
   }

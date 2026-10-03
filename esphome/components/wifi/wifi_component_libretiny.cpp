@@ -709,7 +709,11 @@ void WiFiComponent::wifi_scan_done_callback_() {
       }
     }
 
-    this->scan_result_.init(count);  // Exact allocation
+    if (!this->scan_result_.try_init(count)) {
+      ESP_LOGW(TAG, "No memory for %zu scan results", count);
+      WiFi.scanDelete();
+      return;
+    }
 
     // Second pass: store matching networks
     for (int i = 0; i < num; i++) {

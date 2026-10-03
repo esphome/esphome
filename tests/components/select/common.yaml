@@ -1,0 +1,43 @@
+select:
+  - platform: template
+    name: "Test Select"
+    id: select_test_select
+    optimistic: true
+    options:
+      - one
+      - two
+      - three
+    initial_option: two
+
+button:
+  - platform: template
+    name: "Test Select Actions"
+    on_press:
+      - select.set:
+          id: select_test_select
+          option: three
+      - select.set:
+          id: select_test_select
+          option: !lambda |-
+            std::string option = "one";
+            return option;
+      - select.set_index:
+          id: select_test_select
+          index: 1
+      - select.set_index:
+          id: select_test_select
+          index: !lambda return 2;
+      - select.next: select_test_select
+      - select.previous:
+          id: select_test_select
+          cycle: false
+      - select.first: select_test_select
+      - select.last: select_test_select
+      - select.operation:
+          id: select_test_select
+          operation: next
+          cycle: false
+      - select.operation:
+          id: select_test_select
+          operation: !lambda return SELECT_OP_PREVIOUS;
+          cycle: !lambda return true;

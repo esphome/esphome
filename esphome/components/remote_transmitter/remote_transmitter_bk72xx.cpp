@@ -9,10 +9,13 @@
 // with the core's fixes for type-name collisions between the two
 #include <ArduinoPrivate.h>
 
-// Only the BK7231N-style PWM block (shadow registers with a hardware CFG_UPDATA load bit)
-// supports glitch-free per-edge duty updates; older SoCs compile the generic bit-bang
-// implementation (remote_transmitter.cpp) instead, and this file compiles to nothing.
-// REMOTE_TRANSMITTER_BK_PWM is set per-family in remote_transmitter.h.
+// Needs the BK7231N-style PWM block (shadow registers with a hardware CFG_UPDATA load bit)
+// for glitch-free per-edge duty updates, and an SDK exposing pwm_init_param()/pwm_start().
+// BK7231N has the block but LibreTiny builds it against an older BDK offering only the
+// sddev_control API (CMD_PWM_INIT_PARAM), so it stays on the generic bit-bang path until
+// someone can add and validate that path on real hardware. Every other Beken SoC lacks the
+// block. REMOTE_TRANSMITTER_BK_PWM is set per-family in remote_transmitter.h; when it is
+// unset this file compiles to nothing and remote_transmitter.cpp is used instead.
 
 namespace esphome::remote_transmitter {
 

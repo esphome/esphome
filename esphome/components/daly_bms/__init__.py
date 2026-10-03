@@ -26,6 +26,14 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("30s"))
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "daly_bms",
+    baud_rate=9600,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
+)
+
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])

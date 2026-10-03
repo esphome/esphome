@@ -20,6 +20,15 @@
 
 namespace esphome {
 
+#ifdef USE_ESP8266
+std::string progmem_string(ProgmemStr str) {
+  auto *src = reinterpret_cast<PGM_P>(str);
+  std::string result(strlen_P(src), '\0');
+  memcpy_P(result.data(), src, result.size());
+  return result;
+}
+#endif
+
 static const char *const TAG = "helpers";
 
 __attribute__((noinline, cold)) void *callback_manager_grow(void *data, uint16_t size, uint16_t &capacity,

@@ -94,6 +94,8 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
 #endif
 
   int8_t enqueue(std::unique_ptr<Command> cmd);
+  /// Queue a sensor reset
+  void reset_system() { this->enqueue(make_unique<ResetSystemCommand>()); }
 
  protected:
 #ifdef USE_BINARY_SENSOR

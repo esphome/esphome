@@ -92,6 +92,7 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_GENERIC,
   ETHERNET_TYPE_YT8531,
   ETHERNET_TYPE_CH390,
+  ETHERNET_TYPE_KSZ8851SNL,
 };
 
 struct ManualIP {
@@ -219,6 +220,9 @@ class EthernetComponent final : public Component {
  protected:
   void start_connect_();
   void finish_connect_();
+#if LWIP_IPV6
+  esp_err_t ensure_ip6_linklocal_();
+#endif
   void dump_connect_params_();
 
 #ifdef USE_ESP32

@@ -8,6 +8,11 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/version.h"
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+#include "esphome/components/mdns/mdns_component.h"
+#endif
 
 #include <sendspin/client.h>
 #include <sendspin/config.h>
@@ -92,7 +97,7 @@ class SendspinHub final : public Component,
 
   /// @brief Connects the underlying client to the given Sendspin server.
   ///
-  /// No-op if the hub's client is not ready (e.g. setup() has not completed).
+  /// No-op if the hub's client is not running (see is_client_running()).
   /// Must be called from the main loop thread.
   /// @param url WebSocket URL of the Sendspin server, starting with `ws://` (e.g. `ws://host:port/path`).
   void connect_to_server(const std::string &url);
@@ -100,7 +105,7 @@ class SendspinHub final : public Component,
   /// @brief Disconnects the underlying client from the current server.
   ///
   /// Sends a `client/goodbye` message with the given reason before closing the connection.
-  /// No-op if the hub's client is not ready. Must be called from the main loop thread.
+  /// No-op if the hub's client is not running. Must be called from the main loop thread.
   /// @param reason Reason reported to the server:
   ///   - `ANOTHER_SERVER`: client is switching to another server.
   ///   - `SHUTDOWN`: client is shutting down.
@@ -110,7 +115,7 @@ class SendspinHub final : public Component,
 
   /// @brief Updates the client's reported playback state on the server.
   ///
-  /// No-op if the hub's client is not ready. Must be called from the main loop thread.
+  /// No-op if the hub's client is not running. Must be called from the main loop thread.
   /// @param state New client state:
   ///   - `SYNCHRONIZED`: client is synchronized and playing from the server.
   ///   - `ERROR`: client encountered a playback error.
@@ -124,6 +129,30 @@ class SendspinHub final : public Component,
   }
 
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
+
+  /// @brief Requests the Sendspin client, including the server, the roles and the mDNS advertisement, to start or
+  /// stop.
+  ///
+  /// Applied from the hub's loop(). Stopping blocks until the client is fully stopped; the roles' clear callbacks
+  /// fire from inside that call. With a sendspin switch configured the client stays stopped until the switch has
+  /// called this once. Must be called from the main loop thread.
+  void set_enabled(bool enabled);
+
+  /// @brief Returns whether the Sendspin client is running.
+  bool is_client_running() const { return this->client_ != nullptr && this->client_->is_started(); }
+
+  /// @brief Sets the device information reported to the server in the `client/hello` message.
+  ///
+  /// Each takes a pointer to a string literal emitted by codegen, so it must stay valid for the
+  /// lifetime of the hub. Only called for values the configuration overrides; anything left alone
+  /// keeps the default described on the member below.
+  void set_manufacturer(const char *manufacturer) { this->manufacturer_ = manufacturer; }
+  void set_model(const char *model) { this->model_ = model; }
+  void set_firmware_version(const char *firmware_version) { this->firmware_version_ = firmware_version; }
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  void set_mdns(mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
+#endif
 
   // --- Sendspin role specific methods ---
 
@@ -151,6 +180,9 @@ class SendspinHub final : public Component,
 #ifdef USE_SENDSPIN_CONTROLLER
   void send_client_command(sendspin::SendspinControllerCommand command, std::optional<uint8_t> volume = std::nullopt,
                            std::optional<bool> mute = std::nullopt);
+
+  /// @brief Sends the SWITCH controller command; exposed as the sendspin.switch action.
+  void switch_client();
 
   template<typename F> void add_controller_state_callback(F &&callback) {
     this->controller_state_callbacks_.add(std::forward<F>(callback));
@@ -187,9 +219,17 @@ class SendspinHub final : public Component,
   /// @brief Builds the SendspinClientConfig from ESPHome configuration and platform info.
   sendspin::SendspinClientConfig build_client_config_();
 
+  /// @brief Returns the product name reported to the server: the configured model, or the device name.
+  const char *get_product_name_() const;
+
   /// @brief Writes the active network interface's MAC into @p buf and returns its data pointer.
   /// Uses the ethernet MAC if ethernet is configured, otherwise the base MAC (used by wifi).
   static const char *get_client_id_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  /// @brief Keeps the `_sendspin` mDNS service advertised while the client is running.
+  void update_mdns_service_();
+#endif
 
   // --- SendspinClientListener overrides ---
   void on_group_update(const sendspin::GroupUpdateObject &group) override;
@@ -268,6 +308,20 @@ class SendspinHub final : public Component,
   CallbackManager<void(const sendspin::GroupUpdateObject &)> group_update_callbacks_{};
 
   bool task_stack_in_psram_{false};
+
+  // Requested client state, applied from loop(). Empty until the switch restores its state.
+  std::optional<bool> enabled_;
+
+  // Device information sent in the `client/hello` message. Defaults apply when neither the
+  // sendspin configuration nor the project information supplies a value.
+  const char *manufacturer_{"ESPHome"};
+  const char *model_{nullptr};  // nullptr reports the device name instead
+  const char *firmware_version_{ESPHOME_VERSION};
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  mdns::MDNSComponent *mdns_{nullptr};
+  bool mdns_advertised_{false};  // Last state requested from mdns
+#endif
 };
 
 /// @brief Base class for all sendspin subcomponents.

@@ -56,7 +56,8 @@ class RfProxy final : public radio_frequency::RadioFrequency {
 
   /// Set the remote transmitter component
   void set_transmitter(remote_base::RemoteTransmitterBase *transmitter) { this->transmitter_ = transmitter; }
-  /// Set the remote receiver component
+  /// Set the remote receiver component; the listener registration happens from codegen, see
+  /// remote_base.attach_receiver
   void set_receiver(remote_base::RemoteReceiverBase *receiver) { this->receiver_ = receiver; }
 
   /// Set the fixed carrier frequency in Hz (metadata: advertised via traits, does not tune hardware)
