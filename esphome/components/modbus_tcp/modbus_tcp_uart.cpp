@@ -18,6 +18,8 @@ static constexpr uint32_t BAUD_PACE_DIVISOR = 625;
 static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
 // Modbus exception: gateway target device failed to respond.
 static constexpr uint8_t EXCEPTION_GATEWAY_TARGET = 0x0B;
+// Modbus serial address 0 is broadcast and is never answered.
+static constexpr uint8_t BROADCAST_ADDRESS = 0;
 
 static void note_drop(uint32_t &last_ms, const LogString *message) {
   uint32_t now = App.get_loop_component_start_time();
@@ -219,7 +221,7 @@ bool ModbusTcpUart::take_rtu_(uint8_t *pdu, size_t *pdu_len, uint8_t *unit) {
   *unit = this->uart_buf_[0];
   *pdu_len = this->uart_len_ - 3;
   std::memcpy(pdu, this->uart_buf_ + 1, *pdu_len);
-  this->uart_len_ = 0;
+  // Left in place until the caller has sent it. A full TCP buffer retries.
   return true;
 }
 
@@ -270,7 +272,7 @@ bool ModbusTcpUart::send_mbap_(uint16_t txn, uint8_t unit, const uint8_t *pdu, s
     return false;
   }
   if (this->link_.tx_free() < n) {
-    note_drop(this->last_drop_log_ms_, LOG_STR("TX buffer full, dropped the Modbus frame"));
+    note_drop(this->last_drop_log_ms_, LOG_STR("TX buffer full, holding the Modbus frame"));
     return false;
   }
   this->link_.queue(frame, n);
@@ -296,6 +298,9 @@ void ModbusTcpUart::pump_modbus_() {
   }
   if (this->arm_wait_uart_) {
     this->arm_wait_uart_ = false;
+    if (this->pending_unit_ == BROADCAST_ADDRESS) {
+      return;
+    }
     this->wait_uart_ = true;
     this->wait_started_ms_ = now == 0 ? 1 : now;
     this->note_uart_();
@@ -317,9 +322,15 @@ void ModbusTcpUart::pump_modbus_() {
     return;
   }
   if (this->wait_uart_) {
-    this->pull_uart_buf_();
+    if (this->uart_len_ < 4 || micros() - this->last_uart_us_ < this->frame_gap_us_()) {
+      this->pull_uart_buf_();
+    }
     if (this->take_rtu_(pdu, &pdu_len, &unit)) {
-      this->send_mbap_(this->txn_, unit, pdu, pdu_len);
+      // The response carries the request's unit id, not the one in the RTU frame.
+      if (!this->send_mbap_(this->txn_, this->pending_unit_, pdu, pdu_len)) {
+        return;
+      }
+      this->uart_len_ = 0;
       this->wait_uart_ = false;
     }
     return;
@@ -370,6 +381,9 @@ void ModbusTcpUart::pump_modbus_() {
         this->arm_wait_uart_ = true;
         return;
       }
+      if (unit == BROADCAST_ADDRESS) {
+        return;
+      }
       this->wait_uart_ = true;
       this->wait_started_ms_ = now == 0 ? 1 : now;
       this->note_uart_();
@@ -378,7 +392,9 @@ void ModbusTcpUart::pump_modbus_() {
     return;
   }
 #endif
-  this->pull_uart_buf_();
+  if (this->uart_len_ < 4 || micros() - this->last_uart_us_ < this->frame_gap_us_()) {
+    this->pull_uart_buf_();
+  }
   if (!this->take_rtu_(pdu, &pdu_len, &unit)) {
     return;
   }
@@ -386,7 +402,11 @@ void ModbusTcpUart::pump_modbus_() {
   if (!this->send_mbap_(txn, unit, pdu, pdu_len)) {
     return;
   }
+  this->uart_len_ = 0;
   this->txn_ = txn;
+  if (unit == BROADCAST_ADDRESS) {
+    return;
+  }
   this->wait_tcp_ = true;
   this->wait_started_ms_ = now == 0 ? 1 : now;
 }
