@@ -112,7 +112,7 @@ def _resolve_instance(board: str) -> str:
             )
         return labels[0]
     if labels is None:
-        detail = "Install gcc/cpp (C preprocessor) for automatic devicetree detection."
+        detail = "Couldn't read the board's devicetree (see the warning above)."
     else:
         detail = f"Board '{board}' declares no CAN controller in its devicetree."
     raise cv.Invalid(
