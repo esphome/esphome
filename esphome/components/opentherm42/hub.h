@@ -156,6 +156,23 @@ class OpenTherm42Hub : public Component {
   // has either never heard of this id or the bus itself is unreliable, neither of which this grace
   // period is meant to paper over. See should_invalidate_now_().
   void set_max_data_invalid(uint32_t max_data_invalid) { this->max_data_invalid_ = max_data_invalid; }
+  // Synthetic diagnostic entity -- see sweep_length_passes_'s declaration comment. Not tied to any
+  // real OpenTherm data-id, unconditionally available regardless of what else is configured.
+  // Deliberately not named with the sensor_and_informational_data_* prefix used elsewhere in this
+  // file, since that prefix names a real spec chapter (§5.3.4 Class 4) this entity has nothing to
+  // do with.
+  OT42_SET_SENSOR(sweep_duration, sweep_duration_sensor_)
+  // Same nature as the sweep duration sensor above, but for a single pass (one full scan of
+  // entries_, however many of them happened to be due on it) rather than a whole sweep -- see
+  // pass_start_ms_'s declaration comment.
+  OT42_SET_SENSOR(pass_duration, pass_duration_sensor_)
+  // Synthetic diagnostic entity: true if any conversation during the most recently completed sweep
+  // was rejected or failed at the datalink level (timeout, Manchester/parity/stop-bit error,
+  // DATA_INVALID, UNKNOWN_DATA_ID, or an unexpected message type) -- including ones
+  // should_invalidate_now_() chose not to actually invalidate an entity for (a DATA_INVALID within
+  // max_data_invalid's grace period), since those are exactly the kind of error that's otherwise
+  // only visible in the log. See sweep_had_error_'s declaration comment for how this is tracked.
+  OT42_SET_BINARY_SENSOR(sweep_had_errors, sweep_had_errors_binary_sensor_)
 
   // §5.2's mandatory heartbeat (id=0) -- unconditionally required in config (see
   // opentherm42/__init__.py), since STATUS is unconditionally scheduled regardless of which, if
@@ -345,16 +362,19 @@ class OpenTherm42Hub : public Component {
   // next due pass, same as any other outcome (see should_invalidate_now_()).
   uint32_t sweep_length_passes_{1};
   uint32_t sweep_start_ms_{0};
+  sensor::Sensor *sweep_duration_sensor_{nullptr};
   // Start time of the pass currently in progress -- reset every time pull_next_due_entry_() wraps
   // cursor_ back to 0 (i.e. every pass_counter_ increment), regardless of whether that pass also
   // happened to cross a sweep boundary. Unlike sweep_start_ms_, this always advances once per pass.
   uint32_t pass_start_ms_{0};
+  sensor::Sensor *pass_duration_sensor_{nullptr};
   // Set by OT42_LOG_REJECTION()/OT42_LOG_REJECTION_ALWAYS() (every rejected conversation) and by
   // loop()'s DataLinkState::ERROR case (every datalink-level failure), accumulating across the
   // sweep currently in progress. Published to sweep_had_errors_binary_sensor_ and reset to false at
   // every sweep boundary (see pull_next_due_entry_()), so it always reflects only the most recently
   // *completed* sweep, same lifecycle as sweep_duration_sensor_.
   bool sweep_had_error_{false};
+  binary_sensor::BinarySensor *sweep_had_errors_binary_sensor_{nullptr};
 
   // Staged by set_simple_sensor_update_every() at wiring time, consumed once by build_schedule_()'s
   // SIMPLE_SENSORS loop, then cleared -- only needed transiently during setup(), so shrink_to_fit()

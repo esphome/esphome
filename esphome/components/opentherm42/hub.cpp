@@ -359,9 +359,18 @@ optional<Frame> OpenTherm42Hub::pull_next_due_entry_() {
     this->cursor_ = 0;
     this->pass_counter_++;
     uint32_t const now = millis();
+    if (this->pass_duration_sensor_ != nullptr) {
+      this->pass_duration_sensor_->publish_state(now - this->pass_start_ms_);
+    }
     this->pass_start_ms_ = now;
     if (this->pass_counter_ % this->sweep_length_passes_ == 0) {
+      if (this->sweep_duration_sensor_ != nullptr) {
+        this->sweep_duration_sensor_->publish_state(now - this->sweep_start_ms_);
+      }
       this->sweep_start_ms_ = now;
+      if (this->sweep_had_errors_binary_sensor_ != nullptr) {
+        this->sweep_had_errors_binary_sensor_->publish_state(this->sweep_had_error_);
+      }
       this->sweep_had_error_ = false;
     }
   }
