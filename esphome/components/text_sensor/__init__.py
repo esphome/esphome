@@ -58,6 +58,7 @@ AppendFilter = text_sensor_ns.class_("AppendFilter", Filter)
 PrependFilter = text_sensor_ns.class_("PrependFilter", Filter)
 SubstituteFilter = text_sensor_ns.class_("SubstituteFilter", Filter)
 MapFilter = text_sensor_ns.class_("MapFilter", Filter)
+Substitution = text_sensor_ns.struct("Substitution")
 
 
 @FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
@@ -101,34 +102,29 @@ def validate_mapping(value):
     )(value)
 
 
-@FILTER_REGISTRY.register(
-    "substitute", SubstituteFilter, cv.ensure_list(validate_mapping)
-)
-async def substitute_filter_to_code(config, filter_id):
-    substitutions = [
+def _substitution_table(config: list[ConfigType]) -> MockObj:
+    """Shared PROGMEM Substitution table, ended by an empty pair so filters store no count."""
+    pairs = [
         cg.StructInitializer(
-            cg.MockObj("Substitution", "esphome::text_sensor::"),
-            ("from", conf[CONF_FROM]),
-            ("to", conf[CONF_TO]),
+            Substitution, ("from", conf[CONF_FROM]), ("to", conf[CONF_TO])
         )
         for conf in config
     ]
-    return cg.new_Pvariable(
-        filter_id, cg.TemplateArguments(len(substitutions)), substitutions
+    end = cg.RawExpression("nullptr")
+    pairs.append(cg.StructInitializer(Substitution, ("from", end), ("to", end)))
+    return cg.shared_progmem_array(
+        "text_sensor_substitutions", Substitution, cg.ArrayInitializer(*pairs)
     )
 
 
+@FILTER_REGISTRY.register(
+    "substitute", SubstituteFilter, cv.ensure_list(validate_mapping)
+)
 @FILTER_REGISTRY.register("map", MapFilter, cv.ensure_list(validate_mapping))
-async def map_filter_to_code(config, filter_id):
-    mappings = [
-        cg.StructInitializer(
-            cg.MockObj("Substitution", "esphome::text_sensor::"),
-            ("from", conf[CONF_FROM]),
-            ("to", conf[CONF_TO]),
-        )
-        for conf in config
-    ]
-    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(mappings)), mappings)
+async def substitution_filter_to_code(
+    config: list[ConfigType], filter_id: ID
+) -> MockObj:
+    return cg.new_Pvariable(filter_id, _substitution_table(config))
 
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")

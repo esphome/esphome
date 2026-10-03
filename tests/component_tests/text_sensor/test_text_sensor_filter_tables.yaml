@@ -1,0 +1,25 @@
+---
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini_lite
+
+text_sensor:
+  - platform: template
+    id: ts_map_a
+    filters:
+      - map:
+          - "ON -> Open"
+          - "OFF -> Closed"
+  - platform: template
+    id: ts_map_b
+    filters:
+      - map:
+          - "ON -> Open"
+          - "OFF -> Closed"
+  - platform: template
+    id: ts_sub
+    filters:
+      - substitute:
+          - "foo -> bar"
