@@ -1,6 +1,8 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+
+#include <type_traits>
 #ifdef USE_BINARY_SENSOR_FILTER
 
 #include "esphome/core/automation.h"
@@ -85,6 +87,11 @@ struct AutorepeatFilterTiming {
   uint32_t time_off;
   uint32_t time_on;
 };
+// Read straight from flash on ESP8266, so every field must stay a word.
+static_assert(std::is_same_v<decltype(AutorepeatFilterTiming::delay), uint32_t> &&
+                  std::is_same_v<decltype(AutorepeatFilterTiming::time_off), uint32_t> &&
+                  std::is_same_v<decltype(AutorepeatFilterTiming::time_on), uint32_t>,
+              "AutorepeatFilterTiming fields must stay uint32_t");
 
 /// Timings live in a PROGMEM table emitted by codegen. Every field is uint32_t, so aligned
 /// loads straight from flash are safe on ESP8266.
