@@ -104,7 +104,7 @@ void OnlineImage::update() {
 
   if (format == runtime_image::AUTO) {
     // Try to auto-detect format from Content-Type header
-    auto content_type = this->downloader_->get_response_header(CONTENT_TYPE_HEADER_NAME);
+    auto content_type = this->downloader_->get_response_header(CONTENT_TYPE_HEADER_NAME, true);
     ESP_LOGV(TAG, "Content-Type: %s", content_type.c_str());
     auto mime_format = esphome::runtime_image::get_format_for_mime_type(content_type.c_str());
     if (mime_format.has_value()) {
