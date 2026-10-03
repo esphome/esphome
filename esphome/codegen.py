@@ -38,6 +38,7 @@ from esphome.cpp_generator import (  # noqa: F401
     new_variable,
     process_lambda,
     progmem_array,
+    progmem_string,
     safe_exp,
     set_cpp_standard,
     statement,

@@ -264,6 +264,13 @@ class FlashStringLiteral(Literal):
         return f"ESPHOME_F({cpp_string_escape(self.string)})"
 
 
+def progmem_string(value: str) -> Expression:
+    """A ``std::string`` argument from a literal that stays in flash on ESP8266."""
+    if CORE.is_esp8266:
+        return RawExpression(f"progmem_string({FlashStringLiteral(value)})")
+    return safe_exp(value)
+
+
 class IntLiteral(Literal):
     __slots__ = ("i",)
 
