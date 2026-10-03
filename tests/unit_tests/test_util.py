@@ -1177,3 +1177,26 @@ class TestSafePrint:
         assert (
             capsys.readouterr().out == "Cannot print line because of invalid locale!\n"
         )
+
+
+@pytest.mark.parametrize("is_tty", [True, False], ids=["tty", "pipe"])
+def test_read_secret_line(is_tty: bool) -> None:
+    """A terminal reads without echo, a pipe reads one line; both strip."""
+    with (
+        patch("esphome.util.sys.stdin") as stdin,
+        patch("getpass.getpass", return_value="  secret \n") as getpass,
+    ):
+        stdin.isatty.return_value = is_tty
+        stdin.readline.return_value = "  secret \r\n"
+        assert util.read_secret_line("Key: ") == "secret"
+    assert getpass.called is is_tty
+    assert stdin.readline.called is not is_tty
+
+
+def test_read_secret_line_empty_pipe(capsys: pytest.CaptureFixture[str]) -> None:
+    """The prompt still goes to stderr on a pipe so a blocked read is diagnosable."""
+    with patch("esphome.util.sys.stdin") as stdin:
+        stdin.isatty.return_value = False
+        stdin.readline.return_value = ""
+        assert util.read_secret_line("Key: ") == ""
+    assert capsys.readouterr().err == "Key: "
