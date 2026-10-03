@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 import logging
 import math
 
@@ -127,6 +128,7 @@ from esphome.types import ConfigType
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "sensor"
 
 DEVICE_CLASSES = [
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
@@ -410,16 +412,42 @@ async def multiply_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, template_)
 
 
+TemplatableFloat = cg.esphome_ns.class_("TemplatableFn").template(cg.float_)
+
+
+@dataclass
+class SensorData:
+    # Rendered value list -> the PROGMEM table shared by every filter using it.
+    value_list_tables: dict[str, MockObj] = field(default_factory=dict)
+
+
+def _get_data() -> SensorData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = SensorData()
+    return CORE.data[DOMAIN]
+
+
+async def _value_list_table(filter_id: ID, values: list) -> tuple[MockObj, int]:
+    """Return a PROGMEM TemplatableFn<float> table for these values and its length."""
+    rhs = cg.safe_exp([await cg.templatable(x, [], cg.float_) for x in values])
+    tables = _get_data().value_list_tables
+    if (table := tables.get(key := str(rhs))) is None:
+        # Derived from the filter id, like select's options array.
+        table_id = ID(f"{filter_id}_values", is_declaration=True, type=TemplatableFloat)
+        table = tables[key] = cg.progmem_array(table_id, rhs)
+    return table, len(values)
+
+
 @FILTER_REGISTRY.register(
     "filter_out",
     FilterOutValueFilter,
     cv.Any(cv.templatable(cv.float_), [cv.templatable(cv.float_)]),
 )
-async def filter_out_filter_to_code(config, filter_id):
+async def filter_out_filter_to_code(config, filter_id: ID) -> MockObj:
     if not isinstance(config, list):
         config = [config]
-    template_ = [await cg.templatable(x, [], cg.float_) for x in config]
-    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(template_)), template_)
+    table, count = await _value_list_table(filter_id, config)
+    return cg.new_Pvariable(filter_id, table, count)
 
 
 QUANTILE_SCHEMA = cv.All(
@@ -699,10 +727,8 @@ async def throttle_with_priority_filter_to_code(config, filter_id):
         filter_id = filter_id.copy()
         filter_id.type = ThrottleWithPriorityNanFilter
         return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
-    template_ = [await cg.templatable(x, [], cg.float_) for x in values]
-    return cg.new_Pvariable(
-        filter_id, cg.TemplateArguments(len(template_)), config[CONF_TIMEOUT], template_
-    )
+    table, count = await _value_list_table(filter_id, values)
+    return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], table, count)
 
 
 HEARTBEAT_SCHEMA = cv.Schema(

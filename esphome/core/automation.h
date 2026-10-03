@@ -22,7 +22,8 @@ template<typename T, typename... X> class TemplatableFn {
   TemplatableFn(std::nullptr_t) = delete;
 
   // Exact return type match — direct function pointer storage
-  template<typename F> TemplatableFn(F f) requires std::convertible_to<F, T (*)(X...)> : f_(f) {}
+  // constexpr so codegen can place arrays of these in flash.
+  template<typename F> constexpr TemplatableFn(F f) requires std::convertible_to<F, T (*)(X...)> : f_(f) {}
 
   // Convertible return type (e.g., int -> uint8_t) — casting trampoline.
   // Stateless lambdas are default-constructible in C++20, so F{} recreates the lambda inside
