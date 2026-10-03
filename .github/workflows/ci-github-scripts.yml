@@ -25,3 +25,14 @@ jobs:
       - name: Run tests
         working-directory: .github/scripts/auto-label-pr
         run: npm test
+
+  test-warn-on-force-push:
+    name: Test warn-on-force-push scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run tests
+        working-directory: .github/scripts/warn-on-force-push
+        run: npm test
