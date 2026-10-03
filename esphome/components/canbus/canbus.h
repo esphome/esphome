@@ -70,15 +70,17 @@ enum CanEventFlags : uint8_t {
   CAN_EVENT_RX_QUEUE_FULL = 1 << 3,
 };
 
+static constexpr uint32_t CAN_STATUS_UNSET = UINT32_MAX;
+
 struct CanStatus {
   bool bus_off{false};
   uint8_t rx_error_counter{0};
   uint8_t tx_error_counter{0};
-  esphome::optional<uint32_t> tx_failed_count{};
-  esphome::optional<uint32_t> rx_missed_count{};
-  esphome::optional<uint32_t> rx_overrun_count{};
-  esphome::optional<uint32_t> arb_lost_count{};
-  esphome::optional<uint32_t> bus_error_count{};
+  uint32_t tx_failed_count{CAN_STATUS_UNSET};
+  uint32_t rx_missed_count{CAN_STATUS_UNSET};
+  uint32_t rx_overrun_count{CAN_STATUS_UNSET};
+  uint32_t arb_lost_count{CAN_STATUS_UNSET};
+  uint32_t bus_error_count{CAN_STATUS_UNSET};
 };
 
 class Canbus : public Component {

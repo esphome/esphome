@@ -113,7 +113,7 @@ void Canbus::loop() {
 }
 
 void Canbus::log_events_(CanEventFlags events) {
-  uint32_t now = millis();
+  uint32_t now = App.get_loop_component_start_time();
 
   // special handling for bus-off because that can switch on or off constantly due to automatic bus-off-recovery.
   if (events & CanEventFlags::CAN_EVENT_BUS_OFF) {
