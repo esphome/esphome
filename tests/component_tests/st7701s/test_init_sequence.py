@@ -17,24 +17,17 @@ spi:
   clk_pin: 10
   mosi_pin: 11
 display:
-{displays}
-"""
-
-_DISPLAY = """
   - platform: st7701s
-    id: {display_id}
+    id: panel
     dimensions:
       width: 480
       height: 480
-    cs_pin: {cs_pin}
+    cs_pin: 44
     de_pin: 18
     hsync_pin: 16
     vsync_pin: 17
     pclk_pin: 21
-    init_sequence:
-      - 1
-      - [0x23, 0xA, 0xB]
-      - delay 20ms
+    init_sequence: {init_sequence}
     data_pins: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 38, 39]
 """
 
@@ -46,7 +39,7 @@ def test_init_sequence_is_progmem_table(
     """The init sequence is a PROGMEM table instead of a vector copied at boot."""
     yaml_file = tmp_path / "st7701s.yaml"
     yaml_file.write_text(
-        _YAML.format(displays=_DISPLAY.format(display_id="panel", cs_pin=44))
+        _YAML.format(init_sequence="[1, [0x23, 0xA, 0xB], delay 20ms]")
     )
 
     main_cpp = generate_main(yaml_file)
@@ -59,3 +52,17 @@ def test_init_sequence_is_progmem_table(
     )
     assert table is not None
     assert len(table.group(1).split(",")) == int(call.group(2))
+
+
+def test_empty_init_sequence_emits_no_table(
+    generate_main: Callable[[str | Path], str],
+    tmp_path: Path,
+) -> None:
+    """An empty init sequence leaves the display without a table instead of a zero length array."""
+    yaml_file = tmp_path / "st7701s.yaml"
+    yaml_file.write_text(_YAML.format(init_sequence="[]"))
+
+    main_cpp = generate_main(yaml_file)
+
+    assert "st7701s_init_sequence" not in main_cpp
+    assert "set_init_sequence" not in main_cpp
