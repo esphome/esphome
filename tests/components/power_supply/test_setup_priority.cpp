@@ -19,6 +19,9 @@ class DummyInternalPin : public InternalGPIOPin {
   ISRInternalGPIOPin to_isr() const override { return ISRInternalGPIOPin(); }
   uint8_t get_pin() const override { return 0; }
   bool is_inverted() const override { return false; }
+#ifdef USE_GPIO_HOLD
+  inline bool is_held() const override { return false; }
+#endif
 
  protected:
   // Implement protected attach_interrupt required by InternalGPIOPin
