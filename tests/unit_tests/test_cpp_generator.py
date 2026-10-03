@@ -822,6 +822,13 @@ class TestSharedProgmemArray:
         assert sum("PROGMEM" in str(st) for st in CORE.global_statements) == 2
         assert not any("PROGMEM" in str(st) for st in CORE.main_statements)
 
+    def test_share_false_always_emits_a_new_array(self) -> None:
+        CORE.config = {}
+        a = cg.shared_progmem_array("table", ct.uint8, [1], share=False)
+        b = cg.shared_progmem_array("table", ct.uint8, [1], share=False)
+        assert str(a) != str(b)
+        assert sum("PROGMEM" in str(st) for st in CORE.global_statements) == 2
+
     def test_same_contents_different_type_are_separate(self) -> None:
         CORE.config = {}
         a = cg.shared_progmem_array("table", ct.uint8, [1])
