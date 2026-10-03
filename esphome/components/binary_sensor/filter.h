@@ -94,6 +94,8 @@ static_assert(std::is_same_v<decltype(AutorepeatFilterTiming::time_off), uint32_
               "AutorepeatFilterTiming fields must stay uint32_t");
 static_assert(std::is_same_v<decltype(AutorepeatFilterTiming::time_on), uint32_t>,
               "AutorepeatFilterTiming fields must stay uint32_t");
+static_assert(sizeof(AutorepeatFilterTiming) == 3 * sizeof(uint32_t),
+              "AutorepeatFilterTiming is read from flash with word loads");
 
 /// Timings live in a PROGMEM table emitted by codegen, ended by an entry whose delay is
 /// SCHEDULER_DONT_RUN (a step that could never advance anyway). Aligned loads are ESP8266 safe.
