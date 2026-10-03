@@ -710,9 +710,9 @@ void WiFiComponent::start() {
 
 #ifdef USE_WIFI_APSTA
     if (this->has_ap() && this->ap_coexist_) {
-      // Force the fallback AP trigger to fire immediately in loop()
+      // loop() starts the coexist AP on its first pass, so ap_timeout does not apply.
       this->last_connected_ = millis();
-      this->ap_timeout_ = 0;  // no delay — start AP on first loop() iteration
+      this->ap_timeout_ = 0;  // 0 disables the fallback gate this mode never reaches
     }
 #endif
     this->transition_to_phase_(WiFiRetryPhase::INITIAL_CONNECT);

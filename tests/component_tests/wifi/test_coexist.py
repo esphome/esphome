@@ -116,8 +116,10 @@ def test_ap_defaults_stay_plain(
         # Coexistence needs a station for the AP to fall back from.
         (
             _ESP32_IDF,
-            "  post_connect_roaming: false\n"
-            "  ap:\n    ssid: fallback\n    coexist: true\n",
+            (
+                "  post_connect_roaming: false\n"
+                "  ap:\n    ssid: fallback\n    coexist: true\n"
+            ),
             "requires at least one STA network",
         ),
         # The default post_connect_roaming scan would drop the AP again.
