@@ -46,7 +46,6 @@ from esphome.const import (
     CONF_TARGET_TEMPERATURE_LOW_STATE_TOPIC,
     CONF_TARGET_TEMPERATURE_STATE_TOPIC,
     CONF_TEMPERATURE_STEP,
-    CONF_TRIGGER_ID,
     CONF_VISUAL,
     CONF_WEB_SERVER,
 )
@@ -163,14 +162,6 @@ def visual_temperature_step(value: Any) -> ConfigType:
     )
 
 
-# Actions
-StateTrigger = climate_ns.class_(
-    "StateTrigger", automation.Trigger.template(Climate.operator("ref"))
-)
-ControlTrigger = climate_ns.class_(
-    "ControlTrigger", automation.Trigger.template(ClimateCall.operator("ref"))
-)
-
 _CLIMATE_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
@@ -249,16 +240,8 @@ _CLIMATE_SCHEMA = (
             cv.Optional(CONF_TARGET_HUMIDITY_STATE_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.publish_topic
             ),
-            cv.Optional(CONF_ON_CONTROL): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ControlTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_STATE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_CONTROL): automation.validate_automation(),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation(),
         }
     )
 )
@@ -285,6 +268,16 @@ def climate_schema(
             schema[cv.Optional(key, default=default)] = validator
 
     return _CLIMATE_SCHEMA.extend(schema)
+
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_STATE, "add_on_state_callback", [(Climate.operator("ref"), "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CONTROL, "add_on_control_callback", [(ClimateCall.operator("ref"), "x")]
+    ),
+)
 
 
 @setup_entity("climate")
@@ -442,17 +435,7 @@ async def setup_climate_core_(var: MockObj, config: ConfigType) -> None:
                 )
             )
 
-    for conf in config.get(CONF_ON_STATE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(Climate.operator("ref"), "x")], conf
-        )
-
-    for conf in config.get(CONF_ON_CONTROL, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(ClimateCall.operator("ref"), "x")], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     if web_server_config := config.get(CONF_WEB_SERVER):
         await web_server.add_entity_config(var, web_server_config)
