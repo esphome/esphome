@@ -1,0 +1,21 @@
+esphome:
+  name: sntp-tz-abbr-error
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+wifi:
+  ssid: "testssid"
+  password: "testpassword"
+
+time:
+  - platform: sntp
+    id: sntp_time
+
+text_sensor:
+  - platform: sntp
+    name: Timezone Abbreviation
