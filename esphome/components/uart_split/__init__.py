@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_DIRECTION,
+    CONF_ID,
     CONF_OUTPUTS,
     CONF_RX_ONLY,
     CONF_UART_ID,
