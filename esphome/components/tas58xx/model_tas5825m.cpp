@@ -4,21 +4,31 @@
 
 namespace esphome::tas58xx {
 
-// Remainder of the startup sequence from TI PurePath Console, run after the reset. Register 0x00 selects the page.
-// Registers 0x46, 0x7D, 0x7E and page 1 register 0x51 are not documented in the datasheet.
+// Remainder of the startup sequence, run after the reset. Register 0x00 selects the page.
+// All writes except starting and last three register writes are exactly the startup sequence from TI PurePath Console.
+// Registers 0x46, 0x7D, 0x7E, page 1 register 0x51 and Page 2 registers 0x1D, 0x19 are not documented in the datasheet.
+
+// clang-format off
 static const uint8_t STARTUP_SEQUENCE[][2] PROGMEM = {
-    {0x03, 0x00},  // DEVICE_CTRL_2: deep sleep
-    {0x46, 0x01},
-    {0x03, 0x02},  // DEVICE_CTRL_2: Hi-Z
-    // The I2C address is latched at power up, after which the ADR pin can report faults
-    {0x61, 0x0B},  // ADR_PIN_CONFIG: FAULTZ
-    {0x60, 0x01},  // ADR_PIN_CTRL: output
+    {0x03, 0x00},  // Deep Sleep
     {0x7D, 0x11},
     {0x7E, 0xFF},
-    {0x00, 0x01},
+    {0x00, 0x01},  // Page 1
     {0x51, 0x05},
-    {0x00, 0x00},
+    {0x00, 0x02},  // Page 2
+    {0x1D, 0x00},
+    {0x19, 0x80},
+    {0x00, 0x00},  // Page 0
+    {0x46, 0x11},
+    {0x02, 0x00},  // DEVICE_CTRL_1 - BD MODE, DAMP_PBTL set Damp to PBL MODE
+    {0x53, 0x01},  // ANA_CTRL PWM Phase Control - in phase
+    {0x54, 0x00},  // AGAIN 0dB
+    {0x03, 0x02},  // Hi-Z
+    {0x61, 0x0B},  // ADR_PIN_CONFIG - ADR as FAULTZ
+    {0x60, 0x01},  // ADR_OE - ADR is output
+    {0x77, 0x07},  // CBC_CONTROL enabling CBC function for warnings and faults
 };
+// clang-format on
 
 static const LogString *model_name() { return LOG_STR("TAS5825M"); }
 
