@@ -1026,3 +1026,13 @@ async def test_templatable_bytes_lambda_payload() -> None:
     assert "act->set_code_template(" in text
     assert "-> std::vector<uint8_t>" in text
     assert "set_code_static" not in text
+
+
+@pytest.mark.asyncio
+async def test_templatable_bytes_rejects_oversized_payload() -> None:
+    CORE.config = {}
+    var = MockObj("act", "->")
+    with pytest.raises(EsphomeError, match="maximum is 65535"):
+        await templatable_bytes(
+            [0] * 0x10000, [], var.set_code_template, var.set_code_static, "payload"
+        )
