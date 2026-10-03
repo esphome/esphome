@@ -43,14 +43,14 @@ script:
       - sensor.template.publish: {id: source_sensor, state: 2.0}
       - delay: 30ms
       - sensor.template.publish: {id: source_sensor, state: 3.0}
-      - delay: 400ms
+      - delay: 450ms
       # NaN inside a burst always passes
       - sensor.template.publish: {id: source_sensor, state: 4.0}
       - delay: 30ms
       - sensor.template.publish: {id: source_sensor, state: !lambda "return NAN;"}
       - delay: 30ms
       - sensor.template.publish: {id: source_sensor, state: 5.0}
-      - delay: 400ms
+      - delay: 450ms
       # Values right around the period
       - sensor.template.publish: {id: source_sensor, state: 6.0}
       - delay: 250ms
