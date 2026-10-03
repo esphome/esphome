@@ -48,6 +48,7 @@ from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import ConfigType
 from esphome.writer import clean_build
 from esphome.yaml_util import load_yaml
 
@@ -641,7 +642,15 @@ LVGL_TOP_LEVEL_SCHEMA = (
 )
 
 
+def _not_on_esp8266(config: ConfigType) -> ConfigType:
+    # Font glyph data lives in flash on ESP8266, which LVGL reads one byte at a time.
+    if CORE.is_esp8266:
+        raise cv.Invalid("LVGL is not supported on ESP8266")
+    return config
+
+
 LVGL_SCHEMA = cv.All(
+    _not_on_esp8266,
     container_schema(obj_spec, LVGL_TOP_LEVEL_SCHEMA),
     cv.has_at_most_one_key(CONF_PAGES, df.CONF_LAYOUT),
     add_hello_world,
