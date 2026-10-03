@@ -276,7 +276,7 @@ void ModbusGateway::read_port_(uint8_t index, uint32_t now) {
 
 void ModbusGateway::read_bus_(uint32_t now) {
   uint8_t tmp[64];
-  while (this->bus_len_ < MAX_FRAME && this->parent_->available() > 0) {
+  while (this->bus_len_<MAX_FRAME &&this->parent_->available()> 0) {
     size_t n = std::min(this->parent_->available(), sizeof(tmp));
     n = std::min(n, static_cast<size_t>(MAX_FRAME - this->bus_len_));
     if (!this->parent_->read_array(tmp, n)) {
