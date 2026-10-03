@@ -576,7 +576,7 @@ async def to_code(config: ConfigType) -> None:
                     unregister_id,
                     var,
                 )
-                cg.add(auto.add_actions([unregister_action]))
+                cg.add(auto.add_action(unregister_action))
         # Register all services at once - single allocation, no reallocations
         cg.add(var.initialize_user_services(triggers))
     if CORE.is_esp8266 and has_user_actions:
