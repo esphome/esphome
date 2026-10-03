@@ -46,6 +46,16 @@ button:
         address: 0x4242
         command: 0x8484
   - platform: template
+    name: Nexus
+    on_press:
+      remote_transmitter.transmit_nexus:
+        channel: 1
+        address: 42
+        temperature: 42.0
+        humidity: 69
+        battery_level: false
+        force_update: false
+  - platform: template
     name: LG
     on_press:
       remote_transmitter.transmit_lg:
