@@ -33,7 +33,9 @@ class BridgeFakeUart : public UARTComponent {
   size_t available() override { return this->rx_len_ - this->rx_pos_; }
   size_t available_for_write() override { return this->block_tx_ ? 0 : this->room_; }
   UARTFlushResult flush() override { return UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
+#if defined(USE_ESP8266) || defined(USE_ESP32)
   void load_settings(bool /*dump_config*/) override {}
+#endif
 
   void rx(const uint8_t *data, size_t len) {
     this->rx_pos_ = 0;
