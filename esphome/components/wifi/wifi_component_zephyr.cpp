@@ -67,11 +67,11 @@ bool g_wifi_started = false;  // NOLINT
 // drop weak scan results before they ever reach the event queue.
 int8_t g_min_scan_rssi = -128;  // NOLINT
 
-// Fixed pool backing event_queue_ instead of heap-allocating each event (a dense scan can
-// push 15-20 back to back). next_pool_slot only advances on a successful push, so it can
-// never wrap onto a still-live slot -- the queue's ring buffer always keeps one free.
-ZephyrWiFiEvent event_pool[17];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-uint8_t next_pool_slot = 0;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// Fixed pool backing event_queue_. Up to 16 queued + 1 being read by wifi_loop_() are live,
+// and a slot is written before push() can fail, so the pool needs one spare beyond that.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+ZephyrWiFiEvent event_pool[ZEPHYR_WIFI_EVENT_QUEUE_SIZE + 1];
+uint8_t next_pool_slot = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 ZephyrWiFiEvent *claim_pool_slot() { return &event_pool[next_pool_slot]; }
 

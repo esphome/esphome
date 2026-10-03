@@ -210,7 +210,6 @@ class ZephyrData(TypedDict):
     snippets: list[
         str
     ]  # zephyr: snippets: -- one `-S <name>` per entry to `west build`
-    swap_method: str | None  # ota: swap_method:, set by mcuboot.apply_swap_method()
     single_slot: bool  # zephyr: single_slot: -- see mcuboot.apply_single_slot()
     shields: list[str]  # zephyr: shields: -- one `-DSHIELD=` entry per item
     shield_root: (
@@ -267,7 +266,6 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         west_version=None,
         ninja_version=None,
         snippets=[],
-        swap_method=None,
         single_slot=False,
         shields=[],
         shield_root=None,
@@ -586,8 +584,6 @@ def zephyr_to_code(config: ConfigType) -> None:
     # The settings subsystem finds stored preferences by key, so key migration is possible
     cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.set_cpp_standard("gnu++20")
-    # Without this, printf-style %f prints "*float*" on chips without an FPU (FPU enables it by default).
-    zephyr_add_prj_conf("CBPRINTF_FP_SUPPORT", True)
     # platform: nrf52 has no user-facing `framework: type:` -- its internal
     # framework_type="ncs" (see zephyr_set_core_data) is Python-only, never turned into
     # a C++ define here; all C++ code keys off USE_NRF52 instead.
@@ -608,6 +604,9 @@ def zephyr_to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("FPU", True)
         # random_bytes() uses sys_rand_get(), which requires the entropy subsystem.
         zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
+    else:
+        # Without this, printf-style %f prints "*float*" on chips without an FPU (FPU enables it by default).
+        zephyr_add_prj_conf("CBPRINTF_FP_SUPPORT", True)
 
     if zephyr_data()[KEY_SINGLE_SLOT]:
         from . import mcuboot  # noqa: PLC0415
@@ -617,8 +616,12 @@ def zephyr_to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("STD_CPP20", True)
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
-    zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096, required=False)
-    zephyr_add_prj_conf("SYSTEM_WORKQUEUE_STACK_SIZE", 2048, required=False)
+    # platform: nrf52 keeps upstream's sizes.
+    if zephyr_variant() is None:
+        zephyr_add_prj_conf("MAIN_STACK_SIZE", 2048, required=False)
+    else:
+        zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096, required=False)
+        zephyr_add_prj_conf("SYSTEM_WORKQUEUE_STACK_SIZE", 2048, required=False)
     if CONF_WIFI in CORE.config:
         # Doubles Zephyr's default stack size for WiFi's dynamically-spawned worker
         # threads. Gated on wifi: since DYNAMIC_THREAD is only selected when WiFi is enabled.

@@ -258,10 +258,7 @@ def one_of_interface_validator(additional_values: list[str] | None = None) -> An
         if CORE.is_zephyr:
             # Zephyr's real bus list isn't known until fetch_board_dts() runs in
             # to_code() -- validated for real by resolve_zephyr_bus() there instead.
-            value = normalize_dts_label(cv.string(value))
-            if value in additional_values:
-                return value
-            return value
+            return normalize_dts_label(cv.string(value))
         return cv.one_of(
             *sum(get_hw_interface_list(), additional_values),
             lower=True,

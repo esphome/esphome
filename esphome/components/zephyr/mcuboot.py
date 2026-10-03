@@ -13,8 +13,9 @@ time on every platform, not just Zephyr.
 import time
 
 import esphome.codegen as cg
-from esphome.components.ota import CONF_SWAP_METHOD
+from esphome.components.ota import CONF_SWAP_METHOD, reject_swap_method_off_zephyr
 import esphome.config_validation as cv
+from esphome.const import CONF_OTA
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -32,7 +33,7 @@ _SYSBUILD_MODE = {
 def validate_swap_method(config: ConfigType) -> ConfigType:
     """Reject a swap_method the current variant's port doesn't support."""
     if not CORE.is_zephyr:
-        return config
+        return reject_swap_method_off_zephyr(config)
     from . import ZEPHYR_VARIANT_NATIVE_SIM, zephyr_variant
     from .variants import VARIANTS
 
@@ -57,7 +58,6 @@ def apply_swap_method(config: ConfigType) -> None:
         ZEPHYR_VARIANT_NATIVE_SIM,
         zephyr_add_prj_conf,
         zephyr_add_sysbuild_conf,
-        zephyr_data,
         zephyr_variant,
     )
 
@@ -68,7 +68,6 @@ def apply_swap_method(config: ConfigType) -> None:
     # is OVERWRITE_ONLY for the whole family, which silently defeats
     # boot_request_upgrade(BOOT_UPGRADE_TEST) (no image survives to revert to).
     zephyr_add_sysbuild_conf(_SYSBUILD_MODE[method], True)
-    zephyr_data()["swap_method"] = method
     if method == "direct":
         cg.add_define("USE_OTA_ZEPHYR_DIRECT_XIP")
         # Bootloader-image Kconfig, no SB_CONFIG_* mirror exists for it. Without it
@@ -80,10 +79,20 @@ def apply_swap_method(config: ConfigType) -> None:
 
 
 def zephyr_swap_method() -> str | None:
-    """Return the configured MCUboot swap method, or None if not yet set."""
-    from . import zephyr_data  # noqa: PLC0415
+    """Return the configured MCUboot swap method, or None if not applicable.
 
-    return zephyr_data().get("swap_method")
+    Read from the config, not to_code() state: standalone upload (which may load the
+    cached config and skip validation) needs it to pick the direct-xip slot image.
+    """
+    from . import ZEPHYR_VARIANT_NATIVE_SIM, zephyr_variant  # noqa: PLC0415
+
+    if not CORE.is_zephyr or zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
+        return None
+    # ota.final_validate guarantees every entry agrees.
+    for ota_conf in (CORE.config or {}).get(CONF_OTA, []):
+        if (method := ota_conf.get(CONF_SWAP_METHOD)) is not None:
+            return method
+    return None
 
 
 def apply_single_slot() -> None:

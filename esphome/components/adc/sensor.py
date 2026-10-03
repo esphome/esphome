@@ -232,12 +232,9 @@ def _get_data() -> ADCData:
 def _next_zephyr_io_channel_index() -> int:
     """Return the next position in `zephyr_user`'s `io-channels` property.
 
-    ADC_DT_SPEC_GET_BY_IDX() indexes by *append position* in that property,
-    not by silicon channel number -- shared across every branch below that
-    appends to it (esp32-family real hardware and `emulation:`) so the two
-    can coexist in one config without colliding. nrf52 keeps its own separate
-    counter (ADCData.nrf52_channel_id): it's a distinct target_platform that
-    can never build alongside these branches, so there's no risk of collision.
+    ADC_DT_SPEC_GET_BY_IDX() indexes by append position, not silicon channel, so
+    every platform: zephyr branch (including `emulation:`) must share this counter.
+    platform: nrf52 can't build alongside them and keeps its own.
     """
     data = _get_data()
     index = data.zephyr_io_channel_index
@@ -456,8 +453,9 @@ async def to_code(config: ConfigType) -> None:
         adc_id = ID(
             f"{config[CONF_ID]}_adc_channel", is_declaration=True, type=adc_dt_spec
         )
+        io_index = _next_zephyr_io_channel_index()
         rhs = cg.RawExpression(
-            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {channel_id})"
+            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {io_index})"
         )
         adc = cg.new_Pvariable(adc_id, rhs)
         cg.add(var.set_adc_channel(adc))
@@ -500,8 +498,9 @@ async def to_code(config: ConfigType) -> None:
         adc_id = ID(
             f"{config[CONF_ID]}_adc_channel", is_declaration=True, type=adc_dt_spec
         )
+        io_index = _next_zephyr_io_channel_index()
         rhs = cg.RawExpression(
-            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {channel_id})"
+            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {io_index})"
         )
         adc = cg.new_Pvariable(adc_id, rhs)
         cg.add(var.set_adc_channel(adc))
@@ -551,8 +550,9 @@ async def to_code(config: ConfigType) -> None:
         adc_id = ID(
             f"{config[CONF_ID]}_adc_channel", is_declaration=True, type=adc_dt_spec
         )
+        io_index = _next_zephyr_io_channel_index()
         rhs = cg.RawExpression(
-            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {channel_id})"
+            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {io_index})"
         )
         adc = cg.new_Pvariable(adc_id, rhs)
         cg.add(var.set_adc_channel(adc))
@@ -597,8 +597,9 @@ async def to_code(config: ConfigType) -> None:
         adc_id = ID(
             f"{config[CONF_ID]}_adc_channel", is_declaration=True, type=adc_dt_spec
         )
+        io_index = _next_zephyr_io_channel_index()
         rhs = cg.RawExpression(
-            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {channel_id})"
+            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {io_index})"
         )
         adc = cg.new_Pvariable(adc_id, rhs)
         cg.add(var.set_adc_channel(adc))

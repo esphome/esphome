@@ -11,6 +11,7 @@ from esphome.components.ota import (
     SWAP_METHOD_SCHEMA,
     OTAComponent,
     ota_to_code,
+    reject_swap_method_off_zephyr,
 )
 from esphome.config_helpers import filter_source_files_from_defines, merge_config
 import esphome.config_validation as cv
@@ -286,7 +287,7 @@ def _validate_swap_method(config: ConfigType) -> ConfigType:
     # west/sysbuild handling) that every non-Zephyr platform using platform: esphome
     # would otherwise import just to build this schema.
     if not CORE.is_zephyr:
-        return config
+        return reject_swap_method_off_zephyr(config)
     from esphome.components.zephyr.mcuboot import validate_swap_method
 
     return validate_swap_method(config)
