@@ -18,15 +18,17 @@ class SelectTraits {
   /// The table must outlive the select.
   void set_options(const char *const *options, size_t count) { this->options_ = SelectOptions(options, count); }
   void set_options(SelectOptions options) { this->options_ = options; }
-  // Remove before 2027.5.0
-  ESPDEPRECATED("Pass a table that outlives the select instead. Removed in 2027.5.0", "2026.11.0")
+  // Remove before 2027.4.0
+  ESPDEPRECATED("Pass a table that outlives the select instead. Removed in 2027.4.0", "2026.10.0")
   void set_options(const std::initializer_list<const char *> &options);
-  // Remove before 2027.5.0
-  ESPDEPRECATED("Pass a table that outlives the select instead. Removed in 2027.5.0", "2026.11.0")
+  // Remove before 2027.4.0
+  ESPDEPRECATED("Pass a table that outlives the select instead. Removed in 2027.4.0", "2026.10.0")
   void set_options(const FixedVector<const char *> &options);
   const SelectOptions &get_options() const { return this->options_; }
 
  protected:
+  void set_options_copy_(const char *const *options, size_t count);
+
   SelectOptions options_;
 };
 
