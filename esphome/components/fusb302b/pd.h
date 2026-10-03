@@ -49,12 +49,16 @@ enum class PdState : uint8_t {
   PD_STATE_ERROR,
 };
 
+/// Returns true for the states in which a source is attached and supplying power.
+inline bool is_connected_state(PdState state) {
+  return state == PdState::PD_STATE_DEFAULT_CONTRACT || state == PdState::PD_STATE_TRANSITION ||
+         state == PdState::PD_STATE_EXPLICIT_CONTRACT || state == PdState::PD_STATE_PD_TIMEOUT;
+}
+
 struct PdContract {
   PdPdoType type{PD_PDO_TYPE_FIXED_SUPPLY};
-  uint16_t min_v{0};  // 50 mV units
   uint16_t max_v{0};  // 50 mV units
   uint16_t max_i{0};  // 10 mA units
-  uint16_t max_p{0};  // 250 mW units
 
   bool operator==(const PdContract &other) const {
     return this->max_v == other.max_v && this->max_i == other.max_i && this->type == other.type;
@@ -95,7 +99,7 @@ class PowerDelivery {
   uint8_t get_request_voltage() const { return this->request_voltage_; }
 
   PdState get_state() const { return this->state_; }
-  bool is_connected() const;
+  bool is_connected() const { return is_connected_state(this->state_); }
 
  protected:
   virtual bool send_message(const PdMsg &msg) = 0;
@@ -110,6 +114,8 @@ class PowerDelivery {
   void set_ams_(bool active);
   /// Returns true while an atomic message sequence is in progress; ends it after a timeout.
   bool check_ams_();
+  /// Returns true when the source accepted a request but did not report the new supply ready in time.
+  bool transition_timed_out_();
 
   PdMsg make_control_msg_(PdControlMsgType type) const;
   PdMsg make_data_msg_(PdDataMsgType type, const uint32_t *objects, uint8_t len) const;

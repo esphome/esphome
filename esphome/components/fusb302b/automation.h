@@ -7,22 +7,20 @@
 
 namespace esphome::fusb302b {
 
-/// Triggers when a source is attached.
+/// Triggers when a source is attached, including after recovering from a communication error.
 struct ConnectForwarder {
   Automation<> *automation;
   void operator()(PdState state, PdState previous) const {
-    if (previous == PdState::PD_STATE_DISCONNECTED && state != PdState::PD_STATE_DISCONNECTED &&
-        state != PdState::PD_STATE_ERROR)
+    if (is_connected_state(state) && !is_connected_state(previous))
       this->automation->trigger();
   }
 };
 
-/// Triggers when the source is removed.
+/// Triggers when the source is removed, or is no longer known to be attached because communication failed.
 struct DisconnectForwarder {
   Automation<> *automation;
   void operator()(PdState state, PdState previous) const {
-    if (state == PdState::PD_STATE_DISCONNECTED && previous != PdState::PD_STATE_DISCONNECTED &&
-        previous != PdState::PD_STATE_ERROR)
+    if (!is_connected_state(state) && is_connected_state(previous))
       this->automation->trigger();
   }
 };

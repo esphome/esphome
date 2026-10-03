@@ -2,6 +2,8 @@
 
 #ifdef USE_ESP32
 
+#include <cstdio>
+
 #include "esphome/core/log.h"
 
 #include "fusb302b_registers.h"
@@ -22,6 +24,8 @@ static constexpr uint32_t STARTUP_DELAY_MS = 2000;
 static constexpr uint32_t CC_SETTLE_MS = 5;
 static constexpr uint32_t CC_POLL_INTERVAL_MS = 500;
 static constexpr uint32_t PD_POLL_INTERVAL_MS = 100;
+// Safety net in case an interrupt edge is missed while attached and idle
+static constexpr uint32_t IDLE_POLL_INTERVAL_MS = 1000;
 // Time to wait for the source to send its capabilities on its own after attach
 static constexpr uint32_t SOURCE_CAP_WAIT_MS = 5000;
 // Time to wait after each GET_SOURCE_CAP / soft reset before the next recovery step
@@ -33,7 +37,7 @@ static constexpr uint8_t CC_STABLE_READS = 5;
 static constexpr uint8_t CC_LEVEL_UNSTABLE = 0xFF;
 
 // Type-C default power: 5 V (100 x 50 mV) at 500 mA (50 x 10 mA)
-static constexpr PdContract DEFAULT_CONTRACT{PD_PDO_TYPE_FIXED_SUPPLY, 0, 100, 50, 0};
+static constexpr PdContract DEFAULT_CONTRACT{PD_PDO_TYPE_FIXED_SUPPLY, 100, 50};
 
 void IRAM_ATTR FUSB302B::gpio_intr(FUSB302B *arg) {
   TaskHandle_t handle = arg->task_.get_handle();
@@ -114,9 +118,6 @@ void FUSB302B::dump_config() {
                 this->get_request_voltage());
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
@@ -147,10 +148,10 @@ void FUSB302B::run_task_() {
     uint32_t wait_ms = CC_POLL_INTERVAL_MS;
     if (this->attached_) {
       const bool busy = this->waiting_for_source_caps_ || this->request_pending_ || this->check_ams_();
-      wait_ms = busy ? PD_POLL_INTERVAL_MS : UINT32_MAX;
+      wait_ms = busy ? PD_POLL_INTERVAL_MS : IDLE_POLL_INTERVAL_MS;
     }
     uint32_t bits = 0;
-    xTaskNotifyWait(0, UINT32_MAX, &bits, wait_ms == UINT32_MAX ? portMAX_DELAY : pdMS_TO_TICKS(wait_ms));
+    xTaskNotifyWait(0, UINT32_MAX, &bits, pdMS_TO_TICKS(wait_ms));
 
     if (bits & NOTIFY_STOP) {
       while (true)
@@ -171,6 +172,12 @@ void FUSB302B::run_task_() {
     if (!this->attached_) {
       this->try_attach_();
       continue;
+    }
+    if (this->transition_timed_out_()) {
+      ESP_LOGW(TAG, "Source did not report the new supply ready, sending soft reset");
+      this->send_soft_reset_();
+      this->set_contract_(DEFAULT_CONTRACT);
+      this->set_state_(PdState::PD_STATE_DEFAULT_CONTRACT);
     }
     if (this->request_pending_ && !this->check_ams_()) {
       this->request_pending_ = false;
@@ -412,6 +419,15 @@ void FUSB302B::start_negotiation_() {
   this->source_cap_step_start_ = millis();
 }
 
+void FUSB302B::send_soft_reset_() {
+  this->reset_pd_();
+  this->send_message(this->make_control_msg_(PD_CNTRL_SOFT_RESET));
+  // The source answers a soft reset with new source capabilities
+  this->waiting_for_source_caps_ = true;
+  this->source_cap_step_ = SourceCapStep::SOURCE_CAP_STEP_SOFT_RESET_SENT;
+  this->source_cap_step_start_ = millis();
+}
+
 void FUSB302B::check_source_caps_() {
   if (!this->waiting_for_source_caps_ || this->check_ams_())
     return;
@@ -428,10 +444,8 @@ void FUSB302B::check_source_caps_() {
       if (elapsed < SOURCE_CAP_RETRY_MS)
         return;
       ESP_LOGD(TAG, "No source capabilities received, sending soft reset");
-      this->reset_pd_();
-      this->send_message(this->make_control_msg_(PD_CNTRL_SOFT_RESET));
-      this->source_cap_step_ = SourceCapStep::SOURCE_CAP_STEP_SOFT_RESET_SENT;
-      break;
+      this->send_soft_reset_();
+      return;
     case SourceCapStep::SOURCE_CAP_STEP_SOFT_RESET_SENT:
       if (elapsed < SOURCE_CAP_RETRY_MS)
         return;

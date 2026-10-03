@@ -74,6 +74,7 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   bool measure_cc_(uint8_t meas_switch, uint8_t &level);
   void detach_();
   void start_negotiation_();
+  void send_soft_reset_();
   void check_source_caps_();
   void enter_error_();
 

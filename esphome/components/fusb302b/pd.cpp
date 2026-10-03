@@ -11,33 +11,13 @@ static const char *const TAG = "fusb302b.pd";
 
 static constexpr uint32_t AMS_TIMEOUT_MS = 2000;
 
+// USB PD 6.4.1.2.3 Source Fixed Supply Power Data Object; other PDO types only report their type
 static PdContract parse_pdo(uint32_t pdo) {
   PdContract info{};
   info.type = static_cast<PdPdoType>(pdo >> 30);
-  switch (info.type) {
-    case PD_PDO_TYPE_FIXED_SUPPLY:
-      // USB PD 6.4.1.2.3 Source Fixed Supply Power Data Object
-      info.max_v = (pdo >> 10) & 0x3FF;
-      info.max_i = pdo & 0x3FF;
-      break;
-    case PD_PDO_TYPE_BATTERY:
-      // USB PD 6.4.1.2.5 Battery Supply Power Data Object
-      info.min_v = (pdo >> 10) & 0x3FF;
-      info.max_v = (pdo >> 20) & 0x3FF;
-      info.max_p = pdo & 0x3FF;
-      break;
-    case PD_PDO_TYPE_VARIABLE_SUPPLY:
-      // USB PD 6.4.1.2.4 Variable Supply (non-Battery) Power Data Object
-      info.min_v = (pdo >> 10) & 0x3FF;
-      info.max_v = (pdo >> 20) & 0x3FF;
-      info.max_i = pdo & 0x3FF;
-      break;
-    case PD_PDO_TYPE_AUGMENTED:
-      // USB PD 6.4.1.3.4 Programmable Power Supply APDO (100 mV and 50 mA units)
-      info.max_v = ((pdo >> 17) & 0xFF) * 2;
-      info.min_v = ((pdo >> 8) & 0xFF) * 2;
-      info.max_i = (pdo & 0x7F) * 5;
-      break;
+  if (info.type == PD_PDO_TYPE_FIXED_SUPPLY) {
+    info.max_v = (pdo >> 10) & 0x3FF;
+    info.max_i = pdo & 0x3FF;
   }
   return info;
 }
@@ -55,12 +35,6 @@ uint16_t PdMsg::get_coded_header() const {
   return static_cast<uint16_t>(this->type & 0x1F) | (static_cast<uint16_t>(this->spec_rev) << 6) |
          (static_cast<uint16_t>(this->id & 0x7) << 9) | (static_cast<uint16_t>(this->num_of_obj & 0x7) << 12) |
          (static_cast<uint16_t>(this->extended) << 15);
-}
-
-bool PowerDelivery::is_connected() const {
-  PdState state = this->state_;
-  return state == PdState::PD_STATE_DEFAULT_CONTRACT || state == PdState::PD_STATE_TRANSITION ||
-         state == PdState::PD_STATE_EXPLICIT_CONTRACT || state == PdState::PD_STATE_PD_TIMEOUT;
 }
 
 PdMsg PowerDelivery::make_control_msg_(PdControlMsgType type) const {
@@ -115,6 +89,11 @@ bool PowerDelivery::check_ams_() {
   return this->active_ams_;
 }
 
+bool PowerDelivery::transition_timed_out_() {
+  // The AMS that sent the request only ends on PS_RDY, so an ended AMS while in transition means a timeout
+  return this->state_ == PdState::PD_STATE_TRANSITION && !this->check_ams_();
+}
+
 void PowerDelivery::handle_message_(const PdMsg &msg) {
   if (msg.num_of_obj == 0 && msg.type == PD_CNTRL_GOODCRC) {
     // Our last message was received, so the next one gets a new MessageID
@@ -161,6 +140,7 @@ void PowerDelivery::handle_control_message_(const PdMsg &msg) {
       this->set_ams_(false);
       break;
     case PD_CNTRL_PING:
+    case PD_CNTRL_NOT_SUPPORTED:
       break;
     case PD_CNTRL_SOFT_RESET: {
       PdMsg accept = this->make_control_msg_(PD_CNTRL_ACCEPT);
@@ -171,29 +151,30 @@ void PowerDelivery::handle_control_message_(const PdMsg &msg) {
       break;
     }
     case PD_CNTRL_GET_SINK_CAP: {
-      // USB PD 6.4.1.2.3 Sink Fixed Supply PDO: 5 V, 5 A operational current (500 x 10 mA), USB comms capable
+      // USB PD 6.4.1.2.3 Sink Fixed Supply PDO: 5 V, 3 A operational current (300 x 10 mA), USB comms capable
       static constexpr uint32_t SINK_PDO =
-          (500u << 0) | (100u << 10) | (1u << 26) | (static_cast<uint32_t>(PD_PDO_TYPE_FIXED_SUPPLY) << 30);
+          (300u << 0) | (100u << 10) | (1u << 26) | (static_cast<uint32_t>(PD_PDO_TYPE_FIXED_SUPPLY) << 30);
       this->send_message(this->make_data_msg_(PD_DATA_SINK_CAP, &SINK_PDO, 1));
       break;
     }
     default:
-      this->send_message(this->make_control_msg_(PD_CNTRL_NOT_SUPPORTED));
+      // Messages are sent as PD 2.0, which has no Not_Supported message
+      this->send_message(this->make_control_msg_(PD_CNTRL_REJECT));
       break;
   }
 }
 
 void PowerDelivery::respond_to_source_caps_(const PdMsg &msg) {
-  // Pick the highest fixed, variable or battery PDO that does not exceed the requested voltage.
+  // Pick the highest fixed supply PDO that does not exceed the requested voltage.
   // The first PDO is always the 5 V fixed supply.
   const uint16_t request_v = this->request_voltage_ * 20;  // 50 mV units
   PdContract selected{};
   uint8_t position = 0;  // 1-based object position, 0 = none
   for (uint8_t idx = 0; idx < msg.num_of_obj; idx++) {
     PdContract info = parse_pdo(msg.data_objects[idx]);
-    if (info.type == PD_PDO_TYPE_AUGMENTED)
+    if (info.type != PD_PDO_TYPE_FIXED_SUPPLY)
       continue;
-    if (info.max_v <= request_v || position == 0) {
+    if (position == 0 || (info.max_v <= request_v && info.max_v > selected.max_v)) {
       selected = info;
       position = idx + 1;
     }
@@ -204,12 +185,12 @@ void PowerDelivery::respond_to_source_caps_(const PdMsg &msg) {
   if (position == 0) {
     ESP_LOGW(TAG, "No usable PDO in source capabilities, requesting 5 V");
     // Object 1 (5 V fixed supply), 300 mA maximum, 100 mA operating current
-    selected = PdContract{PD_PDO_TYPE_FIXED_SUPPLY, 0, 100, 30, 0};
+    selected = PdContract{PD_PDO_TYPE_FIXED_SUPPLY, 100, 30};
     rdo |= (30u << 0) | (10u << 10) | (1u << 28);
   } else {
-    // Request the full current (or power, for battery PDOs) the source offers
-    uint32_t amount = selected.max_i != 0 ? selected.max_i : selected.max_p;
-    rdo |= (amount << 0) | (amount << 10) | (static_cast<uint32_t>(position) << 28);
+    // Request the full current the source offers
+    const uint32_t current = selected.max_i;
+    rdo |= (current << 0) | (current << 10) | (static_cast<uint32_t>(position) << 28);
   }
   ESP_LOGD(TAG, "Requesting PDO %u: %.2f V", position, selected.max_v * 0.05f);
   this->requested_contract_ = selected;
