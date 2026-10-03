@@ -22,3 +22,6 @@ esp32_ble_tracker:
         - logger.log: two
     - then:
         - logger.log: any
+    - mac_address: []
+      then:
+        - logger.log: empty

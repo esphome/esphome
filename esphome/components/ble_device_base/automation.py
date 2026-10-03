@@ -69,13 +69,24 @@ def uuid_trigger_schema(
     )
 
 
+def _filter_mac(value: Any) -> Any:
+    mac = cv.mac_address(value)
+    if not any(mac.parts):
+        # 0 ends the flash MAC table, and it is never a real device address.
+        raise cv.Invalid("00:00:00:00:00:00 cannot be used as a MAC address filter")
+    return mac
+
+
+MAC_FILTER_LIST = cv.ensure_list(_filter_mac)
+
+
 def advertise_trigger_schema(trigger_class: MockObjClass) -> Callable[[Any], Any]:
     """on_ble_advertise schema: multi-mac list filter, unlike the single-mac
     uuid_trigger_schema() — pairs with advertise_trigger_to_code()."""
     return automation.validate_automation(
         {
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(trigger_class),
-            cv.Optional(CONF_MAC_ADDRESS): cv.ensure_list(cv.mac_address),
+            cv.Optional(CONF_MAC_ADDRESS): MAC_FILTER_LIST,
         }
     )
 
@@ -104,7 +115,7 @@ def mac_filter_table(macs: list) -> cg.MockObj:
 async def advertise_trigger_to_code(conf: ConfigType, var: cg.MockObj) -> None:
     """Build an on_ble_advertise trigger (optional multi-mac filter)."""
     trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-    if (macs := conf.get(CONF_MAC_ADDRESS)) is not None:
+    if macs := conf.get(CONF_MAC_ADDRESS):
         cg.add(trigger.set_addresses(mac_filter_table(macs)))
     await automation.build_automation(trigger, [(ESPBTDeviceConstRef, "x")], conf)
     _count_listener()
