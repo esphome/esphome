@@ -13,7 +13,7 @@ time on every platform, not just Zephyr.
 import time
 
 import esphome.codegen as cg
-from esphome.components.ota import CONF_SWAP_METHOD
+from esphome.components.ota import CONF_SWAP_METHOD, reject_swap_method_off_zephyr
 import esphome.config_validation as cv
 from esphome.const import CONF_OTA
 from esphome.core import CORE
@@ -33,7 +33,7 @@ _SYSBUILD_MODE = {
 def validate_swap_method(config: ConfigType) -> ConfigType:
     """Reject a swap_method the current variant's port doesn't support."""
     if not CORE.is_zephyr:
-        return config
+        return reject_swap_method_off_zephyr(config)
     from . import ZEPHYR_VARIANT_NATIVE_SIM, zephyr_variant
     from .variants import VARIANTS
 

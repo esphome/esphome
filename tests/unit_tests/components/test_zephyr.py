@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
+from esphome.components.ota import reject_swap_method_off_zephyr
 from esphome.components.zephyr import (
     _MODULE_SCHEMA,
     _resolve_board_source,
@@ -2262,3 +2263,20 @@ def test_firmware_alt_bin_none_for_swap_modes(tmp_path: Path) -> None:
     CORE.toolchain = Toolchain.SDK_ZEPHYR
     CORE.build_path = tmp_path
     assert CORE.firmware_alt_bin is None
+
+
+def test_reject_swap_method_off_zephyr_raises() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
+    with pytest.raises(cv.Invalid, match="only supported on platform: zephyr"):
+        reject_swap_method_off_zephyr({"swap_method": "move"})
+
+
+def test_reject_swap_method_off_zephyr_allows_unset() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
+    assert reject_swap_method_off_zephyr({}) == {}
+
+
+def test_reject_swap_method_off_zephyr_allows_zephyr() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    conf = {"swap_method": "move"}
+    assert reject_swap_method_off_zephyr(conf) == conf

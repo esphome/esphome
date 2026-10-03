@@ -74,6 +74,16 @@ SWAP_METHOD_SCHEMA = {
 }
 
 
+def reject_swap_method_off_zephyr(config: ConfigType) -> ConfigType:
+    """swap_method: is only applied on platform: zephyr; reject it elsewhere."""
+    if not CORE.is_zephyr and CONF_SWAP_METHOD in config:
+        raise cv.Invalid(
+            f"'{CONF_SWAP_METHOD}' is only supported on platform: zephyr",
+            path=[CONF_SWAP_METHOD],
+        )
+    return config
+
+
 ota_ns = cg.esphome_ns.namespace("ota")
 OTAComponent = ota_ns.class_("OTAComponent", cg.Component)
 OTAState = ota_ns.enum("OTAState")
