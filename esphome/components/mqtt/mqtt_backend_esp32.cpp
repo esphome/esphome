@@ -7,12 +7,16 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/components/watchdog/watchdog.h"
 
 namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt";
 
 bool MQTTBackendESP32::initialize_() {
+  // Clear configuration to avoid dangling pointers on re-initialization
+  this->mqtt_cfg_ = {};
+
   mqtt_cfg_.broker.address.hostname = this->host_.c_str();
   mqtt_cfg_.broker.address.port = this->port_;
   mqtt_cfg_.session.keepalive = this->keep_alive_;
@@ -58,6 +62,15 @@ bool MQTTBackendESP32::initialize_() {
     is_initalized_ = true;
     esp_mqtt_client_register_event(mqtt_client, MQTT_EVENT_ANY, mqtt_event_handler, this);
 #if defined(USE_MQTT_IDF_ENQUEUE)
+    // Forcibly clean up any lingering zombie task from a previous failed teardown
+    if (this->task_handle_ != nullptr) {
+      ESP_LOGE(TAG, "Zombie MQTT task detected on reconnect! Forcibly deleting.");
+      vTaskDelete(this->task_handle_);
+      this->task_handle_ = nullptr;
+    }
+
+    this->task_shutdown_requested_.store(false, std::memory_order_release);
+
     // Create the task only after MQTT client is initialized successfully
     // Use larger stack size when TLS is enabled
     size_t stack_size = this->ca_certificate_.has_value() ? TASK_STACK_SIZE_TLS : TASK_STACK_SIZE;
@@ -77,6 +90,74 @@ bool MQTTBackendESP32::initialize_() {
     ESP_LOGE(TAG, "Failed to init client");
     return false;
   }
+}
+
+void MQTTBackendESP32::disable() {
+  if (!this->is_initalized_) {
+    return;
+  }
+  this->is_connected_ = false;
+
+#if defined(USE_MQTT_IDF_ENQUEUE)
+  // Stop async MQTT task before releasing resources it may use
+  this->mqtt_queue_.set_task_to_notify(nullptr);
+  if (this->task_handle_ != nullptr) {
+    // Register the current task to receive the exit notification
+    this->teardown_task_handle_ = xTaskGetCurrentTaskHandle();
+    this->task_shutdown_requested_.store(true, std::memory_order_release);
+    xTaskNotifyGive(this->task_handle_);
+
+    // Wait up to 100ms for the task to signal it is exiting
+    uint32_t notified = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(100));
+
+    if (notified == 0) {
+      ESP_LOGE(TAG, "MQTT task did not exit cleanly. Retaining handle for forced cleanup.");
+      // DANGER:
+      // We intentionally DO NOT reset task_shutdown_requested_ to false, so the
+      // zombie task will detect the shutdown request and abort.
+      // We intentionally DO NOT set task_handle_ to nullptr, so this leaves a
+      // breadcrumb for initialize_() to find and kill the zombie.
+    } else {
+      // Task exited cleanly: safe to reset everything
+      this->task_shutdown_requested_.store(false, std::memory_order_release);
+      this->task_handle_ = nullptr;
+    }
+
+    this->teardown_task_handle_ = nullptr;
+  }
+
+  // Release any queued elements that were not processed
+  struct QueueElement *elem;
+  while ((elem = this->mqtt_queue_.pop()) != nullptr) {
+    this->mqtt_outbound_pool_.release(elem);
+  }
+
+  this->last_dropped_log_time_ = 0;
+#endif
+
+  esp_mqtt_client_handle_t client = this->handler_.get();
+  if (client != nullptr) {
+    esp_mqtt_client_unregister_event(client, MQTT_EVENT_ANY, mqtt_event_handler);
+  }
+
+  // Drain inbound events that arrived before unregistering
+  Event *event;
+  while ((event = this->mqtt_event_queue_.pop()) != nullptr) {
+    this->mqtt_event_pool_.release(event);
+  }
+  // We must extend the watchdog before resetting the handler,
+  // as the handler's destructor may block for a while if the MQTT task
+  // is in the middle of trying to connect to a broker that is not responding
+  // NOTE: network.timeout_ms is currently not used, but if we ever add a
+  // configurable timeout, we should take it into account.
+  // ESP-IDF default timeout is 10s, and we add + 5s margin
+  uint32_t wdt_timeout = (this->mqtt_cfg_.network.timeout_ms > 0) ? this->mqtt_cfg_.network.timeout_ms + 1000 : 15000;
+  watchdog::WatchdogManager wdm(wdt_timeout);
+
+  // Stops and destroys the client
+  App.feed_wdt();
+  this->handler_.reset();
+  this->is_initalized_ = false;
 }
 
 void MQTTBackendESP32::loop() {
@@ -127,7 +208,9 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
       this->is_connected_ = true;
 #if defined(USE_MQTT_IDF_ENQUEUE)
       this->last_dropped_log_time_ = 0;
-      xTaskNotifyGive(this->task_handle_);
+      if (this->task_handle_ != nullptr) {
+        xTaskNotifyGive(this->task_handle_);
+      }
 #endif
       this->on_connect_.call(event.session_present);
       break;
@@ -137,7 +220,9 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
       this->is_connected_ = false;
 #if defined(USE_MQTT_IDF_ENQUEUE)
       this->last_dropped_log_time_ = 0;
-      xTaskNotifyGive(this->task_handle_);
+      if (this->task_handle_ != nullptr) {
+        xTaskNotifyGive(this->task_handle_);
+      }
 #endif
       this->on_disconnect_.call(MQTTClientDisconnectReason::TCP_DISCONNECTED);
       break;
@@ -215,24 +300,31 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
     // Wait for notification indefinitely
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-    // Process all queued items
+    // Read the atomic flag each wakeup
+    bool shutdown = this_mqtt->task_shutdown_requested_.load(std::memory_order_acquire);
+
     struct QueueElement *elem;
+    // Drain remaining items safely during shutdown
+    if (shutdown) {
+      while ((elem = this_mqtt->mqtt_queue_.pop()) != nullptr) {
+        this_mqtt->mqtt_outbound_pool_.release(elem);
+      }
+      break;
+    }
+    // Process all queued items
     while ((elem = this_mqtt->mqtt_queue_.pop()) != nullptr) {
       if (this_mqtt->is_connected_) {
         switch (elem->type) {
           case MQTT_QUEUE_TYPE_SUBSCRIBE:
             esp_mqtt_client_subscribe(this_mqtt->handler_.get(), elem->topic, elem->qos);
             break;
-
           case MQTT_QUEUE_TYPE_UNSUBSCRIBE:
             esp_mqtt_client_unsubscribe(this_mqtt->handler_.get(), elem->topic);
             break;
-
           case MQTT_QUEUE_TYPE_PUBLISH:
             esp_mqtt_client_publish(this_mqtt->handler_.get(), elem->topic, elem->payload, elem->payload_len, elem->qos,
                                     elem->retain);
             break;
-
           default:
             ESP_LOGE(TAG, "Invalid operation type from MQTT queue");
             break;
@@ -241,10 +333,24 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
       this_mqtt->mqtt_outbound_pool_.release(elem);
     }
   }
+
+  // Notify the teardown thread that we are cleanly exiting
+  if (this_mqtt->teardown_task_handle_ != nullptr) {
+    xTaskNotifyGive(this_mqtt->teardown_task_handle_);
+  }
+
+  vTaskDelete(nullptr);
 }
 
 bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos, bool retain, const char *payload,
                                 size_t len) {
+  // Reject new enqueues if we are disabled to avoid burning pool slots
+  // and publishing stale data when re-enabled
+  if (!this->is_initalized_) {
+    this->mqtt_queue_.increment_dropped_count();
+    return false;
+  }
+
   auto *elem = this->mqtt_outbound_pool_.allocate();
 
   if (!elem) {
