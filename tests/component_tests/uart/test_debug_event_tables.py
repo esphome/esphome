@@ -4,6 +4,8 @@ from collections.abc import Callable
 from pathlib import Path
 import re
 
+from esphome.components.uart.event import validate_event_types
+
 
 def test_debug_delimiter_and_event_matchers_use_shared_tables(
     generate_main: Callable[[str | Path], str],
@@ -25,3 +27,7 @@ def test_debug_delimiter_and_event_matchers_use_shared_tables(
     assert calls[0] == calls[1]
     assert main_cpp.count("static constexpr uart::UARTEventMatcher") == 1
     assert "add_event_matcher" not in main_cpp
+
+
+def test_event_string_patterns_are_utf8_bytes() -> None:
+    assert validate_event_types([{"euro": "€"}]) == [("euro", [0xE2, 0x82, 0xAC])]

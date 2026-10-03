@@ -14,7 +14,7 @@ UARTEvent = uart_ns.class_("UARTEvent", event.Event, uart.UARTDevice, cg.Compone
 UARTEventMatcher = uart_ns.struct("UARTEventMatcher")
 
 
-def validate_event_types(value) -> list[tuple[str, str | list[int]]]:
+def validate_event_types(value) -> list[tuple[str, list[int]]]:
     if not isinstance(value, list):
         raise cv.Invalid("Event type must be a list of key-value mappings.")
 
@@ -44,7 +44,7 @@ def validate_event_types(value) -> list[tuple[str, str | list[int]]]:
         try:
             # Try to validate as string
             match_data_str = cv.string_strict(match_data)
-            processed.append((event_name, match_data_str))
+            processed.append((event_name, list(match_data_str.encode("utf-8"))))
             continue
         except cv.Invalid:
             pass  # Not string either
@@ -82,11 +82,7 @@ async def to_code(config: ConfigType) -> None:
     matchers = []
     max_len = 0
     for event_name, match_data in config[CONF_EVENT_TYPES]:
-        match_data = (
-            [ord(c) for c in match_data]
-            if isinstance(match_data, str)
-            else [int(b) for b in match_data]
-        )
+        match_data = [int(b) for b in match_data]
         data = (
             cg.shared_progmem_array("uart_event_match", cg.uint8, match_data)
             if match_data

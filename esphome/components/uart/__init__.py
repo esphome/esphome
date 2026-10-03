@@ -274,8 +274,8 @@ DEBUG_SCHEMA = cv.Schema(
                 cv.Optional(
                     CONF_TIMEOUT, default=AFTER_DEFAULTS[CONF_TIMEOUT]
                 ): cv.positive_time_period_milliseconds,
-                cv.Optional(CONF_DELIMITER): cv.templatable(
-                    cv.All(validate_raw_data, cv.Length(max=255))
+                cv.Optional(CONF_DELIMITER): cv.All(
+                    validate_raw_data, cv.Length(max=255)
                 ),
             }
         ),
