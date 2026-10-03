@@ -454,6 +454,10 @@ class WiFiComponent final : public Component {
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
   void set_ap_timeout(uint32_t ap_timeout) { ap_timeout_ = ap_timeout; }
+#ifdef USE_WIFI_APSTA
+  void set_ap_coexist(bool coexist) { this->ap_coexist_ = coexist; }
+  bool get_ap_coexist() const { return this->ap_coexist_; }
+#endif
 #endif  // USE_WIFI_AP
 
   void enable();
@@ -1007,6 +1011,9 @@ class WiFiComponent final : public Component {
   bool scan_done_{false};
   bool ap_setup_{false};
   bool ap_started_{false};
+#ifdef USE_WIFI_APSTA
+  bool ap_coexist_{false};
+#endif
   bool passive_scan_{false};
   bool has_saved_wifi_settings_{false};
 #ifdef USE_WIFI_11KV_SUPPORT

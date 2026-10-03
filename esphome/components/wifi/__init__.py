@@ -297,11 +297,13 @@ WIFI_NETWORK_BASE = cv.Schema(
 )
 
 CONF_AP_TIMEOUT = "ap_timeout"
+CONF_AP_COEXIST = "coexist"
 WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
     {
         cv.Optional(
             CONF_AP_TIMEOUT, default=DEFAULT_AP_TIMEOUT
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_AP_COEXIST, default=False): cv.boolean,
     }
 )
 
@@ -668,6 +670,23 @@ async def to_code(config):
         # Skip the setter when the config matches the C++ initializer.
         if (ap_timeout := conf[CONF_AP_TIMEOUT]) != cv.time_period(DEFAULT_AP_TIMEOUT):
             cg.add(var.set_ap_timeout(ap_timeout))
+            
+        if conf.get(CONF_AP_COEXIST, False):
+            if not CORE.is_esp32:
+                raise cv.Invalid(
+                    "AP+STA coexistence (coexist: true) is only supported on ESP32 (ESP-IDF)."
+                )
+            if not config.get(CONF_NETWORKS) and CONF_SSID not in config:
+                raise cv.Invalid(
+                    "AP+STA coexistence (coexist: true) requires at least one STA network configured."
+                )
+            if config.get(CONF_POST_CONNECT_ROAMING, True):
+                raise cv.Invalid(
+                    "AP+STA coexistence (coexist: true) is incompatible with post_connect_roaming. "
+                    "Please set post_connect_roaming: false in the wifi block."
+                )
+            cg.add(var.set_ap_coexist(True))
+            cg.add_define("USE_WIFI_APSTA")
         cg.add_define("USE_WIFI_AP")
 
     # ESP32: register the WiFi stack with the esp32 sdkconfig reconciler, which
