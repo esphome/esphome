@@ -16,6 +16,13 @@ namespace esphome::epaper_spi {
 /** Delta for when to regard as gray */
 static constexpr uint8_t COLORCONV_GRAY_THRESHOLD = 50;
 
+/** Native color keys for black/white/red panels, for use with color_to_bwr */
+enum class BwrColor : uint8_t {
+  BWR_COLOR_BLACK,
+  BWR_COLOR_WHITE,
+  BWR_COLOR_RED,
+};
+
 /** Rec.601 luma (0.299/0.587/0.114 weights, scaled by 256) for optimum perceptual brightness */
 constexpr uint8_t rec601_luma(Color color) {
   return (uint8_t) ((77u * color.r + 150u * color.g + 29u * color.b + 128u) >> 8);

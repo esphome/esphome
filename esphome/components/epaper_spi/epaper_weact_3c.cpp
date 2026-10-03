@@ -1,25 +1,11 @@
 #include "epaper_weact_3c.h"
+#include "colorconv.h"
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
 
 static constexpr const char *const TAG = "epaper_weact_3c";
 
-enum class BwrState : uint8_t {
-  BWR_BLACK,
-  BWR_WHITE,
-  BWR_RED,
-};
-
-static BwrState color_to_bwr(Color color) {
-  if (color.r > color.g + color.b && color.r > 127) {
-    return BwrState::BWR_RED;
-  }
-  if (color.r + color.g + color.b >= 382) {
-    return BwrState::BWR_WHITE;
-  }
-  return BwrState::BWR_BLACK;
-}
 // SSD1680 3-color display notes:
 // - Buffer uses 1 bit per pixel, 8 pixels per byte
 // - Buffer first half (black_offset): Black/White plane (0=black, 1=white)
@@ -36,12 +22,11 @@ void EPaperWeAct3C::draw_pixel_at(int x, int y, Color color) {
   const uint8_t bit = 0x80 >> (x & 0x07);
   const uint32_t red_offset = this->buffer_length_ / 2u;
 
-  // Use luminance threshold for B/W mapping
-  // Split at halfway point (382 = (255*3)/2)
-  auto bwr = color_to_bwr(color);
+  auto bwr =
+      color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED);
 
   // Update black/white plane (first half of buffer)
-  if (bwr == BwrState::BWR_WHITE) {
+  if (bwr == BwrColor::BWR_COLOR_WHITE) {
     // White pixel - set bit in black plane
     this->buffer_[pos] |= bit;
   } else {
@@ -50,8 +35,7 @@ void EPaperWeAct3C::draw_pixel_at(int x, int y, Color color) {
   }
 
   // Update red plane (second half of buffer)
-  // Red if red component is dominant (r > g+b)
-  if (bwr == BwrState::BWR_RED) {
+  if (bwr == BwrColor::BWR_COLOR_RED) {
     // Red pixel - set bit in red plane
     this->buffer_[red_offset + pos] |= bit;
   } else {
@@ -62,36 +46,31 @@ void EPaperWeAct3C::draw_pixel_at(int x, int y, Color color) {
 
 void EPaperWeAct3C::fill(Color color) {
   // For 3-color e-paper with 1-bit buffer format:
-  // - Black buffer: 1=black, 0=white
-  // - Red buffer: 1=red, 0=no red
-  // The buffer is stored as two halves: [black plane][red plane]
+  // - Black/White plane: 0=black, 1=white
+  // - Red plane: 1=red, 0=no red
+  // The buffer is stored as two halves: [B/W plane][red plane]
   const size_t half_buffer = this->buffer_length_ / 2u;
 
-  // Use luminance threshold for B/W mapping
-  auto bits = color_to_bwr(color);
+  auto bits =
+      color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED);
 
   // Fill both planes
-  if (bits == BwrState::BWR_BLACK) {
-    // Black - both planes = 0x00
+  if (bits == BwrColor::BWR_COLOR_BLACK) {
+    // Black - B/W plane = 0x00, red plane = 0x00
     this->buffer_.fill(0x00);
-  } else if (bits == BwrState::BWR_RED) {
-    // Red - black plane = 0x00, red plane = 0xFF
+  } else if (bits == BwrColor::BWR_COLOR_RED) {
+    // Red - B/W plane = 0x00, red plane = 0xFF
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[i] = 0x00;
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[half_buffer + i] = 0xFF;
   } else {
-    // White - black plane = 0xFF, red plane = 0x00
+    // White - B/W plane = 0xFF, red plane = 0x00
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[i] = 0xFF;
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[half_buffer + i] = 0x00;
   }
-}
-
-void EPaperWeAct3C::clear() {
-  // Clear buffer to white, just like real paper.
-  this->fill(COLOR_ON);
 }
 
 void EPaperWeAct3C::set_window_() {
