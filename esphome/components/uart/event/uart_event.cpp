@@ -27,7 +27,7 @@ void UARTEvent::read_data_() {
 
       const uint8_t *tail = this->buffer_.data() + this->buffer_.size() - matcher.data_len;
       size_t pos = 0;
-      // The pattern may be in flash, which ESP8266 can only read a byte at a time through progmem_read_byte
+      // The pattern is in flash; ESP8266 only allows word loads there, so read it with progmem_read_byte
       while (pos < matcher.data_len && progmem_read_byte(matcher.data + pos) == tail[pos])
         pos++;
       if (pos == matcher.data_len) {
