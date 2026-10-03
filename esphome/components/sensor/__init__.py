@@ -817,10 +817,11 @@ async def calibrate_linear_filter_to_code(config, filter_id):
         linear_functions = [[k, b, float("NaN")]]
     elif config[CONF_METHOD] == "exact":
         linear_functions = map_linear(x, y)
-    table = _calibration_table(
-        filter_id, cg.std_ns.class_("array").template(cg.float_, 3), linear_functions
-    )
+    table = _calibration_table(filter_id, LINEAR_SEGMENT, linear_functions)
     return cg.new_Pvariable(filter_id, table, len(linear_functions))
+
+
+LINEAR_SEGMENT = cg.std_ns.class_("array").template(cg.float_, 3)
 
 
 @dataclass
@@ -835,12 +836,16 @@ def _get_data() -> SensorData:
     return CORE.data[DOMAIN]
 
 
-def _calibration_table(filter_id: ID, type_: MockObj, values: list) -> MockObj:
+def _calibration_table(
+    filter_id: ID, type_: MockObj, values: list[float] | list[list[float]]
+) -> MockObj:
     tables = _get_data().calibration_tables
-    key = f"{type_} {cg.safe_exp(values)}"
+    rhs = cg.safe_exp(values)
+    key = f"{type_} {rhs}"
     if (table := tables.get(key)) is None:
+        # Derived from the filter id, like select's options array.
         table_id = ID(f"{filter_id}_data", is_declaration=True, type=type_)
-        table = tables[key] = cg.progmem_array(table_id, values)
+        table = tables[key] = cg.progmem_array(table_id, rhs)
     return table
 
 

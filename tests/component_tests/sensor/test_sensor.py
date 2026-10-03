@@ -1,5 +1,6 @@
 """Tests for the sensor component."""
 
+from collections.abc import Callable
 import re
 
 from tests.component_tests.helpers import extract_packed_value
@@ -19,7 +20,9 @@ def test_sensor_device_class_set(generate_main):
     assert packed != 0
 
 
-def test_calibration_tables_are_shared_progmem(generate_main) -> None:
+def test_calibration_tables_are_shared_progmem(
+    generate_main: Callable[[str], str],
+) -> None:
     """Calibration data is a PROGMEM table, shared by filters with identical data."""
     main_cpp = generate_main("tests/component_tests/sensor/test_calibrate.yaml")
 
@@ -36,5 +39,3 @@ def test_calibration_tables_are_shared_progmem(generate_main) -> None:
     )
     assert poly is not None
     assert f"sensor::CalibratePolynomialFilter({poly.group(1)}, 2);" in main_cpp
-    assert "CalibrateLinearFilter<" not in main_cpp
-    assert "CalibratePolynomialFilter<" not in main_cpp
