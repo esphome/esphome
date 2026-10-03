@@ -200,6 +200,12 @@ inline bool operator==(const std::string &lhs, ProgmemStringRef rhs) {
 }
 
 inline bool operator!=(const std::string &lhs, ProgmemStringRef rhs) { return !(lhs == rhs); }
+
+inline bool operator==(const StringRef &lhs, ProgmemStringRef rhs) {
+  return lhs.size() == rhs.len && memcmp_P(lhs.c_str(), rhs.str, rhs.len) == 0;
+}
+
+inline bool operator!=(const StringRef &lhs, ProgmemStringRef rhs) { return !(lhs == rhs); }
 #endif  // USE_ESP8266
 
 inline bool operator<(const StringRef &lhs, const StringRef &rhs) {

@@ -493,7 +493,7 @@ def register_apply_condition(
     ``ApplyCall`` such as ``ApplyCall("state == {}", ((CONF_STATE, cg.bool_),))`` compares
     against config values, all of which must be present. Write ``== false`` to negate.
     A ``cg.std_string`` constant stays in flash on ESP8266 and supports only ``==`` or ``!=``
-    against a ``std::string`` member; other string types are plain literals.
+    against a ``std::string`` or ``StringRef`` member; other string types are plain literals.
     Generates one static predicate and an ``ApplyCondition`` templated on it.
     """
     call = check if isinstance(check, ApplyCall) else ApplyCall(check)
