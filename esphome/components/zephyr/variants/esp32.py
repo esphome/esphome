@@ -107,12 +107,10 @@ VARIANT = ZephyrVariant(
 
 
 def config_schema(config: ConfigType) -> ConfigType:
-    # Zephyr's SMP support for Xtensa ESP32 is opt-in via kconfig_options: CONFIG_SMP, and
-    # WIFI_ESP32 requires SMP off regardless -- only warn when APP_CPU is really unused.
     if not config.get(CONF_KCONFIG_OPTIONS, {}).get("CONFIG_SMP"):
         _LOGGER.warning(
-            "Original ESP32 is dual-core, but only one core (PRO_CPU) is used under Zephyr by "
-            "default -- set kconfig_options: CONFIG_SMP: true to enable the second core (APP_CPU)."
+            "Original ESP32 is dual-core, but under Zephyr only one core (PRO_CPU) is "
+            "used, unlike ESP-IDF builds."
         )
     config = dict(config)
     if CONF_BOARD not in config:
