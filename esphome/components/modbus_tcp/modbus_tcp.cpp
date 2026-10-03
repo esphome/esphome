@@ -1,3 +1,5 @@
+#ifdef USE_MODBUS_TCP_LINK
+
 #include "modbus_tcp.h"
 
 #include "mbap.h"
@@ -219,3 +221,4 @@ void ModbusTcp::send_rtu_as_mbap_() {
 }
 
 }  // namespace esphome::modbus_tcp
+#endif

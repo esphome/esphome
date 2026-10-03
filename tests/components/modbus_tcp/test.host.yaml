@@ -1,4 +1,9 @@
+uart:
+  - id: uart_bus
+    baud_rate: 9600
+    port: /dev/ttyS0
+
 packages:
-  modbus_tcp: !include common.yaml
+  modbus_tcp: !include gateway.yaml
 
 wifi: !remove

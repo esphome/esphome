@@ -1,0 +1,32 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+tcp_uart:
+  - id: shelly_link
+    host: 192.0.2.10
+    port: 502
+    baud_rate: 19200
+
+modbus_tcp:
+  - id: shelly_uart
+    tcp_uart_id: shelly_link
+  - id: pin_server
+    uart_id: uart_bus
+    role: server
+    port: 502
+    send_wait_time: 500ms
+    allowed_ips:
+      - 192.0.2.10
+      - 192.0.2.0/24
+    timeout: 30s
+    connected:
+      name: Modbus TCP Connected
+  - id: pin_client
+    uart_id: uart_bus
+    host: 192.0.2.11
+    port: 1502
+
+modbus:
+  - id: modbus_bus
+    uart_id: shelly_uart
