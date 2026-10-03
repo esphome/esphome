@@ -458,6 +458,10 @@ class WiFiComponent final : public Component {
   void set_ap_coexist(bool coexist) { this->ap_coexist_ = coexist; }
   bool get_ap_coexist() const { return this->ap_coexist_; }
 #endif
+#ifdef USE_WIFI_AP_NAPT
+  void set_ap_napt(bool napt) { this->ap_napt_ = napt; }
+  bool get_ap_napt() const { return this->ap_napt_; }
+#endif
 #endif  // USE_WIFI_AP
 
   void enable();
@@ -1013,6 +1017,9 @@ class WiFiComponent final : public Component {
   bool ap_started_{false};
 #ifdef USE_WIFI_APSTA
   bool ap_coexist_{false};
+#endif
+#ifdef USE_WIFI_AP_NAPT
+  bool ap_napt_{false};
 #endif
   bool passive_scan_{false};
   bool has_saved_wifi_settings_{false};

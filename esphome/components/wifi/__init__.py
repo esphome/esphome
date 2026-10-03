@@ -298,12 +298,14 @@ WIFI_NETWORK_BASE = cv.Schema(
 
 CONF_AP_TIMEOUT = "ap_timeout"
 CONF_AP_COEXIST = "coexist"
+CONF_AP_NAPT = "napt"
 WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
     {
         cv.Optional(
             CONF_AP_TIMEOUT, default=DEFAULT_AP_TIMEOUT
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_AP_COEXIST, default=False): cv.boolean,
+        cv.Optional(CONF_AP_NAPT, default=False): cv.boolean,
     }
 )
 
@@ -687,6 +689,21 @@ async def to_code(config):
                 )
             cg.add(var.set_ap_coexist(True))
             cg.add_define("USE_WIFI_APSTA")
+            
+        if conf.get(CONF_AP_NAPT, False):
+            if not CORE.is_esp32:
+                raise cv.Invalid(
+                    "IP routing / NAPT (napt: true) is only supported on ESP32 (ESP-IDF)."
+                )
+            if not conf.get(CONF_AP_COEXIST, False):
+                raise cv.Invalid(
+                    "IP routing / NAPT (napt: true) requires AP+STA coexistence (coexist: true) to be enabled."
+                )
+            cg.add(var.set_ap_napt(True))
+            cg.add_define("USE_WIFI_AP_NAPT")
+            add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)
+            
         cg.add_define("USE_WIFI_AP")
 
     # ESP32: register the WiFi stack with the esp32 sdkconfig reconciler, which
