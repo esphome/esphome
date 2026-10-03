@@ -1,0 +1,7 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+
+substitutions:
+  rx_pin2: GPIO18
+
+<<: !include common.yaml
