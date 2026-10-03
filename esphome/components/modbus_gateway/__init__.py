@@ -90,7 +90,9 @@ def _reject_port_direction(config: ConfigType) -> ConfigType:
     links = []
     if full is not None:
         hubs = full.get("modbus") or []
-        links.extend(item for item in full.get("modbus_tcp") or [] if CONF_TCP_UART_ID in item)
+        links.extend(
+            item for item in full.get("modbus_tcp") or [] if CONF_TCP_UART_ID in item
+        )
     for index, port in enumerate(config[CONF_PORTS]):
         if CONF_ID in port:
             local = port[CONF_ID]
