@@ -41,6 +41,10 @@ dependencies:
     version: 2.12.13
     rules:
       - if: "target in [esp32h2, esp32p4]"
+  francescopace/espectre:
+    version: "3.0.0-rc3"
+    rules:
+      - if: "target in [esp32, esp32s2, esp32s3, esp32c3, esp32c5, esp32c6]"
   zorxx/multipart-parser:
     version: 1.0.1
   espressif/lan867x:
