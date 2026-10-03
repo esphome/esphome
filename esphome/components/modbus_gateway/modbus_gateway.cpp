@@ -590,7 +590,8 @@ void ModbusGateway::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Ports: %u", this->port_count_);
   for (uint8_t i = 0; i < this->port_count_; i++) {
-    ESP_LOGCONFIG(TAG, "  Port %u: cache %s", i, this->ports_[i].use_cache ? "on" : "off");
+    ESP_LOGCONFIG(TAG, "  Port %u: cache %s", i,
+                  this->ports_[i].use_cache ? LOG_STR_LITERAL("on") : LOG_STR_LITERAL("off"));
   }
 }
 
