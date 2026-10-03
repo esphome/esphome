@@ -215,34 +215,6 @@ void ModbusGateway::log_dropped_(bool on_uart, uint16_t len) {
   ESP_LOGW(TAG, "Response dropped, the UART cannot take %u bytes", static_cast<unsigned>(len));
 }
 
-bool ModbusGateway::serve_from_cache_(uint8_t index, const uint8_t *data, uint16_t len, uint32_t now) {
-  if (!this->cache_valid_ || this->cache_time_ms_ == 0 || len < 6 ||
-      !modbus::helpers::is_function_code_read_only(data[1])) {
-    return false;
-  }
-  if (now - this->cache_ms_ >= this->cache_time_ms_) {
-    return false;
-  }
-  if (std::memcmp(this->cache_key_, data, sizeof(this->cache_key_)) != 0) {
-    return false;
-  }
-  this->deliver_(index, this->cache_, this->cache_len_);
-  return true;
-}
-
-void ModbusGateway::store_cache_(const uint8_t *request, uint16_t request_len, const uint8_t *response,
-                                 uint16_t response_len, uint32_t now) {
-  if (this->cache_time_ms_ == 0 || request_len < 6 || !modbus::helpers::is_function_code_read_only(request[1]) ||
-      response_len > MAX_FRAME) {
-    return;
-  }
-  std::memcpy(this->cache_key_, request, sizeof(this->cache_key_));
-  std::memcpy(this->cache_, response, response_len);
-  this->cache_len_ = response_len;
-  this->cache_ms_ = now;
-  this->cache_valid_ = true;
-}
-
 void ModbusGateway::take_requests_(uint8_t index, uint32_t now) {
   Port &port = this->ports_[index];
   uart::UARTComponent *end = this->endpoint_(index);
@@ -332,7 +304,6 @@ void ModbusGateway::read_bus_(uint32_t now) {
     }
     uint8_t index = static_cast<uint8_t>(this->active_);
     this->deliver_(index, this->bus_, found.len);
-    this->store_cache_(this->request_, this->request_len_, this->bus_, found.len, now);
     consume(this->bus_, &this->bus_len_, found.len);
     this->active_ = -1;
   }
@@ -348,11 +319,6 @@ bool ModbusGateway::start_next_(uint32_t now) {
     if (port.pending_len == 0) {
       continue;
     }
-    if (this->serve_from_cache_(index, port.pending, port.pending_len, now)) {
-      port.pending_len = 0;
-      this->next_port_ = static_cast<uint8_t>((index + 1) % this->port_count_);
-      return true;
-    }
     if (!this->write_frame_(this->parent_, port.pending, port.pending_len)) {
       return false;
     }
@@ -365,9 +331,6 @@ bool ModbusGateway::start_next_(uint32_t now) {
     // Address 0 is a broadcast. There is no response to route.
     this->awaiting_ = this->request_[0] != 0;
     this->next_port_ = static_cast<uint8_t>((index + 1) % this->port_count_);
-    if (!modbus::helpers::is_function_code_read_only(this->request_[1])) {
-      this->cache_valid_ = false;
-    }
     return true;
   }
   return false;
@@ -419,9 +382,8 @@ void ModbusGateway::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Modbus Gateway:\n"
                 "  Response timeout: %" PRIu32 " ms\n"
-                "  Cache time: %" PRIu32 " ms\n"
                 "  Ports: %u",
-                this->response_timeout_ms_, this->cache_time_ms_, this->port_count_);
+                this->response_timeout_ms_, this->port_count_);
 }
 
 }  // namespace esphome::modbus_gateway

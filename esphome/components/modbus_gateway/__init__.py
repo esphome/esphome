@@ -13,7 +13,6 @@ MULTI_CONF = True
 
 CONF_PORTS = "ports"
 CONF_RESPONSE_TIMEOUT = "response_timeout"
-CONF_CACHE_TIME = "cache_time"
 
 modbus_gateway_ns = cg.esphome_ns.namespace("modbus_gateway")
 ModbusGateway = modbus_gateway_ns.class_("ModbusGateway", cg.Component, uart.UARTDevice)
@@ -54,9 +53,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RESPONSE_TIMEOUT, default="500ms"): cv.All(
                 cv.positive_not_null_time_period, cv.positive_time_period_milliseconds
             ),
-            cv.Optional(
-                CONF_CACHE_TIME, default="0s"
-            ): cv.positive_time_period_milliseconds,
             cv.Required(CONF_PORTS): cv.All(
                 cv.ensure_list(_port_schema), cv.Length(min=1, max=4)
             ),
@@ -86,7 +82,6 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
     cg.add(var.set_response_timeout(config[CONF_RESPONSE_TIMEOUT]))
-    cg.add(var.set_cache_time(config[CONF_CACHE_TIME]))
     ports = config[CONF_PORTS]
     cg.add(var.set_port_count(len(ports)))
     bus = CORE.config.get_config_for_path(

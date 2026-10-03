@@ -41,7 +41,6 @@ class GatewayUart : public uart::UARTComponent {
 class ModbusGateway : public Component, public uart::UARTDevice {
  public:
   void set_response_timeout(uint32_t ms) { this->response_timeout_ms_ = ms; }
-  void set_cache_time(uint32_t ms) { this->cache_time_ms_ = ms; }
   void set_port_count(uint8_t count) { this->port_count_ = count; }
   void set_port_uart(uint8_t index, uart::UARTComponent *uart) { this->ports_[index].uart = uart; }
   void set_port_local(uint8_t index, GatewayUart *uart) { this->ports_[index].local = uart; }
@@ -67,33 +66,24 @@ class ModbusGateway : public Component, public uart::UARTDevice {
   bool start_next_(uint32_t now);
   bool write_frame_(uart::UARTComponent *dest, const uint8_t *data, uint16_t len);
   void deliver_(uint8_t index, const uint8_t *data, uint16_t len);
-  bool serve_from_cache_(uint8_t index, const uint8_t *data, uint16_t len, uint32_t now);
-  void store_cache_(const uint8_t *request, uint16_t request_len, const uint8_t *response, uint16_t response_len,
-                    uint32_t now);
   void log_bad_(uint32_t now, bool crc);
   void log_dropped_(bool on_uart, uint16_t len);
   uart::UARTComponent *endpoint_(uint8_t index);
 
   Port ports_[MAX_PORTS]{};
   uint32_t response_timeout_ms_{500};
-  uint32_t cache_time_ms_{0};
   uint32_t sent_ms_{0};
-  uint32_t cache_ms_{0};
   uint32_t bus_last_ms_{0};
   uint32_t last_bad_log_ms_{0};
   uint32_t last_timeout_log_ms_{0};
   uint32_t last_response_log_ms_{0};
   uint16_t request_len_{0};
-  uint16_t cache_len_{0};
   uint16_t bus_len_{0};
   uint8_t port_count_{0};
   uint8_t next_port_{0};
   int8_t active_{-1};
-  bool cache_valid_{false};
   bool awaiting_{false};
   uint8_t request_[MAX_FRAME]{};
-  uint8_t cache_key_[6]{};
-  uint8_t cache_[MAX_FRAME]{};
   uint8_t bus_[MAX_FRAME]{};
 };
 

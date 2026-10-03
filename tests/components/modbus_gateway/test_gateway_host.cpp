@@ -62,7 +62,6 @@ class GatewayRoute : public ::testing::Test {
     this->gate_.set_port_uart(0, &this->master_);
     this->gate_.set_port_local(1, &this->local_);
     this->gate_.set_response_timeout(500);
-    this->gate_.set_cache_time(10000);
   }
 
   FakeUart bms_;
@@ -98,7 +97,7 @@ TEST_F(GatewayRoute, SecondMasterWaitsForTheResponse) {
   EXPECT_EQ(std::vector<uint8_t>(this->bms_.tx.begin() + first.size(), this->bms_.tx.end()), second);
 }
 
-TEST_F(GatewayRoute, RepeatedReadUsesTheCache) {
+TEST_F(GatewayRoute, RepeatedReadGoesToTheBus) {
   auto request = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
   auto response = frame({0x01, 0x03, 0x02, 0x00, 0x64});
   this->master_.push(request);
@@ -110,29 +109,7 @@ TEST_F(GatewayRoute, RepeatedReadUsesTheCache) {
 
   this->master_.push(request);
   this->gate_.loop();
-  EXPECT_TRUE(this->bms_.tx.empty());
-  EXPECT_EQ(this->master_.tx, response);
-}
-
-TEST_F(GatewayRoute, WriteClearsTheCache) {
-  auto read = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
-  this->master_.push(read);
-  this->gate_.loop();
-  this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x64}));
-  this->gate_.loop();
-
-  auto write = frame({0x01, 0x06, 0x00, 0x10, 0x00, 0x01});
-  this->bms_.tx.clear();
-  this->master_.push(write);
-  this->gate_.loop();
-  EXPECT_EQ(this->bms_.tx, write);
-
-  this->bms_.push(frame({0x01, 0x06, 0x00, 0x10, 0x00, 0x01}));
-  this->gate_.loop();
-  this->bms_.tx.clear();
-  this->master_.push(read);
-  this->gate_.loop();
-  EXPECT_EQ(this->bms_.tx, read);
+  EXPECT_EQ(this->bms_.tx, request);
 }
 
 TEST_F(GatewayRoute, BadCrcIsNotForwarded) {
