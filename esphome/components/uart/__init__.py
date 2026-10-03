@@ -274,7 +274,9 @@ DEBUG_SCHEMA = cv.Schema(
                 cv.Optional(
                     CONF_TIMEOUT, default=AFTER_DEFAULTS[CONF_TIMEOUT]
                 ): cv.positive_time_period_milliseconds,
-                cv.Optional(CONF_DELIMITER): cv.templatable(validate_raw_data),
+                cv.Optional(CONF_DELIMITER): cv.All(
+                    validate_raw_data, cv.Length(max=255)
+                ),
             }
         ),
         cv.Optional(
@@ -345,12 +347,11 @@ async def debug_to_code(config, parent):
     after = config[CONF_AFTER]
     cg.add(trigger.set_after_bytes(after[CONF_BYTES]))
     cg.add(trigger.set_after_timeout(after[CONF_TIMEOUT]))
-    if CONF_DELIMITER in after:
-        data = after[CONF_DELIMITER]
-        if isinstance(data, bytes):
-            data = list(data)
-        for byte in after[CONF_DELIMITER]:
-            cg.add(trigger.add_delimiter_byte(byte))
+    if delimiter := after.get(CONF_DELIMITER):
+        table = cg.shared_progmem_array(
+            "uart_debug_delimiter", cg.uint8, [int(b) for b in delimiter]
+        )
+        cg.add(trigger.set_after_delimiter(table, len(delimiter)))
     if config[CONF_DUMMY_RECEIVER]:
         dummy = cg.new_Pvariable(config[CONF_DUMMY_RECEIVER_ID], parent)
         await cg.register_component(dummy, {})
