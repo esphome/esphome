@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/sensor/sensor.h"
 #include "esphome/components/socket/tcp_client_link.h"
 #ifdef USE_SOCKET_TCP_LISTENER
 #include "esphome/components/socket/tcp_listener.h"
@@ -20,6 +21,7 @@ class UartTcp : public Component, public uart::UARTDevice {
   void set_port(uint16_t port) { this->link_.set_port(port); }
   void set_reconnect_interval(uint32_t ms) { this->link_.set_reconnect_interval(ms); }
   void set_connected_sensor(binary_sensor::BinarySensor *sensor) { this->connected_sensor_ = sensor; }
+  void set_disconnects_sensor(sensor::Sensor *sensor) { this->disconnects_sensor_ = sensor; }
 #ifdef USE_SOCKET_TCP_LISTENER
   void set_server(bool server) { this->server_ = server; }
 #ifdef USE_SOCKET_IPV4_ALLOW
@@ -38,6 +40,7 @@ class UartTcp : public Component, public uart::UARTDevice {
   void read_socket_();
   void read_uart_();
   void discard_uart_();
+  void note_disconnect_();
 
   static constexpr size_t READ_CHUNK = 128;
 
@@ -46,6 +49,8 @@ class UartTcp : public Component, public uart::UARTDevice {
   socket::TcpListener listener_;
 #endif
   binary_sensor::BinarySensor *connected_sensor_{nullptr};
+  sensor::Sensor *disconnects_sensor_{nullptr};
+  uint32_t disconnects_{0};
   bool server_{false};
   // The link state loop() saw last; edges clear the buffer and publish the sensor.
   bool link_was_up_{false};

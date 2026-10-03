@@ -20,6 +20,9 @@ void TcpUart::setup() {
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(false);
   }
+  if (this->disconnects_sensor_ != nullptr) {
+    this->disconnects_sensor_->publish_state(0);
+  }
 }
 
 void TcpUart::dump_config() {
@@ -34,6 +37,7 @@ void TcpUart::dump_config() {
   this->listener_.dump_config();
 #endif
   LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
+  LOG_SENSOR("  ", "Disconnects", this->disconnects_sensor_);
 }
 
 void TcpUart::on_shutdown() {
@@ -44,10 +48,14 @@ void TcpUart::on_shutdown() {
 }
 
 void TcpUart::sync_link_() {
+  bool was = this->link_was_up_;
   bool up = this->link_.connected();
   this->link_was_up_ = up;
   if (!up) {
     this->rx_start_ = this->rx_end_ = 0;
+    if (was) {
+      this->note_disconnect_();
+    }
   }
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(up);
@@ -139,6 +147,13 @@ uart::UARTFlushResult TcpUart::flush() {
     return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
   }
   return emptied ? uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS : uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+}
+
+void TcpUart::note_disconnect_() {
+  this->disconnects_++;
+  if (this->disconnects_sensor_ != nullptr) {
+    this->disconnects_sensor_->publish_state(this->disconnects_);
+  }
 }
 
 }  // namespace esphome::tcp_uart
