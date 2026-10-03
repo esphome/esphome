@@ -42,6 +42,8 @@ opentherm42:
   configuration_information_boiler_product_version_number_and_type_update_every: 7
   configuration_information_ventilation_heat_recovery_product_version_number_and_type_update_every: 7
   configuration_information_solar_storage_product_version_number_and_type_update_every: 7
+  transparent_boiler_parameters_update_every: 7
+  fault_history_data_fault_buffer_update_every: 7
 
 switch:
   - platform: opentherm42
@@ -109,6 +111,18 @@ number:
       name: "Control and Status Information: Control Setpoint ventilation-heat-recovery"
       initial_value: 0
       update_every: 2
+    # §5.3.6 Class 6, IDs 11/89/106: TSP values are opaque and manufacturer-specific, so unlike every
+    # other option here there's no spec-provided name/description -- name and index come from whatever
+    # the boiler's own documentation says slot N means.
+    transparent_boiler_parameters:
+      - index: 5
+        name: "Transparent Boiler Parameters: TSP 5"
+    transparent_boiler_parameters_ventilation_heat_recovery:
+      - index: 3
+        name: "Transparent Boiler Parameters: TSP 3 ventilation-heat-recovery"
+    transparent_boiler_parameters_solar_storage:
+      - index: 1
+        name: "Transparent Boiler Parameters: TSP 1 Solar Storage"
 
 binary_sensor:
   - platform: opentherm42
@@ -192,6 +206,49 @@ binary_sensor:
     sweep_had_errors:
       name: "Sweep had errors"
 
+button:
+  - platform: opentherm42
+    # §5.3.3 Class 3, ID 4 HB = 0: Back to Normal operation mode
+    remote_request_back_to_normal_operation_mode:
+      name: "Remote Request: Back to Normal operation mode"
+    # §5.3.3 Class 3, ID 4 HB = 1: "BLOR" = Boiler Lock-out Reset request
+    remote_request_boiler_lockout_reset:
+      name: "Remote Request: Boiler Lock-out Reset"
+    # §5.3.3 Class 3, ID 4 HB = 2: "CHWF" = CH water filling request
+    remote_request_ch_water_filling:
+      name: "Remote Request: CH water filling"
+    # §5.3.3 Class 3, ID 4 HB = 3: Service mode maximum power request
+    # (for instance for CO2 measurement during Chimney Sweep Function)
+    remote_request_service_mode_maximum_power:
+      name: "Remote Request: Service mode maximum power"
+    # §5.3.3 Class 3, ID 4 HB = 4: Service mode minimum power request (CO2 measurement)
+    remote_request_service_mode_minimum_power:
+      name: "Remote Request: Service mode minimum power"
+    # §5.3.3 Class 3, ID 4 HB = 5: Service mode spark test request (no gas)
+    remote_request_service_mode_spark_test:
+      name: "Remote Request: Service mode spark test"
+    # §5.3.3 Class 3, ID 4 HB = 6: Service mode fan maximum speed request (no flame)
+    remote_request_service_mode_fan_maximum_speed:
+      name: "Remote Request: Service mode fan maximum speed"
+    # §5.3.3 Class 3, ID 4 HB = 7: Service mode fan to minimum speed request (no flame)
+    remote_request_service_mode_fan_minimum_speed:
+      name: "Remote Request: Service mode fan minimum speed"
+    # §5.3.3 Class 3, ID 4 HB = 8: Service mode 3-way valve to CH request (no pump, no flame)
+    remote_request_service_mode_3_way_valve_to_ch:
+      name: "Remote Request: Service mode 3-way valve to CH"
+    # §5.3.3 Class 3, ID 4 HB = 9: Service mode 3-way valve to DHW request (no pump, no flame)
+    remote_request_service_mode_3_way_valve_to_dhw:
+      name: "Remote Request: Service mode 3-way valve to DHW"
+    # §5.3.3 Class 3, ID 4 HB = 10: Request to reset service request flag
+    remote_request_reset_service_request_flag:
+      name: "Remote Request: Reset service request flag"
+    # §5.3.3 Class 3, ID 4 HB = 11: Service test 1. This is an OEM specific test.
+    remote_request_service_test_1:
+      name: "Remote Request: Service test 1"
+    # §5.3.3 Class 3, ID 4 HB = 12: Automatic hydronic air purge.
+    remote_request_automatic_hydronic_air_purge:
+      name: "Remote Request: Automatic hydronic air purge"
+
 text_sensor:
   - platform: opentherm42
     # §5.3.2 Class 2, ID 93: Brand -- the boiler manufacturer's brand name, read one ASCII character
@@ -245,6 +302,9 @@ text_sensor:
     # [ 0 = DHW preheat system, 1 = DHW parallel system ]
     configuration_information_solar_storage_configuration_system_type:
       name: "Configuration Information: Solar Storage configuration: System type"
+    # §5.3.3 Class 3, ID 4 LB: the most recent Request-Response-Code's meaning.
+    remote_request_last_response:
+      name: "Remote request: Last response"
     # §5.3.1 Class 1, ID 101 LB bits 3,2,1: Solar Storage mode and status: Solar mode -- the
     # boiler's own reported mode, independent of the select platform's ID 101 HB below.
     control_and_status_information_solar_storage_mode_and_status_solar_mode:
@@ -316,6 +376,46 @@ sensor:
     # §5.3.2 Class 2, ID 104 LB: Solar Storage product version number and type: product version (0..255).
     configuration_information_solar_storage_product_version_number_and_type_product_version:
       name: "Configuration Information: Solar Storage product version number and type: Product version"
+    # §5.3.3 Class 3, ID 4 LB: Req-Response-Code of the most recent remote request
+    # (0..127 = request refused, 128..255 = request accepted).
+    remote_request_last_response_code:
+      name: "Remote Request: Last response code"
+    # §5.3.6 Class 6, ID 10 HB: Number of transparent-boiler-parameter's supported by the boiler.
+    transparent_boiler_parameters_number_of_tsps:
+      name: "Transparent Boiler Parameters: Number of TSP's"
+      update_every: 7
+    # §5.3.6 Class 6, ID 88 HB: Number of TSPs supported by the ventilation/heat-recovery system.
+    transparent_boiler_parameters_number_of_tsps_ventilation_heat_recovery:
+      name: "Transparent Boiler Parameters: Number of TSP's ventilation-heat-recovery"
+      update_every: 7
+    # §5.3.6 Class 6, ID 105 HB: Number of TSPs supported by the Solar Storage.
+    transparent_boiler_parameters_number_of_tsps_solar_storage:
+      name: "Transparent Boiler Parameters: Number of TSP's Solar Storage"
+      update_every: 7
+    # §5.3.7 Class 7, ID 12 HB: Size of the fault history buffer supported by the boiler.
+    fault_history_data_size_of_fault_buffer:
+      name: "Fault History Data: Size of Fault Buffer"
+      update_every: 7
+    # §5.3.7 Class 7, ID 90 HB: Size of the fault history buffer for the ventilation/heat-recovery system.
+    fault_history_data_size_of_fault_buffer_ventilation_heat_recovery:
+      name: "Fault History Data: Size of Fault Buffer ventilation-heat-recovery"
+      update_every: 7
+    # §5.3.7 Class 7, ID 107 HB: Size of the fault history buffer for the Solar Storage.
+    fault_history_data_size_of_fault_buffer_solar_storage:
+      name: "Fault History Data: Size of Fault Buffer Solar Storage"
+      update_every: 7
+    # §5.3.7 Class 7, IDs 13/91/108: fault history entries are opaque and manufacturer-specific, so
+    # unlike every other option here there's no spec-provided name/description -- name and index come
+    # from whatever the boiler's own documentation says entry N means.
+    fault_history_data_fault_buffer:
+      - index: 0
+        name: "Fault History Data: Fault Buffer 0"
+    fault_history_data_fault_buffer_ventilation_heat_recovery:
+      - index: 0
+        name: "Fault History Data: Fault Buffer 0 ventilation-heat-recovery"
+    fault_history_data_fault_buffer_solar_storage:
+      - index: 0
+        name: "Fault History Data: Fault Buffer 0 Solar Storage"
     # Synthetic diagnostic: how long the most recently completed sweep took, updated continuously.
     # Unconditionally scheduled by the hub itself, so no update_every field of its own.
     sweep_duration:

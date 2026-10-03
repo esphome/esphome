@@ -75,6 +75,26 @@ enum class RequestKind : uint8_t {
   BRAND_VERSION,
   // §5.3.2 Class 2, ID 95: brand serial number string, same protocol as ID 93.
   BRAND_SERIAL_NUMBER,
+  // §5.3.3 Class 3, ID 4: a remote request command. Sent on demand (button press), not scheduled.
+  REMOTE_REQUEST,
+
+  // §5.3.6 Class 6, IDs 10/88/105 HB: number of TSPs supported, one per family.
+  NUMBER_OF_TSPS,
+  NUMBER_OF_TSPS_VENTILATION,
+  NUMBER_OF_TSPS_SOLAR_STORAGE,
+  // §5.3.6 Class 6, IDs 11/89/106: a transparent-boiler-parameter read or write, at whichever
+  // configured slot (see TspSlot) is due next -- see build_next_request_()'s tsp_write_pending_ check
+  // for on-demand writes and the informational-rotation case for the periodic read cycle.
+  TSP,
+
+  // §5.3.7 Class 7, IDs 12/90/107 HB: size of the fault history buffer, one per family.
+  FAULT_HISTORY_BUFFER_SIZE,
+  FAULT_HISTORY_BUFFER_SIZE_VENTILATION,
+  FAULT_HISTORY_BUFFER_SIZE_SOLAR_STORAGE,
+  // §5.3.7 Class 7, IDs 13/91/108: a fault-history-buffer entry read, at whichever configured slot
+  // (see FhbSlot) is due next -- purely read-only, so unlike TSP there's no write-pending priority
+  // check, just the informational-rotation case.
+  FHB,
 };
 
 class OpenTherm42Hub;
@@ -287,6 +307,18 @@ class OpenTherm42Hub : public Component {
   }
   void set_configuration_information_solar_storage_product_version_number_and_type_update_every(uint32_t update_every) {
     this->pending_group_update_every_.emplace_back(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE, update_every);
+  }
+  // §5.3.6 Class 6, IDs 11/89/106: TSP slots from all three families (see tsp_slots_) round-robin
+  // through one shared RequestKind::TSP conversation -- one cadence governs how fast that rotation
+  // advances as a whole, not any individual slot's own refresh rate. On-demand writes (see
+  // write_tsp()) already jump the queue ahead of this rotation regardless.
+  void set_transparent_boiler_parameters_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::TSP, update_every);
+  }
+  // §5.3.7 Class 7, IDs 13/91/108: same shared-rotation reasoning as TSP above, for the (purely
+  // read-only) fault-history-buffer entries.
+  void set_fault_history_data_fault_buffer_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::FHB, update_every);
   }
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
@@ -531,6 +563,16 @@ class OpenTherm42Hub : public Component {
     this->brand_serial_number_update_every_ = update_every;
   }
 
+  // §5.3.3 Class 3, ID 4: queues a remote request to be sent from the next available conversation
+  // slot. Called by OpenTherm42RemoteRequestButton::press_action(); code is one of the values listed
+  // under the ID 4 HB table (0 = back to normal operation, 1 = boiler lock-out reset, ...).
+  void send_remote_request(uint8_t code) {
+    this->remote_request_pending_ = true;
+    this->remote_request_code_ = code;
+  }
+  OT42_SET_SENSOR(remote_request_last_response_code, remote_request_last_response_code_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(remote_request_last_response, remote_request_last_response_text_sensor_)
+
   // Called by OpenTherm42SensorFeedNumber::control() (ids 24/27/37/38/78/79 only) every time the user
   // commands a new value. The first call for a given id adds its WRITE RequestKind to the schedule,
   // since before that there's nothing legitimate to send -- see that class's comment for why these
@@ -552,6 +594,39 @@ class OpenTherm42Hub : public Component {
   void reset_counter(uint8_t data_id) {
     this->reset_counter_pending_ = true;
     this->reset_counter_data_id_ = data_id;
+  }
+
+  // §5.3.6 Class 6, IDs 10/88/105 HB: number of TSPs supported, one per family.
+  OT42_SET_SENSOR(transparent_boiler_parameters_number_of_tsps, number_of_tsps_sensor_)
+  OT42_SET_SENSOR(transparent_boiler_parameters_number_of_tsps_ventilation_heat_recovery,
+                  number_of_tsps_ventilation_sensor_)
+  OT42_SET_SENSOR(transparent_boiler_parameters_number_of_tsps_solar_storage, number_of_tsps_solar_storage_sensor_)
+
+  // §5.3.6 Class 6, IDs 11/89/106: registers one user-configured TSP slot (data_id identifies which
+  // family), returning its index into tsp_slots_ so the owning OpenTherm42TspNumber can identify
+  // itself in write_tsp() calls.
+  size_t add_tsp_slot(uint8_t data_id, uint8_t index, number::Number *number) {
+    this->tsp_slots_.push_back(TspSlot{data_id, index, number});
+    return this->tsp_slots_.size() - 1;
+  }
+  // Called by OpenTherm42TspNumber::control(); queues an on-demand write, serviced ahead of the next
+  // essential/informational conversation (same priority tier as Class 3's remote requests).
+  void write_tsp(size_t slot_index, uint8_t value) {
+    this->tsp_write_pending_ = true;
+    this->tsp_write_slot_index_ = slot_index;
+    this->tsp_write_value_ = value;
+  }
+
+  // §5.3.7 Class 7, IDs 12/90/107 HB: size of the fault history buffer, one per family.
+  OT42_SET_SENSOR(fault_history_data_size_of_fault_buffer, fault_history_buffer_size_sensor_)
+  OT42_SET_SENSOR(fault_history_data_size_of_fault_buffer_ventilation_heat_recovery,
+                  fault_history_buffer_size_ventilation_sensor_)
+  OT42_SET_SENSOR(fault_history_data_size_of_fault_buffer_solar_storage,
+                  fault_history_buffer_size_solar_storage_sensor_)
+
+  // §5.3.7 Class 7, IDs 13/91/108: registers one user-configured fault-history-buffer slot.
+  void add_fhb_slot(uint8_t data_id, uint8_t index, sensor::Sensor *sensor) {
+    this->fhb_slots_.push_back(FhbSlot{data_id, index, sensor});
   }
 
  protected:
@@ -791,8 +866,40 @@ class OpenTherm42Hub : public Component {
   BrandRead brand_version_;
   BrandRead brand_serial_number_;
 
+  // §5.3.3 Class 3 entities.
+  bool remote_request_pending_{false};
+  uint8_t remote_request_code_{0};
+  sensor::Sensor *remote_request_last_response_code_sensor_{nullptr};
+  text_sensor::TextSensor *remote_request_last_response_text_sensor_{nullptr};
+
   bool reset_counter_pending_{false};
   uint8_t reset_counter_data_id_{0};
+
+  // §5.3.6 Class 6 entities.
+  sensor::Sensor *number_of_tsps_sensor_{nullptr};
+  sensor::Sensor *number_of_tsps_ventilation_sensor_{nullptr};
+  sensor::Sensor *number_of_tsps_solar_storage_sensor_{nullptr};
+
+  std::vector<TspSlot> tsp_slots_;
+  size_t tsp_read_index_{0};
+  bool tsp_write_pending_{false};
+  size_t tsp_write_slot_index_{0};
+  uint8_t tsp_write_value_{0};
+  // Set immediately before build_next_request_() returns a TSP frame; tells handle_response_()/
+  // invalidate_response_() which slot and direction that conversation was for.
+  size_t pending_tsp_slot_index_{0};
+  bool pending_tsp_is_write_{false};
+
+  // §5.3.7 Class 7 entities.
+  sensor::Sensor *fault_history_buffer_size_sensor_{nullptr};
+  sensor::Sensor *fault_history_buffer_size_ventilation_sensor_{nullptr};
+  sensor::Sensor *fault_history_buffer_size_solar_storage_sensor_{nullptr};
+
+  std::vector<FhbSlot> fhb_slots_;
+  size_t fhb_read_index_{0};
+  // Set immediately before build_next_request_() returns an FHB frame; tells handle_response_()/
+  // invalidate_response_() which slot that conversation was for.
+  size_t pending_fhb_slot_index_{0};
 };
 
 }  // namespace esphome::opentherm42
