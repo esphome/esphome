@@ -95,7 +95,9 @@ template<typename... Ts> class TemplatableBytes {
  protected:
   static std::vector<uint8_t> to_vector(const uint8_t *data, size_t len) {
     std::vector<uint8_t> out(len);
-    progmem_memcpy(out.data(), data, len);  // byte loads from flash fault on ESP8266
+    // An empty payload is (nullptr, 0), and memcpy from nullptr is undefined even for zero bytes.
+    if (len != 0)
+      progmem_memcpy(out.data(), data, len);  // byte loads from flash fault on ESP8266
     return out;
   }
 
