@@ -51,6 +51,7 @@ class MillisInternal {
   }
   friend class Application;
   friend class LoopBlockingGuard;
+  friend class UnavoidableBlockingScope;
 };
 
 }  // namespace esphome
