@@ -98,7 +98,7 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_sleep_time(conf[CONF_SLEEP_TIME]))
             cg.add(var.set_scan_time(conf[CONF_SCAN_TIME]))
             cg.add(var.set_debounce_time(conf[CONF_DEBOUNCE_TIME]))
-        if keys := conf.get(CONF_KEYS):
+        if (keys := conf.get(CONF_KEYS)) is not None:
             table = cg.shared_progmem_array(
                 "sx1509_keys", cg.uint8, list(keys.encode())
             )
