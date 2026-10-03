@@ -6,8 +6,8 @@
 
 namespace esphome::select {
 
-// The deprecated overloads copy, since their argument may not outlive the select. Copies are
-// tracked per select so a repeated call frees the previous one; only these overloads use the list.
+// Runtime option lists are copied, since the argument may not outlive the select. Copies are
+// tracked per select so a later call frees the previous one; codegen tables never use this.
 struct OwnedOptions {
   const SelectTraits *traits;
   std::unique_ptr<const char *[]> table;

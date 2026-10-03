@@ -25,9 +25,7 @@ TEST(SelectTraits, ViewsTheTableWithoutCopying) {
   EXPECT_EQ(seen, (std::vector<std::string>{"low", "medium", "high"}));
 }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-TEST(SelectTraits, DeprecatedOverloadsCopyTheList) {
+TEST(SelectTraits, RuntimeListsAreCopied) {
   SelectTraits traits;
   traits.set_options({"a", "b"});
   EXPECT_EQ(traits.get_options().size(), 2U);
@@ -42,7 +40,11 @@ TEST(SelectTraits, DeprecatedOverloadsCopyTheList) {
   EXPECT_NE(traits.get_options().data(), list.begin());
   EXPECT_EQ(traits.get_options().size(), 3U);
   EXPECT_STREQ(traits.get_options().at(2), "z");
+
+  // A later runtime list replaces the earlier copy
+  traits.set_options({"only"});
+  EXPECT_EQ(traits.get_options().size(), 1U);
+  EXPECT_STREQ(traits.get_options()[0], "only");
 }
-#pragma GCC diagnostic pop
 
 }  // namespace esphome::select::testing
