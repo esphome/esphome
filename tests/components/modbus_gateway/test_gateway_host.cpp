@@ -17,6 +17,7 @@ class FakeUart : public uart::UARTComponent {
  public:
   std::vector<uint8_t> tx;
   std::vector<uint8_t> rx;
+  size_t write_room{SIZE_MAX};
 
   void write_array(const uint8_t *data, size_t len) override { this->tx.insert(this->tx.end(), data, data + len); }
   bool peek_byte(uint8_t *data) override {
@@ -35,6 +36,7 @@ class FakeUart : public uart::UARTComponent {
     return true;
   }
   size_t available() override { return this->rx.size(); }
+  size_t available_for_write() override { return this->write_room; }
   uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
 
   void push(const std::vector<uint8_t> &frame) { this->rx.insert(this->rx.end(), frame.begin(), frame.end()); }
@@ -283,6 +285,28 @@ TEST_F(GatewayRoute, CachedReadExpires) {
   this->master_.push(request);
   this->gate_.loop();
   EXPECT_EQ(this->bms_.tx, request);
+}
+
+TEST_F(GatewayRoute, FullPortKeepsTheCachedRead) {
+  auto request = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  auto response = frame({0x01, 0x03, 0x02, 0x00, 0x64});
+  this->master_.push(request);
+  this->gate_.loop();
+  this->bms_.push(response);
+  this->gate_.loop();
+  this->bms_.tx.clear();
+  this->master_.tx.clear();
+
+  this->master_.write_room = 0;
+  this->master_.push(request);
+  this->gate_.loop();
+  EXPECT_TRUE(this->bms_.tx.empty());
+  EXPECT_TRUE(this->master_.tx.empty());
+
+  this->master_.write_room = SIZE_MAX;
+  this->gate_.loop();
+  EXPECT_TRUE(this->bms_.tx.empty());
+  EXPECT_EQ(this->master_.tx, response);
 }
 
 TEST_F(GatewayRoute, BadCrcIsNotForwarded) {

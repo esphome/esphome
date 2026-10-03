@@ -325,21 +325,24 @@ void ModbusGateway::note_drop_(uint32_t now) {
   this->last_drop_log_ms_ = now;
 }
 
-bool ModbusGateway::serve_from_cache_(uint8_t index, const uint8_t *data, uint16_t len, uint32_t now) {
+ModbusGateway::CacheTake ModbusGateway::serve_from_cache_(uint8_t index, const uint8_t *data, uint16_t len,
+                                                          uint32_t now) {
   if (this->cache_limit_ == 0 || !this->ports_[index].use_cache || this->cache_time_ms_ == 0 || len < 6 ||
       !modbus::helpers::is_function_code_read_only(data[1])) {
-    return false;
+    return CacheTake::MISS;
   }
   for (uint16_t i = 0; i < this->cache_size_; i++) {
     CacheSlot &slot = this->slots_[i];
     if (!this->fresh_(slot, now) || std::memcmp(slot.key, data, sizeof(slot.key)) != 0) {
       continue;
     }
-    this->deliver_(index, slot.data.get(), slot.len);
+    if (!this->deliver_(index, slot.data.get(), slot.len)) {
+      return CacheTake::BLOCKED;
+    }
     this->move_front_(i);
-    return true;
+    return CacheTake::SERVED;
   }
-  return false;
+  return CacheTake::MISS;
 }
 
 void ModbusGateway::store_cache_(const uint8_t *request, uint16_t request_len, const uint8_t *response,
@@ -512,10 +515,15 @@ bool ModbusGateway::start_next_(uint32_t now) {
     if (port.pending_len == 0) {
       continue;
     }
-    if (this->serve_from_cache_(index, port.pending, port.pending_len, now)) {
-      port.pending_len = 0;
-      this->next_port_ = static_cast<uint8_t>((index + 1) % this->port_count_);
-      return true;
+    switch (this->serve_from_cache_(index, port.pending, port.pending_len, now)) {
+      case CacheTake::SERVED:
+        port.pending_len = 0;
+        this->next_port_ = static_cast<uint8_t>((index + 1) % this->port_count_);
+        return true;
+      case CacheTake::BLOCKED:
+        continue;
+      case CacheTake::MISS:
+        break;
     }
     if (!this->write_frame_(this->parent_, port.pending, port.pending_len)) {
       return false;

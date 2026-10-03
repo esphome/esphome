@@ -92,7 +92,9 @@ class ModbusGateway : public Component, public uart::UARTDevice {
   bool start_next_(uint32_t now);
   bool write_frame_(uart::UARTComponent *dest, const uint8_t *data, uint16_t len);
   bool deliver_(uint8_t index, const uint8_t *data, uint16_t len);
-  bool serve_from_cache_(uint8_t index, const uint8_t *data, uint16_t len, uint32_t now);
+  // MISS falls through to the bus. BLOCKED leaves the request queued.
+  enum class CacheTake : uint8_t { MISS, SERVED, BLOCKED };
+  CacheTake serve_from_cache_(uint8_t index, const uint8_t *data, uint16_t len, uint32_t now);
   void store_cache_(const uint8_t *request, uint16_t request_len, const uint8_t *response, uint16_t response_len,
                     uint32_t now);
   void clear_cache_();
