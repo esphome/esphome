@@ -7,6 +7,47 @@
 
 namespace esphome::core::testing {
 
+// --- truncate_name_to() ---
+
+TEST(TruncateNameTo, NameThatFitsIsCopied) {
+  char buffer[21];
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), "kitchen", 7, 7), 7u);
+  EXPECT_STREQ(buffer, "kitchen");
+}
+
+TEST(TruncateNameTo, NameOfExactlyTheLimitIsCopied) {
+  char buffer[8];
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), "kitchen", 7, 0), 7u);
+  EXPECT_STREQ(buffer, "kitchen");
+}
+
+TEST(TruncateNameTo, CutsTheEndWithoutASuffix) {
+  char buffer[21];
+  const char *name = "a-very-long-device-name-here";
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), name, strlen(name), 0), 20u);
+  EXPECT_STREQ(buffer, "a-very-long-device-n");
+}
+
+TEST(TruncateNameTo, KeepsTheSuffixAndRemovesTheMiddle) {
+  char buffer[21];
+  const char *name = "a-very-long-device-name-a1b2c3";
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), name, strlen(name), 7), 20u);
+  EXPECT_STREQ(buffer, "a-very-long-d-a1b2c3");
+}
+
+TEST(TruncateNameTo, SuffixLongerThanTheBufferIsCut) {
+  char buffer[5];
+  const char *name = "name-a1b2c3";
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), name, strlen(name), 7), 4u);
+  EXPECT_STREQ(buffer, "b2c3");
+}
+
+TEST(TruncateNameTo, ZeroBufferSize) {
+  char buffer[1] = {'x'};
+  EXPECT_EQ(truncate_name_to(buffer, 0, "name", 4, 0), 0u);
+  EXPECT_EQ(buffer[0], 'x');
+}
+
 // --- format_hex_to() ---
 
 TEST(FormatHexTo, Basic) {

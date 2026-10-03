@@ -297,6 +297,26 @@ size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *na
   return total_len;
 }
 
+size_t truncate_name_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, size_t keep_suffix_len) {
+  if (buffer_size == 0) {
+    return 0;
+  }
+  const size_t max_len = buffer_size - 1;
+  if (name_len <= max_len) {
+    memcpy(buffer, name, name_len);
+    buffer[name_len] = '\0';
+    return name_len;
+  }
+  if (keep_suffix_len > max_len) {
+    keep_suffix_len = max_len;
+  }
+  const size_t head_len = max_len - keep_suffix_len;
+  memcpy(buffer, name, head_len);
+  memcpy(buffer + head_len, name + name_len - keep_suffix_len, keep_suffix_len);
+  buffer[max_len] = '\0';
+  return max_len;
+}
+
 // Parsing & formatting
 
 size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
