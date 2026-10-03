@@ -15,54 +15,80 @@ static const char *const TAG = "modbus_gateway";
 static constexpr uint32_t BITS_PER_CHAR = 11;
 static constexpr uint32_t BAD_LOG_INTERVAL_MS = 5000;
 
+// ceil(3.5 characters * 11 bits * 1000 ms / baud). Millis cannot see less than 1 ms.
 static uint32_t gap_ms(uint32_t baud) {
   if (baud == 0) {
     return 2;
   }
-  // 3.5 characters. One millisecond is the shortest silence millis() can see.
-  uint32_t us = (35 * BITS_PER_CHAR * 100) / baud;
-  return std::max<uint32_t>(1, (us + 999) / 1000);
+  return std::max<uint32_t>(1, (38500 + baud - 1) / baud);
 }
 
 static uint32_t wire_ms(uint32_t baud, uint16_t len) {
   if (baud == 0) {
     return gap_ms(0);
   }
-  return std::max<uint32_t>(1, (uint32_t(len) * BITS_PER_CHAR * 1000) / baud) + gap_ms(baud);
+  uint32_t bits_ms = (uint32_t(len) * BITS_PER_CHAR * 1000 + baud - 1) / baud;
+  return std::max<uint32_t>(1, bits_ms) + gap_ms(baud);
 }
 
-static bool is_read(uint8_t function_code) {
-  uint8_t code = function_code & 0x7F;
-  return code >= 0x01 && code <= 0x04;
-}
-
-static uint16_t expected_len(const uint8_t *data, uint16_t size, bool request) {
-  if (request) {
-    return modbus::helpers::client_frame_length(data, size);
-  }
-  return modbus::helpers::server_frame_length(data, size);
-}
+struct Inspect {
+  uint16_t len{0};
+  bool drop_all{false};
+  bool bad_crc{false};
+};
 
 static uint16_t crc_frame(const uint8_t *data, uint16_t size) {
-  if (size < 4) {
-    return 0;
-  }
   uint16_t crc = crc16(data, 4);
   if (crc == 0) {
     return 4;
   }
-  for (uint16_t len = 4; len < size; len++) {
-    crc = crc16(&data[len], 1, crc);
+  for (uint16_t at = 4; at < size; at++) {
+    crc = crc16(&data[at], 1, crc);
     if (crc == 0) {
-      return len + 1;
+      return at + 1;
     }
   }
   return 0;
 }
 
+static Inspect inspect(const uint8_t *buf, uint16_t size, bool request, bool silent) {
+  Inspect out;
+  if (size < 4) {
+    out.drop_all = size > 0 && silent;
+    return out;
+  }
+  bool unknown = modbus::helpers::is_function_code_unknown_length(buf[1]);
+  uint16_t need = unknown ? crc_frame(buf, size)
+                          : (request ? modbus::helpers::client_frame_length(buf, size)
+                                     : modbus::helpers::server_frame_length(buf, size));
+  if (need == 0 || size < need) {
+    if (silent || size >= MAX_FRAME) {
+      out.bad_crc = size >= 4;
+      out.drop_all = true;
+    }
+    return out;
+  }
+  if (!unknown && crc16(buf, need) != 0) {
+    out.bad_crc = true;
+    return out;
+  }
+  out.len = need;
+  return out;
+}
+
+static void consume(uint8_t *buf, uint16_t *len, uint16_t used) {
+  uint16_t rest = *len - used;
+  std::memmove(buf, buf + used, rest);
+  *len = rest;
+}
+
 void GatewayUart::write_array(const uint8_t *data, size_t len) {
   size_t room = MAX_FRAME - this->tx_len_;
   if (len > room) {
+    if (!this->trunc_logged_) {
+      this->trunc_logged_ = true;
+      ESP_LOGW(TAG, "Write dropped, the buffer holds one frame");
+    }
     len = room;
   }
   if (len == 0) {
@@ -122,19 +148,23 @@ uart::UARTComponent *ModbusGateway::endpoint_(uint8_t index) {
   return port.uart;
 }
 
-void ModbusGateway::log_bad_(uint32_t now) {
+void ModbusGateway::log_bad_(uint32_t now, bool crc) {
   if (now - this->last_bad_log_ms_ < BAD_LOG_INTERVAL_MS) {
     return;
   }
   this->last_bad_log_ms_ = now;
-  ESP_LOGW(TAG, "Dropping a frame with a bad CRC");
+  if (crc) {
+    ESP_LOGW(TAG, "Dropping a frame with a bad CRC");
+    return;
+  }
+  ESP_LOGW(TAG, "Dropping an incomplete frame");
 }
 
 bool ModbusGateway::write_frame_(uart::UARTComponent *dest, const uint8_t *data, uint16_t len) {
   if (dest == nullptr || len == 0) {
     return false;
   }
-  // A partial write would put a gap on the wire longer than 3.5 characters.
+  // A partial write would open a gap on the wire longer than one frame.
   size_t room = dest->available_for_write();
   if (room != SIZE_MAX && room < len) {
     return false;
@@ -147,17 +177,18 @@ void ModbusGateway::deliver_(uint8_t index, const uint8_t *data, uint16_t len) {
   Port &port = this->ports_[index];
   if (port.local != nullptr) {
     if (!port.local->push_rx(data, len)) {
-      ESP_LOGW(TAG, "Response dropped, the UART buffer is full");
+      ESP_LOGW(TAG, "Response dropped, the buffer holds one frame");
     }
     return;
   }
   if (!this->write_frame_(port.uart, data, len)) {
-    ESP_LOGW(TAG, "Response dropped, the UART cannot take %u bytes", len);
+    ESP_LOGW(TAG, "Response dropped, the UART cannot take %u bytes", static_cast<unsigned>(len));
   }
 }
 
 bool ModbusGateway::serve_from_cache_(uint8_t index, const uint8_t *data, uint16_t len, uint32_t now) {
-  if (!this->cache_valid_ || this->cache_time_ms_ == 0 || len < 6 || !is_read(data[1])) {
+  if (!this->cache_valid_ || this->cache_time_ms_ == 0 || len < 6 ||
+      !modbus::helpers::is_function_code_read_only(data[1])) {
     return false;
   }
   if (now - this->cache_ms_ >= this->cache_time_ms_) {
@@ -172,7 +203,8 @@ bool ModbusGateway::serve_from_cache_(uint8_t index, const uint8_t *data, uint16
 
 void ModbusGateway::store_cache_(const uint8_t *request, uint16_t request_len, const uint8_t *response,
                                  uint16_t response_len, uint32_t now) {
-  if (this->cache_time_ms_ == 0 || request_len < 6 || !is_read(request[1]) || response_len > MAX_FRAME) {
+  if (this->cache_time_ms_ == 0 || request_len < 6 || !modbus::helpers::is_function_code_read_only(request[1]) ||
+      response_len > MAX_FRAME) {
     return;
   }
   std::memcpy(this->cache_key_, request, sizeof(this->cache_key_));
@@ -187,29 +219,25 @@ void ModbusGateway::take_requests_(uint8_t index, uint32_t now) {
   uart::UARTComponent *end = this->endpoint_(index);
   uint32_t baud = end != nullptr && end->get_baud_rate() != 0 ? end->get_baud_rate() : 9600;
   uint32_t gap = gap_ms(baud);
-  while (port.len >= 4) {
-    bool unknown = modbus::helpers::is_function_code_unknown_length(port.data[1]);
-    uint16_t need = unknown ? crc_frame(port.data, port.len) : expected_len(port.data, port.len, true);
+  while (port.len > 0) {
     bool silent = now - port.last_ms >= gap;
-    if (need == 0 || port.len < need) {
-      if (!silent && port.len < MAX_FRAME) {
-        return;
+    Inspect found = inspect(port.data, port.len, true, silent);
+    if (found.len == 0) {
+      if (found.bad_crc && !found.drop_all && port.len > 0) {
+        this->log_bad_(now, true);
+        consume(port.data, &port.len, 1);
+        continue;
       }
-      this->log_bad_(now);
-      port.len = 0;
+      if (found.drop_all) {
+        this->log_bad_(now, found.bad_crc);
+        port.len = 0;
+      }
       return;
     }
-    if (!unknown && crc16(port.data, need) != 0) {
-      this->log_bad_(now);
-      std::memmove(port.data, port.data + 1, --port.len);
-      continue;
-    }
     // A master that polls again before its turn keeps only the latest request.
-    std::memcpy(port.pending, port.data, need);
-    port.pending_len = need;
-    uint16_t rest = port.len - need;
-    std::memmove(port.data, port.data + need, rest);
-    port.len = rest;
+    std::memcpy(port.pending, port.data, found.len);
+    port.pending_len = found.len;
+    consume(port.data, &port.len, found.len);
   }
 }
 
@@ -257,36 +285,28 @@ void ModbusGateway::read_bus_(uint32_t now) {
     this->bus_len_ += static_cast<uint16_t>(n);
     this->bus_last_ms_ = now;
   }
-  if (this->bus_len_ < 4) {
-    return;
-  }
-  bool unknown = modbus::helpers::is_function_code_unknown_length(this->bus_[1]);
-  uint16_t need = unknown ? crc_frame(this->bus_, this->bus_len_) : expected_len(this->bus_, this->bus_len_, false);
   uint32_t gap = gap_ms(this->parent_->get_baud_rate());
-  bool silent = now - this->bus_last_ms_ >= gap;
-  if (need == 0 || this->bus_len_ < need) {
-    if (!silent && this->bus_len_ < MAX_FRAME) {
+  while (this->bus_len_ > 0 && this->active_ >= 0) {
+    bool silent = now - this->bus_last_ms_ >= gap;
+    Inspect found = inspect(this->bus_, this->bus_len_, false, silent);
+    if (found.len == 0) {
+      if (found.bad_crc && !found.drop_all) {
+        this->log_bad_(now, true);
+        consume(this->bus_, &this->bus_len_, 1);
+        continue;
+      }
+      if (found.drop_all) {
+        this->log_bad_(now, found.bad_crc);
+        this->bus_len_ = 0;
+      }
       return;
     }
-    this->log_bad_(now);
-    this->bus_len_ = 0;
-    return;
+    uint8_t index = static_cast<uint8_t>(this->active_);
+    this->deliver_(index, this->bus_, found.len);
+    this->store_cache_(this->request_, this->request_len_, this->bus_, found.len, now);
+    consume(this->bus_, &this->bus_len_, found.len);
+    this->active_ = -1;
   }
-  if (!unknown && crc16(this->bus_, need) != 0) {
-    if (!silent) {
-      return;
-    }
-    this->log_bad_(now);
-    this->bus_len_ = 0;
-    return;
-  }
-  uint8_t index = static_cast<uint8_t>(this->active_);
-  this->deliver_(index, this->bus_, need);
-  this->store_cache_(this->request_, this->request_len_, this->bus_, need, now);
-  uint16_t rest = this->bus_len_ - need;
-  std::memmove(this->bus_, this->bus_ + need, rest);
-  this->bus_len_ = rest;
-  this->active_ = -1;
 }
 
 bool ModbusGateway::start_next_(uint32_t now) {
@@ -316,7 +336,7 @@ bool ModbusGateway::start_next_(uint32_t now) {
     // Address 0 is a broadcast. There is no response to route.
     this->awaiting_ = this->request_[0] != 0;
     this->next_port_ = static_cast<uint8_t>((index + 1) % this->port_count_);
-    if (!is_read(this->request_[1])) {
+    if (!modbus::helpers::is_function_code_read_only(this->request_[1])) {
       this->cache_valid_ = false;
     }
     return true;
@@ -336,16 +356,6 @@ void ModbusGateway::loop() {
     if (!this->awaiting_) {
       if (now - this->sent_ms_ >= wire_ms(this->parent_->get_baud_rate(), this->request_len_)) {
         this->active_ = -1;
-      }
-    } else if (now - this->sent_ms_ < wire_ms(this->parent_->get_baud_rate(), this->request_len_)) {
-      // The request is still shifting out. Bytes read here are the echo, not the response.
-      this->bus_len_ = 0;
-      uint8_t echo[32];
-      while (this->parent_->available() > 0) {
-        size_t n = std::min(this->parent_->available(), sizeof(echo));
-        if (!this->parent_->read_array(echo, n)) {
-          break;
-        }
       }
     } else {
       this->read_bus_(now);

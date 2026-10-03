@@ -31,6 +31,7 @@ class GatewayUart : public uart::UARTComponent {
 
   uint16_t tx_len_{0};
   uint16_t rx_len_{0};
+  bool trunc_logged_{false};
   uint8_t tx_[MAX_FRAME]{};
   uint8_t rx_[MAX_FRAME]{};
 };
@@ -69,7 +70,7 @@ class ModbusGateway : public Component, public uart::UARTDevice {
   bool serve_from_cache_(uint8_t index, const uint8_t *data, uint16_t len, uint32_t now);
   void store_cache_(const uint8_t *request, uint16_t request_len, const uint8_t *response, uint16_t response_len,
                     uint32_t now);
-  void log_bad_(uint32_t now);
+  void log_bad_(uint32_t now, bool crc);
   uart::UARTComponent *endpoint_(uint8_t index);
 
   Port ports_[MAX_PORTS]{};

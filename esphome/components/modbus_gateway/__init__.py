@@ -7,7 +7,7 @@ from esphome.core import CORE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
-DEPENDENCIES = ["uart", "modbus"]
+DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["modbus"]
 MULTI_CONF = True
 
@@ -30,7 +30,7 @@ def _port_schema(value):
     has_uart = CONF_UART_ID in value
     has_id = CONF_ID in value
     if has_uart == has_id:
-        raise cv.Invalid("set uart_id or id, not both")
+        raise cv.Invalid("Specify uart_id or id, not both")
     return value
 
 

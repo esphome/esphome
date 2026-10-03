@@ -65,8 +65,6 @@ class GatewayRoute : public ::testing::Test {
     this->gate_.set_cache_time(10000);
   }
 
-  void settle() { usleep(5000); }
-
   FakeUart bms_;
   FakeUart master_;
   GatewayUart local_;
@@ -81,7 +79,6 @@ TEST_F(GatewayRoute, ResponseGoesBackToTheSender) {
 
   auto response = frame({0x01, 0x03, 0x02, 0x00, 0x64});
   this->bms_.push(response);
-  this->settle();
   this->gate_.loop();
   EXPECT_EQ(this->master_.tx, response);
   EXPECT_EQ(this->local_.available(), 0u);
@@ -96,7 +93,6 @@ TEST_F(GatewayRoute, SecondMasterWaitsForTheResponse) {
   EXPECT_EQ(this->bms_.tx, first);
 
   this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x01}));
-  this->settle();
   this->gate_.loop();
   ASSERT_EQ(this->bms_.tx.size(), first.size() + second.size());
   EXPECT_EQ(std::vector<uint8_t>(this->bms_.tx.begin() + first.size(), this->bms_.tx.end()), second);
@@ -108,7 +104,6 @@ TEST_F(GatewayRoute, RepeatedReadUsesTheCache) {
   this->master_.push(request);
   this->gate_.loop();
   this->bms_.push(response);
-  this->settle();
   this->gate_.loop();
   this->bms_.tx.clear();
   this->master_.tx.clear();
@@ -124,7 +119,6 @@ TEST_F(GatewayRoute, WriteClearsTheCache) {
   this->master_.push(read);
   this->gate_.loop();
   this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x64}));
-  this->settle();
   this->gate_.loop();
 
   auto write = frame({0x01, 0x06, 0x00, 0x10, 0x00, 0x01});
@@ -134,7 +128,6 @@ TEST_F(GatewayRoute, WriteClearsTheCache) {
   EXPECT_EQ(this->bms_.tx, write);
 
   this->bms_.push(frame({0x01, 0x06, 0x00, 0x10, 0x00, 0x01}));
-  this->settle();
   this->gate_.loop();
   this->bms_.tx.clear();
   this->master_.push(read);
@@ -145,9 +138,23 @@ TEST_F(GatewayRoute, WriteClearsTheCache) {
 TEST_F(GatewayRoute, BadCrcIsNotForwarded) {
   uint8_t junk[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00};
   this->master_.push(std::vector<uint8_t>(junk, junk + sizeof(junk)));
-  this->settle();
   this->gate_.loop();
   EXPECT_TRUE(this->bms_.tx.empty());
+}
+
+TEST_F(GatewayRoute, BroadcastDoesNotWaitForAResponse) {
+  auto broadcast = frame({0x00, 0x06, 0x00, 0x01, 0x00, 0x01});
+  auto next = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->master_.push(broadcast);
+  this->local_.write_array(next.data(), next.size());
+  this->gate_.loop();
+  EXPECT_EQ(this->bms_.tx, broadcast);
+  usleep(20000);
+  this->gate_.loop();
+  ASSERT_EQ(this->bms_.tx.size(), broadcast.size() + next.size());
+  EXPECT_EQ(
+      std::vector<uint8_t>(this->bms_.tx.begin() + static_cast<std::ptrdiff_t>(broadcast.size()), this->bms_.tx.end()),
+      next);
 }
 
 }  // namespace
