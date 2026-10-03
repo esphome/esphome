@@ -33,6 +33,20 @@ button:
           cycle: false
       - select.first: select_test_select
       - select.last: select_test_select
+      - if:
+          condition:
+            select.is:
+              id: select_test_select
+              options: [one, two]
+          then:
+            - select.next: select_test_select
+      - if:
+          condition:
+            select.is:
+              id: select_test_select
+              lambda: return current == "three";
+          then:
+            - select.first: select_test_select
       - select.operation:
           id: select_test_select
           operation: next
