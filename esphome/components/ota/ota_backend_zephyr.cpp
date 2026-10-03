@@ -226,13 +226,17 @@ OTAResponseTypes ZephyrOTABackend::end() {
     return OTA_RESPONSE_ERROR_UPDATE_END;
   }
 
-  if (this->sha256_set_) {
-    this->sha256_.calculate();
-    if (!this->sha256_.equals_bytes(this->expected_sha256_)) {
-      ESP_LOGE(TAG, "SHA256 mismatch");
-      this->abort();
-      return OTA_RESPONSE_ERROR_SHA256_MISMATCH;
-    }
+  // No MD5 fallback here, so a hash that failed to parse must fail the update.
+  if (!this->sha256_set_) {
+    ESP_LOGE(TAG, "No valid SHA256 received");
+    this->abort();
+    return OTA_RESPONSE_ERROR_SHA256_MISMATCH;
+  }
+  this->sha256_.calculate();
+  if (!this->sha256_.equals_bytes(this->expected_sha256_)) {
+    ESP_LOGE(TAG, "SHA256 mismatch");
+    this->abort();
+    return OTA_RESPONSE_ERROR_SHA256_MISMATCH;
   }
 
   if (::fsync(this->fd_) != 0) {
@@ -350,12 +354,15 @@ OTAResponseTypes ZephyrOTABackend::end() {
     return OTA_RESPONSE_ERROR_UPDATE_END;
   }
 
-  if (this->sha256_set_) {
-    this->sha256_.calculate();
-    if (!this->sha256_.equals_bytes(this->expected_sha256_)) {
-      ESP_LOGE(TAG, "SHA256 mismatch");
-      return OTA_RESPONSE_ERROR_SHA256_MISMATCH;
-    }
+  // No MD5 fallback here, so a hash that failed to parse must fail the update.
+  if (!this->sha256_set_) {
+    ESP_LOGE(TAG, "No valid SHA256 received");
+    return OTA_RESPONSE_ERROR_SHA256_MISMATCH;
+  }
+  this->sha256_.calculate();
+  if (!this->sha256_.equals_bytes(this->expected_sha256_)) {
+    ESP_LOGE(TAG, "SHA256 mismatch");
+    return OTA_RESPONSE_ERROR_SHA256_MISMATCH;
   }
 
 #ifdef USE_OTA_ZEPHYR_DIRECT_XIP
