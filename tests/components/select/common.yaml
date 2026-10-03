@@ -41,3 +41,32 @@ button:
           id: select_test_select
           operation: !lambda return SELECT_OP_PREVIOUS;
           cycle: !lambda return true;
+  - platform: template
+    name: "Test Select Options Lambdas"
+    on_press:
+      - lambda: |-
+          auto &options = id(select_test_select).traits.get_options();
+          for (size_t i = 0; i < options.size(); i++)
+            ESP_LOGD("test", "%s", options[i]);
+      - lambda: |-
+          std::string wanted = "two";
+          const auto &opts = id(select_test_select).traits.get_options();
+          if (opts.empty())
+            return;
+          for (int i = 0; i < (int) opts.size(); i++) {
+            if (opts[i] == wanted)
+              ESP_LOGD("test", "found at %d", i);
+          }
+          if (id(select_test_select).traits.get_options()[0] == wanted)
+            ESP_LOGD("test", "first");
+          auto it = std::find(opts.begin(), opts.end(), std::string("three"));
+          ESP_LOGD("test", "index %d", (int) (it - opts.begin()));
+      - lambda: |-
+          static std::vector<std::string> names{"red", "green"};
+          FixedVector<const char *> fresh;
+          fresh.init(names.size());
+          for (auto &name : names)
+            fresh.push_back(name.c_str());
+          if (id(select_test_select).traits.get_options().size() != fresh.size())
+            id(select_test_select).traits.set_options(fresh);
+          id(select_test_select).traits.set_options({"one", "two", "three"});
