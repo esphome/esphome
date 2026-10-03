@@ -29,6 +29,11 @@ RUN \
     && platformio settings set check_platformio_interval 1000000 \
     && mkdir -p /piolibs
 
+# libsdl2-dev is required by `display: platform: sdl` at compile time (sdl2-config).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libsdl2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 ARG BUILD_VERSION
 
 LABEL \
