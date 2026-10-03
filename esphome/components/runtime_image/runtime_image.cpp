@@ -111,10 +111,7 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
         }
       };
 
-      // Calculate the padded row width in bits (rows are padded to byte boundaries)
-      const uint32_t row_bits = ((this->buffer_width_ * this->bpp_ + 7u) / 8u) * 8u;
-      // Calculate bit position accounting for row padding: y offset + x offset within row
-      const uint32_t pos = y * row_bits + x * this->bpp_;
+      const uint32_t pos = (y * this->buffer_width_ + x) * this->bpp_;
 
       set_bit(pos + 0, (color.r >= 0x80));
       set_bit(pos + 1, (color.g >= 0x80));

@@ -134,7 +134,7 @@ lv_image_dsc_t *Image::get_lv_image_dsc() {
         break;
 
       case IMAGE_TYPE_RGB111:
-        ESP_LOGE("Image", "LVGL does not support RGB111 images. Please convert to RGB888 or RGB565.");
+        // Unsuported in LVGL; case added for completeness, but configuration already rejected at configuration time.
         break;
       case IMAGE_TYPE_RGB:
         switch (this->transparency_) {
@@ -169,10 +169,7 @@ bool Image::get_binary_pixel_(int x, int y) const {
   return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
 }
 Color Image::get_rgb3_pixel_(int x, int y) const {
-  // Calculate the padded row width in bits (rows are padded to byte boundaries)
-  const uint32_t row_bits = ((this->width_ * this->bpp_ + 7u) / 8u) * 8u;
-  // Calculate bit position accounting for row padding: y offset + x offset within row
-  const uint32_t bitpos = y * row_bits + x * this->bpp_;
+  const uint32_t bitpos = (y * this->width_ + x) * this->bpp_;
 
   // Helper lambda to read a single bit at a given bit position.
   auto get_bit = [this](uint32_t pos) {

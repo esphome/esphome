@@ -12,7 +12,6 @@ from esphome.components.const import CONF_BYTE_ORDER, KEY_METADATA
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEFAULTS,
-    CONF_DITHER,
     CONF_FILE,
     CONF_FILES,
     CONF_ID,
@@ -179,14 +178,14 @@ class ImageBinary(ImageEncoder):
 
 
 class ImageRGB111(ImageEncoder):
-    allow_config = {CONF_OPAQUE, CONF_DITHER, CONF_ALPHA_CHANNEL}
+    allow_config = {CONF_OPAQUE, CONF_ALPHA_CHANNEL}
 
     def __init__(self, width, height, transparency, dither, invert_alpha):
         if transparency == CONF_ALPHA_CHANNEL:
-            self.width3 = (width + 7) // 8 * 4
+            self.width111 = (width + 7) // 8 * 4
         else:
-            self.width3 = (width + 7) // 8 * 3
-        super().__init__(self.width3, height, transparency, dither, invert_alpha)
+            self.width111 = (width + 7) // 8 * 3
+        super().__init__(self.width111, height, transparency, dither, invert_alpha)
         self.bitno = 0
 
     def convert(self, image, path):
@@ -194,33 +193,16 @@ class ImageRGB111(ImageEncoder):
             image = image.split()[-1]
         image = image.convert("RGBA")
         if self.dither == Image.Dither.FLOYDSTEINBERG:
-            palette_data = [
-                0,
-                0,
-                0,  # black
-                255,
-                0,
-                0,  # red
-                0,
-                255,
-                0,  # green
-                255,
-                255,
-                0,  # yellow
-                0,
-                0,
-                255,  # blue
-                255,
-                0,
-                255,  # magenta
-                0,
-                255,
-                255,  # cyan
-                255,
-                255,
-                255,  # white
-            ]
-            palette_data += [0] * (768 - len(palette_data))
+            palette_data = []
+            palette_data += [0, 0, 0]  # black
+            palette_data += [255, 0, 0]  # red
+            palette_data += [0, 255, 0]  # green
+            palette_data += [255, 255, 0]  # yellow
+            palette_data += [0, 0, 255]  # blue
+            palette_data += [255, 0, 255]  # magenta
+            palette_data += [0, 255, 255]  # cyan
+            palette_data += [255, 255, 255]  # white
+            palette_data += [0] * (3 * 256 - len(palette_data))  # pad to 256 colors
             palette_img = Image.new("P", (1, 1))
             palette_img.putpalette(palette_data)
             alpha_image = image.getchannel("A")
@@ -253,14 +235,6 @@ class ImageRGB111(ImageEncoder):
         if self.transparency == CONF_ALPHA_CHANNEL:
             a_bit = 1 if a > 127 else 0
             self.add_bit(a_bit)
-
-    def end_row(self):
-        """
-        Pad rows to a byte boundary
-        """
-        if self.bitno != 0:
-            self.bitno = 0
-            self.index += 1
 
 
 class ImageGrayscale(ImageEncoder):
