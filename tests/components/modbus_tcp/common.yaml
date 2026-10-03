@@ -6,7 +6,6 @@ tcp_uart:
   - id: shelly_link
     host: 192.0.2.10
     port: 502
-    timeout: 30s
     baud_rate: 19200
 
 modbus_tcp:
