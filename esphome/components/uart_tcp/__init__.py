@@ -83,6 +83,5 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_host(host))
     binary_sensors = binary_sensor.sub_binary_sensors(config)
     await binary_sensors(CONF_CONNECTED, var.set_connected_sensor)
-    if (disconnects := config.get(CONF_DISCONNECTS)) is not None:
-        sens = await sensor.new_sensor(disconnects)
-        cg.add(var.set_disconnects_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_DISCONNECTS, var.set_disconnects_sensor)
