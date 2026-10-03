@@ -12,7 +12,8 @@ class TcpUart;
 namespace esphome::modbus_tcp {
 
 /// RTU toward the modbus hub, Modbus TCP on a raw tcp_uart.
-/// Master side only: a response must carry the transaction id of the last request.
+/// Master side only. A response is delivered once, and only after a request,
+/// when it carries that request's transaction id.
 class ModbusTcp : public uart::UARTComponent, public Component {
  public:
   ModbusTcp() { this->rx_buffer_size_ = RX_BUFFER_SIZE; }
@@ -52,6 +53,8 @@ class ModbusTcp : public uart::UARTComponent, public Component {
   uint16_t tx_len_{0};
   uint16_t rx_start_{0};
   uint16_t rx_end_{0};
+  // Set only after a request is sent. txn_ starts at 0, which is not a request.
+  bool txn_pending_{false};
   uint8_t tcp_buf_[TCP_FRAME_SIZE]{};
   uint8_t tx_[RTU_FRAME_SIZE]{};
   uint8_t rx_[RX_BUFFER_SIZE]{};

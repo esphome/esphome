@@ -43,6 +43,7 @@ void ModbusTcp::loop() {
     this->tx_len_ = 0;
     this->rx_start_ = 0;
     this->rx_end_ = 0;
+    this->txn_pending_ = false;
     return;
   }
   if (this->tx_len_ != 0) {
@@ -120,7 +121,7 @@ void ModbusTcp::deliver_mbap_() {
       case MbapTake::BAD:
         break;
       case MbapTake::FRAME: {
-        if (frame.txn != this->txn_) {
+        if (!this->txn_pending_ || frame.txn != this->txn_) {
           uint32_t now = App.get_loop_component_start_time();
           if (this->last_drop_log_ms_ == 0 || now - this->last_drop_log_ms_ >= DROP_LOG_INTERVAL_MS) {
             this->last_drop_log_ms_ = now == 0 ? 1 : now;
@@ -145,6 +146,7 @@ void ModbusTcp::deliver_mbap_() {
         this->rx_[at + frame.pdu_len + 1] = crc & 0xFF;
         this->rx_[at + frame.pdu_len + 2] = crc >> 8;
         this->rx_end_ = static_cast<uint16_t>(at + rtu_len);
+        this->txn_pending_ = false;
         break;
       }
     }
@@ -209,6 +211,7 @@ void ModbusTcp::send_rtu_as_mbap_() {
     return;
   }
   this->txn_ = txn;
+  this->txn_pending_ = true;
   this->tx_len_ = 0;
   this->parent_->write_array(frame, n);
   // tcp_uart may already have run this pass. Flush so the request leaves now.

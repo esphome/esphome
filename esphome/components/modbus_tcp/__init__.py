@@ -1,9 +1,15 @@
 import esphome.codegen as cg
 from esphome.components import tcp_uart, uart
-from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
+from esphome.components.const import (
+    CONF_DATA_BITS,
+    CONF_PARITY,
+    CONF_ROLE,
+    CONF_STOP_BITS,
+)
 import esphome.config_validation as cv
-from esphome.const import CONF_BAUD_RATE, CONF_ID
+from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_UART_ID
 from esphome.core import CORE
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
@@ -21,6 +27,26 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_TCP_UART_ID): cv.use_id(tcp_uart.TcpUart),
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+
+def _final_validate(config: ConfigType) -> None:
+    # A server hub writes its RTU reply here. This class would send that reply
+    # out as a new TCP request with a new transaction id.
+    full = fv.full_config.get()
+    link_id = str(config[CONF_ID])
+    for hub in full.get("modbus", []):
+        if str(hub.get(CONF_UART_ID, "")) != link_id:
+            continue
+        if hub.get(CONF_ROLE, "client") != "server":
+            continue
+        raise cv.Invalid(
+            f"modbus hub '{hub.get(CONF_ID)}' uses this UART with role server. "
+            "modbus_tcp is the TCP client, so the hub must use role: client",
+            [CONF_ID],
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
