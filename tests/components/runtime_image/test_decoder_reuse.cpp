@@ -101,6 +101,9 @@ class TestableRuntimeImage : public RuntimeImage {
   explicit TestableRuntimeImage(ImageFormat format, image::Transparency transparency = image::TRANSPARENCY_OPAQUE)
       : RuntimeImage(format, image::IMAGE_TYPE_RGB, transparency, nullptr, false, 0, 0) {}
 
+  TestableRuntimeImage(ImageFormat format, image::ImageType type, bool is_big_endian, int fixed_width, int fixed_height)
+      : RuntimeImage(format, type, image::TRANSPARENCY_OPAQUE, nullptr, is_big_endian, fixed_width, fixed_height) {}
+
   ImageDecoder *decoder() { return this->decoder_.get(); }
 };
 
@@ -372,6 +375,25 @@ TEST(RuntimeImageDecoder, JpegDecoderStaysWarmAcrossDecodes) {
   ASSERT_TRUE(decode_all(img, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
   EXPECT_EQ(img.decoder(), first);
   EXPECT_EQ(pixel_bytes(img), first_pixels) << "reused decoder must reproduce identical pixels";
+}
+
+TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565WithBothByteOrders) {
+  TestableRuntimeImage rgb565_little_endian(JPEG, image::IMAGE_TYPE_RGB565, false, 4, 4);
+  TestableRuntimeImage rgb565_big_endian(JPEG, image::IMAGE_TYPE_RGB565, true, 4, 4);
+
+  ASSERT_TRUE(decode_all(rgb565_little_endian, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  ASSERT_TRUE(decode_all(rgb565_big_endian, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  ASSERT_EQ(rgb565_little_endian.get_width(), 4);
+  ASSERT_EQ(rgb565_little_endian.get_height(), 4);
+  ASSERT_EQ(rgb565_big_endian.get_width(), 4);
+  ASSERT_EQ(rgb565_big_endian.get_height(), 4);
+
+  const uint8_t *little = rgb565_little_endian.get_data_start();
+  const uint8_t *big = rgb565_big_endian.get_data_start();
+  for (size_t pos = 0; pos < 4 * 4 * 2; pos += 2) {
+    EXPECT_EQ(little[pos], big[pos + 1]) << "byte order mismatch at byte " << pos;
+    EXPECT_EQ(little[pos + 1], big[pos]) << "byte order mismatch at byte " << pos + 1;
+  }
 }
 #endif  // USE_RUNTIME_IMAGE_JPEG
 
