@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 #include "esphome/core/color.h"
 #include "esphome/core/datatypes.h"
 #include "esphome/core/defines.h"
@@ -36,6 +38,13 @@ class Glyph final {
   int width;
   int height;
 };
+// The glyph table lives in flash, read with plain loads, which ESP8266 only allows for whole words.
+static_assert(std::is_same_v<decltype(Glyph::code_point), const uint32_t> &&
+                  std::is_same_v<decltype(Glyph::data), const uint8_t *> &&
+                  std::is_same_v<decltype(Glyph::advance), int> && std::is_same_v<decltype(Glyph::offset_x), int> &&
+                  std::is_same_v<decltype(Glyph::offset_y), int> && std::is_same_v<decltype(Glyph::width), int> &&
+                  std::is_same_v<decltype(Glyph::height), int> && alignof(Glyph) == sizeof(uint32_t),
+              "Glyph fields must stay word sized");
 
 class Font final
 #ifdef USE_DISPLAY
