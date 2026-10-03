@@ -41,13 +41,18 @@ TEST(ConstVector, CopyIsOwnedAndSizeMasksTheFlag) {
   EXPECT_STREQ(list[1], "y");
 }
 
-TEST(ConstVector, StaticAfterAnOwnedCopyFreesTheCopy) {
+TEST(ConstVector, StaticThenRuntimeCopiesNeverFreeTheTable) {
   ProbeVector list;
-  list.assign_copy(TABLE, 3);
-  list.assign_static(TABLE, 2);
+  list.assign_static(TABLE, 3);
   EXPECT_FALSE(list.owned());
-  EXPECT_EQ(list.data(), TABLE);
-  EXPECT_EQ(list.size(), 2U);
+  list.assign_copy(TABLE, 2);  // the static table is not owned, so nothing is freed
+  EXPECT_TRUE(list.owned());
+  EXPECT_NE(list.data(), TABLE);
+  const char *const next[] = {"x"};
+  list.assign_copy(next, 1);  // frees the previous copy
+  EXPECT_EQ(list.size(), 1U);
+  EXPECT_STREQ(list[0], "x");
+  EXPECT_STREQ(TABLE[0], "a");
 }
 
 TEST(ConstVector, EmptyCopyAllocatesNothing) {

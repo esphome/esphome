@@ -176,10 +176,9 @@ template<typename T> class ConstVector<T, true> {
   const T &operator[](size_t index) const { return this->data_[index]; }
   const T &at(size_t index) const { return this->data_[index]; }
 
-  /// Points at storage that must outlive this (codegen tables); frees a previous owned copy.
+  /// Codegen only: call before any runtime copy; it does not free a previous owned copy
+  /// (generated setup() runs before any lambda or automation can call set_options).
   void assign_static(const T *data, size_t size) {
-    if (this->size_ & OWNED_BIT)
-      this->free_owned_();
     this->data_ = data;
     this->size_ = size;
   }
@@ -203,11 +202,7 @@ template<typename T> class ConstVector<T, true> {
 
   void release_() {
     if (this->size_ & OWNED_BIT)
-      this->free_owned_();
-  }
-  // Kept out of line so the codegen assign_static call sites only grow by the flag test.
-  __attribute__((noinline)) void free_owned_() {
-    delete[] this->data_;  // NOLINT(cppcoreguidelines-owning-memory)
+      delete[] this->data_;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 
   const T *data_{nullptr};

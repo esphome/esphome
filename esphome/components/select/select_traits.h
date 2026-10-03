@@ -14,7 +14,8 @@ class SelectTraits {
   SelectTraits(const SelectTraits &) = delete;
   SelectTraits &operator=(const SelectTraits &) = delete;
 
-  /// Codegen only, during setup: points at a table that must outlive the select, no copy.
+  /// Codegen only: points at a table that outlives the select. Call before any runtime set_options;
+  /// it does not free a previous copy (generated setup() runs before any lambda or automation).
   void set_options_static(const char *const *options, size_t count) { this->options_.assign_static(options, count); }
   /// Runtime lists: the pointer list is copied, as before; the strings must still outlive the select.
   void set_options(const SelectOptions &options) { this->set_options_copy_(options.data(), options.size()); }

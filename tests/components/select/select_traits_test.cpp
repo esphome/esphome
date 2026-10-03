@@ -62,7 +62,6 @@ TEST(SelectTraits, CopyingAnotherSelectSurvivesItsNextRuntimeList) {
 
 TEST(SelectTraits, StaticTablesAreNeverOwned) {
   SelectTraits traits;
-  traits.set_options({"a", "b", "c"});
   traits.set_options_static(OPTIONS, 3);
   EXPECT_EQ(traits.get_options().data(), OPTIONS);
   EXPECT_EQ(traits.get_options().size(), 3U);
