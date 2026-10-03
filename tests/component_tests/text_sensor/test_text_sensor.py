@@ -1,5 +1,6 @@
 """Tests for the text sensor component."""
 
+from collections.abc import Callable
 import re
 
 from tests.component_tests.helpers import INTERNAL_BIT, extract_packed_value
@@ -66,7 +67,9 @@ def test_text_sensor_device_class_set(generate_main):
     assert packed_ts_3 != 0
 
 
-def test_substitution_filters_share_progmem_tables(generate_main) -> None:
+def test_substitution_filters_share_progmem_tables(
+    generate_main: Callable[[str], str],
+) -> None:
     """Map and substitute pairs live in PROGMEM tables; equal lists share one."""
     main_cpp = generate_main(
         "tests/component_tests/text_sensor/test_text_sensor_filter_tables.yaml"

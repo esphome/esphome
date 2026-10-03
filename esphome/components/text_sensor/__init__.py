@@ -124,6 +124,7 @@ def _substitution_table(filter_id: ID, config: list[ConfigType]) -> MockObj:
     tables = _get_data().substitution_tables
     key = tuple((conf[CONF_FROM], conf[CONF_TO]) for conf in config)
     if (table := tables.get(key)) is None:
+        # Derived from the filter id, like noise _psk and socket _ipv4_allow.
         table_id = ID(f"{filter_id}_table", is_declaration=True, type=Substitution)
         pairs = [
             cg.StructInitializer(Substitution, ("from", src), ("to", dst))
@@ -136,13 +137,10 @@ def _substitution_table(filter_id: ID, config: list[ConfigType]) -> MockObj:
 @FILTER_REGISTRY.register(
     "substitute", SubstituteFilter, cv.ensure_list(validate_mapping)
 )
-async def substitute_filter_to_code(config, filter_id):
-    table = _substitution_table(filter_id, config)
-    return cg.new_Pvariable(filter_id, table, len(config))
-
-
 @FILTER_REGISTRY.register("map", MapFilter, cv.ensure_list(validate_mapping))
-async def map_filter_to_code(config, filter_id):
+async def substitution_filter_to_code(
+    config: list[ConfigType], filter_id: ID
+) -> MockObj:
     table = _substitution_table(filter_id, config)
     return cg.new_Pvariable(filter_id, table, len(config))
 
