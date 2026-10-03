@@ -1046,6 +1046,13 @@ const char *ZWaveProxyCapabilities::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 #endif
+#ifdef USE_API_WIZARD
+const char *WizardCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("WizardCapabilities"));
+  dump_field(out, ESPHOME_PSTR("configured"), this->configured);
+  return out.c_str();
+}
+#endif
 const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("DeviceCapabilitiesResponse"));
 #ifdef USE_BLUETOOTH_PROXY
@@ -1070,8 +1077,95 @@ const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
     out.append("\n");
   }
 #endif
+#ifdef USE_API_WIZARD
+  out.append(2, ' ').append_p(ESPHOME_PSTR("wizard")).append(": ");
+  this->wizard.dump_to(out);
+  out.append("\n");
+#endif
   return out.c_str();
 }
+#ifdef USE_API_WIZARD_ENTITY_FILTERS
+const char *WizardEntityFilter::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("WizardEntityFilter"));
+  dump_field(out, ESPHOME_PSTR("integration"), this->integration);
+  for (const auto &it : *this->domain) {
+    dump_field(out, ESPHOME_PSTR("domain"), it, 4);
+  }
+  for (const auto &it : *this->device_class) {
+    dump_field(out, ESPHOME_PSTR("device_class"), it, 4);
+  }
+  for (const auto &it : *this->supported_features) {
+    dump_field(out, ESPHOME_PSTR("supported_features"), it, 4);
+  }
+  return out.c_str();
+}
+#endif
+#ifdef USE_API_WIZARD_ENTITIES
+const char *WizardEntityField::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("WizardEntityField"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("description"), this->description);
+  return out.c_str();
+}
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+const char *WizardInputField::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("WizardInputField"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("description"), this->description);
+#ifdef USE_API_WIZARD_ENTITY_FILTERS
+  for (const auto &it : *this->entity_filters) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("entity_filters")).append(": ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+#endif
+  dump_field(out, ESPHOME_PSTR("entity_id"), this->entity_id);
+  return out.c_str();
+}
+#endif
+#ifdef USE_API_WIZARD
+const char *WizardPage::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("WizardPage"));
+  dump_field(out, ESPHOME_PSTR("title"), this->title);
+  dump_field(out, ESPHOME_PSTR("description"), this->description);
+#ifdef USE_API_WIZARD_ENTITIES
+  for (const auto &it : *this->entities) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("entities")).append(": ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+  for (const auto &it : *this->inputs) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("inputs")).append(": ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+#endif
+  return out.c_str();
+}
+const char *DeviceWizardResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("DeviceWizardResponse"));
+  for (const auto &it : *this->pages) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("pages")).append(": ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+  return out.c_str();
+}
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+const char *WizardInputSetRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("WizardInputSetRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("entity_id"), this->entity_id);
+  return out.c_str();
+}
+#endif
 const char *ListEntitiesDoneResponse::dump_to(DumpBuffer &out) const {
   out.append_p(ESPHOME_PSTR("ListEntitiesDoneResponse {}"));
   return out.c_str();

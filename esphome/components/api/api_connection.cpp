@@ -10,6 +10,9 @@
 #ifdef USE_API_USER_DEFINED_ACTIONS
 #include "user_services.h"
 #endif
+#ifdef USE_API_WIZARD
+#include "api_wizard.h"
+#endif
 #include <cerrno>
 #include <cinttypes>
 #include <functional>
@@ -2012,8 +2015,18 @@ bool APIConnection::send_device_capabilities_response_() {
     info.configured_line_states = proxy->get_configured_modem_pins();
   }
 #endif
+#ifdef USE_API_WIZARD
+  resp.wizard.configured = true;
+#endif
   return this->send_message(resp);
 }
+#ifdef USE_API_WIZARD
+bool APIConnection::send_device_wizard_response_() {
+  DeviceWizardResponse resp;
+  resp.pages = &API_WIZARD_PAGES;
+  return this->send_message(resp);
+}
+#endif
 void APIConnection::on_hello_request(const HelloRequest &msg) {
   if (!this->send_hello_response_(msg)) {
     this->on_fatal_error();
@@ -2040,7 +2053,27 @@ void APIConnection::on_device_capabilities_request() {
     this->on_fatal_error();
   }
 }
+#ifdef USE_API_WIZARD
+void APIConnection::on_device_wizard_request() {
+  if (!this->send_device_wizard_response_()) {
+    this->on_fatal_error();
+  }
+}
+#endif
 
+#ifdef USE_API_WIZARD_INPUTS
+void APIConnection::on_wizard_input_set_request(const WizardInputSetRequest &msg) {
+  const char *entity_id = wizard_set_input(msg);
+  if (entity_id == nullptr)
+    return;
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  // Entities subscribed to the buffer before it held an entity id, so every client needs to learn of it now
+  for (auto &client : this->parent_->active_clients()) {
+    client->resend_state_subscriptions(entity_id);
+  }
+#endif
+}
+#endif
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
   // Skip if entity_id is empty (invalid message)
@@ -2225,7 +2258,12 @@ void APIConnection::on_noise_encryption_set_key_request(const NoiseEncryptionSet
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-void APIConnection::on_subscribe_home_assistant_states_request() { state_subs_at_ = 0; }
+void APIConnection::on_subscribe_home_assistant_states_request() {
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  this->flags_.home_assistant_states = true;
+#endif
+  state_subs_at_ = 0;
+}
 #endif
 bool APIConnection::try_to_clear_buffer_slow_(bool log_out_of_space) {
   delay(0);
@@ -2668,6 +2706,13 @@ void APIConnection::process_state_subscriptions_() {
   }
 
   const auto &it = subs[this->state_subs_at_];
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  // An entity id that is not set yet (a wizard input) has nothing to subscribe to; it is sent once it is set
+  if (it.entity_id[0] == '\0') {
+    this->state_subs_at_++;
+    return;
+  }
+#endif
   SubscribeHomeAssistantStateResponse resp;
   resp.entity_id = StringRef(it.entity_id);
 
@@ -2679,6 +2724,26 @@ void APIConnection::process_state_subscriptions_() {
     this->state_subs_at_++;
   }
 }
+
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+void APIConnection::resend_state_subscriptions(const char *entity_id) {
+  if (!this->flags_.home_assistant_states)
+    return;
+  for (const auto &it : this->parent_->get_state_subs()) {
+    if (it.entity_id != entity_id)
+      continue;
+    SubscribeHomeAssistantStateResponse resp;
+    resp.entity_id = StringRef(it.entity_id);
+    resp.attribute = it.attribute != nullptr ? StringRef(it.attribute) : StringRef("");
+    resp.once = it.once;
+    if (!this->send_message(resp)) {
+      // Could not send now: send every subscription again from the loop
+      this->state_subs_at_ = 0;
+      return;
+    }
+  }
+}
+#endif
 #endif  // USE_API_HOMEASSISTANT_STATES
 
 void APIConnection::log_client_(int level, const LogString *message) {
