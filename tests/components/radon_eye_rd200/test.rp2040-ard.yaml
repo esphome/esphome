@@ -1,0 +1,7 @@
+# The neutral node interface: the BTstack backend and rp2040_ble come in
+# through bluetooth_connection's auto-load; the tracker hub supplies the
+# sightings.
+packages:
+  radon_eye_rd200: !include common.yaml
+
+rp2_ble_tracker:
