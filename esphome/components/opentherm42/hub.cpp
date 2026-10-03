@@ -109,6 +109,8 @@ static void invalidate_entity(switch_::Switch *entity) {
 
 // clang-format off
 const SimpleSensorInfo OpenTherm42Hub::SIMPLE_SENSORS[] = {
+    {RequestKind::OPENTHERM_VERSION_BOILER, 125, SimpleValueKind::F88, &OpenTherm42Hub::opentherm_version_boiler_sensor_, "OpenTherm version Boiler (id=125)"},
+    {RequestKind::OPENTHERM_VERSION_VENTILATION, 75, SimpleValueKind::F88, &OpenTherm42Hub::opentherm_version_ventilation_sensor_, "OpenTherm version ventilation/heat-recovery (id=75)"},
 };
 // clang-format on
 
@@ -221,6 +223,42 @@ void OpenTherm42Hub::build_schedule_() {
   // config validation happens to guarantee that pointer is always set.
   this->add_entry_(RequestKind::STATUS);
   this->add_entry_(RequestKind::CONTROL_SETPOINT);
+  // §5.3.2 Class 2, ID 3: unlike STATUS above, nothing in the spec requires continuously re-reading
+  // id 3 regardless of which entities are configured -- see
+  // set_configuration_information_boiler_configuration_update_every()'s declaration comment -- so
+  // this group is gated like every other one below.
+  if (this->configuration_information_boiler_configuration_dhw_present_text_sensor_ != nullptr ||
+      this->configuration_information_boiler_configuration_control_type_text_sensor_ != nullptr ||
+      this->configuration_information_boiler_configuration_cooling_config_text_sensor_ != nullptr ||
+      this->configuration_information_boiler_configuration_dhw_config_text_sensor_ != nullptr ||
+      this->configuration_information_boiler_configuration_master_low_off_and_pump_control_function_text_sensor_ !=
+          nullptr ||
+      this->configuration_information_boiler_configuration_ch2_present_text_sensor_ != nullptr ||
+      this->configuration_information_boiler_configuration_remote_water_filling_function_text_sensor_ != nullptr ||
+      this->configuration_information_boiler_configuration_heat_cool_mode_control_text_sensor_ != nullptr ||
+      this->boiler_member_id_code_sensor_ != nullptr) {
+    this->add_entry_(RequestKind::BOILER_CONFIG);
+  }
+  // §5.3.2 Class 2, IDs 2/124/126: this master's own identity, announced to the boiler -- no entity
+  // of its own, so unconditionally scheduled like STATUS above (see their
+  // set_configuration_information_master_*_update_every() declaration comments).
+  this->add_entry_(RequestKind::MASTER_CONFIG);
+  this->add_entry_(RequestKind::MASTER_OPENTHERM_VERSION);
+  this->add_entry_(RequestKind::MASTER_PRODUCT_VERSION);
+  // §5.3.2 Class 2, IDs 93/94/95: brand identification strings, only scheduled if a text_sensor is
+  // configured for that string (mirrors the old startup_item_actionable_()'s BRAND* gating, which
+  // no longer exists as a separate mechanism). 1:1, so each uses its own staged cadence -- see
+  // brand_update_every_'s declaration comment -- same reasoning as the other bespoke sensors below.
+  if (this->brand_.sensor != nullptr) {
+    this->entries_.push_back({RequestKind::BRAND, this->brand_update_every_});
+  }
+  if (this->brand_version_.sensor != nullptr) {
+    this->entries_.push_back({RequestKind::BRAND_VERSION, this->brand_version_update_every_});
+  }
+  if (this->brand_serial_number_.sensor != nullptr) {
+    this->entries_.push_back({RequestKind::BRAND_SERIAL_NUMBER, this->brand_serial_number_update_every_});
+  }
+
   if (this->control_setpoint_2_number_ != nullptr) {
     this->add_entry_(RequestKind::CONTROL_SETPOINT_2);
   }
@@ -260,6 +298,31 @@ void OpenTherm42Hub::build_schedule_() {
   if (this->oem_diagnostic_code_ventilation_sensor_ != nullptr) {
     this->entries_.push_back(
         {RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION, this->oem_diagnostic_code_ventilation_update_every_});
+  }
+
+  if (this->configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_ != nullptr ||
+      this->configuration_information_configuration_ventilation_heat_recovery_bypass_text_sensor_ != nullptr ||
+      this->configuration_information_configuration_ventilation_heat_recovery_speed_control_text_sensor_ != nullptr ||
+      this->member_id_code_ventilation_sensor_ != nullptr) {
+    this->add_entry_(RequestKind::VENTILATION_CONFIGURATION);
+  }
+  if (this->configuration_information_solar_storage_configuration_system_type_text_sensor_ != nullptr ||
+      this->solar_storage_member_id_sensor_ != nullptr) {
+    this->add_entry_(RequestKind::SOLAR_STORAGE_CONFIGURATION);
+  }
+  // OPENTHERM_VERSION_BOILER/OPENTHERM_VERSION_VENTILATION are deliberately NOT seeded here: both
+  // are plain F88 reads listed in SIMPLE_SENSORS below, which already gates their existence on the
+  // same sensor pointer and applies the real staged update_every -- adding them a second time here
+  // would give each a duplicate Entry (the one added here defaulting to update_every=1 forever,
+  // silently overriding the user's configured cadence and permanently doubling their bus traffic).
+  if (this->boiler_product_type_sensor_ != nullptr || this->boiler_product_version_sensor_ != nullptr) {
+    this->add_entry_(RequestKind::PRODUCT_VERSION_BOILER);
+  }
+  if (this->ventilation_product_type_sensor_ != nullptr || this->ventilation_product_version_sensor_ != nullptr) {
+    this->add_entry_(RequestKind::PRODUCT_VERSION_VENTILATION);
+  }
+  if (this->solar_storage_product_type_sensor_ != nullptr || this->solar_storage_product_version_sensor_ != nullptr) {
+    this->add_entry_(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE);
   }
 
   // Every plain read-only sensor: scheduled if its entity is configured, at whatever cadence
@@ -330,6 +393,10 @@ Frame OpenTherm42Hub::build_entry_request_(RequestKind kind) {
   this->pending_request_kind_ = kind;
 
   switch (kind) {
+    case RequestKind::BOILER_CONFIG:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 3;
+      break;
     case RequestKind::STATUS:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
       frame.id = 0;
@@ -385,6 +452,65 @@ Frame OpenTherm42Hub::build_entry_request_(RequestKind kind) {
     case RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
       frame.id = 73;
+      break;
+    case RequestKind::MASTER_CONFIG:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 2;
+      // bit 0 Smart Power: always 0 (not implemented). §3.4.2 defines Smart Power as a physical-layer
+      // negotiation where the master signals support by actually switching the bus's idle voltage
+      // level between Low/Medium/High (§3.4.2.4/§3.4.2.5) -- not a data value. This datalink is a
+      // fixed-idle-level GPIO bit-banger (see OpenThermDataLink) with no concept of variable idle
+      // voltage/current, so it cannot perform that switching. Claiming support here would be a false
+      // promise: §3.4.2.3 warns a boiler that believes Smart Power is supported may switch to high
+      // idle current expecting power this interface was never designed to deliver.
+      frame.value_hb = 0;
+      frame.value_lb = this->controller_member_id_code_;
+      break;
+    case RequestKind::MASTER_OPENTHERM_VERSION:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 124;
+      frame.set_value_f88(CONTROLLER_OPENTHERM_VERSION);
+      break;
+    case RequestKind::MASTER_PRODUCT_VERSION:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 126;
+      frame.value_hb = this->controller_product_type_;
+      frame.value_lb = this->controller_product_version_;
+      break;
+    case RequestKind::VENTILATION_CONFIGURATION:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 74;
+      break;
+    case RequestKind::SOLAR_STORAGE_CONFIGURATION:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 103;
+      break;
+    case RequestKind::PRODUCT_VERSION_BOILER:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 127;
+      break;
+    case RequestKind::PRODUCT_VERSION_VENTILATION:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 76;
+      break;
+    case RequestKind::PRODUCT_VERSION_SOLAR_STORAGE:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 104;
+      break;
+    case RequestKind::BRAND:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 93;
+      frame.value_hb = this->brand_.next_index;
+      break;
+    case RequestKind::BRAND_VERSION:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 94;
+      frame.value_hb = this->brand_version_.next_index;
+      break;
+    case RequestKind::BRAND_SERIAL_NUMBER:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 95;
+      frame.value_hb = this->brand_serial_number_.next_index;
       break;
     default: {
       // Every plain read-only sensor (see the SIMPLE_SENSORS table) shares this one case.
@@ -574,6 +700,56 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
 
 bool OpenTherm42Hub::handle_response_status_and_identity_(const Frame &frame, MessageType type) {
   switch (this->pending_request_kind_) {
+    case RequestKind::BOILER_CONFIG:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::BOILER_CONFIG, type);
+        OT42_LOG_REJECTION(invalidate_now, "Boiler configuration flags (id=3) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::BOILER_CONFIG);
+        }
+        return true;
+      }
+      this->boiler_config_flags_ = frame.value_hb;
+      this->boiler_member_id_code_ = frame.value_lb;
+      if (this->configuration_information_boiler_configuration_dhw_present_text_sensor_ != nullptr) {
+        this->configuration_information_boiler_configuration_dhw_present_text_sensor_->publish_state(
+            (frame.value_hb & 0x01) ? "DHW is present" : "DHW not present");
+      }
+      if (this->configuration_information_boiler_configuration_control_type_text_sensor_ != nullptr) {
+        this->configuration_information_boiler_configuration_control_type_text_sensor_->publish_state(
+            (frame.value_hb & 0x02) ? "On/off" : "Modulating");
+      }
+      if (this->configuration_information_boiler_configuration_cooling_config_text_sensor_ != nullptr) {
+        this->configuration_information_boiler_configuration_cooling_config_text_sensor_->publish_state(
+            (frame.value_hb & 0x04) ? "Cooling supported" : "Cooling not supported");
+      }
+      if (this->configuration_information_boiler_configuration_dhw_config_text_sensor_ != nullptr) {
+        this->configuration_information_boiler_configuration_dhw_config_text_sensor_->publish_state(
+            (frame.value_hb & 0x08) ? "Storage tank" : "Instantaneous or not-specified");
+      }
+      if (this->configuration_information_boiler_configuration_master_low_off_and_pump_control_function_text_sensor_ !=
+          nullptr) {
+        this->configuration_information_boiler_configuration_master_low_off_and_pump_control_function_text_sensor_
+            ->publish_state((frame.value_hb & 0x10) ? "Not allowed" : "Allowed");
+      }
+      if (this->configuration_information_boiler_configuration_ch2_present_text_sensor_ != nullptr) {
+        this->configuration_information_boiler_configuration_ch2_present_text_sensor_->publish_state(
+            (frame.value_hb & 0x20) ? "CH2 present" : "CH2 not present");
+      }
+      if (this->configuration_information_boiler_configuration_remote_water_filling_function_text_sensor_ != nullptr) {
+        this->configuration_information_boiler_configuration_remote_water_filling_function_text_sensor_->publish_state(
+            (frame.value_hb & 0x40) ? "Not available" : "Available or unknown");
+      }
+      if (this->configuration_information_boiler_configuration_heat_cool_mode_control_text_sensor_ != nullptr) {
+        this->configuration_information_boiler_configuration_heat_cool_mode_control_text_sensor_->publish_state(
+            (frame.value_hb & 0x80) ? "Switching done by boiler" : "Switching done by master");
+      }
+      if (this->boiler_member_id_code_sensor_ != nullptr) {
+        this->boiler_member_id_code_sensor_->publish_state(frame.value_lb);
+      }
+      return true;
+
     case RequestKind::STATUS:
       if (type != MessageType::READ_ACK) {
         bool invalidate_now = this->should_invalidate_now_(RequestKind::STATUS, type);
@@ -788,6 +964,136 @@ bool OpenTherm42Hub::handle_response_status_and_identity_(const Frame &frame, Me
       }
       return true;
 
+    case RequestKind::MASTER_CONFIG:
+      // No entity to invalidate -- this is a pure master-authored write with nothing to display.
+      // Whatever the outcome, the next due pass just retries it, same as any other id.
+      if (type != MessageType::WRITE_ACK) {
+        OT42_LOG_REJECTION_ALWAYS("Master configuration (id=2) write was rejected (message type %s)",
+                                  message_type_to_string(type));
+      }
+      return true;
+
+    case RequestKind::MASTER_OPENTHERM_VERSION:
+      if (type != MessageType::WRITE_ACK) {
+        OT42_LOG_REJECTION_ALWAYS("OpenTherm version Master (id=124) write was rejected (message type %s)",
+                                  message_type_to_string(type));
+      }
+      return true;
+
+    case RequestKind::MASTER_PRODUCT_VERSION:
+      if (type != MessageType::WRITE_ACK) {
+        OT42_LOG_REJECTION_ALWAYS(
+            "Master product version number and type (id=126) write was rejected (message type %s)",
+            message_type_to_string(type));
+      }
+      return true;
+
+    case RequestKind::VENTILATION_CONFIGURATION:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::VENTILATION_CONFIGURATION, type);
+        OT42_LOG_REJECTION(invalidate_now,
+                           "Configuration ventilation/heat-recovery (id=74) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::VENTILATION_CONFIGURATION);
+        }
+        return true;
+      }
+      if (this->configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_ != nullptr) {
+        this->configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_->publish_state(
+            (frame.value_hb & 0x01) ? "Heat-recovery ventilation" : "Central exhaust ventilation");
+      }
+      if (this->configuration_information_configuration_ventilation_heat_recovery_bypass_text_sensor_ != nullptr) {
+        this->configuration_information_configuration_ventilation_heat_recovery_bypass_text_sensor_->publish_state(
+            (frame.value_hb & 0x02) ? "Present" : "Not present");
+      }
+      if (this->configuration_information_configuration_ventilation_heat_recovery_speed_control_text_sensor_ !=
+          nullptr) {
+        this->configuration_information_configuration_ventilation_heat_recovery_speed_control_text_sensor_
+            ->publish_state((frame.value_hb & 0x04) ? "Variable" : "3-speed");
+      }
+      if (this->member_id_code_ventilation_sensor_ != nullptr) {
+        this->member_id_code_ventilation_sensor_->publish_state(frame.value_lb);
+      }
+      return true;
+
+    case RequestKind::SOLAR_STORAGE_CONFIGURATION:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::SOLAR_STORAGE_CONFIGURATION, type);
+        OT42_LOG_REJECTION(invalidate_now, "Solar Storage configuration (id=103) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::SOLAR_STORAGE_CONFIGURATION);
+        }
+        return true;
+      }
+      if (this->configuration_information_solar_storage_configuration_system_type_text_sensor_ != nullptr) {
+        this->configuration_information_solar_storage_configuration_system_type_text_sensor_->publish_state(
+            (frame.value_hb & 0x01) ? "DHW parallel system" : "DHW preheat system");
+      }
+      if (this->solar_storage_member_id_sensor_ != nullptr) {
+        this->solar_storage_member_id_sensor_->publish_state(frame.value_lb);
+      }
+      return true;
+
+    case RequestKind::PRODUCT_VERSION_BOILER:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::PRODUCT_VERSION_BOILER, type);
+        OT42_LOG_REJECTION(invalidate_now,
+                           "Boiler product version number and type (id=127) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::PRODUCT_VERSION_BOILER);
+        }
+        return true;
+      }
+      if (this->boiler_product_type_sensor_ != nullptr) {
+        this->boiler_product_type_sensor_->publish_state(frame.value_hb);
+      }
+      if (this->boiler_product_version_sensor_ != nullptr) {
+        this->boiler_product_version_sensor_->publish_state(frame.value_lb);
+      }
+      return true;
+
+    case RequestKind::PRODUCT_VERSION_VENTILATION:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::PRODUCT_VERSION_VENTILATION, type);
+        OT42_LOG_REJECTION(invalidate_now,
+                           "Ventilation/heat-recovery product version number and type (id=76) read was rejected "
+                           "(message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::PRODUCT_VERSION_VENTILATION);
+        }
+        return true;
+      }
+      if (this->ventilation_product_type_sensor_ != nullptr) {
+        this->ventilation_product_type_sensor_->publish_state(frame.value_hb);
+      }
+      if (this->ventilation_product_version_sensor_ != nullptr) {
+        this->ventilation_product_version_sensor_->publish_state(frame.value_lb);
+      }
+      return true;
+
+    case RequestKind::PRODUCT_VERSION_SOLAR_STORAGE:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE, type);
+        OT42_LOG_REJECTION(invalidate_now,
+                           "Solar Storage product version number and type (id=104) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE);
+        }
+        return true;
+      }
+      if (this->solar_storage_product_type_sensor_ != nullptr) {
+        this->solar_storage_product_type_sensor_->publish_state(frame.value_hb);
+      }
+      if (this->solar_storage_product_version_sensor_ != nullptr) {
+        this->solar_storage_product_version_sensor_->publish_state(frame.value_lb);
+      }
+      return true;
+
     default:
       return false;
   }
@@ -795,6 +1101,19 @@ bool OpenTherm42Hub::handle_response_status_and_identity_(const Frame &frame, Me
 
 bool OpenTherm42Hub::handle_response_feeds_and_time_(const Frame &frame, MessageType type) {
   switch (this->pending_request_kind_) {
+    case RequestKind::BRAND:
+      this->handle_brand_response_(frame, this->brand_, RequestKind::BRAND, "Brand (id=93)");
+      return true;
+
+    case RequestKind::BRAND_VERSION:
+      this->handle_brand_response_(frame, this->brand_version_, RequestKind::BRAND_VERSION, "Brand version (id=94)");
+      return true;
+
+    case RequestKind::BRAND_SERIAL_NUMBER:
+      this->handle_brand_response_(frame, this->brand_serial_number_, RequestKind::BRAND_SERIAL_NUMBER,
+                                   "Brand serial number (id=95)");
+      return true;
+
     default:
       return false;
   }
@@ -804,6 +1123,47 @@ bool OpenTherm42Hub::handle_response_setpoints_and_parameters_(const Frame &fram
   switch (this->pending_request_kind_) {
     default:
       return false;
+  }
+}
+
+void OpenTherm42Hub::handle_brand_response_(const Frame &frame, BrandRead &brand, RequestKind kind,
+                                            const char *log_name) {
+  if (brand.sensor == nullptr) {
+    return;  // only scheduled when configured; defensive in case that invariant is ever broken
+  }
+  auto const type = static_cast<MessageType>(frame.type);
+  if (type != MessageType::READ_ACK) {
+    OT42_LOG_REJECTION_ALWAYS("%s read was rejected (message type %s)", log_name, message_type_to_string(type));
+    invalidate_entity(brand.sensor);
+    // Mid-string, this read fails: restart from the first character next time this id comes due,
+    // rather than resuming a partial buffer that may no longer match what the boiler now reports.
+    brand.next_index = 0;
+    return;
+  }
+  // §5.3.2: the response's HB is the total character count (not an index) -- e.g. HB=0x06 means "6
+  // characters can be read" -- and LB is the character at the index this request's HB asked for.
+  uint8_t const total_len = std::min<uint8_t>(frame.value_hb, brand.buffer.size() - 1);
+  if (brand.next_index < total_len) {
+    brand.buffer[brand.next_index] = static_cast<char>(frame.value_lb);
+    brand.next_index++;
+  }
+  if (brand.next_index >= total_len) {
+    brand.buffer[brand.next_index] = '\0';
+    brand.sensor->publish_state(brand.buffer.data(), brand.next_index);
+    // Reset for next time this id comes due (per its own update_every), so a later re-read starts
+    // a fresh character-by-character read rather than immediately re-completing at the old index --
+    // this is what lets a later firmware update's (possibly different-length) string actually be
+    // picked up, since every id is retried forever now (see kind's declaration comment in hub.h).
+    brand.next_index = 0;
+    return;
+  }
+  // Mid-string, more characters left: the pass-pull only revisits this id once pass_counter_ next
+  // reaches a multiple of its own update_every, which would stall a multi-character read for many
+  // passes -- reuse the ASAP dirty bit (checked ahead of the pass-pull on every call, regardless of
+  // update_every) to force this id to be picked again on the very next build_next_request_() call
+  // instead, continuing the read one character per call until it completes or fails.
+  if (Entry *entry = this->find_entry_(kind); entry != nullptr) {
+    entry->dirty = true;
   }
 }
 
@@ -821,6 +1181,39 @@ bool OpenTherm42Hub::should_invalidate_now_(RequestKind kind, MessageType type) 
 
 void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
   switch (kind) {
+    case RequestKind::BOILER_CONFIG:
+      if (this->configuration_information_boiler_configuration_dhw_present_text_sensor_ != nullptr) {
+        invalidate_entity(this->configuration_information_boiler_configuration_dhw_present_text_sensor_);
+      }
+      if (this->configuration_information_boiler_configuration_control_type_text_sensor_ != nullptr) {
+        invalidate_entity(this->configuration_information_boiler_configuration_control_type_text_sensor_);
+      }
+      if (this->configuration_information_boiler_configuration_cooling_config_text_sensor_ != nullptr) {
+        invalidate_entity(this->configuration_information_boiler_configuration_cooling_config_text_sensor_);
+      }
+      if (this->configuration_information_boiler_configuration_dhw_config_text_sensor_ != nullptr) {
+        invalidate_entity(this->configuration_information_boiler_configuration_dhw_config_text_sensor_);
+      }
+      if (this->configuration_information_boiler_configuration_master_low_off_and_pump_control_function_text_sensor_ !=
+          nullptr) {
+        invalidate_entity(
+            this->configuration_information_boiler_configuration_master_low_off_and_pump_control_function_text_sensor_);
+      }
+      if (this->configuration_information_boiler_configuration_ch2_present_text_sensor_ != nullptr) {
+        invalidate_entity(this->configuration_information_boiler_configuration_ch2_present_text_sensor_);
+      }
+      if (this->configuration_information_boiler_configuration_remote_water_filling_function_text_sensor_ != nullptr) {
+        invalidate_entity(
+            this->configuration_information_boiler_configuration_remote_water_filling_function_text_sensor_);
+      }
+      if (this->configuration_information_boiler_configuration_heat_cool_mode_control_text_sensor_ != nullptr) {
+        invalidate_entity(this->configuration_information_boiler_configuration_heat_cool_mode_control_text_sensor_);
+      }
+      if (this->boiler_member_id_code_sensor_ != nullptr) {
+        invalidate_entity(this->boiler_member_id_code_sensor_);
+      }
+      return;
+
     case RequestKind::CONTROL_SETPOINT:
       if (this->control_setpoint_number_ != nullptr) {
         invalidate_entity(this->control_setpoint_number_);
@@ -837,6 +1230,32 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       if (this->control_setpoint_ventilation_number_ != nullptr) {
         invalidate_entity(this->control_setpoint_ventilation_number_);
       }
+      return;
+
+    case RequestKind::MASTER_CONFIG:
+    case RequestKind::MASTER_OPENTHERM_VERSION:
+    case RequestKind::MASTER_PRODUCT_VERSION:
+      return;  // no entity to invalidate -- see their build_entry_request_() cases' comments
+
+    case RequestKind::BRAND:
+      if (this->brand_.sensor != nullptr) {
+        invalidate_entity(this->brand_.sensor);
+      }
+      this->brand_.next_index = 0;  // restart from the first character next time this id comes due
+      return;
+
+    case RequestKind::BRAND_VERSION:
+      if (this->brand_version_.sensor != nullptr) {
+        invalidate_entity(this->brand_version_.sensor);
+      }
+      this->brand_version_.next_index = 0;
+      return;
+
+    case RequestKind::BRAND_SERIAL_NUMBER:
+      if (this->brand_serial_number_.sensor != nullptr) {
+        invalidate_entity(this->brand_serial_number_.sensor);
+      }
+      this->brand_serial_number_.next_index = 0;
       return;
 
     case RequestKind::STATUS:
@@ -906,6 +1325,60 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       }
       return;
 
+    case RequestKind::VENTILATION_CONFIGURATION:
+      if (this->configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_ != nullptr) {
+        invalidate_entity(
+            this->configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_);
+      }
+      if (this->configuration_information_configuration_ventilation_heat_recovery_bypass_text_sensor_ != nullptr) {
+        invalidate_entity(this->configuration_information_configuration_ventilation_heat_recovery_bypass_text_sensor_);
+      }
+      if (this->configuration_information_configuration_ventilation_heat_recovery_speed_control_text_sensor_ !=
+          nullptr) {
+        invalidate_entity(
+            this->configuration_information_configuration_ventilation_heat_recovery_speed_control_text_sensor_);
+      }
+      if (this->member_id_code_ventilation_sensor_ != nullptr) {
+        invalidate_entity(this->member_id_code_ventilation_sensor_);
+      }
+      return;
+
+    case RequestKind::SOLAR_STORAGE_CONFIGURATION:
+      if (this->configuration_information_solar_storage_configuration_system_type_text_sensor_ != nullptr) {
+        invalidate_entity(this->configuration_information_solar_storage_configuration_system_type_text_sensor_);
+      }
+      if (this->solar_storage_member_id_sensor_ != nullptr) {
+        invalidate_entity(this->solar_storage_member_id_sensor_);
+      }
+      return;
+
+    case RequestKind::PRODUCT_VERSION_BOILER:
+      if (this->boiler_product_type_sensor_ != nullptr) {
+        invalidate_entity(this->boiler_product_type_sensor_);
+      }
+      if (this->boiler_product_version_sensor_ != nullptr) {
+        invalidate_entity(this->boiler_product_version_sensor_);
+      }
+      return;
+
+    case RequestKind::PRODUCT_VERSION_VENTILATION:
+      if (this->ventilation_product_type_sensor_ != nullptr) {
+        invalidate_entity(this->ventilation_product_type_sensor_);
+      }
+      if (this->ventilation_product_version_sensor_ != nullptr) {
+        invalidate_entity(this->ventilation_product_version_sensor_);
+      }
+      return;
+
+    case RequestKind::PRODUCT_VERSION_SOLAR_STORAGE:
+      if (this->solar_storage_product_type_sensor_ != nullptr) {
+        invalidate_entity(this->solar_storage_product_type_sensor_);
+      }
+      if (this->solar_storage_product_version_sensor_ != nullptr) {
+        invalidate_entity(this->solar_storage_product_version_sensor_);
+      }
+      return;
+
     default: {
       const SimpleSensorInfo *info = this->find_simple_sensor_(kind);
       if (info != nullptr) {
@@ -925,6 +1398,8 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
 // handle_response_(), so the two ways this component reports "this conversation failed" agree.
 static const char *bespoke_request_kind_name(RequestKind kind) {
   switch (kind) {
+    case RequestKind::BOILER_CONFIG:
+      return "Boiler configuration flags (id=3)";
     case RequestKind::STATUS:
       return "Status exchange (id=0)";
     case RequestKind::CONTROL_SETPOINT:
@@ -947,6 +1422,28 @@ static const char *bespoke_request_kind_name(RequestKind kind) {
       return "OEM diagnostic code (id=115)";
     case RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION:
       return "OEM diagnostic code ventilation/heat-recovery (id=73)";
+    case RequestKind::MASTER_CONFIG:
+      return "Master configuration (id=2)";
+    case RequestKind::MASTER_OPENTHERM_VERSION:
+      return "OpenTherm version Master (id=124)";
+    case RequestKind::MASTER_PRODUCT_VERSION:
+      return "Master product version number and type (id=126)";
+    case RequestKind::VENTILATION_CONFIGURATION:
+      return "Configuration ventilation/heat-recovery (id=74)";
+    case RequestKind::SOLAR_STORAGE_CONFIGURATION:
+      return "Solar Storage configuration (id=103)";
+    case RequestKind::PRODUCT_VERSION_BOILER:
+      return "Boiler product version number and type (id=127)";
+    case RequestKind::PRODUCT_VERSION_VENTILATION:
+      return "Ventilation/heat-recovery product version number and type (id=76)";
+    case RequestKind::PRODUCT_VERSION_SOLAR_STORAGE:
+      return "Solar Storage product version number and type (id=104)";
+    case RequestKind::BRAND:
+      return "Brand (id=93)";
+    case RequestKind::BRAND_VERSION:
+      return "Brand version (id=94)";
+    case RequestKind::BRAND_SERIAL_NUMBER:
+      return "Brand serial number (id=95)";
     default:
       return nullptr;
   }

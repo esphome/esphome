@@ -12,15 +12,36 @@ opentherm42:
   id: my_opentherm42
   in_pin: 4
   out_pin: 5
+  # §5.3.2 Class 2, ID 2 LB: this master's own MemberID code (0..255). A value of 0 signifies a
+  # customer non-specific device.
+  controller_member_id_code: 0
+  # §5.3.2 Class 2, ID 126 HB: this master's own product type (0..255), as defined by the manufacturer.
+  controller_product_type: 0
+  # §5.3.2 Class 2, ID 126 LB: this master's own product version (0..255), as defined by the manufacturer.
+  controller_product_version: 0
   # §4.4.1: tolerate a DATA_INVALID for up to 5s before actually invalidating an entity, since real
   # hardware has been observed answering DATA_INVALID transiently for a second or two.
   max_data_invalid: 3
   # §5.2's mandatory heartbeat (id=0) -- unconditionally required, see hub.h's Entry.
   control_and_status_information_boiler_status_update_every: 1
+  # §5.3.2 Class 2, IDs 2/124/126: this master's own identity -- no entity of its own, so each is
+  # unconditionally required, same reasoning as the heartbeat above.
+  configuration_information_master_configuration_update_every: 6
+  configuration_information_master_opentherm_version_update_every: 6
+  configuration_information_master_product_version_update_every: 6
+  # Every option below is required only because this test config exercises every entity in every
+  # one of these groups -- see hub.h's Entry and opentherm42/__init__.py's
+  # validate_requires_hub_option().
+  configuration_information_boiler_configuration_update_every: 6
   control_and_status_information_status_ventilation_heat_recovery_update_every: 4
   control_and_status_information_application_specific_fault_flags_update_every: 4
   control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_update_every: 4
   control_and_status_information_solar_storage_mode_and_status_update_every: 4
+  configuration_information_configuration_ventilation_heat_recovery_update_every: 6
+  configuration_information_solar_storage_configuration_update_every: 6
+  configuration_information_boiler_product_version_number_and_type_update_every: 7
+  configuration_information_ventilation_heat_recovery_product_version_number_and_type_update_every: 7
+  configuration_information_solar_storage_product_version_number_and_type_update_every: 7
 
 switch:
   - platform: opentherm42
@@ -171,6 +192,67 @@ binary_sensor:
     sweep_had_errors:
       name: "Sweep had errors"
 
+text_sensor:
+  - platform: opentherm42
+    # §5.3.2 Class 2, ID 93: Brand -- the boiler manufacturer's brand name, read one ASCII character
+    # at a time (index in HB, character in LB) until the boiler-reported character count is reached.
+    configuration_information_brand:
+      name: "Configuration Information: Brand"
+      update_every: 7
+    # §5.3.2 Class 2, ID 94: Brand version, read the same way as ID 93.
+    configuration_information_brand_version:
+      name: "Configuration Information: Brand version"
+      update_every: 7
+    # §5.3.2 Class 2, ID 95: Brand serial number, read the same way as ID 93.
+    configuration_information_brand_serial_number:
+      name: "Configuration Information: Brand serial number"
+      update_every: 7
+    # §5.3.2 Class 2, ID 3 HB bit 0: DHW present [ dhw not present, dhw is present ]
+    configuration_information_boiler_configuration_dhw_present:
+      name: "Configuration Information: Boiler configuration: DHW present"
+    # §5.3.2 Class 2, ID 3 HB bit 1: Control type [ modulating, on/off ]
+    configuration_information_boiler_configuration_control_type:
+      name: "Configuration Information: Boiler configuration: Control type"
+    # §5.3.2 Class 2, ID 3 HB bit 2: Cooling config [ cooling not supported, cooling supported ]
+    configuration_information_boiler_configuration_cooling_config:
+      name: "Configuration Information: Boiler configuration: Cooling config"
+    # §5.3.2 Class 2, ID 3 HB bit 3: DHW config [ instantaneous or not-specified, storage tank ]
+    configuration_information_boiler_configuration_dhw_config:
+      name: "Configuration Information: Boiler configuration: DHW config"
+    # §5.3.2 Class 2, ID 3 HB bit 4: Master low-off&pump control function [ allowed, not allowed ]
+    configuration_information_boiler_configuration_master_low_off_and_pump_control_function:
+      name: "Configuration Information: Boiler configuration: Master low-off&pump control function"
+    # §5.3.2 Class 2, ID 3 HB bit 5: CH2 present [ CH2 not present, CH2 present ]
+    configuration_information_boiler_configuration_ch2_present:
+      name: "Configuration Information: Boiler configuration: CH2 present"
+    # §5.3.2 Class 2, ID 3 HB bit 6: Remote water filling function [ available or unknown, not available ].
+    # Unknown for applications with protocol version 2.2 or older.
+    configuration_information_boiler_configuration_remote_water_filling_function:
+      name: "Configuration Information: Boiler configuration: Remote water filling function"
+    # §5.3.2 Class 2, ID 3 HB bit 7: Heat/cool mode control [ switching done by master, switching done by boiler ]
+    configuration_information_boiler_configuration_heat_cool_mode_control:
+      name: "Configuration Information: Boiler configuration: Heat-cool mode control"
+    # §5.3.2 Class 2, ID 74 HB bit 0: System type [ 0 = central exhaust ventilation, 1 = heat-recovery ventilation ]
+    configuration_information_configuration_ventilation_heat_recovery_system_type:
+      name: "Configuration Information: Configuration ventilation-heat-recovery: System type"
+    # §5.3.2 Class 2, ID 74 HB bit 1: Bypass [ not present, present ]
+    configuration_information_configuration_ventilation_heat_recovery_bypass:
+      name: "Configuration Information: Configuration ventilation-heat-recovery: Bypass"
+    # §5.3.2 Class 2, ID 74 HB bit 2: Speed control [ 3-speed, variable ]
+    configuration_information_configuration_ventilation_heat_recovery_speed_control:
+      name: "Configuration Information: Configuration ventilation-heat-recovery: Speed control"
+    # §5.3.2 Class 2, ID 103 HB bit 0: Solar Storage configuration: system type
+    # [ 0 = DHW preheat system, 1 = DHW parallel system ]
+    configuration_information_solar_storage_configuration_system_type:
+      name: "Configuration Information: Solar Storage configuration: System type"
+    # §5.3.1 Class 1, ID 101 LB bits 3,2,1: Solar Storage mode and status: Solar mode -- the
+    # boiler's own reported mode, independent of the select platform's ID 101 HB below.
+    control_and_status_information_solar_storage_mode_and_status_solar_mode:
+      name: "Control and Status Information: Solar Storage mode and status: Solar mode"
+    # §5.3.1 Class 1, ID 101 LB bits 5,4: Solar Storage mode and status: Solar status.
+    control_and_status_information_solar_storage_mode_and_status_solar_status:
+      name: "Control and Status Information: Solar Storage mode and status: Solar status"
+
 select:
   - platform: opentherm42
     # §5.3.1 Class 1, ID 101 HB bits 2,1,0: Master Solar Storage status: Solar mode --
@@ -199,6 +281,41 @@ sensor:
     control_and_status_information_oem_diagnostic_code_ventilation_heat_recovery:
       name: "Control and Status Information: OEM diagnostic code ventilation-heat-recovery"
       update_every: 5
+    # §5.3.2 Class 2, ID 3 LB: Boiler MemberID code (0..255) -- identifies the boiler's manufacturer.
+    configuration_information_boiler_member_id_code:
+      name: "Configuration Information: Boiler MemberID code"
+    # §5.3.2 Class 2, ID 125: OpenTherm protocol version implemented by the boiler.
+    configuration_information_opentherm_version_boiler:
+      name: "Configuration Information: OpenTherm version Boiler"
+      update_every: 7
+    # §5.3.2 Class 2, ID 127 HB: Boiler product version number and type: product type (0..255).
+    configuration_information_boiler_product_version_number_and_type_product_type:
+      name: "Configuration Information: Boiler product version number and type: Product type"
+    # §5.3.2 Class 2, ID 127 LB: Boiler product version number and type: product version (0..255).
+    configuration_information_boiler_product_version_number_and_type_product_version:
+      name: "Configuration Information: Boiler product version number and type: Product version"
+    # §5.3.2 Class 2, ID 74 LB: MemberID code ventilation/heat-recovery (0..255).
+    configuration_information_member_id_code_ventilation_heat_recovery:
+      name: "Configuration Information: MemberID code ventilation-heat-recovery"
+    # §5.3.2 Class 2, ID 75: OpenTherm protocol version implemented by the ventilation/heat-recovery system.
+    configuration_information_opentherm_version_ventilation_heat_recovery:
+      name: "Configuration Information: OpenTherm version ventilation-heat-recovery"
+      update_every: 7
+    # §5.3.2 Class 2, ID 76 HB: Ventilation/heat-recovery product version number and type: product type.
+    configuration_information_ventilation_heat_recovery_product_version_number_and_type_product_type:
+      name: "Configuration Information: Ventilation-heat-recovery product version number and type: Product type"
+    # §5.3.2 Class 2, ID 76 LB: Ventilation/heat-recovery product version number and type: product version.
+    configuration_information_ventilation_heat_recovery_product_version_number_and_type_product_version:
+      name: "Configuration Information: Ventilation-heat-recovery product version number and type: Product version"
+    # §5.3.2 Class 2, ID 103 LB: Solar Storage member ID (0..255).
+    configuration_information_solar_storage_member_id:
+      name: "Configuration Information: Solar Storage member ID"
+    # §5.3.2 Class 2, ID 104 HB: Solar Storage product version number and type: product type (0..255).
+    configuration_information_solar_storage_product_version_number_and_type_product_type:
+      name: "Configuration Information: Solar Storage product version number and type: Product type"
+    # §5.3.2 Class 2, ID 104 LB: Solar Storage product version number and type: product version (0..255).
+    configuration_information_solar_storage_product_version_number_and_type_product_version:
+      name: "Configuration Information: Solar Storage product version number and type: Product version"
     # Synthetic diagnostic: how long the most recently completed sweep took, updated continuously.
     # Unconditionally scheduled by the hub itself, so no update_every field of its own.
     sweep_duration:

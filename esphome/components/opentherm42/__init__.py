@@ -128,6 +128,17 @@ CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_UPDATE_EVERY = (
 UPDATE_EVERY_OPTIONS: dict[str, int] = {
     # Tier 1: the spec's mandatory heartbeat.
     CONF_CONTROL_AND_STATUS_INFORMATION_BOILER_STATUS_UPDATE_EVERY: 1,
+    # Tier 6: static configuration/capability data, no entity of its own.
+    CONF_CONFIGURATION_INFORMATION_MASTER_CONFIGURATION_UPDATE_EVERY: 6,
+    CONF_CONFIGURATION_INFORMATION_MASTER_OPENTHERM_VERSION_UPDATE_EVERY: 6,
+    CONF_CONFIGURATION_INFORMATION_MASTER_PRODUCT_VERSION_UPDATE_EVERY: 6,
+    CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_UPDATE_EVERY: 6,
+    CONF_CONFIGURATION_INFORMATION_CONFIGURATION_VENTILATION_HEAT_RECOVERY_UPDATE_EVERY: 6,
+    CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_CONFIGURATION_UPDATE_EVERY: 6,
+    # Tier 7: identification strings/versions and TSP/FHB round-robins.
+    CONF_CONFIGURATION_INFORMATION_BOILER_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_EVERY: 7,
+    CONF_CONFIGURATION_INFORMATION_VENTILATION_HEAT_RECOVERY_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_EVERY: 7,
+    CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_EVERY: 7,
     # Tier 4: status/fault-flag groups (event-driven, not continuously drifting).
     CONF_CONTROL_AND_STATUS_INFORMATION_STATUS_VENTILATION_HEAT_RECOVERY_UPDATE_EVERY: 4,
     CONF_CONTROL_AND_STATUS_INFORMATION_APPLICATION_SPECIFIC_FAULT_FLAGS_UPDATE_EVERY: 4,
@@ -177,6 +188,16 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(OpenTherm42Hub),
             cv.Required(CONF_IN_PIN): pins.internal_gpio_input_pin_schema,
             cv.Required(CONF_OUT_PIN): pins.internal_gpio_output_pin_schema,
+            # §5.2.1 Note 2: a MemberID code of 0 signifies a customer non-specific device.
+            cv.Optional(CONF_CONTROLLER_MEMBER_ID_CODE, default=0): cv.int_range(
+                min=0, max=255
+            ),
+            cv.Optional(CONF_CONTROLLER_PRODUCT_TYPE, default=0): cv.int_range(
+                min=0, max=255
+            ),
+            cv.Optional(CONF_CONTROLLER_PRODUCT_VERSION, default=0): cv.int_range(
+                min=0, max=255
+            ),
             # §5.3.4 Class 4, IDs 20/21/22: if set, this master keeps the boiler's Day-of-week/Time,
             # Date and Year synced to this clock. Left unset, those three ids are never sent.
             cv.Optional(CONF_TIME_ID): cv.use_id(time_.RealTimeClock),
@@ -213,6 +234,10 @@ async def to_code(config: dict) -> None:
     cg.add(var.set_in_pin(in_pin))
     out_pin = await cg.gpio_pin_expression(config[CONF_OUT_PIN])
     cg.add(var.set_out_pin(out_pin))
+
+    cg.add(var.set_controller_member_id_code(config[CONF_CONTROLLER_MEMBER_ID_CODE]))
+    cg.add(var.set_controller_product_type(config[CONF_CONTROLLER_PRODUCT_TYPE]))
+    cg.add(var.set_controller_product_version(config[CONF_CONTROLLER_PRODUCT_VERSION]))
 
     if (time_id := config.get(CONF_TIME_ID)) is not None:
         time_var = await cg.get_variable(time_id)

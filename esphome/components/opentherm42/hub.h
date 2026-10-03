@@ -21,6 +21,9 @@ namespace esphome::opentherm42 {
 // §5.2/§5.3: which conversation is currently in flight, so handle_response_() knows how to interpret
 // the reply. Every kind maps to exactly one data-id; see build_next_request_()/handle_response_().
 enum class RequestKind : uint8_t {
+  // §5.3.2 Class 2, ID 3: boiler configuration flags + boiler MemberID code. Read once at startup
+  // (§5.2.1: "Must sent message with READ_DATA (at least at start up)").
+  BOILER_CONFIG,
   // §5.3.1 Class 1, ID 0: the master/boiler status exchange -- the protocol's mandatory heartbeat.
   STATUS,
   // §5.3.1 Class 1, ID 1: control setpoint.
@@ -44,6 +47,34 @@ enum class RequestKind : uint8_t {
   OEM_DIAGNOSTIC_CODE,
   // §5.3.1 Class 1, ID 73: OEM diagnostic code, ventilation/heat-recovery.
   OEM_DIAGNOSTIC_CODE_VENTILATION,
+  // §5.3.2 Class 2, ID 2: this master's own configuration flags + MemberID code. Written once at
+  // startup (recommended by §5.3.2 before control/status information is transmitted).
+  MASTER_CONFIG,
+  // §5.3.2 Class 2, ID 124: this master's own OpenTherm protocol version. Written once at startup.
+  MASTER_OPENTHERM_VERSION,
+  // §5.3.2 Class 2, ID 126: this master's own product version number and type. Written once at startup.
+  MASTER_PRODUCT_VERSION,
+  // §5.3.2 Class 2, ID 74: configuration ventilation/heat-recovery.
+  VENTILATION_CONFIGURATION,
+  // §5.3.2 Class 2, ID 103: Solar Storage configuration.
+  SOLAR_STORAGE_CONFIGURATION,
+  // §5.3.2 Class 2, ID 125: OpenTherm version implemented by the boiler.
+  OPENTHERM_VERSION_BOILER,
+  // §5.3.2 Class 2, ID 127: boiler product version number and type.
+  PRODUCT_VERSION_BOILER,
+  // §5.3.2 Class 2, ID 75: OpenTherm version implemented by the ventilation/heat-recovery system.
+  OPENTHERM_VERSION_VENTILATION,
+  // §5.3.2 Class 2, ID 76: ventilation/heat-recovery product version number and type.
+  PRODUCT_VERSION_VENTILATION,
+  // §5.3.2 Class 2, ID 104: Solar Storage product version number and type.
+  PRODUCT_VERSION_SOLAR_STORAGE,
+  // §5.3.2 Class 2, ID 93: brand identification string, read one character at a time. Read once at
+  // startup, only if a text_sensor is configured for it.
+  BRAND,
+  // §5.3.2 Class 2, ID 94: brand version string, same one-character-at-a-time protocol as ID 93.
+  BRAND_VERSION,
+  // §5.3.2 Class 2, ID 95: brand serial number string, same protocol as ID 93.
+  BRAND_SERIAL_NUMBER,
 };
 
 class OpenTherm42Hub;
@@ -203,6 +234,26 @@ class OpenTherm42Hub : public Component {
   void set_control_and_status_information_boiler_status_update_every(uint32_t update_every) {
     this->pending_group_update_every_.emplace_back(RequestKind::STATUS, update_every);
   }
+  // §5.3.2 Class 2, ID 3: boiler configuration flags + boiler MemberID code (see BOILER_CONFIG) --
+  // a group spanning more than one entity (9: 8 text_sensors + 1 sensor), like every other id
+  // below, required only if any of them is configured -- unlike STATUS above, nothing in the spec
+  // requires continuously re-reading id 3 regardless of which entities are configured.
+  void set_configuration_information_boiler_configuration_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::BOILER_CONFIG, update_every);
+  }
+  // §5.3.2 Class 2, IDs 2/124/126: this master's own identity, announced to the boiler -- no entity
+  // of its own (Smart Power capability flag / this component's own OpenTherm version / this
+  // component's own product identity, none of which are ever configured per-entity), so each gets
+  // its own unconditionally-required hub-level option instead, same reasoning as STATUS above.
+  void set_configuration_information_master_configuration_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::MASTER_CONFIG, update_every);
+  }
+  void set_configuration_information_master_opentherm_version_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::MASTER_OPENTHERM_VERSION, update_every);
+  }
+  void set_configuration_information_master_product_version_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::MASTER_PRODUCT_VERSION, update_every);
+  }
   // Every id below spans more than one entity (see hub.h's scheduling-redesign notes and the
   // catalog in the PR this introduced them) -- each hub option is only present in config, and thus
   // only ever set here, when at least one of that group's entities is configured (enforced by
@@ -221,12 +272,34 @@ class OpenTherm42Hub : public Component {
   void set_control_and_status_information_solar_storage_mode_and_status_update_every(uint32_t update_every) {
     this->pending_group_update_every_.emplace_back(RequestKind::SOLAR_STORAGE_STATUS, update_every);
   }
+  void set_configuration_information_configuration_ventilation_heat_recovery_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::VENTILATION_CONFIGURATION, update_every);
+  }
+  void set_configuration_information_solar_storage_configuration_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::SOLAR_STORAGE_CONFIGURATION, update_every);
+  }
+  void set_configuration_information_boiler_product_version_number_and_type_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::PRODUCT_VERSION_BOILER, update_every);
+  }
+  void set_configuration_information_ventilation_heat_recovery_product_version_number_and_type_update_every(
+      uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::PRODUCT_VERSION_VENTILATION, update_every);
+  }
+  void set_configuration_information_solar_storage_product_version_number_and_type_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE, update_every);
+  }
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void setup() override;
   void loop() override;
   void dump_config() override;
+
+  // §5.3.2 Class 2: this master's own identity, written to the boiler once at startup. Static config,
+  // not entities -- see opentherm42/__init__.py's CONF_CONTROLLER_* options.
+  void set_controller_member_id_code(uint8_t member_id_code) { this->controller_member_id_code_ = member_id_code; }
+  void set_controller_product_type(uint8_t product_type) { this->controller_product_type_ = product_type; }
+  void set_controller_product_version(uint8_t product_version) { this->controller_product_version_ = product_version; }
 
   // §5.3.1 Class 1, ID 0 HB: Master status.
   OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_ch_enable, master_status_write_, 0)
@@ -378,6 +451,86 @@ class OpenTherm42Hub : public Component {
     this->pending_simple_sensor_update_every_.emplace_back(id, update_every);
   }
 
+  // §5.3.2 Class 2, ID 3 HB: Boiler configuration; LB: Boiler MemberID code. Each HB bit is a small
+  // 2-state named enum, so a text_sensor showing the spec's own wording rather than a bare on/off --
+  // see hub.cpp's handle_response_() BOILER_CONFIG case.
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_dhw_present,
+                             configuration_information_boiler_configuration_dhw_present_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_control_type,
+                             configuration_information_boiler_configuration_control_type_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_cooling_config,
+                             configuration_information_boiler_configuration_cooling_config_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_dhw_config,
+                             configuration_information_boiler_configuration_dhw_config_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(
+      configuration_information_boiler_configuration_master_low_off_and_pump_control_function,
+      configuration_information_boiler_configuration_master_low_off_and_pump_control_function_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_ch2_present,
+                             configuration_information_boiler_configuration_ch2_present_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_remote_water_filling_function,
+                             configuration_information_boiler_configuration_remote_water_filling_function_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_heat_cool_mode_control,
+                             configuration_information_boiler_configuration_heat_cool_mode_control_text_sensor_)
+  OT42_SET_SENSOR(configuration_information_boiler_member_id_code, boiler_member_id_code_sensor_)
+
+  // §5.3.2 Class 2, ID 74 HB: Configuration ventilation/heat-recovery (bits 3-7 reserved); LB: MemberID
+  // code ventilation/heat-recovery. Same named-enum-per-bit treatment as ID 3 HB above.
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_configuration_ventilation_heat_recovery_system_type,
+                             configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_configuration_ventilation_heat_recovery_bypass,
+                             configuration_information_configuration_ventilation_heat_recovery_bypass_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(
+      configuration_information_configuration_ventilation_heat_recovery_speed_control,
+      configuration_information_configuration_ventilation_heat_recovery_speed_control_text_sensor_)
+  OT42_SET_SENSOR(configuration_information_member_id_code_ventilation_heat_recovery,
+                  member_id_code_ventilation_sensor_)
+
+  // §5.3.2 Class 2, ID 103 HB bit 0: Solar Storage configuration: system type; LB: Solar Storage member ID.
+  // Same named-enum-per-bit treatment as ID 3 HB above.
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_solar_storage_configuration_system_type,
+                             configuration_information_solar_storage_configuration_system_type_text_sensor_)
+  OT42_SET_SENSOR(configuration_information_solar_storage_member_id, solar_storage_member_id_sensor_)
+
+  // §5.3.2 Class 2, IDs 125/127: OpenTherm version + product version/type implemented by the boiler.
+  OT42_SET_SENSOR(configuration_information_opentherm_version_boiler, opentherm_version_boiler_sensor_)
+  OT42_SET_SENSOR(configuration_information_boiler_product_version_number_and_type_product_type,
+                  boiler_product_type_sensor_)
+  OT42_SET_SENSOR(configuration_information_boiler_product_version_number_and_type_product_version,
+                  boiler_product_version_sensor_)
+
+  // §5.3.2 Class 2, IDs 75/76: OpenTherm version + product version/type of the ventilation/heat-recovery system.
+  OT42_SET_SENSOR(configuration_information_opentherm_version_ventilation_heat_recovery,
+                  opentherm_version_ventilation_sensor_)
+  OT42_SET_SENSOR(configuration_information_ventilation_heat_recovery_product_version_number_and_type_product_type,
+                  ventilation_product_type_sensor_)
+  OT42_SET_SENSOR(configuration_information_ventilation_heat_recovery_product_version_number_and_type_product_version,
+                  ventilation_product_version_sensor_)
+
+  // §5.3.2 Class 2, ID 104: Solar Storage product version number and type.
+  OT42_SET_SENSOR(configuration_information_solar_storage_product_version_number_and_type_product_type,
+                  solar_storage_product_type_sensor_)
+  OT42_SET_SENSOR(configuration_information_solar_storage_product_version_number_and_type_product_version,
+                  solar_storage_product_version_sensor_)
+
+  // §5.3.2 Class 2, IDs 93/94/95: brand identification strings. 1:1 (one text_sensor per id), so
+  // each gets its own per-entity update_every, same as any other 1:1 id -- but since
+  // text_sensor.new_text_sensor() doesn't go through cg.register_component(), there's no auto-wired
+  // set_update_every() on the entity itself to defer this call to its own setup() (unlike
+  // OpenTherm42Number/OpenTherm42SensorFeedNumber), so it's called at wiring time and staged here
+  // instead, same reasoning as every other bespoke set_..._update_every() in this file.
+  OT42_SET_TEXT_SENSOR(configuration_information_brand, brand_)
+  void set_configuration_information_brand_update_every(uint32_t update_every) {
+    this->brand_update_every_ = update_every;
+  }
+  OT42_SET_TEXT_SENSOR(configuration_information_brand_version, brand_version_)
+  void set_configuration_information_brand_version_update_every(uint32_t update_every) {
+    this->brand_version_update_every_ = update_every;
+  }
+  OT42_SET_TEXT_SENSOR(configuration_information_brand_serial_number, brand_serial_number_)
+  void set_configuration_information_brand_serial_number_update_every(uint32_t update_every) {
+    this->brand_serial_number_update_every_ = update_every;
+  }
+
   // Called by OpenTherm42SensorFeedNumber::control() (ids 24/27/37/38/78/79 only) every time the user
   // commands a new value. The first call for a given id adds its WRITE RequestKind to the schedule,
   // since before that there's nothing legitimate to send -- see that class's comment for why these
@@ -407,6 +560,12 @@ class OpenTherm42Hub : public Component {
   // §4.3.1: the legal boiler answering-time window is 20-400 ms from the end of the master's
   // transmission; 400 ms is the longest a compliant boiler is allowed to take.
   static constexpr uint32_t RESPONSE_TIMEOUT_MS = 400;
+  // §5.3.2 Class 2, ID 124: this master's own OpenTherm protocol version, written to the boiler once
+  // at startup. Fixed, not user-configurable: it states which version of the spec this component
+  // itself implements, not a fact about the user's installation -- unlike controller_product_type_/
+  // controller_product_version_ below, there's no legitimate reason for it to differ from the
+  // version this component actually speaks.
+  static constexpr float CONTROLLER_OPENTHERM_VERSION = 4.2f;
 
   // Populates entries_ from whichever entities got configured -- called once from setup(). Also
   // computes sweep_length_passes_ (the max update_every across every entry) once entries_ is
@@ -459,6 +618,8 @@ class OpenTherm42Hub : public Component {
   // TSP/FHB slot round-robins, cooling control, and the Class 8 remote-override entities. Same
   // false-for-unclaimed-kinds contract as the handlers above.
   bool handle_response_setpoints_and_parameters_(const Frame &frame, MessageType type);
+  // Shared by the BRAND/BRAND_VERSION/BRAND_SERIAL_NUMBER cases in handle_response_feeds_and_time_().
+  void handle_brand_response_(const Frame &frame, BrandRead &brand, RequestKind kind, const char *log_name);
   // On a failed conversation, every read-only entity that conversation would have updated must show
   // unknown rather than keep stale data.
   void invalidate_response_(RequestKind kind);
@@ -497,7 +658,7 @@ class OpenTherm42Hub : public Component {
   std::unique_ptr<OpenThermDataLink> datalink_;
 
   uint32_t last_conversation_end_ms_{0};
-  RequestKind pending_request_kind_{RequestKind::STATUS};
+  RequestKind pending_request_kind_{RequestKind::BOILER_CONFIG};
 
   // See set_max_data_invalid()'s declaration comment. 0 disables the grace period (default).
   uint32_t max_data_invalid_{0};
@@ -540,6 +701,11 @@ class OpenTherm42Hub : public Component {
   uint32_t oem_fault_code_solar_storage_update_every_{1};
   uint32_t oem_diagnostic_code_update_every_{1};
   uint32_t oem_diagnostic_code_ventilation_update_every_{1};
+  // Same pattern, for the three brand identification strings -- see their
+  // set_configuration_information_brand*_update_every() comments.
+  uint32_t brand_update_every_{1};
+  uint32_t brand_version_update_every_{1};
+  uint32_t brand_serial_number_update_every_{1};
   // Staged by set_simple_sensor_update_every() at wiring time, consumed once by build_schedule_()'s
   // SIMPLE_SENSORS loop, then cleared -- only needed transiently during setup(), so shrink_to_fit()
   // afterward gives the memory back rather than holding it forever.
@@ -552,6 +718,8 @@ class OpenTherm42Hub : public Component {
   // Raw values from the §5.2 mandatory conversations -- exposed as real entities once Class 2
   // (Commit 5) lands.
   uint8_t boiler_status_{0};
+  uint8_t boiler_config_flags_{0};
+  uint8_t boiler_member_id_code_{0};
 
   // §5.3.1 Class 1 entities.
   FlagWriteBits master_status_write_;
@@ -581,6 +749,47 @@ class OpenTherm42Hub : public Component {
   text_sensor::TextSensor *solar_storage_mode_and_status_solar_mode_text_sensor_{nullptr};
   text_sensor::TextSensor *solar_storage_mode_and_status_solar_status_text_sensor_{nullptr};
   binary_sensor::BinarySensor *solar_storage_fault_indication_binary_sensor_{nullptr};
+
+  // §5.3.2 Class 2 entities.
+  uint8_t controller_member_id_code_{0};
+  uint8_t controller_product_type_{0};
+  uint8_t controller_product_version_{0};
+
+  text_sensor::TextSensor *configuration_information_boiler_configuration_dhw_present_text_sensor_{nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_control_type_text_sensor_{nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_cooling_config_text_sensor_{nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_dhw_config_text_sensor_{nullptr};
+  text_sensor::TextSensor
+      *configuration_information_boiler_configuration_master_low_off_and_pump_control_function_text_sensor_{nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_ch2_present_text_sensor_{nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_remote_water_filling_function_text_sensor_{
+      nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_heat_cool_mode_control_text_sensor_{nullptr};
+
+  sensor::Sensor *boiler_member_id_code_sensor_{nullptr};
+  sensor::Sensor *member_id_code_ventilation_sensor_{nullptr};
+  sensor::Sensor *solar_storage_member_id_sensor_{nullptr};
+  sensor::Sensor *opentherm_version_boiler_sensor_{nullptr};
+  sensor::Sensor *boiler_product_type_sensor_{nullptr};
+  sensor::Sensor *boiler_product_version_sensor_{nullptr};
+  sensor::Sensor *opentherm_version_ventilation_sensor_{nullptr};
+  sensor::Sensor *ventilation_product_type_sensor_{nullptr};
+  sensor::Sensor *ventilation_product_version_sensor_{nullptr};
+  sensor::Sensor *solar_storage_product_type_sensor_{nullptr};
+  sensor::Sensor *solar_storage_product_version_sensor_{nullptr};
+
+  text_sensor::TextSensor *configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_{
+      nullptr};
+  text_sensor::TextSensor *configuration_information_configuration_ventilation_heat_recovery_bypass_text_sensor_{
+      nullptr};
+  text_sensor::TextSensor *configuration_information_configuration_ventilation_heat_recovery_speed_control_text_sensor_{
+      nullptr};
+
+  text_sensor::TextSensor *configuration_information_solar_storage_configuration_system_type_text_sensor_{nullptr};
+
+  BrandRead brand_;
+  BrandRead brand_version_;
+  BrandRead brand_serial_number_;
 
   bool reset_counter_pending_{false};
   uint8_t reset_counter_data_id_{0};
