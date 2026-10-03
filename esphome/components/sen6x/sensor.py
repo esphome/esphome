@@ -1,3 +1,5 @@
+from esphome import automation
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 from esphome.components.const import CONF_NOX_INDEX, CONF_VOC_INDEX
@@ -209,3 +211,21 @@ async def to_code(config: ConfigType) -> None:
                 args.append(std_initial)
             args.append(tuning[CONF_GAIN_FACTOR])
             cg.add(getattr(var, setter)(*args))
+
+
+SEN6X_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(SEN6XComponent),
+    }
+)
+
+
+for _name, _call in (
+    ("sen6x.start_measurement", "start_measurement()"),
+    ("sen6x.stop_measurement", "stop_measurement()"),
+    ("sen6x.start_fan_cleaning", "start_fan_cleaning()"),
+    ("sen6x.activate_sht_heater", "activate_sht_heater()"),
+):
+    automation.register_apply_action(
+        _name, SEN6X_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
