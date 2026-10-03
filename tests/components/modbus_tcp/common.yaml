@@ -7,7 +7,7 @@ tcp_uart:
     host: 192.0.2.10
     port: 502
     baud_rate: 19200
-  - id: listen
+  - id: inbound
     role: server
     port: 1502
     baud_rate: 9600
@@ -16,7 +16,7 @@ modbus_tcp:
   - id: shelly_uart
     tcp_uart_id: shelly_link
   - id: answer
-    tcp_uart_id: listen
+    tcp_uart_id: inbound
     role: server
 
 modbus:
