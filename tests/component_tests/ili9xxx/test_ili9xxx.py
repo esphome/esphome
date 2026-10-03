@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 
 def test_ili9xxx_placement_new_uses_model_subclass(
@@ -29,3 +30,19 @@ def test_ili9xxx_placement_new_uses_model_subclass(
     assert "new(tft_display) ili9xxx::ILI9XXXST7789V()" in main_cpp
     # Base-class default constructor must NOT be used.
     assert "new(tft_display) ili9xxx::ILI9XXXDisplay()" not in main_cpp
+
+
+def test_extra_init_sequence_is_terminated_progmem_table(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A custom init sequence is a 0 terminated PROGMEM table shared by equal displays."""
+    main_cpp = generate_main(component_config_path("init_sequence.yaml"))
+
+    tables = re.findall(r"(\w+)->add_init_sequence\((\w+)\);", main_cpp)
+    assert {t[0] for t in tables} == {"first", "second"}
+    assert len({t[1] for t in tables}) == 1
+    assert (
+        f"static constexpr uint8_t {tables[0][1]}[] PROGMEM = {{54, 1, 72, 58, 1, 85, 0}};"
+        in main_cpp
+    )

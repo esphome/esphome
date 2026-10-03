@@ -32,7 +32,7 @@ void ILI9XXXDisplay::set_madctl() {
 void ILI9XXXDisplay::setup() {
   this->setup_pins_();
   this->init_lcd_(this->init_sequence_);
-  this->init_lcd_(this->extra_init_sequence_.data());
+  this->init_lcd_(this->extra_init_sequence_);
   switch (this->pixel_mode_) {
     case PIXEL_MODE_16:
       if (this->is_18bitdisplay_) {

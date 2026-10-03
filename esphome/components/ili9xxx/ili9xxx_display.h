@@ -58,7 +58,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
     }
   }
 
-  void add_init_sequence(const std::vector<uint8_t> &sequence) { this->extra_init_sequence_ = sequence; }
+  void add_init_sequence(const uint8_t *sequence) { this->extra_init_sequence_ = sequence; }
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
@@ -114,7 +114,8 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   void reset_();
 
   uint8_t const *init_sequence_{};
-  std::vector<uint8_t> extra_init_sequence_;
+  // Shared PROGMEM table ending in a 0 command, like the built-in sequences
+  const uint8_t *extra_init_sequence_{nullptr};
   int16_t width_{0};   ///< Display width as modified by current rotation
   int16_t height_{0};  ///< Display height as modified by current rotation
   int16_t offset_x_{0};

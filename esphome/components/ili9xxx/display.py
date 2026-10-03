@@ -234,7 +234,10 @@ async def to_code(config: ConfigType) -> None:
         sequence = []
         for seq in init_sequences:
             sequence.extend(seq)
-        cg.add(var.add_init_sequence(sequence))
+        # init_lcd_() stops at a 0 command
+        sequence.append(0)
+        table = cg.shared_progmem_array("ili9xxx_init_sequence", cg.uint8, sequence)
+        cg.add(var.add_init_sequence(table))
 
     if pixel_mode := config.get(CONF_PIXEL_MODE):
         cg.add(var.set_pixel_mode(pixel_mode))

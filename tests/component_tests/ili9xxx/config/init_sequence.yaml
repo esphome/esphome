@@ -1,0 +1,31 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+
+display:
+  - platform: ili9xxx
+    id: first
+    model: ST7789V
+    cs_pin: GPIO5
+    dc_pin: GPIO17
+    invert_colors: false
+    init_sequence:
+      - [0x36, 0x48]
+      - [0x3A, 0x55]
+  - platform: ili9xxx
+    id: second
+    model: ST7789V
+    cs_pin: GPIO4
+    dc_pin: GPIO16
+    invert_colors: false
+    init_sequence:
+      - [0x36, 0x48]
+      - [0x3A, 0x55]
