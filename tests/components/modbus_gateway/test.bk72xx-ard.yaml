@@ -1,0 +1,11 @@
+uart:
+  - id: uart_bus
+    tx_pin: TX1
+    rx_pin: RX1
+    baud_rate: 9600
+  - id: inverter_bus
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+
+<<: !include common.yaml
