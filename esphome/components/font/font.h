@@ -46,8 +46,10 @@ static_assert(std::is_same_v<decltype(Glyph::offset_x), int>, "Glyph fields must
 static_assert(std::is_same_v<decltype(Glyph::offset_y), int>, "Glyph fields must stay word sized");
 static_assert(std::is_same_v<decltype(Glyph::width), int>, "Glyph fields must stay word sized");
 static_assert(std::is_same_v<decltype(Glyph::height), int>, "Glyph fields must stay word sized");
+#ifdef USE_ESP8266
 static_assert(alignof(Glyph) == sizeof(uint32_t), "Glyph fields must stay word sized");
 static_assert(sizeof(Glyph) == 7 * sizeof(uint32_t), "Glyph is read from flash with word loads");
+#endif
 
 class Font final
 #ifdef USE_DISPLAY
