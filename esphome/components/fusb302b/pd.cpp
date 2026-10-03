@@ -156,7 +156,9 @@ void PowerDelivery::handle_control_message_(const PdMsg &msg) {
       this->set_ams_(false);
       break;
     case PD_CNTRL_WAIT:
-      if (this->active_ams_ && this->wait_retries_ < MAX_WAIT_RETRIES) {
+      if (!this->active_ams_)
+        break;
+      if (this->wait_retries_ < MAX_WAIT_RETRIES) {
         ESP_LOGD(TAG, "Source asked to wait, repeating the request");
         this->wait_retries_++;
         this->retry_request_pending_ = true;

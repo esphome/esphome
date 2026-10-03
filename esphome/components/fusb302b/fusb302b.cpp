@@ -247,7 +247,6 @@ void FUSB302B::handle_interrupt_() {
     return;
   }
   if (interrupta & FUSB_INTERRUPTA_I_HARDRST) {
-    // The FIFOs are flushed, so there is nothing left to read
     if (this->attached_)
       this->handle_hard_reset_();
     return;
@@ -413,6 +412,7 @@ void FUSB302B::handle_hard_reset_() {
   ESP_LOGD(TAG, "Hard reset received");
   // The source returns to Type-C default power and sends its capabilities again, using the current request voltage
   this->request_pending_ = false;
+  // Also flushes the RX FIFO, so the caller has nothing left to read
   if (!this->reset_pd_()) {
     this->enter_error_();
     return;
