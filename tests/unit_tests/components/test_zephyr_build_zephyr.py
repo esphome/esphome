@@ -9,6 +9,7 @@ from unittest.mock import patch
 from esphome.components.zephyr.build_zephyr import (
     _runner_supports_dev_id,
     resolve_dev_id,
+    run_west_blobs_fetch,
 )
 
 # ---------------------------------------------------------------------------
@@ -114,3 +115,59 @@ def test_resolve_dev_id_returns_none_when_runners_yaml_missing(
     build_dir = tmp_path / "build"
     build_dir.mkdir()
     assert resolve_dev_id(Path("python"), tmp_path, build_dir, "/dev/ttyACM0") is None
+
+
+# ---------------------------------------------------------------------------
+# run_west_blobs_fetch -- fetch once per module revision
+# ---------------------------------------------------------------------------
+
+_SENTINEL = ".blobs_hal_espressif_ready"
+
+
+def _fetch_blobs(tmp_path: Path, revision: str | None) -> list[list[str]]:
+    """Run run_west_blobs_fetch with `west list` reporting `revision` (None = west
+    fails); return the `west blobs fetch` commands it ran."""
+
+    def fake_run(cmd, **kwargs):
+        if revision is None:
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="boom")
+        return subprocess.CompletedProcess(cmd, 0, stdout=f"{revision}\n", stderr="")
+
+    fetches: list[list[str]] = []
+    with (
+        patch("subprocess.run", side_effect=fake_run),
+        patch(
+            "esphome.components.zephyr.build_zephyr.run_command_ok",
+            side_effect=lambda cmd, **kw: fetches.append(cmd) or True,
+        ),
+    ):
+        run_west_blobs_fetch(
+            Path("python"), tmp_path, {}, "hal_espressif", ".*", _SENTINEL
+        )
+    return fetches
+
+
+def test_blobs_fetched_and_revision_recorded_first_time(tmp_path: Path) -> None:
+    assert len(_fetch_blobs(tmp_path, "a" * 40)) == 1
+    assert (tmp_path / _SENTINEL).read_text() == "a" * 40
+
+
+def test_blobs_skipped_when_revision_unchanged(tmp_path: Path) -> None:
+    (tmp_path / _SENTINEL).write_text("a" * 40)
+    assert _fetch_blobs(tmp_path, "a" * 40) == []
+
+
+def test_blobs_refetched_when_module_revision_moved(tmp_path: Path) -> None:
+    (tmp_path / _SENTINEL).write_text("a" * 40)
+    assert len(_fetch_blobs(tmp_path, "b" * 40)) == 1
+    assert (tmp_path / _SENTINEL).read_text() == "b" * 40
+
+
+def test_blobs_refetched_for_legacy_empty_sentinel(tmp_path: Path) -> None:
+    (tmp_path / _SENTINEL).touch()
+    assert len(_fetch_blobs(tmp_path, "a" * 40)) == 1
+
+
+def test_blobs_always_fetched_when_revision_unknown(tmp_path: Path) -> None:
+    (tmp_path / _SENTINEL).write_text("a" * 40)
+    assert len(_fetch_blobs(tmp_path, None)) == 1
