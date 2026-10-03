@@ -1,10 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import tcp_uart, uart
-from esphome.components.const import (
-    CONF_DATA_BITS,
-    CONF_PARITY,
-    CONF_STOP_BITS,
-)
+from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 import esphome.config_validation as cv
 from esphome.const import CONF_BAUD_RATE, CONF_ID
 from esphome.core import CORE
@@ -34,7 +30,9 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_parent(parent))
     # The socket is not clocked. The hub reads these from its UART during
     # setup(), and every cg.add() runs before App.setup().
-    parent_config = CORE.config.get_config_for_path(CORE.config.get_path_for_id(config[CONF_TCP_UART_ID])[:-1])
+    parent_config = CORE.config.get_config_for_path(
+        CORE.config.get_path_for_id(config[CONF_TCP_UART_ID])[:-1]
+    )
     cg.add(var.set_baud_rate(parent_config[CONF_BAUD_RATE]))
     cg.add(var.set_data_bits(parent_config[CONF_DATA_BITS]))
     cg.add(var.set_stop_bits(parent_config[CONF_STOP_BITS]))
