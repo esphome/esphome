@@ -101,3 +101,12 @@ water_heater:
       min_temperature: 30
       max_temperature: 75
       target_temperature_step: 1
+
+fan:
+  - platform: tuya
+    id: tuya_fan
+    switch_datapoint: 1
+    speed_datapoint: 2
+    speed_count: 3
+    direction_datapoint: 4
+    optimistic: true
