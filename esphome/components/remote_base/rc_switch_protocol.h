@@ -87,6 +87,8 @@ inline constexpr RCSwitchBase RC_SWITCH_PROTOCOLS[] PROGMEM = {
 /// RAM copy of RC_SWITCH_PROTOCOLS[index] (0 when out of range) for the transmit actions and the dumper, made with
 /// progmem_memcpy so no byte load ever touches the flash table on ESP8266
 RCSwitchBase rc_switch_protocol(uint8_t index);
+/// RAM copy of a protocol stored in flash, made with progmem_memcpy
+RCSwitchBase rc_switch_protocol(const RCSwitchBase *protocol);
 
 uint64_t decode_binary_string(const std::string &data);
 
@@ -200,7 +202,8 @@ template<typename... Ts> class RCSwitchTypeDAction : public RemoteTransmitterAct
 
 class RCSwitchRawReceiver : public RemoteReceiverBinarySensorBase {
  public:
-  void set_protocol(const RCSwitchBase &a_protocol) { this->protocol_ = a_protocol; }
+  /// `protocol` must outlive the receiver: a RC_SWITCH_PROTOCOLS entry or a codegen flash table.
+  void set_protocol(const RCSwitchBase *protocol) { this->protocol_ = protocol; }
   void set_code(uint64_t code) { this->code_ = code; }
   void set_code(const std::string &code) {
     this->code_ = decode_binary_string(code);
@@ -228,7 +231,7 @@ class RCSwitchRawReceiver : public RemoteReceiverBinarySensorBase {
  protected:
   bool matches(RemoteReceiveData src) override;
 
-  RCSwitchBase protocol_;
+  const RCSwitchBase *protocol_;  // in flash; decoded in place (word-only fields)
   uint64_t code_;
   uint64_t mask_{0xFFFFFFFFFFFFFFFF};
   uint8_t nbits_;
