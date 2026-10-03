@@ -52,7 +52,8 @@ from esphome.const import (
     PLATFORM_HOST,
     PlatformFramework,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, HexInt, coroutine_with_priority
+from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.yaml_util import make_data_base
 
@@ -133,6 +134,19 @@ def validate_raw_data(value):
         return cv.Schema([cv.hex_uint8_t])(value)
     raise cv.Invalid(
         "data must either be a string wrapped in quotes or a list of bytes"
+    )
+
+
+# Switch and button store payload lengths as uint16_t.
+validate_raw_payload = cv.All(validate_raw_data, cv.Length(max=65535))
+
+
+def payload_table(data: bytes | list[int]) -> MockObj:
+    """Shared PROGMEM table for a constant payload; equal payloads share one."""
+    if not data:
+        return cg.nullptr
+    return cg.shared_progmem_array(
+        "uart_data", cg.uint8, cg.ArrayInitializer(*(HexInt(x) for x in data))
     )
 
 
@@ -555,17 +569,11 @@ async def uart_write_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     data = config[CONF_DATA]
-    if isinstance(data, bytes):
-        data = list(data)
-
     if cg.is_template(data):
         templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
         cg.add(var.set_data_template(templ))
     else:
-        # Generate static array in flash to avoid RAM copy
-        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
-        cg.add(var.set_data_static(arr, len(data)))
+        cg.add(var.set_data_static(payload_table(data), len(data)))
     return var
 
 

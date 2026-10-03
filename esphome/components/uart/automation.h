@@ -15,7 +15,7 @@ template<typename... Ts> class UARTWriteAction final : public Action<Ts...>, pub
     this->len_ = -1;  // Sentinel value indicates template mode
   }
 
-  // Store pointer to static data in flash (no RAM copy)
+  // Store pointer to a shared PROGMEM table (no RAM copy)
   void set_data_static(const uint8_t *data, size_t len) {
     this->code_.data = data;
     this->len_ = len;  // Length >= 0 indicates static mode
@@ -24,7 +24,7 @@ template<typename... Ts> class UARTWriteAction final : public Action<Ts...>, pub
   void play(const Ts &...x) override {
     if (this->len_ >= 0) {
       // Static mode: use pointer and length
-      this->parent_->write_array(this->code_.data, static_cast<size_t>(this->len_));
+      this->parent_->write_array_progmem(this->code_.data, static_cast<size_t>(this->len_));
     } else {
       // Template mode: call function
       auto val = this->code_.func(x...);
