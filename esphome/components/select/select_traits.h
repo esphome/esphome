@@ -6,7 +6,7 @@
 namespace esphome::select {
 
 /// Option strings: a shared codegen table, or a copy of a runtime list.
-using SelectOptions = ConstVector<const char *>;
+using SelectOptions = ConstVector<const char *, true>;
 
 class SelectTraits {
  public:

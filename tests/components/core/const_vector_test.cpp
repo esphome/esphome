@@ -9,7 +9,7 @@ namespace esphome::testing {
 static constexpr const char *const TABLE[] = {"a", "b", "c"};
 
 // Exposes the owned flag, which is protected.
-class ProbeVector : public ConstVector<const char *> {
+class ProbeVector : public ConstVector<const char *, true> {
  public:
   using ConstVector::ConstVector;
   bool owned() const { return (this->size_ & OWNED_BIT) != 0; }
@@ -44,7 +44,7 @@ TEST(ConstVector, CopyIsOwnedAndSizeMasksTheFlag) {
 TEST(ConstVector, CopyingTheViewDoesNotTransferOwnership) {
   ProbeVector list;
   list.assign_copy(TABLE, 3);
-  ConstVector<const char *> view = list;
+  ConstVector<const char *, true> view = list;
   EXPECT_EQ(view.data(), list.data());
   EXPECT_EQ(view.size(), 3U);
   EXPECT_TRUE(list.owned());
@@ -58,8 +58,16 @@ TEST(ConstVector, CopyFromItsOwnStorage) {
   EXPECT_STREQ(list[2], "c");
 }
 
-TEST(ConstVector, IteratorsAreRawPointers) {
+TEST(ConstVector, PlainViewHasNoOwnershipCost) {
+  static_assert(std::is_trivially_copyable_v<ConstVector<const char *>>);
+  static_assert(std::is_trivially_destructible_v<ConstVector<const char *>>);
   ConstVector<const char *> list(TABLE, 3);
+  EXPECT_EQ(list.size(), 3U);
+  EXPECT_STREQ(list[2], "c");
+}
+
+TEST(ConstVector, IteratorsAreRawPointers) {
+  ConstVector<const char *, true> list(TABLE, 3);
   static_assert(std::is_same_v<decltype(list.begin()), const char *const *>);
   const auto *it = std::find(list.begin(), list.end(), TABLE[1]);
   EXPECT_EQ(it - list.begin(), 1);
