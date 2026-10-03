@@ -11,6 +11,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_PORT,
+    CONF_TIMEOUT,
     CONF_UART_ID,
     DEVICE_CLASS_CONNECTIVITY,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -21,9 +22,6 @@ CODEOWNERS = ["@Bascht74"]
 DEPENDENCIES = ["network", "uart"]
 AUTO_LOAD = ["binary_sensor", "socket"]
 MULTI_CONF = True
-
-CONF_IDLE_TIMEOUT = "idle_timeout"
-CONF_STALL_TIMEOUT = "stall_timeout"
 
 uart_tcp_ns = cg.esphome_ns.namespace("uart_tcp")
 UartTcp = uart_tcp_ns.class_("UartTcp", cg.Component, uart.UARTDevice)
@@ -37,6 +35,7 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_RECONNECT_INTERVAL, default="5s"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_TIMEOUT, default="0s"): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_CONNECTED): binary_sensor.binary_sensor_schema(
             device_class=DEVICE_CLASS_CONNECTIVITY,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
@@ -47,21 +46,9 @@ BASE_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
-            "client": BASE_SCHEMA.extend(
-                {
-                    cv.Required(CONF_HOST): cv.string,
-                    cv.Optional(
-                        CONF_STALL_TIMEOUT, default="0s"
-                    ): cv.positive_time_period_milliseconds,
-                }
-            ),
+            "client": BASE_SCHEMA.extend({cv.Required(CONF_HOST): cv.string}),
             "server": BASE_SCHEMA.extend(
-                {
-                    cv.Optional(CONF_ALLOWED_IPS): socket.IPV4_ALLOW_SCHEMA,
-                    cv.Optional(
-                        CONF_IDLE_TIMEOUT, default="0s"
-                    ): cv.positive_time_period_milliseconds,
-                }
+                {cv.Optional(CONF_ALLOWED_IPS): socket.IPV4_ALLOW_SCHEMA}
             ),
         },
         key=CONF_ROLE,
@@ -86,10 +73,7 @@ async def to_code(config: ConfigType) -> None:
         socket.require_tcp_client_link()
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
-    if (stall := config.get(CONF_STALL_TIMEOUT)) is not None:
-        cg.add(var.set_stall_timeout(stall))
-    if (idle := config.get(CONF_IDLE_TIMEOUT)) is not None:
-        cg.add(var.set_idle_timeout(idle))
+    cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     if (host := config.get(CONF_HOST)) is not None:
         cg.add(var.set_host(host))
     binary_sensors = binary_sensor.sub_binary_sensors(config)

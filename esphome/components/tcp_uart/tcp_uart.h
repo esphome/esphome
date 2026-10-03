@@ -21,8 +21,7 @@ class TcpUart : public uart::UARTComponent, public Component {
   void set_port(uint16_t port) { this->link_.set_port(port); }
   void set_reconnect_interval(uint32_t ms) { this->link_.set_reconnect_interval(ms); }
   void set_connected_sensor(binary_sensor::BinarySensor *sensor) { this->connected_sensor_ = sensor; }
-  void set_stall_timeout(uint32_t ms) { this->stall_timeout_ms_ = ms; }
-  void set_idle_timeout(uint32_t ms) { this->idle_timeout_ms_ = ms; }
+  void set_timeout(uint32_t ms) { this->timeout_ms_ = ms; }
 #ifdef USE_SOCKET_TCP_LISTENER
   void set_server(bool server) { this->server_ = server; }
 #ifdef USE_SOCKET_IPV4_ALLOW
@@ -61,12 +60,11 @@ class TcpUart : public uart::UARTComponent, public Component {
     this->last_io_ms_ = now == 0 ? 1 : now;
   }
   void check_idle_() {
-    uint32_t limit = this->server_ ? this->idle_timeout_ms_ : this->stall_timeout_ms_;
-    if (limit == 0 || this->last_io_ms_ == 0) {
+    if (this->timeout_ms_ == 0 || this->last_io_ms_ == 0) {
       return;
     }
     uint32_t now = App.get_loop_component_start_time();
-    if (now == 0 || now - this->last_io_ms_ < limit) {
+    if (now == 0 || now - this->last_io_ms_ < this->timeout_ms_) {
       return;
     }
     this->close_idle_();
@@ -81,8 +79,7 @@ class TcpUart : public uart::UARTComponent, public Component {
   binary_sensor::BinarySensor *connected_sensor_{nullptr};
   uint32_t last_drop_log_ms_{0};
   uint32_t last_io_ms_{0};
-  uint32_t stall_timeout_ms_{0};
-  uint32_t idle_timeout_ms_{0};
+  uint32_t timeout_ms_{0};
   // rx_[rx_start_, rx_end_) holds unread bytes; read_socket_() compacts to the front.
   uint16_t rx_start_{0};
   uint16_t rx_end_{0};
