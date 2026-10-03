@@ -23,5 +23,5 @@ def test_keys_use_shared_progmem_table(
 
 
 def test_non_ascii_keys_are_rejected() -> None:
-    with pytest.raises(cv.Invalid, match="ASCII"):
+    with pytest.raises(cv.Invalid, match="'é' is not an ASCII"):
         check_keys({"keys": "1é34"})
