@@ -450,6 +450,38 @@ void OpenTherm42Hub::build_schedule_() {
   this->pending_simple_sensor_update_every_.clear();
   this->pending_simple_sensor_update_every_.shrink_to_fit();
 
+  // §5.3.5 Class 5.
+  if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_ != nullptr ||
+      this->pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint_text_sensor_ != nullptr ||
+      this->pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint_text_sensor_ != nullptr ||
+      this->pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint_text_sensor_ != nullptr) {
+    this->add_entry_(RequestKind::REMOTE_PARAMETER_FLAGS);
+  }
+  if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_ !=
+          nullptr ||
+      this->pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_ !=
+          nullptr) {
+    this->add_entry_(RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION);
+  }
+  if (this->dhwsetp_upper_bound_sensor_ != nullptr || this->dhwsetp_lower_bound_sensor_ != nullptr) {
+    this->add_entry_(RequestKind::DHWSETP_BOUNDS);
+  }
+  if (this->max_chsetp_upper_bound_sensor_ != nullptr || this->max_chsetp_lower_bound_sensor_ != nullptr) {
+    this->add_entry_(RequestKind::MAX_CHSETP_BOUNDS);
+  }
+  if (this->dhw_setpoint_number_ != nullptr) {
+    this->add_entry_(RequestKind::DHW_SETPOINT);
+    this->add_entry_(RequestKind::DHW_SETPOINT_READ);
+  }
+  if (this->max_ch_water_setpoint_number_ != nullptr) {
+    this->add_entry_(RequestKind::MAX_CH_WATER_SETPOINT);
+    this->add_entry_(RequestKind::MAX_CH_WATER_SETPOINT_READ);
+  }
+  if (this->nominal_ventilation_value_number_ != nullptr) {
+    this->add_entry_(RequestKind::NOMINAL_VENTILATION_VALUE);
+    this->add_entry_(RequestKind::NOMINAL_VENTILATION_VALUE_READ);
+  }
+
   // §5.3.6 Class 6: one Entry round-robins through every configured TSP for periodic reads;
   // on-demand writes (see write_tsp()) are serviced ahead of this rotation.
   if (!this->tsp_slots_.empty()) {
@@ -769,6 +801,51 @@ Frame OpenTherm42Hub::build_entry_request_(RequestKind kind) {
       frame.id = 35;
       break;
 
+    case RequestKind::REMOTE_PARAMETER_FLAGS:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 6;
+      break;
+    case RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 86;
+      break;
+    case RequestKind::DHWSETP_BOUNDS:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 48;
+      break;
+    case RequestKind::MAX_CHSETP_BOUNDS:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 49;
+      break;
+
+    case RequestKind::DHW_SETPOINT:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 56;
+      frame.set_value_f88(this->dhw_setpoint_write_value_);
+      break;
+    case RequestKind::DHW_SETPOINT_READ:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 56;
+      break;
+    case RequestKind::MAX_CH_WATER_SETPOINT:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 57;
+      frame.set_value_f88(this->max_ch_water_setpoint_write_value_);
+      break;
+    case RequestKind::MAX_CH_WATER_SETPOINT_READ:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 57;
+      break;
+    case RequestKind::NOMINAL_VENTILATION_VALUE:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 87;
+      frame.value_hb = static_cast<uint8_t>(this->nominal_ventilation_value_write_value_);
+      break;
+    case RequestKind::NOMINAL_VENTILATION_VALUE_READ:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 87;
+      break;
+
     case RequestKind::TSP:
       // Only reached for the periodic-read rotation -- on-demand writes are intercepted by the
       // tsp_write_pending_ check above build_next_request_()'s switch.
@@ -897,6 +974,18 @@ void OpenTherm42Hub::set_write_value(uint8_t id, float value) {
       write_value = &this->room_setpoint_ch2_write_value_;
       kind = RequestKind::ROOM_SETPOINT_CH2;
       break;
+    case 56:
+      write_value = &this->dhw_setpoint_write_value_;
+      kind = RequestKind::DHW_SETPOINT;
+      break;
+    case 57:
+      write_value = &this->max_ch_water_setpoint_write_value_;
+      kind = RequestKind::MAX_CH_WATER_SETPOINT;
+      break;
+    case 87:
+      write_value = &this->nominal_ventilation_value_write_value_;
+      kind = RequestKind::NOMINAL_VENTILATION_VALUE;
+      break;
     default:
       return;
   }
@@ -926,6 +1015,15 @@ void OpenTherm42Hub::set_number_update_every(uint8_t id, uint32_t update_every) 
       break;
     case 23:
       kind = RequestKind::ROOM_SETPOINT_CH2;
+      break;
+    case 56:
+      kind = RequestKind::DHW_SETPOINT_READ;
+      break;
+    case 57:
+      kind = RequestKind::MAX_CH_WATER_SETPOINT_READ;
+      break;
+    case 87:
+      kind = RequestKind::NOMINAL_VENTILATION_VALUE_READ;
       break;
     default:
       return;
@@ -1825,6 +1923,179 @@ bool OpenTherm42Hub::handle_response_setpoints_and_parameters_(const Frame &fram
       }
       return true;
 
+    case RequestKind::REMOTE_PARAMETER_FLAGS:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::REMOTE_PARAMETER_FLAGS, type);
+        OT42_LOG_REJECTION(
+            invalidate_now,
+            "Remote-parameter transfer-enable/read-write flags (id=6) read was rejected (message type %s)",
+            message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::REMOTE_PARAMETER_FLAGS);
+        }
+        return true;
+      }
+      if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_ != nullptr) {
+        this->pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_->publish_state(
+            (frame.value_hb & 0x01) ? "Transfer enabled" : "Transfer disabled");
+      }
+      if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint_text_sensor_ != nullptr) {
+        this->pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint_text_sensor_->publish_state(
+            (frame.value_hb & 0x02) ? "Transfer enabled" : "Transfer disabled");
+      }
+      if (this->pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint_text_sensor_ != nullptr) {
+        this->pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint_text_sensor_->publish_state(
+            (frame.value_lb & 0x01) ? "Read/write" : "Read-only");
+      }
+      if (this->pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint_text_sensor_ != nullptr) {
+        this->pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint_text_sensor_->publish_state(
+            (frame.value_lb & 0x02) ? "Read/write" : "Read-only");
+      }
+      return true;
+
+    case RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION, type);
+        OT42_LOG_REJECTION(
+            invalidate_now,
+            "Remote-parameter transfer-enable/read-write flags ventilation/heat-recovery (id=86) read was "
+            "rejected (message type %s)",
+            message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION);
+        }
+        return true;
+      }
+      if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_ !=
+          nullptr) {
+        this->pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_
+            ->publish_state((frame.value_hb & 0x01) ? "Transfer enabled" : "Transfer disabled");
+      }
+      if (this->pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_ !=
+          nullptr) {
+        this->pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_
+            ->publish_state((frame.value_lb & 0x01) ? "Read/write" : "Read-only");
+      }
+      return true;
+
+    case RequestKind::DHWSETP_BOUNDS:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::DHWSETP_BOUNDS, type);
+        OT42_LOG_REJECTION(invalidate_now, "DHWsetp upp-/low-bound (id=48) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::DHWSETP_BOUNDS);
+        }
+        return true;
+      }
+      if (this->dhwsetp_upper_bound_sensor_ != nullptr) {
+        this->dhwsetp_upper_bound_sensor_->publish_state(static_cast<int8_t>(frame.value_hb));
+      }
+      if (this->dhwsetp_lower_bound_sensor_ != nullptr) {
+        this->dhwsetp_lower_bound_sensor_->publish_state(static_cast<int8_t>(frame.value_lb));
+      }
+      return true;
+
+    case RequestKind::MAX_CHSETP_BOUNDS:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::MAX_CHSETP_BOUNDS, type);
+        OT42_LOG_REJECTION(invalidate_now, "max CHsetp upp-/low-bnd (id=49) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::MAX_CHSETP_BOUNDS);
+        }
+        return true;
+      }
+      if (this->max_chsetp_upper_bound_sensor_ != nullptr) {
+        this->max_chsetp_upper_bound_sensor_->publish_state(static_cast<int8_t>(frame.value_hb));
+      }
+      if (this->max_chsetp_lower_bound_sensor_ != nullptr) {
+        this->max_chsetp_lower_bound_sensor_->publish_state(static_cast<int8_t>(frame.value_lb));
+      }
+      return true;
+
+    case RequestKind::DHW_SETPOINT:
+      // See hub.h's RequestKind comment: WRITE-ACK's echo is not trusted for display -- only
+      // DHW_SETPOINT_READ below updates .state.
+      if (type != MessageType::WRITE_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::DHW_SETPOINT, type);
+        OT42_LOG_REJECTION(invalidate_now, "DHW Setpoint (id=56) write was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now && this->dhw_setpoint_number_ != nullptr) {
+          invalidate_entity(this->dhw_setpoint_number_);
+        }
+      }
+      return true;
+
+    case RequestKind::DHW_SETPOINT_READ:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::DHW_SETPOINT_READ, type);
+        OT42_LOG_REJECTION(invalidate_now, "DHW Setpoint (id=56) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::DHW_SETPOINT_READ);
+        }
+        return true;
+      }
+      if (this->dhw_setpoint_number_ != nullptr) {
+        this->dhw_setpoint_number_->publish_state(frame.value_f88());
+      }
+      return true;
+
+    case RequestKind::MAX_CH_WATER_SETPOINT:
+      // See DHW_SETPOINT above: WRITE-ACK's echo is not trusted for display.
+      if (type != MessageType::WRITE_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::MAX_CH_WATER_SETPOINT, type);
+        OT42_LOG_REJECTION(invalidate_now, "max CH water Setpoint (id=57) write was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now && this->max_ch_water_setpoint_number_ != nullptr) {
+          invalidate_entity(this->max_ch_water_setpoint_number_);
+        }
+      }
+      return true;
+
+    case RequestKind::MAX_CH_WATER_SETPOINT_READ:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::MAX_CH_WATER_SETPOINT_READ, type);
+        OT42_LOG_REJECTION(invalidate_now, "max CH water Setpoint (id=57) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::MAX_CH_WATER_SETPOINT_READ);
+        }
+        return true;
+      }
+      if (this->max_ch_water_setpoint_number_ != nullptr) {
+        this->max_ch_water_setpoint_number_->publish_state(frame.value_f88());
+      }
+      return true;
+
+    case RequestKind::NOMINAL_VENTILATION_VALUE:
+      // See DHW_SETPOINT above: WRITE-ACK's echo is not trusted for display.
+      if (type != MessageType::WRITE_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::NOMINAL_VENTILATION_VALUE, type);
+        OT42_LOG_REJECTION(invalidate_now, "Nominal ventilation value (id=87) write was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now && this->nominal_ventilation_value_number_ != nullptr) {
+          invalidate_entity(this->nominal_ventilation_value_number_);
+        }
+      }
+      return true;
+
+    case RequestKind::NOMINAL_VENTILATION_VALUE_READ:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::NOMINAL_VENTILATION_VALUE_READ, type);
+        OT42_LOG_REJECTION(invalidate_now, "Nominal ventilation value (id=87) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::NOMINAL_VENTILATION_VALUE_READ);
+        }
+        return true;
+      }
+      if (this->nominal_ventilation_value_number_ != nullptr) {
+        this->nominal_ventilation_value_number_->publish_state(frame.value_hb);
+      }
+      return true;
+
     case RequestKind::TSP: {
       // Deliberately not gated by should_invalidate_now_(): every TSP slot shares this one
       // RequestKind, so a single per-kind last-success timestamp can't tell which specific slot most
@@ -2283,6 +2554,73 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       }
       return;
 
+    case RequestKind::REMOTE_PARAMETER_FLAGS:
+      if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_ != nullptr) {
+        invalidate_entity(this->pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_);
+      }
+      if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint_text_sensor_ != nullptr) {
+        invalidate_entity(this->pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint_text_sensor_);
+      }
+      if (this->pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint_text_sensor_ != nullptr) {
+        invalidate_entity(this->pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint_text_sensor_);
+      }
+      if (this->pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint_text_sensor_ != nullptr) {
+        invalidate_entity(this->pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint_text_sensor_);
+      }
+      return;
+
+    case RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION:
+      if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_ !=
+          nullptr) {
+        invalidate_entity(
+            this->pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_);
+      }
+      if (this->pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_ !=
+          nullptr) {
+        invalidate_entity(
+            this->pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_);
+      }
+      return;
+
+    case RequestKind::DHWSETP_BOUNDS:
+      if (this->dhwsetp_upper_bound_sensor_ != nullptr) {
+        invalidate_entity(this->dhwsetp_upper_bound_sensor_);
+      }
+      if (this->dhwsetp_lower_bound_sensor_ != nullptr) {
+        invalidate_entity(this->dhwsetp_lower_bound_sensor_);
+      }
+      return;
+
+    case RequestKind::MAX_CHSETP_BOUNDS:
+      if (this->max_chsetp_upper_bound_sensor_ != nullptr) {
+        invalidate_entity(this->max_chsetp_upper_bound_sensor_);
+      }
+      if (this->max_chsetp_lower_bound_sensor_ != nullptr) {
+        invalidate_entity(this->max_chsetp_lower_bound_sensor_);
+      }
+      return;
+
+    case RequestKind::DHW_SETPOINT:
+    case RequestKind::DHW_SETPOINT_READ:
+      if (this->dhw_setpoint_number_ != nullptr) {
+        invalidate_entity(this->dhw_setpoint_number_);
+      }
+      return;
+
+    case RequestKind::MAX_CH_WATER_SETPOINT:
+    case RequestKind::MAX_CH_WATER_SETPOINT_READ:
+      if (this->max_ch_water_setpoint_number_ != nullptr) {
+        invalidate_entity(this->max_ch_water_setpoint_number_);
+      }
+      return;
+
+    case RequestKind::NOMINAL_VENTILATION_VALUE:
+    case RequestKind::NOMINAL_VENTILATION_VALUE_READ:
+      if (this->nominal_ventilation_value_number_ != nullptr) {
+        invalidate_entity(this->nominal_ventilation_value_number_);
+      }
+      return;
+
     case RequestKind::TSP:
       if (this->pending_tsp_slot_index_ < this->tsp_slots_.size()) {
         number::Number *tsp_number = this->tsp_slots_[this->pending_tsp_slot_index_].number;
@@ -2400,6 +2738,23 @@ static const char *bespoke_request_kind_name(RequestKind kind) {
       return "CO2 level (id=79)";
     case RequestKind::BOILER_FAN_SPEED:
       return "Boiler fan speed (id=35)";
+    case RequestKind::REMOTE_PARAMETER_FLAGS:
+      return "Remote-parameter transfer-enable/read-write flags (id=6)";
+    case RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION:
+      return "Remote-parameter transfer-enable/read-write flags ventilation/heat-recovery (id=86)";
+    case RequestKind::DHWSETP_BOUNDS:
+      return "DHWsetp upp-/low-bound (id=48)";
+    case RequestKind::MAX_CHSETP_BOUNDS:
+      return "max CHsetp upp-/low-bnd (id=49)";
+    case RequestKind::DHW_SETPOINT:
+    case RequestKind::DHW_SETPOINT_READ:
+      return "DHW Setpoint (id=56)";
+    case RequestKind::MAX_CH_WATER_SETPOINT:
+    case RequestKind::MAX_CH_WATER_SETPOINT_READ:
+      return "max CH water Setpoint (id=57)";
+    case RequestKind::NOMINAL_VENTILATION_VALUE:
+    case RequestKind::NOMINAL_VENTILATION_VALUE_READ:
+      return "Nominal ventilation value (id=87)";
     default:
       return nullptr;
   }
