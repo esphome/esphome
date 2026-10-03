@@ -184,12 +184,6 @@ template<typename T> class ConstVector<T, true> {
   }
   /// Copies the list into a heap array this owns, freeing a previous owned copy.
   void assign_copy(const T *data, size_t size) {
-    if (size == 0) {
-      this->release_();
-      this->data_ = nullptr;
-      this->size_ = 0;
-      return;
-    }
     auto *table = new T[size];  // NOLINT(cppcoreguidelines-owning-memory)
     std::copy(data, data + size, table);
     this->release_();

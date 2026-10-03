@@ -55,13 +55,13 @@ TEST(ConstVector, StaticThenRuntimeCopiesNeverFreeTheTable) {
   EXPECT_STREQ(TABLE[0], "a");
 }
 
-TEST(ConstVector, EmptyCopyAllocatesNothing) {
+TEST(ConstVector, EmptyCopyIsEmptyAndFreedOnNextSet) {
   ProbeVector list;
   list.assign_copy(TABLE, 3);
   list.assign_copy(TABLE, 0);
-  EXPECT_FALSE(list.owned());
-  EXPECT_EQ(list.data(), nullptr);
   EXPECT_TRUE(list.empty());
+  list.assign_copy(TABLE, 2);  // frees the empty copy
+  EXPECT_EQ(list.size(), 2U);
 }
 
 TEST(ConstVector, OwningVariantIsNotCopyable) {
