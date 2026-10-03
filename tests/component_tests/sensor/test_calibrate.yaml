@@ -1,0 +1,51 @@
+---
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini_lite
+
+sensor:
+  - platform: template
+    id: exact_a
+    lambda: return 1.0;
+    filters:
+      - calibrate_linear:
+          method: exact
+          datapoints:
+            - 0.0 -> 0.0
+            - 10.0 -> 100.0
+            - 20.0 -> 150.0
+  - platform: template
+    id: exact_b
+    lambda: return 1.0;
+    filters:
+      - calibrate_linear:
+          method: exact
+          datapoints:
+            - 0.0 -> 0.0
+            - 10.0 -> 100.0
+            - 20.0 -> 150.0
+  - platform: template
+    id: least_squares
+    lambda: return 1.0;
+    filters:
+      - calibrate_linear:
+          - 0.0 -> 1.0
+          - 10.0 -> 21.0
+  - platform: template
+    id: polynomial
+    lambda: return 1.0;
+    filters:
+      - calibrate_polynomial:
+          degree: 1
+          datapoints:
+            - 0.0 -> 1.0
+            - 10.0 -> 21.0
+  # User ids equal to the old derived table name and to the helper's base name.
+  - platform: template
+    id: sensor_calibratelinearfilter_id_data
+    lambda: return 1.0;
+  - platform: template
+    id: sensor_calibrate_linear
+    lambda: return 1.0;
