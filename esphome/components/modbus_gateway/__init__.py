@@ -7,7 +7,7 @@ from esphome.components.const import (
     CONF_STOP_BITS,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_UART_ID
+from esphome.const import CONF_BAUD_RATE, CONF_DISABLED, CONF_ID, CONF_UART_ID
 from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -20,6 +20,9 @@ MULTI_CONF = True
 CONF_PORTS = "ports"
 CONF_RESPONSE_TIMEOUT = "response_timeout"
 CONF_TCP_UART_ID = "tcp_uart_id"
+CONF_CACHE_TIME = "cache_time"
+CONF_CACHE = "cache"
+CONF_CACHE_ENTRIES = "cache_entries"
 
 modbus_gateway_ns = cg.esphome_ns.namespace("modbus_gateway")
 ModbusGateway = modbus_gateway_ns.class_("ModbusGateway", cg.Component, uart.UARTDevice)
@@ -31,6 +34,7 @@ def _port_schema(value):
         {
             cv.Optional(CONF_UART_ID): cv.use_id(uart.UARTComponent),
             cv.Optional(CONF_ID): cv.declare_id(GatewayUart),
+            cv.Optional(CONF_CACHE, default=False): cv.boolean,
         }
     )(value)
     has_uart = CONF_UART_ID in value
@@ -60,6 +64,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RESPONSE_TIMEOUT, default="500ms"): cv.All(
                 cv.positive_not_null_time_period, cv.positive_time_period_milliseconds
             ),
+            cv.Optional(
+                CONF_CACHE_TIME, default="500ms"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_CACHE_ENTRIES, default=0): cv.int_range(min=0, max=512),
             cv.Required(CONF_PORTS): cv.All(
                 cv.ensure_list(_port_schema), cv.Length(min=1, max=4)
             ),
@@ -121,6 +129,15 @@ def _final_validate(config: ConfigType) -> ConfigType:
             uart.final_validate_device_schema(
                 "modbus_gateway", require_tx=True, require_rx=True
             )(port)
+    full = fv.full_config.get()
+    psram = full["psram"] if full is not None and "psram" in full else None
+    psram_on = isinstance(psram, dict) and not psram.get(CONF_DISABLED, False)
+    limit = 32 if CORE.is_esp8266 else (512 if psram_on else 64)
+    if config[CONF_CACHE_ENTRIES] > limit:
+        raise cv.Invalid(
+            f"cache_entries must be at most {limit} on this device",
+            path=[CONF_CACHE_ENTRIES],
+        )
     return _reject_port_direction(config)
 
 
@@ -132,12 +149,15 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
     cg.add(var.set_response_timeout(config[CONF_RESPONSE_TIMEOUT]))
+    cg.add(var.set_cache_time(config[CONF_CACHE_TIME]))
+    cg.add(var.set_cache_entries(config[CONF_CACHE_ENTRIES]))
     ports = config[CONF_PORTS]
     cg.add(var.set_port_count(len(ports)))
     bus = CORE.config.get_config_for_path(
         CORE.config.get_path_for_id(config[CONF_UART_ID])[:-1]
     )
     for index, port in enumerate(ports):
+        cg.add(var.set_port_cache(index, port[CONF_CACHE]))
         if CONF_UART_ID in port:
             parent = await cg.get_variable(port[CONF_UART_ID])
             cg.add(var.set_port_uart(index, parent))

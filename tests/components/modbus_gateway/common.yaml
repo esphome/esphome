@@ -2,8 +2,10 @@ modbus_gateway:
   - id: gate
     uart_id: uart_bus
     response_timeout: 500ms
+    cache_time: 200ms
     ports:
       - uart_id: inverter_bus
+        cache: false
       - id: local_bus
 
 modbus:

@@ -62,6 +62,10 @@ class GatewayRoute : public ::testing::Test {
     this->gate_.set_port_uart(0, &this->master_);
     this->gate_.set_port_local(1, &this->local_);
     this->gate_.set_response_timeout(500);
+    this->gate_.set_cache_time(10000);
+    this->gate_.set_cache_entries(16);
+    this->gate_.set_port_cache(0, true);
+    this->gate_.set_port_cache(1, true);
   }
 
   FakeUart bms_;
@@ -97,7 +101,7 @@ TEST_F(GatewayRoute, SecondMasterWaitsForTheResponse) {
   EXPECT_EQ(std::vector<uint8_t>(this->bms_.tx.begin() + first.size(), this->bms_.tx.end()), second);
 }
 
-TEST_F(GatewayRoute, RepeatedReadGoesToTheBus) {
+TEST_F(GatewayRoute, RepeatedReadUsesTheCache) {
   auto request = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
   auto response = frame({0x01, 0x03, 0x02, 0x00, 0x64});
   this->master_.push(request);
@@ -107,6 +111,175 @@ TEST_F(GatewayRoute, RepeatedReadGoesToTheBus) {
   this->bms_.tx.clear();
   this->master_.tx.clear();
 
+  this->master_.push(request);
+  this->gate_.loop();
+  EXPECT_TRUE(this->bms_.tx.empty());
+  EXPECT_EQ(this->master_.tx, response);
+}
+
+TEST_F(GatewayRoute, WriteClearsTheCache) {
+  auto read = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->master_.push(read);
+  this->gate_.loop();
+  this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x64}));
+  this->gate_.loop();
+
+  auto write = frame({0x01, 0x06, 0x00, 0x10, 0x00, 0x01});
+  this->bms_.tx.clear();
+  this->master_.push(write);
+  this->gate_.loop();
+  EXPECT_EQ(this->bms_.tx, write);
+
+  this->bms_.push(frame({0x01, 0x06, 0x00, 0x10, 0x00, 0x01}));
+  this->gate_.loop();
+  this->bms_.tx.clear();
+  this->master_.push(read);
+  this->gate_.loop();
+  EXPECT_EQ(this->bms_.tx, read);
+}
+
+TEST_F(GatewayRoute, DifferentReadsStayCached) {
+  auto first = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  auto second = frame({0x01, 0x03, 0x00, 0x0A, 0x00, 0x01});
+  auto first_response = frame({0x01, 0x03, 0x02, 0x00, 0x01});
+  auto second_response = frame({0x01, 0x03, 0x02, 0x00, 0x02});
+  this->master_.push(first);
+  this->gate_.loop();
+  this->bms_.push(first_response);
+  this->gate_.loop();
+  this->master_.push(second);
+  this->gate_.loop();
+  this->bms_.push(second_response);
+  this->gate_.loop();
+  this->bms_.tx.clear();
+  this->master_.tx.clear();
+
+  this->master_.push(first);
+  this->gate_.loop();
+  EXPECT_TRUE(this->bms_.tx.empty());
+  EXPECT_EQ(this->master_.tx, first_response);
+}
+
+TEST_F(GatewayRoute, UncachedPortRefreshesWhatOthersRead) {
+  this->gate_.set_port_cache(0, false);
+  auto request = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->master_.push(request);
+  this->gate_.loop();
+  this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x64}));
+  this->gate_.loop();
+  this->bms_.tx.clear();
+  this->master_.tx.clear();
+
+  this->master_.push(request);
+  this->gate_.loop();
+  EXPECT_EQ(this->bms_.tx, request);
+  auto fresh = frame({0x01, 0x03, 0x02, 0x00, 0x65});
+  this->bms_.push(fresh);
+  this->gate_.loop();
+  this->bms_.tx.clear();
+
+  this->local_.write_array(request.data(), request.size());
+  this->gate_.loop();
+  EXPECT_TRUE(this->bms_.tx.empty());
+  std::vector<uint8_t> got(this->local_.available());
+  ASSERT_FALSE(got.empty());
+  ASSERT_TRUE(this->local_.read_array(got.data(), got.size()));
+  EXPECT_EQ(got, fresh);
+}
+
+TEST_F(GatewayRoute, ExceptionIsNotCachedAndALongReadIs) {
+  auto request = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->master_.push(request);
+  this->gate_.loop();
+  this->bms_.push(frame({0x01, 0x83, 0x02}));
+  this->gate_.loop();
+  this->bms_.tx.clear();
+  this->master_.tx.clear();
+  this->master_.push(request);
+  this->gate_.loop();
+  EXPECT_EQ(this->bms_.tx, request);
+  this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x01}));
+  this->gate_.loop();
+
+  auto wide = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x3E});
+  std::vector<uint8_t> response{0x01, 0x03, 124};
+  response.insert(response.end(), 124, 0x11);
+  uint16_t crc = crc16(response.data(), static_cast<uint16_t>(response.size()));
+  response.push_back(static_cast<uint8_t>(crc & 0xFF));
+  response.push_back(static_cast<uint8_t>(crc >> 8));
+  ASSERT_GT(response.size(), 128u);
+  this->bms_.tx.clear();
+  this->master_.push(wide);
+  this->gate_.loop();
+  this->bms_.push(response);
+  this->gate_.loop();
+  this->bms_.tx.clear();
+  this->master_.tx.clear();
+  this->master_.push(wide);
+  this->gate_.loop();
+  EXPECT_TRUE(this->bms_.tx.empty());
+}
+
+TEST_F(GatewayRoute, LeastRecentlyUsedEntryIsDropped) {
+  this->gate_.set_cache_entries(2);
+  auto first = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  auto second = frame({0x01, 0x03, 0x00, 0x0A, 0x00, 0x01});
+  auto third = frame({0x01, 0x03, 0x00, 0x14, 0x00, 0x01});
+  auto reply = frame({0x01, 0x03, 0x02, 0x00, 0x01});
+  this->master_.push(first);
+  this->gate_.loop();
+  this->bms_.push(reply);
+  this->gate_.loop();
+  this->master_.push(second);
+  this->gate_.loop();
+  this->bms_.push(reply);
+  this->gate_.loop();
+  this->bms_.tx.clear();
+  this->master_.tx.clear();
+  this->master_.push(first);
+  this->gate_.loop();
+  EXPECT_TRUE(this->bms_.tx.empty());
+  this->master_.tx.clear();
+  this->master_.push(third);
+  this->gate_.loop();
+  this->bms_.push(reply);
+  this->gate_.loop();
+  this->bms_.tx.clear();
+  this->master_.tx.clear();
+  this->master_.push(first);
+  this->gate_.loop();
+  EXPECT_TRUE(this->bms_.tx.empty());
+  this->master_.push(second);
+  this->gate_.loop();
+  EXPECT_EQ(this->bms_.tx, second);
+}
+
+TEST_F(GatewayRoute, NoEntriesDoesNotAnswerFromTheCache) {
+  this->gate_.set_cache_entries(0);
+  auto request = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  auto response = frame({0x01, 0x03, 0x02, 0x00, 0x64});
+  this->master_.push(request);
+  this->gate_.loop();
+  this->bms_.push(response);
+  this->gate_.loop();
+  this->bms_.tx.clear();
+  this->master_.tx.clear();
+  this->master_.push(request);
+  this->gate_.loop();
+  EXPECT_EQ(this->bms_.tx, request);
+}
+
+TEST_F(GatewayRoute, CachedReadExpires) {
+  this->gate_.set_cache_time(1);
+  auto request = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  auto response = frame({0x01, 0x03, 0x02, 0x00, 0x64});
+  this->master_.push(request);
+  this->gate_.loop();
+  this->bms_.push(response);
+  this->gate_.loop();
+  this->bms_.tx.clear();
+  this->master_.tx.clear();
+  usleep(20000);
   this->master_.push(request);
   this->gate_.loop();
   EXPECT_EQ(this->bms_.tx, request);

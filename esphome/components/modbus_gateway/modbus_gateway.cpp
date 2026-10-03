@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <cinttypes>
 #include <cstring>
+#include <new>
+#include <utility>
 
 namespace esphome::modbus_gateway {
 
@@ -233,6 +235,169 @@ void ModbusGateway::log_dropped_(bool on_uart, uint16_t len) {
   ESP_LOGW(TAG, "Response dropped, the UART cannot take %u bytes", static_cast<unsigned>(len));
 }
 
+bool ModbusGateway::fresh_(const CacheSlot &slot, uint32_t now) const {
+  return slot.len != 0 && now - slot.ms < this->cache_time_ms_;
+}
+
+bool ModbusGateway::prepare_cache_() {
+  if (this->slots_ != nullptr) {
+    return true;
+  }
+  static_assert(alignof(CacheSlot) <= alignof(std::max_align_t), "cache slots need aligned storage");
+  CacheSlot *slots = RAMAllocator<CacheSlot>().allocate(this->cache_limit_);
+  if (slots == nullptr) {
+    if (!this->cache_alloc_failed_) {
+      this->cache_alloc_failed_ = true;
+      ESP_LOGW(TAG, "Cache disabled, no memory for %u entries", this->cache_limit_);
+    }
+    return false;
+  }
+  this->slots_ = slots;
+  this->cache_cap_ = this->cache_limit_;
+  return true;
+}
+
+void ModbusGateway::release_cache_() {
+  if (this->slots_ == nullptr) {
+    return;
+  }
+  for (uint16_t i = 0; i < this->cache_size_; i++) {
+    this->slots_[i].~CacheSlot();
+  }
+  RAMAllocator<CacheSlot>().deallocate(this->slots_, this->cache_cap_);
+  this->slots_ = nullptr;
+  this->cache_size_ = 0;
+  this->cache_cap_ = 0;
+}
+
+ModbusGateway::~ModbusGateway() { this->release_cache_(); }
+
+ModbusGateway::CacheSlot &ModbusGateway::add_slot_() {
+  CacheSlot *slot = new (this->slots_ + this->cache_size_) CacheSlot();
+  this->cache_size_++;
+  return *slot;
+}
+
+void ModbusGateway::pop_slot_() {
+  this->cache_size_--;
+  this->slots_[this->cache_size_].~CacheSlot();
+}
+
+bool ModbusGateway::fill_slot_(CacheSlot &slot, const uint8_t *request, const uint8_t *response, uint16_t response_len,
+                               uint32_t now) {
+  if (slot.cap < response_len) {
+    auto buffer = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(response_len);
+    if (buffer == nullptr) {
+      if (!this->cache_alloc_failed_) {
+        this->cache_alloc_failed_ = true;
+        ESP_LOGW(TAG, "Cache skipped a response, no memory for %u bytes", response_len);
+      }
+      return false;
+    }
+    slot.data = std::move(buffer);
+    slot.cap = response_len;
+  }
+  std::memcpy(slot.data.get(), response, response_len);
+  std::memcpy(slot.key, request, sizeof(slot.key));
+  slot.len = response_len;
+  slot.ms = now;
+  return true;
+}
+
+void ModbusGateway::move_front_(size_t index) {
+  if (index == 0) {
+    return;
+  }
+  CacheSlot moved = std::move(this->slots_[index]);
+  for (size_t i = index; i > 0; i--) {
+    this->slots_[i] = std::move(this->slots_[i - 1]);
+  }
+  this->slots_[0] = std::move(moved);
+}
+
+void ModbusGateway::note_drop_(uint32_t now) {
+  this->cache_drops_++;
+  if (now - this->last_drop_log_ms_ < BAD_LOG_INTERVAL_MS) {
+    return;
+  }
+  ESP_LOGD(TAG, "Cache dropped %u entries, the table holds %u", this->cache_drops_, this->cache_size_);
+  this->cache_drops_ = 0;
+  this->last_drop_log_ms_ = now;
+}
+
+bool ModbusGateway::serve_from_cache_(uint8_t index, const uint8_t *data, uint16_t len, uint32_t now) {
+  if (this->cache_limit_ == 0 || !this->ports_[index].use_cache || this->cache_time_ms_ == 0 || len < 6 ||
+      !modbus::helpers::is_function_code_read_only(data[1])) {
+    return false;
+  }
+  for (uint16_t i = 0; i < this->cache_size_; i++) {
+    CacheSlot &slot = this->slots_[i];
+    if (!this->fresh_(slot, now) || std::memcmp(slot.key, data, sizeof(slot.key)) != 0) {
+      continue;
+    }
+    this->deliver_(index, slot.data.get(), slot.len);
+    this->move_front_(i);
+    return true;
+  }
+  return false;
+}
+
+void ModbusGateway::store_cache_(const uint8_t *request, uint16_t request_len, const uint8_t *response,
+                                 uint16_t response_len, uint32_t now) {
+  if (this->cache_limit_ == 0 || this->cache_time_ms_ == 0 || request_len < 6 || response_len < 5 ||
+      response_len > MAX_FRAME || !modbus::helpers::is_function_code_read_only(request[1]) ||
+      response[1] != request[1]) {
+    return;
+  }
+  if (!this->prepare_cache_()) {
+    return;
+  }
+  for (uint16_t i = 0; i < this->cache_size_; i++) {
+    if (this->slots_[i].len == 0 || std::memcmp(this->slots_[i].key, request, sizeof(this->slots_[i].key)) != 0) {
+      continue;
+    }
+    if (!this->fill_slot_(this->slots_[i], request, response, response_len, now)) {
+      return;
+    }
+    this->move_front_(i);
+    return;
+  }
+  for (uint16_t i = 0; i < this->cache_size_; i++) {
+    if (this->fresh_(this->slots_[i], now)) {
+      continue;
+    }
+    if (!this->fill_slot_(this->slots_[i], request, response, response_len, now)) {
+      return;
+    }
+    this->move_front_(i);
+    return;
+  }
+  if (this->cache_size_ < this->cache_cap_) {
+    CacheSlot &slot = this->add_slot_();
+    if (!this->fill_slot_(slot, request, response, response_len, now)) {
+      this->pop_slot_();
+      return;
+    }
+    this->move_front_(this->cache_size_ - 1);
+    return;
+  }
+  uint16_t last = this->cache_size_ - 1;
+  bool live = this->fresh_(this->slots_[last], now);
+  if (!this->fill_slot_(this->slots_[last], request, response, response_len, now)) {
+    return;
+  }
+  if (live) {
+    this->note_drop_(now);
+  }
+  this->move_front_(last);
+}
+
+void ModbusGateway::clear_cache_() {
+  for (uint16_t i = 0; i < this->cache_size_; i++) {
+    this->slots_[i].len = 0;
+  }
+}
+
 void ModbusGateway::take_requests_(uint8_t index, uint32_t now) {
   Port &port = this->ports_[index];
   uart::UARTComponent *end = this->endpoint_(index);
@@ -331,6 +496,7 @@ void ModbusGateway::read_bus_(uint32_t now) {
     if (!this->deliver_(index, this->bus_, found.len)) {
       return;
     }
+    this->store_cache_(this->request_, this->request_len_, this->bus_, found.len, now);
     consume(this->bus_, &this->bus_len_, found.len);
     this->active_ = -1;
   }
@@ -346,6 +512,11 @@ bool ModbusGateway::start_next_(uint32_t now) {
     if (port.pending_len == 0) {
       continue;
     }
+    if (this->serve_from_cache_(index, port.pending, port.pending_len, now)) {
+      port.pending_len = 0;
+      this->next_port_ = static_cast<uint8_t>((index + 1) % this->port_count_);
+      return true;
+    }
     if (!this->write_frame_(this->parent_, port.pending, port.pending_len)) {
       return false;
     }
@@ -359,6 +530,9 @@ bool ModbusGateway::start_next_(uint32_t now) {
     // for the turnaround and drops anything that arrives meanwhile.
     this->awaiting_ = this->request_[0] != 0;
     this->next_port_ = static_cast<uint8_t>((index + 1) % this->port_count_);
+    if (!modbus::helpers::is_function_code_read_only(this->request_[1])) {
+      this->clear_cache_();
+    }
     return true;
   }
   return false;
@@ -406,11 +580,18 @@ void ModbusGateway::loop() {
 }
 
 void ModbusGateway::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "Modbus Gateway:\n"
-                "  Response timeout: %" PRIu32 " ms\n"
-                "  Ports: %u",
-                this->response_timeout_ms_, this->port_count_);
+  ESP_LOGCONFIG(TAG, "Modbus Gateway:");
+  ESP_LOGCONFIG(TAG, "  Response timeout: %" PRIu32 " ms", this->response_timeout_ms_);
+  if (this->cache_limit_ == 0 || this->cache_time_ms_ == 0) {
+    ESP_LOGCONFIG(TAG, "  Cache: off");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Cache time: %" PRIu32 " ms", this->cache_time_ms_);
+    ESP_LOGCONFIG(TAG, "  Cache entries: %u", this->cache_limit_);
+  }
+  ESP_LOGCONFIG(TAG, "  Ports: %u", this->port_count_);
+  for (uint8_t i = 0; i < this->port_count_; i++) {
+    ESP_LOGCONFIG(TAG, "  Port %u: cache %s", i, this->ports_[i].use_cache ? "on" : "off");
+  }
 }
 
 }  // namespace esphome::modbus_gateway
