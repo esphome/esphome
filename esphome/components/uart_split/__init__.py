@@ -20,9 +20,7 @@ MULTI_CONF = True
 
 uart_split_ns = cg.esphome_ns.namespace("uart_split")
 UartSplit = uart_split_ns.class_("UartSplit", cg.Component)
-UartSplitOutput = uart_split_ns.class_(
-    "UartSplitOutput", uart.UARTComponent, cg.Component
-)
+UartSplitOutput = uart_split_ns.class_("UartSplitOutput", uart.UARTComponent)
 
 MAX_OUTPUTS = 8
 
@@ -105,7 +103,6 @@ async def to_code(config: ConfigType) -> None:
     )
     for output_config in config[CONF_OUTPUTS]:
         output = cg.new_Pvariable(output_config[CONF_ID])
-        await cg.register_component(output, output_config)
         cg.add(output.set_split(var))
         cg.add(output.set_rx_only(output_config[CONF_RX_ONLY]))
         cg.add(output.set_mirror_tx(output_config[CONF_DIRECTION] == "BOTH"))

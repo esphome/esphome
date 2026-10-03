@@ -16,7 +16,7 @@ class UartSplit;
 
 /// One consumer of a shared UART. Bytes arrive in rx_; writes go to the pins
 /// unless this output is receive-only.
-class UartSplitOutput : public uart::UARTComponent, public Component {
+class UartSplitOutput : public uart::UARTComponent {
  public:
   void set_split(UartSplit *split) { this->split_ = split; }
   void set_rx_only(bool rx_only) { this->rx_only_ = rx_only; }

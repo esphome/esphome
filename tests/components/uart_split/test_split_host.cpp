@@ -107,6 +107,25 @@ TEST_F(UartSplitCopy, ReceiveOnlyWriteDoesNotReachThePins) {
   EXPECT_EQ(this->tap_.available_for_write(), 0u);
 }
 
+TEST_F(UartSplitCopy, FullWriterStopsTheRead) {
+  for (size_t i = 0; i < RX_BUFFER_SIZE; i++) {
+    ASSERT_TRUE(this->bus_.push_rx(0x00));
+  }
+  const uint8_t byte = 0x44;
+  this->pins_.rx(&byte, 1);
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 1u);
+  EXPECT_EQ(this->tap_.available(), 0u);
+  for (size_t i = 0; i < RX_BUFFER_SIZE; i++) {
+    uint8_t discarded = 0;
+    ASSERT_TRUE(this->bus_.read_byte(&discarded));
+  }
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 0u);
+  EXPECT_EQ(this->read_one(&this->bus_), 0x44);
+  EXPECT_EQ(this->read_one(&this->tap_), 0x44);
+}
+
 TEST_F(UartSplitCopy, TwoWritersBothReachThePins) {
   UartSplitOutput other;
   other.set_split(&this->split_);
