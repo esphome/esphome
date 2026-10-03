@@ -153,6 +153,7 @@ class MR24HPC1Component final : public Component,
   int sg_start_query_data_;
   bool check_dev_inf_sign_;
   bool poll_time_base_func_check_;
+  uint32_t startup_delay_ms_{0};
 
   void update_();
   void r24_split_data_frame_(uint8_t value);
@@ -210,6 +211,7 @@ class MR24HPC1Component final : public Component,
   void set_motion_trigger_time(uint8_t value);
   void set_motion_to_rest_time(uint16_t value);
   void set_custom_unman_time(uint16_t value);
+  void set_startup_delay(uint32_t startup_delay_ms) { this->startup_delay_ms_ = startup_delay_ms; }
 };
 
 }  // namespace esphome::seeed_mr24hpc1

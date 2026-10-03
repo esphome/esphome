@@ -76,8 +76,7 @@ void MR24HPC1Component::setup() {
     this->custom_mode_end_text_sensor_->publish_state("Not in custom mode");
   }
 #endif
-  this->set_custom_end_mode();
-  this->poll_time_base_func_check_ = true;
+  this->poll_time_base_func_check_ = false;
   this->check_dev_inf_sign_ = true;
   this->sg_start_query_data_ = STANDARD_FUNCTION_QUERY_PRODUCT_MODE;
   this->sg_data_len_ = 0;
@@ -92,7 +91,22 @@ void MR24HPC1Component::setup() {
   memset(this->sg_frame_prase_buf_, 0, FRAME_BUF_MAX_SIZE);
   memset(this->sg_frame_buf_, 0, FRAME_BUF_MAX_SIZE);
 
-  this->set_interval(8000, [this]() { this->update_(); });
+  // Delay all outgoing UART traffic until the MR24HPC1 module has had time to finish
+  // its own internal boot. Sending queries too early can cause the module to lock up
+  // and stop responding until power-cycled. The periodic polling interval must also be
+  // deferred, not just the initial burst -- otherwise its own unconditional query can
+  // still slip out during the boot window and defeat the delay entirely.
+  if (this->startup_delay_ms_ > 0) {
+    this->set_timeout(this->startup_delay_ms_, [this]() {
+      this->set_custom_end_mode();
+      this->poll_time_base_func_check_ = true;
+      this->set_interval(8000, [this]() { this->update_(); });
+    });
+  } else {
+    this->set_custom_end_mode();
+    this->poll_time_base_func_check_ = true;
+    this->set_interval(8000, [this]() { this->update_(); });
+  }
 }
 
 // Timed polling of radar data
