@@ -115,8 +115,36 @@ const SimpleSensorInfo OpenTherm42Hub::SIMPLE_SENSORS[] = {
 // §5.3.1 Class 1, ID 101 LB bits 3,2,1 (Solar Storage mode and status: Solar mode) -- same 5-state
 // enum as the select platform's ID 101 HB (Master Solar Storage status), but this is the boiler's
 // own independently-reported value, not a readback of HB.
+static const char *solar_mode_to_string(uint8_t code) {
+  switch (code) {
+    case 0:
+      return "Off";
+    case 1:
+      return "DHW Eco";
+    case 2:
+      return "DHW Comfort";
+    case 3:
+      return "DHW Single Boost";
+    case 4:
+      return "DHW Continuous Boost";
+    default:
+      return "Reserved";
+  }
+}
 
 // §5.3.1 Class 1, ID 101 LB bits 5,4: Solar Storage mode and status: Solar status.
+static const char *solar_status_to_string(uint8_t code) {
+  switch (code) {
+    case 0:
+      return "Standby";
+    case 1:
+      return "Loading By Sun";
+    case 2:
+      return "Loading By Boiler";
+    default:
+      return "Anti-Legionella";
+  }
+}
 
 // §5.3.4 Class 4, ID 20 HB bits 7-5 (read side): 1=Monday..7=Sunday. Returns "?" both when the
 // boiler reports 0 ("no day-of-week information available" per the spec's own ID 20 table) and
@@ -195,6 +223,47 @@ void OpenTherm42Hub::build_schedule_() {
   // config validation happens to guarantee that pointer is always set.
   this->add_entry_(RequestKind::STATUS);
   this->add_entry_(RequestKind::CONTROL_SETPOINT);
+  if (this->control_setpoint_2_number_ != nullptr) {
+    this->add_entry_(RequestKind::CONTROL_SETPOINT_2);
+  }
+  if (this->ventilation_status_write_.any_configured() || this->ventilation_status_read_.any_configured()) {
+    this->add_entry_(RequestKind::VENTILATION_STATUS);
+  }
+  if (this->control_setpoint_ventilation_number_ != nullptr) {
+    this->add_entry_(RequestKind::CONTROL_SETPOINT_VENTILATION);
+  }
+
+  if (this->fault_flags_read_.any_configured() || this->oem_fault_code_sensor_ != nullptr) {
+    this->add_entry_(RequestKind::FAULT_FLAGS);
+  }
+  if (this->ventilation_fault_flags_read_.any_configured() || this->oem_fault_code_ventilation_sensor_ != nullptr) {
+    this->add_entry_(RequestKind::VENTILATION_FAULT_FLAGS);
+  }
+  // The select is an active control input (like the Class 1 setpoints below); read-only consumers
+  // alone still get the same single Entry either way -- see build_next_request_()/handle_response_()
+  // for how the select's HB and the sensors' LB stay independent.
+  if (this->master_solar_storage_status_solar_mode_select_ != nullptr ||
+      this->solar_storage_fault_indication_binary_sensor_ != nullptr ||
+      this->solar_storage_mode_and_status_solar_mode_text_sensor_ != nullptr ||
+      this->solar_storage_mode_and_status_solar_status_text_sensor_ != nullptr) {
+    this->add_entry_(RequestKind::SOLAR_STORAGE_STATUS);
+  }
+  // These three are 1:1 but bespoke (not dispatched through SIMPLE_SENSORS -- see
+  // handle_response_()/build_next_request_()), so their cadence is stored separately by
+  // set_..._update_every() at wiring time and consumed here, same reasoning as
+  // date_time_read_update_every_ (below, for DAY_TIME_READ) and set_number_update_every().
+  if (this->oem_fault_code_solar_storage_sensor_ != nullptr) {
+    this->entries_.push_back(
+        {RequestKind::SOLAR_STORAGE_FAULT_FLAGS, this->oem_fault_code_solar_storage_update_every_});
+  }
+  if (this->oem_diagnostic_code_sensor_ != nullptr) {
+    this->entries_.push_back({RequestKind::OEM_DIAGNOSTIC_CODE, this->oem_diagnostic_code_update_every_});
+  }
+  if (this->oem_diagnostic_code_ventilation_sensor_ != nullptr) {
+    this->entries_.push_back(
+        {RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION, this->oem_diagnostic_code_ventilation_update_every_});
+  }
+
   // Every plain read-only sensor: scheduled if its entity is configured, at whatever cadence
   // set_simple_sensor_update_every() staged for its id (see pending_simple_sensor_update_every_'s
   // declaration comment), falling back to the default (every pass) if none was staged
@@ -273,6 +342,52 @@ Frame OpenTherm42Hub::build_entry_request_(RequestKind kind) {
       frame.id = 1;
       frame.set_value_f88(this->control_setpoint_write_value_);
       break;
+    case RequestKind::CONTROL_SETPOINT_2:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 8;
+      frame.set_value_f88(this->control_setpoint_2_write_value_);
+      break;
+    case RequestKind::VENTILATION_STATUS:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 70;
+      frame.value_hb = this->ventilation_status_write_.pack();
+      break;
+    case RequestKind::CONTROL_SETPOINT_VENTILATION:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 71;
+      frame.value_lb = static_cast<uint8_t>(this->control_setpoint_ventilation_write_value_);
+      break;
+    case RequestKind::FAULT_FLAGS:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 5;
+      break;
+    case RequestKind::VENTILATION_FAULT_FLAGS:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 72;
+      break;
+    case RequestKind::SOLAR_STORAGE_STATUS:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 101;
+      // §5.3.1 ID 101 HB: master-authored (see hub.h's RequestKind comment) -- send whatever was
+      // last commanded, exactly like the STATUS/VENTILATION_STATUS master-status bytes. Read from
+      // solar_storage_solar_mode_write_value_, not the select's own ->active_index(): the latter
+      // returns nullopt once the select is invalidated, which would otherwise silently start
+      // sending index 0 on the wire in addition to displaying Unknown (see set_solar_storage_
+      // solar_mode_write_value()'s declaration comment).
+      frame.value_hb = this->solar_storage_solar_mode_write_value_;
+      break;
+    case RequestKind::SOLAR_STORAGE_FAULT_FLAGS:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 102;
+      break;
+    case RequestKind::OEM_DIAGNOSTIC_CODE:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 115;
+      break;
+    case RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 73;
+      break;
     default: {
       // Every plain read-only sensor (see the SIMPLE_SENSORS table) shares this one case.
       const SimpleSensorInfo *info = this->find_simple_sensor_(kind);
@@ -295,6 +410,14 @@ void OpenTherm42Hub::set_write_value(uint8_t id, float value) {
       write_value = &this->control_setpoint_write_value_;
       kind = RequestKind::CONTROL_SETPOINT;
       break;
+    case 8:
+      write_value = &this->control_setpoint_2_write_value_;
+      kind = RequestKind::CONTROL_SETPOINT_2;
+      break;
+    case 71:
+      write_value = &this->control_setpoint_ventilation_write_value_;
+      kind = RequestKind::CONTROL_SETPOINT_VENTILATION;
+      break;
     default:
       return;
   }
@@ -312,6 +435,12 @@ void OpenTherm42Hub::set_number_update_every(uint8_t id, uint32_t update_every) 
   switch (id) {
     case 1:
       kind = RequestKind::CONTROL_SETPOINT;
+      break;
+    case 8:
+      kind = RequestKind::CONTROL_SETPOINT_2;
+      break;
+    case 71:
+      kind = RequestKind::CONTROL_SETPOINT_VENTILATION;
       break;
     default:
       return;
@@ -484,6 +613,183 @@ bool OpenTherm42Hub::handle_response_status_and_identity_(const Frame &frame, Me
       }
       return true;
 
+    case RequestKind::CONTROL_SETPOINT_2:
+      // See CONTROL_SETPOINT above: WRITE-ACK's echo is not trusted for display.
+      if (type != MessageType::WRITE_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::CONTROL_SETPOINT_2, type);
+        OT42_LOG_REJECTION(invalidate_now, "Control setpoint 2 (id=8) write was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now && this->control_setpoint_2_number_ != nullptr) {
+          invalidate_entity(this->control_setpoint_2_number_);
+        }
+        return true;
+      }
+      // See CONTROL_SETPOINT above: a later success must recover a previously-invalidated entity.
+      if (this->control_setpoint_2_number_ != nullptr) {
+        this->control_setpoint_2_number_->publish_state(this->control_setpoint_2_write_value_);
+      }
+      return true;
+
+    case RequestKind::VENTILATION_STATUS:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::VENTILATION_STATUS, type);
+        OT42_LOG_REJECTION(invalidate_now,
+                           "Ventilation/heat-recovery status exchange (id=70) was rejected (message type %s)",
+                           message_type_to_string(type));
+        // Same max_data_invalid grace period as every other id's DATA_INVALID handling (see
+        // should_invalidate_now_()'s declaration comment) -- a genuine "this boiler has no
+        // ventilation/heat-recovery system" answer is UNKNOWN_DATA_ID, which should_invalidate_now_()
+        // already treats as immediate regardless of the mask; only a possibly-transient DATA_INVALID
+        // gets the grace period, same as the read side below.
+        if (invalidate_now) {
+          this->ventilation_status_write_.invalidate();
+          this->invalidate_response_(RequestKind::VENTILATION_STATUS);
+        }
+        return true;
+      }
+      this->ventilation_status_read_.publish(frame.value_lb);
+      return true;
+
+    case RequestKind::CONTROL_SETPOINT_VENTILATION:
+      // See CONTROL_SETPOINT above: WRITE-ACK's echo is not trusted for display.
+      if (type != MessageType::WRITE_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::CONTROL_SETPOINT_VENTILATION, type);
+        OT42_LOG_REJECTION(invalidate_now,
+                           "Control setpoint ventilation/heat-recovery (id=71) write was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now && this->control_setpoint_ventilation_number_ != nullptr) {
+          invalidate_entity(this->control_setpoint_ventilation_number_);
+        }
+        return true;
+      }
+      // See CONTROL_SETPOINT above: a later success must recover a previously-invalidated entity.
+      if (this->control_setpoint_ventilation_number_ != nullptr) {
+        this->control_setpoint_ventilation_number_->publish_state(this->control_setpoint_ventilation_write_value_);
+      }
+      return true;
+
+    case RequestKind::FAULT_FLAGS:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::FAULT_FLAGS, type);
+        OT42_LOG_REJECTION(invalidate_now,
+                           "Application-specific fault flags (id=5) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::FAULT_FLAGS);
+        }
+        return true;
+      }
+      this->fault_flags_read_.publish(frame.value_hb);
+      if (this->oem_fault_code_sensor_ != nullptr) {
+        this->oem_fault_code_sensor_->publish_state(frame.value_lb);
+      }
+      return true;
+
+    case RequestKind::VENTILATION_FAULT_FLAGS:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::VENTILATION_FAULT_FLAGS, type);
+        OT42_LOG_REJECTION(invalidate_now,
+                           "Application-specific fault flags ventilation/heat-recovery (id=72) read was rejected "
+                           "(message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::VENTILATION_FAULT_FLAGS);
+        }
+        return true;
+      }
+      this->ventilation_fault_flags_read_.publish(frame.value_hb);
+      if (this->oem_fault_code_ventilation_sensor_ != nullptr) {
+        this->oem_fault_code_ventilation_sensor_->publish_state(frame.value_lb);
+      }
+      return true;
+
+    case RequestKind::SOLAR_STORAGE_STATUS:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::SOLAR_STORAGE_STATUS, type);
+        OT42_LOG_REJECTION(invalidate_now, "Solar storage status (id=101) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        // Reaching handle_response_() at all means a valid frame was received -- unlike a
+        // transient datalink error, a non-ACK type here is the boiler's definitive answer that it
+        // has no Solar Storage feature, so the select can never have any real effect either.
+        if (invalidate_now) {
+          if (this->master_solar_storage_status_solar_mode_select_ != nullptr) {
+            invalidate_entity(this->master_solar_storage_status_solar_mode_select_);
+          }
+          this->invalidate_response_(RequestKind::SOLAR_STORAGE_STATUS);
+        }
+        return true;
+      }
+      // HB bits 2,1,0 and LB bits 3,2,1 both encode "Solar mode" (same 5-value enum, different byte);
+      // LB bit 0 is a fault flag and LB bits 5,4 are "Solar status" -- see the spec's ID 101 table.
+      // HB's echoed frame content is never trusted for the select's display -- same precedent as
+      // STATUS/VENTILATION_STATUS, whose master-status bytes are one-way (local state, resent every
+      // turn, never confirmed). But reaching here at all means this conversation succeeded, so a
+      // previously-invalidated select must still recover -- republish the last commanded value
+      // (never frame.value_hb) so it doesn't stay stuck at Unknown forever after one rejection.
+      if (this->master_solar_storage_status_solar_mode_select_ != nullptr) {
+        this->master_solar_storage_status_solar_mode_select_->publish_state(
+            this->solar_storage_solar_mode_write_value_);
+      }
+      if (this->solar_storage_fault_indication_binary_sensor_ != nullptr) {
+        this->solar_storage_fault_indication_binary_sensor_->publish_state(frame.value_lb & 0x1);
+      }
+      if (this->solar_storage_mode_and_status_solar_mode_text_sensor_ != nullptr) {
+        this->solar_storage_mode_and_status_solar_mode_text_sensor_->publish_state(
+            solar_mode_to_string((frame.value_lb >> 1) & 0x7));
+      }
+      if (this->solar_storage_mode_and_status_solar_status_text_sensor_ != nullptr) {
+        this->solar_storage_mode_and_status_solar_status_text_sensor_->publish_state(
+            solar_status_to_string((frame.value_lb >> 4) & 0x3));
+      }
+      return true;
+
+    case RequestKind::SOLAR_STORAGE_FAULT_FLAGS:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::SOLAR_STORAGE_FAULT_FLAGS, type);
+        OT42_LOG_REJECTION(invalidate_now,
+                           "Solar storage specific fault flags (id=102) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::SOLAR_STORAGE_FAULT_FLAGS);
+        }
+        return true;
+      }
+      if (this->oem_fault_code_solar_storage_sensor_ != nullptr) {
+        this->oem_fault_code_solar_storage_sensor_->publish_state(frame.value_lb);
+      }
+      return true;
+
+    case RequestKind::OEM_DIAGNOSTIC_CODE:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::OEM_DIAGNOSTIC_CODE, type);
+        OT42_LOG_REJECTION(invalidate_now, "OEM diagnostic code (id=115) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::OEM_DIAGNOSTIC_CODE);
+        }
+        return true;
+      }
+      if (this->oem_diagnostic_code_sensor_ != nullptr) {
+        this->oem_diagnostic_code_sensor_->publish_state(frame.value_u16());
+      }
+      return true;
+
+    case RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION, type);
+        OT42_LOG_REJECTION(invalidate_now,
+                           "OEM diagnostic code ventilation/heat-recovery (id=73) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION);
+        }
+        return true;
+      }
+      if (this->oem_diagnostic_code_ventilation_sensor_ != nullptr) {
+        this->oem_diagnostic_code_ventilation_sensor_->publish_state(frame.value_u16());
+      }
+      return true;
+
     default:
       return false;
   }
@@ -523,6 +829,18 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       }
       return;
 
+    case RequestKind::CONTROL_SETPOINT_2:
+      if (this->control_setpoint_2_number_ != nullptr) {
+        invalidate_entity(this->control_setpoint_2_number_);
+      }
+      return;
+
+    case RequestKind::CONTROL_SETPOINT_VENTILATION:
+      if (this->control_setpoint_ventilation_number_ != nullptr) {
+        invalidate_entity(this->control_setpoint_ventilation_number_);
+      }
+      return;
+
     case RequestKind::STATUS:
       // Unlike a definitive rejection (not legal for this mandatory id per §5.2.1, so never reached
       // here), a raw datalink error means we don't know whether the boiler ever saw this turn's
@@ -530,6 +848,64 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       // a commanded state we can no longer vouch for.
       this->master_status_write_.invalidate();
       this->boiler_status_read_.invalidate();
+      return;
+
+    case RequestKind::VENTILATION_STATUS:
+      // Same reasoning as STATUS above: a raw datalink error means we can't tell whether the boiler
+      // received this turn's write, so the switches go unknown here too, not just on a definitive
+      // rejection (see handle_response_()).
+      this->ventilation_status_write_.invalidate();
+      this->ventilation_status_read_.invalidate();
+      return;
+
+    case RequestKind::FAULT_FLAGS:
+      this->fault_flags_read_.invalidate();
+      if (this->oem_fault_code_sensor_ != nullptr) {
+        invalidate_entity(this->oem_fault_code_sensor_);
+      }
+      return;
+
+    case RequestKind::VENTILATION_FAULT_FLAGS:
+      this->ventilation_fault_flags_read_.invalidate();
+      if (this->oem_fault_code_ventilation_sensor_ != nullptr) {
+        invalidate_entity(this->oem_fault_code_ventilation_sensor_);
+      }
+      return;
+
+    case RequestKind::SOLAR_STORAGE_STATUS:
+      // Same reasoning as STATUS/VENTILATION_STATUS above: a raw datalink error means we can't tell
+      // whether the boiler received this turn's HB write, so the select goes unknown here too, not
+      // just on a definitive rejection (see handle_response_()).
+      if (this->master_solar_storage_status_solar_mode_select_ != nullptr) {
+        invalidate_entity(this->master_solar_storage_status_solar_mode_select_);
+      }
+      if (this->solar_storage_fault_indication_binary_sensor_ != nullptr) {
+        invalidate_entity(this->solar_storage_fault_indication_binary_sensor_);
+      }
+      if (this->solar_storage_mode_and_status_solar_mode_text_sensor_ != nullptr) {
+        invalidate_entity(this->solar_storage_mode_and_status_solar_mode_text_sensor_);
+      }
+      if (this->solar_storage_mode_and_status_solar_status_text_sensor_ != nullptr) {
+        invalidate_entity(this->solar_storage_mode_and_status_solar_status_text_sensor_);
+      }
+      return;
+
+    case RequestKind::SOLAR_STORAGE_FAULT_FLAGS:
+      if (this->oem_fault_code_solar_storage_sensor_ != nullptr) {
+        invalidate_entity(this->oem_fault_code_solar_storage_sensor_);
+      }
+      return;
+
+    case RequestKind::OEM_DIAGNOSTIC_CODE:
+      if (this->oem_diagnostic_code_sensor_ != nullptr) {
+        invalidate_entity(this->oem_diagnostic_code_sensor_);
+      }
+      return;
+
+    case RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION:
+      if (this->oem_diagnostic_code_ventilation_sensor_ != nullptr) {
+        invalidate_entity(this->oem_diagnostic_code_ventilation_sensor_);
+      }
       return;
 
     default: {
@@ -555,6 +931,24 @@ static const char *bespoke_request_kind_name(RequestKind kind) {
       return "Status exchange (id=0)";
     case RequestKind::CONTROL_SETPOINT:
       return "Control setpoint (id=1)";
+    case RequestKind::CONTROL_SETPOINT_2:
+      return "Control setpoint 2 (id=8)";
+    case RequestKind::VENTILATION_STATUS:
+      return "Ventilation/heat-recovery status exchange (id=70)";
+    case RequestKind::CONTROL_SETPOINT_VENTILATION:
+      return "Control setpoint ventilation/heat-recovery (id=71)";
+    case RequestKind::FAULT_FLAGS:
+      return "Application-specific fault flags (id=5)";
+    case RequestKind::VENTILATION_FAULT_FLAGS:
+      return "Application-specific fault flags ventilation/heat-recovery (id=72)";
+    case RequestKind::SOLAR_STORAGE_STATUS:
+      return "Solar storage status (id=101)";
+    case RequestKind::SOLAR_STORAGE_FAULT_FLAGS:
+      return "Solar storage specific fault flags (id=102)";
+    case RequestKind::OEM_DIAGNOSTIC_CODE:
+      return "OEM diagnostic code (id=115)";
+    case RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION:
+      return "OEM diagnostic code ventilation/heat-recovery (id=73)";
     default:
       return nullptr;
   }
