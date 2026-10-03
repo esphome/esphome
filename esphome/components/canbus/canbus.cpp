@@ -1,5 +1,6 @@
 #include "canbus.h"
 #include <algorithm>
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -67,7 +68,7 @@ void Canbus::add_trigger(CanbusTrigger *trigger) {
 };
 
 void Canbus::loop() {
-  uint32_t now = millis();
+  uint32_t now = App.get_loop_component_start_time();
   if ((now - this->last_event_check_time_) >= EVENT_CHECK_INTERVAL_MS) {
     enum CanEventFlags events = this->get_events();
     this->log_events_(events);
@@ -150,13 +151,8 @@ void Canbus::log_events_(CanEventFlags events) {
         bool error_passive = status.rx_error_counter >= CAN_ERROR_PASSIVE_THRESHOLD ||
                              status.tx_error_counter >= CAN_ERROR_PASSIVE_THRESHOLD;
 
-        if (error_passive) {
-          ESP_LOGW(TAG, "entered error-active");
-          ESP_LOGW(TAG, "entered error-passive");
-        } else {
-          ESP_LOGW(TAG, "entered error-passive");
-          ESP_LOGW(TAG, "entered error-active");
-        }
+        ESP_LOGW(TAG, "error state toggled, now %s",
+                 error_passive ? LOG_STR_LITERAL("error-passive") : LOG_STR_LITERAL("error-active"));
         logged_event = true;
       } else {
         if (this->events_to_log_ & CanEventFlags::CAN_EVENT_PASSIVE) {

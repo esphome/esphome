@@ -63,7 +63,7 @@ struct CanFrame {
   uint8_t data[CAN_MAX_DATA_LENGTH] __attribute__((aligned(8)));
 };
 
-enum CanEventFlags {
+enum CanEventFlags : uint8_t {
   CAN_EVENT_PASSIVE = 1 << 0,
   CAN_EVENT_ACTIVE = 1 << 1,
   CAN_EVENT_BUS_OFF = 1 << 2,
@@ -122,7 +122,7 @@ class Canbus : public Component {
   CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
       callback_manager_{};
 
-  uint32_t events_to_log_{0};
+  uint8_t events_to_log_{0};
   bool bus_off_{false};
 
   // interval in which to check for new can bus events (bus-off, passive, active)
