@@ -726,7 +726,8 @@ async def to_code(config):
         )
     ]
 
-    glyphs = cg.static_const_array(config[CONF_RAW_GLYPH_ID], glyph_initializer)
+    # constexpr Glyph table in flash; on ESP8266 static_const_array would place it in RAM.
+    glyphs = cg.progmem_array(config[CONF_RAW_GLYPH_ID], glyph_initializer)
 
     font_height = pt_to_px(base_font.size.height)
     ascender = pt_to_px(base_font.size.ascender)

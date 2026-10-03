@@ -1,5 +1,3 @@
-from typing import Any
-
 import esphome.codegen as cg
 from esphome.components import audio, psram, speaker
 import esphome.config_validation as cv
@@ -17,15 +15,14 @@ from esphome.const import (
 from esphome.core.entity_helpers import inherit_property_from
 from esphome.types import ConfigType
 
+from .. import CONF_TAPS, resampler_ns, validate_taps
+
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@kahrendt"]
 
-resampler_ns = cg.esphome_ns.namespace("resampler")
 ResamplerSpeaker = resampler_ns.class_(
     "ResamplerSpeaker", cg.Component, speaker.Speaker
 )
-
-CONF_TAPS = "taps"
 
 PASSTHROUGH = "passthrough"
 
@@ -60,13 +57,6 @@ def _validate_audio_compatibility(config: ConfigType) -> None:
     )(config)
 
 
-def _validate_taps(taps: Any) -> int:
-    value = cv.int_range(min=16, max=128)(taps)
-    if value % 4 != 0:
-        raise cv.Invalid("Number of taps must be divisible by 4")
-    return value
-
-
 CONFIG_SCHEMA = cv.All(
     speaker.SPEAKER_SCHEMA.extend(
         {
@@ -80,7 +70,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
             cv.Optional(CONF_FILTERS, default=16): cv.int_range(min=2, max=1024),
-            cv.Optional(CONF_TAPS, default=16): _validate_taps,
+            cv.Optional(CONF_TAPS, default=16): validate_taps,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32]),

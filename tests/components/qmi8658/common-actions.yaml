@@ -3,5 +3,7 @@ button:
     name: Clear motion calibration
     on_press:
       - motion.clear_calibration:
+          id: qmi8658_motion
       - motion.clear_calibration:
+          id: qmi8658_motion
           save: true
