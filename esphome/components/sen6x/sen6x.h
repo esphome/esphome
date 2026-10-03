@@ -1,9 +1,13 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/optional.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 
 namespace esphome::sen6x {
 
@@ -31,6 +35,15 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   SUB_SENSOR(nox)
   SUB_SENSOR(co2)
   SUB_SENSOR(hcho)
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(fan_error)
+  SUB_BINARY_SENSOR(fan_speed_warning)
+  SUB_BINARY_SENSOR(rht_error)
+  SUB_BINARY_SENSOR(gas_error)
+  SUB_BINARY_SENSOR(co2_error)
+  SUB_BINARY_SENSOR(hcho_error)
+  SUB_BINARY_SENSOR(pm_error)
+#endif
 
  public:
   float get_setup_priority() const override { return setup_priority::DATA; }
@@ -68,6 +81,10 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   void poll_data_ready_();
   void read_measurements_();
   void parse_and_publish_measurements_();
+#ifdef USE_BINARY_SENSOR
+  void read_device_status_();
+  void parse_and_publish_device_status_();
+#endif
 
   std::string product_name_;
   std::string serial_number_;
@@ -81,6 +98,9 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   uint8_t poll_retries_remaining_{0};
   uint8_t read_words_{0};
   bool initialized_{false};
+#ifdef USE_BINARY_SENSOR
+  bool has_status_sensors_{false};
+#endif
   bool startup_complete_{false};
 };
 
