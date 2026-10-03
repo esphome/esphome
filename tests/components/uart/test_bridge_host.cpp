@@ -31,7 +31,7 @@ class BridgeFakeUart : public UARTComponent {
     return true;
   }
   size_t available() override { return this->rx_len_ - this->rx_pos_; }
-  size_t available_for_write() override { return this->block_tx_ ? 0 : SIZE_MAX; }
+  size_t available_for_write() override { return this->block_tx_ ? 0 : this->room_; }
   UARTFlushResult flush() override { return UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
 
   void rx(const uint8_t *data, size_t len) {
@@ -43,6 +43,7 @@ class BridgeFakeUart : public UARTComponent {
   }
 
   bool block_tx_{false};
+  size_t room_{SIZE_MAX};
   uint8_t tx_[32]{};
   size_t tx_len_{0};
 
@@ -57,6 +58,8 @@ class BridgeFakeUart : public UARTComponent {
 class UARTBridgeCopy : public ::testing::Test {
  protected:
   void SetUp() override {
+    this->a_.set_baud_rate(9600);
+    this->b_.set_baud_rate(9600);
     this->bridge_.set_a(&this->a_);
     this->bridge_.set_b(&this->b_);
   }
@@ -94,6 +97,30 @@ TEST_F(UARTBridgeCopy, FullSideDoesNotConsumeTheByte) {
   this->bridge_.loop();
   EXPECT_EQ(this->b_.tx_len_, 1u);
   EXPECT_EQ(this->b_.tx_[0], 0x33);
+}
+
+TEST_F(UARTBridgeCopy, UnknownRoomIsPacedToTheBaudRate) {
+  uint8_t bytes[30];
+  for (size_t i = 0; i < sizeof(bytes); i++) {
+    bytes[i] = static_cast<uint8_t>(i);
+  }
+  this->a_.rx(bytes, sizeof(bytes));
+  this->bridge_.loop();
+  // 9600 baud, 10 bits per byte, one 16 ms pass: 9600 / 625 = 15.
+  EXPECT_EQ(this->b_.tx_len_, 15u);
+  EXPECT_EQ(this->a_.available(), 15u);
+}
+
+TEST_F(UARTBridgeCopy, KnownRoomLimitsTheCopy) {
+  this->b_.room_ = 4;
+  uint8_t bytes[10];
+  for (size_t i = 0; i < sizeof(bytes); i++) {
+    bytes[i] = static_cast<uint8_t>(i);
+  }
+  this->a_.rx(bytes, sizeof(bytes));
+  this->bridge_.loop();
+  EXPECT_EQ(this->b_.tx_len_, 4u);
+  EXPECT_EQ(this->a_.available(), 6u);
 }
 
 }  // namespace esphome::uart::testing

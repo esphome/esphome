@@ -2,7 +2,7 @@ import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.bridge import DOMAIN as BRIDGE_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_UART_ID
+from esphome.const import CONF_DEBUG, CONF_DUMMY_RECEIVER, CONF_ID, CONF_UART_ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -36,6 +36,16 @@ def _subtree_references_uart(node: object, uart_id: str) -> bool:
     return False
 
 
+def _reject_dummy_receiver(uart_conf: ConfigType) -> ConfigType:
+    debug = uart_conf.get(CONF_DEBUG)
+    if isinstance(debug, dict) and debug.get(CONF_DUMMY_RECEIVER):
+        raise cv.Invalid(
+            "dummy_receiver reads this UART and drops the bytes the bridge should forward.",
+            [CONF_DEBUG, CONF_DUMMY_RECEIVER],
+        )
+    return uart_conf
+
+
 def _final_validate(config: ConfigType) -> ConfigType:
     # Same seen-set as the CDC-ACM bridge, so the two platforms cannot share an interface.
     full_config = fv.full_config.get()
@@ -64,6 +74,8 @@ def _final_validate(config: ConfigType) -> ConfigType:
                     "A bridge requires exclusive use of that UART.",
                     [key],
                 )
+    fv.id_declaration_match_schema(_reject_dummy_receiver)(config[CONF_UART_ID])
+    fv.id_declaration_match_schema(_reject_dummy_receiver)(config[CONF_PEER_ID])
     return config
 
 
