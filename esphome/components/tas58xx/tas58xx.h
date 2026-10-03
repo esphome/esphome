@@ -59,6 +59,9 @@ static_assert(
     FAULT_SENSOR_COUNT == 17,
     "enum FaultSensor altered: Update FAULT_SENSORS in binary_sensor.py and fault_sensor_bits in each model's cpp");
 
+/// ModelInfo::fault_sensor_bits value for a FaultSensor that the model does not have.
+static constexpr uint8_t NO_BIT = 0xFF;
+
 /// Everything that differs between models of the family. One constant instance exists per model, see
 /// model_*.cpp, and each TAS58xx instance points to the one for its model.
 ///
@@ -83,7 +86,7 @@ struct ModelInfo {
   /// Faults that stay set after the condition is gone and are cleared after each read
   uint32_t fault_latched_mask;
   const LogString *(*fault_name)(uint8_t index);
-  /// Bit index for each FaultSensor
+  /// Bit index for each FaultSensor, NO_BIT used where the model does not have that fault bit
   uint8_t fault_sensor_bits[FAULT_SENSOR_COUNT];
 };
 
