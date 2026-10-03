@@ -272,6 +272,7 @@ inline double stod(const StringRef &str, size_t *pos = nullptr) {
 // NOLINTEND(readability-identifier-naming,google-runtime-int,readability-non-const-parameter)
 
 #ifdef USE_JSON
+// A StringRef may view a scratch buffer (mqtt topics do), so the document copies it
 // NOLINTNEXTLINE(readability-identifier-naming)
 inline void convertToJson(const StringRef &src, JsonVariant dst) {
   // Bounded by the view length; a null, empty view becomes "" rather than JSON null
@@ -283,6 +284,11 @@ inline void convertToJson(const StringRef &src, JsonVariant dst) {
   // constructor and asks for empty() instead
   dst.set(JsonString(src.c_str(), src.size(), /* isStatic= */ false));
 }
+
+namespace json {
+// For a StringRef that outlives the document, see json_util.h. A null, empty view links "" too
+inline JsonString linked(const StringRef &s) { return JsonString(s.empty() ? "" : s.c_str(), s.size(), true); }
+}  // namespace json
 #endif  // USE_JSON
 
 }  // namespace esphome
