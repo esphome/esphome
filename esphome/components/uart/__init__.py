@@ -1,6 +1,7 @@
 from logging import getLogger
 import math
 import re
+from typing import Any
 
 from esphome import automation, pins
 import esphome.codegen as cg
@@ -70,9 +71,7 @@ DOMAIN = "uart"
 
 
 uart_ns = cg.esphome_ns.namespace("uart")
-# ZephyrUartWriteTarget is a Python-only marker parent (see its definition) that lets
-# `uart.write`'s `id:` validate against either a UARTComponent or a ZephyrUartEmulator.
-UARTComponent = uart_ns.class_("UARTComponent", ZephyrUartWriteTarget)
+UARTComponent = uart_ns.class_("UARTComponent")
 
 IDFUARTComponent = uart_ns.class_("IDFUARTComponent", UARTComponent, cg.Component)
 ESP8266UartComponent = uart_ns.class_(
@@ -83,7 +82,10 @@ LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
 HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
-ZephyrUartComponent = uart_ns.class_("ZephyrUartComponent", UARTComponent, cg.Component)
+# ZephyrUartWriteTarget lets Zephyr's `uart.write` also accept a ZephyrUartEmulator id.
+ZephyrUartComponent = uart_ns.class_(
+    "ZephyrUartComponent", UARTComponent, cg.Component, ZephyrUartWriteTarget
+)
 
 
 NATIVE_UART_CLASSES = (
@@ -802,12 +804,19 @@ async def register_uart_device(var, config):
     cg.add(var.set_uart_parent(parent))
 
 
+def _uart_write_id(value: Any) -> ID:
+    # Validated per platform (not at import), so only Zephyr accepts an emulator id.
+    if CORE.is_zephyr:
+        return cv.use_id(ZephyrUartWriteTarget)(value)
+    return cv.use_id(UARTComponent)(value)
+
+
 @automation.register_action(
     "uart.write",
     UARTWriteAction,
     cv.maybe_simple_value(
         {
-            cv.GenerateID(): cv.use_id(ZephyrUartWriteTarget),
+            cv.GenerateID(): _uart_write_id,
             cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
         },
         key=CONF_DATA,
