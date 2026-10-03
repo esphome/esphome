@@ -6,6 +6,8 @@ substitutions:
   rst_pin: GPIO2
   busy_pin: GPIO4
   dio1_pin: GPIO3
+  rx_enable_pin: GPIO12
+  tx_enable_pin: GPIO13
 
 packages:
   spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
