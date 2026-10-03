@@ -62,6 +62,7 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
 
   bool send_message(const PdMsg &msg) override;
   void on_state_changed() override { this->enable_loop_soon_any_context(); }
+  void on_soft_reset_received() override { this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_WAIT); }
 
   // PHY task only
   [[noreturn]] void run_task_();
@@ -73,6 +74,8 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   void try_attach_();
   bool measure_cc_(uint8_t meas_switch, uint8_t &level);
   void detach_();
+  void handle_hard_reset_();
+  void start_source_cap_wait_(SourceCapStep step);
   void start_negotiation_();
   void send_soft_reset_();
   void check_source_caps_();

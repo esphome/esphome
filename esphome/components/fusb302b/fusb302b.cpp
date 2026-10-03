@@ -36,9 +36,6 @@ static constexpr uint8_t MAX_IRQ_ROUNDS = 8;
 static constexpr uint8_t CC_STABLE_READS = 5;
 static constexpr uint8_t CC_LEVEL_UNSTABLE = 0xFF;
 
-// Type-C default power: 5 V (100 x 50 mV) at 500 mA (50 x 10 mA)
-static constexpr PdContract DEFAULT_CONTRACT{PD_PDO_TYPE_FIXED_SUPPLY, 100, 50};
-
 void IRAM_ATTR FUSB302B::gpio_intr(FUSB302B *arg) {
   TaskHandle_t handle = arg->task_.get_handle();
   if (handle == nullptr)
@@ -147,7 +144,8 @@ void FUSB302B::run_task_() {
   while (true) {
     uint32_t wait_ms = CC_POLL_INTERVAL_MS;
     if (this->attached_) {
-      const bool busy = this->waiting_for_source_caps_ || this->request_pending_ || this->check_ams_();
+      const bool busy = this->waiting_for_source_caps_ || this->request_pending_ || this->retry_request_pending_ ||
+                        this->check_ams_();
       wait_ms = busy ? PD_POLL_INTERVAL_MS : IDLE_POLL_INTERVAL_MS;
     }
     uint32_t bits = 0;
@@ -179,6 +177,7 @@ void FUSB302B::run_task_() {
       this->set_contract_(DEFAULT_CONTRACT);
       this->set_state_(PdState::PD_STATE_DEFAULT_CONTRACT);
     }
+    this->check_request_retry_();
     if (this->request_pending_ && !this->check_ams_()) {
       this->request_pending_ = false;
       this->start_negotiation_();
@@ -248,7 +247,10 @@ void FUSB302B::handle_interrupt_() {
     return;
   }
   if (interrupta & FUSB_INTERRUPTA_I_HARDRST) {
-    ESP_LOGD(TAG, "Hard reset received");
+    // The FIFOs are flushed, so there is nothing left to read
+    if (this->attached_)
+      this->handle_hard_reset_();
+    return;
   }
   if (interrupta & FUSB_INTERRUPTA_I_SOFTRST) {
     ESP_LOGV(TAG, "Soft reset received");
@@ -354,9 +356,18 @@ void FUSB302B::try_attach_() {
     this->set_state_(PdState::PD_STATE_DISCONNECTED);
   }
 
+  uint8_t status0 = 0;
+  if (!this->write_byte(FUSB_POWER, FUSB_POWER_ALL) || !this->read_byte(FUSB_STATUS0, &status0)) {
+    this->enter_error_();
+    return;
+  }
+  // A source may present its CC pull-up before VBUS is on; detach is only detected when VBUS drops
+  if (!(status0 & FUSB_STATUS0_VBUSOK))
+    return;
+
   uint8_t cc1 = 0;
   uint8_t cc2 = 0;
-  if (!this->write_byte(FUSB_POWER, FUSB_POWER_ALL) || !this->write_byte(FUSB_SWITCHES1, FUSB_SWITCHES1_SPECREV_REV2) ||
+  if (!this->write_byte(FUSB_SWITCHES1, FUSB_SWITCHES1_SPECREV_REV2) ||
       !this->write_byte(FUSB_MEASURE, FUSB_MEASURE_MDAC_CC) || !this->measure_cc_(FUSB_SWITCHES0_MEAS_CC1, cc1) ||
       !this->measure_cc_(FUSB_SWITCHES0_MEAS_CC2, cc2)) {
     this->enter_error_();
@@ -383,9 +394,7 @@ void FUSB302B::try_attach_() {
   }
   ESP_LOGD(TAG, "Attached on CC%u", meas_switch == FUSB_SWITCHES0_MEAS_CC1 ? 1 : 2);
   this->attached_ = true;
-  this->waiting_for_source_caps_ = true;
-  this->source_cap_step_ = SourceCapStep::SOURCE_CAP_STEP_WAIT;
-  this->source_cap_step_start_ = millis();
+  this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_WAIT);
   this->set_contract_(DEFAULT_CONTRACT);
   this->set_state_(PdState::PD_STATE_DEFAULT_CONTRACT);
 }
@@ -398,6 +407,19 @@ void FUSB302B::detach_() {
   this->reset_pd_();
   this->clear_contract_();
   this->set_state_(PdState::PD_STATE_DISCONNECTED);
+}
+
+void FUSB302B::handle_hard_reset_() {
+  ESP_LOGD(TAG, "Hard reset received");
+  // The source returns to Type-C default power and sends its capabilities again, using the current request voltage
+  this->request_pending_ = false;
+  if (!this->reset_pd_()) {
+    this->enter_error_();
+    return;
+  }
+  this->set_contract_(DEFAULT_CONTRACT);
+  this->set_state_(PdState::PD_STATE_DEFAULT_CONTRACT);
+  this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_WAIT);
 }
 
 void FUSB302B::enter_error_() {
@@ -414,17 +436,19 @@ void FUSB302B::enter_error_() {
 void FUSB302B::start_negotiation_() {
   ESP_LOGD(TAG, "Requesting source capabilities for %u V", this->get_request_voltage());
   this->send_message(this->make_control_msg_(PD_CNTRL_GET_SOURCE_CAP));
-  this->waiting_for_source_caps_ = true;
-  this->source_cap_step_ = SourceCapStep::SOURCE_CAP_STEP_GET_SENT;
-  this->source_cap_step_start_ = millis();
+  this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_GET_SENT);
 }
 
 void FUSB302B::send_soft_reset_() {
   this->reset_pd_();
   this->send_message(this->make_control_msg_(PD_CNTRL_SOFT_RESET));
   // The source answers a soft reset with new source capabilities
+  this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_SOFT_RESET_SENT);
+}
+
+void FUSB302B::start_source_cap_wait_(SourceCapStep step) {
   this->waiting_for_source_caps_ = true;
-  this->source_cap_step_ = SourceCapStep::SOURCE_CAP_STEP_SOFT_RESET_SENT;
+  this->source_cap_step_ = step;
   this->source_cap_step_start_ = millis();
 }
 

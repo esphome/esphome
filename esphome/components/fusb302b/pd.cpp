@@ -10,6 +10,9 @@ namespace esphome::fusb302b {
 static const char *const TAG = "fusb302b.pd";
 
 static constexpr uint32_t AMS_TIMEOUT_MS = 2000;
+// tSinkRequest: delay before repeating a request that the source answered with Wait
+static constexpr uint32_t SINK_REQUEST_MS = 100;
+static constexpr uint8_t MAX_WAIT_RETRIES = 10;
 
 // USB PD 6.4.1.2.3 Source Fixed Supply Power Data Object; other PDO types only report their type
 static PdContract parse_pdo(uint32_t pdo) {
@@ -57,6 +60,8 @@ void PowerDelivery::reset_protocol_() {
   this->last_received_msg_id_ = 255;
   this->msg_counter_ = 0;
   this->active_ams_ = false;
+  this->retry_request_pending_ = false;
+  this->wait_retries_ = 0;
 }
 
 void PowerDelivery::set_state_(PdState state) {
@@ -89,6 +94,14 @@ bool PowerDelivery::check_ams_() {
   return this->active_ams_;
 }
 
+void PowerDelivery::check_request_retry_() {
+  if (!this->retry_request_pending_ || millis() - this->wait_received_ms_ < SINK_REQUEST_MS)
+    return;
+  this->retry_request_pending_ = false;
+  this->set_ams_(true);
+  this->send_message(this->make_data_msg_(PD_DATA_REQUEST, &this->last_rdo_, 1));
+}
+
 bool PowerDelivery::transition_timed_out_() {
   // The AMS that sent the request only ends on PS_RDY, so an ended AMS while in transition means a timeout
   return this->state_ == PdState::PD_STATE_TRANSITION && !this->check_ams_();
@@ -98,6 +111,11 @@ void PowerDelivery::handle_message_(const PdMsg &msg) {
   if (msg.num_of_obj == 0 && msg.type == PD_CNTRL_GOODCRC) {
     // Our last message was received, so the next one gets a new MessageID
     this->msg_counter_++;
+    return;
+  }
+  // Soft_Reset always has MessageID 0, so it must not be dropped as a retransmission of the last message
+  if (msg.num_of_obj == 0 && msg.type == PD_CNTRL_SOFT_RESET) {
+    this->handle_soft_reset_(msg);
     return;
   }
   // Retransmissions repeat the MessageID of a message that was already handled
@@ -134,22 +152,23 @@ void PowerDelivery::handle_control_message_(const PdMsg &msg) {
       this->set_state_(PdState::PD_STATE_EXPLICIT_CONTRACT);
       break;
     case PD_CNTRL_REJECT:
+      ESP_LOGW(TAG, "Source rejected the request");
+      this->set_ams_(false);
+      break;
     case PD_CNTRL_WAIT:
-      ESP_LOGW(TAG, "Source refused the request (%s)",
-               msg.type == PD_CNTRL_REJECT ? LOG_STR_LITERAL("reject") : LOG_STR_LITERAL("wait"));
+      if (this->active_ams_ && this->wait_retries_ < MAX_WAIT_RETRIES) {
+        ESP_LOGD(TAG, "Source asked to wait, repeating the request");
+        this->wait_retries_++;
+        this->retry_request_pending_ = true;
+        this->wait_received_ms_ = millis();
+      } else {
+        ESP_LOGW(TAG, "Source kept answering Wait, giving up");
+      }
       this->set_ams_(false);
       break;
     case PD_CNTRL_PING:
     case PD_CNTRL_NOT_SUPPORTED:
       break;
-    case PD_CNTRL_SOFT_RESET: {
-      PdMsg accept = this->make_control_msg_(PD_CNTRL_ACCEPT);
-      accept.id = 0;
-      this->send_message(accept);
-      this->msg_counter_ = 0;
-      this->set_state_(PdState::PD_STATE_DEFAULT_CONTRACT);
-      break;
-    }
     case PD_CNTRL_GET_SINK_CAP: {
       // USB PD 6.4.1.2.3 Sink Fixed Supply PDO: 5 V, 3 A operational current (300 x 10 mA), USB comms capable
       static constexpr uint32_t SINK_PDO =
@@ -162,6 +181,18 @@ void PowerDelivery::handle_control_message_(const PdMsg &msg) {
       this->send_message(this->make_control_msg_(PD_CNTRL_REJECT));
       break;
   }
+}
+
+void PowerDelivery::handle_soft_reset_(const PdMsg &msg) {
+  this->reset_protocol_();
+  this->last_received_msg_id_ = msg.id;
+  this->send_message(this->make_control_msg_(PD_CNTRL_ACCEPT));
+  // A soft reset keeps the power level, but the outcome of a transition in progress is unknown
+  if (this->state_ == PdState::PD_STATE_TRANSITION) {
+    this->set_contract_(DEFAULT_CONTRACT);
+    this->set_state_(PdState::PD_STATE_DEFAULT_CONTRACT);
+  }
+  this->on_soft_reset_received();
 }
 
 void PowerDelivery::respond_to_source_caps_(const PdMsg &msg) {
@@ -194,6 +225,9 @@ void PowerDelivery::respond_to_source_caps_(const PdMsg &msg) {
   }
   ESP_LOGD(TAG, "Requesting PDO %u: %.2f V", position, selected.max_v * 0.05f);
   this->requested_contract_ = selected;
+  this->last_rdo_ = rdo;
+  this->retry_request_pending_ = false;
+  this->wait_retries_ = 0;
   this->send_message(this->make_data_msg_(PD_DATA_REQUEST, &rdo, 1));
 }
 

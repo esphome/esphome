@@ -66,6 +66,9 @@ struct PdContract {
   bool operator!=(const PdContract &other) const { return !(*this == other); }
 };
 
+// Type-C default power: 5 V (100 x 50 mV) at 500 mA (50 x 10 mA)
+static constexpr PdContract DEFAULT_CONTRACT{PD_PDO_TYPE_FIXED_SUPPLY, 100, 50};
+
 /// A contract packed into one word so it can be shared between tasks as an atomic.
 /// 0 means there is no contract (nothing attached).
 struct PackedContract {
@@ -105,6 +108,8 @@ class PowerDelivery {
   virtual bool send_message(const PdMsg &msg) = 0;
   /// Called after state_ or contract_ changed, to let the main loop publish it.
   virtual void on_state_changed() = 0;
+  /// Called after the source soft reset the protocol; it sends new source capabilities next.
+  virtual void on_soft_reset_received() = 0;
 
   void handle_message_(const PdMsg &msg);
   void reset_protocol_();
@@ -116,6 +121,8 @@ class PowerDelivery {
   bool check_ams_();
   /// Returns true when the source accepted a request but did not report the new supply ready in time.
   bool transition_timed_out_();
+  /// Sends the last request again once tSinkRequest has passed after the source answered Wait.
+  void check_request_retry_();
 
   PdMsg make_control_msg_(PdControlMsgType type) const;
   PdMsg make_data_msg_(PdDataMsgType type, const uint32_t *objects, uint8_t len) const;
@@ -127,18 +134,23 @@ class PowerDelivery {
 
   // PHY task only
   bool waiting_for_source_caps_{false};
+  bool retry_request_pending_{false};
 
  private:
   void handle_data_message_(const PdMsg &msg);
   void handle_control_message_(const PdMsg &msg);
+  void handle_soft_reset_(const PdMsg &msg);
   void respond_to_source_caps_(const PdMsg &msg);
 
   PdContract requested_contract_{};
   PdContract accepted_contract_{};
   uint32_t ams_start_{0};
+  uint32_t last_rdo_{0};
+  uint32_t wait_received_ms_{0};
   bool active_ams_{false};
   uint8_t last_received_msg_id_{255};
   uint8_t msg_counter_{0};
+  uint8_t wait_retries_{0};
 };
 
 }  // namespace esphome::fusb302b
