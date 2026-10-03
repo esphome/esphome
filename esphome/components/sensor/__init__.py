@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 import logging
 import math
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
@@ -124,7 +125,7 @@ from esphome.core.entity_helpers import (
 )
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
-from esphome.types import ConfigType
+from esphome.types import ConfigType, SafeExpType
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -400,6 +401,32 @@ def sensor_schema(
     return _SENSOR_SCHEMA.extend(schema)
 
 
+@dataclass
+class SensorData:
+    # Rendered filter data -> the PROGMEM table shared by every filter using it.
+    progmem_tables: dict[str, MockObj] = field(default_factory=dict)
+
+
+def _get_data() -> SensorData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = SensorData()
+    return CORE.data[DOMAIN]
+
+
+def _shared_progmem_table(
+    filter_id: ID, type_: MockObj, values: SafeExpType
+) -> MockObj:
+    """Return a PROGMEM table with these values; filters with the same data share one."""
+    tables = _get_data().progmem_tables
+    rhs = cg.safe_exp(values)
+    key = f"{type_} {rhs}"
+    if (table := tables.get(key)) is None:
+        # Derived from the filter id, like select's options array.
+        table_id = ID(f"{filter_id}_data", is_declaration=True, type=type_)
+        table = tables[key] = cg.progmem_array(table_id, rhs)
+    return table
+
+
 @FILTER_REGISTRY.register("offset", OffsetFilter, cv.templatable(cv.float_))
 async def offset_filter_to_code(config, filter_id):
     template_ = await cg.templatable(config, [], cg.float_)
@@ -415,27 +442,12 @@ async def multiply_filter_to_code(config, filter_id):
 TemplatableFloat = cg.esphome_ns.class_("TemplatableFn").template(cg.float_)
 
 
-@dataclass
-class SensorData:
-    # Rendered value list -> the PROGMEM table shared by every filter using it.
-    value_list_tables: dict[str, MockObj] = field(default_factory=dict)
-
-
-def _get_data() -> SensorData:
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = SensorData()
-    return CORE.data[DOMAIN]
-
-
-async def _value_list_table(filter_id: ID, values: list) -> tuple[MockObj, int]:
-    """Return a PROGMEM TemplatableFn<float> table for these values and its length."""
-    rhs = cg.safe_exp([await cg.templatable(x, [], cg.float_) for x in values])
-    tables = _get_data().value_list_tables
-    if (table := tables.get(key := str(rhs))) is None:
-        # Derived from the filter id, like select's options array.
-        table_id = ID(f"{filter_id}_values", is_declaration=True, type=TemplatableFloat)
-        table = tables[key] = cg.progmem_array(table_id, rhs)
-    return table, len(values)
+async def _value_list_table(filter_id: ID, values: list[Any]) -> MockObj:
+    """Shared PROGMEM value table, ended by an empty entry so filters store no count."""
+    fns = [await cg.templatable(x, [], cg.float_) for x in values]
+    return _shared_progmem_table(
+        filter_id, TemplatableFloat, [*fns, TemplatableFloat()]
+    )
 
 
 @FILTER_REGISTRY.register(
@@ -443,11 +455,10 @@ async def _value_list_table(filter_id: ID, values: list) -> tuple[MockObj, int]:
     FilterOutValueFilter,
     cv.Any(cv.templatable(cv.float_), [cv.templatable(cv.float_)]),
 )
-async def filter_out_filter_to_code(config, filter_id: ID) -> MockObj:
+async def filter_out_filter_to_code(config: Any, filter_id: ID) -> MockObj:
     if not isinstance(config, list):
         config = [config]
-    table, count = await _value_list_table(filter_id, config)
-    return cg.new_Pvariable(filter_id, table, count)
+    return cg.new_Pvariable(filter_id, await _value_list_table(filter_id, config))
 
 
 QUANTILE_SCHEMA = cv.All(
@@ -715,7 +726,9 @@ THROTTLE_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
     ThrottleWithPriorityFilter,
     THROTTLE_WITH_PRIORITY_SCHEMA,
 )
-async def throttle_with_priority_filter_to_code(config, filter_id):
+async def throttle_with_priority_filter_to_code(
+    config: ConfigType, filter_id: ID
+) -> MockObj:
     values = config[CONF_VALUE]
     if not isinstance(values, list):
         values = [values]
@@ -727,8 +740,8 @@ async def throttle_with_priority_filter_to_code(config, filter_id):
         filter_id = filter_id.copy()
         filter_id.type = ThrottleWithPriorityNanFilter
         return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
-    table, count = await _value_list_table(filter_id, values)
-    return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], table, count)
+    table = await _value_list_table(filter_id, values)
+    return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], table)
 
 
 HEARTBEAT_SCHEMA = cv.Schema(

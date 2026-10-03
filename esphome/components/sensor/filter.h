@@ -330,30 +330,24 @@ class MultiplyFilter : public Filter {
   TemplatableFn<float> multiplier_;
 };
 
-/// Non-template helper for value matching (implementation in filter.cpp)
-bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableFn<float> *values, size_t count);
-
 /// Base class for filters that compare sensor values against a fixed list of configured values.
 class ValueListFilter : public Filter {
  protected:
-  ValueListFilter(const TemplatableFn<float> *values, size_t count) : values_(values), count_(count) {}
+  explicit ValueListFilter(const TemplatableFn<float> *values) : values_(values) {}
 
   /// Check if sensor value matches any configured value (with accuracy rounding)
-  bool value_matches_any_(float sensor_value) {
-    return value_list_matches_any(this->parent_, sensor_value, this->values_, this->count_);
-  }
+  bool value_matches_any_(float sensor_value);
 
-  // PROGMEM table shared by filters with the same values; entries are function pointers, so
-  // aligned 32-bit loads from flash are safe on ESP8266.
+  // Shared PROGMEM table ended by an empty entry, so no count is stored; entries are function
+  // pointers, so aligned 32-bit loads from flash are safe on ESP8266.
   const TemplatableFn<float> *values_;
-  size_t count_;
 };
 
 /// A simple filter that only forwards the filter chain if it doesn't receive `value_to_filter_out`.
 class FilterOutValueFilter : public ValueListFilter {
  public:
-  FilterOutValueFilter(const TemplatableFn<float> *values_to_filter_out, size_t count)
-      : ValueListFilter(values_to_filter_out, count) {}
+  explicit FilterOutValueFilter(const TemplatableFn<float> *values_to_filter_out)
+      : ValueListFilter(values_to_filter_out) {}
 
   optional<float> new_value(float value) override {
     if (this->value_matches_any_(value))
@@ -373,21 +367,13 @@ class ThrottleFilter : public Filter {
   uint32_t min_time_between_inputs_;
 };
 
-/// Non-template helper for ThrottleWithPriorityFilter (implementation in filter.cpp)
-optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableFn<float> *values,
-                                                 size_t count, uint32_t &last_input, uint32_t min_time_between_inputs);
-
 /// Same as 'throttle' but will immediately publish values contained in `value_to_prioritize`.
 class ThrottleWithPriorityFilter : public ValueListFilter {
  public:
-  ThrottleWithPriorityFilter(uint32_t min_time_between_inputs, const TemplatableFn<float> *prioritized_values,
-                             size_t count)
-      : ValueListFilter(prioritized_values, count), min_time_between_inputs_(min_time_between_inputs) {}
+  ThrottleWithPriorityFilter(uint32_t min_time_between_inputs, const TemplatableFn<float> *prioritized_values)
+      : ValueListFilter(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
 
-  optional<float> new_value(float value) override {
-    return throttle_with_priority_new_value(this->parent_, value, this->values_, this->count_, this->last_input_,
-                                            this->min_time_between_inputs_);
-  }
+  optional<float> new_value(float value) override;
 
  protected:
   uint32_t last_input_{0};

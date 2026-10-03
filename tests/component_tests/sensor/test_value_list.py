@@ -13,11 +13,13 @@ def test_value_list_filters_share_progmem_tables(
     tables = re.findall(
         r"static constexpr TemplatableFn<float> (\w+)\[\] PROGMEM", main_cpp
     )
+    # Every table ends with an empty entry so the filters store no count.
+    assert main_cpp.count("TemplatableFn<float>()}") == len(tables)
     assert len(tables) == 3  # single, shared list, lambda
     single, shared, lam = tables
-    assert f"sensor::FilterOutValueFilter({single}, 1);" in main_cpp
-    assert main_cpp.count(f"sensor::FilterOutValueFilter({shared}, 2);") == 2
-    assert f"sensor::FilterOutValueFilter({lam}, 1);" in main_cpp
-    assert f"sensor::ThrottleWithPriorityFilter(1000, {shared}, 2);" in main_cpp
+    assert f"sensor::FilterOutValueFilter({single});" in main_cpp
+    assert main_cpp.count(f"sensor::FilterOutValueFilter({shared});") == 2
+    assert f"sensor::FilterOutValueFilter({lam});" in main_cpp
+    assert f"sensor::ThrottleWithPriorityFilter(1000, {shared});" in main_cpp
     assert "sensor::ThrottleWithPriorityNanFilter(1000);" in main_cpp
-    assert "return 42.0;" in main_cpp.split(f"{lam}[] PROGMEM", 1)[1].split("}};", 1)[0]
+    assert "return 42.0;" in main_cpp

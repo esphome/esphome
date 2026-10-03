@@ -18,7 +18,7 @@ namespace esphome {
 /// Codegen wraps constants in stateless lambdas so only a function pointer is needed.
 template<typename T, typename... X> class TemplatableFn {
  public:
-  TemplatableFn() = default;
+  constexpr TemplatableFn() = default;
   TemplatableFn(std::nullptr_t) = delete;
 
   // Exact return type match — direct function pointer storage
