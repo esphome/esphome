@@ -9,7 +9,6 @@ from esphome.const import (
     CONF_MODE,
     CONF_MQTT_ID,
     CONF_ON_VALUE,
-    CONF_TRIGGER_ID,
     CONF_VALUE,
     CONF_WEB_SERVER,
 )
@@ -29,11 +28,6 @@ text_ns = cg.esphome_ns.namespace("text")
 Text = text_ns.class_("Text", cg.EntityBase)
 TextPtr = Text.operator("ptr")
 
-# Triggers
-TextStateTrigger = text_ns.class_(
-    "TextStateTrigger", automation.Trigger.template(cg.std_string)
-)
-
 # Conditions
 TextMode = text_ns.enum("TextMode")
 
@@ -49,11 +43,7 @@ _TEXT_SCHEMA = (
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextComponent),
             cv.GenerateID(): cv.declare_id(Text),
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TextStateTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(),
             cv.Required(CONF_MODE): cv.enum(TEXT_MODES, upper=True),
         }
     )
@@ -103,8 +93,9 @@ async def setup_text_core_(
     cg.add(var.traits.set_mode(config[CONF_MODE]))
 
     for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_callback_automation(
+            var, "add_on_state_callback", [(cg.std_string, "x")], conf
+        )
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
