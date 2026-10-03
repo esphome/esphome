@@ -1,0 +1,4 @@
+packages:
+  modbus_tcp: !include common.yaml
+
+wifi: !remove

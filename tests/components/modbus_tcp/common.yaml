@@ -1,0 +1,18 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+tcp_uart:
+  - id: shelly_link
+    host: 192.0.2.10
+    port: 502
+    timeout: 30s
+    baud_rate: 19200
+
+modbus_tcp:
+  - id: shelly_uart
+    tcp_uart_id: shelly_link
+
+modbus:
+  - id: modbus_bus
+    uart_id: shelly_uart
