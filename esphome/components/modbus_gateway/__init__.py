@@ -1,9 +1,15 @@
 import esphome.codegen as cg
 from esphome.components import uart
-from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
+from esphome.components.const import (
+    CONF_DATA_BITS,
+    CONF_PARITY,
+    CONF_ROLE,
+    CONF_STOP_BITS,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_UART_ID
 from esphome.core import CORE
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
@@ -13,6 +19,7 @@ MULTI_CONF = True
 
 CONF_PORTS = "ports"
 CONF_RESPONSE_TIMEOUT = "response_timeout"
+CONF_TCP_UART_ID = "tcp_uart_id"
 
 modbus_gateway_ns = cg.esphome_ns.namespace("modbus_gateway")
 ModbusGateway = modbus_gateway_ns.class_("ModbusGateway", cg.Component, uart.UARTDevice)
@@ -62,6 +69,49 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _same_id(left, right) -> bool:
+    return str(left) == str(right) and str(left) != ""
+
+
+def _reject_port_direction(config: ConfigType) -> ConfigType:
+    """Ports are masters. A server hub writes replies, and a modbus_tcp link
+    yields replies on read. Neither can be the source of a request.
+    """
+    full = fv.full_config.get()
+    hubs = []
+    links = []
+    if full is not None:
+        hubs = full.get("modbus") or []
+        for item in full.get("modbus_tcp") or []:
+            if CONF_TCP_UART_ID in item:
+                links.append(item)
+    for index, port in enumerate(config[CONF_PORTS]):
+        if CONF_ID in port:
+            local = port[CONF_ID]
+            for hub in hubs:
+                if not _same_id(hub.get(CONF_UART_ID, ""), local):
+                    continue
+                if hub.get(CONF_ROLE, "client") != "server":
+                    continue
+                raise cv.Invalid(
+                    "A modbus hub with role: server writes a response. "
+                    "This port sends that write to the bus as a request. Use role: client",
+                    path=[CONF_PORTS, index],
+                )
+        port_uart = port.get(CONF_UART_ID)
+        if port_uart is None:
+            continue
+        for link in links:
+            if not _same_id(link.get(CONF_ID, ""), port_uart):
+                continue
+            raise cv.Invalid(
+                "A modbus_tcp link delivers responses on read and sends requests on write. "
+                "A gateway port has to read requests from a master",
+                path=[CONF_PORTS, index],
+            )
+    return config
+
+
 def _final_validate(config: ConfigType) -> ConfigType:
     uart.final_validate_device_schema(
         "modbus_gateway", require_tx=True, require_rx=True
@@ -71,7 +121,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
             uart.final_validate_device_schema(
                 "modbus_gateway", require_tx=True, require_rx=True
             )(port)
-    return config
+    return _reject_port_direction(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

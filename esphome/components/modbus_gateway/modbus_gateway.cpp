@@ -13,6 +13,9 @@ namespace esphome::modbus_gateway {
 static const char *const TAG = "modbus_gateway";
 
 static constexpr uint32_t BAD_LOG_INTERVAL_MS = 5000;
+// The Modbus client hub's default. A broadcast is never answered. The pause
+// lets the slave finish the write before the next frame.
+static constexpr uint32_t BROADCAST_TURNAROUND_MS = 600;
 
 // Same character size as the Modbus hub: start bit, data bits, parity and stop bits.
 // A UART that never set them is 8N1.
@@ -31,20 +34,24 @@ static uint8_t bits_per_char(uart::UARTComponent *uart) {
   return static_cast<uint8_t>(1 + data_bits + (parity ? 1 : 0) + stop_bits);
 }
 
-// ceil(3.5 character times). Millis cannot see less than 1 ms.
+// ceil(3.5 character times). Above 19200 baud the spec fixes the gap at
+// 1.75 ms. Millis cannot see that, and 1 ms can close a frame too early.
 static uint32_t gap_ms(uint32_t baud, uint8_t bits) {
-  if (baud == 0) {
+  if (baud == 0 || baud > 19200) {
     return 2;
   }
   return std::max<uint32_t>(1, (uint32_t(bits) * 3500 + baud - 1) / baud);
 }
 
-static uint32_t wire_ms(uint32_t baud, uint16_t len, uint8_t bits) {
-  if (baud == 0) {
-    return gap_ms(0, bits);
+// The address and the function must belong to the request that is on the bus.
+// An exception response sets the high bit of that function code.
+static bool response_matches(const uint8_t *request, uint16_t request_len, const uint8_t *response,
+                             uint16_t response_len) {
+  if (request_len < 2 || response_len < 2 || response[0] != request[0]) {
+    return false;
   }
-  uint32_t bits_ms = (uint32_t(len) * bits * 1000 + baud - 1) / baud;
-  return std::max<uint32_t>(1, bits_ms) + gap_ms(baud, bits);
+  uint8_t function = request[1];
+  return response[1] == function || response[1] == static_cast<uint8_t>(function | 0x80);
 }
 
 struct Inspect {
@@ -176,6 +183,14 @@ void ModbusGateway::log_bad_(uint32_t now, bool crc) {
   ESP_LOGW(TAG, "Dropping an incomplete frame");
 }
 
+void ModbusGateway::log_mismatch_(uint32_t now) {
+  if (now - this->last_mismatch_log_ms_ < BAD_LOG_INTERVAL_MS) {
+    return;
+  }
+  this->last_mismatch_log_ms_ = now;
+  ESP_LOGW(TAG, "Response ignored, it does not match the request");
+}
+
 bool ModbusGateway::write_frame_(uart::UARTComponent *dest, const uint8_t *data, uint16_t len) {
   if (dest == nullptr || len == 0) {
     return false;
@@ -189,17 +204,20 @@ bool ModbusGateway::write_frame_(uart::UARTComponent *dest, const uint8_t *data,
   return true;
 }
 
-void ModbusGateway::deliver_(uint8_t index, const uint8_t *data, uint16_t len) {
+bool ModbusGateway::deliver_(uint8_t index, const uint8_t *data, uint16_t len) {
   Port &port = this->ports_[index];
   if (port.local != nullptr) {
     if (!port.local->push_rx(data, len)) {
       this->log_dropped_(false, len);
+      return false;
     }
-    return;
+    return true;
   }
   if (!this->write_frame_(port.uart, data, len)) {
     this->log_dropped_(true, len);
+    return false;
   }
+  return true;
 }
 
 void ModbusGateway::log_dropped_(bool on_uart, uint16_t len) {
@@ -276,7 +294,7 @@ void ModbusGateway::read_port_(uint8_t index, uint32_t now) {
 
 void ModbusGateway::read_bus_(uint32_t now) {
   uint8_t tmp[64];
-  while (this->bus_len_<MAX_FRAME &&this->parent_->available()> 0) {
+  while (this->bus_len_ < MAX_FRAME && this->parent_->available() > 0) {
     size_t n = std::min(this->parent_->available(), sizeof(tmp));
     n = std::min(n, static_cast<size_t>(MAX_FRAME - this->bus_len_));
     if (!this->parent_->read_array(tmp, n)) {
@@ -302,8 +320,17 @@ void ModbusGateway::read_bus_(uint32_t now) {
       }
       return;
     }
+    if (!response_matches(this->request_, this->request_len_, this->bus_, found.len)) {
+      this->log_mismatch_(now);
+      consume(this->bus_, &this->bus_len_, found.len);
+      continue;
+    }
     uint8_t index = static_cast<uint8_t>(this->active_);
-    this->deliver_(index, this->bus_, found.len);
+    // A full port keeps the frame. Dropping it here would end the transaction
+    // and the next master could be given this answer.
+    if (!this->deliver_(index, this->bus_, found.len)) {
+      return;
+    }
     consume(this->bus_, &this->bus_len_, found.len);
     this->active_ = -1;
   }
@@ -328,7 +355,8 @@ bool ModbusGateway::start_next_(uint32_t now) {
     this->active_ = static_cast<int8_t>(index);
     this->sent_ms_ = now;
     this->bus_len_ = 0;
-    // Address 0 is a broadcast. There is no response to route.
+    // Address 0 is a broadcast. Slaves must not answer. loop() holds the bus
+    // for the turnaround and drops anything that arrives meanwhile.
     this->awaiting_ = this->request_[0] != 0;
     this->next_port_ = static_cast<uint8_t>((index + 1) % this->port_count_);
     return true;
@@ -346,8 +374,7 @@ void ModbusGateway::loop() {
   }
   if (this->active_ >= 0) {
     if (!this->awaiting_) {
-      if (now - this->sent_ms_ >=
-          wire_ms(this->parent_->get_baud_rate(), this->request_len_, bits_per_char(this->parent_))) {
+      if (now - this->sent_ms_ >= BROADCAST_TURNAROUND_MS) {
         this->active_ = -1;
       }
     } else {
