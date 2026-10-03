@@ -1,0 +1,5 @@
+bridge:
+  - platform: uart
+    id: uart_bridge
+    uart_id: uart_bus
+    peer_id: uart_peer

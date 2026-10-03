@@ -1,0 +1,12 @@
+uart:
+  - id: uart_bus
+    baud_rate: 9600
+    port: /dev/ttyS0
+  - id: uart_peer
+    baud_rate: 9600
+    port: /dev/ttyS1
+
+packages:
+  bridge: !include bridge-common.yaml
+
+wifi: !remove

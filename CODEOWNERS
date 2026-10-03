@@ -598,6 +598,7 @@ esphome/components/tuya/switch/* @jesserockz
 esphome/components/tuya/text_sensor/* @dentra
 esphome/components/tuya/water_heater/* @iago-veiga
 esphome/components/uart/* @esphome/core
+esphome/components/uart/bridge/* @Bascht74
 esphome/components/uart/button/* @ssieb
 esphome/components/uart/event/* @eoasmxd
 esphome/components/uart/packet_transport/* @clydebarrow

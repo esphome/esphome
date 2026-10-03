@@ -1,0 +1,9 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/bk72xx-ard.yaml
+  bridge: !include bridge-common.yaml
+
+uart:
+  - id: uart_peer
+    tx_pin: SERIAL2_TX
+    rx_pin: SERIAL2_RX
+    baud_rate: 9600

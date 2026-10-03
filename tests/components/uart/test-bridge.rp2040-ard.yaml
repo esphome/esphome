@@ -1,0 +1,9 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/rp2040-ard.yaml
+  bridge: !include bridge-common.yaml
+
+uart:
+  - id: uart_peer
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
