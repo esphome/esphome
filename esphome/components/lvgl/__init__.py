@@ -643,7 +643,7 @@ LVGL_TOP_LEVEL_SCHEMA = (
 
 
 def _not_on_esp8266(config: ConfigType) -> ConfigType:
-    # Font glyph data lives in flash on ESP8266, which LVGL reads one byte at a time.
+    # ESP8266 does not have enough RAM for LVGL to be practical.
     if CORE.is_esp8266:
         raise cv.Invalid("LVGL is not supported on ESP8266")
     return config
