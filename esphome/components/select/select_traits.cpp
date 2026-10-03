@@ -1,33 +1,17 @@
 #include "select_traits.h"
 
 #include <algorithm>
-#include <memory>
-#include <vector>
 
 namespace esphome::select {
 
-// Runtime option lists are copied, since the argument may not outlive the select. Copies are
-// tracked per select so a later call frees the previous one; codegen tables never use this.
-struct OwnedOptions {
-  const SelectTraits *traits;
-  std::unique_ptr<const char *[]> table;
-};
-static std::vector<OwnedOptions> &owned_options() {
-  static std::vector<OwnedOptions> owned;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-  return owned;
-}
-
+// Runtime option lists are copied, since the argument may not outlive the select; the previous
+// copy is freed, flash tables never are.
 void SelectTraits::set_options_copy_(const char *const *options, size_t count) {
-  auto table = std::make_unique<const char *[]>(count);
-  std::copy(options, options + count, table.get());
-  this->options_ = SelectOptions(table.get(), count);
-  for (auto &owned : owned_options()) {
-    if (owned.traits == this) {
-      owned.table = std::move(table);
-      return;
-    }
-  }
-  owned_options().push_back({this, std::move(table)});
+  auto *table = new const char *[count];  // NOLINT(cppcoreguidelines-owning-memory)
+  std::copy(options, options + count, table);
+  if (this->options_.size_ & SelectOptions::OWNED_BIT)
+    delete[] this->options_.data_;  // NOLINT(cppcoreguidelines-owning-memory)
+  this->options_ = SelectOptions(table, count | SelectOptions::OWNED_BIT);
 }
 
 void SelectTraits::set_options(const std::initializer_list<const char *> &options) {

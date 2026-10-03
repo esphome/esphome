@@ -60,4 +60,25 @@ TEST(SelectTraits, CopyingAnotherSelectSurvivesItsNextRuntimeList) {
   EXPECT_STREQ(copy.get_options()[1], "b");
 }
 
+TEST(SelectTraits, StaticTablesAreNeverOwned) {
+  SelectTraits traits;
+  traits.set_options({"a", "b", "c"});
+  traits.set_options_static(OPTIONS, 3);
+  EXPECT_EQ(traits.get_options().data(), OPTIONS);
+  EXPECT_EQ(traits.get_options().size(), 3U);
+  // A runtime list after a static one copies and leaves the static table alone
+  traits.set_options({"x"});
+  EXPECT_NE(traits.get_options().data(), OPTIONS);
+  EXPECT_EQ(traits.get_options().size(), 1U);
+  EXPECT_STREQ(OPTIONS[0], "low");
+}
+
+TEST(SelectTraits, CopyOfItsOwnOptionsStaysValid) {
+  SelectTraits traits;
+  traits.set_options({"a", "b"});
+  traits.set_options(traits.get_options());
+  ASSERT_EQ(traits.get_options().size(), 2U);
+  EXPECT_STREQ(traits.get_options()[1], "b");
+}
+
 }  // namespace esphome::select::testing
