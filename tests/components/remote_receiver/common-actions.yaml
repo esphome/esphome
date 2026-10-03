@@ -106,8 +106,8 @@ on_nexa:
 on_panasonic:
   then:
     - logger.log:
-        format: "on_panasonic: %u %lu"
-        args: ["x.address", "long(x.command)"]
+        format: "on_panasonic: %lu %lu %u"
+        args: ["long(x.address)", "long(x.command)", "x.nbits"]
 on_pioneer:
   then:
     - logger.log:
