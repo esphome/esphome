@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 from esphome.components.const import CONF_TARGET_COUNT
+from esphome.components.ld600x import ld600x_ns
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_X,
@@ -29,6 +30,9 @@ from .const import (
 )
 
 DEPENDENCIES = ["ld6002b"]
+
+AreaKind = ld600x_ns.enum("AreaKind")
+AreaAxis = ld600x_ns.enum("AreaAxis")
 
 # The ld2450 defaults for a streamed value: hold the last reading for a second so a
 # dropped frame does not read as absence, then rate-limit what reaches the frontend.
@@ -119,12 +123,12 @@ AREA_SCHEMA = cv.Schema(
 
 # (config key, C++ setter axis) for the six bounds every area sensor block carries.
 _AREA_AXES = (
-    (KEY_X_MIN, "x_min"),
-    (KEY_X_MAX, "x_max"),
-    (KEY_Y_MIN, "y_min"),
-    (KEY_Y_MAX, "y_max"),
-    (CONF_Z_MIN, "z_min"),
-    (CONF_Z_MAX, "z_max"),
+    (KEY_X_MIN, AreaAxis.AREA_AXIS_X_MIN),
+    (KEY_X_MAX, AreaAxis.AREA_AXIS_X_MAX),
+    (KEY_Y_MIN, AreaAxis.AREA_AXIS_Y_MIN),
+    (KEY_Y_MAX, AreaAxis.AREA_AXIS_Y_MAX),
+    (CONF_Z_MIN, AreaAxis.AREA_AXIS_Z_MIN),
+    (CONF_Z_MAX, AreaAxis.AREA_AXIS_Z_MAX),
 )
 
 CONFIG_SCHEMA = (
@@ -176,10 +180,13 @@ async def to_code(config: ConfigType) -> None:
                 sens = await sensor.new_sensor(cluster_id_config)
                 cg.add(hub.set_target_cluster_id_sensor(i, sens))
 
-    for kind in ("interference", "detection"):
+    for kind, area_kind in (
+        ("interference", AreaKind.AREA_KIND_INTERFERENCE),
+        ("detection", AreaKind.AREA_KIND_DETECTION),
+    ):
         for i in range(AREA_COUNT):
             if area_config := config.get(f"{kind}_area_{i}"):
                 for key, axis in _AREA_AXES:
                     if axis_config := area_config.get(key):
                         sens = await sensor.new_sensor(axis_config)
-                        cg.add(getattr(hub, f"set_{kind}_area_{axis}_sensor")(i, sens))
+                        cg.add(hub.set_area_sensor(area_kind, i, axis, sens))
