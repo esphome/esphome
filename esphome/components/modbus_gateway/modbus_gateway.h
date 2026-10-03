@@ -71,6 +71,7 @@ class ModbusGateway : public Component, public uart::UARTDevice {
   void store_cache_(const uint8_t *request, uint16_t request_len, const uint8_t *response, uint16_t response_len,
                     uint32_t now);
   void log_bad_(uint32_t now, bool crc);
+  void log_dropped_(bool on_uart, uint16_t len);
   uart::UARTComponent *endpoint_(uint8_t index);
 
   Port ports_[MAX_PORTS]{};
@@ -81,6 +82,7 @@ class ModbusGateway : public Component, public uart::UARTDevice {
   uint32_t bus_last_ms_{0};
   uint32_t last_bad_log_ms_{0};
   uint32_t last_timeout_log_ms_{0};
+  uint32_t last_response_log_ms_{0};
   uint16_t request_len_{0};
   uint16_t cache_len_{0};
   uint16_t bus_len_{0};

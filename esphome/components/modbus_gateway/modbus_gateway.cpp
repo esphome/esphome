@@ -12,23 +12,39 @@ namespace esphome::modbus_gateway {
 
 static const char *const TAG = "modbus_gateway";
 
-static constexpr uint32_t BITS_PER_CHAR = 11;
 static constexpr uint32_t BAD_LOG_INTERVAL_MS = 5000;
 
-// ceil(3.5 characters * 11 bits * 1000 ms / baud). Millis cannot see less than 1 ms.
-static uint32_t gap_ms(uint32_t baud) {
+// Same character size as the Modbus hub: start bit, data bits, parity and stop bits.
+// A UART that never set them is 8N1.
+static uint8_t bits_per_char(uart::UARTComponent *uart) {
+  uint8_t data_bits = 8;
+  uint8_t stop_bits = 1;
+  if (uart != nullptr) {
+    if (uart->get_data_bits() != 0) {
+      data_bits = uart->get_data_bits();
+    }
+    if (uart->get_stop_bits() != 0) {
+      stop_bits = uart->get_stop_bits();
+    }
+  }
+  bool parity = uart != nullptr && uart->get_parity() != uart::UART_CONFIG_PARITY_NONE;
+  return static_cast<uint8_t>(1 + data_bits + (parity ? 1 : 0) + stop_bits);
+}
+
+// ceil(3.5 character times). Millis cannot see less than 1 ms.
+static uint32_t gap_ms(uint32_t baud, uint8_t bits) {
   if (baud == 0) {
     return 2;
   }
-  return std::max<uint32_t>(1, (38500 + baud - 1) / baud);
+  return std::max<uint32_t>(1, (uint32_t(bits) * 3500 + baud - 1) / baud);
 }
 
-static uint32_t wire_ms(uint32_t baud, uint16_t len) {
+static uint32_t wire_ms(uint32_t baud, uint16_t len, uint8_t bits) {
   if (baud == 0) {
-    return gap_ms(0);
+    return gap_ms(0, bits);
   }
-  uint32_t bits_ms = (uint32_t(len) * BITS_PER_CHAR * 1000 + baud - 1) / baud;
-  return std::max<uint32_t>(1, bits_ms) + gap_ms(baud);
+  uint32_t bits_ms = (uint32_t(len) * bits * 1000 + baud - 1) / baud;
+  return std::max<uint32_t>(1, bits_ms) + gap_ms(baud, bits);
 }
 
 struct Inspect {
@@ -177,13 +193,26 @@ void ModbusGateway::deliver_(uint8_t index, const uint8_t *data, uint16_t len) {
   Port &port = this->ports_[index];
   if (port.local != nullptr) {
     if (!port.local->push_rx(data, len)) {
-      ESP_LOGW(TAG, "Response dropped, the buffer holds one frame");
+      this->log_dropped_(false, len);
     }
     return;
   }
   if (!this->write_frame_(port.uart, data, len)) {
-    ESP_LOGW(TAG, "Response dropped, the UART cannot take %u bytes", static_cast<unsigned>(len));
+    this->log_dropped_(true, len);
   }
+}
+
+void ModbusGateway::log_dropped_(bool on_uart, uint16_t len) {
+  uint32_t now = millis();
+  if (now - this->last_response_log_ms_ < BAD_LOG_INTERVAL_MS) {
+    return;
+  }
+  this->last_response_log_ms_ = now;
+  if (!on_uart) {
+    ESP_LOGW(TAG, "Response dropped, the buffer holds one frame");
+    return;
+  }
+  ESP_LOGW(TAG, "Response dropped, the UART cannot take %u bytes", static_cast<unsigned>(len));
 }
 
 bool ModbusGateway::serve_from_cache_(uint8_t index, const uint8_t *data, uint16_t len, uint32_t now) {
@@ -218,7 +247,7 @@ void ModbusGateway::take_requests_(uint8_t index, uint32_t now) {
   Port &port = this->ports_[index];
   uart::UARTComponent *end = this->endpoint_(index);
   uint32_t baud = end != nullptr && end->get_baud_rate() != 0 ? end->get_baud_rate() : 9600;
-  uint32_t gap = gap_ms(baud);
+  uint32_t gap = gap_ms(baud, bits_per_char(end));
   while (port.len > 0) {
     bool silent = now - port.last_ms >= gap;
     Inspect found = inspect(port.data, port.len, true, silent);
@@ -285,7 +314,7 @@ void ModbusGateway::read_bus_(uint32_t now) {
     this->bus_len_ += static_cast<uint16_t>(n);
     this->bus_last_ms_ = now;
   }
-  uint32_t gap = gap_ms(this->parent_->get_baud_rate());
+  uint32_t gap = gap_ms(this->parent_->get_baud_rate(), bits_per_char(this->parent_));
   while (this->bus_len_ > 0 && this->active_ >= 0) {
     bool silent = now - this->bus_last_ms_ >= gap;
     Inspect found = inspect(this->bus_, this->bus_len_, false, silent);
@@ -354,7 +383,8 @@ void ModbusGateway::loop() {
   }
   if (this->active_ >= 0) {
     if (!this->awaiting_) {
-      if (now - this->sent_ms_ >= wire_ms(this->parent_->get_baud_rate(), this->request_len_)) {
+      if (now - this->sent_ms_ >=
+          wire_ms(this->parent_->get_baud_rate(), this->request_len_, bits_per_char(this->parent_))) {
         this->active_ = -1;
       }
     } else {
