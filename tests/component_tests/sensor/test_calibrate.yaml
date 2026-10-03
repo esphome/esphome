@@ -42,3 +42,10 @@ sensor:
           datapoints:
             - 0.0 -> 1.0
             - 10.0 -> 21.0
+  # User ids equal to the old derived table name and to the helper's base name.
+  - platform: template
+    id: sensor_calibratelinearfilter_id_data
+    lambda: return 1.0;
+  - platform: template
+    id: sensor_calibrate_linear
+    lambda: return 1.0;

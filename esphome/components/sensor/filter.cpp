@@ -392,18 +392,18 @@ void HeartbeatFilter::initialize(Sensor *parent, Filter *next) {
 
 // The calibration tables hold only floats, so aligned 32-bit loads from PROGMEM are safe on ESP8266.
 optional<float> CalibrateLinearFilter::new_value(float value) {
-  for (size_t i = 0; i < this->count_; i++) {
-    const auto &function = this->functions_[i];
-    if (!std::isfinite(function[2]) || value < function[2])
-      return (value * function[0]) + function[1];
+  // Always returns: codegen ends the table with a segment whose boundary is NaN.
+  for (const auto *function = this->functions_;; function++) {
+    if (!std::isfinite((*function)[2]) || value < (*function)[2])
+      return (value * (*function)[0]) + (*function)[1];
   }
-  return NAN;
 }
 
 optional<float> CalibratePolynomialFilter::new_value(float value) {
   float res = 0.0f;
   float x = 1.0f;
-  for (size_t i = 0; i < this->count_; i++) {
+  const auto count = static_cast<size_t>(this->coefficients_[0]);
+  for (size_t i = 1; i <= count; i++) {
     res += x * this->coefficients_[i];
     x *= value;
   }

@@ -31,11 +31,14 @@ def test_calibration_tables_are_shared_progmem(
     )
     assert len(linear) == 2  # the two exact filters share one table
     exact, least_squares = linear
-    assert main_cpp.count(f"sensor::CalibrateLinearFilter({exact}, 2);") == 2
-    assert f"sensor::CalibrateLinearFilter({least_squares}, 1);" in main_cpp
+    assert main_cpp.count(f"sensor::CalibrateLinearFilter({exact});") == 2
+    assert f"sensor::CalibrateLinearFilter({least_squares});" in main_cpp
 
     poly = re.search(
-        r"static constexpr float (\w+)\[\] PROGMEM = \{1\.0f, 2\.0f\};", main_cpp
+        r"static constexpr float (\w+)\[\] PROGMEM = \{2\.0f, 1\.0f, 2\.0f\};", main_cpp
     )
     assert poly is not None
-    assert f"sensor::CalibratePolynomialFilter({poly.group(1)}, 2);" in main_cpp
+    assert f"sensor::CalibratePolynomialFilter({poly.group(1)});" in main_cpp
+    # Table names never reuse a user id.
+    assert exact != "sensor_calibrate_linear"
+    assert "sensor_calibratelinearfilter_id_data" not in (exact, least_squares)

@@ -566,23 +566,21 @@ template<size_t N> class OrFilter : public Filter {
 /// Piecewise linear calibration; the segments are a PROGMEM table shared by filters with the same data.
 class CalibrateLinearFilter : public Filter {
  public:
-  CalibrateLinearFilter(const std::array<float, 3> *functions, size_t count) : functions_(functions), count_(count) {}
+  explicit CalibrateLinearFilter(const std::array<float, 3> *functions) : functions_(functions) {}
   optional<float> new_value(float value) override;
 
  protected:
-  const std::array<float, 3> *functions_;
-  size_t count_;
+  const std::array<float, 3> *functions_;  // Last segment has a NaN boundary, which ends the table
 };
 
 /// Polynomial calibration; the coefficients are a PROGMEM table shared by filters with the same data.
 class CalibratePolynomialFilter : public Filter {
  public:
-  CalibratePolynomialFilter(const float *coefficients, size_t count) : coefficients_(coefficients), count_(count) {}
+  explicit CalibratePolynomialFilter(const float *coefficients) : coefficients_(coefficients) {}
   optional<float> new_value(float value) override;
 
  protected:
-  const float *coefficients_;
-  size_t count_;
+  const float *coefficients_;  // [count, c0, c1, ...]
 };
 
 class ClampFilter : public Filter {

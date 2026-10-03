@@ -1,4 +1,3 @@
-from dataclasses import dataclass, field
 import logging
 import math
 
@@ -128,7 +127,6 @@ from esphome.types import ConfigType
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
-DOMAIN = "sensor"
 
 DEVICE_CLASSES = [
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
@@ -794,31 +792,6 @@ def validate_calibrate_linear(config):
 LINEAR_SEGMENT = cg.std_ns.class_("array").template(cg.float_, 3)
 
 
-@dataclass
-class SensorData:
-    # Rendered calibration data -> the PROGMEM table shared by every filter using it.
-    calibration_tables: dict[str, MockObj] = field(default_factory=dict)
-
-
-def _get_data() -> SensorData:
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = SensorData()
-    return CORE.data[DOMAIN]
-
-
-def _calibration_table(
-    filter_id: ID, type_: MockObj, values: list[float] | list[list[float]]
-) -> MockObj:
-    tables = _get_data().calibration_tables
-    rhs = cg.safe_exp(values)
-    key = f"{type_} {rhs}"
-    if (table := tables.get(key)) is None:
-        # Derived from the filter id, like select's options array.
-        table_id = ID(f"{filter_id}_data", is_declaration=True, type=type_)
-        table = tables[key] = cg.progmem_array(table_id, rhs)
-    return table
-
-
 @FILTER_REGISTRY.register(
     "calibrate_linear",
     CalibrateLinearFilter,
@@ -845,8 +818,11 @@ async def calibrate_linear_filter_to_code(config, filter_id):
         linear_functions = [[k, b, float("NaN")]]
     elif config[CONF_METHOD] == "exact":
         linear_functions = map_linear(x, y)
-    table = _calibration_table(filter_id, LINEAR_SEGMENT, linear_functions)
-    return cg.new_Pvariable(filter_id, table, len(linear_functions))
+    # The last segment always has a NaN boundary, so the filter needs no count.
+    table = cg.shared_progmem_array(
+        "sensor_calibrate_linear", LINEAR_SEGMENT, linear_functions
+    )
+    return cg.new_Pvariable(filter_id, table)
 
 
 CONF_DEGREE = "degree"
@@ -884,8 +860,11 @@ async def calibrate_polynomial_filter_to_code(config, filter_id):
     # Column vector
     b = [[v] for v in y]
     res = [v[0] for v in _lstsq(a, b)]
-    table = _calibration_table(filter_id, cg.float_, res)
-    return cg.new_Pvariable(filter_id, table, len(res))
+    # The first entry holds the coefficient count, so the filter needs no count field.
+    table = cg.shared_progmem_array(
+        "sensor_calibrate_polynomial", cg.float_, [float(len(res)), *res]
+    )
+    return cg.new_Pvariable(filter_id, table)
 
 
 def validate_clamp(config):
