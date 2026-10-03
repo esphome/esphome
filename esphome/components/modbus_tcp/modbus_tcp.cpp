@@ -46,6 +46,11 @@ void ModbusTcp::loop() {
 }
 
 void ModbusTcp::write_array(const uint8_t *data, size_t len) {
+  // The new request is still buffered, so this write answers the previous one.
+  if (this->server_ && this->rx_len_ != 0) {
+    note_drop(this->last_drop_log_ms_, LOG_STR("Reply to the previous request, dropped"));
+    return;
+  }
   // A complete frame is only still here because the transport could not take it.
   // The hub has moved on, so the next write replaces it instead of appending.
   if (this->tx_len_ != 0 && rtu_crc_ok(this->tx_, this->tx_len_)) {

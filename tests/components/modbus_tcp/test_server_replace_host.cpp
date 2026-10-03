@@ -56,4 +56,24 @@ TEST(ModbusTcpServer, UnreadRequestIsKept) {
   EXPECT_EQ(link.available(), waiting);
 }
 
+TEST(ModbusTcpServer, ReplyWhileTheNewRequestIsBufferedIsDropped) {
+  ServerLink link;
+  link.push(7, 1, PDU, sizeof(PDU));
+  uint8_t taken[16];
+  ASSERT_TRUE(link.read_array(taken, link.available()));
+  link.push(8, 1, PDU, sizeof(PDU));
+  ASSERT_GT(link.available(), 0u);
+
+  // 01 03 00 00 00 01 84 0A, a complete RTU frame.
+  const uint8_t reply[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
+  link.write_array(reply, sizeof(reply));
+  EXPECT_TRUE(link.pending());
+  EXPECT_EQ(link.txn(), 8);
+  EXPECT_EQ(link.held(), 0);
+
+  ASSERT_TRUE(link.read_array(taken, link.available()));
+  link.write_array(reply, sizeof(reply));
+  EXPECT_FALSE(link.pending());
+}
+
 }  // namespace
