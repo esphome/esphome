@@ -25,17 +25,13 @@ DECLARE_REMOTE_PROTOCOL(Haier)
 
 template<typename... Ts> class HaierAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  void set_code_template(std::vector<uint8_t> (*func)(Ts...)) { this->code_.set_template(func); }
-  void set_code_static(const uint8_t *code, int16_t len) { this->code_.set_static(code, len); }
+  TEMPLATABLE_BYTES(code)
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     HaierData data{};
     data.data = this->code_.value(x...);
     HaierProtocol().encode(dst, data);
   }
-
- protected:
-  TemplatableBytes<Ts...> code_;
 };
 
 }  // namespace esphome::remote_base

@@ -2042,22 +2042,14 @@ def midea_dumper(var, config):
     pass
 
 
-async def _set_byte_code(
-    value: Any, args: TemplateArgsType, set_template: MockObj, set_static: MockObj
-) -> None:
-    """Lambdas stay lambdas; constant codes go to a PROGMEM table shared by equal codes."""
-    if cg.is_template(value):
-        vec_ = cg.std_vector.template(cg.uint8)
-        cg.add(set_template(await cg.templatable(value, args, vec_)))
-    else:
-        table = cg.shared_progmem_array("remote_base_code", cg.uint8, list(value))
-        cg.add(set_static(table, len(value)))
-
-
 @register_action("midea", MideaAction, MIDEA_SCHEMA)
 async def midea_action(var, config, args):
-    await _set_byte_code(
-        config[CONF_CODE], args, var.set_code_template, var.set_code_static
+    await automation.templatable_bytes(
+        config[CONF_CODE],
+        args,
+        var.set_code_template,
+        var.set_code_static,
+        "remote_base_code",
     )
 
 
@@ -2110,8 +2102,12 @@ def aeha_dumper(var, config):
 async def aeha_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
     cg.add(var.set_address(template_))
-    await _set_byte_code(
-        config[CONF_DATA], args, var.set_data_template, var.set_data_static
+    await automation.templatable_bytes(
+        config[CONF_DATA],
+        args,
+        var.set_data_template,
+        var.set_data_static,
+        "remote_base_code",
     )
     templ = await cg.templatable(config[CONF_CARRIER_FREQUENCY], args, cg.uint32)
     cg.add(var.set_carrier_frequency(templ))
@@ -2208,8 +2204,12 @@ def haier_dumper(var, config):
 
 @register_action("haier", HaierAction, HAIER_SCHEMA)
 async def haier_action(var, config, args):
-    await _set_byte_code(
-        config[CONF_CODE], args, var.set_code_template, var.set_code_static
+    await automation.templatable_bytes(
+        config[CONF_CODE],
+        args,
+        var.set_code_template,
+        var.set_code_static,
+        "remote_base_code",
     )
 
 
@@ -2351,8 +2351,12 @@ def mirage_dumper(var, config):
 
 @register_action("mirage", MirageAction, MIRAGE_SCHEMA)
 async def mirage_action(var, config, args):
-    await _set_byte_code(
-        config[CONF_CODE], args, var.set_code_template, var.set_code_static
+    await automation.templatable_bytes(
+        config[CONF_CODE],
+        args,
+        var.set_code_template,
+        var.set_code_static,
+        "remote_base_code",
     )
 
 

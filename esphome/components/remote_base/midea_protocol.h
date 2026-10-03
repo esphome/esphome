@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "remote_base.h"
 
@@ -20,6 +21,10 @@ class MideaData {
   // Make from vector
   MideaData(const std::vector<uint8_t> &data) {
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
+  }
+  // Make from a static code, which may be in PROGMEM
+  MideaData(const uint8_t *data, size_t len) {
+    progmem_memcpy(this->data_.data(), data, std::min(len, this->data_.size()));
   }
 
   uint8_t *data() { return this->data_.data(); }
@@ -76,17 +81,14 @@ DECLARE_REMOTE_PROTOCOL(Midea)
 
 template<typename... Ts> class MideaAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  void set_code_template(std::vector<uint8_t> (*func)(Ts...)) { this->code_.set_template(func); }
-  void set_code_static(const uint8_t *code, int16_t len) { this->code_.set_static(code, len); }
+  TEMPLATABLE_BYTES(code)
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
-    MideaData data(this->code_.value(x...));
+    MideaData data = this->code_.is_static() ? MideaData(this->code_.data(), this->code_.size())
+                                             : MideaData(this->code_.value(x...));
     data.finalize();
     MideaProtocol().encode(dst, data);
   }
-
- protected:
-  TemplatableBytes<Ts...> code_;
 };
 
 }  // namespace esphome::remote_base
