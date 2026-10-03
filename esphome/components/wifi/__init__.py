@@ -16,6 +16,7 @@ from esphome.components.esp32 import (
 )
 from esphome.components.network import (
     add_use_address,
+    final_validate_no_manual_ip_if_ipv6_only,
     get_network_priority,
     has_high_performance_networking,
     ip_address_literal,
@@ -396,6 +397,7 @@ def _consume_wifi_sockets(config: ConfigType) -> ConfigType:
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(
+    final_validate_no_manual_ip_if_ipv6_only,
     final_validate,
     validate_variant,
     _consume_wifi_sockets,
