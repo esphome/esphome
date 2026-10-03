@@ -19,3 +19,65 @@ display:
       then:
         lambda: |-
           ESP_LOGD("display", "1 -> 2");
+
+# Partial-update coverage
+#
+# Exercise every SSD1306 geometry supported by partial_updates.
+# These displays intentionally omit reset_pin; the existing display
+# above retains reset-pin and page/action coverage.
+  - platform: ssd1306_i2c
+    i2c_id: i2c_bus
+    model: SSD1306_128X32
+    address: 0x3C
+    id: ssd1306_i2c_partial_128x32
+    partial_updates: true
+    update_interval: never
+
+  - platform: ssd1306_i2c
+    i2c_id: i2c_bus
+    model: SSD1306_128X64
+    address: 0x3D
+    id: ssd1306_i2c_partial_128x64
+    partial_updates: true
+    update_interval: never
+
+  - platform: ssd1306_i2c
+    i2c_id: i2c_bus
+    model: SSD1306_96X16
+    address: 0x3C
+    id: ssd1306_i2c_partial_96x16
+    partial_updates: true
+    update_interval: never
+
+  - platform: ssd1306_i2c
+    i2c_id: i2c_bus
+    model: SSD1306_64X48
+    address: 0x3D
+    id: ssd1306_i2c_partial_64x48
+    partial_updates: true
+    update_interval: never
+
+  - platform: ssd1306_i2c
+    i2c_id: i2c_bus
+    model: SSD1306_64X32
+    address: 0x3C
+    id: ssd1306_i2c_partial_64x32
+    partial_updates: true
+    update_interval: never
+
+  - platform: ssd1306_i2c
+    i2c_id: i2c_bus
+    model: SSD1306_72X40
+    address: 0x3D
+    id: ssd1306_i2c_partial_72x40
+    partial_updates: true
+    update_interval: never
+
+  # Unsupported controller families remain valid when partial updates are disabled.
+  - platform: ssd1306_i2c
+    i2c_id: i2c_bus
+    model: SH1106_128X64
+    address: 0x3D
+    id: ssd1306_i2c_sh1106_legacy
+    partial_updates: false
+    update_interval: never
