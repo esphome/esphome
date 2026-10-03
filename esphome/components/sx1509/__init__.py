@@ -99,7 +99,10 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_scan_time(conf[CONF_SCAN_TIME]))
             cg.add(var.set_debounce_time(conf[CONF_DEBOUNCE_TIME]))
         if keys := conf.get(CONF_KEYS):
-            cg.add(var.set_keys(keys))
+            table = cg.shared_progmem_array(
+                "sx1509_keys", cg.uint8, list(keys.encode())
+            )
+            cg.add(var.set_keys(table))
         for tconf in conf.get(CONF_ON_KEY, []):
             trigger = cg.new_Pvariable(tconf[CONF_TRIGGER_ID])
             cg.add(var.register_key_trigger(trigger))
