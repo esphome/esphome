@@ -75,13 +75,18 @@ class MideaProtocol : public RemoteProtocol<MideaData> {
 DECLARE_REMOTE_PROTOCOL(Midea)
 
 template<typename... Ts> class MideaAction : public RemoteTransmitterActionBase<Ts...> {
-  TEMPLATABLE_VALUE(std::vector<uint8_t>, code)
+ public:
+  void set_code_template(std::vector<uint8_t> (*func)(Ts...)) { this->code_.set_template(func); }
+  void set_code_static(const uint8_t *code, int16_t len) { this->code_.set_static(code, len); }
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     MideaData data(this->code_.value(x...));
     data.finalize();
     MideaProtocol().encode(dst, data);
   }
+
+ protected:
+  TemplatableBytes<Ts...> code_;
 };
 
 }  // namespace esphome::remote_base

@@ -313,6 +313,33 @@ class RemoteTransmittable {
   RemoteTransmitterBase *transmitter_;
 };
 
+/// Byte code for a transmit action: a lambda, or a PROGMEM table shared by identical codes.
+template<typename... Ts> class TemplatableBytes {
+ public:
+  void set_template(std::vector<uint8_t> (*func)(Ts...)) {
+    this->code_.func = func;
+    this->len_ = -1;
+  }
+  void set_static(const uint8_t *data, int16_t len) {
+    this->code_.data = data;
+    this->len_ = len;
+  }
+  std::vector<uint8_t> value(Ts... x) const {
+    if (this->len_ < 0)
+      return this->code_.func(x...);
+    std::vector<uint8_t> out(this->len_);
+    progmem_memcpy(out.data(), this->code_.data, this->len_);  // byte loads from flash fault on ESP8266
+    return out;
+  }
+
+ protected:
+  union {
+    std::vector<uint8_t> (*func)(Ts...);
+    const uint8_t *data;
+  } code_{};
+  int16_t len_{-1};  // -1: lambda, otherwise length of the static table
+};
+
 template<typename... Ts> class RemoteTransmitterActionBase : public RemoteTransmittable, public Action<Ts...> {
   TEMPLATABLE_VALUE(uint32_t, send_times)
   TEMPLATABLE_VALUE(uint32_t, send_wait)
