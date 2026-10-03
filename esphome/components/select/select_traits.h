@@ -17,8 +17,8 @@ class SelectTraits {
  public:
   /// Codegen path: points at a table that outlives the select, no copy.
   void set_options(const char *const *options, size_t count) { this->options_ = SelectOptions(options, count); }
-  void set_options(SelectOptions options) { this->options_ = options; }
   /// Runtime lists: the pointer list is copied, as before; the strings must still outlive the select.
+  void set_options(const SelectOptions &options) { this->set_options_copy_(options.data(), options.size()); }
   void set_options(const std::initializer_list<const char *> &options);
   void set_options(const FixedVector<const char *> &options);
   const SelectOptions &get_options() const { return this->options_; }

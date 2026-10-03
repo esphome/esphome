@@ -47,4 +47,17 @@ TEST(SelectTraits, RuntimeListsAreCopied) {
   EXPECT_STREQ(traits.get_options()[0], "only");
 }
 
+TEST(SelectTraits, CopyingAnotherSelectSurvivesItsNextRuntimeList) {
+  SelectTraits source;
+  source.set_options({"a", "b"});
+  SelectTraits copy;
+  copy.set_options(source.get_options());
+  EXPECT_NE(copy.get_options().data(), source.get_options().data());
+
+  source.set_options({"c"});
+  ASSERT_EQ(copy.get_options().size(), 2U);
+  EXPECT_STREQ(copy.get_options()[0], "a");
+  EXPECT_STREQ(copy.get_options()[1], "b");
+}
+
 }  // namespace esphome::select::testing
