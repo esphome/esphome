@@ -1,7 +1,14 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_INDEX, DEVICE_CLASS_DURATION, ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.const import (
+    CONF_INDEX,
+    DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_DURATION,
+    DEVICE_CLASS_VOLUME_FLOW_RATE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    UNIT_REVOLUTIONS_PER_MINUTE,
+)
 
 from .. import OpenTherm42Hub
 from ..const import (
@@ -30,6 +37,44 @@ from ..const import (
     CONF_OPENTHERM42_ID,
     CONF_PASS_DURATION,
     CONF_REMOTE_REQUEST_LAST_RESPONSE_CODE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ACTUAL_EXHAUST_FAN_SPEED,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ACTUAL_INLET_FAN_SPEED,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_FAN_SPEED,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_FAN_SPEED_SETPOINT,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_HEAT_EXCHANGER_TEMPERATURE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_WATER_TEMPERATURE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_BURNER_OPERATION_HOURS,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_OPERATION_HOURS,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_STARTS,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_WATER_PRESSURE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_COOLING_OPERATION_HOURS,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CUMULATIVE_ELECTRICITY_PRODUCTION,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW2_TEMPERATURE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_OPERATION_HOURS,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_STARTS,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_FLOW_RATE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_OPERATION_HOURS,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_STARTS,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_TEMPERATURE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCER_HOURS,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCER_STARTS,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCTION,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_EXHAUST_INLET_TEMPERATURE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_EXHAUST_OUTLET_TEMPERATURE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_EXHAUST_TEMPERATURE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_FLAME_CURRENT,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_FLOW_TEMPERATURE_CH2,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_TIMES_FLAME_SIGNAL_TOO_LOW,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_UNSUCCESSFUL_BURNER_STARTS,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_POWER_CYCLES,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_MODULATION_LEVEL,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_VENTILATION,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RETURN_WATER_TEMPERATURE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SOLAR_COLLECTOR_TEMPERATURE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SOLAR_STORAGE_TEMPERATURE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SUCCESSFUL_BURNER_STARTS,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SUPPLY_INLET_TEMPERATURE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SUPPLY_OUTLET_TEMPERATURE,
     CONF_SWEEP_DURATION,
     CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS,
     CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_SOLAR_STORAGE,
@@ -198,6 +243,218 @@ TYPES: dict[str, cv.Schema] = {
     CONF_REMOTE_REQUEST_LAST_RESPONSE_CODE: _code_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
+    # §5.3.4 Class 4, ID 17: Relative Modulation Level (0..100%). 0% = minimum modulation level,
+    # 100% = maximum modulation level.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_MODULATION_LEVEL: _with_update_every(
+        _PERCENT_SCHEMA, 3
+    ),
+    # §5.3.4 Class 4, ID 18: CH water pressure -- water pressure of the boiler CH circuit (bar, 0..5).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_WATER_PRESSURE: _with_update_every(
+        sensor.sensor_schema(
+            unit_of_measurement="bar",
+            accuracy_decimals=2,
+            device_class="pressure",
+            state_class="measurement",
+        ),
+        3,
+    ),
+    # §5.3.4 Class 4, ID 19: DHW flow rate -- water flow rate through the DHW circuit (l/min, 0..16).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_FLOW_RATE: _with_update_every(
+        sensor.sensor_schema(
+            unit_of_measurement="L/min",
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_VOLUME_FLOW_RATE,
+            state_class="measurement",
+        ),
+        3,
+    ),
+    # §5.3.4 Class 4, ID 25: Boiler water temp. -- flow water temperature from the boiler (degrees C).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_WATER_TEMPERATURE: _with_update_every(
+        _TEMPERATURE_SCHEMA, 3
+    ),
+    # §5.3.4 Class 4, ID 26: DHW temperature -- domestic hot water temperature (degrees C).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_TEMPERATURE: _with_update_every(
+        _TEMPERATURE_SCHEMA, 3
+    ),
+    # §5.3.4 Class 4, ID 28: Return water temperature to the boiler (degrees C).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RETURN_WATER_TEMPERATURE: _with_update_every(
+        _TEMPERATURE_SCHEMA, 3
+    ),
+    # §5.3.4 Class 4, ID 29: Solar storage temperature (degrees C).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SOLAR_STORAGE_TEMPERATURE: _with_update_every(
+        _TEMPERATURE_SCHEMA, 3
+    ),
+    # §5.3.4 Class 4, ID 30: Solar collector temperature (degrees C, -40..250). Unlike most temperatures
+    # here this is a plain signed integer (s16), not f8.8, but it's still displayed the same way.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SOLAR_COLLECTOR_TEMPERATURE: _with_update_every(
+        _temperature_schema(accuracy_decimals=0), 3
+    ),
+    # §5.3.4 Class 4, ID 31: Flow temperature CH2 -- flow water temperature of the 2nd CH circuit (degrees C).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_FLOW_TEMPERATURE_CH2: _with_update_every(
+        _TEMPERATURE_SCHEMA, 3
+    ),
+    # §5.3.4 Class 4, ID 32: DHW2 temperature -- domestic hot water temperature 2 (degrees C).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW2_TEMPERATURE: _with_update_every(
+        _TEMPERATURE_SCHEMA, 3
+    ),
+    # §5.3.4 Class 4, ID 33: Exhaust temperature (degrees C, -40..500, s16 -- see ID 30's note).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_EXHAUST_TEMPERATURE: _with_update_every(
+        _temperature_schema(accuracy_decimals=0), 3
+    ),
+    # §5.3.4 Class 4, ID 34: Boiler heat exchanger temperature (degrees C).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_HEAT_EXCHANGER_TEMPERATURE: _with_update_every(
+        _TEMPERATURE_SCHEMA, 3
+    ),
+    # §5.3.4 Class 4, ID 35 HB: Actual boiler fan speed Setpoint, wire value in Hz (RPM/60) converted to
+    # RPM in hub.cpp -- 0..255 Hz -> 0..15300 RPM. No device_class: HA's number/sensor device classes
+    # don't accept RPM as a valid unit (same reasoning as ids 84/85 below).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_FAN_SPEED_SETPOINT: sensor.sensor_schema(
+        unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
+        accuracy_decimals=0,
+        state_class="measurement",
+    ),
+    # §5.3.4 Class 4, ID 35 LB: Actual boiler fan speed, same Hz (RPM/60) -> RPM conversion as the
+    # Setpoint above.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_FAN_SPEED: sensor.sensor_schema(
+        unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
+        accuracy_decimals=0,
+        state_class="measurement",
+    ),
+    # §5.3.4 Class 4, ID 36: Flame current -- electrical current through the burner flame (uA, 0..127).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_FLAME_CURRENT: _with_update_every(
+        sensor.sensor_schema(
+            unit_of_measurement="µA",
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_CURRENT,
+            state_class="measurement",
+        ),
+        3,
+    ),
+    # §5.3.4 Class 4, ID 77 LB: Relative ventilation (0-100%). 0% is minimum set value, 100% is
+    # maximum. Wire value is a plain u8, not f8.8 like ID 17's Relative Modulation Level, so no
+    # fractional part is ever possible -- accuracy_decimals=0.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_VENTILATION: _with_update_every(
+        _percent_schema(accuracy_decimals=0), 3
+    ),
+    # §5.3.4 Class 4, ID 80: Supply inlet temperature (degrees C).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SUPPLY_INLET_TEMPERATURE: _with_update_every(
+        _TEMPERATURE_SCHEMA, 3
+    ),
+    # §5.3.4 Class 4, ID 81: Supply outlet temperature (degrees C).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SUPPLY_OUTLET_TEMPERATURE: _with_update_every(
+        _TEMPERATURE_SCHEMA, 3
+    ),
+    # §5.3.4 Class 4, ID 82: Exhaust inlet temperature (degrees C).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_EXHAUST_INLET_TEMPERATURE: _with_update_every(
+        _TEMPERATURE_SCHEMA, 3
+    ),
+    # §5.3.4 Class 4, ID 83: Exhaust outlet temperature (degrees C).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_EXHAUST_OUTLET_TEMPERATURE: _with_update_every(
+        _TEMPERATURE_SCHEMA, 3
+    ),
+    # §5.3.4 Class 4, ID 84: Actual exhaust fan speed (rpm, 0..6000).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ACTUAL_EXHAUST_FAN_SPEED: _with_update_every(
+        sensor.sensor_schema(
+            unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
+            accuracy_decimals=0,
+            state_class="measurement",
+        ),
+        3,
+    ),
+    # §5.3.4 Class 4, ID 85: Actual inlet fan speed (rpm, 0..6000).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ACTUAL_INLET_FAN_SPEED: _with_update_every(
+        sensor.sensor_schema(
+            unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
+            accuracy_decimals=0,
+            state_class="measurement",
+        ),
+        3,
+    ),
+    # §5.3.4 Class 4, ID 96: Number of hours the boiler is in Cooling Mode. Reset by zero is optional
+    # for the boiler -- this component only reads it. A usage statistic, not component wear/service
+    # data, so primary.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_COOLING_OPERATION_HOURS: _with_update_every(
+        _HOURS_SCHEMA, 8
+    ),
+    # §5.3.4 Class 4, ID 97: Number of Power Cycles of the boiler (wake-up after Reset). A reliability/
+    # troubleshooting indicator (unexpected reboots), so DIAGNOSTIC.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_POWER_CYCLES: _with_update_every(
+        _count_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 8
+    ),
+    # §5.3.4 Class 4, ID 109: Number of starts of the electricity producer. A production statistic,
+    # so primary.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCER_STARTS: _with_update_every(
+        _COUNT_SCHEMA, 8
+    ),
+    # §5.3.4 Class 4, ID 110: Number of hours the electricity producer is in operation. A production
+    # statistic, so primary.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCER_HOURS: _with_update_every(
+        _HOURS_SCHEMA, 8
+    ),
+    # §5.3.4 Class 4, ID 111: Current electricity production (W).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCTION: _with_update_every(
+        sensor.sensor_schema(
+            unit_of_measurement="W",
+            accuracy_decimals=0,
+            device_class="power",
+            state_class="measurement",
+        ),
+        3,
+    ),
+    # §5.3.4 Class 4, ID 112: Cumulative Electricity production (kWh).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CUMULATIVE_ELECTRICITY_PRODUCTION: _with_update_every(
+        sensor.sensor_schema(
+            unit_of_measurement="kWh",
+            accuracy_decimals=0,
+            device_class="energy",
+            state_class="total_increasing",
+        ),
+        8,
+    ),
+    # §5.3.4 Class 4, IDs 113/114/116-123: lifetime wear/reliability counters for an internal moving
+    # part (burner ignitions, CH/DHW pump starts, unsuccessful starts, flame-signal faults) -- used
+    # for service scheduling and troubleshooting, not day-to-day monitoring, so DIAGNOSTIC.
+    #
+    # §5.3.4 Class 4, ID 113: Number of un-successful burner starts.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_UNSUCCESSFUL_BURNER_STARTS: _with_update_every(
+        _count_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 8
+    ),
+    # §5.3.4 Class 4, ID 114: Number of times the flame signal was too low.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_TIMES_FLAME_SIGNAL_TOO_LOW: _with_update_every(
+        _count_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 8
+    ),
+    # §5.3.4 Class 4, ID 116: Successful Burner starts.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SUCCESSFUL_BURNER_STARTS: _with_update_every(
+        _count_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 8
+    ),
+    # §5.3.4 Class 4, ID 117: Number of starts of the CH pump.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_STARTS: _with_update_every(
+        _count_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 8
+    ),
+    # §5.3.4 Class 4, ID 118: Number of starts of the DHW pump/valve.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_STARTS: _with_update_every(
+        _count_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 8
+    ),
+    # §5.3.4 Class 4, ID 119: Number of starts of the burner in DHW mode.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_STARTS: _with_update_every(
+        _count_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 8
+    ),
+    # §5.3.4 Class 4, ID 120: Number of hours the burner is in operation (i.e. flame on).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_BURNER_OPERATION_HOURS: _with_update_every(
+        _hours_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 8
+    ),
+    # §5.3.4 Class 4, ID 121: Number of hours the CH pump has been running.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_OPERATION_HOURS: _with_update_every(
+        _hours_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 8
+    ),
+    # §5.3.4 Class 4, ID 122: Number of hours the DHW pump has been running or the DHW valve has been open.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_OPERATION_HOURS: _with_update_every(
+        _hours_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 8
+    ),
+    # §5.3.4 Class 4, ID 123: Number of hours the burner is in operation during DHW mode.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_OPERATION_HOURS: _with_update_every(
+        _hours_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 8
+    ),
     # §5.3.6 Class 6, IDs 10/88/105: static capability counts (how many parameters the boiler/
     # ventilation/Solar Storage system supports), not something that changes -- DIAGNOSTIC.
     #
@@ -261,6 +518,42 @@ TYPES: dict[str, cv.Schema] = {
 # OEM_DIAGNOSTIC_CODE/_VENTILATION_HEAT_RECOVERY, which have bespoke (non-SIMPLE_SENSORS) handling
 # in hub.cpp and so get their own individually-named setters instead -- see to_code() below.
 SIMPLE_SENSOR_DATA_IDS: dict[str, int] = {
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_MODULATION_LEVEL: 17,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_WATER_PRESSURE: 18,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_FLOW_RATE: 19,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_WATER_TEMPERATURE: 25,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_TEMPERATURE: 26,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RETURN_WATER_TEMPERATURE: 28,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SOLAR_STORAGE_TEMPERATURE: 29,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SOLAR_COLLECTOR_TEMPERATURE: 30,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_FLOW_TEMPERATURE_CH2: 31,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW2_TEMPERATURE: 32,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_EXHAUST_TEMPERATURE: 33,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_HEAT_EXCHANGER_TEMPERATURE: 34,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_FLAME_CURRENT: 36,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_VENTILATION: 77,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SUPPLY_INLET_TEMPERATURE: 80,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SUPPLY_OUTLET_TEMPERATURE: 81,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_EXHAUST_INLET_TEMPERATURE: 82,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_EXHAUST_OUTLET_TEMPERATURE: 83,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ACTUAL_EXHAUST_FAN_SPEED: 84,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ACTUAL_INLET_FAN_SPEED: 85,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_COOLING_OPERATION_HOURS: 96,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_POWER_CYCLES: 97,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCER_STARTS: 109,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCER_HOURS: 110,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCTION: 111,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CUMULATIVE_ELECTRICITY_PRODUCTION: 112,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_UNSUCCESSFUL_BURNER_STARTS: 113,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_TIMES_FLAME_SIGNAL_TOO_LOW: 114,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SUCCESSFUL_BURNER_STARTS: 116,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_STARTS: 117,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_STARTS: 118,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_STARTS: 119,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_BURNER_OPERATION_HOURS: 120,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_OPERATION_HOURS: 121,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_OPERATION_HOURS: 122,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_OPERATION_HOURS: 123,
     CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS: 10,
     CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_VENTILATION_HEAT_RECOVERY: 88,
     CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_SOLAR_STORAGE: 105,

@@ -77,6 +77,48 @@ enum class RequestKind : uint8_t {
   BRAND_SERIAL_NUMBER,
   // §5.3.3 Class 3, ID 4: a remote request command. Sent on demand (button press), not scheduled.
   REMOTE_REQUEST,
+  // §5.3.4 Class 4, ID 35: HB Boiler fan speed Setpoint + LB Boiler fan speed -- two sensors from one
+  // conversation, so it doesn't fit the single-sensor SimpleSensorInfo table below.
+  BOILER_FAN_SPEED,
+
+  // §5.3.4 Class 4: read-only sensors dispatched generically through the SimpleSensorInfo table in
+  // hub.cpp (single value per conversation, no bit decomposition) -- see find_simple_sensor_().
+  RELATIVE_MODULATION_LEVEL,             // ID 17
+  CH_WATER_PRESSURE,                     // ID 18
+  DHW_FLOW_RATE,                         // ID 19
+  BOILER_WATER_TEMPERATURE,              // ID 25
+  DHW_TEMPERATURE,                       // ID 26
+  RETURN_WATER_TEMPERATURE,              // ID 28
+  SOLAR_STORAGE_TEMPERATURE,             // ID 29
+  SOLAR_COLLECTOR_TEMPERATURE,           // ID 30
+  FLOW_TEMPERATURE_CH2,                  // ID 31
+  DHW2_TEMPERATURE,                      // ID 32
+  EXHAUST_TEMPERATURE,                   // ID 33
+  BOILER_HEAT_EXCHANGER_TEMPERATURE,     // ID 34
+  FLAME_CURRENT,                         // ID 36
+  RELATIVE_VENTILATION,                  // ID 77
+  SUPPLY_INLET_TEMPERATURE,              // ID 80
+  SUPPLY_OUTLET_TEMPERATURE,             // ID 81
+  EXHAUST_INLET_TEMPERATURE,             // ID 82
+  EXHAUST_OUTLET_TEMPERATURE,            // ID 83
+  ACTUAL_EXHAUST_FAN_SPEED,              // ID 84
+  ACTUAL_INLET_FAN_SPEED,                // ID 85
+  COOLING_OPERATION_HOURS,               // ID 96
+  POWER_CYCLES,                          // ID 97
+  ELECTRICITY_PRODUCER_STARTS,           // ID 109
+  ELECTRICITY_PRODUCER_HOURS,            // ID 110
+  ELECTRICITY_PRODUCTION,                // ID 111
+  CUMULATIVE_ELECTRICITY_PRODUCTION,     // ID 112
+  NUMBER_OF_UNSUCCESSFUL_BURNER_STARTS,  // ID 113
+  NUMBER_OF_TIMES_FLAME_SIGNAL_TOO_LOW,  // ID 114
+  SUCCESSFUL_BURNER_STARTS,              // ID 116
+  CH_PUMP_STARTS,                        // ID 117
+  DHW_PUMP_VALVE_STARTS,                 // ID 118
+  DHW_BURNER_STARTS,                     // ID 119
+  BURNER_OPERATION_HOURS,                // ID 120
+  CH_PUMP_OPERATION_HOURS,               // ID 121
+  DHW_PUMP_VALVE_OPERATION_HOURS,        // ID 122
+  DHW_BURNER_OPERATION_HOURS,            // ID 123
 
   // §5.3.6 Class 6, IDs 10/88/105 HB: number of TSPs supported, one per family.
   NUMBER_OF_TSPS,
@@ -307,6 +349,9 @@ class OpenTherm42Hub : public Component {
   }
   void set_configuration_information_solar_storage_product_version_number_and_type_update_every(uint32_t update_every) {
     this->pending_group_update_every_.emplace_back(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE, update_every);
+  }
+  void set_sensor_and_informational_data_boiler_fan_speed_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::BOILER_FAN_SPEED, update_every);
   }
   // §5.3.6 Class 6, IDs 11/89/106: TSP slots from all three families (see tsp_slots_) round-robin
   // through one shared RequestKind::TSP conversation -- one cadence governs how fast that rotation
@@ -585,6 +630,52 @@ class OpenTherm42Hub : public Component {
   // READ side's Entry -- that's the conversation a cadence actually governs here, per the same
   // reasoning as set_number_update_every() above.
   void set_sensor_feed_update_every(uint8_t id, uint32_t update_every);
+
+  // §5.3.4 Class 4, ID 35: HB Boiler fan speed Setpoint, LB Boiler fan speed.
+  OT42_SET_SENSOR(sensor_and_informational_data_boiler_fan_speed_setpoint, boiler_fan_speed_setpoint_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_boiler_fan_speed, boiler_fan_speed_sensor_)
+
+  // §5.3.4 Class 4: read-only sensors (see the SimpleSensorInfo table in hub.cpp).
+  OT42_SET_SENSOR(sensor_and_informational_data_relative_modulation_level, relative_modulation_level_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_ch_water_pressure, ch_water_pressure_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_flow_rate, dhw_flow_rate_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_boiler_water_temperature, boiler_water_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_temperature, dhw_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_return_water_temperature, return_water_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_solar_storage_temperature, solar_storage_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_solar_collector_temperature, solar_collector_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_flow_temperature_ch2, flow_temperature_ch2_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw2_temperature, dhw2_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_exhaust_temperature, exhaust_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_boiler_heat_exchanger_temperature,
+                  boiler_heat_exchanger_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_flame_current, flame_current_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_relative_ventilation, relative_ventilation_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_supply_inlet_temperature, supply_inlet_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_supply_outlet_temperature, supply_outlet_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_exhaust_inlet_temperature, exhaust_inlet_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_exhaust_outlet_temperature, exhaust_outlet_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_actual_exhaust_fan_speed, actual_exhaust_fan_speed_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_actual_inlet_fan_speed, actual_inlet_fan_speed_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_cooling_operation_hours, cooling_operation_hours_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_power_cycles, power_cycles_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_electricity_producer_starts, electricity_producer_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_electricity_producer_hours, electricity_producer_hours_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_electricity_production, electricity_production_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_cumulative_electricity_production,
+                  cumulative_electricity_production_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_number_of_unsuccessful_burner_starts,
+                  number_of_unsuccessful_burner_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_number_of_times_flame_signal_too_low,
+                  number_of_times_flame_signal_too_low_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_successful_burner_starts, successful_burner_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_ch_pump_starts, ch_pump_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_pump_valve_starts, dhw_pump_valve_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_burner_starts, dhw_burner_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_burner_operation_hours, burner_operation_hours_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_ch_pump_operation_hours, ch_pump_operation_hours_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_pump_valve_operation_hours, dhw_pump_valve_operation_hours_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_burner_operation_hours, dhw_burner_operation_hours_sensor_)
 
   // §5.3.4 Class 4: the 15 counter/hour ids above are all "R W" with reset-by-writing-zero optional for
   // the boiler. Called by OpenTherm42ResetCounterButton::press_action() with the data-id its config
@@ -872,6 +963,45 @@ class OpenTherm42Hub : public Component {
   sensor::Sensor *remote_request_last_response_code_sensor_{nullptr};
   text_sensor::TextSensor *remote_request_last_response_text_sensor_{nullptr};
 
+  sensor::Sensor *boiler_fan_speed_setpoint_sensor_{nullptr};
+  sensor::Sensor *boiler_fan_speed_sensor_{nullptr};
+
+  sensor::Sensor *relative_modulation_level_sensor_{nullptr};
+  sensor::Sensor *ch_water_pressure_sensor_{nullptr};
+  sensor::Sensor *dhw_flow_rate_sensor_{nullptr};
+  sensor::Sensor *boiler_water_temperature_sensor_{nullptr};
+  sensor::Sensor *dhw_temperature_sensor_{nullptr};
+  sensor::Sensor *return_water_temperature_sensor_{nullptr};
+  sensor::Sensor *solar_storage_temperature_sensor_{nullptr};
+  sensor::Sensor *solar_collector_temperature_sensor_{nullptr};
+  sensor::Sensor *flow_temperature_ch2_sensor_{nullptr};
+  sensor::Sensor *dhw2_temperature_sensor_{nullptr};
+  sensor::Sensor *exhaust_temperature_sensor_{nullptr};
+  sensor::Sensor *boiler_heat_exchanger_temperature_sensor_{nullptr};
+  sensor::Sensor *flame_current_sensor_{nullptr};
+  sensor::Sensor *relative_ventilation_sensor_{nullptr};
+  sensor::Sensor *supply_inlet_temperature_sensor_{nullptr};
+  sensor::Sensor *supply_outlet_temperature_sensor_{nullptr};
+  sensor::Sensor *exhaust_inlet_temperature_sensor_{nullptr};
+  sensor::Sensor *exhaust_outlet_temperature_sensor_{nullptr};
+  sensor::Sensor *actual_exhaust_fan_speed_sensor_{nullptr};
+  sensor::Sensor *actual_inlet_fan_speed_sensor_{nullptr};
+  sensor::Sensor *cooling_operation_hours_sensor_{nullptr};
+  sensor::Sensor *power_cycles_sensor_{nullptr};
+  sensor::Sensor *electricity_producer_starts_sensor_{nullptr};
+  sensor::Sensor *electricity_producer_hours_sensor_{nullptr};
+  sensor::Sensor *electricity_production_sensor_{nullptr};
+  sensor::Sensor *cumulative_electricity_production_sensor_{nullptr};
+  sensor::Sensor *number_of_unsuccessful_burner_starts_sensor_{nullptr};
+  sensor::Sensor *number_of_times_flame_signal_too_low_sensor_{nullptr};
+  sensor::Sensor *successful_burner_starts_sensor_{nullptr};
+  sensor::Sensor *ch_pump_starts_sensor_{nullptr};
+  sensor::Sensor *dhw_pump_valve_starts_sensor_{nullptr};
+  sensor::Sensor *dhw_burner_starts_sensor_{nullptr};
+  sensor::Sensor *burner_operation_hours_sensor_{nullptr};
+  sensor::Sensor *ch_pump_operation_hours_sensor_{nullptr};
+  sensor::Sensor *dhw_pump_valve_operation_hours_sensor_{nullptr};
+  sensor::Sensor *dhw_burner_operation_hours_sensor_{nullptr};
   bool reset_counter_pending_{false};
   uint8_t reset_counter_data_id_{0};
 
