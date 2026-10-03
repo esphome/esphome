@@ -355,6 +355,34 @@ optional<float> TimeoutFilterConfigured::new_value(float value) {
   return value;
 }
 
+// TimeoutThrottleFilter
+bool TimeoutThrottleFilter::throttle_passes_(float value) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->last_input_ == 0 || now - this->last_input_ >= this->time_period_ || std::isnan(value)) {
+    this->last_input_ = now;
+    return true;
+  }
+  return false;
+}
+
+optional<float> TimeoutThrottleFilter::new_value(float value) {
+  this->pending_value_ = value;
+  this->timeout_start_time_ = millis();
+  this->enable_loop();
+  if (this->throttle_passes_(value))
+    return value;
+  return {};
+}
+
+void TimeoutThrottleFilter::loop() {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->timeout_start_time_ >= this->time_period_) {
+    if (this->throttle_passes_(this->pending_value_))
+      this->output(this->pending_value_);
+    this->disable_loop();
+  }
+}
+
 // DebounceFilter
 optional<float> DebounceFilter::new_value(float value) {
   App.scheduler.set_timeout(this, this->time_period_, [this, value]() { this->output(value); });
