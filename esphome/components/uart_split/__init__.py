@@ -19,7 +19,9 @@ MULTI_CONF = True
 
 uart_split_ns = cg.esphome_ns.namespace("uart_split")
 UartSplit = uart_split_ns.class_("UartSplit", cg.Component)
-UartSplitOutput = uart_split_ns.class_("UartSplitOutput", uart.UARTComponent, cg.Component)
+UartSplitOutput = uart_split_ns.class_(
+    "UartSplitOutput", uart.UARTComponent, cg.Component
+)
 
 MAX_OUTPUTS = 8
 
@@ -57,7 +59,8 @@ CONFIG_SCHEMA = cv.All(
 def _subtree_has_uart(node: object, uart_id: str) -> bool:
     if isinstance(node, dict):
         return any(
-            (key == CONF_UART_ID and str(value) == uart_id) or _subtree_has_uart(value, uart_id)
+            (key == CONF_UART_ID and str(value) == uart_id)
+            or _subtree_has_uart(value, uart_id)
             for key, value in node.items()
         )
     if isinstance(node, list):
@@ -96,7 +99,9 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     parent = await cg.get_variable(config[CONF_UART_ID])
     cg.add(var.set_parent(parent))
-    uart_config = CORE.config.get_config_for_path(CORE.config.get_path_for_id(config[CONF_UART_ID])[:-1])
+    uart_config = CORE.config.get_config_for_path(
+        CORE.config.get_path_for_id(config[CONF_UART_ID])[:-1]
+    )
     for output_config in config[CONF_OUTPUTS]:
         output = cg.new_Pvariable(output_config[CONF_ID])
         await cg.register_component(output, output_config)
