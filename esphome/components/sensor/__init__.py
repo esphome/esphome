@@ -112,7 +112,7 @@ from esphome.const import (
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
     SubEntities,
@@ -415,10 +415,14 @@ TemplatableFloat = cg.esphome_ns.class_("TemplatableFn").template(cg.float_)
 
 
 async def _value_list_table(values: list[Any]) -> MockObj:
-    """Shared PROGMEM value table, ended by an empty entry so filters store no count."""
+    """PROGMEM value table, ended by an empty entry so filters store no count."""
     fns = [await cg.templatable(x, [], cg.float_) for x in values]
+    # Identical lambdas (e.g. a YAML anchor) may keep static state, so only constants share.
     return cg.shared_progmem_array(
-        "sensor_value_list", TemplatableFloat, [*fns, TemplatableFloat()]
+        "sensor_value_list",
+        TemplatableFloat,
+        [*fns, TemplatableFloat()],
+        share=not any(isinstance(v, Lambda) for v in values),
     )
 
 

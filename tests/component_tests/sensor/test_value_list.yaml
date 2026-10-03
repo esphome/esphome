@@ -37,3 +37,15 @@ sensor:
     lambda: return 1.0;
     filters:
       - throttle_with_priority: 1s
+  - platform: template
+    id: fo_stateful_a
+    lambda: return 1.0;
+    filters:
+      - filter_out: &stateful !lambda |-
+          static float n = 0;
+          return ++n;
+  - platform: template
+    id: fo_stateful_b
+    lambda: return 1.0;
+    filters:
+      - filter_out: *stateful
