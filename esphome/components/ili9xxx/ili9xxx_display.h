@@ -58,6 +58,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
     }
   }
 
+  // `sequence` is a PROGMEM table that must end with a 0 command.
   void add_init_sequence(const uint8_t *sequence) { this->extra_init_sequence_ = sequence; }
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
