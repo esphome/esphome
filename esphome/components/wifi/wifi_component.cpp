@@ -36,6 +36,9 @@
 #ifdef USE_CAPTIVE_PORTAL
 #include "esphome/components/captive_portal/captive_portal.h"
 #endif
+#ifdef USE_WEBSERVER_CAPTIVE
+#include "esphome/components/web_server/web_server.h"
+#endif
 
 #ifdef USE_IMPROV_BLE
 #include "esphome/components/improv_ble/improv_ble_component.h"
@@ -634,12 +637,12 @@ void WiFiComponent::setup() {
 #endif
 
 #if defined(USE_PROVISIONING) && defined(USE_WIFI_AP)
-  // The access point is a provisioning surface: once the provisioning window has
-  // closed, shut it down (mirrors the teardown done on a successful connection).
-  // The captive portal registers its own closed-callback, and the fallback block
-  // in loop() is gated so neither is started again afterwards.
+  // The access point and the portals on it are provisioning surfaces: once the window has
+  // closed, end them (mirrors the teardown on a successful connection). The fallback block in
+  // loop() is gated so none of them is started again afterwards.
   if (provisioning::global_provisioning_manager != nullptr) {
     provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
+      this->end_ap_portal_();  // no-op when nothing is active, so not tied to ap_setup_
       if (this->ap_setup_) {
         ESP_LOGD(TAG, "Provisioning window closed; disabling AP");
         this->wifi_mode_({}, false);
@@ -741,9 +744,9 @@ void WiFiComponent::start() {
     if (captive_portal::global_captive_portal != nullptr) {
       this->wifi_sta_pre_setup_();
       this->start_scanning();
-      captive_portal::global_captive_portal->start();
     }
 #endif
+    this->start_ap_portal_();
 #endif  // USE_WIFI_AP
   }
 #ifdef USE_IMPROV_BLE
@@ -804,8 +807,8 @@ void WiFiComponent::loop() {
           this->check_connecting_finished(now);
           break;
         }
-        // Use longer cooldown when captive portal/improv is active to avoid disrupting user config
-        bool portal_active = this->is_captive_portal_active_() || this->is_improv_ble_active_();
+        // Use longer cooldown when a portal/improv is active to avoid disrupting a user on the AP
+        bool portal_active = this->is_ap_portal_active_() || this->is_improv_ble_active_();
         uint32_t cooldown_duration = portal_active ? WIFI_COOLDOWN_WITH_AP_ACTIVE_MS : WIFI_COOLDOWN_DURATION_MS;
         if (now - this->action_started_ > cooldown_duration) {
           // After cooldown we either restarted the adapter because of
@@ -883,13 +886,11 @@ void WiFiComponent::loop() {
         ESP_LOGI(TAG, "Starting fallback AP");
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL
-        if (captive_portal::global_captive_portal != nullptr) {
-          // Reset so we force one full scan after captive portal starts
-          // (previous scans were filtered because captive portal wasn't active yet)
-          this->has_completed_scan_after_captive_portal_start_ = false;
-          captive_portal::global_captive_portal->start();
-        }
+        // Reset so we force one full scan after captive portal starts
+        // (previous scans were filtered because captive portal wasn't active yet)
+        this->has_completed_scan_after_captive_portal_start_ = false;
 #endif
+        this->start_ap_portal_();
       }
     }
 #endif  // USE_WIFI_AP
@@ -1636,11 +1637,7 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
     this->num_retried_ = 0;
     if (this->has_ap()) {
-#ifdef USE_CAPTIVE_PORTAL
-      if (this->is_captive_portal_active_()) {
-        captive_portal::global_captive_portal->end();
-      }
-#endif
+      this->end_ap_portal_();
       ESP_LOGD(TAG, "Disabling AP");
       this->wifi_mode_({}, false);
     }
@@ -1966,10 +1963,10 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       break;
 
     case WiFiRetryPhase::RESTARTING_ADAPTER:
-      // Skip actual adapter restart if captive portal/improv is active
+      // Skip actual adapter restart if a portal/improv is active
       // This allows state machine to reset num_retried_ and trigger fresh scan
-      // without disrupting the captive portal/improv connection
-      if (!this->is_captive_portal_active_() && !this->is_improv_ble_active_()) {
+      // without disrupting the portal/improv connection
+      if (!this->is_ap_portal_active_() && !this->is_improv_ble_active_()) {
         this->restart_adapter();
       } else {
         // Even when skipping full restart, disconnect to clear driver state
@@ -2226,6 +2223,36 @@ bool WiFiComponent::is_captive_portal_active_() {
   return captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active();
 #else
   return false;
+#endif
+}
+
+bool WiFiComponent::is_ap_portal_active_() {
+#ifdef USE_WEBSERVER_CAPTIVE
+  if (web_server::global_web_server->is_captive())
+    return true;
+#endif
+  return this->is_captive_portal_active_();
+}
+
+// global_web_server needs no null check: codegen always instantiates WebServer when
+// USE_WEBSERVER_CAPTIVE is defined, and the constructor assigns the global.
+void WiFiComponent::start_ap_portal_() {
+#ifdef USE_CAPTIVE_PORTAL
+  if (captive_portal::global_captive_portal != nullptr)
+    captive_portal::global_captive_portal->start();
+#endif
+#ifdef USE_WEBSERVER_CAPTIVE
+  web_server::global_web_server->start_captive();
+#endif
+}
+
+void WiFiComponent::end_ap_portal_() {
+#ifdef USE_CAPTIVE_PORTAL
+  if (this->is_captive_portal_active_())
+    captive_portal::global_captive_portal->end();
+#endif
+#ifdef USE_WEBSERVER_CAPTIVE
+  web_server::global_web_server->end_captive();
 #endif
 }
 bool WiFiComponent::is_improv_ble_active_() {
