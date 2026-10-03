@@ -18,7 +18,13 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_DLMS_METER_ID, CONF_OBIS_CODE, DlmsMeterComponent, obis_code
+from .. import (
+    CONF_DLMS_METER_ID,
+    CONF_OBIS_CODE,
+    DlmsMeterComponent,
+    obis_string_to_byte_list,
+    to_obis_id_struct,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,7 +49,7 @@ NUMERIC_KEYS = {
 DYNAMIC_SCHEMA = sensor.sensor_schema().extend(
     {
         cv.GenerateID(CONF_DLMS_METER_ID): cv.use_id(DlmsMeterComponent),
-        cv.Required(CONF_OBIS_CODE): obis_code,
+        cv.Required(CONF_OBIS_CODE): obis_string_to_byte_list,
     }
 )
 
@@ -151,9 +157,9 @@ async def to_code(config: ConfigType) -> None:
 
     if obis := config.get(CONF_OBIS_CODE):
         var = await sensor.new_sensor(config)
-        cg.add(hub.register_sensor(obis, var))
+        cg.add(hub.register_sensor(to_obis_id_struct(obis), var))
     else:
         for key, obis_val in NUMERIC_KEYS.items():
             if sensor_config := config.get(key):
                 sens = await sensor.new_sensor(sensor_config)
-                cg.add(hub.register_sensor(obis_val, sens))
+                cg.add(hub.register_sensor(to_obis_id_struct(obis_val), sens))
