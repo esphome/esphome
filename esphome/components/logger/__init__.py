@@ -45,6 +45,7 @@ from esphome.components.zephyr.const import (
     ZEPHYR_VARIANT_ESP32_C5,
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
+    ZEPHYR_VARIANT_NATIVE_SIM,
 )
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -670,6 +671,10 @@ async def _late_logger_init(config: ConfigType) -> None:
         # This Kconfig serializes calls into backend process() under LOG_MODE_IMMEDIATE
         # (native_sim's default); a no-op on variants using LOG_MODE_DEFERRED (h2, c6).
         zephyr_add_prj_conf("LOG_IMMEDIATE_CLEAN_OUTPUT", True, required=False)
+
+    if CORE.is_zephyr and zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
+        # Default-on stock backend; duplicates every native line on stdout.
+        zephyr_add_prj_conf("LOG_BACKEND_NATIVE_POSIX", False, required=False)
 
     # Register at end for safe mode
     await cg.register_component(log, config)

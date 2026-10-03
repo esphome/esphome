@@ -1,8 +1,6 @@
-// Custom Zephyr log backend forwarding native Zephyr/OpenThread/kernel logs through
-// Logger::write_zephyr_native_msg(), instead of Zephyr's built-in LOG_BACKEND_UART --
-// that would contend with Logger's own UART writer and never reach log-callback
-// listeners (e.g. the API's log streaming to Home Assistant). Mirrors ESP-IDF's
-// esp_log_set_vprintf().
+// Forwards native Zephyr logs into the ESPHome logger (like ESP-IDF's esp_log_set_vprintf()
+// hook) so they reach log listeners. Replaces Zephyr's stock backends, which would contend
+// for the UART.
 #ifdef USE_ZEPHYR
 #ifdef CONFIG_LOG
 
@@ -22,9 +20,7 @@ namespace esphome::logger {
 
 namespace {
 
-// Accumulates one fully-rendered log line across however many chunks Zephyr's formatter
-// flushes it in, so exactly one write_zephyr_native_msg() call happens per line. Longer
-// lines are truncated rather than split across notifications.
+// Zephyr's formatter flushes a line in chunks; reassemble it into one message (truncated).
 constexpr size_t ACCUM_BUF_SIZE = 256;
 char accum_buf[ACCUM_BUF_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 size_t accum_len = 0;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -84,7 +80,8 @@ void process(const struct log_backend *const backend, union log_msg_generic *msg
   if (tag == nullptr)
     tag = "zephyr";
 #endif
-  global_logger->write_zephyr_native_msg(level, tag, accum_buf, static_cast<uint16_t>(accum_len));
+  // Through log_vprintf_() so lines from other threads go via the task log buffer.
+  esp_log_printf_(level, tag, 0, "%.*s", static_cast<int>(accum_len), accum_buf);
 }
 
 void panic(const struct log_backend *const backend) { log_backend_std_panic(&esphome_zephyr_log_output); }
