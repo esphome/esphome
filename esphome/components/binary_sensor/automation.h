@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <type_traits>
 #include <utility>
 
 #include "esphome/core/component.h"
@@ -16,6 +17,10 @@ struct MultiClickTriggerEvent {
   uint32_t min_length;
   uint32_t max_length;
 };
+// Read straight from PROGMEM; a byte-sized field would fault on ESP8266.
+static_assert(std::is_same_v<decltype(MultiClickTriggerEvent::state), uint32_t> &&
+                  sizeof(MultiClickTriggerEvent) == 3 * sizeof(uint32_t),
+              "MultiClickTriggerEvent fields must all be uint32_t");
 
 bool match_interval(uint32_t min_length, uint32_t max_length, uint32_t length);
 
