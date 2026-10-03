@@ -16,12 +16,27 @@ CONF_CHARGE_CURRENT = "charge_current"
 CONF_PRECHARGE_CURRENT = "precharge_current"
 CONF_CHARGE_ENABLED = "charge_enabled"
 CONF_ENABLE_ADC = "enable_adc"
+CONF_I2C_WATCHDOG_TIMEOUT = "i2c_watchdog_timeout"
 
 sy6970_ns = cg.esphome_ns.namespace("sy6970")
 SY6970Component = sy6970_ns.class_(
     "SY6970Component", cg.PollingComponent, i2c.I2CDevice
 )
 SY6970Listener = sy6970_ns.class_("SY6970Listener")
+I2CWatchdogTimeout = sy6970_ns.enum("I2CWatchdogTimeout")
+
+# The chip's own I2C watchdog (REG07[5:4]) reverts charge_enabled and the
+# STAT LED setting back to power-on defaults once it elapses; ESPHome kicks
+# it on its own interval (independent of update_interval) while it is
+# enabled, so "40S" (the chip's power-on default) is safe to leave running
+# rather than disabling it, and any update_interval - including `never` -
+# stays valid.
+I2C_WATCHDOG_TIMEOUTS = {
+    "DISABLED": I2CWatchdogTimeout.I2C_WATCHDOG_DISABLED,
+    "40S": I2CWatchdogTimeout.I2C_WATCHDOG_40S,
+    "80S": I2CWatchdogTimeout.I2C_WATCHDOG_80S,
+    "160S": I2CWatchdogTimeout.I2C_WATCHDOG_160S,
+}
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -42,6 +57,9 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_CHARGE_ENABLED, default=True): cv.boolean,
             cv.Optional(CONF_ENABLE_ADC, default=True): cv.boolean,
+            cv.Optional(CONF_I2C_WATCHDOG_TIMEOUT, default="40S"): cv.enum(
+                I2C_WATCHDOG_TIMEOUTS, upper=True
+            ),
         }
     )
     .extend(cv.polling_component_schema("5s"))
@@ -59,6 +77,7 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_PRECHARGE_CURRENT],
         config[CONF_CHARGE_ENABLED],
         config[CONF_ENABLE_ADC],
+        config[CONF_I2C_WATCHDOG_TIMEOUT],
     )
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
