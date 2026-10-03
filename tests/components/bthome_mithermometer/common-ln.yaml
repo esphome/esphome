@@ -3,6 +3,7 @@ sensor:
     mac_address: A4:C1:38:4E:16:78
     # bindkey compiles ble_device_base::aes_ccm_auth_decrypt off Espressif
     bindkey: eef418daf699a0c188f3bfd17e4565d9
+    replay_protection: true
     temperature:
       name: BTHome Temperature
     humidity:
