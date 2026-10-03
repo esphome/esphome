@@ -97,7 +97,7 @@ def select_schema(
 async def setup_select_core_(var, config, *, options: list[str]):
     if options:
         table = cg.shared_progmem_array("select_options", cg.const_char_ptr, options)
-        cg.add(var.traits.set_options(table, len(options)))
+        cg.add(var.traits.set_options_static(table, len(options)))
 
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

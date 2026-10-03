@@ -26,8 +26,12 @@ class SelectOptions {
 
 class SelectTraits {
  public:
-  /// Codegen path: points at a table that outlives the select, no copy.
-  void set_options(const char *const *options, size_t count) { this->options_ = SelectOptions(options, count); }
+  SelectTraits() = default;
+  SelectTraits(const SelectTraits &) = delete;
+  SelectTraits &operator=(const SelectTraits &) = delete;
+
+  /// Codegen only: points at a table that must outlive the select, no copy.
+  void set_options_static(const char *const *options, size_t count) { this->options_ = SelectOptions(options, count); }
   /// Runtime lists: the pointer list is copied, as before; the strings must still outlive the select.
   void set_options(const SelectOptions &options) { this->set_options_copy_(options.data(), options.size()); }
   void set_options(const std::initializer_list<const char *> &options);

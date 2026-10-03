@@ -53,10 +53,7 @@ class LVGLSelect final : public select::Select, public Component {
     // The update event fires the widget's on_value/on_update triggers
     lv_obj_send_event(this->widget_->obj, lv_update_event, nullptr);
   }
-  void set_options_() {
-    const auto &options = this->widget_->get_options();
-    this->traits.set_options(options.begin(), options.size());
-  }
+  void set_options_() { this->traits.set_options(this->widget_->get_options()); }
 
   LvSelectable *widget_;
   lv_anim_enable_t anim_;

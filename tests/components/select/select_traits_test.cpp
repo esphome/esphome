@@ -12,7 +12,7 @@ static constexpr const char *const OPTIONS[] = {"low", "medium", "high"};
 TEST(SelectTraits, ViewsTheTableWithoutCopying) {
   SelectTraits traits;
   EXPECT_TRUE(traits.get_options().empty());
-  traits.set_options(OPTIONS, 3);
+  traits.set_options_static(OPTIONS, 3);
   const auto &options = traits.get_options();
   EXPECT_EQ(options.size(), 3U);
   EXPECT_FALSE(options.empty());

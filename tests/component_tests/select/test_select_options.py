@@ -14,7 +14,7 @@ def test_select_options_use_shared_tables(
     calls = {
         var: table
         for var, table, _ in re.findall(
-            r"(\w+)->traits\.set_options\((\w+), (\d+)\);", main_cpp
+            r"(\w+)->traits\.set_options_static\((\w+), (\d+)\);", main_cpp
         )
     }
     assert set(calls) == {"fan_a", "fan_b", "mode"}
@@ -24,4 +24,4 @@ def test_select_options_use_shared_tables(
         in main_cpp
     )
     # The copy select takes its options from the source at setup
-    assert "fan_copy->traits.set_options(" not in main_cpp
+    assert "fan_copy->traits.set_options_static(" not in main_cpp
