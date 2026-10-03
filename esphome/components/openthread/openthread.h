@@ -57,7 +57,7 @@ class OpenThreadComponent final : public Component {
   static void on_state_changed(otChangedFlags flags, void *context);
 
  protected:
-  /** Apply Link Mode settings (incl poll period).
+  /** Apply link mode, poll period, and the derived child timeout / supervision settings.
    * Callers running outside the OpenThread task must hold InstanceLock.
    */
   void apply_linkmode_(otInstance *instance);
