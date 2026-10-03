@@ -140,10 +140,18 @@ void ModbusTcp::deliver_mbap_() {
         break;
       case MbapTake::FRAME: {
         if (this->server_) {
-          // One request at a time. The hub still has the last one.
-          if (this->txn_pending_ || this->rx_len_ != 0) {
+          // The hub has not read the last request. Do not splice a new one under it.
+          if (this->rx_len_ != 0) {
             note_drop(this->last_drop_log_ms_, LOG_STR("Request already in progress, dropped"));
             break;
+          }
+          // Handed on, and nothing has been sent back. The next request takes its place.
+          if (this->txn_pending_) {
+            if (this->tx_len_ != 0) {
+              note_drop(this->last_drop_log_ms_, LOG_STR("Unanswered request replaced"));
+              this->tx_len_ = 0;
+            }
+            this->txn_pending_ = false;
           }
           size_t rtu_len = frame.pdu_len + 3;
           if (rtu_len > sizeof(this->rx_)) {
