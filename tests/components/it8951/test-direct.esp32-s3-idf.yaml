@@ -1,0 +1,88 @@
+# Direct-draw variant: no lambda/pages, so the driver streams LVGL's flush
+# rectangles straight into the controller's image RAM instead of allocating a
+# framebuffer. Covers both pixel formats and the software-rotation path that
+# direct draw forces LVGL onto.
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
+
+display:
+  # Grayscale (4bpp loads), with the panel's own mirror_x transform applied in
+  # the packing loop.
+  - platform: it8951
+    id: direct_gray
+    spi_id: spi_bus
+    model: seeed-reterminal-e1003
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    vcom: 1400
+    sleep_when_done: false
+
+  # Monochrome (8bpp-packed 1bpp loads) with ordered dithering, so the dither
+  # threshold has to stay keyed to absolute panel coordinates across flushes.
+  - platform: it8951
+    id: direct_mono
+    spi_id: spi_bus
+    model: m5stack-m5paper
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    grayscale: false
+    dithering: true
+    sleep_when_done: true
+
+lvgl:
+  - id: lvgl_gray
+    displays: [direct_gray]
+    # Required for a framebuffer-less it8951: withholds rendering while a
+    # waveform is in flight and drives the refresh once a render completes.
+    update_when_display_idle: true
+    widgets:
+      - label:
+          align: CENTER
+          text: "Direct draw"
+
+  - id: lvgl_mono
+    displays: [direct_mono]
+    # Required for a framebuffer-less display: nothing else can hold back LVGL's
+    # own refresh timer while a waveform is running.
+    update_when_display_idle: true
+    # Direct draw advertises has_hardware_rotation=false, so this exercises
+    # LVGL's software rotation path rather than driver-side rotation.
+    rotation: 90
+    widgets:
+      - label:
+          align: CENTER
+          text: "Rotated"
+
+# Deferred presentation: compose the next frame into controller memory while
+# the current one stays on the panel, then present it with one waveform.
+interval:
+  - interval: 60s
+    then:
+      - it8951.pause: direct_gray
+      - lambda: lv_refr_now(nullptr);
+      # Resume presents the accumulated region with the given waveform.
+      - it8951.resume:
+          id: direct_gray
+          mode: DU
+      # Refresh presents the whole screen from controller memory, whether or not
+      # an update was requested while paused.
+      - it8951.refresh:
+          id: direct_gray
+          mode: GC16
+      - it8951.pause: direct_mono
+      - it8951.resume: direct_mono
+      - it8951.refresh: direct_mono
