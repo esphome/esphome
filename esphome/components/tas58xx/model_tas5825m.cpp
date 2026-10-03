@@ -20,12 +20,12 @@ static const uint8_t STARTUP_SEQUENCE[][2] PROGMEM = {
     {0x19, 0x80},
     {0x00, 0x00},  // Page 0
     {0x46, 0x11},
-    {0x02, 0x00},  // DEVICE_CTRL_1 - BD MODE, DAMP_PBTL set Damp to PBL MODE
+    {0x02, 0x00},  // DEVICE_CTRL_1 - BD MODE, Damp to PBL MODE
     {0x53, 0x01},  // ANA_CTRL PWM Phase Control - in phase
     {0x54, 0x00},  // AGAIN 0dB
     {0x03, 0x02},  // Hi-Z
-    {0x61, 0x0B},  // ADR_PIN_CONFIG - ADR as FAULTZ
-    {0x60, 0x01},  // ADR_OE - ADR is output
+    {0x61, 0x0B},  // GPIO0_SEL - GPIO0 as FAULTZ output
+    {0x60, 0x01},  // GPIO0_OE - Enable GPIO0 as output
     {0x77, 0x07},  // CBC_CONTROL enabling CBC function for warnings and faults
 };
 // clang-format on
