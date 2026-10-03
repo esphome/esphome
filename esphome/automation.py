@@ -224,6 +224,13 @@ def flash_string(config: ConfigType, value: str) -> str:
     return str(cg.safe_exp(value))
 
 
+def flash_compare(config: ConfigType, value: str) -> str:
+    """Default renderer for ``std::string`` constants in conditions; compares in flash on ESP8266."""
+    if CORE.is_esp8266:
+        return f"::esphome::ProgmemStringRef{{PSTR({cg.safe_exp(value)}), {len(value.encode('utf-8'))}}}"
+    return str(cg.safe_exp(value))
+
+
 def literal_with_length(config: ConfigType, value: str) -> str:
     """Renderer for a ``(const char *, size_t)`` target: a plain literal plus its byte length.
 
@@ -478,11 +485,15 @@ def register_apply_condition(
     ``check`` is applied to the parent: ``"is_playing()"`` becomes ``parent->is_playing()``; an
     ``ApplyCall`` such as ``ApplyCall("state == {}", ((CONF_STATE, cg.bool_),))`` compares
     against config values, all of which must be present. Write ``== false`` to negate.
-    String constants are plain literals, so compare a ``std::string`` or ``StringRef`` member.
+    A ``cg.std_string`` constant compares with ``==`` against a ``std::string`` and stays in
+    flash on ESP8266; other string types are plain literals.
     Generates one static predicate and an ``ApplyCondition`` templated on it.
     """
     call = check if isinstance(check, ApplyCall) else ApplyCall(check)
-    members = call.members
+    members = [
+        (key, t, fn or (flash_compare if t is cg.std_string else None))
+        for key, t, fn in call.members
+    ]
     _check_key_in_schema(name, schema, id_key)
     for conf_key, _, _ in members:
         _check_key_in_schema(name, schema, conf_key)
