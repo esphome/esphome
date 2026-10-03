@@ -71,7 +71,9 @@ void UartTcp::read_socket_() {
     room = std::max<size_t>(1, this->parent_->get_baud_rate() / BAUD_PACE_DIVISOR);
   }
   if (room == 0) {
+    // The UART cannot take more. The peer is not idle.
     this->rx_pending_ = true;
+    this->note_io_();
     return;
   }
   uint8_t tmp[READ_CHUNK];
@@ -127,12 +129,12 @@ void UartTcp::loop() {
   if (!this->link_was_up_) {
     return;
   }
-  this->check_idle_();
-  if (!this->link_.connected()) {
-    return;
-  }
+  // A byte moved in this pass resets the clock before the timeout can close.
   if (this->rx_pending_ || this->link_.ready()) {
     this->read_socket_();
+  }
+  if (!this->link_.connected()) {
+    return;
   }
   // UART bytes picked up here go out in the same pass.
   this->read_uart_();
@@ -141,6 +143,10 @@ void UartTcp::loop() {
   if (this->link_.tx_free() > before) {
     this->note_io_();
   }
+  if (!this->link_.connected()) {
+    return;
+  }
+  this->check_idle_();
 }
 
 void UartTcp::close_idle_() {

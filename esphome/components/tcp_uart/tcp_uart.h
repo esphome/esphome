@@ -52,12 +52,19 @@ class TcpUart : public uart::UARTComponent, public Component {
   void sync_link_();
   void read_socket_();
   void close_idle_();
-  bool flush_tx_();
   // 0 disables. Unsigned elapsed time, so a wrapped millis() does not close early.
   // A zero loop clock means it has not started; last_io_ 0 means there is no link yet.
   void note_io_() {
     uint32_t now = App.get_loop_component_start_time();
     this->last_io_ms_ = now == 0 ? 1 : now;
+  }
+  bool flush_tx_() {
+    size_t before = this->link_.tx_free();
+    bool emptied = this->link_.flush_tx();
+    if (this->link_.tx_free() > before) {
+      this->note_io_();
+    }
+    return emptied;
   }
   void check_idle_() {
     if (this->timeout_ms_ == 0 || this->last_io_ms_ == 0) {

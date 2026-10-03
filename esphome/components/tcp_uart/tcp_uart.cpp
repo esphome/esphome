@@ -67,7 +67,8 @@ void TcpUart::read_socket_() {
   }
   size_t room = RX_BUFFER_SIZE - this->rx_end_;
   if (room == 0) {
-    // Only a read that filled all free space gets here, so rx_pending_ is already set.
+    // Unread bytes are waiting on the consumer. The peer is not idle.
+    this->note_io_();
     return;
   }
   ssize_t count = this->link_.read(this->rx_ + this->rx_end_, room);
@@ -101,14 +102,18 @@ void TcpUart::loop() {
   if (!this->link_was_up_) {
     return;
   }
-  this->check_idle_();
-  if (!this->link_.connected()) {
-    return;
-  }
+  // A byte moved in this pass resets the clock before the timeout can close.
   if (this->rx_pending_ || this->link_.ready()) {
     this->read_socket_();
   }
+  if (!this->link_.connected()) {
+    return;
+  }
   this->flush_tx_();
+  if (!this->link_.connected()) {
+    return;
+  }
+  this->check_idle_();
 }
 
 void TcpUart::write_array(const uint8_t *data, size_t len) {
@@ -149,15 +154,6 @@ uart::UARTFlushResult TcpUart::flush() {
     return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
   }
   return emptied ? uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS : uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
-}
-
-bool TcpUart::flush_tx_() {
-  size_t before = this->link_.tx_free();
-  bool emptied = this->link_.flush_tx();
-  if (this->link_.tx_free() > before) {
-    this->note_io_();
-  }
-  return emptied;
 }
 
 void TcpUart::close_idle_() {
