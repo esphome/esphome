@@ -45,6 +45,21 @@ MEASUREMENT_MODE_OPTIONS = {
 }
 
 
+def _pressure_hpa(value):
+    """Validate and normalise ambient-pressure compensation to hPa.
+
+    A bare number is treated as hPa directly.  bar, mbar, and mBar are
+    accepted by cv.pressure (which returns a value in bar) and multiplied
+    by 1000 to convert to hPa.  This mirrors cv.temperature so that all
+    units the sensor datasheet mentions work transparently.
+    """
+    try:
+        return cv.float_(value)
+    except cv.Invalid:
+        pass
+    return cv.pressure(value) * 1000.0
+
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -75,7 +90,10 @@ CONFIG_SCHEMA = (
                 cv.float_with_unit("altitude", "(m|m a.s.l.|MAMSL|MASL)"),
                 cv.int_range(min=0, max=0xFFFF, max_included=False),
             ),
-            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.pressure,
+            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.All(
+                _pressure_hpa,
+                cv.float_range(min=700, max=1200),
+            ),
             cv.Optional(CONF_TEMPERATURE_OFFSET, default="4°C"): cv.temperature_delta,
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
                 sensor.Sensor
