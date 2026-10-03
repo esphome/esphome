@@ -26,6 +26,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def AUTO_LOAD() -> list[str]:
+    CORE.data["captive_portal_auto_loaded_web_server_ota"] = True
     auto_load = ["web_server_base", "ota.web_server"]
     if CORE.is_esp32:
         auto_load.append("socket")

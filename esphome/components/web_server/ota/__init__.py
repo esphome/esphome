@@ -38,6 +38,19 @@ def _web_server_ota_final_validate(config: ConfigType) -> None:
         else:
             other_ota_configs.append(ota_conf)
 
+    captive_portal_auto_loaded = CORE.data.get(
+        "captive_portal_auto_loaded_web_server_ota", False
+    )
+
+    if captive_portal_auto_loaded:
+        if len(web_server_ota_configs) > 1:
+            # captive_portal auto-loaded it AND user explicitly configured it
+            CORE.data["web_server_ota_captive_only"] = False
+        elif len(web_server_ota_configs) == 1:
+            # Only the auto-loaded entry exists — user did not explicitly configure it
+            # Use setdefault so a prior False (set above on a first pass) is not overwritten
+            CORE.data.setdefault("web_server_ota_captive_only", True)
+
     if len(web_server_ota_configs) <= 1:
         return
 
@@ -84,6 +97,9 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await ota_to_code(var, config)
     await cg.register_component(var, config)
-    cg.add_define("USE_WEBSERVER_OTA")
+    if CORE.data.get("web_server_ota_captive_only", False):
+        cg.add_define("USE_WEBSERVER_OTA_DISABLED")  # captive portal only
+    else:
+        cg.add_define("USE_WEBSERVER_OTA")  # full web OTA
     if CORE.is_esp32:
         add_idf_component(name="zorxx/multipart-parser", ref="1.0.1")
