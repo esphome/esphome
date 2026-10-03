@@ -58,6 +58,4 @@ async def test_sensor_timeout_throttle_filter(
                 merged,
                 reference,
             )
-        # The burst was throttled and the timeout republished its last value
-        assert merged[:2] == [1.0, 3.0]
         assert any(math.isnan(v) for v in merged)

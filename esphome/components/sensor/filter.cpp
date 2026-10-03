@@ -13,6 +13,17 @@ namespace esphome::sensor {
 
 static const char *const TAG = "sensor.filter";
 
+/// Shared pass check for throttle_with_priority (NaN only): passes and stamps `last_input` when the
+/// period has elapsed, on the first value, or for NaN.
+static inline bool throttle_nan_passes(uint32_t &last_input, uint32_t period, float value) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (last_input == 0 || now - last_input >= period || std::isnan(value)) {
+    last_input = now;
+    return true;
+  }
+  return false;
+}
+
 // Filter
 void Filter::input(float value) {
   ESP_LOGVV(TAG, "Filter(%p)::input(%f)", this, value);
@@ -266,11 +277,8 @@ optional<float> throttle_with_priority_new_value(Sensor *parent, float value, co
 ThrottleWithPriorityNanFilter::ThrottleWithPriorityNanFilter(uint32_t min_time_between_inputs)
     : min_time_between_inputs_(min_time_between_inputs) {}
 optional<float> ThrottleWithPriorityNanFilter::new_value(float value) {
-  const uint32_t now = App.get_loop_component_start_time();
-  if (this->last_input_ == 0 || now - this->last_input_ >= this->min_time_between_inputs_ || std::isnan(value)) {
-    this->last_input_ = now;
+  if (throttle_nan_passes(this->last_input_, this->min_time_between_inputs_, value))
     return value;
-  }
   return {};
 }
 
@@ -356,20 +364,9 @@ optional<float> TimeoutFilterConfigured::new_value(float value) {
 }
 
 // TimeoutThrottleFilter
-bool TimeoutThrottleFilter::throttle_passes_(float value) {
-  const uint32_t now = App.get_loop_component_start_time();
-  if (this->last_input_ == 0 || now - this->last_input_ >= this->time_period_ || std::isnan(value)) {
-    this->last_input_ = now;
-    return true;
-  }
-  return false;
-}
-
 optional<float> TimeoutThrottleFilter::new_value(float value) {
-  this->pending_value_ = value;
-  this->timeout_start_time_ = millis();
-  this->enable_loop();
-  if (this->throttle_passes_(value))
+  TimeoutFilterLast::new_value(value);
+  if (throttle_nan_passes(this->last_input_, this->time_period_, value))
     return value;
   return {};
 }
@@ -377,7 +374,7 @@ optional<float> TimeoutThrottleFilter::new_value(float value) {
 void TimeoutThrottleFilter::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   if (now - this->timeout_start_time_ >= this->time_period_) {
-    if (this->throttle_passes_(this->pending_value_))
+    if (throttle_nan_passes(this->last_input_, this->time_period_, this->pending_value_))
       this->output(this->pending_value_);
     this->disable_loop();
   }
