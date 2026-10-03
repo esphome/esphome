@@ -1037,7 +1037,7 @@ void lv_mem_init() {}
 
 void lv_mem_deinit() {}
 
-#if defined(USE_HOST) || defined(USE_RP2) || defined(USE_ESP8266)
+#if defined(USE_HOST) || defined(USE_RP2)
 void *lv_malloc_core(size_t size) {
   auto *ptr = malloc(size);  // NOLINT
   if (ptr == nullptr) {
