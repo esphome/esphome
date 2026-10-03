@@ -40,6 +40,7 @@ from esphome.cpp_generator import (  # noqa: F401
     progmem_array,
     safe_exp,
     set_cpp_standard,
+    shared_progmem_array,
     statement,
     static_const_array,
     static_function,
