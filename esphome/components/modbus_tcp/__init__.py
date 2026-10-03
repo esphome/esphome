@@ -25,7 +25,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
-DEPENDENCIES = ["network"]
+DEPENDENCIES = ["network", "uart"]
 AUTO_LOAD = ["socket", "binary_sensor"]
 MULTI_CONF = True
 
