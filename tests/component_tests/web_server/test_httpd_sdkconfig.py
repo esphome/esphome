@@ -11,9 +11,7 @@ def test_web_server_idf_uses_default_header_limit(
     generate_main: Callable[[str], str],
 ) -> None:
     """The web server retains its existing 1024-byte default."""
-    generate_main(
-        "tests/component_tests/web_server/web_server_header_limit_default.yaml"
-    )
+    generate_main("tests/component_tests/web_server/web_server_no_auth.yaml")
 
     assert (
         CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]["CONFIG_HTTPD_MAX_REQ_HDR_LEN"]
