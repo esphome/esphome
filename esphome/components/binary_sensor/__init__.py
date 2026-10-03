@@ -235,36 +235,29 @@ async def delayed_off_filter_to_code(config, filter_id):
     return var
 
 
+AUTOREPEAT_TIMING_SCHEMA = cv.Schema(
+    {
+        cv.Optional(
+            CONF_DELAY, default=DEFAULT_DELAY
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_TIME_OFF, default=DEFAULT_TIME_OFF
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_TIME_ON, default=DEFAULT_TIME_ON
+        ): cv.positive_time_period_milliseconds,
+    }
+)
+
+
 @register_filter(
     "autorepeat",
     AutorepeatFilter,
-    cv.All(
-        cv.ensure_list(
-            {
-                cv.Optional(
-                    CONF_DELAY, default=DEFAULT_DELAY
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_TIME_OFF, default=DEFAULT_TIME_OFF
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_TIME_ON, default=DEFAULT_TIME_ON
-                ): cv.positive_time_period_milliseconds,
-            }
-        ),
-        cv.Length(max=254),
-    ),
+    cv.All(cv.ensure_list(AUTOREPEAT_TIMING_SCHEMA), cv.Length(max=254)),
 )
-async def autorepeat_filter_to_code(config, filter_id):
-    if not config:
-        config = [
-            {
-                CONF_DELAY: cv.time_period_str_unit(DEFAULT_DELAY),
-                CONF_TIME_OFF: cv.time_period_str_unit(DEFAULT_TIME_OFF),
-                CONF_TIME_ON: cv.time_period_str_unit(DEFAULT_TIME_ON),
-            }
-        ]
-    timings = tuple(
+async def autorepeat_filter_to_code(config: list[ConfigType], filter_id: ID) -> MockObj:
+    config = config or [AUTOREPEAT_TIMING_SCHEMA({})]
+    timings = [
         cg.StructInitializer(
             AutorepeatFilterTiming,
             ("delay", conf[CONF_DELAY].total_milliseconds),
@@ -272,11 +265,11 @@ async def autorepeat_filter_to_code(config, filter_id):
             ("time_on", conf[CONF_TIME_ON].total_milliseconds),
         )
         for conf in config
-    )
+    ]
     tables = _get_data().autorepeat_timings
     key = tuple(str(t) for t in timings)
     if (table := tables.get(key)) is None:
-        # filter_id is generated, so the derived name is unique.
+        # Derived from the filter id, like noise _psk and socket _ipv4_allow.
         table_id = ID(
             f"{filter_id}_timings", is_declaration=True, type=AutorepeatFilterTiming
         )
