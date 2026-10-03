@@ -7,9 +7,9 @@ from esphome.types import ConfigType
 DEPENDENCIES = ["rp2"]
 
 
-PIOASM_REPO_VERSION = "1.5.0-b"
+PIOASM_REPO_VERSION = "4.1.0"
 PIOASM_REPO_BASE = f"https://github.com/earlephilhower/pico-quick-toolchain/releases/download/{PIOASM_REPO_VERSION}"
-PIOASM_VERSION = "pioasm-2e6142b.230216"
+PIOASM_VERSION = "pioasm-9fdfe11.250530"
 PIOASM_DOWNLOADS = {
     "linux": {
         "aarch64": f"aarch64-linux-gnu.{PIOASM_VERSION}.tar.gz",
