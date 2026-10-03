@@ -94,11 +94,18 @@ def scan_end_trigger_schema(trigger_class: MockObjClass) -> Callable[[Any], Any]
 _count_listener = cg.slot_counter(LISTENER_COUNT_DEFINE)
 
 
+def mac_filter_table(macs: list) -> cg.MockObj:
+    """Shared flash table of MACs ended by 0 (never a valid address), so triggers store a pointer."""
+    return cg.shared_progmem_array(
+        "ble_mac_filter", cg.uint64, [*(mac.as_hex for mac in macs), 0]
+    )
+
+
 async def advertise_trigger_to_code(conf: ConfigType, var: cg.MockObj) -> None:
     """Build an on_ble_advertise trigger (optional multi-mac filter)."""
     trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
     if (macs := conf.get(CONF_MAC_ADDRESS)) is not None:
-        cg.add(trigger.set_addresses([it.as_hex for it in macs]))
+        cg.add(trigger.set_addresses(mac_filter_table(macs)))
     await automation.build_automation(trigger, [(ESPBTDeviceConstRef, "x")], conf)
     _count_listener()
 
