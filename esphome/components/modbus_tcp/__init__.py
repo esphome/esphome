@@ -34,14 +34,17 @@ def _final_validate(config: ConfigType) -> None:
     # out as a new TCP request with a new transaction id.
     full = fv.full_config.get()
     link_id = str(config[CONF_ID])
-    for hub in full.get("modbus", []):
+    for hub in (full.get("modbus") or []) if full is not None else []:
         if str(hub.get(CONF_UART_ID, "")) != link_id:
             continue
         if hub.get(CONF_ROLE, "client") != "server":
             continue
         raise cv.Invalid(
-            f"modbus hub '{hub.get(CONF_ID)}' uses this UART with role server. "
-            "modbus_tcp is the TCP client, so the hub must use role: client",
+            "A modbus hub with role: server writes a reply. This link sends that "
+            "write out as a new Modbus TCP request, and it only delivers a TCP "
+            "response that matches its own request. Use role: client. A TCP client "
+            "is answered by modbus_tcp with role: server on the hardware UART, "
+            "which forwards the query to the pins",
             [CONF_ID],
         )
 
