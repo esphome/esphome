@@ -319,9 +319,9 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
  public:
   explicit IfAction(Condition<Ts...> *condition) : condition_(condition) {}
 
-  // Precondition: add_then/add_else, and likewise finish_then/finish_else, must be called at most
-  // once per instance. Calling either twice re-appends the same inline continuation pointer and
-  // forms a self-loop in the next_ chain.
+  // Precondition: build each branch either with one add_then/add_else call, or with
+  // add_then_action/add_else_action calls followed by one finish_then/finish_else, never both.
+  // Appending the inline continuation twice forms a self-loop in the next_ chain.
   void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
     this->then_.add_action(&this->then_continuation_);
@@ -378,7 +378,8 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
  public:
   WhileAction(Condition<Ts...> *condition) : condition_(condition) {}
 
-  // Precondition: must be called at most once per instance (see IfAction::add_then).
+  // Precondition: use either add_then or add_then_action plus one finish_then, never both
+  // (see IfAction::add_then).
   void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
     this->then_.add_action(&this->loop_continuation_);
@@ -444,7 +445,8 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint32_t, count)
 
-  // Precondition: must be called at most once per instance (see IfAction::add_then).
+  // Precondition: use either add_then or add_then_action plus one finish_then, never both
+  // (see IfAction::add_then).
   void add_then(const std::initializer_list<Action<uint32_t, Ts...> *> &actions) {
     this->then_.add_actions(actions);
     this->then_.add_action(&this->loop_continuation_);
