@@ -36,3 +36,14 @@ canbus:
                   break;
                 // to be continued...
               }
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          auto status = id(mcp2515_can).get_status();
+          ESP_LOGD("canbus_status", "bus_off: %d, tx_err: %d, rx_err: %d",
+            status.bus_off,
+            status.tx_error_counter,
+            status.rx_error_counter
+          );

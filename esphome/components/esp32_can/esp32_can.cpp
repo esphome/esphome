@@ -84,6 +84,8 @@ bool ESP32Can::setup_internal() {
   twai_general_config_t g_config =
       TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t) this->tx_, (gpio_num_t) this->rx_, twai_mode);
   g_config.controller_id = next_twai_ctrl_num++;
+  g_config.alerts_enabled = TWAI_ALERT_ERR_PASS | TWAI_ALERT_ERR_ACTIVE | TWAI_ALERT_BUS_OFF |
+                            TWAI_ALERT_BUS_RECOVERED | TWAI_ALERT_RX_QUEUE_FULL;
   if (this->tx_queue_len_.has_value()) {
     g_config.tx_queue_len = this->tx_queue_len_.value();
   }
@@ -114,6 +116,72 @@ bool ESP32Can::setup_internal() {
     return false;
   }
   return true;
+}
+
+canbus::CanEventFlags ESP32Can::get_events() {
+  uint32_t events = 0;
+  uint32_t alerts;
+
+  if (this->twai_handle_ == nullptr) {
+    // not setup yet or setup failed
+    return static_cast<canbus::CanEventFlags>(events);
+  }
+
+  esp_err_t err = twai_read_alerts_v2(this->twai_handle_, &alerts, 0);
+  if (err == ESP_OK) {
+    if (alerts & TWAI_ALERT_ERR_PASS) {
+      events |= canbus::CAN_EVENT_PASSIVE;
+    }
+    if (alerts & TWAI_ALERT_ERR_ACTIVE) {
+      events |= canbus::CAN_EVENT_ACTIVE;
+    }
+
+    if (alerts & TWAI_ALERT_BUS_OFF) {
+      events |= canbus::CAN_EVENT_BUS_OFF;
+      // immediately initiate bus recovery, like MCP2515 does as well
+      if (twai_initiate_recovery_v2(this->twai_handle_) != ESP_OK) {
+        // should never happen as this only fails with an invalid handle (which is checked above)
+        // or when the state is not "bus off", which is a permanent state until recovery is initiated.
+        this->mark_failed(LOG_STR("Recovery after bus off failed"));
+      }
+    }
+    if (alerts & TWAI_ALERT_BUS_RECOVERED) {
+      if (twai_start_v2(this->twai_handle_) != ESP_OK) {
+        // should never happen as this only fails with an invalid handle (which is checked above)
+        // or when the state is not "stopped", which is a permanent state once recovery is finished.
+        this->mark_failed(LOG_STR("Restart after bus off failed"));
+      }
+    }
+
+    if (alerts & TWAI_ALERT_RX_QUEUE_FULL) {
+      events |= canbus::CAN_EVENT_RX_QUEUE_FULL;
+    }
+  } else if (err != ESP_ERR_TIMEOUT) {
+    ESP_LOGD(TAG, "failed to get CAN events");
+  }
+  return static_cast<canbus::CanEventFlags>(events);
+}
+
+canbus::CanStatus ESP32Can::get_status() {
+  canbus::CanStatus status = {};
+
+  twai_status_info_t twai_status;
+
+  if (this->twai_handle_ != nullptr && twai_get_status_info_v2(this->twai_handle_, &twai_status) == ESP_OK) {
+    status.bus_off = (twai_status.state == TWAI_STATE_BUS_OFF) || (twai_status.state == TWAI_STATE_RECOVERING);
+    status.rx_error_counter = twai_status.rx_error_counter;
+    status.tx_error_counter = twai_status.tx_error_counter;
+
+    status.tx_failed_count = twai_status.tx_failed_count;
+    status.rx_missed_count = twai_status.rx_missed_count;
+    status.rx_overrun_count = twai_status.rx_overrun_count;
+    status.arb_lost_count = twai_status.arb_lost_count;
+    status.bus_error_count = twai_status.bus_error_count;
+  } else {
+    ESP_LOGD(TAG, "failed to get CAN status");
+  }
+
+  return status;
 }
 
 canbus::Error ESP32Can::send_message(struct canbus::CanFrame *frame) {

@@ -24,10 +24,12 @@ class ESP32Can final : public canbus::Canbus {
   void set_tx_enqueue_timeout_ms(uint32_t tx_enqueue_timeout_ms) {
     this->tx_enqueue_timeout_ticks_ = pdMS_TO_TICKS(tx_enqueue_timeout_ms);
   }
+  canbus::CanStatus get_status() override;
   ESP32Can(){};
 
  protected:
   bool setup_internal() override;
+  canbus::CanEventFlags get_events() override;
   canbus::Error send_message(struct canbus::CanFrame *frame) override;
   canbus::Error read_message(struct canbus::CanFrame *frame) override;
 
