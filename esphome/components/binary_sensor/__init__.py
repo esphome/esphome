@@ -264,12 +264,18 @@ async def autorepeat_filter_to_code(config: list[ConfigType], filter_id: ID) -> 
         )
         for conf in config
     ]
+    # A never-run delay ends the table, so the filter stores no count.
+    timings.append(
+        cg.StructInitializer(
+            AutorepeatFilterTiming, ("delay", cg.RawExpression("SCHEDULER_DONT_RUN"))
+        )
+    )
     table = cg.shared_progmem_array(
         "binary_sensor_autorepeat_timings",
         AutorepeatFilterTiming,
         cg.ArrayInitializer(*timings),
     )
-    return cg.new_Pvariable(filter_id, table, len(timings))
+    return cg.new_Pvariable(filter_id, table)
 
 
 @register_filter("lambda", LambdaFilter, cv.returning_lambda)

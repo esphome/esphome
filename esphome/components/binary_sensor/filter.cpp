@@ -83,12 +83,12 @@ optional<bool> AutorepeatFilter::new_value(bool value) {
 }
 
 void AutorepeatFilter::next_timing_() {
-  if (this->active_timing_ < this->timings_count_) {
-    App.scheduler.set_timeout(this, this->timings_[this->active_timing_].delay, [this]() { this->next_timing_(); });
+  const uint32_t delay = this->timings_[this->active_timing_].delay;
+  if (delay != SCHEDULER_DONT_RUN) {
+    App.scheduler.set_timeout(this, delay, [this]() { this->next_timing_(); });
   }
-  if (this->active_timing_ <= this->timings_count_) {
-    this->active_timing_++;
-  }
+  // Only reached with active_timing_ at most the end-marker index, so this never passes it.
+  this->active_timing_++;
   if (this->active_timing_ == 2)
     this->next_value_(false);
 }

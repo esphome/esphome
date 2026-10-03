@@ -93,14 +93,13 @@ static_assert(std::is_same_v<decltype(AutorepeatFilterTiming::delay), uint32_t> 
                   std::is_same_v<decltype(AutorepeatFilterTiming::time_on), uint32_t>,
               "AutorepeatFilterTiming fields must stay uint32_t");
 
-/// Timings live in a PROGMEM table emitted by codegen. Every field is uint32_t, so aligned
-/// loads straight from flash are safe on ESP8266.
+/// Timings live in a PROGMEM table emitted by codegen, ended by an entry whose delay is
+/// SCHEDULER_DONT_RUN (a step that could never advance anyway). Aligned loads are ESP8266 safe.
 /// The two scheduled timers are keyed off `this` and `&active_timing_`; since the address
 /// of `active_timing_` is taken as a scheduler key, the class must not be copied or moved.
 class AutorepeatFilter : public Filter {
  public:
-  AutorepeatFilter(const AutorepeatFilterTiming *timings, uint8_t timings_count)
-      : timings_(timings), timings_count_(timings_count) {}
+  explicit AutorepeatFilter(const AutorepeatFilterTiming *timings) : timings_(timings) {}
   AutorepeatFilter(const AutorepeatFilter &) = delete;
   AutorepeatFilter &operator=(const AutorepeatFilter &) = delete;
 
@@ -110,9 +109,8 @@ class AutorepeatFilter : public Filter {
   void next_timing_();
   void next_value_(bool val);
 
+  uint8_t active_timing_{0};  // before timings_ so it fills the padding after the Filter base
   const AutorepeatFilterTiming *timings_;
-  uint8_t timings_count_;
-  uint8_t active_timing_{0};
 };
 
 class LambdaFilter : public Filter {
