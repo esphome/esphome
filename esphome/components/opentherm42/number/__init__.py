@@ -18,6 +18,9 @@ from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_2_TSETCH2,
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_VENTILATION_HEAT_RECOVERY,
     CONF_OPENTHERM42_ID,
+    CONF_TRANSPARENT_BOILER_PARAMETERS,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_SOLAR_STORAGE,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_VENTILATION_HEAT_RECOVERY,
     CONF_UPDATE_EVERY,
 )
 
@@ -107,7 +110,11 @@ SENSOR_FEED_TYPES: dict[str, tuple[cv.Schema, dict, int]] = {}
 
 # §5.3.6 Class 6, IDs 11/89/106: one list of user-named TSP slots per family, keyed by which data-id
 # reads/writes that family's transparent-boiler-parameters.
-TSP_FAMILY_DATA_IDS: dict[str, int] = {}
+TSP_FAMILY_DATA_IDS: dict[str, int] = {
+    CONF_TRANSPARENT_BOILER_PARAMETERS: 11,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_VENTILATION_HEAT_RECOVERY: 89,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_SOLAR_STORAGE: 106,
+}
 
 TSP_ENTRY_SCHEMA = (
     # Raw, opaque, manufacturer-specific parameter access -- an advanced/expert interface, not a

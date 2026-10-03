@@ -222,6 +222,45 @@ CONF_CONFIGURATION_INFORMATION_BRAND_SERIAL_NUMBER = (
     "configuration_information_brand_serial_number"
 )
 
+# §5.3.3 Class 3, ID 4 HB: one button per Request-Code value.
+CONF_REMOTE_REQUEST_BACK_TO_NORMAL_OPERATION_MODE = (
+    "remote_request_back_to_normal_operation_mode"
+)
+CONF_REMOTE_REQUEST_BOILER_LOCKOUT_RESET = "remote_request_boiler_lockout_reset"
+CONF_REMOTE_REQUEST_CH_WATER_FILLING = "remote_request_ch_water_filling"
+CONF_REMOTE_REQUEST_SERVICE_MODE_MAXIMUM_POWER = (
+    "remote_request_service_mode_maximum_power"
+)
+CONF_REMOTE_REQUEST_SERVICE_MODE_MINIMUM_POWER = (
+    "remote_request_service_mode_minimum_power"
+)
+CONF_REMOTE_REQUEST_SERVICE_MODE_SPARK_TEST = "remote_request_service_mode_spark_test"
+CONF_REMOTE_REQUEST_SERVICE_MODE_FAN_MAXIMUM_SPEED = (
+    "remote_request_service_mode_fan_maximum_speed"
+)
+CONF_REMOTE_REQUEST_SERVICE_MODE_FAN_MINIMUM_SPEED = (
+    "remote_request_service_mode_fan_minimum_speed"
+)
+CONF_REMOTE_REQUEST_SERVICE_MODE_3_WAY_VALVE_TO_CH = (
+    "remote_request_service_mode_3_way_valve_to_ch"
+)
+CONF_REMOTE_REQUEST_SERVICE_MODE_3_WAY_VALVE_TO_DHW = (
+    "remote_request_service_mode_3_way_valve_to_dhw"
+)
+CONF_REMOTE_REQUEST_RESET_SERVICE_REQUEST_FLAG = (
+    "remote_request_reset_service_request_flag"
+)
+CONF_REMOTE_REQUEST_SERVICE_TEST_1 = "remote_request_service_test_1"
+CONF_REMOTE_REQUEST_AUTOMATIC_HYDRONIC_AIR_PURGE = (
+    "remote_request_automatic_hydronic_air_purge"
+)
+
+# §5.3.3 Class 3, ID 4 LB: the most recent Request-Response-Code (0..127 = refused, 128..255 = accepted).
+CONF_REMOTE_REQUEST_LAST_RESPONSE_CODE = "remote_request_last_response_code"
+# Same id=4 LB value as above, as its spec-defined meaning ("Request refused"/"Request accepted")
+# rather than the raw code.
+CONF_REMOTE_REQUEST_LAST_RESPONSE = "remote_request_last_response"
+
 # Synthetic diagnostic entity, not tied to any OpenTherm data-id -- deliberately NOT given the
 # sensor_and_informational_data_* prefix used throughout this file, since that prefix names a real
 # spec chapter (§5.3.4 Class 4) this entity has nothing to do with. How long the most recent full
@@ -240,3 +279,44 @@ CONF_PASS_DURATION = "pass_duration"
 # thing that otherwise only ever shows up as a log line. Same lifecycle as the sweep duration
 # entity above (unconditionally available, no update_every field, published once per sweep).
 CONF_SWEEP_HAD_ERRORS = "sweep_had_errors"
+
+# §5.3.6 Class 6, IDs 10/88/105 HB: number of TSPs supported, one per family.
+CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS = (
+    "transparent_boiler_parameters_number_of_tsps"
+)
+CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_VENTILATION_HEAT_RECOVERY = (
+    "transparent_boiler_parameters_number_of_tsps_ventilation_heat_recovery"
+)
+CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_SOLAR_STORAGE = (
+    "transparent_boiler_parameters_number_of_tsps_solar_storage"
+)
+
+# §5.3.6 Class 6, IDs 11/89/106: user-named, user-indexed TSP slots -- one list per family. TSP values
+# are opaque and manufacturer-specific, so unlike every other option there's no fixed name/description
+# the spec can supply; the user names and indexes whichever slots their boiler documents.
+CONF_TRANSPARENT_BOILER_PARAMETERS = "transparent_boiler_parameters"
+CONF_TRANSPARENT_BOILER_PARAMETERS_VENTILATION_HEAT_RECOVERY = (
+    "transparent_boiler_parameters_ventilation_heat_recovery"
+)
+CONF_TRANSPARENT_BOILER_PARAMETERS_SOLAR_STORAGE = (
+    "transparent_boiler_parameters_solar_storage"
+)
+
+# §5.3.7 Class 7, IDs 12/90/107 HB: size of the fault history buffer, one per family.
+CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER = "fault_history_data_size_of_fault_buffer"
+CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_VENTILATION_HEAT_RECOVERY = (
+    "fault_history_data_size_of_fault_buffer_ventilation_heat_recovery"
+)
+CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_SOLAR_STORAGE = (
+    "fault_history_data_size_of_fault_buffer_solar_storage"
+)
+
+# §5.3.7 Class 7, IDs 13/91/108: user-named, user-indexed fault-history-buffer slots -- one list per
+# family. Like Class 6's TSPs, entry values are opaque and manufacturer-specific.
+CONF_FAULT_HISTORY_DATA_FAULT_BUFFER = "fault_history_data_fault_buffer"
+CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_VENTILATION_HEAT_RECOVERY = (
+    "fault_history_data_fault_buffer_ventilation_heat_recovery"
+)
+CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_SOLAR_STORAGE = (
+    "fault_history_data_fault_buffer_solar_storage"
+)

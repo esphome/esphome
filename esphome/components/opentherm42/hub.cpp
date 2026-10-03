@@ -109,6 +109,12 @@ static void invalidate_entity(switch_::Switch *entity) {
 
 // clang-format off
 const SimpleSensorInfo OpenTherm42Hub::SIMPLE_SENSORS[] = {
+    {RequestKind::NUMBER_OF_TSPS, 10, SimpleValueKind::U8_HB, &OpenTherm42Hub::number_of_tsps_sensor_, "Number of TSP's (id=10)"},
+    {RequestKind::NUMBER_OF_TSPS_VENTILATION, 88, SimpleValueKind::U8_HB, &OpenTherm42Hub::number_of_tsps_ventilation_sensor_, "Number of TSP's ventilation/heat-recovery (id=88)"},
+    {RequestKind::NUMBER_OF_TSPS_SOLAR_STORAGE, 105, SimpleValueKind::U8_HB, &OpenTherm42Hub::number_of_tsps_solar_storage_sensor_, "Number of TSP's Solar Storage (id=105)"},
+    {RequestKind::FAULT_HISTORY_BUFFER_SIZE, 12, SimpleValueKind::U8_HB, &OpenTherm42Hub::fault_history_buffer_size_sensor_, "Size of Fault Buffer (id=12)"},
+    {RequestKind::FAULT_HISTORY_BUFFER_SIZE_VENTILATION, 90, SimpleValueKind::U8_HB, &OpenTherm42Hub::fault_history_buffer_size_ventilation_sensor_, "Size of Fault Buffer ventilation/heat-recovery (id=90)"},
+    {RequestKind::FAULT_HISTORY_BUFFER_SIZE_SOLAR_STORAGE, 107, SimpleValueKind::U8_HB, &OpenTherm42Hub::fault_history_buffer_size_solar_storage_sensor_, "Size of Fault Buffer Solar Storage (id=107)"},
     {RequestKind::OPENTHERM_VERSION_BOILER, 125, SimpleValueKind::F88, &OpenTherm42Hub::opentherm_version_boiler_sensor_, "OpenTherm version Boiler (id=125)"},
     {RequestKind::OPENTHERM_VERSION_VENTILATION, 75, SimpleValueKind::F88, &OpenTherm42Hub::opentherm_version_ventilation_sensor_, "OpenTherm version ventilation/heat-recovery (id=75)"},
 };
@@ -349,6 +355,17 @@ void OpenTherm42Hub::build_schedule_() {
   this->pending_simple_sensor_update_every_.clear();
   this->pending_simple_sensor_update_every_.shrink_to_fit();
 
+  // §5.3.6 Class 6: one Entry round-robins through every configured TSP for periodic reads;
+  // on-demand writes (see write_tsp()) are serviced ahead of this rotation.
+  if (!this->tsp_slots_.empty()) {
+    this->add_entry_(RequestKind::TSP);
+  }
+
+  // §5.3.7 Class 7: same round-robin, for fault-history-buffer entries (purely read-only).
+  if (!this->fhb_slots_.empty()) {
+    this->add_entry_(RequestKind::FHB);
+  }
+
   // Every hub-level group option staged its cadence at wiring time (see
   // pending_group_update_every_'s declaration comment) since entries_ didn't exist yet back then --
   // apply them now that every add_entry_() call above has run.
@@ -372,6 +389,30 @@ void OpenTherm42Hub::build_schedule_() {
 }
 
 Frame OpenTherm42Hub::build_next_request_() {
+  if (this->remote_request_pending_) {
+    this->remote_request_pending_ = false;
+    this->pending_request_kind_ = RequestKind::REMOTE_REQUEST;
+    Frame frame{};
+    frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+    frame.id = 4;
+    frame.value_hb = this->remote_request_code_;
+    this->log_outgoing_frame_(frame);
+    return frame;
+  }
+  if (this->tsp_write_pending_) {
+    this->tsp_write_pending_ = false;
+    this->pending_request_kind_ = RequestKind::TSP;
+    this->pending_tsp_slot_index_ = this->tsp_write_slot_index_;
+    this->pending_tsp_is_write_ = true;
+    Frame frame{};
+    auto const &slot = this->tsp_slots_[this->tsp_write_slot_index_];
+    frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+    frame.id = slot.data_id;
+    frame.value_hb = slot.index;
+    frame.value_lb = this->tsp_write_value_;
+    this->log_outgoing_frame_(frame);
+    return frame;
+  }
   // ASAP: a dirty write jumps the queue immediately, ahead of the ordinary pass-pull below -- see
   // Entry's declaration comment. Scans every entry (not just STATUS/CONTROL_SETPOINT -- a prior
   // version of this scheduler only scanned those two, silently leaving every other write id's ASAP
@@ -514,6 +555,34 @@ Frame OpenTherm42Hub::build_entry_request_(RequestKind kind) {
       frame.id = 95;
       frame.value_hb = this->brand_serial_number_.next_index;
       break;
+    case RequestKind::REMOTE_REQUEST:
+      break;  // built directly in build_next_request_() before this switch, unreachable here
+
+    case RequestKind::TSP:
+      // Only reached for the periodic-read rotation -- on-demand writes are intercepted by the
+      // tsp_write_pending_ check above build_next_request_()'s switch.
+      if (!this->tsp_slots_.empty()) {
+        this->pending_tsp_slot_index_ = this->tsp_read_index_;
+        this->pending_tsp_is_write_ = false;
+        auto const &slot = this->tsp_slots_[this->tsp_read_index_];
+        frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+        frame.id = slot.data_id;
+        frame.value_hb = slot.index;
+        this->tsp_read_index_ = (this->tsp_read_index_ + 1) % this->tsp_slots_.size();
+      }
+      break;
+
+    case RequestKind::FHB:
+      if (!this->fhb_slots_.empty()) {
+        this->pending_fhb_slot_index_ = this->fhb_read_index_;
+        auto const &slot = this->fhb_slots_[this->fhb_read_index_];
+        frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+        frame.id = slot.data_id;
+        frame.value_hb = slot.index;
+        this->fhb_read_index_ = (this->fhb_read_index_ + 1) % this->fhb_slots_.size();
+      }
+      break;
+
     default: {
       // Every plain read-only sensor (see the SIMPLE_SENSORS table) shares this one case.
       const SimpleSensorInfo *info = this->find_simple_sensor_(kind);
@@ -1116,6 +1185,26 @@ bool OpenTherm42Hub::handle_response_feeds_and_time_(const Frame &frame, Message
                                    "Brand serial number (id=95)");
       return true;
 
+    case RequestKind::REMOTE_REQUEST:
+      if (type != MessageType::WRITE_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::REMOTE_REQUEST, type);
+        OT42_LOG_REJECTION(invalidate_now, "Remote request (id=4, code=%u) was rejected (message type %s)",
+                           this->remote_request_code_, message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::REMOTE_REQUEST);
+        }
+        return true;
+      }
+      if (this->remote_request_last_response_code_sensor_ != nullptr) {
+        this->remote_request_last_response_code_sensor_->publish_state(frame.value_lb);
+      }
+      if (this->remote_request_last_response_text_sensor_ != nullptr) {
+        // §5.3.3: 0..127 = request refused, 128..255 = request accepted.
+        this->remote_request_last_response_text_sensor_->publish_state((frame.value_lb >= 128) ? "Request accepted"
+                                                                                               : "Request refused");
+      }
+      return true;
+
     default:
       return false;
   }
@@ -1123,6 +1212,50 @@ bool OpenTherm42Hub::handle_response_feeds_and_time_(const Frame &frame, Message
 
 bool OpenTherm42Hub::handle_response_setpoints_and_parameters_(const Frame &frame, MessageType type) {
   switch (this->pending_request_kind_) {
+    case RequestKind::TSP: {
+      // Deliberately not gated by should_invalidate_now_(): every TSP slot shares this one
+      // RequestKind, so a single per-kind last-success timestamp can't tell which specific slot most
+      // recently succeeded -- unlike everything else, a rejected TSP read always invalidates right away.
+      auto const &slot = this->tsp_slots_[this->pending_tsp_slot_index_];
+      if (this->pending_tsp_is_write_) {
+        if (type != MessageType::WRITE_ACK) {
+          OT42_LOG_REJECTION_ALWAYS("TSP write (id=%u, index=%u) was rejected (message type %s)", slot.data_id,
+                                    slot.index, message_type_to_string(type));
+          return true;
+        }
+      } else if (type != MessageType::READ_ACK) {
+        OT42_LOG_REJECTION_ALWAYS("TSP read (id=%u, index=%u) was rejected (message type %s)", slot.data_id, slot.index,
+                                  message_type_to_string(type));
+        if (slot.number != nullptr) {
+          invalidate_entity(slot.number);
+        }
+        return true;
+      }
+      // §5.3.6: both a READ-ACK and a WRITE-ACK echo the (possibly boiler-clamped) TSP-value in LB --
+      // always trust that over whatever was requested.
+      if (slot.number != nullptr) {
+        slot.number->publish_state(frame.value_lb);
+      }
+      return true;
+    }
+
+    case RequestKind::FHB: {
+      // See TSP above: not gated by should_invalidate_now_(), for the same per-slot-vs-per-kind reason.
+      auto const &slot = this->fhb_slots_[this->pending_fhb_slot_index_];
+      if (type != MessageType::READ_ACK) {
+        OT42_LOG_REJECTION_ALWAYS("FHB read (id=%u, index=%u) was rejected (message type %s)", slot.data_id, slot.index,
+                                  message_type_to_string(type));
+        if (slot.sensor != nullptr) {
+          invalidate_entity(slot.sensor);
+        }
+        return true;
+      }
+      if (slot.sensor != nullptr) {
+        slot.sensor->publish_state(frame.value_lb);
+      }
+      return true;
+    }
+
     default:
       return false;
   }
@@ -1381,6 +1514,33 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       }
       return;
 
+    case RequestKind::REMOTE_REQUEST:
+      if (this->remote_request_last_response_code_sensor_ != nullptr) {
+        invalidate_entity(this->remote_request_last_response_code_sensor_);
+      }
+      if (this->remote_request_last_response_text_sensor_ != nullptr) {
+        invalidate_entity(this->remote_request_last_response_text_sensor_);
+      }
+      return;
+
+    case RequestKind::TSP:
+      if (this->pending_tsp_slot_index_ < this->tsp_slots_.size()) {
+        number::Number *tsp_number = this->tsp_slots_[this->pending_tsp_slot_index_].number;
+        if (tsp_number != nullptr) {
+          invalidate_entity(tsp_number);
+        }
+      }
+      return;
+
+    case RequestKind::FHB:
+      if (this->pending_fhb_slot_index_ < this->fhb_slots_.size()) {
+        sensor::Sensor *fhb_sensor = this->fhb_slots_[this->pending_fhb_slot_index_].sensor;
+        if (fhb_sensor != nullptr) {
+          invalidate_entity(fhb_sensor);
+        }
+      }
+      return;
+
     default: {
       const SimpleSensorInfo *info = this->find_simple_sensor_(kind);
       if (info != nullptr) {
@@ -1457,6 +1617,20 @@ void OpenTherm42Hub::describe_request_kind_(RequestKind kind, char *buf, size_t 
     return;
   }
   switch (kind) {
+    case RequestKind::TSP: {
+      auto const &slot = this->tsp_slots_[this->pending_tsp_slot_index_];
+      snprintf(buf, buf_len, "TSP %s (id=%u, index=%u)", this->pending_tsp_is_write_ ? "write" : "read", slot.data_id,
+               slot.index);
+      return;
+    }
+    case RequestKind::FHB: {
+      auto const &slot = this->fhb_slots_[this->pending_fhb_slot_index_];
+      snprintf(buf, buf_len, "FHB read (id=%u, index=%u)", slot.data_id, slot.index);
+      return;
+    }
+    case RequestKind::REMOTE_REQUEST:
+      snprintf(buf, buf_len, "Remote request (id=4, code=%u)", this->remote_request_code_);
+      return;
     default:
       break;
   }
