@@ -89,24 +89,43 @@ CONFIG_SCHEMA = _validate
 
 
 def _final_validate(config: ConfigType) -> None:
-    # Only the tcp_uart link is a UART the hub can sit on. A server hub would
-    # write its RTU reply here, and this class would send that as a new request.
-    if CONF_TCP_UART_ID not in config:
-        return
     full = fv.full_config.get()
-    link_id = str(config[CONF_ID])
-    for hub in (full.get("modbus") or []) if full is not None else []:
-        if str(hub.get(CONF_UART_ID, "")) != link_id:
+    hubs = (full.get("modbus") or []) if full is not None else []
+    # The link is a UART a client hub can sit on. A server hub writes a reply,
+    # and the link would send that reply out as a new request.
+    if CONF_TCP_UART_ID in config:
+        link_id = str(config[CONF_ID])
+        for hub in hubs:
+            if str(hub.get(CONF_UART_ID, "")) != link_id:
+                continue
+            if hub.get(CONF_ROLE, "client") != "server":
+                continue
+            raise cv.Invalid(
+                "A modbus hub with role: server writes a reply. This link sends that "
+                "write out as a new Modbus TCP request, and it only delivers a TCP "
+                "response that matches its own request. Use role: client. A TCP client "
+                "is answered by modbus_tcp with role: server on the hardware UART, "
+                "which forwards the query to the pins",
+                [CONF_ID],
+            )
+        return
+    # role server forwards a TCP query to the device on this UART. A hub on the
+    # same UART would answer, or ask, in place of that device.
+    bus = str(config.get(CONF_UART_ID, ""))
+    for hub in hubs:
+        if bus == "" or str(hub.get(CONF_UART_ID, "")) != bus:
             continue
-        if hub.get(CONF_ROLE, "client") != "server":
-            continue
+        if hub.get(CONF_ROLE, "client") == "server":
+            raise cv.Invalid(
+                "A modbus hub with role: server does not answer a TCP query on this UART. "
+                "modbus_tcp role server forwards the query to the device on these pins "
+                "and returns that device's reply",
+                [CONF_UART_ID],
+            )
         raise cv.Invalid(
-            "A modbus hub with role: server writes a reply. This link sends that "
-            "write out as a new Modbus TCP request, and it only delivers a TCP "
-            "response that matches its own request. Use role: client. A TCP client "
-            "is answered by modbus_tcp with role: server on the hardware UART, "
-            "which forwards the query to the pins",
-            [CONF_ID],
+            "A modbus hub cannot share this UART. modbus_tcp owns it and forwards "
+            "between the socket and the pins",
+            [CONF_UART_ID],
         )
 
 
