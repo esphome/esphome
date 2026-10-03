@@ -1,0 +1,51 @@
+# sntp needs the network stack; the database itself does not.
+wifi:
+  ssid: MySSID
+  password: password1
+
+# Component-only configuration: tsdb brings its own LittleFS partition, so no
+# bus package is involved.
+tsdb:
+  id: tsdb_test
+  time_id: tsdb_time
+  file: history.tsdb
+  on_missing: sentinel
+  columns:
+    - sensor: tsdb_temperature
+      name: temperature
+      scale_factor: 10.0
+    - sensor: tsdb_humidity
+      name: humidity
+      scale_factor: 10.0
+      offset: 0.0
+  errors_sensor: tsdb_errors
+  log_sensor: tsdb_log
+
+sensor:
+  - platform: template
+    id: tsdb_temperature
+    name: TSDB temperature
+    lambda: return 21.4f;
+    update_interval: 60s
+  - platform: template
+    id: tsdb_humidity
+    name: TSDB humidity
+    lambda: return 48.0f;
+    update_interval: 60s
+  - platform: template
+    id: tsdb_errors
+    name: TSDB errors
+    lambda: return 0.0f;
+    update_interval: 60s
+
+time:
+  - platform: sntp
+    id: tsdb_time
+    timezone: UTC
+
+text_sensor:
+  - platform: template
+    id: tsdb_log
+    name: TSDB log
+    lambda: return {"started"};
+    update_interval: 60s
