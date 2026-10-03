@@ -89,11 +89,11 @@ template<typename... Ts> class TemplatableBytes {
   std::vector<uint8_t> value(const Ts &...x) const {
     if (this->len_ < 0)
       return this->code_.func(x...);
-    return to_vector_(this->code_.data, this->size());
+    return to_vector(this->code_.data, this->size());
   }
 
  protected:
-  static std::vector<uint8_t> to_vector_(const uint8_t *data, size_t len) {
+  static std::vector<uint8_t> to_vector(const uint8_t *data, size_t len) {
     std::vector<uint8_t> out(len);
     progmem_memcpy(out.data(), data, len);  // byte loads from flash fault on ESP8266
     return out;
