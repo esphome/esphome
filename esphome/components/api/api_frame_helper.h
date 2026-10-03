@@ -10,7 +10,7 @@
 #ifdef USE_API
 #include "esphome/components/api/api_buffer.h"
 #include "esphome/components/api/api_overflow_buffer.h"
-#include "esphome/components/socket/socket.h"
+#include "api_socket.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "proto.h"
@@ -100,13 +100,13 @@ const LogString *api_error_to_logstr(APIError err);
 class APIFrameHelper {
  public:
   APIFrameHelper() = default;
-  explicit APIFrameHelper(std::unique_ptr<socket::Socket> socket) : socket_(std::move(socket)) {}
+  explicit APIFrameHelper(std::unique_ptr<APISocket> socket) : socket_(std::move(socket)) {}
 
   // Get client name (null-terminated)
   const char *get_client_name() const { return this->client_name_; }
   // Get client peername/IP into caller-provided buffer (fetches on-demand from socket)
   // Returns pointer to buf for convenience in printf-style calls
-  const char *get_peername_to(std::span<char, socket::SOCKADDR_STR_LEN> buf) const;
+  const char *get_peername_to(std::span<char, API_SOCKADDR_STR_LEN> buf) const;
   // Set client name from buffer with length (truncates if needed)
   void set_client_name(const char *name, size_t len) {
     size_t copy_len = std::min(len, sizeof(this->client_name_) - 1);
@@ -118,7 +118,7 @@ class APIFrameHelper {
   virtual APIError loop() = 0;
   virtual APIError read_packet(ReadPacketBuffer *buffer) = 0;
   bool can_write_without_blocking() { return this->state_ == State::DATA && this->overflow_buf_.empty(); }
-  int getpeername(struct sockaddr *addr, socklen_t *addrlen) { return socket_->getpeername(addr, addrlen); }
+  int getpeername(api_sockaddr_t *addr, socklen_t *addrlen) { return socket_->getpeername(addr, addrlen); }
   APIError close() {
     if (state_ == State::CLOSED)
       return APIError::OK;  // Already closed
@@ -128,6 +128,7 @@ class APIFrameHelper {
       return APIError::CLOSE_FAILED;
     return APIError::OK;
   }
+#ifndef USE_API_TRANSPORT_BLE
   APIError shutdown(int how) {
     int err = this->socket_->shutdown(how);
     if (err == -1)
@@ -171,6 +172,7 @@ class APIFrameHelper {
       this->nodelay_counter_ = 0;
     }
   }
+#endif
   // Write a single protobuf message - the hot path (87-100% of all writes).
   // Caller must ensure state is DATA before calling.
   virtual APIError write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) = 0;
@@ -209,7 +211,7 @@ class APIFrameHelper {
   // Move the socket out of this helper so a replacement helper can take it
   // over (plaintext to Noise handoff on unprovisioned devices). The drained
   // helper must be destroyed right after.
-  std::unique_ptr<socket::Socket> release_socket_for_switch() { return std::move(this->socket_); }
+  std::unique_ptr<APISocket> release_socket_for_switch() { return std::move(this->socket_); }
 #endif
   // Release excess memory from internal buffers after initial sync
   void release_buffers() {
@@ -267,7 +269,7 @@ class APIFrameHelper {
 #endif
 
   // Socket ownership (4 bytes on 32-bit, 8 bytes on 64-bit)
-  std::unique_ptr<socket::Socket> socket_;
+  std::unique_ptr<APISocket> socket_;
 
   // Common state enum for all frame helpers
   // Note: Not all states are used by all implementations
@@ -323,11 +325,13 @@ class APIFrameHelper {
 #endif
   uint8_t nodelay_counter_{0};
 
+#ifndef USE_API_TRANSPORT_BLE
   // Internal helper to set TCP_NODELAY socket option
   void set_nodelay_raw_(bool enable) {
     int val = enable ? 1 : 0;
     this->socket_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &val, sizeof(int));
   }
+#endif
 
   // Common initialization for both plaintext and noise protocols
   APIError init_common_();

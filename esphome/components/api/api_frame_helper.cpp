@@ -18,7 +18,7 @@ static constexpr size_t API_MAX_LOG_BYTES = 168;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
 #define HELPER_LOG(msg, ...) \
   do { \
-    char peername_buf[socket::SOCKADDR_STR_LEN]; \
+    char peername_buf[API_SOCKADDR_STR_LEN]; \
     this->get_peername_to(peername_buf); \
     ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, peername_buf, ##__VA_ARGS__); \
   } while (0)
@@ -179,7 +179,7 @@ APIError APIFrameHelper::write_raw_iov_(const struct iovec *iov, int iovcnt, uin
   return APIError::OK;
 }
 
-const char *APIFrameHelper::get_peername_to(std::span<char, socket::SOCKADDR_STR_LEN> buf) const {
+const char *APIFrameHelper::get_peername_to(std::span<char, API_SOCKADDR_STR_LEN> buf) const {
   if (this->socket_) {
     this->socket_->getpeername_to(buf);
   } else {
@@ -200,6 +200,7 @@ APIError APIFrameHelper::init_common_() {
     return APIError::TCP_NONBLOCKING_FAILED;
   }
 
+#ifndef USE_API_TRANSPORT_BLE
   int enable = 1;
   err = this->socket_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
   if (err != 0) {
@@ -207,6 +208,7 @@ APIError APIFrameHelper::init_common_() {
     HELPER_LOG("Setting nodelay failed with errno %d", errno);
     return APIError::TCP_NODELAY_FAILED;
   }
+#endif
   return APIError::OK;
 }
 

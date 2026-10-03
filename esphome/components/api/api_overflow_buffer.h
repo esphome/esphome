@@ -7,8 +7,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_API
 
-#include "esphome/components/socket/headers.h"
-#include "esphome/components/socket/socket.h"
+#include "api_socket.h"
 #include "api_buffer.h"
 
 namespace esphome::api {
@@ -27,7 +26,7 @@ class APIOverflowBuffer {
   /// Drain queued messages to the socket.
   /// Returns bytes written, 0 for a re-entrant call, -1 on error (check errno
   /// for EWOULDBLOCK); callers only need to act on -1.
-  ssize_t try_drain(socket::Socket *socket);
+  ssize_t try_drain(APISocket *socket);
 
   /// Queue iov data from byte offset `skip` as one message.
   /// Returns false when a limit is hit, allocation fails, or storage would move

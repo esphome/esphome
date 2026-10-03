@@ -1,0 +1,11 @@
+packages:
+  api: !include common.yaml
+
+api:
+  transport: ble
+  port: 6053  # common-base.yaml sets a port, which the BLE transport does not take
+
+ota:
+  - platform: zephyr_mcumgr
+    transport:
+      ble: true

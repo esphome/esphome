@@ -46,9 +46,11 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_VARIABLES,
+    PLATFORM_NRF52,
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.helpers import fnv1_hash
 from esphome.types import ConfigFragmentType, ConfigType
 
@@ -59,13 +61,18 @@ _encryption_schema = encryption_schema
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "api"
-DEPENDENCIES = ["network"]
 CODEOWNERS = ["@esphome/core"]
 
 
-def AUTO_LOAD(config: ConfigType) -> list[str]:
-    """Conditionally auto-load noise (encryption) and json (capture_response)."""
-    base = ["socket"]
+def AUTO_LOAD(config: ConfigType | None) -> list[str]:
+    """Conditionally auto-load the transport's socket component, noise
+    (encryption) and json (capture_response)."""
+    if not config:
+        base = ["socket", "network", "socket_ble"]
+    elif config[CONF_TRANSPORT] == TRANSPORT_BLE:
+        base = ["socket_ble"]
+    else:
+        base = ["socket"]
 
     # A falsy config is a tooling probe for the maximal set (None from
     # dependency resolution, {} from the components-graph platform probe);
@@ -128,6 +135,9 @@ SERVICE_ARG_FALLBACK_TYPES: dict[str, MockObj] = {
         for name, t in _SERVICE_ARG_SCALAR_TYPES.items()
     },
 }
+CONF_TRANSPORT = "transport"
+TRANSPORT_IP = "ip"
+TRANSPORT_BLE = "ble"
 CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
 CONF_EXAMPLE = "example"
@@ -286,12 +296,42 @@ ACTIONS_SCHEMA = automation.validate_automation(
 
 def _consume_api_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for API component."""
-    from esphome.components import socket
-
     # API needs 1 listening socket + typically 3 concurrent client connections
     # (not max_connections, which is the upper limit rarely reached)
+    if config[CONF_TRANSPORT] == TRANSPORT_BLE:
+        from esphome.components import socket_ble
+
+        # Every client is a BLE link of its own, so the stack must allow max_connections
+        socket_ble.consume_sockets(config[CONF_MAX_CONNECTIONS], "api")(config)
+        socket_ble.consume_sockets(1, "api", socket_ble.SocketType.L2CAP_LISTEN)(config)
+        return config
+
+    from esphome.components import socket
+
     socket.consume_sockets(3, "api")(config)
     socket.consume_sockets(1, "api", socket.SocketType.TCP_LISTEN)(config)
+    return config
+
+
+def _validate_transport(value: str) -> str:
+    if value == TRANSPORT_BLE:
+        return cv.only_on([PLATFORM_NRF52])(value)
+    return value
+
+
+def _validate_ble_transport(config: ConfigType) -> ConfigType:
+    if config[CONF_TRANSPORT] != TRANSPORT_BLE:
+        return config
+    if config[CONF_PORT] != DEFAULT_PORT:
+        raise cv.Invalid(
+            "The BLE transport does not support setting a port", path=[CONF_PORT]
+        )
+    # Anyone in radio range can connect, and without a key the API accepts plaintext
+    if CONF_KEY not in config.get(CONF_ENCRYPTION, {}):
+        raise cv.Invalid(
+            f"The BLE transport requires an {CONF_ENCRYPTION} {CONF_KEY}",
+            path=[CONF_ENCRYPTION],
+        )
     return config
 
 
@@ -299,6 +339,9 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(APIServer),
+            cv.Optional(CONF_TRANSPORT, default=TRANSPORT_IP): cv.All(
+                cv.one_of(TRANSPORT_IP, TRANSPORT_BLE, lower=True), _validate_transport
+            ),
             cv.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
             # Removed in 2026.1.0 - kept to provide helpful error message
             cv.Optional(CONF_PASSWORD): cv.invalid(
@@ -374,6 +417,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
+    _validate_ble_transport,
     _consume_api_sockets,
     _register_provisioning_source,
 )
@@ -430,7 +474,21 @@ def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _validate_esp8266_action_strings
+def _validate_network(config: ConfigType) -> ConfigType:
+    full_config = fv.full_config.get()
+    if config[CONF_TRANSPORT] == TRANSPORT_BLE:
+        # Voice assistant streams audio to the client's IP address
+        if "voice_assistant" in full_config:
+            raise cv.Invalid("The BLE transport does not support voice_assistant")
+        return config
+    # The IP transport needs a network; this replaces the DEPENDENCIES entry,
+    # which would also apply to the BLE transport
+    if "network" not in full_config:
+        raise cv.Invalid("Component api requires component network")
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(_validate_esp8266_action_strings, _validate_network)
 
 
 def _add_action_strings(
@@ -497,6 +555,9 @@ async def to_code(config: ConfigType) -> None:
 
     if config[CONF_HOMEASSISTANT_STATES]:
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
+
+    if config[CONF_TRANSPORT] == TRANSPORT_BLE:
+        cg.add_define("USE_API_TRANSPORT_BLE")
 
     scratch_size = 0
     if actions:

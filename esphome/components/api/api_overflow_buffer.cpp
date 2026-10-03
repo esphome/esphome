@@ -4,7 +4,7 @@
 
 namespace esphome::api {
 
-ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
+ssize_t APIOverflowBuffer::try_drain(APISocket *socket) {
   // Nested call from inside socket->write(); see draining_
   if (this->draining_)
     return 0;

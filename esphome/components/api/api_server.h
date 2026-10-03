@@ -11,7 +11,7 @@
 #endif
 #include "api_pb2.h"
 #include "api_pb2_service.h"
-#include "esphome/components/socket/socket.h"
+#include "api_socket.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/entity_includes.h"
@@ -32,6 +32,11 @@
 #include <vector>
 
 namespace esphome::api {
+
+#ifdef USE_API_TRANSPORT_BLE
+// First PSM of the dynamic LE range
+static constexpr uint16_t BLE_LISTEN_PSM = 0x80;
+#endif
 
 #ifdef USE_API_USER_DEFINED_ACTIONS
 // Forward declaration - full definition in user_services.h
@@ -309,7 +314,7 @@ class APIServer final : public Component
   }
   void socket_failed_(const LogString *msg);
   // Pointers and pointer-like types first (4 bytes each)
-  socket::ListenSocket *socket_{nullptr};
+  APIListenSocket *socket_{nullptr};  // Pointer to listen socket (TCP or BLE)
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   Trigger<std::string, std::string> client_connected_trigger_;
 #endif
