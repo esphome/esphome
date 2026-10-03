@@ -144,14 +144,14 @@ void ST7701S::write_sequence_(uint8_t cmd, size_t len, const uint8_t *bytes) {
 }
 
 void ST7701S::write_init_sequence_() {
-  for (size_t i = 0; i != this->init_sequence_.size();) {
+  for (size_t i = 0; i != this->init_sequence_len_;) {
     uint8_t cmd = this->init_sequence_[i++];
     size_t len = this->init_sequence_[i++];
     if (len == ST7701S_DELAY_FLAG) {
       ESP_LOGV(TAG, "Delay %dms", cmd);
       delay(cmd);
     } else {
-      this->write_sequence_(cmd, len, &this->init_sequence_[i]);
+      this->write_sequence_(cmd, len, this->init_sequence_ + i);
       i += len;
       ESP_LOGV(TAG, "Command %X, %d bytes", cmd, len);
       if (cmd == SW_RESET_CMD)

@@ -62,7 +62,10 @@ class ST7701S final : public display::Display,
   void set_vsync_pulse_width(uint16_t vsync_pulse_width) { this->vsync_pulse_width_ = vsync_pulse_width; }
   void set_vsync_back_porch(uint16_t vsync_back_porch) { this->vsync_back_porch_ = vsync_back_porch; }
   void set_vsync_front_porch(uint16_t vsync_front_porch) { this->vsync_front_porch_ = vsync_front_porch; }
-  void set_init_sequence(const std::vector<uint8_t> &init_sequence) { this->init_sequence_ = init_sequence; }
+  void set_init_sequence(const uint8_t *init_sequence, size_t len) {
+    this->init_sequence_ = init_sequence;
+    this->init_sequence_len_ = len;
+  }
   void set_mirror_x(bool mirror_x) { this->mirror_x_ = mirror_x; }
   void set_mirror_y(bool mirror_y) { this->mirror_y_ = mirror_y; }
   void set_offsets(int16_t offset_x, int16_t offset_y) {
@@ -95,7 +98,9 @@ class ST7701S final : public display::Display,
   uint16_t vsync_pulse_width_ = 10;
   uint16_t vsync_back_porch_ = 10;
   uint16_t vsync_front_porch_ = 10;
-  std::vector<uint8_t> init_sequence_;
+  // Shared PROGMEM table
+  const uint8_t *init_sequence_{nullptr};
+  size_t init_sequence_len_{0};
   uint32_t pclk_frequency_ = 16 * 1000 * 1000;
   bool pclk_inverted_{true};
 

@@ -181,7 +181,8 @@ async def to_code(config: ConfigType) -> None:
     sequence = []
     for seq in config[CONF_INIT_SEQUENCE]:
         sequence.extend(seq)
-    cg.add(var.set_init_sequence(sequence))
+    table = cg.shared_progmem_array("st7701s_init_sequence", cg.uint8, sequence)
+    cg.add(var.set_init_sequence(table, len(sequence)))
     cg.add(var.set_color_mode(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))
     cg.add(var.set_hsync_pulse_width(config[CONF_HSYNC_PULSE_WIDTH]))
