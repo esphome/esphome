@@ -1,0 +1,9 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
+  bridge: !include bridge-common.yaml
+
+uart:
+  - id: uart_peer
+    tx_pin: GPIO15
+    rx_pin: GPIO13
+    baud_rate: 9600

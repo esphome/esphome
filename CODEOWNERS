@@ -601,6 +601,7 @@ esphome/components/uart/* @esphome/core
 esphome/components/uart/button/* @ssieb
 esphome/components/uart/event/* @eoasmxd
 esphome/components/uart/packet_transport/* @clydebarrow
+esphome/components/uart/bridge/* @Bascht74
 esphome/components/uart_mux/* @kbx81
 esphome/components/uart_tcp/* @Bascht74
 esphome/components/udp/* @clydebarrow
