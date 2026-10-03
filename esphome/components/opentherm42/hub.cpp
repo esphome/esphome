@@ -151,6 +151,8 @@ const SimpleSensorInfo OpenTherm42Hub::SIMPLE_SENSORS[] = {
     {RequestKind::FAULT_HISTORY_BUFFER_SIZE, 12, SimpleValueKind::U8_HB, &OpenTherm42Hub::fault_history_buffer_size_sensor_, "Size of Fault Buffer (id=12)"},
     {RequestKind::FAULT_HISTORY_BUFFER_SIZE_VENTILATION, 90, SimpleValueKind::U8_HB, &OpenTherm42Hub::fault_history_buffer_size_ventilation_sensor_, "Size of Fault Buffer ventilation/heat-recovery (id=90)"},
     {RequestKind::FAULT_HISTORY_BUFFER_SIZE_SOLAR_STORAGE, 107, SimpleValueKind::U8_HB, &OpenTherm42Hub::fault_history_buffer_size_solar_storage_sensor_, "Size of Fault Buffer Solar Storage (id=107)"},
+    {RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT, 9, SimpleValueKind::F88, &OpenTherm42Hub::remote_override_room_setpoint_sensor_, "Remote Override Room Setpoint (id=9)"},
+    {RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_2, 39, SimpleValueKind::F88, &OpenTherm42Hub::remote_override_room_setpoint_2_sensor_, "Remote Override Room Setpoint 2 (id=39)"},
     {RequestKind::OPENTHERM_VERSION_BOILER, 125, SimpleValueKind::F88, &OpenTherm42Hub::opentherm_version_boiler_sensor_, "OpenTherm version Boiler (id=125)"},
     {RequestKind::OPENTHERM_VERSION_VENTILATION, 75, SimpleValueKind::F88, &OpenTherm42Hub::opentherm_version_ventilation_sensor_, "OpenTherm version ventilation/heat-recovery (id=75)"},
 };
@@ -489,6 +491,28 @@ void OpenTherm42Hub::build_schedule_() {
   // §5.3.7 Class 7: same round-robin, for fault-history-buffer entries (purely read-only).
   if (!this->fhb_slots_.empty()) {
     this->add_entry_(RequestKind::FHB);
+  }
+
+  // §5.3.8 Class 8.
+  if (this->cooling_control_signal_number_ != nullptr) {
+    this->add_entry_(RequestKind::COOLING_CONTROL_SIGNAL);
+  }
+  if (this->max_rel_mod_level_setting_number_ != nullptr) {
+    this->add_entry_(RequestKind::MAX_REL_MOD_LEVEL_SETTING);
+  }
+  if (this->maximum_boiler_capacity_sensor_ != nullptr || this->minimum_modulation_level_sensor_ != nullptr) {
+    this->add_entry_(RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL);
+  }
+  if (this->remote_override_operating_mode_dhw_select_ != nullptr ||
+      this->remote_override_operating_mode_heating_hc1_select_ != nullptr ||
+      this->remote_override_operating_mode_heating_hc2_select_ != nullptr ||
+      this->manual_dhw_push2_switch_ != nullptr) {
+    this->add_entry_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES);
+    this->add_entry_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ);
+  }
+  if (this->remote_override_room_setpoint_function_manual_change_priority_text_sensor_ != nullptr ||
+      this->remote_override_room_setpoint_function_program_change_priority_text_sensor_ != nullptr) {
+    this->add_entry_(RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION);
   }
 
   // Every hub-level group option staged its cadence at wiring time (see
@@ -869,6 +893,49 @@ Frame OpenTherm42Hub::build_entry_request_(RequestKind kind) {
       }
       break;
 
+    case RequestKind::COOLING_CONTROL_SIGNAL:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 7;
+      frame.set_value_f88(this->cooling_control_signal_write_value_);
+      break;
+    case RequestKind::MAX_REL_MOD_LEVEL_SETTING:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 14;
+      frame.set_value_f88(this->max_rel_mod_level_setting_write_value_);
+      break;
+    case RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 15;
+      break;
+    case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES: {
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 99;
+      uint8_t hc1 = this->remote_override_operating_mode_heating_hc1_select_ != nullptr
+                        ? static_cast<uint8_t>(
+                              this->remote_override_operating_mode_heating_hc1_select_->active_index().value_or(0))
+                        : 0;
+      uint8_t hc2 = this->remote_override_operating_mode_heating_hc2_select_ != nullptr
+                        ? static_cast<uint8_t>(
+                              this->remote_override_operating_mode_heating_hc2_select_->active_index().value_or(0))
+                        : 0;
+      uint8_t dhw =
+          this->remote_override_operating_mode_dhw_select_ != nullptr
+              ? static_cast<uint8_t>(this->remote_override_operating_mode_dhw_select_->active_index().value_or(0))
+              : 0;
+      bool push2 = this->manual_dhw_push2_switch_ != nullptr && this->manual_dhw_push2_switch_->state;
+      frame.value_lb = static_cast<uint8_t>((hc2 << 4) | hc1);
+      frame.value_hb = static_cast<uint8_t>((push2 ? 0x10 : 0x00) | dhw);
+      break;
+    }
+    case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 99;
+      break;
+    case RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 100;
+      break;
+
     default: {
       // Every plain read-only sensor (see the SIMPLE_SENSORS table) shares this one case.
       const SimpleSensorInfo *info = this->find_simple_sensor_(kind);
@@ -984,6 +1051,14 @@ void OpenTherm42Hub::set_write_value(uint8_t id, float value) {
       write_value = &this->nominal_ventilation_value_write_value_;
       kind = RequestKind::NOMINAL_VENTILATION_VALUE;
       break;
+    case 7:
+      write_value = &this->cooling_control_signal_write_value_;
+      kind = RequestKind::COOLING_CONTROL_SIGNAL;
+      break;
+    case 14:
+      write_value = &this->max_rel_mod_level_setting_write_value_;
+      kind = RequestKind::MAX_REL_MOD_LEVEL_SETTING;
+      break;
     default:
       return;
   }
@@ -1022,6 +1097,12 @@ void OpenTherm42Hub::set_number_update_every(uint8_t id, uint32_t update_every) 
       break;
     case 87:
       kind = RequestKind::NOMINAL_VENTILATION_VALUE_READ;
+      break;
+    case 7:
+      kind = RequestKind::COOLING_CONTROL_SIGNAL;
+      break;
+    case 14:
+      kind = RequestKind::MAX_REL_MOD_LEVEL_SETTING;
       break;
     default:
       return;
@@ -2138,6 +2219,121 @@ bool OpenTherm42Hub::handle_response_setpoints_and_parameters_(const Frame &fram
       return true;
     }
 
+    case RequestKind::COOLING_CONTROL_SIGNAL:
+      // See CONTROL_SETPOINT's comment above: WRITE-ACK's echo is not trusted for display.
+      if (type != MessageType::WRITE_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::COOLING_CONTROL_SIGNAL, type);
+        OT42_LOG_REJECTION(invalidate_now, "Cooling control signal (id=7) write was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now && this->cooling_control_signal_number_ != nullptr) {
+          invalidate_entity(this->cooling_control_signal_number_);
+        }
+        return true;
+      }
+      // See CONTROL_SETPOINT above: a later success must recover a previously-invalidated entity.
+      if (this->cooling_control_signal_number_ != nullptr) {
+        this->cooling_control_signal_number_->publish_state(this->cooling_control_signal_write_value_);
+      }
+      return true;
+
+    case RequestKind::MAX_REL_MOD_LEVEL_SETTING:
+      // See CONTROL_SETPOINT's comment above: WRITE-ACK's echo is not trusted for display.
+      if (type != MessageType::WRITE_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::MAX_REL_MOD_LEVEL_SETTING, type);
+        OT42_LOG_REJECTION(invalidate_now,
+                           "Maximum relative modulation level setting (id=14) write was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now && this->max_rel_mod_level_setting_number_ != nullptr) {
+          invalidate_entity(this->max_rel_mod_level_setting_number_);
+        }
+        return true;
+      }
+      // See CONTROL_SETPOINT above: a later success must recover a previously-invalidated entity.
+      if (this->max_rel_mod_level_setting_number_ != nullptr) {
+        this->max_rel_mod_level_setting_number_->publish_state(this->max_rel_mod_level_setting_write_value_);
+      }
+      return true;
+
+    case RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL, type);
+        OT42_LOG_REJECTION(
+            invalidate_now,
+            "Maximum boiler capacity & Minimum modulation level (id=15) read was rejected (message type %s)",
+            message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL);
+        }
+        return true;
+      }
+      if (this->maximum_boiler_capacity_sensor_ != nullptr) {
+        this->maximum_boiler_capacity_sensor_->publish_state(frame.value_hb);
+      }
+      if (this->minimum_modulation_level_sensor_ != nullptr) {
+        this->minimum_modulation_level_sensor_->publish_state(frame.value_lb);
+      }
+      return true;
+
+    case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES:
+      // WRITE-ACK's echo is not trusted for display -- only REMOTE_OVERRIDE_OPERATING_MODES_READ
+      // below updates .state (see DHW_SETPOINT above for the same convention).
+      if (type != MessageType::WRITE_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES, type);
+        OT42_LOG_REJECTION(invalidate_now,
+                           "Remote Override Operating Modes (id=99) write was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES);
+        }
+      }
+      return true;
+
+    case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ, type);
+        OT42_LOG_REJECTION(invalidate_now,
+                           "Remote Override Operating Modes (id=99) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ);
+        }
+        return true;
+      }
+      if (this->remote_override_operating_mode_heating_hc1_select_ != nullptr) {
+        this->remote_override_operating_mode_heating_hc1_select_->publish_state(frame.value_lb & 0x0F);
+      }
+      if (this->remote_override_operating_mode_heating_hc2_select_ != nullptr) {
+        this->remote_override_operating_mode_heating_hc2_select_->publish_state((frame.value_lb >> 4) & 0x0F);
+      }
+      if (this->remote_override_operating_mode_dhw_select_ != nullptr) {
+        this->remote_override_operating_mode_dhw_select_->publish_state(frame.value_hb & 0x0F);
+      }
+      if (this->manual_dhw_push2_switch_ != nullptr) {
+        this->manual_dhw_push2_switch_->publish_state((frame.value_hb & 0x10) != 0);
+      }
+      return true;
+
+    case RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION, type);
+        OT42_LOG_REJECTION(invalidate_now,
+                           "Remote Override Room Setpoint function (id=100) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION);
+        }
+        return true;
+      }
+      if (this->remote_override_room_setpoint_function_manual_change_priority_text_sensor_ != nullptr) {
+        this->remote_override_room_setpoint_function_manual_change_priority_text_sensor_->publish_state(
+            (frame.value_lb & 0x01) ? "Manual change has priority" : "Remote Setpoint has priority");
+      }
+      if (this->remote_override_room_setpoint_function_program_change_priority_text_sensor_ != nullptr) {
+        this->remote_override_room_setpoint_function_program_change_priority_text_sensor_->publish_state(
+            (frame.value_lb & 0x02) ? "Program change has priority" : "Remote Setpoint has priority");
+      }
+      return true;
+
     default:
       return false;
   }
@@ -2637,6 +2833,52 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       }
       return;
 
+    case RequestKind::COOLING_CONTROL_SIGNAL:
+      if (this->cooling_control_signal_number_ != nullptr) {
+        invalidate_entity(this->cooling_control_signal_number_);
+      }
+      return;
+
+    case RequestKind::MAX_REL_MOD_LEVEL_SETTING:
+      if (this->max_rel_mod_level_setting_number_ != nullptr) {
+        invalidate_entity(this->max_rel_mod_level_setting_number_);
+      }
+      return;
+
+    case RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL:
+      if (this->maximum_boiler_capacity_sensor_ != nullptr) {
+        invalidate_entity(this->maximum_boiler_capacity_sensor_);
+      }
+      if (this->minimum_modulation_level_sensor_ != nullptr) {
+        invalidate_entity(this->minimum_modulation_level_sensor_);
+      }
+      return;
+
+    case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES:
+    case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ:
+      if (this->remote_override_operating_mode_heating_hc1_select_ != nullptr) {
+        invalidate_entity(this->remote_override_operating_mode_heating_hc1_select_);
+      }
+      if (this->remote_override_operating_mode_heating_hc2_select_ != nullptr) {
+        invalidate_entity(this->remote_override_operating_mode_heating_hc2_select_);
+      }
+      if (this->remote_override_operating_mode_dhw_select_ != nullptr) {
+        invalidate_entity(this->remote_override_operating_mode_dhw_select_);
+      }
+      if (this->manual_dhw_push2_switch_ != nullptr) {
+        invalidate_entity(this->manual_dhw_push2_switch_);
+      }
+      return;
+
+    case RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION:
+      if (this->remote_override_room_setpoint_function_manual_change_priority_text_sensor_ != nullptr) {
+        invalidate_entity(this->remote_override_room_setpoint_function_manual_change_priority_text_sensor_);
+      }
+      if (this->remote_override_room_setpoint_function_program_change_priority_text_sensor_ != nullptr) {
+        invalidate_entity(this->remote_override_room_setpoint_function_program_change_priority_text_sensor_);
+      }
+      return;
+
     default: {
       const SimpleSensorInfo *info = this->find_simple_sensor_(kind);
       if (info != nullptr) {
@@ -2753,6 +2995,17 @@ static const char *bespoke_request_kind_name(RequestKind kind) {
     case RequestKind::NOMINAL_VENTILATION_VALUE:
     case RequestKind::NOMINAL_VENTILATION_VALUE_READ:
       return "Nominal ventilation value (id=87)";
+    case RequestKind::COOLING_CONTROL_SIGNAL:
+      return "Cooling control signal (id=7)";
+    case RequestKind::MAX_REL_MOD_LEVEL_SETTING:
+      return "Maximum relative modulation level setting (id=14)";
+    case RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL:
+      return "Maximum boiler capacity & Minimum modulation level (id=15)";
+    case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES:
+    case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ:
+      return "Remote Override Operating Modes (id=99)";
+    case RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION:
+      return "Remote Override Room Setpoint function (id=100)";
     default:
       return nullptr;
   }
