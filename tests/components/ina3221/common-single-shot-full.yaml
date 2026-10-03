@@ -1,0 +1,45 @@
+sensor:
+  - platform: ina3221
+    i2c_id: i2c_bus
+    address: 0x40
+    mode: SINGLE_SHOT
+    power_down_on_shutdown: true
+    averaging: 4
+    bus_conversion_time: 2116us
+    shunt_conversion_time: 2116us
+    channel_1:
+      shunt_resistance: 0.1 ohm
+      current:
+        name: INA3221 Channel 1 Current
+      power:
+        name: INA3221 Channel 1 Power
+      bus_voltage:
+        name: INA3221 Channel 1 Bus Voltage
+      shunt_voltage:
+        name: INA3221 Channel 1 Shunt Voltage
+      warning_current_limit: 1A
+      critical_current_limit: 2A
+    channel_2:
+      shunt_resistance: 0.05 ohm
+      current:
+        name: INA3221 Channel 2 Current
+      power:
+        name: INA3221 Channel 2 Power
+      bus_voltage:
+        name: INA3221 Channel 2 Bus Voltage
+      shunt_voltage:
+        name: INA3221 Channel 2 Shunt Voltage
+    channel_3:
+      # exercises the default shunt_resistance (0.1 ohm) and a channel with only
+      # a subset of sensors configured
+      current:
+        name: INA3221 Channel 3 Current
+      bus_voltage:
+        name: INA3221 Channel 3 Bus Voltage
+    sum_shunt_voltage:
+      name: INA3221 Sum Shunt Voltage
+    sum_current:
+      name: INA3221 Sum Current
+    sum_power:
+      name: INA3221 Sum Power
+    update_interval: 15s
