@@ -32,21 +32,23 @@ using init_fn = void (*)(PIO pio, uint sm, uint offset, uint pin, float freq);
 
 class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
  public:
+  RP2040PIOLEDStripLightOutput(size_t num_leds, light::ChannelColors channel_colors)
+      : buffer_(num_leds, {.channel_colors = channel_colors}, &this->correction_) {}
+
+  light::ESPColorBuffer &buffer() override { return this->buffer_; }
+
   void setup() override;
   void write_state(light::LightState *state) override;
   float get_setup_priority() const override;
 
-  int32_t size() const override { return this->num_leds_; }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    this->channel_colors_.has_white()
+    this->buffer_.layout().channel_colors.has_white()
         ? traits.set_supported_color_modes({light::ColorMode::RGB_WHITE, light::ColorMode::WHITE})
         : traits.set_supported_color_modes({light::ColorMode::RGB});
     return traits;
   }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
-  void set_num_leds(uint32_t num_leds) { this->num_leds_ = num_leds; }
-  void set_channel_colors(light::ChannelColors channel_colors) { this->channel_colors_ = channel_colors; }
 
   void set_max_refresh_rate(float interval_us) { this->max_refresh_rate_ = interval_us; }
 
@@ -55,33 +57,21 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
   void set_init_function(init_fn init) { this->init_ = init; }
 
   void set_chipset(Chipset chipset) { this->chipset_ = chipset; };
-  void clear_effect_data() override {
-    for (int i = 0; i < this->size(); i++) {
-      this->effect_data_[i] = 0;
-    }
-  }
 
   void dump_config() override;
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override;
-
-  size_t get_buffer_size_() const { return this->num_leds_ * this->channel_colors_.bytes_per_led(); }
-
   static void dma_write_complete_handler();
 
-  uint8_t *buf_{nullptr};
-  uint8_t *effect_data_{nullptr};
+  light::PackedColorBuffer buffer_;
 
   uint8_t pin_;
-  uint32_t num_leds_;
 
   pio_hw_t *pio_;
   uint sm_;
   uint dma_chan_;
   dma_channel_config dma_config_;
 
-  light::ChannelColors channel_colors_{0, 1, 2, light::ChannelColors::NO_WHITE};
   Chipset chipset_{CHIPSET_CUSTOM};
 
   uint32_t last_refresh_{0};

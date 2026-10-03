@@ -2,13 +2,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import fastled_base
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_CHIPSET,
-    CONF_NUM_LEDS,
-    CONF_PIN,
-    CONF_RGB_ORDER,
-    Framework,
-)
+from esphome.const import CONF_CHIPSET, CONF_PIN, CONF_RGB_ORDER, Framework
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["fastled_base"]
@@ -75,12 +69,10 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await fastled_base.new_fastled_light(config)
-
     rgb_order = None
     if CONF_RGB_ORDER in config:
         rgb_order = cg.RawExpression(config[CONF_RGB_ORDER])
-    template_args = cg.TemplateArguments(
+    controller_template_args = cg.TemplateArguments(
         cg.RawExpression(config[CONF_CHIPSET]), config[CONF_PIN], rgb_order
     )
-    cg.add(var.add_leds(template_args, config[CONF_NUM_LEDS]))
+    await fastled_base.new_fastled_light(config, controller_template_args)

@@ -128,11 +128,14 @@ async def to_code(config: ConfigType) -> None:
     # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)
     include_builtin_idf_component("esp_driver_rmt")
 
-    var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
+    var = cg.new_Pvariable(
+        config[CONF_OUTPUT_ID],
+        config[CONF_NUM_LEDS],
+        light.channel_colors_struct(config[CONF_CHANNEL_COLORS]),
+    )
     await light.register_light(var, config)
     await cg.register_component(var, config)
 
-    cg.add(var.set_num_leds(config[CONF_NUM_LEDS]))
     cg.add(var.set_pin(config[CONF_PIN][CONF_NUMBER]))
     if config[CONF_PIN][CONF_INVERTED]:
         cg.add(var.set_inverted(True))
@@ -164,9 +167,6 @@ async def to_code(config: ConfigType) -> None:
             )
         )
 
-    cg.add(
-        var.set_channel_colors(light.channel_colors_struct(config[CONF_CHANNEL_COLORS]))
-    )
     cg.add(var.set_use_psram(config[CONF_USE_PSRAM]))
     cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
     if CONF_USE_DMA in config:

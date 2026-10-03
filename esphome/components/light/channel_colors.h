@@ -18,22 +18,28 @@ struct ChannelColors {
   uint8_t b;
   uint8_t w;
 
-  bool has_white() const { return this->w != NO_WHITE; }
-
-  uint8_t bytes_per_led() const { return this->has_white() ? 4 : 3; }
+  constexpr bool has_white() const { return this->w != NO_WHITE; }
 
   /// Write the order back out as text, e.g. "GRBW".
   ///
   /// `buf` must have room for at least 5 characters. Returns `buf` so the result can be
   /// passed straight to a log call.
   const char *to_string(char *buf) const {
-    buf[this->r] = 'R';
-    buf[this->g] = 'G';
-    buf[this->b] = 'B';
-    if (this->has_white()) {
-      buf[this->w] = 'W';
+    unsigned fields = (1u << this->r) | (1u << this->g) | (1u << this->b) | (this->has_white() ? 1u << this->w : 0u);
+    if (fields == 0b111 || fields == 0b1111) {
+      buf[this->r] = 'R';
+      buf[this->g] = 'G';
+      buf[this->b] = 'B';
+      if (this->has_white()) {
+        buf[this->w] = 'W';
+        buf[4] = '\0';
+      } else {
+        buf[3] = '\0';
+      }
+    } else {
+      buf[0] = '?';
+      buf[1] = '\0';
     }
-    buf[this->bytes_per_led()] = '\0';
     return buf;
   }
 };

@@ -239,21 +239,17 @@ async def to_code(config):
         out_type = NeoPixelRGBWLightOutput.template(method_template)
     else:
         out_type = NeoPixelRGBLightOutput.template(method_template)
-    rhs = out_type.new()
+    num_leds = config[CONF_NUM_LEDS]
+    pixel_order = getattr(ESPNeoPixelOrder, config[CONF_TYPE])
+    if CONF_PIN in config:
+        rhs = out_type.new(num_leds, pixel_order, config[CONF_PIN])
+    else:
+        rhs = out_type.new(
+            num_leds, pixel_order, config[CONF_CLOCK_PIN], config[CONF_DATA_PIN]
+        )
     var = cg.Pvariable(config[CONF_OUTPUT_ID], rhs, out_type)
     await light.register_light(var, config)
     await cg.register_component(var, config)
-
-    if CONF_PIN in config:
-        cg.add(var.add_leds(config[CONF_NUM_LEDS], config[CONF_PIN]))
-    else:
-        cg.add(
-            var.add_leds(
-                config[CONF_NUM_LEDS], config[CONF_CLOCK_PIN], config[CONF_DATA_PIN]
-            )
-        )
-
-    cg.add(var.set_pixel_order(getattr(ESPNeoPixelOrder, config[CONF_TYPE])))
 
     # https://github.com/Makuna/NeoPixelBus/blob/master/library.json
     # Version Listed Here: https://registry.platformio.org/libraries/makuna/NeoPixelBus/versions
