@@ -69,6 +69,51 @@ template<typename T, typename... X> class TemplatableFn {
   T (*f_)(X...){nullptr};
 };
 
+/// Byte payload that is either a stateless lambda or a static table, which may be in PROGMEM.
+/// 8 bytes on 32-bit; codegen stores constant payloads as shared flash tables.
+template<typename... Ts> class TemplatableBytes {
+ public:
+  void set_template(std::vector<uint8_t> (*func)(Ts...)) {
+    this->code_.func = func;
+    this->len_ = -1;
+  }
+  void set_static(const uint8_t *data, uint16_t len) {
+    this->code_.data = data;
+    this->len_ = len;
+  }
+  bool is_static() const { return this->len_ >= 0; }
+  /// Only valid when is_static(); may point to PROGMEM, so read it with progmem_memcpy or progmem_read_byte.
+  const uint8_t *data() const { return this->code_.data; }
+  /// Only valid when is_static().
+  size_t size() const { return static_cast<size_t>(this->len_); }
+  std::vector<uint8_t> value(const Ts &...x) const {
+    if (this->len_ < 0)
+      return this->code_.func(x...);
+    return to_vector_(this->code_.data, this->size());
+  }
+
+ protected:
+  static std::vector<uint8_t> to_vector_(const uint8_t *data, size_t len) {
+    std::vector<uint8_t> out(len);
+    progmem_memcpy(out.data(), data, len);  // byte loads from flash fault on ESP8266
+    return out;
+  }
+
+  union {
+    std::vector<uint8_t> (*func)(Ts...);
+    const uint8_t *data;
+  } code_{};
+  int32_t len_{-1};  // -1: lambda, otherwise the length of the static table
+};
+
+#define TEMPLATABLE_BYTES(name) \
+ protected: \
+  TemplatableBytes<Ts...> name##_{}; \
+\
+ public: \
+  void set_##name##_template(std::vector<uint8_t> (*func)(Ts...)) { this->name##_.set_template(func); } \
+  void set_##name##_static(const uint8_t *data, uint16_t len) { this->name##_.set_static(data, len); }
+
 // Forward declaration for TemplatableValue (string specialization needs it)
 template<typename T, typename... X> class TemplatableValue;
 
