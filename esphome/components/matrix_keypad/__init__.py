@@ -27,6 +27,9 @@ CONF_HAS_PULLDOWNS = "has_pulldowns"
 
 
 def check_keys(obj: ConfigType) -> ConfigType:
+    if not obj.get(CONF_KEYS, "").isascii():
+        # Each key is reported as one byte, so only ASCII characters can be key codes
+        raise cv.Invalid("Key codes must be ASCII characters")
     if CONF_KEYS in obj and len(obj[CONF_KEYS]) != len(obj[CONF_ROWS]) * len(
         obj[CONF_COLUMNS]
     ):
