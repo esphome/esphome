@@ -30,7 +30,7 @@ void MultiClickTrigger::on_state_(bool state) {
     return;
   }
 
-  if (!this->at_index_.has_value()) {
+  if (this->at_index_ == 0) {
     // Start matching
     MultiClickTriggerEvent evt = this->timing_[0];
     if (evt.state == state) {
@@ -55,8 +55,7 @@ void MultiClickTrigger::on_state_(bool state) {
     return;
   }
 
-  // at_index_ has a value here (the !has_value() branch above returns).
-  size_t at_index = *this->at_index_;
+  uint8_t at_index = this->at_index_;
   if (at_index == this->timing_count_) {
     this->trigger_();
     return;
@@ -65,15 +64,15 @@ void MultiClickTrigger::on_state_(bool state) {
   MultiClickTriggerEvent evt = this->timing_[at_index];
 
   if (evt.max_length != 4294967294UL) {
-    ESP_LOGV(TAG, "A i=%zu min=%" PRIu32 " max=%" PRIu32, at_index, evt.min_length, evt.max_length);  // NOLINT
+    ESP_LOGV(TAG, "A i=%u min=%" PRIu32 " max=%" PRIu32, at_index, evt.min_length, evt.max_length);
     this->schedule_is_valid_(evt.min_length);
     this->schedule_is_not_valid_(evt.max_length);
   } else if (at_index + 1 != this->timing_count_) {
-    ESP_LOGV(TAG, "B i=%zu min=%" PRIu32, at_index, evt.min_length);  // NOLINT
+    ESP_LOGV(TAG, "B i=%u min=%" PRIu32, at_index, evt.min_length);
     this->cancel_timeout(MULTICLICK_IS_NOT_VALID_ID);
     this->schedule_is_valid_(evt.min_length);
   } else {
-    ESP_LOGV(TAG, "C i=%zu min=%" PRIu32, at_index, evt.min_length);  // NOLINT
+    ESP_LOGV(TAG, "C i=%u min=%" PRIu32, at_index, evt.min_length);
     this->is_valid_ = false;
     this->cancel_timeout(MULTICLICK_IS_NOT_VALID_ID);
     this->set_timeout(MULTICLICK_TRIGGER_ID, evt.min_length, [this]() { this->trigger_(); });
@@ -88,7 +87,7 @@ void MultiClickTrigger::schedule_cooldown_() {
     ESP_LOGV(TAG, "Multi Click: Cooldown ended, matching is now enabled again.");
     this->is_in_cooldown_ = false;
   });
-  this->at_index_.reset();
+  this->at_index_ = 0;
   this->cancel_timeout(MULTICLICK_TRIGGER_ID);
   this->cancel_timeout(MULTICLICK_IS_VALID_ID);
   this->cancel_timeout(MULTICLICK_IS_NOT_VALID_ID);
@@ -120,7 +119,7 @@ void MultiClickTrigger::cancel() {
 }
 void MultiClickTrigger::trigger_() {
   ESP_LOGV(TAG, "Multi Click: Hooray, multi click is valid. Triggering!");
-  this->at_index_.reset();
+  this->at_index_ = 0;
   this->cancel_timeout(MULTICLICK_TRIGGER_ID);
   this->cancel_timeout(MULTICLICK_IS_VALID_ID);
   this->cancel_timeout(MULTICLICK_IS_NOT_VALID_ID);

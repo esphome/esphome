@@ -103,8 +103,8 @@ class MultiClickTrigger final : public Trigger<>, public Component {
   BinarySensor *parent_;
   const MultiClickTriggerEvent *timing_;
   uint32_t invalid_cooldown_{1000};  // Must match DEFAULT_INVALID_COOLDOWN_MS in __init__.py
-  optional<size_t> at_index_{};
   uint8_t timing_count_;
+  uint8_t at_index_{0};  // 0: not matching, otherwise the index of the next timing event
   bool last_state_{false};
   bool is_in_cooldown_{false};
   bool is_valid_{false};
