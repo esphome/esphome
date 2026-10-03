@@ -79,6 +79,7 @@ _IN_TREE_HUB_PROVIDERS: dict[str, str] = {
     "bk72xx": "bk72xx_ble_tracker",
     "rp2": "rp2_ble_tracker",
     "ln882x": "ln882h_ble_tracker",
+    "rtl87xx": "rtl87xx_ble_tracker",
 }
 
 
@@ -107,7 +108,7 @@ def _require_hub(value: ID) -> ID:
         # the unfiltered all-platforms fallback is reachable only from tests.
         platform = CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM)
         if platform is not None and platform not in _IN_TREE_HUB_PROVIDERS:
-            # Known platform with no in-tree hub (esp8266, host, rtl87xx, …):
+            # Known platform with no in-tree hub (esp8266, host, …):
             # listing the other platforms' trackers would misdirect, and
             # out-of-tree BLE hubs are not supported.
             raise cv.Invalid(
