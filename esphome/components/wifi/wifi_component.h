@@ -379,6 +379,8 @@ struct LTWiFiEvent;
 
 #ifdef USE_ZEPHYR
 struct ZephyrWiFiEvent;
+// Ring buffer reserves one slot, so 16 usable.
+static constexpr uint8_t ZEPHYR_WIFI_EVENT_QUEUE_SIZE = 17;
 #endif
 
 /** Listener interface for WiFi IP state changes.
@@ -1063,8 +1065,7 @@ class WiFiComponent final : public Component {
 #endif
 
 #ifdef USE_ZEPHYR
-  // 17 slots = 16 usable (ring buffer reserves one slot).
-  LockFreeQueue<ZephyrWiFiEvent, 17> event_queue_;
+  LockFreeQueue<ZephyrWiFiEvent, ZEPHYR_WIFI_EVENT_QUEUE_SIZE> event_queue_;
   // Scan results weaker than this (dBm) are dropped before queuing. -128 (default) is
   // below any real RSSI, so filtering is off unless min_rssi: is configured.
   int8_t min_scan_rssi_{-128};
