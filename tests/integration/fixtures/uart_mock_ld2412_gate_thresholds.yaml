@@ -1,0 +1,84 @@
+esphome:
+  name: uart-mock-ld2412-thresholds
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2412's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 256000
+  # Answer the two threshold queries that read_all_info() sends during setup, so the component learns what
+  # the module holds for every gate before the test writes a new threshold
+  #
+  # Query frame sent by the component (12 bytes):
+  #   FD FC FB FA = command frame header
+  #   02 00       = length 2
+  #   13 00       = CMD_QUERY_MOTION_GATE_SENS (0x14 for static)
+  #   04 03 02 01 = command frame footer
+  #
+  # Answer frame (28 bytes):
+  #   FD FC FB FA = command frame header
+  #   12 00       = length 18
+  #   13 01       = command word, the low byte is the command and the high byte 01 marks the answer
+  #   00 00       = ack status, 00 00 is success
+  #   14 bytes    = one threshold per gate, gate 0 first
+  #   04 03 02 01 = command frame footer
+  responses:
+    # Motion thresholds: gate 0 through 13 hold 10 through 23
+    - expect_tx: [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x13, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x12, 0x00,
+          0x13, 0x01,
+          0x00, 0x00,
+          0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
+          0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+    # Still thresholds: gate 0 through 13 hold 40 through 53
+    - expect_tx: [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x14, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x12, 0x00,
+          0x14, 0x01,
+          0x00, 0x00,
+          0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E,
+          0x2F, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+ld2412:
+  id: ld2412_dev
+  uart_id: mock_uart
+
+# Only 2 of the 14 gates are configured, which is the case that used to crash: set_gate_threshold() walked
+# all 14 entries of both arrays and dereferenced the 12 gates that have no number
+number:
+  - platform: ld2412
+    ld2412_id: ld2412_dev
+    gate_0:
+      move_threshold:
+        name: "Gate 0 Move Threshold"
+      still_threshold:
+        name: "Gate 0 Still Threshold"
+    gate_5:
+      move_threshold:
+        name: "Gate 5 Move Threshold"
+      still_threshold:
+        name: "Gate 5 Still Threshold"
