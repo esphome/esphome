@@ -1109,13 +1109,41 @@ class IDPassValidationStep(ConfigValidationStep):
                         error += f" These IDs look similar: {matches_s}."
                     result.add_str_error(error, path)
                     continue
-                if not isinstance(match.type, MockObjClass) or not isinstance(
-                    id.type, MockObjClass
-                ):
+                if not isinstance(match.type, MockObjClass):  # pragma: no cover
+                    # Defensive: every declared id's type comes from cv.declare_id(...),
+                    # which always supplies a real MockObjClass -- this never fires in
+                    # practice, but match.type.inherits_from(...) below would raise
+                    # AttributeError if it somehow weren't one.
                     continue
-                if not match.type.inherits_from(id.type):
+                if id.type is None:
+                    # Untyped: the usual case for an id parsed out of a hand-written
+                    # lambda's `id(...)` text -- `Lambda.requires_ids` builds those
+                    # with `type=None`, since the text alone carries no type
+                    # information to check against.
+                    continue
+                # id.type may be a single accepted type, or a tuple of acceptable
+                # alternatives (e.g. from the `entity_state:` shorthand).
+                allowed_types = id.type if isinstance(id.type, tuple) else (id.type,)
+                if not all(
+                    isinstance(t, MockObjClass) for t in allowed_types
+                ):  # pragma: no cover
+                    # Defensive: every allowed type here comes from cv.use_id(...)/
+                    # cv.declare_id(...) or the entity_state: shorthand's
+                    # lambda_shorthand.state_bearing_types(), which are always real
+                    # MockObjClass instances -- this never fires in practice. If it
+                    # somehow did, skip the check entirely rather than silently
+                    # narrowing against a partially-filtered list of only the
+                    # entries that passed.
+                    continue
+                if not any(match.type.inherits_from(t) for t in allowed_types):
+                    types_s = ", ".join(str(t) for t in allowed_types)
+                    verb = (
+                        "doesn't inherit from"
+                        if len(allowed_types) == 1
+                        else ("is not one of")
+                    )
                     result.add_str_error(
-                        f"ID '{id.id}' of type {match.type} doesn't inherit from {id.type}. "
+                        f"ID '{id.id}' of type {match.type} {verb} {types_s}. "
                         "Please double check your ID is pointing to the correct value",
                         path,
                     )
