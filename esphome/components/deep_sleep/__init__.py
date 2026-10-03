@@ -169,13 +169,29 @@ def validate_config(config: ConfigType) -> ConfigType:
                         "or under the pin entry, not both"
                     )
                 wakeup_pins[0][CONF_WAKEUP_PIN_MODE] = config.pop(CONF_WAKEUP_PIN_MODE)
-    elif (
-        isinstance(config.get(CONF_WAKEUP_PIN), list)
-        and len(config[CONF_WAKEUP_PIN]) > 1
-    ):
-        raise cv.Invalid(
-            "Your platform does not support providing multiple entries in wakeup_pin"
-        )
+    elif isinstance(config.get(CONF_WAKEUP_PIN), list):
+        wakeup_pins = config[CONF_WAKEUP_PIN]
+        if len(wakeup_pins) > 1:
+            raise cv.Invalid(
+                "Your platform does not support providing multiple entries in wakeup_pin"
+            )
+        if wakeup_pins and CONF_WAKEUP_PIN_MODE in wakeup_pins[0]:
+            # Only ESP32 and BK72xx have a wakeup_pin_mode at all; the top-level
+            # key is gated by only_on, so the nested one must be too.
+            if not CORE.is_esp32:
+                raise cv.Invalid(
+                    f"{CONF_WAKEUP_PIN_MODE} is only available on "
+                    f"{PLATFORM_ESP32} and {PLATFORM_BK72XX}"
+                )
+            if CONF_WAKEUP_PIN_MODE in config:
+                raise cv.Invalid(
+                    "Specify wakeup_pin_mode either at the top level under deep_sleep "
+                    "or under the pin entry, not both"
+                )
+            # ESP32 has no per-pin wakeup_pin_mode concept; hoist the nested one
+            # to the top level so it actually takes effect rather than being
+            # silently dropped by the codegen.
+            config[CONF_WAKEUP_PIN_MODE] = wakeup_pins[0].pop(CONF_WAKEUP_PIN_MODE)
 
     return config
 
