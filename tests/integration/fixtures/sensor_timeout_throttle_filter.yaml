@@ -53,7 +53,7 @@ script:
       - delay: 400ms
       # Values right around the period
       - sensor.template.publish: {id: source_sensor, state: 6.0}
-      - delay: 200ms
+      - delay: 250ms
       - sensor.template.publish: {id: source_sensor, state: 7.0}
       - delay: 190ms
       - sensor.template.publish: {id: source_sensor, state: 8.0}
