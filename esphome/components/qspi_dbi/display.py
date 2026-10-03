@@ -173,13 +173,12 @@ async def to_code(config: ConfigType) -> None:
     await spi.register_spi_device(var, config, write_only=True)
 
     chip = DriverChip.chips[config[CONF_MODEL]]
-    if chip.initsequence:
-        cg.add(var.add_init_sequence(chip.initsequence))
-    if init_sequences := config.get(CONF_INIT_SEQUENCE):
-        sequence = []
-        for seq in init_sequences:
-            sequence.extend(seq)
-        cg.add(var.add_init_sequence(sequence))
+    sequence = list(chip.initsequence)
+    for seq in config.get(CONF_INIT_SEQUENCE, []):
+        sequence.extend(seq)
+    if sequence:
+        table = cg.shared_progmem_array("qspi_dbi_init_sequence", cg.uint8, sequence)
+        cg.add(var.set_init_sequence(table, len(sequence)))
 
     cg.add(var.set_color_mode(config[CONF_COLOR_ORDER]))
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))

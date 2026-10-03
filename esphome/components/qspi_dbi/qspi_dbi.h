@@ -101,7 +101,10 @@ class QspiDbi final : public display::DisplayBuffer,
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
   bool can_proceed() override { return this->setup_complete_; }
-  void add_init_sequence(const std::vector<uint8_t> &sequence) { this->init_sequences_.push_back(sequence); }
+  void set_init_sequence(const uint8_t *sequence, size_t len) {
+    this->init_sequence_ = sequence;
+    this->init_sequence_len_ = len;
+  }
   void set_draw_rounding(unsigned rounding) { this->draw_rounding_ = rounding; }
 
  protected:
@@ -109,7 +112,6 @@ class QspiDbi final : public display::DisplayBuffer,
     if (this->buffer_ == nullptr)
       this->init_internal_(this->width_ * this->height_ * 2);
   }
-  void write_sequence_(const std::vector<uint8_t> &vec);
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
@@ -162,7 +164,9 @@ class QspiDbi final : public display::DisplayBuffer,
   unsigned draw_rounding_{2};
   uint8_t brightness_{0xD0};
   const char *model_{"Unknown"};
-  std::vector<std::vector<uint8_t>> init_sequences_{};
+  // Shared PROGMEM table: the model's sequence followed by any custom one
+  const uint8_t *init_sequence_{nullptr};
+  size_t init_sequence_len_{0};
 
   esp_lcd_panel_handle_t handle_{};
 };

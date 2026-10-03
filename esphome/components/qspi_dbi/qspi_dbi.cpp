@@ -110,8 +110,31 @@ void QspiDbi::reset_params_(bool ready) {
 }
 
 void QspiDbi::write_init_sequence_() {
-  for (const auto &seq : this->init_sequences_) {
-    this->write_sequence_(seq);
+  const uint8_t *seq = this->init_sequence_;
+  const size_t len = this->init_sequence_len_;
+  size_t index = 0;
+  while (index != len) {
+    if (len - index < 2) {
+      ESP_LOGE(TAG, "Malformed init sequence");
+      break;
+    }
+    uint8_t cmd = seq[index++];
+    uint8_t x = seq[index++];
+    if (x == DELAY_FLAG) {
+      ESP_LOGV(TAG, "Delay %dms", cmd);
+      delay(cmd);
+    } else {
+      uint8_t num_args = x & 0x7F;
+      if (len - index < num_args) {
+        ESP_LOGE(TAG, "Malformed init sequence");
+        break;
+      }
+      // The sequence is in flash, which SPI DMA cannot read
+      uint8_t args[0x80];
+      memcpy(args, seq + index, num_args);
+      this->write_command_(cmd, args, num_args);
+      index += num_args;
+    }
   }
   this->reset_params_(true);
   this->setup_complete_ = true;
@@ -185,31 +208,6 @@ void QspiDbi::write_command_(uint8_t cmd, const uint8_t *bytes, size_t len) {
   this->enable();
   this->write_cmd_addr_data(8, 0x02, 24, cmd << 8, bytes, len);
   this->disable();
-}
-
-void QspiDbi::write_sequence_(const std::vector<uint8_t> &vec) {
-  size_t index = 0;
-  while (index != vec.size()) {
-    if (vec.size() - index < 2) {
-      ESP_LOGE(TAG, "Malformed init sequence");
-      return;
-    }
-    uint8_t cmd = vec[index++];
-    uint8_t x = vec[index++];
-    if (x == DELAY_FLAG) {
-      ESP_LOGV(TAG, "Delay %dms", cmd);
-      delay(cmd);
-    } else {
-      uint8_t num_args = x & 0x7F;
-      if (vec.size() - index < num_args) {
-        ESP_LOGE(TAG, "Malformed init sequence");
-        return;
-      }
-      const auto *ptr = vec.data() + index;
-      this->write_command_(cmd, ptr, num_args);
-      index += num_args;
-    }
-  }
 }
 
 void QspiDbi::dump_config() {
