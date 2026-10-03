@@ -18,5 +18,13 @@ uart_tcp:
     uart_id: uart_bus
     role: server
     port: 18126
+    allowed_ips:
+      - 127.0.0.1
     connected:
       name: Bridge Connected
+  - id: denied_bridge
+    uart_id: uart_bus
+    role: server
+    port: 18127
+    allowed_ips:
+      - 192.0.2.1
