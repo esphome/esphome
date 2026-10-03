@@ -55,10 +55,10 @@ def test_init_sequence_is_shared_progmem_table(
 
     main_cpp = generate_main(yaml_file)
 
-    calls = dict(
-        (m[0], (m[1], int(m[2])))
+    calls = {
+        m[0]: (m[1], int(m[2]))
         for m in re.findall(r"(\w+)->set_init_sequence\((\w+), (\d+)\);", main_cpp)
-    )
+    }
     assert calls["builtin"] == calls["builtin_too"]
     assert calls["custom"][0] != calls["builtin"][0]
     custom = re.search(
