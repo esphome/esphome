@@ -3,6 +3,11 @@
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
+from esphome.components.sx1509 import check_keys
+import esphome.config_validation as cv
+
 
 def test_keys_use_shared_progmem_table(
     generate_main: Callable[[str | Path], str],
@@ -15,3 +20,8 @@ def test_keys_use_shared_progmem_table(
         in main_cpp
     )
     assert main_cpp.count("->set_keys(sx1509_keys);") == 2
+
+
+def test_non_ascii_keys_are_rejected() -> None:
+    with pytest.raises(cv.Invalid, match="ASCII"):
+        check_keys({"keys": "1é34"})

@@ -64,6 +64,8 @@ void SX1509Component::loop() {
         break;
     }
     col -= 8;
+    if (row >= this->rows_ || col >= this->cols_)  // a partial read can leave only a row or a column bit
+      return;
     uint8_t key = progmem_read_byte(&this->keys_[row * this->cols_ + col]);
     if (key == this->last_key_)
       return;

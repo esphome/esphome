@@ -43,6 +43,9 @@ SX1509KeyTrigger = sx1509_ns.class_(
 
 
 def check_keys(config: ConfigType) -> ConfigType:
+    if not config.get(CONF_KEYS, "").isascii():
+        # Each key is reported as one byte, so only ASCII characters can be key codes
+        raise cv.Invalid("Key codes must be ASCII characters")
     if (
         CONF_KEYS in config
         and len(config[CONF_KEYS]) != config[CONF_KEY_ROWS] * config[CONF_KEY_COLUMNS]
