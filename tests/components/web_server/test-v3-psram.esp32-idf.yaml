@@ -1,0 +1,5 @@
+packages:
+  web_server: !include common_v3.yaml
+
+psram:
+  ignore_not_found: false

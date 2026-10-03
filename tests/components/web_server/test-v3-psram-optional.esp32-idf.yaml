@@ -1,0 +1,4 @@
+packages:
+  web_server: !include common_v3.yaml
+
+psram:
