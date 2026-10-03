@@ -18,6 +18,7 @@ def test_autorepeat_timings_shared_progmem_table(
     shared, default = tables
     assert main_cpp.count(f"AutorepeatFilter({shared}, 2);") == 2
     assert f"AutorepeatFilter({default}, 1);" in main_cpp
+    assert "binary_sensor_autorepeat_timings" not in tables
     default_table = main_cpp.split(f"{default}[] PROGMEM = ", 1)[1].split(";", 1)[0]
     for field in (".delay = 1000", ".time_off = 100", ".time_on = 900"):
         assert field in default_table

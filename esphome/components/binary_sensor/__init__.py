@@ -1,4 +1,3 @@
-from dataclasses import dataclass, field
 from logging import getLogger
 
 from esphome import automation, core
@@ -75,7 +74,6 @@ from esphome.types import ConfigType
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
-DOMAIN = "binary_sensor"
 DEVICE_CLASSES = [
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_BATTERY_CHARGING,
@@ -266,27 +264,12 @@ async def autorepeat_filter_to_code(config: list[ConfigType], filter_id: ID) -> 
         )
         for conf in config
     ]
-    tables = _get_data().autorepeat_timings
-    key = tuple(str(t) for t in timings)
-    if (table := tables.get(key)) is None:
-        # Derived from the filter id, like noise _psk and socket _ipv4_allow.
-        table_id = ID(
-            f"{filter_id}_timings", is_declaration=True, type=AutorepeatFilterTiming
-        )
-        table = tables[key] = cg.progmem_array(table_id, cg.ArrayInitializer(*timings))
+    table = cg.shared_progmem_array(
+        "binary_sensor_autorepeat_timings",
+        AutorepeatFilterTiming,
+        cg.ArrayInitializer(*timings),
+    )
     return cg.new_Pvariable(filter_id, table, len(timings))
-
-
-@dataclass
-class BinarySensorData:
-    # Rendered timings -> the PROGMEM table shared by every autorepeat filter using them.
-    autorepeat_timings: dict[tuple[str, ...], MockObj] = field(default_factory=dict)
-
-
-def _get_data() -> BinarySensorData:
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = BinarySensorData()
-    return CORE.data[DOMAIN]
 
 
 @register_filter("lambda", LambdaFilter, cv.returning_lambda)
