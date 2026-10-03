@@ -1,0 +1,57 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+logger:
+
+globals:
+  - id: counter
+    type: int
+    initial_value: "0"
+
+sensor:
+  - platform: template
+    id: temp
+    lambda: return 1.0;
+    filters:
+      - multiply: 2.0
+      - offset: 1.0
+
+binary_sensor:
+  - platform: template
+    id: button
+    lambda: return true;
+    filters:
+      - invert:
+      - delayed_on: 10ms
+
+text_sensor:
+  - platform: template
+    id: label
+    lambda: return {"x"};
+    filters:
+      - to_upper:
+      - append: "!"
+
+interval:
+  - interval: 10s
+    then:
+      - if:
+          condition:
+            lambda: return id(counter) == 0;
+          then:
+            - lambda: id(counter) += 1;
+            - logger.log: even
+          else:
+            - logger.log: odd
+      - repeat:
+          count: 2
+          then:
+            - logger.log: again
+      - while:
+          condition:
+            lambda: return id(counter) < 3;
+          then:
+            - lambda: id(counter) += 1;

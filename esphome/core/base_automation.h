@@ -324,6 +324,13 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
     this->else_.add_action(&this->else_continuation_.action);
   }
 
+  // Codegen appends branch actions one at a time, then finishes each branch once; a list literal
+  // would be a constant array in .rodata, which is RAM on ESP8266.
+  void add_then_action(Action<Ts...> *action) { this->then_.add_action(action); }
+  void finish_then() { this->then_.add_action(&this->then_continuation_); }
+  void add_else_action(Action<Ts...> *action) requires(HasElse) { this->else_.add_action(action); }
+  void finish_else() requires(HasElse) { this->else_.add_action(&this->else_continuation_.action); }
+
   void play_complex(const Ts &...x) override {
     this->num_running_++;
     if (this->condition_->check(x...)) {
@@ -368,6 +375,8 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
     this->then_.add_actions(actions);
     this->then_.add_action(&this->loop_continuation_);
   }
+  void add_then_action(Action<Ts...> *action) { this->then_.add_action(action); }
+  void finish_then() { this->then_.add_action(&this->loop_continuation_); }
 
   friend class WhileLoopContinuation<Ts...>;
 
@@ -432,6 +441,8 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
     this->then_.add_actions(actions);
     this->then_.add_action(&this->loop_continuation_);
   }
+  void add_then_action(Action<uint32_t, Ts...> *action) { this->then_.add_action(action); }
+  void finish_then() { this->then_.add_action(&this->loop_continuation_); }
 
   friend class RepeatLoopContinuation<Ts...>;
 
