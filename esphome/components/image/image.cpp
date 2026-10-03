@@ -36,6 +36,17 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       }
       break;
     }
+    case IMAGE_TYPE_RGB111: {
+      for (int img_x = img_x0; img_x < w; img_x++) {
+        for (int img_y = img_y0; img_y < h; img_y++) {
+          auto color = this->get_rgb3_pixel_(img_x, img_y);
+          if (color.w >= 0x80) {
+            display->draw_pixel_at(x + img_x, y + img_y, color);
+          }
+        }
+      }
+      break;
+    }
     case IMAGE_TYPE_GRAYSCALE:
       for (int img_x = img_x0; img_x < w; img_x++) {
         for (int img_y = img_y0; img_y < h; img_y++) {
@@ -91,6 +102,8 @@ Color Image::get_pixel(int x, int y, const Color color_on, const Color color_off
       if (this->get_binary_pixel_(x, y))
         return color_on;
       return color_off;
+    case IMAGE_TYPE_RGB111:
+      return this->get_rgb3_pixel_(x, y);
     case IMAGE_TYPE_GRAYSCALE:
       return this->get_grayscale_pixel_(x, y);
     case IMAGE_TYPE_RGB565:
@@ -120,6 +133,9 @@ lv_image_dsc_t *Image::get_lv_image_dsc() {
         this->dsc_.header.cf = LV_COLOR_FORMAT_A8;
         break;
 
+      case IMAGE_TYPE_RGB111:
+        // Unsuported in LVGL; case added for completeness, but configuration already rejected at configuration time.
+        break;
       case IMAGE_TYPE_RGB:
         switch (this->transparency_) {
           case TRANSPARENCY_ALPHA_CHANNEL:
@@ -151,6 +167,28 @@ bool Image::get_binary_pixel_(int x, int y) const {
   const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
   const uint32_t pos = x + y * width_8;
   return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
+}
+Color Image::get_rgb3_pixel_(int x, int y) const {
+  const uint32_t bitpos = (y * this->width_ + x) * this->bpp_;
+
+  // Helper lambda to read a single bit at a given bit position.
+  auto get_bit = [this](uint32_t pos) {
+    const uint32_t byte_idx = pos / 8u;
+    const uint32_t bit_offset = pos % 8u;
+    return (progmem_read_byte(this->data_start_ + byte_idx) & (0x80 >> bit_offset)) != 0;
+  };
+
+  uint8_t r = get_bit(bitpos) ? 0xFF : 0x00;
+  uint8_t g = get_bit(bitpos + 1) ? 0xFF : 0x00;
+  uint8_t b = get_bit(bitpos + 2) ? 0xFF : 0x00;
+  uint8_t a = 0xFF;
+
+  if (this->transparency_ == TRANSPARENCY_ALPHA_CHANNEL) {
+    a = get_bit(bitpos + 3) ? 0xFF : 0x00;
+  }
+
+  auto color = Color(r, g, b, a);
+  return color;
 }
 Color Image::get_rgb_pixel_(int x, int y) const {
   const uint32_t pos = (x + y * this->width_) * this->bpp_ / 8;
@@ -215,6 +253,9 @@ Image::Image(const uint8_t *data_start, int width, int height, ImageType type, T
   switch (this->type_) {
     case IMAGE_TYPE_BINARY:
       this->bpp_ = 1;
+      break;
+    case IMAGE_TYPE_RGB111:
+      this->bpp_ = this->transparency_ == TRANSPARENCY_ALPHA_CHANNEL ? 4 : 3;
       break;
     case IMAGE_TYPE_GRAYSCALE:
       this->bpp_ = 8;

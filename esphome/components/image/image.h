@@ -13,6 +13,7 @@ enum ImageType {
   IMAGE_TYPE_GRAYSCALE = 1,
   IMAGE_TYPE_RGB = 2,
   IMAGE_TYPE_RGB565 = 3,
+  IMAGE_TYPE_RGB111 = 4,  // 3 bits per pixel, 8 colors, used for some e-paper displays
 };
 
 enum Transparency {
@@ -44,6 +45,7 @@ class Image : public display::BaseImage {
 #endif
  protected:
   bool get_binary_pixel_(int x, int y) const;
+  Color get_rgb3_pixel_(int x, int y) const;
   Color get_rgb_pixel_(int x, int y) const;
   Color get_rgb565_pixel_(int x, int y) const;
   Color get_grayscale_pixel_(int x, int y) const;

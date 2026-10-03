@@ -24,6 +24,7 @@ from esphome.components.image import (
     ImageBinary,
     ImageGrayscale,
     ImageRGB,
+    ImageRGB111,
     ImageRGB565,
     get_image_metadata,
 )
@@ -514,6 +515,10 @@ async def to_code(configs):
         transparent = metadata.transparency != CONF_OPAQUE
         if image_type == ImageBinary:
             lv_image_formats.add("I1")
+        if image_type == ImageRGB111:
+            raise cv.Invalid(
+                "LVGL does not support RGB111 images, use RGB565 or RGB instead"
+            )
         if image_type == ImageGrayscale:
             lv_image_formats.add("A8")
         if image_type == ImageRGB565:
