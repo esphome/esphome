@@ -1,0 +1,27 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+uart_split:
+  - id: split_bus
+    uart_id: uart_bus
+    outputs:
+      - id: bus
+      - id: tap
+        rx_only: true
+        direction: BOTH
+      - id: pins_only
+        rx_only: true
+        direction: RX
+
+interval:
+  - interval: 60s
+    then:
+      - lambda: |-
+          uint8_t byte;
+          if (id(bus).read_byte(&byte)) {
+            id(bus).write_byte(byte);
+          }
+          if (id(tap).read_byte(&byte)) {
+            id(pins_only).read_byte(&byte);
+          }
