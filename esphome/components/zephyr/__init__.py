@@ -210,7 +210,6 @@ class ZephyrData(TypedDict):
     snippets: list[
         str
     ]  # zephyr: snippets: -- one `-S <name>` per entry to `west build`
-    swap_method: str | None  # ota: swap_method:, set by mcuboot.apply_swap_method()
     single_slot: bool  # zephyr: single_slot: -- see mcuboot.apply_single_slot()
     shields: list[str]  # zephyr: shields: -- one `-DSHIELD=` entry per item
     shield_root: (
@@ -267,7 +266,6 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         west_version=None,
         ninja_version=None,
         snippets=[],
-        swap_method=None,
         single_slot=False,
         shields=[],
         shield_root=None,
