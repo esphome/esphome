@@ -194,6 +194,26 @@ static const char *solar_status_to_string(uint8_t code) {
 // boiler reports 0 ("no day-of-week information available" per the spec's own ID 20 table) and
 // when this sub-field hasn't been read yet -- date_time_text_sensor_ doesn't need to distinguish
 // those two cases from each other.
+static const char *day_of_week_to_string(uint8_t code) {
+  switch (code) {
+    case 1:
+      return "Monday";
+    case 2:
+      return "Tuesday";
+    case 3:
+      return "Wednesday";
+    case 4:
+      return "Thursday";
+    case 5:
+      return "Friday";
+    case 6:
+      return "Saturday";
+    case 7:
+      return "Sunday";
+    default:
+      return "?";
+  }
+}
 
 const SimpleSensorInfo *OpenTherm42Hub::find_simple_sensor_(RequestKind kind) const {
   for (auto const &info : SIMPLE_SENSORS) {
@@ -367,6 +387,42 @@ void OpenTherm42Hub::build_schedule_() {
     this->add_entry_(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE);
   }
 
+  // §5.3.4 Class 4: write-only numbers. ROOM_TEMPERATURE (ID 24) and TRCH2 (ID 37) are deliberately
+  // absent here -- like the sensor-feed ids below, they only join entries_ once
+  // set_sensor_feed_write_value() has a real value, see hub.h's RequestKind comment.
+  if (this->room_setpoint_number_ != nullptr) {
+    this->add_entry_(RequestKind::ROOM_SETPOINT);
+  }
+  if (this->room_setpoint_ch2_number_ != nullptr) {
+    this->add_entry_(RequestKind::ROOM_SETPOINT_CH2);
+  }
+  if (this->time_id_ != nullptr) {
+    this->add_entry_(RequestKind::DAY_TIME);
+    this->add_entry_(RequestKind::DATE);
+    this->add_entry_(RequestKind::YEAR);
+  }
+  // IDs 20/21/22 (read side): independent of time_id_ -- see hub.h's RequestKind::DAY_TIME_READ
+  // comment. All three feed the same date_time_text_sensor_ and fire together as one burst (see
+  // build_next_request_()'s date_time_read_pending_ handling) -- DAY_TIME_READ is entries_'s sole
+  // representative for the group; DATE_READ/YEAR_READ never get their own entry.
+  if (this->date_time_text_sensor_ != nullptr) {
+    this->entries_.push_back({RequestKind::DAY_TIME_READ, this->date_time_read_update_every_});
+  }
+  // IDs 27/38/78/79: the READ side is unconditional whenever the number is configured -- see hub.h's
+  // RequestKind comment. The WRITE side only joins entries_ once a real value has been commanded
+  // (see set_sensor_feed_write_value()), so it's deliberately absent here.
+  if (this->outside_temperature_number_ != nullptr) {
+    this->add_entry_(RequestKind::OUTSIDE_TEMPERATURE_READ);
+  }
+  if (this->relative_humidity_number_ != nullptr) {
+    this->add_entry_(RequestKind::RELATIVE_HUMIDITY_READ);
+  }
+  if (this->relative_humidity_exhaust_air_number_ != nullptr) {
+    this->add_entry_(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ);
+  }
+  if (this->co2_level_number_ != nullptr) {
+    this->add_entry_(RequestKind::CO2_LEVEL_READ);
+  }
   if (this->boiler_fan_speed_setpoint_sensor_ != nullptr || this->boiler_fan_speed_sensor_ != nullptr) {
     this->add_entry_(RequestKind::BOILER_FAN_SPEED);
   }
@@ -460,6 +516,30 @@ Frame OpenTherm42Hub::build_next_request_() {
       frame.id = info->id;
       frame.set_value_u16(0);
       this->log_outgoing_frame_(frame);
+    }
+    return frame;
+  }
+  if (this->time_sync_pending_) {
+    // Steps through Day-of-week/Time (0), Date (1), Year (2) one conversation at a time, ahead of
+    // everything else, just without waiting for its turn.
+    static const RequestKind KINDS[] = {RequestKind::DAY_TIME, RequestKind::DATE, RequestKind::YEAR};
+    this->pending_request_kind_ = KINDS[this->time_sync_step_];
+    Frame frame{};
+    this->build_time_sync_frame_(this->time_sync_step_, frame);
+    this->time_sync_step_++;
+    if (this->time_sync_step_ >= 3) {
+      this->time_sync_pending_ = false;
+    }
+    this->log_outgoing_frame_(frame);
+    return frame;
+  }
+  if (this->date_time_read_pending_) {
+    // Steps through DAY_TIME_READ (0)/DATE_READ (1)/YEAR_READ (2) one conversation at a time -- see
+    // pull_next_due_entry_() for how this gets kicked off.
+    Frame frame = this->build_date_time_read_step_(this->date_time_read_step_);
+    this->date_time_read_step_++;
+    if (this->date_time_read_step_ >= 3) {
+      this->date_time_read_pending_ = false;
     }
     return frame;
   }
@@ -608,6 +688,80 @@ Frame OpenTherm42Hub::build_entry_request_(RequestKind kind) {
     case RequestKind::REMOTE_REQUEST:
       break;  // built directly in build_next_request_() before this switch, unreachable here
 
+    case RequestKind::ROOM_SETPOINT:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 16;
+      frame.set_value_f88(this->room_setpoint_write_value_);
+      break;
+    case RequestKind::ROOM_SETPOINT_CH2:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 23;
+      frame.set_value_f88(this->room_setpoint_ch2_write_value_);
+      break;
+    case RequestKind::ROOM_TEMPERATURE:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 24;
+      frame.set_value_f88(this->room_temperature_write_value_);
+      break;
+    case RequestKind::TRCH2:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 37;
+      frame.set_value_f88(this->trch2_write_value_);
+      break;
+
+    case RequestKind::DAY_TIME:
+      this->build_time_sync_frame_(0, frame);
+      break;
+    case RequestKind::DATE:
+      this->build_time_sync_frame_(1, frame);
+      break;
+    case RequestKind::YEAR:
+      this->build_time_sync_frame_(2, frame);
+      break;
+
+      // DAY_TIME_READ/DATE_READ/YEAR_READ are never reached here -- they're built by
+      // build_date_time_read_step_() via the date_time_read_pending_ burst intercept instead (see
+      // pull_next_due_entry_() and hub.h's Entry-adjacent comment).
+
+    case RequestKind::OUTSIDE_TEMPERATURE:
+      // Only ever scheduled once set_sensor_feed_write_value() has a real value -- see hub.h's
+      // RequestKind comment.
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 27;
+      frame.set_value_f88(this->outside_temperature_write_value_);
+      break;
+    case RequestKind::OUTSIDE_TEMPERATURE_READ:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 27;
+      break;
+    case RequestKind::RELATIVE_HUMIDITY:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 38;
+      frame.set_value_f88(this->relative_humidity_write_value_);
+      break;
+    case RequestKind::RELATIVE_HUMIDITY_READ:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 38;
+      break;
+    case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 78;
+      frame.value_lb = static_cast<uint8_t>(this->relative_humidity_exhaust_air_write_value_);
+      break;
+    case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 78;
+      break;
+    case RequestKind::CO2_LEVEL:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 79;
+      frame.set_value_u16(static_cast<uint16_t>(this->co2_level_write_value_));
+      break;
+    case RequestKind::CO2_LEVEL_READ:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 79;
+      break;
+
     case RequestKind::BOILER_FAN_SPEED:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
       frame.id = 35;
@@ -652,6 +806,71 @@ Frame OpenTherm42Hub::build_entry_request_(RequestKind kind) {
   return frame;
 }
 
+void OpenTherm42Hub::set_sensor_feed_write_value(uint8_t id, float value) {
+  float *write_value;
+  RequestKind kind;
+  switch (id) {
+    case 24:
+      write_value = &this->room_temperature_write_value_;
+      kind = RequestKind::ROOM_TEMPERATURE;
+      break;
+    case 37:
+      write_value = &this->trch2_write_value_;
+      kind = RequestKind::TRCH2;
+      break;
+    case 27:
+      write_value = &this->outside_temperature_write_value_;
+      kind = RequestKind::OUTSIDE_TEMPERATURE;
+      break;
+    case 38:
+      write_value = &this->relative_humidity_write_value_;
+      kind = RequestKind::RELATIVE_HUMIDITY;
+      break;
+    case 78:
+      write_value = &this->relative_humidity_exhaust_air_write_value_;
+      kind = RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR;
+      break;
+    case 79:
+      write_value = &this->co2_level_write_value_;
+      kind = RequestKind::CO2_LEVEL;
+      break;
+    default:
+      return;
+  }
+  bool const first_value = std::isnan(*write_value);
+  *write_value = value;
+  if (first_value) {
+    this->add_entry_(kind);
+  }
+  // ASAP: jump the queue rather than wait for this id's own due time -- see Entry's declaration
+  // comment. Always finds an entry: either just added above, or added already by an earlier call.
+  this->find_entry_(kind)->dirty = true;
+}
+
+void OpenTherm42Hub::set_sensor_feed_update_every(uint8_t id, uint32_t update_every) {
+  RequestKind kind;
+  switch (id) {
+    case 27:
+      kind = RequestKind::OUTSIDE_TEMPERATURE_READ;
+      break;
+    case 38:
+      kind = RequestKind::RELATIVE_HUMIDITY_READ;
+      break;
+    case 78:
+      kind = RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ;
+      break;
+    case 79:
+      kind = RequestKind::CO2_LEVEL_READ;
+      break;
+    default:
+      return;  // 24/37 (ROOM_TEMPERATURE/TRCH2): no read side, no cadence concept -- unreachable,
+               // OpenTherm42SensorFeedNumber never calls this for them (see its set_update_every())
+  }
+  if (Entry *entry = this->find_entry_(kind); entry != nullptr) {
+    entry->update_every = update_every;
+  }
+}
+
 void OpenTherm42Hub::set_write_value(uint8_t id, float value) {
   float *write_value;
   RequestKind kind;
@@ -667,6 +886,14 @@ void OpenTherm42Hub::set_write_value(uint8_t id, float value) {
     case 71:
       write_value = &this->control_setpoint_ventilation_write_value_;
       kind = RequestKind::CONTROL_SETPOINT_VENTILATION;
+      break;
+    case 16:
+      write_value = &this->room_setpoint_write_value_;
+      kind = RequestKind::ROOM_SETPOINT;
+      break;
+    case 23:
+      write_value = &this->room_setpoint_ch2_write_value_;
+      kind = RequestKind::ROOM_SETPOINT_CH2;
       break;
     default:
       return;
@@ -692,11 +919,60 @@ void OpenTherm42Hub::set_number_update_every(uint8_t id, uint32_t update_every) 
     case 71:
       kind = RequestKind::CONTROL_SETPOINT_VENTILATION;
       break;
+    case 16:
+      kind = RequestKind::ROOM_SETPOINT;
+      break;
+    case 23:
+      kind = RequestKind::ROOM_SETPOINT_CH2;
+      break;
     default:
       return;
   }
   if (Entry *entry = this->find_entry_(kind); entry != nullptr) {
     entry->update_every = update_every;
+  }
+}
+
+Frame OpenTherm42Hub::build_date_time_read_step_(uint8_t step) {
+  static constexpr uint8_t DATA_IDS[] = {20, 21, 22};
+  static constexpr RequestKind KINDS[] = {RequestKind::DAY_TIME_READ, RequestKind::DATE_READ, RequestKind::YEAR_READ};
+  this->pending_request_kind_ = KINDS[step];
+  Frame frame{};
+  frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+  frame.id = DATA_IDS[step];
+  this->log_outgoing_frame_(frame);
+  return frame;
+}
+
+void OpenTherm42Hub::build_time_sync_frame_(uint8_t step, Frame &frame) {
+  static constexpr uint8_t DATA_IDS[] = {20, 21, 22};
+  frame.id = DATA_IDS[step];
+
+  ESPTime const now = this->time_id_ != nullptr ? this->time_id_->now() : ESPTime{};
+  if (!now.is_valid()) {
+    // §4.4.3 "Writing Invalid Data": the configured time source (e.g. sntp) hasn't produced a real
+    // time yet -- INVALID-DATA lets this turn be skipped without writing a bogus date/time (e.g.
+    // the 1970 epoch) into the boiler's clock. The boiler's DATA-INVALID/UNKNOWN-DATAID reply is
+    // handled the same as any other non-WRITE-ACK outcome by handle_response_()/invalidate_response_().
+    frame.type = static_cast<uint8_t>(MessageType::INVALID_DATA);
+    return;
+  }
+  frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+  switch (step) {
+    case 0: {
+      // §5.3.4 ID 20: day of week is Monday=1..Sunday=7; ESPTime's is Sunday=1..Saturday=7.
+      uint8_t const day_of_week = now.day_of_week == 1 ? 7 : now.day_of_week - 1;
+      frame.value_hb = (day_of_week << 5) | (now.hour & 0x1F);
+      frame.value_lb = now.minute;
+      return;
+    }
+    case 1:
+      frame.value_hb = now.month;
+      frame.value_lb = now.day_of_month;
+      return;
+    default:
+      frame.set_value_u16(now.year);
+      return;
   }
 }
 
@@ -727,6 +1003,16 @@ optional<Frame> OpenTherm42Hub::pull_next_due_entry_() {
         continue;
       }
       RequestKind const kind = entry.kind;
+      if (kind == RequestKind::DAY_TIME_READ) {
+        // DAY_TIME_READ/DATE_READ/YEAR_READ all feed one shared date_time_text_sensor_ and are
+        // fired together as a coherent 3-step burst -- DAY_TIME_READ is entries_'s sole
+        // representative for the group (see build_schedule_()); DATE_READ/YEAR_READ follow via
+        // the date_time_read_pending_ intercept on the next two calls, ahead of everything else,
+        // exactly like time_sync_pending_.
+        this->date_time_read_pending_ = true;
+        this->date_time_read_step_ = 1;
+        return this->build_date_time_read_step_(0);
+      }
       return this->build_entry_request_(kind);
     }
     if (wrapped) {
@@ -1260,6 +1546,257 @@ bool OpenTherm42Hub::handle_response_feeds_and_time_(const Frame &frame, Message
       }
       return true;
 
+    case RequestKind::ROOM_SETPOINT:
+      // See CONTROL_SETPOINT's comment above: WRITE-ACK's echo is not trusted for display.
+      if (type != MessageType::WRITE_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::ROOM_SETPOINT, type);
+        OT42_LOG_REJECTION(invalidate_now, "Room Setpoint (id=16) write was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now && this->room_setpoint_number_ != nullptr) {
+          invalidate_entity(this->room_setpoint_number_);
+        }
+        return true;
+      }
+      // See CONTROL_SETPOINT above: a later success must recover a previously-invalidated entity.
+      if (this->room_setpoint_number_ != nullptr) {
+        this->room_setpoint_number_->publish_state(this->room_setpoint_write_value_);
+      }
+      return true;
+
+    case RequestKind::ROOM_SETPOINT_CH2:
+      // See CONTROL_SETPOINT's comment above: WRITE-ACK's echo is not trusted for display.
+      if (type != MessageType::WRITE_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::ROOM_SETPOINT_CH2, type);
+        OT42_LOG_REJECTION(invalidate_now, "Room Setpoint CH2 (id=23) write was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now && this->room_setpoint_ch2_number_ != nullptr) {
+          invalidate_entity(this->room_setpoint_ch2_number_);
+        }
+        return true;
+      }
+      // See CONTROL_SETPOINT above: a later success must recover a previously-invalidated entity.
+      if (this->room_setpoint_ch2_number_ != nullptr) {
+        this->room_setpoint_ch2_number_->publish_state(this->room_setpoint_ch2_write_value_);
+      }
+      return true;
+
+    case RequestKind::ROOM_TEMPERATURE:
+      // See CONTROL_SETPOINT's comment above: WRITE-ACK's echo is not trusted for display.
+      if (type != MessageType::WRITE_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::ROOM_TEMPERATURE, type);
+        OT42_LOG_REJECTION(invalidate_now, "Room temperature (id=24) write was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now && this->room_temperature_number_ != nullptr) {
+          invalidate_entity(this->room_temperature_number_);
+        }
+        return true;
+      }
+      // See CONTROL_SETPOINT above: a later success must recover a previously-invalidated entity.
+      // room_temperature_write_value_ is guaranteed real (not NAN) here -- this id only joins
+      // entries_ once set_sensor_feed_write_value() has supplied one.
+      if (this->room_temperature_number_ != nullptr) {
+        this->room_temperature_number_->publish_state(this->room_temperature_write_value_);
+      }
+      return true;
+
+    case RequestKind::TRCH2:
+      // See CONTROL_SETPOINT's comment above: WRITE-ACK's echo is not trusted for display.
+      if (type != MessageType::WRITE_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::TRCH2, type);
+        OT42_LOG_REJECTION(invalidate_now, "TrCH2 (id=37) write was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now && this->trch2_number_ != nullptr) {
+          invalidate_entity(this->trch2_number_);
+        }
+        return true;
+      }
+      // See ROOM_TEMPERATURE above: a later success must recover a previously-invalidated entity;
+      // trch2_write_value_ is guaranteed real here for the same reason.
+      if (this->trch2_number_ != nullptr) {
+        this->trch2_number_->publish_state(this->trch2_write_value_);
+      }
+      return true;
+
+    case RequestKind::DAY_TIME:
+      this->day_time_write_ok_ = type == MessageType::WRITE_ACK;
+      if (!this->day_time_write_ok_) {
+        OT42_LOG_REJECTION_ALWAYS("Day of Week & Time of Day (id=20) write was rejected (message type %s)",
+                                  message_type_to_string(type));
+      }
+      this->publish_time_synchronized_();
+      return true;
+
+    case RequestKind::DATE:
+      this->date_write_ok_ = type == MessageType::WRITE_ACK;
+      if (!this->date_write_ok_) {
+        OT42_LOG_REJECTION_ALWAYS("Date (id=21) write was rejected (message type %s)", message_type_to_string(type));
+      }
+      this->publish_time_synchronized_();
+      return true;
+
+    case RequestKind::YEAR:
+      this->year_write_ok_ = type == MessageType::WRITE_ACK;
+      if (!this->year_write_ok_) {
+        OT42_LOG_REJECTION_ALWAYS("Year (id=22) write was rejected (message type %s)", message_type_to_string(type));
+      }
+      this->publish_time_synchronized_();
+      return true;
+
+    // IDs 20/21/22 (read side): each of the three conversations only resets/sets its own
+    // sub-field(s) on failure/success -- date_time_text_sensor_ shows a placeholder for just the
+    // affected part rather than going fully unknown, since the other two conversations' data is
+    // still perfectly valid.
+    case RequestKind::DAY_TIME_READ:
+      if (type != MessageType::READ_ACK) {
+        OT42_LOG_REJECTION_ALWAYS("Day of Week & Time of Day (id=20) read was rejected (message type %s)",
+                                  message_type_to_string(type));
+        this->read_day_of_week_.reset();
+        this->read_hour_.reset();
+        this->read_minute_.reset();
+        this->publish_date_time_text_();
+        return true;
+      }
+      this->read_day_of_week_ = (frame.value_hb >> 5) & 0x7;
+      this->read_hour_ = frame.value_hb & 0x1F;
+      this->read_minute_ = frame.value_lb;
+      this->publish_date_time_text_();
+      return true;
+
+    case RequestKind::DATE_READ:
+      if (type != MessageType::READ_ACK) {
+        OT42_LOG_REJECTION_ALWAYS("Date (id=21) read was rejected (message type %s)", message_type_to_string(type));
+        this->read_month_.reset();
+        this->read_day_of_month_.reset();
+        this->publish_date_time_text_();
+        return true;
+      }
+      this->read_month_ = frame.value_hb;
+      this->read_day_of_month_ = frame.value_lb;
+      this->publish_date_time_text_();
+      return true;
+
+    case RequestKind::YEAR_READ:
+      if (type != MessageType::READ_ACK) {
+        OT42_LOG_REJECTION_ALWAYS("Year (id=22) read was rejected (message type %s)", message_type_to_string(type));
+        this->read_year_.reset();
+        this->publish_date_time_text_();
+        return true;
+      }
+      this->read_year_ = frame.value_u16();
+      this->publish_date_time_text_();
+      return true;
+
+    case RequestKind::OUTSIDE_TEMPERATURE:
+      // WRITE-ACK's echoed value is not trusted for display -- real hardware has been observed
+      // acking a write while echoing a stale/unrelated value despite genuinely accepting it (see
+      // hub.h's RequestKind comment). Only OUTSIDE_TEMPERATURE_READ below updates .state; a
+      // rejected/clamped/falsely-acked write self-corrects on the next read.
+      if (type != MessageType::WRITE_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::OUTSIDE_TEMPERATURE, type);
+        OT42_LOG_REJECTION(invalidate_now, "Outside temperature (id=27) write was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now && this->outside_temperature_number_ != nullptr) {
+          invalidate_entity(this->outside_temperature_number_);
+        }
+      }
+      return true;
+
+    case RequestKind::OUTSIDE_TEMPERATURE_READ:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::OUTSIDE_TEMPERATURE_READ, type);
+        OT42_LOG_REJECTION(invalidate_now, "Outside temperature (id=27) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::OUTSIDE_TEMPERATURE_READ);
+        }
+        return true;
+      }
+      if (this->outside_temperature_number_ != nullptr) {
+        this->outside_temperature_number_->publish_state(frame.value_f88());
+      }
+      return true;
+
+    case RequestKind::RELATIVE_HUMIDITY:
+      // See OUTSIDE_TEMPERATURE above: WRITE-ACK's echo is not trusted for display.
+      if (type != MessageType::WRITE_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::RELATIVE_HUMIDITY, type);
+        OT42_LOG_REJECTION(invalidate_now, "Relative Humidity (id=38) write was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now && this->relative_humidity_number_ != nullptr) {
+          invalidate_entity(this->relative_humidity_number_);
+        }
+      }
+      return true;
+
+    case RequestKind::RELATIVE_HUMIDITY_READ:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::RELATIVE_HUMIDITY_READ, type);
+        OT42_LOG_REJECTION(invalidate_now, "Relative Humidity (id=38) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::RELATIVE_HUMIDITY_READ);
+        }
+        return true;
+      }
+      if (this->relative_humidity_number_ != nullptr) {
+        this->relative_humidity_number_->publish_state(frame.value_f88());
+      }
+      return true;
+
+    case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR:
+      // See OUTSIDE_TEMPERATURE above: WRITE-ACK's echo is not trusted for display.
+      if (type != MessageType::WRITE_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR, type);
+        OT42_LOG_REJECTION(invalidate_now, "Relative humidity exhaust air (id=78) write was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now && this->relative_humidity_exhaust_air_number_ != nullptr) {
+          invalidate_entity(this->relative_humidity_exhaust_air_number_);
+        }
+      }
+      return true;
+
+    case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ, type);
+        OT42_LOG_REJECTION(invalidate_now, "Relative humidity exhaust air (id=78) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ);
+        }
+        return true;
+      }
+      if (this->relative_humidity_exhaust_air_number_ != nullptr) {
+        this->relative_humidity_exhaust_air_number_->publish_state(frame.value_lb);
+      }
+      return true;
+
+    case RequestKind::CO2_LEVEL:
+      // See OUTSIDE_TEMPERATURE above: WRITE-ACK's echo is not trusted for display.
+      if (type != MessageType::WRITE_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::CO2_LEVEL, type);
+        OT42_LOG_REJECTION(invalidate_now, "CO2 level (id=79) write was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now && this->co2_level_number_ != nullptr) {
+          invalidate_entity(this->co2_level_number_);
+        }
+      }
+      return true;
+
+    case RequestKind::CO2_LEVEL_READ:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::CO2_LEVEL_READ, type);
+        OT42_LOG_REJECTION(invalidate_now, "CO2 level (id=79) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::CO2_LEVEL_READ);
+        }
+        return true;
+      }
+      if (this->co2_level_number_ != nullptr) {
+        this->co2_level_number_->publish_state(frame.value_u16());
+      }
+      return true;
+
     default:
       return false;
   }
@@ -1374,6 +1911,59 @@ void OpenTherm42Hub::handle_brand_response_(const Frame &frame, BrandRead &brand
   if (Entry *entry = this->find_entry_(kind); entry != nullptr) {
     entry->dirty = true;
   }
+}
+
+void OpenTherm42Hub::publish_time_synchronized_() {
+  if (this->time_synchronized_binary_sensor_ != nullptr) {
+    this->time_synchronized_binary_sensor_->publish_state(this->day_time_write_ok_ && this->date_write_ok_ &&
+                                                          this->year_write_ok_);
+  }
+}
+
+void OpenTherm42Hub::publish_date_time_text_() {
+  if (this->date_time_text_sensor_ == nullptr) {
+    return;
+  }
+  // Sized for each field's full C++ type width (uint16_t/uint8_t), not just the in-spec range
+  // (0..9999/0..99): read_year_/read_month_/read_day_of_month_/read_hour_/read_minute_ are set
+  // directly from unvalidated wire bytes, so a non-compliant boiler could in principle send a
+  // value outside the spec's documented range -- snprintf() itself can't overflow regardless, but
+  // sizing for the type's true worst case avoids ever truncating a legitimately out-of-range value.
+  char year_buf[6];    // "65535" + '\0'
+  char month_buf[4];   // "255" + '\0'
+  char day_buf[4];     // "255" + '\0'
+  char hour_buf[4];    // "255" + '\0'
+  char minute_buf[4];  // "255" + '\0'
+  if (this->read_year_.has_value()) {
+    snprintf(year_buf, sizeof(year_buf), "%04u", *this->read_year_);
+  } else {
+    snprintf(year_buf, sizeof(year_buf), "YYYY");
+  }
+  if (this->read_month_.has_value()) {
+    snprintf(month_buf, sizeof(month_buf), "%02u", *this->read_month_);
+  } else {
+    snprintf(month_buf, sizeof(month_buf), "MM");
+  }
+  if (this->read_day_of_month_.has_value()) {
+    snprintf(day_buf, sizeof(day_buf), "%02u", *this->read_day_of_month_);
+  } else {
+    snprintf(day_buf, sizeof(day_buf), "DD");
+  }
+  if (this->read_hour_.has_value()) {
+    snprintf(hour_buf, sizeof(hour_buf), "%02u", *this->read_hour_);
+  } else {
+    snprintf(hour_buf, sizeof(hour_buf), "HH");
+  }
+  if (this->read_minute_.has_value()) {
+    snprintf(minute_buf, sizeof(minute_buf), "%02u", *this->read_minute_);
+  } else {
+    snprintf(minute_buf, sizeof(minute_buf), "mm");
+  }
+  char buf[40];
+  snprintf(buf, sizeof(buf), "%s, %s-%s-%s %s:%s",
+           this->read_day_of_week_.has_value() ? day_of_week_to_string(*this->read_day_of_week_) : "?", year_buf,
+           month_buf, day_buf, hour_buf, minute_buf);
+  this->date_time_text_sensor_->publish_state(buf);
 }
 
 bool OpenTherm42Hub::should_invalidate_now_(RequestKind kind, MessageType type) {
@@ -1597,6 +2187,91 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       }
       return;
 
+    case RequestKind::ROOM_SETPOINT:
+      if (this->room_setpoint_number_ != nullptr) {
+        invalidate_entity(this->room_setpoint_number_);
+      }
+      return;
+
+    case RequestKind::ROOM_SETPOINT_CH2:
+      if (this->room_setpoint_ch2_number_ != nullptr) {
+        invalidate_entity(this->room_setpoint_ch2_number_);
+      }
+      return;
+
+    case RequestKind::ROOM_TEMPERATURE:
+      if (this->room_temperature_number_ != nullptr) {
+        invalidate_entity(this->room_temperature_number_);
+      }
+      return;
+
+    case RequestKind::TRCH2:
+      if (this->trch2_number_ != nullptr) {
+        invalidate_entity(this->trch2_number_);
+      }
+      return;
+
+    case RequestKind::DAY_TIME:
+      this->day_time_write_ok_ = false;
+      this->publish_time_synchronized_();
+      return;
+
+    case RequestKind::DATE:
+      this->date_write_ok_ = false;
+      this->publish_time_synchronized_();
+      return;
+
+    case RequestKind::YEAR:
+      this->year_write_ok_ = false;
+      this->publish_time_synchronized_();
+      return;
+
+    case RequestKind::DAY_TIME_READ:
+      this->read_day_of_week_.reset();
+      this->read_hour_.reset();
+      this->read_minute_.reset();
+      this->publish_date_time_text_();
+      return;
+
+    case RequestKind::DATE_READ:
+      this->read_month_.reset();
+      this->read_day_of_month_.reset();
+      this->publish_date_time_text_();
+      return;
+
+    case RequestKind::YEAR_READ:
+      this->read_year_.reset();
+      this->publish_date_time_text_();
+      return;
+
+    case RequestKind::OUTSIDE_TEMPERATURE:
+    case RequestKind::OUTSIDE_TEMPERATURE_READ:
+      if (this->outside_temperature_number_ != nullptr) {
+        invalidate_entity(this->outside_temperature_number_);
+      }
+      return;
+
+    case RequestKind::RELATIVE_HUMIDITY:
+    case RequestKind::RELATIVE_HUMIDITY_READ:
+      if (this->relative_humidity_number_ != nullptr) {
+        invalidate_entity(this->relative_humidity_number_);
+      }
+      return;
+
+    case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR:
+    case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ:
+      if (this->relative_humidity_exhaust_air_number_ != nullptr) {
+        invalidate_entity(this->relative_humidity_exhaust_air_number_);
+      }
+      return;
+
+    case RequestKind::CO2_LEVEL:
+    case RequestKind::CO2_LEVEL_READ:
+      if (this->co2_level_number_ != nullptr) {
+        invalidate_entity(this->co2_level_number_);
+      }
+      return;
+
     case RequestKind::BOILER_FAN_SPEED:
       if (this->boiler_fan_speed_setpoint_sensor_ != nullptr) {
         invalidate_entity(this->boiler_fan_speed_setpoint_sensor_);
@@ -1689,6 +2364,38 @@ static const char *bespoke_request_kind_name(RequestKind kind) {
       return "Brand version (id=94)";
     case RequestKind::BRAND_SERIAL_NUMBER:
       return "Brand serial number (id=95)";
+    case RequestKind::ROOM_SETPOINT:
+      return "Room Setpoint (id=16)";
+    case RequestKind::ROOM_SETPOINT_CH2:
+      return "Room Setpoint CH2 (id=23)";
+    case RequestKind::ROOM_TEMPERATURE:
+      return "Room temperature (id=24)";
+    case RequestKind::TRCH2:
+      return "TrCH2 (id=37)";
+    case RequestKind::DAY_TIME:
+      return "Day of Week & Time of Day (id=20)";
+    case RequestKind::DATE:
+      return "Date (id=21)";
+    case RequestKind::YEAR:
+      return "Year (id=22)";
+    case RequestKind::DAY_TIME_READ:
+      return "Day of Week & Time of Day (id=20)";
+    case RequestKind::DATE_READ:
+      return "Date (id=21)";
+    case RequestKind::YEAR_READ:
+      return "Year (id=22)";
+    case RequestKind::OUTSIDE_TEMPERATURE:
+    case RequestKind::OUTSIDE_TEMPERATURE_READ:
+      return "Outside temperature (id=27)";
+    case RequestKind::RELATIVE_HUMIDITY:
+    case RequestKind::RELATIVE_HUMIDITY_READ:
+      return "Relative Humidity (id=38)";
+    case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR:
+    case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ:
+      return "Relative humidity exhaust air (id=78)";
+    case RequestKind::CO2_LEVEL:
+    case RequestKind::CO2_LEVEL_READ:
+      return "CO2 level (id=79)";
     case RequestKind::BOILER_FAN_SPEED:
       return "Boiler fan speed (id=35)";
     default:
