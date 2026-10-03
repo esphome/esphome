@@ -1538,9 +1538,7 @@ def validate_rc_switch_raw_code(value):
     return value
 
 
-def build_rc_switch_protocol(config):
-    if isinstance(config, int):
-        return rc_switch_protocol(config)
+def build_custom_rc_switch_protocol(config: ConfigType) -> MockObj:
     pl = config[CONF_PULSE_LENGTH]
     return RCSwitchBase(
         config[CONF_SYNC][0] * pl,
@@ -1558,7 +1556,9 @@ def rc_switch_protocol_in_flash(config: int | ConfigType) -> MockObj:
     if isinstance(config, int):
         return cg.RawExpression(f"&{RC_SWITCH_PROTOCOLS}[{config}]")
     return cg.shared_progmem_array(
-        "rc_switch_custom_protocol", RCSwitchBase, [build_rc_switch_protocol(config)]
+        "rc_switch_custom_protocol",
+        RCSwitchBase,
+        [build_custom_rc_switch_protocol(config)],
     )
 
 
