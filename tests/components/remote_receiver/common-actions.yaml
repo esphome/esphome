@@ -71,8 +71,8 @@ on_jvc:
 on_keeloq:
   then:
     - logger.log:
-        format: "on_keeloq: %lu %lu %u"
-        args: ["long(x.encrypted)", "long(x.address)", "x.command"]
+        format: "on_keeloq: %lu %lu %u %u %u"
+        args: ["long(x.encrypted)", "long(x.address)", "x.command", "x.suffix", "x.suffix_bits"]
 on_haier:
   then:
     - logger.log:
