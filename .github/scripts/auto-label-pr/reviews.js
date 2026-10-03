@@ -108,9 +108,13 @@ async function handleReviews(github, context, finalLabels, originalLabelCount, d
     pull_number: pr_number
   });
 
+  // DISMISSED reviews are included so a review dismissed by the bot when the
+  // author marked the PR ready for review is updated in place on later pushes.
+  // Creating a new review instead would emit a fresh changes-requested event,
+  // which makes the bot convert the PR back to draft again.
   const botReviews = reviews.filter(review =>
     review.user.type === 'Bot' &&
-    review.state === 'CHANGES_REQUESTED' &&
+    ['CHANGES_REQUESTED', 'DISMISSED'].includes(review.state) &&
     review.body && review.body.includes(BOT_COMMENT_MARKER)
   );
 
@@ -118,12 +122,13 @@ async function handleReviews(github, context, finalLabels, originalLabelCount, d
     const reviewBody = `${BOT_COMMENT_MARKER}\n\n${reviewMessages.join('\n\n---\n\n')}`;
 
     if (botReviews.length > 0) {
-      // Update existing review
+      // Update the newest review; PRs hit by the old create-on-every-push
+      // behavior can carry several, and the newest is the one users see
       await github.rest.pulls.updateReview({
         owner,
         repo,
         pull_number: pr_number,
-        review_id: botReviews[0].id,
+        review_id: botReviews[botReviews.length - 1].id,
         body: reviewBody
       });
       console.log('Updated existing bot review');
@@ -141,6 +146,9 @@ async function handleReviews(github, context, finalLabels, originalLabelCount, d
   } else if (botReviews.length > 0) {
     // Dismiss existing reviews
     for (const review of botReviews) {
+      if (review.state !== 'CHANGES_REQUESTED') {
+        continue;
+      }
       try {
         await github.rest.pulls.dismissReview({
           owner,
