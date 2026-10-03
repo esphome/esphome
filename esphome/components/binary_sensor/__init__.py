@@ -1,4 +1,3 @@
-from dataclasses import dataclass, field
 from logging import getLogger
 
 from esphome import automation, core
@@ -75,9 +74,7 @@ from esphome.types import ConfigType
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
-DOMAIN = "binary_sensor"
 
-CONF_TIMING_ID = "timing_id"
 DEFAULT_INVALID_COOLDOWN_MS = (
     1000  # Keep in sync with invalid_cooldown_ in automation.h
 )
@@ -491,9 +488,6 @@ _BINARY_SENSOR_SCHEMA = (
             cv.Optional(CONF_ON_MULTI_CLICK): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MultiClickTrigger),
-                    cv.GenerateID(CONF_TIMING_ID): cv.declare_id(
-                        MultiClickTriggerEvent
-                    ),
                     cv.Required(CONF_TIMING): cv.All(
                         [parse_multi_click_timing_str],
                         validate_multi_click_timing,
@@ -595,7 +589,9 @@ async def _build_binary_sensor_automations(var, config):
             )
             for tim in conf[CONF_TIMING]
         ]
-        table = _multi_click_timing_table(conf[CONF_TIMING_ID], timings)
+        table = cg.shared_progmem_array(
+            "multi_click_timing", MultiClickTriggerEvent, cg.ArrayInitializer(*timings)
+        )
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, table, len(timings))
         if (
             cooldown := conf[CONF_INVALID_COOLDOWN]
@@ -603,28 +599,6 @@ async def _build_binary_sensor_automations(var, config):
             cg.add(trigger.set_invalid_cooldown(cooldown))
         await cg.register_component(trigger, conf)
         await automation.build_automation(trigger, [], conf)
-
-
-@dataclass
-class BinarySensorData:
-    # Rendered timing events -> the PROGMEM table shared by every trigger using them.
-    multi_click_timings: dict[tuple[str, ...], MockObj] = field(default_factory=dict)
-
-
-def _get_data() -> BinarySensorData:
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = BinarySensorData()
-    return CORE.data[DOMAIN]
-
-
-def _multi_click_timing_table(
-    timing_id: ID, timings: list[cg.StructInitializer]
-) -> MockObj:
-    tables = _get_data().multi_click_timings
-    key = tuple(str(t) for t in timings)
-    if (table := tables.get(key)) is None:
-        table = tables[key] = cg.progmem_array(timing_id, cg.ArrayInitializer(*timings))
-    return table
 
 
 @setup_entity("binary_sensor")
