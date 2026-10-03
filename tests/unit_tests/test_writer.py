@@ -22,7 +22,7 @@ from esphome.const import (
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
 )
-from esphome.core import EsphomeError
+from esphome.core import CORE, EsphomeError
 from esphome.storage_json import StorageJSON
 from esphome.writer import (
     CPP_AUTO_GENERATE_BEGIN,
@@ -1042,6 +1042,28 @@ def test_clean_all_with_yaml_file(
     # Verify logging mentions the build dir
     assert "Cleaning" in caplog.text
     assert str(build_dir) in caplog.text
+
+
+@pytest.mark.parametrize("reset_environment", [False, True])
+def test_hosted_firmware_cache_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reset_environment: bool
+) -> None:
+    """Asset cache survives clean but is removed by Reset Build Environment."""
+    CORE.config_path = tmp_path / "device.yaml"
+    CORE.config_path.write_text("esphome:\n  name: device\n")
+    CORE.name = "device"
+    CORE.build_path = tmp_path / "build"
+    monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path / ".esphome"))
+    cache = CORE.data_dir / "esp32_hosted" / "firmware" / "digest.bin"
+    cache.parent.mkdir(parents=True)
+    cache.write_bytes(b"firmware")
+
+    if reset_environment:
+        clean_all([str(CORE.config_path)])
+        assert not cache.exists()
+    else:
+        clean_build(full=True)
+        assert cache.read_bytes() == b"firmware"
 
 
 @patch("esphome.writer.CORE")
