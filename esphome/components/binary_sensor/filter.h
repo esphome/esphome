@@ -88,9 +88,11 @@ struct AutorepeatFilterTiming {
   uint32_t time_on;
 };
 // Read straight from flash on ESP8266, so every field must stay a word.
-static_assert(std::is_same_v<decltype(AutorepeatFilterTiming::delay), uint32_t> &&
-                  std::is_same_v<decltype(AutorepeatFilterTiming::time_off), uint32_t> &&
-                  std::is_same_v<decltype(AutorepeatFilterTiming::time_on), uint32_t>,
+static_assert(std::is_same_v<decltype(AutorepeatFilterTiming::delay), uint32_t>,
+              "AutorepeatFilterTiming fields must stay uint32_t");
+static_assert(std::is_same_v<decltype(AutorepeatFilterTiming::time_off), uint32_t>,
+              "AutorepeatFilterTiming fields must stay uint32_t");
+static_assert(std::is_same_v<decltype(AutorepeatFilterTiming::time_on), uint32_t>,
               "AutorepeatFilterTiming fields must stay uint32_t");
 
 /// Timings live in a PROGMEM table emitted by codegen, ended by an entry whose delay is
