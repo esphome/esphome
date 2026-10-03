@@ -538,7 +538,8 @@ void MipiCsiCamera::loop() {
 
   // Ask the capture task for the next frame. Not while an image is still in flight, because both
   // share the encoder's single output buffer.
-  if (this->current_image_ || this->frame_wanted_.load() || !this->has_requested_image_())
+  if (this->current_image_ || this->frame_wanted_.load() || uxQueueMessagesWaiting(this->result_queue_) != 0 ||
+      !this->has_requested_image_())
     return;
   if (now - this->last_update_ < this->update_interval_)
     return;
