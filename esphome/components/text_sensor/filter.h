@@ -121,25 +121,17 @@ struct Substitution {
   const char *to;
 };
 
-/// Non-template helper (implementation in filter.cpp)
-bool substitute_filter_apply(const Substitution *substitutions, size_t count, std::string &value);
-
 /// A simple filter that replaces a substring with another substring.
-/// `substitutions` is a codegen table in flash, shared by filters with the same list.
+/// `substitutions` is a codegen table in flash, shared by filters with the same list and
+/// ended by an entry whose `from` is nullptr, so no count is stored.
 class SubstituteFilter : public Filter {
  public:
-  SubstituteFilter(const Substitution *substitutions, size_t count) : substitutions_(substitutions), count_(count) {}
-  bool new_value(std::string &value) override {
-    return substitute_filter_apply(this->substitutions_, this->count_, value);
-  }
+  explicit SubstituteFilter(const Substitution *substitutions) : substitutions_(substitutions) {}
+  bool new_value(std::string &value) override;
 
  protected:
   const Substitution *substitutions_;
-  size_t count_;
 };
-
-/// Non-template helper (implementation in filter.cpp)
-bool map_filter_apply(const Substitution *mappings, size_t count, std::string &value);
 
 /** A filter that maps values from one set to another
  *
@@ -165,16 +157,16 @@ bool map_filter_apply(const Substitution *mappings, size_t count, std::string &v
  *
  * Break-even point: ~35-40 mappings, but ESPHome configs rarely exceed 20
  *
- * `mappings` is a codegen table in flash, shared by filters with the same list.
+ * `mappings` is a codegen table in flash, shared by filters with the same list and ended by
+ * an entry whose `from` is nullptr, so no count is stored.
  */
 class MapFilter : public Filter {
  public:
-  MapFilter(const Substitution *mappings, size_t count) : mappings_(mappings), count_(count) {}
-  bool new_value(std::string &value) override { return map_filter_apply(this->mappings_, this->count_, value); }
+  explicit MapFilter(const Substitution *mappings) : mappings_(mappings) {}
+  bool new_value(std::string &value) override;
 
  protected:
   const Substitution *mappings_;
-  size_t count_;
 };
 
 }  // namespace esphome::text_sensor

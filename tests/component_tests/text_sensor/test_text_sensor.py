@@ -80,7 +80,23 @@ def test_substitution_filters_share_progmem_tables(
     )
     assert len(tables) == 2
     map_table, sub_table = tables
-    assert main_cpp.count(f"text_sensor::MapFilter({map_table}, 2)") == 2
-    assert f"text_sensor::SubstituteFilter({sub_table}, 1)" in main_cpp
-    assert "MapFilter<" not in main_cpp
-    assert "SubstituteFilter<" not in main_cpp
+    assert main_cpp.count(f"text_sensor::MapFilter({map_table})") == 2
+    assert f"text_sensor::SubstituteFilter({sub_table})" in main_cpp
+    # Each table ends with an empty pair so the filters store no count.
+    assert main_cpp.count(".from = nullptr") == 2
+
+
+def test_substitution_table_names_avoid_user_ids(
+    generate_main: Callable[[str], str],
+) -> None:
+    """A user id equal to a table name cannot collide with the generated table."""
+    main_cpp = generate_main(
+        "tests/component_tests/text_sensor/test_text_sensor_filter_table_id_clash.yaml"
+    )
+
+    tables = re.findall(
+        r"static constexpr text_sensor::Substitution (\w+)\[\] PROGMEM", main_cpp
+    )
+    assert len(tables) == 2
+    assert "text_sensor_substitutions" not in tables
+    assert "text_sensor_mapfilter_id_table" not in tables
