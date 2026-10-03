@@ -146,15 +146,13 @@ void MipiDsi::setup() {
           delay(duration);
         }
       }
-      // The sequence is in flash; hand the driver a RAM copy
-      uint8_t args[0x80];
-      memcpy(args, seq + index, num_args);
+      const auto *ptr = seq + index;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
       char hex_buf[format_hex_pretty_size(MIPI_DSI_MAX_CMD_LOG_BYTES)];
 #endif
       ESP_LOGVV(TAG, "Command %02X, length %d, byte(s) %s", cmd, num_args,
-                format_hex_pretty_to(hex_buf, args, num_args, '.'));
-      err = esp_lcd_panel_io_tx_param(this->io_handle_, cmd, args, num_args);
+                format_hex_pretty_to(hex_buf, ptr, num_args, '.'));
+      err = esp_lcd_panel_io_tx_param(this->io_handle_, cmd, ptr, num_args);
       if (err != ESP_OK) {
         this->smark_failed(LOG_STR("lcd_panel_io_tx_param failed"), err);
         return;
