@@ -1,0 +1,7 @@
+# included by 12-this-in-includes.input.yaml
+level1:
+  file: ${this.file.name}
+  dir: ${this.dir.name}
+  level2:
+    - !include
+      file: this_level2.yaml

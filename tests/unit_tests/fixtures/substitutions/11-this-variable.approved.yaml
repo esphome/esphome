@@ -1,0 +1,12 @@
+substitutions:
+  some_file: some_file.txt
+  this_dir_name: substitutions
+
+test_list:
+  - Current dir is: substitutions
+  - Current file is: 11-this-variable.input.yaml
+  - Parent dir is: fixtures
+  - Last three parts of path:
+      - fixtures
+      - substitutions
+      - some_file.txt
