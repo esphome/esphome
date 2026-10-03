@@ -1,5 +1,7 @@
 #include "esphome/components/uart/bridge/uart_bridge.h"
 
+#ifdef USE_HOST
+
 #include <gtest/gtest.h>
 
 #include <cstddef>
@@ -127,3 +129,5 @@ TEST_F(UARTBridgeCopy, KnownRoomLimitsTheCopy) {
 }
 
 }  // namespace esphome::uart::testing
+
+#endif  // USE_HOST
