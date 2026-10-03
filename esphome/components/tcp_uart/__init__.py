@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_BAUD_RATE,
     CONF_ID,
     CONF_PORT,
+    CONF_TIMEOUT,
     DEVICE_CLASS_CONNECTIVITY,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
@@ -42,6 +43,7 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_RECONNECT_INTERVAL, default="5s"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_TIMEOUT, default="0s"): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_CONNECTED): binary_sensor.binary_sensor_schema(
             device_class=DEVICE_CLASS_CONNECTIVITY,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
@@ -84,6 +86,7 @@ async def to_code(config: ConfigType) -> None:
         socket.require_tcp_client_link()
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
+    cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     # The socket is not clocked. These only satisfy UARTComponent and a consumer check.
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))

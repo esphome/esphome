@@ -72,6 +72,76 @@ TEST(TcpClientLink, FatalWriteInsideFlushDropsTheLink) {
   EXPECT_FALSE(p.link_.connected());
 }
 
+TEST(TcpClientLink, QuietLinkClosesAfterTheTimeout) {
+  LinkPeer p;
+  p.link_.set_idle_timeout(100);
+  p.link_.testing_set_now(1000);
+  p.link_.note_io();
+  p.link_.testing_set_now(1099);
+  p.link_.check_idle();
+  EXPECT_TRUE(p.link_.connected());
+  p.link_.testing_set_now(1100);
+  p.link_.check_idle();
+  EXPECT_FALSE(p.link_.connected());
+}
+
+TEST(TcpClientLink, AReadRestartsTheIdleClock) {
+  LinkPeer p;
+  p.link_.set_idle_timeout(100);
+  p.link_.testing_set_now(1000);
+  p.link_.note_io();
+  p.link_.testing_set_now(1090);
+  char byte = 'x';
+  ASSERT_EQ(::write(p.peer_fd_, &byte, 1), 1);
+  uint8_t buf[4];
+  ASSERT_EQ(p.link_.read(buf, sizeof(buf)), 1);
+  p.link_.testing_set_now(1189);
+  p.link_.check_idle();
+  EXPECT_TRUE(p.link_.connected());
+  p.link_.testing_set_now(1190);
+  p.link_.check_idle();
+  EXPECT_FALSE(p.link_.connected());
+}
+
+TEST(TcpClientLink, AWriteRestartsTheIdleClock) {
+  LinkPeer p;
+  p.link_.set_idle_timeout(100);
+  p.link_.testing_set_now(1000);
+  p.link_.note_io();
+  p.link_.testing_set_now(1090);
+  ASSERT_EQ(p.link_.queue(reinterpret_cast<const uint8_t *>("x"), 1), 1u);
+  EXPECT_TRUE(p.link_.flush_tx());
+  p.link_.testing_set_now(1189);
+  p.link_.check_idle();
+  EXPECT_TRUE(p.link_.connected());
+  p.link_.testing_set_now(1190);
+  p.link_.check_idle();
+  EXPECT_FALSE(p.link_.connected());
+}
+
+TEST(TcpClientLink, ZeroTimeoutLeavesAQuietLinkUp) {
+  LinkPeer p;
+  p.link_.set_idle_timeout(0);
+  p.link_.testing_set_now(1000);
+  p.link_.note_io();
+  p.link_.testing_set_now(5000);
+  p.link_.check_idle();
+  EXPECT_TRUE(p.link_.connected());
+}
+
+TEST(TcpClientLink, NotingIoKeepsABlockedConsumerUp) {
+  LinkPeer p;
+  p.link_.set_idle_timeout(100);
+  p.link_.testing_set_now(1000);
+  p.link_.note_io();
+  p.link_.testing_set_now(1090);
+  // A full local buffer calls this instead of reading. The peer is not idle.
+  p.link_.note_io();
+  p.link_.testing_set_now(1189);
+  p.link_.check_idle();
+  EXPECT_TRUE(p.link_.connected());
+}
+
 }  // namespace esphome::socket::testing
 
 #endif

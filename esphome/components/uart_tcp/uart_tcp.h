@@ -20,6 +20,7 @@ class UartTcp : public Component, public uart::UARTDevice {
   void set_port(uint16_t port) { this->link_.set_port(port); }
   void set_reconnect_interval(uint32_t ms) { this->link_.set_reconnect_interval(ms); }
   void set_connected_sensor(binary_sensor::BinarySensor *sensor) { this->connected_sensor_ = sensor; }
+  void set_timeout(uint32_t ms) { this->link_.set_idle_timeout(ms); }
 #ifdef USE_SOCKET_TCP_LISTENER
   void set_server(bool server) { this->server_ = server; }
 #ifdef USE_SOCKET_IPV4_ALLOW

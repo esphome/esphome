@@ -31,6 +31,7 @@ void UartTcp::dump_config() {
                 this->server_ ? LOG_STR_LITERAL("Listen") : LOG_STR_LITERAL("Host"),
                 this->server_ ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
                 this->link_.reconnect_interval());
+  ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 "ms", this->link_.idle_timeout());
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.dump_config();
 #endif
@@ -66,7 +67,9 @@ void UartTcp::read_socket_() {
     room = std::max<size_t>(1, this->parent_->get_baud_rate() / BAUD_PACE_DIVISOR);
   }
   if (room == 0) {
+    // The UART cannot take more. The peer is not idle.
     this->rx_pending_ = true;
+    this->link_.note_io();
     return;
   }
   uint8_t tmp[READ_CHUNK];
@@ -121,12 +124,20 @@ void UartTcp::loop() {
   if (!this->link_was_up_) {
     return;
   }
+  // A byte moved in this pass resets the clock before the timeout can close.
   if (this->rx_pending_ || this->link_.ready()) {
     this->read_socket_();
+  }
+  if (!this->link_.connected()) {
+    return;
   }
   // UART bytes picked up here go out in the same pass.
   this->read_uart_();
   this->link_.flush_tx();
+  if (!this->link_.connected()) {
+    return;
+  }
+  this->link_.check_idle();
 }
 
 }  // namespace esphome::uart_tcp
