@@ -360,7 +360,7 @@ async def to_code(config: ConfigType) -> None:
         # Build time key: the ota keeps its own pointer so safe mode, which
         # has no api server, still has it
         cg.add_define("USE_OTA_ENCRYPTION")
-        cg.add(var.set_noise_psk(new_psk_progmem(config[CONF_ID], key)))
+        cg.add(var.set_noise_psk(new_psk_progmem(key)))
     elif CONF_ENCRYPTION in api_conf:
         # Runtime key: found in the api server, or in preferences in safe mode
         cg.add_define("USE_OTA_ENCRYPTION")
