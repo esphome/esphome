@@ -1,0 +1,15 @@
+esphome:
+  name: midea-power-test
+esp8266:
+  board: esp12e
+packages:
+  uart: !include ../../../test_build_components/common/uart/esp8266-ard.yaml
+climate:
+  - platform: midea
+    id: tested_ac
+    compressor_power:
+      id: compressor
+      name: Compressor Power
+    power_usage:
+      id: legacy_power
+      name: Legacy Power

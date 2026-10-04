@@ -33,11 +33,13 @@ from esphome.const import (
     UNIT_WATT,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@dudanov"]
 DEPENDENCIES = ["climate", "uart"]
 AUTO_LOAD = ["sensor"]
 CONF_POWER_USAGE = "power_usage"
+CONF_COMPRESSOR_POWER = "compressor_power"
 CONF_HUMIDITY_SETPOINT = "humidity_setpoint"
 midea_ac_ns = cg.esphome_ns.namespace("midea").namespace("ac")
 AirConditioner = midea_ac_ns.class_("AirConditioner", climate.Climate, cg.Component)
@@ -116,6 +118,12 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_COMPRESSOR_POWER): sensor.sensor_schema(
+                unit_of_measurement=UNIT_WATT,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
             cv.Optional(CONF_POWER_USAGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_WATT,
                 icon=ICON_POWER,
@@ -190,7 +198,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
@@ -217,6 +225,7 @@ async def to_code(config):
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_OUTDOOR_TEMPERATURE, var.set_outdoor_temperature_sensor)
     await sensors(CONF_POWER_USAGE, var.set_power_sensor)
+    await sensors(CONF_COMPRESSOR_POWER, var.set_compressor_power_sensor)
     await sensors(CONF_HUMIDITY_SETPOINT, var.set_humidity_setpoint_sensor)
     # MideaUART uses the Arduino WiFi API for the network-notify frame
     # (WiFi auto-enables Network via dependency mapping). On ESP-IDF the
@@ -227,5 +236,5 @@ async def to_code(config):
     cg.add_library(
         name="MideaUART",
         version=None,
-        repository="https://github.com/dudanov/MideaUART.git#eeea6c3e9b4474f067054592b435be1c4e466815",
+        repository="https://github.com/dudanov/MideaUART.git#bc27625425d97a9038f2f4fab3768367948716f9",
     )

@@ -9,6 +9,40 @@
 
 namespace esphome::midea::ac {
 
+void AirConditioner::setup() {
+  ApplianceBase<dudanov::midea::ac::AirConditioner>::setup();
+  if (this->compressor_power_sensor_ == nullptr)
+    return;
+  // Let ordinary status/capability queries finish before starting optional telemetry.
+  this->set_timeout("compressor_power_start", 60000, [this]() { this->poll_compressor_power_(); });
+}
+
+void AirConditioner::poll_compressor_power_() {
+  this->set_timeout("compressor_power", 30000, [this]() { this->poll_compressor_power_(); });
+  if (this->compressor_power_cooldown_)
+    return;
+  // The library permits only one queued/in-flight Group 7 request and sends it once.
+  // Queue refusal is not a failed transmission; the next interval will try again.
+  this->base_.requestGroup7Power(
+      [this](float watts) {
+        this->compressor_power_failures_ = 0;
+        this->compressor_power_sensor_->publish_state(watts);
+        // Refresh on every valid reply, even when the measured value did not change.
+        this->set_timeout("compressor_power_stale", 120000,
+                          [this]() { this->compressor_power_sensor_->publish_state(NAN); });
+      },
+      [this]() {
+        if (++this->compressor_power_failures_ < 3)
+          return;
+        this->compressor_power_cooldown_ = true;
+        ESP_LOGW(Constants::TAG, "Group 7 power query failed three times; pausing for five minutes");
+        this->set_timeout("compressor_power_cooldown", 300000, [this]() {
+          this->compressor_power_failures_ = 0;
+          this->compressor_power_cooldown_ = false;
+        });
+      });
+}
+
 static void set_sensor(Sensor *sensor, float value) {
   if (sensor != nullptr && (!sensor->has_state() || sensor->get_raw_state() != value))
     sensor->publish_state(value);
@@ -144,6 +178,7 @@ void AirConditioner::dump_config() {
              "Failed to get 0xB5 capabilities report. Suggest to disable it in config and manually set your "
              "appliance options.");
   }
+  sensor::log_sensor(Constants::TAG, "  ", LOG_STR_LITERAL("Compressor Power"), this->compressor_power_sensor_);
   this->dump_traits_(Constants::TAG);
 }
 
