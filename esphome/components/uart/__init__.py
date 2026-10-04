@@ -402,7 +402,9 @@ async def to_code(config):
             cg.add(var.set_clock_source(UART_CLOCK_SOURCES[clock_source]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
-    cg.add(var.set_parity(config[CONF_PARITY]))
+    # Skip the setter when the config matches the C++ initializer (UART_CONFIG_PARITY_NONE).
+    if (parity := config[CONF_PARITY]) != "NONE":
+        cg.add(var.set_parity(parity))
 
     if CONF_DEBUG in config:
         await debug_to_code(config[CONF_DEBUG], var)

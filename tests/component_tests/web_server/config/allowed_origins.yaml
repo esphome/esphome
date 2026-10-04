@@ -9,8 +9,7 @@ wifi:
   ssid: test
   password: testtest
 
-api:
-  port: 6054
-  reboot_timeout: 0s
-  batch_delay: 0ms
-  listen_backlog: 2
+web_server:
+  allowed_origins:
+    - https://app.esphome.io
+    - "*"
