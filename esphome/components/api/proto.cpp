@@ -150,20 +150,20 @@ uint8_t *ProtoEncode::encode_sub_message_body(uint8_t *__restrict__ pos PROTO_EN
   uint8_t *len_pos = pos;
   PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
   uint8_t *body_start = pos + 1;
-  uint8_t *end = encode_fn(value, body_start PROTO_ENCODE_DEBUG_ARG);
-  uint32_t body_size = static_cast<uint32_t>(end - body_start);
+  uint8_t *after_body = encode_fn(value, body_start PROTO_ENCODE_DEBUG_ARG);
+  uint32_t body_size = static_cast<uint32_t>(after_body - body_start);
   if (body_size < VARINT_MAX_1_BYTE) [[likely]] {
     // Common case: 1-byte varint, just backpatch
     *len_pos = static_cast<uint8_t>(body_size);
-    return end;
+    return after_body;
   }
   // Shift the body forward to make room for the extra length varint bytes
   uint8_t extra = ProtoSize::varint(body_size) - 1;
-  PROTO_ENCODE_CHECK_BOUNDS(end, extra);
+  PROTO_ENCODE_CHECK_BOUNDS(after_body, extra);
   std::memmove(body_start + extra, body_start, body_size);
   // Write the full varint at len_pos
   (void) encode_varint_raw_loop(len_pos PROTO_ENCODE_DEBUG_ARG, body_size);
-  return end + extra;
+  return after_body + extra;
 }
 
 // Non-template core for encode_optional_sub_message.
