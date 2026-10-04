@@ -142,8 +142,6 @@ bool ES8311::configure_clock_() {
   ES8311_ERROR_CHECK(this->read_byte(ES8311_REG02_CLK_MANAGER, &reg02));
   reg02 &= 0x07;
   reg02 |= (coefficient->pre_div - 1) << 5;
-  // Writing the factor itself ran the codec at twice the intended clock for the common MCLK = 256 * fs case and
-  // spilled into the pre-divider bits for x4 and x8.
   reg02 |= encode_pre_mult(coefficient->pre_mult) << 3;
   ES8311_ERROR_CHECK(this->write_byte(ES8311_REG02_CLK_MANAGER, reg02));
 
