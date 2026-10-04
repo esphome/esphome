@@ -16,11 +16,14 @@ class PolygonZone : public text::Text {
   /// Config validation guarantees every zone gets exactly one presence binary sensor.
   void set_presence_binary_sensor(binary_sensor::BinarySensor *presence) { this->presence_ = presence; }
 
-  /// Load the saved polygon and publish the initial states. Called from the hub's setup().
+  /// Load the saved polygon and publish it. Called from the hub's setup().
   void setup();
   void dump_config();
-  /// Publish whether any of the targets is inside the zone.
-  void update(bool target_inside) { this->presence_->publish_state(target_inside); }
+  /// Publish whether any of the targets is inside the zone. A zone without a polygon keeps presence unknown.
+  void update(bool target_inside) {
+    if (!this->polygon_.empty())
+      this->presence_->publish_state(target_inside);
+  }
   bool contains(int16_t x, int16_t y) const { return this->polygon_.contains(x, y); }
 
  protected:

@@ -1,11 +1,11 @@
 """Integration test for LD2450 polygon zones with mock UART.
 
 Tests:
-1. Polygons start empty and their presence sensors start off
+1. Polygons start empty and their presence sensors start unknown
 2. A polygon set from the API is published back in canonical form
 3. Invalid polygon text is rejected and the previous polygon is published again
 4. Presence turns on and off as targets move in and out of each polygon
-5. A zone without a polygon never reports presence
+5. A zone without a polygon keeps presence unknown, and clearing a polygon makes it unknown again
 """
 
 from __future__ import annotations
@@ -24,9 +24,11 @@ from aioesphomeapi import (
 )
 import pytest
 
+from .host_prefs import clear_host_prefs
 from .state_utils import InitialStateHelper, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
+DEVICE_NAME = "uart-mock-ld2450-zones"
 LEFT_POLYGON = "-1000,800;0,800;0,1500;-1000,1500"
 NEAR_POLYGON = "0,0;1000,0;1000,600;0,600"
 
@@ -44,6 +46,8 @@ async def test_uart_mock_ld2450_polygon_zones(
     yaml_config = yaml_config.replace(
         "EXTERNAL_COMPONENT_PATH", external_components_path
     )
+    # Polygons are saved, so a previous run would otherwise restore them
+    clear_host_prefs(DEVICE_NAME)
 
     async with (
         run_compiled(yaml_config),
@@ -59,7 +63,10 @@ async def test_uart_mock_ld2450_polygon_zones(
             for name in ("left", "near", "unset")
         }
         presence_names = {info.key: name for name, info in presences.items()}
-        presence_history: dict[str, list[bool]] = {name: [] for name in presences}
+        # None records presence going back to unknown
+        presence_history: dict[str, list[bool | None]] = {
+            name: [] for name in presences
+        }
         loop = asyncio.get_running_loop()
         waits: list[tuple[Callable[[EntityState], bool], asyncio.Future]] = []
 
@@ -71,7 +78,9 @@ async def test_uart_mock_ld2450_polygon_zones(
 
         def on_state(state: EntityState) -> None:
             if isinstance(state, BinarySensorState) and state.key in presence_names:
-                presence_history[presence_names[state.key]].append(state.state)
+                presence_history[presence_names[state.key]].append(
+                    None if state.missing_state else state.state
+                )
             for predicate, future in waits:
                 if not future.done() and predicate(state):
                     future.set_result(state)
@@ -82,9 +91,9 @@ async def test_uart_mock_ld2450_polygon_zones(
 
         for name in polygons:
             assert initial_state_helper.initial_states[polygons[name].key].state == ""
-            assert (
-                initial_state_helper.initial_states[presences[name].key].state is False
-            )
+            assert initial_state_helper.initial_states[
+                presences[name].key
+            ].missing_state
 
         async def set_polygon(name: str, value: str, expected: str) -> None:
             key = polygons[name].key
@@ -128,3 +137,14 @@ async def test_uart_mock_ld2450_polygon_zones(
         assert presence_history["left"] == [True, False]
         assert presence_history["near"] == [True, False]
         assert presence_history["unset"] == []
+
+        left_unknown = expect(
+            lambda s: (
+                isinstance(s, BinarySensorState)
+                and s.key == presences["left"].key
+                and s.missing_state
+            )
+        )
+        await set_polygon("left", "", "")
+        await asyncio.wait_for(left_unknown, timeout=5.0)
+        assert presence_history["left"] == [True, False, None]
