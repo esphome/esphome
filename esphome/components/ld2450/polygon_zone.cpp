@@ -10,8 +10,12 @@ static const char *const TAG = "ld2450.polygon_zone";
 void PolygonZone::setup() {
   this->pref_ = this->make_entity_preference<Polygon>();
   Polygon saved;
-  if (this->pref_.load(&saved) && saved.is_valid()) {
-    this->polygon_ = saved;
+  if (this->pref_.load(&saved)) {
+    if (saved.is_valid()) {
+      this->polygon_ = saved;
+    } else {
+      ESP_LOGW(TAG, "'%s': saved polygon is invalid; zone disabled", this->get_name().c_str());
+    }
   }
   this->publish_polygon_();
   this->presence_->publish_initial_state(false);
