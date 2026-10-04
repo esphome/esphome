@@ -40,10 +40,15 @@ void ModbusTcp::dump_config() {
 
 bool ModbusTcp::is_connected() { return this->parent_ != nullptr && this->parent_->is_connected(); }
 
+void ModbusTcp::clear_tx_() {
+  this->tx_len_ = 0;
+  this->tx_hold_logged_ = false;
+}
+
 void ModbusTcp::loop() {
   if (!this->is_connected()) {
     this->tcp_len_ = 0;
-    this->tx_len_ = 0;
+    this->clear_tx_();
     this->rx_len_ = 0;
     this->txn_pending_ = false;
     return;
@@ -52,7 +57,7 @@ void ModbusTcp::loop() {
     uint32_t now = App.get_loop_component_start_time();
     if (now - this->tx_partial_ms_ >= TX_PARTIAL_STALE_MS) {
       note_drop(this->last_drop_log_ms_, LOG_STR("Incomplete Modbus frame dropped"));
-      this->tx_len_ = 0;
+      this->clear_tx_();
     }
   }
   if (this->tx_len_ != 0) {
@@ -73,10 +78,10 @@ void ModbusTcp::write_array(const uint8_t *data, size_t len) {
   uint32_t now = App.get_loop_component_start_time();
   if (this->tx_len_ != 0 && rtu_crc_ok(this->tx_, this->tx_len_)) {
     note_drop(this->last_drop_log_ms_, LOG_STR("Dropping a held Modbus frame"));
-    this->tx_len_ = 0;
+    this->clear_tx_();
   } else if (this->tx_len_ != 0 && (rtu_crc_ok(data, len) || now - this->tx_partial_ms_ >= TX_PARTIAL_STALE_MS)) {
     note_drop(this->last_drop_log_ms_, LOG_STR("Incomplete Modbus frame dropped"));
-    this->tx_len_ = 0;
+    this->clear_tx_();
   }
   size_t before = this->tx_len_;
   size_t room = sizeof(this->tx_) - this->tx_len_;
@@ -86,7 +91,7 @@ void ModbusTcp::write_array(const uint8_t *data, size_t len) {
   this->tx_partial_ms_ = now;
   if (n < len) {
     note_drop(this->last_drop_log_ms_, LOG_STR("RTU frame too long, dropped"));
-    this->tx_len_ = 0;
+    this->clear_tx_();
     return;
   }
   // The hub writes one whole RTU frame and does not flush unless a flow-control
@@ -125,7 +130,8 @@ size_t ModbusTcp::available_for_write() {
 
 uart::UARTFlushResult ModbusTcp::flush() {
   this->send_rtu_as_mbap_();
-  if (this->parent_ == nullptr) {
+  // The frame is still here, so the hub must not be told that the flush finished.
+  if (this->parent_ == nullptr || this->tx_len_ != 0) {
     return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
   }
   return this->parent_->flush();
@@ -147,6 +153,7 @@ void ModbusTcp::read_parent_() {
   }
   size_t n = std::min(room, have);
   if (!this->parent_->read_array(this->tcp_buf_ + this->tcp_len_, n)) {
+    note_drop(this->last_drop_log_ms_, LOG_STR("Read failed"));
     return;
   }
   this->tcp_len_ += static_cast<uint16_t>(n);
@@ -155,6 +162,7 @@ void ModbusTcp::read_parent_() {
 
 void ModbusTcp::deliver_mbap_() {
   // frame.pdu points into tcp_buf_. Copy it out before the tail slides.
+  bool noted_bad = false;
   uint16_t pos = 0;
   while (pos < this->tcp_len_) {
     Mbap frame;
@@ -164,6 +172,10 @@ void ModbusTcp::deliver_mbap_() {
         used = 0;
         break;
       case MbapTake::BAD:
+        if (!noted_bad) {
+          note_drop(this->last_drop_log_ms_, LOG_STR("Invalid MBAP header, resyncing"));
+          noted_bad = true;
+        }
         break;
       case MbapTake::FRAME: {
         if (this->server_) {
@@ -176,7 +188,7 @@ void ModbusTcp::deliver_mbap_() {
           if (this->txn_pending_) {
             if (this->tx_len_ != 0) {
               note_drop(this->last_drop_log_ms_, LOG_STR("Unanswered request replaced"));
-              this->tx_len_ = 0;
+              this->clear_tx_();
             }
             this->txn_pending_ = false;
           }
@@ -240,7 +252,7 @@ void ModbusTcp::send_rtu_as_mbap_() {
   }
   if (!this->is_connected()) {
     note_drop(this->last_drop_log_ms_, LOG_STR("Not connected, dropped the Modbus frame"));
-    this->tx_len_ = 0;
+    this->clear_tx_();
     if (this->server_) {
       this->txn_pending_ = false;
     }
@@ -250,7 +262,7 @@ void ModbusTcp::send_rtu_as_mbap_() {
   if (this->server_) {
     if (!this->txn_pending_) {
       note_drop(this->last_drop_log_ms_, LOG_STR("Reply without a request, dropped"));
-      this->tx_len_ = 0;
+      this->clear_tx_();
       return;
     }
     txn = this->txn_;
@@ -260,16 +272,21 @@ void ModbusTcp::send_rtu_as_mbap_() {
   uint8_t frame[TCP_FRAME_SIZE];
   size_t n = write_mbap(frame, sizeof(frame), txn, this->tx_[0], this->tx_ + 1, this->tx_len_ - 3);
   if (n == 0) {
-    this->tx_len_ = 0;
+    note_drop(this->last_drop_log_ms_, LOG_STR("Cannot encode the Modbus frame, dropped"));
+    this->clear_tx_();
     if (this->server_) {
       this->txn_pending_ = false;
     }
     return;
   }
   // A short queue would put a partial MBAP on the wire. Hold the RTU and retry.
+  // Logged once per frame, and not through note_drop(), so a later drop is still visible.
   size_t free = this->parent_->available_for_write();
   if (free < n) {
-    note_drop(this->last_drop_log_ms_, LOG_STR("TX buffer full, holding the Modbus frame"));
+    if (!this->tx_hold_logged_) {
+      this->tx_hold_logged_ = true;
+      ESP_LOGD(TAG, "%s", LOG_STR_ARG(LOG_STR("TX buffer full, holding the Modbus frame")));
+    }
     return;
   }
   if (this->server_) {
@@ -278,10 +295,17 @@ void ModbusTcp::send_rtu_as_mbap_() {
     this->txn_ = txn;
     this->txn_pending_ = true;
   }
-  this->tx_len_ = 0;
+  this->clear_tx_();
   this->parent_->write_array(frame, n);
   // tcp_uart may already have run this pass. Flush so the request leaves now.
-  this->parent_->flush();
+  uart::UARTFlushResult sent = this->parent_->flush();
+  if (sent == uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED ||
+      sent == uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT) {
+    note_drop(this->last_drop_log_ms_, LOG_STR("Send failed"));
+    if (!this->server_) {
+      this->txn_pending_ = false;
+    }
+  }
 }
 
 }  // namespace esphome::modbus_tcp

@@ -42,6 +42,7 @@ class ModbusTcp : public uart::UARTComponent, public Component {
   void read_parent_();
   void deliver_mbap_();
   void send_rtu_as_mbap_();
+  void clear_tx_();
 
   static constexpr size_t TCP_FRAME_SIZE = 260;
   // One RTU frame. The hub reads it before the next request, so nothing else is waiting.
@@ -59,6 +60,8 @@ class ModbusTcp : public uart::UARTComponent, public Component {
   // txn_ starts at 0. For a client that is not a request. For a server it may be.
   bool txn_pending_{false};
   bool server_{false};
+  // The hold warning is logged once per frame, so it does not hide a later drop.
+  bool tx_hold_logged_{false};
   uint8_t tcp_buf_[TCP_FRAME_SIZE]{};
   uint8_t tx_[RTU_FRAME_SIZE]{};
   uint8_t rx_[RTU_FRAME_SIZE]{};
