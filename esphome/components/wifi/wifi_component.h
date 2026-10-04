@@ -983,7 +983,8 @@ class WiFiComponent final : public Component {
 
   // Bools and bitfields
   // Pending listener callbacks deferred from platform callbacks to main loop.
-  struct {
+  // Empty when no listener needs deferring (e.g. ESP32 without connect state listeners)
+  [[no_unique_address]] struct {
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     // Deferred until state machine reaches STA_CONNECTED so wifi.connected
     // condition returns true in listener automations.
