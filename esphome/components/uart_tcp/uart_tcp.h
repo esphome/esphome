@@ -14,7 +14,7 @@
 namespace esphome::uart_tcp {
 
 /// Copies raw bytes between one hardware UART and one TCP socket.
-class UartTcp : public Component, public uart::UARTDevice {
+class UartTcp final : public Component, public uart::UARTDevice {
  public:
   void set_host(const char *host) { this->link_.set_host(host); }
   void set_port(uint16_t port) { this->link_.set_port(port); }
