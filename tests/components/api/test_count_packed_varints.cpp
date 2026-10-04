@@ -47,13 +47,13 @@ TEST(CountPackedVarints, TruncatedTrailingVarintIsNotCounted) {
 }
 
 TEST(CountPackedVarints, AllContinuationBytes) {
-  std::vector<uint8_t> data(64, 0x80);
+  std::vector<uint8_t> data(5000, 0x80);
   EXPECT_EQ(count_packed_varints(data.data(), data.size()), 0);
 }
 
 TEST(CountPackedVarints, EveryStartOffsetAndLength) {
   // Cover every alignment and length around word boundaries.
-  std::mt19937 rng(42);
+  std::mt19937 rng(42);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   std::vector<uint8_t> buf(300);
   for (auto &byte : buf)
     byte = static_cast<uint8_t>(rng() & 0xFF);
@@ -66,8 +66,8 @@ TEST(CountPackedVarints, EveryStartOffsetAndLength) {
 }
 
 TEST(CountPackedVarints, LongBufferCrossesChunkBoundary) {
-  // Longer than one 255 word chunk.
-  std::mt19937 rng(7);
+  // Spans many lane chunks.
+  std::mt19937 rng(7);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   std::vector<uint8_t> buf(5000);
   for (auto &byte : buf)
     byte = static_cast<uint8_t>((rng() % 4 == 0) ? (0x80 | (rng() & 0x7F)) : (rng() & 0x7F));

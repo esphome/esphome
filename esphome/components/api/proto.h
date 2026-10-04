@@ -56,24 +56,20 @@ inline constexpr int64_t decode_zigzag64(uint64_t value) {
   return (value & 1) ? static_cast<int64_t>(~(value >> 1)) : static_cast<int64_t>(value >> 1);
 }
 
-/// Count number of varints in a packed buffer.
-/// Each byte without the continuation bit ends one varint, so count = len - bytes with 0x80 set.
-/// Continuation bits are summed a word at a time in per byte lanes; loads are aligned for Xtensa.
+/// Count varints in a packed buffer: len minus bytes with the continuation bit, summed a word at a time.
 inline uint16_t count_packed_varints(const uint8_t *data, size_t len) {
   using word_t = size_t;
   constexpr size_t word_size = sizeof(word_t);
-  constexpr word_t lane_ones = static_cast<word_t>(~static_cast<word_t>(0) / 0xFF);  // 0x01..01
-  constexpr size_t max_chunk_words = 255;  // a byte lane overflows after 255 words
+  constexpr word_t lane_ones = ~word_t{0} / 0xFF;                  // 0x01..01
+  constexpr size_t max_chunk_bytes = 255 / word_size * word_size;  // lane sum must fit in one byte
   const uint8_t *end = data + len;
   size_t continuations = 0;
   while (data != end && (reinterpret_cast<uintptr_t>(data) & (word_size - 1)) != 0) {
     continuations += *data++ >> 7;
   }
-  while (static_cast<size_t>(end - data) >= word_size) {
-    size_t words = static_cast<size_t>(end - data) / word_size;
-    if (words > max_chunk_words)
-      words = max_chunk_words;
-    const uint8_t *chunk_end = data + words * word_size;
+  const uint8_t *aligned_end = data + (static_cast<size_t>(end - data) & ~(word_size - 1));
+  while (data != aligned_end) {
+    const uint8_t *chunk_end = data + std::min<size_t>(aligned_end - data, max_chunk_bytes);
     word_t lanes = 0;
     do {
       word_t word;
@@ -81,9 +77,7 @@ inline uint16_t count_packed_varints(const uint8_t *data, size_t len) {
       lanes += (word >> 7) & lane_ones;
       data += word_size;
     } while (data != chunk_end);
-    for (size_t shift = 0; shift < word_size * 8; shift += 8) {
-      continuations += static_cast<size_t>(lanes >> shift) & 0xFFu;
-    }
+    continuations += (lanes * lane_ones) >> (word_size * 8 - 8);
   }
   while (data != end) {
     continuations += *data++ >> 7;
