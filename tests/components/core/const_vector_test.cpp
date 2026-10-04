@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <type_traits>
 
 #include "esphome/core/helpers.h"
