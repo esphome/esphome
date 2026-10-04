@@ -70,8 +70,9 @@ void Seesaw::dump_config() {
     ESP_LOGCONFIG(TAG, "  CPU: unknown (%02x)", this->cpuid_);
   }
   uint32_t v = this->version_;
-  ESP_LOGCONFIG(TAG, "  Version: 20%02d-%02d-%02d %u", v & 0x3f, (v >> 7) & 0xf, (v >> 11) & 0x1f, v >> 16);
-  ESP_LOGCONFIG(TAG, "  Options: %08x", this->options_);
+  ESP_LOGCONFIG(TAG, "  Version: 20%02d-%02d-%02d %u", (uint8_t) (v & 0x3f), (uint8_t) ((v >> 7) & 0xf),
+                (uint8_t) ((v >> 11) & 0x1f), (uint16_t) (v >> 16));
+  ESP_LOGCONFIG(TAG, "  Options: %08lx", this->options_);
 }
 
 void Seesaw::enable_encoder(uint8_t number) { this->write8_(SEESAW_ENCODER, SEESAW_ENCODER_INTENSET + number, 0x01); }

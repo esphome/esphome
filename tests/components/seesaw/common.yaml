@@ -4,26 +4,26 @@ seesaw:
 
 sensor:
   - platform: seesaw
-    id: encoder
+    id: seesaw_encoder
     type: encoder
     name: "Seesaw encoder"
     number: 1
   - platform: seesaw
-    id: temp
+    id: seesaw_temp
     type: temperature
   - platform: seesaw
-    id: touch
+    id: seesaw_touch
     type: touch
     channel: 0
   - platform: seesaw
     seesaw_id: ss_id
-    id: slider
+    id: seesaw_slider
     type: adc
     pin: 14
 
 binary_sensor:
   - platform: gpio
-    id: button
+    id: seesaw_button
     name: "Seesaw encoder button"
     pin:
       seesaw: ss_id
@@ -33,7 +33,7 @@ binary_sensor:
 
 light:
   - platform: seesaw
-    id: pixel
+    id: seesaw_pixel
     name: "Seesaw neopixel LED"
     pin: 14
     num_leds: 4
