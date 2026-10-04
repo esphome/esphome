@@ -237,3 +237,10 @@ def test_clk_pin_required_non_zephyr_requires_clk() -> None:
     value = {CONF_INTERFACE: "any"}
     with pytest.raises(cv.Invalid):
         _validate_clk_pin_required(value)
+
+
+def test_validate_spi_config_rejects_pin_missing_from_xg24() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = {"variant": "EFR32MG24"}
+    with pytest.raises(cv.Invalid, match="does not support SPI CLK"):
+        validate_spi_config([_spi_pin_conf(clk=10)])  # PA10
