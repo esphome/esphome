@@ -76,4 +76,30 @@ TEST(ModbusTcpServer, ReplyWhileTheNewRequestIsBufferedIsDropped) {
   EXPECT_FALSE(link.pending());
 }
 
+TEST(ModbusTcpServer, WholeFrameReplacesAnIncompleteOne) {
+  ServerLink link;
+  link.push(7, 1, PDU, sizeof(PDU));
+  uint8_t taken[16];
+  ASSERT_TRUE(link.read_array(taken, link.available()));
+
+  const uint8_t junk[] = {0x01, 0x03, 0x00};
+  const uint8_t reply[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
+  link.write_array(junk, sizeof(junk));
+  EXPECT_EQ(link.held(), sizeof(junk));
+  link.write_array(reply, sizeof(reply));
+  EXPECT_EQ(link.held(), 0u);
+}
+
+TEST(ModbusTcpServer, SplitFrameIsAppended) {
+  ServerLink link;
+  link.push(7, 1, PDU, sizeof(PDU));
+  uint8_t taken[16];
+  ASSERT_TRUE(link.read_array(taken, link.available()));
+
+  const uint8_t reply[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
+  link.write_array(reply, 4);
+  link.write_array(reply + 4, 4);
+  EXPECT_EQ(link.held(), sizeof(reply));
+}
+
 }  // namespace

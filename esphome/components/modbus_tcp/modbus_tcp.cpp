@@ -13,14 +13,23 @@ namespace esphome::modbus_tcp {
 static const char *const TAG = "modbus_tcp";
 
 static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
+// A bridge copies every loop. A pause this long is an unfinished frame, not the next chunk.
+static constexpr uint32_t TX_PARTIAL_STALE_MS = 300;
 
-static void note_drop(uint32_t &last_ms, const LogString *message) {
+static bool drop_log_due(uint32_t &last_ms) {
   uint32_t now = App.get_loop_component_start_time();
   if (last_ms != 0 && now - last_ms < DROP_LOG_INTERVAL_MS) {
-    return;
+    return false;
   }
   // A zero stamp would look like "never logged" on the next pass.
   last_ms = now == 0 ? 1 : now;
+  return true;
+}
+
+static void note_drop(uint32_t &last_ms, const LogString *message) {
+  if (!drop_log_due(last_ms)) {
+    return;
+  }
   ESP_LOGW(TAG, "%s", LOG_STR_ARG(message));
 }
 
@@ -39,6 +48,13 @@ void ModbusTcp::loop() {
     this->txn_pending_ = false;
     return;
   }
+  if (this->tx_len_ != 0 && !rtu_crc_ok(this->tx_, this->tx_len_)) {
+    uint32_t now = App.get_loop_component_start_time();
+    if (now - this->tx_partial_ms_ >= TX_PARTIAL_STALE_MS) {
+      note_drop(this->last_drop_log_ms_, LOG_STR("Incomplete Modbus frame dropped"));
+      this->tx_len_ = 0;
+    }
+  }
   if (this->tx_len_ != 0) {
     this->send_rtu_as_mbap_();
   }
@@ -53,8 +69,13 @@ void ModbusTcp::write_array(const uint8_t *data, size_t len) {
   }
   // A complete frame is only still here because the transport could not take it.
   // The hub has moved on, so the next write replaces it instead of appending.
+  // An unfinished frame is not a prefix of the next one. A whole frame, or a pause, drops it.
+  uint32_t now = App.get_loop_component_start_time();
   if (this->tx_len_ != 0 && rtu_crc_ok(this->tx_, this->tx_len_)) {
     note_drop(this->last_drop_log_ms_, LOG_STR("Dropping a held Modbus frame"));
+    this->tx_len_ = 0;
+  } else if (this->tx_len_ != 0 && (rtu_crc_ok(data, len) || now - this->tx_partial_ms_ >= TX_PARTIAL_STALE_MS)) {
+    note_drop(this->last_drop_log_ms_, LOG_STR("Incomplete Modbus frame dropped"));
     this->tx_len_ = 0;
   }
   size_t before = this->tx_len_;
@@ -62,6 +83,7 @@ void ModbusTcp::write_array(const uint8_t *data, size_t len) {
   size_t n = std::min(len, room);
   std::memcpy(this->tx_ + this->tx_len_, data, n);
   this->tx_len_ += static_cast<uint16_t>(n);
+  this->tx_partial_ms_ = now;
   if (n < len) {
     note_drop(this->last_drop_log_ms_, LOG_STR("RTU frame too long, dropped"));
     this->tx_len_ = 0;
@@ -177,9 +199,7 @@ void ModbusTcp::deliver_mbap_() {
           break;
         }
         if (!this->txn_pending_ || frame.txn != this->txn_) {
-          uint32_t now = App.get_loop_component_start_time();
-          if (this->last_drop_log_ms_ == 0 || now - this->last_drop_log_ms_ >= DROP_LOG_INTERVAL_MS) {
-            this->last_drop_log_ms_ = now == 0 ? 1 : now;
+          if (drop_log_due(this->last_drop_log_ms_)) {
             ESP_LOGW(TAG, "Dropped transaction %u, expected %u", frame.txn, this->txn_);
           }
           break;

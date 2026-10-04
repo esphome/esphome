@@ -49,6 +49,8 @@ class ModbusTcp : public uart::UARTComponent, public Component {
 
   tcp_uart::TcpUart *parent_{nullptr};
   uint32_t last_drop_log_ms_{0};
+  // When tx_ holds an unfinished frame. A later write can tell a pause from a copy still in progress.
+  uint32_t tx_partial_ms_{0};
   uint16_t txn_{0};
   uint16_t tcp_len_{0};
   uint16_t tx_len_{0};
