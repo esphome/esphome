@@ -179,9 +179,9 @@ void ModbusTcp::deliver_mbap_() {
         break;
       case MbapTake::FRAME: {
         if (this->server_) {
-          // The hub has not read the last request. Do not splice a new one under it.
+          // The hub has not read the last request. Leave this one where it is.
           if (this->rx_len_ != 0) {
-            note_drop(this->last_drop_log_ms_, LOG_STR("Request already in progress, dropped"));
+            used = 0;
             break;
           }
           // Handed on, and nothing has been sent back. The next request takes its place.

@@ -26,6 +26,7 @@ class ServerLink : public esphome::modbus_tcp::ModbusTcp {
   uint16_t txn() const { return this->txn_; }
   bool pending() const { return this->txn_pending_; }
   uint16_t held() const { return this->tx_len_; }
+  void deliver() { this->deliver_mbap_(); }
 };
 
 const uint8_t PDU[] = {0x03, 0x00, 0x00, 0x00, 0x01};
@@ -53,6 +54,11 @@ TEST(ModbusTcpServer, UnreadRequestIsKept) {
   uint16_t waiting = link.available();
   link.push(8, 1, PDU, sizeof(PDU));
   EXPECT_EQ(link.txn(), 7);
+  EXPECT_EQ(link.available(), waiting);
+  uint8_t taken[16];
+  ASSERT_TRUE(link.read_array(taken, link.available()));
+  link.deliver();
+  EXPECT_EQ(link.txn(), 8);
   EXPECT_EQ(link.available(), waiting);
 }
 
