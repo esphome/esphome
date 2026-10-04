@@ -181,11 +181,10 @@ class ImageRGB111(ImageEncoder):
     allow_config = {CONF_OPAQUE, CONF_ALPHA_CHANNEL}
 
     def __init__(self, width, height, transparency, dither, invert_alpha):
-        if transparency == CONF_ALPHA_CHANNEL:
-            self.width111 = (width + 7) // 8 * 4
-        else:
-            self.width111 = (width + 7) // 8 * 3
-        super().__init__(self.width111, height, transparency, dither, invert_alpha)
+        bpp = 4 if transparency == CONF_ALPHA_CHANNEL else 3
+        super().__init__(
+            (width * bpp + 7) // 8, height, transparency, dither, invert_alpha
+        )
         self.bitno = 0
 
     def convert(self, image, path):
@@ -193,16 +192,7 @@ class ImageRGB111(ImageEncoder):
             image = image.split()[-1]
         image = image.convert("RGBA")
         if self.dither == Image.Dither.FLOYDSTEINBERG:
-            palette_data = []
-            palette_data += [0, 0, 0]  # black
-            palette_data += [255, 0, 0]  # red
-            palette_data += [0, 255, 0]  # green
-            palette_data += [255, 255, 0]  # yellow
-            palette_data += [0, 0, 255]  # blue
-            palette_data += [255, 0, 255]  # magenta
-            palette_data += [0, 255, 255]  # cyan
-            palette_data += [255, 255, 255]  # white
-            palette_data += [0] * (3 * 256 - len(palette_data))  # pad to 256 colors
+            palette_data = [255 * int(x) for i in range(8) for x in f"{i:03b}"]
             palette_img = Image.new("P", (1, 1))
             palette_img.putpalette(palette_data)
             alpha_image = image.getchannel("A")

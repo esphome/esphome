@@ -20,11 +20,11 @@ from esphome.components.esp32 import (
 )
 from esphome.components.image import (
     CONF_OPAQUE,
+    CONF_TYPE,
     IMAGE_TYPE,
     ImageBinary,
     ImageGrayscale,
     ImageRGB,
-    ImageRGB111,
     ImageRGB565,
     get_image_metadata,
 )
@@ -293,6 +293,13 @@ def final_validation(config_list):
     if len(config_list) != 1:
         multi_conf_validate(config_list)
 
+    for img in get_lv_images_used():
+        path = global_config.get_path_for_id(img.id)[:-1]
+        image_conf = global_config.get_config_for_path(path)
+        if str(image_conf.get(CONF_TYPE, "")).upper() == "RGB111":
+            raise cv.Invalid(
+                f"Image '{img}': LVGL does not support RGB111 images, use RGB565 or RGB instead",
+            )
     for w in get_focused_widgets():
         path = global_config.get_path_for_id(w)
         widget_conf = global_config.get_config_for_path(path[:-1])
@@ -515,10 +522,6 @@ async def to_code(configs):
         transparent = metadata.transparency != CONF_OPAQUE
         if image_type == ImageBinary:
             lv_image_formats.add("I1")
-        if image_type == ImageRGB111:
-            raise cv.Invalid(
-                "LVGL does not support RGB111 images, use RGB565 or RGB instead"
-            )
         if image_type == ImageGrayscale:
             lv_image_formats.add("A8")
         if image_type == ImageRGB565:
