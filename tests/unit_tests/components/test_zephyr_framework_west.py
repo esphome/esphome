@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import platformdirs
@@ -33,13 +35,15 @@ class _Calls(list):
         self.cwds: list[str | None] = []
 
 
-def _make_fake_run_command_ok(tmp_path: Path, manifest_path: str = "zephyr"):
+def _make_fake_run_command_ok(
+    tmp_path: Path, manifest_path: str = "zephyr"
+) -> tuple[_Calls, Callable[..., bool]]:
     """Record every run_command_ok() call; a `west init` also creates the
     framework and .west/config it would leave on disk (manifest.path is where west put
     the manifest repository), since check_and_install() depends on them existing."""
     calls = _Calls()
 
-    def fake_run_command_ok(cmd, **kwargs):
+    def fake_run_command_ok(cmd: list[str], **kwargs: Any) -> bool:
         calls.append(cmd)
         calls.cwds.append(kwargs.get("cwd"))
         if cmd[2:4] == ["west", "init"]:

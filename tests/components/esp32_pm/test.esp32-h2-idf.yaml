@@ -3,4 +3,5 @@ substitutions:
   min_frequency: 32MHZ
   power_down_peripherals: true
 
-<<: !include common.yaml
+packages:
+  esp32_pm: !include common.yaml

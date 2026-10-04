@@ -12,14 +12,11 @@ from esphome.components.zephyr.gpio import _validate_gpio_pin, pin_summary
 from esphome.components.zephyr.variants import VARIANTS
 import esphome.config_validation as cv
 from esphome.core import CORE
+from tests.unit_tests.components.zephyr_state import empty_zephyr_data
 
 
 def _set_zephyr_variant(variant: str | None) -> None:
-    variant_info = VARIANTS.get(variant) if variant is not None else None
-    CORE.data[KEY_ZEPHYR] = {
-        "variant": variant,
-        "family": variant_info.family if variant_info is not None else None,
-    }
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant=variant)
 
 
 # ---------------------------------------------------------------------------

@@ -2,21 +2,24 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator
 import hashlib
 import os
 from pathlib import Path
 import subprocess
-from unittest.mock import patch
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from esphome.components.zephyr.const import KEY_SDK_SOURCE_RESOLVED_REF
+from esphome.components.zephyr.const import KEY_SDK_SOURCE_RESOLVED_REF, KEY_ZEPHYR
 from esphome.components.zephyr.dts_fetch import (
     _SPARSE_CHECKOUT_SCHEMA,
     _dts_cache_root,
     _framework_base_version,
     _manifest_revision_cache_root,
     _native_dts_path,
+    _parse_zephyr_version_file,
     _resolve_boards_ref,
     _resolve_git_head,
     _sdk_source_cache_key,
@@ -24,12 +27,23 @@ from esphome.components.zephyr.dts_fetch import (
     _sparse_clone_dts,
     _sparse_clone_dts_from_source,
     _sparse_clone_hal_modules,
+    fetch_board_dts,
     resolve_sdk_source_version,
 )
 from esphome.components.zephyr.variants import MAINLINE, NCS, SILABS, ZephyrSDK
 import esphome.config_validation as cv
-from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.const import (
+    CONF_PATH,
+    CONF_REF,
+    CONF_TYPE,
+    CONF_URL,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+    TYPE_GIT,
+    TYPE_LOCAL,
+)
 from esphome.core import CORE, TimePeriodSeconds
+from tests.unit_tests.components.zephyr_state import empty_zephyr_data
 
 
 def _set_framework_version(major: int, minor: int, patch: int, extra: str = "") -> None:
@@ -134,12 +148,14 @@ def _stale_cache(tmp_path: Path) -> Path:
     return dest
 
 
-def _resolve_with(tmp_path: Path, git) -> tuple[str, list[list[str]]]:
+def _resolve_with(
+    tmp_path: Path, git: Callable[[list[str]], None]
+) -> tuple[str, list[list[str]]]:
     """Run resolve_sdk_source_version with `git(cmd)` handling every git call except
     rev-parse; return the version and the commands run."""
     calls: list[list[str]] = []
 
-    def run(cmd, **kwargs):
+    def run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         calls.append(cmd)
         if "rev-parse" in cmd:
             return subprocess.CompletedProcess(
@@ -234,7 +250,7 @@ def test_native_dts_path_none_when_tools_subdir_unset() -> None:
 
 @pytest.mark.parametrize("sdk", [MAINLINE, NCS, SILABS])
 def test_native_dts_path_matches_the_machine_global_cache_key(
-    sdk, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    sdk: ZephyrSDK, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Must land at the same directory framework_west._source_cache_key() would
     # produce for the plain official-source (no sdk_source:, no modules) case --
@@ -315,7 +331,7 @@ def test_resolve_boards_ref_reads_manifest_revision_for_manifest_resolved_sdk(
     manifest_url's own west.yml. Regression coverage for that discovery, not a guessed
     format string."""
 
-    def fake_run(cmd, **kwargs):
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         # cmd ends with the clone destination directory.
         dest = Path(cmd[-1])
         dest.mkdir(parents=True, exist_ok=True)
@@ -345,7 +361,7 @@ def test_resolve_boards_ref_keeps_release_candidate_suffix() -> None:
 def test_resolve_boards_ref_clones_manifest_at_release_candidate_tag(
     tmp_path: Path,
 ) -> None:
-    def fake_run(cmd, **kwargs):
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         dest = Path(cmd[-1])
         dest.mkdir(parents=True, exist_ok=True)
         (dest / "west.yml").write_text(
@@ -373,7 +389,7 @@ def test_resolve_boards_ref_clones_manifest_at_release_candidate_tag(
 
 
 def test_resolve_boards_ref_returns_none_when_git_fails(tmp_path: Path) -> None:
-    def fake_run(cmd, **kwargs):
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         raise subprocess.CalledProcessError(1, cmd, stderr="fatal: some git error")
 
     with (
@@ -424,7 +440,7 @@ def test_sparse_clone_dts_sparse_checkout_never_lists_version_file(
 
     calls: list[list[str]] = []
 
-    def fake_run(cmd, **kwargs):
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         calls.append(cmd)
         result = subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
         if cmd[:2] == ["git", "clone"]:
@@ -454,7 +470,7 @@ def test_sparse_clone_dts_returns_none_and_cleans_up_on_git_failure(
 ) -> None:
     _set_framework_version(4, 4, 1)
 
-    def fake_run(cmd, **kwargs):
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         raise subprocess.CalledProcessError(1, cmd, stderr="fatal: some git error")
 
     dest = tmp_path / "zephyr_dts_cache" / "ESP32H2" / "zephyr" / "4.4.1"
@@ -529,7 +545,7 @@ def test_sparse_clone_dts_self_heals_when_resolved_ref_changed(
     (dest / "stale-marker-file").write_text("leftover from the old checkout")
     (dest / ".resolved_ref").write_text("v0.0.0-stale")
 
-    def fake_run(cmd, **kwargs):
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         result = subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
         if cmd[:2] == ["git", "clone"]:
             new_dest = Path(cmd[-1])
@@ -613,7 +629,7 @@ def test_sparse_clone_dts_from_source_refetches_when_schema_marker_missing(
     (dest / ".resolved_ref").write_text(_FAKE_RESOLVED_SHA)
     (dest / "stale-marker-file").write_text("leftover from the old checkout")
 
-    def fake_run(cmd, **kwargs):
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         result = subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
         if cmd[:2] == ["git", "init"]:
             Path(cmd[-1], "boards").mkdir(parents=True, exist_ok=True)
@@ -654,7 +670,7 @@ def test_sparse_clone_dts_from_source_refetches_when_resolved_ref_changed(
     (dest / ".sparse_schema").write_text(_SPARSE_CHECKOUT_SCHEMA)
     (dest / ".resolved_ref").write_text("b" * 40)  # a different, now-stale commit
 
-    def fake_run(cmd, **kwargs):
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         result = subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
         if cmd[:2] == ["git", "init"]:
             Path(cmd[-1], "boards").mkdir(parents=True, exist_ok=True)
@@ -713,7 +729,7 @@ def test_sparse_clone_hal_modules_fetches_hal_stm32(tmp_path: Path) -> None:
     zephyr_dir = _make_zephyr_dir(tmp_path)
     calls: list[list[str]] = []
 
-    def fake_run(cmd, **kwargs):
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         calls.append(cmd)
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
@@ -749,7 +765,7 @@ def test_sparse_clone_hal_modules_refetches_when_marker_stale(tmp_path: Path) ->
     (dest / ".resolved_ref").write_text("some-old-revision")
     (dest / "leftover-file").write_text("from an older hal_stm32 checkout")
 
-    def fake_run(cmd, **kwargs):
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
     with patch("subprocess.run", side_effect=fake_run) as mock_run:
@@ -760,3 +776,142 @@ def test_sparse_clone_hal_modules_refetches_when_marker_stale(tmp_path: Path) ->
     assert (
         dest / ".resolved_ref"
     ).read_text() == "fc11896dd39cfca37bf9b4aeaaa2df8861b81875"
+
+
+# ---------------------------------------------------------------------------
+# _parse_zephyr_version_file
+# ---------------------------------------------------------------------------
+
+
+def test_parse_zephyr_version_file_reads_major_minor_patch(tmp_path: Path) -> None:
+    version_file = tmp_path / "VERSION"
+    version_file.write_text(
+        "VERSION_MAJOR = 4\n"
+        "VERSION_MINOR = 4\n"
+        "PATCHLEVEL = 2\n"
+        "VERSION_TWEAK = 0\n"
+        "EXTRAVERSION =\n"
+        "a line without an equals sign\n"
+    )
+    assert _parse_zephyr_version_file(version_file) == "4.4.2"
+
+
+def test_parse_zephyr_version_file_rejects_missing_key(tmp_path: Path) -> None:
+    version_file = tmp_path / "VERSION"
+    version_file.write_text("VERSION_MAJOR = 4\nVERSION_MINOR = 4\n")
+    with pytest.raises(cv.Invalid, match="PATCHLEVEL"):
+        _parse_zephyr_version_file(version_file)
+
+
+# ---------------------------------------------------------------------------
+# fetch_board_dts -- one branch per way of finding the Zephyr tree
+# ---------------------------------------------------------------------------
+
+_FETCH = "esphome.components.zephyr.dts_fetch"
+
+
+_FetchMocks = tuple[MagicMock, MagicMock, MagicMock]
+
+
+@pytest.fixture
+def fetch_mocks() -> Iterator[_FetchMocks]:
+    """Patch every way fetch_board_dts() can find a tree; each starts as 'not found'."""
+    with (
+        patch(f"{_FETCH}._native_dts_path", return_value=None) as native,
+        patch(f"{_FETCH}._sparse_clone_dts", return_value=None) as clone,
+        patch(f"{_FETCH}._sparse_clone_dts_from_source", return_value=None) as source,
+    ):
+        yield native, clone, source
+
+
+@pytest.mark.asyncio
+async def test_fetch_board_dts_is_a_no_op_once_resolved(
+    fetch_mocks: _FetchMocks,
+) -> None:
+    native, clone, source = fetch_mocks
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path="/already/there")
+    await fetch_board_dts("ESP32H2", "zephyr", MAINLINE, None)
+    assert CORE.data[KEY_ZEPHYR]["dts_base_path"] == "/already/there"
+    native.assert_not_called()
+    clone.assert_not_called()
+    source.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_fetch_board_dts_uses_local_source_directly(
+    fetch_mocks: _FetchMocks, tmp_path: Path
+) -> None:
+    native, clone, source = fetch_mocks
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
+    local = {CONF_TYPE: TYPE_LOCAL, CONF_PATH: tmp_path}
+    await fetch_board_dts("ESP32H2", "zephyr", MAINLINE, local)
+    assert CORE.data[KEY_ZEPHYR]["dts_base_path"] == str(tmp_path)
+    native.assert_not_called()
+    clone.assert_not_called()
+    source.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_fetch_board_dts_clones_git_source(
+    fetch_mocks: _FetchMocks, tmp_path: Path
+) -> None:
+    native, clone, source = fetch_mocks
+    source.return_value = tmp_path
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
+    git = {CONF_TYPE: TYPE_GIT, CONF_URL: "https://example.invalid/z", CONF_REF: "x"}
+    await fetch_board_dts("ESP32H2", "zephyr", MAINLINE, git, "esp32")
+    assert CORE.data[KEY_ZEPHYR]["dts_base_path"] == str(tmp_path)
+    source.assert_called_once_with(git, "esp32")
+    native.assert_not_called()
+    clone.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_fetch_board_dts_warns_when_git_source_clone_fails(
+    fetch_mocks: _FetchMocks, caplog: pytest.LogCaptureFixture
+) -> None:
+    native, clone, _source = fetch_mocks
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
+    git = {CONF_TYPE: TYPE_GIT, CONF_URL: "https://example.invalid/z"}
+    await fetch_board_dts("ESP32H2", "zephyr", MAINLINE, git)
+    assert CORE.data[KEY_ZEPHYR]["dts_base_path"] is None
+    assert "Board DTS files unavailable for sdk_source" in caplog.text
+    assert "default branch" in caplog.text
+    # A failed source clone must not fall through to the stock SDK.
+    native.assert_not_called()
+    clone.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_fetch_board_dts_prefers_native_sdk_install(
+    fetch_mocks: _FetchMocks, tmp_path: Path
+) -> None:
+    native, clone, _source = fetch_mocks
+    native.return_value = tmp_path
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
+    await fetch_board_dts("ESP32H2", "zephyr", MAINLINE, None)
+    assert CORE.data[KEY_ZEPHYR]["dts_base_path"] == str(tmp_path)
+    clone.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_fetch_board_dts_falls_back_to_sparse_clone(
+    fetch_mocks: _FetchMocks, tmp_path: Path
+) -> None:
+    _native, clone, _source = fetch_mocks
+    clone.return_value = tmp_path
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
+    await fetch_board_dts("ESP32H2", "zephyr", MAINLINE, None, "esp32")
+    assert CORE.data[KEY_ZEPHYR]["dts_base_path"] == str(tmp_path)
+    clone.assert_called_once_with("ESP32H2", "zephyr", MAINLINE, "esp32")
+
+
+@pytest.mark.asyncio
+async def test_fetch_board_dts_warns_when_nothing_found(
+    fetch_mocks: _FetchMocks, caplog: pytest.LogCaptureFixture
+) -> None:
+    _set_framework_version(4, 4, 2)
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
+    await fetch_board_dts("ESP32H2", "zephyr", MAINLINE, None)
+    assert CORE.data[KEY_ZEPHYR]["dts_base_path"] is None
+    assert "Board DTS files unavailable for ESP32H2 zephyr 4.4.2" in caplog.text

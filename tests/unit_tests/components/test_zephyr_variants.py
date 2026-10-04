@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from esphome.components.zephyr.const import VERSION_RECOMMENDED
 from esphome.components.zephyr.variants import (
+    VARIANTS,
     ZephyrModule,
     ZephyrModuleTemplate,
     ZephyrSDK,
@@ -43,7 +46,7 @@ def _fake_variant() -> ZephyrVariant:
     )
 
 
-def _framework_config(**overrides) -> dict:
+def _framework_config(**overrides: Any) -> dict:
     # Mirrors _FRAMEWORK_SCHEMA's post-validation shape: refresh always defaults to
     # "1d", every other key is only present when explicitly set.
     return {CONF_REFRESH: "1d", **overrides}
@@ -243,9 +246,6 @@ def test_module_template_resolve_ignores_min_version_for_non_semver_ref() -> Non
     assert module.revision == "main"
 
 
-from esphome.components.zephyr.variants import VARIANTS  # noqa: E402
-
-
 @pytest.mark.parametrize("variant", sorted(VARIANTS))
 def test_validated_config_round_trips_through_config_schema(variant: str) -> None:
     """upload/logs feed the cached validated config back through CONFIG_SCHEMA."""
@@ -255,4 +255,6 @@ def test_validated_config_round_trips_through_config_schema(variant: str) -> Non
 
     CORE.data[KEY_CORE] = {}
     validated = CONFIG_SCHEMA({CONF_VARIANT: variant})
-    CONFIG_SCHEMA(validated)
+    re_validated = CONFIG_SCHEMA(validated)
+    assert re_validated[CONF_VARIANT] == variant
+    assert set(re_validated) == set(validated)
