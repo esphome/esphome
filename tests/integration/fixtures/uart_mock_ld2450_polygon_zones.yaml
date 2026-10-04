@@ -1,0 +1,103 @@
+esphome:
+  name: uart-mock-ld2450-zones
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2450's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 256000
+  auto_start: false
+  responses:
+    # Generic ACK for any command, to unblock setup commands
+    - expect_tx: [0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0xFF, 0x01,
+          0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+  injections:
+    # Frame 1: target 1 at (-500, 1000), target 2 at (200, 500)
+    # Coordinates are sign-magnitude, with the high bit set for positive values.
+    - delay: 100ms
+      inject_rx:
+        [
+          0xAA, 0xFF, 0x03, 0x00,
+          0xF4, 0x01, 0xE8, 0x83, 0x00, 0x00, 0x40, 0x01,
+          0xC8, 0x80, 0xF4, 0x81, 0x00, 0x00, 0x64, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x55, 0xCC,
+        ]
+
+    # Frame 2: target 1 at (300, 400), no other targets
+    - delay: 200ms
+      inject_rx:
+        [
+          0xAA, 0xFF, 0x03, 0x00,
+          0x2C, 0x81, 0x90, 0x81, 0x00, 0x00, 0x64, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x55, 0xCC,
+        ]
+
+    # Frame 3: no targets
+    - delay: 200ms
+      inject_rx:
+        [
+          0xAA, 0xFF, 0x03, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x55, 0xCC,
+        ]
+
+ld2450:
+  id: ld2450_dev
+  uart_id: mock_uart
+
+text:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    polygon_zones:
+      - id: left_zone
+        name: "Left Zone Polygon"
+      - id: near_zone
+        name: "Near Zone Polygon"
+      - id: unset_zone
+        name: "Unset Zone Polygon"
+
+binary_sensor:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    polygon_zones:
+      - polygon_zone_id: left_zone
+        name: "Left Zone Presence"
+      - polygon_zone_id: near_zone
+        name: "Near Zone Presence"
+      - polygon_zone_id: unset_zone
+        name: "Unset Zone Presence"
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: 'id(mock_uart).start_scenario();'

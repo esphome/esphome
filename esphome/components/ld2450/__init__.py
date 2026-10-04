@@ -15,6 +15,8 @@ LD2450Component = ld2450_ns.class_("LD2450Component", cg.Component, uart.UARTDev
 
 
 CONF_LD2450_ID = "ld2450_id"
+CONF_POLYGON_ZONE_ID = "polygon_zone_id"
+CONF_POLYGON_ZONES = "polygon_zones"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(

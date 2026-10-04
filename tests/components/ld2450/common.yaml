@@ -96,6 +96,22 @@ binary_sensor:
       name: Moving Target
     has_still_target:
       name: Still Target
+    polygon_zones:
+      - polygon_zone_id: ld2450_couch_zone
+        name: Couch Occupied
+      - polygon_zone_id: ld2450_desk_zone
+        name: Desk Occupied
+        filters:
+          - delayed_off: 1s
+
+text:
+  - platform: ld2450
+    ld2450_id: ld2450_radar
+    polygon_zones:
+      - id: ld2450_couch_zone
+        name: Couch Zone Polygon
+      - id: ld2450_desk_zone
+        name: Desk Zone Polygon
 
 switch:
   - platform: ld2450
