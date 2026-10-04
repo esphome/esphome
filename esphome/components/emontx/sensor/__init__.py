@@ -71,8 +71,6 @@ SENSOR_CONFIGS = {
     "E": {
         CONF_UNIT_OF_MEASUREMENT: UNIT_WATT_HOURS,
         CONF_DEVICE_CLASS: DEVICE_CLASS_ENERGY,
-        # Energy registers are signed: they count down when power flows the
-        # other way (e.g. solar export), so they are not total_increasing.
         CONF_STATE_CLASS: STATE_CLASS_TOTAL,
         CONF_ACCURACY_DECIMALS: 0,
     },
