@@ -57,21 +57,49 @@ inline constexpr int64_t decode_zigzag64(uint64_t value) {
 }
 
 /// Count number of varints in a packed buffer
+///
+/// A varint always ends on the first byte whose continuation bit (0x80) is clear, so the number
+/// of varints is the number of bytes without that bit, i.e. len minus the number of bytes with
+/// it. A trailing truncated varint (continuation bit set through the end of the buffer) is not
+/// counted, matching the wire format.
+///
+/// Continuation bits are counted a machine word at a time: for a word w, (w >> 7) & 0x01..01
+/// leaves 1 in every byte lane whose high bit was set. The lanes are accumulated in parallel and
+/// only folded together once per chunk of 255 words, the most a byte lane can hold without
+/// overflowing. Word loads are aligned first: unaligned word access is unsupported (Xtensa) or
+/// slow on the platforms ESPHome targets.
 inline uint16_t count_packed_varints(const uint8_t *data, size_t len) {
-  uint16_t count = 0;
-  while (len > 0) {
-    // Skip varint bytes until we find one without continuation bit
-    while (len > 0 && (*data & 0x80)) {
-      data++;
-      len--;
-    }
-    if (len > 0) {
-      data++;
-      len--;
-      count++;
+  using word_t = size_t;  // natural machine word: 32-bit on MCUs, 64-bit on host builds
+  constexpr size_t WORD_SIZE = sizeof(word_t);
+  constexpr word_t LANE_ONES = static_cast<word_t>(~static_cast<word_t>(0) / 0xFF);  // 0x01..01
+  constexpr size_t MAX_CHUNK_WORDS = 255;  // a byte lane counts at most one per word
+  const uint8_t *end = data + len;
+  size_t continuations = 0;
+  // Leading bytes before the first word boundary
+  while (data != end && (reinterpret_cast<uintptr_t>(data) & (WORD_SIZE - 1)) != 0) {
+    continuations += *data++ >> 7;
+  }
+  while (static_cast<size_t>(end - data) >= WORD_SIZE) {
+    size_t words = static_cast<size_t>(end - data) / WORD_SIZE;
+    if (words > MAX_CHUNK_WORDS)
+      words = MAX_CHUNK_WORDS;
+    const uint8_t *chunk_end = data + words * WORD_SIZE;
+    word_t lanes = 0;
+    do {
+      word_t word;
+      memcpy(&word, __builtin_assume_aligned(data, WORD_SIZE), WORD_SIZE);
+      lanes += (word >> 7) & LANE_ONES;
+      data += WORD_SIZE;
+    } while (data != chunk_end);
+    for (size_t shift = 0; shift < WORD_SIZE * 8; shift += 8) {
+      continuations += static_cast<size_t>(lanes >> shift) & 0xFFu;
     }
   }
-  return count;
+  // Trailing bytes after the last full word
+  while (data != end) {
+    continuations += *data++ >> 7;
+  }
+  return static_cast<uint16_t>(len - continuations);
 }
 
 /// Encode a varint directly into a pre-allocated buffer.
