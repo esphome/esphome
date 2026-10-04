@@ -48,9 +48,7 @@ def test_config_schema_applies_tag_default_state_class():
     sensor_schema() runs before apply_tag_defaults in the cv.All() chain.
     """
     result = _resolve_via_config_schema("E1")
-    assert result[CONF_STATE_CLASS] == sensor.validate_state_class(
-        STATE_CLASS_TOTAL
-    )
+    assert result[CONF_STATE_CLASS] == sensor.validate_state_class(STATE_CLASS_TOTAL)
 
 
 def test_config_schema_applies_tag_default_accuracy_decimals():
