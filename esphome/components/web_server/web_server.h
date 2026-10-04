@@ -531,6 +531,9 @@ class WebServer final : public Component, public AsyncWebHandler {
   bool include_internal_{false};
 
  protected:
+  // Declared here so it packs into the padding after include_internal_
+  bool expose_log_{true};
+
   void add_sorting_info_(JsonObject &root, EntityBase *entity);
 
 #ifdef USE_LIGHT
@@ -614,7 +617,6 @@ class WebServer final : public Component, public AsyncWebHandler {
 #ifdef USE_WEBSERVER_JS_INCLUDE
   const char *js_include_{nullptr};
 #endif
-  bool expose_log_{true};
 #ifdef USE_WEBSERVER_ALLOWED_ORIGINS
   // Extra origins allowed to make cross-origin browser requests ("*" means any origin).
   // Only compiled when allowed_origins is configured; same-origin is always allowed regardless.
