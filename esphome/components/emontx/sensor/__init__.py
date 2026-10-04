@@ -16,6 +16,7 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_CELSIUS,
@@ -70,7 +71,9 @@ SENSOR_CONFIGS = {
     "E": {
         CONF_UNIT_OF_MEASUREMENT: UNIT_WATT_HOURS,
         CONF_DEVICE_CLASS: DEVICE_CLASS_ENERGY,
-        CONF_STATE_CLASS: STATE_CLASS_TOTAL_INCREASING,
+        # Energy registers are signed: they count down when power flows the
+        # other way (e.g. solar export), so they are not total_increasing.
+        CONF_STATE_CLASS: STATE_CLASS_TOTAL,
         CONF_ACCURACY_DECIMALS: 0,
     },
     "V": {
