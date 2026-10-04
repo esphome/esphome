@@ -12,21 +12,42 @@ namespace {
 class Pipe : public esphome::tcp_uart::TcpUart {
  public:
   bool is_connected() override { return this->up_; }
-  size_t available() override { return 0; }
+  size_t available() override { return this->rx_n_; }
   size_t available_for_write() override { return this->room_; }
-  bool read_array(uint8_t *, size_t) override { return false; }
+  bool read_array(uint8_t *data, size_t len) override {
+    if (len > this->rx_n_) {
+      return false;
+    }
+    std::memcpy(data, this->rx_, len);
+    this->rx_n_ -= len;
+    std::memmove(this->rx_, this->rx_ + len, this->rx_n_);
+    return true;
+  }
   void write_array(const uint8_t *data, size_t len) override {
     ASSERT_LE(this->n_ + len, sizeof(this->buf_));
     std::memcpy(this->buf_ + this->n_, data, len);
     this->n_ += len;
   }
   esphome::uart::UARTFlushResult flush() override { return this->flushed_; }
+  void feed(const uint8_t *data, size_t len) {
+    ASSERT_LE(this->rx_n_ + len, sizeof(this->rx_));
+    std::memcpy(this->rx_ + this->rx_n_, data, len);
+    this->rx_n_ += len;
+  }
+  void feed_mbap(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
+    uint8_t frame[32];
+    size_t n = esphome::modbus_tcp::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
+    ASSERT_GT(n, 0u);
+    this->feed(frame, n);
+  }
 
   bool up_{true};
   size_t room_{1024};
   size_t n_{0};
   esphome::uart::UARTFlushResult flushed_{esphome::uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS};
   uint8_t buf_[64]{};
+  size_t rx_n_{0};
+  uint8_t rx_[64]{};
 };
 
 class ClientLink : public esphome::modbus_tcp::ModbusTcp {
@@ -132,6 +153,25 @@ TEST(ModbusTcpClient, FlushTimeoutKeepsTheTransaction) {
   EXPECT_EQ(link.txn(), 1);
   link.push(1, 1, RESPONSE_PDU, sizeof(RESPONSE_PDU));
   EXPECT_GT(link.available(), 0u);
+}
+
+TEST(ModbusTcpClient, BadProtocolIdSkipsOnlyThatFrame) {
+  Pipe pipe;
+  ClientLink link(&pipe);
+  link.arm(7);
+  // A reply with protocol id 1, split over two reads, then the valid reply.
+  const uint8_t bad[] = {0x00, 0x07, 0x00, 0x01, 0x00, 0x05, 0x01, 0x03, 0x02, 0x99, 0x99};
+  pipe.feed(bad, 8);
+  link.loop();
+  pipe.feed(bad + 8, sizeof(bad) - 8);
+  pipe.feed_mbap(7, 1, RESPONSE_PDU, sizeof(RESPONSE_PDU));
+  link.loop();
+
+  uint8_t taken[16];
+  ASSERT_EQ(link.available(), sizeof(RESPONSE_PDU) + 3);
+  ASSERT_TRUE(link.read_array(taken, sizeof(RESPONSE_PDU) + 3));
+  EXPECT_EQ(taken[3], 0x12);
+  EXPECT_FALSE(link.pending());
 }
 
 TEST(ModbusTcpClient, DisconnectDropsInFlight) {

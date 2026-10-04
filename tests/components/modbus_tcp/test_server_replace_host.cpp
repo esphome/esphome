@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <thread>
 
 #include "esphome/components/modbus_tcp/mbap.h"
 #include "esphome/components/modbus_tcp/modbus_tcp.h"
@@ -12,18 +14,39 @@ namespace {
 class Pipe : public esphome::tcp_uart::TcpUart {
  public:
   bool is_connected() override { return true; }
-  size_t available() override { return 0; }
+  size_t available() override { return this->rx_n_; }
   size_t available_for_write() override { return 1024; }
-  bool read_array(uint8_t *, size_t) override { return false; }
+  bool read_array(uint8_t *data, size_t len) override {
+    if (len > this->rx_n_) {
+      return false;
+    }
+    std::memcpy(data, this->rx_, len);
+    this->rx_n_ -= len;
+    std::memmove(this->rx_, this->rx_ + len, this->rx_n_);
+    return true;
+  }
   void write_array(const uint8_t *data, size_t len) override {
     ASSERT_LE(this->n_ + len, sizeof(this->buf_));
     std::memcpy(this->buf_ + this->n_, data, len);
     this->n_ += len;
   }
   esphome::uart::UARTFlushResult flush() override { return esphome::uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
+  void feed(const uint8_t *data, size_t len) {
+    ASSERT_LE(this->rx_n_ + len, sizeof(this->rx_));
+    std::memcpy(this->rx_ + this->rx_n_, data, len);
+    this->rx_n_ += len;
+  }
+  void feed_mbap(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
+    uint8_t frame[32];
+    size_t n = esphome::modbus_tcp::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
+    ASSERT_GT(n, 0u);
+    this->feed(frame, n);
+  }
 
   size_t n_{0};
   uint8_t buf_[64]{};
+  size_t rx_n_{0};
+  uint8_t rx_[64]{};
 };
 
 class ServerLink : public esphome::modbus_tcp::ModbusTcp {
@@ -31,12 +54,6 @@ class ServerLink : public esphome::modbus_tcp::ModbusTcp {
   ServerLink() { this->set_server(true); }
 
   void set_pipe(Pipe *pipe) { this->set_parent(pipe); }
-
-  void load_raw(const uint8_t *data, size_t n) {
-    std::memcpy(this->tcp_buf_ + this->tcp_len_, data, n);
-    this->tcp_len_ += static_cast<uint16_t>(n);
-    this->deliver_mbap_();
-  }
 
   void stage(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
     uint8_t frame[32];
@@ -198,13 +215,37 @@ TEST(ModbusTcpServer, BroadcastIsNotAnswered) {
   EXPECT_FALSE(link.pending());
 }
 
-TEST(ModbusTcpServer, BadHeaderDropsTheStream) {
+TEST(ModbusTcpServer, BadProtocolIdSkipsOnlyThatFrame) {
+  Pipe pipe;
   ServerLink link;
+  link.set_pipe(&pipe);
+  // Protocol id 1 with a usable length, then a valid request in the same segment.
   const uint8_t bad[] = {0x00, 0x01, 0x00, 0x01, 0x00, 0x06, 0x01, 0x03, 0x00, 0x00, 0x00, 0x01};
-  link.load_raw(bad, sizeof(bad));
+  pipe.feed(bad, sizeof(bad));
+  pipe.feed_mbap(7, 1, PDU, sizeof(PDU));
+  link.loop();
+  EXPECT_EQ(link.txn(), 7);
+  EXPECT_EQ(link.available(), sizeof(PDU) + 3);
+}
+
+TEST(ModbusTcpServer, BadLengthWaitsForAQuietStream) {
+  Pipe pipe;
+  ServerLink link;
+  link.set_pipe(&pipe);
+  // Length 0x0100 is over 254, so nothing says where the frame ends.
+  const uint8_t bad[] = {0x00, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x03};
+  pipe.feed(bad, sizeof(bad));
+  link.loop();
+  // Still inside the quiet period: this request is dropped with the rest of the stream.
+  pipe.feed_mbap(7, 1, PDU, sizeof(PDU));
+  link.loop();
   EXPECT_EQ(link.available(), 0u);
-  link.push(7, 1, PDU, sizeof(PDU));
-  EXPECT_EQ(link.available(), 0u);
+  std::this_thread::sleep_for(std::chrono::milliseconds(120));
+  link.loop();
+  pipe.feed_mbap(8, 1, PDU, sizeof(PDU));
+  link.loop();
+  EXPECT_EQ(link.txn(), 8);
+  EXPECT_EQ(link.available(), sizeof(PDU) + 3);
 }
 
 }  // namespace

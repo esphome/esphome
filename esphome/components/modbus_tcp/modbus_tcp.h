@@ -15,6 +15,7 @@ namespace esphome::modbus_tcp {
 /// Client: a response is delivered only when it carries that request's transaction id.
 /// Server: a request is delivered as one RTU frame, and the reply uses that id.
 /// One that the hub has not read yet stays in the TCP buffer. One it already read, and did not answer, is replaced.
+/// A bad MBAP with a usable length is skipped. Without one, bytes are dropped until the peer has been quiet.
 class ModbusTcp : public uart::UARTComponent, public Component {
  public:
   ModbusTcp() { this->rx_buffer_size_ = RTU_FRAME_SIZE; }
@@ -43,7 +44,6 @@ class ModbusTcp : public uart::UARTComponent, public Component {
   void deliver_mbap_();
   void send_rtu_as_mbap_();
   void clear_tx_();
-  void drop_stream_();
   void discard_parent_();
 
   // One stamp per message. A stale transaction must not hide a failed send.
@@ -72,6 +72,7 @@ class ModbusTcp : public uart::UARTComponent, public Component {
   uint32_t drop_log_ms_[DROP_KIND_COUNT]{};
   // When tx_ holds an unfinished frame. A later write can tell a pause from a copy still in progress.
   uint32_t tx_partial_ms_{0};
+  uint32_t resync_from_us_{0};
   uint16_t txn_{0};
   uint16_t tcp_len_{0};
   uint16_t tx_len_{0};
@@ -82,9 +83,10 @@ class ModbusTcp : public uart::UARTComponent, public Component {
   bool server_{false};
   // The hold warning is logged once per frame, so it does not hide a later drop.
   bool tx_hold_logged_{false};
-  // Edge for the disconnect log. A bad MBAP is not parsed again until the link drops.
+  // Edge for the disconnect log.
   bool link_was_up_{false};
-  bool drop_until_down_{false};
+  // A header without a usable length. Nothing is parsed until the peer has been quiet.
+  bool resync_{false};
   uint8_t tcp_buf_[TCP_FRAME_SIZE]{};
   uint8_t tx_[RTU_FRAME_SIZE]{};
   uint8_t rx_[RTU_FRAME_SIZE]{};

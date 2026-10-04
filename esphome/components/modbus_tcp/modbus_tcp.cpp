@@ -15,6 +15,8 @@ static const char *const TAG = "modbus_tcp";
 static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
 // A bridge copies every loop. A pause this long is an unfinished frame, not the next chunk.
 static constexpr uint32_t TX_PARTIAL_STALE_MS = 300;
+// A peer sends a whole frame and then waits. After this much quiet the next byte starts a frame.
+static constexpr uint32_t RESYNC_QUIET_US = 100000;
 
 static bool drop_log_due(uint32_t &last_ms) {
   uint32_t now = App.get_loop_component_start_time();
@@ -52,7 +54,7 @@ void ModbusTcp::loop() {
       ESP_LOGW(TAG, "%s", LOG_STR_ARG(LOG_STR("Link down, dropped the Modbus frame in flight")));
     }
     this->link_was_up_ = false;
-    this->drop_until_down_ = false;
+    this->resync_ = false;
     this->tcp_len_ = 0;
     this->clear_tx_();
     this->rx_len_ = 0;
@@ -145,27 +147,23 @@ uart::UARTFlushResult ModbusTcp::flush() {
 }
 
 void ModbusTcp::read_parent_() {
-  if (this->drop_until_down_) {
-    this->discard_parent_();
-    return;
-  }
   if (this->tcp_len_ != 0) {
     this->deliver_mbap_();
   }
-  if (this->drop_until_down_) {
-    this->discard_parent_();
-    return;
-  }
-  size_t room = sizeof(this->tcp_buf_) - this->tcp_len_;
-  if (room == 0) {
-    Mbap frame;
-    size_t used = 0;
-    // A whole frame is waiting for the hub. Leave it, and do not read more.
-    if (take_mbap(this->tcp_buf_, this->tcp_len_, &frame, &used) == MbapTake::FRAME) {
+  if (this->resync_) {
+    if (this->parent_->available() != 0) {
+      this->discard_parent_();
+      this->resync_from_us_ = micros();
       return;
     }
-    this->drop_stream_();
-    this->discard_parent_();
+    if (micros() - this->resync_from_us_ < RESYNC_QUIET_US) {
+      return;
+    }
+    this->resync_ = false;
+  }
+  size_t room = sizeof(this->tcp_buf_) - this->tcp_len_;
+  // Any frame fits, so a full buffer starts with a whole frame the hub has not read. Leave it.
+  if (room == 0) {
     return;
   }
   size_t have = this->parent_->available();
@@ -182,23 +180,35 @@ void ModbusTcp::read_parent_() {
 }
 
 void ModbusTcp::deliver_mbap_() {
-  if (this->drop_until_down_) {
-    this->tcp_len_ = 0;
-    return;
-  }
   // frame.pdu points into tcp_buf_. Copy it out before the tail slides.
   uint16_t pos = 0;
   while (pos < this->tcp_len_) {
     Mbap frame;
     size_t used = 0;
-    switch (take_mbap(this->tcp_buf_ + pos, static_cast<size_t>(this->tcp_len_ - pos), &frame, &used)) {
+    size_t left = static_cast<size_t>(this->tcp_len_ - pos);
+    switch (take_mbap(this->tcp_buf_ + pos, left, &frame, &used)) {
       case MbapTake::NEED_MORE:
         used = 0;
         break;
-      case MbapTake::BAD:
-        // No resync. A fresh CRC would make the hub accept bytes from the middle of a frame.
-        this->drop_stream_();
-        return;
+      case MbapTake::BAD: {
+        // [TCP 4.4.2.2] discards only the bad frame. A usable length says where it ends.
+        size_t size = mbap_announced_size(this->tcp_buf_ + pos, left);
+        if (size == 0) {
+          // No frame boundary. A byte-wise search could hand the hub a mid-frame match with a fresh CRC.
+          note_drop(this->drop_log_ms_[DROP_BAD_MBAP],
+                    LOG_STR("Invalid MBAP length, dropped until the stream is quiet"));
+          this->tcp_len_ = 0;
+          this->resync_ = true;
+          this->resync_from_us_ = micros();
+          return;
+        }
+        // Any frame fits the buffer. Wait for all of it, then skip it.
+        used = size <= left ? size : 0;
+        if (used != 0) {
+          note_drop(this->drop_log_ms_[DROP_BAD_MBAP], LOG_STR("Invalid MBAP protocol id, frame skipped"));
+        }
+        break;
+      }
       case MbapTake::FRAME: {
         if (this->server_) {
           // The hub has not read the last request. Leave this one where it is.
@@ -328,14 +338,6 @@ void ModbusTcp::send_rtu_as_mbap_() {
       this->txn_pending_ = false;
     }
   }
-}
-
-void ModbusTcp::drop_stream_() {
-  // tcp_uart can close this socket. It already does on shutdown, and does not
-  // expose that call yet, so further bytes are discarded until the peer drops.
-  note_drop(this->drop_log_ms_[DROP_BAD_MBAP], LOG_STR("Invalid MBAP, dropped until reconnect"));
-  this->tcp_len_ = 0;
-  this->drop_until_down_ = true;
 }
 
 void ModbusTcp::discard_parent_() {

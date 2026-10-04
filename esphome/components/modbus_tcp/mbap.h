@@ -46,6 +46,18 @@ inline MbapTake take_mbap(const uint8_t *buf, size_t len, Mbap *out, size_t *use
   return MbapTake::FRAME;
 }
 
+/// Size of the frame a header announces, or 0 when its length field is not usable.
+inline size_t mbap_announced_size(const uint8_t *buf, size_t len) {
+  if (len < MBAP_HEADER_SIZE) {
+    return 0;
+  }
+  uint16_t length = (static_cast<uint16_t>(buf[4]) << 8) | buf[5];
+  if (length < 2 || length > MBAP_MAX_LENGTH) {
+    return 0;
+  }
+  return 6u + length;
+}
+
 inline size_t write_mbap(uint8_t *dst, size_t cap, uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
   if (pdu_len == 0 || pdu_len > MBAP_MAX_LENGTH - 1) {
     return 0;
