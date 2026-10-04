@@ -309,7 +309,8 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
       // Unknown char, skip
       ESP_LOGW(TAG, "Codepoint 0x%08" PRIx32 " not found in font", code_point);
       if (!this->glyphs_.empty()) {
-        uint8_t glyph_width = this->glyphs_[0].advance;
+        // Full-width read: a narrowing byte load would fault on a PROGMEM table on ESP8266.
+        int glyph_width = this->glyphs_[0].advance;
         display->rectangle(x_at, y_start, glyph_width, this->height_, color);
         x_at += glyph_width;
       }
