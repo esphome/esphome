@@ -28,6 +28,10 @@ ZephyrSPIDelegate::ZephyrSPIDelegate(const device *dev, uint32_t data_rate, SPIB
   this->cfg_.frequency = data_rate;
   this->cfg_.operation = build_operation(bit_order, mode);
   // CS is driven by ESPHome via SPIDelegate base class; no Zephyr-level CS control.
+  this->quad_cfg_ = this->cfg_;
+  this->quad_cfg_.operation |= SPI_LINES_QUAD;
+  this->octal_cfg_ = this->cfg_;
+  this->octal_cfg_.operation |= SPI_LINES_OCTAL;
 }
 
 // NOTE: some Zephyr SPI drivers' DMA engines cannot read directly from flash-resident
@@ -101,11 +105,9 @@ void ZephyrSPIDelegate::write_cmd_addr_data_split_workaround_(size_t cmd_bits, u
     header[header_len++] = (address >> ((i - 1) * 8)) & 0xFF;
 
   if (header_len != 0) {
-    spi_config header_cfg = this->cfg_;
-    header_cfg.operation &= ~SPI_LINES_MASK;  // SPI_LINES_SINGLE
     spi_buf header_buf{header, header_len};
     spi_buf_set header_set{&header_buf, 1};
-    int err = spi_transceive(this->dev_, &header_cfg, &header_set, nullptr);
+    int err = spi_transceive(this->dev_, &this->cfg_, &header_set, nullptr);
     if (err != 0) {
       ESP_LOGE(TAG, "spi_transceive (cmd/addr) failed: %d", err);
       return;
@@ -115,16 +117,10 @@ void ZephyrSPIDelegate::write_cmd_addr_data_split_workaround_(size_t cmd_bits, u
   if (length == 0 || data == nullptr)
     return;
 
-  spi_config data_cfg = this->cfg_;
-  data_cfg.operation &= ~SPI_LINES_MASK;
-  if (bus_width == 4) {
-    data_cfg.operation |= SPI_LINES_QUAD;
-  } else if (bus_width == 8) {
-    data_cfg.operation |= SPI_LINES_OCTAL;
-  }
+  const spi_config *data_cfg = bus_width == 4 ? &this->quad_cfg_ : bus_width == 8 ? &this->octal_cfg_ : &this->cfg_;
   spi_buf data_buf{const_cast<uint8_t *>(data), length};
   spi_buf_set data_set{&data_buf, 1};
-  int err = spi_transceive(this->dev_, &data_cfg, &data_set, nullptr);
+  int err = spi_transceive(this->dev_, data_cfg, &data_set, nullptr);
   if (err != 0) {
     ESP_LOGE(TAG, "spi_transceive (data) failed: %d", err);
   }
