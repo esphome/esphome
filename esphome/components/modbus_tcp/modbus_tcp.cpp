@@ -63,7 +63,7 @@ void ModbusTcp::loop() {
   if (this->tx_len_ != 0 && !rtu_crc_ok(this->tx_, this->tx_len_)) {
     uint32_t now = App.get_loop_component_start_time();
     if (now - this->tx_partial_ms_ >= TX_PARTIAL_STALE_MS) {
-      note_drop(this->last_drop_log_ms_, LOG_STR("Incomplete Modbus frame dropped"));
+      note_drop(this->drop_log_ms_[DROP_INCOMPLETE], LOG_STR("Incomplete Modbus frame dropped"));
       this->clear_tx_();
     }
   }
@@ -76,7 +76,7 @@ void ModbusTcp::loop() {
 void ModbusTcp::write_array(const uint8_t *data, size_t len) {
   // The new request is still buffered, so this write answers the previous one.
   if (this->server_ && this->rx_len_ != 0) {
-    note_drop(this->last_drop_log_ms_, LOG_STR("Reply to the previous request, dropped"));
+    note_drop(this->drop_log_ms_[DROP_REPLY_PREVIOUS], LOG_STR("Reply to the previous request, dropped"));
     return;
   }
   // A complete frame is only still here because the transport could not take it.
@@ -84,10 +84,10 @@ void ModbusTcp::write_array(const uint8_t *data, size_t len) {
   // An unfinished frame is not a prefix of the next one. A whole frame, or a pause, drops it.
   uint32_t now = App.get_loop_component_start_time();
   if (this->tx_len_ != 0 && rtu_crc_ok(this->tx_, this->tx_len_)) {
-    note_drop(this->last_drop_log_ms_, LOG_STR("Dropping a held Modbus frame"));
+    note_drop(this->drop_log_ms_[DROP_HELD], LOG_STR("Dropping a held Modbus frame"));
     this->clear_tx_();
   } else if (this->tx_len_ != 0 && (rtu_crc_ok(data, len) || now - this->tx_partial_ms_ >= TX_PARTIAL_STALE_MS)) {
-    note_drop(this->last_drop_log_ms_, LOG_STR("Incomplete Modbus frame dropped"));
+    note_drop(this->drop_log_ms_[DROP_INCOMPLETE], LOG_STR("Incomplete Modbus frame dropped"));
     this->clear_tx_();
   }
   size_t before = this->tx_len_;
@@ -97,7 +97,7 @@ void ModbusTcp::write_array(const uint8_t *data, size_t len) {
   this->tx_len_ += static_cast<uint16_t>(n);
   this->tx_partial_ms_ = now;
   if (n < len) {
-    note_drop(this->last_drop_log_ms_, LOG_STR("RTU frame too long, dropped"));
+    note_drop(this->drop_log_ms_[DROP_TOO_LONG], LOG_STR("RTU frame too long, dropped"));
     this->clear_tx_();
     return;
   }
@@ -174,7 +174,7 @@ void ModbusTcp::read_parent_() {
   }
   size_t n = std::min(room, have);
   if (!this->parent_->read_array(this->tcp_buf_ + this->tcp_len_, n)) {
-    note_drop(this->last_drop_log_ms_, LOG_STR("Read failed"));
+    note_drop(this->drop_log_ms_[DROP_READ], LOG_STR("Read failed"));
     return;
   }
   this->tcp_len_ += static_cast<uint16_t>(n);
@@ -209,14 +209,14 @@ void ModbusTcp::deliver_mbap_() {
           // Handed on, and nothing has been sent back. The next request takes its place.
           if (this->txn_pending_) {
             if (this->tx_len_ != 0) {
-              note_drop(this->last_drop_log_ms_, LOG_STR("Unanswered request replaced"));
+              note_drop(this->drop_log_ms_[DROP_REPLACED], LOG_STR("Unanswered request replaced"));
               this->clear_tx_();
             }
             this->txn_pending_ = false;
           }
           size_t rtu_len = frame.pdu_len + 3;
           if (rtu_len > sizeof(this->rx_)) {
-            note_drop(this->last_drop_log_ms_, LOG_STR("RTU frame too long, dropped"));
+            note_drop(this->drop_log_ms_[DROP_TOO_LONG], LOG_STR("RTU frame too long, dropped"));
             break;
           }
           this->rx_[0] = frame.unit;
@@ -233,14 +233,14 @@ void ModbusTcp::deliver_mbap_() {
           break;
         }
         if (!this->txn_pending_ || frame.txn != this->txn_) {
-          if (drop_log_due(this->last_drop_log_ms_)) {
+          if (drop_log_due(this->drop_log_ms_[DROP_STALE])) {
             ESP_LOGW(TAG, "Dropped transaction %u, expected %u", frame.txn, this->txn_);
           }
           break;
         }
         size_t rtu_len = frame.pdu_len + 3;
         if (static_cast<size_t>(this->rx_len_) + rtu_len > sizeof(this->rx_)) {
-          note_drop(this->last_drop_log_ms_, LOG_STR("RX buffer full, dropped the response"));
+          note_drop(this->drop_log_ms_[DROP_RX_FULL], LOG_STR("RX buffer full, dropped the response"));
           break;
         }
         size_t at = this->rx_len_;
@@ -273,7 +273,7 @@ void ModbusTcp::send_rtu_as_mbap_() {
     return;
   }
   if (!this->is_connected()) {
-    note_drop(this->last_drop_log_ms_, LOG_STR("Not connected, dropped the Modbus frame"));
+    note_drop(this->drop_log_ms_[DROP_NOT_CONNECTED], LOG_STR("Not connected, dropped the Modbus frame"));
     this->clear_tx_();
     if (this->server_) {
       this->txn_pending_ = false;
@@ -283,7 +283,7 @@ void ModbusTcp::send_rtu_as_mbap_() {
   uint16_t txn;
   if (this->server_) {
     if (!this->txn_pending_) {
-      note_drop(this->last_drop_log_ms_, LOG_STR("Reply without a request, dropped"));
+      note_drop(this->drop_log_ms_[DROP_NO_REQUEST], LOG_STR("Reply without a request, dropped"));
       this->clear_tx_();
       return;
     }
@@ -294,7 +294,7 @@ void ModbusTcp::send_rtu_as_mbap_() {
   uint8_t frame[TCP_FRAME_SIZE];
   size_t n = write_mbap(frame, sizeof(frame), txn, this->tx_[0], this->tx_ + 1, this->tx_len_ - 3);
   if (n == 0) {
-    note_drop(this->last_drop_log_ms_, LOG_STR("Cannot encode the Modbus frame, dropped"));
+    note_drop(this->drop_log_ms_[DROP_ENCODE], LOG_STR("Cannot encode the Modbus frame, dropped"));
     this->clear_tx_();
     if (this->server_) {
       this->txn_pending_ = false;
@@ -323,7 +323,7 @@ void ModbusTcp::send_rtu_as_mbap_() {
   uart::UARTFlushResult sent = this->parent_->flush();
   // TIMEOUT means the bytes are still queued on a link that is up. They leave later.
   if (sent == uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED) {
-    note_drop(this->last_drop_log_ms_, LOG_STR("Send failed"));
+    note_drop(this->drop_log_ms_[DROP_SEND], LOG_STR("Send failed"));
     if (!this->server_) {
       this->txn_pending_ = false;
     }
@@ -331,7 +331,7 @@ void ModbusTcp::send_rtu_as_mbap_() {
 }
 
 void ModbusTcp::drop_stream_() {
-  note_drop(this->last_drop_log_ms_, LOG_STR("Invalid MBAP, dropped until reconnect"));
+  note_drop(this->drop_log_ms_[DROP_BAD_MBAP], LOG_STR("Invalid MBAP, dropped until reconnect"));
   this->tcp_len_ = 0;
   this->drop_until_down_ = true;
 }

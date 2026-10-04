@@ -46,12 +46,30 @@ class ModbusTcp : public uart::UARTComponent, public Component {
   void drop_stream_();
   void discard_parent_();
 
+  // One stamp per message. A stale transaction must not hide a failed send.
+  enum DropKind : uint8_t {
+    DROP_INCOMPLETE = 0,
+    DROP_REPLY_PREVIOUS,
+    DROP_HELD,
+    DROP_TOO_LONG,
+    DROP_READ,
+    DROP_REPLACED,
+    DROP_STALE,
+    DROP_RX_FULL,
+    DROP_NOT_CONNECTED,
+    DROP_NO_REQUEST,
+    DROP_ENCODE,
+    DROP_SEND,
+    DROP_BAD_MBAP,
+    DROP_KIND_COUNT,
+  };
+
   static constexpr size_t TCP_FRAME_SIZE = 260;
   // One RTU frame. The hub reads it before the next request, so nothing else is waiting.
   static constexpr size_t RTU_FRAME_SIZE = 256;
 
   tcp_uart::TcpUart *parent_{nullptr};
-  uint32_t last_drop_log_ms_{0};
+  uint32_t drop_log_ms_[DROP_KIND_COUNT]{};
   // When tx_ holds an unfinished frame. A later write can tell a pause from a copy still in progress.
   uint32_t tx_partial_ms_{0};
   uint16_t txn_{0};
