@@ -88,8 +88,8 @@ const uint8_t RTU[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
 TEST(ModbusTcpClient, MatchingResponseBecomesRtu) {
   Pipe pipe;
   ClientLink link(&pipe);
-  link.arm(7);
-  link.push(7, 1, RESPONSE_PDU, sizeof(RESPONSE_PDU));
+  link.write_array(RTU, sizeof(RTU));
+  link.push(1, 1, RESPONSE_PDU, sizeof(RESPONSE_PDU));
 
   uint8_t taken[16];
   size_t n = link.available();
@@ -102,6 +102,20 @@ TEST(ModbusTcpClient, MatchingResponseBecomesRtu) {
   EXPECT_EQ(taken[3], 0x12);
   EXPECT_EQ(taken[4], 0x34);
   EXPECT_FALSE(link.pending());
+}
+
+TEST(ModbusTcpClient, ResponseKeepsTheRequestUnit) {
+  Pipe pipe;
+  ClientLink link(&pipe);
+  link.write_array(RTU, sizeof(RTU));
+  // A device addressed directly may answer with unit 0xFF.
+  link.push(1, 0xFF, RESPONSE_PDU, sizeof(RESPONSE_PDU));
+  uint8_t taken[16];
+  size_t n = link.available();
+  ASSERT_EQ(n, sizeof(RESPONSE_PDU) + 3);
+  ASSERT_TRUE(link.read_array(taken, n));
+  EXPECT_EQ(taken[0], 1);
+  EXPECT_TRUE(esphome::modbus_tcp::rtu_crc_ok(taken, n));
 }
 
 TEST(ModbusTcpClient, StaleTransactionIsDropped) {

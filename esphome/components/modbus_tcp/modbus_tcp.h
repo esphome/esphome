@@ -12,7 +12,7 @@ class TcpUart;
 namespace esphome::modbus_tcp {
 
 /// RTU toward the modbus hub, Modbus TCP on a raw tcp_uart.
-/// Client: a response is delivered only when it carries that request's transaction id.
+/// Client: a response is delivered only when it carries that request's transaction id, with the request's unit.
 /// Server: one request at a time is delivered as one RTU frame, and the reply uses that id. The next stays in the
 /// TCP buffer until the reply went out or REPLY_TIMEOUT_MS passed. A reply must match the request's unit and function.
 /// With a unit list, a request to another unit is dropped, since no other device on this link answers it.
@@ -89,7 +89,7 @@ class ModbusTcp : public uart::UARTComponent, public Component {
   uint16_t tx_len_{0};
   uint16_t rx_len_{0};
   uint8_t units_count_{0};
-  // Server: the open request's unit and function. Only a frame with both is its reply.
+  // The open request's unit. Client: the response's RTU address. Server: with the function, it marks the reply.
   uint8_t unit_{0};
   uint8_t function_{0};
   // Client: set after a request is sent. Server: set after a request is delivered.

@@ -271,7 +271,8 @@ void ModbusTcp::deliver_mbap_() {
           break;
         }
         size_t at = this->rx_len_;
-        this->rx_[at] = frame.unit;
+        // [TCP 4.4.1.3] The client discards the response's unit. The hub expects the address it asked.
+        this->rx_[at] = this->unit_;
         std::memcpy(this->rx_ + at + 1, frame.pdu, frame.pdu_len);
         uint16_t crc = crc16(this->rx_ + at, static_cast<uint16_t>(frame.pdu_len + 1));
         this->rx_[at + frame.pdu_len + 1] = crc & 0xFF;
@@ -343,6 +344,7 @@ void ModbusTcp::send_rtu_as_mbap_() {
     this->txn_pending_ = false;
   } else {
     this->txn_ = txn;
+    this->unit_ = this->tx_[0];
     this->txn_pending_ = true;
   }
   this->clear_tx_();
