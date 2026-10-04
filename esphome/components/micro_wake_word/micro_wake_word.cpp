@@ -476,7 +476,8 @@ void MicroWakeWord::loop() {
         }
 
         if (!this->inference_task_.create(MicroWakeWord::inference_task, "mww", INFERENCE_TASK_STACK_SIZE,
-                                          (void *) this, INFERENCE_TASK_PRIORITY, this->task_stack_in_psram_)) {
+                                          (void *) this, INFERENCE_TASK_PRIORITY, this->task_stack_in_psram_,
+                                          MICRO_WAKE_WORD_TASK_CORE)) {
           FrontendFreeStateContents(&this->frontend_state_);  // Deallocate frontend state
           this->status_momentary_error("task_start", 1000);
         }
