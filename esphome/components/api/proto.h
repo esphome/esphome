@@ -228,6 +228,8 @@ void proto_check_bounds_failed(const uint8_t *pos, size_t bytes, const uint8_t *
 /// Aborts unless an encode body ended exactly where calculate_size() promised. A plain check rather than
 /// assert(), so NDEBUG cannot switch it off.
 void proto_check_encode_end(const uint8_t *end, const uint8_t *expected);
+/// Aborts unless a sized sub-message (length prefix at len_pos) ended where its calculated size said.
+void proto_check_sub_message_size(uint32_t field_id, uint32_t expected, const uint8_t *len_pos, const uint8_t *end);
 #else
 #define PROTO_ENCODE_DEBUG_PARAM
 #define PROTO_ENCODE_DEBUG_ARG
@@ -574,7 +576,13 @@ class ProtoEncode {
     if (nested_size == 0)
       return pos;
     pos = encode_field_raw(pos PROTO_ENCODE_DEBUG_ARG, field_id, 2);
-    return encode_sized_sub_message_body(pos PROTO_ENCODE_DEBUG_ARG, nested_size, &value, &T::encode_msg);
+#ifdef ESPHOME_DEBUG_API
+    uint8_t *end = encode_sized_sub_message_body(pos PROTO_ENCODE_DEBUG_ARG, nested_size, &value, &T::encode_msg);
+    proto_check_sub_message_size(field_id, nested_size, pos, end);
+    return end;
+#else
+    return encode_sized_sub_message_body(pos, nested_size, &value, &T::encode_msg);
+#endif
   }
   /// Length and body, length backpatched after the body is written.
   [[nodiscard]] static uint8_t *encode_sub_message_body(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,

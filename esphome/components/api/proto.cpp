@@ -170,13 +170,7 @@ uint8_t *ProtoEncode::encode_sub_message_body(uint8_t *__restrict__ pos PROTO_EN
 uint8_t *ProtoEncode::encode_sized_sub_message_body(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
                                                     uint32_t nested_size, const void *value, ProtoEncodeFn encode_fn) {
   pos = encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, nested_size);
-#ifdef ESPHOME_DEBUG_API
-  uint8_t *end = encode_fn(value, pos PROTO_ENCODE_DEBUG_ARG);
-  proto_check_encode_end(end, pos + nested_size);
-  return end;
-#else
-  return encode_fn(value, pos);
-#endif
+  return encode_fn(value, pos PROTO_ENCODE_DEBUG_ARG);
 }
 
 #ifdef ESPHOME_DEBUG_API
@@ -188,6 +182,14 @@ void proto_check_encode_end(const uint8_t *end, const uint8_t *expected) {
   if (end == expected)
     return;
   ESP_LOGE(TAG, "Proto encode ended %td bytes off the calculated size", end - expected);
+  abort();
+}
+void proto_check_sub_message_size(uint32_t field_id, uint32_t expected, const uint8_t *len_pos, const uint8_t *end) {
+  ptrdiff_t actual = end - (len_pos + ProtoSize::varint(expected));
+  if (actual == static_cast<ptrdiff_t>(expected))
+    return;
+  ESP_LOGE(TAG, "encode_message: size mismatch for field %" PRIu32 ": calculated=%" PRIu32 " actual=%td", field_id,
+           expected, actual);
   abort();
 }
 void ProtoWriteBuffer::debug_check_bounds_(size_t bytes, const char *caller) {
