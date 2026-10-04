@@ -272,9 +272,9 @@ def _overlay_pwm_renesas(pwm_blocks: list[PWMBlock], labels: list[str]) -> str:
     pinctls = []
     for block in pwm_blocks:
         label = labels[block.id]
-        gpt_num = label.removeprefix("pwm")
+        # RA_PSEL_GPT1 is the GTIOCnA/B pin function for every GPT channel, not channel 1.
         psels = ", ".join(
-            f"<RA_PSEL(RA_PSEL_GPT{gpt_num}, {pin // 16}, {pin % 16})>"
+            f"<RA_PSEL(RA_PSEL_GPT1, {pin // 16}, {pin % 16})>"
             for pin in sorted(block.pins, key=lambda pin: pin_map[pin][1])
         )
         pinctls.append(f"""

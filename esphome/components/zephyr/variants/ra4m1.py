@@ -71,9 +71,7 @@ _ADC_AIN_MAP = {
 # numbers 4*16+5=69 and 4*16+6=70 under this variant's gpio_port_width=16 encoding
 # -- are wired to pwm1, the only PWM instance this codebase enables (see
 # pwm_node_labels below). Matches ek_ra4m1's own default pinctrl
-# (RA_PSEL(RA_PSEL_GPT1, 4, 5) / RA_PSEL(RA_PSEL_GPT1, 4, 6)); Zephyr's own
-# pinctrl-ra.h only defines RA_PSEL_GPT0/GPT1 in this SDK version, so no other GPT
-# channel is routable yet regardless of pin.
+# (RA_PSEL(RA_PSEL_GPT1, 4, 5) / RA_PSEL(RA_PSEL_GPT1, 4, 6)).
 _PWM_PIN_MAP = {
     69: (0, 0),
     70: (0, 1),
