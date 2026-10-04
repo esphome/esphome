@@ -601,7 +601,7 @@ async def to_code(config: ConfigType) -> None:
 
     if (encryption_config := config.get(CONF_ENCRYPTION, None)) is not None:
         if key := encryption_config.get(CONF_KEY):
-            cg.add(var.set_noise_psk(new_psk_progmem(config[CONF_ID], key)))
+            cg.add(var.set_noise_psk(new_psk_progmem(key)))
             cg.add_define("USE_API_NOISE_PSK_FROM_YAML")
         else:
             # No key provided, but encryption desired
