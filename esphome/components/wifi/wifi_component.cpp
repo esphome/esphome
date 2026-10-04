@@ -888,8 +888,8 @@ void WiFiComponent::loop() {
         // them once nobody has used it for a while.
         if (this->ap_clients_ == 0 && now - this->ap_exclusive_changed_ > WIFI_AP_EXCLUSIVE_DWELL_MS)
           this->pause_exclusive_ap_();
-#endif
         break;
+#endif
       case WIFI_COMPONENT_STATE_OFF:
         break;
       case WIFI_COMPONENT_STATE_DISABLED:
