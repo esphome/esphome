@@ -205,11 +205,10 @@ class ZephyrVariant:
     # DO NOT assume "gpio" is safe for a new variant just because it's the default here
     # and every existing variant uses it. Before adding a new ZephyrVariant, grep that
     # SoC's actual .dtsi under the Zephyr SDK for "gpio-controller;" and read the node
-    # label a few lines above it -- then set this field to match. Getting it wrong is
-    # silent at compile time: DEVICE_DT_GET_OR_NULL() on a nonexistent node just resolves
-    # to nullptr, so every GPIO pin on the new variant fails at runtime with
-    # "gpio %u is not ready." instead of a build error (see the RA4M1 bug this comment
-    # is here because of).
+    # label a few lines above it -- then set this field to match. Getting it wrong fails
+    # every pin: at codegen when the board's devicetree is readable (gpio.py checks the
+    # node exists), otherwise at runtime with "gpio %u is not ready." (the RA4M1 bug
+    # this comment is here because of).
     gpio_node_prefix: str = "gpio"
     # ESPHome components this variant can actually support. Named after the
     # component/protocol, not the raw radio -- e.g. `openthread` and `zigbee` both need

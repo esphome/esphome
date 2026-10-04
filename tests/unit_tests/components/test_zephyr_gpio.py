@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
+from esphome.components.zephyr import dts_lookup
 from esphome.components.zephyr.const import KEY_ZEPHYR
 from esphome.components.zephyr.gpio import _validate_gpio_pin, pin_summary
 from esphome.components.zephyr.variants import VARIANTS
@@ -110,3 +113,50 @@ def test_pin_summary_uses_the_variants_own_notation(
 def test_pin_summary_falls_back_to_flat_for_port_past_the_last_letter() -> None:
     # EFR32MG24 has ports A-D (4 * 16 pins) -- pin 64 would be a fifth port.
     assert pin_summary(VARIANTS["EFR32MG24"], 64) == "GPIO64"
+
+
+# ---------------------------------------------------------------------------
+# Out-of-range flat pins
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("value", [200, "200", "GPIO200"])
+def test_flat_pin_past_last_lettered_port_rejected(value: int | str) -> None:
+    _set_zephyr_variant("STM32F4")  # ports a-h, 16 pins each
+    with pytest.raises(cv.Invalid, match="ports A-H"):
+        _validate_gpio_pin(value)
+
+
+def test_flat_pin_in_last_lettered_port_accepted() -> None:
+    _set_zephyr_variant("STM32F4")
+    assert _validate_gpio_pin(127) == 127  # PH15
+
+
+def test_flat_pin_not_port_checked_without_lettered_ports() -> None:
+    # Left to the devicetree check in zephyr_pin_to_code().
+    _set_zephyr_variant("ESP32")
+    assert _validate_gpio_pin(50) == 50
+
+
+def _fake_edt(*nodes: SimpleNamespace) -> SimpleNamespace:
+    return SimpleNamespace(scc_order=list(nodes))
+
+
+def _gpio_node(label: str, ngpios: int | None) -> SimpleNamespace:
+    props = {} if ngpios is None else {"ngpios": SimpleNamespace(val=ngpios)}
+    return SimpleNamespace(labels=[label], props=props)
+
+
+def test_get_gpio_port_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    edt = _fake_edt(_gpio_node("gpio0", None), _gpio_node("gpio1", 8))
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: edt)
+    assert dts_lookup.get_gpio_port_size("b", "gpio0") == 32  # binding default
+    assert dts_lookup.get_gpio_port_size("b", "gpio1") == 8
+    assert dts_lookup.get_gpio_port_size("b", "gpio2") == 0
+
+
+def test_get_gpio_port_size_unknown_without_dts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
+    assert dts_lookup.get_gpio_port_size("b", "gpio1") is None

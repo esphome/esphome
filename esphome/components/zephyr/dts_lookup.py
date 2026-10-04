@@ -85,6 +85,20 @@ def has_pinctrl_configured(board: str, label: str) -> bool:
     return False
 
 
+def get_gpio_port_size(board: str, label: str) -> int | None:
+    """Return how many pins the GPIO controller `label` has (0 if the board has no
+    such node), or None if the DTS is unavailable."""
+    edt = _get_edt(board)
+    if edt is None:
+        return None
+    node = next((n for n in _iter_nodes(edt) if label in n.labels), None)
+    if node is None:
+        return 0
+    ngpios = node.props.get("ngpios")
+    # 32 is the gpio-controller binding's documented default.
+    return ngpios.val if ngpios is not None else 32
+
+
 def board_has_pm_states(board: str) -> bool:
     """Return True if board's DTS declares a "zephyr,power-state" node -- the real
     per-board signal for whether CONFIG_PM does anything here, tracking each SoC's
