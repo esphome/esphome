@@ -19,10 +19,6 @@ RingBuffer::~RingBuffer() {
 }
 
 std::unique_ptr<RingBuffer> RingBuffer::create(size_t len, MemoryPreference preference) {
-  // A zero size is the only case where xRingbufferCreateStatic() rejects a byte buffer
-  if (len == 0) {
-    return nullptr;
-  }
   std::unique_ptr<RingBuffer> rb = make_unique<RingBuffer>();
 
   rb->size_ = len;
@@ -36,7 +32,12 @@ std::unique_ptr<RingBuffer> RingBuffer::create(size_t len, MemoryPreference pref
     return nullptr;
   }
 
-  xRingbufferCreateStatic(rb->size_, RINGBUF_TYPE_BYTEBUF, rb->storage_, &rb->structure_);
+  // handle_() assumes the returned handle is &structure_; NULL means the arguments were rejected
+  if (xRingbufferCreateStatic(rb->size_, RINGBUF_TYPE_BYTEBUF, rb->storage_, &rb->structure_) != rb->handle_()) {
+    allocator.deallocate(rb->storage_, rb->size_);
+    rb->storage_ = nullptr;
+    return nullptr;
+  }
   ESP_LOGD(TAG, "Created ring buffer with size %u", len);
 
   return rb;
