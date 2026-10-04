@@ -4,8 +4,10 @@ Focuses on verifying that long multi-byte (Chinese/CJK) glyph strings
 are correctly processed through the font configuration pipeline.
 """
 
+from collections.abc import Callable
 import functools
 from pathlib import Path
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -260,15 +262,12 @@ def mock_cg():
     with (
         patch("esphome.components.font.cg.add_define") as mock_define,
         patch("esphome.components.font.cg.progmem_array") as mock_progmem,
-        patch("esphome.components.font.cg.static_const_array") as mock_static,
         patch("esphome.components.font.cg.new_Pvariable") as mock_new_pvar,
     ):
         mock_progmem.return_value = MagicMock()
-        mock_static.return_value = MagicMock()
         yield {
             "add_define": mock_define,
             "progmem_array": mock_progmem,
-            "static_const_array": mock_static,
             "new_Pvariable": mock_new_pvar,
         }
 
@@ -288,13 +287,13 @@ async def test_to_code_long_latin_generates_all_glyphs(mock_cg):
     mock_cg["add_define"].assert_any_call("USE_FONT")
 
     # progmem_array receives the combined bitmap data (non-empty)
-    mock_cg["progmem_array"].assert_called_once()
-    bitmap_data = mock_cg["progmem_array"].call_args.args[1]
+    # bitmap data first, then the glyph table
+    assert mock_cg["progmem_array"].call_count == 2
+    bitmap_data = mock_cg["progmem_array"].call_args_list[0].args[1]
     assert len(bitmap_data) > 0
 
-    # static_const_array receives one entry per unique glyph
-    mock_cg["static_const_array"].assert_called_once()
-    glyph_initializer = mock_cg["static_const_array"].call_args.args[1]
+    # the glyph table receives one entry per unique glyph
+    glyph_initializer = mock_cg["progmem_array"].call_args_list[1].args[1]
     assert len(glyph_initializer) == glyph_count
 
     # new_Pvariable is called with the correct glyph count
@@ -314,7 +313,7 @@ async def test_to_code_glyph_entries_contain_expected_fields(mock_cg):
 
     await to_code(config)
 
-    glyph_initializer = mock_cg["static_const_array"].call_args.args[1]
+    glyph_initializer = mock_cg["progmem_array"].call_args_list[1].args[1]
     for entry in glyph_initializer:
         assert len(entry) == 7, f"Glyph entry should have 7 fields, got {len(entry)}"
         codepoint = entry[0]
@@ -332,6 +331,17 @@ async def test_to_code_glyphs_sorted_by_utf8(mock_cg):
 
     await to_code(config)
 
-    glyph_initializer = mock_cg["static_const_array"].call_args.args[1]
+    glyph_initializer = mock_cg["progmem_array"].call_args_list[1].args[1]
     codepoints = [entry[0] for entry in glyph_initializer]
     assert codepoints == sorted(codepoints)
+
+
+def test_glyph_table_is_progmem(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The constexpr glyph table goes to flash, not a RAM static const array."""
+    main_cpp = generate_main(component_config_path("glyph_table.yaml"))
+
+    assert re.search(r"static constexpr font::Glyph \w+\[\] PROGMEM = ", main_cpp)
+    assert "static const font::Glyph" not in main_cpp
