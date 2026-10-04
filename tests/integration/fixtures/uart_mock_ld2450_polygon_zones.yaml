@@ -72,18 +72,27 @@ uart_mock:
 ld2450:
   id: ld2450_dev
   uart_id: mock_uart
-  polygon_zones:
-    - polygon:
+
+text:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    polygon_zones:
+      - id: left_zone
         name: "Left Zone Polygon"
-      presence:
-        name: "Left Zone Presence"
-    - polygon:
+      - id: near_zone
         name: "Near Zone Polygon"
-      presence:
-        name: "Near Zone Presence"
-    - polygon:
+      - id: unset_zone
         name: "Unset Zone Polygon"
-      presence:
+
+binary_sensor:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    polygon_zones:
+      - polygon_zone_id: left_zone
+        name: "Left Zone Presence"
+      - polygon_zone_id: near_zone
+        name: "Near Zone Presence"
+      - polygon_zone_id: unset_zone
         name: "Unset Zone Presence"
 
 button:
