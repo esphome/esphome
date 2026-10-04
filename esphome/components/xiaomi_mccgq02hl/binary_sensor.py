@@ -66,12 +66,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_bindkey(config[CONF_BINDKEY]))
 
-    if CONF_OPEN in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_OPEN])
-        cg.add(var.set_open(sens))
-    if CONF_HAS_LIGHT in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_HAS_LIGHT])
-        cg.add(var.set_light(sens))
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
-        cg.add(var.set_battery_level(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_OPEN, var.set_open)
+    await binary_sensors(CONF_HAS_LIGHT, var.set_light)
