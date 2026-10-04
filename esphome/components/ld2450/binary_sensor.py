@@ -11,7 +11,8 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from . import CONF_LD2450_ID, LD2450Component
+from . import CONF_LD2450_ID, CONF_POLYGON_ZONE_ID, CONF_POLYGON_ZONES, LD2450Component
+from .text import PolygonZone
 
 DEPENDENCIES = ["ld2450"]
 
@@ -37,6 +38,15 @@ CONFIG_SCHEMA = {
         filters=[{"settle": cv.TimePeriod(milliseconds=1000)}],
         icon=ICON_MEDITATION,
     ),
+    cv.Optional(CONF_POLYGON_ZONES): cv.ensure_list(
+        binary_sensor.binary_sensor_schema(
+            device_class=DEVICE_CLASS_OCCUPANCY,
+        ).extend(
+            {
+                cv.Required(CONF_POLYGON_ZONE_ID): cv.use_id(PolygonZone),
+            }
+        )
+    ),
 }
 
 
@@ -46,3 +56,7 @@ async def to_code(config: ConfigType) -> None:
     await binary_sensors(CONF_HAS_TARGET, hub.set_target_binary_sensor)
     await binary_sensors(CONF_HAS_MOVING_TARGET, hub.set_moving_target_binary_sensor)
     await binary_sensors(CONF_HAS_STILL_TARGET, hub.set_still_target_binary_sensor)
+    for presence_conf in config.get(CONF_POLYGON_ZONES, []):
+        presence = await binary_sensor.new_binary_sensor(presence_conf)
+        zone = await cg.get_variable(presence_conf[CONF_POLYGON_ZONE_ID])
+        cg.add(zone.set_presence_binary_sensor(presence))
