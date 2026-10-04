@@ -13,7 +13,7 @@ class Scanner {
   bool at_end() const { return this->pos_ == this->end_; }
 
   void skip_spaces() {
-    while (this->pos_ != this->end_ && (*this->pos_ == ' ' || *this->pos_ == '\t'))
+    while (this->pos_ != this->end_ && *this->pos_ == ' ')
       this->pos_++;
   }
 

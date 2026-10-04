@@ -27,7 +27,7 @@ TEST(LD2450PolygonTest, ParseValid) {
 
 TEST(LD2450PolygonTest, ParseAllowsSpacesAndTrailingSeparator) {
   Polygon polygon;
-  ASSERT_TRUE(parse(polygon, " -1000 , 500 ; 1000,500;\t0,3000; "));
+  ASSERT_TRUE(parse(polygon, " -1000 , 500 ; 1000,500;  0,3000; "));
   EXPECT_EQ(format(polygon), "-1000,500;1000,500;0,3000");
 }
 
@@ -74,7 +74,16 @@ TEST(LD2450PolygonTest, ParseInvalidKeepsPreviousPolygon) {
   Polygon polygon;
   ASSERT_TRUE(parse(polygon, "-1000,500;1000,500;0,3000"));
   const char *invalid[] = {
-      "junk", "1,2;3", "1,2;3,4;5,", "1;2;3", "1,2 3,4 5,6", "1,2;;3,4;5,6", "--1,2;3,4;5,6", "1,2;3,4;5,6x",
+      "junk",
+      "1,2;3",
+      "1,2;3,4;5,",
+      "1;2;3",
+      "1,2 3,4 5,6",
+      "1,2;;3,4;5,6",
+      "--1,2;3,4;5,6",
+      "1,2;3,4;5,6x",
+      // Only spaces are allowed around numbers, as in the text entity's pattern
+      "1,2;\t3,4;5,6",
   };
   for (const char *str : invalid) {
     EXPECT_FALSE(parse(polygon, str)) << str;
