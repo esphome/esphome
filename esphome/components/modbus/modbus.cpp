@@ -6,6 +6,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#ifdef USE_MODBUS_TCP
+#include "mbap_link.h"
+#endif
 
 namespace esphome::modbus {
 
@@ -19,6 +22,40 @@ static constexpr uint32_t US_PER_MS = 1000;
 // Minimum interframe delay per the Modbus spec (fixed 1750us above 19200 baud)
 static constexpr uint32_t MODBUS_MIN_FRAME_DELAY_US = 1750;
 
+#ifdef USE_MODBUS_TCP
+// Called once from code generation, before setup().
+void Modbus::set_tcp(bool server) { this->tcp_ = new MbapLink(server); }
+#endif
+
+RtuTiming rtu_timing(uart::UARTComponent *uart) {
+  // RTU specifies 11 bits per character but 8N1 is 10, so derive it from the framing. The schema
+  // forbids a zero, so one here means the hub never set it (weikai): fall back to 8N1 and a 1 baud floor.
+  const uint8_t data_bits = uart->get_data_bits() != 0 ? uart->get_data_bits() : 8;
+  const uint8_t stop_bits = uart->get_stop_bits() != 0 ? uart->get_stop_bits() : 1;
+  const uint32_t baud_rate = std::max<uint32_t>(1u, uart->get_baud_rate());
+  RtuTiming timing{};
+  timing.bits_per_char =
+      static_cast<uint8_t>(1 + data_bits + (uart->get_parity() == uart::UART_CONFIG_PARITY_NONE ? 0 : 1) + stop_bits);
+
+  // 3.5 characters * bits per character * 1e6 us/sec / (bits/sec) (Standard modbus frame delay)
+  timing.frame_delay_us =
+      std::max(MODBUS_MIN_FRAME_DELAY_US, (uint32_t) (3.5 * timing.bits_per_char * US_PER_SEC / baud_rate) + 1);
+
+  // When rx_full_threshold is configured (non-zero), the UART has a hardware FIFO with a
+  // meaningful threshold (e.g., ESP32 native UART), so we can calculate a precise delay.
+  // Otherwise (e.g., USB UART), use 50ms to handle data arriving in chunks.
+  static constexpr uint32_t DEFAULT_LONG_RX_BUFFER_DELAY_US = 50 * US_PER_MS;
+  size_t rx_threshold = uart->get_rx_full_threshold();
+  timing.long_rx_buffer_delay_us = rx_threshold != uart::UARTComponent::RX_FULL_THRESHOLD_UNSET
+                                       ? (uint32_t) (rx_threshold * timing.bits_per_char * US_PER_SEC / baud_rate) + 1
+                                       : DEFAULT_LONG_RX_BUFFER_DELAY_US;
+
+  // The idle-timeout interrupt fires rx_timeout characters after the last byte, so that much silence
+  // has already passed by the time we read it: backdate so the gap measures silence on the wire.
+  timing.rx_detect_latency_us = (uint32_t) (uart->get_rx_timeout() * timing.bits_per_char * US_PER_SEC / baud_rate);
+  return timing;
+}
+
 // Diagnostics only: the backdated byte stamp can precede last_send_ (echo, or noise during our own
 // send), where an unsigned wrap would print ~4.29e9.
 static uint32_t us_since_send(uint32_t last_modbus_byte, uint32_t last_send) {
@@ -31,31 +68,22 @@ void Modbus::setup() {
     this->flow_control_pin_->setup();
   }
 
-  // RTU specifies 11 bits per character but 8N1 is 10, so derive it from the framing. The schema
-  // forbids a zero, so one here means the hub never set it (weikai): fall back to 8N1 and a 1 baud floor.
-  const uint8_t data_bits = this->parent_->get_data_bits() != 0 ? this->parent_->get_data_bits() : 8;
-  const uint8_t stop_bits = this->parent_->get_stop_bits() != 0 ? this->parent_->get_stop_bits() : 1;
-  const uint32_t baud_rate = std::max<uint32_t>(1u, this->parent_->get_baud_rate());
-  this->bits_per_char_ = static_cast<uint8_t>(
-      1 + data_bits + (this->parent_->get_parity() == uart::UART_CONFIG_PARITY_NONE ? 0 : 1) + stop_bits);
+  // A Modbus TCP stream is delimited by the MBAP length. The RTU gap and the baud rate do not apply.
+#ifdef USE_MODBUS_TCP
+  if (this->tcp_ != nullptr) {
+    this->frame_delay_us_ = 0;
+    this->long_rx_buffer_delay_us_ = 0;
+    this->rx_detect_latency_us_ = 0;
+    this->bits_per_char_ = 10;
+    return;
+  }
+#endif
 
-  // 3.5 characters * bits per character * 1e6 us/sec / (bits/sec) (Standard modbus frame delay)
-  this->frame_delay_us_ =
-      std::max(MODBUS_MIN_FRAME_DELAY_US, (uint32_t) (3.5 * this->bits_per_char_ * US_PER_SEC / baud_rate) + 1);
-
-  // When rx_full_threshold is configured (non-zero), the UART has a hardware FIFO with a
-  // meaningful threshold (e.g., ESP32 native UART), so we can calculate a precise delay.
-  // Otherwise (e.g., USB UART), use 50ms to handle data arriving in chunks.
-  static constexpr uint32_t DEFAULT_LONG_RX_BUFFER_DELAY_US = 50 * US_PER_MS;
-  size_t rx_threshold = this->parent_->get_rx_full_threshold();
-  this->long_rx_buffer_delay_us_ = rx_threshold != uart::UARTComponent::RX_FULL_THRESHOLD_UNSET
-                                       ? (uint32_t) (rx_threshold * this->bits_per_char_ * US_PER_SEC / baud_rate) + 1
-                                       : DEFAULT_LONG_RX_BUFFER_DELAY_US;
-
-  // The idle-timeout interrupt fires rx_timeout characters after the last byte, so that much silence
-  // has already passed by the time we read it: backdate so the gap measures silence on the wire.
-  this->rx_detect_latency_us_ =
-      (uint32_t) (this->parent_->get_rx_timeout() * this->bits_per_char_ * US_PER_SEC / baud_rate);
+  const RtuTiming timing = rtu_timing(this->parent_);
+  this->bits_per_char_ = timing.bits_per_char;
+  this->frame_delay_us_ = timing.frame_delay_us;
+  this->long_rx_buffer_delay_us_ = timing.long_rx_buffer_delay_us;
+  this->rx_detect_latency_us_ = timing.rx_detect_latency_us;
 }
 
 void Modbus::loop() {
@@ -144,6 +172,12 @@ int32_t ModbusClientHub::tx_delay_remaining() {
 }
 
 bool Modbus::tx_blocked() {
+  // Unread Modbus TCP stays in MbapLink, so a following request must not hold the reply back.
+#ifdef USE_MODBUS_TCP
+  if (this->tcp_ != nullptr) {
+    return !this->rx_buffer_.empty() || this->tx_delay_remaining() > MODBUS_TX_MAX_DELAY_US;
+  }
+#endif
   // Blocked while any rx bytes are pending, or within tx_delay of the last byte in either direction
   // (receivers must see our previous tx as done, and more rx may be coming). A remaining delay up to
   // MODBUS_TX_MAX_DELAY_US doesn't block - send_frame_ absorbs it instead of looping on small waits.
@@ -164,6 +198,12 @@ bool ModbusClientHub::tx_buffer_empty() {
 }
 
 void Modbus::receive_bytes_() {
+#ifdef USE_MODBUS_TCP
+  if (this->tcp_ != nullptr) {
+    this->receive_tcp_();
+    return;
+  }
+#endif
   this->last_receive_check_ = micros();
   size_t bytes = this->available();
 
@@ -187,6 +227,21 @@ void Modbus::receive_bytes_() {
     }
   }
 }
+
+#ifdef USE_MODBUS_TCP
+void Modbus::receive_tcp_() {
+  this->last_receive_check_ = micros();
+  this->tcp_->pump(this->parent_);
+  if (!this->tcp_->has_rtu()) {
+    return;
+  }
+  const size_t at = this->rx_buffer_.size();
+  this->rx_buffer_.resize(at + MAX_FRAME_SIZE);
+  const size_t n = this->tcp_->take_rtu(this->rx_buffer_.data() + at, MAX_FRAME_SIZE);
+  this->rx_buffer_.resize(at + n);
+  this->last_modbus_byte_ = this->last_receive_check_;
+}
+#endif
 
 void ModbusClientHub::parse_modbus_frames() {
   if (!this->rx_buffer_.empty()) {
@@ -614,6 +669,12 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
                                                    std::span<const uint8_t> data) {
   ModbusServerDevice *device = this->find_device_(address);
   if (device == nullptr) {
+#ifdef USE_MODBUS_TCP
+    // No other server shares a Modbus TCP link, so nothing will answer this request.
+    if (this->tcp_ != nullptr) {
+      return;
+    }
+#endif
     this->expecting_peer_response_ = address;
     ESP_LOGV(TAG, "Request to peer %" PRIu8 " received", address);
     return;
@@ -781,6 +842,14 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
 // Callers gate on tx_blocked() first, but the pre-send delay below can span several ms, so re-check
 // after it and refuse (return false) if a byte arrived in that window rather than transmit over it.
 bool Modbus::send_frame_(const ModbusFrame &frame) {
+#ifdef USE_MODBUS_TCP
+  if (this->tcp_ != nullptr) {
+    this->tcp_->send_rtu(this->parent_, frame.data.data(), frame.size());
+    this->last_send_tx_offset_ = 0;
+    this->last_send_ = micros();
+    return true;
+  }
+#endif
   int32_t tx_delay_remaining = this->tx_delay_remaining();
   if (tx_delay_remaining > 0) {
     // Yield the whole-ms part: delay() never blocks past the request on FreeRTOS, and only slightly
@@ -852,6 +921,16 @@ void ModbusClientHub::send_next_frame_() {
 }
 
 void ModbusClientHub::dump_config() {
+#ifdef USE_MODBUS_TCP
+  if (this->tcp_ != nullptr) {
+    ESP_LOGCONFIG(TAG,
+                  "Modbus:\n"
+                  "  Protocol: Modbus TCP\n"
+                  "  Send Wait Time: %" PRIu32 " ms",
+                  this->send_wait_time_us_ / US_PER_MS);
+    return;
+  }
+#endif
   ESP_LOGCONFIG(TAG,
                 "Modbus:\n"
                 "  Send Wait Time: %" PRIu32 " ms\n"
@@ -865,6 +944,13 @@ void ModbusClientHub::dump_config() {
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
 }
 void ModbusServerHub::dump_config() {
+#ifdef USE_MODBUS_TCP
+  if (this->tcp_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "Modbus:\n"
+                       "  Protocol: Modbus TCP");
+    return;
+  }
+#endif
   ESP_LOGCONFIG(TAG,
                 "Modbus:\n"
                 "  Frame Delay: %" PRIu32 " us\n"

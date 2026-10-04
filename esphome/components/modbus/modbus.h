@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/components/uart/uart.h"
 
 #include "esphome/components/modbus/modbus_definitions.h"
@@ -47,6 +48,19 @@ struct ModbusFrame {
   std::span<const uint8_t> pdu() const { return std::span<const uint8_t>(this->data.data() + 1, this->size() - 3u); }
 };
 
+#ifdef USE_MODBUS_TCP
+class MbapLink;
+#endif
+
+/// Modbus RTU timing of a UART, from its framing and buffering.
+struct RtuTiming {
+  uint32_t frame_delay_us;           // 3.5 characters, at least 1750 us
+  uint32_t long_rx_buffer_delay_us;  // a full receive FIFO, or 50 ms when the UART has no threshold
+  uint32_t rx_detect_latency_us;     // silence that has passed before received bytes can be read
+  uint8_t bits_per_char;
+};
+RtuTiming rtu_timing(uart::UARTComponent *uart);
+
 class Modbus : public uart::UARTDevice, public Component {
  public:
   Modbus() = default;
@@ -58,9 +72,16 @@ class Modbus : public uart::UARTDevice, public Component {
   virtual bool tx_blocked();
 
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
+#ifdef USE_MODBUS_TCP
+  // Modbus TCP on this UART. The hub still sees RTU. server selects who owns the transaction id.
+  void set_tcp(bool server);
+#endif
 
  protected:
   void receive_bytes_();
+#ifdef USE_MODBUS_TCP
+  void receive_tcp_();
+#endif
   bool timeout_();
   virtual int32_t tx_delay_remaining();
   virtual void parse_modbus_frames() = 0;
@@ -84,6 +105,10 @@ class Modbus : public uart::UARTDevice, public Component {
   bool exceeded_rx_full_threshold_{false};
 
   GPIOPin *flow_control_pin_{nullptr};
+#ifdef USE_MODBUS_TCP
+  // Only allocated when protocol is Modbus TCP. RTU hubs leave it null.
+  MbapLink *tcp_{nullptr};
+#endif
 
   std::vector<uint8_t> rx_buffer_;
 };

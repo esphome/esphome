@@ -1,0 +1,6 @@
+packages:
+  modbus: !include common-tcp.yaml
+
+wifi:
+  ssid: MySSID
+  password: password1

@@ -14,6 +14,7 @@ class FramingProbeHub : public ModbusClientHub {
  public:
   uint32_t bits_per_char() const { return this->bits_per_char_; }
   uint32_t frame_delay_us() const { return this->frame_delay_us_; }
+  uint32_t turnaround_us() const { return this->turnaround_delay_us_; }
 };
 
 class FramedUART : public NullUART {
@@ -59,6 +60,20 @@ TEST(ModbusFraming, FastBaudUsesSpecFloor) {
   hub.setup();
 
   EXPECT_EQ(hub.frame_delay_us(), 1750u);
+}
+
+// Modbus TCP is delimited by the MBAP length. A 9600 baud figure must not insert the RTU gap,
+// and the RTU turnaround default must not pace a TCP client.
+TEST(ModbusFraming, TcpDisablesTheRtuGap) {
+  FramedUART uart(9600, 8, 1, uart::UART_CONFIG_PARITY_NONE);
+  FramingProbeHub hub;
+  hub.set_uart_parent(&uart);
+  // Code generation sets no turnaround time for Modbus TCP; the schema rejects it.
+  hub.set_tcp(false);
+  hub.setup();
+
+  EXPECT_EQ(hub.frame_delay_us(), 0u);
+  EXPECT_EQ(hub.turnaround_us(), 0u);
 }
 
 }  // namespace esphome::modbus::testing

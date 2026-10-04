@@ -9,7 +9,15 @@ import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.const import CONF_ROLE
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, CONF_CONTINUOUS, CONF_FLOW_CONTROL_PIN, CONF_ID
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_CONTINUOUS,
+    CONF_FLOW_CONTROL_PIN,
+    CONF_ID,
+    CONF_PROTOCOL,
+    CONF_UART_ID,
+)
+from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
@@ -17,6 +25,7 @@ from esphome.types import ConfigType, TemplateArgsType
 
 _LOGGER = logging.getLogger(__name__)
 
+DOMAIN = "modbus"
 DEPENDENCIES = ["uart"]
 # Loading the hub makes the modbus_client.* actions available (they are registry entries only; no code is
 # generated unless a config uses one).
@@ -49,6 +58,8 @@ CONF_EXPECT_BROADCAST_WRITE_RESPONSE = "expect_broadcast_write_response"
 CONF_MODBUS_ID = "modbus_id"
 CONF_SEND_WAIT_TIME = "send_wait_time"
 CONF_TURNAROUND_TIME = "turnaround_time"
+
+_PROTOCOL = cv.one_of("modbus_rtu", "modbus_tcp", lower=True)
 
 MODBUS_ROLES = ["client", "server"]
 
@@ -267,33 +278,79 @@ async def register_templatable_command_options(
             )
 
 
-CONFIG_SCHEMA = cv.typed_schema(
-    {
-        "client": cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(ModbusClient),
-                cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
-                cv.Optional(
-                    CONF_SEND_WAIT_TIME, default="2000ms"
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_TURNAROUND_TIME, default="600ms"
-                ): cv.positive_time_period_milliseconds,
-            }
+def _tcp_has_no_flow_control(config: ConfigType) -> ConfigType:
+    if config.get(CONF_PROTOCOL) == "modbus_tcp" and CONF_FLOW_CONTROL_PIN in config:
+        raise cv.Invalid(
+            "flow_control_pin is a Modbus RTU pin and cannot be used with protocol: modbus_tcp",
+            [CONF_FLOW_CONTROL_PIN],
         )
-        .extend(cv.COMPONENT_SCHEMA)
-        .extend(uart.UART_DEVICE_SCHEMA),
-        "server": cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(ModbusServer),
-                cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
-            }
+    return config
+
+
+def _tcp_has_no_turnaround(config: ConfigType) -> ConfigType:
+    if config.get(CONF_PROTOCOL) == "modbus_tcp" and CONF_TURNAROUND_TIME in config:
+        raise cv.Invalid(
+            "turnaround_time is the Modbus RTU silent gap and cannot be used with protocol: modbus_tcp",
+            [CONF_TURNAROUND_TIME],
         )
-        .extend(cv.COMPONENT_SCHEMA)
-        .extend(uart.UART_DEVICE_SCHEMA),
-    },
-    key=CONF_ROLE,
-    default_type="client",
+    return config
+
+
+def _tcp_hub_owns_its_uart(config: ConfigType) -> ConfigType:
+    """A Modbus TCP hub reads its UART itself, so no other modbus hub can use that UART.
+
+    Grouped CI builds put many components on one test UART, so testing mode skips the check.
+    """
+    if config.get(CONF_PROTOCOL) != "modbus_tcp" or CORE.testing_mode:
+        return config
+    for hub in fv.full_config.get().get(DOMAIN, []):
+        if (
+            hub[CONF_ID] != config[CONF_ID]
+            and hub[CONF_UART_ID] == config[CONF_UART_ID]
+        ):
+            raise cv.Invalid(
+                "A Modbus TCP hub cannot share its UART with another modbus hub",
+                [CONF_UART_ID],
+            )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _tcp_hub_owns_its_uart
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.typed_schema(
+        {
+            "client": cv.Schema(
+                {
+                    cv.GenerateID(): cv.declare_id(ModbusClient),
+                    cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
+                    cv.Optional(
+                        CONF_SEND_WAIT_TIME, default="2000ms"
+                    ): cv.positive_time_period_milliseconds,
+                    cv.Optional(
+                        CONF_TURNAROUND_TIME
+                    ): cv.positive_time_period_milliseconds,
+                    cv.Optional(CONF_PROTOCOL, default="modbus_rtu"): _PROTOCOL,
+                }
+            )
+            .extend(cv.COMPONENT_SCHEMA)
+            .extend(uart.UART_DEVICE_SCHEMA),
+            "server": cv.Schema(
+                {
+                    cv.GenerateID(): cv.declare_id(ModbusServer),
+                    cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
+                    cv.Optional(CONF_PROTOCOL, default="modbus_rtu"): _PROTOCOL,
+                }
+            )
+            .extend(cv.COMPONENT_SCHEMA)
+            .extend(uart.UART_DEVICE_SCHEMA),
+        },
+        key=CONF_ROLE,
+        default_type="client",
+    ),
+    _tcp_has_no_flow_control,
+    _tcp_has_no_turnaround,
 )
 
 
@@ -304,13 +361,23 @@ async def to_code(config: ConfigType) -> None:
 
     await uart.register_uart_device(var, config)
 
+    if config.get(CONF_PROTOCOL, "modbus_rtu") == "modbus_tcp":
+        cg.add_define("USE_MODBUS_TCP")
+
     if CONF_FLOW_CONTROL_PIN in config:
         pin = await gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
         cg.add(var.set_flow_control_pin(pin))
 
+    if config.get(CONF_PROTOCOL, "modbus_rtu") == "modbus_tcp":
+        cg.add(var.set_tcp(config[CONF_ROLE] == "server"))
+
     if config[CONF_ROLE] == "client":
         cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
-        cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
+        if config.get(CONF_PROTOCOL, "modbus_rtu") != "modbus_tcp":
+            turnaround = config.get(
+                CONF_TURNAROUND_TIME, cv.positive_time_period_milliseconds("600ms")
+            )
+            cg.add(var.set_turnaround_time(turnaround))
 
 
 # The broadcast address (0) is delivered to every device and is never answered (Modbus 4.1),

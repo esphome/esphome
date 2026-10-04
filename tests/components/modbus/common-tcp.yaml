@@ -1,0 +1,17 @@
+tcp_uart:
+  - id: modbus_tcp_server_link
+    role: server
+    port: 5502
+  - id: modbus_tcp_meter_link
+    host: 192.0.2.50
+    port: 502
+
+modbus:
+  - id: modbus_tcp_client
+    uart_id: modbus_tcp_meter_link
+    protocol: modbus_tcp
+    send_wait_time: 1500ms
+  - id: modbus_tcp_server
+    uart_id: modbus_tcp_server_link
+    role: server
+    protocol: modbus_tcp
