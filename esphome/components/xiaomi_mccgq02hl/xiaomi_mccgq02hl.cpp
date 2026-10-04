@@ -33,7 +33,13 @@ static constexpr uint16_t OBJ_BATTERY = 0x100A;
 static constexpr uint16_t OBJ_BATTERY_ALT = 0x4803;
 
 void XiaomiMCCGQ02HL::dump_config() {
-  ESP_LOGCONFIG(TAG, "Xiaomi MCCGQ02HL");
+  uint8_t mac[MAC_ADDRESS_SIZE];
+  ble_device_base::uint64_to_mac_msb_first(this->address_, mac);
+  char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  ESP_LOGCONFIG(TAG,
+                "Xiaomi MCCGQ02HL\n"
+                "  MAC Address: %s",
+                format_mac_addr_upper(mac, mac_buf));
   LOG_BINARY_SENSOR("  ", "Opening", this);
   LOG_BINARY_SENSOR("  ", "Light", this->light_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
@@ -120,7 +126,9 @@ bool XiaomiMCCGQ02HL::parse_service_data_(const std::vector<uint8_t> &data, Read
     ESP_LOGW(TAG, "Decryption failed (%u-byte frame) -- check the bindkey.", (unsigned) size);
     return false;
   }
-  // Only an authenticated frame may advance the duplicate filter
+  // Only an authenticated frame may advance the duplicate filter. There is no replay protection: the
+  // counter is not persisted and restarts on a battery change, so a strictly increasing check could lock
+  // the sensor out until the next reboot.
   this->last_frame_count_ = frame_count;
   return this->parse_objects_(plaintext, size - offset - ENCRYPTED_TRAILER, reading);
 }
