@@ -13,7 +13,7 @@ import yaml
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError
 
-from .board_revision import parse_board_string, resolve_revision
+from .board_revision import default_revision, parse_board_string, resolve_revision
 from .const import (
     KEY_BOARD_ROOT,
     KEY_SHIELD_ROOT,
@@ -83,6 +83,20 @@ def has_pinctrl_configured(board: str, label: str) -> bool:
                 node = node.parent
             return False
     return False
+
+
+def get_gpio_port_size(board: str, label: str) -> int | None:
+    """Return how many pins the GPIO controller `label` has (0 if the board has no
+    such node), or None if the DTS is unavailable."""
+    edt = _get_edt(board)
+    if edt is None:
+        return None
+    node = next((n for n in _iter_nodes(edt) if label in n.labels), None)
+    if node is None:
+        return 0
+    ngpios = node.props.get("ngpios")
+    # 32 is the gpio-controller binding's documented default.
+    return ngpios.val if ngpios is not None else 32
 
 
 def board_has_pm_states(board: str) -> bool:
@@ -489,7 +503,7 @@ def resolve_uart_node_label(
         others = [v for k, v in mapping.items() if k != "UART0"]
         raise EsphomeError(
             f"Board '{board}' has no '{hw_uart}' -- besides its console "
-            f"({mapping['UART0']}), its DTS has {len(others)} other enabled "
+            f"({mapping['UART0']}), its DTS has {len(others)} other "
             f"UART(s): {others or 'none'}."
         )
     source = "board's zephyr,console, from DTS" if hw_uart == "UART0" else "from DTS"
@@ -618,7 +632,9 @@ def _build_edt(board: str, zephyr_base: Path, shields: list[str], snippets: list
 
     # A `board@revision` overlay is applied first so shields/snippets below can
     # still override anything it sets.
-    requested_revision = parse_board_string(board).revision
+    requested_revision = parse_board_string(board).revision or default_revision(
+        board_dir
+    )
     if requested_revision is not None:
         resolved_revision, declares_revisions = resolve_revision(
             board_dir, requested_revision

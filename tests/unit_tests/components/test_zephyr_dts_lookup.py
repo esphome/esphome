@@ -1287,6 +1287,32 @@ def test_get_edt_merges_revision_overlay_text(monkeypatch, tmp_path: Path) -> No
     assert "/* rev 2.0.0 */" not in seen_texts[0]
 
 
+def test_get_edt_merges_default_revision_overlay_without_suffix(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _revisioned_board_dir(tmp_path)
+
+    seen_texts: list[str] = []
+
+    def _fake_edt_ctor(path, bindings_dirs, **kwargs):
+        seen_texts.append(Path(path).read_text(encoding="utf-8"))
+        return object()
+
+    monkeypatch.setattr(dts_lookup, "_preprocess_dts_file", _fake_preprocess_dts_file)
+    monkeypatch.setattr(
+        dts_lookup,
+        "_load_edtlib",
+        lambda base: type("_FakeEdtlib", (), {"EDT": staticmethod(_fake_edt_ctor)}),
+    )
+
+    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    _get_edt("actinius_icarus/nrf9160/ns")
+
+    assert len(seen_texts) == 1
+    assert "/* rev 2.0.0 */" in seen_texts[0]
+    assert "/* rev 1.4.0 */" not in seen_texts[0]
+
+
 def test_get_edt_ignores_revision_when_board_has_none(
     monkeypatch, tmp_path: Path
 ) -> None:

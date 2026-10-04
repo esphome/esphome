@@ -48,9 +48,11 @@ _ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(
 _ADC_AIN_MAP = {p: f"IADC_INPUT_P{chr(ord('A') + p // 16)}{p % 16}" for p in range(64)}
 
 # https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/silabs/xg24-pinctrl.h
-# Full crossbar -- every PA0..PD15 pin has a macro for every signal, no exclusions
-# (unlike esp32). Shared by every free-mux GPIO signal (UART, SPI).
-_GPIO_MATRIX_PINS = frozenset(range(64))
+# Macros exist only for the pins xG24 has: PA0-9, PB0-5, PC0-9, PD0-5. Shared by every
+# free-mux GPIO signal (UART, SPI).
+_GPIO_MATRIX_PINS = frozenset(
+    [*range(10), *range(16, 22), *range(32, 42), *range(48, 54)]
+)
 
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_EFR32MG24

@@ -29,8 +29,8 @@ _DEFAULT_BOARD = "esp32c5_devkitc"
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA
 
 # https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/esp32c5-pinctrl.h
-# GPIO0-28, no gaps; same set for every free-mux GPIO-matrix signal (UART, SPI).
-_GPIO_MATRIX_PINS = frozenset(range(29))
+# GPIO0-28 minus 16-22 (SPI flash); same set for every free-mux signal (UART, SPI).
+_GPIO_MATRIX_PINS = frozenset(range(29)) - frozenset(range(16, 23))
 
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_ESP32_C5
@@ -47,10 +47,8 @@ VARIANT = ZephyrVariant(
     soc="esp32c5",
     qualifier="hpcore",
     swap_methods=frozenset({"scratch", "move", "direct", "offset"}),
-    # esp32c5_common.dtsi's adc0 node declares channel-count = <6> -- GPIO0-5 map directly
-    # to ADC1 channel 0-5 (devicetree channel@N address IS the real silicon channel, same
-    # as esp32_c6/esp32_h2).
-    adc1_channel_map={0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5},
+    # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32c5/include/soc/adc_channel.h
+    adc1_channel_map={1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5},
     uart_node_labels={},
     uart_valid_pins={"tx": _GPIO_MATRIX_PINS, "rx": _GPIO_MATRIX_PINS},
     spi_valid_pins={

@@ -21,7 +21,9 @@ def to_code(config: ConfigType) -> None:
 
     zephyr_add_prj_conf("CPP", True)
     zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
-    zephyr_add_prj_conf("FPU", True)
+    # STM32F1 is Cortex-M3, which has no FPU.
+    if zephyr_variant() != ZEPHYR_VARIANT_STM32F1:
+        zephyr_add_prj_conf("FPU", True)
     # random_bytes() uses sys_rand_get(), which requires the entropy subsystem.
     # STM32F4 is a whole chip family, not a single SoC -- RNG presence varies per
     # member (F401/F411 have none, F405/F410/F412 and larger do), so stm32f4.py

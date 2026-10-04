@@ -165,7 +165,17 @@ def test_validate_spi_config_rejects_invalid_esp32_miso_pin() -> None:
     CORE.data[KEY_ZEPHYR] = {"variant": "ESP32"}
     # GPIO34-39 are input-only on the original ESP32 -- valid for MISO, not for CLK.
     with pytest.raises(cv.Invalid, match="does not support SPI MISO"):
-        validate_spi_config([_spi_pin_conf(clk=6, miso=99)])
+        validate_spi_config([_spi_pin_conf(clk=18, miso=99)])
+
+
+@pytest.mark.parametrize(
+    ("variant", "pin"), [("ESP32", 6), ("ESP32C3", 12), ("ESP32C5", 16)]
+)
+def test_validate_spi_config_rejects_esp32_flash_pins(variant: str, pin: int) -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = {"variant": variant}
+    with pytest.raises(cv.Invalid, match="does not support SPI CLK"):
+        validate_spi_config([_spi_pin_conf(clk=pin)])
 
 
 def test_validate_spi_config_accepts_valid_nordic_pins() -> None:
@@ -227,3 +237,10 @@ def test_clk_pin_required_non_zephyr_requires_clk() -> None:
     value = {CONF_INTERFACE: "any"}
     with pytest.raises(cv.Invalid):
         _validate_clk_pin_required(value)
+
+
+def test_validate_spi_config_rejects_pin_missing_from_xg24() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = {"variant": "EFR32MG24"}
+    with pytest.raises(cv.Invalid, match="does not support SPI CLK"):
+        validate_spi_config([_spi_pin_conf(clk=10)])  # PA10

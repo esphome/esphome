@@ -72,9 +72,10 @@ def check_and_install(framework_path: Path, toolchain: str | None = None) -> Pat
         _LOGGER.debug("Zephyr SDK v%s already at %s", sdk_version, sdk_path)
         return sdk_path
 
-    # sdk_path already existing means the base SDK is intact, just a different
-    # toolchain/sentinel is missing -- don't wipe it, other toolchains may share this cache.
-    if not sdk_path.exists():
+    # Wipe only an unfinished extraction; an intact base is shared across toolchains.
+    base_marker = sdk_path / ".esphome_base_complete"
+    if not base_marker.exists():
+        shutil.rmtree(sdk_path, ignore_errors=True)
         machine = platform.machine().lower()
         if machine in ("x86_64", "amd64"):
             arch = "x86_64"
@@ -98,42 +99,34 @@ def check_and_install(framework_path: Path, toolchain: str | None = None) -> Pat
             "extension": "tar.xz",
         }
         _LOGGER.info("Downloading Zephyr SDK minimal v%s ...", sdk_version)
-        try:
-            # Downloaded next to the destination (not a temp dir) so an
-            # interrupted download's .part file resumes on the next run;
-            # extracted directly into sdk_path -- archive_extract_all strips
-            # the archive's single top-level wrapper directory automatically.
-            download_and_extract(
-                SDK_NG_MINIMAL_MIRRORS,
-                substitutions,
-                toolchains_dir / f"zephyr-sdk-{sdk_version}.minimal.archive",
-                sdk_path,
-                progress_header="Extracting",
-            )
-        except Exception:
-            # sdk_path isn't wiped on the happy path elsewhere (other
-            # toolchains may share it), so a failed/partial extraction must
-            # not leave it looking complete to the next run's existence check.
-            shutil.rmtree(sdk_path, ignore_errors=True)
-            raise
+        # Not a temp dir, so an interrupted download's .part file resumes next run.
+        download_and_extract(
+            SDK_NG_MINIMAL_MIRRORS,
+            substitutions,
+            toolchains_dir / f"zephyr-sdk-{sdk_version}.minimal.archive",
+            sdk_path,
+            progress_header="Extracting",
+        )
+        base_marker.touch()
 
     setup_script = sdk_path / "setup.sh"
-    if setup_script.exists():
-        if toolchain:
-            _LOGGER.info(
-                "Installing Zephyr SDK %s toolchain v%s ...", toolchain, sdk_version
-            )
-            setup_args = [str(setup_script), "-t", toolchain]
-        else:
-            _LOGGER.info("Installing Zephyr SDK host tools v%s ...", sdk_version)
-            setup_args = [str(setup_script), "-h"]
-        result = subprocess.run(
-            setup_args,
-            env={**os.environ, "ZEPHYR_SDK_INSTALL_DIR": str(sdk_path)},
-            check=False,
+    if not setup_script.exists():
+        raise RuntimeError(f"Zephyr SDK at {sdk_path} has no setup.sh")
+    if toolchain:
+        _LOGGER.info(
+            "Installing Zephyr SDK %s toolchain v%s ...", toolchain, sdk_version
         )
-        if result.returncode != 0:
-            raise RuntimeError(f"setup.sh failed with exit code {result.returncode}")
+        setup_args = [str(setup_script), "-t", toolchain]
+    else:
+        _LOGGER.info("Installing Zephyr SDK host tools v%s ...", sdk_version)
+        setup_args = [str(setup_script), "-h"]
+    result = subprocess.run(
+        setup_args,
+        env={**os.environ, "ZEPHYR_SDK_INSTALL_DIR": str(sdk_path)},
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"setup.sh failed with exit code {result.returncode}")
 
     sentinel.touch()
     return sdk_path

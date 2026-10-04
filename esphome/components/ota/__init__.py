@@ -119,7 +119,10 @@ def _ota_final_validate(config: ConfigType) -> None:
         if zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
             bootloader = zephyr_data()[KEY_BOOTLOADER]
             if bootloader != BOOTLOADER_MCUBOOT:
-                raise cv.Invalid(f"'{bootloader}' bootloader does not support OTA")
+                raise cv.Invalid(
+                    f"OTA requires the MCUboot bootloader (current: {bootloader or 'none'}); "
+                    f"set 'advanced: bootloader: {BOOTLOADER_MCUBOOT}'"
+                )
 
         if zephyr_data()[KEY_SINGLE_SLOT]:
             # No secondary slot to write into instead of the one currently executing --

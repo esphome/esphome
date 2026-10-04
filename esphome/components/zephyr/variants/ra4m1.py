@@ -36,34 +36,34 @@ _DEFAULT_BOARD = "ek_ra4m1"
 # MCUboot-shaped partition overlay.
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(BOOTLOADER_SCHEMA)
 
-# GPIO -> RA4M1 ADC channel name, from Renesas' RA4M1 Group Datasheet's Pin Lists
-# (100-pin LQFP column).
+# GPIO (port*16 + pin) -> RA4M1 ADC channel name, from Renesas' RA4M1 Group
+# Datasheet's Pin Lists (100-pin LQFP column).
 _ADC_AIN_MAP = {
-    0: "AN000",
-    1: "AN001",
-    2: "AN002",
-    3: "AN003",
-    4: "AN004",
-    5: "AN011",
-    6: "AN012",
-    7: "AN013",
-    8: "AN014",
-    16: "AN005",
-    17: "AN006",
-    18: "AN007",
-    19: "AN008",
-    20: "AN009",
-    21: "AN010",
-    256: "AN022",
-    257: "AN021",
-    258: "AN020",
-    259: "AN019",
-    1280: "AN016",
-    1281: "AN017",
-    1282: "AN018",
-    1283: "AN023",
-    1284: "AN024",
-    1285: "AN025",
+    0: "AN000",  # P000
+    1: "AN001",  # P001
+    2: "AN002",  # P002
+    3: "AN003",  # P003
+    4: "AN004",  # P004
+    5: "AN011",  # P005
+    6: "AN012",  # P006
+    7: "AN013",  # P007
+    8: "AN014",  # P008
+    10: "AN005",  # P010
+    11: "AN006",  # P011
+    12: "AN007",  # P012
+    13: "AN008",  # P013
+    14: "AN009",  # P014
+    15: "AN010",  # P015
+    16: "AN022",  # P100
+    17: "AN021",  # P101
+    18: "AN020",  # P102
+    19: "AN019",  # P103
+    80: "AN016",  # P500
+    81: "AN017",  # P501
+    82: "AN018",  # P502
+    83: "AN023",  # P503
+    84: "AN024",  # P504
+    85: "AN025",  # P505
 }
 
 # GPIO -> (index into pwm_node_labels, local channel A=0/B=1) for RA4M1's GPT-based
@@ -71,9 +71,7 @@ _ADC_AIN_MAP = {
 # numbers 4*16+5=69 and 4*16+6=70 under this variant's gpio_port_width=16 encoding
 # -- are wired to pwm1, the only PWM instance this codebase enables (see
 # pwm_node_labels below). Matches ek_ra4m1's own default pinctrl
-# (RA_PSEL(RA_PSEL_GPT1, 4, 5) / RA_PSEL(RA_PSEL_GPT1, 4, 6)); Zephyr's own
-# pinctrl-ra.h only defines RA_PSEL_GPT0/GPT1 in this SDK version, so no other GPT
-# channel is routable yet regardless of pin.
+# (RA_PSEL(RA_PSEL_GPT1, 4, 5) / RA_PSEL(RA_PSEL_GPT1, 4, 6)).
 _PWM_PIN_MAP = {
     69: (0, 0),
     70: (0, 1),

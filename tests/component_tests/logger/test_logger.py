@@ -111,3 +111,26 @@ def test_flash_log_strings_default_does_not_warn(
     generate_main("tests/component_tests/logger/test_logger.yaml")
 
     assert "esp8266_store_log_strings_in_flash" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("config", "define", "value"),
+    [
+        (
+            "test_logger_nrf52_usb_cdc.yaml",
+            "LOGGER_CDC_ACM_UART_LABEL",
+            "cdc_acm_uart0",
+        ),
+        ("test_logger_nrf52_uart0.yaml", "LOGGER_UART_NODE_LABEL", "uart0"),
+    ],
+)
+def test_nrf52_emits_logger_node_label(
+    config: str,
+    define: str,
+    value: str,
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """logger_zephyr.cpp only binds a device when this label is defined."""
+    generate_main(f"tests/component_tests/logger/{config}")
+    defines = {d.name: str(d.value) for d in CORE.defines}
+    assert defines.get(define) == value

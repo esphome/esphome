@@ -321,7 +321,7 @@ async def to_code(config: ConfigType) -> None:
                     #address-cells = <1>;
                     #size-cells = <0>;
 
-                    channel@{emul_channel_id} {{
+                    channel@{emul_channel_id:x} {{
                         reg = <{emul_channel_id}>;
                         zephyr,gain = "{gain}";
                         zephyr,reference = "ADC_REF_INTERNAL";
@@ -391,7 +391,7 @@ async def to_code(config: ConfigType) -> None:
                     #address-cells = <1>;
                     #size-cells = <0>;
 
-                    channel@{channel_id} {{
+                    channel@{channel_id:x} {{
                         reg = <{channel_id}>;
                         zephyr,gain = "{gain}";
                         zephyr,reference = "ADC_REF_INTERNAL";
@@ -424,7 +424,7 @@ async def to_code(config: ConfigType) -> None:
                     #address-cells = <1>;
                     #size-cells = <0>;
 
-                    channel@{channel_id} {{
+                    channel@{channel_id:x} {{
                         reg = <{channel_id}>;
                         zephyr,gain = "{gain}";
                         zephyr,reference = "ADC_REF_INTERNAL";
@@ -466,7 +466,7 @@ async def to_code(config: ConfigType) -> None:
                     #address-cells = <1>;
                     #size-cells = <0>;
 
-                    channel@{channel_id} {{
+                    channel@{channel_id:x} {{
                         reg = <{channel_id}>;
                         zephyr,gain = "ADC_GAIN_1_6";
                         zephyr,reference = "ADC_REF_INTERNAL";
@@ -512,7 +512,7 @@ async def to_code(config: ConfigType) -> None:
                     #address-cells = <1>;
                     #size-cells = <0>;
 
-                    channel@{channel_id} {{
+                    channel@{channel_id:x} {{
                         reg = <{channel_id}>;
                         zephyr,gain = "ADC_GAIN_1";
                         zephyr,reference = "ADC_REF_VDD_1";
@@ -565,7 +565,7 @@ async def to_code(config: ConfigType) -> None:
                     #size-cells = <0>;
                     silabs,adc-ref-voltage = <3300>;
 
-                    channel@{channel_id} {{
+                    channel@{channel_id:x} {{
                         reg = <{channel_id}>;
                         zephyr,gain = "ADC_GAIN_1";
                         zephyr,reference = "ADC_REF_INTERNAL";
@@ -618,7 +618,7 @@ async def to_code(config: ConfigType) -> None:
                     #address-cells = <1>;
                     #size-cells = <0>;
 
-                    channel@{channel_reg} {{
+                    channel@{channel_reg:x} {{
                         reg = <{channel_reg}>;
                         zephyr,gain = "ADC_GAIN_1";
                         zephyr,reference = "ADC_REF_INTERNAL";
@@ -680,7 +680,7 @@ async def to_code(config: ConfigType) -> None:
                     #address-cells = <1>;
                     #size-cells = <0>;
 
-                    channel@{channel_reg} {{
+                    channel@{channel_reg:x} {{
                         reg = <{channel_reg}>;
                         zephyr,gain = "ADC_GAIN_1";
                         zephyr,reference = "ADC_REF_INTERNAL";

@@ -53,9 +53,15 @@ def _make_framework(tmp_path: Path, sdk_version: str = "0.17.4") -> Path:
 
 
 def _fake_extract(archive, extract_dir, **kwargs) -> None:
-    """Stand-in for archive_extract_all(): real extraction creates extract_dir
-    (sdk_path) on disk, which sentinel.touch() then depends on."""
+    """The real minimal archive ships setup.sh, which check_and_install() requires."""
     Path(extract_dir).mkdir(parents=True, exist_ok=True)
+    (Path(extract_dir) / "setup.sh").touch()
+
+
+def _make_complete_base(sdk_path: Path) -> None:
+    sdk_path.mkdir(parents=True)
+    (sdk_path / "setup.sh").touch()
+    (sdk_path / ".esphome_base_complete").touch()
 
 
 @pytest.fixture
@@ -98,6 +104,7 @@ def test_check_and_install_downloads_when_sdk_path_missing(
     mock_download.assert_called_once()
     mock_extract.assert_called_once()
     assert result == sdk_path
+    assert (sdk_path / ".esphome_base_complete").exists()
     assert (sdk_path / ".esphome_complete_host").exists()
 
 
@@ -124,13 +131,11 @@ def test_check_and_install_reuses_sdk_path_for_a_second_toolchain(
     monkeypatch: pytest.MonkeyPatch,
     mock_sdk_download_ops,
 ) -> None:
-    """sdk_path already present (host tools installed) + a different toolchain's
-    sentinel missing -> the minimal archive isn't re-downloaded, only setup.sh runs."""
     monkeypatch.setenv("ESPHOME_SDK_ZEPHYR_PREFIX", str(tmp_path / "cache"))
     mock_download, mock_extract = mock_sdk_download_ops
     framework = _make_framework(tmp_path)
     sdk_path = _sdk_install_dir("0.17.4")
-    sdk_path.mkdir(parents=True)
+    _make_complete_base(sdk_path)
     (sdk_path / ".esphome_complete_host").touch()
 
     with patch("subprocess.run") as mock_subprocess_run:
@@ -142,14 +147,51 @@ def test_check_and_install_reuses_sdk_path_for_a_second_toolchain(
     assert (sdk_path / ".esphome_complete_riscv64-zephyr-elf").exists()
 
 
+def test_check_and_install_reextracts_partial_sdk_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_sdk_download_ops,
+) -> None:
+    monkeypatch.setenv("ESPHOME_SDK_ZEPHYR_PREFIX", str(tmp_path / "cache"))
+    mock_download, mock_extract = mock_sdk_download_ops
+    framework = _make_framework(tmp_path)
+    sdk_path = _sdk_install_dir("0.17.4")
+    sdk_path.mkdir(parents=True)
+    (sdk_path / "partial_leftover").touch()
+
+    with patch("subprocess.run") as mock_subprocess_run:
+        mock_subprocess_run.return_value.returncode = 0
+        check_and_install(framework, toolchain="riscv64-zephyr-elf")
+
+    mock_download.assert_called_once()
+    mock_extract.assert_called_once()
+    assert not (sdk_path / "partial_leftover").exists()
+    assert (sdk_path / ".esphome_base_complete").exists()
+    assert (sdk_path / ".esphome_complete_riscv64-zephyr-elf").exists()
+
+
+def test_check_and_install_raises_without_setup_script(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_sdk_download_ops,
+) -> None:
+    monkeypatch.setenv("ESPHOME_SDK_ZEPHYR_PREFIX", str(tmp_path / "cache"))
+    framework = _make_framework(tmp_path)
+    sdk_path = _sdk_install_dir("0.17.4")
+    _make_complete_base(sdk_path)
+    (sdk_path / "setup.sh").unlink()
+
+    with pytest.raises(RuntimeError, match="no setup.sh"):
+        check_and_install(framework, toolchain="riscv64-zephyr-elf")
+
+    assert not (sdk_path / ".esphome_complete_riscv64-zephyr-elf").exists()
+
+
 @pytest.mark.usefixtures("linux_host")
-def test_check_and_install_cleans_up_sdk_path_on_extract_failure(
+def test_check_and_install_no_base_marker_on_extract_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # A failed/partial extraction must not leave sdk_path looking complete to
-    # the next run's `if not sdk_path.exists()` check -- sdk_path is otherwise
-    # never wiped on the happy path since other toolchains may share it.
     monkeypatch.setenv("ESPHOME_SDK_ZEPHYR_PREFIX", str(tmp_path / "cache"))
     framework = _make_framework(tmp_path)
     sdk_path = _sdk_install_dir("0.17.4")
@@ -167,4 +209,4 @@ def test_check_and_install_cleans_up_sdk_path_on_extract_failure(
     ):
         check_and_install(framework, toolchain=None)
 
-    assert not sdk_path.exists()
+    assert not (sdk_path / ".esphome_base_complete").exists()

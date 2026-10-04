@@ -1,0 +1,14 @@
+esphome:
+  name: test
+
+zephyr:
+  variant: RA4M1
+  board: arduino_uno_r4@wifi
+
+sensor:
+  - platform: adc
+    pin: P014
+    name: A0
+  - platform: adc
+    pin: P100
+    name: A5

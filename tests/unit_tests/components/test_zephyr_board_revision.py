@@ -9,6 +9,7 @@ import pytest
 from esphome.components.zephyr.board_revision import (
     BoardParts,
     declared_revisions,
+    default_revision,
     parse_board_string,
     resolve_revision,
 )
@@ -77,6 +78,24 @@ def _write_board_yml(board_dir: Path, revision_yaml: str) -> None:
     (board_dir / "board.yml").write_text(
         "board:\n  name: my_board\n  vendor: acme\n" + revision_yaml
     )
+
+
+def test_default_revision_read_from_board_yml(tmp_path: Path) -> None:
+    _write_board_yml(
+        tmp_path,
+        "  revision:\n    format: letter\n    default: B\n    revisions:\n"
+        "      - name: A\n      - name: B\n",
+    )
+    assert default_revision(tmp_path) == "B"
+
+
+def test_default_revision_none_without_default(tmp_path: Path) -> None:
+    _write_board_yml(
+        tmp_path, "  revision:\n    format: number\n    revisions:\n      - name: '1'\n"
+    )
+    assert default_revision(tmp_path) is None
+    _write_board_yml(tmp_path, "")
+    assert default_revision(tmp_path) is None
 
 
 def test_resolve_revision_no_revision_block(tmp_path: Path) -> None:
