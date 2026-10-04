@@ -2,7 +2,7 @@
 
 #include "zephyr_can.h"
 
-#include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -125,7 +125,7 @@ void ZephyrCan::loop() {
 }
 
 void ZephyrCan::log_bus_state_() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_state_check_ < STATE_POLL_INTERVAL_MS) {
     return;
   }

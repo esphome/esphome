@@ -489,7 +489,7 @@ def resolve_uart_node_label(
         others = [v for k, v in mapping.items() if k != "UART0"]
         raise EsphomeError(
             f"Board '{board}' has no '{hw_uart}' -- besides its console "
-            f"({mapping['UART0']}), its DTS has {len(others)} other enabled "
+            f"({mapping['UART0']}), its DTS has {len(others)} other "
             f"UART(s): {others or 'none'}."
         )
     source = "board's zephyr,console, from DTS" if hw_uart == "UART0" else "from DTS"
