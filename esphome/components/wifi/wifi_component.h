@@ -303,7 +303,7 @@ class WiFiAP {
   bssid_t bssid_{};     // 6 bytes, all zeros = any/not set
   uint8_t channel_{0};  // 1 byte, 0 = auto/not set
   int8_t priority_{0};  // 1 byte
-  bool hidden_{false};  // 1 byte (+ 3 bytes end padding to 4-byte align)
+  bool hidden_{false};  // 1 byte; WiFiAP is byte aligned unless manual IP or EAP adds a 4 byte aligned member
 };
 
 class WiFiScanResult {
