@@ -53,8 +53,7 @@ def _make_framework(tmp_path: Path, sdk_version: str = "0.17.4") -> Path:
 
 
 def _fake_extract(archive, extract_dir, **kwargs) -> None:
-    """Stand-in for archive_extract_all(): creates sdk_path with the setup.sh the
-    real minimal archive ships."""
+    """The real minimal archive ships setup.sh, which check_and_install() requires."""
     Path(extract_dir).mkdir(parents=True, exist_ok=True)
     (Path(extract_dir) / "setup.sh").touch()
 
@@ -132,8 +131,6 @@ def test_check_and_install_reuses_sdk_path_for_a_second_toolchain(
     monkeypatch: pytest.MonkeyPatch,
     mock_sdk_download_ops,
 ) -> None:
-    """Complete base SDK (host tools installed) + a different toolchain's sentinel
-    missing -> the minimal archive isn't re-downloaded, only setup.sh runs."""
     monkeypatch.setenv("ESPHOME_SDK_ZEPHYR_PREFIX", str(tmp_path / "cache"))
     mock_download, mock_extract = mock_sdk_download_ops
     framework = _make_framework(tmp_path)
@@ -155,8 +152,6 @@ def test_check_and_install_reextracts_partial_sdk_path(
     monkeypatch: pytest.MonkeyPatch,
     mock_sdk_download_ops,
 ) -> None:
-    """sdk_path left without the base marker (e.g. extraction killed) is wiped and
-    extracted again, not treated as installed."""
     monkeypatch.setenv("ESPHOME_SDK_ZEPHYR_PREFIX", str(tmp_path / "cache"))
     mock_download, mock_extract = mock_sdk_download_ops
     framework = _make_framework(tmp_path)

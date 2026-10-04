@@ -189,9 +189,11 @@ def touch_1200_baud_reboot(port: str, timeout: float = 10.0) -> bool:
     opening its USB CDC serial port at 1200 baud -- the cross-ecosystem "magic baud
     rate" convention -- then waiting for it to re-enumerate in BOOTSEL mode.
     """
+    import os  # noqa: PLC0415
     import time  # noqa: PLC0415
 
     import serial  # noqa: PLC0415
+    from serial.tools.list_ports import comports  # noqa: PLC0415
 
     from esphome.util import get_serial_ports  # noqa: PLC0415
 
@@ -199,15 +201,19 @@ def touch_1200_baud_reboot(port: str, timeout: float = 10.0) -> bool:
     if picotool is None:
         return False
 
-    # Once triggered, BOOTSEL mode is anonymous -- picotool can't tell devices apart
-    # (no serial number/bus-address selection is used anywhere in this upload path), so
-    # there's no way to prove after the fact that whatever appears in BOOTSEL is really
-    # the board we touched, versus some other RP-family device on the system. The best
-    # available guard is refusing up front whenever more than one serial-capable
-    # candidate is present -- a device already sitting in raw BOOTSEL can't be counted
-    # here too, since detecting it requires `picotool info -d`, which is not reliable
-    # enough to depend on for a safety check (see upload_using_picotool()).
-    if len(get_serial_ports()) > 1:
+    # picotool can't tell BOOTSEL devices apart, so refuse while another board with the
+    # target's VID:PID is attached. A board already in BOOTSEL can't be detected here
+    # (`picotool info -d` isn't reliable enough).
+    ports = comports(include_links=True)
+    target = next((p for p in ports if p.device == port), None)
+    same_kind = {
+        os.path.realpath(p.device)
+        for p in ports
+        if target is not None
+        and target.vid is not None
+        and (p.vid, p.pid) == (target.vid, target.pid)
+    }
+    if len(same_kind) > 1:
         _LOGGER.error(
             "More than one RP2040/RP2350-capable device is connected. Disconnect all "
             "but the target device before uploading, or put the target into BOOTSEL "

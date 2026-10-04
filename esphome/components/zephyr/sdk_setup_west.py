@@ -72,8 +72,7 @@ def check_and_install(framework_path: Path, toolchain: str | None = None) -> Pat
         _LOGGER.debug("Zephyr SDK v%s already at %s", sdk_version, sdk_path)
         return sdk_path
 
-    # Other toolchains may share an intact base SDK, so only wipe one whose extraction
-    # never finished (interrupted, killed, or failed).
+    # Wipe only an unfinished extraction; an intact base is shared across toolchains.
     base_marker = sdk_path / ".esphome_base_complete"
     if not base_marker.exists():
         shutil.rmtree(sdk_path, ignore_errors=True)
@@ -100,9 +99,7 @@ def check_and_install(framework_path: Path, toolchain: str | None = None) -> Pat
             "extension": "tar.xz",
         }
         _LOGGER.info("Downloading Zephyr SDK minimal v%s ...", sdk_version)
-        # Downloaded next to the destination (not a temp dir) so an interrupted
-        # download's .part file resumes on the next run; archive_extract_all strips
-        # the archive's single top-level wrapper directory automatically.
+        # Not a temp dir, so an interrupted download's .part file resumes next run.
         download_and_extract(
             SDK_NG_MINIMAL_MIRRORS,
             substitutions,
