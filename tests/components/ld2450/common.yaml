@@ -3,6 +3,18 @@ ld2450:
     on_data:
       then:
         - logger.log: "LD2450 Radar Data Received"
+    polygon_zones:
+      - polygon:
+          name: Couch Zone Polygon
+        presence:
+          name: Couch Occupied
+      - polygon:
+          id: desk_zone_polygon
+          name: Desk Zone Polygon
+        presence:
+          name: Desk Occupied
+          filters:
+            - delayed_off: 1s
 
 button:
   - platform: ld2450
