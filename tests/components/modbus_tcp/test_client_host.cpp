@@ -123,4 +123,25 @@ TEST(ModbusTcpClient, TransactionWrapsToOne) {
   EXPECT_TRUE(link.pending());
 }
 
+TEST(ModbusTcpClient, FlushTimeoutKeepsTheTransaction) {
+  Pipe pipe;
+  pipe.flushed_ = esphome::uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  ClientLink link(&pipe);
+  link.write_array(RTU, sizeof(RTU));
+  EXPECT_TRUE(link.pending());
+  EXPECT_EQ(link.txn(), 1);
+  link.push(1, 1, RESPONSE_PDU, sizeof(RESPONSE_PDU));
+  EXPECT_GT(link.available(), 0u);
+}
+
+TEST(ModbusTcpClient, DisconnectDropsInFlight) {
+  Pipe pipe;
+  ClientLink link(&pipe);
+  link.loop();
+  link.arm(3);
+  pipe.up_ = false;
+  link.loop();
+  EXPECT_FALSE(link.pending());
+}
+
 }  // namespace

@@ -46,13 +46,20 @@ void ModbusTcp::clear_tx_() {
 }
 
 void ModbusTcp::loop() {
-  if (!this->is_connected()) {
+  bool up = this->is_connected();
+  if (!up) {
+    if (this->link_was_up_ && (this->txn_pending_ || this->tx_len_ != 0 || this->rx_len_ != 0 || this->tcp_len_ != 0)) {
+      ESP_LOGW(TAG, "%s", LOG_STR_ARG(LOG_STR("Link down, dropped the Modbus frame in flight")));
+    }
+    this->link_was_up_ = false;
+    this->drop_until_down_ = false;
     this->tcp_len_ = 0;
     this->clear_tx_();
     this->rx_len_ = 0;
     this->txn_pending_ = false;
     return;
   }
+  this->link_was_up_ = true;
   if (this->tx_len_ != 0 && !rtu_crc_ok(this->tx_, this->tx_len_)) {
     uint32_t now = App.get_loop_component_start_time();
     if (now - this->tx_partial_ms_ >= TX_PARTIAL_STALE_MS) {
@@ -138,13 +145,27 @@ uart::UARTFlushResult ModbusTcp::flush() {
 }
 
 void ModbusTcp::read_parent_() {
+  if (this->drop_until_down_) {
+    this->discard_parent_();
+    return;
+  }
   if (this->tcp_len_ != 0) {
     this->deliver_mbap_();
   }
+  if (this->drop_until_down_) {
+    this->discard_parent_();
+    return;
+  }
   size_t room = sizeof(this->tcp_buf_) - this->tcp_len_;
   if (room == 0) {
-    note_drop(this->last_drop_log_ms_, LOG_STR("TCP buffer full, dropped"));
-    this->tcp_len_ = 0;
+    Mbap frame;
+    size_t used = 0;
+    // A whole frame is waiting for the hub. Leave it, and do not read more.
+    if (take_mbap(this->tcp_buf_, this->tcp_len_, &frame, &used) == MbapTake::FRAME) {
+      return;
+    }
+    this->drop_stream_();
+    this->discard_parent_();
     return;
   }
   size_t have = this->parent_->available();
@@ -161,8 +182,11 @@ void ModbusTcp::read_parent_() {
 }
 
 void ModbusTcp::deliver_mbap_() {
+  if (this->drop_until_down_) {
+    this->tcp_len_ = 0;
+    return;
+  }
   // frame.pdu points into tcp_buf_. Copy it out before the tail slides.
-  bool noted_bad = false;
   uint16_t pos = 0;
   while (pos < this->tcp_len_) {
     Mbap frame;
@@ -172,11 +196,9 @@ void ModbusTcp::deliver_mbap_() {
         used = 0;
         break;
       case MbapTake::BAD:
-        if (!noted_bad) {
-          note_drop(this->last_drop_log_ms_, LOG_STR("Invalid MBAP header, resyncing"));
-          noted_bad = true;
-        }
-        break;
+        // No resync. A fresh CRC would make the hub accept bytes from the middle of a frame.
+        this->drop_stream_();
+        return;
       case MbapTake::FRAME: {
         if (this->server_) {
           // The hub has not read the last request. Leave this one where it is.
@@ -299,12 +321,30 @@ void ModbusTcp::send_rtu_as_mbap_() {
   this->parent_->write_array(frame, n);
   // tcp_uart may already have run this pass. Flush so the request leaves now.
   uart::UARTFlushResult sent = this->parent_->flush();
-  if (sent == uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED ||
-      sent == uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT) {
+  // TIMEOUT means the bytes are still queued on a link that is up. They leave later.
+  if (sent == uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED) {
     note_drop(this->last_drop_log_ms_, LOG_STR("Send failed"));
     if (!this->server_) {
       this->txn_pending_ = false;
     }
+  }
+}
+
+void ModbusTcp::drop_stream_() {
+  note_drop(this->last_drop_log_ms_, LOG_STR("Invalid MBAP, dropped until reconnect"));
+  this->tcp_len_ = 0;
+  this->drop_until_down_ = true;
+}
+
+void ModbusTcp::discard_parent_() {
+  uint8_t junk[32];
+  size_t left = this->parent_->available();
+  while (left != 0) {
+    size_t n = std::min(left, sizeof(junk));
+    if (!this->parent_->read_array(junk, n)) {
+      return;
+    }
+    left -= n;
   }
 }
 
