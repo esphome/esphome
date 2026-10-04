@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <initializer_list>
 #include <thread>
 
 #include "esphome/components/modbus_tcp/mbap.h"
@@ -55,14 +57,6 @@ class ServerLink : public esphome::modbus_tcp::ModbusTcp {
 
   void set_pipe(Pipe *pipe) { this->set_parent(pipe); }
 
-  void stage(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
-    uint8_t frame[32];
-    size_t n = esphome::modbus_tcp::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
-    ASSERT_GT(n, 0u);
-    std::memcpy(this->tcp_buf_ + this->tcp_len_, frame, n);
-    this->tcp_len_ += static_cast<uint16_t>(n);
-  }
-
   void push(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
     uint8_t frame[32];
     size_t n = esphome::modbus_tcp::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
@@ -73,6 +67,17 @@ class ServerLink : public esphome::modbus_tcp::ModbusTcp {
   }
 
   void hold_reply(uint8_t n) { this->tx_len_ = n; }
+  void expire() { this->request_ms_ -= REPLY_TIMEOUT_MS; }
+
+  // Writes an RTU frame with its CRC, the way the hub answers.
+  void answer(std::initializer_list<uint8_t> body) {
+    uint8_t frame[16];
+    std::copy(body.begin(), body.end(), frame);
+    uint16_t crc = esphome::crc16(frame, body.size());
+    frame[body.size()] = crc & 0xFF;
+    frame[body.size() + 1] = crc >> 8;
+    this->write_array(frame, body.size() + 2);
+  }
 
   uint16_t txn() const { return this->txn_; }
   bool pending() const { return this->txn_pending_; }
@@ -81,8 +86,9 @@ class ServerLink : public esphome::modbus_tcp::ModbusTcp {
 };
 
 const uint8_t PDU[] = {0x03, 0x00, 0x00, 0x00, 0x01};
+const uint8_t PDU_REG1[] = {0x03, 0x00, 0x01, 0x00, 0x01};
 
-TEST(ModbusTcpServer, UnansweredRequestIsReplaced) {
+TEST(ModbusTcpServer, UnansweredRequestIsReplacedWhenOverdue) {
   ServerLink link;
   link.push(7, 1, PDU, sizeof(PDU));
   ASSERT_TRUE(link.pending());
@@ -93,6 +99,10 @@ TEST(ModbusTcpServer, UnansweredRequestIsReplaced) {
 
   link.hold_reply(4);
   link.push(8, 1, PDU, sizeof(PDU));
+  EXPECT_EQ(link.txn(), 7);
+  EXPECT_EQ(link.available(), 0u);
+  link.expire();
+  link.deliver();
   EXPECT_EQ(link.txn(), 8);
   EXPECT_TRUE(link.pending());
   EXPECT_EQ(link.held(), 0);
@@ -106,38 +116,50 @@ TEST(ModbusTcpServer, UnreadRequestIsKept) {
   link.push(8, 1, PDU, sizeof(PDU));
   EXPECT_EQ(link.txn(), 7);
   EXPECT_EQ(link.available(), waiting);
-  uint8_t taken[16];
-  ASSERT_TRUE(link.read_array(taken, link.available()));
-  link.deliver();
-  EXPECT_EQ(link.txn(), 8);
-  EXPECT_EQ(link.available(), waiting);
 }
 
-TEST(ModbusTcpServer, SameSegmentComesOutOneAtATime) {
+TEST(ModbusTcpServer, PipelinedRequestsAreAnsweredInOrder) {
+  Pipe pipe;
   ServerLink link;
-  link.stage(7, 1, PDU, sizeof(PDU));
-  link.stage(8, 1, PDU, sizeof(PDU));
-  link.stage(9, 1, PDU, sizeof(PDU));
-  link.deliver();
-
-  uint16_t one = link.available();
-  EXPECT_EQ(one, sizeof(PDU) + 3);
-  EXPECT_EQ(link.txn(), 7);
-
+  link.set_pipe(&pipe);
+  pipe.feed_mbap(0x0B01, 1, PDU, sizeof(PDU));
+  pipe.feed_mbap(0x0B02, 1, PDU_REG1, sizeof(PDU_REG1));
+  link.loop();
   uint8_t taken[16];
-  ASSERT_TRUE(link.read_array(taken, one));
-  link.deliver();
-  EXPECT_EQ(link.txn(), 8);
-  EXPECT_EQ(link.available(), one);
-
-  ASSERT_TRUE(link.read_array(taken, one));
-  link.deliver();
-  EXPECT_EQ(link.txn(), 9);
-  EXPECT_EQ(link.available(), one);
-
-  ASSERT_TRUE(link.read_array(taken, one));
-  link.deliver();
+  ASSERT_TRUE(link.read_array(taken, link.available()));
+  // Read but not answered yet. The second request waits.
+  link.loop();
   EXPECT_EQ(link.available(), 0u);
+  link.answer({0x01, 0x03, 0x02, 0x12, 0x34});
+  link.loop();
+  ASSERT_EQ(link.available(), sizeof(PDU_REG1) + 3);
+  ASSERT_TRUE(link.read_array(taken, link.available()));
+  EXPECT_EQ(taken[3], 0x01);
+  link.answer({0x01, 0x03, 0x02, 0xBE, 0xEF});
+
+  const uint8_t want[] = {0x0B, 0x01, 0, 0, 0, 5, 1, 0x03, 0x02, 0x12, 0x34,
+                          0x0B, 0x02, 0, 0, 0, 5, 1, 0x03, 0x02, 0xBE, 0xEF};
+  ASSERT_EQ(pipe.n_, sizeof(want));
+  EXPECT_EQ(std::memcmp(pipe.buf_, want, sizeof(want)), 0);
+}
+
+TEST(ModbusTcpServer, OnlyAFrameFromTheRequestUnitAndFunctionIsTheReply) {
+  Pipe pipe;
+  ServerLink link;
+  link.set_pipe(&pipe);
+  link.push(0x0C02, 4, PDU_REG1, sizeof(PDU_REG1));
+  uint8_t taken[16];
+  ASSERT_TRUE(link.read_array(taken, link.available()));
+  // A late reply from unit 3, then a frame from unit 4 with another function.
+  link.answer({0x03, 0x03, 0x02, 0x12, 0x34});
+  link.answer({0x04, 0x06, 0x00, 0x01, 0x00, 0x55});
+  EXPECT_EQ(pipe.n_, 0u);
+  EXPECT_TRUE(link.pending());
+  // An exception reply keeps the function with its top bit set.
+  link.answer({0x04, 0x83, 0x02});
+  const uint8_t want[] = {0x0C, 0x02, 0, 0, 0, 3, 4, 0x83, 0x02};
+  ASSERT_EQ(pipe.n_, sizeof(want));
+  EXPECT_EQ(std::memcmp(pipe.buf_, want, sizeof(want)), 0);
 }
 
 TEST(ModbusTcpServer, ReplyWhileTheNewRequestIsBufferedIsDropped) {
@@ -145,6 +167,7 @@ TEST(ModbusTcpServer, ReplyWhileTheNewRequestIsBufferedIsDropped) {
   link.push(7, 1, PDU, sizeof(PDU));
   uint8_t taken[16];
   ASSERT_TRUE(link.read_array(taken, link.available()));
+  link.expire();
   link.push(8, 1, PDU, sizeof(PDU));
   ASSERT_GT(link.available(), 0u);
 

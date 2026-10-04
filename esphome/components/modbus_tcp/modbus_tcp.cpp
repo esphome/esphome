@@ -17,6 +17,8 @@ static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
 static constexpr uint32_t TX_PARTIAL_STALE_MS = 300;
 // A peer sends a whole frame and then waits. After this much quiet the next byte starts a frame.
 static constexpr uint32_t RESYNC_QUIET_US = 100000;
+// An exception reply sets the top bit of the request's function code.
+static constexpr uint8_t FUNCTION_CODE_MASK = 0x7F;
 
 static bool drop_log_due(uint32_t &last_ms) {
   uint32_t now = App.get_loop_component_start_time();
@@ -164,7 +166,7 @@ void ModbusTcp::read_parent_() {
     this->resync_ = false;
   }
   size_t room = sizeof(this->tcp_buf_) - this->tcp_len_;
-  // Any frame fits, so a full buffer starts with a whole frame the hub has not read. Leave it.
+  // Any frame fits, so a full buffer starts with a whole frame that waits for the hub. Leave it.
   if (room == 0) {
     return;
   }
@@ -213,12 +215,14 @@ void ModbusTcp::deliver_mbap_() {
       }
       case MbapTake::FRAME: {
         if (this->server_) {
-          // The hub has not read the last request. Leave this one where it is.
-          if (this->rx_len_ != 0) {
+          // One request at a time. This one stays here until the hub has read the last one and its reply went out,
+          // or the reply is overdue.
+          uint32_t now = App.get_loop_component_start_time();
+          if (this->rx_len_ != 0 || (this->txn_pending_ && now - this->request_ms_ < REPLY_TIMEOUT_MS)) {
             used = 0;
             break;
           }
-          // Handed on, and nothing has been sent back. The next request takes its place.
+          // No reply in time. The next request takes its place.
           if (this->txn_pending_) {
             if (this->tx_len_ != 0) {
               note_drop(this->drop_log_ms_[DROP_REPLACED], LOG_STR("Unanswered request replaced"));
@@ -240,6 +244,9 @@ void ModbusTcp::deliver_mbap_() {
           // Address 0 is a broadcast. Nothing answers it.
           if (frame.unit != 0) {
             this->txn_ = frame.txn;
+            this->unit_ = frame.unit;
+            this->function_ = frame.pdu[0];
+            this->request_ms_ = now;
             this->txn_pending_ = true;
           }
           break;
@@ -294,8 +301,9 @@ void ModbusTcp::send_rtu_as_mbap_() {
   }
   uint16_t txn;
   if (this->server_) {
-    if (!this->txn_pending_) {
-      note_drop(this->drop_log_ms_[DROP_NO_REQUEST], LOG_STR("Reply without a request, dropped"));
+    // A late reply to an earlier request, or one from another unit, must not take this request's id.
+    if (!this->txn_pending_ || this->tx_[0] != this->unit_ || (this->tx_[1] & FUNCTION_CODE_MASK) != this->function_) {
+      note_drop(this->drop_log_ms_[DROP_NO_REQUEST], LOG_STR("Reply without a matching request, dropped"));
       this->clear_tx_();
       return;
     }

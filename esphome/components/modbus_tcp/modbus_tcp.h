@@ -13,8 +13,8 @@ namespace esphome::modbus_tcp {
 
 /// RTU toward the modbus hub, Modbus TCP on a raw tcp_uart.
 /// Client: a response is delivered only when it carries that request's transaction id.
-/// Server: a request is delivered as one RTU frame, and the reply uses that id.
-/// One that the hub has not read yet stays in the TCP buffer. One it already read, and did not answer, is replaced.
+/// Server: one request at a time is delivered as one RTU frame, and the reply uses that id. The next stays in the
+/// TCP buffer until the reply went out or REPLY_TIMEOUT_MS passed. A reply must match the request's unit and function.
 /// A bad MBAP with a usable length is skipped. Without one, bytes are dropped until the peer has been quiet.
 class ModbusTcp : public uart::UARTComponent, public Component {
  public:
@@ -67,16 +67,23 @@ class ModbusTcp : public uart::UARTComponent, public Component {
   static constexpr size_t TCP_FRAME_SIZE = 260;
   // One RTU frame. The hub reads it before the next request, so nothing else is waiting.
   static constexpr size_t RTU_FRAME_SIZE = 256;
+  // Server: how long the next request waits for the reply to the current one.
+  static constexpr uint32_t REPLY_TIMEOUT_MS = 1000;
 
   tcp_uart::TcpUart *parent_{nullptr};
   uint32_t drop_log_ms_[DROP_KIND_COUNT]{};
   // When tx_ holds an unfinished frame. A later write can tell a pause from a copy still in progress.
   uint32_t tx_partial_ms_{0};
   uint32_t resync_from_us_{0};
+  // Server: when the open request was delivered.
+  uint32_t request_ms_{0};
   uint16_t txn_{0};
   uint16_t tcp_len_{0};
   uint16_t tx_len_{0};
   uint16_t rx_len_{0};
+  // Server: the open request's unit and function. Only a frame with both is its reply.
+  uint8_t unit_{0};
+  uint8_t function_{0};
   // Client: set after a request is sent. Server: set after a request is delivered.
   // txn_ starts at 0. For a client that is not a request. For a server it may be.
   bool txn_pending_{false};
