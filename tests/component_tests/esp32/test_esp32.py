@@ -89,6 +89,55 @@ def test_esp32_config(
 
 
 @pytest.mark.parametrize(
+    ("sdkconfig_options", "cpu_frequency", "warns"),
+    [
+        pytest.param(
+            {
+                "CONFIG_ESP32_DEFAULT_CPU_FREQ_160": "y",
+                "CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ": "160",
+            },
+            None,
+            True,
+            id="legacy-frequency-options-with-default",
+        ),
+        pytest.param(
+            {"CONFIG_ESP32_DEFAULT_CPU_FREQ_160": "y"},
+            "160MHz",
+            False,
+            id="explicit-cpu-frequency",
+        ),
+    ],
+)
+def test_legacy_cpu_frequency_sdkconfig_warning(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+    sdkconfig_options: dict[str, str],
+    cpu_frequency: str | None,
+    warns: bool,
+) -> None:
+    """Legacy SDK config frequency keys warn when ESPHome supplies its default."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    config: dict[str, Any] = {
+        "variant": VARIANT_ESP32,
+        "framework": {
+            "type": "esp-idf",
+            "sdkconfig_options": sdkconfig_options,
+        },
+    }
+    if cpu_frequency is not None:
+        config["cpu_frequency"] = cpu_frequency
+
+    with caplog.at_level(logging.WARNING):
+        config = CONFIG_SCHEMA(config)
+
+    assert ("legacy ESP32 CPU frequency setting" in caplog.text) is warns
+    if warns:
+        assert config["cpu_frequency"] == "240MHZ"
+
+
+@pytest.mark.parametrize(
     ("config_toolchain", "expected"),
     [
         # No `toolchain:` set -> the new default for esp32.

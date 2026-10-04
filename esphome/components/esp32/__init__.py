@@ -553,6 +553,18 @@ FULL_CPU_FREQUENCIES = set(itertools.chain.from_iterable(CPU_FREQUENCIES.values(
 def set_core_data(config):
     cpu_frequency = config.get(CONF_CPU_FREQUENCY, None)
     variant = config[CONF_VARIANT]
+    framework = config[CONF_FRAMEWORK]
+    if cpu_frequency is None and framework[CONF_TYPE] == FRAMEWORK_ESP_IDF:
+        sdkconfig_options = framework[CONF_SDKCONFIG_OPTIONS]
+        if any(
+            name.startswith("CONFIG_ESP32") and "_DEFAULT_CPU_FREQ_" in name
+            for name in sdkconfig_options
+        ):
+            _LOGGER.warning(
+                "ESP-IDF sdkconfig_options contains a legacy ESP32 CPU frequency setting, "
+                "but ESPHome's default cpu_frequency takes precedence. Set "
+                "'esp32.cpu_frequency' to the desired frequency instead."
+            )
     # if not specified in config, default to the maximum supported frequency
     # (ESP32-P4 engineering samples are limited to 360MHz, non-engineering can do 400MHz)
     if cpu_frequency is None:
