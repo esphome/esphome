@@ -59,4 +59,6 @@ def test_point_count_limits() -> None:
 def test_longest_polygon_fits_max_length() -> None:
     longest = ";".join(["-4860,7560"] * MAX_POLYGON_POINTS)
     assert re.fullmatch(POLYGON_PATTERN, longest)
-    assert len(longest) == POLYGON_MAX_LENGTH
+    assert len(longest) <= POLYGON_MAX_LENGTH
+    # MAX_POLYGON_POINTS is the most that always fits
+    assert len(longest + ";-4860,7560") > POLYGON_MAX_LENGTH
