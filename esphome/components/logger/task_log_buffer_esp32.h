@@ -68,7 +68,9 @@ class TaskLogBuffer {
   static constexpr size_t size() { return ESPHOME_TASK_LOG_BUFFER_SIZE; }
 
  private:
-  RingbufHandle_t ring_buffer_{nullptr};           // FreeRTOS ring buffer handle
+  // xRingbufferCreateStatic() returns the static structure itself as the handle
+  RingbufHandle_t handle_() { return &this->structure_; }
+
   StaticRingbuffer_t structure_;                   // Static structure for the ring buffer
   uint8_t storage_[ESPHOME_TASK_LOG_BUFFER_SIZE];  // Embedded in Logger (no separate heap allocation)
 
