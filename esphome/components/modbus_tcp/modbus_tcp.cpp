@@ -36,8 +36,10 @@ static void note_drop(uint32_t &last_ms, const LogString *message) {
 }
 
 void ModbusTcp::dump_config() {
-  ESP_LOGCONFIG(TAG, "Modbus TCP");
-  ESP_LOGCONFIG(TAG, "  Role: %s", this->server_ ? LOG_STR_LITERAL("server") : LOG_STR_LITERAL("client"));
+  ESP_LOGCONFIG(TAG,
+                "Modbus TCP:\n"
+                "  Role: %s",
+                this->server_ ? LOG_STR_LITERAL("server") : LOG_STR_LITERAL("client"));
 }
 
 bool ModbusTcp::is_connected() { return this->parent_ != nullptr && this->parent_->is_connected(); }
