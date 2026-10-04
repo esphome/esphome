@@ -10,6 +10,8 @@ Tests:
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Callable
 from pathlib import Path
 
 from aioesphomeapi import (
@@ -22,7 +24,7 @@ from aioesphomeapi import (
 )
 import pytest
 
-from .state_utils import InitialStateHelper, StateWaiter, require_entity
+from .state_utils import InitialStateHelper, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 LEFT_POLYGON = "-1000,800;0,800;0,1500;-1000,1500"
@@ -58,12 +60,21 @@ async def test_uart_mock_ld2450_polygon_zones(
         }
         presence_names = {info.key: name for name, info in presences.items()}
         presence_history: dict[str, list[bool]] = {name: [] for name in presences}
-        waiter = StateWaiter()
+        loop = asyncio.get_running_loop()
+        waits: list[tuple[Callable[[EntityState], bool], asyncio.Future]] = []
+
+        def expect(predicate: Callable[[EntityState], bool]) -> asyncio.Future:
+            """Arm a wait for the next state matching predicate."""
+            future = loop.create_future()
+            waits.append((predicate, future))
+            return future
 
         def on_state(state: EntityState) -> None:
             if isinstance(state, BinarySensorState) and state.key in presence_names:
                 presence_history[presence_names[state.key]].append(state.state)
-            waiter.on_state(state)
+            for predicate, future in waits:
+                if not future.done() and predicate(state):
+                    future.set_result(state)
 
         initial_state_helper = InitialStateHelper(entities)
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
@@ -77,12 +88,9 @@ async def test_uart_mock_ld2450_polygon_zones(
 
         async def set_polygon(name: str, value: str, expected: str) -> None:
             key = polygons[name].key
-            published = waiter.expect(
-                lambda s: isinstance(s, TextState) and s.key == key,
-                label=f"{name} polygon state",
-            )
+            published = expect(lambda s: isinstance(s, TextState) and s.key == key)
             client.text_command(key, value)
-            state = await published
+            state = await asyncio.wait_for(published, timeout=5.0)
             assert state.state == expected
 
         # Spaces and a trailing separator are accepted and removed
@@ -94,28 +102,25 @@ async def test_uart_mock_ld2450_polygon_zones(
         await set_polygon("near", "0,0;1000,0", NEAR_POLYGON)
         await set_polygon("near", "junk", NEAR_POLYGON)
 
-        left_cleared = waiter.expect(
+        left_cleared = expect(
             lambda s: (
                 isinstance(s, BinarySensorState)
                 and s.key == presences["left"].key
                 and s.state is False
-            ),
-            label="left zone cleared",
+            )
         )
-        near_cleared = waiter.expect(
+        near_cleared = expect(
             lambda s: (
                 isinstance(s, BinarySensorState)
                 and s.key == presences["near"].key
                 and s.state is False
-            ),
-            label="near zone cleared",
+            )
         )
 
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
-        await left_cleared
-        await near_cleared
+        await asyncio.wait_for(asyncio.gather(left_cleared, near_cleared), timeout=5.0)
 
         # Frame 1: (-500, 1000) is in the left zone and (200, 500) is in the near zone.
         # Frame 2: (300, 400) is in the near zone only, so only the left zone clears.
