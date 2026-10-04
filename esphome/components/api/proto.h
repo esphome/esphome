@@ -56,46 +56,35 @@ inline constexpr int64_t decode_zigzag64(uint64_t value) {
   return (value & 1) ? static_cast<int64_t>(~(value >> 1)) : static_cast<int64_t>(value >> 1);
 }
 
-/// Count number of varints in a packed buffer
-///
-/// A varint always ends on the first byte whose continuation bit (0x80) is clear, so the number
-/// of varints is the number of bytes without that bit, i.e. len minus the number of bytes with
-/// it. A trailing truncated varint (continuation bit set through the end of the buffer) is not
-/// counted, matching the wire format.
-///
-/// Continuation bits are counted a machine word at a time: for a word w, (w >> 7) & 0x01..01
-/// leaves 1 in every byte lane whose high bit was set. The lanes are accumulated in parallel and
-/// only folded together once per chunk of 255 words, the most a byte lane can hold without
-/// overflowing. Word loads are aligned first: unaligned word access is unsupported (Xtensa) or
-/// slow on the platforms ESPHome targets.
+/// Count number of varints in a packed buffer.
+/// Each byte without the continuation bit ends one varint, so count = len - bytes with 0x80 set.
+/// Continuation bits are summed a word at a time in per byte lanes; loads are aligned for Xtensa.
 inline uint16_t count_packed_varints(const uint8_t *data, size_t len) {
-  using word_t = size_t;  // natural machine word: 32-bit on MCUs, 64-bit on host builds
-  constexpr size_t WORD_SIZE = sizeof(word_t);
-  constexpr word_t LANE_ONES = static_cast<word_t>(~static_cast<word_t>(0) / 0xFF);  // 0x01..01
-  constexpr size_t MAX_CHUNK_WORDS = 255;  // a byte lane counts at most one per word
+  using word_t = size_t;
+  constexpr size_t word_size = sizeof(word_t);
+  constexpr word_t lane_ones = static_cast<word_t>(~static_cast<word_t>(0) / 0xFF);  // 0x01..01
+  constexpr size_t max_chunk_words = 255;  // a byte lane overflows after 255 words
   const uint8_t *end = data + len;
   size_t continuations = 0;
-  // Leading bytes before the first word boundary
-  while (data != end && (reinterpret_cast<uintptr_t>(data) & (WORD_SIZE - 1)) != 0) {
+  while (data != end && (reinterpret_cast<uintptr_t>(data) & (word_size - 1)) != 0) {
     continuations += *data++ >> 7;
   }
-  while (static_cast<size_t>(end - data) >= WORD_SIZE) {
-    size_t words = static_cast<size_t>(end - data) / WORD_SIZE;
-    if (words > MAX_CHUNK_WORDS)
-      words = MAX_CHUNK_WORDS;
-    const uint8_t *chunk_end = data + words * WORD_SIZE;
+  while (static_cast<size_t>(end - data) >= word_size) {
+    size_t words = static_cast<size_t>(end - data) / word_size;
+    if (words > max_chunk_words)
+      words = max_chunk_words;
+    const uint8_t *chunk_end = data + words * word_size;
     word_t lanes = 0;
     do {
       word_t word;
-      memcpy(&word, __builtin_assume_aligned(data, WORD_SIZE), WORD_SIZE);
-      lanes += (word >> 7) & LANE_ONES;
-      data += WORD_SIZE;
+      memcpy(&word, __builtin_assume_aligned(data, word_size), word_size);
+      lanes += (word >> 7) & lane_ones;
+      data += word_size;
     } while (data != chunk_end);
-    for (size_t shift = 0; shift < WORD_SIZE * 8; shift += 8) {
+    for (size_t shift = 0; shift < word_size * 8; shift += 8) {
       continuations += static_cast<size_t>(lanes >> shift) & 0xFFu;
     }
   }
-  // Trailing bytes after the last full word
   while (data != end) {
     continuations += *data++ >> 7;
   }

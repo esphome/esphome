@@ -8,8 +8,7 @@
 
 namespace esphome::api::testing {
 
-// Straightforward reference implementation: a varint ends on the first byte
-// without the continuation bit, so every such byte terminates one varint.
+// The original byte at a time implementation.
 static uint16_t reference_count(const uint8_t *data, size_t len) {
   uint16_t count = 0;
   while (len > 0) {
@@ -43,7 +42,6 @@ TEST(CountPackedVarints, MultiByteVarints) {
 }
 
 TEST(CountPackedVarints, TruncatedTrailingVarintIsNotCounted) {
-  // Last varint never terminates: only the first one counts.
   const uint8_t data[] = {0x05, 0x80, 0x80, 0x80};
   EXPECT_EQ(count_packed_varints(data, sizeof(data)), 1);
 }
@@ -54,8 +52,7 @@ TEST(CountPackedVarints, AllContinuationBytes) {
 }
 
 TEST(CountPackedVarints, EveryStartOffsetAndLength) {
-  // Word-at-a-time counting aligns the buffer first; cover every alignment and
-  // every length around the word boundaries.
+  // Cover every alignment and length around word boundaries.
   std::mt19937 rng(42);
   std::vector<uint8_t> buf(300);
   for (auto &byte : buf)
@@ -69,8 +66,7 @@ TEST(CountPackedVarints, EveryStartOffsetAndLength) {
 }
 
 TEST(CountPackedVarints, LongBufferCrossesChunkBoundary) {
-  // Longer than one accumulator chunk (255 words), so the parallel byte lanes
-  // get folded more than once.
+  // Longer than one 255 word chunk.
   std::mt19937 rng(7);
   std::vector<uint8_t> buf(5000);
   for (auto &byte : buf)
