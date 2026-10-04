@@ -331,6 +331,8 @@ void ModbusTcp::send_rtu_as_mbap_() {
 }
 
 void ModbusTcp::drop_stream_() {
+  // tcp_uart can close this socket. It already does on shutdown, and does not
+  // expose that call yet, so further bytes are discarded until the peer drops.
   note_drop(this->drop_log_ms_[DROP_BAD_MBAP], LOG_STR("Invalid MBAP, dropped until reconnect"));
   this->tcp_len_ = 0;
   this->drop_until_down_ = true;

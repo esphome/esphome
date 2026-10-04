@@ -14,7 +14,7 @@ namespace esphome::modbus_tcp {
 /// RTU toward the modbus hub, Modbus TCP on a raw tcp_uart.
 /// Client: a response is delivered only when it carries that request's transaction id.
 /// Server: a request is delivered as one RTU frame, and the reply uses that id.
-/// One the hub has not read yet stays in the TCP buffer. One it already read, and did not answer, is replaced.
+/// One that the hub has not read yet stays in the TCP buffer. One it already read, and did not answer, is replaced.
 class ModbusTcp : public uart::UARTComponent, public Component {
  public:
   ModbusTcp() { this->rx_buffer_size_ = RTU_FRAME_SIZE; }
