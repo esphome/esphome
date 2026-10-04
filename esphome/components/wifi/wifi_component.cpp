@@ -380,6 +380,19 @@ static constexpr uint8_t WIFI_RETRY_COUNT_PER_AP = 1;
 /// Cooldown duration in milliseconds after adapter restart or repeated failures
 /// Allows WiFi hardware to stabilize before next connection attempt
 static constexpr uint32_t WIFI_COOLDOWN_DURATION_MS = 500;
+#ifdef USE_WIFI_AP
+/// How long a fallback AP that failed to start waits before it is tried
+/// again, so a radio that refuses the mode is not asked on every loop.
+static constexpr uint32_t WIFI_AP_START_RETRY_MS = 30000;
+#endif
+#ifdef USE_WIFI_AP_EXCLUSIVE
+/// On a radio that cannot run the AP and STA together: how long the fallback
+/// AP stays up while nobody uses it before it pauses so the networks can be
+/// tried again, and how long new credentials give the portal to answer
+/// before the AP drops.
+static constexpr uint32_t WIFI_AP_EXCLUSIVE_DWELL_MS = 120000;
+static constexpr uint32_t WIFI_AP_EXCLUSIVE_HANDOVER_MS = 1000;
+#endif
 
 /// Cooldown duration when fallback AP is active and captive portal may be running
 /// Longer interval gives users time to configure WiFi without constant connection attempts
@@ -739,8 +752,11 @@ void WiFiComponent::start() {
     }
 #ifdef USE_CAPTIVE_PORTAL
     if (captive_portal::global_captive_portal != nullptr) {
+#ifndef USE_WIFI_AP_EXCLUSIVE
+      // The radio scans alongside the AP, so the portal can list networks.
       this->wifi_sta_pre_setup_();
       this->start_scanning();
+#endif
       captive_portal::global_captive_portal->start();
     }
 #endif
@@ -878,9 +894,23 @@ void WiFiComponent::loop() {
     provisioning_closed =
         provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed();
 #endif
+#ifdef USE_WIFI_AP_EXCLUSIVE
+    // The networks are not tried while the AP is up, so it pauses for them
+    // once nobody has used it for a while.
+    if (this->ap_setup_ && this->ap_clients_ == 0 && now - this->ap_exclusive_changed_ > WIFI_AP_EXCLUSIVE_DWELL_MS) {
+      this->pause_exclusive_ap_(now);
+    }
+#endif
     if (this->has_ap() && !this->ap_setup_ && !provisioning_closed) {
-      if (this->ap_timeout_ != 0 && (now - this->last_connected_ > this->ap_timeout_)) {
+      if (this->ap_timeout_ != 0 && (now - this->last_connected_ > this->ap_timeout_) &&
+          now - this->ap_start_attempted_ > WIFI_AP_START_RETRY_MS
+#ifdef USE_WIFI_AP_EXCLUSIVE
+          // After a pause the networks get a full ap_timeout of their own.
+          && now - this->ap_exclusive_changed_ > this->ap_timeout_
+#endif
+      ) {
         ESP_LOGI(TAG, "Starting fallback AP");
+        this->ap_start_attempted_ = now;
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL
         if (captive_portal::global_captive_portal != nullptr) {
@@ -972,7 +1002,12 @@ network::IPAddress WiFiComponent::get_dns_address(int num) {
 
 #ifdef USE_WIFI_AP
 void WiFiComponent::setup_ap_config_() {
+#ifdef USE_WIFI_AP_EXCLUSIVE
+  // The radio cannot run both, so STA goes off while the AP is up.
+  this->wifi_mode_(false, true);
+#else
   this->wifi_mode_({}, true);
+#endif
 
   if (this->ap_setup_)
     return;
@@ -1030,10 +1065,37 @@ void WiFiComponent::setup_ap_config_() {
   }
 #endif
 
+#ifdef USE_WIFI_AP_EXCLUSIVE
+  if (this->ap_setup_) {
+    this->ap_clients_ = 0;
+    this->ap_exclusive_changed_ = App.get_loop_component_start_time();
+    // The STA state machine waits until the AP pauses.
+    this->state_ = WIFI_COMPONENT_STATE_AP;
+  }
+#else
   if (!this->has_sta()) {
     this->state_ = WIFI_COMPONENT_STATE_AP;
   }
+#endif
 }
+
+#ifdef USE_WIFI_AP_EXCLUSIVE
+void WiFiComponent::pause_exclusive_ap_(uint32_t now) {
+  ESP_LOGI(TAG, "Pausing AP to try the networks");
+#ifdef USE_CAPTIVE_PORTAL
+  if (this->is_captive_portal_active_()) {
+    captive_portal::global_captive_portal->end();
+  }
+#endif
+  this->wifi_mode_(true, false);
+  this->ap_setup_ = false;
+  this->ap_exclusive_changed_ = now;
+  // As after an adapter restart: the STA state machine resumes from cooldown.
+  this->error_from_callback_ = false;
+  this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
+  this->skip_cooldown_next_cycle_ = true;
+}
+#endif
 
 void WiFiComponent::set_ap(const WiFiAP &ap) {
   this->ap_ = ap;
@@ -1126,6 +1188,17 @@ void WiFiComponent::save_wifi_sta(const char *ssid, const char *password) {
 }
 
 void WiFiComponent::connect_soon_() {
+#ifdef USE_WIFI_AP_EXCLUSIVE
+  // New credentials from the portal: the AP pauses for them once its answer
+  // is out, and the STA state machine picks them up from there.
+  if (this->ap_setup_) {
+    this->set_timeout(WIFI_AP_EXCLUSIVE_HANDOVER_MS, [this]() {
+      if (this->ap_setup_)
+        this->pause_exclusive_ap_(App.get_loop_component_start_time());
+    });
+    return;
+  }
+#endif
   // Only trigger retry if we're in cooldown - if already connecting/connected, do nothing
   if (this->state_ == WIFI_COMPONENT_STATE_COOLDOWN) {
     ESP_LOGD(TAG, "Exiting cooldown early due to new WiFi credentials");
