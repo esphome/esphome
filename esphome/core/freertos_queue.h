@@ -90,7 +90,9 @@ template<class T, uint8_t SIZE> class FreeRTOSQueue {
   StaticQueue_t queue_buf_;
   uint16_t dropped_count_;
 
-  // xQueueCreateStatic() returns the static queue structure itself as the handle
+  // xQueueCreateStatic() returns the static queue structure itself as the handle;
+  // its only other checks are asserts, and a zero length is the one we could hit
+  static_assert(SIZE > 0, "FreeRTOSQueue needs at least one slot");
   QueueHandle_t handle_() const {
     return reinterpret_cast<QueueHandle_t>(const_cast<StaticQueue_t *>(&this->queue_buf_));
   }
