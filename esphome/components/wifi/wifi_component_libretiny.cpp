@@ -28,6 +28,14 @@ extern "C" {
 }
 #endif
 
+#ifdef USE_LN882X
+#include <WiFiPrivate.h>
+// Its accessor macros would clash with ESPHome names.
+#undef DATA
+#undef pDATA
+#undef cDATA
+#endif
+
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -769,6 +777,14 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 #endif
 
   yield();
+
+#ifdef USE_LN882X
+  // LibreTiny's LN882H softAP() points the AP's bssid at a static array, then
+  // frees it on the next call; freeing a non-heap block trips FreeRTOS's
+  // configASSERT, which spins with interrupts off until the watchdog resets
+  // the chip. Clear it so that a second AP start frees nothing.
+  static_cast<WiFiData *>(WiFi.data)->ap.bssid = nullptr;
+#endif
 
   return WiFi.softAP(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
                      ap.has_channel() ? ap.get_channel() : 1, ap.get_hidden());
