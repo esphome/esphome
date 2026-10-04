@@ -35,7 +35,6 @@ static constexpr uint16_t OBJ_BATTERY_ALT = 0x4803;
 void XiaomiMCCGQ02HL::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi MCCGQ02HL");
   LOG_BINARY_SENSOR("  ", "Opening", this);
-  LOG_BINARY_SENSOR("  ", "Open", this->open_);
   LOG_BINARY_SENSOR("  ", "Light", this->light_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
@@ -62,11 +61,8 @@ bool XiaomiMCCGQ02HL::parse_device(const ble_device_base::ESPBTDevice &device) {
                                        : LOG_STR_LITERAL("-"),
              reading.battery_level.has_value() ? LOG_STR_LITERAL("updated") : LOG_STR_LITERAL("-"));
 
-    if (reading.open.has_value()) {
+    if (reading.open.has_value())
       this->publish_state(*reading.open);
-      if (this->open_ != nullptr)
-        this->open_->publish_state(*reading.open);
-    }
     if (reading.light.has_value() && this->light_ != nullptr)
       this->light_->publish_state(*reading.light);
     if (reading.battery_level.has_value() && this->battery_level_ != nullptr)
@@ -108,27 +104,25 @@ bool XiaomiMCCGQ02HL::parse_service_data_(const std::vector<uint8_t> &data, Read
     return false;
   }
 
-  const size_t offset = 5 + ((fc & FC_MAC_INCLUDED) ? 6 : 0) + ((fc & FC_CAPABILITY) ? 1 : 0);
-  bool found;
-  if (fc & FC_ENCRYPTED) {
-    if (size <= offset + ENCRYPTED_TRAILER || size - offset - ENCRYPTED_TRAILER > MAX_PAYLOAD_SIZE) {
-      ESP_LOGW(TAG, "Unsupported encrypted frame layout (fc=0x%02X, %u bytes).", fc, (unsigned) size);
-      return false;
-    }
-    uint8_t plaintext[MAX_PAYLOAD_SIZE];
-    if (!this->decrypt_(raw, size, offset, plaintext)) {
-      ESP_LOGW(TAG, "Decryption failed (%u-byte frame) -- check the bindkey.", (unsigned) size);
-      return false;
-    }
-    found = this->parse_objects_(plaintext, size - offset - ENCRYPTED_TRAILER, reading);
-  } else {
-    if (offset >= size)
-      return false;
-    found = this->parse_objects_(raw + offset, size - offset, reading);
+  // The bindkey is required, so plaintext frames are never trusted
+  if (!(fc & FC_ENCRYPTED)) {
+    ESP_LOGVV(TAG, "Ignoring unencrypted frame %u.", frame_count);
+    return false;
   }
-  // Only a frame that decrypted (or was plain) may advance the duplicate filter
+
+  const size_t offset = 5 + ((fc & FC_MAC_INCLUDED) ? 6 : 0) + ((fc & FC_CAPABILITY) ? 1 : 0);
+  if (size <= offset + ENCRYPTED_TRAILER || size - offset - ENCRYPTED_TRAILER > MAX_PAYLOAD_SIZE) {
+    ESP_LOGW(TAG, "Unsupported encrypted frame layout (fc=0x%02X, %u bytes).", fc, (unsigned) size);
+    return false;
+  }
+  uint8_t plaintext[MAX_PAYLOAD_SIZE];
+  if (!this->decrypt_(raw, size, offset, plaintext)) {
+    ESP_LOGW(TAG, "Decryption failed (%u-byte frame) -- check the bindkey.", (unsigned) size);
+    return false;
+  }
+  // Only an authenticated frame may advance the duplicate filter
   this->last_frame_count_ = frame_count;
-  return found;
+  return this->parse_objects_(plaintext, size - offset - ENCRYPTED_TRAILER, reading);
 }
 
 bool XiaomiMCCGQ02HL::parse_objects_(const uint8_t *payload, size_t length, Reading &reading) {

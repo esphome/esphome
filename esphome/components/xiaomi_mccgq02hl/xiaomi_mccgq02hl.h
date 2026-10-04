@@ -21,7 +21,6 @@ class XiaomiMCCGQ02HL final : public Component,
  public:
   void set_address(uint64_t address) { this->address_ = address; }
   void set_bindkey(const char *bindkey);
-  void set_open(binary_sensor::BinarySensor *open) { this->open_ = open; }
   void set_light(binary_sensor::BinarySensor *light) { this->light_ = light; }
   void set_battery_level(sensor::Sensor *battery_level) { this->battery_level_ = battery_level; }
 
@@ -44,7 +43,6 @@ class XiaomiMCCGQ02HL final : public Component,
   // Per instance, unlike xiaomi_ble's function-static counter which is shared
   // by every Xiaomi device on the node.
   optional<uint8_t> last_frame_count_;
-  binary_sensor::BinarySensor *open_{nullptr};
   binary_sensor::BinarySensor *light_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
 };

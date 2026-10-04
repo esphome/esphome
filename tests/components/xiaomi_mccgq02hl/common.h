@@ -8,6 +8,7 @@
 namespace esphome::xiaomi_mccgq02hl::testing {
 
 using Frame = std::array<uint8_t, 22>;
+using PlainFrame = std::array<uint8_t, 15>;
 
 static constexpr uint64_t ADDRESS = 0xE4AAEC010203ULL;
 static constexpr uint64_t OTHER_ADDRESS = 0xE4AAEC010204ULL;
@@ -40,7 +41,11 @@ static constexpr Frame BATTERY = {0x58, 0x59, 0x8b, 0x09, 0x07, 0x03, 0x02, 0x01
 static constexpr Frame BAD_MIC = {0x58, 0x59, 0x8b, 0x09, 0x01, 0x03, 0x02, 0x01, 0xec, 0xaa, 0xe4,
                                   0xe4, 0xd9, 0x75, 0x9f, 0x01, 0x00, 0x00, 0x7e, 0x61, 0x36, 0xb6};
 
-inline ble_device_base::ESPBTDevice advert(uint64_t address, const Frame &frame) {
+// OPEN sent without encryption (MAC included), which must be rejected
+static constexpr PlainFrame PLAINTEXT_OPEN = {0x50, 0x59, 0x8b, 0x09, 0x09, 0x03, 0x02, 0x01,
+                                              0xec, 0xaa, 0xe4, 0x19, 0x00, 0x01, 0x00};
+
+template<size_t N> ble_device_base::ESPBTDevice advert(uint64_t address, const std::array<uint8_t, N> &frame) {
   // Service data AD structure for UUID 0xFE95
   std::vector<uint8_t> adv = {static_cast<uint8_t>(frame.size() + 3), 0x16, 0x95, 0xFE};
   adv.insert(adv.end(), frame.begin(), frame.end());
@@ -56,14 +61,16 @@ struct Harness {
   Harness() {
     this->sensor.set_address(ADDRESS);
     this->sensor.set_bindkey(BINDKEY);
-    this->sensor.set_open(&this->open);
     this->sensor.set_light(&this->light);
     this->sensor.set_battery_level(&this->battery_level);
+    // The door sensor starts as "closed", so count changes to see whether anything was published
+    this->sensor.add_full_state_callback([this](optional<bool>, optional<bool>) { this->door_changes++; });
   }
 
   XiaomiMCCGQ02HL sensor;
-  binary_sensor::BinarySensor open, light;
+  binary_sensor::BinarySensor light;
   sensor::Sensor battery_level;
+  int door_changes{0};
 };
 
 }  // namespace esphome::xiaomi_mccgq02hl::testing

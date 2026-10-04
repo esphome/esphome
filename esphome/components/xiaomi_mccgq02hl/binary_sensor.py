@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BINDKEY,
+    CONF_LIGHT,
     CONF_MAC_ADDRESS,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_LIGHT,
@@ -13,9 +14,6 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 from esphome.types import ConfigType
-
-CONF_HAS_LIGHT = "has_light"
-CONF_OPEN = "open"
 
 AUTO_LOAD = ["ble_device_base", "sensor"]
 
@@ -36,10 +34,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Required(CONF_BINDKEY): cv.bind_key,
-            cv.Optional(CONF_OPEN): binary_sensor.binary_sensor_schema(
-                device_class=DEVICE_CLASS_OPENING
-            ),
-            cv.Optional(CONF_HAS_LIGHT): binary_sensor.binary_sensor_schema(
+            cv.Optional(CONF_LIGHT): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_LIGHT
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
@@ -67,5 +62,4 @@ async def to_code(config: ConfigType) -> None:
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
     binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_OPEN, var.set_open)
-    await binary_sensors(CONF_HAS_LIGHT, var.set_light)
+    await binary_sensors(CONF_LIGHT, var.set_light)
