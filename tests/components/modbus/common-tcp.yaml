@@ -1,4 +1,7 @@
 tcp_uart:
+  - id: modbus_tcp_forward_link
+    role: server
+    port: 502
   - id: modbus_tcp_server_link
     role: server
     port: 5502
@@ -15,3 +18,9 @@ modbus:
     uart_id: modbus_tcp_server_link
     role: server
     protocol: modbus_tcp
+  - id: modbus_tcp_forward
+    uart_id: modbus_tcp_forward_link
+    protocol: modbus_tcp
+    peer_id: ${forward_peer}
+    peer_protocol: ${forward_peer_protocol}
+    send_wait_time: 500ms

@@ -18,13 +18,16 @@ static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
 
 MbapLink::MbapLink(bool server) : role_(server ? Role::ROLE_SERVER : Role::ROLE_CLIENT) {}
 
-void log_throttled(uint32_t &last_ms, const LogString *message) {
+MbapLink::MbapLink(GatewayTag) : role_(Role::ROLE_GATEWAY) {}
+
+bool log_throttled(uint32_t &last_ms, const LogString *message) {
   uint32_t now = App.get_loop_component_start_time();
   if (last_ms != 0 && now - last_ms < DROP_LOG_INTERVAL_MS) {
-    return;
+    return false;
   }
   last_ms = now == 0 ? 1 : now;
   ESP_LOGW(TAG, "%s", LOG_STR_ARG(message));
+  return true;
 }
 
 void drain_uart(uart::UARTComponent *uart) {
@@ -57,6 +60,7 @@ void MbapLink::reset_() {
   this->skip_left_ = 0;
   this->resync_ = false;
   this->link_was_up_ = false;
+  this->phase_ = Phase::PHASE_IDLE;
 }
 
 void MbapLink::consume_(size_t used) {
@@ -113,6 +117,24 @@ bool MbapLink::skip_or_resync_(uart::UARTComponent *uart) {
   return this->skip_left_ == 0;
 }
 
+void MbapLink::clear_rx() {
+  this->tcp_len_ = 0;
+  this->rtu_len_ = 0;
+}
+
+bool MbapLink::write_tx_(uart::UARTComponent *uart, size_t n) {
+  const size_t chunk = std::min(n - this->tx_sent_, uart->available_for_write());
+  if (chunk != 0) {
+    uart->write_array(this->tx_ + this->tx_sent_, chunk);
+    this->tx_sent_ = static_cast<uint16_t>(this->tx_sent_ + chunk);
+  }
+  if (this->tx_sent_ < n) {
+    return false;
+  }
+  this->tx_sent_ = 0;
+  return true;
+}
+
 void MbapLink::flush_held_(uart::UARTComponent *uart) {
   if (this->held_len_ < 4) {
     return;
@@ -149,16 +171,9 @@ void MbapLink::flush_held_(uart::UARTComponent *uart) {
   }
   // A short queue takes the MBAP in pieces, the rest is sent from pump(). held_ and the id
   // do not change until the last piece, so encoding again gives the same bytes.
-  const size_t chunk = std::min(n - this->tx_sent_, uart->available_for_write());
-  if (chunk == 0) {
+  if (!this->write_tx_(uart, n)) {
     return;
   }
-  uart->write_array(this->tx_ + this->tx_sent_, chunk);
-  this->tx_sent_ = static_cast<uint16_t>(this->tx_sent_ + chunk);
-  if (this->tx_sent_ < n) {
-    return;
-  }
-  this->tx_sent_ = 0;
   uart::UARTFlushResult sent = uart->flush();
   // TIMEOUT means the bytes are still queued on a link that is up. They leave later.
   // FAILED drops the frame. The id is not committed, so a late response cannot match it.
@@ -184,16 +199,21 @@ void MbapLink::flush_held_(uart::UARTComponent *uart) {
 void MbapLink::pump(uart::UARTComponent *uart) {
   bool up = uart->is_connected();
   if (!up) {
-    if (this->link_was_up_ &&
-        (this->txn_pending_ || this->tcp_len_ != 0 || this->rtu_len_ != 0 || this->held_len_ != 0)) {
+    if (this->link_was_up_ && (this->txn_pending_ || this->phase_ != Phase::PHASE_IDLE || this->tcp_len_ != 0 ||
+                               this->rtu_len_ != 0 || this->held_len_ != 0)) {
       log_throttled(this->drop_other_ms_, LOG_STR("Link down, dropped the Modbus frame in flight"));
     }
     this->reset_();
     return;
   }
   this->link_was_up_ = true;
-  // A held frame, or the rest of one, is sent here.
-  this->flush_held_(uart);
+  // The endpoint sends a held frame, or the rest of one, here. A gateway caller retries send_gateway()
+  // itself. Only the rest of a gateway frame already started is sent here.
+  if (this->role_ != Role::ROLE_GATEWAY) {
+    this->flush_held_(uart);
+  } else if (this->tx_sent_ != 0) {
+    this->write_tx_(uart, mbap_announced_size(this->tx_, sizeof(this->tx_)));
+  }
   if (!this->skip_or_resync_(uart)) {
     return;
   }
@@ -213,6 +233,11 @@ void MbapLink::pump(uart::UARTComponent *uart) {
       return;
     }
     this->tcp_len_ += static_cast<uint16_t>(n);
+  }
+  // Gateway frames stay in tcp_buf_ until take_gateway(). Parsing here would decide
+  // request-versus-response before the forward hub has asked.
+  if (this->role_ == Role::ROLE_GATEWAY) {
+    return;
   }
   while (this->rtu_len_ == 0 && this->tcp_len_ != 0 && !this->resync_ && this->skip_left_ == 0) {
     if (!this->parse_(uart)) {
@@ -319,6 +344,133 @@ void MbapLink::send_rtu(uart::UARTComponent *uart, const uint8_t *rtu, size_t le
   std::memcpy(this->held_, rtu, len);
   this->held_len_ = static_cast<uint16_t>(len);
   this->flush_held_(uart);
+}
+
+bool MbapLink::take_gateway(uart::UARTComponent *uart, uint8_t *dst, size_t cap, uint16_t *out_len, uint16_t *txn,
+                            bool response) {
+  if (this->role_ != Role::ROLE_GATEWAY || this->resync_ || this->skip_left_ != 0) {
+    return false;
+  }
+  while (this->tcp_len_ != 0) {
+    Mbap frame;
+    size_t used = 0;
+    switch (take_mbap(this->tcp_buf_, this->tcp_len_, &frame, &used)) {
+      case MbapTake::MBAP_TAKE_NEED_MORE:
+        return false;
+      case MbapTake::MBAP_TAKE_BAD:
+        this->bad_mbap_(uart);
+        continue;
+      case MbapTake::MBAP_TAKE_FRAME:
+        break;
+    }
+    // A response is accepted only while this wire owes one, and only with that id.
+    // Anything else stays put so a later take can read it as a request.
+    if (response) {
+      if (this->phase_ != Phase::PHASE_AWAIT) {
+        return false;
+      }
+      if (frame.txn != this->txn_) {
+        this->note_txn_(frame.txn);
+        this->consume_(used);
+        continue;
+      }
+    } else if (this->phase_ == Phase::PHASE_AWAIT) {
+      return false;
+    } else {
+      // IDLE or OWE_REPLY: this is a new request, or it replaces the one not answered yet.
+      this->held_len_ = 0;
+      if (frame.unit != 0) {
+        this->txn_ = frame.txn;
+        this->phase_ = Phase::PHASE_OWE_REPLY;
+      } else {
+        this->phase_ = Phase::PHASE_IDLE;
+      }
+    }
+
+    size_t body = frame.pdu_len + 1;
+    bool delivered = false;
+    if (body + 2 > cap) {
+      log_throttled(this->drop_other_ms_, LOG_STR("RTU frame too long, dropped"));
+    } else {
+      dst[0] = response ? this->unit_ : frame.unit;
+      std::memcpy(dst + 1, frame.pdu, frame.pdu_len);
+      append_rtu_crc(dst, body);
+      *out_len = static_cast<uint16_t>(body + 2);
+      *txn = frame.txn;
+      delivered = true;
+    }
+    // A taken reply ends the exchange. A request that cannot be delivered owes nothing.
+    if (response || !delivered) {
+      this->phase_ = Phase::PHASE_IDLE;
+    }
+    this->consume_(used);
+    return delivered;
+  }
+  return false;
+}
+
+GatewayResult MbapLink::send_gateway(uart::UARTComponent *uart, const uint8_t *rtu, size_t len, bool as_response) {
+  if (this->role_ != Role::ROLE_GATEWAY || uart == nullptr || len < 4 || len > RTU_FRAME_SIZE) {
+    return GatewayResult::GATEWAY_RESULT_DROPPED;
+  }
+  if (!uart->is_connected() || this->resync_) {
+    log_throttled(this->drop_other_ms_, LOG_STR("Not connected, dropped the Modbus frame"));
+    if (as_response) {
+      this->phase_ = Phase::PHASE_IDLE;
+    }
+    return GatewayResult::GATEWAY_RESULT_DROPPED;
+  }
+  // tx_ still holds the rest of the last frame. pump() sends it first.
+  if (this->tx_sent_ != 0) {
+    return GatewayResult::GATEWAY_RESULT_LATER;
+  }
+  uint16_t txn;
+  if (as_response) {
+    if (this->phase_ != Phase::PHASE_OWE_REPLY) {
+      log_throttled(this->drop_other_ms_, LOG_STR("Reply without a request, dropped"));
+      return GatewayResult::GATEWAY_RESULT_DROPPED;
+    }
+    txn = this->txn_;
+  } else {
+    txn = this->txn_ == 0xFFFF ? 1 : static_cast<uint16_t>(this->txn_ + 1);
+  }
+  size_t n = write_mbap(this->tx_, sizeof(this->tx_), txn, rtu[0], rtu + 1, len - 3);
+  if (n == 0) {
+    log_throttled(this->drop_other_ms_, LOG_STR("Cannot encode the Modbus frame, dropped"));
+    if (as_response) {
+      this->phase_ = Phase::PHASE_IDLE;
+    }
+    return GatewayResult::GATEWAY_RESULT_DROPPED;
+  }
+  // Not committed. The caller keeps the frame and retries, and may replace it first.
+  if (uart->available_for_write() == 0) {
+    return GatewayResult::GATEWAY_RESULT_LATER;
+  }
+  // From the first byte on the frame is sent. pump() writes what the queue did not take.
+  this->write_tx_(uart, n);
+  uart::UARTFlushResult sent = uart->flush();
+  if (sent == uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED) {
+    log_throttled(this->drop_other_ms_, LOG_STR("Send failed"));
+    if (as_response) {
+      this->phase_ = Phase::PHASE_IDLE;
+      return GatewayResult::GATEWAY_RESULT_DROPPED;
+    }
+    // The bytes may still be on the wire. Own the id so a late reply is the reply.
+    // Address 0 is not answered, so it must not swallow the next request.
+    this->txn_ = txn;
+    this->unit_ = rtu[0];
+    this->phase_ = rtu[0] == 0 ? Phase::PHASE_IDLE : Phase::PHASE_AWAIT;
+    return GatewayResult::GATEWAY_RESULT_SENT;
+  }
+  if (as_response) {
+    this->phase_ = Phase::PHASE_IDLE;
+    return GatewayResult::GATEWAY_RESULT_SENT;
+  }
+  this->txn_ = txn;
+  this->unit_ = rtu[0];
+  // Address 0 consumes the id and is not waited on. The next request on this wire is a request.
+  this->phase_ = rtu[0] == 0 ? Phase::PHASE_IDLE : Phase::PHASE_AWAIT;
+  return GatewayResult::GATEWAY_RESULT_SENT;
 }
 
 }  // namespace esphome::modbus

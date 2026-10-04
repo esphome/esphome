@@ -1,2 +1,11 @@
+substitutions:
+  forward_peer: modbus_tcp_remote_link
+  forward_peer_protocol: modbus_tcp
+
 packages:
   modbus: !include common-tcp.yaml
+
+tcp_uart:
+  - id: modbus_tcp_remote_link
+    host: 192.0.2.60
+    port: 502

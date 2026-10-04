@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <thread>
 #include <vector>
@@ -10,9 +11,22 @@
 #include "esphome/components/modbus/mbap.h"
 #include "esphome/components/modbus/mbap_link.h"
 #include "esphome/components/modbus/modbus.h"
+#include "esphome/core/gpio.h"
 
 namespace esphome::modbus::testing {
 namespace {
+
+class DriverPin : public GPIOPin {
+ public:
+  void setup() override {}
+  void pin_mode(gpio::Flags flags) override {}
+  gpio::Flags get_flags() const override { return gpio::Flags::FLAG_NONE; }
+  bool digital_read() override { return this->level; }
+  void digital_write(bool value) override { this->level = value; }
+  size_t dump_summary(char *buffer, size_t len) const override { return snprintf(buffer, len, "driver"); }
+
+  bool level{false};
+};
 
 class Pipe : public NullUART {
  public:
@@ -34,11 +48,18 @@ class Pipe : public NullUART {
     this->rx.erase(this->rx.begin(), this->rx.begin() + static_cast<std::ptrdiff_t>(len));
     return true;
   }
-  void write_array(const uint8_t *data, size_t len) override { this->tx.insert(this->tx.end(), data, data + len); }
+  void write_array(const uint8_t *data, size_t len) override {
+    if (this->driver != nullptr) {
+      this->driver_on_at_write = this->driver->level;
+    }
+    this->tx.insert(this->tx.end(), data, data + len);
+  }
   uart::UARTFlushResult flush() override { return this->flushed; }
 
   bool up{true};
   size_t room{1024};
+  DriverPin *driver{nullptr};
+  bool driver_on_at_write{false};
   uart::UARTFlushResult flushed{uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS};
   std::vector<uint8_t> rx;
   std::vector<uint8_t> tx;
@@ -403,6 +424,555 @@ TEST(MbapLinkServer, BadLengthWaitsForAQuietStream) {
   push_mbap(&pipe, 9, 1, {0x03, 0x00, 0x00, 0x00, 0x01});
   EXPECT_GT(pull(&link, &pipe, taken, sizeof(taken)), 0u);
   EXPECT_EQ(link.txn(), 9);
+}
+
+void arm(ModbusForwardHub *hub, Pipe *local, Pipe *peer, bool local_tcp, bool peer_tcp) {
+  hub->set_uart_parent(local);
+  hub->set_peer(peer);
+  hub->set_local_tcp(local_tcp);
+  hub->set_peer_tcp(peer_tcp);
+  hub->setup();
+}
+
+TEST(ModbusForward, TcpRequestBecomesRtuAndTheResponseKeepsTheTransaction) {
+  Pipe link;
+  Pipe meter;
+  ModbusForwardHub hub;
+  arm(&hub, &link, &meter, true, false);
+  push_mbap(&link, 0x1234, 0x11, {0x03, 0x00, 0x00, 0x00, 0x01});
+  hub.loop();
+  ASSERT_EQ(meter.tx.size(), RTU_REQ.size());
+  EXPECT_EQ(meter.tx[0], 0x11);
+  EXPECT_EQ(meter.tx[1], 0x03);
+  EXPECT_TRUE(rtu_crc_ok(meter.tx.data(), meter.tx.size()));
+
+  auto rsp = rtu(0x11, {0x03, 0x02, 0x12, 0x34});
+  meter.rx.insert(meter.rx.end(), rsp.begin(), rsp.end());
+  hub.loop();
+  ASSERT_GE(link.tx.size(), 7u);
+  EXPECT_EQ(link.tx[0], 0x12);
+  EXPECT_EQ(link.tx[1], 0x34);
+  EXPECT_EQ(link.tx[6], 0x11);
+  EXPECT_EQ(link.tx[7], 0x03);
+  EXPECT_EQ(link.tx[8], 0x02);
+}
+
+TEST(ModbusForward, RtuRequestBecomesTcpAndAStaleTransactionIsDropped) {
+  Pipe meter;
+  Pipe link;
+  ModbusForwardHub hub;
+  arm(&hub, &meter, &link, false, true);
+  meter.rx.insert(meter.rx.end(), RTU_REQ.begin(), RTU_REQ.end());
+  hub.loop();
+  ASSERT_GE(link.tx.size(), 8u);
+  EXPECT_EQ(link.tx[0], 0x00);
+  EXPECT_EQ(link.tx[1], 0x01);
+  EXPECT_EQ(link.tx[6], 0x01);
+
+  push_mbap(&link, 9, 1, {0x03, 0x02, 0x00, 0x00});
+  hub.loop();
+  EXPECT_TRUE(meter.tx.empty());
+
+  // The RTU line must be silent for 3.5 characters (1.75 ms above 19200 baud) before the next frame.
+  std::this_thread::sleep_for(std::chrono::milliseconds(3));
+  push_mbap(&link, 1, 1, {0x03, 0x02, 0x12, 0x34});
+  hub.loop();
+  ASSERT_GE(meter.tx.size(), 5u);
+  EXPECT_EQ(meter.tx[0], 1);
+  EXPECT_EQ(meter.tx[1], 0x03);
+  EXPECT_EQ(meter.tx[2], 0x02);
+  EXPECT_TRUE(rtu_crc_ok(meter.tx.data(), meter.tx.size()));
+}
+
+TEST(ModbusForward, BroadcastIsForwardedAndNotWaitedOn) {
+  Pipe meter;
+  Pipe link;
+  ModbusForwardHub hub;
+  arm(&hub, &meter, &link, false, true);
+  auto broadcast = rtu(0x00, {0x06, 0x00, 0x01, 0x00, 0x02});
+  meter.rx.insert(meter.rx.end(), broadcast.begin(), broadcast.end());
+  meter.rx.insert(meter.rx.end(), RTU_REQ.begin(), RTU_REQ.end());
+  hub.loop();
+  EXPECT_EQ(link.tx[6], 0);
+  EXPECT_EQ(link.tx[1], 1);
+  size_t first = link.tx.size();
+  hub.loop();
+  EXPECT_GT(link.tx.size(), first);
+  EXPECT_EQ(link.tx[first + 6], 1);
+  EXPECT_EQ(link.tx[first + 1], 2);
+}
+
+TEST(ModbusForward, BadMbapFrameIsSkippedWithoutReconnect) {
+  Pipe link;
+  Pipe meter;
+  ModbusForwardHub hub;
+  arm(&hub, &link, &meter, true, false);
+  const uint8_t bad[] = {0x00, 0x01, 0x00, 0x01, 0x00, 0x06, 0x01, 0x03, 0x00, 0x00, 0x00, 0x01};
+  link.rx.insert(link.rx.end(), bad, bad + sizeof(bad));
+  push_mbap(&link, 3, 1, {0x03, 0x00, 0x00, 0x00, 0x01});
+  hub.loop();
+  hub.loop();
+  ASSERT_EQ(meter.tx.size(), RTU_REQ.size());
+  EXPECT_EQ(meter.tx[0], 1);
+}
+
+TEST(ModbusForward, ReadToAddressZeroIsNotBroadcast) {
+  Pipe link;
+  Pipe meter;
+  ModbusForwardHub hub;
+  arm(&hub, &link, &meter, true, false);
+  push_mbap(&link, 1, 0, {0x03, 0x00, 0x00, 0x00, 0x01});
+  hub.loop();
+  EXPECT_TRUE(meter.tx.empty());
+  push_mbap(&link, 2, 1, {0x03, 0x00, 0x00, 0x00, 0x01});
+  hub.loop();
+  ASSERT_EQ(meter.tx.size(), RTU_REQ.size());
+  EXPECT_EQ(meter.tx[0], 1);
+}
+
+TEST(ModbusForward, ReplyToABroadcastNeverReachesTheRtuBus) {
+  Pipe meter;
+  Pipe link;
+  ModbusForwardHub hub;
+  arm(&hub, &meter, &link, false, true);
+  auto broadcast = rtu(0x00, {0x06, 0x00, 0x01, 0x00, 0x02});
+  meter.rx.insert(meter.rx.end(), broadcast.begin(), broadcast.end());
+  hub.loop();
+  ASSERT_GE(link.tx.size(), 8u);
+  EXPECT_EQ(link.tx[6], 0);
+  // A server that answers a broadcast anyway.
+  push_mbap(&link, 1, 0, {0x06, 0x00, 0x01, 0x00, 0x02});
+  hub.loop();
+  hub.loop();
+  EXPECT_TRUE(meter.tx.empty());
+}
+
+TEST(ModbusForward, BroadcastOnRtuWaitsTheTurnaround) {
+  Pipe link;
+  Pipe meter;
+  ModbusForwardHub hub;
+  hub.set_turnaround_time(40);
+  arm(&hub, &link, &meter, true, false);
+  push_mbap(&link, 1, 0, {0x06, 0x00, 0x01, 0x00, 0x02});
+  push_mbap(&link, 2, 1, {0x03, 0x00, 0x00, 0x00, 0x01});
+  hub.loop();
+  ASSERT_EQ(meter.tx.size(), 8u);
+  EXPECT_EQ(meter.tx[0], 0);
+  meter.tx.clear();
+  hub.loop();
+  EXPECT_TRUE(meter.tx.empty());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  hub.loop();
+  ASSERT_EQ(meter.tx.size(), RTU_REQ.size());
+  EXPECT_EQ(meter.tx[0], 1);
+}
+
+TEST(ModbusForward, FlowControlPinsDriveBothRtuSides) {
+  Pipe client;
+  Pipe server;
+  DriverPin client_pin;
+  DriverPin server_pin;
+  client.driver = &client_pin;
+  server.driver = &server_pin;
+  ModbusForwardHub hub;
+  hub.set_flow_control_pin(&client_pin);
+  hub.set_peer_flow_control_pin(&server_pin);
+  arm(&hub, &client, &server, false, false);
+  client.rx.insert(client.rx.end(), RTU_REQ.begin(), RTU_REQ.end());
+  hub.loop();
+  ASSERT_EQ(server.tx.size(), RTU_REQ.size());
+  EXPECT_TRUE(server.driver_on_at_write);
+  EXPECT_FALSE(server_pin.level);
+  auto reply = rtu(0x01, {0x03, 0x02, 0x12, 0x34});
+  server.rx.insert(server.rx.end(), reply.begin(), reply.end());
+  // The RTU line must be silent for 3.5 characters (1.75 ms above 19200 baud) before the next frame.
+  std::this_thread::sleep_for(std::chrono::milliseconds(3));
+  hub.loop();
+  ASSERT_EQ(client.tx.size(), reply.size());
+  EXPECT_TRUE(client.driver_on_at_write);
+  EXPECT_FALSE(client_pin.level);
+}
+
+TEST(ModbusForward, AbandonedRequestWaitsForTheServerAndItsReplyIsDropped) {
+  Pipe meter;
+  Pipe link;
+  ModbusForwardHub hub;
+  arm(&hub, &meter, &link, false, false);
+  meter.rx.insert(meter.rx.end(), RTU_REQ.begin(), RTU_REQ.end());
+  hub.loop();
+  ASSERT_FALSE(link.tx.empty());
+  link.tx.clear();
+  // The client gave up and asks again. The server may still answer the first request.
+  auto next = rtu(0x01, {0x03, 0x00, 0x02, 0x00, 0x01});
+  meter.rx.insert(meter.rx.end(), next.begin(), next.end());
+  hub.loop();
+  EXPECT_TRUE(link.tx.empty());
+  auto late = rtu(0x01, {0x03, 0x02, 0xAA, 0xAA});
+  link.rx.insert(link.rx.end(), late.begin(), late.end());
+  // The first frame is still on the wire for the RTU gap. 5 ms is past that at 115200.
+  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  hub.loop();
+  EXPECT_TRUE(meter.tx.empty());
+  // The RTU line must be silent for 3.5 characters (1.75 ms above 19200 baud) before the next frame.
+  std::this_thread::sleep_for(std::chrono::milliseconds(3));
+  hub.loop();
+  ASSERT_EQ(link.tx.size(), next.size());
+  EXPECT_EQ(link.tx[3], 0x02);
+  auto reply = rtu(0x01, {0x03, 0x02, 0x00, 0x07});
+  link.rx.insert(link.rx.end(), reply.begin(), reply.end());
+  // The RTU line must be silent for 3.5 characters (1.75 ms above 19200 baud) before the next frame.
+  std::this_thread::sleep_for(std::chrono::milliseconds(3));
+  hub.loop();
+  ASSERT_EQ(meter.tx.size(), reply.size());
+  EXPECT_EQ(meter.tx[4], 0x07);
+}
+
+TEST(ModbusForward, PipelinedTcpRequestsAreAnsweredInOrder) {
+  Pipe link;
+  Pipe meter;
+  ModbusForwardHub hub;
+  arm(&hub, &link, &meter, true, false);
+  push_mbap(&link, 0x0B01, 0x01, {0x03, 0x00, 0x00, 0x00, 0x01});
+  push_mbap(&link, 0x0B02, 0x01, {0x03, 0x00, 0x01, 0x00, 0x01});
+  hub.loop();
+  ASSERT_EQ(meter.tx.size(), RTU_REQ.size());
+  EXPECT_EQ(meter.tx[3], 0x00);
+  meter.tx.clear();
+  hub.loop();
+  EXPECT_TRUE(meter.tx.empty());
+
+  auto first = rtu(0x01, {0x03, 0x02, 0x12, 0x34});
+  meter.rx.insert(meter.rx.end(), first.begin(), first.end());
+  hub.loop();
+  ASSERT_GE(link.tx.size(), 11u);
+  EXPECT_EQ(link.tx[0], 0x0B);
+  EXPECT_EQ(link.tx[1], 0x01);
+  EXPECT_EQ(link.tx[9], 0x12);
+  EXPECT_EQ(link.tx[10], 0x34);
+  link.tx.clear();
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  hub.loop();
+  ASSERT_EQ(meter.tx.size(), RTU_REQ.size());
+  EXPECT_EQ(meter.tx[3], 0x01);
+  auto second = rtu(0x01, {0x03, 0x02, 0x00, 0x07});
+  meter.rx.insert(meter.rx.end(), second.begin(), second.end());
+  hub.loop();
+  ASSERT_GE(link.tx.size(), 11u);
+  EXPECT_EQ(link.tx[1], 0x02);
+  EXPECT_EQ(link.tx[9], 0x00);
+  EXPECT_EQ(link.tx[10], 0x07);
+}
+
+TEST(ModbusForward, ReplyFromAnotherServerOrFunctionIsDropped) {
+  Pipe link;
+  Pipe meter;
+  ModbusForwardHub hub;
+  arm(&hub, &link, &meter, true, false);
+  push_mbap(&link, 7, 0x11, {0x03, 0x00, 0x00, 0x00, 0x01});
+  hub.loop();
+  auto other_server = rtu(0x22, {0x03, 0x02, 0x12, 0x34});
+  meter.rx.insert(meter.rx.end(), other_server.begin(), other_server.end());
+  hub.loop();
+  EXPECT_TRUE(link.tx.empty());
+  auto other_function = rtu(0x11, {0x04, 0x02, 0x12, 0x34});
+  meter.rx.insert(meter.rx.end(), other_function.begin(), other_function.end());
+  hub.loop();
+  EXPECT_TRUE(link.tx.empty());
+  auto exception = rtu(0x11, {0x83, 0x02});
+  meter.rx.insert(meter.rx.end(), exception.begin(), exception.end());
+  hub.loop();
+  ASSERT_EQ(link.tx.size(), 9u);
+  EXPECT_EQ(link.tx[1], 7);
+  EXPECT_EQ(link.tx[7], 0x83);
+  EXPECT_EQ(link.tx[8], 0x02);
+}
+
+TEST(ModbusForward, SilentServerGetsTcpClientException0B) {
+  Pipe link;
+  Pipe meter;
+  ModbusForwardHub hub;
+  hub.set_send_wait_time(20);
+  arm(&hub, &link, &meter, true, false);
+  push_mbap(&link, 0x0102, 0x11, {0x03, 0x00, 0x00, 0x00, 0x01});
+  hub.loop();
+  hub.loop();
+  EXPECT_TRUE(link.tx.empty());
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  hub.loop();
+  ASSERT_EQ(link.tx.size(), 9u);
+  EXPECT_EQ(link.tx[0], 0x01);
+  EXPECT_EQ(link.tx[1], 0x02);
+  EXPECT_EQ(link.tx[5], 3);
+  EXPECT_EQ(link.tx[6], 0x11);
+  EXPECT_EQ(link.tx[7], 0x83);
+  EXPECT_EQ(link.tx[8], 0x0B);
+}
+
+TEST(ModbusForward, SendWaitTimeEndsWhenTheReplyStarts) {
+  Pipe link;
+  Pipe meter;
+  meter.set_baud_rate(1200);
+  ModbusForwardHub hub;
+  // The wait ends 30 ms after the 8-byte request has left the wire (67 ms at 1200 baud).
+  hub.set_send_wait_time(30);
+  arm(&hub, &link, &meter, true, false);
+  push_mbap(&link, 0x0101, 0x01, {0x03, 0x00, 0x00, 0x00, 0x0A});
+  hub.loop();
+  ASSERT_FALSE(meter.tx.empty());
+  // A 25-byte reply starts before the wait ends and ends after it.
+  const auto reply = long_rtu({0x01, 0x03, 20}, 20);
+  std::this_thread::sleep_for(std::chrono::milliseconds(80));
+  for (size_t at = 0; at < reply.size(); at += 5) {
+    meter.rx.insert(meter.rx.end(), reply.begin() + at, reply.begin() + at + 5);
+    hub.loop();
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  hub.loop();
+  EXPECT_EQ(link.tx, as_mbap(0x0101, reply));
+
+  // A silent server still ends in exception 0B.
+  link.tx.clear();
+  std::this_thread::sleep_for(std::chrono::milliseconds(35));
+  push_mbap(&link, 0x0102, 0x01, {0x03, 0x00, 0x00, 0x00, 0x01});
+  hub.loop();
+  std::this_thread::sleep_for(std::chrono::milliseconds(110));
+  hub.loop();
+  ASSERT_EQ(link.tx.size(), 9u);
+  EXPECT_EQ(link.tx[7], 0x83);
+  EXPECT_EQ(link.tx[8], 0x0B);
+}
+
+TEST(ModbusForward, LateReplyIsNeverForwardedAsARequest) {
+  Pipe link;
+  Pipe meter;
+  ModbusForwardHub hub;
+  hub.set_send_wait_time(20);
+  arm(&hub, &link, &meter, true, false);
+  push_mbap(&link, 1, 0x11, {0x06, 0x00, 0x01, 0x00, 0x05});
+  hub.loop();
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  hub.loop();
+  ASSERT_EQ(link.tx.size(), 9u);
+  link.tx.clear();
+  meter.tx.clear();
+
+  auto late = rtu(0x11, {0x06, 0x00, 0x01, 0x00, 0x05});
+  meter.rx.insert(meter.rx.end(), late.begin(), late.end());
+  hub.loop();
+  EXPECT_TRUE(link.tx.empty());
+
+  // After the quiet time on the RTU bus the next request goes out and is answered.
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  push_mbap(&link, 2, 0x11, {0x03, 0x00, 0x00, 0x00, 0x01});
+  hub.loop();
+  ASSERT_EQ(meter.tx.size(), RTU_REQ.size());
+  EXPECT_EQ(meter.tx[0], 0x11);
+  auto reply = rtu(0x11, {0x03, 0x02, 0x12, 0x34});
+  meter.rx.insert(meter.rx.end(), reply.begin(), reply.end());
+  hub.loop();
+  ASSERT_GE(link.tx.size(), 11u);
+  EXPECT_EQ(link.tx[1], 2);
+  EXPECT_EQ(link.tx[9], 0x12);
+}
+
+TEST(ModbusForward, RtuClientGetsNothingWhenTheServerIsSilent) {
+  Pipe meter;
+  Pipe link;
+  ModbusForwardHub hub;
+  hub.set_send_wait_time(20);
+  arm(&hub, &meter, &link, false, false);
+  meter.rx.insert(meter.rx.end(), RTU_REQ.begin(), RTU_REQ.end());
+  hub.loop();
+  ASSERT_FALSE(link.tx.empty());
+  link.tx.clear();
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  hub.loop();
+  EXPECT_TRUE(meter.tx.empty());
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  meter.rx.insert(meter.rx.end(), RTU_REQ.begin(), RTU_REQ.end());
+  hub.loop();
+  EXPECT_EQ(link.tx.size(), RTU_REQ.size());
+}
+
+TEST(ModbusForward, TcpReplyTakesTheUnitOfTheRequest) {
+  Pipe meter;
+  Pipe link;
+  ModbusForwardHub hub;
+  arm(&hub, &meter, &link, false, true);
+  meter.rx.insert(meter.rx.end(), RTU_REQ.begin(), RTU_REQ.end());
+  hub.loop();
+  // The RTU line must be silent for 3.5 characters (1.75 ms above 19200 baud) before the next frame.
+  std::this_thread::sleep_for(std::chrono::milliseconds(3));
+  push_mbap(&link, 1, 0xFF, {0x03, 0x02, 0x12, 0x34});
+  hub.loop();
+  ASSERT_EQ(meter.tx.size(), 7u);
+  EXPECT_EQ(meter.tx[0], 0x01);
+  EXPECT_TRUE(rtu_crc_ok(meter.tx.data(), meter.tx.size()));
+}
+
+TEST(ModbusForward, BackToBackRtuFramesAreNotMerged) {
+  Pipe meter;
+  Pipe link;
+  ModbusForwardHub hub;
+  arm(&hub, &meter, &link, false, false);
+  auto second = rtu(0x01, {0x03, 0x00, 0x0A, 0x00, 0x01});
+  meter.rx.insert(meter.rx.end(), RTU_REQ.begin(), RTU_REQ.end());
+  meter.rx.insert(meter.rx.end(), second.begin(), second.end());
+  hub.loop();
+  EXPECT_EQ(link.tx.size(), RTU_REQ.size());
+}
+
+TEST(ModbusForward, RtuSecondWriteWaitsForTheGap) {
+  Pipe meter;
+  Pipe link;
+  meter.set_baud_rate(300);
+  link.set_baud_rate(300);
+  ModbusForwardHub hub;
+  arm(&hub, &meter, &link, false, false);
+  auto broadcast = rtu(0x00, {0x06, 0x00, 0x01, 0x00, 0x02});
+  meter.rx.insert(meter.rx.end(), broadcast.begin(), broadcast.end());
+  hub.loop();
+  ASSERT_FALSE(link.tx.empty());
+  link.tx.clear();
+  meter.rx.insert(meter.rx.end(), RTU_REQ.begin(), RTU_REQ.end());
+  hub.loop();
+  EXPECT_TRUE(link.tx.empty());
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  hub.loop();
+  ASSERT_FALSE(link.tx.empty());
+  EXPECT_EQ(link.tx[0], 1);
+}
+
+TEST(ModbusForward, TcpFlushFailedStillConsumesTheResponse) {
+  Pipe meter;
+  Pipe link;
+  link.flushed = uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
+  ModbusForwardHub hub;
+  arm(&hub, &meter, &link, false, true);
+  meter.rx.insert(meter.rx.end(), RTU_REQ.begin(), RTU_REQ.end());
+  hub.loop();
+  ASSERT_GE(link.tx.size(), 8u);
+  const uint16_t txn = (static_cast<uint16_t>(link.tx[0]) << 8) | link.tx[1];
+  link.tx.clear();
+  push_mbap(&link, static_cast<uint16_t>(txn + 5), 1, {0x03, 0x02, 0x00, 0x00});
+  hub.loop();
+  EXPECT_TRUE(meter.tx.empty());
+  // The RTU line must be silent for 3.5 characters (1.75 ms above 19200 baud) before the next frame.
+  std::this_thread::sleep_for(std::chrono::milliseconds(3));
+  push_mbap(&link, txn, 1, {0x03, 0x02, 0x12, 0x34});
+  hub.loop();
+  ASSERT_FALSE(meter.tx.empty());
+  EXPECT_EQ(meter.tx[1], 0x03);
+  EXPECT_TRUE(rtu_crc_ok(meter.tx.data(), meter.tx.size()));
+}
+
+TEST(ModbusForward, ReplaceWhileTheTcpQueueIsFull) {
+  Pipe meter;
+  Pipe link;
+  link.room = 0;
+  ModbusForwardHub hub;
+  arm(&hub, &meter, &link, false, true);
+  meter.rx.insert(meter.rx.end(), RTU_REQ.begin(), RTU_REQ.end());
+  hub.loop();
+  EXPECT_TRUE(link.tx.empty());
+  auto next = rtu(0x01, {0x03, 0x00, 0x02, 0x00, 0x01});
+  meter.rx.insert(meter.rx.end(), next.begin(), next.end());
+  hub.loop();
+  EXPECT_TRUE(link.tx.empty());
+  link.room = 1024;
+  hub.loop();
+  ASSERT_GE(link.tx.size(), 10u);
+  EXPECT_EQ(link.tx[0], 0x00);
+  EXPECT_EQ(link.tx[1], 0x01);
+  EXPECT_EQ(link.tx[9], 0x02);
+}
+
+TEST(ModbusForward, LongRequestLeavesWholeThroughAShortTcpQueue) {
+  Pipe meter;
+  Pipe link;
+  link.room = 32;
+  ModbusForwardHub hub;
+  arm(&hub, &meter, &link, false, true);
+  // FC16 with 60 registers: 133 bytes as MBAP.
+  const auto req = long_rtu({0x01, 0x10, 0x00, 0x00, 0x00, 60, 120}, 120);
+  meter.rx.insert(meter.rx.end(), req.begin(), req.end());
+  for (int i = 0; i < 8; i++) {
+    hub.loop();
+  }
+  EXPECT_EQ(link.tx, as_mbap(1, req));
+  // The RTU line must be silent for 3.5 characters (1.75 ms above 19200 baud) before the next frame.
+  std::this_thread::sleep_for(std::chrono::milliseconds(3));
+  push_mbap(&link, 1, 1, {0x10, 0x00, 0x00, 0x00, 60});
+  hub.loop();
+  EXPECT_EQ(meter.tx, rtu(0x01, {0x10, 0x00, 0x00, 0x00, 60}));
+}
+
+TEST(ModbusForward, LongReplyLeavesWholeBeforeTheNextReply) {
+  Pipe link;
+  Pipe meter;
+  link.room = 32;
+  ModbusForwardHub hub;
+  arm(&hub, &link, &meter, true, false);
+  push_mbap(&link, 0x0B01, 0x01, {0x03, 0x00, 0x00, 0x00, 0x7D});
+  push_mbap(&link, 0x0B02, 0x01, {0x03, 0x00, 0x01, 0x00, 0x01});
+  hub.loop();
+  ASSERT_FALSE(meter.tx.empty());
+  meter.tx.clear();
+  // 125 registers, the longest read reply: 259 bytes as MBAP.
+  const auto first = long_rtu({0x01, 0x03, 250}, 250);
+  meter.rx.insert(meter.rx.end(), first.begin(), first.end());
+  hub.loop();
+  EXPECT_EQ(link.tx.size(), 32u);
+  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  hub.loop();
+  // The second request is on the bus while the first reply is still leaving.
+  ASSERT_EQ(meter.tx.size(), RTU_REQ.size());
+  const auto second = rtu(0x01, {0x03, 0x02, 0x00, 0x07});
+  meter.rx.insert(meter.rx.end(), second.begin(), second.end());
+  for (int i = 0; i < 16; i++) {
+    hub.loop();
+  }
+  auto expected = as_mbap(0x0B01, first);
+  const auto next = as_mbap(0x0B02, second);
+  expected.insert(expected.end(), next.begin(), next.end());
+  EXPECT_EQ(link.tx, expected);
+}
+
+TEST(ModbusForward, TcpToTcpKeepsEachSidesTransaction) {
+  Pipe origin;
+  Pipe peer;
+  ModbusForwardHub hub;
+  arm(&hub, &origin, &peer, true, true);
+  push_mbap(&origin, 0x1234, 0x11, {0x03, 0x00, 0x00, 0x00, 0x01});
+  hub.loop();
+  ASSERT_GE(peer.tx.size(), 8u);
+  EXPECT_EQ(peer.tx[0], 0x00);
+  EXPECT_EQ(peer.tx[1], 0x01);
+  EXPECT_EQ(peer.tx[6], 0x11);
+  push_mbap(&peer, 1, 0x11, {0x03, 0x02, 0x12, 0x34});
+  hub.loop();
+  ASSERT_GE(origin.tx.size(), 8u);
+  EXPECT_EQ(origin.tx[0], 0x12);
+  EXPECT_EQ(origin.tx[1], 0x34);
+  EXPECT_EQ(origin.tx[6], 0x11);
+  EXPECT_EQ(origin.tx[7], 0x03);
+}
+
+TEST(ModbusForward, BadCrcIsNotForwarded) {
+  Pipe meter;
+  Pipe link;
+  ModbusForwardHub hub;
+  arm(&hub, &meter, &link, false, false);
+  auto bad = RTU_REQ;
+  bad.back() ^= 0xFF;
+  meter.rx.insert(meter.rx.end(), bad.begin(), bad.end());
+  hub.loop();
+  EXPECT_TRUE(link.tx.empty());
+  meter.rx.insert(meter.rx.end(), RTU_REQ.begin(), RTU_REQ.end());
+  hub.loop();
+  EXPECT_FALSE(link.tx.empty());
+  EXPECT_EQ(link.tx[0], 1);
 }
 
 }  // namespace

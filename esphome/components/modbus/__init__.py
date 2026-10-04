@@ -15,9 +15,11 @@ from esphome.const import (
     CONF_FLOW_CONTROL_PIN,
     CONF_ID,
     CONF_PROTOCOL,
+    CONF_RX_PIN,
+    CONF_TX_PIN,
     CONF_UART_ID,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj
 from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
@@ -47,6 +49,7 @@ modbus_ns = cg.esphome_ns.namespace("modbus")
 Modbus = modbus_ns.class_("Modbus", cg.Component, uart.UARTDevice)
 ModbusServer = modbus_ns.class_("ModbusServerHub", Modbus)
 ModbusClient = modbus_ns.class_("ModbusClientHub", Modbus)
+ModbusForward = modbus_ns.class_("ModbusForwardHub", Modbus)
 ModbusDevice = modbus_ns.class_("ModbusDevice")
 ModbusClientDevice = modbus_ns.class_("ModbusClientDevice")
 ModbusServerDevice = modbus_ns.class_("ModbusServerDevice")
@@ -58,10 +61,19 @@ CONF_EXPECT_BROADCAST_WRITE_RESPONSE = "expect_broadcast_write_response"
 CONF_MODBUS_ID = "modbus_id"
 CONF_SEND_WAIT_TIME = "send_wait_time"
 CONF_TURNAROUND_TIME = "turnaround_time"
+CONF_PEER_ID = "peer_id"
+CONF_PEER_PROTOCOL = "peer_protocol"
+CONF_PEER_FLOW_CONTROL_PIN = "peer_flow_control_pin"
 
 _PROTOCOL = cv.one_of("modbus_rtu", "modbus_tcp", lower=True)
 
 MODBUS_ROLES = ["client", "server"]
+
+# The client hub takes these times as 16-bit milliseconds; a Modbus timeout is far shorter anyway.
+_HUB_TIME_PERIOD = cv.All(
+    cv.positive_time_period_milliseconds,
+    cv.Range(max=cv.TimePeriod(milliseconds=65535)),
+)
 
 
 # The write (mutating) function codes, matching modbus::helpers::is_function_code_write(). 0x17
@@ -278,47 +290,108 @@ async def register_templatable_command_options(
             )
 
 
-def _tcp_has_no_flow_control(config: ConfigType) -> ConfigType:
-    if config.get(CONF_PROTOCOL) == "modbus_tcp" and CONF_FLOW_CONTROL_PIN in config:
+def _prepare_modbus_role(config: ConfigType) -> ConfigType:
+    """peer_id forwards. It is not a client or a server, so role cannot be set with it."""
+    if CONF_PEER_ID not in config:
+        if CONF_PEER_PROTOCOL in config:
+            raise cv.Invalid("peer_protocol needs peer_id", [CONF_PEER_PROTOCOL])
+        return config
+    role = config.get(CONF_ROLE)
+    if role is not None:
         raise cv.Invalid(
-            "flow_control_pin is a Modbus RTU pin and cannot be used with protocol: modbus_tcp",
-            [CONF_FLOW_CONTROL_PIN],
+            "role and peer_id cannot both be set. peer_id forwards one transaction "
+            "and the hub does not answer.",
+            [CONF_ROLE],
         )
+    if CONF_PROTOCOL not in config or CONF_PEER_PROTOCOL not in config:
+        raise cv.Invalid(
+            "protocol and peer_protocol are required when peer_id is set",
+            [CONF_PEER_ID],
+        )
+    config[CONF_ROLE] = "forward"
+    return config
+
+
+def _distinct_peers(config: ConfigType) -> ConfigType:
+    if (
+        config.get(CONF_ROLE) == "forward"
+        and config[CONF_UART_ID] == config[CONF_PEER_ID]
+    ):
+        raise cv.Invalid("peer_id must be a different UART", [CONF_PEER_ID])
+    return config
+
+
+def _tcp_has_no_flow_control(config: ConfigType) -> ConfigType:
+    for pin, protocol in (
+        (CONF_FLOW_CONTROL_PIN, CONF_PROTOCOL),
+        (CONF_PEER_FLOW_CONTROL_PIN, CONF_PEER_PROTOCOL),
+    ):
+        if config.get(protocol) == "modbus_tcp" and pin in config:
+            raise cv.Invalid(
+                f"{pin} is a Modbus RTU pin and cannot be used with {protocol}: modbus_tcp",
+                [pin],
+            )
     return config
 
 
 def _tcp_has_no_turnaround(config: ConfigType) -> ConfigType:
-    if config.get(CONF_PROTOCOL) == "modbus_tcp" and CONF_TURNAROUND_TIME in config:
+    # A forward sends its requests, and so its broadcasts, to peer_id.
+    protocol = (
+        CONF_PEER_PROTOCOL if config.get(CONF_ROLE) == "forward" else CONF_PROTOCOL
+    )
+    if config.get(protocol) == "modbus_tcp" and CONF_TURNAROUND_TIME in config:
         raise cv.Invalid(
-            "turnaround_time is the Modbus RTU silent gap and cannot be used with protocol: modbus_tcp",
+            f"turnaround_time is the Modbus RTU silent gap and cannot be used with {protocol}: modbus_tcp",
             [CONF_TURNAROUND_TIME],
         )
     return config
 
 
-def _tcp_hub_owns_its_uart(config: ConfigType) -> ConfigType:
-    """A Modbus TCP hub reads its UART itself, so no other modbus hub can use that UART.
+def _hub_uarts(hub: ConfigType) -> set[ID]:
+    return {hub[CONF_UART_ID], hub.get(CONF_PEER_ID)} - {None}
 
-    Grouped CI builds put many components on one test UART, so testing mode skips the check.
+
+def _final_validate_modbus(config: ConfigType) -> ConfigType:
+    """A Modbus TCP hub and a forward read their UARTs themselves, so they cannot share them.
+
+    Modbus RTU client and server hubs share a UART as before. Grouped CI builds put many components
+    on one test UART, so testing mode skips the check, as the uart pin check does.
     """
-    if config.get(CONF_PROTOCOL) != "modbus_tcp" or CORE.testing_mode:
+    forward = config.get(CONF_ROLE) == "forward"
+    if CORE.testing_mode or (not forward and config.get(CONF_PROTOCOL) != "modbus_tcp"):
         return config
-    for hub in fv.full_config.get().get(DOMAIN, []):
-        if (
-            hub[CONF_ID] != config[CONF_ID]
-            and hub[CONF_UART_ID] == config[CONF_UART_ID]
-        ):
+    full = fv.full_config.get()
+    mine = _hub_uarts(config)
+    for hub in full.get(DOMAIN, []):
+        if hub[CONF_ID] != config[CONF_ID] and _hub_uarts(hub) & mine:
             raise cv.Invalid(
-                "A Modbus TCP hub cannot share its UART with another modbus hub",
+                "A Modbus TCP or forwarding hub cannot share its UART with another modbus hub",
                 [CONF_UART_ID],
             )
+    if forward:
+        devices = full.data.setdefault(uart.KEY_UART_DEVICES, {})
+        for key in (CONF_UART_ID, CONF_PEER_ID):
+            device = devices.setdefault(config[key], {})
+            owners = {device.get(CONF_TX_PIN), device.get(CONF_RX_PIN)} - {
+                None,
+                "modbus",
+            }
+            if owners:
+                raise cv.Invalid(
+                    f"The UART is used both by a modbus forward and {next(iter(owners))}, "
+                    "but can only be used by one. Please create a new uart bus for the forward.",
+                    [key],
+                )
+            device[CONF_TX_PIN] = "modbus"
+            device[CONF_RX_PIN] = "modbus"
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _tcp_hub_owns_its_uart
+FINAL_VALIDATE_SCHEMA = _final_validate_modbus
 
 
 CONFIG_SCHEMA = cv.All(
+    _prepare_modbus_role,
     cv.typed_schema(
         {
             "client": cv.Schema(
@@ -345,10 +418,29 @@ CONFIG_SCHEMA = cv.All(
             )
             .extend(cv.COMPONENT_SCHEMA)
             .extend(uart.UART_DEVICE_SCHEMA),
+            "forward": cv.Schema(
+                {
+                    cv.GenerateID(): cv.declare_id(ModbusForward),
+                    cv.Required(CONF_PROTOCOL): _PROTOCOL,
+                    cv.Required(CONF_PEER_ID): cv.use_id(uart.UARTComponent),
+                    cv.Required(CONF_PEER_PROTOCOL): _PROTOCOL,
+                    cv.Optional(
+                        CONF_SEND_WAIT_TIME, default="2000ms"
+                    ): _HUB_TIME_PERIOD,
+                    cv.Optional(CONF_TURNAROUND_TIME): _HUB_TIME_PERIOD,
+                    cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
+                    cv.Optional(
+                        CONF_PEER_FLOW_CONTROL_PIN
+                    ): pins.gpio_output_pin_schema,
+                }
+            )
+            .extend(cv.COMPONENT_SCHEMA)
+            .extend(uart.UART_DEVICE_SCHEMA),
         },
         key=CONF_ROLE,
         default_type="client",
     ),
+    _distinct_peers,
     _tcp_has_no_flow_control,
     _tcp_has_no_turnaround,
 )
@@ -361,8 +453,25 @@ async def to_code(config: ConfigType) -> None:
 
     await uart.register_uart_device(var, config)
 
-    if config.get(CONF_PROTOCOL, "modbus_rtu") == "modbus_tcp":
+    if (
+        config[CONF_ROLE] == "forward"
+        or config.get(CONF_PROTOCOL, "modbus_rtu") == "modbus_tcp"
+    ):
         cg.add_define("USE_MODBUS_TCP")
+
+    if config[CONF_ROLE] == "forward":
+        peer = await cg.get_variable(config[CONF_PEER_ID])
+        cg.add(var.set_peer(peer))
+        cg.add(var.set_local_tcp(config[CONF_PROTOCOL] == "modbus_tcp"))
+        cg.add(var.set_peer_tcp(config[CONF_PEER_PROTOCOL] == "modbus_tcp"))
+        cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
+        if (turnaround := config.get(CONF_TURNAROUND_TIME)) is not None:
+            cg.add(var.set_turnaround_time(turnaround))
+        if (pin := config.get(CONF_FLOW_CONTROL_PIN)) is not None:
+            cg.add(var.set_flow_control_pin(await gpio_pin_expression(pin)))
+        if (pin := config.get(CONF_PEER_FLOW_CONTROL_PIN)) is not None:
+            cg.add(var.set_peer_flow_control_pin(await gpio_pin_expression(pin)))
+        return
 
     if CONF_FLOW_CONTROL_PIN in config:
         pin = await gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])

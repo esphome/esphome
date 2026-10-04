@@ -50,6 +50,7 @@ struct ModbusFrame {
 
 #ifdef USE_MODBUS_TCP
 class MbapLink;
+struct ForwardState;
 #endif
 
 /// Modbus RTU timing of a UART, from its framing and buffering.
@@ -397,6 +398,38 @@ class ModbusServerHub : public Modbus {
   std::array<uint8_t, MAX_RAW_SIZE> deferred_payload_;
   uint16_t deferred_payload_len_{0};
 };
+
+/// Forwards one transaction at a time from the client on uart_id to the server on peer_id, and the reply back.
+/// Each side is Modbus RTU or Modbus TCP. The hub does not answer itself, except with exception 0B to a TCP
+/// client when the server does not reply within send_wait_time. Devices cannot register here.
+#ifdef USE_MODBUS_TCP
+class ModbusForwardHub final : public Modbus {
+ public:
+  void setup() override;
+  void loop() override;
+  void dump_config() override;
+
+  void set_peer(uart::UARTComponent *peer) { this->peer_ = peer; }
+  void set_local_tcp(bool tcp) { this->local_tcp_ = tcp; }
+  void set_peer_tcp(bool tcp) { this->peer_tcp_ = tcp; }
+  void set_send_wait_time(uint16_t time_in_ms) { this->send_wait_time_us_ = time_in_ms * 1000UL; }
+  void set_turnaround_time(uint16_t time_in_ms) { this->turnaround_us_ = time_in_ms * 1000UL; }
+  void set_peer_flow_control_pin(GPIOPin *pin) { this->peer_flow_control_pin_ = pin; }
+
+ protected:
+  void parse_modbus_frames() override {}
+  void process_modbus_server_frame(uint8_t /*address*/, std::span<const uint8_t> /*pdu*/) override {}
+
+  ForwardState *state_{nullptr};
+  uart::UARTComponent *peer_{nullptr};
+  uint32_t send_wait_time_us_{2000000};
+  // Silence after a broadcast on an RTU peer, before the next request [SER 2.4.1: typically 100-200 ms].
+  uint32_t turnaround_us_{200000};
+  GPIOPin *peer_flow_control_pin_{nullptr};
+  bool local_tcp_{false};
+  bool peer_tcp_{false};
+};
+#endif
 
 /// Callback contract. Each accepted request ends in exactly ONE terminal: on_response() (data),
 /// on_error() (exception), on_no_response() (timeout/interruption), or on_not_sent() (dropped by

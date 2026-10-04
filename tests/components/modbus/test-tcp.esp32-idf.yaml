@@ -1,4 +1,9 @@
+substitutions:
+  forward_peer: uart_bus
+  forward_peer_protocol: modbus_rtu
+
 packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
   modbus: !include common-tcp.yaml
 
 wifi:
