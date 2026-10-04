@@ -12,6 +12,14 @@ class ServerLink : public esphome::modbus_tcp::ModbusTcp {
  public:
   ServerLink() { this->set_server(true); }
 
+  void stage(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
+    uint8_t frame[32];
+    size_t n = esphome::modbus_tcp::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
+    ASSERT_GT(n, 0u);
+    std::memcpy(this->tcp_buf_ + this->tcp_len_, frame, n);
+    this->tcp_len_ += static_cast<uint16_t>(n);
+  }
+
   void push(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
     uint8_t frame[32];
     size_t n = esphome::modbus_tcp::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
@@ -60,6 +68,33 @@ TEST(ModbusTcpServer, UnreadRequestIsKept) {
   link.deliver();
   EXPECT_EQ(link.txn(), 8);
   EXPECT_EQ(link.available(), waiting);
+}
+
+TEST(ModbusTcpServer, SameSegmentComesOutOneAtATime) {
+  ServerLink link;
+  link.stage(7, 1, PDU, sizeof(PDU));
+  link.stage(8, 1, PDU, sizeof(PDU));
+  link.stage(9, 1, PDU, sizeof(PDU));
+  link.deliver();
+
+  uint16_t one = link.available();
+  EXPECT_EQ(one, sizeof(PDU) + 3);
+  EXPECT_EQ(link.txn(), 7);
+
+  uint8_t taken[16];
+  ASSERT_TRUE(link.read_array(taken, one));
+  link.deliver();
+  EXPECT_EQ(link.txn(), 8);
+  EXPECT_EQ(link.available(), one);
+
+  ASSERT_TRUE(link.read_array(taken, one));
+  link.deliver();
+  EXPECT_EQ(link.txn(), 9);
+  EXPECT_EQ(link.available(), one);
+
+  ASSERT_TRUE(link.read_array(taken, one));
+  link.deliver();
+  EXPECT_EQ(link.available(), 0u);
 }
 
 TEST(ModbusTcpServer, ReplyWhileTheNewRequestIsBufferedIsDropped) {
