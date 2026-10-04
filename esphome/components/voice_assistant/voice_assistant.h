@@ -280,8 +280,6 @@ class VoiceAssistant final : public Component {
   Trigger<Timer> timer_updated_trigger_;
   Trigger<Timer> timer_cancelled_trigger_;
   Trigger<const std::vector<Timer> &> timer_tick_trigger_;
-  bool has_timers_{false};
-  bool timer_tick_running_{false};
 
   microphone::MicrophoneSource *mic_source_{nullptr};
   microphone::MicrophoneSource *mic_source2_{nullptr};
@@ -292,18 +290,12 @@ class VoiceAssistant final : public Component {
   size_t speaker_buffer_index_{0};
   size_t speaker_buffer_size_{0};
   size_t speaker_bytes_received_{0};
-  bool wait_for_stream_end_{false};
-  bool stream_ended_{false};
 #endif
 #ifdef USE_MEDIA_PLAYER
   media_player::MediaPlayer *media_player_{nullptr};
   std::string tts_response_url_;
-  bool started_streaming_tts_{false};
-
   MediaPlayerResponseState media_player_response_state_{MediaPlayerResponseState::IDLE};
 #endif
-
-  bool local_output_{false};
 
   std::string conversation_id_;
 
@@ -324,22 +316,12 @@ class VoiceAssistant final : public Component {
   // prolonged one can be detected and stopped; 0 means no imbalance is currently being timed.
   uint32_t audio_channel_stall_start_{0};
 
-  bool use_wake_word_;
-  uint8_t noise_suppression_level_;
-  uint8_t auto_gain_;
   float volume_multiplier_;
   uint32_t conversation_timeout_;
-
-  bool continuous_{false};
-  bool silence_detection_;
-
-  bool continue_conversation_{false};
 
   State state_{State::IDLE};
   State desired_state_{State::IDLE};
 
-  AudioMode audio_mode_{AUDIO_MODE_UDP};
-  bool udp_socket_running_{false};
   bool start_udp_socket_();
 
   Configuration config_{};
@@ -347,6 +329,26 @@ class VoiceAssistant final : public Component {
 #ifdef USE_MICRO_WAKE_WORD
   micro_wake_word::MicroWakeWord *micro_wake_word_{nullptr};
 #endif
+
+  // 1 byte members grouped at the end so they share padding instead of each taking a word
+  AudioMode audio_mode_{AUDIO_MODE_UDP};
+  bool has_timers_{false};
+  bool timer_tick_running_{false};
+#ifdef USE_SPEAKER
+  bool wait_for_stream_end_{false};
+  bool stream_ended_{false};
+#endif
+#ifdef USE_MEDIA_PLAYER
+  bool started_streaming_tts_{false};
+#endif
+  bool local_output_{false};
+  bool use_wake_word_;
+  uint8_t noise_suppression_level_;
+  uint8_t auto_gain_;
+  bool continuous_{false};
+  bool silence_detection_;
+  bool continue_conversation_{false};
+  bool udp_socket_running_{false};
 };
 
 extern VoiceAssistant *global_voice_assistant;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
