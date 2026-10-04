@@ -44,7 +44,7 @@ enum VoiceAssistantFeature : uint32_t {
   FEATURE_MULTI_CHANNEL_AUDIO = 1 << 6,
 };
 
-enum class State {
+enum class State : uint8_t {
   IDLE,
   START_MICROPHONE,
   STARTING_MICROPHONE,
@@ -96,7 +96,7 @@ struct Configuration {
 };
 
 #ifdef USE_MEDIA_PLAYER
-enum class MediaPlayerResponseState {
+enum class MediaPlayerResponseState : uint8_t {
   IDLE,
   URL_SENT,
   PLAYING,
@@ -237,6 +237,7 @@ class VoiceAssistant final : public Component {
 
   void set_state_(State state);
   void set_state_(State state, State desired_state);
+  bool start_udp_socket_();
   void signal_stop_();
   void start_playback_timeout_();
 
@@ -294,7 +295,6 @@ class VoiceAssistant final : public Component {
 #ifdef USE_MEDIA_PLAYER
   media_player::MediaPlayer *media_player_{nullptr};
   std::string tts_response_url_;
-  MediaPlayerResponseState media_player_response_state_{MediaPlayerResponseState::IDLE};
 #endif
 
   std::string conversation_id_;
@@ -319,11 +319,6 @@ class VoiceAssistant final : public Component {
   float volume_multiplier_;
   uint32_t conversation_timeout_;
 
-  State state_{State::IDLE};
-  State desired_state_{State::IDLE};
-
-  bool start_udp_socket_();
-
   Configuration config_{};
 
 #ifdef USE_MICRO_WAKE_WORD
@@ -331,6 +326,8 @@ class VoiceAssistant final : public Component {
 #endif
 
   // 1 byte members grouped at the end so they share padding instead of each taking a word
+  State state_{State::IDLE};
+  State desired_state_{State::IDLE};
   AudioMode audio_mode_{AUDIO_MODE_UDP};
   bool has_timers_{false};
   bool timer_tick_running_{false};
@@ -339,6 +336,7 @@ class VoiceAssistant final : public Component {
   bool stream_ended_{false};
 #endif
 #ifdef USE_MEDIA_PLAYER
+  MediaPlayerResponseState media_player_response_state_{MediaPlayerResponseState::IDLE};
   bool started_streaming_tts_{false};
 #endif
   bool local_output_{false};
