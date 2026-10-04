@@ -57,16 +57,16 @@ inline constexpr int64_t decode_zigzag64(uint64_t value) {
 }
 
 /// Count varints in a packed buffer: len minus bytes with the continuation bit, summed a word at a time.
-inline uint16_t count_packed_varints(const uint8_t *data, size_t len) {
-  using word_t = size_t;
-  constexpr size_t word_size = sizeof(word_t);
-  constexpr word_t lane_ones = ~word_t{0} / 0xFF;  // 0x01..01
+/// Word is a template parameter so tests can cover the 32-bit path on a 64-bit host.
+template<typename Word = size_t> inline uint16_t count_packed_varints(const uint8_t *data, size_t len) {
+  constexpr size_t word_size = sizeof(Word);
+  constexpr Word lane_ones = ~Word{0} / 0xFF;  // 0x01..01
   const uint8_t *end = data + len;
   size_t continuations = 0;
   while (data != end) {
     // Unaligned word loads fault on Xtensa
     if ((reinterpret_cast<uintptr_t>(data) & (word_size - 1)) == 0 && static_cast<size_t>(end - data) >= word_size) {
-      word_t word;
+      Word word;
       memcpy(&word, __builtin_assume_aligned(data, word_size), word_size);
       continuations += (((word >> 7) & lane_ones) * lane_ones) >> (word_size * 8 - 8);
       data += word_size;

@@ -59,7 +59,10 @@ TEST(CountPackedVarints, EveryStartOffsetAndLength) {
     byte = static_cast<uint8_t>(rng() & 0xFF);
   for (size_t offset = 0; offset < 16; offset++) {
     for (size_t len = 0; len + offset <= buf.size(); len++) {
-      EXPECT_EQ(count_packed_varints(buf.data() + offset, len), reference_count(buf.data() + offset, len))
+      const uint16_t expected = reference_count(buf.data() + offset, len);
+      EXPECT_EQ(count_packed_varints<uint32_t>(buf.data() + offset, len), expected)
+          << "offset=" << offset << " len=" << len;
+      EXPECT_EQ(count_packed_varints<uint64_t>(buf.data() + offset, len), expected)
           << "offset=" << offset << " len=" << len;
     }
   }
@@ -72,8 +75,9 @@ TEST(CountPackedVarints, LongBuffer) {
     byte = static_cast<uint8_t>((rng() % 4 == 0) ? (0x80 | (rng() & 0x7F)) : (rng() & 0x7F));
   for (size_t offset = 0; offset < 8; offset++) {
     const size_t len = buf.size() - offset;
-    EXPECT_EQ(count_packed_varints(buf.data() + offset, len), reference_count(buf.data() + offset, len))
-        << "offset=" << offset;
+    const uint16_t expected = reference_count(buf.data() + offset, len);
+    EXPECT_EQ(count_packed_varints<uint32_t>(buf.data() + offset, len), expected) << "offset=" << offset;
+    EXPECT_EQ(count_packed_varints<uint64_t>(buf.data() + offset, len), expected) << "offset=" << offset;
   }
 }
 
