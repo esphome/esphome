@@ -60,27 +60,19 @@ inline constexpr int64_t decode_zigzag64(uint64_t value) {
 inline uint16_t count_packed_varints(const uint8_t *data, size_t len) {
   using word_t = size_t;
   constexpr size_t word_size = sizeof(word_t);
-  constexpr word_t lane_ones = ~word_t{0} / 0xFF;                  // 0x01..01
-  constexpr size_t max_chunk_bytes = 255 / word_size * word_size;  // lane sum must fit in one byte
+  constexpr word_t lane_ones = ~word_t{0} / 0xFF;  // 0x01..01
   const uint8_t *end = data + len;
   size_t continuations = 0;
-  while (data != end && (reinterpret_cast<uintptr_t>(data) & (word_size - 1)) != 0) {
-    continuations += *data++ >> 7;
-  }
-  const uint8_t *aligned_end = data + (static_cast<size_t>(end - data) & ~(word_size - 1));
-  while (data != aligned_end) {
-    const uint8_t *chunk_end = data + std::min<size_t>(aligned_end - data, max_chunk_bytes);
-    word_t lanes = 0;
-    do {
+  while (data != end) {
+    // Unaligned word loads fault on Xtensa
+    if ((reinterpret_cast<uintptr_t>(data) & (word_size - 1)) == 0 && static_cast<size_t>(end - data) >= word_size) {
       word_t word;
       memcpy(&word, __builtin_assume_aligned(data, word_size), word_size);
-      lanes += (word >> 7) & lane_ones;
+      continuations += (((word >> 7) & lane_ones) * lane_ones) >> (word_size * 8 - 8);
       data += word_size;
-    } while (data != chunk_end);
-    continuations += (lanes * lane_ones) >> (word_size * 8 - 8);
-  }
-  while (data != end) {
-    continuations += *data++ >> 7;
+    } else {
+      continuations += *data++ >> 7;
+    }
   }
   return static_cast<uint16_t>(len - continuations);
 }

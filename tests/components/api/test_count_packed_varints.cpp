@@ -65,8 +65,7 @@ TEST(CountPackedVarints, EveryStartOffsetAndLength) {
   }
 }
 
-TEST(CountPackedVarints, LongBufferCrossesChunkBoundary) {
-  // Spans many lane chunks.
+TEST(CountPackedVarints, LongBuffer) {
   std::mt19937 rng(7);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   std::vector<uint8_t> buf(5000);
   for (auto &byte : buf)
