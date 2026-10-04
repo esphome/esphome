@@ -14,6 +14,9 @@ struct BlobMessage {
   uint32_t len;
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM) {
     const auto &msg = *static_cast<const BlobMessage *>(self);
+    // An empty vector's data() may be null, and memcpy needs a valid source even for zero bytes
+    if (msg.len == 0)
+      return pos;
     return ProtoEncode::encode_raw(pos PROTO_ENCODE_DEBUG_ARG, msg.data, msg.len);
   }
   static uint32_t calc_size_msg(const void *self) { return static_cast<const BlobMessage *>(self)->len; }
