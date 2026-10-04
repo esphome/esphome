@@ -56,6 +56,13 @@ TEST(XiaomiMCCGQ02HL, RejectsBadMic) {
   EXPECT_FALSE(h.open.has_state());
 }
 
+TEST(XiaomiMCCGQ02HL, BadMicDoesNotBlockTheNextFrame) {
+  Harness h;
+  EXPECT_FALSE(h.sensor.parse_device(advert(ADDRESS, BAD_MIC)));
+  ASSERT_TRUE(h.sensor.parse_device(advert(ADDRESS, OPEN)));
+  EXPECT_TRUE(h.open.state);
+}
+
 TEST(XiaomiMCCGQ02HL, IgnoresOtherAddress) {
   Harness h;
   EXPECT_FALSE(h.sensor.parse_device(advert(OTHER_ADDRESS, OPEN)));

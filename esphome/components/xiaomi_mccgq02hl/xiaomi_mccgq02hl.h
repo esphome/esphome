@@ -5,7 +5,6 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/ble_device_base/ble_device.h"
-#include "esphome/components/xiaomi_ble/xiaomi_ble.h"
 
 #include <vector>
 
@@ -15,14 +14,11 @@ namespace esphome::xiaomi_mccgq02hl {
 //
 // Self-contained on purpose: xiaomi_ble's parse_xiaomi_header() does not know
 // this product id and parse_xiaomi_value() does not know the door object, so
-// this class does its own header and object parsing and borrows only
-// decrypt_xiaomi_payload() from xiaomi_ble.
+// this class does its own header and object parsing and decryption.
 class XiaomiMCCGQ02HL final : public Component,
                               public binary_sensor::BinarySensorInitiallyOff,
                               public ble_device_base::ESPBTDeviceListener {
  public:
-  XiaomiMCCGQ02HL() { this->frame_.reserve(MAX_FRAME_SIZE); }
-
   void set_address(uint64_t address) { this->address_ = address; }
   void set_bindkey(const char *bindkey);
   void set_open(binary_sensor::BinarySensor *open) { this->open_ = open; }
@@ -39,9 +35,7 @@ class XiaomiMCCGQ02HL final : public Component,
     optional<float> battery_level;
   };
 
-  // Service data in a legacy advertisement is at most 27 bytes.
-  static constexpr size_t MAX_FRAME_SIZE = 27;
-
+  bool decrypt_(const uint8_t *frame, size_t size, size_t offset, uint8_t *plaintext) const;
   bool parse_service_data_(const std::vector<uint8_t> &data, Reading &reading);
   bool parse_objects_(const uint8_t *payload, size_t length, Reading &reading);
 
@@ -50,7 +44,6 @@ class XiaomiMCCGQ02HL final : public Component,
   // Per instance, unlike xiaomi_ble's function-static counter which is shared
   // by every Xiaomi device on the node.
   optional<uint8_t> last_frame_count_;
-  std::vector<uint8_t> frame_;
   binary_sensor::BinarySensor *open_{nullptr};
   binary_sensor::BinarySensor *light_{nullptr};
   sensor::Sensor *battery_level_{nullptr};

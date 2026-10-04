@@ -1,6 +1,9 @@
 #include "xiaomi_mccgq02hl.h"
+#include "esphome/components/ble_device_base/ble_aes_ccm.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#include <cstring>
 
 namespace esphome::xiaomi_mccgq02hl {
 
@@ -15,7 +18,10 @@ static constexpr uint8_t FC_CAPABILITY = 0x20;
 static constexpr uint8_t FC_OBJECT = 0x40;
 
 // Encrypted frames end in a 3-byte extended counter and a 4-byte MIC.
-static constexpr size_t ENCRYPTED_TRAILER = 7;
+static constexpr size_t MIC_SIZE = 4;
+static constexpr size_t ENCRYPTED_TRAILER = 3 + MIC_SIZE;
+// Largest encrypted payload accepted; MCCGQ02HL objects are 4 bytes.
+static constexpr size_t MAX_PAYLOAD_SIZE = 16;
 
 // Object ids. The door and light objects come in both the 0x00xx and the
 // 0x10xx flavour depending on firmware; the semantics are identical.
@@ -70,14 +76,23 @@ bool XiaomiMCCGQ02HL::parse_device(const ble_device_base::ESPBTDevice &device) {
   return success;
 }
 
-bool XiaomiMCCGQ02HL::parse_service_data_(const std::vector<uint8_t> &data, Reading &reading) {
-  if (data.size() < 5 || data.size() > MAX_FRAME_SIZE)
-    return false;
+bool XiaomiMCCGQ02HL::decrypt_(const uint8_t *frame, size_t size, size_t offset, uint8_t *plaintext) const {
+  uint8_t nonce[MAC_ADDRESS_SIZE + 6];
+  for (size_t i = 0; i < MAC_ADDRESS_SIZE; i++)
+    nonce[i] = static_cast<uint8_t>(this->address_ >> (i * 8));               // MAC, reversed
+  memcpy(nonce + MAC_ADDRESS_SIZE, frame + 2, 3);                             // product id + frame count
+  memcpy(nonce + MAC_ADDRESS_SIZE + 3, frame + size - ENCRYPTED_TRAILER, 3);  // extended counter
+  static constexpr uint8_t AUTH_DATA[1] = {0x11};
+  return ble_device_base::aes_ccm_auth_decrypt(this->bindkey_, nonce, sizeof(nonce), AUTH_DATA, sizeof(AUTH_DATA),
+                                               frame + offset, size - offset - ENCRYPTED_TRAILER, plaintext,
+                                               frame + size - MIC_SIZE, MIC_SIZE);
+}
 
-  // Decryption rewrites the buffer in place, and the tracker's service data is shared with every other
-  // listener, so work on a copy. frame_ was reserved at construction, so assign() does not allocate.
-  this->frame_.assign(data.begin(), data.end());
-  std::vector<uint8_t> &raw = this->frame_;
+bool XiaomiMCCGQ02HL::parse_service_data_(const std::vector<uint8_t> &data, Reading &reading) {
+  const size_t size = data.size();
+  if (size < 5)
+    return false;
+  const uint8_t *raw = data.data();
 
   const uint8_t fc = raw[0];
   if (!(fc & FC_OBJECT))
@@ -92,29 +107,28 @@ bool XiaomiMCCGQ02HL::parse_service_data_(const std::vector<uint8_t> &data, Read
     ESP_LOGVV(TAG, "Duplicate frame %u.", frame_count);
     return false;
   }
-  this->last_frame_count_ = frame_count;
 
-  size_t offset = 5 + ((fc & FC_MAC_INCLUDED) ? 6 : 0) + ((fc & FC_CAPABILITY) ? 1 : 0);
-  size_t end = raw.size();
-
+  const size_t offset = 5 + ((fc & FC_MAC_INCLUDED) ? 6 : 0) + ((fc & FC_CAPABILITY) ? 1 : 0);
+  bool found;
   if (fc & FC_ENCRYPTED) {
-    // decrypt_xiaomi_payload() assumes the ciphertext starts at byte 5 for a
-    // 19-byte frame and at byte 11 otherwise (MAC included, no capability).
-    const size_t cipher_pos = (raw.size() == 19) ? 5 : 11;
-    if (offset != cipher_pos) {
-      ESP_LOGW(TAG, "Unsupported encrypted frame layout (fc=0x%02X, %u bytes).", fc, (unsigned) raw.size());
+    if (size <= offset + ENCRYPTED_TRAILER || size - offset - ENCRYPTED_TRAILER > MAX_PAYLOAD_SIZE) {
+      ESP_LOGW(TAG, "Unsupported encrypted frame layout (fc=0x%02X, %u bytes).", fc, (unsigned) size);
       return false;
     }
-    if (!xiaomi_ble::decrypt_xiaomi_payload(raw, this->bindkey_, this->address_)) {
-      ESP_LOGW(TAG, "Decryption failed (%u-byte frame) -- check the bindkey.", (unsigned) raw.size());
+    uint8_t plaintext[MAX_PAYLOAD_SIZE];
+    if (!this->decrypt_(raw, size, offset, plaintext)) {
+      ESP_LOGW(TAG, "Decryption failed (%u-byte frame) -- check the bindkey.", (unsigned) size);
       return false;
     }
-    end = raw.size() - ENCRYPTED_TRAILER;
+    found = this->parse_objects_(plaintext, size - offset - ENCRYPTED_TRAILER, reading);
+  } else {
+    if (offset >= size)
+      return false;
+    found = this->parse_objects_(raw + offset, size - offset, reading);
   }
-
-  if (offset >= end)
-    return false;
-  return this->parse_objects_(raw.data() + offset, end - offset, reading);
+  // Only a frame that decrypted (or was plain) may advance the duplicate filter
+  this->last_frame_count_ = frame_count;
+  return found;
 }
 
 bool XiaomiMCCGQ02HL::parse_objects_(const uint8_t *payload, size_t length, Reading &reading) {
