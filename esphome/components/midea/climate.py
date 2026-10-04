@@ -232,9 +232,9 @@ async def to_code(config: ConfigType) -> None:
     # library talks to esp_wifi directly, so no library entry is needed.
     if CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("WiFi", None)
-    # Using the repository until a release containing ESP-IDF support is published
+    # Temporary Group 7 dependency for review; replace with upstream before merging.
     cg.add_library(
         name="MideaUART",
         version=None,
-        repository="https://github.com/dudanov/MideaUART.git#bc27625425d97a9038f2f4fab3768367948716f9",
+        repository="https://github.com/aalkon/MideaUART.git#bc27625425d97a9038f2f4fab3768367948716f9",
     )
