@@ -38,8 +38,9 @@ class TcpClientLink {
     }
     this->poll_slow_();
   }
-  /// Take over an accepted socket (the server side of a bridge).
-  void adopt(std::unique_ptr<Socket> sock);
+  /// Take over an accepted socket (the server side of a bridge). False when it
+  /// cannot be made non-blocking; it is closed and the retry clock restarts.
+  bool adopt(std::unique_ptr<Socket> sock);
   /// Returns bytes moved, 0 when nothing can move now, -1 when the link dropped.
   ssize_t read(uint8_t *buf, size_t len);
   /// Copy into the outgoing buffer; returns how many bytes fit.
