@@ -17,8 +17,8 @@ void PolygonZone::setup() {
       ESP_LOGW(TAG, "'%s': saved polygon is invalid; zone disabled", this->get_name().c_str());
     }
   }
+  // Presence stays unknown until the first radar frame
   this->publish_polygon_();
-  this->presence_->publish_initial_state(false);
 }
 
 void PolygonZone::dump_config() {
@@ -32,6 +32,8 @@ void PolygonZone::dump_config() {
 void PolygonZone::control(const std::string &value) {
   if (this->polygon_.parse(value.c_str(), value.size())) {
     this->pref_.save(&this->polygon_);
+    if (this->polygon_.empty())
+      this->presence_->invalidate_state();
   } else {
     ESP_LOGW(TAG, "'%s': invalid polygon '%s'; expected 'x,y;x,y;...' with %u to %u points", this->get_name().c_str(),
              value.c_str(), MIN_POLYGON_POINTS, MAX_POLYGON_POINTS);
