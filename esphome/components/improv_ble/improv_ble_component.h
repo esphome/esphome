@@ -81,7 +81,7 @@ class ImprovBLEComponent final : public Component, public improv_base::ImprovBas
 
   std::vector<uint8_t> incoming_data_;
   wifi::WiFiAP connecting_sta_;
-  // Single byte fields directly after connecting_sta_ so they fill its trailing padding
+  // Single byte fields here fill the alignment gap between connecting_sta_ and the next pointer
   improv::State state_{improv::STATE_STOPPED};
   improv::Error error_state_{improv::ERROR_NONE};
   bool should_start_{false};
