@@ -230,6 +230,14 @@ void ModbusTcp::deliver_mbap_() {
             }
             this->txn_pending_ = false;
           }
+          // The hub leaves a request for another unit to the RTU device that has it, and takes the next frame as
+          // that device's reply. No such device is on this link, so the next request would be lost. Drop it here.
+          const uint8_t *units_end = this->units_ + this->units_count_;
+          if (frame.unit != 0 && this->units_ != nullptr &&
+              std::find(this->units_, units_end, frame.unit) == units_end) {
+            ESP_LOGV(TAG, "No server for unit %u, request dropped", frame.unit);
+            break;
+          }
           size_t rtu_len = frame.pdu_len + 3;
           if (rtu_len > sizeof(this->rx_)) {
             note_drop(this->drop_log_ms_[DROP_TOO_LONG], LOG_STR("RTU frame too long, dropped"));

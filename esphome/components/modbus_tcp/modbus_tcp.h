@@ -15,6 +15,7 @@ namespace esphome::modbus_tcp {
 /// Client: a response is delivered only when it carries that request's transaction id.
 /// Server: one request at a time is delivered as one RTU frame, and the reply uses that id. The next stays in the
 /// TCP buffer until the reply went out or REPLY_TIMEOUT_MS passed. A reply must match the request's unit and function.
+/// With a unit list, a request to another unit is dropped, since no other device on this link answers it.
 /// A bad MBAP with a usable length is skipped. Without one, bytes are dropped until the peer has been quiet.
 class ModbusTcp : public uart::UARTComponent, public Component {
  public:
@@ -22,6 +23,11 @@ class ModbusTcp : public uart::UARTComponent, public Component {
 
   void set_parent(tcp_uart::TcpUart *parent) { this->parent_ = parent; }
   void set_server(bool server) { this->server_ = server; }
+  // Server: the units that the server devices on the hub answer.
+  void set_units(const uint8_t *units, uint8_t count) {
+    this->units_ = units;
+    this->units_count_ = count;
+  }
 
   void loop() override;
   void dump_config() override;
@@ -71,6 +77,7 @@ class ModbusTcp : public uart::UARTComponent, public Component {
   static constexpr uint32_t REPLY_TIMEOUT_MS = 1000;
 
   tcp_uart::TcpUart *parent_{nullptr};
+  const uint8_t *units_{nullptr};
   uint32_t drop_log_ms_[DROP_KIND_COUNT]{};
   // When tx_ holds an unfinished frame. A later write can tell a pause from a copy still in progress.
   uint32_t tx_partial_ms_{0};
@@ -81,6 +88,7 @@ class ModbusTcp : public uart::UARTComponent, public Component {
   uint16_t tcp_len_{0};
   uint16_t tx_len_{0};
   uint16_t rx_len_{0};
+  uint8_t units_count_{0};
   // Server: the open request's unit and function. Only a frame with both is its reply.
   uint8_t unit_{0};
   uint8_t function_{0};

@@ -238,6 +238,23 @@ TEST(ModbusTcpServer, BroadcastIsNotAnswered) {
   EXPECT_FALSE(link.pending());
 }
 
+TEST(ModbusTcpServer, RequestToAUnitNoServerAnswersIsDropped) {
+  static const uint8_t UNITS[] = {1};
+  const uint8_t write[] = {0x06, 0x00, 0x01, 0x00, 0x55};
+  ServerLink link;
+  link.set_units(UNITS, sizeof(UNITS));
+  // A broadcast still reaches the hub.
+  link.push(3, 0, write, sizeof(write));
+  uint8_t taken[16];
+  ASSERT_TRUE(link.read_array(taken, link.available()));
+  link.push(4, 5, PDU, sizeof(PDU));
+  EXPECT_EQ(link.available(), 0u);
+  EXPECT_FALSE(link.pending());
+  link.push(5, 1, write, sizeof(write));
+  EXPECT_EQ(link.txn(), 5);
+  EXPECT_EQ(link.available(), sizeof(write) + 3);
+}
+
 TEST(ModbusTcpServer, BadProtocolIdSkipsOnlyThatFrame) {
   Pipe pipe;
   ServerLink link;

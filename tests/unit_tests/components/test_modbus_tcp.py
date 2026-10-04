@@ -2,7 +2,7 @@
 
 import pytest
 
-from esphome.components.modbus_tcp import _final_validate
+from esphome.components.modbus_tcp import _final_validate, _served_units
 import esphome.config_validation as cv
 from esphome.core import ID
 import esphome.final_validate as fv
@@ -51,3 +51,19 @@ def test_server_hub_on_another_uart_passes() -> None:
     config = {"id": link, "tcp_uart_id": ID("sock")}
     full = {"modbus": [{"id": ID("hub"), "uart_id": ID("pins"), "role": "server"}]}
     assert _run(config, full) is None
+
+
+def test_served_units_are_those_on_the_link_hubs() -> None:
+    full = {
+        "modbus": [
+            {"id": ID("hub"), "uart_id": ID("mb_link"), "role": "server"},
+            {"id": ID("other"), "uart_id": ID("pins"), "role": "server"},
+        ],
+        "modbus_server": [
+            {"id": ID("a"), "modbus_id": ID("hub"), "address": 255},
+            {"id": ID("b"), "modbus_id": ID("other"), "address": 2},
+        ],
+        "hoermann_hcp": [{"id": ID("c"), "modbus_id": ID("hub"), "address": 1}],
+    }
+    assert _served_units(full, "mb_link") == [1, 255]
+    assert _served_units(full, "bridge_link") == []

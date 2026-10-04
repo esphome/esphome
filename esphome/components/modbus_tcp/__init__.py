@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import tcp_uart, uart
+from esphome.components import modbus, tcp_uart, uart
 from esphome.components.const import (
     CONF_DATA_BITS,
     CONF_PARITY,
@@ -7,8 +7,8 @@ from esphome.components.const import (
     CONF_STOP_BITS,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_UART_ID
-from esphome.core import CORE
+from esphome.const import CONF_ADDRESS, CONF_BAUD_RATE, CONF_ID, CONF_UART_ID
+from esphome.core import CORE, ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -53,6 +53,24 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+def _served_units(full: ConfigType, link_id: str) -> list[int]:
+    """Addresses of the server devices on the hubs that use this link."""
+    hubs = {
+        str(hub[CONF_ID])
+        for hub in full.get("modbus") or []
+        if str(hub.get(CONF_UART_ID, "")) == link_id
+    }
+    return sorted(
+        {
+            item[CONF_ADDRESS]
+            for domain in full.values()
+            for item in (domain if isinstance(domain, list) else [domain])
+            if isinstance(item, dict)
+            and str(item.get(modbus.CONF_MODBUS_ID, "")) in hubs
+        }
+    )
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -60,6 +78,13 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_parent(parent))
     if config[CONF_ROLE] == "server":
         cg.add(var.set_server(True))
+        # Without a hub, e.g. behind a bridge to an RTU bus, every request goes on.
+        if units := _served_units(CORE.config, str(config[CONF_ID])):
+            arr = cg.static_const_array(
+                ID(f"{config[CONF_ID]}_units", is_declaration=True, type=cg.uint8),
+                cg.ArrayInitializer(*units),
+            )
+            cg.add(var.set_units(arr, len(units)))
     # The socket is not clocked. The hub reads these from its UART during
     # setup(), and every cg.add() runs before App.setup().
     parent_config = CORE.config.get_config_for_path(

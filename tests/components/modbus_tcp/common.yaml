@@ -25,3 +25,7 @@ modbus:
   - id: answer_hub
     uart_id: answer
     role: server
+
+modbus_server:
+  - id: answer_server
+    modbus_id: answer_hub
