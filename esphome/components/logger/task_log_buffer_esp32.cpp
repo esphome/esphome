@@ -13,8 +13,6 @@ TaskLogBuffer::TaskLogBuffer() {
   xRingbufferCreateStatic(sizeof(this->storage_), RINGBUF_TYPE_NOSPLIT, this->storage_, &this->structure_);
 }
 
-TaskLogBuffer::~TaskLogBuffer() { vRingbufferDelete(this->handle_()); }
-
 bool TaskLogBuffer::borrow_message_main_loop(LogMessage *&message, uint16_t &text_length) {
   if (this->current_token_) {
     return false;
