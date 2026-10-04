@@ -2,7 +2,11 @@
 
 #include "esphome/core/hal.h"
 
-#ifdef USE_ESP32
+#ifdef OPENTHERM42_DATALINK_RMT
+#include "driver/rmt_rx.h"
+#include "driver/rmt_tx.h"
+#include "esp_timer.h"
+#elif defined(USE_ESP32)
 #include "driver/gptimer.h"
 #endif
 
@@ -59,8 +63,12 @@ enum class DataLinkError : uint8_t {
   // §4.3.1: no start bit seen from the boiler within the answering-time window (20-400 ms after the
   // master's transmission ended).
   RESPONSE_TIMEOUT,
-  // Hardware timer could not be configured/armed/read -- see TimerError for which operation failed.
+  // ISR backend only: hardware timer could not be configured/armed/read -- see TimerError for which
+  // operation failed.
   TIMER_ERROR,
+  // RMT backend only: the RMT peripheral driver returned an error -- see RmtError for which
+  // operation failed.
+  RMT_ERROR,
 };
 
 const char *data_link_error_to_string(DataLinkError error);
@@ -82,6 +90,19 @@ enum class TimerError : uint8_t {
 
 const char *timer_error_to_string(TimerError error);
 
+// Which specific RMT driver call failed when DataLinkError::RMT_ERROR is reported. RMT backend only.
+enum class RmtError : uint8_t {
+  RMT_ERROR_NONE = 0,
+  RMT_ERROR_NEW_TX_CHANNEL,
+  RMT_ERROR_NEW_RX_CHANNEL,
+  RMT_ERROR_NEW_ENCODER,
+  RMT_ERROR_ENABLE,
+  RMT_ERROR_TRANSMIT,
+  RMT_ERROR_RECEIVE,
+};
+
+const char *rmt_error_to_string(RmtError error);
+
 enum class DataLinkState : uint8_t {
   IDLE,
   LISTENING,  // waiting for the boiler's response start bit
@@ -97,16 +118,26 @@ enum class DataLinkState : uint8_t {
 // define. Conversation-level scheduling (§4.3: master-initiated request/response pairs, timing between
 // conversations) is the caller's responsibility -- this class only sends and receives single frames.
 //
-// Bit sampling runs from a hardware timer callback (IRAM-resident on ESP32/ESP8266) at 5x the nominal
-// bit rate (5 kHz, i.e. every 200 µs) while receiving, and at 2x the bit rate (2 kHz) while transmitting
-// -- fast enough to resolve the mid-bit transition against the spec's 100-150 µs acceptance window
-// (§3.3.2) without needing GPIO edge interrupts, whose latency is less predictable across platforms.
+// Two backends implement this same interface, chosen at compile time by whether
+// OPENTHERM42_DATALINK_RMT is defined (see datalink.cpp vs datalink_rmt.cpp):
+//
+// - ISR backend (datalink.cpp, always available): bit sampling runs from a hardware timer callback
+//   (IRAM-resident on ESP32/ESP8266) at 5x the nominal bit rate (5 kHz, i.e. every 200 µs) while
+//   receiving, and at 2x the bit rate (2 kHz) while transmitting -- fast enough to resolve the mid-bit
+//   transition against the spec's 100-150 µs acceptance window (§3.3.2). Every sample requires the ISR
+//   to run, so a long enough interrupt-mask elsewhere (e.g. another component's InterruptLock) can
+//   corrupt an in-flight frame.
+// - RMT backend (datalink_rmt.cpp, ESP32 only, on variants with RMT hardware): a 34-bit OT frame is 34
+//   RMT symbols, which fits in a single RMT memory block -- the peripheral clocks the whole frame
+//   autonomously once started, with no per-sample CPU/ISR involvement, so it isn't vulnerable to the
+//   same interrupt-mask collisions as the ISR backend.
 class OpenThermDataLink {
  public:
   OpenThermDataLink(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin);
 
-  // Configures the pins and (on ESP32) the hardware timer. Returns false if the timer could not be set
-  // up -- check get_timer_error() for why.
+  // Configures the pins and the backend's hardware (timer or RMT channels). Returns false if that setup
+  // failed -- check get_error() (and get_timer_error()/get_rmt_error() for the specific operation) for
+  // why.
   bool initialize();
 
   // Starts listening for a response frame from the boiler. response_timeout_ms bounds how long to wait
@@ -117,9 +148,9 @@ class OpenThermDataLink {
   // Starts transmitting a frame. The parity bit (§4.2.1) is computed and set automatically.
   void send(const Frame &frame);
 
-  // Disarms the timer, resets to IDLE, and drives the output pin back to its idle level. Call this once
-  // the caller is done inspecting a terminal state (get_frame()/get_error()) to prepare for the next
-  // listen()/send(). Safe to call from any state.
+  // Disarms the backend's hardware, resets to IDLE, and drives the output pin back to its idle level.
+  // Call this once the caller is done inspecting a terminal state (get_frame()/get_error()) to prepare
+  // for the next listen()/send(). Safe to call from any state.
   void stop();
 
   DataLinkState get_state() const { return this->state_; }
@@ -132,16 +163,28 @@ class OpenThermDataLink {
   Frame get_frame() const { return this->frame_; }
   // Only valid when has_error() is true.
   DataLinkError get_error() const { return this->error_; }
-  // Only valid when has_error() is true and get_error() == DataLinkError::TIMER_ERROR.
+  // Only valid when has_error() is true and get_error() == DataLinkError::TIMER_ERROR. ISR backend only
+  // -- always TIMER_ERROR_NONE on the RMT backend.
   TimerError get_timer_error() const { return this->timer_error_; }
+  // Only valid when has_error() is true and get_error() == DataLinkError::RMT_ERROR. RMT backend only --
+  // always RMT_ERROR_NONE on the ISR backend.
+  RmtError get_rmt_error() const { return this->rmt_error_; }
 
+#ifndef OPENTHERM42_DATALINK_RMT
 #ifdef USE_ESP32
   static bool timer_isr(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx);
 #else
   static void timer_isr();
 #endif
+#endif
 
  protected:
+  // Sets state_ to ERROR and records which error. Shared by both backends -- pure state, no hardware
+  // dependency.
+  void set_error_(DataLinkError error);
+  static bool check_parity(uint32_t frame_bits);
+
+#ifndef OPENTHERM42_DATALINK_RMT
   // Ported from a proven, hardware-verified Manchester decoder (esphome/components/opentherm/opentherm.cpp
   // as of this repository's a811aa840c) -- deliberately kept close to that structure and variable roles
   // rather than rewritten from the spec text, since a subtle bit-timing mistake here can't be caught by
@@ -153,32 +196,69 @@ class OpenThermDataLink {
   void record_bit_(uint8_t value);
   DataLinkError check_stop_bit_(uint8_t value);
   void write_bit_(uint8_t high, uint8_t clock);
-  static bool check_parity(uint32_t frame_bits);
-  // Sets state_ to ERROR and records which error -- callers must follow this with stop_timer_(), not
-  // stop() (which would immediately overwrite state_ back to IDLE).
-  void set_error_(DataLinkError error);
 
   // Disarms the hardware timer only -- does NOT touch state_/error_ or the output pin. Called from inside
   // the timer ISR once a conversation reaches a terminal state (RECEIVED/SENT/ERROR), so that terminal
   // state survives for the caller to inspect via get_state()/get_error() instead of being clobbered by a
   // reset back to IDLE. Contrast with the public stop(), which is what actually resets to IDLE.
   void stop_timer_();
+#else
+  // Decodes a captured burst of RMT symbols (one per OT bit -- see datalink_rmt.cpp's BIT0_SYMBOL/
+  // BIT1_SYMBOL) into frame_, or calls set_error_() if the Manchester/parity/stop-bit checks fail.
+  // Called from the RX-done callback below.
+  void decode_symbols_(const rmt_symbol_word_t *symbols, size_t word_count);
+  // rmt_transmit()/rmt_receive() are both asynchronous -- these move state_ to SENT/RECEIVED (or ERROR)
+  // once the hardware finishes, without blocking send()/listen() on completion the way a synchronous
+  // wait would (which would just reintroduce the loop()-blocking problem this backend exists to avoid).
+  static bool IRAM_ATTR tx_done_callback(rmt_channel_handle_t channel, const rmt_tx_done_event_data_t *edata,
+                                         void *user_ctx);
+  static bool IRAM_ATTR rx_done_callback(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *edata,
+                                         void *user_ctx);
+  // RMT only reports completion (rx_done_callback above), never "a transition just happened" -- so
+  // get_state() would otherwise stay LISTENING for the whole reception instead of moving to RECEIVING
+  // once the start bit arrives, unlike the ISR backend. This is a plain GPIO interrupt on in_pin_, armed
+  // alongside rmt_receive() purely to catch that one edge and detach itself -- RMT still does all the
+  // actual bit decoding. One interrupt per conversation, not one per sample, so it doesn't reintroduce
+  // the exposure this backend exists to avoid.
+  static void IRAM_ATTR start_bit_interrupt(OpenThermDataLink *self);
+#endif
 
   InternalGPIOPin *in_pin_;
   InternalGPIOPin *out_pin_;
+
+#ifndef OPENTHERM42_DATALINK_RMT
   ISRInternalGPIOPin isr_in_pin_;
   ISRInternalGPIOPin isr_out_pin_;
-
 #ifdef USE_ESP32
   gptimer_handle_t timer_handle_{nullptr};
+#endif
+#else
+  rmt_channel_handle_t tx_channel_{nullptr};
+  rmt_channel_handle_t rx_channel_{nullptr};
+  rmt_encoder_handle_t copy_encoder_{nullptr};
+  // One rmt_symbol_word_t per OT bit (start + 32 data/parity + stop). A class member, NOT a send()-local
+  // -- rmt_transmit() is asynchronous and the copy encoder reads from this buffer for the whole ~34ms
+  // transmission, well after send() itself has returned, so a stack-local array here would be read back
+  // as garbage once its stack frame is reused.
+  static constexpr size_t TX_SYMBOLS_COUNT = 34;
+  rmt_symbol_word_t tx_symbols_[TX_SYMBOLS_COUNT];
+  // One rmt_symbol_word_t per OT bit (34 = start + 32 data/parity + stop); generously sized above that
+  // for noise/glitch tolerance without needing a second memory block/ping-pong refill.
+  static constexpr size_t RX_SYMBOLS_CAPACITY = 64;
+  rmt_symbol_word_t rx_symbols_[RX_SYMBOLS_CAPACITY];
+  // One-shot timer for §4.3.1's "no start bit within response_timeout_ms" case -- see listen()/
+  // initialize() in datalink_rmt.cpp for why RMT's own idle-timeout can't detect this by itself.
+  esp_timer_handle_t response_timeout_handle_{nullptr};
 #endif
 
   DataLinkState state_{DataLinkState::IDLE};
   DataLinkError error_{DataLinkError::NONE};
   TimerError timer_error_{TimerError::TIMER_ERROR_NONE};
+  RmtError rmt_error_{RmtError::RMT_ERROR_NONE};
 
   Frame frame_;
 
+#ifndef OPENTHERM42_DATALINK_RMT
   // §3.3.1 Manchester decode, sampled every 200 µs (5x the nominal 1 kHz bit rate).
   //
   // `capture_` is a shift register of the most recent raw pin samples: bit 0 (`capture_ & 1`) is the
@@ -200,6 +280,7 @@ class OpenThermDataLink {
   uint32_t tx_data_{0};
   int8_t tx_bit_pos_{0};
   uint8_t tx_clock_{1};
+#endif
 };
 
 }  // namespace esphome::opentherm42

@@ -1,0 +1,7 @@
+packages:
+  opentherm42: !include common.yaml
+
+# Keeps the interrupt-driven timer backend under compile coverage on ESP32 now that RMT is the default
+# there -- see __init__.py's CONF_DATALINK.
+opentherm42:
+  datalink: esp_isr

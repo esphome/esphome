@@ -144,8 +144,10 @@ const SimpleSensorInfo *OpenTherm42Hub::find_simple_sensor_by_id_(uint8_t id) co
 void OpenTherm42Hub::setup() {
   this->datalink_ = make_unique<OpenThermDataLink>(this->in_pin_, this->out_pin_);
   if (!this->datalink_->initialize()) {
-    ESP_LOGE(TAG, "Failed to initialize the OpenTherm datalink (%s); see previous log messages for details",
-             timer_error_to_string(this->datalink_->get_timer_error()));
+    auto const error = this->datalink_->get_error();
+    const char *reason = error == DataLinkError::RMT_ERROR ? rmt_error_to_string(this->datalink_->get_rmt_error())
+                                                           : timer_error_to_string(this->datalink_->get_timer_error());
+    ESP_LOGE(TAG, "Failed to initialize the OpenTherm datalink (%s); see previous log messages for details", reason);
     this->mark_failed();
     return;
   }
@@ -576,6 +578,11 @@ void OpenTherm42Hub::dump_config() {
   ESP_LOGCONFIG(TAG, "OpenTherm 4.2:");
   LOG_PIN("  In pin: ", this->in_pin_);
   LOG_PIN("  Out pin: ", this->out_pin_);
+#ifdef OPENTHERM42_DATALINK_RMT
+  ESP_LOGCONFIG(TAG, "  Datalink backend: RMT");
+#else
+  ESP_LOGCONFIG(TAG, "  Datalink backend: ISR");
+#endif
 }
 
 }  // namespace esphome::opentherm42

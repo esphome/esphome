@@ -27,6 +27,7 @@ const char *data_link_error_to_string(DataLinkError error) {
     TO_STRING_CASE(DataLinkError::PARITY_ERROR)
     TO_STRING_CASE(DataLinkError::RESPONSE_TIMEOUT)
     TO_STRING_CASE(DataLinkError::TIMER_ERROR)
+    TO_STRING_CASE(DataLinkError::RMT_ERROR)
     default:
       return "<INVALID>";
   }
@@ -59,6 +60,39 @@ const char *timer_error_to_string(TimerError error) {
       return "<INVALID>";
   }
 }
+
+const char *rmt_error_to_string(RmtError error) {
+  switch (error) {
+    TO_STRING_CASE(RmtError::RMT_ERROR_NONE)
+    TO_STRING_CASE(RmtError::RMT_ERROR_NEW_TX_CHANNEL)
+    TO_STRING_CASE(RmtError::RMT_ERROR_NEW_RX_CHANNEL)
+    TO_STRING_CASE(RmtError::RMT_ERROR_NEW_ENCODER)
+    TO_STRING_CASE(RmtError::RMT_ERROR_ENABLE)
+    TO_STRING_CASE(RmtError::RMT_ERROR_TRANSMIT)
+    TO_STRING_CASE(RmtError::RMT_ERROR_RECEIVE)
+    default:
+      return "<INVALID>";
+  }
+}
+
+void IRAM_ATTR OpenThermDataLink::set_error_(DataLinkError error) {
+  this->state_ = DataLinkState::ERROR;
+  this->error_ = error;
+}
+
+// §4.2.1: the parity bit is set/cleared such that the total number of '1' bits across the whole 32-bit
+// frame is even. https://graphics.stanford.edu/~seander/bithacks.html#ParityParallel
+bool OpenThermDataLink::check_parity(uint32_t frame_bits) {
+  frame_bits ^= frame_bits >> 16;
+  frame_bits ^= frame_bits >> 8;
+  frame_bits ^= frame_bits >> 4;
+  frame_bits &= 0xF;
+  return ((0x6996 >> frame_bits) & 1) == 0;
+}
+
+// Everything below is the ISR backend (compile-time-selected when OPENTHERM42_DATALINK_RMT is NOT
+// defined) -- see datalink_rmt.cpp for the RMT backend's implementation of the same interface.
+#ifndef OPENTHERM42_DATALINK_RMT
 
 #ifdef ESP8266
 static OpenThermDataLink *instance = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -195,11 +229,6 @@ void OpenThermDataLink::stop() {
   this->out_pin_->digital_write(true);  // idle level
 }
 
-void IRAM_ATTR OpenThermDataLink::set_error_(DataLinkError error) {
-  this->state_ = DataLinkState::ERROR;
-  this->error_ = error;
-}
-
 #ifdef USE_ESP32
 bool IRAM_ATTR OpenThermDataLink::timer_isr(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata,
                                             void *user_ctx) {
@@ -314,14 +343,6 @@ void IRAM_ATTR OpenThermDataLink::write_bit_(uint8_t high, uint8_t clock) {
   }
 }
 
-// §4.2.1: the parity bit is set/cleared such that the total number of '1' bits across the whole 32-bit
-// frame is even. https://graphics.stanford.edu/~seander/bithacks.html#ParityParallel
-bool OpenThermDataLink::check_parity(uint32_t frame_bits) {
-  frame_bits ^= frame_bits >> 16;
-  frame_bits ^= frame_bits >> 8;
-  frame_bits ^= frame_bits >> 4;
-  frame_bits &= 0xF;
-  return ((0x6996 >> frame_bits) & 1) == 0;
-}
+#endif  // !OPENTHERM42_DATALINK_RMT
 
 }  // namespace esphome::opentherm42

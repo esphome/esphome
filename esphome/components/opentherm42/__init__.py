@@ -1,7 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import time as time_
-from esphome.components.esp32 import include_builtin_idf_component
+from esphome.components import esp32, esp32_rmt, time as time_
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TIME_ID, PLATFORM_ESP32, PLATFORM_ESP8266
 from esphome.core import CORE
@@ -28,6 +27,15 @@ AUTO_LOAD = [
 CONF_IN_PIN = "in_pin"
 CONF_OUT_PIN = "out_pin"
 CONF_MAX_DATA_INVALID = "max_data_invalid"
+# Which hardware mechanism this hub uses to talk to the boiler on the wire. A string rather than a
+# boolean so a future backend (e.g. RP2040 PIO) is just another accepted value, not a second flag that
+# could contradict the first. Left unset, the best backend available on the current platform/variant is
+# chosen automatically (DATALINK_ESP32_RMT where supported, DATALINK_ISR otherwise); set explicitly, an
+# unsupported choice is a config error rather than a silent fallback -- see _validate_datalink().
+CONF_DATALINK = "datalink"
+DATALINK_ISR = "esp_isr"
+DATALINK_ESP32_RMT = "esp32_rmt"
+DATALINK_BACKENDS = (DATALINK_ISR, DATALINK_ESP32_RMT)
 
 # §5.2's mandatory heartbeat (id=0): unconditionally scheduled regardless of which, if any, of its
 # switch/binary_sensor bits are configured -- see hub.h's Entry. Named after the exact marker prefix
@@ -166,6 +174,36 @@ def validate_requires_time_id(marker: str):
     return _validate
 
 
+def _esp32_rmt_available() -> bool:
+    return CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT
+
+
+def _validate_datalink(config: ConfigType) -> ConfigType:
+    """Rejects an explicit `datalink: esp32_rmt` on a platform/variant without RMT hardware.
+
+    Unlike a boolean flag, CONF_DATALINK has no `default=` in its schema, so config.get() here returns
+    None when the user left it unset, distinct from them having typed esp32_rmt explicitly -- that's what
+    makes raising cv.Invalid for the explicit case (while still silently auto-selecting when unset)
+    possible, which it wasn't for the boolean this option replaced.
+    """
+    if config.get(CONF_DATALINK) == DATALINK_ESP32_RMT and not _esp32_rmt_available():
+        variant = esp32.get_esp32_variant() if CORE.is_esp32 else "esp8266"
+        raise cv.Invalid(
+            f"'{DATALINK_ESP32_RMT}' is not available on {variant} (no RMT hardware) -- "
+            f"use '{DATALINK_ISR}' or leave '{CONF_DATALINK}' unset",
+            path=[CONF_DATALINK],
+        )
+    return config
+
+
+def _resolve_datalink(config: ConfigType) -> str:
+    """Returns the datalink backend to actually use, assuming _validate_datalink already passed."""
+    chosen = config.get(CONF_DATALINK)
+    if chosen is not None:
+        return chosen
+    return DATALINK_ESP32_RMT if _esp32_rmt_available() else DATALINK_ISR
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -184,6 +222,7 @@ CONFIG_SCHEMA = cv.All(
             # aren't a fixed duration, so a time-based grace period wouldn't mean the same thing for
             # every id, unlike a plain retry count.
             cv.Optional(CONF_MAX_DATA_INVALID, default=0): cv.int_range(min=0),
+            cv.Optional(CONF_DATALINK): cv.one_of(*DATALINK_BACKENDS, lower=True),
             # No cap here (unlike the old ms-based interval this replaced): passes aren't wall-clock
             # time, so §4.3.1's 1.15 s MCI ceiling can't be expressed as a cap on these values -- see
             # build_next_request_() for how that's handled instead.
@@ -193,10 +232,11 @@ CONFIG_SCHEMA = cv.All(
             },
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    # datalink.cpp only implements a hardware-timer backend for ESP32 (gptimer) and ESP8266 (Arduino
-    # Timer1) -- RP2040 and LibreTiny have no backend, so this matches the same restriction the
+    # datalink.cpp/datalink_rmt.cpp only implement backends for ESP32 (gptimer or RMT) and ESP8266
+    # (Arduino Timer1) -- RP2040 and LibreTiny have no backend, so this matches the same restriction the
     # earlier opentherm component uses.
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
+    _validate_datalink,
 )
 
 
@@ -221,6 +261,9 @@ async def to_code(config: dict) -> None:
     for option in UPDATE_EVERY_OPTIONS:
         cg.add(getattr(var, f"set_{option}")(config[option]))
 
-    if CORE.is_esp32:
+    if _resolve_datalink(config) == DATALINK_ESP32_RMT:
+        cg.add_define("OPENTHERM42_DATALINK_RMT")
+        esp32.include_builtin_idf_component("esp_driver_rmt")
+    elif CORE.is_esp32:
         # §4.3/§3.3.2 bit-timing (datalink.h) needs a hardware timer for microsecond-accurate sampling.
-        include_builtin_idf_component("esp_driver_gptimer")
+        esp32.include_builtin_idf_component("esp_driver_gptimer")

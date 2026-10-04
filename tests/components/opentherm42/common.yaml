@@ -15,6 +15,17 @@ opentherm42:
   # §4.4.1: tolerate a DATA_INVALID for up to 5s before actually invalidating an entity, since real
   # hardware has been observed answering DATA_INVALID transiently for a second or two.
   max_data_invalid: 3
+  # Selects how this hub talks to the boiler on the wire. Left unset (the default, and what this test
+  # exercises -- common.yaml is shared across esp32/esp32-c3/esp8266 targets, some of which don't have the
+  # hardware for every choice below), the best option for the current chip is picked automatically:
+  #   esp32_rmt: a dedicated piece of hardware available on most ESP32 chips -- recommended where
+  #     available, since it's the more robust option.
+  #   esp_isr: an interrupt-based implementation, the only option on ESP8266 and on ESP32 chips without
+  #     RMT hardware. Also selectable explicitly on a chip that does have RMT -- useful if your other
+  #     components have already claimed every available RMT channel. Note that this option is more
+  #     likely to run into occasional communication errors if you also have other components that briefly
+  #     disable interrupts (for example, Dallas temperature sensors).
+  # datalink: esp32_rmt
   # §5.2's mandatory heartbeat (id=0) -- unconditionally required, see hub.h's Entry.
   control_and_status_information_boiler_status_update_every: 1
 
