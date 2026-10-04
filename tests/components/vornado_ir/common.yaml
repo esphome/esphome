@@ -1,0 +1,18 @@
+remote_transmitter:
+  pin: 4
+  carrier_duty_percent: 50%
+
+vornado_ir:
+  id: vornado_ir_remote
+
+button:
+  - platform: vornado_ir
+    vornado_id: vornado_ir_remote
+    power_toggle:
+      name: Vornado IR Power Toggle
+    change_direction:
+      name: Vornado IR Change Direction
+    increase:
+      name: Vornado IR Increase
+    decrease:
+      name: Vornado IR Decrease
