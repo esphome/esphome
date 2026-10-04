@@ -10,3 +10,6 @@ sensor:
       name: CSE7761 Active Power 1
     active_power_2:
       name: CSE7761 Active Power 2
+    frequency:
+      name: CSE7761 Frequency
+    model: Sonoff DualR3
