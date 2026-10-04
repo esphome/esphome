@@ -622,10 +622,8 @@ int8_t step_to_accuracy_decimals(float step) {
 
 static constexpr uint8_t INVALID_BASE64_CHAR = 0xFF;
 
-// Map a base64/base64url character to its 6-bit value (0-63) arithmetically,
-// or INVALID_BASE64_CHAR when the character is not part of the alphabet.
-// No lookup table: a table would occupy RAM on ESP8266 (.rodata lives in DRAM there).
-// Supports both standard base64 (+/) and base64url (-_) alphabets.
+// 6-bit value of a base64 or base64url char, or INVALID_BASE64_CHAR.
+// No lookup table: .rodata lives in DRAM on ESP8266.
 static constexpr uint8_t base64_char_value(uint8_t c) {
   if (c >= 'A' && c <= 'Z')
     return c - 'A';
@@ -651,8 +649,7 @@ size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *b
   size_t out = 0;
   uint32_t accum = 0;
   uint32_t bits = 0;
-  // Stops at '=' or any other character outside the alphabet. Leftover bits of a
-  // trailing partial group are dropped, so 2 chars yield 1 byte and 3 chars yield 2.
+  // Stops at '=' or any non-alphabet char; leftover bits of a partial group are dropped.
   for (size_t in = 0; in < encoded_len; in++) {
     uint8_t value = base64_char_value(encoded_data[in]);
     if (value == INVALID_BASE64_CHAR)
