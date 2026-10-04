@@ -72,6 +72,14 @@ def declared_revisions(board_dir: Path) -> list[str]:
     ]
 
 
+def default_revision(board_dir: Path) -> str | None:
+    """Return `board_dir/board.yml`'s `revision: default:`, which Zephyr builds when
+    no `@<revision>` is given."""
+    revision = _read_revision_block(board_dir)
+    default = revision.get("default") if revision is not None else None
+    return str(default) if default is not None else None
+
+
 def resolve_revision(board_dir: Path, requested: str) -> tuple[str | None, bool]:
     """Resolve `requested` against `board_dir/board.yml`'s `revision:` block.
 

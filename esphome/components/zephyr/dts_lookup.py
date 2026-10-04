@@ -13,7 +13,7 @@ import yaml
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError
 
-from .board_revision import parse_board_string, resolve_revision
+from .board_revision import default_revision, parse_board_string, resolve_revision
 from .const import (
     KEY_BOARD_ROOT,
     KEY_SHIELD_ROOT,
@@ -618,7 +618,9 @@ def _build_edt(board: str, zephyr_base: Path, shields: list[str], snippets: list
 
     # A `board@revision` overlay is applied first so shields/snippets below can
     # still override anything it sets.
-    requested_revision = parse_board_string(board).revision
+    requested_revision = parse_board_string(board).revision or default_revision(
+        board_dir
+    )
     if requested_revision is not None:
         resolved_revision, declares_revisions = resolve_revision(
             board_dir, requested_revision
